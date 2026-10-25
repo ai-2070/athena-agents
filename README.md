@@ -65,6 +65,11 @@ tools" in Tools & MCP.
 - **Auto** (default): asks only for risky actions (shell, scripts, sending messages).
 - **Full**: never asks.
 
+**The Brain approves** (on by default, Settings > General > The Brain's model): when an agent or
+team asks permission, the Brain answers first. It allows routine, on-task work and passes anything
+risky or unclear (deleting, pushing, sending, secrets, work outside the project) to Needs you, with
+its reason. Workflow checkpoints and outside MCP clients always come to you.
+
 Posts to X and Reddit always go to the Outbox unless you turn on auto-post for that account; DMs
 always wait for you.
 
