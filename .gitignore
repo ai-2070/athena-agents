@@ -1,0 +1,6 @@
+node_modules/
+# Everything personal lives here: keys, account tokens, chats, agents, library clone.
+data/
+*.log
+# Design tool cache
+.impeccable/

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My Dashboard</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/vendor/xterm.css" />
+    <link rel="stylesheet" href="/app.css" />
+    <link rel="stylesheet" href="/station.css" />
+    <link rel="stylesheet" href="/station-extra.css" />
+    <link rel="stylesheet" href="/polish.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="nav">
+        <a class="brand" href="#/station">
+          <span class="brand-mark">◢</span>
+          <span class="brand-text">MY<b>DASH</b></span>
+        </a>
+        <nav id="nav-links"></nav>
+        <div class="nav-foot">
+          <div id="nav-status" class="mono dim"></div>
+        </div>
+      </aside>
+      <main id="main">
+        <header id="topbar">
+          <button id="nav-toggle" class="icon-btn" aria-label="Menu">☰</button>
+          <h1 id="page-title"></h1>
+          <div class="top-actions">
+            <span id="running-pill" class="pill hidden"></span>
+            <button id="needs-btn" class="btn ghost small">Needs you <span id="needs-count" class="badge">0</span></button>
+          </div>
+        </header>
+        <section id="view"></section>
+      </main>
+    </div>
+    <aside id="drawer" class="hidden" aria-label="Needs you">
+      <div class="drawer-head">
+        <h2>Needs you</h2>
+        <button class="icon-btn" id="drawer-close" aria-label="Close">✕</button>
+      </div>
+      <div id="drawer-body"></div>
+    </aside>
+    <div id="modal-root"></div>
+    <div id="toasts"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
