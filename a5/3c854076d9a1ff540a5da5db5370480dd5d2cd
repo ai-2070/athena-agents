@@ -1,0 +1,19 @@
+docs/internal/plans/CODE_REVIEW_2026-10-26.md
+  s_d22ee385de9730::t_7d70bb2780dfd5 1-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a53c854076d9a1ff540a5da5db5370480dd5d2cd",
+  "prompts": {},
+  "sessions": {
+    "s_d22ee385de9730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6b6b3e2e-df27-48d7-b1dc-c6e1c8ef286b",
+        "model": "unknown"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
