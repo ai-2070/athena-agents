@@ -144,6 +144,13 @@ export async function openrouterUsage(key: string | null | undefined): Promise<O
 // Codex: the 5-hour and weekly limits, from the newest session log Codex writes on this PC.
 type CodexWindow = { used_percent?: unknown; resets_at?: number; resets_in_seconds?: number } | null | undefined;
 type CodexLimits = { primary?: CodexWindow; secondary?: CodexWindow };
+// One logged window (loggedAt = when the log was written). A window that has already reset is dropped.
+export function codexWindow(x: CodexWindow, loggedAt: number, now = Date.now()): UsageWindow | null {
+  if (!x || typeof x.used_percent !== 'number') return null;
+  const resetsAt = x.resets_at ? (x.resets_at > 1e12 ? x.resets_at : x.resets_at * 1000) : x.resets_in_seconds ? loggedAt + x.resets_in_seconds * 1000 : null;
+  if (resetsAt && resetsAt <= now) return null;
+  return { percent: Math.round(x.used_percent), resetsAt };
+}
 let cxCache: { at: number; value: CodexUsage | null } = { at: 0, value: null };
 export function codexUsage(): CodexUsage | null {
   if (Date.now() - cxCache.at < 60_000) return cxCache.value;
@@ -169,8 +176,9 @@ export function codexUsage(): CodexUsage | null {
         const j = JSON.parse(l) as { payload?: { rate_limits?: CodexLimits }; rate_limits?: CodexLimits; msg?: { rate_limits?: CodexLimits } };
         const rl = j.payload?.rate_limits || j.rate_limits || j.msg?.rate_limits;
         if (!rl) continue;
-        const pick = (x: CodexWindow): UsageWindow | null => (x && typeof x.used_percent === 'number' ? { percent: Math.round(x.used_percent), resetsAt: x.resets_at ? (x.resets_at > 1e12 ? x.resets_at : x.resets_at * 1000) : x.resets_in_seconds ? newest!.t + x.resets_in_seconds * 1000 : null } : null);
-        value = { session: pick(rl.primary), week: pick(rl.secondary) };
+        const session = codexWindow(rl.primary, newest.t);
+        const week = codexWindow(rl.secondary, newest.t);
+        value = session || week ? { session, week } : null;
         break;
       }
     }

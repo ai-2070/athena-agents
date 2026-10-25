@@ -8,3 +8,4 @@ data/
 # Built browser bundle (bun run build)
 public/dist/
 coverage/
+public/.dist-tmp/

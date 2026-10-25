@@ -7,7 +7,7 @@ import { which, uid, IS_WIN, HOME } from './util.ts';
 import { emit, log } from './store.ts';
 import { prepareFiles, claudeArgs, claudeEnv } from './engines/claude.ts';
 import { hermesArgs } from './engines/hermes.ts';
-import { codexArgs } from './engines/codex.ts';
+import { codexArgs, terminalPromptFile } from './engines/codex.ts';
 import { buildSystemPrompt } from './engines/index.ts';
 import { workspaceOf } from './tools.ts';
 
@@ -64,7 +64,7 @@ export function createTerminal({ kind = 'shell', agent = null, command = null, a
       argv = hermesArgs(agent, { interactive: true });
     } else if (agent.engine === 'codex') {
       cmd = 'codex';
-      argv = codexArgs(agent, { interactive: true });
+      argv = codexArgs(agent, { interactive: true, promptFile: terminalPromptFile(agent, buildSystemPrompt(agent)) });
     } else throw new Error('API-model agents chat in the dashboard; open a terminal for a Claude Code, Codex or Hermes agent.');
     name ||= `${agent.emoji || ''} ${agent.name}`.trim();
   } else if (kind === 'command' && command) {

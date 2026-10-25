@@ -336,6 +336,13 @@ const isRunning = (p: Program, procs: Set<string>): boolean => !!(p.serviceUrl |
 export async function refreshRunning() {
   if (!cache.list.length) await discoverPrograms();
   const procs = await runningExes();
+  // services (ComfyUI, LM Studio, Ollama...) are asked again, so starting or stopping one shows up
+  await Promise.all(
+    cache.list.map(async (p) => {
+      const service = CATALOG.find((c) => c.id === p.id)?.service;
+      if (service) p.serviceUrl = await service().catch(() => null);
+    }),
+  );
   for (const p of cache.list) p.running = isRunning(p, procs);
   const now = cache.list.filter((p) => p.running).map((p) => p.id).join(',');
   if (lastRunning !== null && now !== lastRunning) emit('programs', { running: now ? now.split(',') : [] });

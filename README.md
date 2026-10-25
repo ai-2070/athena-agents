@@ -55,7 +55,9 @@ permission requests and Outbox posts.
 - **Hermes**: one of your Hermes profiles.
 - **OpenAI Codex**: the `codex` CLI with your ChatGPT login (install and sign in from Settings).
 
-Every engine gets the dashboard tools through the MCP bridge (`server/mcp-bridge.ts`).
+Claude Code and Codex get the dashboard tools through the MCP bridge (`server/mcp-bridge.ts`);
+API-model agents call them directly. Hermes gets them once you click "Give Hermes the dashboard
+tools" in Tools & MCP.
 
 ## Autonomy
 
@@ -77,7 +79,8 @@ them back.
 ## Security
 
 Listens on 127.0.0.1 only, answers only to `localhost`/`127.0.0.1` host names, needs a custom
-header for every change, and refuses requests and WebSocket connections from other websites.
+header for every API change, and refuses API requests and WebSocket connections from other
+websites. The one exception is the X and Reddit sign-in callbacks, which arrive from those sites.
 There is no login, so anyone using this Windows account can open it.
 
 ## Development

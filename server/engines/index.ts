@@ -112,25 +112,32 @@ export function activeRuns(): ActiveRun[] {
   return [...active.entries()].map(([id, r]) => ({ id, agentId: r.agentId, chatId: r.chatId, startedAt: r.startedAt, agentName: r.agentName, parentRunId: r.parentRunId || null }));
 }
 
+// What the current turn of a chat is about: its message, latest tool and latest text.
+// Only items after the last user message count, so an earlier run's tool or answer never shows.
+export function turnActivity(items: ChatItem[]): Pick<LiveActivity, 'task' | 'from' | 'tool' | 'saying'> {
+  const start = items.findLastIndex((i) => i.type === 'user');
+  const turn = start === -1 ? items : items.slice(start);
+  const lastUser = start === -1 ? undefined : (turn[0] as ChatItemOf<'user'>);
+  const lastTool = turn.findLast((i): i is ChatItemOf<'tool'> => i.type === 'tool');
+  const lastText = turn.findLast((i): i is ChatItemOf<'assistant'> => i.type === 'assistant');
+  return {
+    task: String(lastUser?.text || '').slice(0, 300),
+    from: lastUser?.from || null,
+    tool: lastTool ? { name: lastTool.name, status: lastTool.status, args: JSON.stringify(lastTool.args || {}).slice(0, 200) } : null,
+    saying: String(lastText?.text || '').slice(-240),
+  };
+}
+
 // What every running agent is doing right now (for the Brain's overview).
 export function liveActivity(): LiveActivity[] {
-  return [...active.entries()].map(([id, r]) => {
-    const items = r.chat?.items || [];
-    const lastUser = [...items].reverse().find((i): i is ChatItemOf<'user'> => i.type === 'user');
-    const lastTool = [...items].reverse().find((i): i is ChatItemOf<'tool'> => i.type === 'tool');
-    const lastText = [...items].reverse().find((i): i is ChatItemOf<'assistant'> => i.type === 'assistant');
-    return {
-      runId: id,
-      agentId: r.agentId,
-      agentName: r.agentName,
-      chatId: r.chatId,
-      seconds: Math.round((Date.now() - r.startedAt) / 1000),
-      task: String(lastUser?.text || '').slice(0, 300),
-      from: lastUser?.from || null,
-      tool: lastTool ? { name: lastTool.name, status: lastTool.status, args: JSON.stringify(lastTool.args || {}).slice(0, 200) } : null,
-      saying: String(lastText?.text || '').slice(-240),
-    };
-  });
+  return [...active.entries()].map(([id, r]) => ({
+    runId: id,
+    agentId: r.agentId,
+    agentName: r.agentName,
+    chatId: r.chatId,
+    seconds: Math.round((Date.now() - r.startedAt) / 1000),
+    ...turnActivity(r.chat?.items || []),
+  }));
 }
 
 export function runInfo(runId: string | null | undefined): RunInfo | null {

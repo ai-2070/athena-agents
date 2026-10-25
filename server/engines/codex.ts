@@ -1,7 +1,8 @@
 // OpenAI Codex engine: runs `codex exec --json` (your ChatGPT login via `codex login`, or an API key),
 // resuming the same Codex thread so the conversation continues. The dashboard tools come in as an MCP server.
+import fs from 'node:fs';
 import path from 'node:path';
-import { which, spawnCommand, killTree, run as runCmd, ROOT, PORT } from '../util.ts';
+import { which, spawnCommand, killTree, run as runCmd, ROOT, PORT, dataPath, ensureDir } from '../util.ts';
 import { internalToken } from '../store.ts';
 import { listServers } from '../mcp.ts';
 import { workspaceOf } from '../tools.ts';
@@ -70,10 +71,19 @@ export const refreshStatus = () => (statusCache.at = 0);
 const tstr = (s: unknown): string => JSON.stringify(String(s).replace(/\\/g, '/'));
 const ttable = (o: Record<string, unknown>): string => `{${Object.entries(o).map(([k, v]) => `${/^[A-Za-z0-9_-]+$/.test(k) ? k : JSON.stringify(k)}=${JSON.stringify(String(v))}`).join(',')}}`;
 
-export function codexArgs(agent: Agent, { runId = '', interactive = false }: { runId?: string; interactive?: boolean } = {}): string[] {
+// The interactive terminal has no first message to carry the agent brief (see run()), so it goes
+// in a file and Codex's developer instructions point there. Only a short path goes on the command line.
+export function terminalPromptFile(agent: Agent, systemPrompt: string): string {
+  const file = path.join(ensureDir(dataPath('runtime', agent.id)), 'terminal-codex-instructions.md');
+  fs.writeFileSync(file, systemPrompt);
+  return file;
+}
+
+export function codexArgs(agent: Agent, { runId = '', interactive = false, promptFile = '' }: { runId?: string; interactive?: boolean; promptFile?: string } = {}): string[] {
   const args: string[] = interactive ? [] : ['exec', '--json', '--skip-git-repo-check'];
   args.push('-C', workspaceOf(agent));
   if (agent.model) args.push('-m', agent.model);
+  if (promptFile) args.push('-c', `developer_instructions=${tstr(`Your agent instructions are in ${promptFile}. Read that file before anything else and follow it for this whole session.`)}`);
   // the dashboard's own tools, plus the agent's MCP servers
   const bridge = { DASH_PORT: String(PORT), DASH_TOKEN: internalToken(), DASH_AGENT: agent.id, ...(runId ? { DASH_RUN: runId } : {}) };
   args.push('-c', `mcp_servers.dashboard.command=${tstr(process.execPath)}`);
@@ -88,7 +98,10 @@ export function codexArgs(agent: Agent, { runId = '', interactive = false }: { r
       args.push('-c', `mcp_servers.${name}.command=${tstr(cfg.command)}`);
       args.push('-c', `mcp_servers.${name}.args=[${(cfg.args || []).map(tstr).join(',')}]`);
       if (Object.keys(cfg.env || {}).length) args.push('-c', `mcp_servers.${name}.env=${ttable(cfg.env)}`);
-    } else args.push('-c', `mcp_servers.${name}.url=${tstr(cfg.url)}`);
+    } else {
+      args.push('-c', `mcp_servers.${name}.url=${tstr(cfg.url)}`);
+      if (Object.keys(cfg.headers || {}).length) args.push('-c', `mcp_servers.${name}.http_headers=${ttable(cfg.headers)}`);
+    }
   }
   // autonomy → Codex sandbox
   const mode = agent.autonomy || 'auto';

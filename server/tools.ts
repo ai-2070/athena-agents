@@ -76,7 +76,7 @@ export const TOOL_GROUPS: ToolGroup[] = [
   { id: 'blender', label: 'Blender', description: 'Run Blender Python (modeling, rendering, exports).' },
   { id: 'adobe', label: 'Adobe', description: 'Photoshop and After Effects scripts, open Premiere projects.' },
   { id: 'media', label: 'FFmpeg', description: 'Convert, cut and inspect audio and video.' },
-  { id: 'social', label: 'Social', description: 'Draft X and Reddit posts (they wait in the Outbox), read posts, mentions and subreddits, Telegram, Discord.' },
+  { id: 'social', label: 'Social', description: 'Draft X and Reddit posts (they wait in the Outbox unless auto-post is on), read posts, mentions and subreddits, Telegram, Discord.' },
   { id: 'agents', label: 'Delegate', description: 'Ask other agents and Hermes profiles for help.' },
   { id: 'files', label: 'Files', description: 'Read and write files in its workspace and folders you allow.' },
   { id: 'orca', label: 'Orca', description: 'Run Orca CLI commands (worktrees, terminals, its browser).' },
@@ -417,7 +417,7 @@ const TOOLS: ToolDef[] = [
     name: 'reddit_draft_post',
     group: 'social',
     risk: 'none',
-    description: 'Write a Reddit post. It waits in the Outbox for the user to approve or edit. Follow the subreddit rules; no spam or self-promotion where it is not allowed.',
+    description: 'Write a Reddit post. It waits in the Outbox for the user to approve or edit, unless that account has auto-post on, in which case it is published straight away. Follow the subreddit rules; no spam or self-promotion where it is not allowed.',
     parameters: obj({ subreddit: str('Subreddit, e.g. LocalLLaMA'), title: str('Post title'), text: str('Post body (markdown)'), link: str('Or a link to share instead of text'), account: str('Which of your Reddit accounts') }, ['subreddit', 'title']),
     run: async ({ subreddit, title, text, link, account, note }: { subreddit: string; title: string; text?: string; link?: string; account?: string; note?: string }, ctx) => {
       const r = await social.draftPost({ platform: 'reddit', subreddit, title, text, link, account, note, agentId: ctx.agent.id, agentName: ctx.agent.name });
@@ -428,7 +428,7 @@ const TOOLS: ToolDef[] = [
     name: 'reddit_draft_comment',
     group: 'social',
     risk: 'none',
-    description: 'Write a Reddit comment replying to a post or comment (give its URL or id). It waits in the Outbox for the user to approve.',
+    description: 'Write a Reddit comment replying to a post or comment (give its URL or id). It waits in the Outbox for the user to approve, unless that account has auto-post on, in which case it is published straight away.',
     parameters: obj({ reply_to: str('Post or comment URL, or id like t3_abc / t1_abc'), text: str('The comment (markdown)'), account: str('Which of your Reddit accounts') }, ['reply_to', 'text']),
     run: async ({ reply_to, text, account }: { reply_to: string; text: string; account?: string }, ctx) => {
       const r = await social.draftPost({ platform: 'reddit', parent: reply_to, text, account, agentId: ctx.agent.id, agentName: ctx.agent.name });
