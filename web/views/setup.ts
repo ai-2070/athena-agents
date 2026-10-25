@@ -112,7 +112,7 @@ function focusText(root: ParentNode, text: string | null, tries = 14): void {
 export async function render(el: HTMLElement): Promise<void> {
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
   if (TABS.some((t) => t.id === q.get('tab'))) tab = q.get('tab')!;
-  const body = h('div');
+  let body = h('div');
   const search = h('input.settings-search-input', { type: 'search', placeholder: 'Search settings…', 'aria-label': 'Search settings' });
   const results = h('div.settings-search-results.hidden');
   let picked = 0;
@@ -129,6 +129,8 @@ export async function render(el: HTMLElement): Promise<void> {
   const drawResults = () => {
     const qv = norm(search.value);
     if (!qv) {
+      hits = [];
+      picked = 0;
       results.classList.add('hidden');
       return;
     }
@@ -180,6 +182,7 @@ export async function render(el: HTMLElement): Promise<void> {
     } else if (e.key === 'Escape' && (search.value || !results.classList.contains('hidden'))) {
       e.preventDefault();
       search.value = '';
+      hits = [];
       results.classList.add('hidden');
     }
   });
@@ -188,6 +191,8 @@ export async function render(el: HTMLElement): Promise<void> {
   const draw = async () => {
     inner?.unmount?.();
     inner = TABS.find((t) => t.id === tab)!.view;
+    // a fresh box per draw: a slow render from a tab left meanwhile lands in the old, detached one
+    body = h('div');
     mount(
       el,
       h(

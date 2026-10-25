@@ -75,6 +75,8 @@ interface Brand {
 const UI: Record<string, string> = ${JSON.stringify(ui)};
 const BRANDS: Record<string, Brand | undefined> = ${JSON.stringify(brands)};
 const NS = 'http://www.w3.org/2000/svg';
+// own keys only, so names like "constructor" don't hit Object.prototype
+const brand = (key: string): Brand | undefined => (Object.hasOwn(BRANDS, key) ? BRANDS[key] : undefined);
 
 // A line icon, e.g. icon('play'). Inherits the text color.
 export function icon(name: string, size: number | string = 16, cls = ''): SVGSVGElement {
@@ -89,14 +91,14 @@ export function icon(name: string, size: number | string = 16, cls = ''): SVGSVG
   s.setAttribute('stroke-linejoin', 'round');
   s.setAttribute('class', \`ico-svg \${cls}\`.trim());
   s.setAttribute('aria-hidden', 'true');
-  s.innerHTML = UI[name] || UI['box'];
+  s.innerHTML = (Object.hasOwn(UI, name) && UI[name]) || UI['box'];
   return s;
 }
 
 // A brand logo by name ("gmail", "Google Drive", "blender"…), or null when we don't have it.
 export function logo(name: string | null | undefined, size: number | string = 16, color: string | null = null): SVGSVGElement | null {
   const key = String(name || '').toLowerCase().replace(/^claude\\.ai\\s+/, '').trim();
-  const b = BRANDS[key] || BRANDS[key.replace(/[^a-z ]/g, '')] || BRANDS[key.split(' ')[0]];
+  const b = brand(key) || brand(key.replace(/[^a-z ]/g, '')) || brand(key.split(' ')[0]);
   if (!b) return null;
   const s = document.createElementNS(NS, 'svg');
   s.setAttribute('viewBox', '0 0 24 24');
@@ -113,12 +115,12 @@ export function logo(name: string | null | undefined, size: number | string = 16
 
 // Raw logo path for drawing on a canvas (the agent monitors): { d, hex } or null.
 export function brandPath(name: string | null | undefined): { d: string; hex: string } | null {
-  const b = BRANDS[String(name || '').toLowerCase()];
+  const b = brand(String(name || '').toLowerCase());
   return b ? { d: b.d, hex: b.hex === '#000000' ? '#e6e8e0' : b.hex } : null;
 }
 
 export const brandColor = (name: string | null | undefined): string | null => {
-  const b = BRANDS[String(name || '').toLowerCase()];
+  const b = brand(String(name || '').toLowerCase());
   return b ? (b.hex === '#000000' ? '#e6e8e0' : b.hex) : null;
 };
 `;

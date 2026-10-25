@@ -79,14 +79,15 @@ export async function openNewProject({ mode: startMode = 'new', onDone }: { mode
   const kickoff = h('input', { type: 'checkbox', checked: true });
   const extra = h('div.col');
   const hint = h('p.hint');
+  // a blank name falls back to the repo's name (GitHub only); otherwise the server asks for one
+  const repoName = () => (mode === 'github' && repo.value.trim().split('/').pop()?.replace(/\.git$/, '')) || '';
+  const namePlaceholder = name.placeholder;
   const suggest = () => {
+    name.placeholder = repoName() || namePlaceholder;
     if (!touchedFolder && mode !== 'existing') folder.value = info.root ? `${info.root}${sep}${slug(name.value || repo.value.split('/').pop())}` : '';
   };
   name.addEventListener('input', suggest);
-  repo.addEventListener('input', () => {
-    if (!name.value) name.placeholder = repo.value.split('/').pop()?.replace(/\.git$/, '') || name.placeholder;
-    suggest();
-  });
+  repo.addEventListener('input', suggest);
   folder.addEventListener('input', () => (touchedFolder = true));
   const draw = () => {
     mount(
@@ -98,13 +99,13 @@ export async function openNewProject({ mode: startMode = 'new', onDone }: { mode
       (mode === 'new' ? 'Starts with a BRAIN.md and a notes folder.' : mode === 'existing' ? 'If the dashboard saved this folder before, its agents, teams and chats load back in.' : 'Agents work right inside the repo, so they see its code, README and CLAUDE.md.') +
       ' Everything is auto-saved into the folder (.dashboard).';
     if (mode === 'existing' && !touchedFolder) folder.value = '';
-    else suggest();
+    suggest();
   };
   let m: ModalHandle;
   const create = async (btn: HTMLButtonElement) => {
     btn.disabled = true;
     btn.textContent = mode === 'github' ? 'Cloning…' : 'Creating…';
-    const p = await attempt(() => POST<CreatedProject>('/projects', { name: name.value.trim() || name.placeholder, mode, folder: folder.value.trim(), repo: repo.value.trim(), description: about.value.trim() }));
+    const p = await attempt(() => POST<CreatedProject>('/projects', { name: name.value.trim() || repoName(), mode, folder: folder.value.trim(), repo: repo.value.trim(), description: about.value.trim() }));
     btn.disabled = false;
     btn.textContent = 'Create project';
     if (!p) return;

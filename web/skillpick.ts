@@ -17,7 +17,8 @@ export async function loadSkills(force = false): Promise<SkillListing[]> {
   if (cache && !force) return cache;
   loading ||= GET<{ skills: SkillListing[]; claude: ClaudeSkill[] }>('/skills')
     .then((r): SkillListing[] => (cache = r.skills))
-    .catch((): SkillListing[] => (cache = []))
+    // not cached, so the next load tries again
+    .catch((): SkillListing[] => [])
     .finally(() => (loading = null));
   return loading;
 }

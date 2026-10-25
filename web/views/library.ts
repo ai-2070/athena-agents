@@ -108,6 +108,9 @@ async function hire(payload: HirePayload, name: string): Promise<Agent | undefin
     const wf = await GET<Team>(`/workflows/${branch}`).catch(() => null);
     if (wf) {
       wf.members = [...new Set([...(wf.members || []), a.id])];
+      // the step list mirrors members (the Team editor and runs use it)
+      const steps = wf.steps || [];
+      if (!steps.some((s) => s.type === 'agent' && s.agentId === a.id)) wf.steps = [...steps, { id: Math.random().toString(36).slice(2), type: 'agent', agentId: a.id, prompt: steps.length ? 'Continue from this:\n{{prev}}' : '{{input}}' }];
       await PUT(`/workflows/${branch}`, wf).catch(() => {});
       toast(`${name} joined the ${wf.name} team`);
       return a;

@@ -3,7 +3,7 @@ import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, avatar, engineBad
 import { skillPicker } from '../skillpick.ts';
 import type { Option } from '../core.ts';
 import type { ModelListing } from '../models.ts';
-import type { Agent, Autonomy, EngineStatus, Terminal } from '../../shared/types.ts';
+import type { Agent, Autonomy, EngineStatus, Team, Terminal } from '../../shared/types.ts';
 
 /** GET /api/agents/:id: the agent plus its knowledge files and resolved workspace. */
 export interface AgentDetail extends Agent {
@@ -110,7 +110,12 @@ const AUTONOMY: Option<Autonomy>[] = [
 ];
 
 async function renderEditor(el: HTMLElement, id: string): Promise<void> {
-  const [agent, mcpData, profiles] = await Promise.all([GET<AgentDetail>(`/agents/${id}`), GET<McpListing>('/mcp'), GET<HermesProfile[]>('/hermes/profiles').catch((): HermesProfile[] => [])]);
+  const [agent, mcpData, profiles, teams] = await Promise.all([
+    GET<AgentDetail>(`/agents/${id}`),
+    GET<McpListing>('/mcp'),
+    GET<HermesProfile[]>('/hermes/profiles').catch((): HermesProfile[] => []),
+    GET<Team[]>('/workflows').catch((): Team[] => []),
+  ]);
   const d = state.data!;
   const a: Agent = structuredClone(agent);
   let dirty = false;
@@ -343,8 +348,14 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
         h(
           'div.panel',
           h('div.panel-head', h('h2', 'Skills')),
-          skillPicker(a.skills || [], set('skills'), { inherited: [...(d.project?.skills || []).map((slug) => ({ slug, from: 'project' }))], empty: 'No skills of its own yet.' }),
-          h('p.hint.mt', 'Skills given to this agent. It also gets the project\'s skills (greyed) and, while working for a team, that team\'s skills. Save to apply. Manage the library under Skills.'),
+          skillPicker(a.skills || [], set('skills'), {
+            inherited: [
+              ...(d.project?.skills || []).map((slug) => ({ slug, from: 'project' })),
+              ...teams.filter((w) => (w.members || []).includes(id)).flatMap((w) => (w.skills || []).map((slug) => ({ slug, from: w.name }))),
+            ],
+            empty: 'No skills of its own yet.',
+          }),
+          h('p.hint.mt', 'Skills given to this agent. It also gets the project\'s skills and, while working for a team, that team\'s skills (both greyed). Save to apply. Manage the library under Skills.'),
         ),
         h(
           'div.panel',

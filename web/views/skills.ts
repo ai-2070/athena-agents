@@ -209,13 +209,16 @@ function openImport() {
             ? h('span.pill.ok', 'in library')
             : h('button.btn.small', {
                 onclick: async (e) => {
-                  e.currentTarget.disabled = true;
+                  const btn = e.currentTarget;
+                  btn.disabled = true;
                   const r = await attempt(() => POST('/skills/import', { name: c.slug }), `Imported ${c.name}`);
-                  if (r) {
-                    c.inLibrary = true;
-                    drawRows();
-                    reload();
+                  if (!r) {
+                    btn.disabled = false; // failed: let them try again
+                    return;
                   }
+                  c.inLibrary = true;
+                  drawRows();
+                  reload();
                 },
               }, 'Import'),
         ),

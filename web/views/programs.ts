@@ -80,8 +80,11 @@ async function startProgram(p: ProgramInfo, btn: HTMLElement): Promise<void> {
   const r = await attempt(() => POST<{ message: string }>('/programs/launch', { program: p.id }), (x) => x.message);
   if (!r) return;
   const card = btn.closest('.card');
+  const dot = card?.querySelector('.corner .dot');
+  // already open: no "programs" event will come to clear "starting…"
+  if (!dot || dot.classList.contains('on')) return;
   card?.querySelector('.prog-state')?.replaceChildren(`${p.version ? `v${p.version}` : 'installed'} · starting…`);
-  card?.querySelector('.corner .dot')?.classList.add('busy');
+  dot.classList.add('busy');
 }
 
 // A program opened or closed (the server checks every few seconds): update the cards in place.

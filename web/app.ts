@@ -144,6 +144,9 @@ async function route() {
 const drawer = document.getElementById('drawer')!;
 const drawerBody = document.getElementById('drawer-body')!;
 let seenApprovals = new Set<string>();
+// Cards are kept while their approval is unchanged, so a typed note or edit survives other refreshes.
+let drawnApprovals = '';
+let approvalCards = new Map<string, { key: string; el: HTMLElement }>();
 
 function renderApprovals() {
   const list = state.data?.approvals || [];
@@ -151,13 +154,23 @@ function renderApprovals() {
   const count = document.getElementById('needs-count')!;
   count.textContent = String(n);
   count.classList.toggle('hot', n > 0);
+  const drawn = JSON.stringify([list, state.data?.outboxPending || 0]);
+  if (drawn === drawnApprovals) return;
+  drawnApprovals = drawn;
+  approvalCards = new Map(
+    list.map((a) => {
+      const key = JSON.stringify(a);
+      const old = approvalCards.get(a.id);
+      return [a.id, old?.key === key ? old : { key, el: approvalCard(a) }];
+    }),
+  );
   clear(drawerBody);
   if (state.data?.outboxPending) {
     drawerBody.append(
       h('div.approval', h('div.t', `${state.data.outboxPending} post${state.data.outboxPending > 1 ? 's' : ''} waiting in the Outbox`), h('button.btn.small', { onclick: () => (navigate('#/settings?tab=connections&sub=outbox'), drawer.classList.add('hidden')) }, 'Review posts')),
     );
   }
-  for (const a of list) drawerBody.append(approvalCard(a));
+  for (const c of approvalCards.values()) drawerBody.append(c.el);
   if (!n) drawerBody.append(h('p.empty', 'Nothing needs you right now.'));
   // Open the drawer when something new arrives.
   const fresh = list.filter((a) => !seenApprovals.has(a.id));
