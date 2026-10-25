@@ -1,0 +1,19 @@
+scripts/dev.ts
+  s_f2901c10ee7a02::t_b4617a148fc645 3,7-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "22bb982c39a9704a712cef2e8ce0ba3d6473571a",
+  "prompts": {},
+  "sessions": {
+    "s_f2901c10ee7a02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c6845d0c-7bfd-4d0d-b028-e01dff667210",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
