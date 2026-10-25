@@ -30,6 +30,8 @@ import * as teams from './teams.js';
 import * as reddit from './reddit.js';
 import * as overseer from './overseer.js';
 import * as projectSync from './projectsync.js';
+import * as skills from './skills.js';
+import * as presets from './presets.js';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
@@ -109,6 +111,7 @@ post('/api/projects', async (_p, body) => {
   // a folder saved by the dashboard before: load its agents, teams and chats
   const restored = projectSync.restoreInto(p.id, p.brainPath);
   if (restored && !p.description && restored.project.description) p = projects.updateProject(p.id, { description: restored.project.description });
+  if (restored?.project.skills?.length) p = projects.updateProject(p.id, { skills: restored.project.skills });
   if (restored) store.emit('project', { id: p.id });
   p = { ...p, restored };
   projects.touch(p.id);
@@ -186,7 +189,7 @@ get('/api/agents/:id', async ({ id }) => {
 });
 put('/api/agents/:id', async ({ id }, body) => {
   const a = need(agents.get(id));
-  const allowed = ['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'autonomy', 'toolGroups', 'mcpServers', 'knowledge', 'workspace', 'temperature', 'pinned', 'alwaysAllow'];
+  const allowed = ['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'autonomy', 'toolGroups', 'mcpServers', 'knowledge', 'workspace', 'temperature', 'pinned', 'alwaysAllow', 'skills'];
   for (const k of allowed) if (k in body) a[k] = body[k];
   return agents.save(a);
 });
@@ -278,6 +281,33 @@ post('/api/runs/:id/stop', async ({ id }) => ({ ok: engines.stopRun(id) }));
 // ---------- approvals ----------
 get('/api/approvals', async () => listApprovals());
 post('/api/approvals/:id', async ({ id }, body) => ({ ok: decide(id, body || {}) }));
+
+// ---------- skills ----------
+get('/api/skills', async () => ({ skills: skills.listSkills(), claude: skills.claudeSkills() }));
+get('/api/skills/:slug', async ({ slug }) => need(skills.getSkill(slug)));
+post('/api/skills', async (_p, body) => {
+  const s = skills.saveSkill(body || {});
+  log('skill', `Saved the skill "${s.name}"`);
+  return s;
+});
+put('/api/skills/:slug', async ({ slug }, body) => skills.saveSkill({ ...(body || {}), slug }));
+del('/api/skills/:slug', async ({ slug }) => {
+  skills.deleteSkill(slug);
+  // and take it off every agent, team and project that had it
+  for (const a of agents.list()) if ((a.skills || []).includes(slug)) agents.save({ ...a, skills: a.skills.filter((x) => x !== slug) });
+  for (const w of workflows.list()) if ((w.skills || []).includes(slug)) workflows.save({ ...w, skills: w.skills.filter((x) => x !== slug) });
+  for (const p of store.listProjects()) if ((p.skills || []).includes(slug)) projects.updateProject(p.id, { skills: p.skills.filter((x) => x !== slug) });
+  return { ok: true };
+});
+post('/api/skills/import', async (_p, body) => skills.importClaudeSkill(body.name));
+
+// ---------- presets & clones ----------
+get('/api/presets', async () => presets.listPresets());
+post('/api/presets/agent/:id', async ({ id }, body) => presets.saveAgentPreset(id, body || {}));
+post('/api/presets/team/:id', async ({ id }, body) => presets.saveTeamPreset(id, body || {}));
+post('/api/presets/:id/use', async ({ id }) => presets.usePreset(id));
+del('/api/presets/:id', async ({ id }) => (presets.deletePreset(id), { ok: true }));
+post('/api/workflows/:id/clone', async ({ id }, body) => presets.cloneTeam(id, { withAgents: !!body?.withAgents }));
 
 // ---------- library ----------
 get('/api/library', async () => ({ ...(await library.libraryIndex()), starters: library.STARTERS.map(({ name, emoji, specialty }) => ({ name, emoji, specialty })) }));

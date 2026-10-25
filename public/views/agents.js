@@ -1,5 +1,6 @@
 // Agents: your team, and the editor for one agent.
 import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, avatar, engineBadge, navigate, seg, chipSet, field, select, toast, confirmBox, promptBox, onState, isRunning, copy, ago } from '../core.js';
+import { skillPicker } from '../skillpick.js';
 
 let root;
 let off;
@@ -320,6 +321,12 @@ async function renderEditor(el, id) {
         ),
         h(
           'div.panel',
+          h('div.panel-head', h('h2', 'Skills')),
+          skillPicker(a.skills || [], set('skills'), { inherited: [...(d.project?.skills || []).map((slug) => ({ slug, from: 'project' }))], empty: 'No skills of its own yet.' }),
+          h('p.hint.mt', 'Skills given to this agent. It also gets the project\'s skills (greyed) and, while working for a team, that team\'s skills. Save to apply. Manage the library under Skills.'),
+        ),
+        h(
+          'div.panel',
           h('div.panel-head', h('h2', 'Workspace')),
           field('Working folder', h('input', { value: a.workspace || '', placeholder: agent.workspacePath, oninput: (e) => set('workspace')(e.target.value.trim()) }), 'Where it saves files and runs commands. Empty = its own folder in the dashboard data.'),
           h('div.row.mt', h('button.btn.ghost.small', { onclick: () => attempt(() => POST(`/agents/${id}/open-workspace`)) }, 'Open folder')),
@@ -333,7 +340,8 @@ async function renderEditor(el, id) {
             h('button.btn.ghost.small', { onclick: async () => {
               const c = await attempt(() => POST(`/agents/${id}/duplicate`), 'Duplicated');
               if (c) navigate(`#/agents/${c.id}/edit`);
-            } }, 'Duplicate'),
+            } }, 'Clone'),
+            h('button.btn.ghost.small', { title: 'Keep it as a template you can create again in any project (Library > Your presets)', onclick: () => attempt(() => POST(`/presets/agent/${id}`), `Saved ${a.name} as a preset`) }, 'Save as preset'),
             h('button.btn.ghost.small', { title: 'Write it to ~/.claude/agents so any Claude Code session can use it', onclick: () => attempt(() => POST(`/agents/${id}/export-claude`), (r) => `Saved as ${r.file}`) }, 'Install in Claude Code'),
             h('button.btn.danger.small', { onclick: async () => {
               if (!(await confirmBox(`Delete ${a.name}? Its chats stay in the data folder.`, { ok: 'Delete', danger: true }))) return;

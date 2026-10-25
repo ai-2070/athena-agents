@@ -11,6 +11,7 @@ import * as social from './social.js';
 import * as reddit from './reddit.js';
 import * as kb from './knowledge.js';
 import { ensureBrain } from './projects.js';
+import * as skills from './skills.js';
 
 export const TOOL_GROUPS = [
   { id: 'programs', label: 'Programs', description: 'See what is installed and start programs, files and folders.' },
@@ -53,6 +54,20 @@ const str = (description) => ({ type: 'string', description });
 const obj = (properties, required = []) => ({ type: 'object', properties, required });
 
 const TOOLS = [
+  // ---------- skills (every agent; the list it has is in its instructions) ----------
+  {
+    name: 'read_skill',
+    group: 'core',
+    risk: 'none',
+    description: 'Open one of your skills (listed under "Your skills" in your instructions) and get its full instructions. Pass file to read one of the extra files that come with the skill.',
+    parameters: obj({ name: str('The skill name as listed'), file: str('Optional: a file that belongs to the skill, e.g. reference.md') }, ['name']),
+    run: async ({ name, file }) => {
+      const s = skills.findSkill(name);
+      if (!s) return { text: `There is no skill called "${name}". Your skills are listed in your instructions.`, isError: true };
+      if (file) return { text: `# ${s.name} / ${file}\n\n${skills.readSkillFile(s.slug, file)}` };
+      return { text: `# Skill: ${s.name}\n${s.description}\n\n${s.body}${s.files.length ? `\n\n---\nFiles with this skill (read with read_skill name="${s.name}" file="..."): ${s.files.map((f) => f.path).join(', ')}` : ''}` };
+    },
+  },
   // ---------- programs ----------
   {
     name: 'list_programs',

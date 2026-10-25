@@ -109,7 +109,8 @@ export function newAgent(fields = {}) {
     knowledge: { folders: fields.knowledge?.folders || [] },
     workspace: fields.workspace || '',
     temperature: fields.temperature ?? '',
-    alwaysAllow: [],
+    alwaysAllow: Array.isArray(fields.alwaysAllow) ? fields.alwaysAllow : [],
+    skills: Array.isArray(fields.skills) ? fields.skills : [],
     source: fields.source || { type: 'custom' },
     pinned: false,
   };

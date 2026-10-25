@@ -12,6 +12,7 @@ import * as connections from './views/connections.js';
 import * as terminals from './views/terminals.js';
 import * as settings from './views/settings.js';
 import * as setup from './views/setup.js';
+import * as skillsView from './views/skills.js';
 import { initDock } from './dock.js';
 import { applyLook, applySavedLook } from './look.js';
 
@@ -24,6 +25,7 @@ const NAV = [
   { path: 'station', label: 'Station', ico: 'orbit', view: station },
   { path: 'agents', label: 'Agents', ico: 'bot', view: agents },
   { path: 'library', label: 'Library', ico: 'library-big', view: library },
+  { path: 'skills', label: 'Skills', ico: 'puzzle', view: skillsView },
   { path: 'settings', label: 'Settings', ico: 'settings', view: setup, count: () => state.data?.outboxPending },
 ];
 const HIDDEN = [

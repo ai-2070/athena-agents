@@ -61,6 +61,8 @@ export function updateProject(id, patch) {
   if (!p) throw new Error('No such project.');
   if (patch.name) p.name = String(patch.name).slice(0, 80);
   if (typeof patch.description === 'string') p.description = patch.description.trim().slice(0, 6000);
+  // skills every agent in the project gets
+  if (Array.isArray(patch.skills)) p.skills = [...new Set(patch.skills.map(String))].slice(0, 100);
   if (patch.brainPath) {
     if (!exists(patch.brainPath)) throw new Error(`${patch.brainPath} doesn't exist.`);
     p.brainPath = path.resolve(patch.brainPath);

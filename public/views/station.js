@@ -9,6 +9,7 @@ import { openBranchBuilder } from '../builder.js';
 import { openDock } from '../dock.js';
 import { uiZoom } from '../look.js';
 import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.js';
+import { skillPicker } from '../skillpick.js';
 import { icon, logo, brandPath } from '../icons.js';
 import { openProjectMenu, openNewProject } from '../projects.js';
 import { modelChip, modelInfo } from '../models.js';
@@ -1661,6 +1662,8 @@ function openMenu(e, p) {
     item('Chat', () => openChat('agent', a.id), '', 'message-square');
     item('Edit agent', () => navigate(`#/agents/${a.id}/edit`), '', 'pencil');
     if (a.engine !== 'openai') item('Open in terminal', () => openTerminal(a), '', 'terminal');
+    item('Clone', () => cloneAgent(a), '', 'copy');
+    item('Save as preset', () => presetAgent(a), '', 'bookmark-plus');
     const others = S.workflows.filter((w) => !w.steps.some((s) => s.type === 'agent' && s.agentId === a.id));
     if (others.length) {
       sep();
@@ -1693,6 +1696,9 @@ function openMenu(e, p) {
     item('Open', () => choose({ type: 'branch', id: w.id }), '', 'maximize-2');
     item('Message the team', () => openChat('team', w.id), '', 'message-square');
     item('Edit in builder', () => openBranchBuilder({ wf: w, onSaved: reloadWorkflows }), '', 'workflow');
+    item('Clone team', () => cloneTeam(w, false), '', 'copy');
+    item('Clone with copies of its agents', () => cloneTeam(w, true), '', 'copy');
+    item('Save as preset', () => presetTeam(w), '', 'bookmark-plus');
     item('Rename', async () => {
       const name = await promptBox('Rename team', { value: w.name });
       if (name?.trim()) await saveWorkflow({ ...w, name: name.trim() });
@@ -2276,6 +2282,22 @@ function setMembers(wf, members) {
   if (wf.lead && !members.includes(wf.lead)) wf.lead = null;
 }
 
+// Clone / save as preset, for agents and teams.
+async function cloneAgent(a) {
+  const c = await attempt(() => POST(`/agents/${a.id}/duplicate`), `Cloned ${a.name}`);
+  if (c) refreshSoon(0);
+  return c;
+}
+async function cloneTeam(w, withAgents) {
+  const c = await attempt(() => POST(`/workflows/${w.id}/clone`, { withAgents }), withAgents ? `Cloned ${w.name} with copies of its agents` : `Cloned ${w.name}`);
+  if (!c) return;
+  if (withAgents) refreshSoon(0);
+  await reloadWorkflows();
+  choose({ type: 'branch', id: c.id });
+}
+const presetAgent = (a) => attempt(() => POST(`/presets/agent/${a.id}`), `Saved ${a.name} as a preset (Library › Your presets)`);
+const presetTeam = (w) => attempt(() => POST(`/presets/team/${w.id}`), `Saved ${w.name} and its agents as a preset (Library › Your presets)`);
+
 // What an agent is doing right now, in words ("Blender · rendering the scene", "thinking…").
 function nowText(agentId, wfId) {
   const d = state.data;
@@ -2393,6 +2415,9 @@ function renderBranchPanel(id) {
       h('div.row.nowrap.mt', h('div.grow', name), color),
       h('div.mt', desc),
       h('p.hint', 'Every member reads the goal before it answers in the chat.'),
+      h('div.label.mt-lg', 'Team skills'),
+      h('p.hint', 'Every member gets these while it works for this team (on top of its own and the project\'s).'),
+      h('div.mt', skillPicker(wf.skills || [], (v) => saveWorkflow({ ...wf, skills: v }), { inherited: (d.project?.skills || []).map((slug) => ({ slug, from: 'project' })), empty: 'No team skills yet.' })),
       h('div.label.mt-lg', 'Extra access while working for this team'),
       h('p.hint', 'Members get these on top of their own tools.'),
       h('div.mt', chipSet(d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description })), wf.access?.toolGroups || [], (v) => saveAccess({ toolGroups: v }))),
@@ -2414,6 +2439,17 @@ function renderBranchPanel(id) {
       h(
         'div.row.mt-lg',
         h('button.btn.ghost.small', { onclick: () => openBranchBuilder({ wf: S.workflows.find((w) => w.id === id), onSaved: reloadWorkflows }) }, icon('workflow', 14), 'Open the team builder'),
+      ),
+      h('div.label.mt-lg', 'Copy it'),
+      h(
+        'div.row.mt',
+        { style: { gap: '6px', flexWrap: 'wrap' } },
+        h('button.btn.ghost.small', { title: 'A new team with the same members and settings', onclick: () => cloneTeam(wf0, false) }, icon('copy', 14), 'Clone team'),
+        h('button.btn.ghost.small', { title: 'A new team with copies of every member', onclick: () => cloneTeam(wf0, true) }, icon('copy', 14), 'Clone with its agents'),
+        h('button.btn.ghost.small', { title: 'Keep the team and its agents as a template for any project', onclick: () => presetTeam(wf0) }, icon('bookmark-plus', 14), 'Save as preset'),
+      ),
+      h(
+        'div.row.mt-lg',
         h('button.btn.danger.tiny', {
           onclick: async () => {
             if (!(await confirmBox(`Delete the team "${wf.name}"? Its agents stay in the project, the team chat is removed.`, { ok: 'Delete', danger: true }))) return;
@@ -2540,6 +2576,23 @@ async function renderAgentPanel(id, wfId) {
         h('button.btn.ghost.small', { onclick: () => navigate(`#/agents/${id}`) }, 'Full page'),
         a.engine !== 'openai' ? h('button.btn.ghost.small', { onclick: () => openTerminal(a) }, 'Terminal') : null,
         h('button.btn.ghost.small', { onclick: () => navigate(`#/agents/${id}/edit`) }, 'Edit'),
+        h('button.btn.ghost.small', { title: 'Make a copy of this agent', onclick: () => cloneAgent(a) }, icon('copy', 13), 'Clone'),
+        h('button.btn.ghost.small', { title: 'Keep it as a template for any project', onclick: () => presetAgent(a) }, icon('bookmark-plus', 13), 'Preset'),
+      ),
+      h('div.label.mt-lg', 'Skills'),
+      h(
+        'div.mt',
+        skillPicker(
+          a.skills || [],
+          (v) => attempt(() => PUT(`/agents/${id}`, { skills: v })).then(() => refreshSoon(0)),
+          {
+            inherited: [
+              ...(d.project?.skills || []).map((slug) => ({ slug, from: 'project' })),
+              ...S.workflows.filter((w) => (w.members || []).includes(id)).flatMap((w) => (w.skills || []).map((slug) => ({ slug, from: w.name }))),
+            ],
+            empty: 'No skills yet.',
+          },
+        ),
       ),
       h('div.label.mt-lg', `Teams (${onBranches.length})`),
       h(

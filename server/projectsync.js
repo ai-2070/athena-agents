@@ -77,7 +77,7 @@ export function saveProject(id) {
       format: FORMAT,
       app: 'my-dashboard',
       savedAt: Date.now(),
-      project: { name: p.name, description: p.description || '', repo: p.repo || '' },
+      project: { name: p.name, description: p.description || '', repo: p.repo || '', skills: p.skills || [] },
       agents,
       teams,
       layout: readJSON(projectDir(id, 'layout.json'), {}),

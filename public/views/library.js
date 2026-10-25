@@ -1,5 +1,6 @@
 // Library: ready-made agents. Starters, The Agency (msitarzewski/agency-agents), Hermes profiles, Claude Code subagents.
-import { h, mount, clear, state, GET, POST, PUT, attempt, navigate, md, modal, seg, toast, refreshSoon } from '../core.js';
+import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, navigate, md, modal, seg, toast, refreshSoon, confirmBox } from '../core.js';
+import { icon } from '../icons.js';
 
 let root;
 let lib = null;
@@ -7,6 +8,7 @@ let tab = 'agency';
 let query = '';
 let division = '';
 let hireEngine = null;
+let presets = [];
 
 export const title = () => 'Library';
 
@@ -14,7 +16,8 @@ export async function render(el) {
   root = el;
   hireEngine = state.data?.settings?.defaults?.engine || 'claude-code';
   mount(el, h('p.dim', 'Loading library…'));
-  lib = await GET('/library');
+  [lib, presets] = await Promise.all([GET('/library'), GET('/presets').catch(() => [])]);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('tab') === 'presets') tab = 'presets';
   draw();
 }
 
@@ -24,6 +27,7 @@ function draw() {
     ['agency', `The Agency (${lib.agency.agents.length})`],
     ['hermes', `Hermes profiles (${lib.hermes.length})`],
     ['claude', `Claude Code subagents (${lib.claude.length})`],
+    ['presets', `Your presets (${presets.length})`],
   ];
   const body = h('div');
   mount(
@@ -43,6 +47,7 @@ function draw() {
   if (tab === 'starters') drawStarters(body);
   else if (tab === 'agency') drawAgency(body);
   else if (tab === 'hermes') drawHermes(body);
+  else if (tab === 'presets') drawPresets(body);
   else drawClaude(body);
 }
 
@@ -194,6 +199,48 @@ function drawHermes(body) {
         return h('div.card', h('div.card-top', h('div.avatar', '☤'), h('div.grow', h('div.card-title', p.name), h('div.card-sub', `${p.model} · gateway ${p.gateway}${p.isDefault ? ' · default' : ''}`))), foot);
       }),
     ),
+  );
+}
+
+// Agents and teams you saved as presets: make a fresh copy in this project.
+function drawPresets(body) {
+  const use = async (p, btn) => {
+    btn.disabled = true;
+    const r = await attempt(() => POST(`/presets/${p.id}/use`), p.kind === 'team' ? `Team "${p.name}" created with ${p.members.length} agents` : `${p.name} created`);
+    btn.disabled = false;
+    if (!r) return;
+    refreshSoon(0);
+    if (r.agent) navigate(`#/agents/${r.agent.id}/edit`);
+    else navigate(`#/station?team=${r.team.id}`);
+  };
+  const del = async (p) => {
+    if (!(await confirmBox(`Delete the preset "${p.name}"? Agents and teams made from it stay.`, { ok: 'Delete', danger: true }))) return;
+    if (await attempt(() => DEL(`/presets/${p.id}`), 'Deleted')) {
+      presets = await GET('/presets');
+      draw();
+    }
+  };
+  const card = (p) =>
+    h(
+      'div.card.preset-card',
+      h(
+        'div.card-top',
+        p.kind === 'team' ? h('div.avatar', { style: { background: p.color || '#7350c8' } }, icon('users', 18)) : h('div.avatar', p.emoji || '🤖'),
+        h('div.grow', h('div.card-title', p.name), h('div.hint', p.kind === 'team' ? `Team · ${p.members.length} agents${p.lead ? ` · ★ ${p.lead}` : ''}` : 'Agent')),
+      ),
+      p.description ? h('div.card-sub', p.description) : null,
+      p.kind === 'team' ? h('div.preset-members', p.members.map((m) => h('span.pill', `${m.emoji || ''} ${m.name}`))) : null,
+      p.skills?.length ? h('div.hint', `${p.skills.length} skill${p.skills.length === 1 ? '' : 's'}`) : null,
+      h('div.card-foot', h('button.btn.small', { onclick: (e) => use(p, e.currentTarget) }, icon('plus', 13), p.kind === 'team' ? 'Create this team' : 'Create this agent'), h('span.grow'), h('button.btn.ghost.tiny.danger', { title: 'Delete preset', onclick: () => del(p) }, icon('trash-2', 13))),
+    );
+  const teamsP = presets.filter((p) => p.kind === 'team');
+  const agentsP = presets.filter((p) => p.kind === 'agent');
+  mount(
+    body,
+    h('p.hint', { style: { marginBottom: '14px' } }, 'Save any agent or team as a preset (its panel on the Station, or right-click it). Presets work in every project: each use makes fresh copies here.'),
+    !presets.length ? h('p.empty', 'No presets yet.') : null,
+    teamsP.length ? [h('h2.section', `Teams (${teamsP.length})`), h('div.cards', teamsP.map(card))] : null,
+    agentsP.length ? [h('h2.section.mt-lg', `Agents (${agentsP.length})`), h('div.cards', agentsP.map(card))] : null,
   );
 }
 

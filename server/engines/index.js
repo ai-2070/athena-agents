@@ -5,6 +5,7 @@ import { uid, HOME } from '../util.js';
 import { cancelForRun } from '../approvals.js';
 import { knowledgeContext } from '../knowledge.js';
 import { workspaceOf, toolsForAgent } from '../tools.js';
+import { skillsPrompt } from '../skills.js';
 import * as openai from './openai.js';
 import * as claude from './claude.js';
 import * as hermes from './hermes.js';
@@ -64,6 +65,7 @@ export function buildSystemPrompt(agent) {
     `You are ${agent.name}${agent.specialty ? `, ${agent.specialty}` : ''}.`,
     agent.systemPrompt || '',
     knowledgeContext(agent),
+    skillsPrompt(agent),
     `\n# Where you are
 You are one of several agents on the user's personal dashboard, running on their Windows PC (user folder ${HOME}).
 You work on the project "${project.name}". Its Brain is the folder ${project.brainPath}: the project's files, notes${project.repo ? ` and its GitHub repo (${project.repo})` : ''}. Look there first for context (BRAIN.md, notes/, docs) and keep your work in it.
@@ -203,7 +205,8 @@ export function forgetChat(chatId) {
 export async function askAgent(agent, message, { depth = 1, from = null, title = null, chatId = null, parentRunId = null, signal = null, extra = null } = {}) {
   if (signal?.aborted) throw new Error('Stopped.');
   let fresh = agentStore.get(agent.id) || agent;
-  if (extra) fresh = { ...fresh, toolGroups: [...new Set([...(fresh.toolGroups || []), ...(extra.toolGroups || [])])], mcpServers: [...new Set([...(fresh.mcpServers || []), ...(extra.mcpServers || [])])] };
+  // extra: what a team adds while the agent works for it (tools, MCP servers, skills)
+  if (extra) fresh = { ...fresh, toolGroups: [...new Set([...(fresh.toolGroups || []), ...(extra.toolGroups || [])])], mcpServers: [...new Set([...(fresh.mcpServers || []), ...(extra.mcpServers || [])])], _teamSkills: extra.skills || [] };
   const chat = (chatId && chats.get(fresh.id, chatId)) || chats.create(fresh.id, title || (from ? `Asked by ${from}` : 'Task'));
   const { runId, promise } = startRun(fresh, chat, message, { depth, from, parentRunId });
   const onAbort = () => stopRun(runId);
