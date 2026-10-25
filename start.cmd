@@ -1,9 +1,11 @@
 @echo off
 rem Starts My Dashboard (http://localhost:4800) and opens it. Double-click me.
 cd /d "%~dp0"
-where node >nul 2>nul || (echo Node.js is not installed. Get it from https://nodejs.org & pause & exit /b 1)
+set "BUN=bun"
+where bun >nul 2>nul || (if exist "%USERPROFILE%\.bun\bin\bun.exe" (set "BUN=%USERPROFILE%\.bun\bin\bun.exe") else (echo Bun is not installed. Get it from https://bun.sh ^(powershell -c "irm bun.sh/install.ps1 ^| iex"^) & pause & exit /b 1))
 if not exist node_modules (
   echo Installing dependencies, one moment...
-  call npm install --no-fund --no-audit || (pause & exit /b 1)
+  call "%BUN%" install || (pause & exit /b 1)
 )
-start "My Dashboard" /min node server\index.js %*
+call "%BUN%" scripts\build-web.ts || (pause & exit /b 1)
+start "My Dashboard" /min "%BUN%" server\index.ts %*

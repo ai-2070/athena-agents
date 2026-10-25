@@ -23,8 +23,9 @@ foreach ($p in $places) {
   $s.WorkingDirectory = $here
   $s.WindowStyle = 7  # minimized
   $s.Description = 'My Dashboard: agents, tools and programs (http://localhost:4800)'
-  $node = (Get-Command node -ErrorAction SilentlyContinue).Source
-  if ($node) { $s.IconLocation = "$node,0" }
+  $bun = (Get-Command bun -ErrorAction SilentlyContinue).Source
+  if (-not $bun) { $bun = Join-Path $env:USERPROFILE '.bun\bin\bun.exe' }
+  if (Test-Path $bun) { $s.IconLocation = "$bun,0" }
   $s.Save()
   Write-Host "Created $p"
 }

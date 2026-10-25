@@ -229,11 +229,16 @@ body.station-mode.nav-wide #nav-links a:hover .txt { position: static; backgroun
 @media (min-width: 821px) {
   body.station-mode #app { grid-template-columns: 58px 1fr; }
   body.station-mode #main, body.station-mode.nav-wide #main { grid-column: 2; }
+  /* the bar is always full width; a clip shows only the icon strip and slides open (no layout work per frame) */
   body.station-mode #nav, body.station-mode.nav-wide #nav {
-    position: fixed; left: 0; top: 0; bottom: 0; z-index: 80; width: 58px; overflow: hidden; animation: none;
-    transition: width .45s cubic-bezier(.22, .9, .25, 1), box-shadow .45s ease;
+    position: fixed; left: 0; top: 0; bottom: 0; z-index: 80; width: var(--nav-w); overflow: hidden; animation: none;
+    clip-path: inset(0 calc(100% - 58px) 0 0); border-right-color: transparent;
+    transition: clip-path .45s cubic-bezier(.22, .9, .25, 1), box-shadow .45s ease;
   }
-  body.station-mode.nav-wide #nav { width: var(--nav-w); box-shadow: 24px 0 70px rgba(0, 0, 0, 0.55); }
+  body.station-mode.nav-wide #nav { clip-path: inset(0 -120px 0 0); box-shadow: 24px 0 70px rgba(0, 0, 0, 0.55); border-right-color: var(--line); }
+  /* the folded strip's right edge */
+  body.station-mode #nav::after { content: ''; position: absolute; top: 0; bottom: 0; left: 57px; width: 1px; background: var(--line); transition: opacity .3s ease; pointer-events: none; }
+  body.station-mode.nav-wide #nav::after { opacity: 0; }
   /* text fades in after the bar has started opening, and out before it closes */
   body.station-mode #nav .brand-text, body.station-mode #nav-links a .txt, body.station-mode #nav-links a .count, body.station-mode .nav-foot {
     display: block; opacity: 0; white-space: nowrap; transition: opacity .2s ease;
