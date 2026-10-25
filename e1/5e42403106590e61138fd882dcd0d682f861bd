@@ -1,0 +1,39 @@
+.gitignore
+  s_f2901c10ee7a02::t_7be50ae5372839 11
+README.md
+  s_f2901c10ee7a02::t_7714012087d44d 58-60,82-83
+server/terminals.ts
+  s_f2901c10ee7a02::t_cfc65472b32a00 10,67
+scripts/build-web.ts
+  s_f2901c10ee7a02::t_93c3faf254d618 7-9,14,17,23-24,28,31,33-40,48-49,51-68,72
+tests/server/groupC-engines-status.test.ts
+  s_f2901c10ee7a02::t_f0482ef221af41 1-71
+server/tools.ts
+  s_f2901c10ee7a02::t_7714012087d44d 79,420,431
+server/engines/codex.ts
+  s_f2901c10ee7a02::t_cfc65472b32a00 3,5,74-82,86,101-104
+server/engines/index.ts
+  s_f2901c10ee7a02::t_c14dcc8b338c8a 115-130,133-140
+server/programs.ts
+  s_f2901c10ee7a02::t_51373075e11ec2 339-345
+server/status.ts
+  s_f2901c10ee7a02::t_33d0a9cc664390 147-153,179-181
+scripts/dev.ts
+  s_f2901c10ee7a02::t_60de1c64c991cb 9-10,13,15-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e15e42403106590e61138fd882dcd0d682f861bd",
+  "prompts": {},
+  "sessions": {
+    "s_f2901c10ee7a02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c6845d0c-7bfd-4d0d-b028-e01dff667210",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
