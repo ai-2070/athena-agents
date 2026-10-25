@@ -4,7 +4,8 @@
 import { workflows as teamStore, agents, chats, emit, log, activeProject } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath } from './util.ts';
 import { askAgent, stopChildren, forgetChat } from './engines/index.ts';
-import type { Agent, Team, TeamMessage, TeamState, TeamStep } from '../shared/types.ts';
+import { isStepList, teamSteps } from '../shared/teams.ts';
+import type { Agent, Team, TeamMessage, TeamState } from '../shared/types.ts';
 
 const MAX_TURNS = 16; // agent turns per message you send
 const MAX_PER_AGENT = 5; // turns per agent per message you send
@@ -63,22 +64,7 @@ export function listTeams(): Team[] {
   return teamStore.list().map(normalize);
 }
 
-// An old step list with tools, approvals, posts or notices runs as a workflow, not as a team chat.
-export function isStepList(team: Pick<Team, 'steps'> | null | undefined): boolean {
-  return (team?.steps || []).some((s) => s.type !== 'agent');
-}
-
-// The steps a team keeps when its members change: one per member, or, for a step list,
-// its own steps minus agents that left, with new members added after the last agent step.
-export function teamSteps(team: Pick<Team, 'steps' | 'members'>): TeamStep[] {
-  const bare = (agentId: string): TeamStep => ({ type: 'agent', agentId });
-  if (!isStepList(team)) return team.members.map(bare);
-  const kept = team.steps.filter((s) => s.type !== 'agent' || team.members.includes(s.agentId as string));
-  const have = new Set(kept.map((s) => s.agentId));
-  const added = team.members.filter((id) => !have.has(id)).map(bare);
-  const at = kept.findLastIndex((s) => s.type === 'agent') + 1;
-  return [...kept.slice(0, at), ...added, ...kept.slice(at)];
-}
+export { isStepList, teamSteps };
 
 // ---------- the shared thread ----------
 // pid: the project the chat belongs to (the active one unless a turn outlived a project switch)

@@ -133,4 +133,21 @@ describe('team builder: saving', () => {
     expect(posts).toHaveLength(2);
     expect((posts[1].body as { lead: string }).lead).toMatch(/^id-A-/);
   });
+
+  it("editing a step list keeps its approval and post steps (the Station's stepList)", async () => {
+    state.data!.agents = [{ id: 'a1', name: 'Writer' }, { id: 'a2', name: 'Editor' }] as AppState['agents'];
+    serve((method, path, body) => {
+      if (path === '/mcp') return { body: { servers: {} } };
+      if (method === 'PUT' && path === '/workflows/w1') return { body: body };
+    });
+    const stepList = [{ type: 'agent', agentId: 'a1' }, { type: 'approval' }, { type: 'agent', agentId: 'a2' }, { type: 'x_post' }];
+    const wf = { id: 'w1', name: 'Posting', members: ['a1', 'a2'], steps: [{ type: 'agent', agentId: 'a1' }, { type: 'agent', agentId: 'a2' }], stepList };
+    await openBranchBuilder({ wf: wf as never });
+    buttons(document, '✕').filter((b) => b.title === 'Remove')[1].click();
+    buttons(document, 'Save team')[0].click();
+    await settle();
+    const put = calls.find((c) => c.method === 'PUT')!.body as { steps: { type: string; agentId?: string }[]; stepList?: unknown };
+    expect(put.steps.map((x) => x.agentId || x.type)).toEqual(['a1', 'approval', 'x_post']);
+    expect(put.stepList).toBeUndefined();
+  });
 });

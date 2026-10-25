@@ -15,6 +15,7 @@ import { openProjectMenu, openNewProject } from '../projects.ts';
 import { modelChip, modelInfo } from '../models.ts';
 import { renderTeamChat } from '../teamchat.ts';
 import type { Child } from '../core.ts';
+import { teamSteps } from '../../shared/teams.ts';
 import type { ActivityEntry, Agent, AppState, Chat, ChatItem, ChatSummary, Project, ProviderUsage, RunEvent, Schedule, ServerEvent, Team, TeamAccess, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter } from '../../shared/types.ts';
 
 // ---------- types ----------
@@ -84,7 +85,8 @@ interface StationLayout {
   bench?: { x: number; z: number } | null;
 }
 /** A team as the map draws it: members, and one agent step per member. */
-type TeamView = TeamListing;
+/** A team as the map draws it: steps are one per member; stepList keeps its saved steps. */
+type TeamView = TeamListing & { stepList?: TeamStep[] };
 
 /** What a tool call means, in words, for the monitor. */
 interface ToolDesc {
@@ -949,7 +951,7 @@ export async function render(el: HTMLElement): Promise<void> {
 // A team's members, as the desk list the map draws.
 function teamView(w: TeamListing): TeamView {
   const members = Array.isArray(w.members) ? w.members : [...new Set((w.steps || []).filter((x) => x.type === 'agent' && x.agentId).map((x) => x.agentId!))];
-  return { ...w, members, steps: members.map((id) => ({ type: 'agent', agentId: id })) };
+  return { ...w, members, steps: members.map((id) => ({ type: 'agent', agentId: id })), stepList: w.steps || [] };
 }
 
 async function loadData(): Promise<void> {
@@ -2114,7 +2116,7 @@ async function dropAgent(): Promise<void> {
   if (!to || to.members.includes(agentId)) return;
   if (from && !st.copy) {
     setMembers(from, from.members.filter((x) => x !== agentId));
-    await attempt(() => PUT(`/workflows/${from.id}`, from));
+    await attempt(() => PUT(`/workflows/${from.id}`, teamBody(from)));
   }
   setMembers(to, [...to.members, agentId]);
   await saveWorkflow(to);
@@ -2603,10 +2605,15 @@ async function reloadWorkflows(): Promise<void> {
 }
 
 
+// What gets saved: a step list keeps its own steps (approvals, posts...), with the members swapped in.
+function teamBody(wf: TeamView): Team {
+  const { stepList = [], ...team } = wf;
+  team.members = [...new Set((wf.steps || []).filter((x) => x.type === 'agent' && x.agentId).map((x) => x.agentId!))];
+  if (team.lead && !team.members.includes(team.lead)) team.lead = null;
+  return { ...team, steps: teamSteps({ steps: stepList, members: team.members }) } as Team;
+}
 async function saveWorkflow(wf: TeamView): Promise<Team | undefined> {
-  wf.members = [...new Set((wf.steps || []).filter((x) => x.type === 'agent' && x.agentId).map((x) => x.agentId!))];
-  if (wf.lead && !wf.members.includes(wf.lead)) wf.lead = null;
-  const r = await attempt(() => PUT<Team>(`/workflows/${wf.id}`, wf));
+  const r = await attempt(() => PUT<Team>(`/workflows/${wf.id}`, teamBody(wf)));
   if (r) await reloadWorkflows();
   return r;
 }

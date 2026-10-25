@@ -1,7 +1,8 @@
 // Team builder: name it, give it a goal, pick its agents and lead (or let the Brain build it), choose its access.
 import { h, mount, clear, state, GET, POST, PUT, attempt, modal, chipSet, select, toast, refreshSoon, avatar } from './core.ts';
 import type { ModalHandle } from './core.ts';
-import type { Agent, Team, TeamAccess } from '../shared/types.ts';
+import { teamSteps } from '../shared/teams.ts';
+import type { Agent, Team, TeamAccess, TeamStep } from '../shared/types.ts';
 
 /** An agent the Brain designed (POST /api/assist/agent), not created yet. */
 export type AgentDraft = Pick<Agent, 'name' | 'emoji' | 'specialty' | 'systemPrompt' | 'toolGroups' | 'mcpServers' | 'engine'>;
@@ -158,10 +159,13 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       if (b.lead === mem) b.lead = done;
     }
     const ids = b.members.map((mem) => mem.agentId).filter((id): id is string => !!id);
+    // a step list keeps its own steps (the Station hands over its saved ones as stepList)
+    const { stepList, ...rest } = (wf || {}) as Team & { stepList?: TeamStep[] };
+    const own = stepList ?? rest.steps ?? [];
     const lead = b.lead?.agentId || null;
-    const body = { name: b.name.trim(), description: b.description.trim(), members: ids, steps: ids.map((agentId) => ({ type: 'agent', agentId })), lead, access: b.access };
+    const body = { name: b.name.trim(), description: b.description.trim(), members: ids, steps: teamSteps({ steps: own, members: ids }), lead, access: b.access };
     const saved = wf
-      ? await attempt(() => PUT<Team>(`/workflows/${wf.id}`, { ...wf, ...body }))
+      ? await attempt(() => PUT<Team>(`/workflows/${wf.id}`, { ...rest, ...body }))
       : await attempt(() => POST<Team>('/workflows', { ...body, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], schedule: { type: 'none' }, enabled: false }));
     if (!saved) return (refreshSoon(0), drawMembers());
     refreshSoon(0);
