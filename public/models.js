@@ -1,6 +1,8 @@
-// Model names with versions, and a picker to switch an agent's model at any moment.
-import { h, mount, state, GET, PUT, attempt, refreshSoon, toast } from './core.js';
+// Model names with versions, and one picker used everywhere a model can be switched
+// (agents, the Brain chat, Settings): tabs for Claude Code, OpenRouter, Hermes and Codex.
+import { h, mount, state, GET, PUT, attempt, refreshSoon, toast, navigate } from './core.js';
 import { icon, logo } from './icons.js';
+import { uiZoom } from './look.js';
 
 // What Claude Code's short names point to today.
 const CLAUDE = [
@@ -10,6 +12,14 @@ const CLAUDE = [
   { id: 'claude-fable-5-1', alias: 'fable', family: 'Fable', version: '5.1', note: 'creative writing' },
 ];
 const OPENROUTER_PICKS = ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5', 'anthropic/claude-haiku-5.5'];
+const CODEX_PICKS = [{ id: 'gpt-6-astra', note: 'OpenAI flagship' }];
+
+const TABS = [
+  { engine: 'claude-code', label: 'Claude', brand: 'claude' },
+  { engine: 'openai', label: 'OpenRouter', brand: null, glyph: '◇' },
+  { engine: 'hermes', label: 'Hermes', brand: null, glyph: '☤' },
+  { engine: 'codex', label: 'Codex', brand: 'openai' },
+];
 
 // { name: "Claude Sonnet 5.5", short: "Sonnet 5.5", latest: true/false, brand: "claude" | null, where: "Claude Code · Claude login" }
 export function modelInfo(a) {
@@ -21,23 +31,26 @@ export function modelInfo(a) {
     if (c) return { name: `Claude ${c.family} ${c.version}`, short: `${c.family} ${c.version}`, latest: key === c.alias, brand: 'claude', where: `Claude Code · ${auth}` };
     return { name: m, short: m.split('/').pop(), latest: false, brand: 'claude', where: `Claude Code · ${auth}` };
   }
-  if (a.engine === 'hermes') return { name: m || `Hermes profile "${a.hermesProfile || 'default'}"`, short: m || a.hermesProfile || 'Hermes', latest: false, brand: null, where: `Hermes · ${a.hermesProfile || 'default'}` };
+  if (a.engine === 'codex') return { name: m || 'Codex default model', short: m || 'Codex', latest: !m, brand: 'openai', where: 'OpenAI Codex · ChatGPT login' };
+  if (a.engine === 'hermes') return { name: m || `Hermes profile "${a.hermesProfile || 'default'}"`, short: m ? m.split('/').pop() : 'Hermes', latest: false, brand: null, where: `Hermes · ${a.hermesProfile || 'default'}` };
   const where = { lmstudio: 'LM Studio', ollama: 'Ollama', custom: 'Custom server' }[a.provider] || 'OpenRouter';
   const id = m.split('/').pop() || 'model';
   const c = CLAUDE.find((x) => id.replace(/\./g, '-').startsWith(x.id));
-  return { name: c ? `Claude ${c.family} ${c.version}` : id, short: c ? `${c.family} ${c.version}` : id, latest: false, brand: /claude|anthropic/.test(m) ? 'claude' : /llama|ollama/.test(m) ? 'ollama' : null, where };
+  return { name: c ? `Claude ${c.family} ${c.version}` : id, short: c ? `${c.family} ${c.version}` : id, latest: false, brand: /claude|anthropic/.test(m) ? 'claude' : /llama|ollama/.test(m) ? 'ollama' : 'openrouter', where };
 }
 
-// A chip showing the current model; click it to switch.
+const chipIcon = (mi, engine) => (mi.brand && logo(mi.brand, 13)) || (engine === 'hermes' ? h('span.model-glyph', '☤') : icon('cpu', 13));
+
+// A chip showing an agent's model; click it to switch (model or what it runs on).
 export function modelChip(agent, { onChange, compact = false } = {}) {
   const chip = h('button.model-chip', { type: 'button', title: 'Switch model' });
   const draw = () => {
     const mi = modelInfo(agent);
-    mount(chip, (mi.brand && logo(mi.brand, 13)) || icon('cpu', 13), h('span', mi.short), mi.latest && !compact ? h('span.model-latest', 'latest') : null, icon('chevron-down', 12));
+    mount(chip, chipIcon(mi, agent.engine), h('span', mi.short), mi.latest && !compact ? h('span.model-latest', 'latest') : null, icon('chevron-down', 12));
   };
   chip.addEventListener('click', (e) => {
     e.stopPropagation();
-    openModelMenu(chip, agent, async (patch) => {
+    openModelPicker(chip, agent, async (patch) => {
       const r = await attempt(() => PUT(`/agents/${agent.id}`, patch));
       if (!r) return;
       Object.assign(agent, patch);
@@ -45,13 +58,47 @@ export function modelChip(agent, { onChange, compact = false } = {}) {
       refreshSoon(0);
       toast(`${agent.name} now uses ${modelInfo(agent).name}`);
       onChange?.(agent);
-    });
+    }, { title: agent.name, local: true });
   });
   draw();
   return chip;
 }
 
-function openModelMenu(anchor, agent, apply) {
+// ---------- the Brain's own model ----------
+// settings.brain = { provider: 'claude' | 'openrouter' | 'hermes' | 'codex', model }
+const BRAIN_ENGINE = { claude: 'claude-code', openrouter: 'openai', hermes: 'hermes', codex: 'codex' };
+const BRAIN_PROVIDER = { 'claude-code': 'claude', openai: 'openrouter', hermes: 'hermes', codex: 'codex' };
+export function brainAsAgent(b = state.data?.settings?.brain) {
+  const p = b?.provider || 'claude';
+  return { engine: BRAIN_ENGINE[p] || 'claude-code', model: b?.model ?? 'haiku', provider: 'openrouter' };
+}
+export function brainModelChip({ onChange, prefix = 'Brain · ' } = {}) {
+  const chip = h('button.model-chip', { type: 'button', title: "The Brain's model: answers about the project, builds teams and agents, hands out work" });
+  const draw = () => {
+    const a = brainAsAgent();
+    const mi = modelInfo(a);
+    mount(chip, chipIcon(mi, a.engine), h('span', `${prefix}${mi.short}`), icon('chevron-down', 12));
+  };
+  chip.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openModelPicker(chip, brainAsAgent(), async (patch) => {
+      const brain = { provider: BRAIN_PROVIDER[patch.engine] || 'claude', model: patch.model ?? '' };
+      const r = await attempt(() => PUT('/settings', { brain }));
+      if (!r) return;
+      if (state.data?.settings) state.data.settings.brain = brain;
+      draw();
+      refreshSoon(0);
+      toast(`The Brain now thinks with ${modelInfo(brainAsAgent(brain)).name}`);
+      onChange?.(brain);
+    }, { title: "The Brain's model", local: false });
+  });
+  draw();
+  return chip;
+}
+
+// ---------- the picker ----------
+// cur: { engine, model, provider }. apply(patch) gets { engine, model, provider? }.
+export function openModelPicker(anchor, cur, apply, { title = 'Model', local = true } = {}) {
   document.querySelector('.model-menu')?.remove();
   const r = anchor.getBoundingClientRect();
   const menu = h('div.st-menu.model-menu');
@@ -60,46 +107,97 @@ function openModelMenu(anchor, agent, apply) {
     document.removeEventListener('pointerdown', outside, true);
   };
   const outside = (e) => !menu.contains(e.target) && close();
-  const row = (label, sub, active, fn, brand = null) =>
-    h(`button.st-menu-item${active ? '.on' : ''}`, { onclick: () => (close(), fn()) }, active ? icon('check', 15) : (brand && logo(brand, 14)) || icon('cpu', 15), h('span.grow', label, sub ? h('span.model-sub', sub) : null));
-  const items = [];
-  const cur = String(agent.model || '');
-  if (agent.engine === 'claude-code') {
-    items.push(h('div.st-menu-head', 'Claude · pinned version'));
-    for (const c of CLAUDE) items.push(row(`${c.family} ${c.version}`, c.note, cur === c.id, () => apply({ model: c.id }), 'claude'));
-    items.push(h('div.st-menu-sep'), h('div.st-menu-head', 'Always the newest'));
-    for (const c of CLAUDE) items.push(row(`${c.family} (latest)`, `now ${c.version}`, cur === c.alias || (!cur && c.alias === 'sonnet'), () => apply({ model: c.alias }), 'claude'));
-  } else if (agent.engine === 'openai') {
-    const search = h('input.model-search', { placeholder: 'Search models…' });
-    const list = h('div.model-list');
-    let all = [];
-    const fill = () => {
-      const q = search.value.toLowerCase();
-      const pool = all.length ? all : OPENROUTER_PICKS.map((id) => ({ id, name: id }));
-      const shown = (q ? pool.filter((m) => `${m.id} ${m.name}`.toLowerCase().includes(q)) : pool.filter((m) => OPENROUTER_PICKS.includes(m.id) || m.id === cur).concat(pool.filter((m) => !OPENROUTER_PICKS.includes(m.id)).slice(0, 25))).slice(0, 60);
-      mount(list, shown.map((m) => row(m.name || m.id, m.price ? `$${m.price.in.toFixed(2)} / $${m.price.out.toFixed(2)} per M tokens` : m.id, m.id === cur, () => apply({ model: m.id }), /claude|anthropic/.test(m.id) ? 'claude' : null)));
-    };
-    search.addEventListener('input', fill);
-    search.addEventListener('keydown', (e) => e.key === 'Enter' && search.value.trim() && (close(), apply({ model: search.value.trim() })));
-    items.push(h('div.st-menu-head', { class: '' }, ({ lmstudio: 'LM Studio', ollama: 'Ollama', custom: 'Custom server' })[agent.provider] || 'OpenRouter'), search, list);
-    GET(`/models?engine=openai&provider=${agent.provider || 'openrouter'}`).then((ms) => {
-      all = ms;
+  let tab = TABS.some((t) => t.engine === cur.engine) ? cur.engine : 'claude-code';
+  const body = h('div.model-body');
+  const pick = (patch) => (close(), apply(patch));
+  const row = (label, sub, active, patch, brand = null) =>
+    h(`button.st-menu-item${active ? '.on' : ''}`, { onclick: () => pick(patch) }, active ? icon('check', 15) : (brand && logo(brand, 14)) || icon('cpu', 15), h('span.grow', label, sub ? h('span.model-sub', sub) : null));
+  const free = (placeholder, toPatch) => {
+    const input = h('input.model-search', { placeholder });
+    input.addEventListener('keydown', (e) => e.key === 'Enter' && input.value.trim() && pick(toPatch(input.value.trim())));
+    return input;
+  };
+  const missing = (text, settingsFind) =>
+    h('div.model-missing', icon('triangle-alert', 14), h('span.grow', text), h('button.btn.tiny', { onclick: () => (close(), navigate(`#/settings?tab=general&find=${encodeURIComponent(settingsFind)}`)) }, 'Set up'));
+  const same = (engine, model) => cur.engine === engine && String(cur.model || '') === model;
+
+  const drawBody = () => {
+    const eng = state.data?.engines || {};
+    const items = [];
+    if (tab === 'claude-code') {
+      if (eng['claude-code'] && !eng['claude-code'].installed) items.push(missing('Claude Code is not installed on this PC.', 'Claude Code'));
+      items.push(h('div.st-menu-head', 'Always the newest'));
+      for (const c of CLAUDE) items.push(row(`${c.family} (latest)`, `now ${c.version} · ${c.note}`, same('claude-code', c.alias), { engine: 'claude-code', model: c.alias }, 'claude'));
+      items.push(h('div.st-menu-head', 'Pinned version'));
+      for (const c of CLAUDE) items.push(row(`${c.family} ${c.version}`, c.id, same('claude-code', c.id), { engine: 'claude-code', model: c.id }, 'claude'));
+    } else if (tab === 'openai') {
+      const hasKey = !!state.data?.secrets?.openrouterKey?.set;
+      if (!hasKey) items.push(missing('Add your OpenRouter key first.', 'OpenRouter key'));
+      const search = h('input.model-search', { placeholder: 'Search 300+ models (gpt, gemini, llama, deepseek…)' });
+      const list = h('div.model-list');
+      let all = [];
+      const fill = () => {
+        const q = search.value.toLowerCase();
+        const pool = all.length ? all : OPENROUTER_PICKS.map((id) => ({ id, name: id }));
+        const shown = (q ? pool.filter((m) => `${m.id} ${m.name}`.toLowerCase().includes(q)) : pool.filter((m) => OPENROUTER_PICKS.includes(m.id) || m.id === cur.model).concat(pool.filter((m) => !OPENROUTER_PICKS.includes(m.id)).slice(0, 25))).slice(0, 60);
+        mount(list, shown.map((m) => row(m.name || m.id, m.price ? `$${m.price.in.toFixed(2)} / $${m.price.out.toFixed(2)} per M tokens` : m.id, cur.engine === 'openai' && (cur.provider || 'openrouter') === 'openrouter' && m.id === cur.model, { engine: 'openai', provider: 'openrouter', model: m.id }, /claude|anthropic/.test(m.id) ? 'claude' : null)));
+      };
+      search.addEventListener('input', fill);
+      search.addEventListener('keydown', (e) => e.key === 'Enter' && search.value.trim() && pick({ engine: 'openai', provider: 'openrouter', model: search.value.trim() }));
+      items.push(h('div.st-menu-head', 'OpenRouter'), search, list);
+      if (hasKey)
+        GET('/models?engine=openai&provider=openrouter')
+          .then((ms) => {
+            all = ms;
+            fill();
+          })
+          .catch(() => {});
       fill();
-    }).catch(() => {});
-    fill();
-    setTimeout(() => search.focus(), 30);
-  } else {
-    items.push(h('div.st-menu-head', 'Hermes'), row("Profile's own model", agent.hermesProfile || 'default', !cur, () => apply({ model: '' })));
-    const input = h('input.model-search', { placeholder: 'or type a model id and press Enter' });
-    input.addEventListener('keydown', (e) => e.key === 'Enter' && input.value.trim() && (close(), apply({ model: input.value.trim() })));
-    items.push(input);
-  }
-  items.push(h('div.st-menu-sep'), h('div.st-menu-head', 'Runs on'));
-  for (const [engine, label] of [['claude-code', 'Claude Code'], ['openai', 'API model (OpenRouter / local)'], ['hermes', 'Hermes']])
-    items.push(row(label, null, agent.engine === engine, () => apply({ engine, model: engine === 'claude-code' ? 'claude-sonnet-5-5' : engine === 'openai' ? state.data.settings.defaults.openrouterModel : '' }), engine === 'claude-code' ? 'claude' : null));
-  mount(menu, items);
+      if (local) {
+        items.push(h('div.st-menu-head', 'On this PC'));
+        for (const [p, label] of [['lmstudio', 'LM Studio'], ['ollama', 'Ollama'], ['custom', 'Custom server']])
+          items.push(row(label, cur.engine === 'openai' && cur.provider === p ? cur.model || 'its loaded model' : 'its loaded model', cur.engine === 'openai' && cur.provider === p, { engine: 'openai', provider: p, model: cur.engine === 'openai' && cur.provider === p ? cur.model : '' }, p === 'ollama' ? 'ollama' : null));
+      }
+      setTimeout(() => search.focus(), 30);
+    } else if (tab === 'hermes') {
+      if (eng.hermes && !eng.hermes.installed) items.push(missing('Hermes is not installed on this PC.', 'Hermes'));
+      items.push(h('div.st-menu-head', 'Hermes'), row("The profile's own model", 'whatever your Hermes profile uses', same('hermes', ''), { engine: 'hermes', model: '' }));
+      for (const id of OPENROUTER_PICKS.slice(1)) items.push(row(id.split('/').pop(), id, same('hermes', id), { engine: 'hermes', model: id }, 'claude'));
+      items.push(free('or type a model id and press Enter', (m) => ({ engine: 'hermes', model: m })));
+    } else {
+      const cx = eng.codex || {};
+      if (!cx.installed) items.push(missing('Codex is not installed yet.', 'OpenAI Codex'));
+      else if (!cx.loggedIn) items.push(missing('Codex is installed but not signed in.', 'OpenAI Codex'));
+      items.push(h('div.st-menu-head', 'OpenAI Codex · your ChatGPT login'), row("Codex's default model", 'whatever Codex picks', same('codex', ''), { engine: 'codex', model: '' }, 'openai'));
+      for (const c of CODEX_PICKS) items.push(row(c.id, c.note, same('codex', c.id), { engine: 'codex', model: c.id }, 'openai'));
+      items.push(free('or type a model id and press Enter', (m) => ({ engine: 'codex', model: m })));
+    }
+    mount(body, items);
+  };
+
+  const tabs = h('div.model-tabs');
+  const drawTabs = () =>
+    mount(
+      tabs,
+      TABS.map((t) =>
+        h(
+          `button.model-tab${tab === t.engine ? '.on' : ''}${cur.engine === t.engine ? '.cur' : ''}`,
+          { type: 'button', title: cur.engine === t.engine ? `${t.label} (in use)` : t.label, onclick: (e) => (e.stopPropagation(), (tab = t.engine), drawTabs(), drawBody()) },
+          (t.brand && logo(t.brand, 13)) || h('span.model-glyph', t.glyph || '•'),
+          h('span', t.label),
+        ),
+      ),
+    );
+  drawTabs();
+  drawBody();
+  mount(menu, h('div.st-menu-head', title), tabs, body);
   document.body.append(menu);
-  const top = Math.min(r.bottom + 6, window.innerHeight - 20 - Math.min(480, menu.offsetHeight || 400));
-  Object.assign(menu.style, { position: 'fixed', left: `${Math.min(r.left, window.innerWidth - 280)}px`, top: `${Math.max(10, top)}px`, transform: 'none', zIndex: 90 });
+  const z = uiZoom();
+  const W = window.innerWidth / z;
+  const H = window.innerHeight / z;
+  const R = { left: r.left / z, top: r.top / z, bottom: r.bottom / z };
+  const height = Math.min(520, menu.offsetHeight || 420);
+  const below = R.bottom + 6 + height < H - 10;
+  Object.assign(menu.style, { position: 'fixed', left: `${Math.max(10, Math.min(R.left, W - 330))}px`, top: `${below ? R.bottom + 6 : Math.max(10, R.top - 6 - height)}px`, transform: 'none', zIndex: 95 });
   setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
 }

@@ -7,9 +7,12 @@ import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, appro
 import { openTerminal } from './agents.js';
 import { openBranchBuilder } from '../builder.js';
 import { openDock } from '../dock.js';
+import { uiZoom } from '../look.js';
+import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.js';
 import { icon, logo, brandPath } from '../icons.js';
 import { openProjectMenu, openNewProject } from '../projects.js';
 import { modelChip, modelInfo } from '../models.js';
+import { renderTeamChat } from '../teamchat.js';
 
 export const flush = true;
 export const station = true;
@@ -23,6 +26,8 @@ const wfColor = (wf, i) => (/^#[0-9a-f]{6}$/i.test(wf.color || '') ? wf.color : 
 const INTEGRATIONS = [
   { id: 'claude', label: 'Claude Code', glyph: '✳', color: '#d97757' },
   { id: 'hermes', label: 'Hermes', glyph: '☤', color: '#d8c25a' },
+  { id: 'codex', label: 'OpenAI Codex', glyph: '◎', color: '#e6e8e0' },
+  { id: 'reddit', label: 'Reddit', glyph: 'r/', color: '#ff4500' },
   { id: 'openrouter', label: 'OpenRouter', glyph: '⇄', color: '#8f94ff' },
   { id: 'lmstudio', label: 'LM Studio', glyph: 'LM', color: '#b48cff' },
   { id: 'ollama', label: 'Ollama', glyph: 'OL', color: '#e6e8e0' },
@@ -38,7 +43,7 @@ const INTEGRATIONS = [
   { id: 'orca', label: 'Orca', glyph: '🐋', color: '#7ab8ff' },
   { id: 'browser', label: 'Browser', glyph: '🌐', color: '#a9d3e2' },
 ];
-const BRAND_OF = { claude: 'claude', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
+const BRAND_OF = { codex: 'openai', reddit: 'reddit', claude: 'claude', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
 // The brand logo for an integration (or connector name), falling back to its glyph.
 function mark(id, size = 14) {
   const key = id.startsWith('mcp:') ? id.slice(4) : id.startsWith('cc:') ? id.slice(3) : BRAND_OF[id] || id;
@@ -51,6 +56,8 @@ function availableIntegrations(d, progs) {
   const avail = {
     claude: d.engines['claude-code'].installed,
     hermes: d.engines.hermes.installed,
+    codex: !!d.engines.codex?.installed,
+    reddit: (d.accounts.reddit || []).length > 0,
     openrouter: d.secrets.openrouterKey.set,
     lmstudio: !!P('lmstudio')?.installed,
     ollama: !!P('ollama')?.installed,
@@ -74,9 +81,10 @@ function agentLinks(a) {
   if (!a) return s;
   if (a.engine === 'claude-code') s.add(a.claudeAuth === 'openrouter' ? 'openrouter' : 'claude');
   if (a.engine === 'hermes') s.add('hermes');
+  if (a.engine === 'codex') s.add('codex');
   if (a.engine === 'openai') s.add(a.provider === 'custom' ? 'openrouter' : a.provider);
   const g = new Set(a.toolGroups || []);
-  if (g.has('social')) ['x', 'telegram', 'discord'].forEach((x) => s.add(x));
+  if (g.has('social')) ['x', 'reddit', 'telegram', 'discord'].forEach((x) => s.add(x));
   if (g.has('comfyui')) s.add('comfyui');
   if (g.has('blender')) s.add('blender');
   if (g.has('adobe')) ['premiere', 'photoshop', 'aftereffects'].forEach((x) => s.add(x));
@@ -99,6 +107,7 @@ function toolIntegration(name) {
     [/^ff(mpeg|probe)$/, 'ffmpeg'],
     [/^(x_|social_)/, 'x'],
     [/^telegram_/, 'telegram'],
+    [/^reddit_/, 'reddit'],
     [/^discord_/, 'discord'],
     [/^orca$/, 'orca'],
     [/^hermes_ask$/, 'hermes'],
@@ -219,6 +228,9 @@ function describeTool(name, args = {}) {
   if (n === 'x_draft_dm') return A('X', `drafting a DM to @${String(args.to || '').replace(/^@/, '')}`, args.text || '', 'x', '#e6e8e0');
   if (n === 'x_recent_posts' || n === 'x_mentions') return A('X', 'reading', n === 'x_mentions' ? 'mentions' : 'recent posts', 'x', '#e6e8e0');
   if (n === 'telegram_send') return A('Telegram', 'sending a message', args.text || '', 'telegram', '#4fb3f6');
+  if (n === 'reddit_draft_post') return A('Reddit', `drafting a post for r/${String(args.subreddit || '').replace(/^\/?r\//, '')}`, args.title || '', 'reddit', '#ff4500');
+  if (n === 'reddit_draft_comment') return A('Reddit', 'drafting a comment', args.text || '', 'reddit', '#ff4500');
+  if (n === 'reddit_read' || n === 'reddit_search' || n === 'reddit_comments') return A('Reddit', n === 'reddit_search' ? 'searching' : 'reading', args.subreddit ? `r/${args.subreddit}` : args.query || args.post || '', 'reddit', '#ff4500');
   if (n === 'discord_send') return A('Discord', 'posting', args.text || '', 'discord', '#7d86ff');
   if (n === 'Bash' || n === 'run_command') return A('Terminal', 'running', args.command || '', null, '#c4ff3d');
   if (['Read', 'read_file', 'knowledge_read'].includes(n)) return A('Files', 'reading', base(args.file_path || args.path || args.file), null, '#a9d3e2');
@@ -276,7 +288,7 @@ function drawScreen(desk, tick = 0) {
     ctx.fillStyle = '#3a3f37';
     ctx.font = 'bold 20px Consolas, monospace';
     ctx.textAlign = 'right';
-    ctx.fillText(desk.stepNo !== '-' ? `STEP ${desk.stepNo}` : 'BENCH', W - 20, 21);
+    ctx.fillText(desk.stepNo && desk.stepNo !== '-' ? String(desk.stepNo) : 'BENCH', W - 20, 21);
     ctx.textAlign = 'left';
     ctx.font = '84px "Segoe UI Emoji", sans-serif';
     ctx.fillText(a.emoji || '🤖', 28, 140);
@@ -471,7 +483,7 @@ export async function render(el) {
     if (signature() !== S.signature) rebuild();
     else updateStatuses();
     drawHud();
-    if (S.selected && S.selected.type !== 'agent') renderPanel();
+    if (S.selected && S.selected.type !== 'agent' && S.selected.type !== 'branch') renderPanel();
   });
   const feed = await GET('/activity').catch(() => []);
   if (S) {
@@ -481,6 +493,13 @@ export async function render(el) {
   loadHeadbar();
   S.headTimer = setInterval(loadHeadbar, 60_000);
   S.clockTimer = setInterval(tickClock, 1000);
+  // usage of each connected provider, one after another
+  S.usageTimer = setInterval(() => {
+    if ((S?.headbar?.usages?.length || 0) > 1) {
+      S.usageIdx = (S.usageIdx || 0) + 1;
+      drawUsage(true);
+    }
+  }, 6000);
   S.progTimer = setInterval(async () => {
     const p = await GET('/programs').catch(() => null);
     if (S && p) {
@@ -490,6 +509,22 @@ export async function render(el) {
     }
   }, 30000);
   loop();
+  // read-only: where teams and desks are on screen (used by the automated UI checks)
+  window.__stationDebug = () => {
+    if (!S) return null;
+    const at = (o) => {
+      const p = o.getWorldPosition(new THREE.Vector3()).project(S.camera);
+      const r = S.renderer.domElement.getBoundingClientRect();
+      return { x: Math.round(r.left + ((p.x + 1) / 2) * r.width), y: Math.round(r.top + ((1 - p.y) / 2) * r.height) };
+    };
+    return [...S.branches.values()].map((b) => ({ name: b.wf.name, ...at(b.group), desks: b.nodes.map((n) => ({ name: n.desk.agent.name, ...at(n.desk.group) })) }));
+  };
+}
+
+// A team's members, as the desk list the map draws.
+function teamView(w) {
+  const members = Array.isArray(w.members) ? w.members : [...new Set((w.steps || []).filter((x) => x.type === 'agent' && x.agentId).map((x) => x.agentId))];
+  return { ...w, members, steps: members.map((id) => ({ type: 'agent', agentId: id })) };
 }
 
 async function loadData() {
@@ -497,9 +532,22 @@ async function loadData() {
   if (!S) return;
   S.layout = layout || {};
   S.progs = progs;
-  S.workflows = wfs;
+  S.workflows = wfs.map(teamView);
+  S.teamState = Object.fromEntries(wfs.map((w) => [w.id, w.state || { working: [], queued: [] }]));
+  S.teamLast = Object.fromEntries(wfs.filter((w) => w.last).map((w) => [w.id, w.last]));
   S.wfRuns = runs;
   S.active = new Map(active.map((r) => [r.workflowId, r]));
+  shareTeams();
+  if (!window.__chatsRestored) {
+    window.__chatsRestored = true;
+    restoreChats();
+  }
+}
+
+function shareTeams() {
+  window.__teams = S.workflows;
+  window.__teamWorking = Object.fromEntries(Object.entries(S.teamState || {}).map(([k, v]) => [k, v.working || []]));
+  refreshChatTabs();
 }
 
 export function unmount() {
@@ -510,6 +558,7 @@ export function unmount() {
   clearInterval(S.progTimer);
   clearInterval(S.headTimer);
   clearInterval(S.clockTimer);
+  clearInterval(S.usageTimer);
   window.removeEventListener('keydown', S.onKey);
   document.removeEventListener('pointerdown', S.onDocDown, true);
   S.renderer.dispose();
@@ -548,7 +597,7 @@ function signature() {
   if (!d) return '';
   const ints = availableIntegrations(d, S.progs).map((i) => `${i.id}${i.live ? '+' : ''}`).join(',');
   return JSON.stringify([
-    S.workflows.map((w) => [w.id, w.name, w.color, w.angle, w.access, w.steps.map((s) => [s.type, s.agentId, s.tool, s.telegram])]),
+    S.workflows.map((w) => [w.id, w.name, w.color, w.angle, w.pos, w.rot, w.access, w.lead, w.members]),
     d.agents.map((a) => [a.id, a.name, a.emoji, a.color, a.model, a.engine, [...agentLinks(a)].join('|')]),
     ints,
   ]);
@@ -643,9 +692,11 @@ function rebuild() {
   // Without a Bench, start on a world axis so branches run diagonally on screen (isometric look).
   const front = gap ? Math.PI / 4 : 0;
   let maxR = FIRST;
+  const biggest = Math.max(5, ...wfs.map((w) => podRadius((w.members || []).length)));
+  const dist = Math.max(FIRST + biggest, n > 1 ? (biggest + 2.5) / Math.sin(Math.PI / Math.max(2, n + (gap ? 1 : 0))) : 0);
   wfs.forEach((wf, i) => {
     const ang = front + gap / 2 + (n === 1 ? (Math.PI * 2 - gap) / 2 : (i / Math.max(1, n - (gap ? 1 : 0))) * (Math.PI * 2 - gap));
-    const end = buildBranch(wf, i, typeof wf.angle === 'number' ? wf.angle : ang, agentsById);
+    const end = buildBranch(wf, i, typeof wf.angle === 'number' ? wf.angle : ang, agentsById, dist);
     maxR = Math.max(maxR, end);
   });
   if (bench.length) buildBench(bench);
@@ -667,116 +718,203 @@ function rebuild() {
   S.shape = shape;
   updateCamera();
   updateStatuses();
+  // #/station?team=<id> opens that team (e.g. "Show" in the Brain chat)
+  const want = new URLSearchParams(location.hash.split('?')[1] || '').get('team');
+  if (want && S.opened !== want && wfs.some((w) => w.id === want)) {
+    S.opened = want;
+    return choose({ type: 'branch', id: want });
+  }
   if (S.selected) renderPanel();
 }
 
-function buildBranch(wf, i, ang, agentsById) {
+// A team is a group chat, so it's drawn as a round pod: the agents sit around a shared chat hub,
+// the lead's desk faces the Brain (★), spokes join every desk to the hub, and handoffs fly
+// desk → hub → desk. Teams can sit anywhere (drag) and spin (Shift+drag); wf.pos / wf.rot keep it.
+const podRadius = (n) => Math.max(6, (Math.max(1, n) * 5.6) / (2 * Math.PI) + 3.4);
+
+function buildBranch(wf, i, ang, agentsById, dist) {
   const color = new THREE.Color(wfColor(wf, i));
-  const bg = new THREE.Group();
-  bg.rotation.y = -ang;
-  S.world.add(bg);
-  const dir = new THREE.Vector3(1, 0, 0);
-  const steps = wf.steps.length ? wf.steps : [];
-  const count = Math.max(1, steps.length);
-  const endR = FIRST + (count - 1) * STEP_GAP;
-  // the long platform carrying the steps
-  const len = endR - FIRST + 6;
-  const mid = dir.clone().multiplyScalar((FIRST + endR) / 2);
-  const slabG = new THREE.Group();
-  slabG.position.copy(mid);
-  const slab = new THREE.Mesh(new THREE.BoxGeometry(len, 0.5, 5.6), new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.5), roughness: 0.55, metalness: 0.15, emissive: color, emissiveIntensity: 0.12 }));
+  const light = color.clone().lerp(new THREE.Color(0xffffff), 0.4);
+  const members = (wf.members || []).filter((id) => agentsById.get(id));
+  const R = podRadius(members.length);
+  const pod = new THREE.Group();
+  const home = new THREE.Vector3(Math.cos(ang) * dist, 0, Math.sin(ang) * dist);
+  pod.position.copy(wf.pos && Number.isFinite(wf.pos.x) && Number.isFinite(wf.pos.z) ? new THREE.Vector3(wf.pos.x, 0, wf.pos.z) : home);
+  const spin = typeof wf.rot === 'number' ? wf.rot : 0;
+  pod.rotation.y = -spin;
+  S.world.add(pod);
+  pod.updateMatrixWorld(true);
+
+  // the round floor
+  const floor = new THREE.Group();
+  const slab = new THREE.Mesh(new THREE.CylinderGeometry(R, R + 0.25, 0.5, 64), new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.42), roughness: 0.55, metalness: 0.15, emissive: color, emissiveIntensity: 0.1 }));
   slab.position.y = 0.25;
-  slabG.add(slab);
-  const top = new THREE.Mesh(new THREE.PlaneGeometry(len - 0.4, 5.2), new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.75), roughness: 0.7, emissive: color, emissiveIntensity: 0.08 }));
+  floor.add(slab);
+  const top = new THREE.Mesh(new THREE.CircleGeometry(R - 0.15, 64), new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.62), roughness: 0.75, emissive: color, emissiveIntensity: 0.07 }));
   top.rotation.x = -Math.PI / 2;
   top.position.y = 0.51;
-  slabG.add(top);
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(slab.geometry), new THREE.LineBasicMaterial({ color: color.clone().lerp(new THREE.Color(0xffffff), 0.35), transparent: true, opacity: 0.75 }));
-  edges.position.copy(slab.position);
-  slabG.add(edges);
+  floor.add(top);
+  const rim = new THREE.LineSegments(new THREE.EdgesGeometry(slab.geometry, 30), new THREE.LineBasicMaterial({ color: light, transparent: true, opacity: 0.7 }));
+  rim.position.copy(slab.position);
+  floor.add(rim);
+  // an inner ring where the conversation runs
+  const track = new THREE.Mesh(new THREE.RingGeometry(R * 0.42, R * 0.42 + 0.08, 64), new THREE.MeshBasicMaterial({ color: light, transparent: true, opacity: 0.35, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+  track.rotation.x = -Math.PI / 2;
+  track.position.y = 0.53;
+  floor.add(track);
   const under = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color, transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false }));
-  under.scale.set(len * 1.3, len * 0.9, 1);
+  under.scale.set(R * 3, R * 2.2, 1);
   under.position.y = -0.2;
-  slabG.add(under);
-  slabG.traverse((o) => (o.userData.pick = { type: 'branch', id: wf.id }));
-  bg.add(slabG);
+  floor.add(under);
+  floor.traverse((o) => (o.userData.pick = { type: 'branch', id: wf.id }));
+  pod.add(floor);
 
-  // the steps, in order, outwards from the Brain
-  const path = [dir.clone().multiplyScalar(4.4).setY(0.9)];
+  // the chat hub in the middle: everyone talks through it
+  const hub = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.2, 0.55, 6), new THREE.MeshStandardMaterial({ color: 0x141714, roughness: 0.5, metalness: 0.3, emissive: color, emissiveIntensity: 0.35 }));
+  base.position.y = 0.8;
+  hub.add(base);
+  const holo = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.05, 8, 48), new THREE.MeshBasicMaterial({ color: light, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+  holo.rotation.x = Math.PI / 2;
+  holo.position.y = 2.1;
+  hub.add(holo);
+  const holo2 = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.04, 8, 40), holo.material.clone());
+  holo2.position.y = 2.1;
+  hub.add(holo2);
+  const mark = new THREE.Sprite(new THREE.SpriteMaterial({ map: glyphTex('@', '#' + light.getHexString()), transparent: true, depthWrite: false }));
+  mark.scale.set(1.3, 1.3, 1);
+  mark.position.y = 2.1;
+  hub.add(mark);
+  const hubGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
+  hubGlow.scale.set(4.5, 4.5, 1);
+  hubGlow.position.y = 1.8;
+  hub.add(hubGlow);
+  hub.traverse((o) => (o.userData.pick = { type: 'branch', id: wf.id }));
+  pod.add(hub);
+  const HUB = new THREE.Vector3(0, 1.7, 0);
+
+  // where the Brain is, seen from the pod: the lead sits on that side
+  const toBrain = pod.worldToLocal(new THREE.Vector3(0, 0, 0)).setY(0);
+  const baseAng = toBrain.lengthSq() > 0.01 ? Math.atan2(toBrain.z, toBrain.x) : 0;
+  const order = wf.lead && members.includes(wf.lead) ? [wf.lead, ...members.filter((id) => id !== wf.lead)] : members;
+  const rails = [{ material: track.material, base: 0.35 }];
   const branchNodes = [];
   const branchLinks = new Set();
-  steps.forEach((step, j) => {
-    const pos = dir.clone().multiplyScalar(FIRST + j * STEP_GAP);
+  order.forEach((agentId, k) => {
+    const agent = agentsById.get(agentId);
+    const a = baseAng + (k / Math.max(1, order.length)) * Math.PI * 2;
+    const pos = new THREE.Vector3(Math.cos(a) * (R - 1.55), 0, Math.sin(a) * (R - 1.55));
+    const isLead = wf.lead === agentId;
+    const step = { type: 'agent', agentId };
     const links = stepLinks(step, agentsById, wf);
     links.forEach((l) => branchLinks.add(l));
-    let node;
-    if (step.type === 'agent' && agentsById.get(step.agentId)) {
-      const agent = agentsById.get(step.agentId);
-      const desk = makeDesk(agent, wfColor(wf, i), j + 1);
-      desk.group.position.copy(pos).setY(0.5);
-      desk.group.traverse((o) => (o.userData.pick = { type: 'agent', id: agent.id, wf: wf.id, step: j }));
-      bg.add(desk.group);
-      desk.wfId = wf.id;
-      desk.branchAngle = ang;
-      desk.stepIndex = j;
-      S.desks.push(desk);
-      node = { kind: 'agent', pos, obj: desk.group, wfId: wf.id, index: j, links, desk, agentId: agent.id };
-      addLabel({ kind: 'agent', id: agent.id, wf: wf.id, obj: desk.group, offset: new THREE.Vector3(0, 3.3, 0), el: h('div.st-chip', { onclick: () => choose({ type: 'agent', id: agent.id, wf: wf.id }), title: `${agent.name} · ${agent.model || agent.engine}` }, h('span.st-chip-dot'), h('span.st-chip-n', String(j + 1)), agent.name, h('span.st-chip-model', shortModel(agent))) });
-    } else {
-      const look = step.type === 'agent' ? { glyph: '?', label: 'Missing agent', color: '#ff6b6b' } : STEP_LOOK[step.type] || STEP_LOOK.tool;
-      const g = new THREE.Group();
-      g.position.copy(pos).setY(0.5);
-      const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 0.6, step.type === 'approval' ? 6 : 20), new THREE.MeshStandardMaterial({ color: 0x151915, roughness: 0.6, emissive: new THREE.Color(look.color), emissiveIntensity: 0.15 }));
-      ped.position.y = 0.3;
-      g.add(ped);
-      const intGlyph = step.type === 'tool' ? intInfo(toolIntegration(step.tool) || '') : null;
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glyphTex(intGlyph?.glyph || look.glyph, intGlyph?.color || look.color), transparent: true, depthWrite: false }));
-      sp.scale.set(1.8, 1.8, 1);
-      sp.position.y = 1.7;
-      g.add(sp);
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.35, 0.06, 8, 40), new THREE.MeshBasicMaterial({ color: 0xc4ff3d, transparent: true, opacity: 0 }));
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = 0.65;
-      g.add(ring);
-      g.traverse((o) => (o.userData.pick = { type: 'branch', id: wf.id, step: j }));
-      bg.add(g);
-      node = { kind: 'step', pos, obj: g, wfId: wf.id, index: j, links, group: g, ring };
-      addLabel({ kind: 'step', id: `${wf.id}:${j}`, obj: g, offset: new THREE.Vector3(0, 2.9, 0), el: h('div.st-chip.step', { onclick: () => choose({ type: 'branch', id: wf.id }) }, h('span.st-chip-n', String(j + 1)), step.label || (step.type === 'tool' ? step.tool || 'Tool' : look.label)) });
+    const desk = makeDesk(agent, wfColor(wf, i), isLead ? 'LEAD' : 'TEAM');
+    desk.group.position.copy(pos).setY(0.5);
+    desk.group.traverse((o) => (o.userData.pick = { type: 'agent', id: agent.id, wf: wf.id, step: k }));
+    pod.add(desk.group);
+    Object.assign(desk, { wfId: wf.id, branchAngle: spin, stepIndex: k, podPos: pos.clone() });
+    S.desks.push(desk);
+    // the lead's seat gets a gold ring
+    if (isLead) {
+      const seat = new THREE.Mesh(new THREE.RingGeometry(1.75, 1.95, 48), new THREE.MeshBasicMaterial({ color: 0xffcc55, transparent: true, opacity: 0.75, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+      seat.rotation.x = -Math.PI / 2;
+      seat.position.copy(pos).setY(0.56);
+      pod.add(seat);
     }
+    // spoke from the desk to the hub
+    const spoke = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([pos.clone().setY(0.6), HUB.clone().setY(0.6)]),
+      new THREE.LineBasicMaterial({ color: light, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false }),
+    );
+    pod.add(spoke);
+    rails.push({ material: spoke.material, base: 0.3 });
+    const node = { kind: 'agent', pos, obj: desk.group, wfId: wf.id, index: k, links, desk, agentId: agent.id };
     S.nodes.push(node);
     branchNodes.push(node);
-    path.push(pos.clone().setY(0.9));
+    addLabel({
+      kind: 'agent',
+      id: agent.id,
+      wf: wf.id,
+      obj: desk.group,
+      offset: new THREE.Vector3(0, 3.3, 0),
+      el: h('div.st-chip', { onclick: () => choose({ type: 'agent', id: agent.id, wf: wf.id }), title: `${agent.name} · ${agent.model || agent.engine}${isLead ? ' · team lead' : ''}` }, h('span.st-chip-dot'), isLead ? h('span.st-chip-lead', { title: 'Team lead' }, '★') : null, h('span.st-chip-name', agent.name), h('span.st-chip-model', shortModel(agent))),
+    });
   });
-  if (!steps.length) path.push(dir.clone().multiplyScalar(FIRST).setY(0.9));
+  // the conversation gently circles the hub
+  for (let k = 0; k < 3; k++) spawn({ parent: pod, path: (t) => new THREE.Vector3(Math.cos(t * Math.PI * 2) * R * 0.42, 0.62, Math.sin(t * Math.PI * 2) * R * 0.42), t: k / 3, speed: 0.06, color: light, size: 0.45, loop: true, opacity: 0.55 });
 
-  // glowing rail through every step
-  const rails = [];
-  for (let k = 0; k < path.length - 1; k++) {
-    const a = path[k];
-    const b = path[k + 1];
-    const tube = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.07, 0.07, a.distanceTo(b), 8, 1, true),
-      new THREE.MeshBasicMaterial({ color: color.clone().lerp(new THREE.Color(0xffffff), 0.45), transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }),
-    );
-    tube.position.copy(a).lerp(b, 0.5);
-    tube.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
-    bg.add(tube);
-    rails.push(tube);
-  }
-  const along = polyline(path);
-  for (let k = 0; k < 3; k++) spawn({ parent: bg, path: along, t: k / 3, speed: 0.05 + Math.random() * 0.03, color: color.clone().lerp(new THREE.Color(0xffffff), 0.5), size: 0.5, loop: true, opacity: 0.5 });
-
-  // the branch card, just past the last step
-  const cardPos = dir.clone().multiplyScalar(endR + 15);
+  // the team card, on the far side from the Brain
+  const away = toBrain.lengthSq() > 0.01 ? toBrain.clone().normalize().multiplyScalar(-(R + 2.6)) : new THREE.Vector3(R + 2.6, 0, 0);
   const anchor = new THREE.Object3D();
-  anchor.position.copy(cardPos);
-  bg.add(anchor);
-  const agentCount = new Set(steps.filter((s) => s.type === 'agent').map((s) => s.agentId)).size;
+  anchor.position.copy(away);
+  pod.add(anchor);
+  // an invisible box where the card sits, so zoom-to-fit keeps the card on screen
+  const fitBox = new THREE.Mesh(new THREE.BoxGeometry(14, 0.1, 8), new THREE.MeshBasicMaterial({ visible: false }));
+  fitBox.position.copy(away).addScaledVector(away.clone().normalize(), 7);
+  pod.add(fitBox);
   const card = h('div.st-branch', { style: { '--c': wfColor(wf, i) }, onclick: () => choose({ type: 'branch', id: wf.id }) });
-  addLabel({ kind: 'branch', id: wf.id, obj: anchor, offset: new THREE.Vector3(0, 0.5, 0), el: card });
-  S.branches.set(wf.id, { wf, index: i, color, dir, path, along, rails, nodes: branchNodes, links: branchLinks, card, center: mid, agentCount, group: bg, angle: ang, slab: slabG });
+  // pinned by its edge, so it grows away from the pod instead of over it
+  addLabel({ kind: 'branch', id: wf.id, obj: anchor, from: pod, offset: new THREE.Vector3(0, 0.5, 0), el: card });
+
+  // the link to the Brain (redrawn when the team moves)
+  const link = new THREE.Line(new THREE.BufferGeometry().setFromPoints(new Array(33).fill(0).map(() => new THREE.Vector3())), new THREE.LineBasicMaterial({ color: light, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
+  S.world.add(link);
+  rails.push({ material: link.material, base: 0.45 });
+  const b = { wf, index: i, color, group: pod, center: new THREE.Vector3(), radius: R, nodes: branchNodes, links: branchLinks, card, agentCount: members.length, rails, link, hub: { holo, holo2, hubGlow }, spin, flash: 0, home };
+  b.along = (t) => linkPoint(b, t);
+  S.branches.set(wf.id, b);
+  updateLink(b);
+  // a slow stream of light from the Brain to the team
+  for (let k = 0; k < 2; k++) spawn({ path: (t) => linkPoint(b, t), t: k / 2, speed: 0.07 + Math.random() * 0.03, color: light, size: 0.5, loop: true, opacity: 0.45 });
   drawBranchCard(wf.id);
-  return endR + 18;
+  return pod.position.length() + R + 16; // room for the team card too
+}
+
+// Brain edge → the team's hub, as a soft arc (world coordinates; follows the team when it moves).
+function linkPoint(b, t) {
+  const p2 = b.group.position.clone().setY(1.7);
+  const dir = p2.clone().setY(0);
+  const len = dir.length() || 1;
+  dir.divideScalar(len);
+  const p0 = dir.clone().multiplyScalar(4.4).setY(0.9);
+  const edge = b.group.position.clone().addScaledVector(dir, -b.radius).setY(0.7);
+  const end = t < 0.85 ? edge : p2;
+  const tt = t < 0.85 ? t / 0.85 : (t - 0.85) / 0.15;
+  const from = t < 0.85 ? p0 : edge;
+  const ctrl = from.clone().lerp(end, 0.5).setY(Math.max(from.y, end.y) + (t < 0.85 ? Math.min(6, len * 0.12) : 0.5));
+  const u = 1 - tt;
+  return from.clone().multiplyScalar(u * u).addScaledVector(ctrl, 2 * u * tt).addScaledVector(end, tt * tt);
+}
+function updateLink(b) {
+  const pos = b.link.geometry.attributes.position;
+  for (let k = 0; k <= 32; k++) {
+    const p = linkPoint(b, (k / 32) * 0.85);
+    pos.setXYZ(k, p.x, p.y, p.z);
+  }
+  pos.needsUpdate = true;
+  b.link.geometry.computeBoundingSphere();
+}
+
+// Light between two teammates, through the hub (an @mention handoff).
+function pulseHandoff(teamId, fromId, toId, count = 6) {
+  const b = S?.branches.get(teamId);
+  if (!b) return;
+  const A = b.nodes.find((n) => n.agentId === fromId);
+  const B = b.nodes.find((n) => n.agentId === toId);
+  if (!A || !B) return;
+  const hub = new THREE.Vector3(0, 1.9, 0);
+  const path = polyline([A.pos.clone().setY(1.9), hub, B.pos.clone().setY(1.9)]);
+  for (let k = 0; k < count; k++) spawn({ parent: b.group, path, t: -k * 0.07, speed: 0.8, color: new THREE.Color(0xfff2b0), size: 0.8, loop: false });
+  b.flash = 1;
+}
+// The hub hands a message to one teammate (they start working on it).
+function pulseToDesk(teamId, agentId, count = 4) {
+  const b = S?.branches.get(teamId);
+  const N = b?.nodes.find((n) => n.agentId === agentId);
+  if (!N) return;
+  const path = polyline([new THREE.Vector3(0, 1.9, 0), N.pos.clone().setY(1.9)]);
+  for (let k = 0; k < count; k++) spawn({ parent: b.group, path, t: -k * 0.08, speed: 0.9, color: new THREE.Color(0xfff2b0), size: 0.7, loop: false });
+  b.flash = Math.max(b.flash, 0.6);
 }
 
 function buildBench(agents) {
@@ -926,10 +1064,12 @@ function spawn(p) {
 }
 
 // Light running along a branch, from one point (0 = Brain) to another (1 = last step).
+// Light between the Brain (0) and a team's hub (1).
 function pulseAlong(wfId, from = 0, to = 1, count = 5) {
   const b = S?.branches.get(wfId);
   if (!b) return;
-  for (let i = 0; i < count; i++) spawn({ parent: b.group, path: (t) => b.along(from + (to - from) * t), t: -i * 0.08, speed: 0.7, color: new THREE.Color(0xfff2b0), size: 0.9, loop: false });
+  for (let i = 0; i < count; i++) spawn({ path: (t) => linkPoint(b, from + (to - from) * t), t: -i * 0.08, speed: 0.7, color: new THREE.Color(0xfff2b0), size: 0.9, loop: false });
+  b.flash = Math.max(b.flash || 0, 0.5);
 }
 
 function pulseIntegration(intId, node) {
@@ -970,8 +1110,8 @@ function updateStatuses() {
   }
   // the step a running workflow is on gets a ring
   for (const node of S.nodes) {
-    const run = S.active.get(node.wfId);
-    const st = run?.steps?.[node.index]?.status;
+    const ts = S.teamState?.[node.wfId];
+    const st = ts?.working?.includes(node.agentId) ? 'running' : ts?.queued?.includes(node.agentId) ? 'needs-you' : null;
     node.runStatus = st || null;
     const ring = node.kind === 'agent' ? node.desk.ring : node.ring;
     ring.material.color.set(st === 'needs-you' ? 0xf0b04a : st === 'failed' ? 0xff5a5a : st === 'done' ? 0x7a9a2c : 0xc4ff3d);
@@ -1008,27 +1148,24 @@ function drawBranchCard(wfId) {
   const b = S.branches.get(wfId);
   if (!b) return;
   const wf = b.wf;
-  const run = S.active.get(wfId);
-  const st = wfStats(wfId);
-  const cur = run ? run.steps.findIndex((s) => s.status === 'running' || s.status === 'needs-you') : -1;
-  const needs = run?.steps?.some((s) => s.status === 'needs-you');
-  b.card.classList.toggle('live', !!run);
-  b.card.classList.toggle('needs', !!needs);
+  const ts = S.teamState?.[wfId] || { working: [], queued: [] };
+  const last = S.teamLast?.[wfId];
+  const nameOf = (id) => (id === 'user' ? 'You' : id === 'system' ? '' : state.data?.agents.find((a) => a.id === id)?.name || '');
+  const lead = wf.lead ? nameOf(wf.lead) : '';
+  b.card.classList.toggle('live', ts.working.length > 0);
+  b.card.classList.toggle('needs', false);
   mount(
     b.card,
     h('div.st-branch-name', h('span.st-dot'), wf.name.toUpperCase()),
-    h('div.st-branch-big', h('b', String(b.agentCount)), h('span', b.agentCount === 1 ? 'AGENT' : 'AGENTS'), h('span.st-branch-steps', `${wf.steps.length} steps`)),
+    h('div.st-branch-big', h('b', String(wf.members.length)), h('span', wf.members.length === 1 ? 'AGENT' : 'AGENTS'), lead ? h('span.st-branch-steps', `★ ${lead}`) : null),
     wf.description ? h('div.st-branch-desc', wf.description) : null,
     b.links.size ? h('div.st-dept-icons', [...b.links].slice(0, 7).map(badge)) : null,
-    h(
-      'div.st-branch-rows',
-      h('div', h('span', 'RUNS'), h('b', String(st.total))),
-      h('div', h('span', 'DONE'), h('b', String(st.done))),
-      h('div', h('span', 'FAILED'), h('b', { class: st.failed ? 'bad' : '' }, String(st.failed))),
-    ),
+    last ? h('div.st-branch-last', h('b', nameOf(last.from) || 'Team'), ' ', String(last.text).replace(/\s+/g, ' ').slice(0, 90), h('span.hint', ` · ${ago(last.ts)}`)) : null,
     h(
       'div.st-branch-foot',
-      run ? h('span.live', `● STEP ${cur + 1}/${wf.steps.length}${needs ? ' · NEEDS YOU' : ' RUNNING'}`) : h('span', wf.enabled && wf.schedule?.type !== 'none' ? `⏱ ${scheduleText(wf.schedule)}` : st.last ? `last run ${ago(st.last.createdAt)}` : 'not run yet'),
+      ts.working.length
+        ? h('span.live', `● ${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} next` : ''}`)
+        : h('span', wf.enabled && wf.schedule?.type !== 'none' ? `⏱ ${scheduleText(wf.schedule)}` : last ? 'quiet' : 'say hi to the team'),
     ),
   );
 }
@@ -1045,6 +1182,7 @@ function addLabel(l) {
 }
 
 const v3 = new THREE.Vector3();
+const v3b = new THREE.Vector3();
 function placeLabels() {
   const z = S.cam.zoom;
   const pxPerUnit = S.h / (S.cam.view / z);
@@ -1057,7 +1195,19 @@ function placeLabels() {
     const hide = off || ((l.kind === 'agent' || l.kind === 'step') && z < 0.6) || (l.kind === 'int' && z < 0.5);
     l.el.style.display = hide ? 'none' : '';
     const sc = l.kind === 'branch' || l.kind === 'bench' ? Math.min(1.1, Math.max(0.5, (16 * pxPerUnit) / 214)) : 1;
-    if (!hide) l.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -50%) scale(${sc.toFixed(3)})`;
+    let tx = -50;
+    let ty = -50;
+    if (l.from && !hide) {
+      // which way is the anchor from the pod's centre on screen? the card sits on that side
+      l.from.getWorldPosition(v3b);
+      v3b.project(S.camera);
+      const dx = x - (v3b.x + 1) * 0.5 * S.w;
+      const dy = y - (1 - v3b.y) * 0.5 * S.h;
+      if (Math.abs(dx) >= Math.abs(dy) * 0.6) tx = dx < 0 ? -100 : 0;
+      else ty = dy < 0 ? -100 : 0;
+      l.el.style.transformOrigin = `${-tx}% ${-ty}%`;
+    }
+    if (!hide) l.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(${tx}%, ${ty}%) scale(${sc.toFixed(3)})`;
   }
   S.labels.dataset.zoom = z > 1.6 ? 'near' : z < 0.75 ? 'far' : 'mid';
 }
@@ -1130,9 +1280,15 @@ function loop() {
     c.line.material.opacity = c.base + c.flash * 0.6;
   }
   for (const [id, br] of S.branches) {
-    const live = S.active.has(id) || br.nodes.some((n) => n.kind === 'agent' && n.desk.status !== 'idle');
-    const op = live ? 0.75 + 0.2 * Math.sin(t * 6) : 0.45;
-    for (const r of br.rails) r.material.opacity = op;
+    const live = S.active.has(id) || br.nodes.some((n) => n.kind === 'agent' && n.desk.status !== 'idle') || (S.teamState?.[id]?.working || []).length > 0;
+    if (br.flash > 0) br.flash = Math.max(0, br.flash - dt * 0.9);
+    for (const r of br.rails) r.material.opacity = live ? Math.min(1, r.base + 0.35 + 0.2 * Math.sin(t * 6)) : r.base + br.flash * 0.4;
+    if (br.hub) {
+      br.hub.holo.rotation.z += dt * (live ? 1.6 : 0.35);
+      br.hub.holo2.rotation.x += dt * (live ? 2.2 : 0.5);
+      br.hub.hubGlow.material.opacity = 0.35 + (live ? 0.25 + 0.15 * Math.sin(t * 5) : 0) + br.flash * 0.5;
+      br.hub.hubGlow.scale.setScalar(4.5 + br.flash * 3 + (live ? Math.sin(t * 5) * 0.4 : 0));
+    }
   }
   for (let i = S.particles.length - 1; i >= 0; i--) {
     const p = S.particles[i];
@@ -1254,6 +1410,7 @@ function setupControls() {
     if (!drag) {
       const p = pick(e);
       elc.style.cursor = p ? (p.type === 'agent' || p.type === 'bench' || (p.type === 'branch' && p.step == null) ? 'grab' : 'pointer') : 'default';
+      elc.title = p?.type === 'branch' ? 'Drag to move the team · Shift+drag to spin it · right-click for more' : '';
       return;
     }
     const dx = e.clientX - drag.x;
@@ -1263,9 +1420,13 @@ function setupControls() {
     // decide what this drag does once the mouse has really moved
     if (!drag.mode && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) {
       const p = drag.pick;
-      if (drag.button === 2 || drag.shift) drag.mode = 'rotate';
-      else if (p?.type === 'agent') drag.mode = startAgentDrag(p) ? 'agent' : 'pan';
-      else if (p?.type === 'branch' && p.step == null && S.branches.get(p.id)) drag.mode = 'branch';
+      if (drag.button !== 2 && p?.type === 'branch' && p.step == null && S.branches.get(p.id)) {
+        const b = S.branches.get(p.id);
+        const g = ground(e);
+        drag.mode = drag.shift ? 'spin' : 'branch';
+        drag.grab = g ? b.group.position.clone().sub(g.setY(0)) : new THREE.Vector3();
+      } else if (drag.button === 2 || drag.shift) drag.mode = 'rotate';
+      else if (p?.type === 'agent') drag.mode = startAgentDrag(p, e.ctrlKey) ? 'agent' : 'pan';
       else if (p?.type === 'bench' && S.bench) {
         const g = ground(e);
         drag.mode = 'bench';
@@ -1284,7 +1445,9 @@ function setupControls() {
       updateCamera();
     } else if (drag.mode === 'branch') {
       const g = ground(e);
-      if (g && g.length() > 2) turnBranch(drag.pick.id, Math.atan2(g.z, g.x));
+      if (g) moveBranch(drag.pick.id, g.setY(0).add(drag.grab));
+    } else if (drag.mode === 'spin') {
+      spinBranch(drag.pick.id, dx * 0.012);
     } else if (drag.mode === 'agent') {
       const g = ground(e);
       if (g) moveAgentDrag(g, e);
@@ -1304,7 +1467,7 @@ function setupControls() {
     if (!d.mode) {
       if (d.button === 2) openMenu(e, d.pick);
       else choose(d.pick);
-    } else if (d.mode === 'branch') saveBranchAngle(d.pick.id);
+    } else if (d.mode === 'branch' || d.mode === 'spin') saveBranchPlace(d.pick.id);
     else if (d.mode === 'agent') dropAgent();
     else if (d.mode === 'bench' && S.bench) saveLayout({ bench: { x: +S.bench.position.x.toFixed(2), z: +S.bench.position.z.toFixed(2) } });
   });
@@ -1318,9 +1481,16 @@ function setupControls() {
   );
   S.onKey = (e) => {
     if (e.target.closest?.('input, textarea, select')) return;
+    // Esc closes the nearest thing; with nothing open it opens (or closes) the full sidebar
     if (e.key === 'Escape') {
-      if (S.menu) closeMenu();
-      else choose(null);
+      if (e.defaultPrevented) return; // a dialog or the Brain chat took it
+      if (S.menu) {
+        closeMenu();
+        e.preventDefault();
+      } else if (S.selected) {
+        choose(null);
+        e.preventDefault();
+      }
     }
     if (e.key === '+' || e.key === '=') zoomAt(1.25);
     if (e.key === '-') zoomAt(0.8);
@@ -1333,14 +1503,33 @@ function setupControls() {
   document.addEventListener('pointerdown', S.onDocDown, true);
 }
 
-// ---------- moving branches ----------
-function turnBranch(wfId, angle) {
+// ---------- moving teams ----------
+function moveBranch(wfId, at) {
   const b = S.branches.get(wfId);
   if (!b) return;
-  b.angle = angle;
-  b.group.rotation.y = -angle;
-  for (const d of S.desks) if (d.wfId === wfId) d.branchAngle = angle;
+  // keep clear of the Brain
+  const minR = 6 + b.radius;
+  if (at.length() < minR) at.setLength(minR);
+  b.group.position.copy(at);
+  b.moved = true;
+  updateLink(b);
+}
+function spinBranch(wfId, by) {
+  const b = S.branches.get(wfId);
+  if (!b) return;
+  b.spin = (b.spin || 0) + by;
+  b.group.rotation.y = -b.spin;
+  b.moved = true;
+  for (const d of S.desks) if (d.wfId === wfId) d.branchAngle = b.spin;
   updateCamera();
+}
+async function saveBranchPlace(wfId) {
+  const b = S.branches.get(wfId);
+  const wf = S.workflows.find((w) => w.id === wfId);
+  if (!b || !wf || !b.moved) return;
+  b.moved = false;
+  const r3 = (x) => Math.round(x * 1000) / 1000;
+  await saveWorkflow({ ...wf, pos: { x: r3(b.group.position.x), z: r3(b.group.position.z) }, rot: r3(b.spin || 0) });
 }
 
 async function saveLayout(patch) {
@@ -1348,15 +1537,9 @@ async function saveLayout(patch) {
   await attempt(() => PUT('/layout', patch));
 }
 
-async function saveBranchAngle(wfId) {
-  const b = S.branches.get(wfId);
-  const wf = S.workflows.find((w) => w.id === wfId);
-  if (!b || !wf) return;
-  await saveWorkflow({ ...wf, angle: Math.round(b.angle * 1000) / 1000 });
-}
 
 // ---------- moving agents ----------
-function startAgentDrag(p) {
+function startAgentDrag(p, copy = false) {
   const desk = S.desks.find((d) => d.agent.id === p.id && (p.wf ? d.wfId === p.wf && d.stepIndex === p.step : !d.wfId));
   if (!desk) return false;
   const marker = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.09, 8, 48), new THREE.MeshBasicMaterial({ color: 0xc4ff3d, transparent: true, opacity: 0 }));
@@ -1365,7 +1548,7 @@ function startAgentDrag(p) {
   const hint = h('div.st-drag-hint');
   S.root.append(hint);
   desk.group.traverse((o) => (o.userData.dragging = true));
-  S.agentDrag = { desk, home: desk.group.position.clone(), marker, hint, target: null };
+  S.agentDrag = { desk, home: desk.group.position.clone(), marker, hint, target: null, copy };
   return true;
 }
 
@@ -1380,51 +1563,40 @@ function moveAgentDrag(g, e) {
   if (!st) return;
   const local = st.desk.group.parent.worldToLocal(g.clone());
   st.desk.group.position.set(local.x, 1.4, local.z);
-  // where would it land?
+  // which team pod is under the mouse?
   let target = null;
-  let best = 4.2;
-  const wp = new THREE.Vector3();
-  for (const n of S.nodes) {
-    if (n.kind === 'agent' && n.desk === st.desk) continue;
-    n.obj.getWorldPosition(wp);
-    const dist = Math.hypot(wp.x - g.x, wp.z - g.z);
-    if (dist < best) {
-      best = dist;
-      target = { wfId: n.wfId, index: n.index, at: wp.clone() };
+  for (const [id, b] of S.branches) {
+    const c = b.group.position;
+    if (Math.hypot(c.x - g.x, c.z - g.z) < b.radius + 1.2) {
+      target = { wfId: id, at: c.clone(), radius: b.radius };
+      break;
     }
   }
-  if (!target) {
-    for (const [id, b] of S.branches) {
-      const pts = b.path.map((p) => b.group.localToWorld(p.clone()).setY(0));
-      const endPt = b.group.localToWorld(b.dir.clone().multiplyScalar(FIRST + b.wf.steps.length * STEP_GAP)).setY(0);
-      pts.push(endPt);
-      for (let k = 0; k < pts.length - 1; k++) {
-        if (distToSegment(g.clone().setY(0), pts[k], pts[k + 1]) < 3.4) {
-          target = { wfId: id, index: b.wf.steps.length, at: endPt };
-          break;
-        }
-      }
-      if (target) break;
-    }
-  }
-  if (!target && S.benchCenter && st.desk.wfId && g.distanceTo(S.benchCenter) < 7) target = { bench: true, at: S.benchCenter.clone() };
+  if (!target && S.benchCenter && st.desk.wfId && g.distanceTo(S.benchCenter) < 7) target = { bench: true, at: S.benchCenter.clone(), radius: 2 };
   st.target = target;
   if (target) {
     st.marker.position.copy(target.at).setY(0.6);
+    st.marker.scale.setScalar((target.radius + 0.6) / 2.1);
     st.marker.material.opacity = 0.9;
     st.marker.material.color.set(target.bench ? 0xf0b04a : 0xc4ff3d);
   } else st.marker.material.opacity = 0;
   const wf = target?.wfId ? S.workflows.find((w) => w.id === target.wfId) : null;
-  const sameBranch = wf && wf.id === st.desk.wfId;
+  const from = st.desk.wfId ? S.workflows.find((w) => w.id === st.desk.wfId) : null;
+  const name = st.desk.agent.name;
   st.hint.textContent = !target
     ? 'Drop it on a team'
     : target.bench
-      ? `Take ${st.desk.agent.name} off its team`
-      : sameBranch
-        ? `Move to step ${Math.min(target.index + 1, wf.steps.length)} of ${wf.name}`
-        : `Add to ${wf.name} as step ${target.index + 1}`;
+      ? `Take ${name} off ${from?.name || 'its team'}`
+      : wf.id === from?.id
+        ? `Already on ${wf.name}`
+        : (wf.members || []).includes(st.desk.agent.id)
+          ? `Already on ${wf.name}`
+          : from && !st.copy
+            ? `Move to ${wf.name} (hold Ctrl to keep it on ${from.name} too)`
+            : `Add to ${wf.name}`;
   const r = S.root.getBoundingClientRect();
-  st.hint.style.transform = `translate(${e.clientX - r.left + 16}px, ${e.clientY - r.top + 12}px)`;
+  const z = uiZoom();
+  st.hint.style.transform = `translate(${(e.clientX - r.left) / z + 16}px, ${(e.clientY - r.top) / z + 12}px)`;
 }
 
 async function dropAgent() {
@@ -1440,30 +1612,21 @@ async function dropAgent() {
   if (!t) return;
   const agentId = st.desk.agent.id;
   const from = st.desk.wfId ? structuredClone(S.workflows.find((w) => w.id === st.desk.wfId)) : null;
-  const i = st.desk.stepIndex;
   if (t.bench) {
     if (!from) return;
-    from.steps.splice(i, 1);
+    setMembers(from, from.members.filter((x) => x !== agentId));
     await saveWorkflow(from);
-    toast(`${st.desk.agent.name} is back on the Bench`);
+    toast(`${st.desk.agent.name} left ${from.name}`);
     return;
   }
-  if (from && t.wfId === from.id) {
-    if (t.index === i) return;
-    const [step] = from.steps.splice(i, 1);
-    from.steps.splice(Math.min(t.index, from.steps.length), 0, step);
-    await saveWorkflow(from);
-    return;
-  }
+  if (from && t.wfId === from.id) return;
   const to = structuredClone(S.workflows.find((w) => w.id === t.wfId));
-  if (!to) return;
-  let step = from ? from.steps[i] : null;
-  if (from) {
-    from.steps.splice(i, 1);
+  if (!to || to.members.includes(agentId)) return;
+  if (from && !st.copy) {
+    setMembers(from, from.members.filter((x) => x !== agentId));
     await attempt(() => PUT(`/workflows/${from.id}`, from));
   }
-  step = step ? { ...step } : { id: Math.random().toString(36).slice(2), type: 'agent', agentId, prompt: to.steps.length ? 'Continue from this:\n{{prev}}' : '{{input}}' };
-  to.steps.splice(Math.min(t.index, to.steps.length), 0, step);
+  setMembers(to, [...to.members, agentId]);
   await saveWorkflow(to);
   toast(`${st.desk.agent.name} → ${to.name}`);
 }
@@ -1495,7 +1658,7 @@ function openMenu(e, p) {
     const a = d.agents.find((x) => x.id === p.id);
     if (!a) return;
     head(`${a.emoji || ''} ${a.name}`);
-    item('Chat', () => choose({ type: 'agent', id: a.id, wf: p.wf }), '', 'message-square');
+    item('Chat', () => openChat('agent', a.id), '', 'message-square');
     item('Edit agent', () => navigate(`#/agents/${a.id}/edit`), '', 'pencil');
     if (a.engine !== 'openai') item('Open in terminal', () => openTerminal(a), '', 'terminal');
     const others = S.workflows.filter((w) => !w.steps.some((s) => s.type === 'agent' && s.agentId === a.id));
@@ -1507,7 +1670,7 @@ function openMenu(e, p) {
     if (w)
       item(`Remove from ${w.name}`, async () => {
         const copy = structuredClone(w);
-        copy.steps = copy.steps.filter((s, j) => !(s.type === 'agent' && s.agentId === a.id && (p.step == null || j === p.step)));
+        copy.steps = copy.steps.filter((s) => !(s.type === 'agent' && s.agentId === a.id));
         await saveWorkflow(copy);
       });
     sep();
@@ -1528,7 +1691,7 @@ function openMenu(e, p) {
     if (!w) return;
     head(w.name);
     item('Open', () => choose({ type: 'branch', id: w.id }), '', 'maximize-2');
-    item('Run', () => attempt(() => POST(`/workflows/${w.id}/run`, { input: '' }), 'Team started'), '', 'play');
+    item('Message the team', () => openChat('team', w.id), '', 'message-square');
     item('Edit in builder', () => openBranchBuilder({ wf: w, onSaved: reloadWorkflows }), '', 'workflow');
     item('Rename', async () => {
       const name = await promptBox('Rename team', { value: w.name });
@@ -1541,8 +1704,11 @@ function openMenu(e, p) {
     }
     item('Hire a new agent into it', () => navigate(`#/library?branch=${encodeURIComponent(w.id)}`), '', 'store');
     sep();
-    item('Schedule', () => navigate(`#/workflows/${w.id}`), '', 'clock');
-    if (typeof w.angle === 'number') item('Put back in its default place', () => saveWorkflow({ ...w, angle: null }), '', 'rotate-ccw');
+    item('Spin 45°', async () => {
+      spinBranch(w.id, Math.PI / 4);
+      await saveBranchPlace(w.id);
+    }, '', 'rotate-cw');
+    if (w.pos || typeof w.angle === 'number' || w.rot) item('Put back next to the Brain', () => saveWorkflow({ ...w, angle: null, pos: null, rot: null }), '', 'rotate-ccw');
     item(
       'Delete team',
       async () => {
@@ -1571,8 +1737,9 @@ function openMenu(e, p) {
   const menu = h('div.st-menu', items);
   S.root.append(menu);
   const r = S.root.getBoundingClientRect();
-  const x = Math.min(e.clientX - r.left, r.width - 250);
-  const y = Math.min(e.clientY - r.top, r.height - Math.min(460, items.length * 34 + 24));
+  const z = uiZoom();
+  const x = Math.min((e.clientX - r.left) / z, r.width / z - 250);
+  const y = Math.min((e.clientY - r.top) / z, r.height / z - Math.min(460, items.length * 34 + 24));
   menu.style.transform = `translate(${Math.max(8, x)}px, ${Math.max(8, y)}px)`;
   S.menu = menu;
 }
@@ -1656,7 +1823,24 @@ function resetView(instant = false) {
 function flyTo(vec, zoom) {
   const z = Math.max(S.cam.zoom, zoom);
   const target = vec.clone().setY(0);
-  const panelPx = S.w > 900 ? 200 : 0;
+  // centre it in the free part of the screen: right of the chat window (if it's on the left), left of the side panel
+  let L = 0;
+  let R = S.w > 900 ? S.w - 400 : S.w;
+  const cw = document.querySelector('.cw:not(.hidden)');
+  if (cw) {
+    const z0 = uiZoom();
+    const rr = S.root.getBoundingClientRect();
+    const c = cw.getBoundingClientRect();
+    const cl = (c.left - rr.left) / z0;
+    const cr = (c.right - rr.left) / z0;
+    if (cl + (cr - cl) / 2 < S.w / 2) L = Math.max(L, cr);
+    else R = Math.min(R, cl);
+  }
+  if (R - L < 260) {
+    L = 0;
+    R = S.w > 900 ? S.w - 400 : S.w;
+  }
+  const panelPx = S.w / 2 - (L + R) / 2;
   const unitsPerPx = S.cam.view / z / S.h;
   const right = new THREE.Vector3(Math.cos(S.cam.az), 0, -Math.sin(S.cam.az));
   target.addScaledVector(right, panelPx * unitsPerPx);
@@ -1700,19 +1884,26 @@ function drawHud() {
   const missing = [
     !d.accounts.x.length && { glyph: logo('x', 13) || '𝕏', title: 'X · not connected (Connections)', href: '#/settings?tab=connections' },
     !d.accounts.telegram.configured && { glyph: logo('telegram', 13) || '✈', title: 'Telegram · not set up (Connections)', href: '#/settings?tab=connections' },
+    !(d.accounts.reddit || []).length && { glyph: logo('reddit', 13) || 'r/', title: 'Reddit · not connected (Settings > Connections)', href: '#/settings?tab=connections' },
     !d.accounts.discord.configured && { glyph: logo('discord', 13) || 'D', title: 'Discord · not set up (Connections)', href: '#/settings?tab=connections' },
     !d.secrets.openrouterKey.set && { glyph: '⇄', title: 'OpenRouter · no key yet (Settings)', href: '#/settings' },
   ].filter(Boolean);
   for (const m of missing) tiles.push({ key: m.title, glyph: m.glyph, color: '#555850', on: false, missing: true, title: m.title, onclick: () => navigate(m.href) });
   const seen = new Set();
-  const u = S.headbar?.usage;
-  const meter = (label, x) =>
-    h('div.st-meter', { title: x?.resetsAt ? `resets ${new Date(x.resetsAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}` : '' }, h('span', label), h('div.st-meter-bar', h('i', { style: { width: `${x?.percent ?? 0}%`, background: (x?.percent ?? 0) >= 80 ? 'var(--amber)' : 'var(--accent)' } })), h('b', x ? `${x.percent}%` : '–'));
+  // Every engine an agent (or the Brain) can run on: lit when ready, grey with a setup link when not.
+  const brainP = d.settings?.brain?.provider || 'claude';
+  const busyIds = new Set((d.runs || []).map((r) => r.agentId));
   const engines = [
-    d.engines['claude-code'].installed && { glyph: logo('claude', 15) || '✳', color: '#d97757', title: 'Claude Code' },
-    d.engines.hermes.installed && { glyph: '☤', color: '#d8c25a', title: 'Hermes' },
-    d.secrets.openrouterKey.set && { glyph: '⇄', color: '#8f94ff', title: 'OpenRouter' },
-  ].filter(Boolean);
+    { id: 'claude-code', brain: 'claude', name: 'Claude Code', glyph: logo('claude', 15) || '✳', color: '#d97757', ready: d.engines['claude-code'].installed, why: d.engines['claude-code'].installed ? '' : 'not installed', find: 'Claude Code' },
+    { id: 'openai', brain: 'openrouter', name: 'OpenRouter', glyph: '◇', color: '#8f94ff', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
+    { id: 'hermes', brain: 'hermes', name: 'Hermes', glyph: '☤', color: '#d8c25a', ready: d.engines.hermes.installed, why: d.engines.hermes.installed ? '' : 'not installed', find: 'Hermes' },
+    { id: 'codex', brain: 'codex', name: 'OpenAI Codex', glyph: logo('openai', 14) || '◎', color: '#e6e8e0', ready: !!(d.engines.codex?.installed && d.engines.codex.loggedIn), why: !d.engines.codex?.installed ? 'not installed' : d.engines.codex.loggedIn ? '' : 'not signed in', find: 'OpenAI Codex' },
+  ].map((e) => {
+    const users = d.agents.filter((a) => a.engine === e.id);
+    const busy = users.some((a) => busyIds.has(a.id));
+    const who = [users.length ? `${users.length} agent${users.length === 1 ? '' : 's'}` : '', brainP === e.brain ? 'the Brain' : ''].filter(Boolean).join(' + ');
+    return { ...e, n: users.length + (brainP === e.brain ? 1 : 0), busy, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${e.ready ? '' : ' (click to set up)'}` };
+  });
   S.clockEl ||= h('span.st-clock');
   S.tileEls = new Map();
   mount(
@@ -1732,12 +1923,24 @@ function drawHud() {
     ),
     h(
       'div.st-right',
-      h('div.st-headless', h('span.st-conn-label', h('span.dot.on'), 'RUNS HEADLESS ON'), engines.map((e) => h('span.st-engine', { style: { '--c': e.color }, title: e.title }, e.glyph))),
-      u !== undefined ? h('div.st-meters', meter('SESSION', u?.session), meter('WEEK', u?.week)) : null,
+      h(
+        'div.st-headless',
+        h('span.st-conn-label', h(`span.dot${engines.some((e) => e.busy) ? '.busy' : '.on'}`), 'AI ENGINES'),
+        engines.map((e) =>
+          h(
+            `button.st-engine${e.ready ? '' : '.off'}${e.busy ? '.busy' : ''}`,
+            { style: { '--c': e.color }, title: e.title, onclick: () => navigate(`#/settings?tab=general&find=${encodeURIComponent(e.find)}`) },
+            e.glyph,
+            e.n ? h('span.st-engine-n', String(e.n)) : null,
+          ),
+        ),
+      ),
+      S.headbar?.usages?.length ? (S.usageEl ||= h('div.st-usage')) : null,
       S.clockEl,
     ),
   );
   tickClock();
+  drawUsage(false);
   drawEmpty(d);
   mount(
     S.statsEl,
@@ -1758,10 +1961,11 @@ function drawEmpty(d) {
     card = h(
       'div.st-empty',
       h('div.st-empty-title', 'Your station is empty'),
-      h('p', 'Add the agents you want: each one gets its own skills, knowledge and tools. Then group them into teams (workflows) around the Brain.'),
+      h('p', 'Tell the Brain what you need, e.g. "make me a social media team", and it builds the team from the library. Or hire and create agents yourself.'),
       h(
         'div.row',
-        h('a.btn', { href: '#/library' }, 'Hire from the library'),
+        h('button.btn', { onclick: () => openDock('auto', 'Make me a team for ') }, 'Ask the Brain'),
+        h('a.btn.ghost', { href: '#/library' }, 'Library'),
         h('button.btn.ghost', {
           onclick: async () => {
             const a = await attempt(() => POST('/agents', { name: 'New agent' }));
@@ -1816,6 +2020,31 @@ function connectorLook(name) {
   return { glyph: name.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '⌁', color: '#a9d3e2' };
 }
 
+const USAGE_LOOK = { claude: { brand: 'claude', glyph: '✳', color: '#d97757' }, openrouter: { glyph: '◇', color: '#8f94ff' }, codex: { brand: 'openai', glyph: '◎', color: '#e6e8e0' } };
+function drawUsage(animate) {
+  const list = S?.headbar?.usages || [];
+  if (!S?.usageEl || !list.length) return;
+  const u = list[(S.usageIdx || 0) % list.length];
+  const look = USAGE_LOOK[u.id] || { glyph: '•', color: '#aaa' };
+  const meter = (m) =>
+    h(
+      'div.st-meter',
+      { title: m.resetsAt ? `resets ${new Date(m.resetsAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}` : m.text || '' },
+      h('span', m.label),
+      m.percent != null ? h('div.st-meter-bar', h('i', { style: { width: `${m.percent}%`, background: m.percent >= 80 ? 'var(--amber)' : 'var(--accent)' } })) : null,
+      h('b', m.percent != null ? `${m.percent}%` : m.text || '–'),
+    );
+  mount(
+    S.usageEl,
+    h(
+      `div.st-meters${animate ? '.st-usage-in' : ''}`,
+      h('span.st-usage-who', { style: { '--c': look.color }, title: `${u.name} usage${list.length > 1 ? ' · switches every 6 s' : ''}` }, (look.brand && logo(look.brand, 14)) || look.glyph),
+      u.meters.map(meter),
+      list.length > 1 ? h('span.st-usage-dots', list.map((_, i) => h(`i${i === (S.usageIdx || 0) % list.length ? '.on' : ''}`))) : null,
+    ),
+  );
+}
+
 function tickClock() {
   if (S?.clockEl) S.clockEl.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
@@ -1850,15 +2079,23 @@ async function reloadWorkflows() {
   if (!S) return;
   const [wfs, runs] = await Promise.all([GET('/workflows').catch(() => S.workflows), GET('/workflow-runs').catch(() => S.wfRuns)]);
   if (!S) return;
-  S.workflows = wfs;
+  S.workflows = wfs.map(teamView);
+  for (const w of wfs) {
+    if (w.state) S.teamState[w.id] = w.state;
+    if (w.last) S.teamLast[w.id] = w.last;
+  }
   S.wfRuns = runs;
+  shareTeams();
   if (signature() !== S.signature) rebuild();
   else updateStatuses();
   drawHud();
   if (S.selected?.type === 'branch') renderPanel();
 }
 
+
 async function saveWorkflow(wf) {
+  wf.members = [...new Set((wf.steps || []).filter((x) => x.type === 'agent' && x.agentId).map((x) => x.agentId))];
+  if (wf.lead && !wf.members.includes(wf.lead)) wf.lead = null;
   const r = await attempt(() => PUT(`/workflows/${wf.id}`, wf));
   if (r) await reloadWorkflows();
   return r;
@@ -1884,12 +2121,14 @@ function choose(p) {
     S.panel.classList.add('hidden');
     return;
   }
+  if (p.type === 'branch') openChat('team', p.id, { focus: false });
+  if (p.type === 'agent') openChat('agent', p.id, { focus: false });
   if (p.type === 'agent') {
     const desk = S.desks.find((x) => x.agent.id === p.id && (!p.wf || x.wfId === p.wf)) || S.desks.find((x) => x.agent.id === p.id);
     if (desk) flyTo(desk.group.getWorldPosition(new THREE.Vector3()), 2.2);
   } else if (p.type === 'branch') {
     const b = S.branches.get(p.id);
-    if (b) flyTo(b.group.localToWorld(b.center.clone()), 1.4);
+    if (b) flyTo(b.group.position.clone(), Math.max(0.9, 1.9 - b.radius * 0.08));
   } else if (p.type === 'brain') flyTo(new THREE.Vector3(), 1);
   S.panel.classList.remove('hidden');
   renderPanel();
@@ -1922,14 +2161,14 @@ async function renderPanel() {
   if (p.type === 'agent') return renderAgentPanel(p.id, p.wf);
   if (p.type === 'branch') return renderBranchPanel(p.id);
   if (p.type === 'bench') {
-    const used = new Set(S.workflows.flatMap((w) => w.steps.filter((s) => s.type === 'agent').map((s) => s.agentId)));
+    const used = new Set(S.workflows.flatMap((w) => w.members || []));
     const bench = d.agents.filter((a) => !used.has(a.id));
     mount(
       S.panel,
       panelHead(h('div.grow', h('div.label', 'Bench'), h('div.st-panel-title', `${bench.length} agents not on a team`))),
       h(
         'div.st-panel-body',
-        h('p.hint', 'Put an agent on a team to make it part of that workflow. Click one to see it, or add it to a team from its panel.'),
+        h('p.hint', 'Agents not in a team yet. Drag one onto a team on the map, or open it and add it to a team.'),
         h('div.list', bench.map((a) => h('div.list-item', { style: { cursor: 'pointer' }, onclick: () => choose({ type: 'agent', id: a.id }) }, avatar(a), h('div.grow', h('div.title', a.name), h('div.hint', a.specialty || ''))))),
         h('div.row.mt', h('a.btn.ghost.small', { href: '#/library' }, 'Hire more'), h('button.btn.ghost.small', { onclick: async () => {
           const a = await attempt(() => POST('/agents', { name: 'New agent' }));
@@ -1971,7 +2210,7 @@ async function renderPanel() {
         h('div.label.mt-lg', 'Teams'),
         h(
           'div.list',
-          S.workflows.map((wf, i) => h('div.list-item', { style: { cursor: 'pointer' }, onclick: () => choose({ type: 'branch', id: wf.id }) }, h('span.st-dot', { style: { '--c': wfColor(wf, i) } }), h('div.grow', h('div.title', wf.name), h('div.hint', wf.description || `${wf.steps.length} steps`)), S.active.has(wf.id) ? h('span.dot.busy') : null)),
+          S.workflows.map((wf, i) => h('div.list-item', { style: { cursor: 'pointer' }, onclick: () => choose({ type: 'branch', id: wf.id }) }, h('span.st-dot', { style: { '--c': wfColor(wf, i) } }), h('div.grow', h('div.title', wf.name), h('div.hint', wf.description || `${(wf.members || []).length} members`)), S.active.has(wf.id) ? h('span.dot.busy') : null)),
           !S.workflows.length ? h('p.empty', 'No teams yet.') : null,
         ),
         d.approvals.length ? [h('div.label.mt-lg', 'Needs you'), h('div.col', d.approvals.map(approvalCard))] : null,
@@ -2030,129 +2269,190 @@ async function renderPanel() {
   }
 }
 
-// Branch panel: what it does, who is on it, what it can reach, and run it.
+// Team panel: the goal, members and lead, what it can reach, its routine, and the team chat.
+function setMembers(wf, members) {
+  wf.members = members;
+  wf.steps = members.map((id) => ({ type: 'agent', agentId: id }));
+  if (wf.lead && !members.includes(wf.lead)) wf.lead = null;
+}
+
+// What an agent is doing right now, in words ("Blender · rendering the scene", "thinking…").
+function nowText(agentId, wfId) {
+  const d = state.data;
+  const desk = S.desks.find((x) => x.agent.id === agentId && (!wfId || x.wfId === wfId)) || S.desks.find((x) => x.agent.id === agentId);
+  const act = desk?.act;
+  if (d.approvals.some((x) => x.agentId === agentId)) return { st: 'needs', text: 'Waiting for your OK' };
+  if (!d.runs.some((r) => r.agentId === agentId)) return { st: 'idle', text: '' };
+  if (act?.kind === 'tool') return { st: 'working', text: [act.app, act.action].filter(Boolean).join(' · ') + (act.detail ? `: ${act.detail}` : '') };
+  return { st: 'working', text: 'Thinking…' };
+}
+
 function renderBranchPanel(id) {
   const d = state.data;
   const wf0 = S.workflows.find((w) => w.id === id);
   if (!wf0) return choose(null);
   const wf = structuredClone(wf0);
   const i = S.workflows.indexOf(wf0);
-  const agentsById = new Map(d.agents.map((a) => [a.id, a]));
-  const run = S.active.get(id);
-  const stats = wfStats(id);
-  const recent = S.wfRuns.filter((r) => r.workflowId === id).slice(0, 4);
-  const name = h('input', { value: wf.name });
-  const desc = h('textarea', { rows: 2, value: wf.description || '', placeholder: 'What this team does' });
-  const color = h('input', { type: 'color', value: wfColor(wf, i), style: { width: '40px', height: '34px', padding: '2px', background: 'var(--panel)', border: '1px solid var(--line-2)' } });
-  const saveMeta = () => saveWorkflow({ ...wf, name: name.value.trim() || wf.name, description: desc.value.trim(), color: color.value });
-  let accessTimer = null;
-  const saveAccess = (patch) => {
-    wf.access = { toolGroups: wf.access?.toolGroups || [], mcpServers: wf.access?.mcpServers || [], ...patch };
-    clearTimeout(accessTimer);
-    accessTimer = setTimeout(() => saveWorkflow(wf), 500);
-  };
-  name.addEventListener('change', saveMeta);
-  desc.addEventListener('change', saveMeta);
-  color.addEventListener('change', saveMeta);
+  const c = wfColor(wf, i);
+  const byId = new Map(d.agents.map((a) => [a.id, a]));
+  if (!['members', 'setup'].includes(S.teamTab)) S.teamTab = 'members';
+  const ts = S.teamState?.[id] || { working: [], queued: [] };
+  const members = wf.members.map((mid) => byId.get(mid)).filter(Boolean);
+  const nameOf = (mid) => byId.get(mid)?.name || 'Agent';
+  const statusLine = ts.working.length
+    ? h('span.st-team-live', h('span.dot.busy'), `${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} waiting` : ''}`)
+    : h('span.hint', members.length ? 'Quiet · waiting for a message' : 'No members yet');
+  const mention = (a) => openChat('team', id).mention?.(a.name);
 
-  const move = (j, by) => {
-    const s = wf.steps.splice(j, 1)[0];
-    wf.steps.splice(j + by, 0, s);
-    saveWorkflow(wf);
-  };
-  const remove = (j) => {
-    wf.steps.splice(j, 1);
-    saveWorkflow(wf);
-  };
-  const addStep = (step) => {
-    wf.steps.push({ id: Math.random().toString(36).slice(2), ...step });
-    saveWorkflow(wf);
-  };
-  const steps = h(
-    'div.st-steps',
-    wf.steps.map((s, j) => {
-      const a = s.type === 'agent' ? agentsById.get(s.agentId) : null;
-      const look = STEP_LOOK[s.type];
-      const st = run?.steps?.[j]?.status;
-      return h(
-        'div.st-step',
-        { class: st || '' },
-        h('span.st-step-n', String(j + 1)),
-        a ? avatar(a) : h('span.st-badge', { style: { '--c': look?.color || '#ff6b6b' } }, look?.glyph || '?'),
-        h(
-          'div.grow',
-          { style: { cursor: a ? 'pointer' : 'default' }, onclick: () => a && choose({ type: 'agent', id: a.id, wf: id }) },
-          h('div.title', a ? a.name : s.type === 'agent' ? 'Missing agent' : s.label || (s.type === 'tool' ? s.tool || 'Tool' : look?.label)),
-          h('div.hint', (s.type === 'agent' ? s.prompt : s.type === 'tool' ? s.args : s.text || s.message || '')?.slice(0, 90) || ''),
-        ),
-        h(
-          'div.st-step-actions',
-          h('button', { title: 'Move up', disabled: j === 0, onclick: () => move(j, -1) }, '↑'),
-          h('button', { title: 'Move down', disabled: j === wf.steps.length - 1, onclick: () => move(j, 1) }, '↓'),
-          h('button', { title: 'Remove from this team', onclick: () => remove(j) }, '✕'),
-        ),
-      );
-    }),
-    !wf.steps.length ? h('p.empty', 'No steps yet. Add an agent below.') : null,
-  );
-
-  let addId = d.agents[0]?.id || '';
-  const prompt = h('input', { placeholder: 'What it should do ({{prev}} = result of the step before)', value: wf.steps.length ? 'Continue from this:\n{{prev}}' : '{{input}}' });
-  const runInput = h('textarea', { rows: 2, placeholder: 'Input for this run ({{input}})' });
-
-  mount(
-    S.panel,
-    panelHead(h('span.st-dot', { style: { '--c': wfColor(wf, i) } }), h('div.grow', h('div.label', 'Team · workflow'), h('div.st-panel-title', wf.name))),
-    h(
-      'div.st-panel-body',
-      h('div.row.nowrap', h('div.grow', name), color),
-      h('div.mt', desc),
-      h('div.st-mini-stats.mt', h('div', h('b', String(new Set(wf.steps.filter((s) => s.type === 'agent').map((s) => s.agentId)).size)), 'agents'), h('div', h('b', String(stats.total)), 'runs'), h('div', h('b', String(stats.done)), 'done')),
-      h('div.label.mt-lg', 'Steps, in order'),
-      steps,
+  // ---- Members tab ----
+  const membersTab = () => {
+    const others = d.agents.filter((a) => !wf.members.includes(a.id));
+    let addId = others[0]?.id || '';
+    return [
+      h('p.hint', 'Everyone sees the whole chat. Your messages go to the lead (★) first, or to whoever you @mention. Members hand work to each other with @Name.'),
       h(
-        'div.st-add',
-        h('div.label', 'Add an agent'),
-        h('div.row.nowrap.mt', h('div.grow', dropdown(d.agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` })), addId, (v) => (addId = v))), h('button.btn.small', { onclick: () => addId && addStep({ type: 'agent', agentId: addId, prompt: prompt.value || '{{prev}}' }) }, 'Add')),
-        h('div.mt', prompt),
-        h(
-          'div.row.mt',
-          { style: { gap: '6px' } },
-          h('button.btn.ghost.tiny', { onclick: () => addStep({ type: 'approval', label: 'Check before it continues', message: '{{prev}}' }) }, '+ ✋ Your OK'),
-          h('button.btn.ghost.tiny', { onclick: () => addStep({ type: 'x_post', label: 'Post to X', text: '{{prev}}' }) }, '+ 𝕏 Post'),
-          h('button.btn.ghost.tiny', { onclick: () => addStep({ type: 'notify', label: 'Tell me', text: '{{prev}}' }) }, '+ ✉ Notify'),
-          h('button.btn.ghost.tiny', { onclick: () => navigate(`#/library?branch=${encodeURIComponent(id)}`) }, 'Hire a specialist'),
-        ),
+        'div.st-members',
+        members.map((a) => {
+          const isLead = wf.lead === a.id;
+          const now = nowText(a.id, id);
+          const st = ts.working.includes(a.id) ? 'working' : ts.queued.includes(a.id) ? 'queued' : now.st;
+          return h(
+            `div.st-member.${st}`,
+            h('div.st-member-av', avatar(a), isLead ? h('span.st-member-star', { title: 'Team lead' }, '★') : null),
+            h(
+              'div.grow',
+              h('div.st-member-name', { onclick: () => choose({ type: 'agent', id: a.id, wf: id }) }, a.name, isLead ? h('span.tc-lead', 'lead') : null),
+              h('div.st-member-now', st === 'working' ? [h('span.dot.busy'), ' ', now.text || 'Working…'] : st === 'queued' ? 'Up next' : st === 'needs' ? [h('span.dot.warn'), ' Waiting for your OK'] : a.specialty || 'Ready'),
+              h('div.st-member-model', modelChip(a, { compact: true, onChange: () => renderBranchPanel(id) })),
+            ),
+            h(
+              'div.st-member-actions',
+              h('button', { title: `Write to ${a.name} in the team chat`, onclick: () => mention(a) }, '@'),
+              h('button', { title: isLead ? 'Remove as lead' : 'Make lead: your messages go to them first', class: isLead ? 'on' : '', onclick: () => saveWorkflow({ ...wf, lead: isLead ? null : a.id }) }, '★'),
+              h('button', { title: 'Take off this team (stays in the project)', onclick: () => (setMembers(wf, wf.members.filter((x) => x !== a.id)), saveWorkflow(wf)) }, '✕'),
+            ),
+          );
+        }),
+        !members.length ? h('p.empty', 'No agents yet. Add one below, hire from the Library, or ask the Brain.') : null,
       ),
-      h('div.label.mt-lg', 'Access for this team'),
-      h('p.hint', 'Every agent on this team gets these while it runs, on top of its own tools.'),
+      h('div.label.mt-lg', 'Add someone'),
+      others.length
+        ? h(
+            'div.row.nowrap.mt',
+            h('div.grow', dropdown(others.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` })), addId, (v) => (addId = v))),
+            h('button.btn.small', { onclick: () => addId && (setMembers(wf, [...wf.members, addId]), saveWorkflow(wf)) }, icon('user-plus', 14), 'Add'),
+          )
+        : h('p.hint', 'Every agent in this project is already on it.'),
+      h(
+        'div.row.mt',
+        { style: { gap: '6px', flexWrap: 'wrap' } },
+        h('button.btn.ghost.small', { onclick: () => navigate(`#/library?branch=${encodeURIComponent(id)}`) }, icon('store', 14), 'Hire from the Library'),
+        h('button.btn.ghost.small', { onclick: () => openDock('auto', `For the team "${wf.name}": add `) }, icon('brain', 14), 'Ask the Brain'),
+      ),
+      h('p.hint.mt', 'Tip: drag an agent onto this team on the map to add it (hold Ctrl to also keep it on its other team).'),
+    ];
+  };
+
+  // ---- Setup tab ----
+  const setupTab = () => {
+    const name = h('input', { value: wf.name });
+    const desc = h('textarea', { rows: 3, value: wf.description || '', placeholder: "The team's goal, e.g. grow our X account with daily posts" });
+    const color = h('input', { type: 'color', value: c, style: { width: '40px', height: '34px', padding: '2px', background: 'var(--panel)', border: '1px solid var(--line-2)' } });
+    const saveMeta = () => saveWorkflow({ ...wf, name: name.value.trim() || wf.name, description: desc.value.trim(), color: color.value });
+    name.addEventListener('change', saveMeta);
+    desc.addEventListener('change', saveMeta);
+    color.addEventListener('change', saveMeta);
+    let accessTimer = null;
+    const saveAccess = (patch) => {
+      wf.access = { toolGroups: wf.access?.toolGroups || [], mcpServers: wf.access?.mcpServers || [], ...patch };
+      clearTimeout(accessTimer);
+      accessTimer = setTimeout(() => saveWorkflow(wf), 500);
+    };
+    wf.schedule ||= { type: 'none' };
+    const routineEl = h('div');
+    const drawRoutine = () => {
+      const sch = wf.schedule;
+      const time = h('input', { type: 'time', value: sch.time || '09:00', style: { width: '110px' } });
+      const msg = h('input', { value: sch.input || '', placeholder: 'What the team should do each time' });
+      const save = () => {
+        wf.schedule = { ...sch, time: time.value, input: msg.value };
+        wf.enabled = wf.schedule.type !== 'none';
+        saveWorkflow(wf);
+      };
+      time.addEventListener('change', save);
+      msg.addEventListener('change', save);
+      mount(
+        routineEl,
+        h('div.row', { style: { gap: '8px' } }, h('div.seg', ['none', 'daily'].map((t) => h(`button${sch.type === t ? '.on' : ''}`, { onclick: () => ((wf.schedule = { ...sch, type: t }), (wf.enabled = t !== 'none'), saveWorkflow(wf), drawRoutine()) }, t === 'none' ? 'Off' : 'Every day'))), sch.type === 'daily' ? time : null),
+        sch.type === 'daily' ? h('div.mt', msg) : null,
+      );
+    };
+    drawRoutine();
+    return [
+      h('div.label', 'Name and goal'),
+      h('div.row.nowrap.mt', h('div.grow', name), color),
+      h('div.mt', desc),
+      h('p.hint', 'Every member reads the goal before it answers in the chat.'),
+      h('div.label.mt-lg', 'Extra access while working for this team'),
+      h('p.hint', 'Members get these on top of their own tools.'),
       h('div.mt', chipSet(d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description })), wf.access?.toolGroups || [], (v) => saveAccess({ toolGroups: v }))),
       (d.mcpServers || []).length ? h('div.mt', chipSet(d.mcpServers, wf.access?.mcpServers || [], (v) => saveAccess({ mcpServers: v }))) : null,
-      h('div.label.mt-lg', 'Connections this team can reach'),
+      h('div.label.mt-lg', 'Connections the team can reach'),
       connectionList(S.branches.get(id)?.links || new Set()),
-      h('div.label.mt-lg', 'Run'),
-      run
-        ? h('div.row', h('span.pill.warn', h('span.dot.busy'), `step ${run.steps.findIndex((s) => s.status === 'running' || s.status === 'needs-you') + 1} of ${run.steps.length}`), h('button.btn.danger.small', { onclick: () => attempt(() => POST(`/workflow-runs/${run.id}/stop`)) }, 'Stop'))
-        : h('div', runInput, h('div.row.mt', h('button.btn.small', { disabled: !wf.steps.length, onclick: () => attempt(() => POST(`/workflows/${id}/run`, { input: runInput.value }), 'Team started').then(reloadWorkflows) }, '▶ Run team'), h('span.hint', scheduleText(wf.enabled ? wf.schedule : null)))),
-      recent.length
-        ? h(
-            'div.list.mt',
-            recent.map((r) => h('div.list-item', h('span', { class: r.status === 'done' ? 'accent' : r.status === 'failed' ? 'red' : 'amber' }, r.status === 'done' ? '✓' : r.status === 'failed' ? '✕' : '●'), h('div.grow', h('div', r.status), h('div.hint', r.error || (r.output ? String(r.output).slice(0, 80) : ''))), h('span.hint', ago(r.createdAt)))),
-          )
-        : null,
+      h('div.label.mt-lg', 'Daily routine'),
+      h('p.hint', 'The team gets this message on its schedule, as if you wrote it in the chat.'),
+      routineEl,
+      h('div.label.mt-lg', 'On the map'),
+      h('p.hint', 'Drag the team to move it anywhere. Shift+drag spins it.'),
+      h(
+        'div.row.mt',
+        { style: { gap: '6px', flexWrap: 'wrap' } },
+        h('button.btn.ghost.small', { onclick: async () => (spinBranch(id, Math.PI / 4), await saveBranchPlace(id)) }, icon('rotate-cw', 14), 'Spin 45°'),
+        wf.pos || wf.rot ? h('button.btn.ghost.small', { onclick: () => saveWorkflow({ ...wf, pos: null, rot: null, angle: null }) }, icon('rotate-ccw', 14), 'Put back next to the Brain') : null,
+        h('button.btn.ghost.small', { onclick: () => S.branches.get(id) && flyTo(S.branches.get(id).group.position.clone(), 1.6) }, icon('zoom-in', 14), 'Zoom to it'),
+      ),
       h(
         'div.row.mt-lg',
-        h('button.btn.ghost.small', { onclick: () => openBranchBuilder({ wf: S.workflows.find((w) => w.id === id), onSaved: reloadWorkflows }) }, 'Edit in builder'),
-        h('a.btn.ghost.small', { href: `#/workflows/${id}` }, 'Schedule'),
+        h('button.btn.ghost.small', { onclick: () => openBranchBuilder({ wf: S.workflows.find((w) => w.id === id), onSaved: reloadWorkflows }) }, icon('workflow', 14), 'Open the team builder'),
         h('button.btn.danger.tiny', {
           onclick: async () => {
-            if (!(await confirmBox(`Delete the team "${wf.name}"? Its agents stay in the project.`, { ok: 'Delete', danger: true }))) return;
+            if (!(await confirmBox(`Delete the team "${wf.name}"? Its agents stay in the project, the team chat is removed.`, { ok: 'Delete', danger: true }))) return;
             await attempt(() => DEL(`/workflows/${id}`));
             choose(null);
             reloadWorkflows();
           },
         }, 'Delete team'),
       ),
+    ];
+  };
+
+  const tabBtn = (tid, label, n) => h(`button${S.teamTab === tid ? '.on' : ''}`, { onclick: () => ((S.teamTab = tid), renderBranchPanel(id)) }, label, n != null ? h('span.st-tab-n', String(n)) : null);
+  const body = S.teamTab === 'setup' ? setupTab() : membersTab();
+  mount(
+    S.panel,
+    panelHead(
+      h('span.st-dot', { style: { '--c': c } }),
+      h('div.grow', h('div.label', 'Team · group chat'), h('div.st-panel-title', wf.name), h('div.st-team-status', statusLine)),
+    ),
+    h(
+      'div.st-panel-body',
+      wf.description ? h('p.st-team-goal', wf.description) : null,
+      // faces of everyone on the team: who's working pulses, the lead has a star
+      h(
+        'div.st-team-faces',
+        members.map((a) =>
+          h(
+            `button.st-face${ts.working.includes(a.id) ? '.working' : ''}`,
+            { title: `${a.name}${wf.lead === a.id ? ' · lead' : ''}${ts.working.includes(a.id) ? ' · working' : ''}`, onclick: () => mention(a) },
+            avatar(a),
+            wf.lead === a.id ? h('span.st-member-star', '★') : null,
+          ),
+        ),
+        h('button.st-face.add', { title: 'Add someone', onclick: () => ((S.teamTab = 'members'), renderBranchPanel(id)) }, icon('user-plus', 15)),
+      ),
+      h('button.btn.small.st-open-chat', { onclick: () => openChat('team', id) }, icon('message-square', 14), 'Open the team chat'),
+      h('div.tabs.st-tabs', tabBtn('members', 'Members', members.length), tabBtn('setup', 'Setup')),
+      h('div.st-tab-body', body),
     ),
   );
 }
@@ -2198,7 +2498,7 @@ async function renderAgentPanel(id, wfId) {
   const chat = chats[0] ? await GET(`/agents/${id}/chats/${chats[0].id}`).catch(() => null) : null;
   if (S?.selected?.id !== id) return;
   S.chat = chat ? { agentId: id, id: chat.id, items: chat.items } : { agentId: id, id: null, items: [] };
-  const onBranches = S.workflows.filter((w) => w.steps.some((s) => s.type === 'agent' && s.agentId === id));
+  const onBranches = S.workflows.filter((w) => (w.members || []).includes(id));
   const others = S.workflows.filter((w) => !onBranches.includes(w));
   let addTo = others[0]?.id || '';
   const input = h('textarea', { rows: 2, placeholder: `Message ${a.name}…  (Enter to send)` });
@@ -2213,7 +2513,7 @@ async function renderAgentPanel(id, wfId) {
   const running = d.runs.find((r) => r.agentId === id);
   const removeFrom = async (w) => {
     const copy = structuredClone(w);
-    copy.steps = copy.steps.filter((s) => !(s.type === 'agent' && s.agentId === id));
+    setMembers(copy, copy.members.filter((x) => x !== id));
     await saveWorkflow(copy);
     toast(`Removed ${a.name} from ${w.name}`);
     renderAgentPanel(id, wfId);
@@ -2223,27 +2523,41 @@ async function renderAgentPanel(id, wfId) {
     panelHead(avatar(a, true), h('div.grow', h('div.st-panel-title', a.name), h('div.hint', a.specialty || ''))),
     h(
       'div.st-panel-body',
-      h('div.row', { style: { gap: '6px' } }, running ? h('span.pill.warn', h('span.dot.busy'), 'working') : h('span.pill.ok', 'ready')),
+      (() => {
+        const now = nowText(id, wfId);
+        return h(
+          'div.st-agent-now',
+          { class: now.st },
+          now.st === 'working' ? h('span.dot.busy') : now.st === 'needs' ? h('span.dot.warn') : h('span.dot.on'),
+          h('span.grow', now.st === 'working' ? now.text : now.st === 'needs' ? 'Waiting for your OK (see below)' : 'Ready'),
+        );
+      })(),
       modelSection(a),
       h(
         'div.row.mt',
         { style: { gap: '6px' } },
-        h('button.btn.ghost.small', { onclick: () => navigate(S.chat?.id ? `#/agents/${id}/${S.chat.id}` : `#/agents/${id}`) }, 'Full chat'),
+        h('button.btn.small', { onclick: () => openChat('agent', id) }, icon('message-square', 14), 'Chat'),
+        h('button.btn.ghost.small', { onclick: () => navigate(`#/agents/${id}`) }, 'Full page'),
         a.engine !== 'openai' ? h('button.btn.ghost.small', { onclick: () => openTerminal(a) }, 'Terminal') : null,
         h('button.btn.ghost.small', { onclick: () => navigate(`#/agents/${id}/edit`) }, 'Edit'),
       ),
-      h('div.label.mt-lg', `On ${onBranches.length} team${onBranches.length === 1 ? '' : 's'}`),
+      h('div.label.mt-lg', `Teams (${onBranches.length})`),
       h(
         'div.st-conns',
         onBranches.map((w) =>
           h(
             'div.st-conn.ok',
             h('span.st-dot', { style: { '--c': wfColor(w, S.workflows.indexOf(w)) } }),
-            h('span.grow', { style: { cursor: 'pointer' }, onclick: () => choose({ type: 'branch', id: w.id }) }, w.name),
+            h('span.grow', { style: { cursor: 'pointer' }, onclick: () => choose({ type: 'branch', id: w.id }) }, w.name, h('span.hint', w.lead === id ? ' · ★ lead' : ' · member')),
+            h('button.btn.tiny.ghost', {
+              title: `Open ${w.name}'s chat with @${a.name}`,
+              onclick: () => openChat('team', w.id).mention?.(a.name),
+            }, 'Chat'),
+            w.lead !== id ? h('button.btn.tiny.ghost', { title: 'Make lead of this team', onclick: () => saveWorkflow({ ...structuredClone(w), lead: id }).then(() => renderAgentPanel(id, wfId)) }, '★') : null,
             h('button.btn.tiny.ghost', { title: `Take ${a.name} off this team`, onclick: () => removeFrom(w) }, 'Remove'),
           ),
         ),
-        !onBranches.length ? h('p.hint', 'On the Bench: not part of any workflow yet.') : null,
+        !onBranches.length ? h('p.hint', 'On the Bench: not in any team yet. Add it to one below, or drag it onto a team on the map.') : null,
       ),
       others.length
         ? h(
@@ -2253,7 +2567,7 @@ async function renderAgentPanel(id, wfId) {
               onclick: async () => {
                 const w = structuredClone(S.workflows.find((x) => x.id === addTo));
                 if (!w) return;
-                w.steps.push({ id: Math.random().toString(36).slice(2), type: 'agent', agentId: id, prompt: w.steps.length ? 'Continue from this:\n{{prev}}' : '{{input}}' });
+                setMembers(w, [...w.members, id]);
                 await saveWorkflow(w);
                 toast(`Added ${a.name} to ${w.name}`);
                 renderAgentPanel(id, addTo);
@@ -2270,14 +2584,8 @@ async function renderAgentPanel(id, wfId) {
           })))
         : null,
       d.approvals.filter((x) => x.agentId === id).map((x) => h('div.mt', approvalCard(x))),
-      h('div.label.mt-lg', 'Chat'),
-      S.chatEl,
-      S.chatStatus,
-      h('div.st-composer-bar', modelChip(a, { compact: true, onChange: () => renderAgentPanel(id, wfId) })),
-      h('div.st-composer', input, running ? h('button.btn.danger.small', { onclick: () => attempt(() => POST(`/runs/${running.id}/stop`)) }, 'Stop') : h('button.btn.small', { onclick: () => sendMini(input) }, 'Send')),
     ),
   );
-  drawMiniChat();
 }
 
 function drawMiniChat() {
@@ -2323,7 +2631,43 @@ export function onEvent(ev) {
   if (!S) return;
   const d = state.data;
   if (ev.type === 'workflows') return reloadWorkflows();
+  // a program was opened or closed: light its tile and the desks that use it
+  if (ev.type === 'programs') {
+    GET('/programs')
+      .then((p) => {
+        if (!S || !p) return;
+        S.progs = p;
+        if (signature() !== S.signature) rebuild();
+        drawHud();
+        if (S.selected) renderPanel();
+      })
+      .catch(() => {});
+    return;
+  }
+  if (ev.type === 'team') {
+    const e = ev.event;
+    const b = S.branches.get(ev.teamId);
+    if (e.kind === 'state') {
+      S.teamState[ev.teamId] = { working: e.working, queued: e.queued };
+      shareTeams();
+      updateStatuses();
+    } else if (e.kind === 'message') {
+      const m = e.message;
+      S.teamLast[ev.teamId] = m;
+      const nameOf = (id) => d?.agents.find((a) => a.id === id)?.name || 'Agent';
+      if (b && m.from === 'user') pulseAlong(ev.teamId, 0, 1, 6);
+      if (b && m.from !== 'user' && m.from !== 'system') {
+        for (const id of m.mentions || []) pulseHandoff(ev.teamId, m.from, id);
+        if (!m.mentions?.length) b.flash = Math.max(b.flash || 0, 0.5);
+      }
+      const tname = S.workflows.find((w) => w.id === ev.teamId)?.name || 'Team';
+      if (m.from !== 'system') feedPush(`${tname} · ${m.from === 'user' ? 'You' : nameOf(m.from)}${m.mentions?.length && m.from !== 'user' ? ` → ${m.mentions.map(nameOf).join(', ')}` : ''}: ${String(m.text).slice(0, 60)}`, 'workflow');
+      drawBranchCard(ev.teamId);
+    }
+    return;
+  }
   if (ev.type === 'project') {
+    closeChatsForProject();
     choose(null);
     S.shape = null;
     loadData().then(() => {
@@ -2344,7 +2688,7 @@ export function onEvent(ev) {
     if (r.status === 'running') {
       S.active.set(r.workflowId, r);
       if (b && idx !== prevIdx && idx >= 0) {
-        pulseAlong(r.workflowId, prevIdx < 0 ? 0 : stepT(b, prevIdx), stepT(b, idx), 6);
+        if (b.nodes[idx]) pulseToDesk(r.workflowId, b.nodes[idx].agentId);
         feedPush(`${wf?.name || 'Team'} → step ${idx + 1}: ${r.steps[idx].label}`, 'workflow');
         const node = b.nodes[idx];
         if (node) for (const l of node.links) pulseIntegration(l, node);
@@ -2365,9 +2709,9 @@ export function onEvent(ev) {
     const e = ev.event;
     const desks = S.desks.filter((x) => x.agent.id === ev.agentId);
     if (e.kind === 'start' && a) {
-      for (const desk of desks) if (desk.wfId) pulseAlong(desk.wfId, 0, stepT(S.branches.get(desk.wfId), desk.stepIndex), 4);
+      for (const desk of desks) if (desk.wfId) pulseToDesk(desk.wfId, desk.agent.id);
       for (const desk of desks) desk.act = { kind: 'thinking', since: Date.now() };
-      if (!ev.event.from?.startsWith?.('workflow')) feedPush(`${a.emoji || ''} ${a.name}: ${String(e.text || '').slice(0, 70)}`);
+      if (!/^(workflow|team)/.test(ev.event.from || '')) feedPush(`${a.emoji || ''} ${a.name}: ${String(e.text || '').slice(0, 70)}`);
     } else if (e.kind === 'tool') {
       for (const desk of desks) {
         desk.activity = e.name;

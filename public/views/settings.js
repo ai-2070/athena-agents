@@ -1,5 +1,6 @@
 // Settings: keys, defaults, local model servers, program paths, limits.
-import { h, mount, GET, POST, PUT, attempt, field, seg, select, toast, refreshSoon, state } from '../core.js';
+import { h, mount, GET, POST, PUT, attempt, field, seg, select, toast, refreshSoon, state, navigate } from '../core.js';
+import { brainModelChip } from '../models.js';
 
 let root;
 export const title = () => 'Settings';
@@ -60,10 +61,38 @@ async function draw() {
               h('span', cc.installed ? h('span', h('span.pill.ok', 'found'), ' ', cc.version || '', h('div.hint', 'Agents on "My Claude login" use your Claude subscription. Nothing to paste.')) : h('span.pill.bad', 'not installed')),
               h('span', 'Hermes'),
               h('span', st.engines.hermes.installed ? h('span.pill.ok', 'found') : h('span.pill', 'not installed')),
+              h('span', 'OpenAI Codex'),
+              h(
+                'span',
+                (() => {
+                  const cx = st.engines.codex || {};
+                  const btn = (label, fn, ghost = true) => h(`button.btn.${ghost ? 'ghost.' : ''}tiny`, { onclick: fn }, label);
+                  const signIn = async () => {
+                    const t = await attempt(() => POST('/terminals', { kind: 'command', command: 'codex', args: ['login'], title: 'Codex sign-in' }));
+                    if (t) navigate(`#/terminals/${t.id}`);
+                  };
+                  const recheck = () => attempt(() => POST('/codex/refresh'), (r) => (r.loggedIn ? 'Codex is signed in' : r.installed ? 'Installed, not signed in yet' : 'Not installed')).then(() => (refreshSoon(0), setTimeout(draw, 300)));
+                  if (!cx.installed)
+                    return h('span', h('span.pill', 'not installed'), ' ', btn('Install Codex', async (e) => {
+                      e.target.disabled = true;
+                      e.target.textContent = 'Installing…';
+                      await attempt(() => POST('/codex/install'), (r) => r.message);
+                      refreshSoon(0);
+                      setTimeout(draw, 500);
+                    }, false), h('div.hint', 'Installs the official CLI with npm (npm install -g @openai/codex). Then sign in with your ChatGPT account.'));
+                  return h('span', cx.loggedIn ? h('span.pill.ok', 'signed in') : h('span.pill.warn', 'not signed in'), ' ', cx.version || '', ' ', cx.loggedIn ? null : btn('Sign in', signIn, false), ' ', btn('Recheck', recheck), h('div.hint', cx.loggedIn ? 'Agents set to Codex use your ChatGPT login.' : 'Sign in opens a terminal running "codex login": follow the link, then press Recheck.'));
+                })(),
+              ),
             ),
             secretField('openrouterKey', 'OpenRouter key', 'sk-or-…', h('span', 'One key for hundreds of models (Claude, GPT, Gemini, Llama, DeepSeek…). Get it at ', h('a', { href: 'https://openrouter.ai/keys', target: '_blank' }, 'openrouter.ai/keys'), '. Also usable by Claude Code agents.')),
             secretField('anthropicKey', 'Anthropic API key (optional)', 'sk-ant-…', 'For Claude Code agents set to "Anthropic API key" instead of your subscription.'),
           ),
+        ),
+        h(
+          'div.panel',
+          h('div.panel-head', h('h2', "The Brain's model")),
+          h('p.hint', 'The Brain oversees the project: it answers about the project and its files, builds teams and agents, writes PROJECT.md and hands work out. It can run on Claude Code, OpenRouter, Hermes or Codex. Claude Code and Codex can also open files in the project folder.'),
+          h('div.row.mt', field('Model', brainModelChip({ prefix: '', onChange: (b) => (s.brain = b) }))),
         ),
         h(
           'div.panel',

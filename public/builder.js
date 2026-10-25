@@ -1,61 +1,57 @@
-// Branch builder: name it, pick its agents (or let the Brain build it), choose what it can access.
+// Team builder: name it, give it a goal, pick its agents and lead (or let the Brain build it), choose its access.
 import { h, mount, clear, state, GET, POST, PUT, attempt, modal, chipSet, select, toast, refreshSoon, avatar } from './core.js';
 
 const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a', '#4f7fa8', '#5a9a3a', '#a84a5a', '#2f8fa0'];
-const rid = () => Math.random().toString(36).slice(2);
-const LOOK = { approval: ['✋', 'Wait for your OK'], x_post: ['𝕏', 'Post to X (Outbox)'], notify: ['✉', 'Notify you'], tool: ['⚙', 'Tool'] };
 
-// Opens the builder. prefill: a design from the Brain ({name, description, steps, access}); wf: an existing branch to edit.
+// wf: an existing team to edit. prefill: a design from the Brain ({ name, description, members, leadIndex, access }).
 export async function openBranchBuilder({ wf = null, prefill = null, describe = '', onSaved } = {}) {
   const d = state.data;
   const mcp = await GET('/mcp').catch(() => ({ servers: {} }));
+  // members: { agentId } for existing agents, { newAgent } for ones the Brain suggests hiring
+  const fromTeam = (wf?.members || []).map((agentId) => ({ agentId }));
   const b = {
     name: wf?.name || prefill?.name || '',
     description: wf?.description || prefill?.description || describe || '',
-    steps: structuredClone(wf?.steps || prefill?.steps || []),
+    members: fromTeam.length ? fromTeam : structuredClone(prefill?.members || []),
+    lead: wf?.lead || null,
+    leadIndex: prefill?.leadIndex ?? -1,
     access: { toolGroups: [...(wf?.access?.toolGroups || prefill?.access?.toolGroups || [])], mcpServers: [...(wf?.access?.mcpServers || prefill?.access?.mcpServers || [])] },
   };
-  const agentsById = () => new Map(state.data.agents.map((a) => [a.id, a]));
+  if (!b.lead && b.leadIndex >= 0) b.lead = b.members[b.leadIndex]?.agentId || `new:${b.leadIndex}`;
+  const byId = () => new Map(state.data.agents.map((a) => [a.id, a]));
+  const keyOf = (m, j) => m.agentId || `new:${j}`;
 
-  const name = h('input', { value: b.name, placeholder: 'e.g. Daily X content, Client reports, Video pipeline' });
-  const desc = h('textarea', { rows: 2, value: b.description, placeholder: 'What this team does. Write it here and press Auto-build to let the Brain set it up.' });
+  const name = h('input', { value: b.name, placeholder: 'e.g. Social, Video studio, Launch crew' });
+  const desc = h('textarea', { rows: 2, value: b.description, placeholder: "The team's goal. Write it here and press Auto-build to let the Brain pick the agents." });
   name.addEventListener('input', () => (b.name = name.value));
   desc.addEventListener('input', () => (b.description = desc.value));
 
-  const stepsEl = h('div.bb-steps');
-  const drawSteps = () => {
-    const byId = agentsById();
-    clear(stepsEl);
-    b.steps.forEach((s, j) => {
-      const a = s.type === 'agent' ? byId.get(s.agentId) : null;
-      const isNew = s.type === 'agent' && s.newAgent;
-      const look = LOOK[s.type];
-      const prompt = h('input', { value: s.prompt ?? s.text ?? s.message ?? '', placeholder: s.type === 'agent' ? 'What it should do ({{input}}, {{prev}})' : '' });
-      prompt.addEventListener('input', () => {
-        if (s.type === 'agent') s.prompt = prompt.value;
-        else if (s.type === 'approval') s.message = prompt.value;
-        else s.text = prompt.value;
-      });
-      stepsEl.append(
+  const listEl = h('div.bb-steps');
+  const drawMembers = () => {
+    const agents = byId();
+    clear(listEl);
+    b.members.forEach((m, j) => {
+      const a = m.agentId ? agents.get(m.agentId) : null;
+      const k = keyOf(m, j);
+      const isLead = b.lead === k;
+      listEl.append(
         h(
           'div.bb-step',
-          h('span.bb-n', String(j + 1)),
-          a ? avatar(a) : h('div.avatar', isNew ? s.newAgent.emoji || '🤖' : look?.[0] || '?'),
+          a ? avatar(a) : h('div.avatar', m.newAgent?.emoji || '🤖'),
           h(
             'div.grow',
-            h('div.row', { style: { gap: '6px' } }, h('b', a ? a.name : isNew ? s.newAgent.name : s.type === 'agent' ? 'Missing agent' : look?.[1] || s.type), isNew ? h('span.pill.ok', 'new agent') : null, isNew && s.newAgent.specialty ? h('span.hint', s.newAgent.specialty) : null),
-            s.type === 'tool' ? h('div.hint', s.tool) : prompt,
+            h('div.row', { style: { gap: '6px' } }, h('b', a ? a.name : m.newAgent?.name || 'Agent'), m.newAgent ? h('span.pill.ok', 'new agent') : null, isLead ? h('span.tc-lead', '★ lead') : null),
+            h('div.hint', a ? a.specialty || '' : m.newAgent?.specialty || ''),
           ),
           h(
             'div.st-step-actions',
-            h('button', { title: 'Move up', disabled: j === 0, onclick: () => (b.steps.splice(j - 1, 0, b.steps.splice(j, 1)[0]), drawSteps()) }, '↑'),
-            h('button', { title: 'Move down', disabled: j === b.steps.length - 1, onclick: () => (b.steps.splice(j + 1, 0, b.steps.splice(j, 1)[0]), drawSteps()) }, '↓'),
-            h('button', { title: 'Remove', onclick: () => (b.steps.splice(j, 1), drawSteps()) }, '✕'),
+            h('button', { class: isLead ? 'on' : '', title: isLead ? 'Remove as lead' : 'Make lead: your messages go to them first', onclick: () => ((b.lead = isLead ? null : k), drawMembers()) }, '★'),
+            h('button', { title: 'Remove', onclick: () => (b.members.splice(j, 1), b.lead === k && (b.lead = null), drawMembers()) }, '✕'),
           ),
         ),
       );
     });
-    if (!b.steps.length) stepsEl.append(h('p.empty', 'No agents yet. Add them below, or describe the team and press Auto-build.'));
+    if (!b.members.length) listEl.append(h('p.empty', 'No agents yet. Add them below, or describe the goal and press Auto-build.'));
   };
 
   let addId = d.agents[0]?.id || '';
@@ -63,19 +59,16 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
     'div.row.mt',
     d.agents.length
       ? [
-          h('div', { style: { width: '240px' } }, select(d.agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` })), addId, (v) => (addId = v))),
+          h('div', { style: { width: '260px' } }, select(d.agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` })), addId, (v) => (addId = v))),
           h('button.btn.small', {
             onclick: () => {
-              if (!addId) return;
-              b.steps.push({ id: rid(), type: 'agent', agentId: addId, prompt: b.steps.length ? 'Continue from this:\n{{prev}}' : '{{input}}' });
-              drawSteps();
+              if (!addId || b.members.some((m) => m.agentId === addId)) return;
+              b.members.push({ agentId: addId });
+              drawMembers();
             },
           }, '+ Add agent'),
         ]
       : h('span.hint', 'You have no agents yet: Auto-build can create them.'),
-    h('button.btn.ghost.tiny', { onclick: () => (b.steps.push({ id: rid(), type: 'approval', label: 'Check before it continues', message: '{{prev}}' }), drawSteps()) }, '+ ✋ Your OK'),
-    h('button.btn.ghost.tiny', { onclick: () => (b.steps.push({ id: rid(), type: 'x_post', label: 'Post to X', text: '{{prev}}' }), drawSteps()) }, '+ 𝕏 Post'),
-    h('button.btn.ghost.tiny', { onclick: () => (b.steps.push({ id: rid(), type: 'notify', label: 'Tell me', text: 'Done: {{prev}}' }), drawSteps()) }, '+ ✉ Notify'),
   );
 
   const accessEl = h('div');
@@ -85,16 +78,16 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       h('div.label', 'Programs & tools'),
       h('div.mt', chipSet(state.data.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description })), b.access.toolGroups, (v) => (b.access.toolGroups = v))),
       Object.keys(mcp.servers).length ? [h('div.label.mt', 'MCP servers'), h('div.mt', chipSet(Object.keys(mcp.servers), b.access.mcpServers, (v) => (b.access.mcpServers = v)))] : null,
-      h('p.hint.mt', 'While this team runs, every agent on it gets these on top of its own tools.'),
+      h('p.hint.mt', 'While working for this team, every member gets these on top of its own tools.'),
     );
 
   const status = h('span.hint');
   const autoBtn = h('button.btn.small', {
     onclick: async () => {
       const text = [b.name, b.description].filter(Boolean).join(': ').trim();
-      if (!text) return toast('Describe what the team should do first.', 'warn');
+      if (!text) return toast("Describe the team's goal first.", 'warn');
       autoBtn.disabled = true;
-      status.textContent = 'The Brain is building it from your agents…';
+      status.textContent = 'The Brain is picking agents…';
       const design = await attempt(() => POST('/assist/branch', { text }));
       autoBtn.disabled = false;
       status.textContent = '';
@@ -103,12 +96,13 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       b.description = b.description || design.description;
       name.value = b.name;
       desc.value = b.description;
-      b.steps = design.steps.map((s) => ({ id: rid(), ...s }));
+      b.members = design.members;
+      b.lead = design.leadIndex >= 0 ? keyOf(design.members[design.leadIndex], design.leadIndex) : null;
       b.access = { toolGroups: design.access.toolGroups, mcpServers: design.access.mcpServers };
-      drawSteps();
+      drawMembers();
       drawAccess();
-      const fresh = design.steps.filter((s) => s.newAgent).length;
-      toast(`Built ${design.steps.length} steps${fresh ? `, with ${fresh} new agent${fresh > 1 ? 's' : ''} to hire` : ''}. Change anything, then save.`);
+      const fresh = design.members.filter((m) => m.newAgent).length;
+      toast(`Picked ${design.members.length} agents${fresh ? `, ${fresh} of them new` : ''}. Change anything, then save.`);
     },
   }, '✨ Auto-build');
 
@@ -116,16 +110,22 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   const save = async () => {
     if (!b.name.trim()) return toast('Give the team a name.', 'warn');
     // hire the new agents the Brain suggested
-    for (const s of b.steps) {
-      if (s.type === 'agent' && s.newAgent) {
-        const a = await attempt(() => POST('/agents', s.newAgent));
+    const ids = [];
+    let lead = b.lead;
+    for (const [j, mem] of b.members.entries()) {
+      if (mem.agentId) ids.push(mem.agentId);
+      else if (mem.newAgent) {
+        const a = await attempt(() => POST('/agents', mem.newAgent));
         if (!a) return;
-        s.agentId = a.id;
-        delete s.newAgent;
+        if (lead === `new:${j}`) lead = a.id;
+        ids.push(a.id);
       }
     }
-    const body = { name: b.name.trim(), description: b.description.trim(), steps: b.steps.map((s) => ({ id: s.id || rid(), ...s })), access: b.access };
-    const saved = wf ? await attempt(() => PUT(`/workflows/${wf.id}`, { ...wf, ...body })) : await attempt(() => POST('/workflows', { ...body, color: PALETTE[(state.data?.workflowsCount || Math.floor(Math.random() * 10)) % PALETTE.length], schedule: { type: 'none' }, enabled: false }));
+    if (lead && !ids.includes(lead)) lead = null;
+    const body = { name: b.name.trim(), description: b.description.trim(), members: ids, steps: ids.map((agentId) => ({ type: 'agent', agentId })), lead, access: b.access };
+    const saved = wf
+      ? await attempt(() => PUT(`/workflows/${wf.id}`, { ...wf, ...body }))
+      : await attempt(() => POST('/workflows', { ...body, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], schedule: { type: 'none' }, enabled: false }));
     if (!saved) return;
     refreshSoon(0);
     m.close();
@@ -137,13 +137,14 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
     title: wf ? `Edit ${wf.name}` : 'New team',
     body: h(
       'div.col.gap-lg',
-      h('div.col', h('label.field', h('span', 'Name'), name), h('label.field', h('span', 'What it does'), desc), h('div.row', autoBtn, status)),
-      h('div', h('div.label', 'Agents & steps, in order'), h('div.mt', stepsEl), addRow),
+      h('p.hint', 'A team is a group chat of agents. You write to the team, the lead (or the best fit) takes it, and they hand work to each other with @mentions.'),
+      h('div.col', h('label.field', h('span', 'Name'), name), h('label.field', h('span', 'Goal'), desc), h('div.row', autoBtn, status)),
+      h('div', h('div.label', 'Members'), h('div.mt', listEl), addRow),
       h('div', accessEl),
     ),
     foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), h('button.btn', { onclick: save }, wf ? 'Save team' : 'Create team')],
   });
-  drawSteps();
+  drawMembers();
   drawAccess();
   setTimeout(() => (b.name ? desc : name).focus(), 30);
   return m;

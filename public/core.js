@@ -154,7 +154,10 @@ export function modal({ title, body, foot = [], narrow = false, onClose } = {}) 
     onClose?.();
   };
   const onKey = (e) => {
-    if (e.key === 'Escape') close();
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    }
   };
   const back = h(
     'div.modal-back',

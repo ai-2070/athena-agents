@@ -1,10 +1,11 @@
-// The global chat: one window on every page. Send to Auto (the Brain picks an agent or branch),
-// to a new agent or branch designed from your message, or straight to any agent or branch.
-import { h, mount, clear, state, GET, POST, attempt, md, onEvent, onState, navigate, refreshSoon, chipSet, toast, avatar } from './core.js';
+// The global chat: one window on every page. Talk to the Brain (it answers, builds teams and agents,
+// writes PROJECT.md or hands the work to an agent or team), or straight to any agent or team.
+import { h, mount, clear, state, GET, POST, PUT, attempt, md, onEvent, onState, navigate, refreshSoon, chipSet, toast, avatar } from './core.js';
 import { openBranchBuilder } from './builder.js';
-import { icon } from './icons.js';
+import { icon, logo } from './icons.js';
+import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.js';
 
-const D = { open: false, target: 'auto', items: [], el: null, list: null, input: null, sel: null, workflows: [] };
+const D = { modelEl: null, open: false, target: 'auto', items: [], el: null, list: null, input: null, sel: null, workflows: [] };
 
 export function initDock() {
   const launcher = h('button.dock-launcher', { onclick: () => toggle(true) }, icon('sparkles', 17), h('span', 'Ask the Brain…'), h('kbd', 'Ctrl K'));
@@ -17,10 +18,14 @@ export function initDock() {
     }
   });
   D.sel = h('select.dock-target');
-  D.sel.addEventListener('change', () => (D.target = D.sel.value));
+  D.sel.addEventListener('change', () => {
+    D.target = D.sel.value;
+    drawModel();
+  });
+  D.modelEl = h('div.dock-model');
   D.panel = h(
     'div.dock.hidden',
-    h('div.dock-head', h('b', icon('brain', 16), 'Brain chat'), h('span.grow'), h('span.dock-to', 'to'), D.sel, h('button.icon-btn', { onclick: () => toggle(false), 'aria-label': 'Close' }, '✕')),
+    h('div.dock-head', h('b', icon('brain', 16), 'Brain chat'), h('span.grow'), h('span.dock-to', 'to'), D.sel, D.modelEl, h('button.icon-btn', { onclick: newConversation, title: 'New conversation (the Brain forgets this chat)', 'aria-label': 'New conversation' }, icon('rotate-ccw', 15)), h('button.icon-btn', { onclick: () => toggle(false), 'aria-label': 'Close' }, '✕')),
     D.list,
     h('div.dock-compose', D.input, h('button.btn', { onclick: send, title: 'Send (Enter)' }, icon('send', 15))),
   );
@@ -32,10 +37,37 @@ export function initDock() {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       toggle(!D.open);
-    } else if (e.key === 'Escape' && D.open && D.panel.contains(document.activeElement)) toggle(false);
+    } else if (e.key === 'Escape' && D.open && !e.defaultPrevented && !document.querySelector('.modal-back, .model-menu')) {
+      e.preventDefault();
+      toggle(false);
+    }
   });
   onEvent(handleEvent);
   loadWorkflows();
+  loadHistory();
+  draw();
+}
+
+// Ask the Brain from anywhere (e.g. right after creating a project).
+export function askBrain(text) {
+  D.target = 'auto';
+  toggle(true);
+  drawTargets();
+  D.input.value = text;
+  send();
+}
+
+// The last few turns with the Brain, so the chat picks up where it left off.
+async function loadHistory() {
+  const msgs = await GET('/brain/history').catch(() => []);
+  if (D.items.length) return;
+  for (const m of msgs.slice(-6)) D.items.push(m.role === 'user' ? { id: `h${m.ts}u`, kind: 'user', text: m.text } : { id: `h${m.ts}b`, kind: 'brain', answer: m.text, done: [], old: true });
+  draw();
+}
+
+async function newConversation() {
+  await attempt(() => POST('/brain/clear'));
+  D.items = [];
   draw();
 }
 
@@ -62,13 +94,32 @@ async function loadWorkflows() {
 
 function drawTargets() {
   const agents = state.data?.agents || [];
-  const opts = [h('option', { value: 'auto' }, '✨ Auto: pick for me'), h('option', { value: 'new-agent' }, '+ New agent from this'), h('option', { value: 'new-branch' }, '+ New team from this')];
+  const opts = [h('option', { value: 'auto' }, '🧠 The Brain: answers, builds, hands off'), h('option', { value: 'new-agent' }, '+ New agent from this'), h('option', { value: 'new-branch' }, '+ New team from this')];
   if (agents.length) opts.push(h('optgroup', { label: 'Agents' }, agents.map((a) => h('option', { value: `a:${a.id}` }, `${a.emoji || ''} ${a.name}`))));
-  const wfs = D.workflows.filter((w) => w.steps?.length);
+  const wfs = D.workflows.filter((w) => w.members?.length || w.steps?.length);
   if (wfs.length) opts.push(h('optgroup', { label: 'Teams' }, wfs.map((w) => h('option', { value: `b:${w.id}` }, `⇢ ${w.name}`))));
   mount(D.sel, opts);
   if (![...D.sel.options].some((o) => o.value === D.target)) D.target = 'auto';
   D.sel.value = D.target;
+  drawModel();
+}
+
+// The model that will answer: the agent's (switchable), the Brain's own for Auto / New, or the team's lead.
+function drawModel() {
+  if (!D.modelEl) return;
+  const t = D.target;
+  const agents = state.data?.agents || [];
+  if (t.startsWith('a:')) {
+    const a = agents.find((x) => x.id === t.slice(2));
+    return mount(D.modelEl, a ? modelChip(a, { compact: true }) : null);
+  }
+  if (t.startsWith('b:')) {
+    const wf = D.workflows.find((w) => w.id === t.slice(2));
+    const lead = wf?.lead ? agents.find((x) => x.id === wf.lead) : null;
+    return mount(D.modelEl, lead ? h('span.dock-model-note', { title: 'The team lead answers first' }, '★ ', modelChip(lead, { compact: true })) : h('span.dock-model-note.hint', 'each agent its own model'));
+  }
+  // The Brain itself (and New agent / New team): the Brain's own model
+  mount(D.modelEl, brainModelChip());
 }
 
 // ---------- messages ----------
@@ -84,7 +135,7 @@ function draw() {
   frame = true;
   requestAnimationFrame(() => {
     frame = false;
-    mount(D.list, D.items.length ? D.items.map(renderItem) : h('div.dock-empty', icon('sparkles', 26), h('p', 'Ask for anything: an image, a video cut, an email, research, a post or DM.'), h('p.hint', 'Auto picks the right agent or team. New designs one for the job.')));
+    mount(D.list, D.items.length ? D.items.map(renderItem) : h('div.dock-empty', icon('sparkles', 26), h('p', 'Ask the Brain anything about the project, or for anything to be done.'), h('p.hint', 'It sees every agent and team and what they are doing. It answers questions itself, builds teams from the library ("make me a social media team"), and hands work to the right agent or team.')));
     D.list.scrollTop = D.list.scrollHeight;
   });
 }
@@ -98,7 +149,7 @@ function renderItem(it) {
     body.classList?.add('dock-answer');
     return h(
       'div.dock-msg.agent',
-      h('div.dock-who', a ? avatar(a) : null, h('b', a?.name || 'Agent'), it.reason ? h('span.hint', it.reason) : null, h('span.grow'), h('button.btn.tiny.ghost', { onclick: () => navigate(`#/agents/${it.agentId}/${it.chatId}`) }, 'Open chat')),
+      h('div.dock-who', a ? avatar(a) : null, h('b', a?.name || 'Agent'), a ? h('span.dock-answer-model', modelInfo(a).short) : null, it.reason ? h('span.hint', it.reason) : null, h('span.grow'), h('button.btn.tiny.ghost', { onclick: () => navigate(`#/agents/${it.agentId}/${it.chatId}`) }, 'Open chat')),
       it.tools?.length ? h('div.dock-tools', it.tools.map((t) => h('span', { class: t.status === 'running' ? 'run' : t.isError ? 'err' : '' }, `${t.status === 'running' ? '●' : t.isError ? '✕' : '✓'} ${t.name}`))) : null,
       body,
       it.images?.length ? h('div.st-imgs', it.images.slice(0, 4).map((src) => h('img', { src }))) : null,
@@ -106,15 +157,32 @@ function renderItem(it) {
     );
   }
   if (it.kind === 'branch') {
+    const agentOf = (id) => state.data?.agents.find((a) => a.id === id);
     return h(
       'div.dock-msg.agent',
-      h('div.dock-who', h('div.avatar', '⇢'), h('b', it.name), it.reason ? h('span.hint', it.reason) : null, h('span.grow'), h('button.btn.tiny.ghost', { onclick: () => navigate(`#/workflows/${it.wfId}`) }, 'Open')),
-      h(
-        'div.dock-steps',
-        (it.steps || []).map((s, i) => h('div', { class: s.status }, h('span', s.status === 'done' ? '✓' : s.status === 'failed' ? '✕' : s.status === 'running' ? '●' : s.status === 'needs-you' ? '!' : '·'), ` ${i + 1}. ${s.label}`, s.status === 'needs-you' ? h('span.amber', ' · waiting for you in Needs you') : null)),
-      ),
-      it.output ? md(it.output) : null,
-      it.error ? h('div.dock-note.err', it.error) : null,
+      h('div.dock-who', h('div.avatar', icon('users', 14)), h('b', it.name), it.reason ? h('span.hint', it.reason) : null, h('span.grow'), h('button.btn.tiny.ghost', { onclick: () => navigate('#/station') }, 'Open team')),
+      (it.messages || []).map((m) => {
+        const a = agentOf(m.from);
+        const body = md(String(m.text).slice(0, 3000));
+        body.classList.add('dock-answer');
+        return h('div.dock-team-msg', h('div.dock-who', a ? avatar(a) : null, h('b', a?.name || 'Team'), m.mentions?.length ? h('span.hint', `→ ${m.mentions.map((id) => agentOf(id)?.name).filter(Boolean).join(', ')}`) : null), body);
+      }),
+      it.working?.length ? h('div.dock-note', h('span.dot.busy'), `${it.working.map((id) => agentOf(id)?.name || 'Agent').join(', ')} working…`) : !it.messages?.length ? h('div.dock-note', h('span.dot.busy'), 'Sent to the team…') : null,
+    );
+  }
+  if (it.kind === 'brain') {
+    const b = state.data?.settings?.brain || { model: 'haiku' };
+    const body = md(it.answer || (it.done?.length ? '' : '(no answer)'));
+    body.classList?.add('dock-answer');
+    const ico = { team: 'users', hired: 'user-plus', file: 'file-text', error: 'triangle-alert', note: 'check' };
+    return h(
+      'div.dock-msg.agent.brain',
+      h('div.dock-who', h('div.avatar.brain-av', icon('brain', 14)), h('b', 'Brain'), h('span.dock-answer-model', modelInfo(brainAsAgent(b)).short)),
+      body,
+      it.done?.length
+        ? h('div.brain-done', it.done.map((d) => h(`div.brain-act${d.kind === 'error' ? '.err' : ''}`, icon(ico[d.kind] || 'check', 13), h('span', d.text), d.teamId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/station?team=${d.teamId}`) }, 'Show') : null)))
+        : null,
+      it.delegate ? h('div.brain-act.handoff', icon('send', 13), h('span', 'Handed to ', h('b', it.delegate.name))) : null,
     );
   }
   if (it.kind === 'agent-draft') return draftCard(it);
@@ -158,14 +226,18 @@ async function send() {
   if (t.startsWith('b:')) return toBranch(t.slice(2), text);
   if (t === 'new-agent') return newAgent(text);
   if (t === 'new-branch') return newBranch(text);
-  // Auto
-  const thinking = add({ kind: 'note', text: 'Looking at your agents and teams…', busy: true });
-  const r = await POST('/assist/route', { text }).catch((e) => ({ kind: 'error', reason: e.message }));
+  // The Brain: answers, changes the roster, or hands the work on
+  const thinking = add({ kind: 'note', text: 'The Brain is looking at the project…', busy: true });
+  const r = await POST('/brain/ask', { text }).catch((e) => ({ error: e.message }));
   D.items.splice(D.items.indexOf(thinking), 1);
-  if (r.kind === 'agent') return toAgent(r.id, text, r.reason);
-  if (r.kind === 'branch') return toBranch(r.id, text, r.reason);
-  add({ kind: 'note', text: r.kind === 'error' ? `Couldn't decide: ${r.reason}` : `None of your agents fits this (${r.reason}).`, error: r.kind === 'error' });
-  add({ kind: 'note', text: h('span', 'Make one for it: ', h('button.btn.tiny', { onclick: () => newAgent(text) }, 'New agent'), ' ', h('button.btn.tiny.ghost', { onclick: () => newBranch(text) }, 'New team')) });
+  if (r.error) return add({ kind: 'note', text: `The Brain couldn't answer: ${r.error}`, error: true });
+  add({ kind: 'brain', answer: r.answer, done: r.done || [], delegate: r.delegate });
+  if (r.done?.length) {
+    refreshSoon(0);
+    loadWorkflows();
+  }
+  if (r.delegate?.kind === 'agent') return toAgent(r.delegate.id, r.delegate.message || text, 'from the Brain');
+  if (r.delegate?.kind === 'branch') return toBranch(r.delegate.id, r.delegate.message || text, 'from the Brain');
 }
 
 async function toAgent(agentId, text, reason = '') {
@@ -182,9 +254,9 @@ async function toAgent(agentId, text, reason = '') {
 
 async function toBranch(wfId, text, reason = '') {
   const wf = D.workflows.find((w) => w.id === wfId);
-  const run = await attempt(() => POST(`/workflows/${wfId}/run`, { input: text }));
-  if (!run) return;
-  add({ kind: 'branch', wfId, runId: run.id, name: wf?.name || 'Team', reason, steps: run.steps });
+  const msg = await attempt(() => POST(`/teams/${wfId}/messages`, { text }));
+  if (!msg) return;
+  add({ kind: 'branch', wfId, name: wf?.name || 'Team', reason, since: msg.ts, messages: [], working: [] });
 }
 
 async function newAgent(text) {
@@ -202,10 +274,10 @@ async function newBranch(text) {
   if (design.error) return add({ kind: 'note', text: `Couldn't build it: ${design.error}`, error: true });
   draw();
   openBranchBuilder({
-    prefill: { ...design, steps: design.steps.map((s) => ({ id: Math.random().toString(36).slice(2), ...s })) },
+    prefill: design,
     onSaved: async (wf) => {
       await loadWorkflows();
-      D.items.push({ id: 'ran' + wf.id, kind: 'note', text: h('span', `Team "${wf.name}" is ready. `, h('button.btn.tiny', { onclick: () => toBranch(wf.id, text) }, 'Run it with my message')) });
+      D.items.push({ id: 'ran' + wf.id, kind: 'note', text: h('span', `Team "${wf.name}" is ready. `, h('button.btn.tiny', { onclick: () => toBranch(wf.id, text) }, 'Send it my message')) });
       draw();
     },
   });
@@ -243,6 +315,16 @@ function handleEvent(ev) {
         .catch(() => {});
     }
     draw();
+  }
+  if (ev.type === 'team') {
+    const items = D.items.filter((x) => x.kind === 'branch' && x.wfId === ev.teamId);
+    const it = items[items.length - 1];
+    if (!it) return;
+    const e = ev.event;
+    if (e.kind === 'message' && e.message.from !== 'user' && e.message.ts >= it.since) it.messages.push(e.message);
+    if (e.kind === 'state') it.working = e.working;
+    draw();
+    return;
   }
   if (ev.type === 'workflow-run' && ev.run) {
     const it = D.items.find((x) => x.kind === 'branch' && x.runId === ev.run.id);

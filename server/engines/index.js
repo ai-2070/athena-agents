@@ -8,18 +8,41 @@ import { workspaceOf, toolsForAgent } from '../tools.js';
 import * as openai from './openai.js';
 import * as claude from './claude.js';
 import * as hermes from './hermes.js';
+import * as codex from './codex.js';
 
-const ENGINES = { 'claude-code': claude, openai, hermes };
+const ENGINES = { 'claude-code': claude, openai, hermes, codex };
 export const ENGINE_LIST = [
   { id: 'claude-code', label: 'Claude Code', description: 'The Claude Code CLI on this PC: its own coding, files, web search and your claude.ai connectors, plus the dashboard tools. Signs in with your Claude login, an Anthropic key, or OpenRouter.' },
   { id: 'openai', label: 'API model', description: 'Any OpenRouter model, or a local model in LM Studio / Ollama. Uses the dashboard tools and MCP servers directly.' },
   { id: 'hermes', label: 'Hermes', description: 'One of your Hermes Agent profiles, with its own memory, skills and tools.' },
+  { id: 'codex', label: 'Codex', description: 'OpenAI Codex CLI on this PC: coding, shell and files with your ChatGPT login (codex login), plus the dashboard tools.' },
 ];
 
 const active = new Map(); // runId -> { abort, agentId, chatId, chat, depth, parentRunId }
 
 export function activeRuns() {
   return [...active.entries()].map(([id, r]) => ({ id, agentId: r.agentId, chatId: r.chatId, startedAt: r.startedAt, agentName: r.agentName, parentRunId: r.parentRunId || null }));
+}
+
+// What every running agent is doing right now (for the Brain's overview).
+export function liveActivity() {
+  return [...active.entries()].map(([id, r]) => {
+    const items = r.chat?.items || [];
+    const lastUser = [...items].reverse().find((i) => i.type === 'user');
+    const lastTool = [...items].reverse().find((i) => i.type === 'tool');
+    const lastText = [...items].reverse().find((i) => i.type === 'assistant');
+    return {
+      runId: id,
+      agentId: r.agentId,
+      agentName: r.agentName,
+      chatId: r.chatId,
+      seconds: Math.round((Date.now() - r.startedAt) / 1000),
+      task: String(lastUser?.text || '').slice(0, 300),
+      from: lastUser?.from || null,
+      tool: lastTool ? { name: lastTool.name, status: lastTool.status, args: JSON.stringify(lastTool.args || {}).slice(0, 200) } : null,
+      saying: String(lastText?.text || '').slice(-240),
+    };
+  });
 }
 
 export function runInfo(runId) {
@@ -198,6 +221,7 @@ export function engineStatus() {
     'claude-code': claude.status(),
     openai: openai.status(),
     hermes: hermes.status(),
+    codex: codex.status(),
   };
 }
 

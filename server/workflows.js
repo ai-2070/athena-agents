@@ -6,6 +6,8 @@ import { askAgent, stopChildren } from './engines/index.js';
 import { callTool, TOOL_GROUPS } from './tools.js';
 import { requestApproval, cancelForRun } from './approvals.js';
 import { draftPost } from './social.js';
+import { postUserMessage, normalize } from './teams.js';
+import { pickMember } from './brain.js';
 
 const WORKFLOW_AGENT = {
   id: '_workflow',
@@ -172,7 +174,9 @@ export function startScheduler() {
       if (!due(wf, now)) continue;
       wf.lastScheduledAt = now;
       workflows.save(wf);
-      startWorkflow(wf.id, wf.schedule.input || '', { trigger: 'schedule' }).catch((e) => log('error', `Scheduled workflow "${wf.name}": ${e.message}`));
+      // a scheduled team gets its routine message in the team chat
+      const team = normalize(wf);
+      postUserMessage(team.id, wf.schedule.input || `Scheduled check-in: ${team.description || 'do your routine work'}`, { route: pickMember }).catch((e) => log('error', `Scheduled team "${wf.name}": ${e.message}`));
     }
   }, 30_000).unref();
 }

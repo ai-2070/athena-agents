@@ -2,7 +2,7 @@
 // resuming the same Claude session so the conversation continues.
 import fs from 'node:fs';
 import path from 'node:path';
-import { dataPath, ensureDir, which, spawnCommand, killTree, run as runCmd } from '../util.js';
+import { dataPath, ensureDir, which, spawnCommand, killTree, run as runCmd, HOME } from '../util.js';
 import { getSecrets } from '../store.js';
 import { claudeMcpConfig } from '../mcp.js';
 import { workspaceOf } from '../tools.js';
@@ -15,7 +15,8 @@ export function status() {
     versionCache = 'checking';
     runCmd('claude', ['--version'], { timeout: 20000 }).then((r) => (versionCache = r.stdout.trim() || 'unknown'));
   }
-  return { installed: !!exe, path: exe, version: versionCache === 'checking' ? null : versionCache };
+  const loggedIn = fs.existsSync(path.join(HOME, '.claude', '.credentials.json')) || !!process.env.ANTHROPIC_API_KEY;
+  return { installed: !!exe, path: exe, loggedIn, version: versionCache === 'checking' ? null : versionCache };
 }
 
 export const CLAUDE_MODELS = [

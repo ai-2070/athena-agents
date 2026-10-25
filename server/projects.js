@@ -1,7 +1,7 @@
 // Projects: create, switch, and look inside a project's Brain folder (files, notes, GitHub).
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, ensureDir, exists, run, slugify, uid, which } from './util.js';
+import { HOME, ensureDir, exists, run, slugify, uid, which, dataPath } from './util.js';
 import { listProjects, saveProjects, activeProject, setActiveProject, log } from './store.js';
 
 const PROJECTS_ROOT = path.join(HOME, 'Documents', 'My Dashboard');
@@ -23,7 +23,7 @@ ${extra}
 }
 
 // mode: "new" (fresh folder), "existing" (a folder you already have), "github" (clone a repo into a folder)
-export async function createProject({ name, mode = 'new', folder = '', repo = '' }) {
+export async function createProject({ name, mode = 'new', folder = '', repo = '', description = '' }) {
   name = String(name || '').trim();
   if (!name) throw new Error('Give the project a name.');
   let brainPath = String(folder || '').trim().replace(/^"|"$/g, '');
@@ -48,7 +48,7 @@ export async function createProject({ name, mode = 'new', folder = '', repo = ''
   }
   const list = listProjects();
   const id = `${slugify(name)}-${uid().slice(-4)}`;
-  const project = { id, name, brainPath: path.resolve(brainPath), repo, createdAt: Date.now() };
+  const project = { id, name, description: String(description || '').trim().slice(0, 6000), brainPath: path.resolve(brainPath), repo, createdAt: Date.now() };
   saveProjects([...list, project]);
   setActiveProject(id);
   log('project', `Created project "${name}" (${mode === 'github' ? `cloned ${repo}` : brainPath})`);
@@ -60,6 +60,7 @@ export function updateProject(id, patch) {
   const p = list.find((x) => x.id === id);
   if (!p) throw new Error('No such project.');
   if (patch.name) p.name = String(patch.name).slice(0, 80);
+  if (typeof patch.description === 'string') p.description = patch.description.trim().slice(0, 6000);
   if (patch.brainPath) {
     if (!exists(patch.brainPath)) throw new Error(`${patch.brainPath} doesn't exist.`);
     p.brainPath = path.resolve(patch.brainPath);
@@ -140,4 +141,49 @@ export async function gitPull(p = activeProject()) {
   const r = await run('git', ['-C', p.brainPath, 'pull', '--ff-only'], { timeout: 5 * 60_000 });
   if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().slice(-500));
   return r.stdout.trim() || 'Up to date.';
+}
+
+// For the start screen: every project with how many agents and teams it has, plus project
+// folders on this PC (in the projects folder) that aren't on the list yet.
+export function overview(peek = () => null) {
+  const list = listProjects();
+  const count = (id, what) => {
+    try {
+      return fs.readdirSync(dataPath('projects', id, what)).filter((n) => n.endsWith('.json')).length;
+    } catch {
+      return 0;
+    }
+  };
+  const known = new Set(list.map((p) => path.resolve(p.brainPath).toLowerCase()));
+  const found = [];
+  try {
+    for (const e of fs.readdirSync(PROJECTS_ROOT, { withFileTypes: true })) {
+      if (!e.isDirectory()) continue;
+      const dir = path.join(PROJECTS_ROOT, e.name);
+      if (known.has(path.resolve(dir).toLowerCase())) continue;
+      const saved = peek(dir);
+      const hasBrief = ['PROJECT.md', 'BRAIN.md'].find((f) => exists(path.join(dir, f)));
+      if (saved || hasBrief) found.push({ name: saved?.name || e.name, folder: dir, brief: hasBrief, saved });
+    }
+  } catch {
+    /* no projects folder yet */
+  }
+  return {
+    active: activeProject().id,
+    root: PROJECTS_ROOT,
+    projects: list
+      .map((p) => ({ ...p, agents: count(p.id, 'agents'), teams: count(p.id, 'workflows'), hasProjectMd: exists(path.join(p.brainPath, 'PROJECT.md')), saved: peek(p.brainPath) }))
+      .sort((a, b) => (b.openedAt || b.createdAt || 0) - (a.openedAt || a.createdAt || 0)),
+    found,
+  };
+}
+
+// Remember when a project was last opened (for the start screen order).
+export function touch(id) {
+  const list = listProjects();
+  const p = list.find((x) => x.id === id);
+  if (p) {
+    p.openedAt = Date.now();
+    saveProjects(list);
+  }
 }

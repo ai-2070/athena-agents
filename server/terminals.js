@@ -4,6 +4,7 @@ import { which, uid, IS_WIN, HOME } from './util.js';
 import { emit, log } from './store.js';
 import { prepareFiles, claudeArgs, claudeEnv } from './engines/claude.js';
 import { hermesArgs } from './engines/hermes.js';
+import { codexArgs } from './engines/codex.js';
 import { buildSystemPrompt } from './engines/index.js';
 import { workspaceOf } from './tools.js';
 
@@ -40,7 +41,10 @@ export function createTerminal({ kind = 'shell', agent = null, command = null, a
     } else if (agent.engine === 'hermes') {
       cmd = 'hermes';
       argv = hermesArgs(agent, { interactive: true });
-    } else throw new Error('API-model agents chat in the dashboard; open a terminal for a Claude Code or Hermes agent.');
+    } else if (agent.engine === 'codex') {
+      cmd = 'codex';
+      argv = codexArgs(agent, { interactive: true });
+    } else throw new Error('API-model agents chat in the dashboard; open a terminal for a Claude Code, Codex or Hermes agent.');
     name ||= `${agent.emoji || ''} ${agent.name}`.trim();
   } else if (kind === 'command' && command) {
     cmd = command;

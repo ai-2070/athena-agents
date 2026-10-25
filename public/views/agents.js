@@ -167,6 +167,12 @@ async function renderEditor(el, id) {
         ),
         field('Temperature', h('input', { type: 'number', step: '0.1', min: '0', max: '2', value: a.temperature ?? '', placeholder: 'model default', oninput: (e) => set('temperature')(e.target.value) })),
       );
+    } else if (a.engine === 'codex') {
+      const cx = d.engines.codex || {};
+      parts.push(
+        h('div.grid-2', field('Model', modelInput, "Empty = Codex's default (e.g. gpt-6-astra)."), h('div', h('div.label', 'Codex'), h('p.hint', cx.installed ? (cx.loggedIn ? `Signed in · ${cx.version || ''}` : 'Installed, not signed in yet: Settings > General > Sign in') : 'Not installed yet: Settings > General > Install Codex'))),
+        h('p.hint', 'Codex runs in the workspace folder. Autonomy maps to its sandbox: Ask first = read-only, Auto = can edit the workspace, Full = no sandbox.'),
+      );
     } else if (a.engine === 'hermes') {
       parts.push(
         h(

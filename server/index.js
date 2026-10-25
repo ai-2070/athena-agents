@@ -12,6 +12,8 @@ import * as engines from './engines/index.js';
 import { PROVIDERS, listModels } from './engines/openai.js';
 import { CLAUDE_MODELS } from './engines/claude.js';
 import { listProfiles } from './engines/hermes.js';
+import * as codexEngine from './engines/codex.js';
+import { clearWhichCache } from './util.js';
 import * as tools from './tools.js';
 import * as programs from './programs.js';
 import * as comfy from './comfyui.js';
@@ -24,6 +26,10 @@ import * as terms from './terminals.js';
 import * as status from './status.js';
 import * as brain from './brain.js';
 import * as projects from './projects.js';
+import * as teams from './teams.js';
+import * as reddit from './reddit.js';
+import * as overseer from './overseer.js';
+import * as projectSync from './projectsync.js';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
@@ -78,6 +84,7 @@ get('/api/state', async () => ({
   agents: agents.list().sort((a, b) => (b.pinned - a.pinned) || a.name.localeCompare(b.name)),
   mcpServers: Object.keys(mcp.listServers()),
   project: store.activeProject(),
+  projectSaved: projectSync.saveStatus(),
   projects: store.listProjects(),
   approvals: listApprovals(),
   outboxPending: outbox.list().filter((p) => p.status === 'pending').length,
@@ -97,9 +104,26 @@ get('/api/state', async () => ({
 get('/api/activity', async () => activity(200));
 // ---------- projects ----------
 get('/api/projects', async () => ({ active: store.activeProject(), projects: store.listProjects(), root: projects.projectsRoot() }));
-post('/api/projects', async (_p, body) => projects.createProject(body || {}));
+post('/api/projects', async (_p, body) => {
+  let p = await projects.createProject(body || {});
+  // a folder saved by the dashboard before: load its agents, teams and chats
+  const restored = projectSync.restoreInto(p.id, p.brainPath);
+  if (restored && !p.description && restored.project.description) p = projects.updateProject(p.id, { description: restored.project.description });
+  if (restored) store.emit('project', { id: p.id });
+  p = { ...p, restored };
+  projects.touch(p.id);
+  launcherPending = false;
+  return p;
+});
+// The start screen: shown once each time the dashboard starts, until you pick or create a project.
+let launcherPending = true;
+get('/api/projects/overview', async () => ({ ...projects.overview(projectSync.peek), showLauncher: launcherPending }));
+post('/api/projects/save', async () => projectSync.saveProject(store.activeProject().id));
+post('/api/projects/launcher-done', async () => ((launcherPending = false), { ok: true }));
 post('/api/projects/:id/activate', async ({ id }) => {
   const p = store.setActiveProject(id);
+  projects.touch(id);
+  launcherPending = false;
   log('project', `Switched to project "${p.name}"`);
   return p;
 });
@@ -108,7 +132,11 @@ del('/api/projects/:id', async ({ id }) => projects.removeProject(id));
 get('/api/brain', async () => projects.brainInfo());
 // Where things sit on the Station map (per project), e.g. { bench: { x, z } }.
 get('/api/layout', async () => readJSON(store.projectData('layout.json'), {}));
-put('/api/layout', async (_p, body) => writeJSON(store.projectData('layout.json'), { ...readJSON(store.projectData('layout.json'), {}), ...(body || {}) }));
+put('/api/layout', async (_p, body) => {
+  writeJSON(store.projectData('layout.json'), { ...readJSON(store.projectData('layout.json'), {}), ...(body || {}) });
+  store.emit('layout');
+  return { ok: true };
+});
 post('/api/brain/note', async (_p, body) => ({ file: projects.addNote(body.name, body.content) }));
 post('/api/brain/pull', async () => ({ message: await projects.gitPull() }));
 post('/api/brain/open', async (_p, body) => {
@@ -123,11 +151,27 @@ post('/api/brain/open', async (_p, body) => {
 
 // The Brain: pick who handles a message, design a new agent, build a branch.
 post('/api/assist/route', async (_p, body) => brain.route(String(body.text || '')));
+get('/api/assist/model', async () => brain.brainModel());
+// The Brain as overseer: ask it anything about the project; it answers or hands the work on.
+post('/api/brain/ask', async (_p, body) => overseer.ask(String(body.text || '').slice(0, 20000)));
+get('/api/brain/history', async () => overseer.history());
+post('/api/brain/clear', async () => (overseer.clearHistory(), { ok: true }));
+get('/api/brain/snapshot', async () => ({ text: await overseer.snapshot() }));
+get('/api/brain/pulse', async () => overseer.pulse());
 post('/api/assist/agent', async (_p, body) => brain.designAgent(String(body.text || '')));
 post('/api/assist/branch', async (_p, body) => brain.designBranch(String(body.text || ''), { allowNew: body.allowNew !== false }));
 get('/api/headbar', async () => {
-  const [usage, connectors] = await Promise.all([status.claudeUsage(), status.claudeConnectors().catch(() => [])]);
-  return { usage, connectors };
+  const eng = engines.engineStatus();
+  const [usage, connectors, or] = await Promise.all([status.claudeUsage(), status.claudeConnectors().catch(() => []), status.openrouterUsage(store.getSecrets().openrouterKey)]);
+  const cx = eng.codex?.installed && eng.codex.loggedIn ? status.codexUsage() : null;
+  // One entry per connected provider that reports usage; the header cycles through them.
+  const usages = [
+    // Claude Code is always shown when you're signed in; "–" until Anthropic sends numbers
+    eng['claude-code'].installed && (usage || eng['claude-code'].loggedIn) && { id: 'claude', name: 'Claude Code', meters: [{ label: 'SESSION', ...(usage?.session || {}) }, { label: 'WEEK', ...(usage?.week || {}) }] },
+    or && { id: 'openrouter', name: 'OpenRouter', meters: [or.percent != null ? { label: 'CREDITS', percent: or.percent, text: or.left != null ? `$${or.left.toFixed(2)} left` : null } : null, or.today != null ? { label: 'TODAY', text: `$${or.today.toFixed(2)}` } : null].filter(Boolean) },
+    cx && { id: 'codex', name: 'OpenAI Codex', meters: [cx.session && { label: 'SESSION', ...cx.session }, cx.week && { label: 'WEEK', ...cx.week }].filter(Boolean) },
+  ].filter((x) => x && x.meters.length);
+  return { usage, usages, connectors };
 });
 
 // ---------- agents ----------
@@ -147,12 +191,14 @@ put('/api/agents/:id', async ({ id }, body) => {
   return agents.save(a);
 });
 del('/api/agents/:id', async ({ id }) => {
-  need(agents.get(id));
+  const gone = need(agents.get(id));
   agents.remove(id);
+  log('agent', `Deleted agent ${gone.name}`, { agentId: id });
   // and take it off every branch it was on
   for (const wf of workflows.list()) {
-    const steps = wf.steps.filter((s) => !(s.type === 'agent' && s.agentId === id));
-    if (steps.length !== wf.steps.length) workflows.save({ ...wf, steps });
+    const steps = (wf.steps || []).filter((s) => !(s.type === 'agent' && s.agentId === id));
+    const members = (wf.members || []).filter((m) => m !== id);
+    if (steps.length !== (wf.steps || []).length || members.length !== (wf.members || []).length) workflows.save({ ...wf, steps, members, lead: wf.lead === id ? null : wf.lead });
   }
   return { ok: true };
 });
@@ -253,10 +299,27 @@ post('/api/library/hire', async (_p, body) => {
 get('/api/models', async (_p, _b, q) => {
   if (q.engine === 'claude-code') return CLAUDE_MODELS;
   if (q.engine === 'hermes') return [];
+  if (q.engine === 'codex') return [{ id: '', name: "Codex's default model" }, { id: 'gpt-6-astra', name: 'GPT-6 Astra' }];
   return listModels(q.provider || 'openrouter');
 });
 get('/api/providers', async () => Object.entries(PROVIDERS).map(([id, p]) => ({ id, label: p.label })));
 get('/api/hermes/profiles', async () => listProfiles());
+// OpenAI Codex: install the CLI (npm) and check its sign-in.
+post('/api/codex/install', async () => {
+  const r = await run('npm', ['install', '-g', '@openai/codex'], { timeout: 10 * 60_000 });
+  clearWhichCache();
+  codexEngine.refreshStatus();
+  if (r.code !== 0) throw new HttpError(500, (r.stderr || r.stdout).trim().slice(-600) || 'npm install failed');
+  log('system', 'Installed OpenAI Codex CLI');
+  return { message: 'Codex installed. Now sign in.' };
+});
+post('/api/codex/refresh', async () => {
+  clearWhichCache();
+  codexEngine.refreshStatus();
+  codexEngine.status();
+  await new Promise((r) => setTimeout(r, 3500));
+  return codexEngine.status();
+});
 
 // ---------- tools & programs ----------
 get('/api/tools', async () => ({ groups: tools.TOOL_GROUPS, tools: tools.allTools() }));
@@ -337,7 +400,7 @@ post('/api/hermes/add-bridge', async () => {
 get('/api/settings', async () => ({ settings: getSettings(), secrets: secretStatus() }));
 put('/api/settings', async (_p, body) => saveSettings(body || {}));
 post('/api/secrets', async (_p, body) => {
-  const okKeys = ['openrouterKey', 'anthropicKey', 'customKey', 'xClientSecret', 'telegramBotToken', 'discordWebhook'];
+  const okKeys = ['openrouterKey', 'anthropicKey', 'customKey', 'xClientSecret', 'telegramBotToken', 'discordWebhook', 'redditClientSecret'];
   if (!okKeys.includes(body.key)) throw new HttpError(400, 'Unknown key');
   setSecret(body.key, String(body.value || '').trim());
   return secretStatus();
@@ -362,6 +425,14 @@ del('/api/accounts/x/:id', async ({ id }) => {
   return social.listAccounts();
 });
 get('/api/accounts/x/:id/posts', async ({ id }) => social.xRecentPosts(id, 10));
+post('/api/accounts/reddit/:id', async ({ id }, body) => {
+  if ('autopost' in body) reddit.setRedditAutopost(id, body.autopost);
+  return social.listAccounts();
+});
+del('/api/accounts/reddit/:id', async ({ id }) => {
+  reddit.disconnectReddit(id);
+  return social.listAccounts();
+});
 post('/api/social/test', async (_p, body) => ({ message: body.platform === 'discord' ? await social.sendDiscord('Test from My Dashboard ✅') : await social.sendTelegram('Test from My Dashboard ✅') }));
 
 get('/api/outbox', async () => outbox.list().sort((a, b) => b.createdAt - a.createdAt));
@@ -379,15 +450,31 @@ del('/api/outbox/:id', async ({ id }) => {
 });
 
 // ---------- workflows ----------
-get('/api/workflows', async () => workflows.list().sort((a, b) => a.name.localeCompare(b.name)));
+get('/api/workflows', async () =>
+  teams
+    .listTeams()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((t) => ({ ...t, state: teams.teamState(t.id), last: teams.getThread(t.id, 1).messages[0] || null })),
+);
 post('/api/workflows', async (_p, body) => workflows.save({ name: 'New workflow', steps: [], schedule: { type: 'none' }, enabled: false, ...body, id: undefined }));
-get('/api/workflows/:id', async ({ id }) => need(workflows.get(id)));
+get('/api/workflows/:id', async ({ id }) => need(teams.getTeam(id)));
 put('/api/workflows/:id', async ({ id }, body) => workflows.save({ ...need(workflows.get(id)), ...body, id }));
 del('/api/workflows/:id', async ({ id }) => {
+  const gone = workflows.get(id);
   workflows.remove(id);
+  if (gone) log('team', `Deleted team ${gone.name}`);
   return { ok: true };
 });
-post('/api/workflows/:id/run', async ({ id }, body) => wfs.startWorkflow(id, body.input || ''));
+// "Run" a team = write to its chat.
+post('/api/workflows/:id/run', async ({ id }, body) => teams.postUserMessage(id, body.input || 'Go ahead.', { route: brain.pickMember }));
+// ---------- team chats ----------
+get('/api/teams/:id/chat', async ({ id }) => ({ team: need(teams.getTeam(id)), ...teams.getThread(id) }));
+post('/api/teams/:id/messages', async ({ id }, body) => teams.postUserMessage(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember }));
+post('/api/teams/:id/stop', async ({ id }) => ({ ok: teams.stopTeam(id) }));
+post('/api/teams/:id/clear', async ({ id }) => {
+  teams.clearThread(id);
+  return { ok: true };
+});
 get('/api/workflow-templates', async () => wfs.TEMPLATES.map(({ name, description, needs }) => ({ name, description, needs })));
 get('/api/workflow-active', async () => runs.list().filter((r) => r.status === 'running').map(wfs.runSummary));
 post('/api/workflow-templates', async (_p, body) => wfs.createFromTemplate(body.name));
@@ -449,6 +536,24 @@ async function handleOAuth(url, req, res) {
       res.end();
     } catch (e) {
       page(res, 400, 'Could not start X sign-in', e.message);
+    }
+    return true;
+  }
+  if (url.pathname === '/oauth/reddit/start') {
+    try {
+      res.writeHead(302, { location: reddit.redditAuthStart(`http://${req.headers.host}`) });
+      res.end();
+    } catch (e) {
+      page(res, 400, 'Could not start Reddit sign-in', e.message);
+    }
+    return true;
+  }
+  if (url.pathname === '/oauth/reddit/callback') {
+    try {
+      const acc = await reddit.redditAuthCallback(Object.fromEntries(url.searchParams));
+      page(res, 200, `Connected u/${acc.username}`, 'You can close this tab and go back to the dashboard.', true);
+    } catch (e) {
+      page(res, 400, 'Reddit sign-in failed', e.message);
     }
     return true;
   }
@@ -535,7 +640,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   // Browsers label requests from other websites (an <img> or link pointing here). Only the X callback may arrive that way.
   const site = req.headers['sec-fetch-site'];
-  if (site && site !== 'same-origin' && site !== 'none' && url.pathname !== '/oauth/x/callback' && (url.pathname.startsWith('/api/') || url.pathname.startsWith('/oauth/'))) {
+  if (site && site !== 'same-origin' && site !== 'none' && !['/oauth/x/callback', '/oauth/reddit/callback'].includes(url.pathname) && (url.pathname.startsWith('/api/') || url.pathname.startsWith('/oauth/'))) {
     res.writeHead(403, { 'content-type': 'application/json' });
     return res.end(JSON.stringify({ error: 'Requests from other websites are not allowed.' }));
   }
@@ -605,6 +710,8 @@ internalToken();
 store.migrateLayout();
 wfs.markInterruptedRuns();
 wfs.startScheduler();
+projectSync.startAutoSave();
+programs.startRunningWatch();
 
 server.on('error', (e) => {
   if (e.code === 'EADDRINUSE') {

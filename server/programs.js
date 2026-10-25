@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { HOME, IS_WIN, exists, listDirs, walk, which, run, ping, launchDetached, openWithShell, readJSON } from './util.js';
-import { getSettings } from './store.js';
+import { getSettings, emit } from './store.js';
 
 const PF = process.env.ProgramFiles || 'C:\\Program Files';
 const PF86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
@@ -278,6 +278,28 @@ export async function discoverPrograms(force = false) {
   return cache.list;
 }
 
+// Which known programs are open right now. Checked every few seconds; when that changes the
+// page is told ('programs' event), so "running" shows up (and goes away) without a rescan.
+let lastRunning = null;
+const isRunning = (p, procs) => !!(p.serviceUrl || (p.exe && procs.has(path.basename(p.exe).toLowerCase())));
+export async function refreshRunning() {
+  if (!cache.list.length) await discoverPrograms();
+  const procs = await runningExes();
+  for (const p of cache.list) p.running = isRunning(p, procs);
+  const now = cache.list.filter((p) => p.running).map((p) => p.id).join(',');
+  if (lastRunning !== null && now !== lastRunning) emit('programs', { running: now ? now.split(',') : [] });
+  lastRunning = now;
+}
+export function startRunningWatch() {
+  if (!IS_WIN) return;
+  refreshRunning().catch(() => {});
+  setInterval(() => refreshRunning().catch(() => {}), 5000).unref?.();
+}
+// Right after a start, look a few times so it shows up quickly.
+function checkSoon() {
+  for (const ms of [1500, 4000, 8000, 15000]) setTimeout(() => refreshRunning().catch(() => {}), ms);
+}
+
 export async function getProgram(id) {
   return (await discoverPrograms()).find((p) => p.id === id) || null;
 }
@@ -292,10 +314,12 @@ export async function launchProgram(nameOrId, { file = null, args = [] } = {}) {
   const extra = [...(file ? [file] : []), ...(Array.isArray(args) ? args : [])];
   if (known?.exe && !known.cli) {
     launchDetached(known.exe, extra);
+    checkSoon();
     return `Started ${known.name}${file ? ` with ${file}` : ''}.`;
   }
   if (known?.shortcut && !extra.length) {
     openWithShell(known.shortcut);
+    checkSoon();
     return `Started ${known.name}.`;
   }
   const lnk = startMenuApps().find((a) => a.name.toLowerCase() === lower) || startMenuApps().find((a) => a.name.toLowerCase().includes(lower));

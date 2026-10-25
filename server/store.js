@@ -33,6 +33,9 @@ const DEFAULT_SETTINGS = {
   paths: { blender: '', photoshop: '', aftereffects: '', premiere: '', comfyui: '' },
   allowedFolders: [],
   x: { clientId: '' },
+  reddit: { clientId: '', username: '' },
+  brain: { provider: 'claude', model: 'haiku' },
+  look: { scale: 100, accent: 'lime', motion: 'full' },
   telegram: { chatId: '' },
   maxToolSteps: 16,
   costLimitUsdPerRun: 2,
@@ -71,7 +74,7 @@ export function setSecret(key, value) {
 export function secretStatus() {
   const s = getSecrets();
   const out = {};
-  for (const k of ['openrouterKey', 'anthropicKey', 'customKey', 'xClientSecret', 'telegramBotToken', 'discordWebhook']) {
+  for (const k of ['openrouterKey', 'anthropicKey', 'customKey', 'xClientSecret', 'telegramBotToken', 'discordWebhook', 'redditClientSecret']) {
     const v = s[k];
     out[k] = v ? { set: true, hint: `…${String(v).slice(-4)}` } : { set: false };
   }

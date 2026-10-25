@@ -3,6 +3,7 @@
 import crypto from 'node:crypto';
 import { dataPath, readJSON, writeJSON, fetchJSON, uid } from './util.js';
 import { getSettings, getSecrets, outbox, emit, log } from './store.js';
+import * as reddit from './reddit.js';
 
 const ACCOUNTS_FILE = dataPath('accounts.json');
 const X_API = 'https://api.x.com/2';
@@ -21,6 +22,8 @@ export function listAccounts() {
     xAppConfigured: !!s.x.clientId,
     telegram: { configured: !!(sec.telegramBotToken && s.telegram.chatId) },
     discord: { configured: !!sec.discordWebhook },
+    reddit: reddit.redditAccounts(),
+    redditAppConfigured: reddit.redditAppConfigured(),
   };
 }
 
@@ -198,7 +201,30 @@ export function disconnectX(accountId) {
 }
 
 // ---------- Outbox ----------
-export async function draftPost({ platform = 'x', account, text, thread = null, replyTo = null, to = null, agentId = null, agentName = '', note = '' }) {
+export async function draftPost({ platform = 'x', account, text, thread = null, replyTo = null, to = null, agentId = null, agentName = '', note = '', subreddit = '', title = '', link = '', parent = '' }) {
+  // Reddit: a post (subreddit + title + text or link) or a comment (parent = post/comment id or URL)
+  if (platform === 'reddit') {
+    const acc = reddit.resolveRedditAccount(account);
+    const isComment = !!parent;
+    const body = String(text || '').trim();
+    let parentId = String(parent || '');
+    const sr = String(subreddit || '').replace(/^\/?r\//, '');
+    if (isComment) {
+      const m = /comments\/(\w+)(?:\/[^/]*\/(\w+))?/.exec(parentId);
+      if (m) parentId = m[2] ? `t1_${m[2]}` : `t3_${m[1]}`;
+      if (!/^t[13]_\w+$/.test(parentId)) throw new Error('Reply to what? Give the post or comment URL, or its id like t3_abc123.');
+      if (!body) throw new Error('The comment is empty.');
+    } else {
+      if (!/^\w{2,21}$/.test(sr)) throw new Error('Which subreddit? For example LocalLLaMA.');
+      if (!String(title).trim()) throw new Error('A Reddit post needs a title.');
+      if (!body && !link) throw new Error('Add the post text or a link.');
+    }
+    const label = isComment ? `u/${acc.username} · comment` : `u/${acc.username} → r/${sr}`;
+    const item = outbox.save({ id: uid('p'), platform: 'reddit', accountId: acc.id, accountLabel: label, parts: [body || link], reddit: { kind: isComment ? 'comment' : 'post', subreddit: sr, title: String(title).trim().slice(0, 300), link: link || '', parent: parentId }, agentId, agentName, note, status: 'pending' });
+    log('social', `${agentName || 'You'} drafted a Reddit ${isComment ? 'comment' : 'post'} (${label})`, { agentId });
+    if (acc.autopost) return { ...(await approvePost(item.id)), autoPosted: true };
+    return item;
+  }
   const parts = (thread && thread.length ? thread : [text]).map((t) => String(t || '').trim()).filter(Boolean);
   if (!parts.length) throw new Error('The post is empty.');
   let accountId = null;
@@ -253,6 +279,10 @@ export async function approvePost(id, edits = null) {
     } else if (item.platform === 'x_dm') {
       const r = await xSendDm(item.accountId, item.to, item.parts.join('\n\n'));
       Object.assign(item, { status: 'posted', postIds: [r.id], postedAt: Date.now(), error: null, url: 'https://x.com/messages' });
+    } else if (item.platform === 'reddit') {
+      if (edits?.title != null && item.reddit) item.reddit.title = String(edits.title).trim();
+      const r = await reddit.publish(item);
+      Object.assign(item, { status: 'posted', url: r.url, postIds: [r.id], postedAt: Date.now(), error: null });
     } else if (item.platform === 'telegram') {
       await sendTelegram(item.parts.join('\n\n'));
       Object.assign(item, { status: 'posted', postedAt: Date.now(), error: null });

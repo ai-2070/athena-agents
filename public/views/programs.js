@@ -28,6 +28,30 @@ const ABOUT = {
   chrome: 'open_url can target it; add the Playwright MCP for full control.',
 };
 
+const progState = (p) => [p.version ? `v${p.version}` : p.cli ? 'command line' : 'installed', p.running ? ' · running' : ''].join('');
+
+// Start it, show "starting…" until the dashboard sees it open.
+async function startProgram(p, btn) {
+  const r = await attempt(() => POST('/programs/launch', { program: p.id }), (x) => x.message);
+  if (!r) return;
+  const card = btn.closest('.card');
+  card?.querySelector('.prog-state')?.replaceChildren(`${p.version ? `v${p.version}` : 'installed'} · starting…`);
+  card?.querySelector('.corner .dot')?.classList.add('busy');
+}
+
+// A program opened or closed (the server checks every few seconds): update the cards in place.
+export async function onEvent(ev) {
+  if (ev.type !== 'programs' || !root?.isConnected) return;
+  const progs = await GET('/programs').catch(() => null);
+  for (const p of progs || []) {
+    const card = root.querySelector(`.card[data-prog="${p.id}"]`);
+    if (!card) continue;
+    card.querySelector('.prog-state')?.replaceChildren(progState(p));
+    const dot = card.querySelector('.corner .dot');
+    if (dot) dot.className = `dot ${p.running ? 'on' : ''}`;
+  }
+}
+
 export async function render(el) {
   root = el;
   mount(el, h('p.dim', 'Looking around this PC…'));
@@ -52,12 +76,13 @@ async function draw(force) {
           list.map((p) =>
             h(
               'div.card',
-              h('div.card-top', h('div.avatar', p.icon), h('div.grow', h('div.card-title', p.name), h('div.hint', [p.version ? `v${p.version}` : p.cli ? 'command line' : 'installed', p.running ? ' · running' : ''].join('')))),
+              { 'data-prog': p.id },
+              h('div.card-top', h('div.avatar', p.icon), h('div.grow', h('div.card-title', p.name), h('div.hint.prog-state', progState(p)))),
               h('span.corner', h('span', { class: `dot ${p.running ? 'on' : ''}` })),
               ABOUT[p.id] ? h('div.card-sub', ABOUT[p.id]) : null,
               h(
                 'div.card-foot',
-                p.actions.includes('launch') || (!p.cli && p.exe) ? h('button.btn.small', { onclick: () => attempt(() => POST('/programs/launch', { program: p.id }), (r) => r.message) }, 'Start') : null,
+                p.actions.includes('launch') || (!p.cli && p.exe) ? h('button.btn.small', { onclick: (e) => startProgram(p, e.currentTarget) }, 'Start') : null,
                 p.serviceUrl ? h('a.btn.ghost.small', { href: p.serviceUrl, target: '_blank' }, 'Open') : null,
                 p.actions.includes('terminal') ? h('button.btn.ghost.small', { onclick: () => openCli(p) }, 'Terminal') : null,
               ),

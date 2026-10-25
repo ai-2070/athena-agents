@@ -8,6 +8,7 @@ import { requestApproval } from './approvals.js';
 import { discoverPrograms, launchProgram, programExe, startMenuApps } from './programs.js';
 import * as comfy from './comfyui.js';
 import * as social from './social.js';
+import * as reddit from './reddit.js';
 import * as kb from './knowledge.js';
 import { ensureBrain } from './projects.js';
 
@@ -18,7 +19,7 @@ export const TOOL_GROUPS = [
   { id: 'blender', label: 'Blender', description: 'Run Blender Python (modeling, rendering, exports).' },
   { id: 'adobe', label: 'Adobe', description: 'Photoshop and After Effects scripts, open Premiere projects.' },
   { id: 'media', label: 'FFmpeg', description: 'Convert, cut and inspect audio and video.' },
-  { id: 'social', label: 'Social', description: 'Draft X posts (they wait in the Outbox), read posts and mentions, Telegram, Discord.' },
+  { id: 'social', label: 'Social', description: 'Draft X and Reddit posts (they wait in the Outbox), read posts, mentions and subreddits, Telegram, Discord.' },
   { id: 'agents', label: 'Delegate', description: 'Ask other agents and Hermes profiles for help.' },
   { id: 'files', label: 'Files', description: 'Read and write files in its workspace and folders you allow.' },
   { id: 'orca', label: 'Orca', description: 'Run Orca CLI commands (worktrees, terminals, its browser).' },
@@ -267,7 +268,7 @@ const TOOLS = [
     run: async () => {
       const a = social.listAccounts();
       return {
-        text: `X: ${a.x.map((x) => `@${x.username}${x.autopost ? ' (auto-post on)' : ' (approve first)'}`).join(', ') || 'none connected'}\nTelegram: ${a.telegram.configured ? 'ready' : 'not set up'}\nDiscord: ${a.discord.configured ? 'ready' : 'not set up'}`,
+        text: `X: ${a.x.map((x) => `@${x.username}${x.autopost ? ' (auto-post on)' : ' (approve first)'}`).join(', ') || 'none connected'}\nReddit: ${a.reddit.map((x) => `u/${x.username}`).join(', ') || 'none connected'}\nTelegram: ${a.telegram.configured ? 'ready' : 'not set up'}\nDiscord: ${a.discord.configured ? 'ready' : 'not set up'}`,
       };
     },
   },
@@ -316,6 +317,52 @@ const TOOLS = [
     description: 'Read recent mentions of a connected account. (Each X read is billed by X.)',
     parameters: obj({ account: str('Handle'), limit: { type: 'number' } }),
     run: async ({ account, limit = 10 }) => ({ text: JSON.stringify(await social.xMentions(account, limit), null, 2) }),
+  },
+  {
+    name: 'reddit_read',
+    group: 'social',
+    risk: 'none',
+    description: 'Read posts from a subreddit (hot, new, top this week, rising): titles, scores, comment counts, links.',
+    parameters: obj({ subreddit: str('e.g. LocalLLaMA'), sort: str('hot, new, top or rising'), limit: { type: 'number' } }, ['subreddit']),
+    run: async ({ subreddit, sort = 'hot', limit = 10 }) => ({ text: JSON.stringify(await reddit.readSubreddit(subreddit, sort, limit), null, 2) }),
+  },
+  {
+    name: 'reddit_search',
+    group: 'social',
+    risk: 'none',
+    description: 'Search Reddit (optionally inside one subreddit) for posts from the last month.',
+    parameters: obj({ query: str('What to look for'), subreddit: str('Optional subreddit'), limit: { type: 'number' } }, ['query']),
+    run: async ({ query, subreddit = '', limit = 10 }) => ({ text: JSON.stringify(await reddit.searchReddit(query, subreddit, limit), null, 2) }),
+  },
+  {
+    name: 'reddit_comments',
+    group: 'social',
+    risk: 'none',
+    description: "Read a Reddit post and its top comments (give the post URL or id).",
+    parameters: obj({ post: str('Post URL or id') }, ['post']),
+    run: async ({ post }) => ({ text: JSON.stringify(await reddit.postComments(post), null, 2) }),
+  },
+  {
+    name: 'reddit_draft_post',
+    group: 'social',
+    risk: 'none',
+    description: 'Write a Reddit post. It waits in the Outbox for the user to approve or edit. Follow the subreddit rules; no spam or self-promotion where it is not allowed.',
+    parameters: obj({ subreddit: str('Subreddit, e.g. LocalLLaMA'), title: str('Post title'), text: str('Post body (markdown)'), link: str('Or a link to share instead of text'), account: str('Which of your Reddit accounts') }, ['subreddit', 'title']),
+    run: async ({ subreddit, title, text, link, account, note }, ctx) => {
+      const r = await social.draftPost({ platform: 'reddit', subreddit, title, text, link, account, note, agentId: ctx.agent.id, agentName: ctx.agent.name });
+      return { text: r.status === 'posted' ? `Posted: ${r.url}` : `Saved to the Outbox for approval (id ${r.id}).` };
+    },
+  },
+  {
+    name: 'reddit_draft_comment',
+    group: 'social',
+    risk: 'none',
+    description: 'Write a Reddit comment replying to a post or comment (give its URL or id). It waits in the Outbox for the user to approve.',
+    parameters: obj({ reply_to: str('Post or comment URL, or id like t3_abc / t1_abc'), text: str('The comment (markdown)'), account: str('Which of your Reddit accounts') }, ['reply_to', 'text']),
+    run: async ({ reply_to, text, account }, ctx) => {
+      const r = await social.draftPost({ platform: 'reddit', parent: reply_to, text, account, agentId: ctx.agent.id, agentName: ctx.agent.name });
+      return { text: r.status === 'posted' ? `Posted: ${r.url}` : `Saved to the Outbox for approval (id ${r.id}).` };
+    },
   },
   {
     name: 'telegram_send',

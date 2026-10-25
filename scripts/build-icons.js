@@ -15,12 +15,14 @@ const UI = [
   'check', 'triangle-alert', 'zoom-in', 'zoom-out', 'house', 'move', 'hand', 'bell', 'network', 'brain', 'wrench', 'globe', 'folder', 'user-plus',
   'arrow-up', 'arrow-down', 'ellipsis', 'external-link', 'maximize-2', 'radio', 'rotate-ccw', 'circle-check', 'circle-x', 'clock', 'shield-check',
   'key-round', 'server', 'monitor', 'film', 'palette', 'pen-line', 'list-checks', 'circle-pause', 'grip-vertical', 'mouse-pointer-click', 'store',
+  'file-text', 'folder-open', 'rotate-cw', 'chevron-right', 'rocket',
 ];
 const BRANDS = {
   gmail: 'gmail', notion: 'notion', 'google drive': 'googledrive', drive: 'googledrive', 'google calendar': 'googlecalendar', calendar: 'googlecalendar',
   x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', claude: 'claude', anthropic: 'anthropic', premiere: 'adobepremierepro',
   photoshop: 'adobephotoshop', aftereffects: 'adobeaftereffects', ffmpeg: 'ffmpeg', chrome: 'googlechrome', github: 'github', figma: 'figma',
   slack: 'slack', linear: 'linear', atlassian: 'atlassian', intercom: 'intercom', ollama: 'ollama', 'claude docs': 'googledocs', docs: 'googledocs',
+  openai: 'openai', codex: 'openai',
   canva: 'canva', stripe: 'stripe', youtube: 'youtube', reddit: 'reddit', instagram: 'instagram', tiktok: 'tiktok', spotify: 'spotify', obsidian: 'obsidian',
   vscode: 'vscodium', zed: 'zedindustries', gimp: 'gimp', python: 'python', git: 'git', docker: 'docker', node: 'nodedotjs',
 };
