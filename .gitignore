@@ -4,3 +4,8 @@ data/
 *.log
 # Design tool cache
 .impeccable/
+
+# Built browser bundle (bun run build)
+public/dist/
+coverage/
+public/.dist-tmp/

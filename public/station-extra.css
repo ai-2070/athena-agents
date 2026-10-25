@@ -21,3 +21,71 @@
   position: absolute; left: 0; top: 0; z-index: 20; pointer-events: none; padding: 5px 9px; white-space: nowrap;
   background: rgba(13, 16, 13, 0.95); border: 1px solid var(--accent-dim); font: 600 11px var(--mono); color: var(--accent);
 }
+
+/* AI engines strip (top right): every engine, lit when ready */
+.st-engine { position: relative; border: 0; background: none; cursor: pointer; padding: 0; border-radius: 6px; transition: transform .15s, opacity .2s, filter .2s; }
+.st-engine:hover { transform: translateY(-1px); background: color-mix(in srgb, var(--c) 12%, transparent); }
+.st-engine.off { color: #5b5e57; text-shadow: none; filter: grayscale(1); opacity: .55; }
+.st-engine.off:hover { opacity: .9; }
+.st-engine.busy { animation: st-engine-pulse 1.4s ease-in-out infinite; }
+@keyframes st-engine-pulse { 50% { text-shadow: 0 0 16px var(--c); transform: scale(1.08); } }
+.st-engine-n { position: absolute; right: -5px; bottom: -4px; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 7px; background: #141713; border: 1px solid color-mix(in srgb, var(--c) 55%, #333); color: var(--ink, #e6e8e0); font: 600 8.5px/11px var(--mono); text-shadow: none; }
+.st-engine.off .st-engine-n { border-color: #444; color: #888; }
+
+/* Usage: one provider at a time, slides to the next every 6 s */
+.st-usage { overflow: hidden; display: flex; align-items: center; }
+.st-usage .st-meters { display: flex; align-items: center; gap: 14px; }
+.st-usage-in { animation: st-usage-in .55s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes st-usage-in { from { opacity: 0; transform: translateY(14px); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
+.st-usage-who { width: 22px; display: grid; place-items: center; color: var(--c); text-shadow: 0 0 10px var(--c); font: 700 14px var(--sans); }
+.st-usage-dots { display: flex; flex-direction: column; gap: 3px; }
+.st-usage-dots i { width: 4px; height: 4px; border-radius: 50%; background: #3a3d37; transition: background .3s; }
+.st-usage-dots i.on { background: var(--accent); }
+@media (max-width: 1200px) { .st-usage { display: none; } }
+
+/* long agent names don't run into each other */
+.st-chip .st-chip-name { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
+
+/* ---------- Team panel (group chat) ---------- */
+.st-team-status { margin-top: 3px; font-size: 12px; }
+.st-team-live { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-size: 12px; }
+.st-team-goal { margin: 0 0 10px; color: var(--dim); font-size: 13px; line-height: 1.45; }
+.st-team-faces { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.st-face { position: relative; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--bg); cursor: pointer; width: 36px; height: 36px; display: grid; place-items: center; transition: transform .15s, border-color .15s; }
+.st-face:hover { transform: translateY(-2px); border-color: var(--accent); }
+.st-face .avatar { width: 32px; height: 32px; font-size: 16px; border-radius: 50%; }
+.st-face.working { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); animation: st-face-pulse 1.4s ease-in-out infinite; }
+@keyframes st-face-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 10%, transparent); } }
+.st-face.add { color: var(--dim); border-style: dashed; }
+.st-member-star { position: absolute; right: -4px; top: -5px; color: #ffcc55; font-size: 12px; text-shadow: 0 0 6px rgba(255, 204, 85, .7); }
+.st-tabs { margin-bottom: 12px !important; }
+.st-tabs button { padding: 8px 12px; }
+.st-tab-n { margin-left: 6px; padding: 0 5px; border-radius: 8px; background: var(--panel-2); color: var(--dim); font-size: 10px; }
+.st-tab-body { animation: rise-in .2s ease-out; }
+.st-members { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.st-member { display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); transition: border-color .2s; }
+.st-member.working { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.st-member.queued { border-color: color-mix(in srgb, var(--amber) 40%, var(--line)); }
+.st-member-av { position: relative; flex: none; }
+.st-member-av .avatar { width: 34px; height: 34px; font-size: 17px; }
+.st-member-name { font-weight: 600; font-size: 13.5px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.st-member-name:hover { color: var(--accent); }
+.st-member-now { margin-top: 2px; color: var(--dim); font-size: 12px; display: flex; align-items: center; gap: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-member.working .st-member-now { color: var(--accent); }
+.st-member-model { margin-top: 6px; }
+.st-member-actions { display: flex; gap: 4px; }
+.st-member-actions button { width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 6px; background: none; color: var(--dim); cursor: pointer; font: 600 12px var(--mono); }
+.st-member-actions button:hover { color: var(--ink); border-color: var(--line-2); }
+.st-member-actions button.on { color: #ffcc55; border-color: #ffcc5566; }
+/* ---------- Agent panel ---------- */
+.st-agent-now { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 12.5px; color: var(--dim); }
+.st-agent-now.working { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.st-agent-now.needs { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 40%, var(--line)); }
+.dot.warn { background: var(--amber); }
+
+/* Hovering a team or an agent: only the connections it uses stay lit. */
+.st-connected.focus .st-int:not(.hot) { opacity: 0.15; filter: grayscale(1); box-shadow: none; }
+.st-connected.focus .st-int.hot {
+  opacity: 1; transform: translateY(-1px); background: color-mix(in srgb, var(--c) 18%, #0d100d);
+  box-shadow: 0 0 0 1px var(--c), 0 0 16px color-mix(in srgb, var(--c) 55%, transparent);
+}

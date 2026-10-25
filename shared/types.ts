@@ -1,0 +1,415 @@
+// Types shared by the server (server/) and the browser app (web/).
+// The server stores these as JSON files; the browser gets them from the API.
+
+export type EngineId = 'claude-code' | 'openai' | 'hermes' | 'codex';
+export type Autonomy = 'ask' | 'auto' | 'full';
+export type ProviderId = 'openrouter' | 'lmstudio' | 'ollama' | 'custom';
+export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
+
+// ---------- agents ----------
+export interface AgentSource {
+  type: 'custom' | 'agency' | 'starter' | 'hermes' | 'claude' | 'brain' | 'preset' | string;
+  slug?: string;
+  division?: string;
+  preset?: string;
+  profile?: string;
+}
+
+export interface Agent {
+  id: string;
+  name: string;
+  emoji: string;
+  color: string;
+  specialty: string;
+  description: string;
+  systemPrompt: string;
+  engine: EngineId;
+  model: string;
+  provider: ProviderId | string;
+  claudeAuth: ClaudeAuth | string;
+  hermesProfile: string;
+  autonomy: Autonomy;
+  toolGroups: string[];
+  mcpServers: string[];
+  knowledge: { folders: string[] };
+  workspace: string;
+  temperature: number | '';
+  alwaysAllow: string[];
+  skills: string[];
+  source: AgentSource;
+  pinned: boolean;
+  lastModel?: string;
+  lastModelAt?: number;
+  createdAt?: number;
+  updatedAt?: number;
+  /** Set only while an agent works for a team: that team's skills. Never saved. */
+  _teamSkills?: string[];
+}
+
+// ---------- teams (stored in the "workflows" collection) ----------
+export interface TeamAccess {
+  toolGroups: string[];
+  mcpServers: string[];
+}
+
+export interface Schedule {
+  type: 'none' | 'daily' | 'interval' | string;
+  /** daily: 'HH:MM' */
+  time?: string;
+  /** interval: every N minutes */
+  minutes?: number;
+  /** daily: which weekdays (0 = Sunday); empty = every day */
+  days?: number[];
+  input?: string;
+}
+
+/** Old teams were step lists; teams now are group chats with members. Steps mirror the members. */
+export interface TeamStep {
+  id?: string;
+  type: 'agent' | 'tool' | 'approval' | string;
+  agentId?: string;
+  prompt?: string;
+  label?: string;
+  tool?: string;
+  [k: string]: unknown;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  description: string;
+  color?: string;
+  members: string[];
+  lead: string | null;
+  access?: TeamAccess;
+  skills?: string[];
+  steps: TeamStep[];
+  schedule?: Schedule;
+  enabled?: boolean;
+  /** Where it sits on the Station map, and its spin. Null = next to the Brain. */
+  pos?: { x: number; z: number } | null;
+  rot?: number | null;
+  angle?: number | null;
+  createdBy?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface TeamState {
+  working: string[];
+  queued: string[];
+}
+
+/** A team as GET /api/workflows returns it: with who is working and its latest message. */
+export interface TeamListing extends Team {
+  state?: TeamState;
+  last?: TeamMessage | null;
+}
+
+export interface TeamMessage {
+  id: string;
+  ts: number;
+  from: string; // 'user' | 'system' | agent id
+  text: string;
+  mentions: string[];
+  replyTo?: string | null;
+  handedTo?: string[];
+  [k: string]: unknown;
+}
+
+// ---------- projects ----------
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  brainPath: string;
+  repo: string;
+  skills?: string[];
+  createdAt: number;
+  openedAt?: number;
+}
+
+// ---------- chats ----------
+export type ChatItem =
+  | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number }
+  | { type: 'assistant'; text: string; ts?: number }
+  | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number }
+  | { type: 'error'; text: string; ts?: number }
+  | { type: 'meta'; text: string; ts?: number };
+
+export interface Chat {
+  id: string;
+  agentId: string;
+  title: string;
+  items: ChatItem[];
+  llm: unknown[];
+  sessionId: string | null;
+  /** Set when this is the agent's session for a team chat. */
+  teamId?: string | null;
+  createdAt: number;
+  updatedAt: number;
+  _deleted?: boolean;
+}
+
+export interface ChatSummary {
+  id: string;
+  title: string;
+  updatedAt: number;
+  createdAt: number;
+  count: number;
+  teamId?: string | null;
+}
+
+// ---------- runs and live events ----------
+export type RunEvent =
+  | { kind: 'start'; text: string; from?: string | null }
+  | { kind: 'text'; text: string }
+  | { kind: 'tool'; id: string; name: string; args?: Record<string, unknown> }
+  | { kind: 'tool_result'; id: string; text?: string; isError?: boolean; images?: string[] }
+  | { kind: 'status'; text: string }
+  | { kind: 'model'; model: string }
+  | { kind: 'done'; text: string; cost?: number; seconds?: number }
+  | { kind: 'error'; text: string };
+
+export interface ActiveRun {
+  id: string;
+  agentId: string;
+  chatId: string;
+  startedAt: number;
+  agentName: string;
+  parentRunId: string | null;
+}
+
+/** Everything the server pushes over the /ws socket. Extra fields depend on the type. */
+export interface ServerEvent {
+  type: string;
+  ts: number;
+  [k: string]: unknown;
+}
+
+// ---------- approvals, outbox, activity ----------
+export interface Approval {
+  id: string;
+  kind: string;
+  title: string;
+  detail: string;
+  agentId: string | null;
+  agentName: string;
+  data: Record<string, unknown>;
+  editable: unknown;
+  createdAt: number;
+}
+
+export interface OutboxPost {
+  id: string;
+  platform: 'x' | 'x_dm' | 'reddit' | 'telegram' | 'discord' | string;
+  accountId?: string | null;
+  accountLabel?: string;
+  parts: string[];
+  status: 'pending' | 'posting' | 'posted' | 'failed' | 'rejected' | string;
+  agentId?: string | null;
+  /** X: ids of the parts already posted (a thread can be finished later), and what it replies to */
+  postIds?: string[];
+  replyTo?: string | null;
+  postedAt?: number;
+  error?: string | null;
+  reason?: string;
+  agentName?: string;
+  note?: string;
+  url?: string;
+  to?: string;
+  reddit?: { kind: 'post' | 'comment'; subreddit?: string; title?: string; link?: string; parent?: string };
+  createdAt?: number;
+  updatedAt?: number;
+  [k: string]: unknown;
+}
+
+export interface ActivityEntry {
+  id: string;
+  kind: string;
+  text: string;
+  ts: number;
+  agentId?: string;
+  chatId?: string;
+  [k: string]: unknown;
+}
+
+// ---------- settings ----------
+export interface BrainSetting {
+  provider: 'claude' | 'openrouter' | 'hermes' | 'codex';
+  model: string;
+}
+
+export interface LookSetting {
+  scale: number;
+  accent: string;
+  motion: 'full' | 'reduced';
+}
+
+export interface Settings {
+  defaults: { engine: EngineId; claudeModel: string; openrouterModel: string; hermesProfile: string; autonomy: Autonomy };
+  providers: { lmstudio: { baseUrl: string }; ollama: { baseUrl: string }; custom: { baseUrl: string; label: string } };
+  comfyui: { url: string; workflowDirs: string[] };
+  paths: Record<string, string>;
+  allowedFolders: string[];
+  x: { clientId: string };
+  reddit: { clientId: string; username: string };
+  brain: BrainSetting;
+  look: LookSetting;
+  telegram: { chatId: string };
+  maxToolSteps: number;
+  costLimitUsdPerRun: number;
+  activeProject?: string;
+}
+
+export type SecretKey = 'openrouterKey' | 'anthropicKey' | 'customKey' | 'xClientSecret' | 'telegramBotToken' | 'discordWebhook' | 'redditClientSecret';
+export type SecretStatus = Record<SecretKey, { set: boolean; hint?: string }>;
+
+// ---------- engines ----------
+export interface EngineStatus {
+  'claude-code': { installed: boolean; path: string | null; loggedIn: boolean; version: string | null };
+  openai: { openrouter: boolean; custom: boolean };
+  hermes: { installed: boolean; path: string | null };
+  codex: { installed: boolean; loggedIn: boolean; version: string | null; path?: string | null; how?: string };
+}
+
+export interface EngineInfo {
+  id: EngineId;
+  label: string;
+  description?: string;
+}
+
+export interface ToolGroup {
+  id: string;
+  label: string;
+  description: string;
+}
+
+// ---------- accounts ----------
+export interface XAccount {
+  id: string;
+  username: string;
+  name: string;
+  autopost: boolean;
+  connectedAt: number;
+  avatar?: string;
+}
+
+export interface RedditAccount {
+  id: string;
+  username: string;
+  autopost: boolean;
+  connectedAt: number;
+  icon?: string;
+}
+
+export interface Accounts {
+  x: XAccount[];
+  xAppConfigured: boolean;
+  telegram: { configured: boolean };
+  discord: { configured: boolean };
+  reddit: RedditAccount[];
+  redditAppConfigured: boolean;
+}
+
+export interface Terminal {
+  id: string;
+  title: string;
+  agentId: string | null;
+  createdAt: number;
+  exited: boolean;
+  exitCode: number | null;
+  command: string;
+}
+
+/** GET /api/state: everything the browser needs to draw. */
+export interface AppState {
+  agents: Agent[];
+  mcpServers: string[];
+  project: Project;
+  projectSaved: { at: number; error?: string; agents?: number; teams?: number } | null;
+  projects: Project[];
+  approvals: Approval[];
+  outboxPending: number;
+  runs: ActiveRun[];
+  engines: EngineStatus;
+  engineList: EngineInfo[];
+  toolGroups: ToolGroup[];
+  settings: Settings;
+  secrets: SecretStatus;
+  accounts: Accounts;
+  terminals: Terminal[];
+  port: number;
+  home: string;
+  dataDir: string;
+}
+
+// ---------- skills and presets ----------
+export interface SkillFile {
+  path: string;
+  size: number;
+}
+
+export interface Skill {
+  slug: string;
+  name: string;
+  description: string;
+  body: string;
+  source: 'library' | 'claude';
+  files: SkillFile[];
+  updatedAt: number;
+}
+
+export interface SkillListing extends Omit<Skill, 'body'> {
+  preview: string;
+}
+
+export interface ClaudeSkill {
+  slug: string;
+  name: string;
+  description: string;
+  files: number;
+  inLibrary: boolean;
+}
+
+export interface PresetListing {
+  id: string;
+  kind: 'agent' | 'team';
+  name: string;
+  description: string;
+  emoji: string | null;
+  color: string | null;
+  members: { name: string; emoji: string }[] | null;
+  lead: string | null;
+  skills: string[];
+  savedAt: number;
+}
+
+// ---------- the Brain ----------
+export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; file?: string };
+export interface BrainDelegate {
+  kind: 'agent' | 'branch';
+  id: string;
+  name: string;
+  message: string;
+}
+export interface BrainAnswer {
+  answer: string;
+  done: BrainDone[];
+  delegate: BrainDelegate | null;
+  model: { provider: string; model: string; fallback?: boolean };
+  project: string;
+}
+
+// ---------- usage meters in the header ----------
+export interface UsageMeter {
+  label: string;
+  percent?: number | null;
+  resetsAt?: number | null;
+  text?: string | null;
+}
+export interface ProviderUsage {
+  id: 'claude' | 'openrouter' | 'codex';
+  name: string;
+  meters: UsageMeter[];
+}

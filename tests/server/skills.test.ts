@@ -1,0 +1,85 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+import * as skills from '../../server/skills.ts';
+import { dataPath } from '../../server/util.ts';
+import { activeProject, saveProjects, listProjects } from '../../server/store.ts';
+
+const make = (name: string, description = `Use for ${name}.`, body = `Steps for ${name}.`) => skills.saveSkill({ name, description, body });
+
+describe('skills library', () => {
+  it('needs a name and a "when to use it" line', () => {
+    expect(() => skills.saveSkill({ name: '', description: 'x', body: '' })).toThrow(/name/);
+    expect(() => skills.saveSkill({ name: 'X', description: '', body: '' })).toThrow(/when/i);
+  });
+
+  it('saves a SKILL.md in Claude Code format and lists it', () => {
+    const s = make('Brand voice', 'Use when writing anything for the brand.', 'Be calm.');
+    expect(s?.slug).toBe('brand-voice');
+    const file = fs.readFileSync(dataPath('skills', 'brand-voice', 'SKILL.md'), 'utf8');
+    expect(file).toMatch(/^---\nname: Brand voice\ndescription: Use when writing anything for the brand\.\n---/);
+    expect(skills.listSkills().map((x) => x.slug)).toContain('brand-voice');
+  });
+
+  it('gives two skills with the same name different slugs', () => {
+    const a = make('Same name');
+    const b = make('Same name');
+    expect(a?.slug).not.toBe(b?.slug);
+  });
+
+  it('reads multi-line descriptions (YAML >- blocks)', () => {
+    const dir = dataPath('skills', 'folded');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'SKILL.md'), '---\nname: folded\ndescription: >-\n  first line\n  second line\n---\nbody');
+    expect(skills.getSkill('folded')?.description).toBe('first line second line');
+  });
+
+  it('finds a skill by its display name, with the full instructions', () => {
+    make('Email to clients', 'Use for client emails.', 'Always sign with the team name.');
+    const s = skills.findSkill('email to clients');
+    expect(s?.body).toContain('Always sign');
+  });
+
+  it("won't read files outside a skill's folder", () => {
+    const s = make('Has files');
+    fs.writeFileSync(dataPath('skills', s!.slug, 'ref.md'), 'reference');
+    expect(skills.readSkillFile(s!.slug, 'ref.md')).toBe('reference');
+    expect(() => skills.readSkillFile(s!.slug, '../brand-voice/SKILL.md')).toThrow();
+  });
+
+  it('deletes a skill', () => {
+    const s = make('Temporary');
+    skills.deleteSkill(s!.slug);
+    expect(skills.getSkill(s!.slug)).toBeNull();
+  });
+});
+
+describe('who gets which skill', () => {
+  it('combines the agent, its team and the project, without duplicates', () => {
+    const a = make('Agent skill');
+    const t = make('Team skill');
+    const p = make('Project skill');
+    const projects = listProjects();
+    projects[0].skills = [p!.slug, a!.slug];
+    saveProjects(projects);
+    expect(activeProject().skills).toContain(p!.slug);
+    const list = skills.skillsFor({ skills: [a!.slug] } as never, [t!.slug]);
+    expect(list.map((s) => [s.slug, s.via])).toEqual([
+      [a!.slug, 'agent'],
+      [t!.slug, 'team'],
+      [p!.slug, 'project'],
+    ]);
+  });
+
+  it('lists skills in the instructions only when there are some', () => {
+    const projects = listProjects();
+    projects[0].skills = [];
+    saveProjects(projects);
+    expect(skills.skillsPrompt({ skills: [] } as never)).toBe('');
+    const s = make('Checklist', 'Use before finishing a task.');
+    const prompt = skills.skillsPrompt({ skills: [s!.slug] } as never);
+    expect(prompt).toContain('# Your skills');
+    expect(prompt).toContain('- Checklist: Use before finishing a task.');
+    expect(prompt).toContain('read_skill');
+  });
+});
