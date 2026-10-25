@@ -82,3 +82,10 @@
 .st-agent-now.working { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
 .st-agent-now.needs { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 40%, var(--line)); }
 .dot.warn { background: var(--amber); }
+
+/* Hovering a team or an agent: only the connections it uses stay lit. */
+.st-connected.focus .st-int:not(.hot) { opacity: 0.15; filter: grayscale(1); box-shadow: none; }
+.st-connected.focus .st-int.hot {
+  opacity: 1; transform: translateY(-1px); background: color-mix(in srgb, var(--c) 18%, #0d100d);
+  box-shadow: 0 0 0 1px var(--c), 0 0 16px color-mix(in srgb, var(--c) 55%, transparent);
+}

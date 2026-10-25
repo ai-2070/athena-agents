@@ -267,6 +267,11 @@ interface Link2d {
   node: MapNode;
   flash: number;
 }
+/** A hovered team or agent: the connections it uses and the map nodes its wires run to. */
+interface Hover {
+  links: Set<string>;
+  nodes: Set<MapNode>;
+}
 interface WireDot {
   link: Link2d;
   t: number;
@@ -363,6 +368,8 @@ interface StationState {
   progTimer?: ReturnType<typeof setInterval>;
   usageIdx?: number;
   headbar?: Headbar;
+  /** What the pointer is over (a team or an agent): only its connections stay lit in the header. */
+  hover?: Hover | null;
   // the map
   benchCenter?: THREE.Vector3 | null;
   bench?: THREE.Group | null;
@@ -1605,8 +1612,30 @@ function addLabel(l: LabelSpec & { world?: THREE.Vector3 }): void {
     ev.preventDefault();
     openMenu(ev, labelPick(l as Label));
   });
+  if (l.kind === 'branch' || l.kind === 'agent') {
+    l.el.addEventListener('pointerenter', () => S && (S.hover = hoverFor(labelPick(l as Label))));
+    l.el.addEventListener('pointerleave', () => S && (S.hover = null));
+  }
   l.world = new THREE.Vector3();
   S.labelEls.push(l as Label);
+}
+
+// The connections a team (its card or platform) or an agent (its chip or desk) uses.
+function hoverFor(p: MapPick | null): Hover | null {
+  if (!S || !p) return null;
+  if (p.type === 'branch') {
+    const b = S.branches.get(p.id);
+    if (!b) return null;
+    return { links: b.links, nodes: new Set(S.nodes.filter((n) => n.wfId === p.id)) };
+  }
+  if (p.type === 'agent') {
+    const nodes = (p.wf ? S.nodes : S.benchNodes || []).filter((n): n is AgentNode => n.kind === 'agent' && n.agentId === p.id && (!p.wf || ((n as PodNode).wfId === p.wf && (p.step == null || n.index === p.step))));
+    if (!nodes.length) return null;
+    const links = new Set<string>();
+    for (const n of nodes) n.links.forEach((l) => links.add(l));
+    return { links, nodes: new Set(nodes) };
+  }
+  return null;
 }
 
 const v3 = new THREE.Vector3();
@@ -1755,6 +1784,10 @@ function drawWires(dt: number): void {
     svg.append(p);
   }
   while (svg.childNodes.length > links.length) svg.lastChild!.remove();
+  // a hovered team or agent: light only its tiles and wires
+  const focus = S.hover;
+  S.hudTop?.querySelector('.st-connected')?.classList.toggle('focus', !!focus);
+  S.tileEls?.forEach((el, id) => el.classList.toggle('hot', !!focus?.links.has(id)));
   const ends: (number[] | null)[] = [];
   links.forEach((l, i) => {
     assertMounted(S);
@@ -1780,10 +1813,11 @@ function drawWires(dt: number): void {
     p.setAttribute('d', `M${c[0].toFixed(1)},${c[1].toFixed(1)} C${c[2].toFixed(1)},${c[3].toFixed(1)} ${c[4].toFixed(1)},${c[5].toFixed(1)} ${c[6].toFixed(1)},${c[7].toFixed(1)}`);
     if (l.flash > 0) l.flash = Math.max(0, l.flash - dt * 0.7);
     const info = intInfo(l.intId);
-    const live = tile!.classList.contains('off') ? 0.12 : 0.32;
+    const mine = !!focus?.nodes.has(l.node);
+    const live = focus && !mine ? 0.03 : tile!.classList.contains('off') ? 0.12 : mine ? 0.7 : 0.32;
     p.setAttribute('stroke', info?.color || '#8f968a');
     p.setAttribute('stroke-opacity', String(live + l.flash * 0.6));
-    p.setAttribute('stroke-width', String(1 + l.flash * 1.2));
+    p.setAttribute('stroke-width', String((mine ? 1.5 : 1) + l.flash * 1.2));
   });
   // light running down a wire
   const dotsLayer = S.wireDots;
@@ -1844,6 +1878,7 @@ function setupControls(): void {
     return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), p) ? p : null;
   };
   elc.addEventListener('contextmenu', (e) => e.preventDefault());
+  elc.addEventListener('pointerleave', () => S && (S.hover = null));
   elc.addEventListener('pointerdown', (e) => {
     closeMenu();
     drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, button: e.button, shift: e.shiftKey, pick: pick(e), mode: null };
@@ -1854,6 +1889,7 @@ function setupControls(): void {
     assertMounted(S);
     if (!drag) {
       const p = pick(e);
+      S.hover = hoverFor(p);
       elc.style.cursor = p ? (p.type === 'agent' || p.type === 'bench' || (p.type === 'branch' && p.step == null) ? 'grab' : 'pointer') : 'default';
       elc.title = p?.type === 'branch' ? 'Drag to move the team · Shift+drag to spin it · right-click for more' : '';
       return;
