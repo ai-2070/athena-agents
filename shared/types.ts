@@ -209,7 +209,7 @@ export interface OutboxPost {
   postIds?: string[];
   replyTo?: string | null;
   postedAt?: number;
-  error?: string;
+  error?: string | null;
   reason?: string;
   agentName?: string;
   note?: string;

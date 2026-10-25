@@ -137,7 +137,7 @@ export function newAgent(fields: Partial<Agent> = {}): Agent {
     knowledge: { folders: fields.knowledge?.folders || [] },
     workspace: fields.workspace || '',
     temperature: fields.temperature ?? '',
-    alwaysAllow: Array.isArray(fields.alwaysAllow) ? fields.alwaysAllow : [],
+    alwaysAllow: [], // grants stay with the agent they were given to, never copies
     skills: Array.isArray(fields.skills) ? fields.skills : [],
     source: fields.source || { type: 'custom' },
     pinned: false,

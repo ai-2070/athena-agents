@@ -113,6 +113,16 @@ describe('local-only security', () => {
 
   it("won't serve files outside its own folders", async () => {
     expect((await req('/api/file?path=' + encodeURIComponent(path.join(root, 'package.json')))).status).toBeGreaterThanOrEqual(400);
-    expect((await req('/../package.json')).status).not.toBe(200);
+    // fetch would normalise a plain "/../", so encode the slash: the server decodes it after parsing the URL
+    expect((await req('/%2e%2e%2fpackage.json')).status).not.toBe(200);
+    expect((await req('/..%2fpackage.json')).status).not.toBe(200);
+  });
+
+  it("won't delete files outside a collection's folder (encoded slash in an id)", async () => {
+    const keep = path.join(tmp, 'data', 'keep.json');
+    fs.writeFileSync(keep, '{}');
+    await req('/api/outbox/..%2fkeep', { method: 'DELETE', headers: json });
+    await req('/api/outbox/..%5ckeep', { method: 'DELETE', headers: json });
+    expect(fs.existsSync(keep)).toBe(true);
   });
 });

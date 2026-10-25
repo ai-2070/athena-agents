@@ -59,7 +59,34 @@ const jsonFiles = (dir: string): string[] => {
 };
 const readAll = <T>(dir: string): T[] => jsonFiles(dir).map((n) => readJSON<T>(path.join(dir, n))).filter((x): x is T => Boolean(x));
 
-function copyTree(from: string, to: string, budget: number): number {
+// Refuse to write through a link anywhere from base down to target (a crafted project folder could
+// point .dashboard/... at another file).
+function noLinks(base: string, target: string) {
+  let p = base;
+  for (const part of ['', ...path.relative(base, target).split(path.sep)]) {
+    p = path.join(p, part);
+    let st: fs.Stats;
+    try {
+      st = fs.lstatSync(p);
+    } catch {
+      return; // not there yet, so nothing below it is a link either
+    }
+    if (st.isSymbolicLink()) throw new Error(`${p} is a link; not saving through it.`);
+  }
+}
+
+// Remove what's in dir but no longer in keep (deleted at the source).
+function prune(dir: string, keep: Set<string>) {
+  let list: string[] = [];
+  try {
+    list = fs.readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const n of list) if (!keep.has(n)) fs.rmSync(path.join(dir, n), { recursive: true, force: true });
+}
+
+function copyTree(from: string, to: string, budget: number, { base, mirror = false }: { base?: string; mirror?: boolean } = {}): number {
   let used = 0;
   const walk = (src: string, dst: string) => {
     let list: fs.Dirent[] = [];
@@ -68,6 +95,8 @@ function copyTree(from: string, to: string, budget: number): number {
     } catch {
       return;
     }
+    if (base) noLinks(base, dst);
+    if (mirror) prune(dst, new Set(list.map((e) => e.name)));
     for (const e of list) {
       const a = path.join(src, e.name);
       const b = path.join(dst, e.name);
@@ -83,6 +112,7 @@ function copyTree(from: string, to: string, budget: number): number {
         } catch {
           /* new file */
         }
+        if (base) noLinks(base, b);
         ensureDir(path.dirname(b));
         fs.copyFileSync(a, b);
       }
@@ -97,15 +127,21 @@ export function saveProject(id: string): SaveStatus | null {
   const p = listProjects().find((x) => x.id === id);
   if (!p || !exists(p.brainPath)) return null;
   try {
-    const out = ensureDir(path.join(p.brainPath, DIR));
+    const out = path.join(p.brainPath, DIR);
+    noLinks(out, out);
+    ensureDir(out);
     const agents = readAll<Agent>(projectDir(id, 'agents'));
     const teams = readAll<Team>(projectDir(id, 'workflows'));
     const file = path.join(out, 'project.json');
+    noLinks(out, file);
     // Fewer agents or teams than last time: keep the old copy as a backup first (last 10 kept).
     const prev = readJSON<Partial<SavedProjectFile>>(file, null);
     if (prev && ((prev.agents || []).length > agents.length || (prev.teams || []).length > teams.length)) {
-      const bdir = ensureDir(path.join(out, 'backups'));
-      fs.copyFileSync(file, path.join(bdir, `project-${new Date(prev.savedAt || Date.now()).toISOString().replace(/[:.]/g, '-')}.json`));
+      const bdir = path.join(out, 'backups');
+      const bfile = path.join(bdir, `project-${new Date(prev.savedAt || Date.now()).toISOString().replace(/[:.]/g, '-')}.json`);
+      noLinks(out, bfile);
+      ensureDir(bdir);
+      fs.copyFileSync(file, bfile);
       const old = fs.readdirSync(bdir).filter((n) => n.endsWith('.json')).sort();
       for (const n of old.slice(0, Math.max(0, old.length - 10))) fs.rmSync(path.join(bdir, n), { force: true });
     }
@@ -119,18 +155,10 @@ export function saveProject(id: string): SaveStatus | null {
       layout: readJSON<unknown>(projectDir(id, 'layout.json'), {}),
       brainChat: readJSON<unknown>(projectDir(id, 'brain-chat.json'), { messages: [] }),
     });
-    // team chat threads
-    const tc = projectDir(id, 'teamchats');
-    for (const n of jsonFiles(tc)) {
-      const dst = path.join(out, 'teamchats', n);
-      const src = path.join(tc, n);
-      const st = fs.statSync(src);
-      if (exists(dst) && fs.statSync(dst).mtimeMs >= st.mtimeMs) continue;
-      ensureDir(path.dirname(dst));
-      fs.copyFileSync(src, dst);
-    }
-    // files you gave agents as knowledge
-    copyTree(projectDir(id, 'knowledge'), path.join(out, 'knowledge'), KNOWLEDGE_CAP);
+    // team chat threads and the files you gave agents as knowledge (mirrored: what's deleted here goes there too)
+    copyTree(projectDir(id, 'teamchats'), path.join(out, 'teamchats'), Infinity, { base: out, mirror: true });
+    copyTree(projectDir(id, 'knowledge'), path.join(out, 'knowledge'), KNOWLEDGE_CAP, { base: out, mirror: true });
+    noLinks(out, path.join(out, 'README.txt'));
     fs.writeFileSync(
       path.join(out, 'README.txt'),
       'My Dashboard keeps this project\'s agents, teams, chats and knowledge here (auto-saved).\nOpen this folder as a project in the dashboard ("Open a folder…") to load them again.\nNo keys or passwords are stored here.\n',
@@ -185,6 +213,7 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   if (j.brainChat) writeJSON(projectDir(id, 'brain-chat.json'), j.brainChat);
   const tc = path.join(folder, DIR, 'teamchats');
   for (const n of jsonFiles(tc)) {
+    if (!fs.lstatSync(path.join(tc, n)).isFile()) continue; // no links out of the folder
     ensureDir(projectDir(id, 'teamchats'));
     fs.copyFileSync(path.join(tc, n), projectDir(id, 'teamchats', n));
   }

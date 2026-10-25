@@ -207,8 +207,16 @@ export async function searchReddit(query: string, subreddit = '', limit = 10): P
   return (j.data?.children || []).map((c) => brief(c.data));
 }
 
+// A post's id from a permalink (/comments/<id>), a redd.it short link, "t3_<id>" or the bare id.
+export function postId(post: unknown): string {
+  const s = String(post || '').trim();
+  const id = /comments\/(\w+)/.exec(s)?.[1] || /redd\.it\/(\w+)/.exec(s)?.[1] || s.replace(/^t3_/, '');
+  if (!/^[a-z0-9]+$/i.test(id)) throw new Error('Which post? Give its link or id, e.g. https://redd.it/abc123');
+  return id;
+}
+
 export async function postComments(post: string, limit = 15): Promise<{ post: RedditBrief | null; comments: RedditCommentBrief[] }> {
-  const id = String(post || '').match(/comments\/(\w+)/)?.[1] || String(post).replace(/^t3_/, '');
+  const id = postId(post);
   const j = await read<[Listing<RedditPost>, Listing<RedditComment>]>(`/comments/${id}?limit=${limit}&depth=2`);
   const top = j?.[0]?.data?.children?.[0]?.data;
   const comments = (j?.[1]?.data?.children || []).filter((c) => c.kind === 't1').map((c) => ({ id: c.data.name, author: c.data.author, score: c.data.score, text: String(c.data.body || '').slice(0, 500) }));

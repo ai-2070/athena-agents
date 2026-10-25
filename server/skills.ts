@@ -58,7 +58,13 @@ function filesIn(dir: string): SkillFile[] {
       if (e.name.startsWith('.')) continue;
       const r = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) walk(path.join(d, e.name), r);
-      else if (r !== 'SKILL.md') out.push({ path: r, size: fs.statSync(path.join(d, e.name)).size });
+      else if (r !== 'SKILL.md') {
+        try {
+          out.push({ path: r, size: fs.statSync(path.join(d, e.name)).size });
+        } catch {
+          /* broken link: skip it */
+        }
+      }
     }
   };
   walk(dir, '');
@@ -139,10 +145,15 @@ export function importClaudeSkill(name: string): SkillDetail | null {
 export function readSkillFile(slug: string, rel: unknown): string {
   const s = getSkill(slug);
   if (!s) throw new Error(`No skill "${slug}".`);
-  const root = path.join(LIB(), slug);
-  const abs = path.resolve(root, String(rel || ''));
+  // compare real paths, so a link inside the skill can't point outside it
+  const root = fs.realpathSync(path.join(LIB(), slug));
+  let abs: string;
+  try {
+    abs = fs.realpathSync(path.resolve(root, String(rel || '')));
+  } catch {
+    throw new Error(`The skill has no file "${rel}".`);
+  }
   if (!abs.toLowerCase().startsWith(root.toLowerCase() + path.sep)) throw new Error('That file is not part of the skill.');
-  if (!exists(abs)) throw new Error(`The skill has no file "${rel}".`);
   return fs.readFileSync(abs, 'utf8').slice(0, 60000);
 }
 
@@ -174,6 +185,6 @@ export function skillsPrompt(agent: { skills?: string[]; _teamSkills?: string[] 
   const list = skillsFor(agent, agent._teamSkills || []);
   if (!list.length) return '';
   return `\n# Your skills
-These are instructions written for specific kinds of work. When a task matches one, call read_skill with its name FIRST and follow it.
-${list.map((s) => `- ${s.name}: ${s.description}${s.files.length ? ` (has ${s.files.length} extra file${s.files.length === 1 ? '' : 's'})` : ''}`).join('\n')}`;
+These are instructions written for specific kinds of work. When a task matches one, call read_skill with its id FIRST and follow it.
+${list.map((s) => `- ${s.name}: ${s.description} [id: ${s.slug}${s.files.length ? `; has ${s.files.length} extra file${s.files.length === 1 ? '' : 's'}` : ''}]`).join('\n')}`;
 }

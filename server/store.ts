@@ -170,6 +170,8 @@ export interface Collection<T extends StoredItem> {
 export function collection<T extends StoredItem>(name: string, { global = false }: { global?: boolean } = {}): Collection<T> {
   const dirOf = () => ensureDir(global ? dataPath(name) : projectData(name));
   const file = (id: string) => path.join(dirOf(), `${id}.json`);
+  // ids name files: no path separators
+  const okId = (id: string | null | undefined): id is string => !!id && !/[\\/]/.test(id);
   return {
     get dir() {
       return dirOf();
@@ -181,12 +183,13 @@ export function collection<T extends StoredItem>(name: string, { global = false 
         .filter((x): x is T => Boolean(x));
     },
     get(id) {
-      if (!id || /[\\/]/.test(id)) return null;
+      if (!okId(id)) return null;
       return readJSON<T>(file(id));
     },
     save(item) {
       const it = item as Partial<StoredItem>;
       if (!it.id) it.id = uid();
+      if (!okId(it.id)) throw Object.assign(new Error('Invalid id'), { status: 400 });
       it.updatedAt = Date.now();
       it.createdAt ??= it.updatedAt;
       writeJSON(file(it.id), item);
@@ -194,6 +197,7 @@ export function collection<T extends StoredItem>(name: string, { global = false 
       return item as T;
     },
     remove(id) {
+      if (!okId(id)) return;
       try {
         fs.unlinkSync(file(id));
       } catch {
