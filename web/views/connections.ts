@@ -267,7 +267,7 @@ function postCard(p: OutboxPost) {
             draw();
             refreshSoon(0);
           } }, p.platform === 'x' ? 'Approve & post' : 'Approve & send'),
-          h('button.btn.ghost.small', { onclick: () => attempt(() => PUT(`/outbox/${p.id}`, { parts: editors.map((x) => x.ta.value) }), 'Saved') }, 'Save edits'),
+          h('button.btn.ghost.small', { onclick: () => attempt(() => PUT(`/outbox/${p.id}`, { parts: editors.map((x) => x.ta.value), ...(titleIn ? { title: titleIn.value } : {}) }), 'Saved') }, 'Save edits'),
           h('button.btn.danger.small', { onclick: () => attempt(() => POST(`/outbox/${p.id}/reject`, {})).then(() => (draw(), refreshSoon(0))) }, 'Reject'),
         )
       : h('div.row.mt', h('button.btn.tiny.ghost', { onclick: () => attempt(() => DEL(`/outbox/${p.id}`)).then(draw) }, 'Remove')),

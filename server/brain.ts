@@ -84,7 +84,7 @@ export function brainModel(): BrainModel {
   const b: Partial<BrainSetting> = getSettings().brain || {};
   const key = !!getSecrets().openrouterKey;
   const ok: Record<BrainSetting['provider'], boolean> = { claude: !!which('claude'), openrouter: key, hermes: !!which('hermes'), codex: !!which('codex') };
-  const p: BrainSetting['provider'] = ok[b.provider as BrainSetting['provider']] ? (b.provider as BrainSetting['provider']) : ok.claude ? 'claude' : key ? 'openrouter' : b.provider || 'claude';
+  const p: BrainSetting['provider'] = ok[b.provider as BrainSetting['provider']] ? (b.provider as BrainSetting['provider']) : (['claude', 'openrouter', 'hermes', 'codex'] as const).find((x) => ok[x]) || b.provider || 'claude';
   const model = p === b.provider ? b.model ?? '' : '';
   const dflt = { claude: 'haiku', openrouter: 'anthropic/claude-haiku-5.5', hermes: '', codex: '' }[p];
   return { provider: p, model: model || dflt, fallback: p !== (b.provider || 'claude') };

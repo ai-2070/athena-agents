@@ -6,7 +6,7 @@ import { askAgent, stopChildren } from './engines/index.ts';
 import { callTool, TOOL_GROUPS } from './tools.ts';
 import { requestApproval, cancelForRun } from './approvals.ts';
 import { draftPost } from './social.ts';
-import { postUserMessage, normalize } from './teams.ts';
+import { postUserMessage, normalize, isStepList } from './teams.ts';
 import { pickMember } from './brain.ts';
 import type { WorkflowRun } from './store.ts';
 import type { Agent, Schedule, Team } from '../shared/types.ts';
@@ -215,7 +215,11 @@ export function startScheduler() {
       if (!due(wf, now)) continue;
       wf.lastScheduledAt = now;
       workflows.save(wf);
-      // a scheduled team gets its routine message in the team chat
+      // a step list runs its steps; a team gets its routine message in the team chat
+      if (isStepList(wf)) {
+        startWorkflow(wf.id, wf.schedule!.input || '', { trigger: 'schedule' }).catch((e: unknown) => log('error', `Scheduled workflow "${wf.name}": ${(e as Error).message}`));
+        continue;
+      }
       const team = normalize(wf);
       postUserMessage(team.id, wf.schedule!.input || `Scheduled check-in: ${team.description || 'do your routine work'}`, { route: pickMember }).catch((e: unknown) => log('error', `Scheduled team "${wf.name}": ${(e as Error).message}`));
     }

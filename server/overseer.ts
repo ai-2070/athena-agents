@@ -3,17 +3,17 @@
 // hands real work to the best agent or team.
 import fs from 'node:fs';
 import path from 'node:path';
-import { agents, workflows, activeProject, projectData, getSettings, outbox, activity, log, emit } from './store.ts';
+import { agents, workflows, activeProject, getSettings, outbox, activity, log, emit } from './store.ts';
 import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from './library.ts';
 import { TOOL_GROUPS } from './tools.ts';
 import { listServers } from './mcp.ts';
 import { ensureBrain, brainInfo } from './projects.ts';
-import { listTeams, teamState, getThread } from './teams.ts';
+import { listTeams, teamState, getThread, getTeam, teamSteps } from './teams.ts';
 import { liveActivity, defaultModel } from './engines/index.ts';
 import { listApprovals } from './approvals.ts';
 import { think, brainModel } from './brain.ts';
-import { readJSON, writeJSON, run } from './util.ts';
-import type { Agent, BrainAnswer, BrainDelegate, BrainDone, Team } from '../shared/types.ts';
+import { readJSON, writeJSON, run, dataPath } from './util.ts';
+import type { Agent, BrainAnswer, BrainDelegate, BrainDone, Project, Team } from '../shared/types.ts';
 
 /** One line of the Brain chat history (data/projects/<id>/brain-chat.json). */
 export interface BrainChatMessage {
@@ -213,12 +213,13 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
 }
 
 // ---------- conversation with the Brain ----------
-const histFile = () => projectData('brain-chat.json');
-export function history(): BrainChatMessage[] {
-  return readJSON<{ messages: BrainChatMessage[] }>(histFile(), { messages: [] }).messages;
+// pid: the project whose chat it is (the active one by default)
+const histFile = (pid = activeProject().id) => dataPath('projects', pid, 'brain-chat.json');
+export function history(pid?: string): BrainChatMessage[] {
+  return readJSON<{ messages: BrainChatMessage[] }>(histFile(pid), { messages: [] }).messages;
 }
-function remember(msgs: BrainChatMessage[]) {
-  writeJSON(histFile(), { messages: msgs.slice(-HISTORY_KEEP) });
+function remember(msgs: BrainChatMessage[], pid?: string) {
+  writeJSON(histFile(pid), { messages: msgs.slice(-HISTORY_KEEP) });
   emit('brain-chat');
 }
 export function clearHistory() {
@@ -284,16 +285,17 @@ export function parseActions(text: string): { answer: string; actions: BrainActi
 const cleanTools = (t: unknown): string[] => (Array.isArray(t) ? (t as unknown[]) : []).filter((x): x is string => GROUP_IDS.includes(x as string));
 const cleanMcp = (t: unknown): string[] => (Array.isArray(t) ? (t as unknown[]) : []).filter((x): x is string => (x as string) in listServers());
 
-// Run the Brain's actions. Returns what happened, plus a delegate for the chat to send.
-export function applyActions(actions: BrainAction[]): { done: BrainDone[]; delegate: BrainDelegate | null } {
+// Run the Brain's actions in project p. Returns what happened, plus a delegate for the chat to send.
+export function applyActions(actions: BrainAction[], p: Project = activeProject()): { done: BrainDone[]; delegate: BrainDelegate | null } {
   const done: BrainDone[] = [];
   let delegate: BrainDelegate | null = null;
   let lastTeam: string | null = null;
   let lastAgent: string | null = null;
   const findTeam = (ref: string | null | undefined): Team | null => {
     if (!ref) return null;
-    if (ref === 'new') return lastTeam ? workflows.get(lastTeam) : null;
-    return workflows.get(ref) || workflows.list().find((w) => w.name.toLowerCase() === String(ref).toLowerCase()) || null;
+    // normalized: an old step list gets its members from its agent steps
+    if (ref === 'new') return lastTeam ? getTeam(lastTeam) : null;
+    return getTeam(ref) || listTeams().find((w) => w.name.toLowerCase() === String(ref).toLowerCase()) || null;
   };
   // MEMBER -> agent id (reuses an agent already hired from the same library entry)
   const resolve = (m: MemberRef | string | null | undefined): string | null => {
@@ -344,7 +346,8 @@ export function applyActions(actions: BrainAction[]): { done: BrainDone[]; deleg
       return null;
     }
   }).filter((id): id is string => Boolean(id)))];
-  const saveTeam = (wf: Partial<Team> & { members: string[] }): Team => workflows.save({ ...wf, steps: wf.members.map((agentId) => ({ type: 'agent', agentId })) });
+  // a step list keeps its other steps (tools, approvals, posts)
+  const saveTeam = (wf: Partial<Team> & { members: string[] }): Team => workflows.save({ ...wf, steps: teamSteps({ steps: wf.steps || [], members: wf.members }) });
 
   for (const act of actions.slice(0, 12)) {
     try {
@@ -399,7 +402,12 @@ export function applyActions(actions: BrainAction[]): { done: BrainDone[]; deleg
           changed.push('lead');
         }
         if (act.access) {
-          wf.access = { toolGroups: cleanTools(act.access.tools || act.access.toolGroups), mcpServers: cleanMcp(act.access.mcpServers) };
+          // only what's given changes: tools alone keep the MCP servers, and the other way round
+          const tools = act.access.tools ?? act.access.toolGroups;
+          wf.access = {
+            toolGroups: tools !== undefined ? cleanTools(tools) : wf.access?.toolGroups || [],
+            mcpServers: act.access.mcpServers !== undefined ? cleanMcp(act.access.mcpServers) : wf.access?.mcpServers || [],
+          };
           changed.push('access');
         }
         saveTeam(wf);
@@ -413,7 +421,6 @@ export function applyActions(actions: BrainAction[]): { done: BrainDone[]; deleg
       } else if (kind === 'write_project_md') {
         const content = String(act.content || '').trim();
         if (content.length < 20) throw new Error('nothing to write');
-        const p = activeProject();
         const dir = ensureBrain(p);
         const file = path.join(dir, 'PROJECT.md');
         // keep the old version
@@ -447,7 +454,7 @@ export async function ask(text: string): Promise<BrainAnswer> {
   const bm = brainModel();
   const canRead = bm.provider === 'claude' || bm.provider === 'codex';
   const snap = await snapshot({ fileBudget: canRead ? 6000 : 12000 });
-  const past = history();
+  const past = history(p.id);
   const convo = past.length ? `\n\nEARLIER IN THIS CHAT:\n${past.slice(-12).map((m) => `${m.role === 'user' ? 'User' : 'Brain'}: ${cut(m.text, 600)}`).join('\n')}` : '';
   const out = await think(SYSTEM(p.name, canRead), `SNAPSHOT\n${snap}\n\n${catalog()}${convo}\n\nUSER:\n${text}`, {
     tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '',
@@ -456,10 +463,12 @@ export async function ask(text: string): Promise<BrainAnswer> {
     maxTokens: 4000,
   });
   const parsed = parseActions(out);
-  const { done, delegate } = applyActions(parsed.actions);
+  // you switched projects while it thought: its actions were meant for the other project, so skip them
+  const skipped: BrainDone = { kind: 'error', text: `You switched projects while the Brain was thinking, so nothing was changed. Open "${p.name}" and ask again.` };
+  const { done, delegate } = activeProject().id !== p.id ? { done: parsed.actions.length ? [skipped] : [], delegate: null } : applyActions(parsed.actions, p);
   const r = { answer: parsed.answer, done, delegate };
   const now = Date.now();
-  remember([...past, { role: 'user', text, ts: now }, { role: 'brain', text: [r.answer, ...done.map((d) => `(${d.text})`), delegate ? `(handed to ${delegate.name}: ${delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n'), ts: Date.now() }]);
+  remember([...past, { role: 'user', text, ts: now }, { role: 'brain', text: [r.answer, ...done.map((d) => `(${d.text})`), delegate ? `(handed to ${delegate.name}: ${delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n'), ts: Date.now() }], p.id);
   return { ...r, model: bm, project: p.name };
 }
 

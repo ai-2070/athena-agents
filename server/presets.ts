@@ -4,6 +4,7 @@ import path from 'node:path';
 import { agents, workflows, log } from './store.ts';
 import { dataPath, ensureDir, readJSON, writeJSON, listFiles, uid } from './util.ts';
 import { newAgent } from './library.ts';
+import { getTeam, isStepList } from './teams.ts';
 import fs from 'node:fs';
 import type { Agent, PresetListing, Team } from '../shared/types.ts';
 
@@ -115,20 +116,23 @@ export function usePreset(id: string): { agent: Agent } | { team: Team; agents: 
 
 // Copy a team in this project. withAgents: its members are copied too (otherwise the copy shares them).
 export function cloneTeam(teamId: string, { withAgents = false }: { withAgents?: boolean } = {}): Team {
-  const t = workflows.get(teamId);
+  const t = getTeam(teamId); // an old step list gets its members from its agent steps
   if (!t) throw new Error('No such team.');
-  let members = (t.members || []).filter((id) => agents.get(id));
+  let members = t.members;
   let lead = t.lead;
+  let swap = (id: string) => id;
   if (withAgents) {
     const map = new Map(members.map((id) => [id, newAgent({ ...agentTemplate(agents.get(id)!), name: `${agents.get(id)!.name} (copy)` })]));
-    members = members.map((id) => map.get(id)!.id);
+    swap = (id) => map.get(id)?.id || id;
+    members = members.map(swap);
     lead = t.lead ? map.get(t.lead)?.id || null : null;
   }
   const copy = workflows.save({
     ...teamTemplate(t),
     name: `${t.name} (copy)`,
     members,
-    steps: members.map((id) => ({ type: 'agent', agentId: id })),
+    // a step list keeps its steps (tools, approvals, posts), pointing at the copied agents
+    steps: isStepList(t) ? t.steps.map((s) => ({ ...structuredClone(s), ...(s.agentId ? { agentId: swap(s.agentId) } : {}) })) : members.map((id) => ({ type: 'agent', agentId: id })),
     lead,
     schedule: { type: 'none' },
     enabled: false,

@@ -2,6 +2,7 @@
 // Listens on 127.0.0.1 only. Run: node server/index.js [--port 4800] [--no-open]
 import http from 'node:http';
 import fs from 'node:fs';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
@@ -216,7 +217,7 @@ del('/api/agents/:id', async ({ id }) => {
   // and take it off every branch it was on
   for (const wf of workflows.list()) {
     const steps = (wf.steps || []).filter((s) => !(s.type === 'agent' && s.agentId === id));
-    const members = (wf.members || []).filter((m) => m !== id);
+    const members = teams.normalize({ ...wf }).members; // without the deleted agent (old step lists too)
     if (steps.length !== (wf.steps || []).length || members.length !== (wf.members || []).length) workflows.save({ ...wf, steps, members, lead: wf.lead === id ? null : wf.lead });
   }
   return { ok: true };
@@ -485,9 +486,10 @@ get('/api/outbox', async () => outbox.list().sort((a, b) => b.createdAt! - a.cre
 post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, to: body.to, agentName: 'You' }));
 post<Parameters<typeof social.approvePost>[1]>('/api/outbox/:id/approve', async ({ id }, body) => social.approvePost(id, body));
 post<{ reason?: string }>('/api/outbox/:id/reject', async ({ id }, body) => social.rejectPost(id, body.reason));
-put<{ parts?: string[] }>('/api/outbox/:id', async ({ id }, body) => {
+put<{ parts?: string[]; title?: string }>('/api/outbox/:id', async ({ id }, body) => {
   const it = need(outbox.get(id));
   if (body.parts) it.parts = body.parts;
+  if (body.title != null && it.reddit) it.reddit.title = String(body.title).trim();
   return outbox.save(it);
 });
 del('/api/outbox/:id', async ({ id }) => {
@@ -507,18 +509,21 @@ get('/api/workflows/:id', async ({ id }) => need(teams.getTeam(id)));
 put<Partial<Team>>('/api/workflows/:id', async ({ id }, body) => workflows.save({ ...need(workflows.get(id)), ...body, id }));
 del('/api/workflows/:id', async ({ id }) => {
   const gone = workflows.get(id);
-  workflows.remove(id);
-  if (gone) log('team', `Deleted team ${gone.name}`);
+  if (!gone) return { ok: true };
+  workflows.remove(gone.id);
+  log('team', `Deleted team ${gone.name}`);
   return { ok: true };
 });
-// "Run" a team = write to its chat.
-post<{ input?: string }>('/api/workflows/:id/run', async ({ id }, body) => teams.postUserMessage(id, body.input || 'Go ahead.', { route: brain.pickMember }));
+// "Run": a step list runs its steps; a team gets the input in its chat.
+post<{ input?: string }>('/api/workflows/:id/run', async ({ id }, body) =>
+  teams.isStepList(need(workflows.get(id))) ? wfs.startWorkflow(id, body.input || '') : teams.postUserMessage(id, body.input || 'Go ahead.', { route: brain.pickMember }),
+);
 // ---------- team chats ----------
 get('/api/teams/:id/chat', async ({ id }) => ({ team: need(teams.getTeam(id)), ...teams.getThread(id) }));
 post<{ text?: string; replyTo?: string | null }>('/api/teams/:id/messages', async ({ id }, body) => teams.postUserMessage(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember }));
-post('/api/teams/:id/stop', async ({ id }) => ({ ok: teams.stopTeam(id) }));
+post('/api/teams/:id/stop', async ({ id }) => ({ ok: teams.stopTeam(need(teams.getTeam(id)).id) }));
 post('/api/teams/:id/clear', async ({ id }) => {
-  teams.clearThread(id);
+  teams.clearThread(need(teams.getTeam(id)).id);
   return { ok: true };
 });
 get('/api/workflow-templates', async () => wfs.TEMPLATES.map(({ name, description, needs }) => ({ name, description, needs })));
@@ -763,6 +768,18 @@ bus.on('event', (ev) => {
 });
 
 // ---------- start ----------
+// The page is bundled into public/dist. Started without `bun run start` on a fresh checkout: build it now.
+const pageReady = exists(path.join(PUBLIC, 'dist', 'app.js'))
+  ? Promise.resolve()
+  : new Promise<void>((done) => {
+      console.log('  Building the page (public/dist)…');
+      const child = spawn(process.execPath, [path.join(ROOT, 'scripts', 'build-web.ts')], { cwd: ROOT, stdio: 'inherit' });
+      child.on('exit', (code) => {
+        if (code) console.error('  Could not build the page. Run: bun run build');
+        done();
+      });
+      child.on('error', () => done());
+    });
 ensureDir(dataPath('outputs'));
 internalToken();
 store.migrateLayout();
@@ -784,7 +801,7 @@ server.listen(PORT, '127.0.0.1', () => {
   const url = `http://localhost:${PORT}`;
   console.log(`\n  My Dashboard is running at ${url}\n  Data folder: ${dataPath()}\n  Press Ctrl+C to stop.\n`);
   log('system', 'Dashboard started');
-  if (OPEN) openWithShell(url);
+  if (OPEN) void pageReady.then(() => openWithShell(url));
 });
 
 const shutdown = () => {

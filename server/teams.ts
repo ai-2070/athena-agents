@@ -1,10 +1,10 @@
 // Teams are group chats of agents. You write in the team chat; the lead (or the best member) answers,
 // agents hand work to each other by @mentioning a teammate, and everyone sees one shared thread.
 // Each agent keeps its own memory of the team (its own chat session), and gets the new messages each turn.
-import { workflows as teamStore, agents, chats, emit, log, projectData } from './store.ts';
-import { readJSON, writeJSON, uid } from './util.ts';
-import { askAgent, stopChildren } from './engines/index.ts';
-import type { Agent, Team, TeamMessage, TeamState } from '../shared/types.ts';
+import { workflows as teamStore, agents, chats, emit, log, activeProject } from './store.ts';
+import { readJSON, writeJSON, uid, dataPath } from './util.ts';
+import { askAgent, stopChildren, forgetChat } from './engines/index.ts';
+import type { Agent, Team, TeamMessage, TeamState, TeamStep } from '../shared/types.ts';
 
 const MAX_TURNS = 16; // agent turns per message you send
 const MAX_PER_AGENT = 5; // turns per agent per message you send
@@ -37,6 +37,7 @@ interface Runtime {
   running: Set<string>;
   episode: { turns: number; per: Record<string, number> };
   stopped?: boolean;
+  epoch: number; // bumped by stop and clear: turns started before then are dropped
 }
 
 /** Picks the member who should answer when nobody is named and there is no lead (brain.pickMember). */
@@ -62,24 +63,45 @@ export function listTeams(): Team[] {
   return teamStore.list().map(normalize);
 }
 
-// ---------- the shared thread ----------
-const chatFile = (teamId: string) => projectData('teamchats', `${teamId}.json`);
-function loadChat(teamId: string): TeamChat {
-  return readJSON<TeamChat>(chatFile(teamId), { messages: [], sessions: {}, seen: {} });
+// An old step list with tools, approvals, posts or notices runs as a workflow, not as a team chat.
+export function isStepList(team: Pick<Team, 'steps'> | null | undefined): boolean {
+  return (team?.steps || []).some((s) => s.type !== 'agent');
 }
-function saveChat(teamId: string, c: TeamChat) {
+
+// The steps a team keeps when its members change: one per member, or, for a step list,
+// its own steps minus agents that left, with new members added after the last agent step.
+export function teamSteps(team: Pick<Team, 'steps' | 'members'>): TeamStep[] {
+  const bare = (agentId: string): TeamStep => ({ type: 'agent', agentId });
+  if (!isStepList(team)) return team.members.map(bare);
+  const kept = team.steps.filter((s) => s.type !== 'agent' || team.members.includes(s.agentId as string));
+  const have = new Set(kept.map((s) => s.agentId));
+  const added = team.members.filter((id) => !have.has(id)).map(bare);
+  const at = kept.findLastIndex((s) => s.type === 'agent') + 1;
+  return [...kept.slice(0, at), ...added, ...kept.slice(at)];
+}
+
+// ---------- the shared thread ----------
+// pid: the project the chat belongs to (the active one unless a turn outlived a project switch)
+function chatFile(teamId: string, pid = activeProject().id): string {
+  if (!teamId || /[\\/]/.test(teamId)) throw new Error('No such team.');
+  return dataPath('projects', pid, 'teamchats', `${teamId}.json`);
+}
+function loadChat(teamId: string, pid?: string): TeamChat {
+  return readJSON<TeamChat>(chatFile(teamId, pid), { messages: [], sessions: {}, seen: {} });
+}
+function saveChat(teamId: string, c: TeamChat, pid?: string) {
   if (c.messages.length > KEEP_MESSAGES) {
     const cut = c.messages.length - KEEP_MESSAGES;
     c.messages = c.messages.slice(cut);
     for (const k of Object.keys(c.seen)) c.seen[k] = Math.max(0, c.seen[k] - cut);
   }
-  writeJSON(chatFile(teamId), c);
+  writeJSON(chatFile(teamId, pid), c);
 }
 
 // ---------- who is working ----------
 const rt = new Map<string, Runtime>(); // teamId -> { queue: [{agentId, msgIds}], running: Set, episode: {turns, per}, stopped }
 function runtime(teamId: string): Runtime {
-  if (!rt.has(teamId)) rt.set(teamId, { queue: [], running: new Set(), episode: { turns: 0, per: {} } });
+  if (!rt.has(teamId)) rt.set(teamId, { queue: [], running: new Set(), episode: { turns: 0, per: {} }, epoch: 0 });
   return rt.get(teamId)!;
 }
 
@@ -222,6 +244,8 @@ How this chat works:
 async function runTurn(team: Team, item: QueueItem) {
   const agent = agents.get(item.agentId);
   if (!agent) return;
+  const pid = activeProject().id;
+  const epoch = runtime(team.id).epoch;
   const c = loadChat(team.id);
   // the agent's own memory of this team: one chat session per agent per team
   let chatId = c.sessions[agent.id];
@@ -249,7 +273,20 @@ async function runTurn(team: Team, item: QueueItem) {
   } catch (e) {
     text = `(I hit a problem: ${(e as Error).message})`;
   }
-  if (runtime(team.id).stopped) return;
+  const r = runtime(team.id);
+  if (r.stopped || r.epoch !== epoch) {
+    // stopped or cleared meanwhile: if cleared, don't let this turn bring the agent's session back
+    if (loadChat(team.id, pid).sessions[agent.id] !== chatId) chats.remove(agent.id, chatId);
+    return;
+  }
+  if (activeProject().id !== pid) {
+    // you switched projects while it worked: keep the reply in its own project, start nothing new there
+    const back = loadChat(team.id, pid);
+    back.messages.push({ id: uid('m'), ts: Date.now(), from: agent.id, text: text || '(no answer)', mentions: [] });
+    back.seen[agent.id] = back.messages.length;
+    saveChat(team.id, back, pid);
+    return;
+  }
   const mentions = parseMentions(team, text, agent.id);
   const msg = post(team, { from: agent.id, text: text || '(no answer)', mentions });
   const c2 = loadChat(team.id);
@@ -269,6 +306,7 @@ export function stopTeam(teamId: string) {
   const team = getTeam(teamId);
   const r = runtime(teamId);
   r.stopped = true;
+  r.epoch++;
   r.queue = [];
   stopChildren(`team:${teamId}`);
   if (team) post(team, { from: 'system', text: 'Stopped. Nothing new will start until you write again.' });
@@ -277,8 +315,18 @@ export function stopTeam(teamId: string) {
 }
 
 export function clearThread(teamId: string) {
+  if (!getTeam(teamId)) throw new Error('No such team.');
+  // drop queued work and turns still running, so nothing late lands in the empty thread
+  const r = runtime(teamId);
+  r.epoch++;
+  r.queue = [];
+  r.episode = { turns: 0, per: {} };
+  stopChildren(`team:${teamId}`);
   const c = loadChat(teamId);
   writeJSON(chatFile(teamId), { messages: [], sessions: {}, seen: {} });
-  for (const [agentId, chatId] of Object.entries(c.sessions || {})) chats.remove(agentId, chatId);
+  for (const [agentId, chatId] of Object.entries(c.sessions || {})) {
+    forgetChat(chatId);
+    chats.remove(agentId, chatId);
+  }
   emit('team', { teamId, event: { kind: 'cleared' } });
 }
