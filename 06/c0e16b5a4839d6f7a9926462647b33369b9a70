@@ -1,0 +1,38 @@
+tests/server/groupA-review.test.ts
+  s_f2901c10ee7a02::t_8b40afed2d010c 1-76
+server/reddit.ts
+  s_f2901c10ee7a02::t_c8a721cb9f2a58 210-217,219
+server/store.ts
+  s_f2901c10ee7a02::t_8f559537d09787 173-174,186
+  s_f2901c10ee7a02::t_4afcf2dddab2f9 192,200
+server/library.ts
+  s_f2901c10ee7a02::t_6189d4ddef0ab1 140
+tests/server/projectsync.test.ts
+  s_f2901c10ee7a02::t_f0f9430562cc42 5,8,13-20,24,35,77-137
+server/projectsync.ts
+  s_f2901c10ee7a02::t_69ecf19b0ee0d2 62-89,98-99,115,130-132,136,140-144,158-161
+  s_f2901c10ee7a02::t_76efdf83daad37 216
+shared/types.ts
+  s_f2901c10ee7a02::t_9bb268439ac21f 212
+tests/server/api.test.ts
+  s_f2901c10ee7a02::t_8dce6759bb2c1e 116-126
+server/skills.ts
+  s_f2901c10ee7a02::t_d97fa183f18de1 188-189
+  s_f2901c10ee7a02::t_d75adc272b777b 61-67,148-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "06c0e16b5a4839d6f7a9926462647b33369b9a70",
+  "prompts": {},
+  "sessions": {
+    "s_f2901c10ee7a02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c6845d0c-7bfd-4d0d-b028-e01dff667210",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
