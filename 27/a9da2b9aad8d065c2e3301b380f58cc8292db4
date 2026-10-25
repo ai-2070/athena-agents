@@ -1,0 +1,38 @@
+tests/web/groupD-pickers.test.ts
+  s_f2901c10ee7a02::t_dc75b9121c50de 1-136
+web/agentchat.ts
+  s_f2901c10ee7a02::t_8d457cc6b72277 22-24,50-51,98-99,101,105,107,110-112,121-122,127
+public/station.css
+  s_f2901c10ee7a02::t_24f3b45da6a582 215
+web/models.ts
+  s_f2901c10ee7a02::t_ca937528d68bf4 195-206
+public/polish.css
+  s_f2901c10ee7a02::t_2983c9521ccc2a 296-297
+web/chatwin.ts
+  s_f2901c10ee7a02::t_2983c9521ccc2a 113-114,119-124,131-133,172,181,185
+web/teamchat.ts
+  s_f2901c10ee7a02::t_9a264f2c18ce1d 42-48,207-208,214-221,235-243
+web/builder.ts
+  s_f2901c10ee7a02::t_7723ddee462840 33-34,38,41-44,57,69-70,121,131,150,152-155,160-161,166,182
+  s_f2901c10ee7a02::t_f41a3dcc0a8fa9 132-147,151,156-158
+web/dock.ts
+  s_f2901c10ee7a02::t_2eee090dc96ee1 120-121,278-280,294-296
+tests/web/groupD-chats.test.ts
+  s_f2901c10ee7a02::t_744c3f270b748c 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "27a9da2b9aad8d065c2e3301b380f58cc8292db4",
+  "prompts": {},
+  "sessions": {
+    "s_f2901c10ee7a02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c6845d0c-7bfd-4d0d-b028-e01dff667210",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
