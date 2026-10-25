@@ -250,7 +250,7 @@ async function runTurn(team: Team, item: QueueItem) {
   // the agent's own memory of this team: one chat session per agent per team
   let chatId = c.sessions[agent.id];
   if (!chatId || !chats.get(agent.id, chatId)) {
-    chatId = chats.create(agent.id, `Team: ${team.name}`).id;
+    chatId = chats.create(agent.id, `Team: ${team.name}`, team.id).id;
     c.sessions[agent.id] = chatId;
   }
   const first = c.seen[agent.id] == null;

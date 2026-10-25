@@ -19,8 +19,8 @@ interface AgentChatData {
   alive: boolean;
 }
 
-// A session the agent keeps for a team chat. teamId marks it once the server records it; older ones only have the title.
-export const isTeamSession = (c: ChatSummary & { teamId?: string | null }): boolean => !!c.teamId || /^Team: /.test(c.title || '');
+// A session the agent keeps for a team chat (marked by teamId; chats made before that only have the title).
+export const isTeamSession = (c: ChatSummary): boolean => !!c.teamId || /^Team: /.test(c.title || '');
 
 export function renderAgentChat(container: HTMLElement, agentId: string): AgentChatApi {
   const C: AgentChatData = { chatId: null, items: [], stream: null, status: '', alive: true };

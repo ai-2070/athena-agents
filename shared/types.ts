@@ -144,6 +144,8 @@ export interface Chat {
   items: ChatItem[];
   llm: unknown[];
   sessionId: string | null;
+  /** Set when this is the agent's session for a team chat. */
+  teamId?: string | null;
   createdAt: number;
   updatedAt: number;
   _deleted?: boolean;
@@ -155,6 +157,7 @@ export interface ChatSummary {
   updatedAt: number;
   createdAt: number;
   count: number;
+  teamId?: string | null;
 }
 
 // ---------- runs and live events ----------

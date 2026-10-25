@@ -62,6 +62,14 @@ describe('chats', () => {
     expect(chats.list('agent-x')[0]).toMatchObject({ id: c.id, title: 'Hello', count: 1 });
   });
 
+  it('marks a team session with its team, and the mark survives a rename', () => {
+    const c = chats.create('agent-y', 'Team: Social', 'team-1');
+    c.title = 'Renamed';
+    chats.save(c);
+    expect(chats.list('agent-y')[0]).toMatchObject({ id: c.id, title: 'Renamed', teamId: 'team-1' });
+    expect(chats.list('agent-x').every((x) => x.teamId === null)).toBe(true);
+  });
+
   it('rejects unsafe agent ids', () => {
     expect(() => chats.list('../../etc')).toThrow();
   });
