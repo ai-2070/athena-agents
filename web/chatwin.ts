@@ -110,9 +110,16 @@ function ensure() {
   head.addEventListener('pointerdown', startDrag);
   head.addEventListener('dblclick', (e) => !(e.target as Element).closest('button') && setMax(!W.max));
   window.addEventListener('resize', () => place());
-  onState(() => W.tabs.length && drawTabs());
+  // also drops the tab of an agent that was deleted
+  onState(() => W.tabs.length && refreshChatTabs());
   if (!window.__teams) GET<TeamListing[]>('/workflows').then((w) => ((window.__teams ||= w), drawTabs())).catch(() => {});
   place();
+}
+
+// The smallest the window gets: 380 × 300, or less on a screen too small for that.
+function minSize() {
+  const z = uiZoom();
+  return { w: Math.min(380, window.innerWidth / z - 20), h: Math.min(300, window.innerHeight / z - 20) };
 }
 
 function place() {
@@ -121,8 +128,9 @@ function place() {
   const vw = window.innerWidth / z;
   const vh = window.innerHeight / z;
   const r = W.rect!;
-  r.w = Math.max(380, Math.min(r.w, vw - 20));
-  r.h = Math.max(300, Math.min(r.h, vh - 20));
+  const min = minSize();
+  r.w = Math.max(min.w, Math.min(r.w, vw - 20));
+  r.h = Math.max(min.h, Math.min(r.h, vh - 20));
   r.x = Math.max(4, Math.min(r.x, vw - 120));
   r.y = Math.max(4, Math.min(r.y, vh - 48));
   W.el.classList.toggle('max', W.max);
@@ -161,6 +169,7 @@ function startResize(e: PointerEvent, dir: string) {
   const sx = e.clientX;
   const sy = e.clientY;
   const r0 = { ...W.rect! };
+  const min = minSize();
   W.el!.classList.add('moving');
   const move = (ev: PointerEvent) => {
     const dx = (ev.clientX - sx) / z;
@@ -169,11 +178,11 @@ function startResize(e: PointerEvent, dir: string) {
     if (dir.includes('e')) r.w = r0.w + dx;
     if (dir.includes('s')) r.h = r0.h + dy;
     if (dir.includes('w')) {
-      r.w = Math.max(380, r0.w - dx);
+      r.w = Math.max(min.w, r0.w - dx);
       r.x = r0.x + (r0.w - r.w);
     }
     if (dir.includes('n')) {
-      r.h = Math.max(300, r0.h - dy);
+      r.h = Math.max(min.h, r0.h - dy);
       r.y = r0.y + (r0.h - r.h);
     }
     W.rect = r;

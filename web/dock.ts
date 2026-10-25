@@ -117,7 +117,8 @@ async function loadHistory() {
 }
 
 async function newConversation() {
-  await attempt(() => POST('/brain/clear'));
+  // keep the transcript if the Brain still remembers it
+  if (!(await attempt(() => POST('/brain/clear')))) return;
   D.items = [];
   draw();
 }
@@ -274,6 +275,9 @@ function draftCard(it: DraftItem) {
 }
 
 // ---------- sending ----------
+// One Brain ask at a time: the server saves each turn on top of the history it read, so overlapping asks would drop one.
+let brainTurn: Promise<unknown> = Promise.resolve();
+
 async function send() {
   const input = D.input!;
   const text = input.value.trim();
@@ -287,7 +291,9 @@ async function send() {
   if (t === 'new-branch') return newBranch(text);
   // The Brain: answers, changes the roster, or hands the work on
   const thinking = add({ kind: 'note', text: 'The Brain is looking at the project…', busy: true });
-  const r: Partial<BrainAnswer> & Failed = await POST<BrainAnswer>('/brain/ask', { text }).catch((e: Error) => ({ error: e.message }));
+  const ask = brainTurn.then(() => POST<BrainAnswer>('/brain/ask', { text }).catch((e: Error): Failed => ({ error: e.message })));
+  brainTurn = ask;
+  const r: Partial<BrainAnswer> & Failed = await ask;
   D.items.splice(D.items.indexOf(thinking), 1);
   if (r.error) return add({ kind: 'note', text: `The Brain couldn't answer: ${r.error}`, error: true });
   add({ kind: 'brain', answer: r.answer, done: r.done || [], delegate: r.delegate });

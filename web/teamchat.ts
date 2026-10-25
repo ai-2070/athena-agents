@@ -39,6 +39,13 @@ interface MentionOption {
   a?: Agent;
 }
 
+// The first GET's messages, plus what live events added meanwhile. After a clear the snapshot may be from before it, so only the live ones count.
+export function mergeSnapshot(snapshot: TeamMessage[], live: TeamMessage[], clearedSince: boolean): TeamMessage[] {
+  if (clearedSince) return live;
+  const ids = new Set(snapshot.map((m) => m.id));
+  return [...snapshot, ...live.filter((m) => !ids.has(m.id))].sort((a, b) => a.ts - b.ts);
+}
+
 export function renderTeamChat(container: HTMLElement, teamId: string, { height = 360, fill = false }: TeamChatOptions = {}): TeamChatApi {
   const C: TeamChatData = { team: null, messages: [], working: [], queued: [], replyTo: null, activity: {}, alive: true };
   // fill: grow with the window it sits in (the chat window); otherwise a fixed height
@@ -197,13 +204,21 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     await attempt(() => POST(`/teams/${teamId}/clear`));
   }
 
+  // what arrived while the first GET was on its way, so the snapshot can't undo it
+  const early = { loading: true, cleared: false, state: false };
   const off = onEvent((ev) => {
     if (!C.alive) return;
     if (ev.type === 'team' && ev.teamId === teamId) {
       const e = ev.event as TeamEvent;
       if (e.kind === 'message' && !C.messages.some((m) => m.id === e.message.id)) C.messages.push(e.message);
-      if (e.kind === 'state') Object.assign(C, { working: e.working, queued: e.queued });
-      if (e.kind === 'cleared') C.messages = [];
+      if (e.kind === 'state') {
+        Object.assign(C, { working: e.working, queued: e.queued });
+        early.state ||= early.loading;
+      }
+      if (e.kind === 'cleared') {
+        C.messages = [];
+        early.cleared ||= early.loading;
+      }
       if (e.kind === 'turn' && e.state === 'end') delete C.activity[e.agentId];
       draw();
     }
@@ -217,10 +232,15 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     }
   });
 
-  GET<TeamChatResponse>(`/teams/${teamId}/chat`).then((r) => {
-    Object.assign(C, { team: r.team, messages: r.messages, working: r.working, queued: r.queued });
-    draw();
-  }).catch(() => {});
+  GET<TeamChatResponse>(`/teams/${teamId}/chat`)
+    .then((r) => {
+      C.team = r.team;
+      C.messages = mergeSnapshot(r.messages, C.messages, early.cleared);
+      if (!early.state) Object.assign(C, { working: r.working, queued: r.queued });
+      draw();
+    })
+    .catch(() => {})
+    .finally(() => (early.loading = false));
   draw();
   return {
     focus: () => input.focus(),

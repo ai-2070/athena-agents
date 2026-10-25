@@ -192,9 +192,18 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
           .catch(() => {});
       fill();
       if (local) {
-        items.push(h('div.st-menu-head', 'On this PC'));
-        for (const [p, label] of [['lmstudio', 'LM Studio'], ['ollama', 'Ollama'], ['custom', 'Custom server']])
-          items.push(row(label, cur.engine === 'openai' && cur.provider === p ? cur.model || 'its loaded model' : 'its loaded model', cur.engine === 'openai' && cur.provider === p, { engine: 'openai', provider: p, model: cur.engine === 'openai' && cur.provider === p ? cur.model : '' }, p === 'ollama' ? 'ollama' : null));
+        // a local server needs one of its own model ids (an empty model would fall back to the OpenRouter default)
+        for (const [p, label] of [['lmstudio', 'LM Studio'], ['ollama', 'Ollama'], ['custom', 'Custom server']]) {
+          const on = (id: string) => cur.engine === 'openai' && cur.provider === p && cur.model === id;
+          const box = h('div.model-list', h('div.model-sub', { style: { padding: '4px 10px' } }, 'Looking for models…'));
+          const fillLocal = (ms: ModelListing[]) => {
+            const ids = ms.map((m) => m.id);
+            if (cur.engine === 'openai' && cur.provider === p && cur.model && !ids.includes(cur.model)) ids.unshift(cur.model);
+            mount(box, ids.length ? ids.map((id) => row(id, null, on(id), { engine: 'openai', provider: p, model: id }, p === 'ollama' ? 'ollama' : null)) : h('div.model-sub', { style: { padding: '4px 10px' } }, `No models found. Is ${label} running?`));
+          };
+          GET<ModelListing[]>(`/models?engine=openai&provider=${p}`).then(fillLocal, () => fillLocal([]));
+          items.push(h('div.st-menu-head', `On this PC · ${label}`), box, free(`or type a ${label} model id and press Enter`, (m) => ({ engine: 'openai', provider: p, model: m })));
+        }
       }
       setTimeout(() => search.focus(), 30);
     } else if (tab === 'hermes') {

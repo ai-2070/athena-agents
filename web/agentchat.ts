@@ -19,6 +19,9 @@ interface AgentChatData {
   alive: boolean;
 }
 
+// A session the agent keeps for a team chat. teamId marks it once the server records it; older ones only have the title.
+export const isTeamSession = (c: ChatSummary & { teamId?: string | null }): boolean => !!c.teamId || /^Team: /.test(c.title || '');
+
 export function renderAgentChat(container: HTMLElement, agentId: string): AgentChatApi {
   const C: AgentChatData = { chatId: null, items: [], stream: null, status: '', alive: true };
   const agent = () => state.data?.agents.find((a) => a.id === agentId);
@@ -44,7 +47,8 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
     }
   });
 
-  const running = () => state.data?.runs.find((r) => r.agentId === agentId && (!C.chatId || r.chatId === C.chatId));
+  // only a run in this conversation (never one of the agent's team sessions)
+  const running = () => (C.chatId ? state.data?.runs.find((r) => r.agentId === agentId && r.chatId === C.chatId) : undefined);
   const drawChrome = () => {
     const a = agent();
     if (a) mount(chipBox, modelChip(a, { compact: true }));
@@ -91,15 +95,21 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
     });
   };
 
+  // bumped by every load and by send() picking a chat, so a slow, older load can't overwrite a newer choice
+  let seq = 0;
   const load = async (chatId: string | null = null) => {
+    const my = ++seq;
     let id = chatId;
     if (!id) {
       const chats = await GET<ChatSummary[]>(`/agents/${agentId}/chats`).catch((): ChatSummary[] => []);
+      if (my !== seq) return;
       // its own conversations, not the sessions it keeps for each team chat
-      id = chats.find((c) => !/^Team: /.test(c.title || ''))?.id || null;
+      id = chats.find((c) => !isTeamSession(c))?.id || null;
     }
     C.chatId = id;
-    C.items = id ? (await GET<Chat>(`/agents/${agentId}/chats/${id}`).catch(() => ({ items: [] as ChatItem[] }))).items : [];
+    const items = id ? (await GET<Chat>(`/agents/${agentId}/chats/${id}`).catch(() => ({ items: [] as ChatItem[] }))).items : [];
+    if (my !== seq) return;
+    C.items = items;
     C.stream = null;
     draw();
     drawChrome();
@@ -108,11 +118,13 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
 
   async function send() {
     const text = input.value.trim();
-    if (!text) return;
+    // busy: keep the text in the composer (the server would refuse it anyway)
+    if (!text || running()) return;
     input.value = '';
     if (!C.chatId) {
       const c = await attempt(() => POST<Chat>(`/agents/${agentId}/chats`));
       if (!c) return (input.value = text);
+      seq++;
       C.chatId = c.id;
     }
     const r = await attempt(() => POST(`/agents/${agentId}/chats/${C.chatId}/messages`, { text }));

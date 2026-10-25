@@ -30,17 +30,18 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   const mcp = await GET<{ servers: Record<string, unknown> }>('/mcp').catch(() => ({ servers: {} as Record<string, unknown> }));
   // members: { agentId } for existing agents, { newAgent } for ones the Brain suggests hiring
   const fromTeam: BranchMember[] = (wf?.members || []).map((agentId) => ({ agentId }));
-  const b: { name: string; description: string; members: BranchMember[]; lead: string | null; leadIndex: number; access: TeamAccess } = {
+  // the lead is the member object itself, so removing or hiring others never loses it
+  const b: { name: string; description: string; members: BranchMember[]; lead: BranchMember | null; access: TeamAccess } = {
     name: wf?.name || prefill?.name || '',
     description: wf?.description || prefill?.description || describe || '',
     members: fromTeam.length ? fromTeam : structuredClone(prefill?.members || []),
-    lead: wf?.lead || null,
-    leadIndex: prefill?.leadIndex ?? -1,
+    lead: null,
     access: { toolGroups: [...(wf?.access?.toolGroups || prefill?.access?.toolGroups || [])], mcpServers: [...(wf?.access?.mcpServers || prefill?.access?.mcpServers || [])] },
   };
-  if (!b.lead && b.leadIndex >= 0) b.lead = b.members[b.leadIndex]?.agentId || `new:${b.leadIndex}`;
-  const byId = () => new Map(state.data!.agents.map((a) => [a.id, a]));
-  const keyOf = (m: BranchMember, j: number) => m.agentId || `new:${j}`;
+  b.lead = (wf?.lead ? b.members.find((m) => m.agentId === wf.lead) : fromTeam.length ? null : b.members[prefill?.leadIndex ?? -1]) || null;
+  // agents hired by an earlier save attempt, until the state catches up
+  const hired = new Map<string, Agent>();
+  const byId = () => new Map([...hired, ...state.data!.agents.map((a): [string, Agent] => [a.id, a])]);
 
   const name = h('input', { value: b.name, placeholder: 'e.g. Social, Video studio, Launch crew' });
   const desc = h('textarea', { rows: 2, value: b.description, placeholder: "The team's goal. Write it here and press Auto-build to let the Brain pick the agents." });
@@ -53,8 +54,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
     clear(listEl);
     b.members.forEach((m, j) => {
       const a = m.agentId ? agents.get(m.agentId) : null;
-      const k = keyOf(m, j);
-      const isLead = b.lead === k;
+      const isLead = b.lead === m;
       listEl.append(
         h(
           'div.bb-step',
@@ -66,8 +66,8 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
           ),
           h(
             'div.st-step-actions',
-            h('button', { class: isLead ? 'on' : '', title: isLead ? 'Remove as lead' : 'Make lead: your messages go to them first', onclick: () => ((b.lead = isLead ? null : k), drawMembers()) }, '★'),
-            h('button', { title: 'Remove', onclick: () => (b.members.splice(j, 1), b.lead === k && (b.lead = null), drawMembers()) }, '✕'),
+            h('button', { class: isLead ? 'on' : '', title: isLead ? 'Remove as lead' : 'Make lead: your messages go to them first', onclick: () => ((b.lead = isLead ? null : m), drawMembers()) }, '★'),
+            h('button', { title: 'Remove', onclick: () => (b.members.splice(j, 1), isLead && (b.lead = null), drawMembers()) }, '✕'),
           ),
         ),
       );
@@ -118,7 +118,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       name.value = b.name;
       desc.value = b.description;
       b.members = design.members;
-      b.lead = design.leadIndex >= 0 ? keyOf(design.members[design.leadIndex], design.leadIndex) : null;
+      b.lead = design.members[design.leadIndex] || null;
       b.access = { toolGroups: design.access.toolGroups, mcpServers: design.access.mcpServers };
       drawMembers();
       drawAccess();
@@ -128,26 +128,42 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   }, '✨ Auto-build');
 
   let m: ModalHandle;
+  let saving = false;
+  // one save at a time, or a double click hires everyone twice
+  const saveBtn = h(
+    'button.btn',
+    {
+      onclick: async () => {
+        if (saving) return;
+        saving = saveBtn.disabled = true;
+        try {
+          await save();
+        } finally {
+          saving = saveBtn.disabled = false;
+        }
+      },
+    },
+    wf ? 'Save team' : 'Create team',
+  );
   const save = async () => {
     if (!b.name.trim()) return toast('Give the team a name.', 'warn');
-    // hire the new agents the Brain suggested
-    const ids: string[] = [];
-    let lead = b.lead;
-    for (const [j, mem] of b.members.entries()) {
-      if (mem.agentId) ids.push(mem.agentId);
-      else if (mem.newAgent) {
-        const a = await attempt(() => POST<Agent>('/agents', mem.newAgent));
-        if (!a) return;
-        if (lead === `new:${j}`) lead = a.id;
-        ids.push(a.id);
-      }
+    // hire the new agents the Brain suggested; each becomes a normal member right away, so a retry won't hire it again
+    for (const mem of [...b.members]) {
+      if (!mem.newAgent) continue;
+      const a = await attempt(() => POST<Agent>('/agents', mem.newAgent));
+      if (!a) return (refreshSoon(0), drawMembers());
+      hired.set(a.id, a);
+      const done: BranchMember = { agentId: a.id };
+      b.members = b.members.map((x) => (x === mem ? done : x));
+      if (b.lead === mem) b.lead = done;
     }
-    if (lead && !ids.includes(lead)) lead = null;
+    const ids = b.members.map((mem) => mem.agentId).filter((id): id is string => !!id);
+    const lead = b.lead?.agentId || null;
     const body = { name: b.name.trim(), description: b.description.trim(), members: ids, steps: ids.map((agentId) => ({ type: 'agent', agentId })), lead, access: b.access };
     const saved = wf
       ? await attempt(() => PUT<Team>(`/workflows/${wf.id}`, { ...wf, ...body }))
       : await attempt(() => POST<Team>('/workflows', { ...body, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], schedule: { type: 'none' }, enabled: false }));
-    if (!saved) return;
+    if (!saved) return (refreshSoon(0), drawMembers());
     refreshSoon(0);
     m.close();
     toast(wf ? 'Team saved' : `Team "${saved.name}" created`);
@@ -163,7 +179,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       h('div', h('div.label', 'Members'), h('div.mt', listEl), addRow),
       h('div', accessEl),
     ),
-    foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), h('button.btn', { onclick: save }, wf ? 'Save team' : 'Create team')],
+    foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), saveBtn],
   });
   drawMembers();
   drawAccess();

@@ -212,7 +212,7 @@ button.st-stat { cursor: pointer; }
 
 /* Esc on the Station: the sidebar opens full width over the map (and closes on Esc or a click elsewhere) */
 body.station-mode.nav-wide #nav {
-  position: fixed; left: 0; top: 0; bottom: 0; width: var(--nav-w); z-index: 80;
+  position: fixed; left: 0; top: 0; bottom: 0; width: var(--nav-w); z-index: 80; transform: none; /* on narrow screens app.css slides it off */
   box-shadow: 24px 0 70px rgba(0, 0, 0, 0.6); animation: nav-wide-in .24s cubic-bezier(.2, .8, .2, 1);
 }
 @keyframes nav-wide-in { from { width: 58px; opacity: .85; } to { width: var(--nav-w); opacity: 1; } }
