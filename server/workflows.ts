@@ -156,6 +156,8 @@ async function execute(wf: Workflow, run: WorkflowRun, ctl: RunControl) {
         const r = await callTool(WORKFLOW_AGENT, 'notify_user', { text: renderTemplate(step.text || '{{prev}}', values), telegram: !!step.telegram }, { runId: run.id });
         output = r.text;
       } else throw new Error(`Unknown step type ${step.type}`);
+      // A stopped agent answers normally (with nothing), so check again before calling the step done.
+      if (ctl.stopped) throw new Error('Stopped.');
       st.output = String(output ?? '');
       st.status = 'done';
       st.finishedAt = Date.now();
@@ -163,6 +165,7 @@ async function execute(wf: Workflow, run: WorkflowRun, ctl: RunControl) {
       values[`step${i + 1}`] = st.output;
       save();
     }
+    if (ctl.stopped) throw new Error('Stopped.');
     run.status = 'done';
     run.output = values.prev;
     log('workflow', `Workflow "${wf.name}" finished`);

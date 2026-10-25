@@ -308,6 +308,8 @@ export async function askAgent(agent: Agent, message: string, { depth = 1, from 
   signal?.addEventListener('abort', onAbort);
   try {
     const text = await promise;
+    // A stopped run resolves with no answer; tell the caller it was stopped instead.
+    if (signal?.aborted) throw new Error('Stopped.');
     return text || lastAssistantText(chats.get(fresh.id, chat.id) || chat) || '(no answer)';
   } finally {
     signal?.removeEventListener('abort', onAbort);
