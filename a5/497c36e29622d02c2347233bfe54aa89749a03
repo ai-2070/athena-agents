@@ -1,0 +1,21 @@
+web/views/station.ts
+  s_f2901c10ee7a02::t_622bf66c731e83 270-274,371-372,1615-1618,1623-1640,1787-1790,1816-1817,1820,1881,1892
+public/station-extra.css
+  s_f2901c10ee7a02::t_622bf66c731e83 85-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a5497c36e29622d02c2347233bfe54aa89749a03",
+  "prompts": {},
+  "sessions": {
+    "s_f2901c10ee7a02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c6845d0c-7bfd-4d0d-b028-e01dff667210",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
