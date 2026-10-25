@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
-import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, run, ensureDir, HOME, readJSON, writeJSON } from './util.ts';
+import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, run, ensureDir, HOME, readJSON, writeJSON, insideRoots } from './util.ts';
 import * as store from './store.ts';
 import { agents, chats, outbox, workflows, runs, bus, getSettings, saveSettings, setSecret, secretStatus, internalToken, activity, log } from './store.ts';
 import { listApprovals, decide, requestApproval } from './approvals.ts';
@@ -391,9 +391,10 @@ post<{ name: string; json: unknown }>('/api/comfyui/workflows', async (_p, body)
 
 // Files the browser may show: workspaces, outputs, knowledge, ComfyUI outputs, allowed folders.
 get('/api/file', async (_p, _b, q, res) => {
-  const p = path.resolve(String(q.path || ''));
-  const roots = [projects.ensureBrain(), store.projectData('knowledge'), dataPath('outputs'), ...programs.comfyOutputDirs(), ...(getSettings().allowedFolders || [])].map((r) => path.resolve(r).toLowerCase());
-  if (!roots.some((r) => p.toLowerCase().startsWith(r + path.sep))) throw new HttpError(403, 'That file is outside the dashboard folders.');
+  const roots = [projects.ensureBrain(), store.projectData('knowledge'), dataPath('outputs'), ...programs.comfyOutputDirs(), ...(getSettings().allowedFolders || [])];
+  // links are followed before checking, so a link in a workspace can't serve files from elsewhere
+  const p = insideRoots(path.resolve(String(q.path || '')), roots);
+  if (!p) throw new HttpError(403, 'That file is outside the dashboard folders.');
   let st: fs.Stats;
   try {
     st = fs.statSync(p);

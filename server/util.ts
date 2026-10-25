@@ -78,6 +78,46 @@ export function exists(p: string): boolean {
   }
 }
 
+// Where a path really is on disk, with every link followed. A path that doesn't exist yet (a new file)
+// is placed under the real location of its nearest existing folder. Returns null when that can't be
+// worked out safely: a link that points nowhere, a link loop, or a folder that can't be read.
+export function realTarget(p: string): string | null {
+  const abs = path.resolve(p);
+  const rest: string[] = [];
+  let head = abs;
+  for (;;) {
+    try {
+      return path.join(fs.realpathSync.native(head), ...rest);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') return null;
+      // ENOENT also comes from a link whose target is missing: writing through it would land outside
+      try {
+        fs.lstatSync(head);
+        return null;
+      } catch {
+        /* really not there: try the folder above */
+      }
+      const parent = path.dirname(head);
+      if (parent === head) return abs;
+      rest.unshift(path.basename(head));
+      head = parent;
+    }
+  }
+}
+
+// The real location of p when it lies inside one of roots (links followed on both sides), else null.
+// Compared without case, as on Windows.
+export function insideRoots(p: string, roots: string[]): string | null {
+  const real = realTarget(p);
+  if (!real) return null;
+  const low = real.toLowerCase();
+  for (const root of roots) {
+    const r = (realTarget(root) || path.resolve(root)).toLowerCase();
+    if (low === r || low.startsWith(r.endsWith(path.sep) ? r : r + path.sep)) return real;
+  }
+  return null;
+}
+
 export function listDirs(dir: string): string[] {
   try {
     return fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
