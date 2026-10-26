@@ -1,0 +1,25 @@
+server/skills.ts
+  s_06d4ffb6acaac2::t_b8dc7c10c2715a 228
+server/versions.ts
+  s_06d4ffb6acaac2::t_add744ad5660bf 76-77,104
+  s_06d4ffb6acaac2::t_b8dc7c10c2715a 34-35,39,97-98,106-115,117
+tests/server/versions.test.ts
+  s_06d4ffb6acaac2::t_9cc8110dd11c0b 77
+  s_06d4ffb6acaac2::t_9826f763de764c 65-76,78-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "50a503be8bc0c66b50fa08a3412505f5661efa94",
+  "prompts": {},
+  "sessions": {
+    "s_06d4ffb6acaac2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "773a94ba-595f-4e28-98fa-0444d31b6ff2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
