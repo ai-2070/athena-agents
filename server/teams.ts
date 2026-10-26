@@ -31,6 +31,8 @@ interface QueueItem {
   agentId: string;
   msgIds: string[];
   returning: boolean;
+  /** extra skills for this work (a routine's), passed on with every handoff it leads to */
+  skills: string[];
 }
 
 interface Runtime {
@@ -135,7 +137,8 @@ export function parseMentions(team: Team, text: unknown, exclude: string | null 
 }
 
 // ---------- you write in the team chat ----------
-export async function postUserMessage(teamId: string, text: string | null | undefined, { replyTo = null, route = null }: { replyTo?: string | null; route?: RouteFn | null } = {}): Promise<TeamMessage> {
+// skills: given to every member for the work this message starts (a routine's skills)
+export async function postUserMessage(teamId: string, text: string | null | undefined, { replyTo = null, route = null, skills = [] }: { replyTo?: string | null; route?: RouteFn | null; skills?: string[] } = {}): Promise<TeamMessage> {
   const team = getTeam(teamId);
   if (!team) throw new Error('No such team.');
   if (!team.members.length) throw new Error('This team has no agents yet. Add some first.');
@@ -161,21 +164,23 @@ export async function postUserMessage(teamId: string, text: string | null | unde
     targets = [pick && team.members.includes(pick) ? pick : team.members[0]];
     why = pick ? 'best fit' : 'first member';
   }
-  for (const id of targets) enqueue(team, id, msg.id, true);
+  for (const id of targets) enqueue(team, id, msg.id, true, false, skills);
   if (why) emit('team', { teamId: team.id, event: { kind: 'routed', to: targets, why } });
   log('team', `You → ${team.name}: ${text.slice(0, 100)}`);
   return msg;
 }
 
 // returning: this is a finished handoff coming back (the receiver's own reply won't bounce back again)
-function enqueue(team: Team, agentId: string, msgId: string, priority = false, returning = false) {
+// skills: extra skills for the work this message is about (merged when a queued turn takes on more messages)
+function enqueue(team: Team, agentId: string, msgId: string, priority = false, returning = false, skills: readonly string[] = []) {
   const r = runtime(team.id);
   const existing = r.queue.find((q) => q.agentId === agentId);
   if (existing) {
     existing.msgIds.push(msgId);
     existing.returning = existing.returning && returning;
-  } else if (priority) r.queue.unshift({ agentId, msgIds: [msgId], returning });
-  else r.queue.push({ agentId, msgIds: [msgId], returning });
+    existing.skills = [...new Set([...existing.skills, ...skills])];
+  } else if (priority) r.queue.unshift({ agentId, msgIds: [msgId], returning, skills: [...skills] });
+  else r.queue.push({ agentId, msgIds: [msgId], returning, skills: [...skills] });
   state(team);
   pump(team.id);
 }
@@ -256,7 +261,7 @@ async function runTurn(team: Team, item: QueueItem) {
   let text = '';
   let stopped = false;
   try {
-    text = await askAgent(agent, prompt, { depth: 1, from: `team ${team.name}`, chatId, parentRunId: `team:${team.id}`, extra: { ...(team.access || {}), skills: team.skills || [] } });
+    text = await askAgent(agent, prompt, { depth: 1, from: `team ${team.name}`, chatId, parentRunId: `team:${team.id}`, extra: { ...(team.access || {}), skills: [...new Set([...(team.skills || []), ...item.skills])] } });
   } catch (e) {
     // you stopped this agent's turn: say so in the thread, and hand nothing on
     stopped = e instanceof RunStopped;
@@ -283,12 +288,12 @@ async function runTurn(team: Team, item: QueueItem) {
   saveChat(team.id, c2);
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'end' } });
   if (stopped) return;
-  for (const id of mentions) if (team.members.includes(id)) enqueue(team, id, msg.id, false);
+  for (const id of mentions) if (team.members.includes(id)) enqueue(team, id, msg.id, false, false, item.skills);
   // A handed-off job is done and nobody new is named: the answer goes back to the lead (or whoever asked), once.
   if (!mentions.length && !item.returning && agent.id !== team.lead) {
     const asked = c.messages.filter((m) => item.msgIds.includes(m.id) && m.from !== 'user' && m.from !== 'system').map((m) => m.from);
     const back = team.lead && team.lead !== agent.id ? team.lead : asked.find((id) => id !== agent.id);
-    if (asked.length && back && team.members.includes(back)) enqueue(team, back, msg.id, false, true);
+    if (asked.length && back && team.members.includes(back)) enqueue(team, back, msg.id, false, true, item.skills);
   }
 }
 

@@ -34,8 +34,9 @@ import * as overseer from './overseer.ts';
 import * as projectSync from './projectsync.ts';
 import * as skills from './skills.ts';
 import * as presets from './presets.ts';
+import * as routinesMod from './routines.ts';
 import type { RestoreResult } from './projectsync.ts';
-import type { Agent, AppState, Project, ProviderUsage, SecretKey, Team } from '../shared/types.ts';
+import type { Agent, AppState, Project, ProviderUsage, Routine, SecretKey, Team } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
@@ -795,6 +796,16 @@ bus.on('event', (ev) => {
   for (const ws of eventClients) if (ws.readyState === 1) ws.send(msg);
 });
 
+// ---------- routines ----------
+get('/api/routines', async () => routinesMod.listRoutines());
+post<Partial<Routine> | null>('/api/routines', async (_p, body) => routinesMod.saveRoutine(body || {}));
+get('/api/routines/:id', async ({ id }) => need(routinesMod.getRoutine(id)));
+put<Partial<Routine> | null>('/api/routines/:id', async ({ id }, body) => routinesMod.saveRoutine(body || {}, need(store.routines.get(id)).id));
+del('/api/routines/:id', async ({ id }) => (routinesMod.deleteRoutine(id), { ok: true }));
+post<{ input?: unknown } | null>('/api/routines/:id/run', async ({ id }, body) => routinesMod.startRoutine(need(store.routines.get(id)).id, { input: String(body?.input || '').slice(0, 20000) }));
+get('/api/routine-runs', async (_p, _b, q) => routinesMod.listRuns(q.routineId || undefined));
+post('/api/routine-runs/:id/stop', async ({ id }) => ({ ok: routinesMod.stopRoutineRun(id) }));
+
 // ---------- start ----------
 // The page is bundled into public/dist. Started without `bun run start` on a fresh checkout: build it now.
 const pageReady = exists(path.join(PUBLIC, 'dist', 'app.js'))
@@ -813,6 +824,8 @@ internalToken();
 store.migrateLayout();
 wfs.markInterruptedRuns();
 wfs.startScheduler();
+routinesMod.markInterruptedRoutines();
+routinesMod.startRoutineScheduler();
 projectSync.startAutoSave();
 programs.startRunningWatch();
 

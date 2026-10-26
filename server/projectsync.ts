@@ -1,12 +1,12 @@
-// Auto-save: every project keeps a copy of its agents, teams, layout, team chats, Brain chat, agent
-// chats (with each chat's engine session) and agent knowledge files inside its own folder (<project folder>/.dashboard). A few seconds after
+// Auto-save: every project keeps a copy of its agents, teams, routines, layout, team chats, Brain chat,
+// agent chats (with each chat's engine session) and agent knowledge files inside its own folder (<project folder>/.dashboard). A few seconds after
 // any change it is saved again. Opening that folder as a project (here or on another PC) restores it.
 // Keys and tokens are never written there.
 import fs from 'node:fs';
 import path from 'node:path';
 import { bus, listProjects, activeProject, log } from './store.ts';
 import { dataPath, ensureDir, exists, readJSON, writeJSON, realTarget } from './util.ts';
-import type { Agent, Chat, Team } from '../shared/types.ts';
+import type { Agent, Chat, Routine, Team } from '../shared/types.ts';
 
 /** The last auto-save of a project (AppState.projectSaved). */
 export interface SaveStatus {
@@ -24,6 +24,7 @@ export interface SavedProjectFile {
   project: { name?: string; description?: string; repo?: string; skills?: string[] };
   agents: Agent[];
   teams: Team[];
+  routines?: Routine[];
   layout: unknown;
   brainChat: unknown;
 }
@@ -134,11 +135,12 @@ export function saveProject(id: string): SaveStatus | null {
     ensureDir(out);
     const agents = readAll<Agent>(projectDir(id, 'agents'));
     const teams = readAll<Team>(projectDir(id, 'workflows'));
+    const routines = readAll<Routine>(projectDir(id, 'routines'));
     const file = path.join(out, 'project.json');
     noLinks(out, file);
-    // Fewer agents or teams than last time: keep the old copy as a backup first (last 10 kept).
+    // Fewer agents, teams or routines than last time: keep the old copy as a backup first (last 10 kept).
     const prev = readJSON<Partial<SavedProjectFile>>(file, null);
-    if (prev && ((prev.agents || []).length > agents.length || (prev.teams || []).length > teams.length)) {
+    if (prev && ((prev.agents || []).length > agents.length || (prev.teams || []).length > teams.length || (prev.routines || []).length > routines.length)) {
       const bdir = path.join(out, 'backups');
       const bfile = path.join(bdir, `project-${new Date(prev.savedAt || Date.now()).toISOString().replace(/[:.]/g, '-')}.json`);
       noLinks(out, bfile);
@@ -154,6 +156,7 @@ export function saveProject(id: string): SaveStatus | null {
       project: { name: p.name, description: p.description || '', repo: p.repo || '', skills: p.skills || [] },
       agents,
       teams,
+      routines,
       layout: readJSON<unknown>(projectDir(id, 'layout.json'), {}),
       brainChat: readJSON<unknown>(projectDir(id, 'brain-chat.json'), { messages: [] }),
     });
@@ -227,6 +230,7 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   const safe = (x: { id?: unknown } | null | undefined) => typeof x?.id === 'string' && /^[\w.-]+$/.test(x.id);
   for (const a of (j.agents || []).filter(safe)) writeJSON(projectDir(id, 'agents', `${a.id}.json`), a);
   for (const t of (j.teams || []).filter(safe)) writeJSON(projectDir(id, 'workflows', `${t.id}.json`), t);
+  for (const r of (j.routines || []).filter(safe)) writeJSON(projectDir(id, 'routines', `${r.id}.json`), r);
   if (j.layout) writeJSON(projectDir(id, 'layout.json'), j.layout);
   if (j.brainChat) writeJSON(projectDir(id, 'brain-chat.json'), j.brainChat);
   for (const n of jsonFiles(savedPath(folder, 'teamchats') || '')) {
@@ -266,7 +270,7 @@ function restoreChats(folder: string, id: string, agentIds: string[]): number {
 }
 
 // Save after anything in the project changes.
-const WATCH = new Set(['agents', 'workflows', 'layout', 'team', 'knowledge', 'brain-chat', 'chats']);
+const WATCH = new Set(['agents', 'workflows', 'routines', 'layout', 'team', 'knowledge', 'brain-chat', 'chats']);
 export function startAutoSave() {
   bus.on('event', (ev) => {
     // an event that names its project (an agent chat) saves that one, even if another is open now

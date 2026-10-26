@@ -199,7 +199,8 @@ function jsonSafe(values: Record<string, unknown>): Record<string, string> {
 }
 
 // ---------- scheduling ----------
-function due(wf: Workflow, now: number): boolean {
+// Also used for routines: anything with a schedule, an on switch and when it last ran.
+export function due(wf: { schedule?: WorkflowSchedule; enabled?: boolean; lastScheduledAt?: number }, now: number): boolean {
   const s = wf.schedule;
   if (!wf.enabled || !s || s.type === 'none') return false;
   const last = wf.lastScheduledAt || 0;

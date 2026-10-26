@@ -1,5 +1,6 @@
 // Workflows: chain agents, tools, approvals and posts. Run by hand or on a schedule.
-import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, navigate, field, select, seg, toggle, toast, confirmBox, promptBox, ago, lightbox, onState } from '../core.ts';
+import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, navigate, field, select, toggle, toast, confirmBox, promptBox, ago, lightbox, onState } from '../core.ts';
+import { scheduleEditor, scheduleText } from '../schedule.ts';
 import type { Option, Child } from '../core.ts';
 import type { Schedule, ServerEvent, Team, TeamStep } from '../../shared/types.ts';
 
@@ -122,12 +123,6 @@ async function renderList() {
   );
 }
 
-function scheduleText(s: WorkflowSchedule | undefined) {
-  if (!s || s.type === 'none') return 'manual';
-  if (s.type === 'interval') return `every ${s.minutes || 60} min`;
-  return `daily ${s.time || '09:00'}`;
-}
-
 const STEP_TYPES: Option[] = [
   { value: 'agent', label: 'Ask an agent' },
   { value: 'tool', label: 'Use a tool' },
@@ -219,41 +214,7 @@ async function renderEditor(id: string) {
     );
   };
 
-  // schedule
-  wf.schedule ||= { type: 'none' };
-  const schedBox = h('div.col');
-  const drawSched = () => {
-    const s = wf.schedule!;
-    mount(
-      schedBox,
-      seg([{ value: 'none', label: 'Manual' }, { value: 'interval', label: 'Every…' }, { value: 'daily', label: 'Daily' }], s.type, (v) => ((s.type = v), mark(), drawSched())),
-      s.type === 'interval' ? field('Every (minutes)', h('input', { type: 'number', min: 5, value: s.minutes || 60, oninput: (e) => ((s.minutes = Number(e.target.value)), mark()) })) : null,
-      s.type === 'daily'
-        ? h(
-            'div.col',
-            field('Time', h('input', { type: 'time', value: s.time || '09:00', oninput: (e) => ((s.time = e.target.value), mark()) })),
-            h(
-              'div.chips',
-              ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => {
-                const days = s.days?.length ? s.days : [0, 1, 2, 3, 4, 5, 6];
-                const c = h(`button.chip${days.includes(i) ? '.on' : ''}`, {
-                  onclick: () => {
-                    const cur = new Set(s.days?.length ? s.days : [0, 1, 2, 3, 4, 5, 6]);
-                    cur.has(i) ? cur.delete(i) : cur.add(i);
-                    s.days = [...cur].sort();
-                    mark();
-                    drawSched();
-                  },
-                }, d);
-                return c;
-              }),
-            ),
-          )
-        : null,
-      s.type !== 'none' ? field('Input for scheduled runs', h('input', { value: s.input || '', oninput: (e) => ((s.input = e.target.value), mark()) })) : null,
-      s.type !== 'none' ? h('label.row', toggle(!!wf.enabled, (v) => ((wf.enabled = v), mark())), h('span', 'Schedule on (runs while the dashboard is open)')) : null,
-    );
-  };
+  const schedBox = scheduleEditor(wf, mark);
 
   const runInput = h('textarea', { rows: 2, placeholder: 'Input for this run ({{input}})' });
   runsEl = h('div.col');
@@ -293,7 +254,6 @@ async function renderEditor(id: string) {
     ),
   );
   drawSteps();
-  drawSched();
   drawRuns();
 }
 
