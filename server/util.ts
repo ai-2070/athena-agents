@@ -78,6 +78,15 @@ export function isInside(root: string, p: string, { orEqual = false }: { orEqual
   return (orEqual && q === r) || q.startsWith(r.endsWith(path.sep) ? r : r + path.sep);
 }
 
+/** A folder that is really there, not a link to one (lstat: the link itself is not followed). */
+export function isPlainDir(p: string): boolean {
+  try {
+    return fs.lstatSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 export function exists(p: string): boolean {
   try {
     fs.accessSync(p);

@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { bus, listProjects, activeProject, log } from './store.ts';
-import { dataPath, ensureDir, exists, readJSON, writeJSON, realTarget } from './util.ts';
+import { dataPath, ensureDir, exists, isPlainDir, readJSON, writeJSON, realTarget } from './util.ts';
 import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir } from './versions.ts';
 import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, SKILL_BODY_MAX } from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
@@ -68,7 +68,9 @@ const timers = new Map<string, ReturnType<typeof setTimeout>>();
 const projectDir = (id: string, ...p: string[]) => dataPath('projects', id, ...p);
 // Plain .json files only: a link (agents/x.json -> data/secrets.json, or anywhere on the PC) would be
 // read through and land in the project folder, which may be shared or pushed to GitHub.
+// The folder itself too: agents/ as a link to a folder elsewhere would list that folder's files.
 const jsonFiles = (dir: string): string[] => {
+  if (!isPlainDir(dir)) return [];
   try {
     return fs
       .readdirSync(dir, { withFileTypes: true })

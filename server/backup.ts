@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { HOME, IS_WIN, dataPath, ensureDir, exists, insideRoots, readJSON, realTarget, slugify, writeJSON } from './util.ts';
+import { HOME, IS_WIN, dataPath, ensureDir, exists, insideRoots, isPlainDir, readJSON, realTarget, slugify, writeJSON } from './util.ts';
 import { listProjects, emit, log } from './store.ts';
 import { createProject, projectsRoot, setLogo, updateProject } from './projects.ts';
 import { isSkillSlug, skillsLibrary } from './skills.ts';
@@ -119,7 +119,9 @@ export interface BackupRestoreResult {
 // ---------- packing ----------
 const projectDir = (id: string, ...p: string[]) => dataPath('projects', id, ...p);
 // Plain .json files only: a link could point at data/secrets.json or anything else on the PC
+// (and only in a folder that isn't a link itself: that would list a folder elsewhere)
 const jsonFiles = (dir: string): string[] => {
+  if (!isPlainDir(dir)) return [];
   try {
     return fs
       .readdirSync(dir, { withFileTypes: true })
@@ -141,6 +143,8 @@ const budget = (left: number): Budget => ({ left, omitted: 0 });
 
 function packTree(dir: string, budget: Budget, prefix = ''): PackedFile[] {
   const out: PackedFile[] = [];
+  // a linked folder is left out like a linked file (below the top, readdir's entries already say so)
+  if (!isPlainDir(dir)) return out;
   const walk = (d: string, rel: string) => {
     let list: fs.Dirent[] = [];
     try {
@@ -175,6 +179,7 @@ function packTree(dir: string, budget: Budget, prefix = ''): PackedFile[] {
 function packChats(id: string, budget: Budget): BackupData['chats'] {
   const out: BackupData['chats'] = [];
   const root = projectDir(id, 'chats');
+  if (!isPlainDir(root)) return out;
   let agentDirs: fs.Dirent[] = [];
   try {
     agentDirs = fs.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory() && CHAT_ID_RE.test(e.name));
