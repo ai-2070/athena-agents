@@ -1,0 +1,43 @@
+server/tools.ts
+  s_0d848ba6cc37e4::t_f84818b4b10c38 7,526-527,535-546
+  s_0d848ba6cc37e4::t_82b8b60af16761 8-10,547-550
+tests/server/handoffs.test.ts
+  s_0d848ba6cc37e4::t_6bcfac62ab168f 51,58,63-64
+  s_0d848ba6cc37e4::t_36199508e6fcbd 1-41,44-50,52-57,59-62,65-89
+  s_0d848ba6cc37e4::t_ca8a2d4d0c4c25 42-43
+docs/guide.md
+  s_0d848ba6cc37e4::t_eb74695f38f179 48,110
+  s_0d848ba6cc37e4::t_263359cf2cfff4 111
+web/views/station.ts
+  s_0d848ba6cc37e4::t_42c79b650b2a44 693
+server/handoffs.ts
+  s_0d848ba6cc37e4::t_3632a0c7dc03e9 1-102
+server/teams.ts
+  s_0d848ba6cc37e4::t_eb6930bb2cc0fd 1-4
+  s_0d848ba6cc37e4::t_2e00ba5dd1322d 13,233-240,366-369,379
+tests/server/services.test.ts
+  s_0d848ba6cc37e4::t_36199508e6fcbd 1-64
+server/engines/index.ts
+  s_0d848ba6cc37e4::t_82b8b60af16761 208,580
+server/library.ts
+  s_0d848ba6cc37e4::t_82b8b60af16761 211
+server/services.ts
+  s_0d848ba6cc37e4::t_2e00ba5dd1322d 38-43
+  s_0d848ba6cc37e4::t_980c1d9fb32130 1-37,44-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ca15342a8d80e12350220dd46fb2dbdb5b50ca88",
+  "prompts": {},
+  "sessions": {
+    "s_0d848ba6cc37e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bd03328a-c96f-49fa-b893-9071482a8722",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
