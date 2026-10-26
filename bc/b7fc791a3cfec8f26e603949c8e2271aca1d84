@@ -1,0 +1,27 @@
+web/views/station.ts
+  s_280f012de0b84d::t_d30385bc1e9e9b 480,2617,2626,2781
+tests/web/models.test.ts
+  s_280f012de0b84d::t_0cbf30ba8bcec0 14-17
+web/models.ts
+  s_280f012de0b84d::t_d30385bc1e9e9b 66,101
+scripts/build-icons.ts
+  s_280f012de0b84d::t_d30385bc1e9e9b 26
+web/icons.ts
+  s_280f012de0b84d::t_d30385bc1e9e9b 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bcb7fc791a3cfec8f26e603949c8e2271aca1d84",
+  "prompts": {},
+  "sessions": {
+    "s_280f012de0b84d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f553f14f-f6a0-4ae3-8721-c11bbf98c834",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
