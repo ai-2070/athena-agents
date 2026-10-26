@@ -1,9 +1,11 @@
 // A team's group chat: everyone's messages, who is working, @mention suggestions, reply-to, stop.
 // The Brain writes here too (from 'brain'): its briefs, follow-ups, and answers to @Brain.
+// Other teams too (from 'team:<id>'): what they ask this team after a #Team Name, and their answers.
 // React; renderTeamChat() puts it into a plain-DOM place (the chat window's tab) and hands back
 // focus, mention and destroy. The message box stays uncontrolled: the paste chips, the / menu and
 // mention() change its text directly, as typing does.
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import type { CSSProperties } from 'react';
 import { state, GET, POST, DEL, attempt, md, ago, onEvent, confirmBox, toast } from './core.ts';
 import { attachTray } from './attach.ts';
 import { pasteBox } from './pastes.ts';
@@ -13,7 +15,7 @@ import { parseCommand } from '../shared/commands.ts';
 import { commandChips, slashMenu } from './chatcommands.ts';
 import type { SlashMenu } from './chatcommands.ts';
 import { Avatar, DomNode, Icon, mountReact, useAppState } from './ui/react.tsx';
-import type { Agent, BrainBrief, LoopInfo, QueuedMessage, RunEvent, Team, TeamMessage, TeamState } from '../shared/types.ts';
+import type { Agent, BrainBrief, LoopInfo, QueuedMessage, RunEvent, Team, TeamMessage, TeamRef, TeamState } from '../shared/types.ts';
 
 // A working agent's turn (and the work behind a reply): the AI SDK pieces load when first needed.
 const TurnView = lazy(() => import('./chat/TurnView.tsx').then((m) => ({ default: m.TurnView })));
@@ -33,6 +35,8 @@ export interface TeamChatResponse extends TeamState {
   sessions?: Record<string, string>;
   /** your /goal for the team, while the Brain follows it */
   goal?: BrainBrief | null;
+  /** the other teams it can ask (#Team Name) */
+  others?: TeamRef[];
 }
 /** What renderTeamChat() hands back. */
 export interface TeamChatApi {
@@ -47,6 +51,8 @@ interface TeamChatOptions {
 /** The chat as it stands: changed by the first load and by live events, then drawn. */
 interface TeamChatData {
   team: Team | null;
+  /** the other teams (#Team Name) */
+  others: TeamRef[];
   messages: TeamMessage[];
   working: string[];
   queued: string[];
@@ -64,11 +70,26 @@ interface TeamChatData {
 interface MentionOption {
   label: string;
   a?: Agent;
+  /** another team, typed as #Name */
+  t?: TeamRef;
 }
 
 const PLACEHOLDER = 'Message the team… type @ to mention someone';
-const blank = (): TeamChatData => ({ team: null, messages: [], working: [], queued: [], held: [], loop: null, goal: null, activity: {}, sessions: {}, turning: new Set() });
+const blank = (): TeamChatData => ({ team: null, others: [], messages: [], working: [], queued: [], held: [], loop: null, goal: null, activity: {}, sessions: {}, turning: new Set() });
 const agentOf = (id: string) => state.data?.agents.find((a) => a.id === id);
+
+/** Who wrote a message, in a few words (the quote above a reply). */
+export function senderName(m: TeamMessage, agentName: (id: string) => string | undefined): string {
+  if (m.relay) return `#${m.relay.teamName}`;
+  return m.from === 'user' ? 'You' : m.from === 'brain' ? 'Brain' : m.from === 'system' ? 'System' : agentName(m.from) || '';
+}
+
+/** What highlights @Names and #Teams in a message (group 1: an @name, group 2: a #team). */
+export function mentionPattern(names: string[], teams: string[]): RegExp {
+  const esc = (n: string) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const longest = (xs: string[]) => [...xs].sort((a, b) => b.length - a.length).map(esc).join('|');
+  return new RegExp(`@(${longest(names)})${teams.length ? `|(?<![\\w#&/])#(${longest(teams)})(?![\\w-])` : ''}`, 'gi');
+}
 
 // The first GET's messages, plus what live events added meanwhile. After a clear the snapshot may be from before it, so only the live ones count.
 export function mergeSnapshot(snapshot: TeamMessage[], live: TeamMessage[], clearedSince: boolean): TeamMessage[] {
@@ -136,6 +157,7 @@ function useTeamData(teamId: string): [TeamChatData, () => void, { current: Team
       .then((r) => {
         if (!alive) return;
         c.team = r.team;
+        c.others = r.others || [];
         c.messages = mergeSnapshot(r.messages, c.messages, early.cleared);
         // (cleared while it loaded: the snapshot's sessions and who was working are from before)
         if (!early.cleared) {
@@ -180,21 +202,22 @@ function Ago({ ts }: { ts: number }) {
   return <span className="hint">{ago(ts)}</span>;
 }
 
-/** A message's text with @Names picked out (not inside code). */
-function textWithMentions(text: string, names: readonly string[]): HTMLElement {
+/** A message's text with @Names and #Teams picked out (not inside code). */
+function textWithMentions(text: string, names: readonly string[], teams: readonly string[]): HTMLElement {
   const el = md(text);
   el.className = 'tc-text';
-  const all = [...names, 'everyone', 'Brain'].sort((a, b) => b.length - a.length);
-  const re = new RegExp(`@(${all.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+  const re = mentionPattern([...names, 'everyone', 'Brain'], [...teams]);
   const walk = (node: Node) => {
     for (const child of [...node.childNodes]) {
       if (child.nodeType === 3 && re.test(child.textContent!)) {
         re.lastIndex = 0;
         const frag = document.createDocumentFragment();
         let last = 0;
-        child.textContent!.replace(re, (m: string, _n: string, idx: number) => {
+        // (the match's offset is next to last: the pattern has one group without other teams, two with)
+        child.textContent!.replace(re, (m: string, ...rest: unknown[]) => {
+          const idx = rest[rest.length - 2] as number;
           const tag = document.createElement('span');
-          tag.className = 'tc-mention';
+          tag.className = m.startsWith('#') ? 'tc-mention tc-team' : 'tc-mention';
           tag.textContent = m;
           frag.append(child.textContent!.slice(last, idx), tag);
           last = idx + m.length;
@@ -231,21 +254,25 @@ function Work({ m }: { m: TeamMessage }) {
 }
 
 /** One message. Memo: a message drawn once stays as it is while others arrive or stream in. */
-const Message = memo(function Message({ m, parent, author, lead, names, onReply }: { m: TeamMessage; parent: TeamMessage | null; author: Agent | undefined; lead: boolean; names: string; onReply: (m: TeamMessage) => void }) {
+const Message = memo(function Message({ m, parent, author, team, lead, names, teams, onReply }: { m: TeamMessage; parent: TeamMessage | null; author: Agent | undefined; team: TeamRef | undefined; lead: boolean; names: string; teams: string; onReply: (m: TeamMessage) => void }) {
   if (m.from === 'system') return <div className="tc-sys">{m.text}</div>;
   const brain = m.from === 'brain';
-  const nameOf = (from: string) => (from === 'user' ? 'You' : from === 'brain' ? 'Brain' : agentOf(from)?.name || '');
+  // a message from another team (#Team): in that team's colour
+  const relay = m.relay;
   return (
-    <div className={`tc-msg${m.from === 'user' ? ' me' : ''}`}>
+    <div className={`tc-msg${m.from === 'user' ? ' me' : ''}${relay ? ' tc-relay' : ''}`} style={relay ? ({ '--team-color': team?.color || 'var(--ice)' } as CSSProperties) : undefined}>
       <div className="tc-who">
         {author ? (
           <Avatar agent={author} />
         ) : brain ? (
           <div className="avatar brain-av"><Icon name="brain" size={14} /></div>
+        ) : relay ? (
+          <div className="avatar tc-team-av">{team?.mark || '#'}</div>
         ) : (
           <div className="avatar tc-you"><Icon name="users" size={14} /></div>
         )}
-        <b>{author ? author.name : brain ? 'Brain' : m.from === 'user' ? 'You' : 'Someone'}</b>
+        <b>{author ? author.name : brain ? 'Brain' : relay ? `#${team?.name || relay.teamName}` : m.from === 'user' ? 'You' : 'Someone'}</b>
+        {relay ? <span className="tc-relay-tag">{relay.answers ? `answered · ${relay.byName}` : `asks this team · ${relay.byName}`}</span> : null}
         {lead ? <span className="tc-lead">★ lead</span> : null}
         <Ago ts={m.ts} />
         <span className="grow" />
@@ -255,8 +282,8 @@ const Message = memo(function Message({ m, parent, author, lead, names, onReply 
           </button>
         ) : null}
       </div>
-      {parent ? <div className="tc-quote">{`↪ ${nameOf(parent.from)}: ${String(parent.text).slice(0, 90)}`}</div> : null}
-      {m.text ? <DomNode className="dom-contents" make={() => textWithMentions(m.text, names ? names.split('\n') : [])} deps={[m.text, names]} /> : null}
+      {parent ? <div className="tc-quote">{`↪ ${senderName(parent, (id) => agentOf(id)?.name)}: ${String(parent.text).slice(0, 90)}`}</div> : null}
+      {m.text ? <DomNode className="dom-contents" make={() => textWithMentions(m.text, names ? names.split('\n') : [], teams ? teams.split('\n') : [])} deps={[m.text, names, teams]} /> : null}
       <DomNode className="dom-contents" make={() => mentionPreviews(m.text, m.attachments, { compact: true, key: `team:${m.id}` })} deps={[m.id, m.text, JSON.stringify(m.attachments || [])]} />
       {m.turn && m.from !== 'user' && m.from !== 'system' ? <Work m={m} /> : null}
       {m.mentions?.length && m.from !== 'user' ? (
@@ -321,6 +348,8 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
 
   const members = (C.team?.members || []).map(agentOf).filter((a): a is Agent => Boolean(a));
   const names = members.map((a) => a.name).join('\n');
+  // the teams a #Name can mean: the others, and this one (named in their messages)
+  const teams = [...C.others.map((t) => t.name), ...(C.team ? [C.team.name] : [])].join('\n');
   const busy = [...C.working, ...C.queued.filter((q) => !C.working.includes(q))];
 
   // ---- staying at the newest message: by where you scrolled, not measured at a redraw (a live turn or a
@@ -465,10 +494,10 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   const pick = (o: MentionOption) => {
     const ta = input.current!;
     const pos = ta.selectionStart;
-    const m = /(^|\s)@([\w .-]{0,30})$/.exec(ta.value.slice(0, pos));
+    const m = /(^|\s)([@#])([\w .-]{0,30})$/.exec(ta.value.slice(0, pos));
     if (!m) return;
-    const start = pos - m[2].length - 1;
-    ta.value = `${ta.value.slice(0, start)}@${o.label} ${ta.value.slice(pos)}`;
+    const start = pos - m[3].length - 1;
+    ta.value = `${ta.value.slice(0, start)}${o.t ? '#' : '@'}${o.label} ${ta.value.slice(pos)}`;
     const caret = start + o.label.length + 2;
     ta.setSelectionRange(caret, caret);
     setSuggest(null);
@@ -492,11 +521,13 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     const offPastes = pastes.attach(ta);
     const find = (index = 0): { start: number; opts: MentionOption[]; index: number } | null => {
       const pos = ta.selectionStart;
-      const m = /(^|\s)@([\w .-]{0,30})$/.exec(ta.value.slice(0, pos));
+      const m = /(^|\s)([@#])([\w .-]{0,30})$/.exec(ta.value.slice(0, pos));
       if (!m) return null;
-      const q = m[2].toLowerCase();
-      const opts: MentionOption[] = [...membersRef.current.map((a) => ({ label: a.name, a })), { label: 'everyone' }, { label: 'Brain' }].filter((o) => o.label.toLowerCase().startsWith(q) || o.label.toLowerCase().includes(q));
-      return opts.length ? { start: pos - m[2].length - 1, opts, index: Math.min(index, opts.length - 1) } : null;
+      const q = m[3].toLowerCase();
+      // # is another team, @ someone here
+      const all: MentionOption[] = m[2] === '#' ? store.current.others.map((t) => ({ label: t.name, t })) : [...membersRef.current.map((a) => ({ label: a.name, a })), { label: 'everyone' }, { label: 'Brain' }];
+      const opts = all.filter((o) => o.label.toLowerCase().startsWith(q) || o.label.toLowerCase().includes(q));
+      return opts.length ? { start: pos - m[3].length - 1, opts, index: Math.min(index, opts.length - 1) } : null;
     };
     const onInput = () => {
       setSuggest(find());
@@ -530,7 +561,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       offPastes();
       if (box.input === ta) box.input = null;
     };
-  }, [pastes, box]);
+  }, [pastes, box, store]);
 
   // ---- files: dropped on the chat, and gone with it
   useEffect(() => {
@@ -561,9 +592,11 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
               key={m.id}
               m={m}
               parent={m.replyTo ? C.messages.find((x) => x.id === m.replyTo) || null : null}
-              author={m.from === 'user' || m.from === 'system' || m.from === 'brain' ? undefined : agentOf(m.from)}
+              author={m.from === 'user' || m.from === 'system' || m.from === 'brain' || m.relay ? undefined : agentOf(m.from)}
+              team={m.relay ? C.others.find((t) => t.id === m.relay!.teamId) : undefined}
               lead={!!lead && lead === m.from}
               names={names}
+              teams={teams}
               onReply={reply}
             />
           ))
@@ -637,16 +670,22 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
           <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">
             {suggest?.opts.map((o, i) => (
               <button
-                key={o.label}
+                key={`${o.t ? '#' : '@'}${o.label}`}
                 className={`tc-sopt${i === suggest.index ? ' on' : ''}`}
                 role="option"
                 aria-selected={i === suggest.index}
                 onMouseDown={(e) => (e.preventDefault(), pick(o))}
               >
-                {o.a ? <Avatar agent={o.a} /> : <Icon name={o.label === 'Brain' ? 'brain' : 'users'} size={14} />}
-                {`@${o.label}`}
-                {o.label === 'Brain' ? <span className="hint">ask the Brain</span> : null}
-                {o.a?.specialty ? <span className="hint">{o.a.specialty}</span> : null}
+                {o.a ? (
+                  <Avatar agent={o.a} />
+                ) : o.t ? (
+                  <div className="avatar tc-team-av" style={{ '--team-color': o.t.color || 'var(--ice)' } as CSSProperties}>{o.t.mark || '#'}</div>
+                ) : (
+                  <Icon name={o.label === 'Brain' ? 'brain' : 'users'} size={14} />
+                )}
+                {`${o.t ? '#' : '@'}${o.label}`}
+                {o.label === 'Brain' && !o.t ? <span className="hint">ask the Brain</span> : null}
+                {o.a?.specialty ? <span className="hint">{o.a.specialty}</span> : o.t ? <span className="hint">{o.t.description || 'ask this team'}</span> : null}
               </button>
             ))}
           </div>
@@ -661,7 +700,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
         </button>
       </div>
       <div className="tc-foot">
-        <span className="hint">Enter to send · @Name gives it to one agent · @everyone for all · @Brain asks the Brain · / for commands · drop or paste files to attach</span>
+        <span className="hint">Enter to send · @Name gives it to one agent · @everyone for all · @Brain asks the Brain · #Team asks another team · / for commands · drop or paste files to attach</span>
         <button className="btn tiny ghost" onClick={() => void clear()}>Clear chat</button>
       </div>
     </div>

@@ -205,6 +205,7 @@ async function agentFinished(briefId: string, pid: string, answer: string, stopp
 
 // ---------- @Brain in a team chat ----------
 function who(m: TeamMessage): string {
+  if (m.relay) return `#${m.relay.teamName} (${m.relay.byName}, another team)`;
   if (m.from === 'user') return 'The user';
   if (m.from === 'system') return 'System';
   if (m.from === BRAIN) return 'You (the Brain)';
@@ -301,6 +302,8 @@ export function startIrc(): void {
   setBrainHandlers({
     reply: replyInTeam,
     idle: (teamId, opts) => void teamIdle(teamId, opts),
+    // (a question from another team that names nobody: the best fit there answers)
+    route: pickMember,
   });
   // a turn ended in a chat with your /goal: the Brain checks it
   onRunEnd((e) => {

@@ -84,10 +84,16 @@ export const INTEGRATIONS: Integration[] = [
   { id: 'photoshop', label: 'Photoshop', glyph: 'Ps', color: '#31a8ff' },
   { id: 'aftereffects', label: 'After Effects', glyph: 'Ae', color: '#d291ff' },
   { id: 'ffmpeg', label: 'FFmpeg', glyph: '▶', color: '#5fe3a0' },
+  { id: 'maya', label: 'Maya', glyph: 'M', color: '#37a5cc' },
+  { id: 'houdini', label: 'Houdini', glyph: 'H', color: '#ff4713' },
+  { id: 'substance', label: 'Substance 3D', glyph: 'Sb', color: '#ff6b4a' },
+  { id: 'cad', label: 'CAD and 3D printing', glyph: '⚙', color: '#f9d72f' },
+  { id: 'nvidia', label: 'NVIDIA', glyph: 'NV', color: '#76b900' },
+  { id: 'assets', label: 'Free asset libraries', glyph: '▦', color: '#9fd8ff' },
   { id: 'orca', label: 'Orca', glyph: '🐋', color: '#7ab8ff' },
   { id: 'browser', label: 'Browser', glyph: '🌐', color: '#a9d3e2' },
 ];
-const BRAND_OF: Record<string, string> = { codex: 'openai', reddit: 'reddit', claude: 'claude', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
+const BRAND_OF: Record<string, string> = { codex: 'openai', reddit: 'reddit', claude: 'claude', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', maya: 'maya', houdini: 'houdini', cad: 'openscad', nvidia: 'nvidia', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
 // A brand logo, or a Craft app's own icon (PhotoCraft…), for a connector or MCP server name.
 export const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null => logo(name, size) || craftIcon(name, size);
 // The brand logo for an integration (or connector name), falling back to its glyph.
@@ -112,7 +118,11 @@ export function availableIntegrations(d: AppState, progs: Program[]): AvailableI
     discord: d.accounts.discord.configured,
     browser: true,
   };
-  for (const id of ['comfyui', 'blender', 'premiere', 'photoshop', 'aftereffects', 'ffmpeg', 'orca']) avail[id] = !!P(id)?.installed;
+  for (const id of ['comfyui', 'blender', 'maya', 'houdini', 'premiere', 'photoshop', 'aftereffects', 'ffmpeg', 'orca']) avail[id] = !!P(id)?.installed;
+  avail.substance = ['painter', 'designer', 'sampler'].some((id) => P(id)?.installed);
+  avail.cad = ['openscad', 'prusaslicer'].some((id) => P(id)?.installed);
+  avail.nvidia = ['nvidiasmi', 'nvtt'].some((id) => P(id)?.installed);
+  avail.assets = true;
   const list = INTEGRATIONS.filter((i) => avail[i.id]).map((i): AvailableIntegration => {
     const p = P(i.id);
     const live = p ? (p.cli ? true : !!p.running) : true;
@@ -137,6 +147,7 @@ export function agentLinks(a: LinkSource | null | undefined): Set<string> {
   if (g.has('blender')) s.add('blender');
   if (g.has('adobe')) ['premiere', 'photoshop', 'aftereffects'].forEach((x) => s.add(x));
   if (g.has('media')) s.add('ffmpeg');
+  for (const id of ['maya', 'houdini', 'substance', 'cad', 'nvidia', 'assets']) if (g.has(id)) s.add(id);
   if (g.has('orca')) s.add('orca');
   if (g.has('browser')) s.add('browser');
   for (const m of a.mcpServers || []) s.add(`mcp:${m}`);
@@ -152,7 +163,13 @@ export function toolIntegration(name: unknown): string | null {
     [/^photoshop_/, 'photoshop'],
     [/^aftereffects_/, 'aftereffects'],
     [/^premiere_/, 'premiere'],
-    [/^ff(mpeg|probe)$/, 'ffmpeg'],
+    [/^(ff(mpeg|probe)|handbrake_encode|imagemagick)$/, 'ffmpeg'],
+    [/^maya_/, 'maya'],
+    [/^houdini_/, 'houdini'],
+    [/^substance_/, 'substance'],
+    [/^(openscad_render|slice_model)$/, 'cad'],
+    [/^nvidia_/, 'nvidia'],
+    [/^asset_/, 'assets'],
     [/^(x_|social_)/, 'x'],
     [/^telegram_/, 'telegram'],
     [/^reddit_/, 'reddit'],

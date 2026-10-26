@@ -5,13 +5,15 @@
 // Each agent keeps its own memory of the team (its own chat session), and gets the new messages each turn.
 // The Brain writes here too: it hands the team work, answers when someone writes @Brain, and looks at
 // the thread when the team goes quiet (see irc.ts).
+// Teams talk to each other like IRC channels: a message that names #Other Team goes to that team's chat
+// too, and once that team is done, its last reply comes back here to whoever asked.
 import { workflows as teamStore, agents, chats, emit, log, activeProject, openProject } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath } from './util.ts';
 import { askAgent, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
-import { isStepList, teamSteps } from '../shared/teams.ts';
+import { isStepList, teamSteps, parseTeamRefs, teamFrom, fromTeam } from '../shared/teams.ts';
 import { attachmentNames } from './uploads.ts';
 import { soleHolder, servicesOf } from './services.ts';
-import type { Agent, LoopInfo, QueuedMessage, Team, TeamMessage, TeamState } from '../shared/types.ts';
+import type { Agent, LoopInfo, QueuedMessage, Team, TeamMessage, TeamRef, TeamRelay, TeamState } from '../shared/types.ts';
 import type { LoopRequest } from '../shared/commands.ts';
 
 const MAX_TURNS = 16; // agent turns per message you send
@@ -19,6 +21,9 @@ const MAX_PER_AGENT = 5; // turns per agent per message you send
 const CONTEXT_CHARS = 9000; // new group messages handed to an agent per turn
 const KEEP_MESSAGES = 500;
 const MAX_BRAIN_REPLIES = 4; // times the Brain answers @Brain per message you send
+const MAX_RELAYS = 4; // times a team asks other teams per message you send
+const MAX_RELAY_DEPTH = 3; // a team asking a team asking a team, at most
+const ANSWER_CHARS = 8000; // of a team's answer, passed back to the team that asked
 /** Who the Brain is in a thread (TeamMessage.from, and in TeamState.working while it answers). */
 export const BRAIN = 'brain';
 
@@ -38,6 +43,7 @@ interface NewMessage {
   replyTo?: string | null;
   attachments?: string[];
   turn?: TeamMessage['turn'];
+  relay?: TeamRelay;
 }
 
 interface QueueItem {
@@ -51,7 +57,7 @@ interface QueueItem {
 interface Runtime {
   queue: QueueItem[];
   running: Set<string>;
-  episode: { turns: number; per: Record<string, number>; brain?: number };
+  episode: { turns: number; per: Record<string, number>; brain?: number; relays?: number };
   stopped?: boolean;
   epoch: number; // bumped by stop and clear: turns started before then are dropped
   /** your /queue messages, posted one by one once nobody is working; heldIn: the project they were typed in */
@@ -84,10 +90,12 @@ interface TeamLoop extends LoopInfo {
 export type RouteFn = (text: string, members: (Agent | null)[]) => Promise<string | null | undefined>;
 
 /** What the Brain does in team chats (irc.ts sets these): answer a message that mentions @Brain
- *  (the reply text, posted here as the Brain), and look at a team that went quiet. */
+ *  (the reply text, posted here as the Brain), look at a team that went quiet, and pick who in a team
+ *  answers a question from another team when nobody there is named. */
 export interface BrainHandlers {
   reply(team: Team, msg: TeamMessage): Promise<string | null>;
   idle(teamId: string, opts: { stopped: boolean }): void;
+  route?: RouteFn;
 }
 let brainHandlers: BrainHandlers | null = null;
 export function setBrainHandlers(h: BrainHandlers | null): void {
@@ -205,14 +213,15 @@ export function postBrainMessage(teamId: string, text: string | null | undefined
   return postAndRoute(teamId, BRAIN, text, opts);
 }
 
-async function postAndRoute(teamId: string, from: 'user' | typeof BRAIN, text: string | null | undefined, { replyTo = null, route = null, skills = [], attachments = [] }: PostOptions): Promise<TeamMessage> {
+// from: you, the Brain, or another team (`team:<id>`, with relay saying who there asked)
+async function postAndRoute(teamId: string, from: string, text: string | null | undefined, { replyTo = null, route = null, skills = [], attachments = [], relay }: PostOptions & { relay?: TeamRelay }): Promise<TeamMessage> {
   const team = getTeam(teamId);
   if (!team) throw new Error('No such team.');
   if (!team.members.length) throw new Error('This team has no agents yet. Add some first.');
   text = String(text || '').trim();
   if (!text && !attachments.length) throw new Error('Write something first.');
   const mentions = parseMentions(team, text);
-  const msg = post(team, { from, text, mentions, replyTo, ...(attachments.length ? { attachments } : {}) });
+  const msg = post(team, { from, text, mentions, replyTo, ...(attachments.length ? { attachments } : {}), ...(relay ? { relay } : {}) });
   const r = runtime(team.id);
   r.episode = { turns: 0, per: {} }; // a new message from you gives the team a fresh budget
   r.stopped = false;
@@ -220,10 +229,13 @@ async function postAndRoute(teamId: string, from: 'user' | typeof BRAIN, text: s
   // you asked the Brain: it answers in the thread, and nobody else starts unless you named them
   const askBrain = from === 'user' && mentionsBrain(text);
   if (askBrain) void brainTurn(team, msg);
+  // you named other teams (#Team Name): it goes to them, and here only to whoever you named
+  const named = from === 'user' ? teamsNamed(team, text) : [];
+  const asked = named.length ? askTeams(team, msg, named, from) : [];
   let targets = mentions;
   let why = '';
-  if (!targets.length && askBrain) {
-    log('team', `You → the Brain in ${team.name}: ${text.slice(0, 100)}`);
+  if (!targets.length && (askBrain || asked.length || named.length)) {
+    log('team', `You → ${askBrain ? 'the Brain' : asked.map((id) => `#${getTeam(id)?.name}`).join(', ') || 'other teams'} in ${team.name}: ${text.slice(0, 100)}`);
     return msg;
   }
   if (!targets.length && replyTo) {
@@ -250,8 +262,150 @@ async function postAndRoute(teamId: string, from: 'user' | typeof BRAIN, text: s
   }
   for (const id of targets) enqueue(team, id, msg.id, true, false, skills);
   if (why) emit('team', { teamId: team.id, event: { kind: 'routed', to: targets, why } });
-  log('team', `${from === BRAIN ? 'The Brain' : 'You'} → ${team.name}: ${(text || attachmentNames(attachments)).slice(0, 100)}`);
+  log('team', `${relay ? `#${relay.teamName}` : from === BRAIN ? 'The Brain' : 'You'} → ${team.name}: ${(text || attachmentNames(attachments)).slice(0, 100)}`);
   return msg;
+}
+
+// ---------- #Team: asking another team ----------
+// A question to another team is posted in its chat (from `team:<asker>`) and routed there like a message
+// from you. When that team goes quiet, its last reply goes back to the asking team, to whoever asked.
+interface Relay {
+  /** the team that asked, and the one asked */
+  from: string;
+  to: string;
+  /** who asked: an agent id, or 'user' */
+  by: string;
+  /** the question in the asking thread, and where it was posted in the other one */
+  askId: string;
+  postedId: string;
+  pid: string;
+  /** teams asking teams: 1 for a question from a team nobody asked */
+  depth: number;
+  /** the asker's turn was a handoff coming back, and the skills for its work: kept for its next turn */
+  returning: boolean;
+  skills: string[];
+}
+const relays: Relay[] = [];
+
+const askable = (t: Team) => t.members.length > 0 && !isStepList(t);
+/** The other teams this one can ask (#Team Name), for its chat. */
+export function otherTeams(teamId: string): TeamRef[] {
+  return listTeams()
+    .filter((t) => t.id !== teamId && askable(t))
+    .map((t) => ({ id: t.id, name: t.name, description: t.description || '', ...(t.color ? { color: t.color } : {}), ...(t.mark ? { mark: t.mark } : {}) }));
+}
+const teamsNamed = (team: Team, text: unknown) => parseTeamRefs(text, listTeams().filter(askable), team.id);
+const nameOf = (id: string) => (id === 'user' ? 'the user' : id === BRAIN ? 'the Brain' : agents.get(id)?.name || 'someone');
+const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** Ask the teams a message names. by: who wrote it. Returns the teams it went to. */
+function askTeams(team: Team, msg: TeamMessage, ids: string[], by: string, { returning = false, skills = [] }: { returning?: boolean; skills?: string[] } = {}): string[] {
+  const r = runtime(team.id);
+  const pid = activeProject().id;
+  // how deep this team's work already is in questions between teams
+  const depth = 1 + Math.max(0, ...relays.filter((x) => x.to === team.id).map((x) => x.depth));
+  const sent: string[] = [];
+  const refused: string[] = [];
+  const why: string[] = [];
+  for (const id of ids) {
+    const to = getTeam(id);
+    if (!to) continue;
+    // they asked this team: naming them is the answer, and that goes back by itself once this team is done
+    if (by !== 'user' && relays.some((x) => x.from === to.id && x.to === team.id)) continue;
+    // they wait (through other teams) on this one: asking them would leave both waiting for good
+    if (waitsOn(to.id, team.id)) {
+      why.push(`Not sent to #${to.name}: it is waiting on this team's answer. Answer here instead.`);
+      continue;
+    }
+    if (depth > MAX_RELAY_DEPTH || (r.episode.relays || 0) >= MAX_RELAYS) {
+      refused.push(`#${to.name}`);
+      continue;
+    }
+    r.episode.relays = (r.episode.relays || 0) + 1;
+    sent.push(to.id);
+    // (kept from now on, so this team doesn't count as done while the question is on its way;
+    // a second question while the first is open joins it: one answer comes back)
+    let x = relays.find((y) => y.from === team.id && y.to === to.id);
+    const joins = !!x;
+    if (!x) relays.push((x = { from: team.id, to: to.id, by, askId: msg.id, postedId: '', pid, depth, returning, skills: [...skills] }));
+    const relay: TeamRelay = { teamId: team.id, teamName: team.name, by, byName: nameOf(by) };
+    const open = x;
+    postAndRoute(to.id, teamFrom(team.id), msg.text, { relay, attachments: msg.attachments || [], route: brainHandlers?.route || null })
+      .then((posted) => {
+        if (!joins) open.postedId = posted.id;
+        log('team', `${team.name} asked ${to.name}`);
+      })
+      .catch((e: unknown) => {
+        if (!joins && relays.includes(open)) relays.splice(relays.indexOf(open), 1);
+        post(team, { from: 'system', text: `Couldn't ask #${to.name}: ${errText(e)}` });
+      });
+  }
+  if (refused.length) {
+    why.push(`Not sent to ${refused.join(', ')}: ${depth > MAX_RELAY_DEPTH ? `teams are already asking teams ${MAX_RELAY_DEPTH} deep. Answer here instead.` : `this team asked other teams ${MAX_RELAYS} times on this. Write in the chat to keep going.`}`);
+  }
+  for (const line of why) post(team, { from: 'system', text: line });
+  return sent;
+}
+
+// Does team `a` wait for an answer from team `b`, directly or through teams it asked?
+function waitsOn(a: string, b: string): boolean {
+  const seen = new Set<string>();
+  const next = [a];
+  while (next.length) {
+    const cur = next.pop()!;
+    for (const x of relays) {
+      if (x.from !== cur || seen.has(x.to)) continue;
+      if (x.to === b) return true;
+      seen.add(x.to);
+      next.push(x.to);
+    }
+  }
+  return false;
+}
+
+// A team went quiet: the questions other teams asked it get its answer (its last reply since), unless it
+// still waits on a team it asked itself.
+function answerRelays(teamId: string, stopped: boolean) {
+  // (a question still on its way there isn't in its chat yet)
+  const waiting = relays.filter((x) => x.to === teamId && x.postedId);
+  if (!waiting.length || (!stopped && relays.some((x) => x.from === teamId))) return;
+  const team = getTeam(teamId);
+  const pid = activeProject().id;
+  const thread = team ? loadChat(teamId).messages : [];
+  for (const x of waiting) {
+    relays.splice(relays.indexOf(x), 1);
+    const asker = getTeam(x.from);
+    // (another project's question: that project isn't open now)
+    if (!team || !asker || x.pid !== pid) continue;
+    const at = thread.findIndex((m) => m.id === x.postedId);
+    const answer = at < 0 ? undefined : thread.slice(at + 1).findLast((m) => m.from === BRAIN || team.members.includes(m.from));
+    if (stopped || !answer) {
+      post(asker, { from: 'system', text: `#${team.name} ${stopped ? 'was stopped before it answered' : 'finished without an answer'}.` });
+      continue;
+    }
+    const text = answer.text.length > ANSWER_CHARS ? `${answer.text.slice(0, ANSWER_CHARS)}…` : answer.text;
+    const out = post(asker, {
+      from: teamFrom(team.id),
+      text,
+      replyTo: x.askId,
+      ...(answer.attachments?.length ? { attachments: answer.attachments } : {}),
+      relay: { teamId: team.id, teamName: team.name, by: answer.from, byName: nameOf(answer.from), answers: x.askId },
+    });
+    log('team', `${team.name} answered ${asker.name}`);
+    // the agent that asked picks it up (you read it yourself)
+    if (asker.members.includes(x.by)) enqueue(asker, x.by, out.id, false, x.returning, x.skills);
+  }
+}
+
+// Questions from a team that was stopped or cleared: no answer is wanted any more. Cleared: the
+// questions it was asked are gone too, and the teams that asked hear so.
+function dropRelays(teamId: string, { cleared }: { cleared: boolean }) {
+  for (const x of [...relays]) {
+    if (x.from !== teamId && !(cleared && x.to === teamId)) continue;
+    relays.splice(relays.indexOf(x), 1);
+    const asker = x.to === teamId ? getTeam(x.from) : null;
+    if (asker && x.pid === activeProject().id) post(asker, { from: 'system', text: `#${getTeam(teamId)?.name || 'That team'}'s chat was cleared before it answered.` });
+  }
 }
 
 // The Brain answers a message that mentions @Brain, in the thread. Its answer goes to whoever it names,
@@ -300,6 +454,8 @@ async function brainTurn(team: Team, msg: TeamMessage): Promise<void> {
 function settled(teamId: string, stopped = false) {
   const r = runtime(teamId);
   if (r.running.size || r.queue.length) return;
+  // teams that asked this one get its answer
+  answerRelays(teamId, stopped || !!r.stopped);
   try {
     brainHandlers?.idle(teamId, { stopped: stopped || !!r.stopped });
   } catch {
@@ -368,9 +524,17 @@ function briefing(team: Team, agent: Agent): string {
       return `- @${a.name}${a.id === team.lead ? ' (lead)' : ''}${a.id === agent.id ? ' (you)' : ''}: ${a.specialty || a.description || ''}${services.length ? ` (has ${services.join(', ')})` : ''}`;
     })
     .join('\n');
+  const others = otherTeams(team.id);
+  const teamsNote = others.length
+    ? `\n\nOther teams in this project:\n${others.map((t) => `- #${t.name}${t.description ? `: ${t.description}` : ''}`).join('\n')}
+
+Talking to other teams:
+- To ask another team for something that is their work, write #Team Name in your reply (exactly as above) and say precisely what you need back. Your message goes to their chat, and their answer comes back here to you once they are done.
+- A message from another team (#Name asks your team) is a request: handle it like one from the user. When your team is done, its last reply goes back to them by itself.`
+    : '';
   return `You are in the team chat "${team.name}".${team.description ? `\nTeam goal: ${team.description}` : ''}
 Team members:
-${roster}
+${roster}${teamsNote}
 
 How this chat works:
 - Everyone sees the whole thread. Your reply is posted to the team as a message from you.
@@ -396,9 +560,13 @@ async function runTurn(team: Team, item: QueueItem) {
   }
   const first = c.seen[agent.id] == null;
   const fresh = c.messages.slice(c.seen[agent.id] || 0).filter((m) => m.from !== agent.id);
-  const name = (id: string) => (id === 'user' ? 'You (the user)' : id === 'system' ? 'System' : id === BRAIN ? 'The Brain (overseer)' : `@${agents.get(id)?.name || 'someone'}`);
+  const name = (m: TeamMessage) => {
+    const id = m.from;
+    if (m.relay) return m.relay.answers ? `#${m.relay.teamName} answered (${m.relay.byName} there)` : `#${m.relay.teamName} asks your team (${m.relay.byName} there)`;
+    return id === 'user' ? 'You (the user)' : id === 'system' ? 'System' : id === BRAIN ? 'The Brain (overseer)' : `@${agents.get(id)?.name || 'someone'}`;
+  };
   // files attached to a message: named in the line, their paths come at the end of the prompt
-  const said = (m: TeamMessage) => `${name(m.from)}: ${String(m.text).slice(0, 2500)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`;
+  const said = (m: TeamMessage) => `${name(m)}: ${String(m.text).slice(0, 2500)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`;
   let digest = '';
   for (const m of fresh.slice().reverse()) {
     const line = said(m);
@@ -457,9 +625,12 @@ async function runTurn(team: Team, item: QueueItem) {
   // it asked the Brain: the Brain's answer comes back to it
   const askedBrain = mentionsBrain(text);
   if (askedBrain) void brainTurn(team, msg);
+  // it asked other teams (#Team Name): their answers come back to it
+  const named = teamsNamed(team, text);
+  const askedTeams = named.length > 0 && askTeams(team, msg, named, agent.id, { returning: item.returning, skills: item.skills }).length > 0;
   // A handed-off job is done and nobody new is named: the answer goes back to the lead (or whoever asked), once.
-  if (!mentions.length && !askedBrain && !item.returning && agent.id !== team.lead) {
-    const asked = c.messages.filter((m) => item.msgIds.includes(m.id) && m.from !== 'user' && m.from !== 'system' && m.from !== BRAIN).map((m) => m.from);
+  if (!mentions.length && !askedBrain && !askedTeams && !item.returning && agent.id !== team.lead) {
+    const asked = c.messages.filter((m) => item.msgIds.includes(m.id) && m.from !== 'user' && m.from !== 'system' && m.from !== BRAIN && !fromTeam(m.from)).map((m) => m.from);
     const back = team.lead && team.lead !== agent.id ? team.lead : asked.find((id) => id !== agent.id);
     if (asked.length && back && team.members.includes(back)) enqueue(team, back, msg.id, false, true, item.skills);
   }
@@ -656,6 +827,8 @@ export function stopTeam(teamId: string) {
   stopTeamLoop(teamId, null);
   stopChildren(`team:${teamId}`);
   r.brainQueue = [];
+  // (answers to what it asked other teams aren't wanted now; teams that asked it hear it was stopped)
+  dropRelays(teamId, { cleared: false });
   if (team) post(team, { from: 'system', text: 'Stopped. Nothing new will start until you write again.' });
   if (team) state(team);
   settled(teamId, true);
@@ -673,6 +846,7 @@ export function clearThread(teamId: string) {
   stopTeamLoop(teamId, null);
   r.episode = { turns: 0, per: {} };
   stopChildren(`team:${teamId}`);
+  dropRelays(teamId, { cleared: true });
   const c = loadChat(teamId);
   writeJSON(chatFile(teamId), { messages: [], sessions: {}, seen: {} });
   for (const [agentId, chatId] of Object.entries(c.sessions || {})) {

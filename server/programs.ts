@@ -102,6 +102,30 @@ export function startMenuApps(force = false): StartMenuApp[] {
 
 const startMenuFind = (re: RegExp): StartMenuApp | null => startMenuApps().find((a) => re.test(a.name)) || null;
 
+// A path the user set in Settings, when it is there.
+const chosen = (key: string): string | null => {
+  const p = getSettings().paths[key];
+  return p && exists(p) ? p : null;
+};
+// A program in one of a few usual places, else its Start Menu shortcut (Store apps, odd installs).
+const placed = (menu: RegExp, ...paths: string[]): Detected => {
+  const exe = first(...paths);
+  return exe ? { exe } : { exe: null, shortcut: startMenuFind(menu)?.shortcut || null };
+};
+const substance = (app: string): string | null => first(path.join(PF, 'Adobe', `Adobe Substance 3D ${app}`, `Adobe Substance 3D ${app}.exe`));
+const nvidia = (...rel: string[]): string => path.join(PF, 'NVIDIA Corporation', ...rel);
+// Topaz apps live in version-numbered folders ("Topaz Gigapixel AI 712"), under Topaz Labs LLC or right in Program Files.
+function topaz(folder: RegExp, exes: string[]): Detected {
+  for (const base of [path.join(PF, 'Topaz Labs LLC'), PF]) {
+    const dirs = listDirs(base).filter((d) => /topaz/i.test(d) && folder.test(d)).sort(natural).reverse();
+    for (const d of dirs) {
+      const exe = first(...exes.map((e) => path.join(base, d, e)));
+      if (exe) return { exe };
+    }
+  }
+  return { exe: null, shortcut: startMenuFind(new RegExp(`^topaz.*${folder.source}`, 'i'))?.shortcut || null };
+}
+
 // ---------- known programs ----------
 function comfyWorkflowDirs(): string[] {
   const s = getSettings();
@@ -182,11 +206,11 @@ const CATALOG: CatalogEntry[] = [
     actions: ['open-ui'],
   },
   { id: 'opendesign', name: 'Open Design', category: 'ai', icon: '📐', detect: () => ({ exe: localProgram('Open Design', 'Open Design.exe') }), actions: ['launch'] },
-  // Creative
+  // 3D and animation
   {
     id: 'blender',
     name: 'Blender',
-    category: 'creative',
+    category: '3d',
     icon: '🟠',
     detect: () => {
       const s = getSettings();
@@ -196,22 +220,39 @@ const CATALOG: CatalogEntry[] = [
     actions: ['launch', 'open', 'python'],
   },
   {
-    id: 'premiere',
-    name: 'Premiere Pro',
-    category: 'creative',
-    icon: '🎬',
-    detect: () => adobe('premiere', 'Adobe Premiere Pro ', 'Adobe Premiere Pro.exe'),
+    id: 'maya',
+    name: 'Maya',
+    category: '3d',
+    icon: '🔷',
+    detect: () => (chosen('maya') ? { exe: chosen('maya') } : newestVersioned(path.join(PF, 'Autodesk'), 'Maya', path.join('bin', 'maya.exe')) || { exe: null }),
+    actions: ['launch', 'open', 'python'],
+  },
+  {
+    id: 'houdini',
+    name: 'Houdini',
+    category: '3d',
+    icon: '🌀',
+    detect: () => (chosen('houdini') ? { exe: chosen('houdini') } : newestVersioned(path.join(PF, 'Side Effects Software'), 'Houdini ', path.join('bin', 'houdini.exe')) || { exe: null }),
+    actions: ['launch', 'open', 'python'],
+  },
+  { id: 'painter', name: 'Substance 3D Painter', category: '3d', icon: '🖌️', detect: () => ({ exe: chosen('painter') || substance('Painter') }), actions: ['launch', 'open'] },
+  { id: 'designer', name: 'Substance 3D Designer', category: '3d', icon: '🧪', detect: () => ({ exe: chosen('designer') || substance('Designer') }), actions: ['launch', 'open', 'render'] },
+  { id: 'sampler', name: 'Substance 3D Sampler', category: '3d', icon: '📷', detect: () => ({ exe: substance('Sampler') }), actions: ['launch', 'open'] },
+  { id: 'stager', name: 'Substance 3D Stager', category: '3d', icon: '🎭', detect: () => ({ exe: substance('Stager'), optional: true }), actions: ['launch', 'open'] },
+  { id: 'modeler', name: 'Substance 3D Modeler', category: '3d', icon: '🗿', detect: () => ({ exe: substance('Modeler'), optional: true }), actions: ['launch', 'open'] },
+  { id: 'animate', name: 'Animate', category: '3d', icon: '🎞', detect: () => adobe(null, 'Adobe Animate ', 'Animate.exe'), actions: ['launch', 'open'] },
+  {
+    id: 'characteranimator',
+    name: 'Character Animator',
+    category: '3d',
+    icon: '🙂',
+    detect: () => adobe(null, 'Adobe Character Animator ', path.join('Support Files', 'Character Animator.exe')),
     actions: ['launch', 'open'],
   },
+  // auto-rigging and animation; mostly used at mesh2motion.org, this is its desktop app
+  { id: 'mesh2motion', name: 'Mesh2Motion', category: '3d', icon: '🦴', detect: () => ({ ...placed(/mesh2motion/i, path.join(LOCAL, 'Programs', 'mesh2motion', 'Mesh2Motion.exe')), optional: true }), actions: ['launch'] },
+  // Images and design
   { id: 'photoshop', name: 'Photoshop', category: 'creative', icon: '🖼️', detect: () => adobe('photoshop', 'Adobe Photoshop ', 'Photoshop.exe'), actions: ['launch', 'open', 'jsx'] },
-  {
-    id: 'aftereffects',
-    name: 'After Effects',
-    category: 'creative',
-    icon: '✨',
-    detect: () => adobe('aftereffects', 'Adobe After Effects ', path.join('Support Files', 'AfterFX.exe')),
-    actions: ['launch', 'open', 'jsx'],
-  },
   {
     id: 'illustrator',
     name: 'Illustrator',
@@ -220,15 +261,29 @@ const CATALOG: CatalogEntry[] = [
     detect: () => adobe(null, 'Adobe Illustrator ', path.join('Support Files', 'Contents', 'Windows', 'Illustrator.exe')),
     actions: ['launch', 'open'],
   },
-  { id: 'audition', name: 'Audition', category: 'creative', icon: '🎧', detect: () => adobe(null, 'Adobe Audition ', 'Adobe Audition.exe'), actions: ['launch', 'open'] },
+  { id: 'indesign', name: 'InDesign', category: 'creative', icon: '📰', detect: () => adobe(null, 'Adobe InDesign ', 'InDesign.exe'), actions: ['launch', 'open'] },
   {
-    id: 'mediaencoder',
-    name: 'Media Encoder',
+    id: 'lightroomclassic',
+    name: 'Lightroom Classic',
     category: 'creative',
-    icon: '📼',
-    detect: () => adobe(null, 'Adobe Media Encoder ', 'Adobe Media Encoder.exe'),
+    icon: '🌅',
+    detect: () => placed(/^adobe lightroom classic/i, path.join(PF, 'Adobe', 'Adobe Lightroom Classic', 'Lightroom.exe')),
     actions: ['launch', 'open'],
   },
+  { id: 'lightroom', name: 'Lightroom', category: 'creative', icon: '☀️', detect: () => placed(/^adobe lightroom$/i, path.join(PF, 'Adobe', 'Adobe Lightroom CC', 'lightroom.exe')), actions: ['launch', 'open'] },
+  { id: 'bridge', name: 'Bridge', category: 'creative', icon: '🗂️', detect: () => adobe(null, 'Adobe Bridge ', 'Adobe Bridge.exe'), actions: ['launch', 'open'] },
+  { id: 'fresco', name: 'Fresco', category: 'creative', icon: '🎨', detect: () => ({ ...placed(/^adobe fresco/i), optional: true }), actions: ['launch'] },
+  {
+    id: 'acrobat',
+    name: 'Acrobat',
+    category: 'creative',
+    icon: '📄',
+    detect: () => placed(/^(adobe )?acrobat/i, path.join(PF, 'Adobe', 'Acrobat DC', 'Acrobat', 'Acrobat.exe'), path.join(PF, 'Adobe', 'Acrobat', 'Acrobat', 'Acrobat.exe')),
+    actions: ['launch', 'open'],
+  },
+  { id: 'dreamweaver', name: 'Dreamweaver', category: 'creative', icon: '🕸️', detect: () => ({ ...adobe(null, 'Adobe Dreamweaver ', 'Dreamweaver.exe'), optional: true }), actions: ['launch', 'open'] },
+  { id: 'incopy', name: 'InCopy', category: 'creative', icon: '📝', detect: () => ({ ...adobe(null, 'Adobe InCopy ', 'InCopy.exe'), optional: true }), actions: ['launch', 'open'] },
+  { id: 'audition', name: 'Audition', category: 'audio', icon: '🎧', detect: () => adobe(null, 'Adobe Audition ', 'Adobe Audition.exe'), actions: ['launch', 'open'] },
   {
     id: 'gimp',
     name: 'GIMP',
@@ -240,7 +295,182 @@ const CATALOG: CatalogEntry[] = [
     },
     actions: ['launch', 'open'],
   },
-  { id: 'ffmpeg', name: 'FFmpeg', category: 'creative', icon: '🎞️', detect: () => ({ exe: which('ffmpeg') }), cli: true, actions: [] },
+  // More images and design (free and popular ones first)
+  { id: 'krita', name: 'Krita', category: 'creative', icon: '🖍️', detect: () => placed(/^krita/i, path.join(PF, 'Krita (x64)', 'bin', 'krita.exe')), actions: ['launch', 'open'] },
+  { id: 'inkscape', name: 'Inkscape', category: 'creative', icon: '✒️', detect: () => placed(/^inkscape/i, path.join(PF, 'Inkscape', 'bin', 'inkscape.exe')), actions: ['launch', 'open'] },
+  { id: 'paintnet', name: 'Paint.NET', category: 'creative', icon: '🎨', detect: () => placed(/^paint\.net/i, path.join(PF, 'paint.net', 'paintdotnet.exe')), actions: ['launch', 'open'] },
+  { id: 'darktable', name: 'darktable', category: 'creative', icon: '📸', detect: () => placed(/^darktable/i, path.join(PF, 'darktable', 'bin', 'darktable.exe')), actions: ['launch', 'open'] },
+  { id: 'rawtherapee', name: 'RawTherapee', category: 'creative', icon: '🌄', detect: () => ({ ...(newestVersioned(path.join(PF, 'RawTherapee'), '', 'rawtherapee.exe') || placed(/^rawtherapee/i)), optional: true }), actions: ['launch', 'open'] },
+  { id: 'luminar', name: 'Luminar Neo', category: 'creative', icon: '🌇', detect: () => placed(/^luminar neo/i, path.join(PF, 'Skylum', 'Luminar Neo', 'Luminar Neo.exe')), actions: ['launch', 'open'] },
+  { id: 'gigapixel', name: 'Topaz Gigapixel', category: 'creative', icon: '🔍', detect: () => topaz(/gigapixel/i, ['Topaz Gigapixel AI.exe', 'Topaz Gigapixel.exe']), actions: ['launch', 'open'] },
+  { id: 'canva', name: 'Canva', category: 'creative', icon: '🟣', detect: () => placed(/^canva$/i, path.join(LOCAL, 'Programs', 'Canva', 'Canva.exe')), actions: ['launch'] },
+  { id: 'affinity', name: 'Affinity', category: 'creative', icon: '🔺', detect: () => ({ ...placed(/^affinity/i), optional: true }), actions: ['launch'] },
+  { id: 'irfanview', name: 'IrfanView', category: 'creative', icon: '🐮', detect: () => placed(/^irfanview/i, path.join(PF, 'IrfanView', 'i_view64.exe')), actions: ['launch', 'open'] },
+  { id: 'xnview', name: 'XnView MP', category: 'creative', icon: '🖼', detect: () => ({ ...placed(/^xnview/i, path.join(PF, 'XnViewMP', 'xnviewmp.exe')), optional: true }), actions: ['launch', 'open'] },
+  { id: 'sharex', name: 'ShareX', category: 'creative', icon: '📸', detect: () => ({ ...placed(/^sharex/i, path.join(PF, 'ShareX', 'ShareX.exe')), optional: true }), actions: ['launch'] },
+  {
+    id: 'imagemagick',
+    name: 'ImageMagick',
+    category: 'creative',
+    icon: '🪄',
+    detect: () => ({ exe: chosen('imagemagick') || which('magick') || newestVersioned(PF, 'ImageMagick-', 'magick.exe')?.exe || null }),
+    cli: true,
+    actions: [],
+  },
+  // More animation, 2D and 3D (free and popular)
+  { id: 'opentoonz', name: 'OpenToonz', category: '3d', icon: '🦝', detect: () => placed(/^opentoonz/i, path.join(PF, 'OpenToonz', 'OpenToonz.exe')), actions: ['launch', 'open'] },
+  { id: 'pencil2d', name: 'Pencil2D', category: '3d', icon: '✏️', detect: () => placed(/^pencil2d/i, path.join(PF, 'Pencil2D', 'pencil2d.exe')), actions: ['launch', 'open'] },
+  { id: 'synfig', name: 'Synfig Studio', category: '3d', icon: '🌀', detect: () => ({ ...placed(/^synfig/i, path.join(PF, 'Synfig', 'bin', 'synfigstudio.exe')), optional: true }), actions: ['launch', 'open'] },
+  { id: 'aseprite', name: 'Aseprite', category: '3d', icon: '👾', detect: () => ({ ...placed(/^aseprite/i, path.join(PF86, 'Steam', 'steamapps', 'common', 'Aseprite', 'Aseprite.exe'), path.join(PF, 'Aseprite', 'Aseprite.exe')), optional: true }), actions: ['launch', 'open'] },
+  { id: 'materialmaker', name: 'Material Maker', category: '3d', icon: '🧫', detect: () => ({ ...placed(/^material ?maker/i), optional: true }), actions: ['launch'] },
+  { id: 'armorpaint', name: 'ArmorPaint', category: '3d', icon: '🛡️', detect: () => ({ ...placed(/^armorpaint/i), optional: true }), actions: ['launch'] },
+  { id: 'magicavoxel', name: 'MagicaVoxel', category: '3d', icon: '🧊', detect: () => ({ ...placed(/^magicavoxel/i), optional: true }), actions: ['launch'] },
+  { id: 'meshroom', name: 'Meshroom', category: '3d', icon: '📷', detect: () => ({ ...placed(/^meshroom/i), optional: true }), actions: ['launch'] },
+  // Audio and music
+  {
+    id: 'audacity',
+    name: 'Audacity',
+    category: 'audio',
+    icon: '🎙️',
+    detect: () => placed(/^audacity/i, path.join(PF, 'Audacity 4', 'bin', 'Audacity4.exe'), path.join(PF, 'Audacity', 'Audacity.exe')),
+    actions: ['launch', 'open'],
+  },
+  { id: 'reaper', name: 'REAPER', category: 'audio', icon: '🎚️', detect: () => placed(/^reaper/i, path.join(PF, 'REAPER (x64)', 'reaper.exe')), actions: ['launch', 'open'] },
+  { id: 'musescore', name: 'MuseScore', category: 'audio', icon: '🎼', detect: () => placed(/^musescore/i, path.join(PF, 'MuseScore 4', 'bin', 'MuseScore4.exe')), actions: ['launch', 'open'] },
+  { id: 'lmms', name: 'LMMS', category: 'audio', icon: '🎹', detect: () => ({ ...placed(/^lmms/i, path.join(PF, 'LMMS', 'lmms.exe')), optional: true }), actions: ['launch', 'open'] },
+  // More video
+  { id: 'vlc', name: 'VLC', category: 'video', icon: '🔶', detect: () => placed(/^vlc/i, path.join(PF, 'VideoLAN', 'VLC', 'vlc.exe')), actions: ['launch', 'open'] },
+  { id: 'topazvideo', name: 'Topaz Video AI', category: 'video', icon: '🎞️', detect: () => topaz(/video/i, ['Topaz Video AI.exe', 'Topaz Video Enhance AI.exe']), actions: ['launch', 'open'] },
+  { id: 'natron', name: 'Natron', category: 'video', icon: '🧪', detect: () => ({ ...placed(/^natron/i, path.join(PF, 'Natron', 'bin', 'Natron.exe')), optional: true }), actions: ['launch', 'open'] },
+  // Video
+  {
+    id: 'premiere',
+    name: 'Premiere Pro',
+    category: 'video',
+    icon: '🎬',
+    detect: () => adobe('premiere', 'Adobe Premiere Pro ', 'Adobe Premiere Pro.exe'),
+    actions: ['launch', 'open'],
+  },
+  {
+    id: 'aftereffects',
+    name: 'After Effects',
+    category: 'video',
+    icon: '✨',
+    detect: () => adobe('aftereffects', 'Adobe After Effects ', path.join('Support Files', 'AfterFX.exe')),
+    actions: ['launch', 'open', 'jsx'],
+  },
+  {
+    id: 'mediaencoder',
+    name: 'Media Encoder',
+    category: 'video',
+    icon: '📼',
+    detect: () => adobe(null, 'Adobe Media Encoder ', 'Adobe Media Encoder.exe'),
+    actions: ['launch', 'open'],
+  },
+  {
+    id: 'resolve',
+    name: 'DaVinci Resolve',
+    category: 'video',
+    icon: '🎚️',
+    detect: () => ({ exe: chosen('resolve') || first(path.join(PF, 'Blackmagic Design', 'DaVinci Resolve', 'Resolve.exe')) }),
+    actions: ['launch', 'open'],
+  },
+  {
+    id: 'bmdfusion',
+    name: 'Fusion (Blackmagic)',
+    category: 'video',
+    icon: '🧬',
+    detect: () => ({ ...(newestVersioned(path.join(PF, 'Blackmagic Design'), 'Fusion ', 'Fusion.exe') || { exe: null }), optional: true }),
+    actions: ['launch', 'open'],
+  },
+  { id: 'capcut', name: 'CapCut', category: 'video', icon: '✂️', detect: () => placed(/^capcut/i, path.join(LOCAL, 'CapCut', 'Apps', 'CapCut.exe')), actions: ['launch', 'open'] },
+  { id: 'kdenlive', name: 'Kdenlive', category: 'video', icon: '🎥', detect: () => placed(/^kdenlive/i, path.join(PF, 'kdenlive', 'bin', 'kdenlive.exe')), actions: ['launch', 'open'] },
+  { id: 'shotcut', name: 'Shotcut', category: 'video', icon: '🎦', detect: () => placed(/^shotcut/i, path.join(PF, 'Shotcut', 'shotcut.exe')), actions: ['launch', 'open'] },
+  { id: 'openshot', name: 'OpenShot', category: 'video', icon: '📹', detect: () => placed(/^openshot/i, path.join(PF, 'OpenShot Video Editor', 'openshot-qt.exe')), actions: ['launch', 'open'] },
+  { id: 'vegas', name: 'VEGAS Pro', category: 'video', icon: '🎞️', detect: () => placed(/^vegas pro/i), actions: ['launch', 'open'] },
+  { id: 'filmora', name: 'Filmora', category: 'video', icon: '🟢', detect: () => placed(/filmora/i), actions: ['launch', 'open'] },
+  {
+    id: 'mediacomposer',
+    name: 'Avid Media Composer',
+    category: 'video',
+    icon: '🅰️',
+    detect: () => ({ ...placed(/^(avid )?media composer/i, path.join(PF, 'Avid', 'Media Composer', 'AvidMediaComposer.exe')), optional: true }),
+    actions: ['launch', 'open'],
+  },
+  { id: 'clipchamp', name: 'Clipchamp', category: 'video', icon: '📎', detect: () => ({ ...placed(/^clipchamp/i), optional: true }), actions: ['launch'] },
+  { id: 'handbrake', name: 'HandBrake', category: 'video', icon: '🍍', detect: () => placed(/^handbrake/i, path.join(PF, 'HandBrake', 'HandBrake.exe')), actions: ['launch', 'open'] },
+  {
+    id: 'handbrakecli',
+    name: 'HandBrakeCLI',
+    category: 'video',
+    icon: '🍍',
+    // a separate download, often just unzipped somewhere: Settings path, next to HandBrake, or on PATH
+    detect: () => ({ exe: chosen('handbrakecli') || first(path.join(PF, 'HandBrake', 'HandBrakeCLI.exe'), path.join(PF, 'HandBrakeCLI', 'HandBrakeCLI.exe')) || which('HandBrakeCLI'), optional: true }),
+    cli: true,
+    actions: ['encode'],
+  },
+  { id: 'obs', name: 'OBS Studio', category: 'video', icon: '⏺️', detect: () => placed(/^obs studio/i, path.join(PF, 'obs-studio', 'bin', '64bit', 'obs64.exe')), actions: ['launch'] },
+  { id: 'ffmpeg', name: 'FFmpeg', category: 'video', icon: '🎞️', detect: () => ({ exe: which('ffmpeg') }), cli: true, actions: [] },
+  // CAD
+  {
+    id: 'freecad',
+    name: 'FreeCAD',
+    category: 'cad',
+    icon: '⚙️',
+    detect: () => newestVersioned(PF, 'FreeCAD ', path.join('bin', 'FreeCAD.exe')) || newestVersioned(path.join(LOCAL, 'Programs'), 'FreeCAD ', path.join('bin', 'FreeCAD.exe')) || placed(/^freecad/i),
+    actions: ['launch', 'open'],
+  },
+  { id: 'fusion360', name: 'Autodesk Fusion', category: 'cad', icon: '🟧', detect: () => placed(/^(autodesk fusion|fusion 360)/i), actions: ['launch'] },
+  { id: 'autocad', name: 'AutoCAD', category: 'cad', icon: '📐', detect: () => newestVersioned(path.join(PF, 'Autodesk'), 'AutoCAD ', 'acad.exe') || placed(/^autocad/i), actions: ['launch', 'open'] },
+  { id: 'inventor', name: 'Inventor', category: 'cad', icon: '🔩', detect: () => ({ ...(newestVersioned(path.join(PF, 'Autodesk'), 'Inventor ', path.join('Bin', 'Inventor.exe')) || placed(/^autodesk inventor/i)), optional: true }), actions: ['launch', 'open'] },
+  { id: 'revit', name: 'Revit', category: 'cad', icon: '🏢', detect: () => ({ ...(newestVersioned(path.join(PF, 'Autodesk'), 'Revit ', 'Revit.exe') || placed(/^revit/i)), optional: true }), actions: ['launch', 'open'] },
+  { id: 'solidworks', name: 'SOLIDWORKS', category: 'cad', icon: '🧊', detect: () => placed(/^solidworks 20/i, path.join(PF, 'SOLIDWORKS Corp', 'SOLIDWORKS', 'SLDWORKS.exe')), actions: ['launch', 'open'] },
+  { id: 'rhino', name: 'Rhino', category: 'cad', icon: '🦏', detect: () => newestVersioned(PF, 'Rhino ', path.join('System', 'Rhino.exe')) || placed(/^rhino \d/i), actions: ['launch', 'open'] },
+  { id: 'sketchup', name: 'SketchUp', category: 'cad', icon: '🏠', detect: () => newestVersioned(path.join(PF, 'SketchUp'), 'SketchUp ', path.join('SketchUp', 'SketchUp.exe')) || placed(/^sketchup 20/i), actions: ['launch', 'open'] },
+  { id: 'openscad', name: 'OpenSCAD', category: 'cad', icon: '🧮', detect: () => ({ exe: chosen('openscad') || first(path.join(PF, 'OpenSCAD', 'openscad.exe')) || which('openscad') }), actions: ['launch', 'open', 'render'] },
+  { id: 'plasticity', name: 'Plasticity', category: 'cad', icon: '🫧', detect: () => placed(/^plasticity/i, path.join(LOCAL, 'Programs', 'plasticity', 'Plasticity.exe')), actions: ['launch', 'open'] },
+  { id: 'shapr3d', name: 'Shapr3D', category: 'cad', icon: '✏️', detect: () => ({ ...placed(/^shapr3d/i), optional: true }), actions: ['launch'] },
+  { id: 'kicad', name: 'KiCad', category: 'cad', icon: '🔌', detect: () => newestVersioned(path.join(PF, 'KiCad'), '', path.join('bin', 'kicad.exe')) || { ...placed(/^kicad/i), optional: true }, actions: ['launch', 'open'] },
+  { id: 'librecad', name: 'LibreCAD', category: 'cad', icon: '📏', detect: () => ({ ...placed(/^librecad/i, path.join(PF, 'LibreCAD', 'LibreCAD.exe')), optional: true }), actions: ['launch', 'open'] },
+  // 3D printing
+  {
+    id: 'prusaslicer',
+    name: 'PrusaSlicer',
+    category: 'print',
+    icon: '🟠',
+    detect: () => ({ exe: chosen('prusaslicer') || first(path.join(PF, 'Prusa3D', 'PrusaSlicer', 'prusa-slicer.exe')), shortcut: startMenuFind(/^prusaslicer/i)?.shortcut || null }),
+    actions: ['launch', 'open', 'slice'],
+  },
+  {
+    id: 'orcaslicer',
+    name: 'OrcaSlicer',
+    category: 'print',
+    icon: '🐳',
+    detect: () => ({ exe: chosen('orcaslicer') || first(path.join(PF, 'OrcaSlicer', 'orca-slicer.exe')), shortcut: startMenuFind(/^orcaslicer/i)?.shortcut || null }),
+    actions: ['launch', 'open', 'slice'],
+  },
+  { id: 'bambustudio', name: 'Bambu Studio', category: 'print', icon: '🎋', detect: () => placed(/^bambu ?studio/i, path.join(PF, 'Bambu Studio', 'bambu-studio.exe')), actions: ['launch', 'open'] },
+  { id: 'cura', name: 'UltiMaker Cura', category: 'print', icon: '🔵', detect: () => newestVersioned(PF, 'UltiMaker Cura ', 'UltiMaker-Cura.exe') || placed(/^(ultimaker )?cura/i), actions: ['launch', 'open'] },
+  { id: 'crealityprint', name: 'Creality Print', category: 'print', icon: '🖨️', detect: () => placed(/^creality ?print/i), actions: ['launch', 'open'] },
+  { id: 'lychee', name: 'Lychee Slicer', category: 'print', icon: '🍒', detect: () => ({ ...placed(/^lychee/i), optional: true }), actions: ['launch', 'open'] },
+  { id: 'chitubox', name: 'CHITUBOX', category: 'print', icon: '💧', detect: () => ({ ...placed(/^chitubox/i), optional: true }), actions: ['launch', 'open'] },
+  { id: 'simplify3d', name: 'Simplify3D', category: 'print', icon: '🔺', detect: () => ({ ...placed(/^simplify3d/i), optional: true }), actions: ['launch', 'open'] },
+  { id: 'meshmixer', name: 'Meshmixer', category: 'print', icon: '🧶', detect: () => ({ ...placed(/meshmixer/i, path.join(PF, 'Autodesk', 'Meshmixer', 'meshmixer.exe')), optional: true }), actions: ['launch', 'open'] },
+  // NVIDIA
+  { id: 'nvidiasmi', name: 'NVIDIA GPU (nvidia-smi)', category: 'nvidia', icon: '🟩', detect: () => ({ exe: which('nvidia-smi'), optional: true }), cli: true, actions: [] },
+  { id: 'nvidiaapp', name: 'NVIDIA App', category: 'nvidia', icon: '🟢', detect: () => ({ ...placed(/^nvidia app$/i, nvidia('NVIDIA app', 'CEF', 'NVIDIA app.exe')), optional: true }), actions: ['launch'] },
+  {
+    id: 'nvtt',
+    name: 'NVIDIA Texture Tools',
+    category: 'nvidia',
+    icon: '🧱',
+    detect: () => ({ exe: chosen('nvtt') || first(nvidia('NVIDIA Texture Tools', 'nvtt_export.exe'), nvidia('NVIDIA Texture Tools Exporter', 'nvtt_export.exe')) }),
+    actions: ['launch', 'open', 'export'],
+  },
+  { id: 'broadcast', name: 'NVIDIA Broadcast', category: 'nvidia', icon: '🎙️', detect: () => ({ ...placed(/^nvidia broadcast/i, nvidia('NVIDIA Broadcast', 'NVIDIA Broadcast.exe')), optional: true }), actions: ['launch'] },
+  { id: 'rtxremix', name: 'RTX Remix', category: 'nvidia', icon: '🕹️', detect: () => ({ exe: null, shortcut: first(nvidia('RTX Remix', 'lightspeed.app.trex.bat')) || startMenuFind(/rtx remix/i)?.shortcut || null, optional: true }), actions: ['launch'] },
+  { id: 'canvas', name: 'NVIDIA Canvas', category: 'nvidia', icon: '🖍️', detect: () => ({ ...placed(/^nvidia canvas/i, nvidia('NVIDIA Canvas', 'Canvas.exe')), optional: true }), actions: ['launch'] },
+  { id: 'nsight', name: 'Nsight Graphics', category: 'nvidia', icon: '🔬', detect: () => ({ ...placed(/^nsight graphics/i), optional: true }), actions: ['launch'] },
   // Browsers
   {
     id: 'chrome',

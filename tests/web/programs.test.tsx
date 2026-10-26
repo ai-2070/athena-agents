@@ -63,7 +63,7 @@ describe('progState()', () => {
 describe('the Programs tab', () => {
   it('groups what was found and lists what was not', async () => {
     await open();
-    expect([...el.querySelectorAll('h2.section')].map((h) => h.textContent)).toEqual(['Creative', 'Developer', 'Not found', 'All apps (Start Menu)']);
+    expect([...el.querySelectorAll('h2.section')].map((h) => h.textContent)).toEqual(['Images and design', 'Developer', 'Not found', 'All apps (Start Menu)']);
     expect(el.textContent).toContain('Premiere Set custom paths in Settings.');
   });
 

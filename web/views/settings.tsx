@@ -28,6 +28,25 @@ export function setPath(patch: Patch, path: string, value: unknown): void {
   for (const k of keys.slice(0, -1)) o = (o[k] ||= {}) as Patch;
   o[keys.at(-1)!] = value;
 }
+// Programs whose place can be set by hand (server/programs.ts reads settings.paths[key]).
+const PROGRAM_PATHS: [string, string][] = [
+  ['blender', 'Blender'],
+  ['maya', 'Maya'],
+  ['houdini', 'Houdini'],
+  ['painter', 'Substance 3D Painter'],
+  ['designer', 'Substance 3D Designer'],
+  ['photoshop', 'Photoshop'],
+  ['aftereffects', 'After Effects'],
+  ['premiere', 'Premiere Pro'],
+  ['resolve', 'DaVinci Resolve'],
+  ['handbrakecli', 'HandBrakeCLI'],
+  ['imagemagick', 'ImageMagick (magick)'],
+  ['openscad', 'OpenSCAD'],
+  ['prusaslicer', 'PrusaSlicer'],
+  ['orcaslicer', 'OrcaSlicer'],
+  ['nvtt', 'NVIDIA Texture Tools (nvtt_export)'],
+  ['comfyui', 'ComfyUI'],
+];
 const lines = (text: string) => text.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
 
 export function GeneralTab() {
@@ -199,8 +218,8 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
               <textarea className="code" rows={2} defaultValue={(s.comfyui.workflowDirs || []).join('\n')} placeholder="One folder per line" onChange={(e) => setP('comfyui.workflowDirs', lines(e.target.value))} />
             </Field>
             <p className="hint">Paths below are found automatically. Set one only to pick a different version.</p>
-            {['blender', 'premiere', 'photoshop', 'aftereffects', 'comfyui'].map((k) => (
-              <Field key={k} label={`${k} path`}>
+            {PROGRAM_PATHS.map(([k, label]) => (
+              <Field key={k} label={`${label} path`}>
                 <input className="code" defaultValue={s.paths[k] || ''} placeholder="auto" onChange={(e) => setP(`paths.${k}`, e.target.value.trim())} />
               </Field>
             ))}

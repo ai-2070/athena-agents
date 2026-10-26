@@ -109,9 +109,10 @@ For example, with those agents and skills already created:
 
 When the Brain hands work to a team, it writes in the team chat as **Brain**, so the work goes out even when no browser tab is open. Work for a single agent starts a new chat with that agent.
 
-**Who answers in a team chat.** Agents you **@mention** answer. Otherwise: the agent whose message you replied to; else the only member with what the message needs (Blender, ComfyUI, Adobe, FFmpeg, posting on X or Reddit, Orca, or one of its MCP servers such as GitHub); else the team's lead; else the member who fits best. Agents see who has what in the team roster and hand such work to that member.
+**Who answers in a team chat.** Agents you **@mention** answer. Otherwise: the agent whose message you replied to; else the only member with what the message needs (Blender, Maya, Houdini, Substance 3D, CAD and 3D printing, NVIDIA, ComfyUI, Adobe, FFmpeg, posting on X or Reddit, Orca, or one of its MCP servers such as GitHub); else the team's lead; else the member who fits best. Agents see who has what in the team roster and hand such work to that member.
 
 - **Ask the Brain from a team chat.** Anyone in a team chat, an agent or you, can write **@Brain** to ask a question or say they're stuck. The Brain answers in the thread and may pass work to a teammate. An agent's request can't make it change agents, teams, skills, routines or settings: when the team needs something only you can give, such as an account, a teammate or a decision, the Brain tells you in Brain chat.
+- **Teams ask each other.** In a team chat, an agent or you can write **#Team Name** (type **#** to pick one) to ask another team in the same project. The message goes to that team's chat, marked with the team it came from and who asked, and is answered there like a message from you. Once that team is done, its last reply comes back to the team that asked, to the agent that asked, who carries on. When you write it, nobody on your own team starts unless you also @mention them. A team asks other teams at most 4 times per message you send, and teams asking teams stops 3 deep. If the team you asked is stopped, the team that asked is told.
 - **The Brain follows up.** When the team goes quiet or the agent finishes, the Brain checks the result. If something is missing, it asks for it, twice at most. When the work is done, stuck or needs you, it says so in Brain chat. Turn this off with **The Brain follows up** under **Settings → The Brain's model**.
 
 ## Models, effort and stopping work from Brain chat
@@ -126,7 +127,7 @@ The Brain changes models or stops work only when you ask.
 
 The Brain can set up MCP servers and decide who gets them, the same as **Settings → MCP servers**.
 
-- **Add one.** "Add the Playwright browser and give it to the Researcher." The Brain prefers the ready-made servers and the ones it finds in your Claude Code or Claude Desktop settings. For any other server, give it the exact command or link: "Add the weather server: `npx -y @acme/weather-mcp`". Ready-made servers that need a key (Brave Search, Notion, Firecrawl, ElevenLabs, Linear) are added with the key you type in the chat: "Add Brave search, my key is …". The Brain asks for it if you leave it out, and tells you any setup step outside the dashboard (the Unity, Unreal and Godot ones need something installed in the editor).
+- **Add one.** "Add the Playwright browser and give it to the Researcher." The Brain prefers the ready-made servers and the ones it finds in your Claude Code or Claude Desktop settings. For any other server, give it the exact command or link: "Add the weather server: `npx -y @acme/weather-mcp`". Ready-made servers that need a key (Brave Search, Notion, Firecrawl, ElevenLabs, Linear, Tripo, Meshy, Sketchfab, Unsplash, Pixabay, Pexels, Topaz) are added with the key you type in the chat: "Add Brave search, my key is …". The Brain asks for it if you leave it out, and tells you any setup step outside the dashboard (the ones that control an open program, such as Unity, Maya, Houdini, Substance 3D Painter, GIMP, Krita, Audacity, REAPER, MuseScore, OBS, FreeCAD and Rhino, need something turned on or installed in that program). Canva and Freepik open a browser window to sign in the first time they run. The 3D printer server needs your printer's type, address and key, and asks before it prints. The Audacity server works with Audacity 3 only.
 - **Change one.** Change its command, link, keys, description or name, or turn it off and on. A new name is updated on every agent and team that has the server.
 - **Give, take back, move.** Give a server to agents or teams, take it back, or move it from one to another. A team's servers are available to every member while they work for that team.
 - **Remove one.** "Remove the weather server" deletes it and takes it off every agent and team, in every project. The Brain removes a server only when you ask.
@@ -134,6 +135,28 @@ The Brain can set up MCP servers and decide who gets them, the same as **Setting
 A server runs a program on your PC or connects to a site, with the keys you give it. So the Brain only uses a command, link, environment variable or header **that you typed in Brain chat**. For a new program that means the whole command, as you wrote it (`npx -y @acme/weather-mcp`, not just "weather"). For a link, the site must be one you wrote. Commands found in files, on web pages or in agent replies are refused. When a server needs a key, the Brain asks you for it. It doesn't write the key back in its reply, and its view of your servers shows key names, not their values, and hides anything in a command or link that looks like a key or password. The server starts the next time an agent that has it runs.
 
 Renaming or removing a server also renames or removes the tools you always allowed for it, so a new server with an old name starts with nothing allowed.
+
+## Programs for 3D, textures, video, audio, CAD and 3D printing
+
+The **Programs** page finds what is installed and sorts it into 3D and animation, images and design, video, audio and music, CAD, 3D printing and NVIDIA. You can start any of them from there. If one is installed somewhere unusual, set its path in **Settings → Programs**.
+
+Agents use some of them directly when you switch on that tool group for the agent:
+
+| Tools | What agents can do |
+|---|---|
+| **Maya** | Run Maya Python without opening the window: build scenes, key animation, render and export. Open Maya with a scene. |
+| **Houdini** | Run Houdini Python (hython): build node networks, simulate, render and export. Open Houdini with a .hip file. |
+| **Substance 3D** | Render a Substance material (.sbsar) to texture maps at the size you want, using Designer's sbsrender. Open Painter (with remote scripting on, for the Substance Painter MCP server), Designer or Sampler. |
+| **CAD and 3D printing** | Turn OpenSCAD models into STL, 3MF and other files. Slice a model into G-code with PrusaSlicer, using your exported profiles. Slicing never starts a print. |
+| **NVIDIA** | See how busy the graphics cards are. Compress textures into DDS files (BC7, BC5 for normal maps, and so on) with the NVIDIA Texture Tools Exporter. |
+| **Free asset libraries** | Search Poly Haven and ambientCG and download HDRIs, PBR textures (one file per map) and models into the project. Everything there is CC0: free for any use, no credit needed. No key needed. |
+| **FFmpeg, HandBrake and ImageMagick** | Cut and convert video and audio with ffmpeg. Shrink or convert videos with HandBrake presets (needs the free HandBrakeCLI download). Resize, convert and batch-edit images with ImageMagick. |
+
+Running Maya or Houdini Python, ffmpeg or ImageMagick counts as running code or overwriting files, so you are asked first unless autonomy is Full. The texture, asset, OpenSCAD, slicing and HandBrake tools only read and write in the agent's workspace and the folders you allow.
+
+For live control of an open program, add its MCP server, for example Maya, Houdini, Substance 3D Painter, GIMP, Krita, Audacity, REAPER, OBS, FreeCAD, Rhino or your 3D printer. Each one says what to turn on in the program first.
+
+Some sites and programs can't be connected because they have no API or MCP server: Envato Elements, ArtStation, 1001 Fonts, Poliigon and Luminar Neo. Mesh2Motion works in the browser at mesh2motion.org; the Programs page finds its desktop app.
 
 ## Long chats
 

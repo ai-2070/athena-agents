@@ -25,6 +25,9 @@ const BRANDS: Record<string, string> = {
   slack: 'slack', linear: 'linear', atlassian: 'atlassian', intercom: 'intercom', ollama: 'ollama', 'claude docs': 'googledocs', docs: 'googledocs',
   openai: 'openai', codex: 'openai', codecov: 'codecov', openrouter: 'openrouter',
   canva: 'canva', stripe: 'stripe', youtube: 'youtube', reddit: 'reddit', instagram: 'instagram', tiktok: 'tiktok', spotify: 'spotify', obsidian: 'obsidian',
+  maya: 'autodeskmaya', houdini: 'houdini', nvidia: 'nvidia', 'davinci resolve': 'davinciresolve', resolve: 'davinciresolve', freecad: 'freecad',
+  openscad: 'openscad', kicad: 'kicad', obs: 'obsstudio', sketchup: 'sketchup', autocad: 'autocad', autodesk: 'autodesk', rhino: 'rhinoceros',
+  'bambu lab': 'bambulab', bambu: 'bambulab', octoprint: 'octoprint', creality: 'creality', kdenlive: 'kdenlive', krita: 'krita',
   vscode: 'vscodium', zed: 'zedindustries', gimp: 'gimp', python: 'python', git: 'git', docker: 'docker', node: 'nodedotjs',
 };
 

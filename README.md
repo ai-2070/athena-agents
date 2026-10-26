@@ -15,7 +15,7 @@
   <img alt="MCP: Model Context Protocol" src="https://img.shields.io/badge/MCP-ready-1f2a14?style=flat-square">
 </p>
 
-Blacksite is a local-first **AI agent dashboard**: build teams of agents, give each one its own model, tools, skills and memory, and watch them work on a live 3D map. It works with **Claude Code, OpenAI Codex, Hermes, pi, oh-my-pi, OpenClaw, Ollama, LM Studio** and any **OpenAI-compatible API**, and connects to programs and services through the **Model Context Protocol (MCP)**: browsers, Blender, ComfyUI, ffmpeg, Unity, Unreal Engine, Godot, GitHub, Notion, Linear and more.
+Blacksite is a local-first **AI agent dashboard**: build teams of agents, give each one its own model, tools, skills and memory, and watch them work on a live 3D map. It works with **Claude Code, OpenAI Codex, Hermes, pi, oh-my-pi, OpenClaw, Ollama, LM Studio** and any **OpenAI-compatible API**, and connects to programs and services through the **Model Context Protocol (MCP)**: browsers, Blender, Maya, Houdini, Substance 3D Painter, ComfyUI, ffmpeg, FreeCAD, Rhino, OpenSCAD, 3D printers, Unity, Unreal Engine, Godot, GitHub, Notion, Linear and more.
 
 The dashboard runs at **http://localhost:4800**, with no dashboard account or login. Its server and saved state stay on your computer. **Local does not mean offline:** hosted models and connected services receive the requests you send them. You can also use local models through LM Studio or Ollama.
 
@@ -25,7 +25,7 @@ The dashboard runs at **http://localhost:4800**, with no dashboard account or lo
 
 - **Build a team for a job.** Describe the outcome to the Brain, or choose agents from the Library. Each agent keeps its own instructions, knowledge, memory, model, skills and tools.
 - **Mix models.** Use Claude Code, Codex, Hermes, pi, oh-my-pi, OpenClaw or OpenAI-compatible APIs, including local model servers. Team members do not need to use the same engine.
-- **Work with your files and programs.** Give agents a project folder, attach reference files, and connect tools for programs such as Blender, ComfyUI and ffmpeg. Add more tools through MCP servers.
+- **Work with your files and programs.** Give agents a project folder, attach reference files, and connect tools for programs such as Blender, Maya, Houdini, Substance 3D, ComfyUI, ffmpeg, HandBrake, ImageMagick, OpenSCAD, PrusaSlicer and NVIDIA's texture tools, and let them pull free textures, HDRIs and models from Poly Haven and ambientCG. The Programs page also finds Adobe apps, free creative programs (GIMP, Krita, Inkscape, Audacity and more), video editors (DaVinci Resolve, CapCut, Kdenlive and more), CAD programs and slicers. Add more tools through MCP servers.
 - **Keep useful instructions.** Write skills in plain words, share them across agents and teams, and turn repeated work into routines you can run by hand or on a schedule.
 - **Review work before it goes out.** Handle permission requests in **Needs you**, review X and Reddit drafts in the **Outbox**, and find saved results in **Artifacts**.
 
@@ -41,7 +41,7 @@ Each team is a pod with its agents at their desks. The Brain sits in the middle 
 
 ### Team chats where agents work together
 
-Everyone sees the whole conversation. Agents hand work to each other with @mentions, and the files they make show up in the chat: images, video, audio and 3D models you can turn with the mouse.
+Everyone sees the whole conversation. Agents hand work to each other with @mentions, and the files they make show up in the chat: images, video, audio and 3D models you can turn with the mouse. Teams talk to each other too: write **#Team Name** and the message goes to that team's chat, and its answer comes back once that team is done.
 
 ![A team chat with an audio player and a 3D model preview, next to the team's panel with its members and their models](docs/images/team-chat.png)
 
@@ -53,7 +53,13 @@ Written results, files and folders that agents saved, each with a preview, who m
 
 ### MCP servers in one click
 
-Add a browser, GitHub, Notion, Linear, Unity, Unreal Engine, Godot or ElevenLabs from a list, or ask the Brain to do it.
+Add servers from a list, or ask the Brain to do it:
+
+- **Work:** a browser, GitHub, Notion, Linear, web search.
+- **3D and games:** Blender, Maya, Houdini, Substance 3D Painter, Unity, Unreal Engine, Godot, Tripo, Meshy, Sketchfab.
+- **Images, design and stock:** Canva, Freepik, Unsplash, Pixabay, Pexels, Google Fonts, GIMP, Krita, Inkscape, Topaz (AI upscaling).
+- **Audio and video:** ElevenLabs, Audacity, REAPER, MuseScore, OBS.
+- **CAD and 3D printing:** FreeCAD, Rhino, OpenSCAD, your 3D printer.
 
 ![The MCP servers page with ready-made presets, some marked as needing a key](docs/images/mcp-servers.png)
 
@@ -139,7 +145,7 @@ Projects keep separate agents, teams and chats. The project name at the top left
 | **Artifacts** | Written results, files and folders that agents have saved, each with a preview (images, video, audio, 3D models you can turn) and a search box. Chats show the same previews for files agents mention. |
 | **Settings** | Engines and keys, accounts and connections, MCP servers, programs, UI scale, accent colour and motion. |
 
-In any agent, team or Brain chat, **/** lists the commands (`/queue`, `/stop`, `/resume`, `/resend`, `/loop`, `/goal`, `/compact`) and **@** picks another agent. What each one does, and how files and long chats are handled: [Chats and files](docs/guide.md#chats-and-files).
+In any agent, team or Brain chat, **/** lists the commands (`/queue`, `/stop`, `/resume`, `/resend`, `/loop`, `/goal`, `/compact`), **@** picks another agent, and **#** in a team chat picks another team. What each one does, and how files and long chats are handled: [Chats and files](docs/guide.md#chats-and-files).
 
 ## Approvals and safety
 
