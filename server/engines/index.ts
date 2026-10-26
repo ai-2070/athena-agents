@@ -12,6 +12,14 @@ import * as hermes from './hermes.ts';
 import * as codex from './codex.ts';
 import type { ActiveRun, Agent, Chat, ChatItem, EngineId, EngineInfo, EngineStatus, Project, RunEvent } from '../../shared/types.ts';
 
+/** A run was stopped (by its caller or directly, e.g. its Stop button) before it answered. */
+export class RunStopped extends Error {
+  constructor() {
+    super('Stopped.');
+    this.name = 'RunStopped';
+  }
+}
+
 /** What every engine's run() gets. */
 export interface EngineRunArgs {
   agent: Agent;
@@ -185,7 +193,7 @@ function pushItem<T extends ChatItem>(chat: Chat, item: T): T {
 // Start answering a message in a chat. Returns immediately with the run id.
 // The run belongs to the project it starts in (see withProject): opening another project meanwhile
 // doesn't move its chat, tool calls or files there.
-export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null }: StartRunOptions = {}): { runId: string; promise: Promise<string> } {
+export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
   if ([...active.values()].some((r) => r.chatId === chat.id)) throw new Error('This chat is already working on something. Stop it or wait.');
   // agent.engine comes from a JSON file, so it may be something unknown.
   const engine: Engine | undefined = (ENGINES as Partial<Record<string, Engine>>)[agent.engine];
@@ -271,7 +279,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     }
   });
   emit('runs');
-  return { runId, promise };
+  return { runId, promise, signal: controller.signal };
 }
 
 function lastAssistantText(chat: Chat): string {
@@ -311,18 +319,19 @@ export function forgetChat(chatId: string) {
 // Used by ask_agent and workflows: run to completion in a fresh chat, return the answer.
 // extra: tool groups / MCP servers added for this run only (a branch's access).
 export async function askAgent(agent: Agent, message: string, { depth = 1, from = null, title = null, chatId = null, parentRunId = null, signal = null, extra = null }: AskAgentOptions = {}): Promise<string> {
-  if (signal?.aborted) throw new Error('Stopped.');
+  if (signal?.aborted) throw new RunStopped();
   let fresh = agentStore.get(agent.id) || agent;
   // extra: what a team adds while the agent works for it (tools, MCP servers, skills)
   if (extra) fresh = { ...fresh, toolGroups: [...new Set([...(fresh.toolGroups || []), ...(extra.toolGroups || [])])], mcpServers: [...new Set([...(fresh.mcpServers || []), ...(extra.mcpServers || [])])], _teamSkills: extra.skills || [] };
   const chat = (chatId && chats.get(fresh.id, chatId)) || chats.create(fresh.id, title || (from ? `Asked by ${from}` : 'Task'));
-  const { runId, promise } = startRun(fresh, chat, message, { depth, from, parentRunId });
+  const { runId, promise, signal: runSignal } = startRun(fresh, chat, message, { depth, from, parentRunId });
   const onAbort = () => stopRun(runId);
   signal?.addEventListener('abort', onAbort);
   try {
     const text = await promise;
-    // A stopped run resolves with no answer; tell the caller it was stopped instead.
-    if (signal?.aborted) throw new Error('Stopped.');
+    // A stopped run resolves with no answer: tell the caller it was stopped instead, whether the caller
+    // stopped it or someone stopped the run itself.
+    if (signal?.aborted || runSignal.aborted) throw new RunStopped();
     return text || lastAssistantText(chats.get(fresh.id, chat.id) || chat) || '(no answer)';
   } finally {
     signal?.removeEventListener('abort', onAbort);

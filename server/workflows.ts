@@ -2,7 +2,7 @@
 // Step types: agent (ask an agent), tool (call a dashboard tool), approval (wait for you, editable), x_post (to the Outbox), notify.
 import { workflows, runs, agents as agentStore, emit, log, activeProject, withProject } from './store.ts';
 import { renderTemplate, uid } from './util.ts';
-import { askAgent, stopChildren } from './engines/index.ts';
+import { askAgent, stopChildren, RunStopped } from './engines/index.ts';
 import { callTool, TOOL_GROUPS } from './tools.ts';
 import { requestApproval, cancelForRun } from './approvals.ts';
 import { draftPost } from './social.ts';
@@ -172,7 +172,8 @@ async function execute(wf: Workflow, run: WorkflowRun, ctl: RunControl) {
     run.output = values.prev;
     log('workflow', `Workflow "${wf.name}" finished`);
   } catch (e) {
-    run.status = ctl.stopped ? 'stopped' : 'failed';
+    // stopped: the whole run, or the agent working on the current step
+    run.status = ctl.stopped || e instanceof RunStopped ? 'stopped' : 'failed';
     run.error = (e as Error).message;
     const cur = run.steps.find((s) => s.status === 'running' || s.status === 'needs-you');
     if (cur) {

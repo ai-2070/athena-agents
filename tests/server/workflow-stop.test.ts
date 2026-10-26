@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { runs, saveSettings, workflows } from '../../server/store.ts';
 import { startWorkflow, stopWorkflowRun } from '../../server/workflows.ts';
+import { activeRuns, askAgent, RunStopped, stopRun } from '../../server/engines/index.ts';
 import type { Team } from '../../shared/types.ts';
 
 // a fake model that never answers: it holds every request open until the client goes away
@@ -43,5 +44,33 @@ describe('stopWorkflowRun()', () => {
     expect(saved.status).toBe('stopped');
     expect(saved.steps[0].status).not.toBe('done');
     expect(saved.steps[0].output).not.toBe('(no answer)');
+  });
+
+  it("stopping the step's agent run itself (its Stop button) stops the workflow too", async () => {
+    const a = newAgent({ name: 'Slow too', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+    const wf = workflows.save({ name: 'Two steps', steps: [
+      { id: 's1', type: 'agent', agentId: a.id, label: 'Think', prompt: '{{input}}' },
+      { id: 's2', type: 'notify', label: 'Tell me', text: '{{prev}}' },
+    ] } as Partial<Team>);
+    const before = asked;
+    const run = await startWorkflow(wf.id, 'go');
+    await until(() => asked > before);
+    const child = activeRuns().find((r) => r.parentRunId === run.id)!;
+    expect(stopRun(child.id)).toBe(true);
+    await until(() => runs.get(run.id)?.status !== 'running');
+    const saved = runs.get(run.id)!;
+    expect(saved.status).toBe('stopped');
+    expect(saved.steps.map((s) => s.status)).toEqual(['failed', 'waiting']);
+  });
+});
+
+describe('askAgent()', () => {
+  it('rejects with RunStopped when its run is stopped directly, instead of answering "(no answer)"', async () => {
+    const a = newAgent({ name: 'Asked', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+    const before = asked;
+    const answer = askAgent(a, 'hello', { parentRunId: 'parent-x' });
+    await until(() => asked > before);
+    stopRun(activeRuns().find((r) => r.parentRunId === 'parent-x')!.id);
+    await expect(answer).rejects.toBeInstanceOf(RunStopped);
   });
 });
