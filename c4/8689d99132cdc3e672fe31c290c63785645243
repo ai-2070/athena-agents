@@ -1,0 +1,45 @@
+tests/server/files.test.ts
+  s_438d1f6577d2a3::t_d3d1c5460b8bea 1-85
+public/polish.css
+  s_438d1f6577d2a3::t_9de97aa9e75835 558-575
+web/filepreview.ts
+  s_438d1f6577d2a3::t_83d159e2515347 1-73,75-95,115
+  s_438d1f6577d2a3::t_0656d0a671c3af 96-114
+  s_438d1f6577d2a3::t_5e7cf6b0855223 74
+web/views/station.ts
+  s_438d1f6577d2a3::t_0656d0a671c3af 24,3454-3455,3459-3460,3464
+web/dock.ts
+  s_438d1f6577d2a3::t_0656d0a671c3af 9-10,279,290,304,318
+server/index.ts
+  s_438d1f6577d2a3::t_d3d1c5460b8bea 41,61,488,501-504
+  s_438d1f6577d2a3::t_5491f594b20402 505-507
+web/teamchat.ts
+  s_438d1f6577d2a3::t_0656d0a671c3af 4-5,118
+tests/web/filepreview.test.ts
+  s_438d1f6577d2a3::t_40d1cdaff5875b 1-40,44-107
+  s_438d1f6577d2a3::t_5e7cf6b0855223 41-43
+server/files.ts
+  s_438d1f6577d2a3::t_d3d1c5460b8bea 1-55
+server/util.ts
+  s_438d1f6577d2a3::t_d3d1c5460b8bea 330-350
+web/mentions.ts
+  s_438d1f6577d2a3::t_d3d1c5460b8bea 1-48
+tests/web/mentions.test.ts
+  s_438d1f6577d2a3::t_d3d1c5460b8bea 1-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c48689d99132cdc3e672fe31c290c63785645243",
+  "prompts": {},
+  "sessions": {
+    "s_438d1f6577d2a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a3e60d4-d433-413c-8c13-3a59a05169f5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
