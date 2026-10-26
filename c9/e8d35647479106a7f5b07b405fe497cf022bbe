@@ -1,0 +1,38 @@
+public/polish.css
+  s_3ee9638266ae65::t_462fefd860b64a 678-679
+web/dock.ts
+  s_3ee9638266ae65::t_f118cc294f410c 21
+docs/internal/plans/REMOTE_APP_PLAN.md
+  s_3ee9638266ae65::t_f5c6738230d705 111-114
+tests/web/groupD-chats.test.ts
+  s_3ee9638266ae65::t_f118cc294f410c 2
+web/teamchat.tsx
+  s_3ee9638266ae65::t_f118cc294f410c 6,15,646
+  s_3ee9638266ae65::t_462fefd860b64a 160-170,238,442-456,488
+  s_3ee9638266ae65::t_b8d9ba902edd95 1-5,7-14,16-159,171-237,239-441,457-487,489-645,647-660
+web/chatwin.tsx
+  s_3ee9638266ae65::t_f118cc294f410c 13
+AGENTS.md
+  s_3ee9638266ae65::t_f5c6738230d705 45
+web/views/station.ts
+  s_3ee9638266ae65::t_f118cc294f410c 24
+tests/web/teamchat-turns.test.tsx
+  s_3ee9638266ae65::t_f118cc294f410c 8-9
+  s_3ee9638266ae65::t_9788006e10d563 69-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c9e8d35647479106a7f5b07b405fe497cf022bbe",
+  "prompts": {},
+  "sessions": {
+    "s_3ee9638266ae65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "541a5902-77ed-4017-8f45-3e7605579b0f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
