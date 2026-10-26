@@ -5,6 +5,7 @@ import { workflows as teamStore, agents, chats, emit, log, activeProject, openPr
 import { readJSON, writeJSON, uid, dataPath } from './util.ts';
 import { askAgent, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
 import { isStepList, teamSteps } from '../shared/teams.ts';
+import { attachmentNames } from './uploads.ts';
 import type { Agent, Team, TeamMessage, TeamState } from '../shared/types.ts';
 
 const MAX_TURNS = 16; // agent turns per message you send
@@ -17,6 +18,7 @@ interface TeamChat {
   messages: TeamMessage[];
   sessions: Record<string, string>; // agentId -> chatId
   seen: Record<string, number>; // agentId -> messages.length when it last read
+  filesSent?: Record<string, string[]>; // agentId -> the team files it has been given
 }
 
 /** A message before post() gives it an id and a time. */
@@ -25,6 +27,7 @@ interface NewMessage {
   text: string;
   mentions?: string[];
   replyTo?: string | null;
+  attachments?: string[];
 }
 
 interface QueueItem {
@@ -138,14 +141,14 @@ export function parseMentions(team: Team, text: unknown, exclude: string | null 
 
 // ---------- you write in the team chat ----------
 // skills: given to every member for the work this message starts (a routine's skills)
-export async function postUserMessage(teamId: string, text: string | null | undefined, { replyTo = null, route = null, skills = [] }: { replyTo?: string | null; route?: RouteFn | null; skills?: string[] } = {}): Promise<TeamMessage> {
+export async function postUserMessage(teamId: string, text: string | null | undefined, { replyTo = null, route = null, skills = [], attachments = [] }: { replyTo?: string | null; route?: RouteFn | null; skills?: string[]; attachments?: string[] } = {}): Promise<TeamMessage> {
   const team = getTeam(teamId);
   if (!team) throw new Error('No such team.');
   if (!team.members.length) throw new Error('This team has no agents yet. Add some first.');
   text = String(text || '').trim();
-  if (!text) throw new Error('Write something first.');
+  if (!text && !attachments.length) throw new Error('Write something first.');
   const mentions = parseMentions(team, text);
-  const msg = post(team, { from: 'user', text, mentions, replyTo });
+  const msg = post(team, { from: 'user', text, mentions, replyTo, ...(attachments.length ? { attachments } : {}) });
   const r = runtime(team.id);
   r.episode = { turns: 0, per: {} }; // a new message from you gives the team a fresh budget
   r.stopped = false;
@@ -160,13 +163,14 @@ export async function postUserMessage(teamId: string, text: string | null | unde
     why = 'the lead';
   }
   if (!targets.length) {
-    const pick = route ? await route(text, team.members.map((id) => agents.get(id))).catch(() => null) : null;
+    // files only: route on their names
+    const pick = route ? await route(text || `(attached: ${attachmentNames(attachments)})`, team.members.map((id) => agents.get(id))).catch(() => null) : null;
     targets = [pick && team.members.includes(pick) ? pick : team.members[0]];
     why = pick ? 'best fit' : 'first member';
   }
   for (const id of targets) enqueue(team, id, msg.id, true, false, skills);
   if (why) emit('team', { teamId: team.id, event: { kind: 'routed', to: targets, why } });
-  log('team', `You → ${team.name}: ${text.slice(0, 100)}`);
+  log('team', `You → ${team.name}: ${(text || attachmentNames(attachments)).slice(0, 100)}`);
   return msg;
 }
 
@@ -247,21 +251,32 @@ async function runTurn(team: Team, item: QueueItem) {
   const first = c.seen[agent.id] == null;
   const fresh = c.messages.slice(c.seen[agent.id] || 0).filter((m) => m.from !== agent.id);
   const name = (id: string) => (id === 'user' ? 'You (the user)' : id === 'system' ? 'System' : `@${agents.get(id)?.name || 'someone'}`);
+  // files attached to a message: named in the line, their paths come at the end of the prompt
+  const said = (m: TeamMessage) => `${name(m.from)}: ${String(m.text).slice(0, 2500)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`;
   let digest = '';
   for (const m of fresh.slice().reverse()) {
-    const line = `${name(m.from)}: ${String(m.text).slice(0, 2500)}`;
+    const line = said(m);
     if (digest.length + line.length > CONTEXT_CHARS) break;
     digest = `${line}\n\n${digest}`;
   }
-  const forYou = c.messages.filter((m) => item.msgIds.includes(m.id)).map((m) => `${name(m.from)}: ${String(m.text).slice(0, 2500)}`).join('\n\n');
+  const forYou = c.messages.filter((m) => item.msgIds.includes(m.id)).map(said).join('\n\n');
+  // the team's files go to the engine once per agent (so models that can't open files get them too), new ones when added;
+  // plus what the user attached since this agent last read
+  const given = new Set(c.filesSent?.[agent.id] || []);
+  const newTeamFiles = (team.files || []).filter((f) => !given.has(f));
+  const attachments = [...new Set([...newTeamFiles, ...[...fresh, ...c.messages.filter((m) => item.msgIds.includes(m.id))].flatMap((m) => m.attachments || [])])];
   c.seen[agent.id] = c.messages.length;
+  c.filesSent = { ...c.filesSent, [agent.id]: team.files || [] };
   saveChat(team.id, c);
-  const prompt = `${first ? `${briefing(team, agent)}\n\n` : ''}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\nDo your part now, then reply to the team.`;
+  const filesNote = newTeamFiles.length
+    ? `The team's reference files from the user (${attachmentNames(newTeamFiles)}) are attached at the end.\n\n`
+    : team.files?.length ? `The team's files: ${team.files.join(', ')}\n\n` : '';
+  const prompt = `${first ? `${briefing(team, agent)}\n\n` : ''}${filesNote}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\nDo your part now, then reply to the team.`;
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'start' } });
   let text = '';
   let stopped = false;
   try {
-    text = await askAgent(agent, prompt, { depth: 1, from: `team ${team.name}`, chatId, parentRunId: `team:${team.id}`, extra: { ...(team.access || {}), skills: [...new Set([...(team.skills || []), ...item.skills])] } });
+    text = await askAgent(agent, prompt, { depth: 1, from: `team ${team.name}`, chatId, parentRunId: `team:${team.id}`, extra: { ...(team.access || {}), skills: [...new Set([...(team.skills || []), ...item.skills])] }, attachments });
   } catch (e) {
     // you stopped this agent's turn: say so in the thread, and hand nothing on
     stopped = e instanceof RunStopped;

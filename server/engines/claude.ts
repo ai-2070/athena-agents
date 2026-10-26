@@ -2,12 +2,13 @@
 // resuming the same Claude session so the conversation continues.
 import fs from 'node:fs';
 import path from 'node:path';
-import { dataPath, ensureDir, which, spawnCommand, killTree, run as runCmd, HOME } from '../util.ts';
+import { dataPath, ensureDir, which, spawnCommand, killTree, run as runCmd, HOME, isInside } from '../util.ts';
 import { getSecrets } from '../store.ts';
 import { claudeMcpConfig } from '../mcp.ts';
 import { workspaceOf } from '../tools.ts';
 import { knowledgeRoots } from '../knowledge.ts';
-import type { Agent, EngineStatus } from '../../shared/types.ts';
+import { uploadsRoot } from '../uploads.ts';
+import type { Agent, Chat, EngineStatus } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 
 /** The per-run files Claude Code reads (prepareFiles). */
@@ -116,18 +117,26 @@ export function claudeArgs(agent: Agent, { promptFile, mcpFile, interactive = fa
   return args;
 }
 
-export async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: EngineRunArgs): Promise<EngineResult> {
+// Attached files live in the Brain folder's uploads/: an agent with its own workspace needs it added.
+// A resumed session doesn't keep --add-dir, so a file attached earlier in the chat counts too.
+export function uploadsDirArgs(agent: Agent, chat: Pick<Chat, 'items'>, attachments: string[] = []): string[] {
+  const uploads = uploadsRoot();
+  const hadFiles = attachments.length > 0 || chat.items.some((i) => i.type === 'user' && !!i.attachments?.length);
+  return hadFiles && !isInside(workspaceOf(agent), uploads) ? ['--add-dir', uploads] : [];
+}
+
+export async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId, attachments }: EngineRunArgs): Promise<EngineResult> {
   if (!which('claude')) throw new Error('Claude Code is not installed (the `claude` command was not found).');
   const files = prepareFiles(agent, systemPrompt, runId);
   try {
-    return await runClaude({ agent, chat, text, signal, onEvent, files });
+    return await runClaude({ agent, chat, text, signal, onEvent, files, attachments });
   } finally {
     files.cleanup();
   }
 }
 
-async function runClaude({ agent, chat, text, signal, onEvent, files }: Pick<EngineRunArgs, 'agent' | 'chat' | 'text' | 'signal' | 'onEvent'> & { files: ClaudeFiles }): Promise<EngineResult> {
-  const args = claudeArgs(agent, files);
+async function runClaude({ agent, chat, text, signal, onEvent, files, attachments = [] }: Pick<EngineRunArgs, 'agent' | 'chat' | 'text' | 'signal' | 'onEvent'> & { files: ClaudeFiles; attachments?: string[] }): Promise<EngineResult> {
+  const args = [...claudeArgs(agent, files), ...uploadsDirArgs(agent, chat, attachments)];
   if (chat.sessionId) args.push('--resume', chat.sessionId);
   const child = spawnCommand('claude', args, { cwd: workspaceOf(agent), env: claudeEnv(agent), stdio: ['pipe', 'pipe', 'pipe'] });
   const onAbort = () => killTree(child);

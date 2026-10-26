@@ -1,5 +1,8 @@
 // API-model engine: OpenRouter, LM Studio, Ollama or any OpenAI-compatible server, with tool calling.
+import fs from 'node:fs';
+import path from 'node:path';
 import { getSettings, getSecrets } from '../store.ts';
+import { attachedImages } from '../uploads.ts';
 import { callTool as callBuiltin, toolDefs, gate } from '../tools.ts';
 import * as mcp from '../mcp.ts';
 import { PORT } from '../util.ts';
@@ -45,9 +48,13 @@ export interface ToolCall {
   function: { name: string; arguments: string };
 }
 
+/** Part of a user message: text, or an attached image. Images are kept as `dash-file:<path>` and read when sent. */
+export type UserPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
+
 /** The OpenAI-style messages kept in chat.llm. */
 export type LlmMessage =
-  | { role: 'system' | 'user'; content: string }
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string | UserPart[] }
   | { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] }
   | { role: 'tool'; tool_call_id: string; content: string };
 
@@ -211,12 +218,66 @@ async function streamCompletion({ provider, body, signal, onEvent }: { provider:
   return { content, calls: calls.filter(Boolean), usage, finish };
 }
 
-export async function run({ agent, chat, text, signal, onEvent, depth, runId, systemPrompt }: EngineRunArgs): Promise<EngineResult> {
+const FILE_URL = 'dash-file:';
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGES = 6;
+const MIME: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
+
+// The attached images a vision model gets to see (a few, not too big).
+function imageParts(attachments: string[]): UserPart[] {
+  return attachedImages(attachments)
+    .filter((p) => {
+      try {
+        return fs.statSync(p).size <= IMAGE_MAX_BYTES;
+      } catch {
+        return false;
+      }
+    })
+    .slice(0, MAX_IMAGES)
+    .map((p) => ({ type: 'image_url', image_url: { url: FILE_URL + p } }));
+}
+
+// What is sent: image files read as data URLs, or (vision off) a note in their place.
+// Only the newest few images across the whole history go along, so image turns don't pile up in every request.
+export function expandImages(msgs: LlmMessage[], vision: boolean, maxImages = MAX_IMAGES): LlmMessage[] {
+  let left = maxImages;
+  const keep = new Set<UserPart>();
+  for (const m of [...msgs].reverse()) {
+    if (m.role !== 'user' || typeof m.content === 'string') continue;
+    for (const part of [...m.content].reverse()) {
+      if (part.type !== 'image_url' || left <= 0) continue;
+      keep.add(part);
+      left--;
+    }
+  }
+  return msgs.map((m) => {
+    if (m.role !== 'user' || typeof m.content === 'string') return m;
+    const parts = m.content.map((part): UserPart => {
+      if (part.type !== 'image_url' || !part.image_url.url.startsWith(FILE_URL)) return part;
+      const file = part.image_url.url.slice(FILE_URL.length);
+      if (!vision) return { type: 'text', text: `(image ${path.basename(file)} attached; this model can't see images)` };
+      if (!keep.has(part)) return { type: 'text', text: `(earlier image ${path.basename(file)}, not sent again: ${file})` };
+      try {
+        return { type: 'image_url', image_url: { url: `data:${MIME[path.extname(file).toLowerCase()] || 'image/png'};base64,${fs.readFileSync(file).toString('base64')}` } };
+      } catch {
+        return { type: 'text', text: `(image ${path.basename(file)} is no longer there)` };
+      }
+    });
+    return { ...m, content: vision ? parts : parts.map((x) => (x.type === 'text' ? x.text : '')).join('\n\n') };
+  });
+}
+
+const hasImages = (msgs: LlmMessage[]) => msgs.some((m) => m.role === 'user' && Array.isArray(m.content) && m.content.some((x) => x.type === 'image_url'));
+
+export async function run({ agent, chat, text, signal, onEvent, depth, runId, systemPrompt, attachments = [] }: EngineRunArgs): Promise<EngineResult> {
   const provider = providerOf(agent);
   const settings = getSettings();
   const model = agent.model || settings.defaults.openrouterModel;
   chat.llm ||= [];
-  chat.llm.push({ role: 'user', content: text });
+  const images = imageParts(attachments);
+  chat.llm.push({ role: 'user', content: images.length ? [{ type: 'text', text }, ...images] : text });
+  // off once the model says it can't take images
+  let vision = true;
   onEvent({ kind: 'model', model });
   let { defs, route } = await gatherTools(agent, onEvent);
   let cost = 0;
@@ -227,7 +288,7 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
   for (let step = 0; step < maxSteps; step++) {
     const body = {
       model,
-      messages: [{ role: 'system', content: systemPrompt }, ...trimHistory(chat.llm as LlmMessage[])],
+      messages: [{ role: 'system', content: systemPrompt }, ...expandImages(trimHistory(chat.llm as LlmMessage[]), vision)],
       stream: true,
       ...(defs.length ? { tools: defs } : {}),
       ...(provider.id === 'openrouter' ? { usage: { include: true } } : { stream_options: { include_usage: true } }),
@@ -237,6 +298,14 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
     try {
       r = await streamCompletion({ provider, body, signal, onEvent });
     } catch (e) {
+      // A model without vision: send the images as notes instead.
+      const err = e as FetchError;
+      if (vision && hasImages(trimHistory(chat.llm as LlmMessage[])) && [400, 404, 415, 422].includes(err.status ?? 0) && /image|vision|multimodal|modalit/i.test(err.message)) {
+        onEvent({ kind: 'status', text: `${model} can't see images; sending it the file paths instead.` });
+        vision = false;
+        step--;
+        continue;
+      }
       // Some models can't call tools: try once more without them.
       if (defs.length && /tool|function/i.test((e as FetchError).message) && ((e as FetchError).status === 404 || (e as FetchError).status === 400)) {
         onEvent({ kind: 'status', text: `${model} can't use tools; answering without them.` });

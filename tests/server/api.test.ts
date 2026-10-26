@@ -171,6 +171,55 @@ describe('local-only security', () => {
   });
 });
 
+describe('attached files', () => {
+  const upload = (batch: string, rel: string, data: string, headers: Record<string, string> = { 'x-dash': '1' }) => req(`/api/uploads/${batch}?path=${encodeURIComponent(rel)}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream', ...headers }, body: data });
+
+  it('saves dropped files and folders in the project folder, and never outside it', async () => {
+    const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
+    const st = await (await req('/api/state')).json();
+    const root = path.join(st.project.brainPath, 'uploads', batch);
+    const f = await (await upload(batch, 'brief.md', '# Brief')).json();
+    expect(f.path).toBe(path.join(root, 'brief.md'));
+    expect(fs.readFileSync(f.path, 'utf8')).toBe('# Brief');
+    const sneaky = await (await upload(batch, '../../../escape.txt', 'x')).json();
+    expect(sneaky.path).toBe(path.join(root, 'escape.txt'));
+    const inFolder = await (await upload(batch, 'assets/logo.svg', '<svg/>')).json();
+    expect(inFolder.top).toBe(path.join(root, 'assets') + path.sep);
+    // the page can show it
+    expect((await req(`/api/file?path=${encodeURIComponent(f.path)}`)).status).toBe(200);
+  });
+
+  it('needs the x-dash header to upload or remove, and removes only uploads', async () => {
+    const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
+    expect((await upload(batch, 'a.md', 'x', {})).status).toBe(403);
+    expect((await req('/api/uploads', { method: 'POST' })).status).toBe(403);
+    const st = await (await req('/api/state')).json();
+    const brainMd = path.join(st.project.brainPath, 'BRAIN.md');
+    expect((await req(`/api/uploads?path=${encodeURIComponent(brainMd)}`, { method: 'DELETE', headers: json })).status).toBe(403);
+    expect(fs.existsSync(brainMd)).toBe(true);
+  });
+
+  it('sends attachments with agent and team messages (a message can be files only)', async () => {
+    const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
+    const f = await (await upload(batch, 'data.csv', 'a,b\n1,2')).json();
+    const a = await (await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Reader' }) })).json();
+    const c = await (await req(`/api/agents/${a.id}/chats`, { method: 'POST', headers: json })).json();
+    const outside = path.join(root, 'package.json');
+    const sent = await req(`/api/agents/${a.id}/chats/${c.id}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: '', attachments: [f.path, outside] }) });
+    expect(sent.status).toBe(200);
+    const chat = await (await req(`/api/agents/${a.id}/chats/${c.id}`)).json();
+    expect(chat.items[0]).toMatchObject({ type: 'user', text: '', attachments: [f.path] });
+    expect(chat.title).toBe('data.csv');
+    // nothing to send: no text, no (valid) files
+    expect((await req(`/api/agents/${a.id}/chats/${c.id}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: ' ', attachments: [outside] }) })).status).toBe(400);
+
+    const t = await (await req('/api/workflows', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Readers', members: [a.id], files: [f.path, outside] }) })).json();
+    expect(t.files).toEqual([f.path]);
+    const m = await (await req(`/api/teams/${t.id}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: 'Sum it', attachments: [f.path] }) })).json();
+    expect(m).toMatchObject({ from: 'user', text: 'Sum it', attachments: [f.path] });
+  });
+});
+
 describe('agent runs and projects', () => {
   it("tool calls through the MCP bridge stay in the run's project after you open another", async () => {
     // a fake model that holds its answer until the test lets it go

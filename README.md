@@ -46,6 +46,11 @@ powershell -ExecutionPolicy Bypass -File install-shortcut.ps1 -Remove
 | **Routines** | Work you want done again and again. Write it once and @mention who does it (one or more agents and teams) and the skills they use. Run it by hand or on a schedule; each run shows what every agent and team did. |
 | **Settings** | Keys and engines, connections (X, Reddit, Telegram, Discord, Outbox), MCP servers, programs, Look (UI scale, accent, motion). Searchable. |
 
+**Attach files**: drop files or whole folders on any chat (Brain, agent, team), the team builder, the New
+project dialog, or the Brain on the map, or use the paperclip. They're saved in the project folder under
+`uploads/`, and the agent (or the Brain) is told where they are. Files added in the team builder stay with the
+team: every member is told about them.
+
 **Needs you** (top right) collects everything waiting on you: tool approvals, Claude Code
 permission requests and Outbox posts.
 
