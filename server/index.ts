@@ -102,9 +102,9 @@ const agentFor = (id: string | null | undefined): Agent | ExternalAgent => (id ?
 get('/api/state', async (): Promise<AppState> => ({
   agents: agents.list().sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || a.name.localeCompare(b.name)),
   mcpServers: Object.keys(mcp.listServers()),
-  project: store.activeProject(),
+  project: projects.withLogo(store.activeProject()),
   projectSaved: projectSync.saveStatus(),
-  projects: store.listProjects(),
+  projects: store.listProjects().map(projects.withLogo),
   approvals: listApprovals(),
   outboxPending: outbox.list().filter((p) => p.status === 'pending').length,
   runs: engines.activeRuns(),
@@ -122,7 +122,25 @@ get('/api/state', async (): Promise<AppState> => ({
 
 get('/api/activity', async () => activity(200));
 // ---------- projects ----------
-get('/api/projects', async () => ({ active: store.activeProject(), projects: store.listProjects(), root: projects.projectsRoot() }));
+get('/api/projects', async () => ({ active: projects.withLogo(store.activeProject()), projects: store.listProjects().map(projects.withLogo), root: projects.projectsRoot() }));
+// The project's logo: shown on the start screen, in the project menu and inside the Brain.
+get('/api/projects/:id/logo', async ({ id }, _b, _q, res) => {
+  const p = need(store.listProjects().find((x) => x.id === id));
+  const f = projects.logoFile(p);
+  if (!f) throw new HttpError(404, 'No logo');
+  sendFileSafely(res, f);
+  return undefined;
+});
+post<{ data?: unknown }>('/api/projects/:id/logo', async ({ id }, body) => {
+  const p = projects.setLogo(id, body.data);
+  store.emit('project-logo', { id });
+  return p;
+});
+del('/api/projects/:id/logo', async ({ id }) => {
+  const p = projects.removeLogo(id);
+  store.emit('project-logo', { id });
+  return p;
+});
 post<Parameters<typeof projects.createProject>[0] | null>('/api/projects', async (_p, body) => {
   let p: Project & { restored?: RestoreResult | null } = await projects.createProject(body || {});
   // a folder saved by the dashboard before: load its agents, teams and chats

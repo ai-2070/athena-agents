@@ -19,6 +19,7 @@ import { applyLook, applySavedLook } from './look.ts';
 applySavedLook();
 import { icon } from './icons.ts';
 import { openProjectMenu, openLauncher } from './projects.ts';
+import { projectMark } from './projectlogo.ts';
 import type { AppState, EngineStatus, RunEvent, ServerEvent } from '../shared/types.ts';
 
 /** What a view gets as its third render() argument. */
@@ -193,7 +194,7 @@ document.getElementById('needs-btn')!.onclick = () => drawer.classList.toggle('h
 // project switcher in the top bar (pages other than the Station)
 const projBtn = h('button.btn.ghost.small.topbar-project', { onclick: (e) => openProjectMenu(e.currentTarget) });
 document.querySelector('.top-actions')!.prepend(projBtn);
-onState((d) => mount(projBtn, icon('folder', 14), d.project?.name || 'Project', icon('chevron-down', 13)));
+onState((d) => mount(projBtn, projectMark(d.project, 15), d.project?.name || 'Project', icon('chevron-down', 13)));
 document.getElementById('drawer-close')!.onclick = () => drawer.classList.add('hidden');
 document.getElementById('nav-toggle')!.onclick = () => document.body.classList.toggle('nav-open');
 document.getElementById('running-pill')!.onclick = () => {
@@ -207,7 +208,7 @@ onState(() => {
   renderRunning();
 });
 
-const STATE_EVENTS = new Set(['agents', 'approvals', 'outbox', 'runs', 'settings', 'accounts', 'terminals', 'mcp', 'project', 'projects']);
+const STATE_EVENTS = new Set(['agents', 'approvals', 'outbox', 'runs', 'settings', 'accounts', 'terminals', 'mcp', 'project', 'project-logo', 'projects']);
 onEvent((ev) => {
   if (STATE_EVENTS.has(ev.type)) refreshSoon();
   if (ev.type === 'toast') toast(ev.text as string);
