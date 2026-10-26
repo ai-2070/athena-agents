@@ -14,7 +14,7 @@ import * as hermes from './hermes.ts';
 import * as codex from './codex.ts';
 import * as compaction from '../compaction.ts';
 import { richFor, richSection } from '../richanswers.ts';
-import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, Project, RunEvent } from '../../shared/types.ts';
+import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, Project, QueuedMessage, RunEvent } from '../../shared/types.ts';
 
 /** A run was stopped (by its caller or directly, e.g. its Stop button) before it answered. */
 export class RunStopped extends Error {
@@ -351,10 +351,67 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       active.delete(runId);
       cancelForRun(runId);
       emit('runs');
+      // done: your next /queue message goes now (a stopped run takes them with it: you said stop)
+      if (controller.signal.aborted) unqueue(chat.id);
+      else sendQueued(chat.id);
     }
   });
   emit('runs');
   return { runId, promise, signal: controller.signal };
+}
+
+// ---------- /queue: messages that wait for the chat to be free ----------
+// Kept in memory by chat. Each goes as its own message, in order, when the run before it ends.
+const waiting = new Map<string, { agentId: string; project: Project; items: QueuedMessage[] }>();
+const chatBusy = (chatId: string) => [...active.values()].some((r) => r.chatId === chatId) || compacting.has(chatId);
+const emitQueue = (agentId: string, chatId: string) => emit('queue', { agentId, chatId, queued: queuedMessages(chatId) });
+
+export function queuedMessages(chatId: string): QueuedMessage[] {
+  return [...(waiting.get(chatId)?.items || [])];
+}
+
+/** Send now if the chat is free, else once it is done with what it is doing. */
+export function queueMessage(agent: Agent, chat: Chat, text: string, attachments: string[] = []): { runId: string } | { queued: QueuedMessage } {
+  if (!chatBusy(chat.id) && !waiting.has(chat.id)) return { runId: startRun(agent, chat, text, { attachments }).runId };
+  const w = waiting.get(chat.id) || { agentId: agent.id, project: activeProject(), items: [] };
+  const queued: QueuedMessage = { id: uid('q'), text, ...(attachments.length ? { attachments } : {}), ts: Date.now() };
+  w.items.push(queued);
+  waiting.set(chat.id, w);
+  emitQueue(agent.id, chat.id);
+  // (free after all: the oldest goes now)
+  sendQueued(chat.id);
+  return { queued };
+}
+
+/** Take back one queued message (id), or all of them. Returns what was taken. */
+export function unqueue(chatId: string, id?: string): QueuedMessage[] {
+  const w = waiting.get(chatId);
+  if (!w) return [];
+  const taken = id ? w.items.filter((q) => q.id === id) : w.items;
+  w.items = id ? w.items.filter((q) => q.id !== id) : [];
+  if (!w.items.length) waiting.delete(chatId);
+  if (taken.length) emitQueue(w.agentId, chatId);
+  return taken;
+}
+
+function sendQueued(chatId: string) {
+  const w = waiting.get(chatId);
+  if (!w || chatBusy(chatId)) return;
+  const next = w.items.shift()!;
+  if (!w.items.length) waiting.delete(chatId);
+  // in the project it was typed in, like the run before it
+  withProject(w.project, () => {
+    const agent = agentStore.get(w.agentId);
+    const chat = chats.get(w.agentId, chatId);
+    if (!agent || !chat) return void waiting.delete(chatId);
+    try {
+      startRun(agent, chat, next.text, { attachments: next.attachments || [] });
+    } catch (e) {
+      log('error', `${agent.name}: a queued message couldn't be sent: ${(e as Error).message}`, { agentId: agent.id, chatId });
+    }
+  });
+  // (after the run's start event, so an open chat knows that turn came from its queue)
+  emitQueue(w.agentId, chatId);
 }
 
 function lastAssistantText(chat: Chat): string {
@@ -388,6 +445,7 @@ export function stopChat(chatId: string) {
 export function forgetChat(chatId: string) {
   const live = liveChat(chatId);
   if (live) live._deleted = true;
+  unqueue(chatId);
   stopChat(chatId);
 }
 
@@ -435,6 +493,7 @@ export async function compactNow(agent: Agent, chatId: string, mode?: 'instant' 
     return { item, chat };
   } finally {
     compacting.delete(chatId);
+    sendQueued(chatId);
   }
 }
 

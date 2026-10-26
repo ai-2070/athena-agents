@@ -4,7 +4,8 @@ import { h, mount, clear, state, GET, POST, PUT, attempt, md, onEvent, onState, 
 import { openBranchBuilder } from './builder.ts';
 import { icon, logo } from './icons.ts';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.ts';
-import { brainQueue, latestLoad } from './brainqueue.ts';
+import { brainQueue, holdQueue, latestLoad } from './brainqueue.ts';
+import { queuedText } from '../shared/queue.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import { attachTray } from './attach.ts';
 import { openMemory, BRAIN } from './memory.ts';
@@ -14,7 +15,7 @@ import type { AttachTray, PickedFile } from './attach.ts';
 import type { Child } from './core.ts';
 import type { AgentDraft, BranchDesign } from './builder.ts';
 import type { TeamEvent } from './teamchat.ts';
-import type { Agent, BrainAnswer, BrainDelegate, BrainDone, Chat, ChatItem, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
+import type { ActiveRun, Agent, BrainAnswer, BrainDelegate, BrainDone, Chat, ChatItem, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
 import type { UIMessage } from 'ai';
 
 /** One line of GET /api/brain/history. */
@@ -42,7 +43,7 @@ type UserItem = { id: string; kind: 'user'; text: string; attachments?: string[]
 type NoteItem = { id: string; kind: 'note'; text: Child; busy?: boolean; error?: boolean };
 /** started: its message went, so its turn can be streamed in (web/chat/TurnView) */
 type AgentItem = { id: string; kind: 'agent'; agentId: string; chatId: string; text: string; tools: ToolChip[]; images: string[]; reason: string; done: boolean; status?: string; started?: boolean };
-type BranchItem = { id: string; kind: 'branch'; wfId: string; name: string; reason: string; since: number; messages: TeamMessage[]; working: string[]; runId?: string; steps?: unknown; error?: string | null; output?: string; briefId?: string };
+type BranchItem = { id: string; kind: 'branch'; wfId: string; name: string; reason: string; since: number; messages: TeamMessage[]; working: string[]; next?: string[]; runId?: string; steps?: unknown; error?: string | null; output?: string; briefId?: string };
 /** A tool the Brain used while it answered (it reads the project's files). */
 interface BrainStep {
   id: string;
@@ -77,6 +78,8 @@ interface Dock {
   launcher?: HTMLButtonElement;
   /** Files waiting to go with the next message. */
   tray?: AttachTray;
+  /** Your /queue messages, waiting for the chat to be done. */
+  heldEl?: HTMLDivElement;
 }
 
 const D: Dock = { modelEl: null, open: false, target: 'auto', items: [], el: null, list: null, input: null, sel: null, workflows: [], project: null };
@@ -110,6 +113,7 @@ export function initDock(): void {
     'div.dock.hidden',
     h('div.dock-head', h('b', icon('brain', 16), 'Brain chat'), h('span.grow'), h('span.dock-to', 'to'), D.sel, D.modelEl, h('button.icon-btn', { onclick: () => openMemory(BRAIN), title: "The Brain's MEMORY.md: what it remembers across conversations", 'aria-label': "The Brain's MEMORY.md" }, icon('file-text', 15)), h('button.icon-btn', { onclick: newConversation, title: 'New conversation (the Brain forgets this chat)', 'aria-label': 'New conversation' }, icon('rotate-ccw', 15)), h('button.icon-btn', { onclick: () => toggle(false), 'aria-label': 'Close' }, '✕')),
     D.list,
+    (D.heldEl = h('div.queued-list.compact.dock-held.hidden')),
     h('div.dock-tray-wrap', D.tray.el),
     h('div.dock-compose', D.tray.picker, D.input, h('button.btn', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 15))),
   );
@@ -172,6 +176,7 @@ async function newConversation() {
   // keep the transcript if the Brain still remembers it
   if (!(await attempt(() => POST('/brain/clear')))) return;
   brainAsks.reset(); // answers still on their way belong to the old conversation
+  held.clear();
   historyLoads.reset();
   D.items = [];
   dropTurns();
@@ -187,6 +192,7 @@ function projectChanged(d: { project?: { id: string } | null }) {
   D.project = id;
   if (first) return;
   brainAsks.reset();
+  held.clear();
   D.items = [];
   dropTurns();
   draw();
@@ -329,6 +335,9 @@ function draw() {
     });
     while (list.childNodes.length > nodes.length) list.lastChild!.remove();
     follow();
+    // something may have finished: a /queue message can go now
+    held.check();
+    if (!D.tray?.count()) D.input!.placeholder = dockIdle() ? PLACEHOLDER : 'Working… /queue a message to send when this is done';
   });
 }
 
@@ -505,14 +514,68 @@ async function send(given: string[] = []) {
   if (!attachments) return;
   attachments = [...given, ...attachments];
   // what is in the box now (more may have been typed while the files uploaded)
-  const text = input.value.trim();
-  if (!text && !attachments.length) return;
+  const typed = input.value.trim();
+  // "/queue …": waits until everything in this chat is done (goes now if nothing is working)
+  const queued = queuedText(typed);
+  const text = queued ?? typed;
+  if (!text && !attachments.length) return void (typed && toast('Write the message after /queue'));
   // a Brain message belongs to a project: wait until the page knows which one is open
   if (D.target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Send it again in a moment.');
   input.value = '';
   tray.take();
+  if (queued != null) return void held.add(text, { attachments, target: D.target });
+  return track(() => dispatch(text, attachments, D.target));
+}
+
+// ---------- /queue ----------
+// Waiting messages, sent one at a time once nothing in the chat is working: no Brain answer on its
+// way, no agent or team still on work from here, no message being sent.
+interface HeldExtra {
+  attachments: string[];
+  target: string;
+}
+let pending = 0;
+async function track(work: () => Promise<unknown>): Promise<void> {
+  pending++;
+  try {
+    await work();
+  } finally {
+    pending--;
+    draw();
+  }
+}
+const working = (it: DockItem) => (it.kind === 'brain' && !!it.live) || (it.kind === 'agent' && !it.done) || (it.kind === 'branch' && !!(it.working.length || it.next?.length));
+const dockIdle = () => !pending && !D.items.some(working);
+const held = holdQueue<HeldExtra>({ idle: dockIdle, send: (m) => track(() => dispatch(m.text, m.extra.attachments, m.extra.target)), onChange: () => drawHeld() });
+
+function targetName(t: string): string {
+  if (t.startsWith('a:')) return state.data?.agents.find((a) => a.id === t.slice(2))?.name || 'an agent';
+  if (t.startsWith('b:')) return D.workflows.find((w) => w.id === t.slice(2))?.name || 'a team';
+  return t === 'new-agent' ? 'a new agent' : t === 'new-branch' ? 'a new team' : 'the Brain';
+}
+function drawHeld() {
+  const el = D.heldEl;
+  if (!el) return;
+  const items = held.items();
+  el.classList.toggle('hidden', !items.length);
+  mount(
+    el,
+    items.length ? h('div.queued-head', 'Sends when everything above is done') : null,
+    items.map((m) =>
+      h(
+        'div.queued-msg',
+        icon('clock', 12),
+        h('span.queued-text', m.text || `${m.extra.attachments.length} file(s)`),
+        m.extra.target === 'auto' ? null : h('span.hint', `to ${targetName(m.extra.target)}`),
+        h('button.tc-act', { title: "Don't send this", 'aria-label': "Don't send this", onclick: () => held.remove(m.id) }, icon('x', 12)),
+      ),
+    ),
+  );
+}
+
+// Sends one message: to the chosen agent or team, or to the Brain (which may hand it on).
+async function dispatch(text: string, attachments: string[], t: string) {
   add({ kind: 'user', text, attachments });
-  const t = D.target;
   if (t.startsWith('a:')) return toAgent(t.slice(2), text, '', attachments);
   if (t.startsWith('b:')) return toBranch(t.slice(2), text, '', attachments);
   if (t === 'new-agent') return newAgent(text, attachments);
@@ -545,15 +608,25 @@ async function send(given: string[] = []) {
   }
   // the server already handed it on, as the Brain: follow the agent's chat or the team's thread here
   const d = r.delegate;
-  if (d?.kind === 'agent' && d.sent?.chatId) add({ kind: 'agent', agentId: d.id, chatId: d.sent.chatId, text: '', tools: [], images: [], reason: 'from the Brain', done: false, started: true });
+  if (d?.kind === 'agent' && d.sent?.chatId) {
+    const chatId = d.sent.chatId;
+    const it = add({ kind: 'agent', agentId: d.id, chatId, text: '', tools: [], images: [], reason: 'from the Brain', done: false, started: true });
+    // it may have finished before this answer got here (then no 'done' comes for this card)
+    void GET<ActiveRun[]>('/runs')
+      .then((runs) => {
+        if (!runs.some((x) => x.chatId === chatId)) (it.done = true), draw();
+      })
+      .catch(() => {});
+  }
   if (d?.kind === 'branch' && d.sent?.ts) {
     const it = add({ kind: 'branch', wfId: d.id, name: d.name, reason: 'from the Brain', since: d.sent.ts, messages: [], working: [], briefId: d.sent.messageId });
     // the team may have answered before this answer got here: those messages came before the item did
-    void GET<{ messages: TeamMessage[]; working: string[] }>(`/teams/${d.id}/chat`)
+    void GET<{ messages: TeamMessage[]; working: string[]; queued: string[] }>(`/teams/${d.id}/chat`)
       .then((t) => {
         if (!D.items.includes(it)) return;
         mergeTeamMessages(it, t.messages);
         it.working = t.working;
+        it.next = t.queued;
         draw();
       })
       .catch(() => {});
@@ -581,9 +654,16 @@ async function toAgent(agentId: string, text: string, reason = '', attachments: 
 
 async function toBranch(wfId: string, text: string, reason = '', attachments: string[] = []) {
   const wf = D.workflows.find((w) => w.id === wfId);
+  // (shown before it is sent, so it hears who starts working: the team starts before the reply comes)
+  const it = add({ kind: 'branch', wfId, name: wf?.name || 'Team', reason, since: Date.now(), messages: [], working: [] });
   const msg = await attempt(() => POST<TeamMessage>(`/teams/${wfId}/messages`, { text, attachments }));
-  if (!msg) return;
-  add({ kind: 'branch', wfId, name: wf?.name || 'Team', reason, since: msg.ts, messages: [], working: [] });
+  if (!msg) {
+    D.items.splice(D.items.indexOf(it), 1);
+    return draw();
+  }
+  it.since = msg.ts;
+  it.messages = it.messages.filter((m) => m.ts >= msg.ts);
+  draw();
 }
 
 async function newAgent(text: string, attachments: string[] = []) {
@@ -656,7 +736,12 @@ function handleEvent(ev: ServerEvent) {
     if (!it) return;
     const e = ev.event as TeamEvent;
     if (e.kind === 'message') mergeTeamMessages(it, [e.message]);
-    if (e.kind === 'state') it.working = e.working;
+    // (every message to this team shows who works on it now, so none looks busy forever)
+    if (e.kind === 'state')
+      for (const b of items) {
+        b.working = e.working;
+        b.next = e.queued;
+      }
     draw();
     return;
   }
