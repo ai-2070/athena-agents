@@ -1,0 +1,56 @@
+web/views/terminals.ts
+  s_3ee9638266ae65::t_e418e489c9ed96 5,141
+web/chat/messages.ts
+  s_3ee9638266ae65::t_e418e489c9ed96 12,36
+web/core.ts
+  s_3ee9638266ae65::t_2ff9f0cfd4522a 6
+  s_3ee9638266ae65::t_72d897b07d4bf4 9-11,60
+  s_3ee9638266ae65::t_f68ceea781c5e4 5
+tests/web/client.test.ts
+  s_3ee9638266ae65::t_2d1e05b2df1930 1-169
+web/chat/transport.ts
+  s_3ee9638266ae65::t_8c51c85da811d6 7-8,10-11,13,26,32,41
+AGENTS.md
+  s_3ee9638266ae65::t_1abb8cd89fac1b 46,78
+web/views/connections.ts
+  s_3ee9638266ae65::t_8c51c85da811d6 77,88,111,136,148
+  s_3ee9638266ae65::t_e418e489c9ed96 3-4,262,283
+web/backup.ts
+  s_3ee9638266ae65::t_30344d3f903b36 3,130-132
+web/filepreview.ts
+  s_3ee9638266ae65::t_e418e489c9ed96 9
+web/modelviewer.ts
+  s_3ee9638266ae65::t_e418e489c9ed96 5,21
+web/attach.ts
+  s_3ee9638266ae65::t_30344d3f903b36 30-31,143-145,184,210,331,475
+  s_3ee9638266ae65::t_e418e489c9ed96 5-6
+web/client/connection.ts
+  s_3ee9638266ae65::t_b917145cf08cb2 1-54
+web/views/artifacts.ts
+  s_3ee9638266ae65::t_e418e489c9ed96 6
+web/client/http.ts
+  s_3ee9638266ae65::t_30344d3f903b36 48
+  s_3ee9638266ae65::t_eb457aedf0d80a 1-47,49-88
+web/teammark.ts
+  s_3ee9638266ae65::t_e418e489c9ed96 4,19
+web/projectlogo.ts
+  s_3ee9638266ae65::t_e418e489c9ed96 4,11,23
+tests/server/web-client-boundary.test.ts
+  s_3ee9638266ae65::t_76f7227365d0ff 1-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "77f862cff78e77b93c73049bdd904afda177e964",
+  "prompts": {},
+  "sessions": {
+    "s_3ee9638266ae65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "541a5902-77ed-4017-8f45-3e7605579b0f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
