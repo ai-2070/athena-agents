@@ -1,0 +1,88 @@
+scripts/build-icons.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 19
+server/teams.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 8,21,30,144,149,151,166-167,173,254-255,258,262-267,269,271-274,279
+server/uploads.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 1-263
+tests/web/attach-tray.test.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 1-179
+tests/server/brain-files.test.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 1-49
+web/builder.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 5-6,25-26,33,39-40,111-138,143,145-151,153,173-175,194-196,212,216-221,234,239-244,246,249
+web/projects.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 7,82-83,109-110,113-137,140,148,150,175,179-180,182
+tests/web/attach.test.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 1-69
+web/dock.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 9-10,21,37,42,64-65,69,74-75,92-93,95-97,119-120,125-134,145,270,337,351,354-357,359-376,378,382-383,385-388,391,403-404,407,411,419,421,426,428,431,434,436,442,445
+tests/server/attachments-flow.test.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 1-106
+web/teamchat.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 4,60-63,116-117,195,197-216,274-276
+server/tools.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 14,95-96
+web/app.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 18,226-227
+web/brainqueue.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 8,10-12,17,21,27
+web/agentchat.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 8,37,46-48,133,136-156,158,161-162,183,216-218
+  s_438d1f6577d2a3::t_8e3112b9f221d0 94,157,159-160
+README.md
+  s_438d1f6577d2a3::t_f41a1cf860307d 49-53
+server/overseer.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 17,28,556-558,570-576,591-592,596
+server/brain.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 8,211-214,221,226,237
+shared/types.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 86-87,119-120,272,524-534
+web/views/station.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 9-10,425-427,1209,1809-1816,2024-2036,2146-2195
+  s_438d1f6577d2a3::t_62d63810593731 2196
+public/polish.css
+  s_438d1f6577d2a3::t_ef4291d460395b 478
+  s_438d1f6577d2a3::t_f41a1cf860307d 479-516
+server/engines/claude.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 5,10-11,131-139,143,149-150
+tests/server/api.test.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 146-194
+server/engines/openai.ts
+  s_438d1f6577d2a3::t_a4955c41410e2d 327,337
+  s_438d1f6577d2a3::t_f41a1cf860307d 2-3,5,52-54,57-58,224-274,280-283,335-336,338-342,347-349
+  s_438d1f6577d2a3::t_e543af55aba7d3 275,317
+  s_438d1f6577d2a3::t_e5ac7b5d8ce484 343-346
+server/engines/index.ts
+  s_438d1f6577d2a3::t_839906cb652065 301-302
+  s_438d1f6577d2a3::t_f41a1cf860307d 9,120,225-227,230-233,380,386
+web/attach.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 1-448
+server/index.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 37,198-203,208-209,312,316-317,321,432-436,553-555,557,571,775-781
+  s_438d1f6577d2a3::t_d45529d81461ac 319
+tests/server/uploads.test.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 1-153
+web/views/chat.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 7-8,23-26,73-74,84-86,147,217,299-312,316-324,382
+  s_438d1f6577d2a3::t_8e3112b9f221d0 313-315
+server/util.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 72-80
+web/icons.ts
+  s_438d1f6577d2a3::t_f41a1cf860307d 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9caa2d9a596465b1a8dbb41a227838768d6765f4",
+  "prompts": {},
+  "sessions": {
+    "s_438d1f6577d2a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a3e60d4-d433-413c-8c13-3a59a05169f5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
