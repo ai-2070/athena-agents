@@ -1,4 +1,4 @@
-// My Dashboard desktop app. It starts the dashboard's own server (the bundled Bun runtime running
+// Blacksite desktop app. It starts the dashboard's own server (the bundled Bun runtime running
 // the bundled server in resources/app), waits for it, and shows it in a window. Nothing else changes:
 // the page talks to its server over 127.0.0.1 exactly as it does in a browser, with no Tauri IPC.
 //
@@ -26,7 +26,7 @@ const MAIN: &str = "main";
 /// The browser version uses 4800; X and Reddit apps are set up with that address, so try it first.
 const PREFERRED_PORTS: std::ops::Range<u16> = 4800..4810;
 const START_TIMEOUT: Duration = Duration::from_secs(90);
-const COULD_NOT_START: &str = "My Dashboard could not start";
+const COULD_NOT_START: &str = "Blacksite could not start";
 
 #[derive(Default)]
 struct Server {
@@ -59,7 +59,7 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("could not start My Dashboard");
+        .expect("could not start Blacksite");
 
     app.run(|app, event| {
         if let RunEvent::Exit = event {
@@ -74,7 +74,7 @@ fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let nav_app = app.clone();
     let popup_app = app.clone();
     WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
-        .title("My Dashboard")
+        .title("Blacksite")
         .inner_size(1440.0, 900.0)
         .min_inner_size(900.0, 600.0)
         .center()
@@ -284,7 +284,7 @@ fn watch_server(app: AppHandle, generation: u64, port: u16) {
         if let Some(status) = exited() {
             return show_error(
                 &app,
-                "My Dashboard stopped",
+                "Blacksite stopped",
                 &format!("The dashboard's server stopped ({status})."),
             );
         }

@@ -5,7 +5,7 @@ view, read `README.md`; `docs/guide.md` is the long version of it.
 
 ## What this is
 
-**My Dashboard**: a local, login-free command center for AI agents. A Bun + TypeScript server
+**Blacksite**: a local, login-free command center for AI agents. A Bun + TypeScript server
 (`server/`) on `127.0.0.1:4800` and a browser app (`web/`) bundled into `public/dist`. All user
 state is plain JSON under `data/` (git-ignored). Mainly used on Windows; CI also runs on Linux.
 

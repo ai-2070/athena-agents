@@ -249,7 +249,7 @@ async function connect(name: string): Promise<Client> {
   const cfg = name === 'dashboard' ? null : listServers()[name];
   if (!cfg) throw new Error(`No MCP server named "${name}".`);
   const job = (async () => {
-    const client = new Client({ name: 'my-dashboard', version: '0.1.0' });
+    const client = new Client({ name: 'blacksite', version: '0.1.0' });
     if (cfg.type === 'stdio') {
       const { command, args } = resolveCommand(cfg.command, cfg.args || []);
       // stderr ignored: an unread pipe fills up and freezes the server process.
@@ -262,7 +262,7 @@ async function connect(name: string): Promise<Client> {
         await client.connect(new StreamableHTTPClientTransport(url, { requestInit }));
       } catch (e) {
         // Older servers only speak SSE.
-        const c2 = new Client({ name: 'my-dashboard', version: '0.1.0' });
+        const c2 = new Client({ name: 'blacksite', version: '0.1.0' });
         await c2.connect(new SSEClientTransport(url, { requestInit }));
         c2.onclose = () => clients.delete(name);
         return c2;

@@ -1,4 +1,4 @@
-# My Dashboard
+# Blacksite
 
 **Run AI agents and teams from one local workspace.** Give each agent a role, a model and the tools it needs. Talk to them directly, let them work together, and keep their work with the project it belongs to.
 
@@ -18,7 +18,7 @@ The dashboard runs at **http://localhost:4800**, with no dashboard account or lo
 
 ### Desktop app
 
-Install **My Dashboard** like any other app; it needs no Bun and no terminal. Installers are on this repository's **Releases** page:
+Install **Blacksite** like any other app; it needs no Bun and no terminal. Installers are on this repository's **Releases** page:
 
 | System | Download |
 |---|---|
@@ -168,7 +168,7 @@ Run `bun run check` and `bun run build` before submitting changes. See [`AGENTS.
 
 ## License
 
-My Dashboard is yours to use under either the [MIT license](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), whichever you prefer. Unless you say otherwise, anything you contribute is offered under the same two licenses.
+Blacksite is yours to use under either the [MIT license](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), whichever you prefer. Unless you say otherwise, anything you contribute is offered under the same two licenses.
 
 Some bundled pieces keep their own licenses: the skills in `skills/` and The Agency's agents in `library/agency-agents/` (each folder's `README.md` says where it's from), the Crafting App icons in `public/craft-icons/` (MIT OR Apache-2.0), Lucide icons (ISC) and Simple Icons logos (CC0). Brand names and logos stay their owners' trademarks.
 
