@@ -1,6 +1,6 @@
 # Machines: pair your computers and run projects on any of them
 
-*Plan, 2026-10-26. Nothing here is built yet. Phones come later (see `REMOTE_APP_PLAN.md`, part C).*
+*Plan, 2026-10-26. Step 0 (proof of concept) done 2026-10-27; nothing in the app is built yet. Phones come later (see `REMOTE_APP_PLAN.md`, part C).*
 
 ## Goal
 
@@ -98,6 +98,65 @@ What a project is made of, and how far each part travels:
    - Bundling the `.node` addon into the desktop app.
 
 Net is ours, so the plan fixes 1–6 upstream rather than working around them for long (step 1).
+
+### Step 0 results (2026-10-27)
+
+`@net-mesh/sdk` + `@net-mesh/core` 0.45.1, Bun 1.4.4, Windows 11 x64. Everything ran on one PC
+(loopback), in one process and in two separate processes.
+
+**Works:**
+
+| What | Result |
+|---|---|
+| Bun loads the native module | Yes |
+| Same identity across restarts from a saved seed | Yes |
+| Pairing: invite → join → approve | Two processes paired in about 2 s. The inviter's approve callback saw the joiner's name and fingerprint (`59E6-6149-…`), matching what the joiner shows. An invite is a 231-character `net-invite:…` string |
+| Joining a node that is already running | Yes. `join` makes its own connection, so the "accept before start" limit (gap 2) doesn't affect pairing |
+| Calls both ways after pairing | 0.3–1 ms each, 0.14 ms in one process. Steady for as long as both run |
+| Streamed calls (`callStreaming`) for status updates | Yes |
+| Folder transfer, many small files | 2,000 files in 0.6 s, byte-for-byte (matches Net's own `node_modules`-scale test) |
+| Folder transfer, single files up to 128 MB | Yes, at about 4 MB/s |
+| Bundled like the desktop server | Yes. `Bun.build` with `@net-mesh/core` as `external` (bundle 220 KB). The app folder keeps the core package's JS plus one `net.<target>.node` (19 MB, not the 169 MB package with all platforms). The loader tries `./net.<target>.node` first |
+
+**Breaks or needs care:**
+
+1. **No reconnect after a restart.** This is the blocker.
+   - Each start makes a new connection key, so after the inviter restarts nobody can reach it:
+     "reply-channel subscribe rejected" both ways.
+   - After the joiner restarts, its `renew()` reconnects only if the inviter has already dropped
+     the old session. That happened with `sessionTimeoutMs: 4000`.
+   - Even then, calls back toward the restarted machine kept timing out.
+   - **Fix in Net:** keep the connection key (or derive it from the identity seed), and refresh
+     reply channels when a peer comes back.
+2. **One large file is slow and can fail.**
+   - A file's chunks are fetched one after another over one stream (`dataforts/dir.rs`,
+     "chunks pull sequentially"). The stream's window is 32 packets of about 8 KB, giving about
+     4 MB/s on loopback.
+   - Each chunk has a fixed 30 s limit (`mesh.rs` `transfer_fetch_chunk`). A 190 MB file failed
+     with "timed out fetching".
+   - Many files are fine: up to 16 are fetched at once.
+   - **Fix in Net:** fetch a large file's chunks in parallel too, make the limit follow progress,
+     and report progress to JS. This is the plan's own Phase 4 (large files), which hasn't been
+     measured yet.
+3. **Streamed calls lose data under load, silently.**
+   - `sink.send()` returned `true` while messages were dropped:
+     - 1,089 of 2,341 arrived when sent in a burst, even with flow control and `grant()`.
+     - With short pauses, 3 of 9,363 were lost and the rest arrived out of order.
+   - Each message is limited to 8,104 bytes.
+   - Fine for status updates, not for files. **Fix in Net:** make `send` report back-pressure
+     truthfully, or document the drop.
+4. **Handles that get garbage-collected stop the service.**
+   - The handle from `rpc.serve()` and the one from `serveEnrollmentAuto()` must be kept.
+     Dropped ones were collected and the service went away ("no nRPC service … is served").
+   - Our code must hold every handle. Net could keep them alive itself, or say so in the docs.
+5. **Two processes can bind the same UDP port on Windows** without an error. Packets then go to
+   either one, giving handshake timeouts. `server/net.ts` must check its port isn't taken. Net
+   should bind exclusively.
+
+**Decision:** stay in-process. The native module runs under Bun and bundles the way node-pty does,
+so no Rust sidecar. Pairing and calls can be built now (step 2). Machines must re-pair after a
+restart until fix 1 lands, so fix 1 comes first in step 1, before anyone uses this. Moving projects
+(step 4) waits for fix 2 when a project has large files.
 
 ## Design
 
@@ -295,19 +354,24 @@ Nothing is merged between copies. One owner, whole-folder moves.
 Each step ends with tests and a check by hand on two instances on one PC: different ports, and
 `DASH_DATA`, `HOME` and `USERPROFILE` each pointed at its own throwaway folder.
 
-0. **Proof of concept (days):**
+0. **Proof of concept: done 2026-10-27.** See "Step 0 results" above. What it covered:
    - Under Bun on Windows, two server processes with `@net-mesh/core` 0.45.x pair (invite, join,
      approve), make unary and streaming calls, and `fetchDir` a 200 MB folder.
    - Restart one and see what breaks (gap 1).
    - Bundle it into the desktop app.
    - Outcome: in-process or sidecar, and the exact list of Net changes.
-1. **Net changes (in the Net repo, alongside 2–3):**
-   - persist the transport key from Node
-   - caller identity in unary handlers, or `allowed_nodes` on `serve`
-   - peer list, peer events and disconnect
-   - PSK-free enrollment in TS
-   - progress (and resume) for `fetchDir`
-   - Node tests on Windows in CI
+1. **Net changes (in the Net repo, alongside 2–3), in this order:**
+   1. Keep the transport key across restarts (an option, or derived from `identitySeed`), and
+      refresh reply channels when a peer reconnects. Without this, machines must re-pair after
+      every restart.
+   2. Large files: fetch a file's chunks in parallel, a time limit that follows progress, and a
+      progress callback for `fetchDir`.
+   3. Caller identity in unary handlers, or `allowed_nodes` on `serve`.
+   4. Peer list, peer events and disconnect.
+   5. Streamed calls: `send()` tells the truth about dropped messages.
+   6. Exclusive UDP bind on Windows. Keep serve and enrollment handles alive while serving.
+   7. PSK-free enrollment in TS.
+   8. Node tests on Windows in CI.
 2. **Machines page and pairing:**
    - `server/net.ts` and `server/machines.ts`, `bs.hello`, the pairing flow, online status,
      remove, Forget all.
