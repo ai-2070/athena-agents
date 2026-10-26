@@ -21,8 +21,11 @@ import { agentMentions, insertMention } from './mention.ts';
 import type { MentionAgent } from './mention.ts';
 import { agentRef } from '../../shared/agentref.ts';
 import { queuedText } from '../../shared/queue.ts';
+import { parseCommand, slashSuggestions } from '../../shared/commands.ts';
+import type { SlashOption } from '../../shared/commands.ts';
+import { goalLine, loopLine } from '../chatcommands.ts';
 import type { ChatMessage } from './messages.ts';
-import type { AppState, Chat, ChatItem, QueuedMessage } from '../../shared/types.ts';
+import type { AppState, BrainBrief, Chat, ChatItem, LoopInfo, QueuedMessage } from '../../shared/types.ts';
 
 export { isRichCode };
 
@@ -93,6 +96,11 @@ export function ChatView(p: ChatViewProps) {
   queuedRef.current = queued;
   // the next queued message started while this view was still streaming the turn before it
   const missedStart = useRef(false);
+  // your /loop and /goal here (the server keeps them)
+  const [loop, setLoop] = useState<LoopInfo | null>(null);
+  const [goal, setGoal] = useState<BrainBrief | null>(null);
+  // the agent's harness's own / commands (a Claude Code agent's), for the / menu
+  const [harness, setHarness] = useState<{ name: string; about: string }[]>([]);
   const onChat = useRef(p.onChat);
   onChat.current = p.onChat;
   // one id for this view's useChat, even when its first message makes the chat
@@ -125,6 +133,8 @@ export function ChatView(p: ChatViewProps) {
     if (!saved || chatIdRef.current !== id) return;
     setItems(saved.items);
     setQueued(saved.queued || []);
+    setLoop(saved.loop || null);
+    setGoal(saved.goal || null);
     // (while a stream is going it keeps its own message; the saved chat comes when it ends)
     if (after || !streamingRef.current) setMessages(toUIMessages(saved.items));
     onChat.current?.(saved);
@@ -168,11 +178,18 @@ export function ChatView(p: ChatViewProps) {
   useEffect(
     () =>
       onEvent((ev) => {
+        // your /goal here: the Brain followed up, or it is reached, stuck or dropped
+        if (ev.type === 'brief') {
+          const b = ev.brief as BrainBrief;
+          if (b.kind !== 'agent' || !b.goal || !chatIdRef.current || b.chatId !== chatIdRef.current) return;
+          return void setGoal((g) => (b.status === 'open' ? b : g?.id === b.id ? null : g));
+        }
         if (!chatIdRef.current || ev.chatId !== chatIdRef.current) return;
-        if (ev.type === 'compacted') {
+        if (ev.type === 'compacted' || ev.type === 'chat-note') {
           if (!streamingRef.current) void reload();
           return;
         }
+        if (ev.type === 'loop') return void setLoop((ev.loop as LoopInfo | null) || null);
         if (ev.type === 'queue') return void setQueued((ev.queued as QueuedMessage[]) || []);
         if (ev.type !== 'run') return;
         const kind = (ev.event as { kind?: string })?.kind;
@@ -302,9 +319,59 @@ export function ChatView(p: ChatViewProps) {
     },
     [agent.id],
   );
-  // Enter: a /queue while it works waits its turn; anything else is sent (when it isn't working)
+  // the chat, made now if this is a new conversation (for a command that needs one)
+  const ensureChat = async (): Promise<string | null> => {
+    if (chatIdRef.current) return chatIdRef.current;
+    const made = await attempt(() => POST<Chat>(`/agents/${agent.id}/chats`));
+    if (!made) return null;
+    chatIdRef.current = made.id;
+    setChatId(made.id);
+    onChat.current?.(made);
+    return made.id;
+  };
+
+  // /stop, /resume, /resend, /loop, /goal (whether it is working or not)
+  // fromBox: typed in the box (it is cleared, and comes back if the command fails); not a chip's ×
+  const command = async (name: string, rest: string, fromBox = true) => {
+    const box = input.current;
+    if (!box) return;
+    // (with pasted text put back: a long goal pasted in goes in full)
+    const typed = fromBox ? pastes.text().trim() : '';
+    if (fromBox) {
+      box.value = '';
+      box.style.height = '';
+      pastes.sync();
+      setSlash(null);
+    }
+    const back = () => void (fromBox && pastes.restore(typed));
+    if (name === 'stop') return void stop();
+    const id = await ensureChat();
+    if (!id) return back();
+    const base = `/agents/${agent.id}/chats/${id}`;
+    if (name === 'goal' && !rest) return void toast(goal ? `Goal: ${goal.goal || goal.text}` : 'No goal yet. Type /goal and what done looks like.');
+    if (name === 'loop') {
+      // (with the files in the tray: each loop message carries them; not when it is ended)
+      const off = /^(off|stop|end|cancel)$/i.test(rest);
+      const attachments = tray && !off ? await tray.ready() : [];
+      if (!attachments) return back();
+      const taken = off ? [] : tray?.take() || [];
+      const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`${base}/loop`, { text: rest, attachments }));
+      if (!r) return void (back(), tray?.put(taken));
+      return setLoop(r.loop);
+    }
+    const r = await attempt(() => POST<{ goal?: BrainBrief | null; queued?: QueuedMessage }>(`${base}/${name}`, name === 'goal' ? { text: rest } : {}));
+    if (!r) return back();
+    if (name === 'goal') setGoal(r.goal || null);
+    const added = r.queued;
+    if (added) setQueued((q) => (q.some((x) => x.id === added.id) ? q : [...q, added]));
+  };
+
+  // Enter: a command; a /queue while it works waits its turn; anything else is sent (when it isn't working)
   const submit = () => {
     const box = input.current;
+    const cmd = box ? parseCommand(pastes.text(), 'agent') : null;
+    if (cmd && cmd.name !== 'queue' && cmd.name !== 'compact') return void command(cmd.name, cmd.rest);
+    if (cmd?.name === 'compact' && busy) return void toast('Compact it when it is done (or /stop it first).');
     if (box && queuedText(box.value) != null && (busy || sending.current)) return void queueNext();
     void send();
   };
@@ -362,6 +429,39 @@ export function ChatView(p: ChatViewProps) {
 
   // @ to pick another agent: a menu above the box while the caret is in an "@…"
   const [mention, setMention] = useState<{ start: number; options: MentionAgent[]; active: number } | null>(null);
+  // / for commands: a menu above the box while it holds just "/" and the start of a name
+  const [slash, setSlash] = useState<{ options: SlashOption[]; active: number } | null>(null);
+  useEffect(() => {
+    void GET<{ name: string; about: string }[]>(`/agents/${agent.id}/commands`)
+      .then((list) => setHarness(Array.isArray(list) ? list : []))
+      .catch(() => {});
+  }, [agent.id]);
+  const lookForSlash = () => {
+    const options = slashSuggestions(input.current?.value || '', 'agent', harness);
+    setSlash((was) => (options.length ? { options, active: was && was.options.length === options.length ? Math.min(was.active, options.length - 1) : 0 } : null));
+  };
+  const pickSlash = (o: SlashOption) => {
+    const box = input.current;
+    if (!box) return;
+    // ours with nothing after it runs now; the rest wait for what comes after (a harness command goes as typed)
+    box.value = o.args || o.harness ? `/${o.name} ` : `/${o.name}`;
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
+    setSlash(null);
+    if (!o.args && !o.harness) submit();
+  };
+  const onSlashKey = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    if (!slash || e.nativeEvent.isComposing) return false;
+    const n = slash.options.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') setSlash({ ...slash, active: (slash.active + (e.key === 'ArrowDown' ? 1 : n - 1)) % n });
+    else if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') pickSlash(slash.options[slash.active]);
+    else if (e.key === 'Escape') {
+      e.stopPropagation();
+      setSlash(null);
+    } else return false;
+    e.preventDefault();
+    return true;
+  };
   const others = app?.agents || [];
   // (it can only hand work on with ask_agent, which the Delegate tools give it)
   const canDelegate = !!others.find((a) => a.id === agent.id)?.toolGroups?.includes('agents');
@@ -433,7 +533,7 @@ export function ChatView(p: ChatViewProps) {
         rows={variant === 'mini' ? 1 : 2}
         placeholder={busy ? `/queue a message to send when ${agent.name} is done` : compact ? `Message ${agent.name}…  (Enter to send, @ for another agent)` : `Message ${agent.name}…`}
         onKeyDown={(e) => {
-          if (onMentionKey(e)) return;
+          if (onSlashKey(e) || onMentionKey(e)) return;
           if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             submit();
@@ -441,6 +541,7 @@ export function ChatView(p: ChatViewProps) {
         }}
         onInput={(e) => {
           lookForMention();
+          lookForSlash();
           if (compact) return;
           const t = e.currentTarget;
           t.style.height = 'auto';
@@ -450,8 +551,29 @@ export function ChatView(p: ChatViewProps) {
         onKeyUp={(e) => {
           if (/^(ArrowLeft|ArrowRight|Home|End)$/.test(e.key)) lookForMention();
         }}
-        onBlur={() => setMention(null)}
+        onBlur={() => (setMention(null), setSlash(null))}
       />
+      {slash ? (
+        <div className="tc-suggest slash-menu" role="listbox">
+          {slash.options.map((o, i) => (
+            <button
+              key={`${o.harness ? 'h' : 'd'}-${o.name}`}
+              type="button"
+              role="option"
+              aria-selected={i === slash.active}
+              className={`tc-sopt${i === slash.active ? ' on' : ''}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pickSlash(o);
+              }}
+            >
+              <b className="slash-name">/{o.name}</b>
+              {o.args ? <span className="slash-args">{o.args}</span> : null}
+              <span className="hint">{o.harness ? `${o.about || 'Claude Code command'} · Claude Code` : o.about}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
       {mention ? (
         <div className="tc-suggest mention-menu" role="listbox">
           {mention.options.map((a, i) => (
@@ -489,6 +611,39 @@ export function ChatView(p: ChatViewProps) {
       {compact ? <Dom make={() => icon('square', 13)} deps={[]} /> : null}Stop
     </button>
   ) : null;
+
+  // your /goal and /loop here (× ends one)
+  const chips =
+    goal || loop ? (
+      <div className={`cmd-chips${compact ? ' compact' : ''}`}>
+        {goal ? (
+          <div className="cmd-chip goal">
+            <Dom make={() => icon('target', 13)} deps={[]} />
+            <span className="cmd-chip-text">
+              <b>Goal: </b>
+              {goal.goal || goal.text}
+            </span>
+            <span className="hint">{goalLine(goal)}</span>
+            <button type="button" className="tc-act" title="Drop this goal" aria-label="Drop this goal" onClick={() => void command('goal', 'clear', false)}>
+              <Dom make={() => icon('x', 12)} deps={[]} />
+            </button>
+          </div>
+        ) : null}
+        {loop ? (
+          <div className="cmd-chip loop">
+            <Dom make={() => icon('repeat', 13)} deps={[]} />
+            <span className="cmd-chip-text">
+              <b>Loop: </b>
+              {loop.text}
+            </span>
+            <span className="hint">{loopLine(loop)}</span>
+            <button type="button" className="tc-act" title="Stop the loop" aria-label="Stop the loop" onClick={() => void command('loop', 'off', false)}>
+              <Dom make={() => icon('x', 12)} deps={[]} />
+            </button>
+          </div>
+        ) : null}
+      </div>
+    ) : null;
 
   // your /queue messages, in the order they will go (× takes one back)
   const queuedList = queued.length ? (
@@ -544,6 +699,7 @@ export function ChatView(p: ChatViewProps) {
           ))}
         </div>
       )}
+      {chips}
       {queuedList}
       <div className={compact ? 'ac-status' : 'status-line'}>
         {statusLine ? (
@@ -580,7 +736,7 @@ export function ChatView(p: ChatViewProps) {
           </div>
           <div className="row between" style={{ maxWidth: '1000px', marginTop: '6px' }}>
             {p.footer ? <Dom make={() => p.footer!} deps={[p.footer]} /> : <span />}
-            <span className="hint">Enter to send · Shift+Enter for a new line · @ to bring in another agent · /queue to send when it’s done</span>
+            <span className="hint">Enter to send · Shift+Enter for a new line · @ to bring in another agent · / for commands</span>
           </div>
         </div>
       )}

@@ -100,7 +100,17 @@ Projects keep separate agents, teams and chats. Use the project name at the top 
 
 Agent and team chats open in floating, resizable windows with tabs. Type **@** in a chat to pick another agent. An agent with **Delegate** enabled can hand that agent part of the work.
 
-To line up your next message while an agent is still working, type `/queue` and the message (for example `/queue then write the tests`) and press Enter. It waits above the box and goes as soon as the agent is done, one queued message at a time. In a team chat it goes when the whole team is done. In Brain chat it goes when the Brain and any agent or team it handed work to are done. Use **×** to take a queued message back. In agent and team chats, **Stop** puts queued messages back in the box instead of sending them. If nothing is working, `/queue` sends the message right away.
+Type **/** in an agent, team or Brain chat to see the commands. They work while the agent is busy:
+
+- `/queue <message>` lines up your next message. It waits above the box and goes once the work going on now is done, one at a time. In a team chat that is when the whole team is done; in Brain chat, when the Brain and anything it handed on are done. **×** takes one back. If nothing is working it goes right away.
+- `/stop` stops the work, like the **Stop** button. Queued messages come back to the box instead of being sent. In Brain chat it also stops the agents and teams the Brain handed work to, and an answer it was still writing changes nothing.
+- `/resume` picks up work that was stopped: the agent carries on where its turn was cut off, a team's interrupted agents start again (also after the team paused at its turn limit), and in Brain chat what the last `/stop` cut off.
+- `/resend` sends your last message again, with its files.
+- `/loop <message>` repeats a message. `/loop 15m check the build` sends it every 15 minutes, never while a turn is still going; `/loop 5x improve the tests` sends it again after each answer, 5 times. A loop runs 10 times unless you say otherwise (at most 100). It shows above the box with **×** to end it; `/loop off` or `/stop` ends it too. Loops last until the dashboard restarts; use a Routine for anything permanent.
+- `/goal <what done looks like>` keeps the work going until it is done. After each turn, the Brain checks the work against your goal and follows up with what is missing, up to 5 times, then says whether the goal was reached. `/goal` alone shows it, `/goal clear` drops it. In Brain chat, the Brain hands the goal to the right agent or team and follows up there.
+- `/compact` (agent chats) shortens the chat; see Long chats.
+
+Commands the dashboard doesn't know go to the agent as you typed them. A Claude Code agent's own commands and skills (from `~/.claude` and its work folder's `.claude`) are listed in the **/** menu too.
 
 When you paste a lot of text (more than 10 lines or 800 characters) into an agent, team or Brain chat, the box shows a short `[Pasted text #1 · 52 lines]` instead, with a chip above it. Click the chip (or the marker) to see what you pasted, copy it, remove it, or put the whole text in the box to change it. Backspace right after the marker removes it. The full text is sent in its place.
 

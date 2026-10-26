@@ -4,8 +4,10 @@ import { h, mount, clear, state, GET, POST, PUT, attempt, md, onEvent, onState, 
 import { openBranchBuilder } from './builder.ts';
 import { icon, logo } from './icons.ts';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.ts';
-import { brainQueue, holdQueue, latestLoad } from './brainqueue.ts';
+import { brainQueue, chatLoop, holdQueue, latestLoad } from './brainqueue.ts';
 import { queuedText } from '../shared/queue.ts';
+import { parseCommand, parseLoop } from '../shared/commands.ts';
+import { commandChips, slashMenu } from './chatcommands.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import { attachTray } from './attach.ts';
 import { pasteBox } from './pastes.ts';
@@ -41,7 +43,14 @@ interface ToolChip {
   status: 'running' | 'done';
   isError?: boolean;
 }
-type UserItem = { id: string; kind: 'user'; text: string; attachments?: string[] };
+/** What a message was sent as (to whom, a /goal?): /resend and /resume send it again the same way. */
+interface Sent {
+  text: string;
+  attachments: string[];
+  target: string;
+  goal?: boolean;
+}
+type UserItem = { id: string; kind: 'user'; text: string; attachments?: string[]; sent?: Sent };
 type NoteItem = { id: string; kind: 'note'; text: Child; busy?: boolean; error?: boolean };
 /** started: its message went, so its turn can be streamed in (web/chat/TurnView) */
 type AgentItem = { id: string; kind: 'agent'; agentId: string; chatId: string; text: string; tools: ToolChip[]; images: string[]; reason: string; done: boolean; status?: string; started?: boolean };
@@ -55,7 +64,7 @@ interface BrainStep {
   output: string;
 }
 /** live: the answer is still streaming in (answer: what it has written so far; steps: the tools it used) */
-type BrainItem = { id: string; kind: 'brain'; answer?: string; done: BrainDone[]; delegate?: BrainDelegate | null; old?: boolean; live?: boolean; steps?: BrainStep[] };
+type BrainItem = { id: string; kind: 'brain'; answer?: string; done: BrainDone[]; delegate?: BrainDelegate | null; old?: boolean; live?: boolean; steps?: BrainStep[]; ask?: Sent };
 type DraftItem = { id: string; kind: 'agent-draft'; agent: AgentDraft; task: string; attachments: string[] };
 /** One message in the Brain chat. */
 type DockItem = UserItem | NoteItem | AgentItem | BranchItem | BrainItem | DraftItem;
@@ -84,6 +93,11 @@ interface Dock {
   pastes?: PasteBox;
   /** Your /queue messages, waiting for the chat to be done. */
   heldEl?: HTMLDivElement;
+  /** Your /loop's chip. */
+  chipsEl?: HTMLDivElement;
+  /** What the last /stop cut off: the Brain's answer it was writing, and the agents and teams working from here. */
+  stoppedAsk?: Sent | null;
+  stoppedWork?: { chats: { agentId: string; chatId: string }[]; teams: string[] } | null;
 }
 
 const D: Dock = { modelEl: null, open: false, target: 'auto', items: [], el: null, list: null, input: null, sel: null, workflows: [], project: null };
@@ -103,7 +117,10 @@ export function initDock(): void {
   D.tray = attachTray({ onChange: () => (D.input!.placeholder = D.tray?.count() ? 'What should be done with these files?' : PLACEHOLDER) });
   D.pastes = pasteBox();
   D.pastes.attach(D.input);
+  const slash = slashMenu(D.input, 'brain', { run: () => void send() });
+  D.input.addEventListener('input', () => slash.update());
   D.input.addEventListener('keydown', (e) => {
+    if (slash.key(e)) return;
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       send();
@@ -119,9 +136,10 @@ export function initDock(): void {
     'div.dock.hidden',
     h('div.dock-head', h('b', icon('brain', 16), 'Brain chat'), h('span.grow'), h('span.dock-to', 'to'), D.sel, D.modelEl, h('button.icon-btn', { onclick: () => openMemory(BRAIN), title: "The Brain's MEMORY.md: what it remembers across conversations", 'aria-label': "The Brain's MEMORY.md" }, icon('file-text', 15)), h('button.icon-btn', { onclick: newConversation, title: 'New conversation (the Brain forgets this chat)', 'aria-label': 'New conversation' }, icon('rotate-ccw', 15)), h('button.icon-btn', { onclick: () => toggle(false), 'aria-label': 'Close' }, '✕')),
     D.list,
+    (D.chipsEl = h('div.cmd-chips.compact.dock-held.hidden')),
     (D.heldEl = h('div.queued-list.compact.dock-held.hidden')),
     h('div.dock-tray-wrap', D.tray.el, D.pastes.el),
-    h('div.dock-compose', D.tray.picker, D.input, h('button.btn', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 15))),
+    h('div.dock-compose', D.tray.picker, h('div.dock-field', D.input, slash.el), h('button.btn', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 15))),
   );
   D.tray.dropZone(D.panel, 'Drop files or folders for the Brain');
   // files dragged onto the launcher open the chat with them
@@ -183,6 +201,7 @@ async function newConversation() {
   if (!(await attempt(() => POST('/brain/clear')))) return;
   brainAsks.reset(); // answers still on their way belong to the old conversation
   held.clear();
+  loop.stop();
   historyLoads.reset();
   D.items = [];
   dropTurns();
@@ -199,6 +218,7 @@ function projectChanged(d: { project?: { id: string } | null }) {
   if (first) return;
   brainAsks.reset();
   held.clear();
+  loop.stop();
   D.items = [];
   dropTurns();
   draw();
@@ -344,8 +364,9 @@ function draw() {
     });
     while (list.childNodes.length > nodes.length) list.lastChild!.remove();
     follow();
-    // something may have finished: a /queue message can go now
+    // something may have finished: a /queue message can go now, then the loop's next one
     held.check();
+    loop.check();
     if (!D.tray?.count()) D.input!.placeholder = dockIdle() ? PLACEHOLDER : 'Working… /queue a message to send when this is done';
   });
 }
@@ -472,10 +493,12 @@ function draftCard(it: DraftItem) {
 interface BrainAsk {
   attachments: string[];
   onUpdate: (m: UIMessage) => void;
+  /** your /goal: the Brain hands it on and follows up until it is met */
+  goal?: boolean;
 }
-async function streamBrainAnswer(text: string, project: string | null, { attachments, onUpdate }: BrainAsk): Promise<BrainAnswer> {
+async function streamBrainAnswer(text: string, project: string | null, { attachments, onUpdate, goal }: BrainAsk): Promise<BrainAnswer> {
   const [{ readUIMessageStream }, { brainTransport }] = await Promise.all([import('ai'), import('./chat/transport.ts')]);
-  const stream = await brainTransport({ text, project, attachments }).sendMessages({ chatId: 'brain', messages: [], trigger: 'submit-message', messageId: undefined, abortSignal: undefined });
+  const stream = await brainTransport({ text, project, attachments, ...(goal ? { goal: true } : {}) }).sendMessages({ chatId: 'brain', messages: [], trigger: 'submit-message', messageId: undefined, abortSignal: undefined });
   let answer: BrainAnswer | null = null;
   const errors: string[] = [];
   for await (const m of readUIMessageStream({ stream, onError: (e) => errors.push((e as Error).message || String(e)) })) {
@@ -506,6 +529,14 @@ let sending = false;
 async function send(given: string[] = []) {
   const input = D.input!;
   const tray = D.tray!;
+  // /stop, /resume, /resend, /goal: done now (files in the tray stay for your next message)
+  // (with pasted text put back: a long goal pasted in goes in full)
+  const now = parseCommand(D.pastes!.text(), 'brain');
+  if (now && ['stop', 'resume', 'resend', 'goal'].includes(now.name)) {
+    input.value = '';
+    D.pastes!.sync();
+    return command(now.name, now.rest);
+  }
   if ((!input.value.trim() && !tray.count() && !given.length) || sending) return;
   sending = true;
   let attachments: string[] | null;
@@ -524,6 +555,27 @@ async function send(given: string[] = []) {
   attachments = [...given, ...attachments];
   // what is in the box now (more may have been typed while the files uploaded)
   const typed = D.pastes!.text().trim();
+  // "/loop [15m] [5x] …" (with the files), or /loop off
+  const cmd = parseCommand(typed, 'brain');
+  if (cmd?.name === 'loop') {
+    if (/^(off|stop|end|cancel)$/i.test(cmd.rest)) {
+      input.value = '';
+      D.pastes!.sync();
+      return void (loop.stop() ? add({ kind: 'note', text: 'Loop stopped.' }) : toast('No loop is going here.'));
+    }
+    const spec = parseLoop(cmd.rest);
+    if ('error' in spec) return toast(spec.error);
+    if (D.target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Try again in a moment.');
+    input.value = '';
+    D.pastes!.sync();
+    tray.take();
+    return loop.start(spec, { attachments, target: D.target });
+  }
+  if (cmd && cmd.name !== 'queue') {
+    input.value = '';
+    D.pastes!.sync();
+    return command(cmd.name, cmd.rest);
+  }
   // "/queue …": waits until everything in this chat is done (goes now if nothing is working)
   const queued = queuedText(typed);
   const text = queued ?? typed;
@@ -543,6 +595,7 @@ async function send(given: string[] = []) {
 interface HeldExtra {
   attachments: string[];
   target: string;
+  goal?: boolean;
 }
 let pending = 0;
 async function track(work: () => Promise<unknown>): Promise<void> {
@@ -556,7 +609,66 @@ async function track(work: () => Promise<unknown>): Promise<void> {
 }
 const working = (it: DockItem) => (it.kind === 'brain' && !!it.live) || (it.kind === 'agent' && !it.done) || (it.kind === 'branch' && !!(it.working.length || it.next?.length));
 const dockIdle = () => !pending && !D.items.some(working);
-const held = holdQueue<HeldExtra>({ idle: dockIdle, send: (m) => track(() => dispatch(m.text, m.extra.attachments, m.extra.target)), onChange: () => drawHeld() });
+const held = holdQueue<HeldExtra>({ idle: dockIdle, send: (m) => track(() => dispatch(m.text, m.extra.attachments, m.extra.target, { goal: m.extra.goal })), onChange: () => drawHeld() });
+// /loop: kept in the page; a due one waits for /queue messages and for the chat to be idle
+const loop = chatLoop<HeldExtra>({
+  idle: () => dockIdle() && !held.items().length,
+  send: (text, x) => track(() => dispatch(text, x.attachments, x.target)),
+  onChange: () => drawChips(),
+  onEnd: (l) => add({ kind: 'note', text: `Loop done: sent ${l.times} time${l.times > 1 ? 's' : ''}.` }),
+});
+function drawChips() {
+  if (!D.chipsEl) return;
+  commandChips(D.chipsEl, { loop: loop.info(), goal: null, onStopLoop: () => loop.stop() && add({ kind: 'note', text: 'Loop stopped.' }), onClearGoal: () => {} });
+}
+
+// ---------- /stop, /resume, /resend, /goal ----------
+async function command(name: string, rest: string) {
+  if (name === 'stop') return brainStop();
+  if (name === 'resume') return brainResume();
+  if (name === 'resend') {
+    const last = D.items.findLast((x): x is UserItem => x.kind === 'user' && !!x.sent)?.sent;
+    if (!last) return toast('Nothing to send again yet.');
+    return void held.add(last.text, { attachments: last.attachments, target: last.target, goal: last.goal });
+  }
+  if (name === 'goal') {
+    if (!rest) return toast('Type /goal and what done looks like. The Brain hands it on and follows up until it is met.');
+    if (D.target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Try again in a moment.');
+    // (waits like a /queue message if something is working)
+    return void held.add(rest, { attachments: [], target: D.target, goal: true });
+  }
+}
+
+// /stop: the answer the Brain is writing (it changes nothing), your waiting messages (back to the box),
+// the loop, and the agents and teams working from here.
+async function brainStop() {
+  const live = D.items.filter((x): x is BrainItem => x.kind === 'brain' && !!x.live);
+  D.stoppedAsk = live.find((x) => x.ask)?.ask || null;
+  brainAsks.reset();
+  for (const x of live) D.items.splice(D.items.indexOf(x), 1);
+  const back = held.clear();
+  if (back.length) D.pastes!.restore(back.map((m) => m.text).filter(Boolean).join('\n\n'));
+  const looped = loop.stop();
+  const chats = D.items.filter((x): x is AgentItem => x.kind === 'agent' && !x.done).map((x) => ({ agentId: x.agentId, chatId: x.chatId }));
+  const teams = [...new Set(D.items.filter((x): x is BranchItem => x.kind === 'branch' && !!(x.working.length || x.next?.length)).map((x) => x.wfId))];
+  D.stoppedWork = { chats, teams };
+  const r = await attempt(() => POST<{ stopped: string[] }>('/brain/stop', { chats, teams }));
+  const what = [live.length ? 'the Brain' : '', ...(r?.stopped || []), looped ? 'the loop' : ''].filter(Boolean);
+  add({ kind: 'note', text: what.length ? `Stopped ${what.join(', ')}. /resume picks it up again.` : 'Nothing was working.' });
+}
+
+// /resume: the answer /stop cut off is asked again; the agents and teams it stopped carry on.
+async function brainResume() {
+  const ask = D.stoppedAsk;
+  D.stoppedAsk = null;
+  if (ask) void track(() => dispatch(ask.text, ask.attachments, ask.target, { goal: ask.goal }));
+  const r = await POST<{ resumed: string[]; chats: string[] }>('/brain/resume', D.stoppedWork || {}).catch((e: Error) => e);
+  if (r instanceof Error) return void (ask || toast(r.message || 'Nothing to resume.'));
+  D.stoppedWork = null;
+  // (they work again: the chat waits for them before a /queue message or the loop's next one)
+  for (const x of D.items) if (x.kind === 'agent' && r.chats.includes(x.chatId)) x.done = false;
+  add({ kind: 'note', text: `Resumed: ${r.resumed.join(', ')}.` });
+}
 
 function targetName(t: string): string {
   if (t.startsWith('a:')) return state.data?.agents.find((a) => a.id === t.slice(2))?.name || 'an agent';
@@ -584,16 +696,19 @@ function drawHeld() {
 }
 
 // Sends one message: to the chosen agent or team, or to the Brain (which may hand it on).
-async function dispatch(text: string, attachments: string[], t: string) {
-  add({ kind: 'user', text, attachments });
-  if (t.startsWith('a:')) return toAgent(t.slice(2), text, '', attachments);
-  if (t.startsWith('b:')) return toBranch(t.slice(2), text, '', attachments);
-  if (t === 'new-agent') return newAgent(text, attachments);
-  if (t === 'new-branch') return newBranch(text, attachments);
+// goal: your /goal: an agent or team gets it as its goal; the Brain hands it on and follows up.
+async function dispatch(text: string, attachments: string[], t: string, { goal = false }: { goal?: boolean } = {}) {
+  const sent: Sent = { text, attachments, target: t, ...(goal ? { goal } : {}) };
+  add({ kind: 'user', text: goal ? `Goal: ${text}` : text, attachments, sent });
+  if (t.startsWith('a:')) return toAgent(t.slice(2), text, goal ? 'goal' : '', attachments, goal);
+  if (t.startsWith('b:')) return toBranch(t.slice(2), text, goal ? 'goal' : '', attachments, goal);
+  if (t === 'new-agent' && !goal) return newAgent(text, attachments);
+  if (t === 'new-branch' && !goal) return newBranch(text, attachments);
   // The Brain: answers, changes the roster, or hands the work on
   // its answer streams into this message as it is written
-  const live = add({ kind: 'brain', answer: '', done: [], live: true, steps: [] }) as BrainItem;
+  const live = add({ kind: 'brain', answer: '', done: [], live: true, steps: [], ask: sent }) as BrainItem;
   const turn = await brainAsks.ask(text, D.project || openProject(), () => D.project || openProject(), {
+    goal,
     attachments,
     onUpdate: (m) => {
       if (!D.items.includes(live)) return;
@@ -618,6 +733,7 @@ async function dispatch(text: string, attachments: string[], t: string) {
   }
   // the server already handed it on, as the Brain: follow the agent's chat or the team's thread here
   const d = r.delegate;
+  if (goal && !d) add({ kind: 'note', text: "The Brain didn't hand this goal to anyone, so there is nothing to follow up. Pick an agent or team above, or ask it to hand it on." });
   if (d?.kind === 'agent' && d.sent?.chatId) {
     const chatId = d.sent.chatId;
     const it = add({ kind: 'agent', agentId: d.id, chatId, text: '', tools: [], images: [], reason: 'from the Brain', done: false, started: true });
@@ -650,11 +766,12 @@ export function mergeTeamMessages(it: Pick<BranchItem, 'messages' | 'since' | 'b
   it.messages.sort((a, b) => a.ts - b.ts);
 }
 
-async function toAgent(agentId: string, text: string, reason = '', attachments: string[] = []) {
+// goal: sent as its /goal (the Brain checks each turn and follows up)
+async function toAgent(agentId: string, text: string, reason = '', attachments: string[] = [], goal = false) {
   const c = await attempt(() => POST<Chat>(`/agents/${agentId}/chats`));
   if (!c) return;
   const it = add({ kind: 'agent', agentId, chatId: c.id, text: '', tools: [], images: [], reason, done: false });
-  const r = await attempt(() => POST(`/agents/${agentId}/chats/${c.id}/messages`, { text, attachments }));
+  const r = await attempt(() => (goal ? POST(`/agents/${agentId}/chats/${c.id}/goal`, { text }) : POST(`/agents/${agentId}/chats/${c.id}/messages`, { text, attachments })));
   if (!r) {
     it.done = true;
     it.text = '(could not start)';
@@ -662,10 +779,14 @@ async function toAgent(agentId: string, text: string, reason = '', attachments: 
   draw();
 }
 
-async function toBranch(wfId: string, text: string, reason = '', attachments: string[] = []) {
+async function toBranch(wfId: string, text: string, reason = '', attachments: string[] = [], goal = false) {
   const wf = D.workflows.find((w) => w.id === wfId);
   // (shown before it is sent, so it hears who starts working: the team starts before the reply comes)
   const it = add({ kind: 'branch', wfId, name: wf?.name || 'Team', reason, since: Date.now(), messages: [], working: [] });
+  if (goal) {
+    if (!(await attempt(() => POST(`/teams/${wfId}/goal`, { text })))) D.items.splice(D.items.indexOf(it), 1);
+    return draw();
+  }
   const msg = await attempt(() => POST<TeamMessage>(`/teams/${wfId}/messages`, { text, attachments }));
   if (!msg) {
     D.items.splice(D.items.indexOf(it), 1);

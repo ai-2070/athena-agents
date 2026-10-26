@@ -320,6 +320,12 @@ function remember(msgs: BrainChatMessage[], pid?: string) {
 // that its conversation is gone and doesn't write it back.
 const generations = new Map<string, number>();
 const generation = (pid: string) => generations.get(pid) || 0;
+// /stop in the Brain chat: answers being written when it came change nothing and aren't kept
+const stops = new Map<string, number>();
+const stopCount = (pid: string) => stops.get(pid) || 0;
+export function stopAsks(pid = activeProject().id): void {
+  stops.set(pid, stopCount(pid) + 1);
+}
 export function clearHistory(pid = activeProject().id) {
   generations.set(pid, generation(pid) + 1);
   remember([], pid);
@@ -1140,10 +1146,12 @@ export function checkProject(project: string | null | undefined): void {
 
 /** project: the project the message was typed in. A message that waited while you switched projects is refused.
  *  attachments: files the user attached (paths in uploads/). onPart: what it does as it happens (streamed). */
-export async function ask(text: string, { project, attachments = [], onPart }: { project?: string | null; attachments?: string[]; onPart?: (p: BrainPart) => void } = {}): Promise<BrainAnswer> {
+// goal: your /goal: the Brain hands it on and follows up until it is met (see irc.ts)
+export async function ask(text: string, { project, attachments = [], onPart, goal = false }: { project?: string | null; attachments?: string[]; onPart?: (p: BrainPart) => void; goal?: boolean } = {}): Promise<BrainAnswer> {
   checkProject(project);
   const p = activeProject();
   const gen = generation(p.id);
+  const stopsAtStart = stopCount(p.id);
   const switchesAtStart = projectSwitches();
   const bm = brainModel();
   const canRead = bm.provider === 'claude' || bm.provider === 'codex';
@@ -1160,7 +1168,8 @@ export async function ask(text: string, { project, attachments = [], onPart }: {
   const named = skillTexts(skillsNamedIn([text, ...past.slice(-4).map((m) => m.text)].join('\n')).filter((slug) => !own.some((sk) => sk.slug === slug)));
   const seenSkills = new Set([...ownSkillsShown(own).seen, ...named.seen]);
   const system = SYSTEM(p.name, canRead, own, brainMemoryContext(p.id));
-  const prompt = `SNAPSHOT\n${snap}${named.text}\n\n${catalog()}${convo}${earlierFiles}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}`;
+  const goalNote = goal ? `\n\n(The user set this as a GOAL with /goal: hand it to the agent or team best placed to do it, with a clear brief. You will check their work against it after each turn and follow up until it is met.)` : '';
+  const prompt = `SNAPSHOT\n${snap}${named.text}\n\n${catalog()}${convo}${earlierFiles}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}${goalNote}`;
   const opts = { tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '', cwd: ensureBrain(p), timeout: 180000, maxTokens: 4000, onPart };
   let parsed = parseActions(await think(system, prompt, opts));
   // it asked to open skills or look up models: give it what it asked for and let it answer again (once)
@@ -1177,6 +1186,11 @@ export async function ask(text: string, { project, attachments = [], onPart }: {
     parsed = parseActions(await think(system, again, opts));
   }
   parsed.actions = parsed.actions.filter((a) => actionKind(a) !== 'read_skill' && actionKind(a) !== 'find_models');
+  // you stopped it while it thought: change nothing, keep nothing
+  if (stopCount(p.id) !== stopsAtStart) {
+    const dropped: BrainDone = { kind: 'error', text: 'You stopped the Brain, so nothing was changed.' };
+    return { answer: parsed.answer, done: [dropped], delegate: null, model: bm, project: p.name };
+  }
   // you started a new conversation while it thought: this answer belongs to the old one, so change nothing and don't bring it back
   if (generation(p.id) !== gen) {
     const dropped: BrainDone = { kind: 'error', text: 'You started a new conversation while the Brain was thinking, so nothing was changed.' };
@@ -1204,7 +1218,7 @@ export async function ask(text: string, { project, attachments = [], onPart }: {
   if (delegate) {
     try {
       const { sendBrief } = await import('./irc.ts');
-      await sendBrief(delegate);
+      await sendBrief(delegate, goal ? { goal: text } : {});
     } catch (e) {
       done.push({ kind: 'error', text: `Couldn't hand it to ${delegate.name}: ${(e as Error).message}` });
       delegate = null;

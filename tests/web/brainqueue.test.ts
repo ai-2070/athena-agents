@@ -1,6 +1,6 @@
 // Brain messages wait their turn, and belong to the project and conversation they were typed in.
-import { describe, expect, it } from 'vitest';
-import { brainQueue, holdQueue, latestLoad } from '../../web/brainqueue.ts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { brainQueue, chatLoop, holdQueue, latestLoad } from '../../web/brainqueue.ts';
 
 // a fake server: each request waits until the test answers it
 function fakeServer() {
@@ -187,5 +187,60 @@ describe('holdQueue() (/queue in the Brain chat)', () => {
     await tick();
     await tick();
     expect(sent).toEqual(['bad', 'good']);
+  });
+});
+
+describe('chatLoop() (/loop in the Brain chat)', () => {
+  afterEach(() => vi.useRealTimers());
+  function setup() {
+    let busy = false;
+    const sent: { text: string; done: () => void }[] = [];
+    const ended: number[] = [];
+    const loop = chatLoop<string>({
+      idle: () => !busy,
+      send: (text, extra) => new Promise<void>((done) => sent.push({ text: `${text}→${extra}`, done })),
+      onChange: () => {},
+      onEnd: (l) => ended.push(l.done),
+    });
+    return { loop, sent, ended, setBusy: (b: boolean) => (busy = b) };
+  }
+
+  it('sends again once the last one is done and the chat is idle, the set number of times', async () => {
+    const c = setup();
+    c.loop.start({ text: 'again', every: null, times: 2 }, 'brain');
+    expect(c.sent.map((s) => s.text)).toEqual(['again→brain']);
+    expect(c.loop.info()).toMatchObject({ done: 1, times: 2 });
+    // what it handed on is still working: the next one waits
+    c.setBusy(true);
+    c.sent[0].done();
+    await tick();
+    expect(c.sent).toHaveLength(1);
+    c.setBusy(false);
+    c.loop.check();
+    expect(c.sent).toHaveLength(2);
+    c.sent[1].done();
+    await tick();
+    expect(c.ended).toEqual([2]);
+    expect(c.loop.info()).toBeNull();
+  });
+
+  it('a timed loop sends when the time comes, waiting for the chat if it is busy; stop() ends it', async () => {
+    vi.useFakeTimers();
+    const c = setup();
+    c.loop.start({ text: 'ping', every: 60_000, times: 5 }, 'x');
+    c.sent[0].done();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(c.sent).toHaveLength(1);
+    expect(c.loop.info()!.next).toBeGreaterThan(Date.now());
+    c.setBusy(true);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(c.sent).toHaveLength(1);
+    c.setBusy(false);
+    c.loop.check();
+    expect(c.sent).toHaveLength(2);
+    expect(c.loop.stop()).toBe(true);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(c.sent).toHaveLength(2);
+    expect(c.loop.stop()).toBe(false);
   });
 });

@@ -80,6 +80,7 @@ beforeEach(() => {
     if (url === '/api/agents/a1/chats/c1/stream' && method === 'GET') return resumeStream ? resumeStream.response() : new Response(null, { status: 204 });
     if (url === '/api/agents/a1/chats/c1/compact') return json({ compacted: true, item: {} });
     if (url === '/api/agents/a1/chats/c1/stop') return json({ ok: true, unqueued: unqueuedOnStop });
+    if (url === '/api/agents/a1/commands') return json([{ name: 'review', about: 'Review the changes' }]);
     if (url === '/api/files/info') return json((body.paths as string[]).map((p) => ({ path: p, ok: p === '/w/render.png', kind: 'image', name: 'render.png', size: 10, modified: 0 })));
     return json({});
   });
@@ -306,6 +307,63 @@ describe('the agent chat (AI SDK)', () => {
     await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'Stop')!.click());
     await settle();
     expect(el.querySelector('textarea')!.value).toBe('later one\n\nlater two');
+  });
+
+  it('typing "/" suggests the commands, then the agent’s own Claude Code ones', async () => {
+    const el = await open();
+    const box = el.querySelector('textarea')!;
+    box.value = '/';
+    await act(async () => box.dispatchEvent(new Event('input', { bubbles: true })));
+    const names = [...el.querySelectorAll('.slash-menu .slash-name')].map((n) => n.textContent);
+    expect(names).toEqual(['/queue', '/stop', '/resume', '/resend', '/loop', '/goal', '/compact', '/review']);
+    expect(el.querySelector('.slash-menu')!.textContent).toContain('Review the changes · Claude Code');
+    // a harness command goes in with a space, for what comes after it
+    box.value = '/rev';
+    await act(async () => box.dispatchEvent(new Event('input', { bubbles: true })));
+    await act(async () => box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(box.value).toBe('/review ');
+    expect(requests.some((r) => r.method === 'POST' && r.url.endsWith('/stream'))).toBe(false);
+  });
+
+  it('/resume, /loop and /goal go to the server even while it works; the loop and goal show as chips', async () => {
+    const el = await open();
+    await type(el, 'go');
+    await settle();
+    await type(el, '/resume');
+    await settle();
+    expect(requests.some((r) => r.method === 'POST' && r.url === '/api/agents/a1/chats/c1/resume')).toBe(true);
+    await type(el, '/loop 15m check CI');
+    await settle();
+    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/loop')!.body).toEqual({ text: '15m check CI', attachments: [] });
+    await wsEvent({ type: 'loop', agentId: 'a1', chatId: 'c1', loop: { text: 'check CI', every: 900_000, times: 10, done: 1, next: null } });
+    expect(el.querySelector('.cmd-chip.loop')!.textContent).toContain('every 15m · 1 of 10 sent');
+    await type(el, '/goal the build is green');
+    await settle();
+    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/goal')!.body).toEqual({ text: 'the build is green' });
+    await wsEvent({ type: 'brief', projectId: 'p', brief: { id: 'b1', kind: 'agent', targetId: 'a1', chatId: 'c1', name: 'Renderer', text: 'the build is green', goal: 'the build is green', ts: 0, followUps: 1, status: 'open' } });
+    expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('Goal: the build is green');
+    expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('1 of 5 follow-ups');
+    // × on the loop ends it (and leaves what you are typing alone)
+    el.querySelector('textarea')!.value = 'half a thought';
+    await act(async () => (el.querySelector('.cmd-chip.loop button') as HTMLButtonElement).click());
+    await settle();
+    expect(el.querySelector('textarea')!.value).toBe('half a thought');
+    expect(requests.filter((r) => r.url === '/api/agents/a1/chats/c1/loop').at(-1)!.body).toEqual({ text: 'off', attachments: [] });
+    // the goal reached: its chip goes
+    await wsEvent({ type: 'brief', projectId: 'p', brief: { id: 'b1', kind: 'agent', targetId: 'a1', chatId: 'c1', name: 'Renderer', text: 'x', goal: 'x', ts: 0, followUps: 1, status: 'done' } });
+    expect(el.querySelector('.cmd-chip.goal')).toBeNull();
+    // none of them was sent to the agent as a message
+    expect(requests.filter((r) => r.method === 'POST' && r.url.endsWith('/stream'))).toHaveLength(1);
+  });
+
+  it('/stop stops it like the button', async () => {
+    const el = await open();
+    await type(el, 'go');
+    await settle();
+    await type(el, '/stop');
+    await settle();
+    expect(requests.some((r) => r.method === 'POST' && r.url === '/api/agents/a1/chats/c1/stop')).toBe(true);
+    expect(el.querySelector('textarea')!.value).toBe('');
   });
 
   it('the mini version (the Station panel): the last messages, tool calls still open', async () => {

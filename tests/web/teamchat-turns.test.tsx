@@ -209,4 +209,38 @@ describe('team chat turns', () => {
     await settle();
     expect(box.value).toBe('and a logo');
   });
+
+  it('/ commands: the menu, /goal and /loop go to the server, the loop and goal show as chips', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    const box = el.querySelector('textarea')!;
+    const enter = () => act(async () => box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    box.value = '/go';
+    box.dispatchEvent(new Event('input'));
+    expect([...el.querySelectorAll('.slash-menu .slash-name')].map((n) => n.textContent)).toEqual(['/goal']);
+    box.value = '/goal a launch plan everyone signed off';
+    box.dispatchEvent(new Event('input'));
+    await enter();
+    await settle();
+    expect(bodies['/api/teams/t1/goal']).toEqual({ text: 'a launch plan everyone signed off' });
+    box.value = '/loop 2x status please';
+    await enter();
+    await settle();
+    expect(bodies['/api/teams/t1/loop']).toEqual({ text: '2x status please', attachments: [] });
+    expect(requests).not.toContain('POST /api/teams/t1/messages');
+    await teamEvent({ kind: 'state', working: ['lead'], queued: [], held: [], loop: { text: 'status please', every: null, times: 2, done: 1, next: null } });
+    await act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'brief', ts: 0, brief: { id: 'b1', kind: 'team', targetId: 't1', name: 'Thumbs', text: 'x', goal: 'a launch plan everyone signed off', ts: 0, followUps: 0, status: 'open' } }) }));
+    await settle();
+    expect(el.querySelector('.cmd-chip.loop')!.textContent).toContain('after each answer · 1 of 2 sent');
+    expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('Goal: a launch plan everyone signed off');
+    (el.querySelector('.cmd-chip.loop button') as HTMLButtonElement).click();
+    await settle();
+    expect(requests).toContain('DELETE /api/teams/t1/loop');
+    box.value = '/resume';
+    await enter();
+    await settle();
+    expect(requests).toContain('POST /api/teams/t1/resume');
+  });
 });

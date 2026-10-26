@@ -26,6 +26,8 @@ import { removeArtifact } from './artifacts.ts';
 import * as library from './library.ts';
 import { isEffort } from '../shared/effort.ts';
 import { queuedText } from '../shared/queue.ts';
+import * as commands from './commands.ts';
+import { openGoal } from './briefs.ts';
 import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
@@ -246,16 +248,19 @@ post<{ text?: unknown; project?: unknown; attachments?: unknown }>('/api/brain/a
 });
 // The same, streamed (Vercel AI SDK UI message stream): the answer as it is written, the files the
 // Brain reads, then the whole answer (data-answer). The Brain chat reads it with the AI SDK.
-post<{ text?: unknown; project?: unknown; attachments?: unknown }>('/api/brain/stream', async (_p, body, _q, res) => {
+post<{ text?: unknown; project?: unknown; attachments?: unknown; goal?: unknown }>('/api/brain/stream', async (_p, body, _q, res) => {
   const attachments = uploads.cleanAttachments(body.attachments);
   const text = String(body.text || '').trim().slice(0, 20000);
   if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
   const project = typeof body.project === 'string' ? body.project : null;
   // (refused before the stream starts, so it comes back as an error the chat can show)
   overseer.checkProject(project);
-  await uistream.streamBrain(res, (onPart) => overseer.ask(text, { project, attachments, onPart }));
+  await uistream.streamBrain(res, (onPart) => overseer.ask(text, { project, attachments, onPart, goal: body.goal === true }));
   return undefined;
 });
+// /stop and /resume in the Brain chat (with the agent chats and teams it shows working)
+post<commands.BrainWork>('/api/brain/stop', async (_p, body) => commands.stopBrain(body));
+post<commands.BrainWork>('/api/brain/resume', async (_p, body) => commands.resumeBrain(body));
 get('/api/brain/history', async () => overseer.history());
 post('/api/brain/clear', async () => (overseer.clearHistory(), { ok: true }));
 get('/api/brain/snapshot', async () => ({ text: await overseer.snapshot() }));
@@ -346,8 +351,8 @@ del('/api/agents/:id/knowledge', async ({ id }, _b, q) => {
 // chats
 get('/api/agents/:id/chats', async ({ id }) => chats.list(id));
 post('/api/agents/:id/chats', async ({ id }) => chats.create(need(agents.get(id)).id));
-// (with your /queue messages still waiting)
-get('/api/agents/:id/chats/:cid', async ({ id, cid }) => ({ ...need(chats.get(id, cid)), queued: engines.queuedMessages(cid) }));
+// (with your /queue messages still waiting, and your /loop and /goal there)
+get('/api/agents/:id/chats/:cid', async ({ id, cid }) => ({ ...need(chats.get(id, cid)), queued: engines.queuedMessages(cid), loop: engines.loopOf(cid), goal: openGoal('agent', id, cid) }));
 del('/api/agents/:id/chats/:cid', async ({ id, cid }) => {
   engines.forgetChat(cid);
   chats.remove(id, cid);
@@ -390,6 +395,15 @@ post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/queu
   queueIn(need(agents.get(id)), need(chats.get(id, cid)), String(body.text || '').trim(), uploads.cleanAttachments(body.attachments)),
 );
 del('/api/agents/:id/chats/:cid/queue/:qid', async ({ cid, qid }) => ({ unqueued: engines.unqueue(cid, qid) }));
+// the other / commands (server/commands.ts)
+post('/api/agents/:id/chats/:cid/resend', async ({ id, cid }) => commands.resendInChat(id, cid));
+post('/api/agents/:id/chats/:cid/resume', async ({ id, cid }) => commands.resumeInChat(id, cid));
+post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/loop', async ({ id, cid }, body) => commands.loopInChat(id, cid, String(body.text ?? ''), uploads.cleanAttachments(body.attachments)));
+del('/api/agents/:id/chats/:cid/loop', async ({ cid }) => ({ ok: engines.stopLoop(cid, 'Loop stopped.') }));
+post<{ text?: unknown }>('/api/agents/:id/chats/:cid/goal', async ({ id, cid }, body) => commands.goalInChat(id, cid, String(body.text ?? '').trim().slice(0, 4000)));
+del('/api/agents/:id/chats/:cid/goal', async ({ id, cid }) => commands.goalInChat(id, cid, 'clear'));
+// the harness's own / commands (a Claude Code agent's), for the / menu
+get('/api/agents/:id/commands', async ({ id }) => commands.harnessCommands(need(agents.get(id)).id));
 // The chat views (Vercel AI SDK useChat): send a message and stream its run as a UI message stream,
 // or pick up the run going in a chat (the turn so far, then the rest; 204 when nothing runs).
 post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, body, _q, res) => {
@@ -420,8 +434,9 @@ post<{ mode?: unknown }>('/api/agents/:id/chats/:cid/compact', async ({ id, cid 
 get('/api/agents/:id/chats/:cid/memory', async ({ id, cid }) => engines.memoryOf(need(agents.get(id)), cid));
 put<{ text?: unknown }>('/api/agents/:id/chats/:cid/compactions/:kid', async ({ id, cid, kid }, body) => engines.editCompaction(id, cid, kid, String(body.text ?? '')));
 post('/api/agents/:id/chats/:cid/stop', async ({ cid }) => {
-  // the /queue messages come back to you (they'd otherwise start as soon as it stopped)
+  // the /queue messages come back to you (they'd otherwise start as soon as it stopped); a loop ends
   const unqueued = engines.unqueue(cid);
+  engines.stopLoop(cid, 'Loop stopped.');
   engines.stopChat(cid);
   return { ok: true, unqueued };
 });
@@ -719,11 +734,17 @@ post<{ input?: string }>('/api/workflows/:id/run', async ({ id }, body) =>
   teams.isStepList(need(workflows.get(id))) ? wfs.startWorkflow(id, body.input || '') : teams.postUserMessage(id, body.input || 'Go ahead.', { route: brain.pickMember }),
 );
 // ---------- team chats ----------
-get('/api/teams/:id/chat', async ({ id }) => ({ team: need(teams.getTeam(id)), ...teams.getThread(id) }));
+get('/api/teams/:id/chat', async ({ id }) => ({ team: need(teams.getTeam(id)), ...teams.getThread(id), goal: openGoal('team', id) }));
 post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/teams/:id/messages', async ({ id }, body) => teams.postUserMessage(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember, attachments: uploads.cleanAttachments(body.attachments) }));
 // /queue: posted once nobody in the team is working (now, if nobody is)
 post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/teams/:id/queue', async ({ id }, body) => teams.queueUserMessage(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember, attachments: uploads.cleanAttachments(body.attachments) }));
 del('/api/teams/:id/queue/:qid', async ({ id, qid }) => ({ unqueued: teams.unqueueTeam(need(teams.getTeam(id)).id, qid) }));
+post('/api/teams/:id/resend', async ({ id }) => commands.resendInTeam(id));
+post('/api/teams/:id/resume', async ({ id }) => commands.resumeInTeam(id));
+post<{ text?: unknown; attachments?: unknown }>('/api/teams/:id/loop', async ({ id }, body) => commands.loopInTeam(id, String(body.text ?? ''), uploads.cleanAttachments(body.attachments)));
+del('/api/teams/:id/loop', async ({ id }) => ({ ok: teams.stopTeamLoop(need(teams.getTeam(id)).id, 'Loop stopped.') }));
+post<{ text?: unknown }>('/api/teams/:id/goal', async ({ id }, body) => commands.goalInTeam(id, String(body.text ?? '').trim().slice(0, 4000)));
+del('/api/teams/:id/goal', async ({ id }) => commands.goalInTeam(id, 'clear'));
 post('/api/teams/:id/stop', async ({ id }) => {
   const teamId = need(teams.getTeam(id)).id;
   // the held /queue messages come back to you

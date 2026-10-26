@@ -108,6 +108,21 @@ export interface TeamState {
   queued: string[];
   /** your /queue messages, posted one by one once nobody is working */
   held?: QueuedMessage[];
+  /** your /loop, while it goes */
+  loop?: LoopInfo | null;
+  /** /resume would pick something up (the team was stopped or paused) */
+  resumable?: boolean;
+}
+
+/** A /loop going in a chat: the message sent again every so often (every, in ms) or after each answer. */
+export interface LoopInfo {
+  text: string;
+  every: number | null;
+  times: number;
+  /** how many were sent so far */
+  done: number;
+  /** when the next one is due (timed loops), if known */
+  next: number | null;
 }
 
 /** A message typed with /queue: it waits until the agent or team is done, then goes as usual. */
@@ -117,6 +132,8 @@ export interface QueuedMessage {
   attachments?: string[];
   /** (team chats) the message it answers */
   replyTo?: string | null;
+  /** who it is from when not you (e.g. the Brain following up on a goal) */
+  from?: string;
   ts: number;
 }
 
@@ -283,6 +300,10 @@ export interface Chat {
   _deleted?: boolean;
   /** Your /queue messages for when the current run is done (kept in memory; GET adds them, never saved). */
   queued?: QueuedMessage[];
+  /** Your /loop here, while it goes (GET adds it). */
+  loop?: LoopInfo | null;
+  /** Your /goal here, while the Brain follows it (GET adds it). */
+  goal?: BrainBrief | null;
 }
 
 export interface ChatSummary {
@@ -681,8 +702,12 @@ export interface BrainBrief {
   messageId?: string;
   chatId?: string;
   followUps: number;
-  /** open: working on it. done: finished (or needs you). stuck: not done after the follow-ups. stopped: you stopped it. replaced: a newer brief went to the same team or agent. */
-  status: 'open' | 'done' | 'stuck' | 'stopped' | 'replaced';
+  /** open: working on it. done: finished (or needs you). stuck: not done after the follow-ups. stopped: you stopped it. replaced: a newer brief went to the same team or agent. cleared: you dropped the goal. */
+  status: 'open' | 'done' | 'stuck' | 'stopped' | 'replaced' | 'cleared';
+  /** your /goal: the Brain judges the work against it, and follows up more times */
+  goal?: string;
+  /** chat: set with /goal in the agent's or team's own chat (the Brain reports there, not in the Brain chat) */
+  origin?: 'chat';
   /** the Brain's last word on it, for you */
   summary?: string;
   updatedAt?: number;

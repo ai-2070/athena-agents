@@ -36,6 +36,6 @@ export function chatTransport(agentId: string, chatId: () => string | null): Def
 }
 
 /** The Brain: one question, its answer streamed (server/uistream.ts streamBrain). */
-export function brainTransport(body: { text: string; project: string | null; attachments: string[] }): DefaultChatTransport<UIMessage> {
+export function brainTransport(body: { text: string; project: string | null; attachments: string[]; goal?: boolean }): DefaultChatTransport<UIMessage> {
   return new DefaultChatTransport<UIMessage>({ api: '/api/brain/stream', headers: { 'x-dash': '1' }, fetch: dashFetch, prepareSendMessagesRequest: () => ({ body }) });
 }
