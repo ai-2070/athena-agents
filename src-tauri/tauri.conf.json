@@ -17,7 +17,7 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZDNjExRTEzOUM4RERCM0QKUldROTI0MmNFeDVoYkxSSlJxc2JIYitSKzFaeWdvU0VBcUtmTWxrdlQvWDdiQ0hMRGtkOFNhWUkK",
-      "endpoints": ["https://github.com/ai-2070/ai-dashboard/releases/latest/download/latest.json"],
+      "endpoints": ["https://github.com/ai-2070/blacksite/releases/latest/download/latest.json"],
       "windows": { "installMode": "passive" }
     }
   },
@@ -31,7 +31,7 @@
     "shortDescription": "A local command center for AI agents",
     "longDescription": "Run AI agents and teams from one local workspace. Give each agent a role, a model and the tools it needs. Its server and saved state stay on your computer.",
     "copyright": "ai-2070",
-    "homepage": "https://github.com/ai-2070/ai-dashboard",
+    "homepage": "https://github.com/ai-2070/blacksite",
     "windows": {
       "nsis": { "installMode": "currentUser" }
     },
