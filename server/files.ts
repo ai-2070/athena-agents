@@ -14,7 +14,7 @@ export function viewRoots(): string[] {
     .list()
     .map((a) => a.workspace)
     .filter((w): w is string => !!w && path.isAbsolute(w));
-  return [ensureBrain(), projectData('knowledge'), dataPath('outputs'), ...comfyOutputDirs(), ...workspaces, ...(getSettings().allowedFolders || [])];
+  return [ensureBrain(), projectData('knowledge'), projectData('tool-images'), dataPath('outputs'), ...comfyOutputDirs(), ...workspaces, ...(getSettings().allowedFolders || [])];
 }
 
 /** The real path of p when it is inside one of the folders above (links followed), else null. */

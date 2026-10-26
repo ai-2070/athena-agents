@@ -7,6 +7,7 @@ import { internalToken } from '../store.ts';
 import { listServers } from '../mcp.ts';
 import { workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
+import { splitContent } from '../toolimages.ts';
 import type { Agent } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 
@@ -152,7 +153,12 @@ export async function run({ agent, chat, text, signal, onEvent, systemPrompt, ru
       } else if (it.type === 'mcp_tool_call') {
         const name = (it.server === 'dashboard' ? it.tool : `${it.server}__${it.tool}`) as string;
         if (!done) onEvent({ kind: 'tool', id: it.id, name, args: it.arguments || {} });
-        else onEvent({ kind: 'tool_result', id: it.id, text: JSON.stringify(it.result ?? it.error ?? '').slice(0, 20000), isError: !!it.error || it.status === 'failed' });
+        else {
+          // an MCP result ({ content: [...] }): its text, and its images shown under the tool call
+          const content = (it.result as { content?: unknown } | null)?.content;
+          const { text, images } = Array.isArray(content) ? splitContent(content) : { text: JSON.stringify(it.result ?? it.error ?? ''), images: [] };
+          onEvent({ kind: 'tool_result', id: it.id, text: text.slice(0, 20000), isError: !!it.error || it.status === 'failed', ...(images.length ? { images } : {}) });
+        }
       } else if (it.type === 'file_change') {
         const files = (it.changes || []).map((c) => c.path).join(', ');
         if (!done) onEvent({ kind: 'tool', id: it.id, name: 'Edit', args: { file_path: files } });
