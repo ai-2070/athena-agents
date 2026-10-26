@@ -6,7 +6,6 @@
 // and the Station's agent panel (mini).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport } from 'ai';
 import { GET, POST, attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
 import { restoreDraft } from '../attach.ts';
 import type { AttachTray } from '../attach.ts';
@@ -14,7 +13,8 @@ import { icon } from '../icons.ts';
 import { latestCompaction, memoryStart } from '../../shared/compaction.ts';
 import { Dom, MessageView, isRichCode } from './parts.tsx';
 import type { Variant } from './parts.tsx';
-import { beforeTurn, readUser, toUIMessages, userParts } from './messages.ts';
+import { beforeTurn, toUIMessages, userParts } from './messages.ts';
+import { chatTransport } from './transport.ts';
 import type { ChatMessage } from './messages.ts';
 import type { AppState, Chat, ChatItem } from '../../shared/types.ts';
 
@@ -60,18 +60,7 @@ function useAppState(): AppState | null {
   return data;
 }
 
-export const streamUrl = (agentId: string, chatId: string): string => `/api/agents/${agentId}/chats/${chatId}/stream`;
-
-/** The AI SDK transport for one agent's chats: a send posts only the new message (the server keeps the
- *  history); a resume picks up the run going in the chat. */
-export function chatTransport(agentId: string, chatId: () => string | null): DefaultChatTransport<ChatMessage> {
-  return new DefaultChatTransport<ChatMessage>({
-    api: '/api/agents',
-    headers: { 'x-dash': '1' },
-    prepareSendMessagesRequest: ({ messages }) => ({ api: streamUrl(agentId, chatId() || 'none'), body: readUser(messages[messages.length - 1]) }),
-    prepareReconnectToStreamRequest: () => ({ api: streamUrl(agentId, chatId() || 'none') }),
-  });
-}
+export { chatTransport, streamUrl } from './transport.ts';
 
 export function ChatView(p: ChatViewProps) {
   const { agent } = p;
@@ -300,7 +289,12 @@ export function ChatView(p: ChatViewProps) {
   });
 
   const empty = !messages.length && !busy;
-  const statusLine = statusText || (busy ? (approvals.length ? `Waiting for you: ${approvals[0].title}` : 'Working…') : '');
+  // what the streaming message is doing now: writing, or using a tool (a status line from the server,
+  // like "Compacting the chat…", comes first)
+  const lastPart = streaming ? messages[messages.length - 1]?.parts.at(-1) : undefined;
+  const doing = lastPart?.type === 'dynamic-tool' && lastPart.state !== 'output-available' && lastPart.state !== 'output-error' ? `Using ${lastPart.toolName}…` : lastPart?.type === 'text' ? 'Writing…' : '';
+  const generic = !statusText || /^(Thinking|Working)…$/.test(statusText);
+  const statusLine = (approvals.length && busy ? `Waiting for you: ${approvals[0].title}` : '') || (generic && doing) || statusText || (busy ? 'Working…' : '');
   const composer = (
     <textarea
       ref={input}

@@ -238,6 +238,18 @@ post<{ text?: unknown; project?: unknown; attachments?: unknown }>('/api/brain/a
   if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
   return overseer.ask(text, { project: typeof body.project === 'string' ? body.project : null, attachments });
 });
+// The same, streamed (Vercel AI SDK UI message stream): the answer as it is written, the files the
+// Brain reads, then the whole answer (data-answer). The Brain chat reads it with the AI SDK.
+post<{ text?: unknown; project?: unknown; attachments?: unknown }>('/api/brain/stream', async (_p, body, _q, res) => {
+  const attachments = uploads.cleanAttachments(body.attachments);
+  const text = String(body.text || '').trim().slice(0, 20000);
+  if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
+  const project = typeof body.project === 'string' ? body.project : null;
+  // (refused before the stream starts, so it comes back as an error the chat can show)
+  overseer.checkProject(project);
+  await uistream.streamBrain(res, (onPart) => overseer.ask(text, { project, attachments, onPart }));
+  return undefined;
+});
 get('/api/brain/history', async () => overseer.history());
 post('/api/brain/clear', async () => (overseer.clearHistory(), { ok: true }));
 get('/api/brain/snapshot', async () => ({ text: await overseer.snapshot() }));

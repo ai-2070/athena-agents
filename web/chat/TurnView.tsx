@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { GET } from '../core.ts';
 import { MessageView } from './parts.tsx';
-import { chatTransport } from './ChatView.tsx';
+import { chatTransport } from './transport.ts';
 import { toUIMessages } from './messages.ts';
 import type { ChatMessage } from './messages.ts';
 import type { Chat } from '../../shared/types.ts';
@@ -38,13 +38,20 @@ export function TurnView({ agentId, chatId, live, from, to, empty, onEnd, onSend
     void (async () => {
       if (live) {
         await resumeStream();
-        if (alive) onEnd?.();
-      } else {
-        const chat = await GET<Chat>(`/agents/${agentId}/chats/${chatId}`).catch(() => null);
-        // only the agent's side: the message to it is what the team or the Brain already shows
-        if (alive && chat) setMessages(toUIMessages(chat.items, from ?? 0, to ?? chat.items.length).filter((m) => m.role !== 'user'));
+        if (!alive) return;
+        onEnd?.();
       }
-      if (alive) setLoaded(true);
+      // a finished turn, or the live one once it ended (or had ended before it could be picked up):
+      // as saved. Only the agent's side: the message to it is what the team or the Brain already shows.
+      const chat = await GET<Chat>(`/agents/${agentId}/chats/${chatId}`).catch(() => null);
+      if (!alive) return;
+      if (chat) {
+        const last = chat.items.findLastIndex((i) => i.type === 'user');
+        const a = live || from == null ? last : from;
+        const b = live || to == null ? chat.items.length : to;
+        setMessages(toUIMessages(chat.items, a, b).filter((m) => m.role !== 'user'));
+      }
+      setLoaded(true);
     })();
     return () => {
       alive = false;

@@ -14,6 +14,7 @@ import type { Child } from './core.ts';
 import type { AgentDraft, BranchDesign } from './builder.ts';
 import type { TeamEvent } from './teamchat.ts';
 import type { Agent, BrainAnswer, BrainDelegate, BrainDone, Chat, ChatItem, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
+import type { UIMessage } from 'ai';
 
 /** One line of GET /api/brain/history. */
 interface BrainHistoryEntry {
@@ -38,9 +39,19 @@ interface ToolChip {
 }
 type UserItem = { id: string; kind: 'user'; text: string; attachments?: string[] };
 type NoteItem = { id: string; kind: 'note'; text: Child; busy?: boolean; error?: boolean };
-type AgentItem = { id: string; kind: 'agent'; agentId: string; chatId: string; text: string; tools: ToolChip[]; images: string[]; reason: string; done: boolean; status?: string };
+/** started: its message went, so its turn can be streamed in (web/chat/TurnView) */
+type AgentItem = { id: string; kind: 'agent'; agentId: string; chatId: string; text: string; tools: ToolChip[]; images: string[]; reason: string; done: boolean; status?: string; started?: boolean };
 type BranchItem = { id: string; kind: 'branch'; wfId: string; name: string; reason: string; since: number; messages: TeamMessage[]; working: string[]; runId?: string; steps?: unknown; error?: string | null; output?: string };
-type BrainItem = { id: string; kind: 'brain'; answer?: string; done: BrainDone[]; delegate?: BrainDelegate | null; old?: boolean };
+/** A tool the Brain used while it answered (it reads the project's files). */
+interface BrainStep {
+  id: string;
+  name: string;
+  input: unknown;
+  state: 'running' | 'done' | 'error';
+  output: string;
+}
+/** live: the answer is still streaming in (answer: what it has written so far; steps: the tools it used) */
+type BrainItem = { id: string; kind: 'brain'; answer?: string; done: BrainDone[]; delegate?: BrainDelegate | null; old?: boolean; live?: boolean; steps?: BrainStep[] };
 type DraftItem = { id: string; kind: 'agent-draft'; agent: AgentDraft; task: string; attachments: string[] };
 /** One message in the Brain chat. */
 type DockItem = UserItem | NoteItem | AgentItem | BranchItem | BrainItem | DraftItem;
@@ -161,6 +172,7 @@ async function newConversation() {
   brainAsks.reset(); // answers still on their way belong to the old conversation
   historyLoads.reset();
   D.items = [];
+  dropTurns();
   draw();
 }
 
@@ -174,6 +186,7 @@ function projectChanged(d: { project?: { id: string } | null }) {
   if (first) return;
   brainAsks.reset();
   D.items = [];
+  dropTurns();
   draw();
   loadHistory();
   loadWorkflows();
@@ -275,22 +288,49 @@ function draw() {
   });
 }
 
+// A handed-off agent's turn, streamed in as it goes (web/chat/TurnView), kept across redraws.
+const turns = new Map<string, { el: HTMLElement; destroy?: () => void }>();
+function turnFor(it: AgentItem): HTMLElement {
+  let t = turns.get(it.id);
+  if (!t) {
+    const el = h('div.dock-turn');
+    const entry: { el: HTMLElement; destroy?: () => void } = { el };
+    t = entry;
+    turns.set(it.id, entry);
+    void import('./chat/mount.tsx').then(({ mountTurn }) => {
+      if (turns.get(it.id) === entry) entry.destroy = mountTurn(el, { agentId: it.agentId, chatId: it.chatId, live: true }).destroy;
+    });
+  }
+  return t.el;
+}
+function dropTurns(): void {
+  for (const t of turns.values()) t.destroy?.();
+  turns.clear();
+}
+
+// A tool call the Brain made, as the chats show them (open it for its input and result).
+function stepCard(st: BrainStep): HTMLElement {
+  const input = typeof st.input === 'string' ? st.input : JSON.stringify(st.input ?? {}, null, 2);
+  const brief = st.input && typeof st.input === 'object' ? Object.values(st.input as Record<string, unknown>).filter((v) => typeof v === 'string').join(' · ').slice(0, 120) : '';
+  return h(
+    `details.tool.small${st.state === 'error' ? '.error' : ''}`,
+    h('summary', st.state === 'running' ? h('span.dot.busy') : st.state === 'error' ? h('span.red', '✕') : h('span.accent', '✓'), h('span.tname', st.name), h('span.targ', brief)),
+    h('div.tbody', h('div.label', 'Input'), h('pre', input), st.state === 'running' ? h('div.hint', 'Running…') : [h('div.label', st.state === 'error' ? 'Error' : 'Result'), h('pre', st.output || '(empty)')]),
+  );
+}
+
 function renderItem(it: DockItem): HTMLElement | null {
   if (it.kind === 'user') return h('div.col', { style: { gap: '6px' } }, h('div.dock-msg.user', it.text || null), mentionPreviews(it.text, it.attachments, { compact: true, key: it.id }));
   if (it.kind === 'note') return h('div.dock-note', { class: it.error ? 'err' : '' }, it.busy ? h('span.dot.busy') : null, it.text);
   if (it.kind === 'agent') {
     const a = state.data?.agents.find((x) => x.id === it.agentId);
+    const who = h('div.dock-who', a ? avatar(a) : null, h('b', a?.name || 'Agent'), a ? h('span.dock-answer-model', modelInfo(a).short) : null, it.reason ? h('span.hint', it.reason) : null, h('span.grow'), h('button.btn.tiny.ghost', { onclick: () => navigate(`#/agents/${it.agentId}/${it.chatId}`) }, 'Open chat'));
+    const working = !it.done ? h('div.dock-note', h('span.dot.busy'), it.status || 'Working…') : null;
+    // its turn, streamed in: text as written, tool calls you can open (and file previews)
+    if (it.started) return h('div.dock-msg.agent', who, turnFor(it), working);
     const body = it.text ? md(it.text) : h('div.hint', it.done ? '(no answer)' : 'Working…');
     body.classList?.add('dock-answer');
-    return h(
-      'div.dock-msg.agent',
-      h('div.dock-who', a ? avatar(a) : null, h('b', a?.name || 'Agent'), a ? h('span.dock-answer-model', modelInfo(a).short) : null, it.reason ? h('span.hint', it.reason) : null, h('span.grow'), h('button.btn.tiny.ghost', { onclick: () => navigate(`#/agents/${it.agentId}/${it.chatId}`) }, 'Open chat')),
-      it.tools?.length ? h('div.dock-tools', it.tools.map((t) => h('span', { class: t.status === 'running' ? 'run' : t.isError ? 'err' : '' }, `${t.status === 'running' ? '●' : t.isError ? '✕' : '✓'} ${t.name}`))) : null,
-      body,
-      it.done ? mentionPreviews(it.text, [], { compact: true, key: it.id }) : null,
-      it.images?.length ? h('div.st-imgs', it.images.slice(0, 4).map((src) => h('img', { src }))) : null,
-      !it.done ? h('div.dock-note', h('span.dot.busy'), it.status || 'Working…') : null,
-    );
+    return h('div.dock-msg.agent', who, body, working);
   }
   if (it.kind === 'branch') {
     const agentOf = (id: string) => state.data?.agents.find((a) => a.id === id);
@@ -308,14 +348,17 @@ function renderItem(it: DockItem): HTMLElement | null {
   }
   if (it.kind === 'brain') {
     const b = state.data?.settings?.brain || { model: 'haiku' };
-    const body = md(it.answer || (it.done?.length ? '' : '(no answer)'));
+    // (still streaming: what it has written so far; nothing yet: it is looking at the project)
+    const body = it.live && !it.answer ? h('div.dock-note', h('span.dot.busy'), 'The Brain is looking at the project…') : md(it.answer || (it.done?.length ? '' : '(no answer)'));
     body.classList?.add('dock-answer');
+    if (it.live && it.answer) body.classList.add('cursor');
     const ico = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', error: 'triangle-alert', note: 'check' };
     return h(
       'div.dock-msg.agent.brain',
       h('div.dock-who', h('div.avatar.brain-av', icon('brain', 14)), h('b', 'Brain'), h('span.dock-answer-model', modelInfo(brainAsAgent(b)).short)),
+      it.steps?.length ? h('div.dock-steps', it.steps.map(stepCard)) : null,
       body,
-      it.answer ? mentionPreviews(it.answer, [], { compact: true, key: it.id }) : null,
+      it.answer && !it.live ? mentionPreviews(it.answer, [], { compact: true, key: it.id }) : null,
       it.done?.length
         ? h('div.brain-done', it.done.map((d) => h(`div.brain-act${d.kind === 'error' ? '.err' : ''}`, icon(ico[d.kind] || 'check', 13), h('span', d.text), d.teamId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/station?team=${d.teamId}`) }, 'Show') : d.routineId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/routines/${d.routineId}`) }, 'Open') : d.skillId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/skills/${d.skillId}`) }, 'Open') : null)))
         : null,
@@ -359,7 +402,37 @@ function draftCard(it: DraftItem) {
 
 // ---------- sending ----------
 // One Brain ask at a time, each tied to the project and conversation it was typed in (see brainqueue.ts).
-const brainAsks = brainQueue<BrainAnswer, string[]>((text, project, attachments) => POST<BrainAnswer>('/brain/ask', { text, project, attachments }));
+// The Brain's answer streams in (Vercel AI SDK: its transport and stream reader; server/uistream.ts
+// streamBrain): onUpdate sees the message so far, and the whole answer comes at the end (data-answer).
+interface BrainAsk {
+  attachments: string[];
+  onUpdate: (m: UIMessage) => void;
+}
+async function streamBrainAnswer(text: string, project: string | null, { attachments, onUpdate }: BrainAsk): Promise<BrainAnswer> {
+  const [{ readUIMessageStream }, { brainTransport }] = await Promise.all([import('ai'), import('./chat/transport.ts')]);
+  const stream = await brainTransport({ text, project, attachments }).sendMessages({ chatId: 'brain', messages: [], trigger: 'submit-message', messageId: undefined, abortSignal: undefined });
+  let answer: BrainAnswer | null = null;
+  const errors: string[] = [];
+  for await (const m of readUIMessageStream({ stream, onError: (e) => errors.push((e as Error).message || String(e)) })) {
+    onUpdate(m);
+    const d = m.parts.find((p) => p.type === 'data-answer') as { data?: BrainAnswer } | undefined;
+    if (d?.data) answer = d.data;
+  }
+  if (!answer) throw new Error(errors[0] || "The Brain didn't answer.");
+  return answer;
+}
+/** What a Brain message shows while it streams: the text and tools since it last started over. */
+export function brainProgress(m: UIMessage): { answer: string; steps: BrainStep[] } {
+  const parts = m.parts.slice(m.parts.findLastIndex((p) => p.type === 'data-restart') + 1);
+  const answer = parts.map((p) => (p.type === 'text' ? p.text : '')).join('');
+  const steps = parts.flatMap((p): BrainStep[] => {
+    if (p.type !== 'dynamic-tool') return [];
+    const out = p.state === 'output-available' ? p.output : null;
+    return [{ id: p.toolCallId, name: p.toolName, input: p.input, state: p.state === 'output-error' ? 'error' : p.state === 'output-available' ? 'done' : 'running', output: p.state === 'output-error' ? p.errorText : out && typeof out === 'object' && 'text' in out ? String((out as { text: unknown }).text) : '' }];
+  });
+  return { answer, steps };
+}
+const brainAsks = brainQueue<BrainAnswer, BrainAsk>((text, project, extra) => streamBrainAnswer(text, project, extra ?? { attachments: [], onUpdate: () => {} }));
 const openProject = () => state.data?.project?.id || null;
 
 let sending = false;
@@ -398,15 +471,27 @@ async function send(given: string[] = []) {
   if (t === 'new-agent') return newAgent(text, attachments);
   if (t === 'new-branch') return newBranch(text, attachments);
   // The Brain: answers, changes the roster, or hands the work on
-  const thinking = add({ kind: 'note', text: 'The Brain is looking at the project…', busy: true });
-  const turn = await brainAsks.ask(text, D.project || openProject(), () => D.project || openProject(), attachments);
-  const at = D.items.indexOf(thinking);
-  if (at !== -1) D.items.splice(at, 1);
+  // its answer streams into this message as it is written
+  const live = add({ kind: 'brain', answer: '', done: [], live: true, steps: [] }) as BrainItem;
+  const turn = await brainAsks.ask(text, D.project || openProject(), () => D.project || openProject(), {
+    attachments,
+    onUpdate: (m) => {
+      if (!D.items.includes(live)) return;
+      Object.assign(live, brainProgress(m));
+      draw();
+    },
+  });
+  const drop = () => {
+    const at = D.items.indexOf(live);
+    if (at !== -1) D.items.splice(at, 1);
+  };
   // a new conversation or another project since: this answer is no longer wanted here
-  if (turn.kind === 'stale') return draw();
-  if (turn.kind === 'error') return add({ kind: 'note', text: `The Brain couldn't answer: ${turn.error}`, error: true });
+  if (turn.kind === 'stale') return drop(), draw();
+  if (turn.kind === 'error') return drop(), add({ kind: 'note', text: `The Brain couldn't answer: ${turn.error}`, error: true });
   const r = turn.answer;
-  add({ kind: 'brain', answer: r.answer, done: r.done || [], delegate: r.delegate });
+  if (!D.items.includes(live)) D.items.push(live);
+  Object.assign(live, { answer: r.answer, done: r.done || [], delegate: r.delegate, live: false });
+  draw();
   if (r.done?.length) {
     refreshSoon(0);
     loadWorkflows();
@@ -423,8 +508,8 @@ async function toAgent(agentId: string, text: string, reason = '', attachments: 
   if (!r) {
     it.done = true;
     it.text = '(could not start)';
-    draw();
-  }
+  } else it.started = true;
+  draw();
 }
 
 async function toBranch(wfId: string, text: string, reason = '', attachments: string[] = []) {

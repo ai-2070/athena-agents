@@ -234,6 +234,8 @@ export interface RunOptions {
   env?: Record<string, string | undefined>;
   maxBytes?: number;
   signal?: AbortSignal;
+  /** Each line of its output as it comes (for programs that stream, e.g. JSON lines). */
+  onLine?: (line: string) => void;
 }
 
 /** code is null when the process was killed by a signal, -1 when it couldn't start. */
@@ -244,9 +246,33 @@ export interface RunResult {
 }
 
 // Run a command and collect its output.
-export function run(cmd: string, args: string[] = [], { timeout = 60000, input, cwd, env, maxBytes = 2_000_000, signal }: RunOptions = {}): Promise<RunResult> {
+export function run(cmd: string, args: string[] = [], { timeout = 60000, input, cwd, env, maxBytes = 2_000_000, signal, onLine }: RunOptions = {}): Promise<RunResult> {
   return new Promise<RunResult>((resolve) => {
     let out = '';
+    let partial = '';
+    const lines = (d: string, end = false) => {
+      if (!onLine) return;
+      partial += d;
+      let nl;
+      while ((nl = partial.indexOf('\n')) !== -1) {
+        const line = partial.slice(0, nl);
+        partial = partial.slice(nl + 1);
+        try {
+          onLine(line);
+        } catch {
+          /* a listener's problem is not the program's */
+        }
+      }
+      if (end && partial) {
+        const last = partial;
+        partial = '';
+        try {
+          onLine(last);
+        } catch {
+          /* as above */
+        }
+      }
+    };
     let err = '';
     let done = false;
     let child: ChildProcess;
@@ -272,6 +298,7 @@ export function run(cmd: string, args: string[] = [], { timeout = 60000, input, 
     child.stderr?.setEncoding('utf8');
     child.stdout?.on('data', (d: string) => {
       if (out.length < maxBytes) out += d;
+      lines(d);
     });
     child.stderr?.on('data', (d: string) => {
       if (err.length < maxBytes) err += d;
@@ -281,6 +308,7 @@ export function run(cmd: string, args: string[] = [], { timeout = 60000, input, 
       err += String(e.message || e);
     });
     child.on('close', (code: number | null) => {
+      lines('', true);
       done = true;
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);

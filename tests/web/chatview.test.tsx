@@ -138,6 +138,7 @@ describe('the agent chat (AI SDK)', () => {
     await settle();
     expect(el.textContent).toContain('Rendering…');
     expect([...el.querySelectorAll('.tname')].map((n) => n.textContent)).toContain('ffmpeg');
+    // (a tool is running: the status line says so)
     expect(el.querySelector('.status-line')!.textContent).toContain('Using ffmpeg…');
     expect([...el.querySelectorAll('button')].some((b) => b.textContent === 'Stop')).toBe(true);
     // the tool's result, opened: input and result
@@ -166,7 +167,7 @@ describe('the agent chat (AI SDK)', () => {
     await type(el, 'are you there?');
     await settle();
     await settle();
-    expect(document.getElementById('toasts')!.textContent).toContain('already working');
+    expect(document.getElementById('toasts')!.textContent).toBe('This chat is already working on something.');
     expect(el.querySelector('textarea')!.value).toBe('are you there?');
   });
 

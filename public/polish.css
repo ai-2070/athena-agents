@@ -597,3 +597,6 @@ a.fp-file:hover { color: var(--accent); }
 .tc-work > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font: 11px var(--mono); color: var(--faint); }
 .tc-work > summary::-webkit-details-marker { display: none; }
 .tc-work > summary:hover, .tc-work[open] > summary { color: var(--accent); }
+/* Brain chat: the tools the Brain used, and a handed-off agent's turn streaming in */
+.dock-steps { display: flex; flex-direction: column; gap: 4px; margin: 4px 0; }
+.dock-turn { display: flex; flex-direction: column; gap: 6px; min-width: 0; }

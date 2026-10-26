@@ -37,7 +37,12 @@ export class TurnChunks {
     }
     this.emit({ type: 'text-delta', id: this.textId, delta });
   }
-  private endText(): void {
+  /** A data part (data-<name>); transient ones are seen as they come but not kept in the message. */
+  data(name: string, data: unknown, transient = false): void {
+    this.endText();
+    this.emit({ type: `data-${name}`, data, ...(transient ? { transient: true } : {}) } as UIMessageChunk);
+  }
+  endText(): void {
     if (!this.textId) return;
     this.emit({ type: 'text-end', id: this.textId });
     this.textId = null;
@@ -122,4 +127,59 @@ export function streamRun(res: http.ServerResponse, { chatId, runId, items = [],
     const alive = setInterval(() => res.write(': keep-alive\n\n'), keepAliveMs);
     res.on('close', () => end(false));
   });
+}
+
+// ---------- the Brain's answer ----------
+/** What the Brain does while it answers (server/overseer.ts BrainPart). */
+export type BrainStreamPart = { kind: 'text'; text: string } | { kind: 'tool'; id: string; name: string; args?: unknown } | { kind: 'tool_result'; id: string; text: string; isError?: boolean } | { kind: 'restart' };
+
+/** The part of the Brain's answer to read: everything before its actions block (```actions), and
+ *  never the start of that fence while it is still being written. */
+export function readable(text: string): string {
+  const at = text.indexOf('```actions');
+  let out = at === -1 ? text : text.slice(0, at);
+  const tail = /`{1,3}(?:a(?:c(?:t(?:i(?:o(?:n(?:s)?)?)?)?)?)?)?$/.exec(out);
+  if (tail) out = out.slice(0, tail.index);
+  return out;
+}
+
+/** Streams the Brain's answer: its text as it is written (without the actions), the files it reads,
+ *  and at the end the whole answer (data-answer: what it did, whom it handed the work to). */
+export async function streamBrain(res: http.ServerResponse, answer: (onPart: (p: BrainStreamPart) => void) => Promise<unknown>): Promise<void> {
+  res.writeHead(200, { ...UI_MESSAGE_STREAM_HEADERS, 'cache-control': 'no-store' });
+  let gone = false;
+  res.on('close', () => (gone = true));
+  const write = (chunk: UIMessageChunk) => !gone && res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+  const w = new TurnChunks(write);
+  w.start(`brain-${Date.now()}`);
+  let full = '';
+  let shown = '';
+  const alive = setInterval(() => !gone && res.write(': keep-alive\n\n'), 15_000);
+  try {
+    const a = await answer((p) => {
+      if (p.kind === 'text') {
+        full += p.text;
+        const now = readable(full);
+        if (now.length > shown.length && now.startsWith(shown)) w.text(now.slice(shown.length));
+        shown = now;
+      } else if (p.kind === 'tool') w.tool(p.id, p.name, p.args);
+      else if (p.kind === 'tool_result') w.result(p.id, p.text, [], p.isError);
+      else if (p.kind === 'restart') {
+        // it answers again: what it wrote so far is replaced
+        w.data('restart', {});
+        full = '';
+        shown = '';
+      }
+    });
+    w.data('answer', a);
+  } catch (e) {
+    write({ type: 'error', errorText: (e as Error).message || String(e) });
+  } finally {
+    clearInterval(alive);
+    w.finish();
+    if (!gone) {
+      res.write('data: [DONE]\n\n');
+      res.end();
+    }
+  }
 }

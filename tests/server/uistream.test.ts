@@ -6,7 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DefaultChatTransport, readUIMessageStream } from 'ai';
 import type { UIMessage, UIMessageChunk } from 'ai';
 import { emit } from '../../server/store.ts';
-import { TurnChunks, streamRun } from '../../server/uistream.ts';
+import { TurnChunks, readable, streamBrain, streamRun } from '../../server/uistream.ts';
+import type { BrainStreamPart } from '../../server/uistream.ts';
 import type { ChatItem, RunEvent } from '../../shared/types.ts';
 
 let server: http.Server;
@@ -105,5 +106,73 @@ describe('TurnChunks', () => {
     w.finish();
     expect(out.map((c) => c.type)).toEqual(['start', 'start-step', 'text-start', 'text-delta', 'text-end', 'tool-input-available', 'text-start', 'text-delta', 'text-end', 'finish-step', 'finish']);
     expect(out[5]).toMatchObject({ input: {}, dynamic: true });
+  });
+});
+
+describe('streamBrain()', () => {
+  let brainServer: http.Server;
+  let brainBase = '';
+  let script: (onPart: (p: BrainStreamPart) => void) => Promise<unknown> = async () => ({});
+  beforeAll(async () => {
+    brainServer = http.createServer((_req, res) => void streamBrain(res, (onPart) => script(onPart)));
+    await new Promise<void>((r) => brainServer.listen(0, '127.0.0.1', () => r()));
+    brainBase = `http://127.0.0.1:${(brainServer.address() as AddressInfo).port}`;
+  });
+  afterAll(() => new Promise<void>((r) => brainServer.close(() => r())));
+
+  async function ask(): Promise<{ last: UIMessage; errors: string[] }> {
+    const transport = new DefaultChatTransport({ api: brainBase, prepareSendMessagesRequest: () => ({ body: { text: 'hi' } }) });
+    const stream = await transport.sendMessages({ chatId: 'brain', messages: [], trigger: 'submit-message', messageId: undefined, abortSignal: undefined });
+    const errors: string[] = [];
+    let last: UIMessage | null = null;
+    for await (const m of readUIMessageStream({ stream, onError: (e) => errors.push(String((e as Error).message || e)) })) last = structuredClone(m);
+    return { last: last!, errors };
+  }
+  const text = (m: UIMessage) => {
+    const at = m.parts.findLastIndex((p) => p.type === 'data-restart');
+    return m.parts.slice(at + 1).map((p) => (p.type === 'text' ? p.text : '')).join('');
+  };
+
+  it('the answer as it is written, never its actions block (even split across pieces), then the whole answer', async () => {
+    script = async (onPart) => {
+      for (const t of ['I made the ', 'team.\n\n`', '``act', 'ions\n[{"do":"create_team"}]\n```']) onPart({ kind: 'text', text: t });
+      return { answer: 'I made the team.', done: [{ kind: 'team', text: 'Made "Thumbs"' }], delegate: null };
+    };
+    const { last } = await ask();
+    expect(text(last)).toBe('I made the team.\n\n');
+    expect(text(last)).not.toContain('`');
+    expect(last.parts.find((p) => p.type === 'data-answer')).toMatchObject({ data: { answer: 'I made the team.', done: [{ kind: 'team' }] } });
+  });
+
+  it('the files it reads show as tool calls; answering again replaces what it wrote', async () => {
+    script = async (onPart) => {
+      onPart({ kind: 'text', text: 'Let me open that skill.' });
+      onPart({ kind: 'restart' });
+      onPart({ kind: 'tool', id: 'g', name: 'Read', args: { file_path: 'BRAIN.md' } });
+      onPart({ kind: 'tool_result', id: 'g', text: '# Brain' });
+      onPart({ kind: 'text', text: 'Here is the plan.' });
+      return { answer: 'Here is the plan.', done: [], delegate: null };
+    };
+    const { last } = await ask();
+    expect(text(last)).toBe('Here is the plan.');
+    expect(last.parts.find((p) => p.type === 'dynamic-tool')).toMatchObject({ toolName: 'Read', state: 'output-available', output: { text: '# Brain' } });
+  });
+
+  it('a Brain that fails says why', async () => {
+    script = async () => {
+      throw new Error('Codex is not signed in.');
+    };
+    const { last, errors } = await ask();
+    expect(errors.join(' ')).toContain('Codex is not signed in.');
+    expect(last.parts.some((p) => p.type === 'data-answer')).toBe(false);
+  });
+});
+
+describe('readable()', () => {
+  it('cuts at the actions block, and holds back the start of its fence', () => {
+    expect(readable('Done.\n```actions\n[]\n```')).toBe('Done.\n');
+    expect(readable('Done.\n``')).toBe('Done.\n');
+    expect(readable('Done.\n```acti')).toBe('Done.\n');
+    expect(readable('Use `npm test` to check')).toBe('Use `npm test` to check');
   });
 });
