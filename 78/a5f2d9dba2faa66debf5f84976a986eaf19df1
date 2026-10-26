@@ -1,0 +1,96 @@
+server/unzip.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 1-79
+web/views/settings.tsx
+  s_b768a55e88fa83::t_b82f534eb4f5ff 31-49,221-222
+web/teamchat.tsx
+  s_b768a55e88fa83::t_9a5a642e4700db 351-352,497,499-500,524,526-530,564,595-596,599,673,679-688,703
+  s_b768a55e88fa83::t_83b58fc0d38297 3,8,18,38-39,54-55,73-74,78,160
+  s_b768a55e88fa83::t_096a314686ec1a 81-93
+  s_b768a55e88fa83::t_504bdf96cce2b1 257,260-261,263,269-270,274-275
+  s_b768a55e88fa83::t_31cd6bb81bca88 205-206,209
+  s_b768a55e88fa83::t_136ed02b8eefb1 216-218,220
+  s_b768a55e88fa83::t_2a499607aa2904 285-286
+docs/guide.md
+  s_b768a55e88fa83::t_70fbf7d33b4878 112,115,130,139-159
+  s_b768a55e88fa83::t_6e2774a0d0f53b 160
+scripts/build-icons.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 28-30
+server/engines/openai.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 447-457
+server/assets.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 1-191
+web/views/station.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 496-497,502-513
+README.md
+  s_b768a55e88fa83::t_70fbf7d33b4878 18,28,44,56-62,148
+server/index.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 817
+server/mcp.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 116,119-121,221-440
+tests/web/teamchat-teams.test.ts
+  s_b768a55e88fa83::t_3ba7a703c2b524 2-6,8,32-78
+  s_b768a55e88fa83::t_70fbf7d33b4878 1,7,9-31,79-80
+server/library.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 144-149
+tests/server/assets.test.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 1-124
+server/store.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 36
+shared/teams.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 20-46
+tests/server/dcc.test.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 1-134
+web/icons.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 8
+server/programs.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 105-128,209,213,223-228,231-236,238-255,264,266-267,269-281,284-286,298-473
+server/promptcache.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 3,22-26
+web/views/stationdata.ts
+  s_b768a55e88fa83::t_df0104d29f8907 87-92,96,121-125,150,166-172
+server/brain.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 9,140
+public/polish.css
+  s_b768a55e88fa83::t_70fbf7d33b4878 231-235
+web/views/programs.tsx
+  s_b768a55e88fa83::t_b82f534eb4f5ff 54-60,79-93
+tests/server/mcp-presets.test.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 40-61
+tests/server/promptcache.test.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 5,7-9,11,39-88
+  s_b768a55e88fa83::t_2a5412fcd4d123 89
+server/services.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 22-28
+tests/server/crossteam.test.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 1-160
+server/tools.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 5-8,89-95,369-590,604-645,1053,1055,1079-1106
+  s_b768a55e88fa83::t_4a5ccc5dda9dc0 1107
+shared/types.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 155,157-159,171-188
+  s_b768a55e88fa83::t_d2f382c3791e6f 189
+server/irc.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 208,305-306
+server/dcc.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 1-131
+tests/web/programs.test.tsx
+  s_b768a55e88fa83::t_2f0fd6926c2e64 66
+server/teams.ts
+  s_b768a55e88fa83::t_70fbf7d33b4878 8-9,13,16,24-26,46,60,93-94,98,216-217,224,232-234,237-238,265,269-410,457-458,527-534,537,563-567,569,628-630,632-633,830-831,849
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "78a5f2d9dba2faa66debf5f84976a986eaf19df1",
+  "prompts": {},
+  "sessions": {
+    "s_b768a55e88fa83": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea3b90ab-991f-402e-b8d1-60deb8bf979c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
