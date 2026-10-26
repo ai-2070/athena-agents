@@ -1,0 +1,26 @@
+web/dock.ts
+  s_438d1f6577d2a3::t_93536f6e546fae 10
+  s_438d1f6577d2a3::t_98e85ddd851440 73-79,110,112-113,115
+tests/web/shortcuts.test.ts
+  s_438d1f6577d2a3::t_ed47f2225954d7 1-77
+README.md
+  s_438d1f6577d2a3::t_98e85ddd851440 41
+web/shortcuts.ts
+  s_438d1f6577d2a3::t_682009588881ac 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "872f8afb70928eaf0ff5b09eb3b5ef5e3fff9149",
+  "prompts": {},
+  "sessions": {
+    "s_438d1f6577d2a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a3e60d4-d433-413c-8c13-3a59a05169f5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
