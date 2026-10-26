@@ -1,0 +1,43 @@
+web/projects.ts
+  s_2b11ad662ac6fb::t_3e53e352da0cb2 289
+web/views/station.ts
+  s_2b11ad662ac6fb::t_3e53e352da0cb2 1201
+  s_2b11ad662ac6fb::t_9f6e8c6cdcc4c6 2138
+  s_2b11ad662ac6fb::t_d8f2552f4803be 10,383,1014,2136-2137,2139-2148
+tests/web/attach.test.ts
+  s_2b11ad662ac6fb::t_01be249c5fe28b 2,70-110,112-121
+  s_2b11ad662ac6fb::t_9f6e8c6cdcc4c6 111
+README.md
+  s_2b11ad662ac6fb::t_30bbd5d15fbbbb 103
+web/attach.ts
+  s_2b11ad662ac6fb::t_3d0a611a0cb86b 427-434,439,446
+  s_2b11ad662ac6fb::t_0531457956be59 274
+  s_2b11ad662ac6fb::t_91b5ce70c6a47b 303
+  s_2b11ad662ac6fb::t_7b7e6f5659bef0 71,81-93,95-100,102-103,114-130
+  s_2b11ad662ac6fb::t_e717e0930166dd 101,104-113
+  s_2b11ad662ac6fb::t_9f6e8c6cdcc4c6 94
+  s_2b11ad662ac6fb::t_f0804c244883e9 1
+  s_2b11ad662ac6fb::t_c049c447db076f 131
+web/builder.ts
+  s_2b11ad662ac6fb::t_3e53e352da0cb2 132
+web/teamchat.ts
+  s_2b11ad662ac6fb::t_30bbd5d15fbbbb 68
+tests/web/attach-tray.test.ts
+  s_2b11ad662ac6fb::t_01be249c5fe28b 168-198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c74aef568d2b2e24b3bbc1ba53c2b3843df77edd",
+  "prompts": {},
+  "sessions": {
+    "s_2b11ad662ac6fb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c5d48453-c7ac-46f6-8d60-2ff57709198b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
