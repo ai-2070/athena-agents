@@ -1,0 +1,48 @@
+web/chat/ChatView.tsx
+  s_438d1f6577d2a3::t_88506f289df755 216-220
+  s_438d1f6577d2a3::t_3b00d694711223 9,79-81,94-96,103,164-165,169,221-223
+web/mentions.ts
+  s_438d1f6577d2a3::t_f58d6f9d477f3d 8-11,14-16,21-22,24,34,38-41,43,45-50,52
+tests/web/chatview.test.tsx
+  s_438d1f6577d2a3::t_b392736beffaef 174-215,272-275
+web/agentchat.ts
+  s_438d1f6577d2a3::t_b0558b340631e7 24-32,72-75,77-78,89
+web/views/station.ts
+  s_438d1f6577d2a3::t_79c5c54271470b 3327-3328
+web/filepreview.ts
+  s_438d1f6577d2a3::t_4001b11f0444f9 54-67,76,111-113,115-117,123-128
+tests/web/agentchat.test.ts
+  s_438d1f6577d2a3::t_db094940ba46a5 1-29
+tests/web/mentions.test.ts
+  s_438d1f6577d2a3::t_f58d6f9d477f3d 39-51
+web/dock.ts
+  s_438d1f6577d2a3::t_4001b11f0444f9 323,344,361
+web/teamchat.ts
+  s_438d1f6577d2a3::t_4001b11f0444f9 176
+  s_438d1f6577d2a3::t_03e7dc4200eb0b 41-42,58,182-183,185,299,301-303,307-310,313,332-338
+web/chat/TurnView.tsx
+  s_438d1f6577d2a3::t_9004b2a6e018d6 48-49
+tests/web/filepreview.test.ts
+  s_438d1f6577d2a3::t_9004b2a6e018d6 98-99
+  s_438d1f6577d2a3::t_b392736beffaef 96-97,100-128
+tests/web/teamchat-turns.test.tsx
+  s_438d1f6577d2a3::t_b392736beffaef 9,71,73-75,78,84,108,122-148
+web/chat/parts.tsx
+  s_438d1f6577d2a3::t_451e7b3171ab9c 45-66,109-110,126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "390996887106743cf52251bf1518592fa259c1a5",
+  "prompts": {},
+  "sessions": {
+    "s_438d1f6577d2a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a3e60d4-d433-413c-8c13-3a59a05169f5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
