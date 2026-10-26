@@ -1,0 +1,25 @@
+docs/internal/releases/v0.1.0.md
+  s_3ee9638266ae65::t_1f89abaf10bf1b 15
+README.md
+  s_3ee9638266ae65::t_1f89abaf10bf1b 27
+.github/workflows/desktop.yml
+  s_3ee9638266ae65::t_1f89abaf10bf1b 55-56,60
+docs/desktop.md
+  s_3ee9638266ae65::t_1f89abaf10bf1b 84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85c31ca2a2ae3b46beb531bf0e9e433fa489d67c",
+  "prompts": {},
+  "sessions": {
+    "s_3ee9638266ae65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "541a5902-77ed-4017-8f45-3e7605579b0f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
