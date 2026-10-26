@@ -1,0 +1,21 @@
+tests/server/projectsync.test.ts
+  s_86f670bdc2e031::t_be604e1e821dfe 141-172
+server/projectsync.ts
+  s_86f670bdc2e031::t_537b49f4d1d83a 8,198-214,217-218,224-225,232-234,236,238-241,246-248,252-253,256-258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f4e15b5660b6db223dc3f38ba148c4a6cec875be",
+  "prompts": {},
+  "sessions": {
+    "s_86f670bdc2e031": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6340fd4e-3c25-4ffa-aefd-cf1ac985cbb5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
