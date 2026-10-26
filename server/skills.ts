@@ -5,8 +5,9 @@
 // and open a skill with the read_skill tool when it fits the task, on any engine.
 import fs from 'node:fs';
 import path from 'node:path';
-import { dataPath, ensureDir, exists, slugify, HOME } from './util.ts';
-import { activeProject, log } from './store.ts';
+import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME } from './util.ts';
+import { activeProject, agents, workflows, listProjects, getSettings, saveSettings, log } from './store.ts';
+import { updateProject } from './projects.ts';
 import type { ClaudeSkill, Skill, SkillFile, SkillListing } from '../shared/types.ts';
 
 /** A skill as getSkill returns it (dir is cleared so it never reaches the browser). */
@@ -108,15 +109,29 @@ export function claudeSkills(): ClaudeSkill[] {
     .map(({ slug, name, description, files }) => ({ slug, name, description, files: files.length, inLibrary: have.has(slugify(slug)) }));
 }
 
-export function saveSkill({ slug, name, description, body }: { slug?: string; name?: string; description?: string; body?: string }): SkillDetail | null {
+export const SKILL_BODY_MAX = 60000;
+
+// keep: save the old SKILL.md in the skill's .history folder first (the Brain's edits can be undone by hand)
+export function saveSkill({ slug, name, description, body }: { slug?: string; name?: string; description?: string; body?: string }, { keep = false }: { keep?: boolean } = {}): SkillDetail | null {
   name = String(name || '').trim().slice(0, 80);
   description = String(description || '').trim().slice(0, 1000);
   if (!name) throw new Error('Give the skill a name.');
   if (!description) throw new Error('Say in one or two sentences when the skill should be used: agents decide from this.');
   const id = slug && SAFE.test(slug) && exists(path.join(LIB(), slug)) ? slug : uniqueSlug(name);
   const dir = ensureDir(path.join(LIB(), id));
-  fs.writeFileSync(path.join(dir, 'SKILL.md'), compose({ name, description, body }));
+  const file = path.join(dir, 'SKILL.md');
+  if (keep && exists(file)) keepVersion(dir);
+  fs.writeFileSync(file, compose({ name, description, body: String(body || '').slice(0, SKILL_BODY_MAX) }));
   return getSkill(id);
+}
+
+// The last few versions of a skill, in <skill>/.history (hidden: not one of the skill's files).
+const VERSIONS_KEPT = 20;
+function keepVersion(dir: string) {
+  const hist = ensureDir(path.join(dir, '.history'));
+  fs.copyFileSync(path.join(dir, 'SKILL.md'), path.join(hist, `SKILL-${new Date().toISOString().replace(/[:.]/g, '-')}.md`));
+  const old = fs.readdirSync(hist).filter((n) => /^SKILL-.*\.md$/.test(n)).sort();
+  for (const n of old.slice(0, Math.max(0, old.length - VERSIONS_KEPT))) fs.rmSync(path.join(hist, n), { force: true });
 }
 
 function uniqueSlug(name: string): string {
@@ -129,6 +144,88 @@ function uniqueSlug(name: string): string {
 export function deleteSkill(slug: string) {
   if (!SAFE.test(String(slug))) throw new Error('No such skill.');
   fs.rmSync(path.join(LIB(), slug), { recursive: true, force: true });
+}
+
+// Delete a skill and take it off every agent and team (in the open project), every project, and the Brain.
+export function deleteSkillEverywhere(slug: string) {
+  deleteSkill(slug);
+  for (const a of agents.list()) if ((a.skills || []).includes(slug)) agents.save({ ...a, skills: a.skills.filter((x) => x !== slug) });
+  for (const w of workflows.list()) if ((w.skills || []).includes(slug)) workflows.save({ ...w, skills: w.skills!.filter((x) => x !== slug) });
+  for (const p of listProjects()) if ((p.skills || []).includes(slug)) updateProject(p.id, { skills: p.skills!.filter((x) => x !== slug) });
+  const brain = brainSkillSlugs();
+  if (brain.includes(slug)) saveSettings({ brainSkills: brain.filter((x) => x !== slug) });
+}
+
+// ---------- the Brain's own skills ----------
+// Skills given to the Brain are part of its instructions in every turn (Settings: brainSkills).
+export const brainSkillSlugs = (): string[] => (Array.isArray(getSettings().brainSkills) ? getSettings().brainSkills : []);
+export const brainSkills = (): SkillDetail[] => brainSkillSlugs().map(getSkill).filter((s): s is SkillDetail => s !== null);
+export function setBrainSkills(slugs: unknown): string[] {
+  const list = [...new Set((Array.isArray(slugs) ? slugs : []).map(String).filter((x) => SAFE.test(x)))].slice(0, 30);
+  saveSettings({ brainSkills: list });
+  return list;
+}
+
+// ---------- skills that come with the dashboard ----------
+// Added to the library once. Deleting one keeps it deleted (data/skills/.builtin.json remembers).
+export const SELF_IMPROVEMENT = 'self-improvement';
+const BUILTIN: { slug: string; name: string; description: string; body: string }[] = [
+  {
+    slug: SELF_IMPROVEMENT,
+    name: 'Self-improvement',
+    description: 'Use after any substantial piece of work, and whenever the user explains how they want something done: record what worked as a skill, keep skills accurate, and spot work that should become a routine.',
+    body: `# Self-improvement
+
+You get better at this project over time by writing down what works. Skills are the project's memory of *how* things are done: step-by-step workflows, checklists, house rules and pitfalls. Agents read a skill before work that matches it, so a good skill makes the next run faster and better.
+
+## When to record a workflow
+Record one (create_skill) when:
+- an agent or team finished a non-trivial task (several steps or tool calls) and the way it got there would help next time;
+- someone found the fix for something that kept failing, or a trick that wasn't obvious;
+- the user explained how they want a kind of work done, corrected the output, or said "always…" / "never…";
+- the same kind of request has come up more than once.
+
+Don't record one-off facts (they belong in PROJECT.md), secrets (keys, passwords, tokens, personal data), guesses, or work that failed without a lesson. When nothing is worth keeping, record nothing.
+
+## Update before you create
+Look at the SKILLS list first. If a skill already covers this kind of work, improve it instead of adding a near-copy:
+- add a missing step, pitfall or example with "append";
+- rewrite it with "body" only when you have seen its whole text (open it with read_skill first);
+- sharpen a description that doesn't say clearly when to use it.
+When two skills overlap, merge them into one and tell the user; delete the leftover only if they agree.
+
+## How to write a skill
+- name: short, the kind of work ("Weekly newsletter", "Product render in Blender").
+- description: one or two sentences that say WHEN to use it. Agents decide from this line alone.
+- body, in markdown:
+  - ## When to use
+  - ## Steps: numbered and concrete (which tool, folder, settings, accounts)
+  - ## Pitfalls: what went wrong before and how it was fixed
+  - ## Done when: what good output looks like
+- General enough to reuse (no one-off dates or file names unless they are always the same), short enough to follow (about 60 lines at most).
+- Give it to whoever does that work (give_skill): the agent, the team, or the whole project when everyone needs it.
+
+## Routines
+When work repeats on a rhythm (every morning, each Friday, after each release), suggest a routine that mentions the skill it uses. Create the routine once the user agrees.
+
+## Tell the user
+Say in one line what you recorded or changed and why, e.g. "Saved how Ana renders product shots as the skill Product render and gave it to the Design team."`,
+  },
+];
+
+export function ensureBuiltinSkills() {
+  const marker = path.join(LIB(), '.builtin.json');
+  const added = readJSON<{ added: string[] }>(marker, { added: [] }).added;
+  const now = [...added];
+  for (const b of BUILTIN) {
+    if (added.includes(b.slug)) continue;
+    if (!exists(path.join(LIB(), b.slug))) {
+      fs.mkdirSync(path.join(LIB(), b.slug), { recursive: true });
+      fs.writeFileSync(path.join(LIB(), b.slug, 'SKILL.md'), compose(b));
+    }
+    now.push(b.slug);
+  }
+  if (now.length !== added.length) writeJSON(marker, { added: now });
 }
 
 // Copy one of your Claude Code skills (folder and files) into the library.

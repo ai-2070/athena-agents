@@ -7,7 +7,7 @@ import { agents, workflows, activeProject, openProject, projectSwitches, listPro
 import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from './library.ts';
 import { TOOL_GROUPS, workspaceOf } from './tools.ts';
 import { listServers } from './mcp.ts';
-import { ensureBrain, brainInfo } from './projects.ts';
+import { ensureBrain, brainInfo, updateProject } from './projects.ts';
 import { listTeams, teamState, getThread, getTeam, teamSteps } from './teams.ts';
 import { liveActivity, runInfo, defaultModel } from './engines/index.ts';
 import { listApprovals } from './approvals.ts';
@@ -16,7 +16,8 @@ import { think, brainModel, parseJSON } from './brain.ts';
 import { readJSON, writeJSON, run, dataPath } from './util.ts';
 import { describeAttachments, attachmentNames } from './uploads.ts';
 import { listRoutines, saveRoutine, deleteRoutine, getRoutine, startRoutine, routineTargets } from './routines.ts';
-import { listSkills } from './skills.ts';
+import { listSkills, getSkill, findSkill, saveSkill, deleteSkillEverywhere, brainSkills, brainSkillSlugs, setBrainSkills } from './skills.ts';
+import type { SkillDetail } from './skills.ts';
 import { cleanSchedule, scheduleText } from '../shared/routines.ts';
 import type { Agent, Approval, BrainAnswer, BrainDelegate, BrainDone, Project, Routine, Team } from '../shared/types.ts';
 
@@ -66,6 +67,10 @@ export interface BrainAction {
   schedule?: unknown;
   enabled?: unknown;
   input?: unknown;
+  /** skills: which one (slug, exact name, or 'new' for the one made just before) */
+  skill?: string;
+  body?: unknown;
+  append?: unknown;
 }
 
 const SKIP = new Set(['node_modules', '.git', '.next', 'dist', 'build', '.venv', '__pycache__', '.cache', '.claude']);
@@ -74,6 +79,9 @@ const HISTORY_KEEP = 24;
 // How much of a routine's text the Brain sees. A longer routine's text can't be rewritten by the
 // Brain (it would lose the part it never saw); its name, schedule and so on still can.
 export const ROUTINE_TEXT_SHOWN = 4000;
+// How much skill text (whole skills only) goes into one Brain turn, and how much of each of the Brain's own skills.
+const SKILL_TEXT_BUDGET = 16000;
+const OWN_SKILL_MAX = 8000;
 
 const ago = (ts: number | null | undefined) => {
   if (!ts) return '';
@@ -209,7 +217,16 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     const last = r.lastRun ? `${r.lastRun.status} ${ago(r.lastRun.createdAt)}` : 'never run';
     return `- id=${r.id} | ${r.name} | ${sched} | agents: ${names('agent')} | teams: ${names('team')} | skills: ${names('skill')} | last run: ${last}\n  text: ${r.text.length > ROUTINE_TEXT_SHOWN ? `${r.text.slice(0, ROUTINE_TEXT_SHOWN)}… (${r.text.length - ROUTINE_TEXT_SHOWN} more characters not shown: too long to rewrite here, the user edits its text on the Routines page)` : r.text.trim() || '(empty)'}`;
   });
-  const skillLines = listSkills().map((sk) => `- ${sk.name}: ${cut(sk.description, 120)}`);
+  const ownSkills = brainSkillSlugs();
+  const skillLines = listSkills().map((sk) => {
+    const who = [
+      (p.skills || []).includes(sk.slug) ? 'the project' : '',
+      ...teams.filter((t) => (t.skills || []).includes(sk.slug)).map((t) => `team ${t.name}`),
+      ...all.filter((a) => (a.skills || []).includes(sk.slug)).map((a) => a.name),
+      ownSkills.includes(sk.slug) ? 'you (the Brain)' : '',
+    ].filter(Boolean);
+    return `- id=${sk.slug} | ${sk.name}: ${cut(sk.description, 160)} | given to: ${who.join(', ') || 'nobody yet'}`;
+  });
 
   const approvals = listApprovals();
   const pendingPosts = outbox.list().filter((x) => x.status === 'pending');
@@ -229,7 +246,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     `\nAGENTS (${all.length}, ${live.length} running now):\n${agentLines.join('\n') || '(none)'}`,
     `\nTEAMS (${teams.length}; a team is a group chat of agents with a shared goal):\n${teamLines.join('\n') || '(none)'}`,
     `\nROUTINES (${routineLines.length}; saved instructions run by hand or on a schedule):\n${routineLines.join('\n') || '(none)'}`,
-    `\nSKILLS (${skillLines.length}; mention one in a routine as @Name):\n${skillLines.slice(0, 80).join('\n') || '(none)'}`,
+    `\nSKILLS (${skillLines.length}; the project's recorded know-how and workflows; mention one in a routine as @Name):\n${skillLines.slice(0, 120).join('\n') || '(none)'}`,
     `\nWAITING FOR THE USER: ${approvals.length} approval(s)${approvals.length ? `: ${approvals.map((x) => `${x.agentName || 'agent'} wants "${cut(x.title, 80)}"`).join('; ')}` : ''} | ${pendingPosts.length} post(s) in the Outbox${pendingPosts.length ? `: ${pendingPosts.map((x) => `${x.platform}: "${cut((x.parts || [x.text]).join(' '), 70)}"`).join('; ')}` : ''}`,
     `\nRECENT ACTIVITY:\n${recent.join('\n') || '(nothing yet)'}`,
   ]
@@ -255,6 +272,10 @@ export function clearHistory(pid = activeProject().id) {
   generations.set(pid, generation(pid) + 1);
   remember([], pid);
 }
+// A message from the Brain nobody asked for (what it learned from finished work), on top of the chat.
+export function addBrainNote(pid: string, text: string) {
+  remember([...history(pid), { role: 'brain', text, ts: Date.now() }], pid);
+}
 
 const GROUP_IDS = TOOL_GROUPS.map((g) => g.id);
 const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a', '#4f7fa8', '#5a9a3a', '#a84a5a', '#2f8fa0'];
@@ -265,7 +286,13 @@ function catalog() {
   return `LIBRARY (The Agency, hire with {"library":"<slug>"}):\n${lib.join('\n') || '(not downloaded)'}\n\nSTARTERS (hire with {"starter":"<name>"}):\n${STARTERS.map((x) => `${x.name} | ${x.specialty}`).join('\n')}`;
 }
 
-const SYSTEM = (projectName: string, canRead: boolean) => `You are the Brain: the overseer of the user's project "${projectName}" in their personal AI agent dashboard (local, only for them).
+// The Brain's own skills, in full (each up to OWN_SKILL_MAX), for its instructions.
+export function ownSkillsText(own: SkillDetail[]): string {
+  if (!own.length) return '';
+  return `\n\n# Your own skills\nYou follow these in every turn, on top of everything above.\n${own.map((sk) => `\n## Skill: ${sk.name} [id: ${sk.slug}]\n${sk.body.length > OWN_SKILL_MAX ? `${sk.body.slice(0, OWN_SKILL_MAX)}…` : sk.body.trim()}`).join('\n')}`;
+}
+
+const SYSTEM = (projectName: string, canRead: boolean, own: SkillDetail[] = []) => `You are the Brain: the overseer of the user's project "${projectName}" in their personal AI agent dashboard (local, only for them).
 You see everything in the SNAPSHOT: the project folder and its files, Git, every agent and team, what each is doing right now, and what waits for the user. You also run the roster: you build teams, hire agents from the library, and hand out work.
 
 Kinds of request:
@@ -274,6 +301,7 @@ Kinds of request:
 3. Set up a project (the user just created it, or asks you to set it up): study the folder and its key files, then ask the user up to 5 short, numbered, specific questions you need answered (goals, audience, deliverables, style and voice, accounts and programs, deadlines). Ask, don't build, until you know enough. Once you do: write PROJECT.md with write_project_md and create the teams and agents the project needs, then tell the user what you set up and what each team will do. Keep PROJECT.md up to date whenever the user tells you something new about the project.
 4. Routines: work the user wants done again and again, or on a schedule ("every morning…", "each Friday…", "set up a routine that…"), or changes to an existing routine. Create, update, run or delete them with the routine actions. A routine's text says what to do and @mentions, by their exact names from the SNAPSHOT, who does it (one or more agents and/or teams) and the skills they use (e.g. "@Researcher finds the 3 biggest AI stories, then @Content Team writes a post using @Brand voice."). Every mentioned agent and team gets the routine; an agent in a mentioned team gets it in that team chat. Mention at least one agent or team. If the right agent or team doesn't exist, build it first in the same answer, then mention it by name.
 5. Work to be done (make, write, research, draft a post or DM, edit a video, generate images, fix code…): never do it yourself. Delegate it to the best existing team or agent. If nothing fits, build what's needed first (a team or an agent) and then delegate to it in the same answer.
+6. Skills: the project's recorded know-how (workflows, checklists, house rules, pitfalls) in Claude Code's SKILL.md format. Agents read a skill before work that matches its description. Create, edit, give, take back or delete skills with the skill actions when the user asks, or when a workflow is worth keeping (see your own skills). Before rewriting a skill's whole text you must have seen it: its text is under SKILL TEXTS, or open it with read_skill first (you get its text and answer again). To add a step or a pitfall without rewriting, use "append".
 
 A team is a group chat of 2-6 agents with a shared goal. A lead (planner type) coordinates when there are 3+ members; members hand work to each other by @mentioning. Prefer agents the user already has; otherwise hire from the LIBRARY (pick the slugs that match best); only invent a new agent when nothing in the library fits.
 
@@ -293,12 +321,52 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"update_routine","routine":"<routine id>","name":"…","description":"…","text":"the whole new text","schedule":SCHEDULE,"enabled":true|false}   (only the fields that change)
 {"do":"run_routine","routine":"<routine id, or 'new'>","input":"optional extra for this run"}
 {"do":"delete_routine","routine":"<routine id>"}
+{"do":"create_skill","name":"short name","description":"one or two sentences: WHEN to use it (agents decide from this alone)","body":"the instructions in markdown"}
+{"do":"update_skill","skill":"<skill id, or 'new'>","name":"…","description":"…","body":"the whole new text","append":"text added at the end"}   (only the fields that change; "body" only for a skill whose whole text you have seen)
+{"do":"give_skill","skill":"<skill id, or 'new'>","to":"agent"|"team"|"project"|"brain","id":"<agent or team id, or 'new'; not needed for project and brain>"}
+{"do":"take_skill","skill":"<skill id>","to":"agent"|"team"|"project"|"brain","id":"<agent or team id>"}
+{"do":"read_skill","skill":"<skill id>"}   (alone in its block: you get the skill's whole text, then answer again)
+{"do":"delete_skill","skill":"<skill id>"}
 SCHEDULE is {"type":"none"} (run by hand) or {"type":"daily","time":"HH:MM","days":[0-6, 0 = Sunday; leave out for every day]} or {"type":"interval","minutes":N}. Set "enabled":true when the user wants it to run on its own.
 MEMBER is {"agent":"<existing agent id>"} or {"library":"<slug>"} or {"starter":"<name>"} or {"new":{"name":"…","emoji":"…","specialty":"one line","instructions":"5-10 sentences, second person","tools":["ids"]}}
 Tool group ids: ${GROUP_IDS.join(', ')}
 MCP servers: ${Object.keys(listServers()).join(', ') || '(none)'}
 
-Rules: at most one delegate per answer. Never delete agents or teams (removing from a team is fine). Delete a routine only when the user clearly asks for that routine to be deleted. Posts and DMs always wait for the user's approval in the Outbox. Say "nobody is working right now" when that's true. Never invent status, files or numbers.`;
+Rules: at most one delegate per answer. Never delete agents or teams (removing from a team is fine). Delete a routine or a skill only when the user clearly asks for that one to be deleted. Never put secrets (keys, passwords, tokens) in a skill. Posts and DMs always wait for the user's approval in the Outbox. Say "nobody is working right now" when that's true. Never invent status, files or numbers.${ownSkillsText(own)}`;
+
+// Whole skills as text, within a budget (a skill that doesn't fit whole is left out, so "seen" is only
+// ever a skill whose every word the Brain got).
+export function skillTexts(slugs: readonly string[], { budget = SKILL_TEXT_BUDGET, heading = 'SKILL TEXTS' }: { budget?: number; heading?: string } = {}): { text: string; seen: Set<string> } {
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  const skipped: string[] = [];
+  let left = budget;
+  for (const slug of [...new Set(slugs)]) {
+    const sk = getSkill(slug);
+    if (!sk) continue;
+    const t = `--- skill id=${sk.slug} | ${sk.name} ---\ndescription: ${sk.description}\n${sk.body.trim() || '(no instructions yet)'}${sk.files.length ? `\n(extra files: ${sk.files.map((f) => f.path).slice(0, 20).join(', ')})` : ''}`;
+    if (t.length > left) {
+      skipped.push(sk.name);
+      continue;
+    }
+    parts.push(t);
+    seen.add(sk.slug);
+    left -= t.length;
+  }
+  if (!parts.length && !skipped.length) return { text: '', seen };
+  return { text: `\n\n${heading} (the whole text of each):\n${parts.join('\n\n') || '(none fit)'}${skipped.length ? `\n(too long to show here: ${skipped.join(', ')}; append to them instead of rewriting)` : ''}`, seen };
+}
+
+// Skills a message is about: named (or their id written) in it.
+export function skillsNamedIn(text: string): string[] {
+  const t = String(text || '').toLowerCase();
+  if (!t) return [];
+  return listSkills()
+    .filter((sk) => (sk.name.length >= 3 && t.includes(sk.name.toLowerCase())) || (sk.slug.length >= 4 && t.includes(sk.slug)))
+    .map((sk) => sk.slug);
+}
+
+const actionKind = (a: BrainAction | null | undefined) => a?.do || a?.action || '';
 
 export function parseActions(text: string): { answer: string; actions: BrainAction[] } {
   const m = /```actions\s*([\s\S]*?)```/i.exec(text);
@@ -322,12 +390,45 @@ const cleanTools = (t: unknown): string[] => (Array.isArray(t) ? (t as unknown[]
 const cleanMcp = (t: unknown): string[] => (Array.isArray(t) ? (t as unknown[]) : []).filter((x): x is string => (x as string) in listServers());
 
 // Run the Brain's actions in project p. Returns what happened, plus a delegate for the chat to send.
-export function applyActions(actions: BrainAction[], p: Project = activeProject()): { done: BrainDone[]; delegate: BrainDelegate | null } {
+// seenSkills: skills whose whole text the Brain had in this turn (only those can be rewritten).
+// only: the action kinds allowed (the Brain's own review of finished work may only touch skills).
+// auto: nobody asked for this (the review of finished work, which reads what agents wrote): the Brain's
+// own skills are off limits, so nothing an agent wrote can change the Brain's instructions.
+export function applyActions(actions: BrainAction[], p: Project = activeProject(), { seenSkills = new Set<string>(), only = null, auto = false }: { seenSkills?: Set<string>; only?: readonly string[] | null; auto?: boolean } = {}): { done: BrainDone[]; delegate: BrainDelegate | null } {
   const done: BrainDone[] = [];
   let delegate: BrainDelegate | null = null;
   let lastTeam: string | null = null;
   let lastAgent: string | null = null;
   let lastRoutine: string | null = null;
+  let lastSkill: string | null = null;
+  const seen = new Set(seenSkills);
+  const findSkillRef = (ref: unknown): SkillDetail | null => {
+    if (!ref) return null;
+    if (ref === 'new') return lastSkill ? getSkill(lastSkill) : null;
+    return findSkill(ref);
+  };
+  // who a skill goes to: { label, skills, save }
+  const skillHolder = (act: BrainAction): { label: string; skills: string[]; save: (list: string[]) => void } => {
+    const to = String(act.to || '').toLowerCase();
+    if (to === 'brain' && auto) throw new Error("only you can change the Brain's own skills");
+    if (to === 'brain') return { label: 'the Brain', skills: brainSkillSlugs(), save: (list) => setBrainSkills(list) };
+    if (to === 'project') {
+      const fresh = listProjects().find((x) => x.id === p.id) || p;
+      return { label: `the project "${fresh.name}"`, skills: fresh.skills || [], save: (list) => updateProject(p.id, { skills: list }) };
+    }
+    if (to === 'team') {
+      const wf = findTeam(act.id || act.team);
+      if (!wf) throw new Error(`no team "${act.id || act.team || ''}"`);
+      return { label: `the team "${wf.name}"`, skills: wf.skills || [], save: (list) => saveTeam({ ...wf, skills: list }) };
+    }
+    if (to === 'agent') {
+      const ref = act.id === 'new' ? lastAgent : act.id;
+      const a = agents.get(ref) || agents.list().find((x) => x.name.toLowerCase() === String(ref || '').toLowerCase());
+      if (!a) throw new Error(`no agent "${act.id || ''}"`);
+      return { label: a.name, skills: a.skills || [], save: (list) => agents.save({ ...a, skills: list }) };
+    }
+    throw new Error('say who gets it: "to" is agent, team, project or brain');
+  };
   const findRoutine = (ref: string | null | undefined): Routine | null => {
     if (!ref) return null;
     if (ref === 'new') return lastRoutine ? getRoutine(lastRoutine) : null;
@@ -407,7 +508,75 @@ export function applyActions(actions: BrainAction[], p: Project = activeProject(
 
   for (const act of actions.slice(0, 12)) {
     try {
-      const kind = act?.do || act?.action;
+      const kind = actionKind(act);
+      if (only && !only.includes(kind)) throw new Error('not allowed here');
+      if (kind === 'read_skill') continue; // answered before the actions run (see ask)
+      if (kind === 'create_skill') {
+        const name = String(act.name || '').trim();
+        const body = String(act.body || act.content || act.text || '').trim();
+        if (!name) throw new Error('the skill needs a name');
+        if (body.length < 20) throw new Error(`"${name}" needs its instructions (body)`);
+        const twin = findSkill(name);
+        if (twin) throw new Error(`there already is a skill "${twin.name}": update it instead`);
+        const sk = saveSkill({ name, description: String(act.description || ''), body })!;
+        lastSkill = sk.slug;
+        seen.add(sk.slug);
+        log('skill', `The Brain made the skill "${sk.name}"`);
+        done.push({ kind: 'skill', text: `Made the skill "${sk.name}"`, skillId: sk.slug });
+        continue;
+      }
+      if (kind === 'update_skill') {
+        const old = findSkillRef(act.skill || act.id);
+        if (!old) throw new Error(`no skill "${act.skill || act.id || ''}"`);
+        if (auto && brainSkillSlugs().includes(old.slug)) throw new Error(`"${old.name}" is one of the Brain's own skills: only you can change it`);
+        const changed: string[] = [];
+        let body = old.body;
+        if (act.body !== undefined && act.body !== null && String(act.body).trim()) {
+          if (!seen.has(old.slug)) throw new Error(`open "${old.name}" with read_skill before rewriting it (the Brain hasn't seen its whole text)`);
+          body = String(act.body).trim();
+          changed.push('instructions');
+        }
+        const more = String(act.append || '').trim();
+        if (more) {
+          body = `${body.trimEnd()}\n\n${more}`;
+          changed.push('added to the instructions');
+        }
+        const name = act.name ? String(act.name).trim() : old.name;
+        if (name !== old.name) changed.push('name');
+        const description = act.description ? String(act.description).trim() : old.description;
+        if (description !== old.description) changed.push('description');
+        if (!changed.length) throw new Error(`nothing to change in "${old.name}"`);
+        const sk = saveSkill({ slug: old.slug, name, description, body }, { keep: true })!;
+        lastSkill = sk.slug;
+        log('skill', `The Brain updated the skill "${sk.name}" (${changed.join(', ')})`);
+        done.push({ kind: 'skill', text: `Updated the skill "${sk.name}": ${changed.join(', ')}`, skillId: sk.slug });
+        continue;
+      }
+      if (kind === 'give_skill' || kind === 'take_skill') {
+        const sk = findSkillRef(act.skill);
+        if (!sk) throw new Error(`no skill "${act.skill || ''}"`);
+        const holder = skillHolder(act);
+        const has = holder.skills.includes(sk.slug);
+        if (kind === 'give_skill') {
+          if (!has) holder.save([...holder.skills, sk.slug]);
+          lastSkill = sk.slug;
+          if (!has) log('skill', `The Brain gave the skill "${sk.name}" to ${holder.label}`);
+          done.push({ kind: 'skill', text: has ? `${holder.label} already has "${sk.name}"` : `Gave "${sk.name}" to ${holder.label}`, skillId: sk.slug });
+        } else {
+          if (has) holder.save(holder.skills.filter((x) => x !== sk.slug));
+          if (has) log('skill', `The Brain took the skill "${sk.name}" from ${holder.label}`);
+          done.push({ kind: 'skill', text: has ? `Took "${sk.name}" from ${holder.label} (the skill stays in the library)` : `${holder.label} didn't have "${sk.name}"`, skillId: sk.slug });
+        }
+        continue;
+      }
+      if (kind === 'delete_skill') {
+        const sk = findSkillRef(act.skill || act.id);
+        if (!sk) throw new Error(`no skill "${act.skill || act.id || ''}"`);
+        deleteSkillEverywhere(sk.slug);
+        log('skill', `The Brain deleted the skill "${sk.name}"`);
+        done.push({ kind: 'skill', text: `Deleted the skill "${sk.name}"` });
+        continue;
+      }
       if (kind === 'create_team') {
         const members = resolveAll(act.members);
         let lead = act.lead ? resolveAll([act.lead])[0] || null : null;
@@ -547,7 +716,7 @@ export function applyActions(actions: BrainAction[], p: Project = activeProject(
         if (!delegate) done.push({ kind: 'error', text: `Couldn't hand it on: no ${to === 'agent' ? 'agent' : 'team'} "${act.id}"` });
       }
     } catch (e) {
-      done.push({ kind: 'error', text: `${act?.do || 'action'}: ${(e as Error).message}` });
+      done.push({ kind: 'error', text: `${actionKind(act) || 'action'}: ${(e as Error).message}` });
     }
   }
   return { done, delegate };
@@ -573,13 +742,25 @@ export async function ask(text: string, { project, attachments = [] }: { project
   // files from earlier turns (the last few): where they are, and for a Brain that can't open files, their text
   const earlier = [...new Set(past.slice(-12).filter((m) => m.role === 'user' && m.attachments?.length).slice(-3).flatMap((m) => m.attachments || []))];
   const earlierFiles = earlier.length ? `\n\n${describeAttachments(earlier, { inline: canRead ? 0 : 8000, heading: 'Files the user attached earlier in this chat' })}` : '';
-  const out = await think(SYSTEM(p.name, canRead), `SNAPSHOT\n${snap}\n\n${catalog()}${convo}${earlierFiles}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}`, {
-    tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '',
-    cwd: ensureBrain(p),
-    timeout: 180000,
-    maxTokens: 4000,
-  });
-  const parsed = parseActions(out);
+  // skills: its own (in its instructions), and the whole text of the ones this message or the last few name
+  const own = brainSkills();
+  const named = skillTexts(skillsNamedIn([text, ...past.slice(-4).map((m) => m.text)].join('\n')).filter((slug) => !own.some((sk) => sk.slug === slug)));
+  const seenSkills = new Set([...own.filter((sk) => sk.body.length <= OWN_SKILL_MAX).map((sk) => sk.slug), ...named.seen]);
+  const system = SYSTEM(p.name, canRead, own);
+  const prompt = `SNAPSHOT\n${snap}${named.text}\n\n${catalog()}${convo}${earlierFiles}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}`;
+  const opts = { tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '', cwd: ensureBrain(p), timeout: 180000, maxTokens: 4000 };
+  let parsed = parseActions(await think(system, prompt, opts));
+  // it asked to open skills: give it their text and let it answer again (once)
+  const asked = parsed.actions.filter((a) => actionKind(a) === 'read_skill').map((a) => String(a.skill || a.id || a.name || ''));
+  if (asked.length && generation(p.id) === gen) {
+    const found = asked.map((ref) => findSkill(ref));
+    const opened = skillTexts(found.filter((sk): sk is SkillDetail => sk !== null).map((sk) => sk.slug), { budget: 40000, heading: 'SKILLS YOU OPENED (read_skill)' });
+    const missing = asked.filter((_ref, i) => !found[i]);
+    for (const slug of opened.seen) seenSkills.add(slug);
+    const again = `${prompt}\n\nYOUR FIRST ANSWER:\n${parsed.answer || '(none)'}${opened.text}${missing.length ? `\n\nNo skill named: ${missing.join(', ')}` : ''}\n\nNow give your full answer to the user (with any actions). Don't ask to read these skills again.`;
+    parsed = parseActions(await think(system, again, opts));
+  }
+  parsed.actions = parsed.actions.filter((a) => actionKind(a) !== 'read_skill');
   // you started a new conversation while it thought: this answer belongs to the old one, so change nothing and don't bring it back
   if (generation(p.id) !== gen) {
     const dropped: BrainDone = { kind: 'error', text: 'You started a new conversation while the Brain was thinking, so nothing was changed.' };
@@ -587,7 +768,7 @@ export async function ask(text: string, { project, attachments = [] }: { project
   }
   // you switched projects while it thought (even if you came back since: the chat dropped this turn), so skip its actions
   const skipped: BrainDone = { kind: 'error', text: `You switched projects while the Brain was thinking, so nothing was changed. Open "${p.name}" and ask again.` };
-  const { done, delegate } = projectSwitches() !== switchesAtStart || openProject().id !== p.id ? { done: parsed.actions.length ? [skipped] : [], delegate: null } : applyActions(parsed.actions, p);
+  const { done, delegate } = projectSwitches() !== switchesAtStart || openProject().id !== p.id ? { done: parsed.actions.length ? [skipped] : [], delegate: null } : applyActions(parsed.actions, p, { seenSkills });
   // the work is handed on with the files
   if (delegate && attachments.length) delegate.attachments = attachments;
   const r = { answer: parsed.answer, done, delegate };

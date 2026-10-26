@@ -321,6 +321,8 @@ export interface Settings {
   brain: BrainSetting;
   /** The Brain answers agents' and teams' permission requests, and only asks you about the risky or unclear ones. */
   brainApproves: boolean;
+  /** Skills the Brain itself follows (slugs). With "self-improvement" it also learns from finished work. */
+  brainSkills: string[];
   look: LookSetting;
   telegram: { chatId: string };
   maxToolSteps: number;
@@ -452,7 +454,7 @@ export interface PresetListing {
 }
 
 // ---------- the Brain ----------
-export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; file?: string };
+export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string };
 export interface BrainDelegate {
   kind: 'agent' | 'branch';
   id: string;

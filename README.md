@@ -38,11 +38,11 @@ powershell -ExecutionPolicy Bypass -File install-shortcut.ps1 -Remove
 |---|---|
 | **Station** (start page) | The live 3D map. The Brain in the middle; each team is a round pod where its agents sit around a chat hub (the lead ★ faces the Brain). Drag a team anywhere, Shift+drag to spin it. Light shows handoffs between agents. Click a team or agent for its panel and its chat. The top bar shows connections, AI engines and your plan usage. |
 | **Chat window** | Floating, resizable, one tab per team group chat or agent. Opens when you click a team or agent. |
-| **Brain chat** (Ctrl+K) | Ask the Brain anything about the project, or for anything to be done: it answers, builds teams from the Library, writes PROJECT.md and hands work to the right agent or team. |
+| **Brain chat** (Ctrl+K) | Ask the Brain anything about the project, or for anything to be done: it answers, builds teams from the Library, writes PROJECT.md, makes and edits skills and routines, and hands work to the right agent or team. |
 | **Projects** | Pick or create at the start screen or top left. Each project has its own agents, teams and chats and a folder (new, existing, or a GitHub repo). Auto-saved into that folder. |
 | **Agents** | Each agent: instructions, knowledge, model (Claude Code, OpenRouter, Hermes or Codex), autonomy, tools, MCP servers, skills, workspace. |
 | **Library** | Starters, The Agency (270+ specialists), Hermes profiles, Claude Code subagents, and your saved presets. |
-| **Skills** | Reusable instructions (Claude Code's SKILL.md format). Give a skill to one agent, a team, or the whole project. Import your Claude Code skills. |
+| **Skills** | Reusable instructions (Claude Code's SKILL.md format). Give a skill to one agent, a team, the whole project, or the Brain itself. Import your Claude Code skills. The Brain can make, edit, give and delete skills too (it keeps old versions in the skill's `.history`). |
 | **Routines** | Work you want done again and again. Write it once and @mention who does it (one or more agents and teams) and the skills they use. Run it by hand or on a schedule; each run shows what every agent and team did. |
 | **Settings** | Keys and engines, connections (X, Reddit, Telegram, Discord, Outbox), MCP servers, programs, Look (UI scale, accent, motion). Searchable. |
 
@@ -50,6 +50,11 @@ powershell -ExecutionPolicy Bypass -File install-shortcut.ps1 -Remove
 project dialog, or the Brain on the map, or use the paperclip. They're saved in the project folder under
 `uploads/`, and the agent (or the Brain) is told where they are. Files added in the team builder stay with the
 team: every member is told about them.
+
+**Self-improvement**: the Brain comes with this skill. With it, after an agent finishes a sizeable job (5+ tool
+calls), the Brain reviews how it went and records the workflow as a skill, improves a skill that was missing a step,
+or gives a skill to whoever needs it, then says what it did in the Brain chat. This review can only touch skills, and
+never the Brain's own skills. Take the skill away from the Brain (Skills page) to turn it off.
 
 **Needs you** (top right) collects everything waiting on you: tool approvals, Claude Code
 permission requests and Outbox posts.

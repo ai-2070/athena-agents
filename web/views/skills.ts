@@ -1,5 +1,6 @@
 // Skills: reusable instructions (Claude Code's SKILL.md format) you give to agents three ways:
 // per agent, per team (every member while it works for the team) or per project (every agent).
+// The Brain has skills too: it follows them in every turn (Self-improvement: it records workflows itself).
 import { h, mount, state, GET, POST, PUT, DEL, attempt, modal, field, toast, refreshSoon, confirmBox, navigate, avatar } from '../core.ts';
 import { icon } from '../icons.ts';
 import { uiZoom } from '../look.ts';
@@ -19,10 +20,12 @@ let query = '';
 
 export const title = () => 'Skills';
 
-export async function render(el: HTMLElement): Promise<void> {
+// #/skills/<slug> opens that skill (the Brain chat links here when it changed one)
+export async function render(el: HTMLElement, params: string[] = []): Promise<void> {
   root = el;
   mount(el, h('p.dim', 'Loading skills…'));
   await reload();
+  if (params[0] && data.skills.some((s) => s.slug === params[0])) openEditor(params[0]);
 }
 
 async function reload() {
@@ -33,6 +36,8 @@ async function reload() {
 }
 
 export function onEvent(ev: ServerEvent): void {
+  // the Brain made or changed a skill: show it
+  if (ev.type === 'activity' && (ev as ServerEvent & { entry?: { kind?: string } }).entry?.kind === 'skill' && root?.isConnected) void reload();
   if (['agents', 'workflows', 'project'].includes(ev.type) && root?.isConnected) GET<TeamListing[]>('/workflows').then((t) => ((teams = t), draw())).catch(() => {});
 }
 
@@ -43,8 +48,12 @@ function usedBy(slug: string) {
     project: (d.project?.skills || []).includes(slug),
     teams: teams.filter((t) => (t.skills || []).includes(slug)),
     agents: d.agents.filter((a) => (a.skills || []).includes(slug)),
+    brain: brainList().includes(slug),
   };
 }
+
+const brainList = (): string[] => state.data?.settings?.brainSkills || [];
+const saveBrain = (skills: string[]) => attempt(() => PUT('/brain/skills', { skills })).then(() => refreshSoon(0));
 
 const saveProject = (skills: string[]) => attempt(() => PUT(`/projects/${state.data!.project.id}`, { skills })).then(() => refreshSoon(0));
 const saveAgent = (a: Agent, skills: string[]) => attempt(() => PUT(`/agents/${a.id}`, { skills })).then(() => refreshSoon(0));
@@ -74,11 +83,23 @@ function draw() {
       h('div.skills-scope', h('div.skills-scope-ico', icon('folder-open', 18)), h('div', h('b', 'Project'), h('div.hint', 'Every agent in the project'))),
       h('div.skills-scope', h('div.skills-scope-ico', icon('users', 18)), h('div', h('b', 'Team'), h('div.hint', 'Every member, while it works for the team'))),
       h('div.skills-scope', h('div.skills-scope-ico', icon('bot', 18)), h('div', h('b', 'Agent'), h('div.hint', 'That agent, everywhere'))),
+      h('div.skills-scope', h('div.skills-scope-ico', icon('brain', 18)), h('div', h('b', 'The Brain'), h('div.hint', 'Follows it in every turn'))),
     ),
     h(
       'div.panel.mt',
       h('div.panel-head', h('h2', icon('folder-open', 16), ` Project skills · ${proj.name || ''}`), h('span.hint', 'every agent in this project gets these')),
       skillPicker(proj.skills || [], saveProject, { empty: 'None yet. Add skills every agent here should follow, like your brand voice or how files are named.' }),
+    ),
+    h(
+      'div.panel.mt',
+      h('div.panel-head', h('h2', icon('brain', 16), " The Brain's skills"), h('span.hint', 'in every project')),
+      skillPicker(brainList(), saveBrain, { empty: 'None. The Brain still makes and edits skills when you ask it to.' }),
+      h(
+        'p.hint',
+        brainList().includes('self-improvement')
+          ? 'With Self-improvement the Brain keeps your skills up to date by itself: after an agent finishes a sizeable job, it records the workflow as a skill or improves one, and says so in the Brain chat. Take the skill away to stop that.'
+          : 'Give the Brain Self-improvement and it records workflows as skills by itself after agents finish sizeable jobs. You can also ask it in the Brain chat: "save how we did that as a skill".',
+      ),
     ),
     h(
       'div.row.between.mt-lg',
@@ -103,6 +124,7 @@ function draw() {
 function card(s: SkillListing) {
   const u = usedBy(s.slug);
   const chips = [
+    u.brain ? h('span.skill-use.proj', icon('brain', 11), 'The Brain') : null,
     u.project ? h('span.skill-use.proj', icon('folder-open', 11), 'Project') : null,
     ...u.teams.map((t) => h('span.skill-use.team', { style: { '--c': t.color || '#7350c8' } }, icon('users', 11), t.name)),
     ...u.agents.map((a) => h('span.skill-use', `${a.emoji || ''} ${a.name}`)),
@@ -145,6 +167,7 @@ function openAssign(anchor: HTMLElement, s: SkillListing) {
   const menu = h(
     'div.st-menu.skp-menu',
     h('div.st-menu-head', `Give "${s.name}" to`),
+    row(u.brain, 'The Brain', icon('brain', 14), () => saveBrain(toggle(brainList(), u.brain))),
     row(u.project, `This project (${d.project?.name || ''})`, icon('folder-open', 14), () => saveProject(toggle(d.project?.skills || [], u.project))),
     teams.length ? h('div.st-menu-head', 'A team') : null,
     teams.map((t) => {
@@ -187,7 +210,7 @@ async function openEditor(slug: string | null = null) {
       field('When to use it', desc, 'Agents decide from this line whether the skill fits, so be specific.'),
       field('Instructions', body, 'Markdown. Steps, rules, examples, what good output looks like. The agent reads this when it uses the skill.'),
       s?.files?.length ? h('div', h('div.label', `Files with this skill (${s.files.length})`), h('div.skill-files', s.files.map((f) => h('span.pill', f.path)))) : null,
-      s ? h('p.hint', `Saved as data/skills/${s.slug}/SKILL.md, in the same format Claude Code uses.`) : null,
+      s ? h('p.hint', `Saved as data/skills/${s.slug}/SKILL.md, in the same format Claude Code uses. When the Brain changes it, the old version is kept in data/skills/${s.slug}/.history.`) : null,
     ),
     foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), h('button.btn', { onclick: (e) => save(e.currentTarget) }, slug ? 'Save' : 'Add skill')],
   });

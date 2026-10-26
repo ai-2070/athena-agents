@@ -33,6 +33,7 @@ import * as reddit from './reddit.ts';
 import * as overseer from './overseer.ts';
 import * as projectSync from './projectsync.ts';
 import * as skills from './skills.ts';
+import * as learning from './learning.ts';
 import * as presets from './presets.ts';
 import * as uploads from './uploads.ts';
 import * as routinesMod from './routines.ts';
@@ -337,13 +338,13 @@ post<Parameters<typeof skills.saveSkill>[0] | null>('/api/skills', async (_p, bo
 });
 put<Parameters<typeof skills.saveSkill>[0] | null>('/api/skills/:slug', async ({ slug }, body) => skills.saveSkill({ ...(body || {}), slug }));
 del('/api/skills/:slug', async ({ slug }) => {
-  skills.deleteSkill(slug);
-  // and take it off every agent, team and project that had it
-  for (const a of agents.list()) if ((a.skills || []).includes(slug)) agents.save({ ...a, skills: a.skills.filter((x) => x !== slug) });
-  for (const w of workflows.list()) if ((w.skills || []).includes(slug)) workflows.save({ ...w, skills: w.skills!.filter((x) => x !== slug) });
-  for (const p of store.listProjects()) if ((p.skills || []).includes(slug)) projects.updateProject(p.id, { skills: p.skills!.filter((x) => x !== slug) });
+  // and take it off every agent, team and project that had it, and the Brain
+  skills.deleteSkillEverywhere(slug);
   return { ok: true };
 });
+// The Brain's own skills (part of its instructions; Self-improvement also has it learn from finished work)
+get('/api/brain/skills', async () => ({ skills: skills.brainSkillSlugs() }));
+put<{ skills?: unknown }>('/api/brain/skills', async (_p, body) => ({ skills: skills.setBrainSkills(body?.skills) }));
 post<{ name: string }>('/api/skills/import', async (_p, body) => skills.importClaudeSkill(body.name));
 
 // ---------- presets & clones ----------
@@ -845,6 +846,8 @@ internalToken();
 store.migrateLayout();
 wfs.markInterruptedRuns();
 wfs.startScheduler();
+skills.ensureBuiltinSkills();
+learning.startLearning();
 routinesMod.markInterruptedRoutines();
 routinesMod.startRoutineScheduler();
 projectSync.startAutoSave();
