@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { HOME, dataPath, ensureDir, exists, insideRoots, readJSON, slugify, writeJSON } from './util.ts';
+import { HOME, IS_WIN, dataPath, ensureDir, exists, insideRoots, readJSON, realTarget, slugify, writeJSON } from './util.ts';
 import { listProjects, emit, log } from './store.ts';
 import { createProject, projectsRoot, setLogo, updateProject } from './projects.ts';
 import { isSkillSlug, skillsLibrary } from './skills.ts';
@@ -111,9 +111,13 @@ export interface BackupRestoreResult {
 
 // ---------- packing ----------
 const projectDir = (id: string, ...p: string[]) => dataPath('projects', id, ...p);
+// Plain .json files only: a link could point at data/secrets.json or anything else on the PC
 const jsonFiles = (dir: string): string[] => {
   try {
-    return fs.readdirSync(dir).filter((n) => n.endsWith('.json'));
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isFile() && e.name.endsWith('.json'))
+      .map((e) => e.name);
   } catch {
     return [];
   }
@@ -455,8 +459,32 @@ export function rebase(p: string, from: string, to: string): string | null {
   return null;
 }
 
-const sameFiles = (dir: string, files: PackedFile[]): boolean =>
-  files.every((f) => {
+/** The plain files under dir, as "/" paths (links are left out, as packTree does). */
+function treeFiles(dir: string): string[] {
+  const out: string[] = [];
+  const walk = (d: string, rel: string) => {
+    let list: fs.Dirent[] = [];
+    try {
+      list = fs.readdirSync(d, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of list) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) walk(path.join(d, e.name), r);
+      else if (e.isFile()) out.push(r);
+    }
+  };
+  walk(dir, '');
+  return out;
+}
+
+// The same skill: exactly the same files (none more, none less) with the same bytes
+export function sameFiles(dir: string, files: PackedFile[]): boolean {
+  const here = treeFiles(dir).sort();
+  const there = files.map((f) => f.path).sort();
+  if (here.length !== there.length || here.some((p, i) => p !== there[i])) return false;
+  return files.every((f) => {
     const p = safeJoin(dir, f.path);
     try {
       return !!p && fs.readFileSync(p).equals(Buffer.from(f.data, 'base64'));
@@ -464,6 +492,15 @@ const sameFiles = (dir: string, files: PackedFile[]): boolean =>
       return false;
     }
   });
+}
+
+// Two paths are the same folder: links followed, and case ignored only on Windows
+function sameFolder(a: string, b: string): boolean {
+  const ra = realTarget(a);
+  const rb = realTarget(b);
+  const fold = (x: string) => (IS_WIN ? x.toLowerCase() : x);
+  return !!ra && !!rb && fold(ra) === fold(rb);
+}
 
 function restoreSkills(list: BackupData['skills']): { added: number; same: number; renamed: { from: string; to: string }[]; map: Map<string, string> } {
   const lib = skillsLibrary();
@@ -502,7 +539,7 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   // read and check all of it before anything is created
   const b = decodeBackup(buf);
   const name = String(opts.name || '').trim() || b.project.name || 'Restored project';
-  const owner = (dir: string) => listProjects().find((p) => path.resolve(p.brainPath).toLowerCase() === path.resolve(dir).toLowerCase());
+  const owner = (dir: string) => listProjects().find((p) => sameFolder(p.brainPath, dir));
   let folder = String(opts.folder || '').trim().replace(/^"|"$/g, '');
   if (folder) {
     const taken = owner(folder);

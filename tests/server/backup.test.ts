@@ -14,6 +14,7 @@ import * as backup from '../../server/backup.ts';
 import type { Team } from '../../shared/types.ts';
 
 const folder = (name: string) => path.join(os.homedir(), 'projects', name);
+const linksWork = process.platform !== 'win32'; // file links need admin rights on Windows
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 // A backup file with a hand-made payload (for files a real backup would never contain)
@@ -160,6 +161,47 @@ describe('workspace backups', () => {
     expect(fs.existsSync(path.join(project.brainPath, 'secret.txt'))).toBe(false);
     expect(fs.existsSync(path.join(skillsLibrary(), 'crafted-skill', 'SKILL.md'))).toBe(true);
     expect(fs.readdirSync(path.dirname(skillsLibrary()))).not.toContain('evil');
+  });
+
+  it.skipIf(!linksWork)('never packs a linked .json (it could point at the keys)', async () => {
+    setSecret('openrouterKey', 'sk-or-linked-sentinel-555');
+    const p = await createProject({ name: 'Linked', mode: 'new', folder: folder('linked') });
+    newAgent({ name: 'Plain' });
+    for (const sub of ['agents', 'workflows', 'routines', 'teamchats']) {
+      fs.mkdirSync(dataPath('projects', p.id, sub), { recursive: true });
+      fs.symlinkSync(dataPath('secrets.json'), dataPath('projects', p.id, sub, 'leak.json'));
+    }
+    fs.mkdirSync(dataPath('presets'), { recursive: true });
+    fs.symlinkSync(dataPath('secrets.json'), dataPath('presets', 'pa-leak.json'));
+    const r = backup.createBackup(p.id);
+    const bytes = fs.readFileSync(r.file);
+    const all = zlib.gunzipSync(bytes.subarray(bytes.indexOf(0x0a, bytes.indexOf(0x0a) + 1) + 1)).toString();
+    expect(all).not.toContain('linked-sentinel');
+    expect(r.summary.agents).toBe(1);
+    fs.rmSync(dataPath('presets', 'pa-leak.json'));
+  });
+
+  it('counts a skill as the same only when it has exactly the same files', async () => {
+    const s = saveSkill({ name: 'Exact Files', description: 'For the file-list check', body: 'Body.' })!;
+    const p = await createProject({ name: 'Exact', mode: 'new', folder: folder('exact') });
+    newAgent({ name: 'User', skills: [s.slug] });
+    const file = backup.createBackup(p.id).file;
+    // the same files: the same skill
+    expect((await backup.restoreBackup(fs.readFileSync(file), { name: 'Exact 2' })).restored.skills.renamed).toEqual([]);
+    // one more file here: not the same skill any more, so the backup's copy is added next to it
+    fs.writeFileSync(path.join(skillsLibrary(), s.slug, 'extra.md'), 'Only here');
+    const { restored } = await backup.restoreBackup(fs.readFileSync(file), { name: 'Exact 3' });
+    expect(restored.skills.renamed).toEqual([{ from: s.slug, to: `${s.slug}-restored` }]);
+    expect(agents.list()[0].skills).toEqual([`${s.slug}-restored`]);
+  });
+
+  it.skipIf(!linksWork)("won't restore into a link to another project's folder", async () => {
+    const src = listProjects().find((p) => p.name === 'Backed Up')!;
+    const alias = folder('alias-of-backed-up');
+    fs.symlinkSync(src.brainPath, alias);
+    const bytes = fs.readFileSync(backup.createBackup(src.id).file);
+    await expect(backup.restoreBackup(bytes, { folder: alias })).rejects.toThrow(/belongs to the project "Backed Up"/);
+    await expect(backup.restoreBackup(bytes, { folder: path.join(alias, '.') })).rejects.toThrow(/belongs to the project/);
   });
 
   it('moves paths inside the old project folder to the new one, across Windows and Unix', () => {
