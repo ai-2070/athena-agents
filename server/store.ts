@@ -36,6 +36,7 @@ const DEFAULT_SETTINGS: Settings = {
   x: { clientId: '' },
   reddit: { clientId: '', username: '' },
   brain: { provider: 'claude', model: 'haiku' },
+  brainApproves: true,
   look: { scale: 100, accent: 'lime', motion: 'full' },
   telegram: { chatId: '' },
   maxToolSteps: 16,

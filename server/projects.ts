@@ -121,6 +121,7 @@ export interface BrainInfo {
   files: number;
   sizeMB: number;
   git: BrainGit | null;
+  summary: ReturnType<typeof projectSummary>;
 }
 
 // A look inside the Brain: top files and folders, size, and Git status.
@@ -161,7 +162,7 @@ export async function brainInfo(p: Project = activeProject()): Promise<BrainInfo
     const [branch, remote, last, status] = await Promise.all([g('rev-parse', '--abbrev-ref', 'HEAD'), g('remote', 'get-url', 'origin'), g('log', '-1', '--format=%s · %cr'), g('status', '--porcelain')]);
     git = { branch, remote, url: remote.replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, ''), last, changes: status ? status.split('\n').length : 0 };
   }
-  return { project: p, entries: entries.slice(0, 60), files, sizeMB: +(bytes / 1e6).toFixed(1), git };
+  return { project: withLogo(p), entries: entries.slice(0, 60), files, sizeMB: +(bytes / 1e6).toFixed(1), git, summary: projectSummary(p) };
 }
 
 export function addNote(name: unknown, content: unknown, p: Project = activeProject()): string {
@@ -227,7 +228,7 @@ export function overview(peek: (folder: string) => ProjectPeek | null = () => nu
     active: activeProject().id,
     root: PROJECTS_ROOT,
     projects: list
-      .map((p) => ({ ...p, agents: count(p.id, 'agents'), teams: count(p.id, 'workflows'), hasProjectMd: exists(path.join(p.brainPath, 'PROJECT.md')), saved: peek(p.brainPath) }))
+      .map((p) => ({ ...withLogo(p), agents: count(p.id, 'agents'), teams: count(p.id, 'workflows'), hasProjectMd: exists(path.join(p.brainPath, 'PROJECT.md')), saved: peek(p.brainPath) }))
       .sort((a, b) => (b.openedAt || b.createdAt || 0) - (a.openedAt || a.createdAt || 0)),
     found,
   };
@@ -241,4 +242,103 @@ export function touch(id: string) {
     p.openedAt = Date.now();
     saveProjects(list);
   }
+}
+
+// ---------- the project's logo ----------
+// Kept in the project folder (.dashboard/logo.<ext>), so it travels with the folder like the
+// auto-saved agents and teams. PNG, JPG, WebP or GIF only: an SVG could carry scripts.
+const LOGO_EXT = ['png', 'jpg', 'webp', 'gif'] as const;
+const LOGO_MAX = 3 * 1024 * 1024;
+
+export function logoFile(p: Project): string | null {
+  for (const ext of LOGO_EXT) {
+    const f = path.join(p.brainPath, '.dashboard', `logo.${ext}`);
+    if (exists(f)) return f;
+  }
+  return null;
+}
+
+/** The project plus when its logo last changed (the page adds it to the logo URL so a new one shows at once). */
+export function withLogo(p: Project): Project & { logoAt: number | null } {
+  const f = logoFile(p);
+  let logoAt: number | null = null;
+  if (f) {
+    try {
+      logoAt = Math.round(fs.statSync(f).mtimeMs);
+    } catch {
+      /* just removed */
+    }
+  }
+  return { ...p, logoAt };
+}
+
+// What the bytes really are (the data URL's type is only what the browser says).
+function sniffImage(buf: Buffer): (typeof LOGO_EXT)[number] | null {
+  if (buf.length > 8 && buf[0] === 0x89 && buf.toString('ascii', 1, 4) === 'PNG') return 'png';
+  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+  if (buf.length > 6 && buf.toString('ascii', 0, 3) === 'GIF') return 'gif';
+  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  return null;
+}
+
+function logoDir(p: Project): string {
+  const dir = ensureDir(path.join(p.brainPath, '.dashboard'));
+  // never write through a link someone planted in the project folder
+  if (fs.lstatSync(dir).isSymbolicLink()) throw new Error("The project's .dashboard folder is a link; not writing a logo there.");
+  return dir;
+}
+
+export function setLogo(id: string, dataUrl: unknown): Project & { logoAt: number | null } {
+  const p = listProjects().find((x) => x.id === id);
+  if (!p) throw new Error('No such project.');
+  const m = /^data:image\/[a-z+.-]+;base64,([A-Za-z0-9+/=\s]+)$/i.exec(String(dataUrl || ''));
+  if (!m) throw new Error('Pick a PNG, JPG, WebP or GIF image.');
+  const buf = Buffer.from(m[1], 'base64');
+  if (buf.length > LOGO_MAX) throw new Error('That image is too big (3 MB at most).');
+  const ext = sniffImage(buf);
+  if (!ext) throw new Error('Pick a PNG, JPG, WebP or GIF image.');
+  const dir = logoDir(p);
+  for (const e of LOGO_EXT) {
+    const old = path.join(dir, `logo.${e}`);
+    if (fs.existsSync(old) || isLink(old)) fs.rmSync(old, { force: true });
+  }
+  fs.writeFileSync(path.join(dir, `logo.${ext}`), buf);
+  log('project', `New logo for "${p.name}"`);
+  return withLogo(p);
+}
+
+export function removeLogo(id: string): Project & { logoAt: number | null } {
+  const p = listProjects().find((x) => x.id === id);
+  if (!p) throw new Error('No such project.');
+  const dir = path.join(p.brainPath, '.dashboard');
+  for (const e of LOGO_EXT) fs.rmSync(path.join(dir, `logo.${e}`), { force: true });
+  return withLogo(p);
+}
+
+const isLink = (f: string): boolean => {
+  try {
+    return fs.lstatSync(f).isSymbolicLink();
+  } catch {
+    return false;
+  }
+};
+
+// ---------- a short description for the Brain panel ----------
+// What the user said the project is, or else the first real paragraph of PROJECT.md / README.
+export function projectSummary(p: Project = activeProject()): { text: string; from: 'description' | 'PROJECT.md' | 'README.md' | null } {
+  if (p.description?.trim()) return { text: p.description.trim(), from: 'description' };
+  for (const name of ['PROJECT.md', 'README.md'] as const) {
+    let text = '';
+    try {
+      text = fs.readFileSync(path.join(p.brainPath, name), 'utf8');
+    } catch {
+      continue;
+    }
+    const para = text
+      .split(/\r?\n\s*\r?\n/)
+      .map((b) => b.trim())
+      .find((b) => b && !b.startsWith('#') && !b.startsWith('<') && !b.startsWith('![') && !b.startsWith('|') && !b.startsWith('```'));
+    if (para) return { text: para.replace(/\s+/g, ' ').slice(0, 500), from: name };
+  }
+  return { text: '', from: null };
 }

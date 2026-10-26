@@ -46,6 +46,7 @@ const INDEX: IndexEntry[] = [
   { tab: 'general', find: 'OpenAI Codex', label: 'OpenAI Codex', words: 'codex chatgpt gpt install sign in login' },
   { tab: 'general', find: 'Hermes', label: 'Hermes', words: 'hermes agent' },
   { tab: 'general', find: "The Brain's model", label: "The Brain's model", words: 'brain auto router haiku sonnet opus model new team new agent auto-build' },
+  { tab: 'general', find: 'The Brain approves', label: 'The Brain approves (auto-approval)', words: 'auto approve approval permissions brain allow needs you agents teams' },
   { tab: 'general', find: 'Defaults for new agents', label: 'Defaults for new agents', words: 'default engine model autonomy brain' },
   { tab: 'general', find: 'Autonomy', label: 'Autonomy (ask, auto, full)', words: 'permissions approval ask first auto full' },
   { tab: 'general', find: 'Limits', label: 'Limits', words: 'max tool steps cost limit usd budget' },
