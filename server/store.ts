@@ -6,7 +6,7 @@ import { EventEmitter } from 'node:events';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { DATA, HOME, dataPath, ensureDir, readJSON, writeJSON, uid, listFiles, exists } from './util.ts';
 import { keepVersion } from './versions.ts';
-import type { ActivityEntry, Agent, Chat, ChatSummary, OutboxPost, Project, Routine, RoutineRun, SecretKey, SecretStatus, ServerEvent, Settings, Team } from '../shared/types.ts';
+import type { ActivityEntry, Agent, Artifact, Chat, ChatSummary, OutboxPost, Project, Routine, RoutineRun, SecretKey, SecretStatus, ServerEvent, Settings, Team } from '../shared/types.ts';
 
 ensureDir(DATA);
 
@@ -292,6 +292,7 @@ export const runs = collection<WorkflowRun>('runs');
 export const routines = collection<Routine>('routines');
 export const routineRuns = collection<RoutineRun>('routine-runs');
 export const outbox = collection<OutboxPost>('outbox', { global: true }); // one Outbox for every project
+export const artifacts = collection<Artifact>('artifacts'); // what a project's teams finished
 
 // Chats are stored per agent: data/chats/<agentId>/<chatId>.json
 const SAFE_ID = /^[\w-]+$/;

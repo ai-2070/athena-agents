@@ -218,8 +218,9 @@ body.station-mode.nav-wide #nav {
 @keyframes nav-wide-in { from { width: 58px; opacity: .85; } to { width: var(--nav-w); opacity: 1; } }
 body.station-mode.nav-wide .brand { padding: 0 20px 22px; justify-content: flex-start; }
 body.station-mode.nav-wide .brand-text,
-body.station-mode.nav-wide #nav-links a .txt,
-body.station-mode.nav-wide #nav-links a .count { display: inline; }
+body.station-mode.nav-wide #nav-links a .txt { display: inline; }
+/* a grid, like .badge itself: display: inline would drop the number out of the centre of its pill */
+body.station-mode.nav-wide #nav-links a .count { display: inline-grid; }
 body.station-mode.nav-wide .nav-foot { display: block; }
 body.station-mode.nav-wide #nav-links a { justify-content: flex-start; padding: 11px 20px; }
 body.station-mode.nav-wide #nav-links a:hover .txt { position: static; background: none; border: 0; padding: 0; color: inherit; }

@@ -40,10 +40,11 @@ describe('the Brain makes and edits skills', () => {
     const seen = applyActions([{ do: 'update_skill', skill: 'render-checklist', body: 'New steps.', description: 'Use before any render.' }], activeProject(), { seenSkills: new Set(['render-checklist']) });
     expect(seen.done[0]).toMatchObject({ kind: 'skill', text: expect.stringContaining('instructions') });
     expect(skills.getSkill('render-checklist')).toMatchObject({ body: expect.stringContaining('New steps.'), description: 'Use before any render.' });
-    // the version from before the Brain's edits is kept (its edits close together count as one change)
+    // each answer of the Brain that changed it is a version of its own, however close together
     const kept = listVersions<{ body: string }>(skills.skillVersionsDir('render-checklist'));
-    expect(kept).toHaveLength(1);
-    expect(kept[0]).toMatchObject({ by: 'brain', item: { body: 'Check the camera.' } });
+    expect(kept).toHaveLength(2);
+    expect(kept[0]).toMatchObject({ by: 'brain', item: { body: expect.stringContaining('## Pitfalls') } });
+    expect(kept[1]).toMatchObject({ by: 'brain', item: { body: 'Check the camera.' } });
     expect(skills.getSkill('render-checklist')?.files).toEqual([]);
   });
 

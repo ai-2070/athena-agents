@@ -8,7 +8,7 @@ import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
 import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, run, ensureDir, HOME, readJSON, writeJSON, insideRoots } from './util.ts';
 import * as store from './store.ts';
-import { agents, chats, outbox, workflows, runs, bus, getSettings, saveSettings, setSecret, secretStatus, internalToken, activity, log } from './store.ts';
+import { agents, chats, outbox, artifacts as artifactStore, workflows, runs, bus, getSettings, saveSettings, setSecret, secretStatus, internalToken, activity, log } from './store.ts';
 import { listApprovals, decide, requestApproval, setReviewer } from './approvals.ts';
 import * as engines from './engines/index.ts';
 import { PROVIDERS, listModels } from './engines/openai.ts';
@@ -21,6 +21,7 @@ import * as programs from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as mcp from './mcp.ts';
 import * as social from './social.ts';
+import { removeArtifact } from './artifacts.ts';
 import * as library from './library.ts';
 import { isEffort } from '../shared/effort.ts';
 import * as kb from './knowledge.ts';
@@ -638,13 +639,20 @@ del('/api/accounts/reddit/:id', async ({ id }) => {
 });
 post<{ platform?: string }>('/api/social/test', async (_p, body) => ({ message: body.platform === 'discord' ? await social.sendDiscord('Test from My Dashboard ✅') : await social.sendTelegram('Test from My Dashboard ✅') }));
 
+get('/api/artifacts', async () => artifactStore.list().sort((a, b) => b.createdAt! - a.createdAt!));
+del('/api/artifacts/:id', async ({ id }) => {
+  removeArtifact(id);
+  return { ok: true };
+});
 get('/api/outbox', async () => outbox.list().sort((a, b) => b.createdAt! - a.createdAt!));
-post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, to: body.to, agentName: 'You' }));
+post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, images: body.images, to: body.to, agentName: 'You' }));
 post<Parameters<typeof social.approvePost>[1]>('/api/outbox/:id/approve', async ({ id }, body) => social.approvePost(id, body));
 post<{ reason?: string }>('/api/outbox/:id/reject', async ({ id }, body) => social.rejectPost(id, body.reason));
-put<{ parts?: string[]; title?: string }>('/api/outbox/:id', async ({ id }, body) => {
+put<{ parts?: string[]; images?: string[]; title?: string }>('/api/outbox/:id', async ({ id }, body) => {
   const it = need(outbox.get(id));
   if (body.parts) it.parts = body.parts;
+  // images can be taken off a draft here, not added (adding goes through the checks in draftPost)
+  if (body.images && it.images) it.images = it.images.filter((p) => body.images!.includes(p));
   if (body.title != null && it.reddit) it.reddit.title = String(body.title).trim();
   return outbox.save(it);
 });

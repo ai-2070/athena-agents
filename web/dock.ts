@@ -90,6 +90,7 @@ export function initDock(): void {
   // the Station (where Space opens it) comes and goes with the page
   new MutationObserver(drawKey).observe(document.body, { attributes: true, attributeFilter: ['class'] });
   D.list = h('div.dock-list');
+  watchList(D.list);
   D.input = h('textarea.dock-input', { rows: 2, placeholder: PLACEHOLDER });
   D.tray = attachTray({ onChange: () => (D.input!.placeholder = D.tray?.count() ? 'What should be done with these files?' : PLACEHOLDER) });
   D.input.addEventListener('keydown', (e) => {
@@ -277,14 +278,56 @@ function add<K extends DockItem['kind']>(item: NewItem & { kind: K }): Extract<D
 }
 
 let frame = false;
+// Items are drawn once and kept while they stay the same, and the list is put in order in place: a
+// redraw (each piece of a streaming answer) must not rebuild every message, or each one replays its
+// entrance and the chat flickers. An item that changed is drawn again, without the entrance.
+const drawn = new Map<string, { sig: string; el: HTMLElement }>();
+// (what an item is drawn from: a handed-off agent whose turn streams in its own view is drawn from
+// its status only, not from the words that pile up in its fields)
+const itemSig = (it: DockItem): string =>
+  it.kind === 'agent' && it.started ? JSON.stringify([it.agentId, it.chatId, it.reason, it.done, it.status]) : JSON.stringify(it, (_k, v) => (v instanceof Node ? v.textContent : v));
+let emptyEl: HTMLElement | null = null;
+// stays at the newest message while you are there (by where you scrolled), following what grows
+let stick = true;
+const follow = () => {
+  if (stick && D.list) D.list.scrollTop = D.list.scrollHeight;
+};
+function watchList(list: HTMLElement): void {
+  list.addEventListener('scroll', () => (stick = list.scrollHeight - list.scrollTop - list.clientHeight < 80));
+  new MutationObserver(follow).observe(list, { childList: true, subtree: true, characterData: true });
+  list.addEventListener('load', follow, true);
+  list.addEventListener('loadedmetadata', follow, true);
+}
+
 function draw() {
   if (frame) return;
   frame = true;
   requestAnimationFrame(() => {
     frame = false;
     const list = D.list!;
-    mount(list, D.items.length ? D.items.map(renderItem) : h('div.dock-empty', icon('sparkles', 26), h('p', 'Ask the Brain anything about the project, or for anything to be done.'), h('p.hint', 'It sees every agent and team and what they are doing. It answers questions itself, builds teams from the library ("make me a social media team"), and hands work to the right agent or team.')));
-    list.scrollTop = list.scrollHeight;
+    for (const id of [...drawn.keys()]) if (!D.items.some((it) => it.id === id)) drawn.delete(id);
+    let nodes: HTMLElement[];
+    if (!D.items.length) {
+      emptyEl ||= h('div.dock-empty', icon('sparkles', 26), h('p', 'Ask the Brain anything about the project, or for anything to be done.'), h('p.hint', 'It sees every agent and team and what they are doing. It answers questions itself, builds teams from the library ("make me a social media team"), and hands work to the right agent or team.'));
+      nodes = [emptyEl];
+    } else {
+      nodes = D.items.flatMap((it) => {
+        const sig = itemSig(it);
+        const hit = drawn.get(it.id);
+        if (hit && hit.sig === sig) return [hit.el];
+        const el = renderItem(it);
+        if (!el) return [];
+        // (shown before: no entrance again)
+        if (hit) [el, ...el.querySelectorAll('.dock-msg, .dock-note')].forEach((x) => x.classList.add('kept'));
+        drawn.set(it.id, { sig, el });
+        return [el];
+      });
+    }
+    nodes.forEach((n, i) => {
+      if (list.childNodes[i] !== n) list.insertBefore(n, list.childNodes[i] ?? null);
+    });
+    while (list.childNodes.length > nodes.length) list.lastChild!.remove();
+    follow();
   });
 }
 
