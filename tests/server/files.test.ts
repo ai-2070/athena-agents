@@ -67,7 +67,8 @@ describe('reveal()', () => {
   it('shows a project file in Explorer / Finder', () => {
     const f = write(path.join(ensureBrain(), 'reveal', 'me.txt'));
     reveal(f);
-    expect(shell.revealed.at(-1)).toBe(fs.realpathSync(f));
+    // (the real path as the server finds it: on Windows the native one, long names not 8.3 ones like RUNNER~1)
+    expect(shell.revealed.at(-1)).toBe(fs.realpathSync.native(f));
   });
 
   it('refuses files outside the project, and missing ones', () => {
