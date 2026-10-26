@@ -42,6 +42,8 @@
 .toast { animation: in-up 0.25s var(--ease); }
 .st-empty { animation: in-up 0.45s var(--ease); }
 .dock-msg, .dock-note { animation: rise-in 0.22s var(--ease); }
+/* drawn again (it changed, e.g. a streaming answer): no entrance again */
+.dock-msg.kept, .dock-note.kept { animation: none; }
 #view > * { animation: rise-in 0.28s var(--ease); }
 #view.flush > * { animation: fade 0.35s ease-out; }
 .card, .btn, .icon-btn, .chip, .st-int, .st-step, .st-conn, .st-menu-item, #nav-links a, .st-zoom button, .dock-launcher {
@@ -177,6 +179,8 @@ body.in-chat .dock-launcher { display: none; }
 /* ---------- team chat ---------- */
 .tc { display: flex; flex-direction: column; gap: 8px; }
 .tc-list { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; min-height: 120px; }
+/* (in a scrolling column, an item must keep its height: never squeezed by the list's) */
+.tc-list > * { flex-shrink: 0; }
 .tc-msg { padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r); background: rgba(7, 8, 7, 0.55); animation: rise-in 0.22s var(--ease); }
 .tc-msg.me { background: color-mix(in srgb, var(--accent) 7%, #111611); border-color: color-mix(in srgb, var(--accent) 24%, var(--line)); }
 .tc-who { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; font-size: 13px; }

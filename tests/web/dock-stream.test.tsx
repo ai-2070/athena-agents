@@ -49,6 +49,11 @@ describe('the Brain chat', () => {
     expect(asked).toEqual({ text: 'make me a thumbnail team', project: 'p1', attachments: [] });
     const list = document.querySelector('.dock-list')!;
     expect(list.textContent).toContain('The Brain is looking at the project…');
+    // no flicker: your message stays the same node, in the list, while the answer streams in
+    const mine = list.querySelector('.dock-msg.user')!.parentElement!;
+    const removed: Node[] = [];
+    const watch = new MutationObserver((rs) => rs.forEach((r) => removed.push(...r.removedNodes)));
+    watch.observe(list, { childList: true });
     const b = brain!;
     await act(async () => {
       b.push({ type: 'start', messageId: 'brain-1' });
@@ -73,6 +78,11 @@ describe('the Brain chat', () => {
     for (let i = 0; i < 40 && !list.textContent!.includes('Made the team'); i++) await settle();
     const done = list.querySelector('.dock-msg.brain')!;
     expect(done.textContent).toContain('I built the team.');
+    watch.disconnect();
+    expect(list.querySelector('.dock-msg.user')!.parentElement).toBe(mine);
+    expect(removed).not.toContain(mine);
+    // the answer, drawn again as it streamed, did not replay its entrance
+    expect(done.classList.contains('kept')).toBe(true);
     expect(done.textContent).toContain('Made the team "Thumbs"');
     expect(list.querySelectorAll('.dock-msg.brain')).toHaveLength(1);
   });

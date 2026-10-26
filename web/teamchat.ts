@@ -150,40 +150,71 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     return el;
   };
 
-  const draw = () => {
-    if (!C.alive) return;
-    const near = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
-    mount(
-      list,
-      C.messages.length
-        ? C.messages.map((m) => {
-            if (m.from === 'system') return h('div.tc-sys', m.text);
-            const a = m.from === 'user' ? null : agent(m.from);
-            const parent = m.replyTo ? C.messages.find((x) => x.id === m.replyTo) : null;
-            return h(
-              `div.tc-msg${m.from === 'user' ? '.me' : ''}`,
-              h(
-                'div.tc-who',
-                a ? avatar(a) : h('div.avatar.tc-you', icon('users', 14)),
-                h('b', a ? a.name : m.from === 'user' ? 'You' : 'Someone'),
-                a && a.id === C.team?.lead ? h('span.tc-lead', '★ lead') : null,
-                h('span.hint', ago(m.ts)),
-                h('span.grow'),
-                a ? h('button.tc-act', { title: `Reply to ${a.name}`, onclick: () => setReply(m) }, icon('message-circle', 13)) : null,
-              ),
-              parent ? h('div.tc-quote', `↪ ${parent.from === 'user' ? 'You' : agent(parent.from)?.name || ''}: ${String(parent.text).slice(0, 90)}`) : null,
-              m.text ? renderText(m.text) : null,
-              mentionPreviews(m.text, m.attachments, { compact: true, key: `team:${m.id}` }),
-              workFor(m),
-              m.mentions?.length && m.from !== 'user' ? h('div.tc-handoff', icon('send', 11), `handed to ${m.mentions.map((id) => agent(id)?.name).filter(Boolean).join(', ')}`) : null,
-            );
-          })
-        : h('div.tc-empty', icon('message-square', 22), h('p', C.team?.lead ? `Write to the team. ${agent(C.team.lead)?.name} (lead) takes it and brings in the others.` : 'Write to the team. The best fit answers, or @mention someone.')),
-      // whose turn is going now, streaming in
-      [...C.turning].map(liveTurn),
+  // Messages are built once and kept while they stay the same: redrawing the thread (each team event,
+  // each word a working agent streams) must not rebuild them, or every message replays its entrance
+  // and the whole thread flickers. The list is put in order in place, so kept messages never leave it.
+  const shown = new Map<string, { sig: string; el: HTMLElement; when?: HTMLElement; ts: number }>();
+  const messageEl = (m: TeamMessage): HTMLElement => {
+    const a = m.from === 'user' || m.from === 'system' ? null : agent(m.from);
+    const parent = m.replyTo ? C.messages.find((x) => x.id === m.replyTo) : null;
+    // what it is drawn from (not its "5m ago": that is updated in place)
+    const sig = JSON.stringify([m.text, m.attachments, m.mentions, m.turn, parent?.text, a?.name, a?.emoji, a?.color, C.team?.lead === m.from, members().map((x) => x.name)]);
+    const hit = shown.get(m.id);
+    if (hit && hit.sig === sig) {
+      if (hit.when) hit.when.textContent = ago(hit.ts);
+      return hit.el;
+    }
+    if (m.from === 'system') {
+      const el = h('div.tc-sys', m.text);
+      shown.set(m.id, { sig, el, ts: m.ts });
+      return el;
+    }
+    const when = h('span.hint', ago(m.ts));
+    const el = h(
+      `div.tc-msg${m.from === 'user' ? '.me' : ''}`,
+      h(
+        'div.tc-who',
+        a ? avatar(a) : h('div.avatar.tc-you', icon('users', 14)),
+        h('b', a ? a.name : m.from === 'user' ? 'You' : 'Someone'),
+        a && a.id === C.team?.lead ? h('span.tc-lead', '★ lead') : null,
+        when,
+        h('span.grow'),
+        a ? h('button.tc-act', { title: `Reply to ${a.name}`, onclick: () => setReply(m) }, icon('message-circle', 13)) : null,
+      ),
+      parent ? h('div.tc-quote', `↪ ${parent.from === 'user' ? 'You' : agent(parent.from)?.name || ''}: ${String(parent.text).slice(0, 90)}`) : null,
+      m.text ? renderText(m.text) : null,
+      mentionPreviews(m.text, m.attachments, { compact: true, key: `team:${m.id}` }),
+      workFor(m),
+      m.mentions?.length && m.from !== 'user' ? h('div.tc-handoff', icon('send', 11), `handed to ${m.mentions.map((id) => agent(id)?.name).filter(Boolean).join(', ')}`) : null,
     );
-    for (const id of [...live.keys()]) if (!C.turning.has(id)) endLive(id);
-    if (near) list.scrollTop = list.scrollHeight;
+    shown.set(m.id, { sig, el, when, ts: m.ts });
+    return el;
+  };
+  // the list's children in this order, moving only what is out of place (a kept node never leaves)
+  const place = (nodes: Node[]) => {
+    nodes.forEach((n, i) => {
+      if (list.childNodes[i] !== n) list.insertBefore(n, list.childNodes[i] ?? null);
+    });
+    while (list.childNodes.length > nodes.length) list.lastChild!.remove();
+  };
+  let empty: HTMLElement | null = null;
+
+  // Staying at the newest message: by where you scrolled, not measured at a redraw (a live turn or a
+  // preview grows between redraws, which made a redraw think you had scrolled away). While you are at
+  // the bottom, it follows anything that grows: text streaming in, a turn's steps, images loading.
+  let stick = true;
+  const follow = () => {
+    if (stick) list.scrollTop = list.scrollHeight;
+  };
+  list.addEventListener('scroll', () => (stick = list.scrollHeight - list.scrollTop - list.clientHeight < 80));
+  const grows = new MutationObserver(follow);
+  grows.observe(list, { childList: true, subtree: true, characterData: true });
+  list.addEventListener('load', follow, true);
+  list.addEventListener('loadedmetadata', follow, true);
+
+  // who is working and who is next (a working agent's live events only change this)
+  const drawStatus = () => {
+    if (!C.alive) return;
     const busy = [...C.working, ...C.queued.filter((q) => !C.working.includes(q))];
     mount(
       status,
@@ -191,6 +222,27 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
       C.queued.filter((q) => !C.working.includes(q)).map((id) => h('span.tc-typing.queued', icon('clock', 12), `${agent(id)?.name || 'Agent'} is next`)),
     );
     stopBtn.classList.toggle('hidden', !busy.length);
+  };
+
+  // (at most once a frame, however many events come)
+  let frame = 0;
+  const draw = () => {
+    if (!C.alive || frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      drawNow();
+    });
+  };
+  const drawNow = () => {
+    if (!C.alive) return;
+    for (const id of [...shown.keys()]) if (!C.messages.some((m) => m.id === id)) shown.delete(id);
+    empty = C.messages.length ? null : empty || h('div.tc-empty', icon('message-square', 22), h('p', C.team?.lead ? `Write to the team. ${agent(C.team.lead)?.name} (lead) takes it and brings in the others.` : 'Write to the team. The best fit answers, or @mention someone.'));
+    // whose turn is going now, streaming in, after the messages
+    const turns = [...C.turning].map(liveTurn).filter((x): x is HTMLElement => !!x);
+    place([...(empty ? [empty] : C.messages.map(messageEl)), ...turns]);
+    for (const id of [...live.keys()]) if (!C.turning.has(id)) endLive(id);
+    follow();
+    drawStatus();
   };
 
   const setReply = (m: TeamMessage | null) => {
@@ -321,7 +373,8 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
       const run = ev.event as RunEvent;
       if (run.kind === 'tool') C.activity[agentId] = run.name.replace(/^mcp__dashboard__/, '').replace(/_/g, ' ');
       else if (run.kind === 'text') C.activity[agentId] = 'writing';
-      draw();
+      // (only the status line: the thread itself didn't change)
+      drawStatus();
     }
   });
 
@@ -352,6 +405,8 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     },
     destroy: () => {
       C.alive = false;
+      cancelAnimationFrame(frame);
+      grows.disconnect();
       dropTurns();
       off();
       offDrop();
