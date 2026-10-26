@@ -179,6 +179,13 @@ export const mount = <E extends ParentNode>(el: E, ...children: Child[]): E => {
   append(el, children);
   return el;
 };
+/** Puts an empty copy of el (same tag, id and attributes) in its place and returns it. Whatever still
+ *  holds the old one, like a page that finishes loading after you left it, draws out of sight. */
+export const freshElement = <E extends Element>(el: E): E => {
+  const fresh = el.cloneNode(false) as E;
+  el.replaceWith(fresh);
+  return fresh;
+};
 
 export function md(text: unknown): HTMLDivElement {
   const div = document.createElement('div');
