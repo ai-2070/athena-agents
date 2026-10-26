@@ -23,7 +23,7 @@ const BRANDS: Record<string, string> = {
   x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', claude: 'claude', anthropic: 'anthropic', premiere: 'adobepremierepro',
   photoshop: 'adobephotoshop', aftereffects: 'adobeaftereffects', ffmpeg: 'ffmpeg', chrome: 'googlechrome', github: 'github', figma: 'figma',
   slack: 'slack', linear: 'linear', atlassian: 'atlassian', intercom: 'intercom', ollama: 'ollama', 'claude docs': 'googledocs', docs: 'googledocs',
-  openai: 'openai', codex: 'openai',
+  openai: 'openai', codex: 'openai', codecov: 'codecov',
   canva: 'canva', stripe: 'stripe', youtube: 'youtube', reddit: 'reddit', instagram: 'instagram', tiktok: 'tiktok', spotify: 'spotify', obsidian: 'obsidian',
   vscode: 'vscodium', zed: 'zedindustries', gimp: 'gimp', python: 'python', git: 'git', docker: 'docker', node: 'nodedotjs',
 };
