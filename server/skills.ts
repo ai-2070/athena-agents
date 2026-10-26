@@ -336,6 +336,7 @@ const BUNDLED: { dir: string; repo: string; ref: string; under: string }[] = [
   { dir: 'storytold', repo: 'hermes-pro/storytold-skills', ref: 'main', under: '' },
   { dir: 'oomol', repo: 'oomol-lab/oo-cli', ref: 'main', under: 'contrib/skills/shared' },
   { dir: 'composio', repo: 'ComposioHQ/skills', ref: 'main', under: 'skills' },
+  { dir: 'orca', repo: 'stablyai/orca', ref: 'main', under: 'skills' },
 ];
 /** The folder in this repo that holds the bundled skill folders. */
 export const bundledSkillsRoot = (): string => path.join(ROOT, 'skills');

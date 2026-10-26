@@ -156,6 +156,8 @@ The library also comes with the **storytold skills** ([hermes-pro/storytold-skil
 
 Two more sets come with it, for connecting agents to your accounts and apps: the **OOMOL skills** ([oomol-lab/oo-cli](https://github.com/oomol-lab/oo-cli)): **oo**, which reaches your connected accounts, OOMOL's hosted AI and Open Flow workflows, plus **oo-find-skills**, **oo-create-skill** and **oo-publish-skill**; and the **Composio skill** ([ComposioHQ/skills](https://github.com/ComposioHQ/skills)), **composio**, which uses more than 1,000 apps through the Composio command line tool. Both need their command line tool (`oo` or `composio`), which isn't part of the dashboard. They work the same way: not given to anyone until you assign them, and deleted ones stay deleted.
 
+The **Orca skills** ([stablyai/orca](https://github.com/stablyai/orca)) come with it too, for agents working inside [Orca](https://github.com/stablyai/orca): **orca-cli** (worktrees, terminals and Orca's browser), **orchestration** (several Orca agents working together), **computer-use** (clicking and typing in an app window), **orca-linear**, **orca-jira** and **jira-tickets** (Linear and Jira tickets), **orca-emulator** and **orca-emulator-android** (iOS and Android emulators) and **orca-per-workspace-env** (a fresh sandbox for each workspace). Each one loads its full guide from the installed Orca app, so they need Orca. Same rules: not given to anyone until you assign them, and deleted ones stay deleted.
+
 Agents read a skill's extra files with `read_skill`. They can search long reference files instead of reading them whole, or read them in parts.
 
 ### MEMORY.md: what agents remember
