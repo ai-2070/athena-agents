@@ -267,6 +267,8 @@ export const chats = {
   save(chat: Chat): Chat {
     chat.updatedAt = Date.now();
     writeJSON(path.join(this.dir(chat.agentId), `${chat.id}.json`), chat);
+    // project: whose chat this is, for the auto-save (a run can outlive a project switch)
+    emit('chats', { agentId: chat.agentId, chatId: chat.id, project: activeProject().id });
     return chat;
   },
   remove(agentId: string, chatId: string) {
@@ -276,6 +278,7 @@ export const chats = {
     } catch {
       /* gone */
     }
+    emit('chats', { agentId, chatId, removed: true, project: activeProject().id });
   },
 };
 
