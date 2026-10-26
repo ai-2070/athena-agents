@@ -2,7 +2,7 @@
 // markdown (or a Rich answer as live components), tool calls you can open (input, result, images),
 // file previews with Show in Explorer / Finder, and our own rows (COMPACTED marks, errors, notes).
 // Sizes: full (the chat page), compact (the floating window), mini (the Station panel, team turns).
-import { Suspense, lazy, memo, useEffect, useMemo, useRef } from 'react';
+import { Suspense, lazy, memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { DynamicToolUIPart } from 'ai';
 import { md, lightbox } from '../core.ts';
 import { compactionMark } from '../compactmark.ts';
@@ -68,8 +68,12 @@ function ZoomImg({ src, label }: { src: string; label: string }) {
 const brief = (input: unknown): string =>
   input && typeof input === 'object' ? Object.values(input as Record<string, unknown>).filter((v) => typeof v === 'string').join(' · ').slice(0, 140) : typeof input === 'string' ? input.slice(0, 140) : '';
 
+// the tool calls you opened: a long chat draws a message again when you scroll back to it, still open
+const openTools = new Set<string>();
+
 /** A tool call: its name and what it was about, opening to its input and result (and images below). */
 export function ToolCard({ part, variant, busy }: { part: DynamicToolUIPart; variant: Variant; busy: boolean }) {
+  const [open, setOpen] = useState(() => openTools.has(part.toolCallId));
   const done = part.state === 'output-available' || part.state === 'output-error';
   const failed = part.state === 'output-error';
   const out = part.state === 'output-available' ? readOutput(part.output) : null;
@@ -85,7 +89,16 @@ export function ToolCard({ part, variant, busy }: { part: DynamicToolUIPart; var
   const small = variant !== 'full';
   return (
     <div className={`col oc-tool${small ? ' small' : ''}`} style={{ gap: '6px' }}>
-      <details className={`tool${failed ? ' error' : ''}${small ? ' small' : ''}`}>
+      <details
+        className={`tool${failed ? ' error' : ''}${small ? ' small' : ''}`}
+        open={open}
+        onToggle={(e) => {
+          const now = e.currentTarget.open;
+          if (now) openTools.add(part.toolCallId);
+          else openTools.delete(part.toolCallId);
+          setOpen(now);
+        }}
+      >
         <summary>
           {mark}
           <span className="tname">{part.toolName}</span>

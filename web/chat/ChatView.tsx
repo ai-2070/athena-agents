@@ -16,6 +16,7 @@ import { latestCompaction, memoryStart } from '../../shared/compaction.ts';
 import { Dom, MessageView, isRichCode } from './parts.tsx';
 import type { Variant } from './parts.tsx';
 import { beforeTurn, toUIMessages, userParts } from './messages.ts';
+import { WINDOW_FROM, Windowed } from './window.tsx';
 import { chatTransport } from './transport.ts';
 import { agentMentions, insertMention } from './mention.ts';
 import type { MentionAgent } from './mention.ts';
@@ -497,10 +498,12 @@ export function ChatView(p: ChatViewProps) {
 
   const latest = latestCompaction(items);
   const dimBefore = latest ? memoryStart(items) : -1;
-  const shown = variant === 'mini' ? messages.slice(-14) : variant === 'compact' ? messages.slice(-120) : messages;
+  // (a long chat draws only the messages near the screen, so the whole of it can be shown)
+  const shown = variant === 'mini' ? messages.slice(-14) : messages;
+  const windowed = variant !== 'mini' && shown.length >= WINDOW_FROM;
   const lastId = messages[messages.length - 1]?.id;
   const chatPath = chatId ? `/agents/${agent.id}/chats/${chatId}` : undefined;
-  const rows = shown.map((m) => {
+  const row = (m: ChatMessage) => {
     const seq = m.metadata?.seq;
     return (
       <MessageView
@@ -516,7 +519,12 @@ export function ChatView(p: ChatViewProps) {
         onCompactionSaved={() => void reload()}
       />
     );
-  });
+  };
+  const rows = windowed ? (
+    <Windowed items={shown} scroller={list} atEnd={near.current} gap={compact ? 8 : 14} estimate={compact ? 70 : 110} render={row} />
+  ) : (
+    shown.map(row)
+  );
 
   const empty = !messages.length && !busy;
   // what the streaming message is doing now: writing, or using a tool (a status line from the server,

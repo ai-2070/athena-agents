@@ -468,3 +468,93 @@ describe('Rich answers', () => {
     expect(isRichCode('t = TextContent("hi")\nroot = Card([t])')).toBe(true);
   });
 });
+
+describe('a long chat', () => {
+  // happy-dom draws nothing, so give it a layout: a 400px list, each message 100px tall
+  const LIST = 400;
+  const ROW = 100;
+  const tops = new WeakMap<Element, number>();
+  const isList = (el: Element) => el.classList.contains('messages') || el.classList.contains('ac-list');
+  const contentHeight = (el: Element) => parseFloat((el.querySelector('.msg-window') as HTMLElement | null)?.style.height || '0');
+  const maxTop = (el: Element) => Math.max(0, contentHeight(el) - LIST);
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return isList(this) ? LIST : this.classList.contains('msg-row') ? ROW : 0;
+    });
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return isList(this) ? LIST : 0;
+    });
+    vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockImplementation(function (this: Element) {
+      return isList(this) ? Math.max(LIST, contentHeight(this)) : 0;
+    });
+    vi.spyOn(Element.prototype, 'scrollTop', 'get').mockImplementation(function (this: Element) {
+      return tops.get(this) ?? 0;
+    });
+    vi.spyOn(Element.prototype, 'scrollTop', 'set').mockImplementation(function (this: Element, v: number) {
+      tops.set(this, Math.min(Math.max(0, v), maxTop(this)));
+    });
+    vi.spyOn(Element.prototype, 'scrollTo').mockImplementation(function (this: Element, a?: ScrollToOptions | number) {
+      if (typeof a === 'object' && a.top != null) this.scrollTop = a.top;
+    });
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  const many = (n: number): ChatItem[] => Array.from({ length: n }, (_, i): ChatItem => (i % 2 ? { type: 'assistant', text: `answer ${i}` } : { type: 'user', text: `question ${i}` }));
+  const drawn = (el: HTMLElement) => [...el.querySelectorAll('.msg-row')].map((r) => r.textContent?.trim());
+  // (and wait for the scrolling to settle: the list notes where it stopped a moment after)
+  const rest = () => act(() => new Promise((r) => setTimeout(r, 200)));
+  const scrollTo = async (list: HTMLElement, top: number) => {
+    list.scrollTop = top;
+    await act(async () => void list.dispatchEvent(new Event('scroll')));
+    await rest();
+  };
+
+  it('draws only the messages near the screen, starting at the newest; scrolling up draws the older ones', async () => {
+    chat.items = many(400);
+    const el = await open();
+    await rest();
+    const list = el.querySelector<HTMLElement>('.messages')!;
+    expect(list.querySelector('.msg-window')).not.toBeNull();
+    // (the window is sized for every message, so the scrollbar is right)
+    expect(contentHeight(list)).toBeGreaterThan(400 * ROW * 0.9);
+    const rows = drawn(el);
+    expect(rows.length).toBeLessThan(30);
+    expect(rows).toContain('answer 399');
+    expect(rows).not.toContain('question 0');
+    await scrollTo(list, 0);
+    expect(drawn(el)).toContain('question 0');
+    expect(drawn(el)).not.toContain('answer 399');
+  });
+
+  it('a tool call you opened is still open when you scroll back to it', async () => {
+    chat.items = [{ type: 'user', text: 'go' }, { type: 'tool', id: 'tk', name: 'look_around', args: {}, result: 'ok', status: 'done' }, ...many(200)];
+    const el = await open();
+    await rest();
+    const list = el.querySelector<HTMLElement>('.messages')!;
+    await scrollTo(list, 0);
+    const card = () => el.querySelector<HTMLDetailsElement>('details.tool');
+    card()!.open = true;
+    await act(async () => void card()!.dispatchEvent(new Event('toggle')));
+    await scrollTo(list, maxTop(list));
+    expect(card()).toBeNull();
+    await scrollTo(list, 0);
+    expect(card()!.open).toBe(true);
+  });
+
+  it('the floating window shows the whole chat too, not just its last messages', async () => {
+    chat.items = many(300);
+    const el = await open('compact');
+    await rest();
+    const list = el.querySelector<HTMLElement>('.ac-list')!;
+    expect(drawn(el)).toContain('answer 299');
+    await scrollTo(list, 0);
+    expect(drawn(el)).toContain('question 0');
+  });
+
+  it('a short chat draws every message, as before', async () => {
+    chat.items = many(20);
+    const el = await open();
+    expect(el.querySelector('.msg-window')).toBeNull();
+    expect(el.querySelectorAll('.msg').length).toBe(20);
+  });
+});
