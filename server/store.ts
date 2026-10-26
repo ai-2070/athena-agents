@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { DATA, HOME, dataPath, ensureDir, readJSON, writeJSON, uid, listFiles, exists } from './util.ts';
-import type { ActivityEntry, Agent, Chat, ChatSummary, OutboxPost, Project, SecretKey, SecretStatus, ServerEvent, Settings, Team } from '../shared/types.ts';
+import type { ActivityEntry, Agent, Chat, ChatSummary, OutboxPost, Project, Routine, RoutineRun, SecretKey, SecretStatus, ServerEvent, Settings, Team } from '../shared/types.ts';
 
 ensureDir(DATA);
 
@@ -240,6 +240,8 @@ export interface WorkflowRun extends StoredItem {
 export const agents = collection<Agent>('agents');
 export const workflows = collection<Team>('workflows');
 export const runs = collection<WorkflowRun>('runs');
+export const routines = collection<Routine>('routines');
+export const routineRuns = collection<RoutineRun>('routine-runs');
 export const outbox = collection<OutboxPost>('outbox', { global: true }); // one Outbox for every project
 
 // Chats are stored per agent: data/chats/<agentId>/<chatId>.json

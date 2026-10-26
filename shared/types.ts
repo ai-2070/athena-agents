@@ -121,6 +121,62 @@ export interface TeamMessage {
   [k: string]: unknown;
 }
 
+// ---------- routines ----------
+export type RoutineMentionKind = 'agent' | 'team' | 'skill';
+
+/** Something a routine's text names with @Name. id is a skill's slug for skills. */
+export interface RoutineMention {
+  kind: RoutineMentionKind;
+  id: string;
+  name: string;
+  /** Set on the way out when the agent, team or skill no longer exists. Never saved. */
+  missing?: boolean;
+}
+
+/** Saved instructions you run by hand or on a schedule. The @mentioned agents and teams do them,
+ *  with the @mentioned skills. */
+export interface Routine {
+  id: string;
+  name: string;
+  description?: string;
+  text: string;
+  mentions: RoutineMention[];
+  schedule?: Schedule;
+  enabled?: boolean;
+  lastScheduledAt?: number;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface RoutineRunTarget {
+  kind: 'agent' | 'team';
+  id: string;
+  name: string;
+  /** sent: posted in the team chat, where the team carries on */
+  status: 'running' | 'done' | 'sent' | 'failed' | 'stopped';
+  chatId?: string | null;
+  output?: string;
+}
+
+export interface RoutineRun {
+  id: string;
+  routineId: string;
+  routineName: string;
+  trigger: 'manual' | 'schedule' | string;
+  status: 'running' | 'done' | 'failed' | 'stopped';
+  skills: string[];
+  targets: RoutineRunTarget[];
+  error?: string | null;
+  createdAt?: number;
+  updatedAt?: number;
+  finishedAt?: number;
+}
+
+/** A routine as GET /api/routines returns it: with its latest run. */
+export interface RoutineListing extends Routine {
+  lastRun?: RoutineRun | null;
+}
+
 // ---------- projects ----------
 export interface Project {
   id: string;
@@ -396,7 +452,7 @@ export interface PresetListing {
 }
 
 // ---------- the Brain ----------
-export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; file?: string };
+export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; file?: string };
 export interface BrainDelegate {
   kind: 'agent' | 'branch';
   id: string;

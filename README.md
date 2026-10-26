@@ -43,6 +43,7 @@ powershell -ExecutionPolicy Bypass -File install-shortcut.ps1 -Remove
 | **Agents** | Each agent: instructions, knowledge, model (Claude Code, OpenRouter, Hermes or Codex), autonomy, tools, MCP servers, skills, workspace. |
 | **Library** | Starters, The Agency (270+ specialists), Hermes profiles, Claude Code subagents, and your saved presets. |
 | **Skills** | Reusable instructions (Claude Code's SKILL.md format). Give a skill to one agent, a team, or the whole project. Import your Claude Code skills. |
+| **Routines** | Work you want done again and again. Write it once and @mention who does it (one or more agents and teams) and the skills they use. Run it by hand or on a schedule; each run shows what every agent and team did. |
 | **Settings** | Keys and engines, connections (X, Reddit, Telegram, Discord, Outbox), MCP servers, programs, Look (UI scale, accent, motion). Searchable. |
 
 **Attach files**: drop files or whole folders on any chat (Brain, agent, team), the team builder, the New
