@@ -1,5 +1,5 @@
 // Backups: one file with everything in a project (agents, teams, routines, layout, chats, knowledge
-// files, logo, PROJECT.md and notes, and the kept versions of its agents and teams) plus every skill in
+// files, MEMORY.md files, logo, PROJECT.md and notes, and the kept versions of its agents, teams and memories) plus every skill in
 // the library with its versions, and every saved preset. Written
 // to <home>/My Dashboard Backups on Windows, macOS and Linux. Drop one into "New project > From
 // backup" to get it all back as a new project, here or on another PC. Keys and tokens are never in it.
@@ -15,6 +15,7 @@ import { createProject, projectsRoot, setLogo, updateProject } from './projects.
 import { isSkillSlug, skillsLibrary, skillDir, skillVersionsDir, skillVersionItem } from './skills.ts';
 import { checkVersion, listVersions, pruneVersions, versionFilesDir, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
 import type { Version } from './versions.ts';
+import { cleanMemoryVersion, isMemoryOwner, putMemory } from './memory.ts';
 import type { Preset } from './presets.ts';
 import type { Agent, Chat, Project, Routine, Team } from '../shared/types.ts';
 
@@ -28,11 +29,13 @@ export const BACKUP_MAX = UNPACKED_MAX;
 
 // How much of each kind is packed at most (the same limits as the auto-save into the project folder).
 // A file that doesn't fit any more is left out and counted (BackupSummary.omitted). Keep README.md in step.
-const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024 };
+const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024 };
 // A kept version in a backup: <kind>/<item id>/<version id>.json, and a skill version's files under
 // skills/<slug>/files-<version id>/. Agents and teams are the project's; skills are the library's
 // (deleted ones too, so Recently deleted comes back).
-const VERSION_FILE = /^(agents|teams|skills)\/[^/]+\/[\w-]+\.json$/;
+const VERSION_FILE = /^(agents|teams|memory|skills)\/[^/]+\/[\w-]+\.json$/;
+// A MEMORY.md in a backup: <agent id or "brain">/MEMORY.md
+const MEMORY_PATH = /^([^/]+)\/MEMORY\.md$/;
 // Files from the project folder that go in: the brief and the notes, not the whole folder (it can be a big repo)
 const BRAIN_FILES = ['PROJECT.md', 'BRAIN.md'];
 const BRAIN_DIRS = ['notes'];
@@ -64,6 +67,8 @@ export interface BackupSummary {
   skills: number;
   presets: number;
   knowledgeFiles: number;
+  /** MEMORY.md files of agents and the Brain (older backups: missing) */
+  memories?: number;
   /** Kept versions of agents, teams and skills (older backups: missing) */
   versions?: number;
   /** The first few agents, to recognise the backup by */
@@ -87,6 +92,8 @@ export interface BackupData {
   teamChats: { name: string; data: unknown }[];
   chats: { agentId: string; chat: Chat }[];
   knowledge: PackedFile[];
+  /** MEMORY.md files (see MEMORY_PATH). Older backups: empty. */
+  memory: PackedFile[];
   brain: PackedFile[];
   logo: PackedFile | null;
   skills: { slug: string; files: PackedFile[] }[];
@@ -118,6 +125,8 @@ export interface BackupRestoreResult {
   routines: number;
   chats: number;
   knowledgeFiles: number;
+  /** MEMORY.md files brought back */
+  memories: number;
   brainFiles: number;
   /** skills added to the library; already there and the same; already there but different, so added under a new id */
   skills: { added: number; same: number; renamed: { from: string; to: string }[] };
@@ -237,6 +246,7 @@ function summarize(b: BackupData): BackupSummary {
     skills: b.skills.length,
     presets: b.presets.length,
     knowledgeFiles: b.knowledge.length,
+    memories: b.memory.length,
     versions: b.versions.filter((f) => VERSION_FILE.test(f.path)).length,
     omitted: b.omitted,
     agentList: b.agents.slice(0, 12).map((a) => ({ name: String(a.name || '').slice(0, 80), emoji: String(a.emoji || '🤖').slice(0, 8) })),
@@ -293,12 +303,15 @@ export function packProject(p: Project): BackupData {
   const versions = [
     ...packTree(projectDir(id, 'versions', 'agents'), versionBudget, 'agents/'),
     ...packTree(projectDir(id, 'versions', 'workflows'), versionBudget, 'teams/'),
+    ...packTree(projectDir(id, 'versions', 'memory'), versionBudget, 'memory/'),
     ...packTree(skillVersionsDir(), versionBudget, 'skills/'),
   ];
   const chatBudget = budget(CAP.chats);
   const knowledgeBudget = budget(CAP.knowledge);
   const chats = packChats(id, chatBudget);
   const knowledge = packTree(projectDir(id, 'knowledge'), knowledgeBudget);
+  const memoryBudget = budget(CAP.memory);
+  const memory = packTree(projectDir(id, 'memory'), memoryBudget).filter((f) => MEMORY_PATH.test(f.path));
   const presets = jsonFiles(dataPath('presets'))
     .map((n) => readJSON<Preset>(dataPath('presets', n)))
     .filter((x): x is Preset => !!x && PRESET_RE.test(String(x.id)));
@@ -316,12 +329,13 @@ export function packProject(p: Project): BackupData {
     teamChats: jsonFiles(projectDir(id, 'teamchats')).map((name) => ({ name, data: readJSON<unknown>(projectDir(id, 'teamchats', name)) })).filter((x) => x.data != null),
     chats,
     knowledge,
+    memory,
     brain,
     logo,
     skills,
     versions,
     presets,
-    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted + versionBudget.omitted,
+    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted,
   };
 }
 
@@ -418,6 +432,7 @@ export function decodeBackup(buf: Buffer): BackupData {
     teamChats: arr<BackupData['teamChats'][number]>(b.teamChats).filter((c) => c && typeof c.name === 'string' && /^[\w.-]+\.json$/.test(c.name) && c.data != null),
     chats: arr<BackupData['chats'][number]>(b.chats).filter((c) => c && typeof c.agentId === 'string' && CHAT_ID_RE.test(c.agentId) && c.chat && typeof c.chat.id === 'string' && CHAT_ID_RE.test(c.chat.id) && Array.isArray(c.chat.items)),
     knowledge: files(b.knowledge),
+    memory: files(b.memory).filter((f) => isMemoryOwner(MEMORY_PATH.exec(f.path)?.[1])),
     brain: files(b.brain),
     logo: b.logo && typeof b.logo.path === 'string' && LOGO_RE.test(b.logo.path) && typeof b.logo.data === 'string' ? b.logo : null,
     skills: arr<BackupData['skills'][number]>(b.skills)
@@ -662,6 +677,8 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   }
   const kRoot = ensureDir(projectDir(id, 'knowledge'));
   const knowledgeFiles = b.knowledge.filter((f) => writePacked(kRoot, f)).length;
+  // MEMORY.md files go back under the agent (or the Brain) they were saved for
+  const memories = b.memory.filter((f) => putMemory(id, MEMORY_PATH.exec(f.path)![1], Buffer.from(f.data, 'base64').toString('utf8'))).length;
   // the brief and notes: only into a file that isn't there yet (the folder may be one you have)
   const brainFiles = b.brain.filter((f) => {
     if (!BRAIN_FILES.includes(f.path) && !BRAIN_DIRS.some((d) => f.path.startsWith(`${d}/`))) return false;
@@ -712,6 +729,7 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
       routines: b.routines.length,
       chats,
       knowledgeFiles,
+      memories,
       brainFiles,
       skills: { added: skills.added, same: skills.same, renamed: skills.renamed },
       presets: { added: presetsAdded, same: presetsSame },
@@ -729,7 +747,7 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
 // put back under the item and id it was saved as; the newest 50 of each are kept.
 function restoreVersions(b: BackupData, id: string, skillMap: Map<string, string>, fix: { agent: (a: Agent) => Agent; team: (t: Team) => Team }): number {
   interface Group {
-    kind: 'agents' | 'teams' | 'skills';
+    kind: 'agents' | 'teams' | 'memory' | 'skills';
     itemId: string;
     versions: Map<string, unknown>;
     files: Map<string, PackedFile[]>;
@@ -739,8 +757,8 @@ function restoreVersions(b: BackupData, id: string, skillMap: Map<string, string
     const parts = f.path.split('/');
     if (parts.length < 3) continue;
     const [kind, itemId, name, ...rest] = parts;
-    if (kind !== 'agents' && kind !== 'teams' && kind !== 'skills') continue;
-    if (kind === 'skills' ? !isSkillSlug(itemId) : !ID_RE.test(itemId) || itemId.startsWith('.')) continue;
+    if (kind !== 'agents' && kind !== 'teams' && kind !== 'memory' && kind !== 'skills') continue;
+    if (kind === 'skills' ? !isSkillSlug(itemId) : kind === 'memory' ? !isMemoryOwner(itemId) : !ID_RE.test(itemId) || itemId.startsWith('.')) continue;
     const key = `${kind}/${itemId}`;
     const g = groups.get(key) || { kind, itemId, versions: new Map(), files: new Map() };
     groups.set(key, g);
@@ -772,6 +790,9 @@ function restoreVersions(b: BackupData, id: string, skillMap: Map<string, string
         const t = cleanTeamVersion(item, g.itemId);
         return t ? fix.team(t as unknown as Team) : null;
       };
+    } else if (g.kind === 'memory') {
+      dir = projectDir(id, 'versions', 'memory', g.itemId);
+      check = (item) => cleanMemoryVersion(item, g.itemId);
     } else {
       const slug = skillMap.get(g.itemId) || g.itemId;
       // a deleted skill in the backup whose id a skill here has: not the same skill, so not its history

@@ -8,8 +8,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { ensureDir, listFiles, readJSON, uid, writeJSON } from './util.ts';
 import { isEffort } from '../shared/effort.ts';
 
-/** Who made a change: you (the page, the API) or the Brain. */
-export type Actor = 'you' | 'brain';
+/** Who made a change: you (the page, the API), the Brain, or an agent (its own MEMORY.md). */
+export type Actor = 'you' | 'brain' | 'agent';
 
 export interface Version<T = unknown> {
   id: string;
@@ -139,7 +139,7 @@ export function checkVersion<T>(raw: unknown, vid: string, check: (item: Record<
   return {
     id: vid,
     at: v.at,
-    by: v.by === 'brain' ? 'brain' : 'you',
+    by: v.by === 'brain' || v.by === 'agent' ? v.by : 'you',
     ...(v.deleted === true ? { deleted: true } : {}),
     ...(typeof v.note === 'string' ? { note: v.note.slice(0, 300) } : {}),
     item,

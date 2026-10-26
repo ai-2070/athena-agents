@@ -1,6 +1,6 @@
 // Auto-save: every project keeps a copy of its agents, teams, routines, layout, team chats, Brain chat,
-// agent chats (with each chat's engine session), agent knowledge files, the skills it uses and the kept
-// versions of its agents, teams and those skills inside its own folder (<project folder>/.dashboard). A few seconds after
+// agent chats (with each chat's engine session), agent knowledge files, the MEMORY.md of each agent and
+// the Brain, the skills it uses and the kept versions of its agents, teams, memories and those skills inside its own folder (<project folder>/.dashboard). A few seconds after
 // any change it is saved again. Opening that folder as a project (here or on another PC) restores it.
 // Keys and tokens are never written there.
 import fs from 'node:fs';
@@ -10,6 +10,7 @@ import { dataPath, ensureDir, exists, isPlainDir, readJSON, readPlain, writeJSON
 import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir, checkVersion, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
 import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, skillVersionItem, SKILL_BODY_MAX } from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
+import { cleanMemoryVersion, isMemoryOwner, putMemory, MEMORY_FILE, MEMORY_MAX } from './memory.ts';
 import type { Version } from './versions.ts';
 import type { Agent, Chat, Routine, Team } from '../shared/types.ts';
 
@@ -60,8 +61,9 @@ const KNOWLEDGE_CAP = 50 * 1024 * 1024; // don't copy more than 50 MB of knowled
 const CHATS_CAP = 200 * 1024 * 1024; // nor more than 200 MB of agent chats
 const VERSIONS_CAP = 50 * 1024 * 1024; // nor more than 50 MB of agent and team versions
 const SKILLS_CAP = 50 * 1024 * 1024; // nor more than 50 MB of skills (with their files and versions)
+const MEMORY_CAP = 20 * 1024 * 1024; // nor more than 20 MB of MEMORY.md files
 // The versioned collections (data/projects/<id>/versions/<kind>/<item id>/<version id>.json)
-const VERSIONED = ['agents', 'workflows'] as const;
+const VERSIONED = ['agents', 'workflows', 'memory'] as const;
 const saved = new Map<string, SaveStatus>(); // projectId -> { at, error }
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -196,7 +198,9 @@ export function saveProject(id: string): SaveStatus | null {
     // agent chats: chats/<agent id>/<chat id>.json, the visible history plus the engine's memory (sessionId, llm)
     copyTree(projectDir(id, 'chats'), path.join(out, 'chats'), CHATS_CAP, { base: out, mirror: true });
     copyTree(projectDir(id, 'knowledge'), path.join(out, 'knowledge'), KNOWLEDGE_CAP, { base: out, mirror: true });
-    // the kept versions of agents and teams (and of deleted ones, so they can be brought back there too)
+    // memory/<agent id or "brain">/MEMORY.md
+    copyTree(projectDir(id, 'memory'), path.join(out, 'memory'), MEMORY_CAP, { base: out, mirror: true });
+    // the kept versions of agents, teams and memories (and of deleted ones, so they can be brought back there too)
     let left = VERSIONS_CAP;
     for (const kind of VERSIONED) left -= copyTree(projectDir(id, 'versions', kind), path.join(out, 'versions', kind), left, { base: out, mirror: true });
     if (exists(path.join(out, 'versions'))) prune(path.join(out, 'versions'), new Set(VERSIONED));
@@ -211,7 +215,7 @@ export function saveProject(id: string): SaveStatus | null {
     noLinks(out, path.join(out, 'README.txt'));
     fs.writeFileSync(
       path.join(out, 'README.txt'),
-      'My Dashboard keeps this project\'s agents, teams, chats, knowledge, the skills it uses and their earlier versions here (auto-saved).\nOpen this folder as a project in the dashboard ("Open a folder…") to load them again.\nNo keys or passwords are stored here.\n',
+      'My Dashboard keeps this project\'s agents, teams, chats, knowledge, memories (MEMORY.md), the skills it uses and their earlier versions here (auto-saved).\nOpen this folder as a project in the dashboard ("Open a folder…") to load them again.\nNo keys or passwords are stored here.\n',
     );
     saved.set(id, { at: Date.now(), agents: agents.length, teams: teams.length });
     return saved.get(id) ?? null;
@@ -285,6 +289,7 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   // (copyTree skips links below this folder: a linked file or folder isn't a plain file or folder)
   const knowledge = savedPath(folder, 'knowledge');
   if (knowledge) copyTree(knowledge, projectDir(id, 'knowledge'), KNOWLEDGE_CAP * 4);
+  restoreMemory(folder, id);
   const chatCount = restoreChats(folder, id, (j.agents || []).filter(safe).map((a) => a.id as string));
   const versionCount = restoreVersions(folder, id);
   const skills = restoreSkills(folder, j.project?.name || path.basename(folder));
@@ -329,11 +334,26 @@ function restoreVersions(folder: string, id: string): number {
   let n = 0;
   for (const kind of VERSIONED) {
     for (const itemId of savedDirs(folder, ['versions', kind], (x) => /^[\w.-]+$/.test(x) && !x.startsWith('.'))) {
-      for (const v of savedVersions(folder, ['versions', kind], itemId, (item) => (kind === 'agents' ? cleanAgentVersion(item, itemId) : cleanTeamVersion(item, itemId)))) {
+      const check = (item: Record<string, unknown>) => (kind === 'agents' ? cleanAgentVersion(item, itemId) : kind === 'workflows' ? cleanTeamVersion(item, itemId) : isMemoryOwner(itemId) ? cleanMemoryVersion(item, itemId) : null);
+      for (const v of savedVersions<unknown>(folder, ['versions', kind], itemId, check)) {
         writeJSON(projectDir(id, 'versions', kind, itemId, `${v.id}.json`), v);
         n++;
       }
     }
+  }
+  return n;
+}
+
+// Each saved MEMORY.md (the Brain's and every agent's): a plain file inside the folder, put back under
+// the owner it was saved as.
+function restoreMemory(folder: string, id: string): number {
+  let n = 0;
+  for (const owner of savedDirs(folder, ['memory'], isMemoryOwner)) {
+    const file = savedPath(folder, 'memory', owner, MEMORY_FILE);
+    if (!file || !exists(file)) continue;
+    const st = fs.lstatSync(file);
+    if (!st.isFile() || st.size > MEMORY_MAX * 4) continue;
+    if (putMemory(id, owner, fs.readFileSync(file, 'utf8'))) n++;
   }
   return n;
 }
@@ -430,7 +450,7 @@ function restoreChats(folder: string, id: string, agentIds: string[]): number {
 }
 
 // Save after anything in the project changes.
-const WATCH = new Set(['agents', 'workflows', 'routines', 'layout', 'team', 'knowledge', 'brain-chat', 'chats', 'skills']);
+const WATCH = new Set(['agents', 'workflows', 'routines', 'layout', 'team', 'knowledge', 'memory', 'brain-chat', 'chats', 'skills']);
 export function startAutoSave() {
   bus.on('event', (ev) => {
     // an event that names its project (an agent chat) saves that one, even if another is open now

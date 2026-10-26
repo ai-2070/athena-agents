@@ -1,10 +1,11 @@
 // One agent's chat, for the floating chat window: its latest conversation as the AI SDK chat (web/chat,
 // the small version): streaming replies, tools it uses (with images), file previews, approvals it waits
-// on, and a composer with Stop. The bar above picks the model, starts a new chat or opens the full page.
+// on, and a composer with Stop. The bar above picks the model, starts a new chat, opens its MEMORY.md or the full page.
 import { h, mount, state, GET, POST, attempt, navigate, onState } from './core.ts';
 import { icon } from './icons.ts';
 import { modelChip } from './models.ts';
 import { attachTray } from './attach.ts';
+import { memoryButton } from './memory.ts';
 import type { MountedChat } from './chat/mount.tsx';
 import type { Chat, ChatSummary } from '../shared/types.ts';
 
@@ -39,6 +40,7 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
     chipBox,
     h('span.grow'),
     h('button.btn.tiny.ghost', { title: 'Start a fresh conversation', onclick: () => fresh() }, icon('plus', 13), 'New chat'),
+    memoryButton(agentId, agent()?.name, 'button.btn.tiny.ghost'),
     h('button.btn.tiny.ghost', { title: 'Open the full chat page', onclick: () => navigate(chatId ? `#/agents/${agentId}/${chatId}` : `#/agents/${agentId}`) }, icon('maximize-2', 13), 'Full page'),
   );
   const root = h('div.ac', bar, body);

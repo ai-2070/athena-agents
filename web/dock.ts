@@ -7,6 +7,7 @@ import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.ts'
 import { brainQueue, latestLoad } from './brainqueue.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import { attachTray } from './attach.ts';
+import { openMemory, BRAIN } from './memory.ts';
 import { mentionPreviews } from './filepreview.ts';
 import { brainKeyLabel, brainKeyTitle, brainShortcut } from './shortcuts.ts';
 import type { AttachTray, PickedFile } from './attach.ts';
@@ -107,7 +108,7 @@ export function initDock(): void {
   D.modelEl = h('div.dock-model');
   D.panel = h(
     'div.dock.hidden',
-    h('div.dock-head', h('b', icon('brain', 16), 'Brain chat'), h('span.grow'), h('span.dock-to', 'to'), D.sel, D.modelEl, h('button.icon-btn', { onclick: newConversation, title: 'New conversation (the Brain forgets this chat)', 'aria-label': 'New conversation' }, icon('rotate-ccw', 15)), h('button.icon-btn', { onclick: () => toggle(false), 'aria-label': 'Close' }, '✕')),
+    h('div.dock-head', h('b', icon('brain', 16), 'Brain chat'), h('span.grow'), h('span.dock-to', 'to'), D.sel, D.modelEl, h('button.icon-btn', { onclick: () => openMemory(BRAIN), title: "The Brain's MEMORY.md: what it remembers across conversations", 'aria-label': "The Brain's MEMORY.md" }, icon('file-text', 15)), h('button.icon-btn', { onclick: newConversation, title: 'New conversation (the Brain forgets this chat)', 'aria-label': 'New conversation' }, icon('rotate-ccw', 15)), h('button.icon-btn', { onclick: () => toggle(false), 'aria-label': 'Close' }, '✕')),
     D.list,
     h('div.dock-tray-wrap', D.tray.el),
     h('div.dock-compose', D.tray.picker, D.input, h('button.btn', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 15))),
@@ -395,7 +396,7 @@ function renderItem(it: DockItem): HTMLElement | null {
     const body = it.live && !it.answer ? h('div.dock-note', h('span.dot.busy'), 'The Brain is looking at the project…') : md(it.answer || (it.done?.length ? '' : '(no answer)'));
     body.classList?.add('dock-answer');
     if (it.live && it.answer) body.classList.add('cursor');
-    const ico = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', error: 'triangle-alert', note: 'check' };
+    const ico = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', memory: 'file-text', error: 'triangle-alert', note: 'check' };
     return h(
       'div.dock-msg.agent.brain',
       h('div.dock-who', h('div.avatar.brain-av', icon('brain', 14)), h('b', 'Brain'), h('span.dock-answer-model', modelInfo(brainAsAgent(b)).short)),
@@ -403,7 +404,7 @@ function renderItem(it: DockItem): HTMLElement | null {
       body,
       it.answer && !it.live ? mentionPreviews(it.answer, [], { compact: true, key: `dock:${it.id}` }) : null,
       it.done?.length
-        ? h('div.brain-done', it.done.map((d) => h(`div.brain-act${d.kind === 'error' ? '.err' : ''}`, icon(ico[d.kind] || 'check', 13), h('span', d.text), d.teamId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/station?team=${d.teamId}`) }, 'Show') : d.routineId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/routines/${d.routineId}`) }, 'Open') : d.skillId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/skills/${d.skillId}`) }, 'Open') : null)))
+        ? h('div.brain-done', it.done.map((d) => h(`div.brain-act${d.kind === 'error' ? '.err' : ''}`, icon(ico[d.kind] || 'check', 13), h('span', d.text), d.teamId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/station?team=${d.teamId}`) }, 'Show') : d.routineId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/routines/${d.routineId}`) }, 'Open') : d.skillId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/skills/${d.skillId}`) }, 'Open') : d.memory ? h('button.btn.tiny.ghost', { onclick: () => openMemory(d.memory!, d.memory === BRAIN ? 'The Brain' : state.data?.agents.find((a) => a.id === d.memory)?.name) }, 'Open') : null)))
         : null,
       it.delegate ? h('div.brain-act.handoff', icon('send', 13), h('span', 'Handed to ', h('b', it.delegate.name))) : null,
     );
