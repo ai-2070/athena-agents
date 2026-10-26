@@ -83,6 +83,9 @@ export async function startWorkflow(id: string, input = '', { trigger = 'manual'
   return run;
 }
 
+/** The ids of workflow runs going right now (every project's). */
+export const runningWorkflowRuns = (): string[] => [...activeRuns.keys()];
+
 export function stopWorkflowRun(runId: string): boolean {
   const ctl = activeRuns.get(runId);
   if (ctl) {

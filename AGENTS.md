@@ -79,7 +79,7 @@ CI (`.github/workflows/ci.yml`) runs typecheck, test and build on ubuntu and win
 
 - Server tests (`tests/server/setup.ts`) point `DASH_DATA`, `HOME` and `USERPROFILE` at a throwaway
   folder and abort if that fails. Never bypass this or touch the real `data/` or home folder.
-- `tests/server/api.test.ts` starts the real server with Bun on a random port in 4870–4889.
+- `tests/server/api.test.ts` starts the real server with Bun on a free port the system hands out, and checks it is talking to its own server (its data folder).
 - Add or update tests with every behavior change: server logic in `tests/server`, DOM helpers and
   React chat pieces in `tests/web`.
 - Paths differ on Windows (long vs short names, `\` vs `/`, case). Compare resolved/real paths.

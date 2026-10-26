@@ -1,6 +1,8 @@
 // Teams are group chats of agents. You write in the team chat; the lead (or the best member) answers,
 // agents hand work to each other by @mentioning a teammate, and everyone sees one shared thread.
 // Each agent keeps its own memory of the team (its own chat session), and gets the new messages each turn.
+// The Brain writes here too: it hands the team work, answers when someone writes @Brain, and looks at
+// the thread when the team goes quiet (see irc.ts).
 import { workflows as teamStore, agents, chats, emit, log, activeProject, openProject } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath } from './util.ts';
 import { askAgent, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
@@ -12,6 +14,9 @@ const MAX_TURNS = 16; // agent turns per message you send
 const MAX_PER_AGENT = 5; // turns per agent per message you send
 const CONTEXT_CHARS = 9000; // new group messages handed to an agent per turn
 const KEEP_MESSAGES = 500;
+const MAX_BRAIN_REPLIES = 4; // times the Brain answers @Brain per message you send
+/** Who the Brain is in a thread (TeamMessage.from, and in TeamState.working while it answers). */
+export const BRAIN = 'brain';
 
 /** The team chat file: the shared thread, each agent's own chat session, and how far each agent has read. */
 interface TeamChat {
@@ -42,7 +47,7 @@ interface QueueItem {
 interface Runtime {
   queue: QueueItem[];
   running: Set<string>;
-  episode: { turns: number; per: Record<string, number> };
+  episode: { turns: number; per: Record<string, number>; brain?: number };
   stopped?: boolean;
   epoch: number; // bumped by stop and clear: turns started before then are dropped
   /** your /queue messages, posted one by one once nobody is working; heldIn: the project they were typed in */
@@ -51,10 +56,25 @@ interface Runtime {
   route?: RouteFn | null;
   /** a held message is being posted */
   releasing?: boolean;
+  /** @Brain messages waiting while the Brain answers another one */
+  brainQueue?: TeamMessage[];
 }
 
 /** Picks the member who should answer when nobody is named and there is no lead (brain.pickMember). */
 export type RouteFn = (text: string, members: (Agent | null)[]) => Promise<string | null | undefined>;
+
+/** What the Brain does in team chats (irc.ts sets these): answer a message that mentions @Brain
+ *  (the reply text, posted here as the Brain), and look at a team that went quiet. */
+export interface BrainHandlers {
+  reply(team: Team, msg: TeamMessage): Promise<string | null>;
+  idle(teamId: string, opts: { stopped: boolean }): void;
+}
+let brainHandlers: BrainHandlers | null = null;
+export function setBrainHandlers(h: BrainHandlers | null): void {
+  brainHandlers = h;
+}
+
+export const mentionsBrain = (text: unknown): boolean => /(^|[^\w@])@brain\b/i.test(String(text || ''));
 
 // ---------- team records ----------
 // Older teams were step lists: their agents become the members.
@@ -147,21 +167,44 @@ export function parseMentions(team: Team, text: unknown, exclude: string | null 
   return [...found];
 }
 
-// ---------- you write in the team chat ----------
-// skills: given to every member for the work this message starts (a routine's skills)
-export async function postUserMessage(teamId: string, text: string | null | undefined, { replyTo = null, route = null, skills = [], attachments = [] }: { replyTo?: string | null; route?: RouteFn | null; skills?: string[]; attachments?: string[] } = {}): Promise<TeamMessage> {
+// ---------- you (or the Brain) write in the team chat ----------
+interface PostOptions {
+  replyTo?: string | null;
+  route?: RouteFn | null;
+  /** given to every member for the work this message starts (a routine's skills) */
+  skills?: string[];
+  attachments?: string[];
+}
+
+export function postUserMessage(teamId: string, text: string | null | undefined, opts: PostOptions = {}): Promise<TeamMessage> {
+  return postAndRoute(teamId, 'user', text, opts);
+}
+
+/** The Brain hands the team work (or follows up on it), as itself. */
+export function postBrainMessage(teamId: string, text: string | null | undefined, opts: PostOptions = {}): Promise<TeamMessage> {
+  return postAndRoute(teamId, BRAIN, text, opts);
+}
+
+async function postAndRoute(teamId: string, from: 'user' | typeof BRAIN, text: string | null | undefined, { replyTo = null, route = null, skills = [], attachments = [] }: PostOptions): Promise<TeamMessage> {
   const team = getTeam(teamId);
   if (!team) throw new Error('No such team.');
   if (!team.members.length) throw new Error('This team has no agents yet. Add some first.');
   text = String(text || '').trim();
   if (!text && !attachments.length) throw new Error('Write something first.');
   const mentions = parseMentions(team, text);
-  const msg = post(team, { from: 'user', text, mentions, replyTo, ...(attachments.length ? { attachments } : {}) });
+  const msg = post(team, { from, text, mentions, replyTo, ...(attachments.length ? { attachments } : {}) });
   const r = runtime(team.id);
   r.episode = { turns: 0, per: {} }; // a new message from you gives the team a fresh budget
   r.stopped = false;
+  // you asked the Brain: it answers in the thread, and nobody else starts unless you named them
+  const askBrain = from === 'user' && mentionsBrain(text);
+  if (askBrain) void brainTurn(team, msg);
   let targets = mentions;
   let why = '';
+  if (!targets.length && askBrain) {
+    log('team', `You → the Brain in ${team.name}: ${text.slice(0, 100)}`);
+    return msg;
+  }
   if (!targets.length && replyTo) {
     const parent = loadChat(team.id).messages.find((m) => m.id === replyTo);
     if (parent && team.members.includes(parent.from)) targets = [parent.from];
@@ -178,8 +221,63 @@ export async function postUserMessage(teamId: string, text: string | null | unde
   }
   for (const id of targets) enqueue(team, id, msg.id, true, false, skills);
   if (why) emit('team', { teamId: team.id, event: { kind: 'routed', to: targets, why } });
-  log('team', `You → ${team.name}: ${(text || attachmentNames(attachments)).slice(0, 100)}`);
+  log('team', `${from === BRAIN ? 'The Brain' : 'You'} → ${team.name}: ${(text || attachmentNames(attachments)).slice(0, 100)}`);
   return msg;
+}
+
+// The Brain answers a message that mentions @Brain, in the thread. Its answer goes to whoever it names,
+// else back to the agent that asked. One answer at a time; a few per message you send.
+async function brainTurn(team: Team, msg: TeamMessage): Promise<void> {
+  const r = runtime(team.id);
+  if (!brainHandlers) return;
+  if (r.running.has(BRAIN)) {
+    r.brainQueue = [...(r.brainQueue || []), msg];
+    return;
+  }
+  const n = r.episode.brain || 0;
+  if (n >= MAX_BRAIN_REPLIES) {
+    post(team, { from: 'system', text: `The Brain has answered ${n} times on this. Write in the chat to keep going.` });
+    return;
+  }
+  r.episode.brain = n + 1;
+  const epoch = r.epoch;
+  const pid = activeProject().id;
+  r.running.add(BRAIN);
+  state(team);
+  let reply: string | null = null;
+  try {
+    reply = await brainHandlers.reply(team, msg);
+  } catch (e) {
+    reply = `(The Brain couldn't answer: ${(e as Error).message})`;
+  } finally {
+    r.running.delete(BRAIN);
+  }
+  // stopped, cleared or another project opened meanwhile: the answer is no longer wanted here
+  if (reply && r.epoch === epoch && !r.stopped && openProject().id === pid) {
+    const fresh = getTeam(team.id) || team;
+    const mentions = parseMentions(fresh, reply);
+    const out = post(fresh, { from: BRAIN, text: reply, mentions, replyTo: msg.id });
+    for (const id of mentions) enqueue(fresh, id, out.id, false, false);
+    if (!mentions.length && fresh.members.includes(msg.from)) enqueue(fresh, msg.from, out.id, false, true);
+  }
+  state(team);
+  const next = r.brainQueue?.shift();
+  if (next && r.epoch === epoch && !r.stopped) return brainTurn(team, next);
+  r.brainQueue = [];
+  settled(team.id);
+}
+
+// Nobody works and nothing waits: the Brain may look at what the team did.
+function settled(teamId: string, stopped = false) {
+  const r = runtime(teamId);
+  if (r.running.size || r.queue.length) return;
+  try {
+    brainHandlers?.idle(teamId, { stopped: stopped || !!r.stopped });
+  } catch {
+    /* the Brain's problem is not the team's */
+  }
+  // your next /queue message goes now (the Brain's check of the work then waits for it)
+  releaseHeld(teamId);
 }
 
 // returning: this is a finished handoff coming back (the receiver's own reply won't bounce back again)
@@ -222,7 +320,7 @@ function pump(teamId: string) {
       r.running.delete(item.agentId);
       state(team);
       pump(teamId);
-      releaseHeld(teamId);
+      settled(teamId);
     });
   }
 }
@@ -242,6 +340,7 @@ How this chat works:
 - To hand work to a teammate, mention them exactly as @Name and say precisely what you need back. Only mention someone who needs to act now; each stage should have one owner.
 - Do your own part fully before handing off. Don't redo work a teammate owns.
 - Anything that needs the user's judgment: ask them in your reply, without mentioning a teammate.
+- The Brain (the project's overseer) hands the team work and checks on it. To ask it something (about the project, other teams, what to do next) or to say you're stuck, write @Brain.
 - Keep replies short: what you did, the result, and who acts next.${team.lead === agent.id ? '\n- You are the lead: break the request down, give each part to one owner, and when everyone is done post the combined result for the user.' : ''}`;
 }
 
@@ -259,7 +358,7 @@ async function runTurn(team: Team, item: QueueItem) {
   }
   const first = c.seen[agent.id] == null;
   const fresh = c.messages.slice(c.seen[agent.id] || 0).filter((m) => m.from !== agent.id);
-  const name = (id: string) => (id === 'user' ? 'You (the user)' : id === 'system' ? 'System' : `@${agents.get(id)?.name || 'someone'}`);
+  const name = (id: string) => (id === 'user' ? 'You (the user)' : id === 'system' ? 'System' : id === BRAIN ? 'The Brain (overseer)' : `@${agents.get(id)?.name || 'someone'}`);
   // files attached to a message: named in the line, their paths come at the end of the prompt
   const said = (m: TeamMessage) => `${name(m.from)}: ${String(m.text).slice(0, 2500)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`;
   let digest = '';
@@ -317,9 +416,12 @@ async function runTurn(team: Team, item: QueueItem) {
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'end' } });
   if (stopped) return;
   for (const id of mentions) if (team.members.includes(id)) enqueue(team, id, msg.id, false, false, item.skills);
+  // it asked the Brain: the Brain's answer comes back to it
+  const askedBrain = mentionsBrain(text);
+  if (askedBrain) void brainTurn(team, msg);
   // A handed-off job is done and nobody new is named: the answer goes back to the lead (or whoever asked), once.
-  if (!mentions.length && !item.returning && agent.id !== team.lead) {
-    const asked = c.messages.filter((m) => item.msgIds.includes(m.id) && m.from !== 'user' && m.from !== 'system').map((m) => m.from);
+  if (!mentions.length && !askedBrain && !item.returning && agent.id !== team.lead) {
+    const asked = c.messages.filter((m) => item.msgIds.includes(m.id) && m.from !== 'user' && m.from !== 'system' && m.from !== BRAIN).map((m) => m.from);
     const back = team.lead && team.lead !== agent.id ? team.lead : asked.find((id) => id !== agent.id);
     if (asked.length && back && team.members.includes(back)) enqueue(team, back, msg.id, false, true, item.skills);
   }
@@ -377,6 +479,23 @@ function releaseHeld(teamId: string) {
     });
 }
 
+/** Take an agent off the turns it waits for in this project's teams (it was stopped, so it doesn't start
+ *  on the next one as soon as its turn ends). Returns how many it had. */
+export function dropQueuedTurns(agentId: string): number {
+  let n = 0;
+  for (const [teamId, r] of rt) {
+    const team = getTeam(teamId);
+    if (!team) continue; // another project's team
+    const before = r.queue.length;
+    r.queue = r.queue.filter((q) => q.agentId !== agentId);
+    if (r.queue.length === before) continue;
+    n += before - r.queue.length;
+    state(team);
+    settled(teamId);
+  }
+  return n;
+}
+
 export function stopTeam(teamId: string) {
   const team = getTeam(teamId);
   const r = runtime(teamId);
@@ -385,8 +504,10 @@ export function stopTeam(teamId: string) {
   r.queue = [];
   r.held = [];
   stopChildren(`team:${teamId}`);
+  r.brainQueue = [];
   if (team) post(team, { from: 'system', text: 'Stopped. Nothing new will start until you write again.' });
   if (team) state(team);
+  settled(teamId, true);
   return true;
 }
 

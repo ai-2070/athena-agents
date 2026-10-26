@@ -117,6 +117,17 @@ async function draw(): Promise<void> {
           ),
           h('p.hint', "When an agent or team asks permission, the Brain allows routine, on-task work by itself and only passes the risky or unclear requests (deleting, pushing, sending, secrets, anything outside the project) to Needs you. Workflow checkpoints and Outbox posts and DMs always wait for you."),
           toggleRow(
+            s.brainFollowsUp !== false,
+            async (on) => {
+              const saved = await attempt(() => PUT('/settings', { brainFollowsUp: on }), on ? 'The Brain checks on the work it hands out' : 'The Brain hands work out and leaves it to them');
+              if (saved) refreshSoon(0);
+              else await draw();
+            },
+            'The Brain follows up',
+            '.mt',
+          ),
+          h('p.hint', 'When a team or agent finishes work the Brain handed them, it checks the result. Something missing: it asks them for it (twice at most). Done, stuck, or they need you: it tells you in the Brain chat. Off: it only hands the work out, and stops checking on work it handed out before.'),
+          toggleRow(
             s.brainAnyGitHub === true,
             async (on) => {
               const saved = await attempt(() => PUT('/settings', { brainAnyGitHub: on }), on ? 'The Brain may install skills from any GitHub link' : 'The Brain installs only from links you give');

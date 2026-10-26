@@ -129,7 +129,7 @@ export interface TeamListing extends Team {
 export interface TeamMessage {
   id: string;
   ts: number;
-  from: string; // 'user' | 'system' | agent id
+  from: string; // 'user' | 'system' | 'brain' | agent id
   text: string;
   mentions: string[];
   replyTo?: string | null;
@@ -447,6 +447,8 @@ export interface Settings {
   brainSkills: string[];
   /** The Brain may install skills from any GitHub link, not only from repos you named in the chat. */
   brainAnyGitHub: boolean;
+  /** The Brain checks the work it handed out when it's finished, follows up when something is missing, and tells you how it went. */
+  brainFollowsUp: boolean;
   look: LookSetting;
   telegram: { chatId: string };
   maxToolSteps: number;
@@ -653,7 +655,7 @@ export interface MemoryInfo {
 }
 
 // ---------- the Brain ----------
-export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'memory' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
+export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'stop' | 'memory' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
 export interface BrainDelegate {
   kind: 'agent' | 'branch';
   id: string;
@@ -661,6 +663,29 @@ export interface BrainDelegate {
   message: string;
   /** The files you attached for the Brain, handed on with the work. */
   attachments?: string[];
+  /** Set once the server handed it on: the Brain's message in the team chat, or the agent chat it started. */
+  sent?: { messageId?: string; ts?: number; chatId?: string; runId?: string };
+}
+
+/** Work the Brain handed to a team or an agent, and how its follow-up went (data/projects/<id>/brain-briefs.json). */
+export interface BrainBrief {
+  id: string;
+  kind: 'team' | 'agent';
+  /** the team or agent id */
+  targetId: string;
+  name: string;
+  /** what the Brain asked for */
+  text: string;
+  ts: number;
+  /** a team: the Brain's message in the thread; an agent: the chat it works in */
+  messageId?: string;
+  chatId?: string;
+  followUps: number;
+  /** open: working on it. done: finished (or needs you). stuck: not done after the follow-ups. stopped: you stopped it. replaced: a newer brief went to the same team or agent. */
+  status: 'open' | 'done' | 'stuck' | 'stopped' | 'replaced';
+  /** the Brain's last word on it, for you */
+  summary?: string;
+  updatedAt?: number;
 }
 
 /** One file or folder saved by POST /api/uploads/:batch. top: the file itself, or the dropped folder it is in. */
