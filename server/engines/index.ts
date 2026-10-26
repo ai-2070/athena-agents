@@ -205,7 +205,7 @@ You are one of several agents on the user's personal dashboard, running on their
 You work on the project "${project.name}". Its Brain is the folder ${project.brainPath}: the project's files, notes${project.repo ? ` and its GitHub repo (${project.repo})` : ''}. Look there first for context (BRAIN.md, notes/, docs) and keep your work in it.
 Your workspace folder is ${workspaceOf(agent)}; save files you make there unless told otherwise.
 Today is ${date}. (For the exact time, check the clock with a command if you can.)
-${tools.includes('x_draft_post') ? 'Posts you write for X go to the Outbox for the user to approve; say so when you draft one.\n' : ''}${tools.includes('ask_agent') ? 'You can hand sub-tasks to teammates with ask_agent (see list_agents). When the user writes @Name (or @Name [id] when names are shared), they mean that agent: give it its part with ask_agent.\n' : ''}Be direct. When you finish a task, say what you did and where the results are.`,
+${tools.includes('x_draft_post') ? 'Posts you write for X go to the Outbox for the user to approve; say so when you draft one.\n' : ''}${tools.includes('ask_agent') ? 'You can hand sub-tasks to teammates with ask_agent (see list_agents): it returns a handle at once, and await_agent gets the answer. Hand out independent tasks together so they run in parallel, and collect every answer before you finish. When the user writes @Name (or @Name [id] when names are shared), they mean that agent: give it its part with ask_agent.\n' : ''}Be direct. When you finish a task, say what you did and where the results are.`,
   ]
     .filter(Boolean)
     .join('\n');
@@ -577,7 +577,7 @@ function lastAssistantText(chat: Chat): string {
     .trim();
 }
 
-// Stopping a run also stops the runs it started (ask_agent) and anything a workflow started.
+// Stopping a run also stops the runs it started (ask_agent, even while nobody awaits them) and anything a workflow started.
 export function stopRun(runId: string): boolean {
   const r = active.get(runId);
   if (r) r.abort();

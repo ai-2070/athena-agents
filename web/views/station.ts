@@ -690,6 +690,7 @@ function describeTool(name: unknown, args: ToolArgs = {}): ToolDesc {
   if (['Write', 'Edit', 'write_file', 'NotebookEdit'].includes(n)) return A('Files', 'writing', base(args.file_path || args.path), null, '#a9d3e2');
   if (['Glob', 'Grep', 'list_files', 'knowledge_search'].includes(n)) return A('Files', 'searching', args.pattern || args.query || args.path || '', null, '#a9d3e2');
   if (n === 'ask_agent') return A('Team', `asking ${args.agent || 'a teammate'}`, args.message || '', null, '#c4ff3d');
+  if (n === 'await_agent') return A('Team', args.handle ? 'waiting for a teammate' : 'checking handoffs', '', null, '#c4ff3d');
   if (n === 'hermes_ask') return A('Hermes', `asking ${args.profile || 'Hermes'}`, args.message || '', null, '#d8c25a');
   if (n === 'launch_program') return A(String(args.program || 'Program'), 'starting', base(args.file), String(args.program || '').toLowerCase(), '#c4ff3d');
   if (n === 'orca') return A('Orca', (args.args || []).join(' '), '', null, '#7ab8ff');
