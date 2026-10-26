@@ -26,14 +26,17 @@ export interface Version<T = unknown> {
 
 // Keep this many versions per item.
 export const VERSIONS_KEPT = 50;
-// Edits by the same one this close together are one change: the version from before the first is kept.
+// Edits on the page by the same one this close together are one change: the version from before the
+// first is kept. (A run of withActor, e.g. one answer of the Brain, is one change of its own instead.)
 export const COALESCE_MS = 3 * 60_000;
 
 // ---------- who is changing things ----------
-const actor = new AsyncLocalStorage<{ by: Actor; note?: string; force?: boolean }>();
-/** Run fn as a change by `by` (e.g. the Brain's actions). force: always keep a version (a restore). */
+// kept: the version this change kept in each version folder (folder -> version id)
+const actor = new AsyncLocalStorage<{ by: Actor; note?: string; force?: boolean; kept: Map<string, string> }>();
+/** Run fn as one change by `by` (e.g. one answer of the Brain): each item it changes gets one version,
+ *  however soon after the last one. force: always keep a version (a restore). */
 export function withActor<T>(by: Actor, fn: () => T, { note, force = false }: { note?: string; force?: boolean } = {}): T {
-  return actor.run({ by, note, force }, fn);
+  return actor.run({ by, note, force, kept: new Map() }, fn);
 }
 export const currentActor = (): Actor => actor.getStore()?.by || 'you';
 
@@ -70,6 +73,8 @@ let lastStamp = 0;
 // (a time in the future, from data made elsewhere, is never followed: it would push every later version
 // into the future too)
 const FUTURE_SLACK_MS = 60_000;
+// how far ahead of the clock a version made here can be (see stamp)
+const STAMP_SLACK_MS = 1000;
 const stamp = (after = 0) => (lastStamp = Math.max(Date.now(), lastStamp + 1, after < Date.now() + FUTURE_SLACK_MS ? after + 1 : 0));
 /** A version's files kept next to it (a deleted skill's extra files): <dir>/files-<version id>. */
 export const versionFilesDir = (dir: string, id: string): string => path.join(dir, `files-${id}`);
@@ -88,17 +93,28 @@ export function getVersion<T>(dir: string, id: string): Version<T> | null {
 }
 
 /** Keep `before` (what an item was until now) in dir, unless it's the same as `after` or part of the
- *  same run of edits as the last version. Returns the version kept, or null. */
-export function keepVersion<T>(dir: string, before: T, after: T | null, { ignore = [], deleted = false }: { ignore?: readonly string[]; deleted?: boolean } = {}): Version<T> | null {
+ *  same change as the last version (the same withActor run, or else edits close together). Returns the
+ *  version kept, or null. extra: kept with a deleted one besides the item (a skill's extra files). */
+export function keepVersion<T>(dir: string, before: T, after: T | null, { ignore = [], deleted = false, extra }: { ignore?: readonly string[]; deleted?: boolean; extra?: Partial<T> } = {}): Version<T> | null {
   if (!before) return null;
   if (!deleted && after && canonical(before, ignore) === canonical(after, ignore)) return null;
   const ctx = actor.getStore();
   const by = ctx?.by || 'you';
   const last = listVersions<T>(dir)[0];
+  // (a few ms ahead is fine: stamp() moves versions made in the same millisecond on by one each)
   const age = last ? Date.now() - last.at : Infinity;
-  if (!deleted && !ctx?.force && last && !last.deleted && last.by === by && age >= 0 && age < COALESCE_MS) return null;
-  const v: Version<T> = { id: uid('v'), at: stamp(last?.at), by, ...(deleted ? { deleted: true } : {}), ...(ctx?.note ? { note: ctx.note } : {}), item: before };
+  const mine = ctx?.kept.get(path.resolve(dir));
+  // deleted by the same change that edited it: that change's version (from before it) becomes the
+  // deleted one, so one change stays one version
+  if (deleted && mine && last && last.id === mine && !last.deleted) {
+    const v: Version<T> = { ...last, deleted: true, item: { ...last.item, ...extra } };
+    writeJSON(path.join(dir, `${v.id}.json`), v);
+    return v;
+  }
+  if (!deleted && !ctx?.force && (ctx ? mine !== undefined : last && !last.deleted && last.by === by && age > -STAMP_SLACK_MS && age < COALESCE_MS)) return null;
+  const v: Version<T> = { id: uid('v'), at: stamp(last?.at), by, ...(deleted ? { deleted: true } : {}), ...(ctx?.note ? { note: ctx.note } : {}), item: { ...before, ...extra } };
   writeJSON(path.join(ensureDir(dir), `${v.id}.json`), v);
+  ctx?.kept.set(path.resolve(dir), v.id);
   pruneVersions(dir);
   return v;
 }

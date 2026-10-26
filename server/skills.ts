@@ -225,7 +225,7 @@ export function deleteSkill(slug: string) {
   const s = getSkill(slug);
   if (s) {
     const extra = skillExtraFiles(dir);
-    const v = keepVersion(skillVersionsDir(slug), { ...versionItem(s), files: extra, filesHash: skillFilesHash(dir) }, null, { deleted: true });
+    const v = keepVersion(skillVersionsDir(slug), versionItem(s), null, { deleted: true, extra: { files: extra, filesHash: skillFilesHash(dir) } });
     if (v && extra.length) copySkillFiles(dir, versionFilesDir(skillVersionsDir(slug), v.id));
   }
   fs.rmSync(dir, { recursive: true, force: true });
