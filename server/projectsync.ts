@@ -66,14 +66,28 @@ const saved = new Map<string, SaveStatus>(); // projectId -> { at, error }
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
 const projectDir = (id: string, ...p: string[]) => dataPath('projects', id, ...p);
+// Plain .json files only: a link (agents/x.json -> data/secrets.json, or anywhere on the PC) would be
+// read through and land in the project folder, which may be shared or pushed to GitHub.
 const jsonFiles = (dir: string): string[] => {
   try {
-    return fs.readdirSync(dir).filter((n) => n.endsWith('.json'));
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isFile() && e.name.endsWith('.json'))
+      .map((e) => e.name);
   } catch {
     return [];
   }
 };
 const readAll = <T>(dir: string): T[] => jsonFiles(dir).map((n) => readJSON<T>(path.join(dir, n))).filter((x): x is T => Boolean(x));
+// One JSON file, only when it is a plain file (not a link)
+function readPlain<T>(file: string, fallback: T): T {
+  try {
+    if (!fs.lstatSync(file).isFile()) return fallback;
+  } catch {
+    return fallback;
+  }
+  return readJSON<T>(file, fallback);
+}
 
 // Refuse to write through a link anywhere from base down to target (a crafted project folder could
 // point .dashboard/... at another file).
@@ -105,11 +119,21 @@ function prune(dir: string, keep: Set<string>) {
 function copyTree(from: string, to: string, budget: number, { base, mirror = false }: { base?: string; mirror?: boolean } = {}): number {
   let used = 0;
   const walk = (src: string, dst: string) => {
-    let list: fs.Dirent[] = [];
+    let st: fs.Stats;
     try {
-      list = fs.readdirSync(src, { withFileTypes: true });
+      st = fs.lstatSync(src);
     } catch {
       return;
+    }
+    // A linked folder is left out like a linked file (below the top, readdir's entries already say so):
+    // it could point anywhere on the PC. Mirrored, so a copy saved before it was a link goes too.
+    let list: fs.Dirent[] = [];
+    if (!st.isSymbolicLink()) {
+      try {
+        list = fs.readdirSync(src, { withFileTypes: true });
+      } catch {
+        return;
+      }
     }
     if (base) noLinks(base, dst);
     if (mirror) prune(dst, new Set(list.map((e) => e.name)));
@@ -170,8 +194,8 @@ export function saveProject(id: string): SaveStatus | null {
       agents,
       teams,
       routines,
-      layout: readJSON<unknown>(projectDir(id, 'layout.json'), {}),
-      brainChat: readJSON<unknown>(projectDir(id, 'brain-chat.json'), { messages: [] }),
+      layout: readPlain<unknown>(projectDir(id, 'layout.json'), {}),
+      brainChat: readPlain<unknown>(projectDir(id, 'brain-chat.json'), { messages: [] }),
     });
     // team chat threads and the files you gave agents as knowledge (mirrored: what's deleted here goes there too)
     copyTree(projectDir(id, 'teamchats'), path.join(out, 'teamchats'), Infinity, { base: out, mirror: true });
