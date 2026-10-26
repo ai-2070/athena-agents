@@ -1,0 +1,19 @@
+public/polish.css
+  s_0158db7b6582fe::t_8610b7be0201e5 235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ce229ff6a5f83b78f7a38c2dd16de312d27fa6da",
+  "prompts": {},
+  "sessions": {
+    "s_0158db7b6582fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f275e4f7-a335-4444-9c8e-8a79cc3dd685",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
