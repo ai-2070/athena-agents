@@ -13,7 +13,7 @@ describe('claudeArgs() permission mode', () => {
     const args = claudeArgs(agent('ask'), files);
     expect(modeOf(args)).toBe('default');
     expect(args).not.toContain('acceptEdits');
-    expect(args).toContain('--permission-prompt-tool');
+    expect(args[args.indexOf('--permission-prompt-tool') + 1]).toBe('mcp__dashboard__permission_prompt');
   });
 
   it('"Ask first" in a terminal asks there (no prompt tool)', () => {
