@@ -1,5 +1,5 @@
 // Settings: keys, defaults, local model servers, program paths, limits.
-import { h, mount, GET, POST, PUT, attempt, field, seg, select, toggle, toast, refreshSoon, state, navigate } from '../core.ts';
+import { h, mount, GET, POST, PUT, attempt, field, seg, select, toggleRow, toast, refreshSoon, state, navigate } from '../core.ts';
 import { brainModelChip } from '../models.ts';
 import type { Child } from '../core.ts';
 import type { EngineStatus, SecretKey, SecretStatus, Settings, Terminal } from '../../shared/types.ts';
@@ -102,15 +102,16 @@ async function draw(): Promise<void> {
           h('div.panel-head', h('h2', "The Brain's model")),
           h('p.hint', 'The Brain oversees the project: it answers about the project and its files, builds teams and agents, writes PROJECT.md and hands work out. It can run on Claude Code, OpenRouter, Hermes or Codex. Claude Code and Codex can also open files in the project folder.'),
           h('div.row.mt', field('Model', brainModelChip({ prefix: '', onChange: (b) => (s.brain = b) }))),
-          h(
-            'label.row.mt',
-            toggle(s.brainApproves !== false, async (on) => {
+          toggleRow(
+            s.brainApproves !== false,
+            async (on) => {
               const saved = await attempt(() => PUT('/settings', { brainApproves: on }), on ? 'The Brain approves for you' : 'Every request comes to you');
               // didn't save: redraw so the switch shows what is really set
               if (saved) refreshSoon(0);
               else await draw();
-            }),
-            h('span', 'The Brain approves'),
+            },
+            'The Brain approves',
+            '.mt',
           ),
           h('p.hint', "When an agent or team asks permission, the Brain allows routine, on-task work by itself and only passes the risky or unclear requests (deleting, pushing, sending, secrets, anything outside the project) to Needs you. Workflow checkpoints and Outbox posts and DMs always wait for you."),
         ),
@@ -140,8 +141,8 @@ async function draw(): Promise<void> {
             'div.panel#chat-memory',
             h('div.panel-head', h('h2', 'Chat memory')),
             h('p.hint', 'Long chats fill up the model’s memory. Compacting turns the older messages into a short history the agent keeps reading, and keeps the latest messages in full. Every message stays in the chat for you, marked “COMPACTED” where it happened; open the mark to read or edit what the agent remembers. You can also press Compact in a chat, or type /compact.'),
-            h('label.row.mt', toggle(c.auto, (on) => setP('compaction.auto', on)), h('span', 'Compact long chats automatically')),
-            h('label.row.mt', toggle(c.instant, (on) => setP('compaction.instant', on)), h('span', 'Instant compaction')),
+            toggleRow(c.auto, (on) => setP('compaction.auto', on), 'Compact long chats automatically', '.mt'),
+            toggleRow(c.instant, (on) => setP('compaction.instant', on), 'Instant compaction', '.mt'),
             h('p.hint', 'Instant keeps the original words, cut to fit: long messages are shortened, tool calls become one line and their results are left out (the agent can read any of them back). No model call, so it takes no time and costs nothing. Off: the Brain’s model writes a summary instead (slower, smaller).'),
             h(
               'div.grid-2.mt',

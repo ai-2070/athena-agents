@@ -474,3 +474,4 @@ details.compaction.small .cmp-text { max-height: 260px; }
 .pill.mem { font: 10.5px var(--mono); cursor: default; }
 .pill.mem.warn { color: var(--amber, #e0b341); border-color: color-mix(in srgb, var(--amber, #e0b341) 40%, var(--line)); }
 .st-msg.cmp { align-self: stretch; text-align: center; font: 10.5px var(--mono); letter-spacing: 0.08em; color: var(--accent-dim); border-top: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent); padding-top: 4px; }
+.toggle-text { cursor: pointer; }
