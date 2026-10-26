@@ -1,0 +1,43 @@
+public/polish.css
+  s_d7de01d4c8f205::t_a0ebd2963dc57a 262-280
+server/index.ts
+  s_d7de01d4c8f205::t_b82cf11f2f17f5 38,71-72,77,80,84-85,175-185,188-195,694-695,700,705,710-725,785
+  s_d7de01d4c8f205::t_410978e357235c 186-187
+README.md
+  s_d7de01d4c8f205::t_bb785536bd7af7 86-95
+tests/server/api.test.ts
+  s_d7de01d4c8f205::t_410978e357235c 116
+  s_d7de01d4c8f205::t_a941888c09b84a 92-115,117-119
+server/backup.ts
+  s_d7de01d4c8f205::t_c196b05c98c06c 1-12,14-503,507,509,515,517-565,570-632
+  s_d7de01d4c8f205::t_f66dcf606bcadc 13,504-506,508,510-514,516,566-569
+web/backup.ts
+  s_d7de01d4c8f205::t_46fdc1f2d4d213 1-116
+server/skills.ts
+  s_d7de01d4c8f205::t_c034b6037f67da 22-25
+tests/server/backup.test.ts
+  s_d7de01d4c8f205::t_08af270e899af9 1-171
+web/icons.ts
+  s_d7de01d4c8f205::t_3a5101e41f0b6d 7
+web/projects.ts
+  s_d7de01d4c8f205::t_d0e8433d3dbb9d 7-8,12,68-70,93,98-128,130-136,142-178,180-205,218-230,232,255-267,276,279,283-298,361
+  s_d7de01d4c8f205::t_6c528c4cfa0730 129,137-141
+scripts/build-icons.ts
+  s_d7de01d4c8f205::t_3a5101e41f0b6d 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b7a7981569aa5cbfe3ab0fa680843777c09896eb",
+  "prompts": {},
+  "sessions": {
+    "s_d7de01d4c8f205": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3448e488-4120-4310-ae07-584ad76fc736",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
