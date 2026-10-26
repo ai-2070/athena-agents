@@ -2,7 +2,7 @@
 // Risk decides when you're asked first: autonomy "ask" checks low + high, "auto" checks high only, "full" never asks.
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, ROOT, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which } from './util.ts';
+import { HOME, ROOT, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which, isInside } from './util.ts';
 import { agents as agentStore, getSettings, emit, log } from './store.ts';
 import { requestApproval } from './approvals.ts';
 import { discoverPrograms, launchProgram, programExe, startMenuApps } from './programs.ts';
@@ -93,13 +93,12 @@ export function workspaceOf(agent: { workspace?: string }): string {
 function allowedRoots(agent: ToolAgent, write = false): string[] {
   const s = getSettings();
   // attached files (the Brain folder's uploads/) can be read even by an agent with its own workspace
-  return [workspaceOf(agent), dataPath('outputs'), ...(write ? [] : [...kb.knowledgeRoots(agent), uploadsRoot()]), ...(s.allowedFolders || [])].map((p) => path.resolve(p).toLowerCase());
+  return [workspaceOf(agent), dataPath('outputs'), ...(write ? [] : [...kb.knowledgeRoots(agent), uploadsRoot()]), ...(s.allowedFolders || [])];
 }
 
 function resolveInside(agent: ToolAgent, p: string | undefined, { write = false } = {}) {
   const abs = path.resolve(workspaceOf(agent), String(p || '.'));
-  const low = abs.toLowerCase();
-  const ok = allowedRoots(agent, write).some((r) => low === r || low.startsWith(r + path.sep));
+  const ok = allowedRoots(agent, write).some((r) => isInside(r, abs, { orEqual: true }));
   return { abs, ok, write };
 }
 

@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type http from 'node:http';
-import { ensureDir, exists } from './util.ts';
+import { ensureDir, exists, isInside, realPath } from './util.ts';
 import { ensureBrain } from './projects.ts';
 import type { Project, UploadedFile } from '../shared/types.ts';
 
@@ -62,26 +62,35 @@ export function safeParts(rel: string): string[] {
     .filter(Boolean);
 }
 
-// a.png → a (2).png while the name is taken
-function freeName(file: string): string {
-  if (!exists(file)) return file;
+// Claim a free name (a.png, else a (2).png…) by creating it, so two uploads of the same name at once can't both get it.
+export function reserveName(file: string): string {
   const ext = path.extname(file);
   const base = file.slice(0, file.length - ext.length);
-  for (let i = 2; ; i++) if (!exists(`${base} (${i})${ext}`)) return `${base} (${i})${ext}`;
+  for (let i = 1; ; i++) {
+    const name = i === 1 ? file : `${base} (${i})${ext}`;
+    try {
+      fs.closeSync(fs.openSync(name, 'wx'));
+      return name;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+    }
+  }
 }
 
 // Save one file of a batch from the raw request body (streamed, never held in memory).
 export async function receive(req: http.IncomingMessage, batch: string, rel: string): Promise<UploadedFile> {
   if (!/^[\w-]{1,64}$/.test(batch)) throw new UploadError(400, 'Bad upload batch.');
   const dir = path.join(uploadsRoot(), batch);
-  if (!exists(dir)) throw new UploadError(400, 'That upload batch is gone. Attach the files again.');
+  if (!exists(dir) || !inside(uploadsRoot(), dir)) throw new UploadError(400, 'That upload batch is gone. Attach the files again.');
   const parts = safeParts(rel);
   if (!parts.length) throw new UploadError(400, 'The file needs a name.');
   if (parts.length > MAX_DEPTH) throw new UploadError(400, 'That folder is nested too deep.');
   const declared = Number(req.headers['content-length'] || 0);
   if (declared > MAX_FILE_BYTES) throw new UploadError(413, `${parts[parts.length - 1]} is over ${MAX_FILE_BYTES / 1024 / 1024} MB.`);
-  const target = freeName(path.join(dir, ...parts));
-  ensureDir(path.dirname(target));
+  ensureDir(path.dirname(path.join(dir, ...parts)));
+  // a folder in the path that is a link out of uploads/
+  if (!inside(uploadsRoot(), path.dirname(path.join(dir, ...parts)))) throw new UploadError(400, 'Bad upload path.');
+  const target = reserveName(path.join(dir, ...parts));
   const tmp = `${target}.${crypto.randomBytes(3).toString('hex')}.part`;
   let size = 0;
   const count = new Transform({
@@ -96,6 +105,7 @@ export async function receive(req: http.IncomingMessage, batch: string, rel: str
     fs.renameSync(tmp, target);
   } catch (e) {
     fs.rmSync(tmp, { force: true });
+    fs.rmSync(target, { force: true });
     throw e;
   }
   const folder = parts.length > 1;
@@ -103,11 +113,8 @@ export async function receive(req: http.IncomingMessage, batch: string, rel: str
   return { path: target, top: folder ? path.join(dir, parts[0]) + path.sep : target, kind: folder ? 'folder' : 'file', name: path.basename(target), size };
 }
 
-const inside = (root: string, p: string) => {
-  const r = path.resolve(root).toLowerCase();
-  const low = path.resolve(p).toLowerCase();
-  return low.startsWith(r + path.sep);
-};
+// Inside root once links are followed (case only ignored on Windows).
+const inside = (root: string, p: string) => isInside(realPath(root), realPath(p));
 
 // The attachments a request names, keeping only uploads of this project that still exist.
 // Folders end with a separator.

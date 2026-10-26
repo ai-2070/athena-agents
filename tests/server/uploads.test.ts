@@ -6,6 +6,7 @@ import type http from 'node:http';
 import { describe, expect, it } from 'vitest';
 import { cleanAttachments, cleanName, describeAttachments, newBatch, receive, removeUpload, safeParts, uploadsRoot, withAttachments, attachmentNames } from '../../server/uploads.ts';
 import { expandImages } from '../../server/engines/openai.ts';
+import { isInside, IS_WIN } from '../../server/util.ts';
 import type { LlmMessage } from '../../server/engines/openai.ts';
 
 // a request body as receive() reads it
@@ -115,5 +116,38 @@ describe('images for API models', () => {
     expect(blind.content).toBe("Look\n\n(image pic.png attached; this model can't see images)");
     // the stored history keeps the file reference, not the image data
     expect(JSON.stringify(msgs)).not.toContain('base64');
+  });
+});
+
+describe('path safety', () => {
+  it('ignores case only on Windows', () => {
+    const root = path.join(path.sep, 'Brain', 'uploads');
+    expect(isInside(root, path.join(root, 'a.md'))).toBe(true);
+    expect(isInside(root, root)).toBe(false);
+    expect(isInside(root, root, { orEqual: true })).toBe(true);
+    expect(isInside(root, path.join(path.sep, 'Brain', 'uploads-old', 'a.md'))).toBe(false);
+    expect(isInside(root, path.join(path.sep, 'Brain', 'Uploads', 'a.md'))).toBe(IS_WIN);
+  });
+
+  it.skipIf(IS_WIN)('does not follow links out of uploads/', async () => {
+    const { batch, dir } = newBatch();
+    const outsideDir = path.join(path.dirname(uploadsRoot()), 'secret');
+    fs.mkdirSync(outsideDir, { recursive: true });
+    const secret = path.join(outsideDir, 'keys.txt');
+    fs.writeFileSync(secret, 'sk-xxx');
+    fs.symlinkSync(secret, path.join(dir, 'link.txt'));
+    fs.symlinkSync(outsideDir, path.join(dir, 'linkdir'));
+    expect(cleanAttachments([path.join(dir, 'link.txt'), path.join(dir, 'linkdir')])).toEqual([]);
+    expect(() => removeUpload(path.join(dir, 'link.txt'))).toThrow(/Only uploaded files/);
+    await expect(receive(body('x'), batch, 'linkdir/new.txt')).rejects.toThrow(/Bad upload path/);
+    expect(fs.existsSync(path.join(outsideDir, 'new.txt'))).toBe(false);
+    expect(fs.readFileSync(secret, 'utf8')).toBe('sk-xxx');
+  });
+
+  it('keeps both files when two with the same name upload at the same time', async () => {
+    const { batch } = newBatch();
+    const [a, b] = await Promise.all([receive(body('first'), batch, 'same.md'), receive(body('second'), batch, 'same.md')]);
+    expect(a.path).not.toBe(b.path);
+    expect([fs.readFileSync(a.path, 'utf8'), fs.readFileSync(b.path, 'utf8')].sort()).toEqual(['first', 'second']);
   });
 });

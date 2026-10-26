@@ -69,6 +69,24 @@ export function writeJSON<T>(file: string, value: T): T {
   return value;
 }
 
+// Is p inside the folder root (or root itself, with orEqual)? Windows paths ignore case; other systems' don't,
+// so lowercasing there would let /Brain/Uploads pass for /Brain/uploads.
+export function isInside(root: string, p: string, { orEqual = false }: { orEqual?: boolean } = {}): boolean {
+  const norm = (x: string) => (IS_WIN ? path.resolve(x).toLowerCase() : path.resolve(x));
+  const r = norm(root);
+  const q = norm(p);
+  return (orEqual && q === r) || q.startsWith(r.endsWith(path.sep) ? r : r + path.sep);
+}
+
+// Where a path really points (symlinks followed); the path itself while it doesn't exist.
+export function realPath(p: string): string {
+  try {
+    return fs.realpathSync.native(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
 export function exists(p: string): boolean {
   try {
     fs.accessSync(p);
