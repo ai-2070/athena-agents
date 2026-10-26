@@ -41,7 +41,7 @@ type UserItem = { id: string; kind: 'user'; text: string; attachments?: string[]
 type NoteItem = { id: string; kind: 'note'; text: Child; busy?: boolean; error?: boolean };
 /** started: its message went, so its turn can be streamed in (web/chat/TurnView) */
 type AgentItem = { id: string; kind: 'agent'; agentId: string; chatId: string; text: string; tools: ToolChip[]; images: string[]; reason: string; done: boolean; status?: string; started?: boolean };
-type BranchItem = { id: string; kind: 'branch'; wfId: string; name: string; reason: string; since: number; messages: TeamMessage[]; working: string[]; runId?: string; steps?: unknown; error?: string | null; output?: string };
+type BranchItem = { id: string; kind: 'branch'; wfId: string; name: string; reason: string; since: number; messages: TeamMessage[]; working: string[]; runId?: string; steps?: unknown; error?: string | null; output?: string; briefId?: string };
 /** A tool the Brain used while it answered (it reads the project's files). */
 interface BrainStep {
   id: string;
@@ -377,6 +377,7 @@ function renderItem(it: DockItem): HTMLElement | null {
   }
   if (it.kind === 'branch') {
     const agentOf = (id: string) => state.data?.agents.find((a) => a.id === id);
+    const nameOf = (id: string) => (id === 'brain' ? 'Brain' : agentOf(id)?.name);
     return h(
       'div.dock-msg.agent',
       h('div.dock-who', h('div.avatar', icon('users', 14)), h('b', it.name), it.reason ? h('span.hint', it.reason) : null, h('span.grow'), h('button.btn.tiny.ghost', { onclick: () => navigate('#/station') }, 'Open team')),
@@ -384,9 +385,11 @@ function renderItem(it: DockItem): HTMLElement | null {
         const a = agentOf(m.from);
         const body = md(String(m.text).slice(0, 3000));
         body.classList.add('dock-answer');
-        return h('div.dock-team-msg', h('div.dock-who', a ? avatar(a) : null, h('b', a?.name || 'Team'), m.mentions?.length ? h('span.hint', `→ ${m.mentions.map((id) => agentOf(id)?.name).filter(Boolean).join(', ')}`) : null), body, mentionPreviews(m.text, m.attachments, { compact: true, key: `dock:${m.id}` }));
+        // (the Brain follows up in the thread too)
+        const brain = m.from === 'brain';
+        return h('div.dock-team-msg', h('div.dock-who', a ? avatar(a) : brain ? h('div.avatar.brain-av', icon('brain', 14)) : null, h('b', a?.name || (brain ? 'Brain' : 'Team')), m.mentions?.length ? h('span.hint', `→ ${m.mentions.map((id) => agentOf(id)?.name).filter(Boolean).join(', ')}`) : null), body, mentionPreviews(m.text, m.attachments, { compact: true, key: `dock:${m.id}` }));
       }),
-      it.working?.length ? h('div.dock-note', h('span.dot.busy'), `${it.working.map((id) => agentOf(id)?.name || 'Agent').join(', ')} working…`) : !it.messages?.length ? h('div.dock-note', h('span.dot.busy'), 'Sent to the team…') : null,
+      it.working?.length ? h('div.dock-note', h('span.dot.busy'), `${it.working.map((id) => nameOf(id) || 'Agent').join(', ')} working…`) : !it.messages?.length ? h('div.dock-note', h('span.dot.busy'), 'Sent to the team…') : null,
     );
   }
   if (it.kind === 'brain') {
@@ -539,8 +542,10 @@ async function send(given: string[] = []) {
     refreshSoon(0);
     loadWorkflows();
   }
-  if (r.delegate?.kind === 'agent') return toAgent(r.delegate.id, r.delegate.message || text, 'from the Brain', r.delegate.attachments);
-  if (r.delegate?.kind === 'branch') return toBranch(r.delegate.id, r.delegate.message || text, 'from the Brain', r.delegate.attachments);
+  // the server already handed it on, as the Brain: follow the agent's chat or the team's thread here
+  const d = r.delegate;
+  if (d?.kind === 'agent' && d.sent?.chatId) add({ kind: 'agent', agentId: d.id, chatId: d.sent.chatId, text: '', tools: [], images: [], reason: 'from the Brain', done: false, started: true });
+  if (d?.kind === 'branch' && d.sent?.ts) add({ kind: 'branch', wfId: d.id, name: d.name, reason: 'from the Brain', since: d.sent.ts, messages: [], working: [], briefId: d.sent.messageId });
 }
 
 async function toAgent(agentId: string, text: string, reason = '', attachments: string[] = []) {
@@ -590,8 +595,9 @@ async function newBranch(text: string, attachments: string[] = []) {
 // ---------- live updates ----------
 function handleEvent(ev: ServerEvent) {
   if (ev.type === 'workflows') loadWorkflows();
-  // the Brain reviewed finished work by itself and recorded or improved a skill
-  if (ev.type === 'brain-learned' && ev.projectId === D.project) {
+  // the Brain reviewed finished work by itself and recorded or improved a skill, or checked on work it
+  // handed out (brain-note: done, stuck, or a team needs you)
+  if ((ev.type === 'brain-learned' || ev.type === 'brain-note') && ev.projectId === D.project) {
     add({ kind: 'brain', answer: String(ev.answer || ''), done: (ev.done as BrainDone[]) || [] });
     return;
   }
@@ -630,7 +636,7 @@ function handleEvent(ev: ServerEvent) {
     const it = items[items.length - 1];
     if (!it) return;
     const e = ev.event as TeamEvent;
-    if (e.kind === 'message' && e.message.from !== 'user' && e.message.ts >= it.since) it.messages.push(e.message);
+    if (e.kind === 'message' && e.message.from !== 'user' && e.message.id !== it.briefId && e.message.ts >= it.since) it.messages.push(e.message);
     if (e.kind === 'state') it.working = e.working;
     draw();
     return;

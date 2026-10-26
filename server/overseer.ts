@@ -28,6 +28,7 @@ import { EFFORTS, EFFORT_NAMES, effortFor, isEffort } from '../shared/effort.ts'
 import { MODEL_PROVIDERS, PROVIDER_IDS, modelProvider, providerOfAgent, providerProblem, readyProviders, defaultModelFor, checkModel, findModels } from './models.ts';
 import type { Effort } from '../shared/effort.ts';
 import type { ModelProvider } from './models.ts';
+import { listBriefs } from './briefs.ts';
 import type { Agent, Approval, BrainAnswer, BrainDelegate, BrainDone, Project, Routine, Team } from '../shared/types.ts';
 
 /** One line of the Brain chat history (data/projects/<id>/brain-chat.json). */
@@ -245,7 +246,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
   const teamLines = teams.map((t) => {
     const st = teamState(t.id);
     const thread = getThread(t.id, 4).messages;
-    const name = (id: string) => (id === 'user' ? 'You' : byId.get(id)?.name || id);
+    const name = (id: string) => (id === 'user' ? 'You' : id === 'brain' ? 'you (the Brain)' : byId.get(id)?.name || id);
     const sched = t.schedule && t.schedule.type !== 'none' ? ` | schedule: ${t.schedule.type} ${t.schedule.time || ''}${t.enabled === false ? ' (off)' : ''}` : '';
     return [
       `- id=${t.id} | ${t.name} | goal: ${t.description || '-'} | members: ${t.members.map((id) => `${name(id)}${t.lead === id ? ' (lead)' : ''}`).join(', ') || 'none'} | skills: ${(t.skills || []).join(',') || 'none'}${sched}`,
@@ -271,6 +272,12 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     return `- id=${sk.slug} | ${sk.name}: ${cut(sk.description, 160)} | given to: ${who.join(', ') || 'nobody yet'}${sk.origin ? ` | from GitHub ${sk.origin.repo}` : ''}`;
   });
 
+  // what the Brain handed out lately, and how its follow-up stands
+  const briefLines = listBriefs(p.id)
+    .filter((b) => b.status !== 'replaced')
+    .slice(-8)
+    .map((b) => `- ${b.status.toUpperCase()} | to ${b.kind} ${b.name} | ${ago(b.ts)} | "${cut(b.text, 140)}"${b.followUps ? ` | followed up ${b.followUps}x` : ''}${b.summary ? ` | ${cut(b.summary, 200)}` : ''}`);
+
   const approvals = listApprovals();
   const pendingPosts = outbox.list().filter((x) => x.status === 'pending');
   const recent = activity(25)
@@ -288,6 +295,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     fileBudget ? `\nKEY FILES:\n${keyFiles(root, fileBudget) || '(none)'}` : '',
     `\nAGENTS (${all.length}, ${live.length} running now):\n${agentLines.join('\n') || '(none)'}`,
     `\nTEAMS (${teams.length}; a team is a group chat of agents with a shared goal):\n${teamLines.join('\n') || '(none)'}`,
+    `\nWORK YOU HANDED OUT (newest last; you check on open ones when they finish):\n${briefLines.join('\n') || '(none)'}`,
     `\nROUTINES (${routineLines.length}; saved instructions run by hand or on a schedule):\n${routineLines.join('\n') || '(none)'}`,
     `\nSKILLS (${skillLines.length}; the project's recorded know-how and workflows; mention one in a routine as @Name):\n${skillLines.slice(0, 120).join('\n') || '(none)'}`,
     `\nWAITING FOR THE USER: ${approvals.length} approval(s)${approvals.length ? `: ${approvals.map((x) => `${x.agentName || 'agent'} wants "${cut(x.title, 80)}"`).join('; ')}` : ''} | ${pendingPosts.length} post(s) in the Outbox${pendingPosts.length ? `: ${pendingPosts.map((x) => `${x.platform}: "${cut((x.parts || [x.text]).join(' '), 70)}"`).join('; ')}` : ''}`,
@@ -368,6 +376,8 @@ Kinds of request:
 7. Stop work: when the user asks to stop an agent, a team or everything, stop it with the stop action right away (it can't be undone, but nothing is lost: they pick up again when someone writes to them).
 8. Models: which model an agent, several agents or a whole team run on, and how hard they think (effort). The SNAPSHOT shows each agent's provider, model and effort: answer questions about them from there (for a team, its members'). Change them with set_model when the user asks. When you don't know a model's exact id, or the user asks which models a provider has, look it up with find_models first (you get the list and answer again); never guess an id.
 
+Team chats: you write in them as "the Brain" (your briefs and follow-ups), and members or the user can write @Brain there to ask you something; you answer them in the thread.
+
 A team is a group chat of 2-6 agents with a shared goal. A lead (planner type) coordinates when there are 3+ members; members hand work to each other by @mentioning. Prefer agents the user already has; otherwise hire from the LIBRARY (pick the slugs that match best); only invent a new agent when nothing in the library fits.
 
 Answer format: a short reply in markdown (a few sentences or a tight list, names not ids, calm chief-of-staff tone). If you take actions, end with ONE fenced block:
@@ -381,7 +391,7 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"update_team","team":"<team id>","name":"…","description":"…","lead":"<agent id>","access":{"tools":[…],"mcpServers":[…]}}   (only the fields that change)
 {"do":"hire","members":[MEMBER,…]}   (agents on the bench, no team)
 {"do":"write_project_md","content":"the whole PROJECT.md in markdown"}   (the project brief every agent reads: what it is, goals, audience, deliverables, voice and style, accounts and programs, the teams and who does what, open questions)
-{"do":"delegate","to":"team"|"agent","id":"<id, or 'new' for the team/agent created just before>","message":"a clear brief with the context from the snapshot they need"}
+{"do":"delegate","to":"team"|"agent","id":"<id, or 'new' for the team/agent created just before>","message":"a clear brief with the context from the snapshot they need"}   (it goes out as your message: in the team chat, or a new chat with the agent. When they finish you check the result yourself and follow up if something is missing)
 {"do":"create_routine","name":"…","description":"one line","text":"what to do, with @Name mentions","schedule":SCHEDULE,"enabled":true|false}
 {"do":"update_routine","routine":"<routine id>","name":"…","description":"…","text":"the whole new text","schedule":SCHEDULE,"enabled":true|false}   (only the fields that change)
 {"do":"run_routine","routine":"<routine id, or 'new'>","input":"optional extra for this run"}
@@ -1141,9 +1151,20 @@ export async function ask(text: string, { project, attachments = [], onPart }: {
   // model ids checked against their provider's list (a switch meanwhile is caught below)
   if (!stale() && parsed.actions.slice(0, ACTIONS_MAX).some((a) => actionKind(a) === 'set_model')) await prepareModels(parsed.actions);
   if (finished.length) skipped.text = `You switched projects while the Brain was thinking, so nothing else was changed. Open "${p.name}" and ask again.`;
-  const { done, delegate } = stale() ? { done: parsed.actions.length ? [skipped, ...finished] : [], delegate: null } : applyActions(parsed.actions, p, { seenSkills });
-  // the work is handed on with the files
+  const applied = stale() ? { done: parsed.actions.length ? [skipped, ...finished] : [], delegate: null } : applyActions(parsed.actions, p, { seenSkills });
+  const done = applied.done;
+  let delegate = applied.delegate;
+  // the work is handed on with the files, by the server as the Brain (so it goes even with no tab open)
   if (delegate && attachments.length) delegate.attachments = attachments;
+  if (delegate) {
+    try {
+      const { sendBrief } = await import('./irc.ts');
+      await sendBrief(delegate);
+    } catch (e) {
+      done.push({ kind: 'error', text: `Couldn't hand it to ${delegate.name}: ${(e as Error).message}` });
+      delegate = null;
+    }
+  }
   const r = { answer: parsed.answer, done, delegate };
   const now = Date.now();
   // on top of the history as it is now (not as it was before thinking), so nothing saved meanwhile is lost

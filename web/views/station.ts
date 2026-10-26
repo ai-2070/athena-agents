@@ -1647,7 +1647,7 @@ function drawBranchCard(wfId: string): void {
   const wf = b.wf;
   const ts = S.teamState?.[wfId] || { working: [], queued: [] };
   const last = S.teamLast?.[wfId];
-  const nameOf = (id: string) => (id === 'user' ? 'You' : id === 'system' ? '' : state.data?.agents.find((a) => a.id === id)?.name || '');
+  const nameOf = (id: string) => (id === 'user' ? 'You' : id === 'system' ? '' : id === 'brain' ? 'Brain' : state.data?.agents.find((a) => a.id === id)?.name || '');
   const lead = wf.lead ? nameOf(wf.lead) : '';
   b.card.classList.toggle('live', ts.working.length > 0);
   b.card.classList.toggle('needs', false);
@@ -3116,7 +3116,7 @@ function renderBranchPanel(id: string): void {
   if (!['members', 'setup'].includes(S.teamTab!)) S.teamTab = 'members';
   const ts = S.teamState?.[id] || { working: [], queued: [] };
   const members = wf.members.map((mid) => byId.get(mid)).filter(Boolean) as Agent[];
-  const nameOf = (mid: string) => byId.get(mid)?.name || 'Agent';
+  const nameOf = (mid: string) => (mid === 'brain' ? 'Brain' : byId.get(mid)?.name || 'Agent');
   const statusLine = ts.working.length
     ? h('span.st-team-live', h('span.dot.busy'), `${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} waiting` : ''}`)
     : h('span.hint', members.length ? 'Quiet · waiting for a message' : 'No members yet');
@@ -3455,9 +3455,10 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
     } else if (e.kind === 'message') {
       const m = e.message;
       S.teamLast[ev.teamId] = m;
-      const nameOf = (id: string) => d?.agents.find((a) => a.id === id)?.name || 'Agent';
-      if (b && m.from === 'user') pulseAlong(ev.teamId, 0, 1, 6);
-      if (b && m.from !== 'user' && m.from !== 'system') {
+      const nameOf = (id: string) => (id === 'brain' ? 'Brain' : d?.agents.find((a) => a.id === id)?.name || 'Agent');
+      // (you and the Brain both write from the middle of the map)
+      if (b && (m.from === 'user' || m.from === 'brain')) pulseAlong(ev.teamId, 0, 1, 6);
+      if (b && m.from !== 'user' && m.from !== 'system' && m.from !== 'brain') {
         for (const id of m.mentions || []) pulseHandoff(ev.teamId, m.from, id);
         if (!m.mentions?.length) b.flash = Math.max(b.flash || 0, 0.5);
       }

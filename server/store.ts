@@ -41,6 +41,7 @@ const DEFAULT_SETTINGS: Settings = {
   brainApproves: true,
   brainSkills: ['self-improvement'],
   brainAnyGitHub: false,
+  brainFollowsUp: true,
   look: { scale: 100, accent: 'lime', motion: 'full' },
   telegram: { chatId: '' },
   maxToolSteps: 16,

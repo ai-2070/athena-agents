@@ -46,6 +46,15 @@ powershell -ExecutionPolicy Bypass -File install-shortcut.ps1 -Remove
 | **Routines** | Work you want done again and again. Write it once and @mention who does it (one or more agents and teams) and the skills they use. Run it by hand or on a schedule; each run shows what every agent and team did. |
 | **Settings** | Keys and engines, connections (X, Reddit, Telegram, Discord, Outbox), MCP servers, programs, Look (UI scale, accent, motion). Searchable. |
 
+**The Brain and your teams talk**: when the Brain hands work to a team, it writes in the team chat as
+"Brain" (it goes out even with no browser tab open); work for a single agent starts a new chat with it.
+Anyone in a team chat (an agent, or you) can write **@Brain** to ask it something or say they're stuck; it
+answers in the thread. It can't change anything because an agent asked: when they need something only you
+can give (an account, a teammate, a decision), it tells you in the Brain chat. **The Brain follows up** (on by
+default, Settings > General > The Brain's model): when the team goes quiet or the agent finishes, it checks
+the result. Something missing: it asks for it (twice at most). Done, stuck, or they need you: it says so in the
+Brain chat.
+
 **Attach files**: drop files or whole folders on any chat (Brain, agent, team), the team builder, the New
 project dialog, or the Brain on the map, or use the paperclip. They're saved in the project folder under
 `uploads/`, and the agent (or the Brain) is told where they are. Files added in the team builder stay with the
