@@ -144,6 +144,8 @@ export interface Budgets {
   toolCallTokens: number;
   /** an excerpt of each tool result (0: left out, only the pointer stays) */
   toolResultTokens: number;
+  /** each tool call's whole input (0: only its key argument, on the tool line) */
+  toolInputTokens?: number;
   /** the whole compacted history */
   cap: number;
   /** the least a message is cut to when the cap is tight */
@@ -169,7 +171,7 @@ export function sizesFor(window: number, thresholdPercent = 50): { compile: Budg
     summarySource: { textTokens: Math.round(2048 * f), userTextTokens: Math.round(4096 * f), toolCallTokens: 128, toolResultTokens: Math.round(300 * f), cap: Math.min(Math.floor(w * 0.6), 400_000), minTextTokens: 64 },
     tail,
     // the kept messages, as a new engine session gets them: in full, tool results too
-    seed: { textTokens: tail, userTextTokens: tail, toolCallTokens: 1_000, toolResultTokens: tail, cap: tail, minTextTokens: 256 },
+    seed: { textTokens: tail, userTextTokens: tail, toolCallTokens: 1_000, toolResultTokens: tail, toolInputTokens: tail, cap: tail, minTextTokens: 256 },
   };
 }
 
@@ -200,14 +202,23 @@ function keyArg(args: unknown): [string, string] | null {
 }
 
 function toolLine(it: ItemOf<'tool'>, seq: number, b: Budgets): string {
-  const key = keyArg(it.args);
+  const full = (b.toolInputTokens ?? 0) > 0;
+  const key = full ? null : keyArg(it.args);
   const arg = key ? ` ${key[0]}=${JSON.stringify(cutTokens(oneLine(key[1]), b.toolCallTokens).text)}` : '';
   const status = it.status === 'running' ? 'did not finish' : it.isError ? 'error' : 'ok';
   const extra = [it.result ? size(it.result) : '', it.images?.length ? `${it.images.length} image${it.images.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ');
   let line = `[seq ${seq}] tool ${it.name}${arg} → ${status}${extra ? `, ${extra}` : ''}`;
+  // the whole input (a file written, a command run), not just what it was about
+  if (full) {
+    const input = it.args == null ? '' : typeof it.args === 'string' ? it.args : JSON.stringify(it.args, null, 2);
+    if (input && input !== '{}') {
+      const c = cutTokens(input, b.toolInputTokens!);
+      line += `\n  input: ${c.text}${c.cut ? ` …(cut; full input: seq ${seq})` : ''}`;
+    }
+  }
   if (b.toolResultTokens > 0 && it.result) {
     const r = cutTokens(it.result.trim(), b.toolResultTokens);
-    line += `\n  result: ${r.text}${r.cut ? ' …' : ''}`;
+    line += `\n  result: ${r.text}${r.cut ? ` …(cut; full result: seq ${seq})` : ''}`;
   }
   return line;
 }

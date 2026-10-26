@@ -245,6 +245,17 @@ describe('seedPrompt() and recall()', () => {
     expect(p.endsWith('next')).toBe(true);
   });
 
+  it('a kept tool call goes to the new session with its whole input, not just its key argument', async () => {
+    const content = `export function parse() {\n  ${words(200, 'tok')}\n}`;
+    const chat: Chat = { id: 'c', agentId: 'a', title: 't', items: [...history(5), { type: 'user', text: 'write it' }, { type: 'tool', id: 'w1', name: 'Write', args: { file_path: '/src/parse.ts', content }, result: 'File written', status: 'done' }, { type: 'assistant', text: 'Written.' }], llm: [], sessionId: null, createdAt: 0, updatedAt: 0 };
+    await compactChat(chat, { trigger: 'manual', window: 200_000, current: false, keepMessages: 2 });
+    chat.items.push({ type: 'user', text: 'next' });
+    const p = seedPrompt(chat.items, 'next');
+    expect(p).toContain('"file_path": "/src/parse.ts"');
+    expect(p).toContain(JSON.stringify(content));
+    expect(p).toContain('result: File written');
+  });
+
   it('reads entries back in full, by seq, range or search', () => {
     const items = history(3, 5);
     expect(recall(items, { seq: 1 }).text).toContain('RESULT-0');
