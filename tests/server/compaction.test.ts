@@ -17,6 +17,13 @@ vi.mock('../../server/engines/claude.ts', async (orig) => ({
   run: async ({ chat, text, onEvent }: { chat: Chat; text: string; onEvent: (e: unknown) => void }) => {
     cli.prompts.push(text);
     cli.sessions.push(chat.sessionId);
+    // a session Claude Code doesn't have: the real engine clears it and asks for a new one
+    if (chat.sessionId === 'gone') {
+      const { SessionGone } = await import('../../server/engines/cli.ts');
+      chat.sessionId = null;
+      chat.reseed = true;
+      throw new SessionGone('Claude Code exited (1) without an answer.\nNo conversation found with session ID: gone');
+    }
     if (cli.compactOnce) {
       cli.compactOnce = false;
       onEvent({ kind: 'compacted', trigger: 'auto', tokensBefore: 150_000 });
@@ -298,6 +305,17 @@ describe('seedPrompt() and recall()', () => {
     expect(p).toContain('result: File written');
   });
 
+  it('with no compaction, a new session gets the chat so far (since the last Clear memory)', () => {
+    const items: ChatItem[] = [{ type: 'user', text: 'forgotten' }, { type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', reset: true }, ...history(2, 20), { type: 'user', text: 'next' }];
+    const p = seedPrompt(items, 'next');
+    expect(p).toContain('<chat-history>');
+    expect(p).toContain('answer 1:');
+    expect(p).not.toContain('forgotten');
+    expect(p.endsWith('next')).toBe(true);
+    // nothing before it: the message as it is
+    expect(seedPrompt([{ type: 'user', text: 'hi' }], 'hi')).toBe('hi');
+  });
+
   it('reads entries back in full, by seq, range or search', () => {
     const items = history(3, 5);
     expect(recall(items, { seq: 1 }).text).toContain('RESULT-0');
@@ -333,6 +351,43 @@ describe('during runs', () => {
     await startRun(a, saved, 'and then?').promise;
     expect(cli.prompts[1]).toBe('and then?');
     expect(cli.sessions[1]).toBe('session-1');
+  });
+
+  it("a session another engine made isn't resumed: a new one starts with the chat so far", async () => {
+    const a = newAgent({ name: 'Switched', engine: 'claude-code', toolGroups: [] });
+    const chat = chats.create(a.id);
+    chat.items.push(...history(2, 20));
+    chat.sessionId = '01a176dd-omp-session';
+    chat.sessionEngine = 'omp';
+    chats.save(chat);
+    await startRun(a, chat, 'carry on').promise;
+    expect(cli.sessions[0]).toBeNull();
+    expect(cli.prompts[0]).toContain('<chat-history>');
+    expect(cli.prompts[0]).toContain('answer 1:');
+    const saved = chats.get(a.id, chat.id)!;
+    expect(saved).toMatchObject({ sessionId: 'session-1', sessionEngine: 'claude-code' });
+    expect(saved.reseed).toBeUndefined();
+    // its own session from then on
+    await startRun(a, saved, 'and then?').promise;
+    expect(cli.sessions[1]).toBe('session-1');
+    expect(cli.prompts[1]).toBe('and then?');
+  });
+
+  it('a session that is gone: tries again at once in a new session, with the chat so far', async () => {
+    const a = newAgent({ name: 'Lost', engine: 'claude-code', toolGroups: [] });
+    const chat = chats.create(a.id);
+    chat.items.push(...history(2, 20));
+    // (an older chat: it doesn't say which engine made the session)
+    chat.sessionId = 'gone';
+    chats.save(chat);
+    await startRun(a, chat, 'carry on').promise;
+    expect(cli.sessions).toEqual(['gone', null]);
+    expect(cli.prompts[0]).toBe('carry on');
+    expect(cli.prompts[1]).toContain('<chat-history>');
+    const saved = chats.get(a.id, chat.id)!;
+    expect(saved.items.some((i) => i.type === 'error')).toBe(false);
+    expect(saved.items.at(-1)).toMatchObject({ type: 'assistant', text: 'done' });
+    expect(saved).toMatchObject({ sessionId: 'session-2', sessionEngine: 'claude-code' });
   });
 
   it("Claude Code's own compaction is marked, but changes nothing else", async () => {

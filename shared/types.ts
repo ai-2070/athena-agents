@@ -287,6 +287,8 @@ export interface Chat {
   items: ChatItem[];
   llm: unknown[];
   sessionId: string | null;
+  /** The engine that made sessionId: another engine can't resume it, so it starts a new session. */
+  sessionEngine?: EngineId;
   /** Set when this is the agent's session for a team chat. */
   teamId?: string | null;
   /** Set after a compaction: the next run starts a new engine session that gets the compacted history first. */

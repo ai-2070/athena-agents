@@ -454,12 +454,13 @@ export function checkpointSection(items: ChatItem[]): string {
 /** For a CLI engine's new session: the compacted history and the messages kept in full, then the new message. */
 export function seedPrompt(items: ChatItem[], text: string, window = 200_000): string {
   const cp = latestCompaction(items);
-  if (!cp) return text;
   const cur = items.findLastIndex((i) => i.type === 'user');
   const seqs: number[] = [];
-  for (let i = cp.item.upto; i < (cur === -1 ? items.length : cur); i++) if (['user', 'assistant', 'tool', 'error'].includes(items[i].type)) seqs.push(i);
+  for (let i = memoryStart(items); i < (cur === -1 ? items.length : cur); i++) if (['user', 'assistant', 'tool', 'error'].includes(items[i].type)) seqs.push(i);
   const recent = compileHistory(items, seqs, null, sizesFor(window, compactionSettings().thresholdPercent).seed).body;
-  return `<compacted-history>\n${cp.item.text}\n${recent ? `\nThe latest messages, in full:\n${recent}\n` : ''}</compacted-history>\n\nThis chat carries on from here. The new message:\n\n${text}`;
+  if (cp) return `<compacted-history>\n${cp.item.text}\n${recent ? `\nThe latest messages, in full:\n${recent}\n` : ''}</compacted-history>\n\nThis chat carries on from here. The new message:\n\n${text}`;
+  // no compaction yet (the engine changed, or its session was lost): the chat so far, as it fits
+  return recent ? `<chat-history>\n${recent}\n</chat-history>\n\nThis chat carries on from here. The new message:\n\n${text}` : text;
 }
 
 // ---------- recall_history ----------

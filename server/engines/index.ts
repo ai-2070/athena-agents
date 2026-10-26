@@ -15,6 +15,7 @@ import * as codex from './codex.ts';
 import * as openclaw from './openclaw.ts';
 import { pi, omp } from './pi.ts';
 import * as compaction from '../compaction.ts';
+import { SessionGone } from './cli.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent } from '../../shared/types.ts';
 import type { LoopRequest } from '../../shared/commands.ts';
@@ -316,6 +317,15 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
         if (compaction.memoryTokens(chat, agent, systemPrompt) >= compaction.compactAt(window, settings)) await compact({ trigger: 'auto' }).catch(() => null);
       }
       if (controller.signal.aborted) throw new Error('Stopped.');
+      // A session belongs to the engine that made it: after the agent changed engines, a new one starts
+      // with the chat so far. (Older chats don't say whose it is: if it's gone, the engine says so; see below.)
+      if (cli) {
+        if (chat.sessionId && chat.sessionEngine && chat.sessionEngine !== agent.engine) {
+          chat.sessionId = null;
+          chat.reseed = true;
+        }
+        chat.sessionEngine = agent.engine;
+      }
       // Codex, Hermes and OpenClaw get the instructions only when their session starts: a session that is
       // already going is told when MEMORY.md changed since its last run (by you, or in another chat)
       const memoryAt = hasMemory(agent) ? memoryStamp(agent.id) : 0;
@@ -328,9 +338,12 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       try {
         result = await go();
       } catch (e) {
+        if (controller.signal.aborted) throw e;
+        // its session is gone (the engine cleared it): once more, in a new session with the chat so far
+        if (e instanceof SessionGone) result = await go();
         // too long for the model: compact once and try again (the API-model engine does this itself)
-        if (!cli || controller.signal.aborted || !settings.auto || !compaction.isOverflowError(e) || !(await compact({ trigger: 'overflow' }).catch(() => null))) throw e;
-        result = await go();
+        else if (!cli || !settings.auto || !compaction.isOverflowError(e) || !(await compact({ trigger: 'overflow' }).catch(() => null))) throw e;
+        else result = await go();
       }
       if (controller.signal.aborted) throw new Error('Stopped.');
       // the new session has the compacted history now

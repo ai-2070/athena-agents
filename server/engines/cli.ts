@@ -76,3 +76,7 @@ export function pipeLines(child: ChildProcess, { input, signal, onLine }: { inpu
 
 /** The end of what a CLI printed to stderr, for an error message. */
 export const tail = (s: string, n = 1200): string => (s.trim() ? `\n${s.trim().slice(-n)}` : '');
+
+/** The chat's engine session no longer exists (or never did). The engine has already cleared
+ *  chat.sessionId and set chat.reseed, so the run can try again at once in a new session. */
+export class SessionGone extends Error {}

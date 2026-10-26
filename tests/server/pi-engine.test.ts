@@ -9,7 +9,7 @@ import type { ChildProcess } from 'node:child_process';
 import type { Chat, RunEvent } from '../../shared/types.ts';
 
 // a fake pi / omp: prints its lines, remembers what it was started with and sent
-const fake = vi.hoisted(() => ({ lines: [] as string[], calls: [] as { cmd: string; args: string[]; env: NodeJS.ProcessEnv; input: string; instructions: string }[] }));
+const fake = vi.hoisted(() => ({ lines: [] as string[], stderr: '', code: 0, calls: [] as { cmd: string; args: string[]; env: NodeJS.ProcessEnv; input: string; instructions: string }[] }));
 vi.mock('../../server/util.ts', async (orig) => {
   const real = await orig<typeof import('../../server/util.ts')>();
   return {
@@ -28,9 +28,9 @@ vi.mock('../../server/util.ts', async (orig) => {
       stdin.on('finish', () => {
         for (const l of fake.lines) stdout.write(`${l}\n`);
         stdout.end();
-        stderr.end();
+        stderr.end(fake.stderr);
       });
-      stdout.on('end', () => setImmediate(() => child.emit('close', 0)));
+      stdout.on('end', () => setImmediate(() => child.emit('close', fake.code)));
       return child;
     },
   };
@@ -56,6 +56,8 @@ const runArgs = (engine: 'pi' | 'omp', chat: Chat, events: RunEvent[]) => ({
 
 beforeEach(() => {
   fake.lines = [];
+  fake.stderr = '';
+  fake.code = 0;
   fake.calls = [];
 });
 
@@ -161,6 +163,29 @@ describe('a pi run', () => {
     expect(chat.sessionId).toBe('omp-1');
     await omp.run(runArgs('omp', chat, []));
     expect(fake.calls[1].args.slice(fake.calls[1].args.indexOf('--resume'), fake.calls[1].args.indexOf('--resume') + 2)).toEqual(['--resume', 'omp-1']);
+  });
+});
+
+describe('a session oh-my-pi does not have', () => {
+  it('clears it and asks for a new session with the chat so far', async () => {
+    const { SessionGone } = await import('../../server/engines/cli.ts');
+    fake.code = 1;
+    fake.stderr = 'Error: Session "5bc68a5e-de26-4882-8c34-5a0a2257ed0e" not found. Run `omp --resume` without an argument to pick from recent sessions, or `omp` to start a new one.';
+    const chat = chatOf('5bc68a5e-de26-4882-8c34-5a0a2257ed0e');
+    const err = await omp.run(runArgs('omp', chat, [])).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SessionGone);
+    expect((err as Error).message).toContain('not found');
+    expect(chat.sessionId).toBeNull();
+    expect(chat.reseed).toBe(true);
+  });
+  it('any other failure keeps the session', async () => {
+    const { SessionGone } = await import('../../server/engines/cli.ts');
+    fake.code = 1;
+    fake.stderr = 'Error: no API key';
+    const chat = chatOf('omp-1');
+    const err = await omp.run(runArgs('omp', chat, [])).catch((e: unknown) => e);
+    expect(err).not.toBeInstanceOf(SessionGone);
+    expect(chat.sessionId).toBe('omp-1');
   });
 });
 
