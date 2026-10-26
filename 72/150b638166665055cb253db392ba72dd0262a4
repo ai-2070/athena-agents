@@ -1,0 +1,81 @@
+web/app.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 18,226-227
+web/agentchat.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 6,35,44-46,78,123,126-150,170,203-205
+web/projects.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 9,87-88,245-269,272,280,282,321-322
+  s_d7de01d4c8f205::t_594948f04d8316 182-183,202-203,211-213,227-228,289,299-303,317,324-333,335,339-357
+tests/server/attachments-flow.test.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 1-106
+server/tools.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 14,95-96
+server/index.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 37,224-229,234-235,336,340-342,446-450,567-569,571,585,794-800
+server/engines/openai.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 2-3,5,51-53,56-57,221-272,277-280,291,301-308
+server/uploads.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 1-263
+web/icons.ts
+  s_d7de01d4c8f205::t_722dc4b2756ee7 7
+README.md
+  s_d7de01d4c8f205::t_bf2e8a1772e243 49-53
+web/dock.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 9-10,21,37,42,64-65,69,74-75,92-93,95-97,119-120,125-134,145,270,337,351,354-357,359-376,378,382-383,385-388,391,403-404,407,411,419,421,426,428,431,434,436,442,445
+public/polish.css
+  s_d7de01d4c8f205::t_bf2e8a1772e243 473-511
+tests/server/uploads.test.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 1-153
+scripts/build-icons.ts
+  s_d7de01d4c8f205::t_722dc4b2756ee7 19
+web/builder.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 5-6,25-26,33,39-40,111-138,143,145-151,153,173-175,194-196,212,216-221,234,239-244,246,249
+server/engines/index.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 9,114,215-217,220-223,260,326,332
+server/util.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 72-80
+web/attach.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 1-448
+server/engines/claude.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 5,10-11,120-128,132,138-139
+server/teams.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 8,21,30,144,149,151,166-167,173,254-255,258,262-267,269,271-274,279
+tests/web/attach-tray.test.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 1-179
+web/brainqueue.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 8,10-12,17,21,27
+tests/server/brain-files.test.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 1-49
+shared/types.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 86-87,119-120,227,461-471
+tests/web/attach.test.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 1-69
+web/teamchat.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 4,60-63,116-117,195,197-216,274-276
+web/views/chat.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 5-6,21-24,59-60,70-72,131,175,256-278,331
+server/brain.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 8,211-214,221,226,237
+web/views/station.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 9-10,425-427,1209,1809-1816,2024-2036,2146-2195
+  s_d7de01d4c8f205::t_970e3badce3477 2196
+server/overseer.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 17,28,556-558,570-576,591-592,596
+tests/server/api.test.ts
+  s_d7de01d4c8f205::t_bf2e8a1772e243 174-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "72150b638166665055cb253db392ba72dd0262a4",
+  "prompts": {},
+  "sessions": {
+    "s_d7de01d4c8f205": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3448e488-4120-4310-ae07-584ad76fc736",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
