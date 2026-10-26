@@ -631,3 +631,10 @@ a.fp-file:hover { color: var(--accent); }
 /* Brain chat: the tools the Brain used, and a handed-off agent's turn streaming in */
 .dock-steps { display: flex; flex-direction: column; gap: 4px; margin: 4px 0; }
 .dock-turn { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+/* MEMORY.md editor (agent editor, chat, Brain chat) */
+.memory-editor { gap: 10px; }
+.memory-editor .memory-text { width: 100%; min-height: 160px; resize: vertical; line-height: 1.55; }
+.memory-status.warn { color: var(--amber, #e0b341); }
+.memory-note:empty { display: none; }
+.modal-back.memory-win .modal { width: min(760px, 100%); }

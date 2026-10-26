@@ -8,7 +8,7 @@ The dashboard runs at **http://localhost:4800**, with no dashboard account or lo
 
 ## What you can do
 
-- **Build a team for a job.** Describe the outcome to the Brain, or choose agents from the Library. Each agent keeps its own instructions, knowledge, model, skills and tools.
+- **Build a team for a job.** Describe the outcome to the Brain, or choose agents from the Library. Each agent keeps its own instructions, knowledge, memory, model, skills and tools.
 - **Mix models.** Use Claude Code, Codex, Hermes or OpenAI-compatible APIs, including local model servers. Team members do not need to use the same engine.
 - **Work with your files and programs.** Give agents a project folder, attach reference files, and connect tools for programs such as Blender, ComfyUI and ffmpeg. Add more tools through MCP servers.
 - **Keep useful instructions.** Write skills in plain words, share them across agents and teams, and turn repeated work into routines you can run by hand or on a schedule.
@@ -88,7 +88,7 @@ Projects keep separate agents, teams and chats. Use the project name at the top 
 |---|---|
 | **Station** | The live 3D view of the project. The Brain sits in the middle, with agents grouped into team pods. Click to open panels and chats; drag a team to move it or Shift+drag to rotate it. |
 | **Brain chat** | Project-wide questions, building teams, changing skills and routines, and handing off work. Available from every page. |
-| **Agents** | Agent instructions, knowledge, model and effort, autonomy, tools, MCP servers, skills and workspace. Star models in the picker to keep them in Favorites. |
+| **Agents** | Agent instructions, knowledge, MEMORY.md, model and effort, autonomy, tools, MCP servers, skills and workspace. Star models in the picker to keep them in Favorites. |
 | **Library** | Ready-made starters, The Agency specialists, Hermes profiles, Claude Code subagents and your saved presets. |
 | **Skills** | Reusable instructions, their assignments, earlier versions and recently deleted skills. |
 | **Routines** | Repeatable jobs, schedules and the results of each run. |
@@ -113,6 +113,16 @@ Skills use Claude Code's `SKILL.md` format. Assign them to an agent, a team, the
 By default, the Brain only installs from GitHub repos **you named in Brain chat**. Links found in files, web pages or agent replies do not grant permission. **Install skills from any GitHub link**, under The Brain's model settings, relaxes that rule; leave it off unless you trust those sources.
 
 The Brain starts with a **Self-improvement** skill. After substantial agent work, it can review the outcome and save a useful workflow as a skill, improve an existing skill or assign one where it is needed. Changes are reported in Brain chat. The review is limited to skills and cannot change the Brain's own skills. Remove Self-improvement from the Brain on the Skills page to turn it off.
+
+### MEMORY.md: what agents remember
+
+Every agent, and the Brain, keeps a **MEMORY.md** for each project: short notes it carries from one chat to the next, such as how you like things done, decisions you made and mistakes to avoid. It reads them with every message.
+
+- **Agents add to it as they learn**, with the memory tools every agent has. With **Ask first** autonomy you approve each change.
+- **The Brain keeps its own** and can add a note to an agent's memory when you ask it to ("Tell the Writer to remember we use British spelling"). It never rewrites an agent's memory, and the self-improvement review can't change any memory.
+- **Read and change it yourself.** Open an agent's editor or its chat page and use **MEMORY.md**. For the Brain, use the page icon at the top of the Brain chat, or **Settings → The Brain's model**. **History** shows earlier versions, who changed them and can restore one.
+
+A chat's **Clear memory** button is different: it starts that chat fresh and leaves MEMORY.md alone. Don't keep keys or passwords in a memory.
 
 ### Routines: work worth repeating
 
@@ -161,19 +171,19 @@ Workflow checkpoints and approval requests from outside MCP clients always come 
 
 ### Where work is stored
 
-Local dashboard state lives under **`data/`**, which is git-ignored: projects, agents, teams, chats, knowledge, skills, presets, settings, the Outbox and activity. Keys are in `secrets.json`; account tokens are in `accounts.json`.
+Local dashboard state lives under **`data/`**, which is git-ignored: projects, agents, teams, chats, knowledge, MEMORY.md files, skills, presets, settings, the Outbox and activity. Keys are in `secrets.json`; account tokens are in `accounts.json`.
 
-The dashboard also auto-saves project state into **`<project folder>/.dashboard`**, including its agents, teams, routines, chats, assigned or routine-mentioned skills and earlier versions. Opening that folder as a project brings the saved state back. Existing library skills are not overwritten: a different copy from the project folder is kept as a version.
+The dashboard also auto-saves project state into **`<project folder>/.dashboard`**, including its agents, teams, routines, chats, MEMORY.md files, assigned or routine-mentioned skills and earlier versions. Opening that folder as a project brings the saved state back. Existing library skills are not overwritten: a different copy from the project folder is kept as a version.
 
-These copies exclude stored keys and account tokens, **not private content you put in chats, knowledge files or skills**. Review `.dashboard` before sharing or committing a project folder.
+These copies exclude stored keys and account tokens, **not private content you put in chats, knowledge files, memories or skills**. Review `.dashboard` before sharing or committing a project folder.
 
 ### Back up a project
 
 Choose **Project menu → Back up this project**. The dashboard writes a `.dashbackup` file under **`My Dashboard Backups`** in your home folder.
 
-A backup includes the project's agents, teams, routines, layout, Brain and agent/team chats, knowledge files, logo, `PROJECT.md` and notes. It also includes **every skill and saved preset in your library**, plus earlier versions of the project's agents and teams and of library skills, including deleted items. It does not include stored keys or account tokens.
+A backup includes the project's agents, teams, routines, layout, Brain and agent/team chats, knowledge files, MEMORY.md files, logo, `PROJECT.md` and notes. It also includes **every skill and saved preset in your library**, plus earlier versions of the project's agents, teams and memories and of library skills, including deleted items. It does not include stored keys or account tokens.
 
-Backups are not a full copy of your working folder: back up source files, uploads and generated work separately. Size limits also apply: 200 MB of agent chats, 50 MB each of knowledge files, skills and earlier versions, and 20 MB of project brief and notes. Files that do not fit are left out; the saved-backup message reports the number omitted.
+Backups are not a full copy of your working folder: back up source files, uploads and generated work separately. Size limits also apply: 200 MB of agent chats, 50 MB each of knowledge files, skills and earlier versions, and 20 MB each of MEMORY.md files and of project brief and notes. Files that do not fit are left out; the saved-backup message reports the number omitted.
 
 ### Restore a backup
 
@@ -185,7 +195,7 @@ Choose **New project → From backup**, then drop in a `.dashbackup` file or cho
 
 ### Undo changes
 
-Open **History** in a skill editor, agent editor or team panel to compare an earlier version with the current one and restore it. Restoring also keeps the current version, so you can undo the restore.
+Open **History** in a skill editor, agent editor, team panel or MEMORY.md to compare an earlier version with the current one and restore it. Restoring also keeps the current version, so you can undo the restore.
 
 The dashboard keeps the last **50 versions** per item and groups nearby edits. **Recently deleted** on the Skills and Agents pages can bring deleted items back, including a skill's extra files. Agent and team history is also saved with the project's `.dashboard` copy.
 

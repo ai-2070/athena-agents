@@ -1,12 +1,12 @@
-// Versions of skills, agents and teams: the History window (every kept version, what it changed,
+// Versions of skills, agents, teams and MEMORY.md files: the History window (every kept version, what it changed,
 // compared with the current one, and Restore) and Recently deleted (bring one back).
 import { h, mount, GET, POST, attempt, modal, ago, confirmBox } from './core.ts';
 import { icon } from './icons.ts';
 import type { Child, ModalHandle } from './core.ts';
 import type { DeletedItem, VersionDetail, VersionHistory, VersionKind } from '../shared/types.ts';
 
-const KIND_NAME: Record<VersionKind, string> = { skill: 'skill', agent: 'agent', team: 'team' };
-const byName = (by: string) => (by === 'brain' ? 'the Brain' : 'you');
+const KIND_NAME: Record<VersionKind, string> = { skill: 'skill', agent: 'agent', team: 'team', memory: 'MEMORY.md' };
+const byName = (by: string) => (by === 'brain' ? 'the Brain' : by === 'agent' ? 'the agent' : 'you');
 const when = (ts: number) => new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
 // ---------- a line diff (old → new) ----------
@@ -80,7 +80,7 @@ export async function openHistory(kind: VersionKind, id: string, { onRestored }:
         ? hist.versions.map((v) =>
             row(
               picked?.id === v.id,
-              h('span', ago(v.at), h('span.ver-by', v.by === 'brain' ? icon('brain', 11) : null, byName(v.by))),
+              h('span', ago(v.at), h('span.ver-by', v.by === 'brain' ? icon('brain', 11) : v.by === 'agent' ? icon('bot', 11) : null, byName(v.by))),
               v.deleted ? 'its last version, before it was deleted' : v.changes.length ? `then changed: ${v.changes.join(', ')}` : v.note || 'then saved',
               () => pick(v.id),
             ),
@@ -115,7 +115,7 @@ export async function openHistory(kind: VersionKind, id: string, { onRestored }:
   draw();
 }
 
-/** A History button for a skill, agent or team. */
+/** A History button for a skill, agent, team or MEMORY.md. */
 export function historyButton(kind: VersionKind, id: string, onRestored?: () => void, label = 'History'): HTMLButtonElement {
   return h('button.btn.ghost.small', { type: 'button', title: 'Earlier versions: compare and restore', onclick: () => openHistory(kind, id, { onRestored }) }, icon('history', 13), label);
 }

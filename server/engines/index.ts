@@ -4,6 +4,7 @@ import { agents as agentStore, chats, emit, log, getSettings, activeProject, wit
 import { uid, HOME } from '../util.ts';
 import { cancelForRun } from '../approvals.ts';
 import { knowledgeContext } from '../knowledge.ts';
+import { memoryContext, memoryStamp, readMemory, hasMemory } from '../memory.ts';
 import { workspaceOf, toolsForAgent } from '../tools.ts';
 import { skillsPrompt } from '../skills.ts';
 import { withAttachments, attachmentNames } from '../uploads.ts';
@@ -185,6 +186,7 @@ export function buildSystemPrompt(agent: Agent): string {
     `You are ${agent.name}${agent.specialty ? `, ${agent.specialty}` : ''}.`,
     agent.systemPrompt || '',
     knowledgeContext(agent),
+    memoryContext(agent),
     skillsPrompt(agent),
     `\n# Where you are
 You are one of several agents on the user's personal dashboard, running on their Windows PC (user folder ${HOME}).
@@ -301,8 +303,13 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
         if (compaction.memoryTokens(chat, agent, systemPrompt) >= compaction.compactAt(window, settings)) await compact({ trigger: 'auto' }).catch(() => null);
       }
       if (controller.signal.aborted) throw new Error('Stopped.');
+      // Codex and Hermes get the instructions only when their session starts: a session that is
+      // already going is told when MEMORY.md changed since its last run (by you, or in another chat)
+      const memoryAt = hasMemory(agent) ? memoryStamp(agent.id) : 0;
+      const memoryNote = !chat.reseed && chat.sessionId && (agent.engine === 'codex' || agent.engine === 'hermes') && memoryAt > (chat.memoryAt || 0) ? `<memory-update>\nYour MEMORY.md changed since your last message here. It now says:\n${readMemory(agent.id).trim() || '(empty)'}\n</memory-update>\n\n` : '';
+      chat.memoryAt = memoryAt;
       // (prompt: the message with its attachments, as the engine gets it)
-      const seeded = async () => (cli && chat.reseed ? compaction.seedPrompt(chat.items, prompt, await compaction.contextWindow(agent, chat)) : prompt);
+      const seeded = async () => (cli && chat.reseed ? compaction.seedPrompt(chat.items, prompt, await compaction.contextWindow(agent, chat)) : memoryNote + prompt);
       const go = async () => engine.run({ agent, chat, text: await seeded(), signal: controller.signal, onEvent, depth, runId, systemPrompt, attachments, compact });
       let result: EngineResult;
       try {
@@ -315,6 +322,8 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       if (controller.signal.aborted) throw new Error('Stopped.');
       // the new session has the compacted history now
       if (cli && chat.sessionId) delete chat.reseed;
+      // (what it wrote to its own memory meanwhile, it knows)
+      if (memoryAt) chat.memoryAt = memoryStamp(agent.id);
       if (result?.context) chat.context = { tokens: result.context, ...(result.window ? { window: result.window } : {}), items: chat.items.length, at: Date.now(), by: compaction.measuredBy(agent) };
       if (result?.text && !chat.items.some((i, idx) => idx > chat.items.findLastIndex((x) => x.type === 'user') && i.type === 'assistant')) {
         pushItem(chat, { type: 'assistant', text: result.text });

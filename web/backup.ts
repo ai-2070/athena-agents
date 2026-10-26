@@ -21,6 +21,8 @@ export interface BackupSummary {
   presets: number;
   knowledgeFiles: number;
   agentList: { name: string; emoji: string }[];
+  /** MEMORY.md files (older backups: missing) */
+  memories?: number;
   /** Files left out because a size limit was reached (older backups: missing) */
   omitted?: number;
   /** Kept versions of agents, teams and skills (older backups: missing) */
@@ -47,6 +49,8 @@ export interface BackupRestored {
   presets: { added: number; same: number };
   /** kept versions brought back (older servers: missing) */
   versions?: number;
+  /** MEMORY.md files brought back (older servers: missing) */
+  memories?: number;
   paused: number;
   logo: boolean;
 }
@@ -56,7 +60,7 @@ export const fileSize = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` 
 
 /** "3 agents · 1 team · 2 skills": what a backup holds, in one line. */
 export function summaryLine(s: BackupSummary): string {
-  return [plural(s.agents, 'agent'), plural(s.teams, 'team'), s.routines ? plural(s.routines, 'routine') : '', s.chats ? plural(s.chats, 'chat') : '', plural(s.skills, 'skill'), s.presets ? plural(s.presets, 'preset') : '', s.versions ? plural(s.versions, 'earlier version') : ''].filter(Boolean).join(' · ');
+  return [plural(s.agents, 'agent'), plural(s.teams, 'team'), s.routines ? plural(s.routines, 'routine') : '', s.chats ? plural(s.chats, 'chat') : '', plural(s.skills, 'skill'), s.presets ? plural(s.presets, 'preset') : '', s.memories ? plural(s.memories, 'MEMORY.md file') : '', s.versions ? plural(s.versions, 'earlier version') : ''].filter(Boolean).join(' · ');
 }
 
 /** The summary in a backup file's first lines, or null when it isn't a backup. Reads only the start of the file. */
@@ -96,6 +100,7 @@ export function cleanSummary(v: unknown): BackupSummary | null {
       .slice(0, 12)
       .map((a) => ({ name: str(a.name, 80), emoji: str(a.emoji, 8) || '🤖' })),
     omitted: num(s.omitted),
+    memories: num(s.memories),
     versions: num(s.versions),
   };
 }
@@ -111,7 +116,7 @@ export async function backupProject(p: Pick<Project, 'id' | 'name'>): Promise<vo
       'div.col',
       h('p', `${p.name}: ${summaryLine(r.summary)}, in one file (${fileSize(r.size)}). No keys or passwords are in it.`),
       r.summary.omitted
-        ? h('p.backup-warn', icon('triangle-alert', 14), ` ${r.summary.omitted} file${r.summary.omitted === 1 ? ' was' : 's were'} too big to fit and left out (limits: chats 200 MB, knowledge 50 MB, skills 50 MB, earlier versions 50 MB, PROJECT.md and notes 20 MB).`)
+        ? h('p.backup-warn', icon('triangle-alert', 14), ` ${r.summary.omitted} file${r.summary.omitted === 1 ? ' was' : 's were'} too big to fit and left out (limits: chats 200 MB, knowledge 50 MB, MEMORY.md files 20 MB, skills 50 MB, earlier versions 50 MB, PROJECT.md and notes 20 MB).`)
         : null,
       h('div.backup-path', h('code', r.file), h('button.icon-btn', { title: 'Copy the path', 'aria-label': 'Copy the path', onclick: () => copy(r.file) }, icon('copy', 14))),
       h('p.hint', 'To bring it back, here or on another PC: New project > From backup, and drop this file in.'),
@@ -143,6 +148,7 @@ export function restoredText(name: string, r: BackupRestored): string {
   if (r.routines) parts.push(plural(r.routines, 'routine'));
   if (r.skills.added) parts.push(plural(r.skills.added, 'new skill'));
   if (r.presets.added) parts.push(plural(r.presets.added, 'preset'));
+  if (r.memories) parts.push(plural(r.memories, 'MEMORY.md file'));
   if (r.versions) parts.push(plural(r.versions, 'earlier version'));
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0];
   let text = `Restored "${name}": ${list}.`;

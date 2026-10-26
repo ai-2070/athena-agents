@@ -2,6 +2,7 @@
 // (web/chat): streaming answers, tool calls you can open, images, file previews, COMPACTED marks.
 import { h, mount, GET, POST, PUT, DEL, attempt, avatar, navigate, ago, confirmBox } from '../core.ts';
 import { openTerminal } from './agents.ts';
+import { memoryButton } from '../memory.ts';
 import { modelChip, modelInfo } from '../models.ts';
 import { kTokens } from '../../shared/compaction.ts';
 import { attachTray } from '../attach.ts';
@@ -119,6 +120,7 @@ function draw(): HTMLElement {
             { style: { gap: '6px' } },
             h('button.btn.small', { onclick: newChat }, '+ New chat'),
             h('button.btn.ghost.small', { onclick: () => navigate(`#/agents/${agent.id}/edit`) }, 'Edit'),
+            memoryButton(agent.id, agent.name),
             agent.engine !== 'openai' ? h('button.btn.ghost.small', { onclick: () => openTerminal(agent), title: 'Open this agent in a live terminal' }, 'Terminal') : null,
           ),
           h('details.mt', h('summary.label', { style: { cursor: 'pointer' } }, `${tools.length} tools`), h('div.hint.mono', { style: { marginTop: '6px', fontSize: '11px', lineHeight: '1.7' } }, tools.join(' · '))),

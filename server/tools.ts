@@ -10,6 +10,8 @@ import * as comfy from './comfyui.ts';
 import * as social from './social.ts';
 import * as reddit from './reddit.ts';
 import * as kb from './knowledge.ts';
+import * as memory from './memory.ts';
+import { withActor } from './versions.ts';
 import { ensureBrain } from './projects.ts';
 import { uploadsRoot } from './uploads.ts';
 import * as skills from './skills.ts';
@@ -554,6 +556,38 @@ const TOOLS: ToolDef[] = [
       return { text: `${r.file} lines ${r.from}-${r.to} of ${r.total}\n\n${r.text}` };
     },
   },
+  // ---------- memory (every agent of its own: its MEMORY.md, also in its instructions) ----------
+  {
+    name: 'memory_read',
+    group: 'memory',
+    risk: 'none',
+    description: 'Read your whole MEMORY.md as it is now (your instructions have it as it was when this chat started).',
+    parameters: obj({}),
+    run: async (_args, ctx) => ({ text: memory.readMemory(ctx.agent.id).trim() || '(empty: nothing remembered yet)' }),
+  },
+  {
+    name: 'memory_add',
+    group: 'memory',
+    // (it only adds to the agent's own notes, and every change can be undone in its History)
+    risk: 'low',
+    description: 'Add one short note to your MEMORY.md, so you still know it in later chats: how the user likes things done, a decision, a fact about the project, a pitfall. Never secrets.',
+    parameters: obj({ note: str('The note, one line') }, ['note']),
+    run: async ({ note }: { note: string }, ctx) => {
+      const m = withActor('agent', () => memory.addToMemory(ctx.agent.id, note));
+      return { text: `Remembered. MEMORY.md is now ${m.text.length} characters.` };
+    },
+  },
+  {
+    name: 'memory_write',
+    group: 'memory',
+    risk: 'low',
+    description: 'Replace your whole MEMORY.md (markdown), to correct notes, drop outdated ones or tidy it up. Read it first with memory_read so nothing is lost. The earlier version is kept.',
+    parameters: obj({ content: str('The whole new MEMORY.md') }, ['content']),
+    run: async ({ content }: { content: string }, ctx) => {
+      const m = withActor('agent', () => memory.writeMemory(ctx.agent.id, content));
+      return { text: `Saved MEMORY.md (${m.text.length} characters).` };
+    },
+  },
   // ---------- files ----------
   {
     name: 'list_files',
@@ -643,6 +677,8 @@ const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 export function toolsForAgent(agent: ToolAgent): ToolDef[] {
   const groups = new Set(['core', ...(agent.toolGroups || [])]);
   if (kb.knowledgeFiles(agent).length) groups.add('knowledge');
+  // a memory of its own: real agents only (not stand-ins like workflows or outside MCP clients)
+  if (memory.hasMemory(agent)) groups.add('memory');
   return TOOLS.filter((t) => groups.has(t.group));
 }
 
