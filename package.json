@@ -1,6 +1,6 @@
 {
   "name": "blacksite",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "private": true,
   "license": "MIT OR Apache-2.0",
   "description": "Local, login-free command center for AI agents, tools, programs, MCP servers and social accounts.",

@@ -57,7 +57,7 @@ export function updaterPart(triple: string, files: ReleaseFile[]): UpdaterPart {
 /** latest.json from every target's part. Throws when a target has nothing to update from, so a
  *  release is never published that installed apps of that kind would miss. */
 export function updaterManifest({ tag, repo, parts, now = new Date() }: { tag: string; repo: string; parts: UpdaterPart[]; now?: Date }): UpdaterManifest {
-  if (!/^v\d+\.\d+\.\d+/.test(tag)) throw new Error(`"${tag}" isn't a version tag like v0.3.0`);
+  if (!/^v\d+\.\d+\.\d+/.test(tag)) throw new Error(`"${tag}" isn't a version tag like v0.1.0`);
   const empty = parts.filter((p) => !Object.keys(p.platforms).length).map((p) => p.target);
   if (!parts.length || empty.length) throw new Error(`No signed updates for ${empty.join(', ') || 'any target'}: was TAURI_SIGNING_PRIVATE_KEY set?`);
   const platforms: UpdaterManifest['platforms'] = {};

@@ -3,7 +3,7 @@
 //   bun scripts/desktop-release.ts collect --target <triple>
 //     after `tauri build --target <triple>`: copies its installers and signed updates into
 //     release/files/ with their release names, and what they update into release/parts/<triple>.json
-//   bun scripts/desktop-release.ts manifest --tag v0.3.0 --repo owner/name
+//   bun scripts/desktop-release.ts manifest --tag v0.1.0 --repo owner/name
 //     with every target's release/ folder merged: writes release/files/latest.json
 import fs from 'node:fs';
 import path from 'node:path';
