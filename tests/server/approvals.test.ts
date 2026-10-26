@@ -57,6 +57,13 @@ describe('the Brain approves', () => {
     expect(listApprovals()[0].brainNote).toMatch(/no model/);
   });
 
+  it('asks you when the Brain fails with something that is not an Error', async () => {
+    setReviewer(() => Promise.reject('offline'));
+    requestApproval({ title: 'Odd failure', agentId: 'a1' });
+    await tick();
+    expect(listApprovals()[0].brainNote).toMatch(/offline/);
+  });
+
   it('never checks workflow checkpoints or outside MCP clients', async () => {
     let calls = 0;
     setReviewer(async () => (calls++, { approve: true, reason: '' }));

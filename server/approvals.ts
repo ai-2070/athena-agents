@@ -80,7 +80,7 @@ async function brainReview(id: string) {
   try {
     verdict = await reviewer(p.item);
   } catch (e) {
-    return askUser(id, `couldn't check this (${(e as Error).message.slice(0, 160)})`);
+    return askUser(id, `couldn't check this (${String(e instanceof Error ? e.message : e).slice(0, 160)})`);
   }
   // you may have answered it already, or the run was stopped
   if (!pending.has(id)) return;

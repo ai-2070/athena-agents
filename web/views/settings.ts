@@ -104,7 +104,12 @@ async function draw(): Promise<void> {
           h('div.row.mt', field('Model', brainModelChip({ prefix: '', onChange: (b) => (s.brain = b) }))),
           h(
             'label.row.mt',
-            toggle(s.brainApproves !== false, (on) => attempt(() => PUT('/settings', { brainApproves: on }), on ? 'The Brain approves for you' : 'Every request comes to you').then(() => refreshSoon(0))),
+            toggle(s.brainApproves !== false, async (on) => {
+              const saved = await attempt(() => PUT('/settings', { brainApproves: on }), on ? 'The Brain approves for you' : 'Every request comes to you');
+              // didn't save: redraw so the switch shows what is really set
+              if (saved) refreshSoon(0);
+              else await draw();
+            }),
             h('span', 'The Brain approves'),
           ),
           h('p.hint', "When an agent or team asks permission, the Brain allows routine, on-task work by itself and only passes the risky or unclear requests (deleting, pushing, sending, secrets, anything outside the project) to Needs you. Workflow checkpoints and Outbox posts and DMs always wait for you."),
