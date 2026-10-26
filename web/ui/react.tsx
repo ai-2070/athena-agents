@@ -38,10 +38,10 @@ export function useServerEvents(fn: (ev: ServerEvent) => void): void {
 
 /** A plain-DOM piece (a file preview, markdown, the 3D viewer) inside a React page. make() runs again
  *  only when deps change, so the piece keeps its own state between redraws. */
-export function DomNode({ make, deps, className }: { make: () => Node; deps: DependencyList; className?: string }) {
+export function DomNode({ make, deps, className, as = 'div' }: { make: () => Node | null; deps: DependencyList; className?: string; as?: 'div' | 'span' }) {
   const node = useMemo(make, deps);
-  const ref = useCallback((el: HTMLElement | null) => void (el && el.replaceChildren(node)), [node]);
-  return <div ref={ref} className={className} />;
+  const ref = useCallback((el: HTMLElement | null) => void (el && el.replaceChildren(...(node ? [node] : []))), [node]);
+  return as === 'span' ? <span ref={ref} className={className} /> : <div ref={ref} className={className} />;
 }
 
 /** A page module that still draws plain DOM (render/unmount/onEvent, as in app.ts). */

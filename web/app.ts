@@ -13,7 +13,7 @@ import * as connections from './views/connections.tsx';
 import * as outboxView from './views/outbox.tsx';
 import * as terminals from './views/terminals.ts';
 import * as setup from './views/setup.tsx';
-import * as skillsView from './views/skills.ts';
+import * as skillsView from './views/skills.tsx';
 import * as routinesView from './views/routines.ts';
 import { initDock } from './dock.ts';
 import { guardPageDrops } from './attach.ts';

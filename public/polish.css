@@ -737,3 +737,13 @@ a.fp-file:hover { color: var(--accent); }
 .launch-act:hover { color: var(--accent); border-color: var(--accent-dim); }
 .launch-act.danger:hover { color: var(--red); border-color: var(--red); }
 .launch-list .launch-row:nth-child(2) .launch-card { animation-delay: .04s; } .launch-list .launch-row:nth-child(3) .launch-card { animation-delay: .08s; } .launch-list .launch-row:nth-child(4) .launch-card { animation-delay: .12s; } .launch-list .launch-row:nth-child(5) .launch-card { animation-delay: .16s; }
+
+/* Skills (web/views/skills.tsx): "Give to…" is a Base UI menu, placed by its positioner */
+.skp-positioner { z-index: 96; outline: none; }
+.skp-menu { position: static; width: 300px; max-width: 300px; }
+.skp-emoji { width: 14px; text-align: center; }
+.st-menu-item[data-highlighted] { background: var(--panel-2); color: var(--accent); outline: none; }
+.skills-libhead, .skills-actions { gap: 8px; }
+.skills-libhead .section { margin: 0; }
+.skills-first { justify-content: center; gap: 8px; }
+.btn-ico { display: inline-flex; }
