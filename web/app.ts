@@ -14,7 +14,7 @@ import * as outboxView from './views/outbox.tsx';
 import * as terminals from './views/terminals.tsx';
 import * as setup from './views/setup.tsx';
 import * as skillsView from './views/skills.tsx';
-import * as routinesView from './views/routines.ts';
+import * as routinesView from './views/routines.tsx';
 import { initDock } from './dock.ts';
 import { guardPageDrops } from './attach.ts';
 import { applyLook, applySavedLook } from './look.ts';
