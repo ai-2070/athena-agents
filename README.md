@@ -3,7 +3,8 @@
 **Run AI agents and teams from one local workspace.** Give each agent a role, a model and the tools it needs. Talk to them directly, let them work together, and keep their work with the project it belongs to.
 
 <p align="center">
-  <img src="docs/images/station.png" alt="Blacksite's Station: a live 3D map of a project, with the Brain in the middle, three teams of AI agents at their desks, and the programs and tools connected to them" width="100%">
+  <img src="docs/images/hero.png" alt="Blacksite working on a game project: the Brain builds an art team of 3D artists and a historian from one sentence, while the agents on the live 3D map work at their desks and lines light up from the connected programs" width="100%">
+  <br><sub>The Brain setting up an art team for a game project, Rose &amp; Blade, while its agents get to work.</sub>
 </p>
 
 <p align="center">
@@ -18,7 +19,7 @@ Blacksite is a local-first **AI agent dashboard**: build teams of agents, give e
 
 The dashboard runs at **http://localhost:4800**, with no dashboard account or login. Its server and saved state stay on your computer. **Local does not mean offline:** hosted models and connected services receive the requests you send them. You can also use local models through LM Studio or Ollama.
 
-[What you can do](#what-you-can-do) · [Screenshots](#screenshots) · [Get started](#get-started) · [Connect a model](#connect-a-model) · [Your first project](#your-first-project) · [Where things are](#where-things-are) · [Approvals and safety](#approvals-and-safety) · [Save and restore](#save-and-restore) · [Development](#development) · [Detailed guide](docs/guide.md)
+[What you can do](#what-you-can-do) · [Get started](#get-started) · [Connect a model](#connect-a-model) · [Your first project](#your-first-project) · [Where things are](#where-things-are) · [Approvals and safety](#approvals-and-safety) · [Save and restore](#save-and-restore) · [Development](#development) · [Detailed guide](docs/guide.md)
 
 ## What you can do
 
@@ -27,42 +28,6 @@ The dashboard runs at **http://localhost:4800**, with no dashboard account or lo
 - **Work with your files and programs.** Give agents a project folder, attach reference files, and connect tools for programs such as Blender, ComfyUI and ffmpeg. Add more tools through MCP servers.
 - **Keep useful instructions.** Write skills in plain words, share them across agents and teams, and turn repeated work into routines you can run by hand or on a schedule.
 - **Review work before it goes out.** Handle permission requests in **Needs you**, review X and Reddit drafts in the **Outbox**, and find saved results in **Artifacts**.
-
-## Screenshots
-
-The screenshots show made-up demo data.
-
-### The Station: your agents, teams and tools on one live map
-
-Each team is a pod with its agents at their desks. The Brain sits in the middle and sets up teams, skills and routines when you ask. Lines run from the programs and services at the top to the agents that use them, and light up when an agent makes a call.
-
-![The Station, a live 3D map with three teams, the Brain, and the programs connected to the agents](docs/images/station.png)
-
-### Team chats where agents work together
-
-Everyone sees the whole conversation. Agents hand work to each other with @mentions, and the files they make show up in the chat: images, video, audio and 3D models you can turn with the mouse.
-
-![A team chat with an audio player and a 3D model preview, next to the team's panel with its members and their models](docs/images/team-chat.png)
-
-### Artifacts: what the teams finished
-
-Written results, files and folders that agents saved, each with a preview, who made it, which team it was for and when, and a search box for when there are many.
-
-![The Artifacts page with an image preview and a 3D crystal model preview](docs/images/artifacts.png)
-
-### MCP servers in one click
-
-Add a browser, GitHub, Notion, Linear, Unity, Unreal Engine, Godot or ElevenLabs from a list, or ask the Brain to do it.
-
-![The MCP servers page with ready-made presets, some marked as needing a key](docs/images/mcp-servers.png)
-
-### Projects as floors
-
-<img src="docs/images/project-menu.png" alt="The project menu: drag to reorder, rename, clone, back up, restore or delete a project" width="320" align="right">
-
-Each project has its own agents, teams, chats and Brain folder. Drag projects into the order you like, and press Up and Down on the Station to move between them. You can rename, clone or delete a project (a delete first makes a backup and checks it).
-
-<br clear="right">
 
 ## Get started
 
