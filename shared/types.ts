@@ -287,6 +287,8 @@ export interface Chat {
   items: ChatItem[];
   llm: unknown[];
   sessionId: string | null;
+  /** The engine that made sessionId: another engine can't resume it, so it starts a new session. */
+  sessionEngine?: EngineId;
   /** Set when this is the agent's session for a team chat. */
   teamId?: string | null;
   /** Set after a compaction: the next run starts a new engine session that gets the compacted history first. */
@@ -438,6 +440,9 @@ export interface FavoriteModel {
 export interface CompactionSetting {
   /** Compact a chat by itself when the agent's memory of it gets full. */
   auto: boolean;
+  /** Claude Code, Codex, Hermes, pi, oh-my-pi and OpenClaw compact their own sessions: automatic compaction
+   *  then only covers API-model agents (and a CLI run that fails because the chat is too long). */
+  engineOwn: boolean;
   /** Instant compaction: keeps the original words (cut to fit) and needs no model call. Off: the Brain's model writes a summary. */
   instant: boolean;
   /** Compact when the memory reaches this share of the model's context window (10-95). */

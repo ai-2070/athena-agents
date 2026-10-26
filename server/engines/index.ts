@@ -15,6 +15,7 @@ import * as codex from './codex.ts';
 import * as openclaw from './openclaw.ts';
 import { pi, omp } from './pi.ts';
 import * as compaction from '../compaction.ts';
+import { SessionGone } from './cli.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent } from '../../shared/types.ts';
 import type { LoopRequest } from '../../shared/commands.ts';
@@ -307,15 +308,25 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       const systemPrompt = buildSystemPrompt(agent) + (await richSection(agent, chat, depth));
       // (the memory meter counts its instructions the same way: see memoryOf)
       chat.rich = richFor(agent, chat, depth);
-      // The API-model engine compacts by itself (before each step); the CLI engines keep their own
-      // session, so they compact here, before the run, and start a new session from the compacted history.
+      // The API-model engine compacts by itself (before each step). The CLI engines compact their own
+      // sessions too; with that switched off (Settings > Chat memory) they compact here, before the run,
+      // and start a new session from the compacted history.
       const cli = agent.engine !== 'openai';
       const settings = compaction.compactionSettings();
-      if (cli && settings.auto) {
+      if (cli && settings.auto && !compaction.engineCompacts(agent, settings)) {
         const window = await compaction.contextWindow(agent, chat);
         if (compaction.memoryTokens(chat, agent, systemPrompt) >= compaction.compactAt(window, settings)) await compact({ trigger: 'auto' }).catch(() => null);
       }
       if (controller.signal.aborted) throw new Error('Stopped.');
+      // A session belongs to the engine that made it: after the agent changed engines, a new one starts
+      // with the chat so far. (Older chats don't say whose it is: if it's gone, the engine says so; see below.)
+      if (cli) {
+        if (chat.sessionId && chat.sessionEngine && chat.sessionEngine !== agent.engine) {
+          chat.sessionId = null;
+          chat.reseed = true;
+        }
+        chat.sessionEngine = agent.engine;
+      }
       // Codex, Hermes and OpenClaw get the instructions only when their session starts: a session that is
       // already going is told when MEMORY.md changed since its last run (by you, or in another chat)
       const memoryAt = hasMemory(agent) ? memoryStamp(agent.id) : 0;
@@ -328,9 +339,13 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       try {
         result = await go();
       } catch (e) {
-        // too long for the model: compact once and try again (the API-model engine does this itself)
-        if (!cli || controller.signal.aborted || !settings.auto || !compaction.isOverflowError(e) || !(await compact({ trigger: 'overflow' }).catch(() => null))) throw e;
-        result = await go();
+        if (controller.signal.aborted) throw e;
+        // its session is gone (the engine cleared it): once more, in a new session with the chat so far
+        if (e instanceof SessionGone) result = await go();
+        // too long for the model (even one that compacts by itself): compact once and try again
+        // (the API-model engine does this itself)
+        else if (!cli || !settings.auto || !compaction.isOverflowError(e) || !(await compact({ trigger: 'overflow' }).catch(() => null))) throw e;
+        else result = await go();
       }
       if (controller.signal.aborted) throw new Error('Stopped.');
       // the new session has the compacted history now
@@ -657,7 +672,7 @@ export function editCompaction(agentId: string, chatId: string, itemId: string, 
 }
 
 /** How full the agent's memory of a chat is (the meter in the chat). */
-export async function memoryOf(agent: Agent, chatId: string): Promise<{ tokens: number; window: number; compactAt: number; percent: number; auto: boolean }> {
+export async function memoryOf(agent: Agent, chatId: string): Promise<{ tokens: number; window: number; compactAt: number; percent: number; auto: boolean; own: boolean }> {
   const chat = liveChat(chatId) || chats.get(agent.id, chatId);
   if (!chat) throw httpError(404, 'Not found');
   const window = await compaction.contextWindow(agent, chat);
@@ -665,7 +680,9 @@ export async function memoryOf(agent: Agent, chatId: string): Promise<{ tokens: 
   // as its runs go: a chat that is handed work (or a team's) never has Rich answers' instructions
   const rich = chat.rich ?? richFor(agent, chat, 0);
   const tokens = compaction.memoryTokens(chat, agent, buildSystemPrompt(agent) + (rich ? await richSection(agent, {}, 0) : ''));
-  return { tokens, window, compactAt: compaction.compactAt(window, s), percent: Math.round((tokens / window) * 100), auto: s.auto };
+  // (an engine that compacts by itself does it when the window is nearly full, not at the threshold here)
+  const own = compaction.engineCompacts(agent, s);
+  return { tokens, window, compactAt: own ? window : compaction.compactAt(window, s), percent: Math.round((tokens / window) * 100), auto: s.auto, own };
 }
 
 export function engineStatus(): EngineStatus {

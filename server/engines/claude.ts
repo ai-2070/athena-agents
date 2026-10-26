@@ -11,6 +11,7 @@ import { uploadsRoot } from '../uploads.ts';
 import { effortFor } from '../../shared/effort.ts';
 import type { Agent, Chat, EngineStatus } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
+import { SessionGone } from './cli.ts';
 
 /** The per-run files Claude Code reads (prepareFiles). */
 export interface ClaudeFiles {
@@ -246,9 +247,14 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
   signal.removeEventListener('abort', onAbort);
   if (signal.aborted) throw new Error('Stopped.');
   if (!result) {
-    // A resumed session that no longer exists: start a new one next time.
-    if (/No conversation found/i.test(stderr) && chat.sessionId) chat.sessionId = null;
-    throw new Error(`Claude Code exited (${code}) without an answer.${stderr ? `\n${stderr.trim().slice(-1500)}` : ''}`);
+    const msg = `Claude Code exited (${code}) without an answer.${stderr ? `\n${stderr.trim().slice(-1500)}` : ''}`;
+    // A resumed session that no longer exists: a new one, with the chat so far.
+    if (/No conversation found/i.test(stderr) && chat.sessionId) {
+      chat.sessionId = null;
+      chat.reseed = true;
+      throw new SessionGone(msg);
+    }
+    throw new Error(msg);
   }
   if (result.is_error) throw new Error(result.result || `Claude Code reported an error (${result.subtype}).`);
   const window = Math.max(0, ...Object.values(result.modelUsage || {}).map((m) => Number(m?.contextWindow) || 0));

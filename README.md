@@ -204,6 +204,7 @@ By default, compaction starts at **50%** of the context window and keeps up to t
 - **Instant compaction** is on by default. It shortens the original text, reduces tool calls to one line and omits tool results without making a model call. Agents can use `recall_history` to retrieve the full entries.
 - Turn instant compaction off to have the Brain's model write a summary instead.
 - Open a **COMPACTED** marker to see what the agent remembers; you can edit the latest one. Use **Compact** or `/compact` to compact by hand, or `/compact summary` to request a summary.
+- Claude Code, Codex, Hermes, pi, oh-my-pi and OpenClaw compact their own sessions when nearly full, so by default the dashboard compacts their chats only when you ask, or when one says the chat is too long. Turn off **Let Claude Code, Codex… compact on their own** to have the dashboard compact them at the threshold too. API-model agents are always compacted by the dashboard.
 
 The amount retained scales with the context window. Set **Context window** if a model's reported size is wrong.
 

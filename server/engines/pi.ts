@@ -9,7 +9,7 @@ import { which, spawnCommand, run as runCmd, BRIDGE_SCRIPT, PORT, DATA, HOME, da
 import { internalToken } from '../store.ts';
 import { workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
-import { cliStatus, pipeLines, tail } from './cli.ts';
+import { cliStatus, pipeLines, tail, SessionGone } from './cli.ts';
 import type { CliStatus } from './cli.ts';
 import type { Agent, RunEvent } from '../../shared/types.ts';
 import type { Engine, EngineRunArgs, EngineResult } from './index.ts';
@@ -179,6 +179,9 @@ export function status(flavor: PiFlavor): CliStatus {
   return cliStatus(flavor, (s) => s.trim().replace(/^omp\//, '').split(/\s/)[0]);
 }
 
+/** What oh-my-pi says when --resume names a session it doesn't have. */
+const SESSION_NOT_FOUND = /Session "[^"]*" not found/i;
+
 async function run(flavor: PiFlavor, { agent, chat, text, signal, onEvent, systemPrompt, runId }: EngineRunArgs): Promise<EngineResult> {
   if (!which(flavor)) throw new Error(`${LABEL[flavor]} is not installed (the \`${flavor}\` command was not found). Install it with: ${INSTALL[flavor]}`);
   // pi: a new chat gets its own session id now; oh-my-pi names a new session itself (in its first line)
@@ -194,7 +197,16 @@ async function run(flavor: PiFlavor, { agent, chat, text, signal, onEvent, syste
     if (signal.aborted) throw new Error('Stopped.');
     const r = reader.result();
     if (r.lastError) throw new Error(r.lastError);
-    if (!r.answer) throw new Error(`${LABEL[flavor]} exited (${end.code}) without an answer.${tail(end.stderr)}`);
+    if (!r.answer) {
+      const msg = `${LABEL[flavor]} exited (${end.code}) without an answer.${tail(end.stderr)}`;
+      // oh-my-pi: a session it no longer has (deleted, or made by another engine): a new one, with the chat so far
+      if (resume && SESSION_NOT_FOUND.test(end.stderr)) {
+        chat.sessionId = null;
+        chat.reseed = true;
+        throw new SessionGone(msg);
+      }
+      throw new Error(msg);
+    }
     return { text: r.answer, ...(r.tokens ? { tokens: r.tokens } : {}), ...(r.cached ? { cached: r.cached } : {}), ...(r.cost ? { cost: r.cost } : {}), ...(r.context ? { context: r.context } : {}) };
   } finally {
     fs.rmSync(instructions, { force: true });

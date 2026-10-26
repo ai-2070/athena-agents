@@ -128,12 +128,16 @@ export const compactionSettings = (): CompactionSetting => {
   const s = getSettings().compaction || ({} as Partial<CompactionSetting>);
   return {
     auto: s.auto !== false,
+    engineOwn: s.engineOwn !== false,
     instant: s.instant !== false,
     thresholdPercent: Math.min(95, Math.max(10, Number(s.thresholdPercent) || 50)),
     keepMessages: Math.min(1000, Math.max(0, Math.floor(Number(s.keepMessages ?? 10)) || 0)),
     windowTokens: Math.min(10_000_000, Math.max(0, Math.floor(Number(s.windowTokens) || 0))),
   };
 };
+
+/** The engine compacts this chat by itself, so the dashboard doesn't before a run (see compactionSettings). */
+export const engineCompacts = (agent: Pick<Agent, 'engine'>, s: CompactionSetting = compactionSettings()): boolean => agent.engine !== 'openai' && s.engineOwn;
 
 /** The memory size (tokens) that sets off an automatic compaction. */
 export const compactAt = (window: number, s: CompactionSetting = compactionSettings()): number => Math.floor((window * s.thresholdPercent) / 100);
@@ -454,12 +458,13 @@ export function checkpointSection(items: ChatItem[]): string {
 /** For a CLI engine's new session: the compacted history and the messages kept in full, then the new message. */
 export function seedPrompt(items: ChatItem[], text: string, window = 200_000): string {
   const cp = latestCompaction(items);
-  if (!cp) return text;
   const cur = items.findLastIndex((i) => i.type === 'user');
   const seqs: number[] = [];
-  for (let i = cp.item.upto; i < (cur === -1 ? items.length : cur); i++) if (['user', 'assistant', 'tool', 'error'].includes(items[i].type)) seqs.push(i);
+  for (let i = memoryStart(items); i < (cur === -1 ? items.length : cur); i++) if (['user', 'assistant', 'tool', 'error'].includes(items[i].type)) seqs.push(i);
   const recent = compileHistory(items, seqs, null, sizesFor(window, compactionSettings().thresholdPercent).seed).body;
-  return `<compacted-history>\n${cp.item.text}\n${recent ? `\nThe latest messages, in full:\n${recent}\n` : ''}</compacted-history>\n\nThis chat carries on from here. The new message:\n\n${text}`;
+  if (cp) return `<compacted-history>\n${cp.item.text}\n${recent ? `\nThe latest messages, in full:\n${recent}\n` : ''}</compacted-history>\n\nThis chat carries on from here. The new message:\n\n${text}`;
+  // no compaction yet (the engine changed, or its session was lost): the chat so far, as it fits
+  return recent ? `<chat-history>\n${recent}\n</chat-history>\n\nThis chat carries on from here. The new message:\n\n${text}` : text;
 }
 
 // ---------- recall_history ----------

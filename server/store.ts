@@ -46,7 +46,7 @@ const DEFAULT_SETTINGS: Settings = {
   telegram: { chatId: '' },
   maxToolSteps: 16,
   costLimitUsdPerRun: 2,
-  compaction: { auto: true, instant: true, thresholdPercent: 50, keepMessages: 10, windowTokens: 0 },
+  compaction: { auto: true, engineOwn: true, instant: true, thresholdPercent: 50, keepMessages: 10, windowTokens: 0 },
   favoriteModels: [],
 };
 

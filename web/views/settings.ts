@@ -167,6 +167,8 @@ async function draw(): Promise<void> {
             h('div.panel-head', h('h2', 'Chat memory')),
             h('p.hint', 'Long chats fill up the model’s memory. Compacting turns the older messages into a short history the agent keeps reading, and keeps the latest messages in full. Every message stays in the chat for you, marked “COMPACTED” where it happened; open the mark to read or edit what the agent remembers. You can also press Compact in a chat, or type /compact.'),
             toggleRow(c.auto, (on) => setP('compaction.auto', on), 'Compact long chats automatically', '.mt'),
+            toggleRow(c.engineOwn !== false, (on) => setP('compaction.engineOwn', on), 'Let Claude Code, Codex, Hermes, pi, oh-my-pi and OpenClaw compact on their own', '.mt'),
+            h('p.hint', 'They compact their own sessions when nearly full, keeping their prompt cache and what they know about their tools. The dashboard then compacts their chats only when you ask (Compact, /compact), or when one says the chat is too long. Off: the dashboard compacts them too, at the share below, and starts a new session from its compacted history. API-model agents are always compacted here.'),
             toggleRow(c.instant, (on) => setP('compaction.instant', on), 'Instant compaction', '.mt'),
             h('p.hint', 'Instant keeps the original words, cut to fit: long messages are shortened, tool calls become one line and their results are left out (the agent can read any of them back). No model call, so it takes no time and costs nothing. Off: the Brain’s model writes a summary instead (slower, smaller).'),
             h(
