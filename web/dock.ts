@@ -7,6 +7,7 @@ import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.ts'
 import { brainQueue, latestLoad } from './brainqueue.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import { attachTray, attachmentChips } from './attach.ts';
+import { brainKeyLabel, brainKeyTitle, brainShortcut } from './shortcuts.ts';
 import type { AttachTray, PickedFile } from './attach.ts';
 import type { Child } from './core.ts';
 import type { AgentDraft, BranchDesign } from './builder.ts';
@@ -69,7 +70,13 @@ const D: Dock = { modelEl: null, open: false, target: 'auto', items: [], el: nul
 const PLACEHOLDER = 'What do you want done?';
 
 export function initDock(): void {
-  const launcher = h('button.dock-launcher', { onclick: () => toggle(true) }, icon('sparkles', 17), h('span', 'Ask the Brain…'), h('kbd', 'Ctrl K'));
+  const key = h('kbd');
+  const onStation = () => document.body.classList.contains('station-mode');
+  const drawKey = () => (key.textContent = brainKeyLabel(onStation()));
+  const launcher = h('button.dock-launcher', { onclick: () => toggle(true), title: brainKeyTitle() }, icon('sparkles', 17), h('span', 'Ask the Brain…'), key);
+  drawKey();
+  // the Station (where Space opens it) comes and goes with the page
+  new MutationObserver(drawKey).observe(document.body, { attributes: true, attributeFilter: ['class'] });
   D.list = h('div.dock-list');
   D.input = h('textarea.dock-input', { rows: 2, placeholder: PLACEHOLDER });
   D.tray = attachTray({ onChange: () => (D.input!.placeholder = D.tray?.count() ? 'What should be done with these files?' : PLACEHOLDER) });
@@ -100,11 +107,12 @@ export function initDock(): void {
   D.project = state.data?.project?.id || null;
   onState(drawTargets);
   onState(projectChanged);
-  // Ctrl+K opens the chat from anywhere
+  // Ctrl+K (⌘K) opens or closes the chat from anywhere; Space opens it on the Station
   document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    const shortcut = brainShortcut(e, { open: D.open, onStation: onStation() });
+    if (shortcut) {
       e.preventDefault();
-      toggle(!D.open);
+      toggle(shortcut === 'open' ? true : !D.open);
     } else if (e.key === 'Escape' && D.open && !e.defaultPrevented && !document.querySelector('.modal-back, .model-menu')) {
       e.preventDefault();
       toggle(false);
