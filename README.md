@@ -207,6 +207,8 @@ By default, compaction starts at **50%** of the context window and keeps up to t
 
 The amount retained scales with the context window. Set **Context window** if a model's reported size is wrong.
 
+Very long chats still scroll smoothly: from 50 messages on, the chat page and the floating window only draw the messages near what you see, so the floating window can show the whole chat too. Because of this, your browser's Find (Ctrl+F) only finds text in the messages near where you have scrolled.
+
 ## Approvals and safety
 
 ### Choose how much agents may do
