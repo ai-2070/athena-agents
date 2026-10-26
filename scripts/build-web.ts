@@ -20,6 +20,8 @@ async function build(): Promise<boolean> {
     splitting: true,
     minify: !watch,
     sourcemap: 'linked',
+    // React and OpenUI read this; "development" would also make OpenUI load its devtools from a CDN
+    define: { 'process.env.NODE_ENV': JSON.stringify('production') },
     // report errors in result.logs instead of throwing (a throw would end --watch)
     throw: false,
   });
@@ -28,6 +30,8 @@ async function build(): Promise<boolean> {
     fs.rmSync(tmpdir, { recursive: true, force: true });
     return false;
   }
+  // OpenUI's stylesheet for the chats (web/chat), linked when a chat first opens
+  fs.copyFileSync(path.join(root, 'node_modules', '@openuidev', 'react-ui', 'dist', 'styles', 'index.css'), path.join(tmpdir, 'openui.css'));
   // (outputs read their size from the files, so take it before the move)
   const size = result.outputs.reduce((n, o) => n + o.size, 0);
   fs.rmSync(outdir, { recursive: true, force: true });

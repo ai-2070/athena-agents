@@ -20,7 +20,7 @@ export default defineConfig({
       {
         test: {
           name: 'web',
-          include: ['tests/web/**/*.test.ts'],
+          include: ['tests/web/**/*.test.{ts,tsx}'],
           environment: 'happy-dom',
         },
       },

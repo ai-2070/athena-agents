@@ -556,6 +556,12 @@ a.att-chip.sent:hover { border-color: var(--accent-dim); color: var(--accent); }
 .ver-line.add { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 @media (max-width: 760px) { .ver { grid-template-columns: 1fr; } .ver-list { max-height: 30vh; } }
 
+/* ---------- the OpenUI chat (web/chat): the React part sits inside the page's own layout ---------- */
+.chat-body, .ac-body { display: contents; }
+.oc-approval { max-width: 860px; margin-bottom: 10px; }
+.msg.assistant.rich { max-width: 860px; }
+.oc-rich { font-size: 14px; }
+
 /* ---------- file previews with Show in Explorer / Finder (web/filepreview.ts) ---------- */
 .fp-list { display: flex; flex-wrap: wrap; gap: 10px; max-width: 860px; width: 100%; }
 .fp-card { display: flex; flex-direction: column; width: min(380px, 100%); border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); overflow: hidden; }
