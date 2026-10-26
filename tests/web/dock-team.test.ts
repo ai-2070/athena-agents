@@ -1,7 +1,7 @@
 // The Brain chat follows a team it handed work to: replies that came before it started following
 // (loaded from the team chat) and live ones are merged, each once and in order.
 import { describe, expect, it } from 'vitest';
-import { mergeTeamMessages } from '../../web/dock.ts';
+import { mergeTeamMessages } from '../../web/dock.tsx';
 import type { TeamMessage } from '../../shared/types.ts';
 
 const msg = (id: string, from: string, ts: number): TeamMessage => ({ id, from, ts, text: id, mentions: [] });

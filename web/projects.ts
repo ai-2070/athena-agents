@@ -4,7 +4,7 @@ import { icon } from './icons.ts';
 import { projectMark } from './projectlogo.ts';
 import { moveId } from './projectnav.ts';
 import { uiZoom } from './look.ts';
-import { askBrain } from './dock.ts';
+import { askBrain } from './dock.tsx';
 import { BACKUP_EXT, backupProject, backupAgo, fileSize, listBackups, readBackupSummary, restoreBackup, restoredText, summaryLine } from './backup.ts';
 import type { BackupListing, BackupSummary } from './backup.ts';
 import { attachTray } from './attach.ts';

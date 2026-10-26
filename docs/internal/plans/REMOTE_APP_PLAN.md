@@ -108,10 +108,10 @@ unmounts when you leave it.
 Since then every page in `web/views/` has moved except the Station: Settings and all its tabs,
 Artifacts, Outbox, Skills, Terminals, Overview, the agent chat page, Agents, Routines and the Team
 editor. Plain-DOM pieces they still use (the skill picker, the schedule editor, the memory editor,
-the routine @ menu, approval cards) are hosted with `<DomNode>` and can move later. The floating
-chat window (`web/chatwin.tsx`), an agent's tab in it (`web/agentchat.tsx`) and team chats
-(`web/teamchat.tsx`) are React too. Still to do: the Brain dock, then the Station (its panels around
-the three.js map).
+the routine @ menu, approval cards) are hosted with `<DomNode>` and can move later. The Brain chat
+(`web/dock.tsx`), the floating chat window (`web/chatwin.tsx`), an agent's tab in it
+(`web/agentchat.tsx`) and team chats (`web/teamchat.tsx`) are React too. Still to do: the Station
+(its panels around the three.js map).
 
 ## C. Net: pairing, relay and the Android app
 

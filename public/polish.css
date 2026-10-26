@@ -42,8 +42,6 @@
 .toast { animation: in-up 0.25s var(--ease); }
 .st-empty { animation: in-up 0.45s var(--ease); }
 .dock-msg, .dock-note { animation: rise-in 0.22s var(--ease); }
-/* drawn again (it changed, e.g. a streaming answer): no entrance again */
-.dock-msg.kept, .dock-note.kept { animation: none; }
 #view > * { animation: rise-in 0.28s var(--ease); }
 #view.flush > * { animation: fade 0.35s ease-out; }
 .card, .btn, .icon-btn, .chip, .st-int, .st-step, .st-conn, .st-menu-item, #nav-links a, .st-zoom button, .dock-launcher {

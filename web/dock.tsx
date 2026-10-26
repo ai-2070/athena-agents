@@ -1,8 +1,12 @@
 // The global chat: one window on every page. Talk to the Brain (it answers, builds teams and agents,
 // writes PROJECT.md or hands the work to an agent or team), or straight to any agent or team.
-import { h, mount, clear, state, GET, POST, PUT, attempt, md, onEvent, onState, navigate, refreshSoon, chipSet, toast, avatar } from './core.ts';
+// The chat's state and what it does (sending, /queue, /loop, live events) live here in the module;
+// React draws it (draw() asks for a redraw, at most once a frame).
+import { StrictMode, Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { createPortal, flushSync } from 'react-dom';
+import { createRoot } from 'react-dom/client';
+import { h, state, GET, POST, attempt, md, onEvent, onState, navigate, refreshSoon, toast } from './core.ts';
 import { openBranchBuilder } from './builder.ts';
-import { icon, logo } from './icons.ts';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.ts';
 import { brainQueue, chatLoop, holdQueue, latestLoad } from './brainqueue.ts';
 import { queuedText } from '../shared/queue.ts';
@@ -14,13 +18,17 @@ import { pasteBox } from './pastes.ts';
 import { openMemory, BRAIN } from './memory.ts';
 import { mentionPreviews } from './filepreview.ts';
 import { brainKeyLabel, brainKeyTitle, brainShortcut } from './shortcuts.ts';
+import { Avatar, DomNode, Icon, useAppState } from './ui/react.tsx';
+import { ChipSet } from './ui/controls.tsx';
 import type { AttachTray, PickedFile } from './attach.ts';
 import type { PasteBox } from './pastes.ts';
-import type { Child } from './core.ts';
 import type { AgentDraft, BranchDesign } from './builder.ts';
 import type { TeamEvent } from './teamchat.tsx';
-import type { ActiveRun, Agent, BrainAnswer, BrainDelegate, BrainDone, Chat, ChatItem, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
+import type { ActiveRun, Agent, AppState, BrainAnswer, BrainDelegate, BrainDone, Chat, ChatItem, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
 import type { UIMessage } from 'ai';
+
+// A handed-off agent's turn, streamed in as it goes: the AI SDK pieces load when first needed.
+const TurnView = lazy(() => import('./chat/TurnView.tsx').then((m) => ({ default: m.TurnView })));
 
 /** One line of GET /api/brain/history. */
 interface BrainHistoryEntry {
@@ -51,7 +59,8 @@ interface Sent {
   goal?: boolean;
 }
 type UserItem = { id: string; kind: 'user'; text: string; attachments?: string[]; sent?: Sent };
-type NoteItem = { id: string; kind: 'note'; text: Child; busy?: boolean; error?: boolean };
+/** action: a button after the text ("Send it my message") */
+type NoteItem = { id: string; kind: 'note'; text: string; busy?: boolean; error?: boolean; action?: { label: string; run: () => void } };
 /** started: its message went, so its turn can be streamed in (web/chat/TurnView) */
 type AgentItem = { id: string; kind: 'agent'; agentId: string; chatId: string; text: string; tools: ToolChip[]; images: string[]; reason: string; done: boolean; status?: string; started?: boolean };
 type BranchItem = { id: string; kind: 'branch'; wfId: string; name: string; reason: string; since: number; messages: TeamMessage[]; working: string[]; next?: string[]; runId?: string; steps?: unknown; error?: string | null; output?: string; briefId?: string };
@@ -73,81 +82,78 @@ type NewItem = DockItem extends infer T ? (T extends DockItem ? Omit<T, 'id'> : 
 type Failed = { error?: string };
 
 interface Dock {
-  modelEl: HTMLDivElement | null;
   open: boolean;
+  /** the panel is showing (it stays while it folds back into the button) */
+  shown: boolean;
+  /** the "Ask the Brain" button: hidden while the chat is open, see-through while the chat folds into it */
+  launcherHidden: boolean;
+  launcherFaded: boolean;
   /** 'auto' | 'new-agent' | 'new-branch' | 'a:<agent id>' | 'b:<team id>' */
   target: string;
   items: DockItem[];
-  el: null;
-  list: HTMLDivElement | null;
   input: HTMLTextAreaElement | null;
-  sel: HTMLSelectElement | null;
   workflows: TeamListing[];
   /** the project this chat shows */
   project: string | null;
-  panel?: HTMLDivElement;
-  launcher?: HTMLButtonElement;
+  panel: HTMLDivElement | null;
+  launcher: HTMLButtonElement | null;
   /** Files waiting to go with the next message. */
   tray?: AttachTray;
   /** Long pasted text, folded into a chip until it is sent. */
   pastes?: PasteBox;
-  /** Your /queue messages, waiting for the chat to be done. */
-  heldEl?: HTMLDivElement;
-  /** Your /loop's chip. */
-  chipsEl?: HTMLDivElement;
   /** What the last /stop cut off: the Brain's answer it was writing, and the agents and teams working from here. */
   stoppedAsk?: Sent | null;
   stoppedWork?: { chats: { agentId: string; chatId: string }[]; teams: string[] } | null;
 }
 
-const D: Dock = { modelEl: null, open: false, target: 'auto', items: [], el: null, list: null, input: null, sel: null, workflows: [], project: null };
+const D: Dock = { open: false, shown: false, launcherHidden: false, launcherFaded: false, target: 'auto', items: [], input: null, workflows: [], project: null, panel: null, launcher: null };
 const PLACEHOLDER = 'What do you want done?';
 
+// ---------- drawing ----------
+// React reads the module's state; notify() draws it again now, draw() at most once a frame.
+let version = 0;
+const listeners = new Set<() => void>();
+const subscribe = (l: () => void) => (listeners.add(l), () => void listeners.delete(l));
+const notify = () => {
+  version++;
+  for (const l of listeners) l();
+};
+const useDock = () => useSyncExternalStore(subscribe, () => version);
+const now = () => flushSync(notify);
+let frame = false;
+function draw() {
+  if (frame) return;
+  frame = true;
+  requestAnimationFrame(() => {
+    frame = false;
+    notify();
+    // something may have finished: a /queue message can go now, then the loop's next one
+    held.check();
+    loop.check();
+  });
+}
+
 export function initDock(): void {
-  const key = h('kbd');
-  const onStation = () => document.body.classList.contains('station-mode');
-  const drawKey = () => (key.textContent = brainKeyLabel(onStation()));
-  const launcher = h('button.dock-launcher', { onclick: () => toggle(true), title: brainKeyTitle() }, icon('sparkles', 17), h('span', 'Ask the Brain…'), key);
-  drawKey();
-  // the Station (where Space opens it) comes and goes with the page
-  new MutationObserver(drawKey).observe(document.body, { attributes: true, attributeFilter: ['class'] });
-  D.list = h('div.dock-list');
-  watchList(D.list);
-  D.input = h('textarea.dock-input', { rows: 2, placeholder: PLACEHOLDER });
-  D.tray = attachTray({ onChange: () => (D.input!.placeholder = D.tray?.count() ? 'What should be done with these files?' : PLACEHOLDER) });
+  D.tray = attachTray({ onChange: draw });
   D.pastes = pasteBox();
-  D.pastes.attach(D.input);
-  const slash = slashMenu(D.input, 'brain', { run: () => void send() });
-  D.input.addEventListener('input', () => slash.update());
-  D.input.addEventListener('keydown', (e) => {
-    if (slash.key(e)) return;
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-      e.preventDefault();
-      send();
-    }
-  });
-  D.sel = h('select.dock-target');
-  D.sel.addEventListener('change', () => {
-    D.target = D.sel!.value;
-    drawModel();
-  });
-  D.modelEl = h('div.dock-model');
-  D.panel = h(
-    'div.dock.hidden',
-    h('div.dock-head', h('b', icon('brain', 16), 'Brain chat'), h('span.grow'), h('span.dock-to', 'to'), D.sel, D.modelEl, h('button.icon-btn', { onclick: () => openMemory(BRAIN), title: "The Brain's MEMORY.md: what it remembers across conversations", 'aria-label': "The Brain's MEMORY.md" }, icon('file-text', 15)), h('button.icon-btn', { onclick: newConversation, title: 'New conversation (the Brain forgets this chat)', 'aria-label': 'New conversation' }, icon('rotate-ccw', 15)), h('button.icon-btn', { onclick: () => toggle(false), 'aria-label': 'Close' }, '✕')),
-    D.list,
-    (D.chipsEl = h('div.cmd-chips.compact.dock-held.hidden')),
-    (D.heldEl = h('div.queued-list.compact.dock-held.hidden')),
-    h('div.dock-tray-wrap', D.tray.el, D.pastes.el),
-    h('div.dock-compose', D.tray.picker, h('div.dock-field', D.input, slash.el), h('button.btn', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 15))),
-  );
-  D.tray.dropZone(D.panel, 'Drop files or folders for the Brain');
-  // files dragged onto the launcher open the chat with them
-  launcher.addEventListener('dragenter', (e) => e.dataTransfer?.types.includes('Files') && toggle(true));
-  D.launcher = launcher;
-  document.body.append(h('div.bottom-bar', launcher), D.panel);
+  // the bottom bar holds the "Ask the Brain" button (and the minimized chats, web/chatwin.tsx)
+  const bar = h('div.bottom-bar');
+  const host = h('div.dom-contents');
+  document.body.append(bar, host);
   D.project = state.data?.project?.id || null;
-  onState(drawTargets);
+  // (drawn at once: askBrain() and openDock() may come right after)
+  const root = createRoot(host);
+  flushSync(() =>
+    root.render(
+      <StrictMode>
+        <DockView bar={bar} />
+      </StrictMode>,
+    ),
+  );
+  onState(() => {
+    checkTarget();
+    draw();
+  });
   onState(projectChanged);
   // Ctrl+K (⌘K) opens or closes the chat from anywhere; Space opens it on the Station
   document.addEventListener('keydown', (e) => {
@@ -163,14 +169,21 @@ export function initDock(): void {
   onEvent(handleEvent);
   loadWorkflows();
   loadHistory();
-  draw();
 }
+
+const onStation = () => document.body.classList.contains('station-mode');
+// the Station (where Space opens it) comes and goes with the page
+const watchBody = (tick: () => void) => {
+  const o = new MutationObserver(tick);
+  o.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  return () => o.disconnect();
+};
 
 // Ask the Brain from anywhere (e.g. right after creating a project), with files already uploaded.
 export function askBrain(text: string, attachments: string[] = []): void {
   D.target = 'auto';
   toggle(true);
-  drawTargets();
+  now();
   D.input!.value = text;
   send(attachments);
 }
@@ -179,9 +192,9 @@ export function askBrain(text: string, attachments: string[] = []): void {
 export function attachToBrain(picked: PickedFile[]): void {
   D.target = 'auto';
   toggle(true);
-  drawTargets();
+  draw();
   D.tray!.add(picked);
-  setTimeout(() => D.input!.focus(), 40);
+  setTimeout(() => D.input?.focus(), 40);
 }
 
 // The last few turns with the Brain, so the chat picks up where it left off.
@@ -204,7 +217,6 @@ async function newConversation() {
   loop.stop();
   historyLoads.reset();
   D.items = [];
-  dropTurns();
   draw();
 }
 
@@ -220,7 +232,6 @@ function projectChanged(d: { project?: { id: string } | null }) {
   held.clear();
   loop.stop();
   D.items = [];
-  dropTurns();
   draw();
   loadHistory();
   loadWorkflows();
@@ -229,6 +240,8 @@ function projectChanged(d: { project?: { id: string } | null }) {
 export function openDock(target: string | null = null, text = ''): void {
   if (target) D.target = target;
   toggle(true);
+  checkTarget();
+  now();
   if (text) {
     D.input!.value = text;
     D.pastes!.sync();
@@ -240,70 +253,62 @@ let closing: Promise<void> | null = null;
 function toggle(open: boolean) {
   if (open === D.open && !closing) return;
   D.open = open;
-  const panel = D.panel!;
-  const launcher = D.launcher!;
+  const { panel, launcher } = D;
   if (open) {
-    const from = launcher.getBoundingClientRect();
+    const from = launcher?.getBoundingClientRect();
     closing = null;
-    panel.getAnimations().forEach((a) => a.cancel());
-    panel.classList.remove('hidden');
-    launcher.classList.add('hidden');
-    drawTargets();
-    if (from.width && !reducedMotion()) {
+    panel?.getAnimations().forEach((a) => a.cancel());
+    Object.assign(D, { shown: true, launcherHidden: true, launcherFaded: false });
+    checkTarget();
+    now();
+    if (panel && from?.width && !reducedMotion()) {
       flipFrom(panel, from, { duration: 460, fade: true });
       // the inside arrives a moment later, so the shape leads
       for (const [i, part] of [...panel.children].entries()) slideIn(part, { y: 10, duration: 360 + i * 60 })?.effect?.updateTiming({ delay: 120 + i * 40, fill: 'backwards' });
     }
-    setTimeout(() => D.input!.focus(), 30);
+    setTimeout(() => D.input?.focus(), 30);
     return;
   }
   // closing: show the button again (invisible) so we know where to fold into
-  launcher.classList.remove('hidden');
-  const to = launcher.getBoundingClientRect();
-  launcher.style.opacity = '0';
-  const done = (closing = flipTo(panel, to, { duration: 300 }).then(() => {
+  Object.assign(D, { launcherHidden: false, launcherFaded: true });
+  now();
+  if (!panel || !launcher) return void (Object.assign(D, { shown: false, launcherFaded: false }), now());
+  const done = (closing = flipTo(panel, launcher.getBoundingClientRect(), { duration: 300 }).then(() => {
     if (closing !== done) return;
     closing = null;
-    panel.classList.add('hidden');
-    launcher.style.opacity = '';
+    Object.assign(D, { shown: false, launcherFaded: false });
+    now();
     slideIn(launcher, { scale: 0.92, duration: 260 });
   }));
 }
 
 async function loadWorkflows() {
   D.workflows = await GET<TeamListing[]>('/workflows').catch(() => D.workflows);
-  drawTargets();
+  checkTarget();
+  draw();
 }
 
-function drawTargets() {
-  const agents = state.data?.agents || [];
-  const opts: HTMLElement[] = [h('option', { value: 'auto' }, '🧠 The Brain: answers, builds, hands off'), h('option', { value: 'new-agent' }, '+ New agent from this'), h('option', { value: 'new-branch' }, '+ New team from this')];
-  if (agents.length) opts.push(h('optgroup', { label: 'Agents' }, agents.map((a) => h('option', { value: `a:${a.id}` }, `${a.emoji || ''} ${a.name}`))));
-  const wfs = D.workflows.filter((w) => w.members?.length || w.steps?.length);
-  if (wfs.length) opts.push(h('optgroup', { label: 'Teams' }, wfs.map((w) => h('option', { value: `b:${w.id}` }, `⇢ ${w.name}`))));
-  const sel = D.sel!;
-  mount(sel, opts);
-  if (![...sel.options].some((o) => o.value === D.target)) D.target = 'auto';
-  sel.value = D.target;
-  drawModel();
+// Who you can write to: the Brain, a new agent or team, any agent, any team.
+const teamsToPick = () => D.workflows.filter((w) => w.members?.length || w.steps?.length);
+function checkTarget() {
+  const t = D.target;
+  const ok = t === 'auto' || t === 'new-agent' || t === 'new-branch' || (t.startsWith('a:') && !!state.data?.agents.some((a) => a.id === t.slice(2))) || (t.startsWith('b:') && teamsToPick().some((w) => w.id === t.slice(2)));
+  if (!ok) D.target = 'auto';
 }
 
 // The model that will answer: the agent's (switchable), the Brain's own for Auto / New, or the team's lead.
-function drawModel() {
-  if (!D.modelEl) return;
-  const t = D.target;
-  const agents = state.data?.agents || [];
+function modelNode(t: string, agents: readonly Agent[]): Node | null {
   if (t.startsWith('a:')) {
     const a = agents.find((x) => x.id === t.slice(2));
-    return mount(D.modelEl, a ? modelChip(a, { compact: true }) : null);
+    return a ? modelChip(a, { compact: true }) : null;
   }
   if (t.startsWith('b:')) {
     const wf = D.workflows.find((w) => w.id === t.slice(2));
     const lead = wf?.lead ? agents.find((x) => x.id === wf.lead) : null;
-    return mount(D.modelEl, lead ? h('span.dock-model-note', { title: 'The team lead answers first' }, '★ ', modelChip(lead, { compact: true })) : h('span.dock-model-note.hint', 'each agent its own model'));
+    return lead ? h('span.dock-model-note', { title: 'The team lead answers first' }, '★ ', modelChip(lead, { compact: true })) : h('span.dock-model-note.hint', 'each agent its own model');
   }
   // The Brain itself (and New agent / New team): the Brain's own model
-  mount(D.modelEl, brainModelChip());
+  return brainModelChip();
 }
 
 // ---------- messages ----------
@@ -313,176 +318,484 @@ function add<K extends DockItem['kind']>(item: NewItem & { kind: K }): Extract<D
   return D.items[D.items.length - 1] as Extract<DockItem, { kind: K }>;
 }
 
-let frame = false;
-// Items are drawn once and kept while they stay the same, and the list is put in order in place: a
-// redraw (each piece of a streaming answer) must not rebuild every message, or each one replays its
-// entrance and the chat flickers. An item that changed is drawn again, without the entrance.
-const drawn = new Map<string, { sig: string; el: HTMLElement }>();
-// (what an item is drawn from: a handed-off agent whose turn streams in its own view is drawn from
-// its status only, not from the words that pile up in its fields)
-const itemSig = (it: DockItem): string =>
-  it.kind === 'agent' && it.started ? JSON.stringify([it.agentId, it.chatId, it.reason, it.done, it.status]) : JSON.stringify(it, (_k, v) => (v instanceof Node ? v.textContent : v));
-let emptyEl: HTMLElement | null = null;
-// stays at the newest message while you are there (by where you scrolled), following what grows
-let stick = true;
-const follow = () => {
-  if (stick && D.list) D.list.scrollTop = D.list.scrollHeight;
-};
-function watchList(list: HTMLElement): void {
-  list.addEventListener('scroll', () => (stick = list.scrollHeight - list.scrollTop - list.clientHeight < 80));
-  new MutationObserver(follow).observe(list, { childList: true, subtree: true, characterData: true });
-  list.addEventListener('load', follow, true);
-  list.addEventListener('loadedmetadata', follow, true);
-}
+const agentOf = (id: string) => state.data?.agents.find((a) => a.id === id);
 
-function draw() {
-  if (frame) return;
-  frame = true;
-  requestAnimationFrame(() => {
-    frame = false;
-    const list = D.list!;
-    for (const id of [...drawn.keys()]) if (!D.items.some((it) => it.id === id)) drawn.delete(id);
-    let nodes: HTMLElement[];
-    if (!D.items.length) {
-      emptyEl ||= h('div.dock-empty', icon('sparkles', 26), h('p', 'Ask the Brain anything about the project, or for anything to be done.'), h('p.hint', 'It sees every agent and team and what they are doing. It answers questions itself, builds teams from the library ("make me a social media team"), and hands work to the right agent or team.'));
-      nodes = [emptyEl];
-    } else {
-      nodes = D.items.flatMap((it) => {
-        const sig = itemSig(it);
-        const hit = drawn.get(it.id);
-        if (hit && hit.sig === sig) return [hit.el];
-        const el = renderItem(it);
-        if (!el) return [];
-        // (shown before: no entrance again)
-        if (hit) [el, ...el.querySelectorAll('.dock-msg, .dock-note')].forEach((x) => x.classList.add('kept'));
-        drawn.set(it.id, { sig, el });
-        return [el];
-      });
-    }
-    nodes.forEach((n, i) => {
-      if (list.childNodes[i] !== n) list.insertBefore(n, list.childNodes[i] ?? null);
-    });
-    while (list.childNodes.length > nodes.length) list.lastChild!.remove();
-    follow();
-    // something may have finished: a /queue message can go now, then the loop's next one
-    held.check();
-    loop.check();
-    if (!D.tray?.count()) D.input!.placeholder = dockIdle() ? PLACEHOLDER : 'Working… /queue a message to send when this is done';
-  });
+/** Markdown, as a plain-DOM piece, with the chat's classes. */
+function Markdown({ text, className }: { text: string; className: string }) {
+  return (
+    <DomNode
+      className="dom-contents"
+      make={() => {
+        const el = md(text);
+        el.classList.add(...className.split(' ').filter(Boolean));
+        return el;
+      }}
+      deps={[text, className]}
+    />
+  );
 }
-
-// A handed-off agent's turn, streamed in as it goes (web/chat/TurnView), kept across redraws.
-const turns = new Map<string, { el: HTMLElement; destroy?: () => void }>();
-function turnFor(it: AgentItem): HTMLElement {
-  let t = turns.get(it.id);
-  if (!t) {
-    const el = h('div.dock-turn');
-    const entry: { el: HTMLElement; destroy?: () => void } = { el };
-    t = entry;
-    turns.set(it.id, entry);
-    void import('./chat/mount.tsx').then(({ mountTurn }) => {
-      if (turns.get(it.id) === entry) entry.destroy = mountTurn(el, { agentId: it.agentId, chatId: it.chatId, live: true }).destroy;
-    });
-  }
-  return t.el;
-}
-function dropTurns(): void {
-  for (const t of turns.values()) t.destroy?.();
-  turns.clear();
+function Previews({ text, attachments, id }: { text: string; attachments?: string[]; id: string }) {
+  return <DomNode className="dom-contents" make={() => mentionPreviews(text, attachments, { compact: true, key: `dock:${id}` })} deps={[id, text, JSON.stringify(attachments || [])]} />;
 }
 
 // A tool call the Brain made, as the chats show them (open it for its input and result).
-function stepCard(st: BrainStep): HTMLElement {
+function StepCard({ st }: { st: BrainStep }) {
   const input = typeof st.input === 'string' ? st.input : JSON.stringify(st.input ?? {}, null, 2);
   const brief = st.input && typeof st.input === 'object' ? Object.values(st.input as Record<string, unknown>).filter((v) => typeof v === 'string').join(' · ').slice(0, 120) : '';
-  return h(
-    `details.tool.small${st.state === 'error' ? '.error' : ''}`,
-    h('summary', st.state === 'running' ? h('span.dot.busy') : st.state === 'error' ? h('span.red', '✕') : h('span.accent', '✓'), h('span.tname', st.name), h('span.targ', brief)),
-    h('div.tbody', h('div.label', 'Input'), h('pre', input), st.state === 'running' ? h('div.hint', 'Running…') : [h('div.label', st.state === 'error' ? 'Error' : 'Result'), h('pre', st.output || '(empty)')]),
+  return (
+    <details className={`tool small${st.state === 'error' ? ' error' : ''}`}>
+      <summary>
+        {st.state === 'running' ? <span className="dot busy" /> : st.state === 'error' ? <span className="red">✕</span> : <span className="accent">✓</span>}
+        <span className="tname">{st.name}</span>
+        <span className="targ">{brief}</span>
+      </summary>
+      <div className="tbody">
+        <div className="label">Input</div>
+        <pre>{input}</pre>
+        {st.state === 'running' ? (
+          <div className="hint">Running…</div>
+        ) : (
+          <>
+            <div className="label">{st.state === 'error' ? 'Error' : 'Result'}</div>
+            <pre>{st.output || '(empty)'}</pre>
+          </>
+        )}
+      </div>
+    </details>
   );
 }
 
-function renderItem(it: DockItem): HTMLElement | null {
-  if (it.kind === 'user') return h('div.col', { style: { gap: '6px' } }, h('div.dock-msg.user', it.text || null), mentionPreviews(it.text, it.attachments, { compact: true, key: `dock:${it.id}` }));
-  if (it.kind === 'note') return h('div.dock-note', { class: it.error ? 'err' : '' }, it.busy ? h('span.dot.busy') : null, it.text);
-  if (it.kind === 'agent') {
-    const a = state.data?.agents.find((x) => x.id === it.agentId);
-    const who = h('div.dock-who', a ? avatar(a) : null, h('b', a?.name || 'Agent'), a ? h('span.dock-answer-model', modelInfo(a).short) : null, it.reason ? h('span.hint', it.reason) : null, h('span.grow'), h('button.btn.tiny.ghost', { onclick: () => navigate(`#/agents/${it.agentId}/${it.chatId}`) }, 'Open chat'));
-    const working = !it.done ? h('div.dock-note', h('span.dot.busy'), it.status || 'Working…') : null;
-    // its turn, streamed in: text as written, tool calls you can open (and file previews)
-    if (it.started) return h('div.dock-msg.agent', who, turnFor(it), working);
-    const body = it.text ? md(it.text) : h('div.hint', it.done ? '(no answer)' : 'Working…');
-    body.classList?.add('dock-answer');
-    return h('div.dock-msg.agent', who, body, working);
-  }
-  if (it.kind === 'branch') {
-    const agentOf = (id: string) => state.data?.agents.find((a) => a.id === id);
-    const nameOf = (id: string) => (id === 'brain' ? 'Brain' : agentOf(id)?.name);
-    return h(
-      'div.dock-msg.agent',
-      h('div.dock-who', h('div.avatar', icon('users', 14)), h('b', it.name), it.reason ? h('span.hint', it.reason) : null, h('span.grow'), h('button.btn.tiny.ghost', { onclick: () => navigate('#/station') }, 'Open team')),
-      (it.messages || []).map((m) => {
-        const a = agentOf(m.from);
-        const body = md(String(m.text).slice(0, 3000));
-        body.classList.add('dock-answer');
-        // (the Brain follows up in the thread too)
-        const brain = m.from === 'brain';
-        return h('div.dock-team-msg', h('div.dock-who', a ? avatar(a) : brain ? h('div.avatar.brain-av', icon('brain', 14)) : null, h('b', a?.name || (brain ? 'Brain' : 'Team')), m.mentions?.length ? h('span.hint', `→ ${m.mentions.map((id) => agentOf(id)?.name).filter(Boolean).join(', ')}`) : null), body, mentionPreviews(m.text, m.attachments, { compact: true, key: `dock:${m.id}` }));
-      }),
-      it.working?.length ? h('div.dock-note', h('span.dot.busy'), `${it.working.map((id) => nameOf(id) || 'Agent').join(', ')} working…`) : !it.messages?.length ? h('div.dock-note', h('span.dot.busy'), 'Sent to the team…') : null,
-    );
-  }
-  if (it.kind === 'brain') {
-    const b = state.data?.settings?.brain || { model: 'haiku' };
-    // (still streaming: what it has written so far; nothing yet: it is looking at the project)
-    const body = it.live && !it.answer ? h('div.dock-note', h('span.dot.busy'), 'The Brain is looking at the project…') : md(it.answer || (it.done?.length ? '' : '(no answer)'));
-    body.classList?.add('dock-answer');
-    if (it.live && it.answer) body.classList.add('cursor');
-    const ico = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', model: 'cpu', mcp: 'plug', stop: 'square', memory: 'file-text', error: 'triangle-alert', note: 'check' };
-    return h(
-      'div.dock-msg.agent.brain',
-      h('div.dock-who', h('div.avatar.brain-av', icon('brain', 14)), h('b', 'Brain'), h('span.dock-answer-model', modelInfo(brainAsAgent(b)).short)),
-      it.steps?.length ? h('div.dock-steps', it.steps.map(stepCard)) : null,
-      body,
-      it.answer && !it.live ? mentionPreviews(it.answer, [], { compact: true, key: `dock:${it.id}` }) : null,
-      it.done?.length
-        ? h('div.brain-done', it.done.map((d) => h(`div.brain-act${d.kind === 'error' ? '.err' : ''}`, icon(ico[d.kind] || 'check', 13), h('span', d.text), d.teamId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/station?team=${d.teamId}`) }, 'Show') : d.routineId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/routines/${d.routineId}`) }, 'Open') : d.skillId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/skills/${d.skillId}`) }, 'Open') : d.kind === 'mcp' ? h('button.btn.tiny.ghost', { onclick: () => navigate('#/settings?tab=mcp') }, 'Open') : d.memory ? h('button.btn.tiny.ghost', { onclick: () => openMemory(d.memory!, d.memory === BRAIN ? 'The Brain' : state.data?.agents.find((a) => a.id === d.memory)?.name) }, 'Open') : null)))
-        : null,
-      it.delegate ? h('div.brain-act.handoff', icon('send', 13), h('span', 'Handed to ', h('b', it.delegate.name))) : null,
-    );
-  }
-  if (it.kind === 'agent-draft') return draftCard(it);
-  return null;
+const DONE_ICONS: Record<string, string> = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', model: 'cpu', mcp: 'plug', stop: 'square', memory: 'file-text', error: 'triangle-alert', note: 'check' };
+// What the Brain did, with where to see it.
+function DoneAction({ d }: { d: BrainDone }) {
+  const open = d.teamId
+    ? { label: 'Show', go: () => navigate(`#/station?team=${d.teamId}`) }
+    : d.routineId
+      ? { label: 'Open', go: () => navigate(`#/routines/${d.routineId}`) }
+      : d.skillId
+        ? { label: 'Open', go: () => navigate(`#/skills/${d.skillId}`) }
+        : d.kind === 'mcp'
+          ? { label: 'Open', go: () => navigate('#/settings?tab=mcp') }
+          : d.memory
+            ? { label: 'Open', go: () => openMemory(d.memory!, d.memory === BRAIN ? 'The Brain' : agentOf(d.memory!)?.name) }
+            : null;
+  return (
+    <div className={`brain-act${d.kind === 'error' ? ' err' : ''}`}>
+      <Icon name={DONE_ICONS[d.kind] || 'check'} size={13} />
+      <span>{d.text}</span>
+      {open ? (
+        <button className="btn tiny ghost" onClick={open.go}>
+          {open.label}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function BrainMessage({ it, settings }: { it: BrainItem; settings: AppState['settings'] | undefined }) {
+  const b = settings?.brain || { model: 'haiku' };
+  return (
+    <div className="dock-msg agent brain">
+      <div className="dock-who">
+        <div className="avatar brain-av">
+          <Icon name="brain" size={14} />
+        </div>
+        <b>Brain</b>
+        <span className="dock-answer-model">{modelInfo(brainAsAgent(b)).short}</span>
+      </div>
+      {it.steps?.length ? (
+        <div className="dock-steps">
+          {it.steps.map((st) => (
+            <StepCard key={st.id} st={st} />
+          ))}
+        </div>
+      ) : null}
+      {/* (still streaming: what it has written so far; nothing yet: it is looking at the project) */}
+      {it.live && !it.answer ? (
+        <div className="dock-note dock-answer">
+          <span className="dot busy" />
+          The Brain is looking at the project…
+        </div>
+      ) : (
+        <Markdown text={it.answer || (it.done?.length ? '' : '(no answer)')} className={`dock-answer${it.live ? ' cursor' : ''}`} />
+      )}
+      {it.answer && !it.live ? <Previews text={it.answer} id={it.id} /> : null}
+      {it.done?.length ? (
+        <div className="brain-done">
+          {it.done.map((d, i) => (
+            <DoneAction key={i} d={d} />
+          ))}
+        </div>
+      ) : null}
+      {it.delegate ? (
+        <div className="brain-act handoff">
+          <Icon name="send" size={13} />
+          <span>
+            Handed to <b>{it.delegate.name}</b>
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AgentMessage({ it }: { it: AgentItem }) {
+  const a = agentOf(it.agentId);
+  return (
+    <div className="dock-msg agent">
+      <div className="dock-who">
+        {a ? <Avatar agent={a} /> : null}
+        <b>{a?.name || 'Agent'}</b>
+        {a ? <span className="dock-answer-model">{modelInfo(a).short}</span> : null}
+        {it.reason ? <span className="hint">{it.reason}</span> : null}
+        <span className="grow" />
+        <button className="btn tiny ghost" onClick={() => navigate(`#/agents/${it.agentId}/${it.chatId}`)}>
+          Open chat
+        </button>
+      </div>
+      {/* its turn, streamed in: text as written, tool calls you can open (and file previews) */}
+      {it.started ? (
+        <div className="dock-turn">
+          <Suspense fallback={null}>
+            <TurnView agentId={it.agentId} chatId={it.chatId} live />
+          </Suspense>
+        </div>
+      ) : it.text ? (
+        <Markdown text={it.text} className="dock-answer" />
+      ) : (
+        <div className="hint dock-answer">{it.done ? '(no answer)' : 'Working…'}</div>
+      )}
+      {!it.done ? (
+        <div className="dock-note">
+          <span className="dot busy" />
+          {it.status || 'Working…'}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TeamThreadMessage({ m }: { m: TeamMessage }) {
+  const a = agentOf(m.from);
+  // (the Brain follows up in the thread too)
+  const brain = m.from === 'brain';
+  return (
+    <div className="dock-team-msg">
+      <div className="dock-who">
+        {a ? (
+          <Avatar agent={a} />
+        ) : brain ? (
+          <div className="avatar brain-av">
+            <Icon name="brain" size={14} />
+          </div>
+        ) : null}
+        <b>{a?.name || (brain ? 'Brain' : 'Team')}</b>
+        {m.mentions?.length ? <span className="hint">{`→ ${m.mentions.map((id) => agentOf(id)?.name).filter(Boolean).join(', ')}`}</span> : null}
+      </div>
+      <Markdown text={String(m.text).slice(0, 3000)} className="dock-answer" />
+      <Previews text={m.text} attachments={m.attachments} id={m.id} />
+    </div>
+  );
+}
+
+function TeamMessageView({ it }: { it: BranchItem }) {
+  const nameOf = (id: string) => (id === 'brain' ? 'Brain' : agentOf(id)?.name);
+  return (
+    <div className="dock-msg agent">
+      <div className="dock-who">
+        <div className="avatar">
+          <Icon name="users" size={14} />
+        </div>
+        <b>{it.name}</b>
+        {it.reason ? <span className="hint">{it.reason}</span> : null}
+        <span className="grow" />
+        <button className="btn tiny ghost" onClick={() => navigate('#/station')}>
+          Open team
+        </button>
+      </div>
+      {(it.messages || []).map((m) => (
+        <TeamThreadMessage key={m.id} m={m} />
+      ))}
+      {it.working?.length ? (
+        <div className="dock-note">
+          <span className="dot busy" />
+          {`${it.working.map((id) => nameOf(id) || 'Agent').join(', ')} working…`}
+        </div>
+      ) : !it.messages?.length ? (
+        <div className="dock-note">
+          <span className="dot busy" />
+          Sent to the team…
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 // A new agent the Brain designed: check it, then create it.
-function draftCard(it: DraftItem) {
+function DraftCard({ it }: { it: DraftItem }) {
   const a = it.agent;
+  const [name, setName] = useState(a.name);
+  const [spec, setSpec] = useState(a.specialty);
+  const [groups, setGroups] = useState<string[]>(a.toolGroups || []);
   // the card turns into a plain note once it is done
   const becomeNote = (text: string) => {
-    const n = it as unknown as NoteItem;
-    n.kind = 'note';
-    n.text = text;
+    Object.assign(it as unknown as NoteItem, { kind: 'note', text });
+    draw();
   };
-  const name = h('input', { value: a.name });
-  const spec = h('input', { value: a.specialty });
-  name.addEventListener('input', () => (a.name = name.value));
-  spec.addEventListener('input', () => (a.specialty = spec.value));
   const create = async (thenRun: boolean) => {
     const created = await attempt(() => POST<Agent>('/agents', a));
     if (!created) return;
     becomeNote(`Created ${created.emoji || ''} ${created.name}.`);
     refreshSoon(0);
-    draw();
-    if (thenRun) toAgent(created.id, it.task, 'new agent', it.attachments);
+    if (thenRun) void toAgent(created.id, it.task, 'new agent', it.attachments);
   };
-  return h(
-    'div.dock-msg.agent.draft',
-    h('div.dock-who', h('div.avatar', a.emoji), h('b', 'New agent'), h('span.hint', 'designed from your message')),
-    h('div.col', { style: { gap: '6px' } }, name, spec),
-    h('div.mt', chipSet((state.data?.toolGroups || []).map((g) => ({ value: g.id, label: g.label, title: g.description })), a.toolGroups, (v) => (a.toolGroups = v))),
-    h('details.mt', h('summary.hint', { style: { cursor: 'pointer' } }, 'Instructions'), h('pre', a.systemPrompt)),
-    h('div.row.mt', h('button.btn.small', { onclick: () => create(true) }, 'Create & do it'), h('button.btn.ghost.small', { onclick: () => create(false) }, 'Create only'), h('button.btn.ghost.small', { onclick: () => (becomeNote('Skipped.'), draw()) }, 'Cancel')),
+  return (
+    <div className="dock-msg agent draft">
+      <div className="dock-who">
+        <div className="avatar">{a.emoji}</div>
+        <b>New agent</b>
+        <span className="hint">designed from your message</span>
+      </div>
+      <div className="col" style={{ gap: '6px' }}>
+        <input aria-label="Name" value={name} onChange={(e) => setName((a.name = e.target.value))} />
+        <input aria-label="What it does" value={spec} onChange={(e) => setSpec((a.specialty = e.target.value))} />
+      </div>
+      <div className="mt">
+        <ChipSet label="Tools" options={(state.data?.toolGroups || []).map((g) => ({ value: g.id, label: g.label, title: g.description }))} value={groups} onChange={(v) => setGroups((a.toolGroups = v))} />
+      </div>
+      <details className="mt">
+        <summary className="hint" style={{ cursor: 'pointer' }}>
+          Instructions
+        </summary>
+        <pre>{a.systemPrompt}</pre>
+      </details>
+      <div className="row mt">
+        <button className="btn small" onClick={() => void create(true)}>
+          Create &amp; do it
+        </button>
+        <button className="btn ghost small" onClick={() => void create(false)}>
+          Create only
+        </button>
+        <button className="btn ghost small" onClick={() => becomeNote('Skipped.')}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Item({ it, settings }: { it: DockItem; settings: AppState['settings'] | undefined }) {
+  if (it.kind === 'user')
+    return (
+      <div className="col" style={{ gap: '6px' }}>
+        <div className="dock-msg user">{it.text || null}</div>
+        <Previews text={it.text} attachments={it.attachments} id={it.id} />
+      </div>
+    );
+  if (it.kind === 'note')
+    return (
+      <div className={`dock-note${it.error ? ' err' : ''}`}>
+        {it.busy ? <span className="dot busy" /> : null}
+        {it.text}
+        {it.action ? (
+          <button className="btn tiny" onClick={it.action.run}>
+            {it.action.label}
+          </button>
+        ) : null}
+      </div>
+    );
+  if (it.kind === 'agent') return <AgentMessage it={it} />;
+  if (it.kind === 'branch') return <TeamMessageView it={it} />;
+  if (it.kind === 'brain') return <BrainMessage it={it} settings={settings} />;
+  if (it.kind === 'agent-draft') return <DraftCard it={it} />;
+  return null;
+}
+
+// The messages. They stay the same elements while the chat changes (each piece of a streaming answer
+// draws them again), so none replays its entrance.
+function DockList({ settings }: { settings: AppState['settings'] | undefined }) {
+  const list = useRef<HTMLDivElement>(null);
+  // stays at the newest message while you are there (by where you scrolled), following what grows
+  const stick = useRef(true);
+  const follow = () => {
+    const el = list.current;
+    if (el && stick.current) el.scrollTop = el.scrollHeight;
+  };
+  useLayoutEffect(follow);
+  useEffect(() => {
+    const el = list.current!;
+    const grows = new MutationObserver(follow);
+    grows.observe(el, { childList: true, subtree: true, characterData: true });
+    el.addEventListener('load', follow, true);
+    el.addEventListener('loadedmetadata', follow, true);
+    return () => {
+      grows.disconnect();
+      el.removeEventListener('load', follow, true);
+      el.removeEventListener('loadedmetadata', follow, true);
+    };
+  }, []);
+  return (
+    <div
+      className="dock-list"
+      ref={list}
+      onScroll={(e) => {
+        const el = e.currentTarget;
+        stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      }}
+    >
+      {D.items.length ? (
+        D.items.map((it) => <Item key={it.id} it={it} settings={settings} />)
+      ) : (
+        <div className="dock-empty">
+          <Icon name="sparkles" size={26} />
+          <p>Ask the Brain anything about the project, or for anything to be done.</p>
+          <p className="hint">It sees every agent and team and what they are doing. It answers questions itself, builds teams from the library ("make me a social media team"), and hands work to the right agent or team.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DockView({ bar }: { bar: HTMLElement }) {
+  useDock();
+  const data = useAppState();
+  const station = useSyncExternalStore(watchBody, onStation);
+  const input = useRef<HTMLTextAreaElement>(null);
+  const slashHost = useRef<HTMLSpanElement>(null);
+  const chips = useRef<HTMLDivElement>(null);
+
+  // the box: the / menu, long pastes, Enter to send; files dropped anywhere on the chat
+  useLayoutEffect(() => {
+    const box = input.current!;
+    D.input = box;
+    const slash = slashMenu(box, 'brain', { run: () => void send() });
+    slashHost.current!.replaceChildren(slash.el);
+    const offPastes = D.pastes!.attach(box);
+    const onInput = () => slash.update();
+    const onKey = (e: KeyboardEvent) => {
+      if (slash.key(e)) return;
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        void send();
+      }
+    };
+    box.addEventListener('input', onInput);
+    box.addEventListener('keydown', onKey);
+    const offDrop = D.tray!.dropZone(D.panel!, 'Drop files or folders for the Brain');
+    return () => {
+      box.removeEventListener('input', onInput);
+      box.removeEventListener('keydown', onKey);
+      offPastes();
+      offDrop();
+    };
+  }, []);
+
+  // your /loop's chip
+  const loopSig = JSON.stringify(loop.info());
+  useEffect(() => {
+    commandChips(chips.current!, { loop: loop.info(), goal: null, onStopLoop: () => loop.stop() && add({ kind: 'note', text: 'Loop stopped.' }), onClearGoal: () => {} });
+  }, [loopSig]);
+
+  const agents = data?.agents || [];
+  const teams = teamsToPick();
+  const waiting = held.items();
+  const placeholder = D.tray?.count() ? 'What should be done with these files?' : dockIdle() ? PLACEHOLDER : 'Working… /queue a message to send when this is done';
+  return (
+    <>
+      {createPortal(
+        <button
+          ref={(el) => void (D.launcher = el)}
+          className={`dock-launcher${D.launcherHidden ? ' hidden' : ''}`}
+          style={D.launcherFaded ? { opacity: 0 } : undefined}
+          title={brainKeyTitle()}
+          onClick={() => toggle(true)}
+          // files dragged onto the button open the chat with them
+          onDragEnter={(e) => e.dataTransfer?.types.includes('Files') && toggle(true)}
+        >
+          <Icon name="sparkles" size={17} />
+          <span>Ask the Brain…</span>
+          <kbd>{brainKeyLabel(station)}</kbd>
+        </button>,
+        bar,
+      )}
+      <div className={`dock${D.shown ? '' : ' hidden'}`} ref={(el) => void (D.panel = el)}>
+        <div className="dock-head">
+          <b>
+            <Icon name="brain" size={16} />
+            Brain chat
+          </b>
+          <span className="grow" />
+          <span className="dock-to">to</span>
+          <select
+            className="dock-target"
+            aria-label="Send to"
+            value={D.target}
+            onChange={(e) => {
+              D.target = e.target.value;
+              now();
+            }}
+          >
+            <option value="auto">🧠 The Brain: answers, builds, hands off</option>
+            <option value="new-agent">+ New agent from this</option>
+            <option value="new-branch">+ New team from this</option>
+            {agents.length ? (
+              <optgroup label="Agents">
+                {agents.map((a) => (
+                  <option key={a.id} value={`a:${a.id}`}>{`${a.emoji || ''} ${a.name}`}</option>
+                ))}
+              </optgroup>
+            ) : null}
+            {teams.length ? (
+              <optgroup label="Teams">
+                {teams.map((w) => (
+                  <option key={w.id} value={`b:${w.id}`}>{`⇢ ${w.name}`}</option>
+                ))}
+              </optgroup>
+            ) : null}
+          </select>
+          <DomNode className="dock-model" make={() => modelNode(D.target, agents)} deps={[D.target, data, D.workflows]} />
+          <button className="icon-btn" onClick={() => openMemory(BRAIN)} title="The Brain's MEMORY.md: what it remembers across conversations" aria-label="The Brain's MEMORY.md">
+            <Icon name="file-text" size={15} />
+          </button>
+          <button className="icon-btn" onClick={() => void newConversation()} title="New conversation (the Brain forgets this chat)" aria-label="New conversation">
+            <Icon name="rotate-ccw" size={15} />
+          </button>
+          <button className="icon-btn" onClick={() => toggle(false)} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <DockList settings={data?.settings} />
+        <div className="cmd-chips compact dock-held hidden" ref={chips} />
+        {/* your /queue messages, in the order they will go (× takes one back) */}
+        <div className={`queued-list compact dock-held${waiting.length ? '' : ' hidden'}`}>
+          {waiting.length ? <div className="queued-head">Sends when everything above is done</div> : null}
+          {waiting.map((m) => (
+            <div key={m.id} className="queued-msg">
+              <Icon name="clock" size={12} />
+              <span className="queued-text">{m.text || `${m.extra.attachments.length} file(s)`}</span>
+              {m.extra.target === 'auto' ? null : <span className="hint">{`to ${targetName(m.extra.target)}`}</span>}
+              <button className="tc-act" title="Don't send this" aria-label="Don't send this" onClick={() => held.remove(m.id)}>
+                <Icon name="x" size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="dock-tray-wrap">
+          <DomNode className="dom-contents" make={() => D.tray!.el} deps={[]} />
+          <DomNode className="dom-contents" make={() => D.pastes!.el} deps={[]} />
+        </div>
+        <div className="dock-compose">
+          <DomNode as="span" className="dom-contents" make={() => D.tray!.picker} deps={[]} />
+          <div className="dock-field">
+            <textarea className="dock-input" ref={input} rows={2} aria-label="Message the Brain" placeholder={placeholder} />
+            <span className="dom-contents" ref={slashHost} />
+          </div>
+          <button className="btn" onClick={() => void send()} title="Send (Enter)" aria-label="Send">
+            <Icon name="send" size={15} />
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -524,6 +837,10 @@ const brainAsks = brainQueue<BrainAnswer, BrainAsk>((text, project, extra) => st
 const openProject = () => state.data?.project?.id || null;
 
 let sending = false;
+const emptyBox = () => {
+  D.input!.value = '';
+  D.pastes!.sync();
+};
 
 // given: files uploaded elsewhere (a new project), sent along with what's in the tray
 async function send(given: string[] = []) {
@@ -531,11 +848,10 @@ async function send(given: string[] = []) {
   const tray = D.tray!;
   // /stop, /resume, /resend, /goal: done now (files in the tray stay for your next message)
   // (with pasted text put back: a long goal pasted in goes in full)
-  const now = parseCommand(D.pastes!.text(), 'brain');
-  if (now && ['stop', 'resume', 'resend', 'goal'].includes(now.name)) {
-    input.value = '';
-    D.pastes!.sync();
-    return command(now.name, now.rest);
+  const quick = parseCommand(D.pastes!.text(), 'brain');
+  if (quick && ['stop', 'resume', 'resend', 'goal'].includes(quick.name)) {
+    emptyBox();
+    return command(quick.name, quick.rest);
   }
   if ((!input.value.trim() && !tray.count() && !given.length) || sending) return;
   sending = true;
@@ -559,21 +875,18 @@ async function send(given: string[] = []) {
   const cmd = parseCommand(typed, 'brain');
   if (cmd?.name === 'loop') {
     if (/^(off|stop|end|cancel)$/i.test(cmd.rest)) {
-      input.value = '';
-      D.pastes!.sync();
+      emptyBox();
       return void (loop.stop() ? add({ kind: 'note', text: 'Loop stopped.' }) : toast('No loop is going here.'));
     }
     const spec = parseLoop(cmd.rest);
     if ('error' in spec) return toast(spec.error);
     if (D.target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Try again in a moment.');
-    input.value = '';
-    D.pastes!.sync();
+    emptyBox();
     tray.take();
     return loop.start(spec, { attachments, target: D.target });
   }
   if (cmd && cmd.name !== 'queue') {
-    input.value = '';
-    D.pastes!.sync();
+    emptyBox();
     return command(cmd.name, cmd.rest);
   }
   // "/queue …": waits until everything in this chat is done (goes now if nothing is working)
@@ -582,8 +895,7 @@ async function send(given: string[] = []) {
   if (!text && !attachments.length) return void (typed && toast('Write the message after /queue'));
   // a Brain message belongs to a project: wait until the page knows which one is open
   if (D.target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Send it again in a moment.');
-  input.value = '';
-  D.pastes!.sync();
+  emptyBox();
   tray.take();
   if (queued != null) return void held.add(text, { attachments, target: D.target });
   return track(() => dispatch(text, attachments, D.target));
@@ -609,18 +921,14 @@ async function track(work: () => Promise<unknown>): Promise<void> {
 }
 const working = (it: DockItem) => (it.kind === 'brain' && !!it.live) || (it.kind === 'agent' && !it.done) || (it.kind === 'branch' && !!(it.working.length || it.next?.length));
 const dockIdle = () => !pending && !D.items.some(working);
-const held = holdQueue<HeldExtra>({ idle: dockIdle, send: (m) => track(() => dispatch(m.text, m.extra.attachments, m.extra.target, { goal: m.extra.goal })), onChange: () => drawHeld() });
+const held = holdQueue<HeldExtra>({ idle: dockIdle, send: (m) => track(() => dispatch(m.text, m.extra.attachments, m.extra.target, { goal: m.extra.goal })), onChange: draw });
 // /loop: kept in the page; a due one waits for /queue messages and for the chat to be idle
 const loop = chatLoop<HeldExtra>({
   idle: () => dockIdle() && !held.items().length,
   send: (text, x) => track(() => dispatch(text, x.attachments, x.target)),
-  onChange: () => drawChips(),
+  onChange: draw,
   onEnd: (l) => add({ kind: 'note', text: `Loop done: sent ${l.times} time${l.times > 1 ? 's' : ''}.` }),
 });
-function drawChips() {
-  if (!D.chipsEl) return;
-  commandChips(D.chipsEl, { loop: loop.info(), goal: null, onStopLoop: () => loop.stop() && add({ kind: 'note', text: 'Loop stopped.' }), onClearGoal: () => {} });
-}
 
 // ---------- /stop, /resume, /resend, /goal ----------
 async function command(name: string, rest: string) {
@@ -671,28 +979,9 @@ async function brainResume() {
 }
 
 function targetName(t: string): string {
-  if (t.startsWith('a:')) return state.data?.agents.find((a) => a.id === t.slice(2))?.name || 'an agent';
+  if (t.startsWith('a:')) return agentOf(t.slice(2))?.name || 'an agent';
   if (t.startsWith('b:')) return D.workflows.find((w) => w.id === t.slice(2))?.name || 'a team';
   return t === 'new-agent' ? 'a new agent' : t === 'new-branch' ? 'a new team' : 'the Brain';
-}
-function drawHeld() {
-  const el = D.heldEl;
-  if (!el) return;
-  const items = held.items();
-  el.classList.toggle('hidden', !items.length);
-  mount(
-    el,
-    items.length ? h('div.queued-head', 'Sends when everything above is done') : null,
-    items.map((m) =>
-      h(
-        'div.queued-msg',
-        icon('clock', 12),
-        h('span.queued-text', m.text || `${m.extra.attachments.length} file(s)`),
-        m.extra.target === 'auto' ? null : h('span.hint', `to ${targetName(m.extra.target)}`),
-        h('button.tc-act', { title: "Don't send this", 'aria-label': "Don't send this", onclick: () => held.remove(m.id) }, icon('x', 12)),
-      ),
-    ),
-  );
 }
 
 // Sends one message: to the chosen agent or team, or to the Brain (which may hand it on).
@@ -816,7 +1105,7 @@ async function newBranch(text: string, attachments: string[] = []) {
     files: attachments,
     onSaved: async (wf) => {
       await loadWorkflows();
-      D.items.push({ id: 'ran' + wf.id, kind: 'note', text: h('span', `Team "${wf.name}" is ready. `, h('button.btn.tiny', { onclick: () => toBranch(wf.id, text, '', attachments) }, 'Send it my message')) });
+      D.items.push({ id: 'ran' + wf.id, kind: 'note', text: `Team "${wf.name}" is ready.`, action: { label: 'Send it my message', run: () => void toBranch(wf.id, text, '', attachments) } });
       draw();
     },
   });
