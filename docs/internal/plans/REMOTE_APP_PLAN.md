@@ -96,6 +96,11 @@ a phone.
 
 Tests: each moved page gets tests in `tests/web` (happy-dom), like the chat pieces have now.
 
+**Status:** dialogs and toasts are done. `web/ui/overlays.tsx` draws them all with Base UI in one
+React root, behind the same `modal()` / `confirmBox()` / `promptBox()` / `toast()` calls, so no page
+changed. A dialog opened from another nests in it: Escape closes only the top one, focus stays inside
+and goes back to what opened it, and the page behind doesn't scroll. React now loads with the page.
+
 ## C. Net: pairing, relay and the Android app
 
 **Goal:** a phone (or another computer) reaches the dashboard over Net, end to end encrypted,

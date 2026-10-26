@@ -4,6 +4,8 @@ import DOMPurify from 'dompurify';
 import type { Agent, AppState, Approval, ServerEvent } from '../shared/types.ts';
 import { GET, POST } from './client/http.ts';
 import { openSocket } from './client/connection.ts';
+import { openDialog, showToast } from './ui/overlays.tsx';
+import type { ToastKind } from './ui/overlays.tsx';
 
 // ---------- API ----------
 // Requests live in web/client/; pages keep importing them from here.
@@ -183,11 +185,12 @@ export function md(text: unknown): HTMLDivElement {
 }
 
 // ---------- toasts ----------
-export type ToastKind = 'info' | 'warn' | 'error';
+// Dialogs and toasts are Base UI (web/ui/overlays.tsx); these keep the plain-DOM way of calling them.
+export type { ToastKind } from './ui/overlays.tsx';
+const asNodes = (c: Child): Node[] => [...mount(document.createDocumentFragment(), c).childNodes];
+
 export function toast(text: Child, kind: ToastKind = 'info', ms = 4200): void {
-  const el = h(`div.toast${kind !== 'info' ? '.' + kind : ''}`, text);
-  document.getElementById('toasts')!.append(el);
-  setTimeout(() => el.remove(), ms);
+  showToast(asNodes(text), kind, ms);
 }
 
 // ---------- modals ----------
@@ -200,29 +203,11 @@ export interface ModalOptions {
 }
 export interface ModalHandle {
   close: () => void;
+  /** The backdrop (.modal-back); the dialog is the .modal inside it. */
   el: HTMLDivElement;
 }
 export function modal({ title, body, foot = [], narrow = false, onClose }: ModalOptions = {}): ModalHandle {
-  const root = document.getElementById('modal-root')!;
-  const close = () => {
-    back.remove();
-    document.removeEventListener('keydown', onKey);
-    onClose?.();
-  };
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      close();
-    }
-  };
-  const back: HTMLDivElement = h(
-    'div.modal-back',
-    { onmousedown: (e) => e.target === back && close() },
-    h(`div.modal${narrow ? '.narrow' : ''}`, h('div.modal-head', h('h2', title), h('button.icon-btn', { onclick: close, 'aria-label': 'Close' }, '✕')), h('div.modal-body', body), foot.length ? h('div.modal-foot', foot) : null),
-  );
-  root.append(back);
-  document.addEventListener('keydown', onKey);
-  return { close, el: back };
+  return openDialog({ title: asNodes(title), body: asNodes(body), foot: foot.length ? asNodes(foot) : null, narrow, onClose });
 }
 
 export function confirmBox(text: Child, { ok = 'Yes', danger = false }: { ok?: string; danger?: boolean } = {}): Promise<boolean> {

@@ -43,6 +43,7 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 | `server/projectsync.ts`, `backup.ts`, `versions.ts` | Auto-save into `<project>/.dashboard`, `.dashbackup` files, version history |
 | `shared/` | Types and logic both sides import (`types.ts` is the source of truth for data shapes) |
 | `web/` | Browser app. Mostly plain DOM via the `h()` helper in `web/core.ts`; agent chats are React (`web/chat/*.tsx`, Vercel AI SDK + OpenUI) |
+| `web/ui/` | Base UI (`@base-ui/react`) pieces. `overlays.tsx` draws every dialog and toast: `modal()`, `confirmBox()`, `promptBox()` and `toast()` in `web/core.ts` call it with plain DOM |
 | `web/client/` | The page's only way to the server: addresses (`apiUrl`, `fileUrl`, `serverUrl`), requests (`api`, uploads) and sockets. A test fails if other code writes `/api/`, `fetch(` or `new WebSocket(` |
 | `web/views/` | One module per page (`station.ts` is the 3D map, three.js) |
 | `public/` | `index.html` and CSS. `public/dist` is build output, never edit it |
