@@ -2,6 +2,7 @@
   "name": "my-dashboard",
   "version": "0.2.0",
   "private": true,
+  "license": "MIT OR Apache-2.0",
   "description": "Local, login-free command center for AI agents, tools, programs, MCP servers and social accounts.",
   "type": "module",
   "main": "server/index.ts",

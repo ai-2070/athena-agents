@@ -73,6 +73,12 @@ body.station-mode #nav-links a:hover .ico { color: var(--accent); }
 .st-int:not(.off) { background: color-mix(in srgb, var(--c) 10%, #0d100d); }
 .st-badge .logo-svg { width: 11px; height: 11px; }
 .st-badge.lg .logo-svg { width: 18px; height: 18px; }
+/* Craft app icons are full-color squares, so they fill more of the tile than a one-color logo */
+.craft-icon { display: block; border-radius: 4px; }
+.st-int .craft-icon { width: 20px; height: 20px; }
+.st-int.off .craft-icon { filter: grayscale(1); }
+.st-badge .craft-icon { width: 14px; height: 14px; border-radius: 3px; }
+.st-badge.lg .craft-icon { width: 24px; height: 24px; border-radius: 5px; }
 .st-menu-item { display: flex; align-items: center; gap: 10px; border-radius: 6px; }
 .st-menu-item .ico-svg { color: var(--dim); }
 .st-menu-item:hover .ico-svg { color: var(--accent); }

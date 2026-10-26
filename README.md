@@ -152,7 +152,7 @@ By default, the Brain only installs from GitHub repos **you named in Brain chat*
 
 The Brain starts with a **Self-improvement** skill. After substantial agent work, it can review the outcome and save a useful workflow as a skill, improve an existing skill or assign one where it is needed. Changes are reported in Brain chat. The review is limited to skills and cannot change the Brain's own skills. Remove Self-improvement from the Brain on the Skills page to turn it off.
 
-The library also comes with the **storytold skills** ([hermes-pro/storytold-skills](https://github.com/hermes-pro/storytold-skills)), one per [storytold Crafting App](https://github.com/storytold): VectorCraft, PhotoCraft, LightCraft, EffectCraft, FilmCraft, DesignCraft, PdfCraft, WordCraft, GridCraft, DeckCraft, SoundCraft, CADCraft and FigCraft. Two more come with them: **storytold** picks the right app for a creative task, and **storytold-install** installs the apps and sets up their MCP servers. They aren't given to anyone until you assign them. Delete the ones you don't want; they stay deleted. **Download again** gets the latest version from GitHub.
+The library also comes with the **storytold skills** ([hermes-pro/storytold-skills](https://github.com/hermes-pro/storytold-skills)), one per [storytold Crafting App](https://github.com/storytold): VectorCraft, PhotoCraft, LightCraft, EffectCraft, FilmCraft, DesignCraft, PdfCraft, WordCraft, GridCraft, DeckCraft, SoundCraft, CADCraft and FigCraft. Two more come with them: **storytold** picks the right app for a creative task, and **storytold-install** installs the apps and sets up their MCP servers. They aren't given to anyone until you assign them. Delete the ones you don't want; they stay deleted. **Download again** gets the latest version from GitHub. When a Crafting App's MCP server is set up, the map's **Connected to** row shows it with the app's own icon.
 
 Two more sets come with it, for connecting agents to your accounts and apps: the **OOMOL skills** ([oomol-lab/oo-cli](https://github.com/oomol-lab/oo-cli)): **oo**, which reaches your connected accounts, OOMOL's hosted AI and Open Flow workflows, plus **oo-find-skills**, **oo-create-skill** and **oo-publish-skill**; and the **Composio skill** ([ComposioHQ/skills](https://github.com/ComposioHQ/skills)), **composio**, which uses more than 1,000 apps through the Composio command line tool. Both need their command line tool (`oo` or `composio`), which isn't part of the dashboard. They work the same way: not given to anyone until you assign them, and deleted ones stay deleted.
 
@@ -315,6 +315,14 @@ The helper also accepts `--approve`, which automatically approves **all pending 
 
 Run `bun run check` and `bun run build` before submitting code changes. See [`AGENTS.md`](AGENTS.md) for code conventions and security boundaries.
 
+## License
+
+My Dashboard is yours to use under either the [MIT license](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), whichever you prefer.
+
+Unless you say otherwise, anything you contribute is offered under the same two licenses.
+
+Some bundled pieces keep their own licenses: the skills in `skills/` and The Agency's agents in `library/agency-agents/` (each folder's `README.md` says where it's from), the Crafting App icons in `public/craft-icons/` (MIT OR Apache-2.0), Lucide icons (ISC) and Simple Icons logos (CC0). Brand names and logos stay their owners' trademarks.
+
 ## Credits
 
-Inspired by [agent-office](https://github.com/AgentSystemLabs/agent-office). The Library includes specialists from [agency-agents](https://github.com/msitarzewski/agency-agents). Instant chat compaction draws on [dsh-compaction-instant](https://github.com/TsFreddie/dsh-compaction-instant).
+Inspired by [agent-office](https://github.com/AgentSystemLabs/agent-office). The Library includes specialists from [agency-agents](https://github.com/msitarzewski/agency-agents). Instant chat compaction draws on [dsh-compaction-instant](https://github.com/TsFreddie/dsh-compaction-instant). The Crafting App icons come from each app's repository (MIT OR Apache-2.0), see `public/craft-icons/README.md`.

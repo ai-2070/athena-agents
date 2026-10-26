@@ -15,6 +15,7 @@ import { historyButton } from '../history.ts';
 import { logoUrl, projectMark, pickLogo, removeLogo } from '../projectlogo.ts';
 import { slideIn, slideOut } from '../motion.ts';
 import { icon, logo, brandPath } from '../icons.ts';
+import { craftIcon, craftColor } from '../crafticons.ts';
 import { openProjectMenu, openNewProject } from '../projects.ts';
 import { modelChip, modelInfo } from '../models.ts';
 import { renderTeamChat } from '../teamchat.ts';
@@ -492,12 +493,14 @@ const INTEGRATIONS: Integration[] = [
   { id: 'browser', label: 'Browser', glyph: '🌐', color: '#a9d3e2' },
 ];
 const BRAND_OF: Record<string, string> = { codex: 'openai', reddit: 'reddit', claude: 'claude', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
+// A brand logo, or a Craft app's own icon (PhotoCraft…), for a connector or MCP server name.
+const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null => logo(name, size) || craftIcon(name, size);
 // The brand logo for an integration (or connector name), falling back to its glyph.
-function mark(id: string, size = 14): SVGSVGElement | string {
+function mark(id: string, size = 14): SVGSVGElement | HTMLImageElement | string {
   const key = id.startsWith('mcp:') ? id.slice(4) : id.startsWith('cc:') ? id.slice(3) : BRAND_OF[id] || id;
-  return logo(key, size) || intInfo(id)?.glyph || String(key).slice(0, 2).toUpperCase();
+  return appLogo(key, size) || intInfo(id)?.glyph || String(key).slice(0, 2).toUpperCase();
 }
-const intInfo = (id: string): Integration | undefined => id.startsWith('cc:') ? { id, label: id.slice(3), glyph: connectorLook(id.slice(3)).glyph, color: connectorLook(id.slice(3)).color } : (id.startsWith('mcp:') ? { id, label: id.slice(4), glyph: '⌁', color: '#a9d3e2', mcp: true } : INTEGRATIONS.find((x) => x.id === id));
+const intInfo = (id: string): Integration | undefined => id.startsWith('cc:') ? { id, label: id.slice(3), glyph: connectorLook(id.slice(3)).glyph, color: connectorLook(id.slice(3)).color } : (id.startsWith('mcp:') ? { id, label: id.slice(4), glyph: '⌁', color: craftColor(id.slice(4)) || '#a9d3e2', mcp: true } : INTEGRATIONS.find((x) => x.id === id));
 
 function availableIntegrations(d: AppState, progs: Program[]): AvailableIntegration[] {
   const P = (id: string) => progs.find((p) => p.id === id);
@@ -2569,7 +2572,7 @@ function badge(id: string): HTMLSpanElement | null {
 interface HudTile {
   key: string;
   int?: string;
-  glyph: SVGSVGElement | string;
+  glyph: SVGSVGElement | HTMLImageElement | string;
   color: string;
   on: boolean;
   missing?: boolean;
@@ -2601,7 +2604,7 @@ function drawHud(): void {
   for (const c of S.headbar?.connectors || []) {
     const look = connectorLook(c.name);
     const ok = c.status === 'connected';
-    tiles.push({ key: `cc:${c.name}`, int: `cc:${c.name}`, glyph: logo(c.name, 14) || look.glyph, color: look.color, on: ok, title: `${c.name} · Claude account connector · ${ok ? 'connected' : c.status === 'needs-auth' ? 'needs sign-in (run /mcp in Claude Code)' : c.detail}`, onclick: () => navigate('#/settings?tab=mcp') });
+    tiles.push({ key: `cc:${c.name}`, int: `cc:${c.name}`, glyph: appLogo(c.name, 14) || look.glyph, color: look.color, on: ok, title: `${c.name} · Claude account connector · ${ok ? 'connected' : c.status === 'needs-auth' ? 'needs sign-in (run /mcp in Claude Code)' : c.detail}`, onclick: () => navigate('#/settings?tab=mcp') });
   }
   // Claude and Hermes already have their own engine tiles on the right.
   for (const it of ints) if (it.id !== 'claude' && it.id !== 'hermes') tiles.push({ key: it.id, int: it.id, glyph: mark(it.id), color: it.color, on: it.live, title: `${it.label} · ${it.live ? 'ready' : 'installed, not running'}`, onclick: () => choose({ type: 'int', id: it.id }) });
@@ -2770,7 +2773,8 @@ function connectorLook(name: string): { glyph: string; color: string } {
     [/canva/, 'C', '#00c4cc'],
   ];
   for (const [re, glyph, color] of map) if (re.test(n)) return { glyph, color };
-  return { glyph: name.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '⌁', color: '#a9d3e2' };
+  const craft = craftColor(name);
+  return { color: craft || '#a9d3e2', glyph: name.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '⌁' };
 }
 
 const USAGE_LOOK: Record<string, { brand?: string; glyph: string; color: string }> = { claude: { brand: 'claude', glyph: '✳', color: '#d97757' }, openrouter: { glyph: '◇', color: '#8f94ff' }, codex: { brand: 'openai', glyph: '◎', color: '#e6e8e0' } };
@@ -3442,7 +3446,7 @@ async function renderAgentPanel(id: string, wfId?: string): Promise<void> {
       a.engine === 'claude-code' && S.headbar?.connectors?.length
         ? h('div.st-conns', h('div.hint', 'Plus the connectors on your Claude account:'), h('div.row', { style: { gap: '4px' } }, S.headbar.connectors.map((c) => {
             const look = connectorLook(c.name);
-            return h('span.st-badge', { style: { '--c': c.status === 'connected' ? look.color : '#555850' }, title: `${c.name}: ${c.status === 'connected' ? 'connected' : 'needs sign-in'}` }, logo(c.name, 11) || look.glyph);
+            return h('span.st-badge', { style: { '--c': c.status === 'connected' ? look.color : '#555850' }, title: `${c.name}: ${c.status === 'connected' ? 'connected' : 'needs sign-in'}` }, appLogo(c.name, 11) || look.glyph);
           })))
         : null,
       d.approvals.filter((x) => x.agentId === id).map((x) => h('div.mt', approvalCard(x))),
