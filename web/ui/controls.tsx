@@ -1,5 +1,6 @@
 // Controls on Base UI, drawn with the app's existing classes (.tabs, .seg, .chips) so they look the same
 // as the plain-DOM ones while gaining keyboard use and the right roles for screen readers.
+import { Switch as BaseSwitch } from '@base-ui/react/switch';
 import { Tabs as BaseTabs } from '@base-ui/react/tabs';
 import { Toggle } from '@base-ui/react/toggle';
 import { ToggleGroup } from '@base-ui/react/toggle-group';
@@ -60,6 +61,45 @@ export function Segmented<V extends string>({ options, value, onChange, label }:
         </Toggle>
       ))}
     </ToggleGroup>
+  );
+}
+
+/** An on/off switch with its text; clicking the text flips it too (the plain-DOM toggleRow()). */
+export function Switch({ checked, onChange, children, className = '', disabled }: {
+  checked: boolean;
+  onChange: (on: boolean) => void;
+  /** What it turns on, read out with it. */
+  children: ReactNode;
+  className?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label className={`row switch-row ${className}`.trim()}>
+      <BaseSwitch.Root className="switch" checked={checked} onCheckedChange={(on) => onChange(on)} disabled={disabled}>
+        <BaseSwitch.Thumb className="switch-thumb" />
+      </BaseSwitch.Root>
+      <span className="toggle-text">{children}</span>
+    </label>
+  );
+}
+
+/** A labelled control with an optional hint under it (the plain-DOM field()). A group of buttons isn't
+ *  labelable, so pass group to get a div named by its label instead of a <label>. */
+export function Field({ label, hint, children, group }: { label: ReactNode; hint?: ReactNode; children: ReactNode; group?: string }) {
+  if (group)
+    return (
+      <div className="field" role="group" aria-labelledby={group}>
+        <span id={group}>{label}</span>
+        {children}
+        {hint ? <span className="hint">{hint}</span> : null}
+      </div>
+    );
+  return (
+    <label className="field">
+      <span>{label}</span>
+      {children}
+      {hint ? <span className="hint">{hint}</span> : null}
+    </label>
   );
 }
 

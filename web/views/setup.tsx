@@ -4,7 +4,7 @@
 // The shell is React (Base UI tabs and autocomplete); the tabs are still plain-DOM pages, hosted in it.
 import { useEffect, useRef, useState } from 'react';
 import { Autocomplete } from '@base-ui/react/autocomplete';
-import * as general from './settings.ts';
+import { GeneralTab } from './settings.tsx';
 import * as connections from './connections.ts';
 import * as mcp from './mcp.ts';
 import * as programs from './programs.ts';
@@ -32,7 +32,7 @@ interface IndexEntry {
 }
 
 const TABS: Tab[] = [
-  { id: 'general', label: 'General & keys', view: general },
+  { id: 'general', label: 'General & keys', Page: GeneralTab },
   { id: 'connections', label: 'Connections', view: connections },
   { id: 'mcp', label: 'MCP servers', view: mcp },
   { id: 'programs', label: 'Programs', view: programs },

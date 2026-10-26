@@ -176,6 +176,13 @@ label.field > span:first-child, div.field > span:first-child { font: 500 11px/1.
 .toggle span::after { content: ''; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; background: var(--dim); transition: transform 0.15s; }
 .toggle input:checked + span { border-color: var(--accent); }
 .toggle input:checked + span::after { transform: translateX(18px); background: var(--accent); }
+/* the same switch on Base UI (web/ui/controls.tsx) */
+.switch { position: relative; display: inline-block; width: 38px; height: 20px; flex: none; border: 1px solid var(--line-2); cursor: pointer; transition: border-color 0.15s; }
+.switch-thumb { position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; background: var(--dim); transition: transform 0.15s; }
+.switch[data-checked] { border-color: var(--accent); }
+.switch[data-checked] .switch-thumb { transform: translateX(18px); background: var(--accent); }
+.switch[data-disabled] { opacity: 0.5; cursor: default; }
+.switch-row { cursor: pointer; }
 
 .badge {
   display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px;
@@ -382,3 +389,4 @@ label.field > span:first-child, div.field > span:first-child { font: 500 11px/1.
 .art-search { margin-bottom: 14px; gap: 12px; }
 .art-search input { width: 100%; }
 .art-path { word-break: break-all; }
+.wrap-anywhere { overflow-wrap: anywhere; }
