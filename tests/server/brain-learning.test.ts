@@ -1,7 +1,7 @@
 // The Brain opens a skill before rewriting it, and learns from finished work by itself.
 import fs from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { ask, clearHistory, history } from '../../server/overseer.ts';
+import { ask, clearHistory, history, skillsNamedIn, ownSkillsShown, OWN_SKILLS_TOTAL } from '../../server/overseer.ts';
 import { noteFinishedRun, flushLearning, describeTurn, LEARN_MIN_TOOLS } from '../../server/learning.ts';
 import * as skills from '../../server/skills.ts';
 import { activeProject, chats, saveSettings, workflows } from '../../server/store.ts';
@@ -10,14 +10,17 @@ import { dataPath } from '../../server/util.ts';
 import type { Chat } from '../../shared/types.ts';
 
 // the "model" gives the answers queued here, and the tests see what it was asked
-const answers: string[] = [];
+// (an Error makes the model fail; a promise is an answer that comes when it resolves)
+const answers: (string | Error | Promise<string>)[] = [];
 const asked: { system: string; user: string }[] = [];
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', fallback: false }),
   think: async (system: string, user: string) => {
     asked.push({ system, user });
-    return answers.shift() ?? 'NOTHING';
+    const a = answers.shift() ?? 'NOTHING';
+    if (a instanceof Error) throw a;
+    return a;
   },
 }));
 
@@ -122,3 +125,67 @@ describe('learning from finished work', () => {
     expect(fs.existsSync(dataPath('skills', skills.SELF_IMPROVEMENT, 'SKILL.md'))).toBe(true);
   });
 });
+
+describe('review fixes', () => {
+  it('a skill is named only by whole words', () => {
+    skills.saveSkill({ name: 'Java', description: 'Use for Java.', body: 'Java things.' });
+    expect(skillsNamedIn('help with JavaScript please')).not.toContain('java');
+    expect(skillsNamedIn('fix the java, skill')).toContain('java');
+    expect(skillsNamedIn('use Java.')).toContain('java');
+  });
+
+  it("caps the Brain's own skills all together, and counts only whole ones as seen", () => {
+    const long = (n: string) => skills.saveSkill({ name: n, description: `Use ${n}.`, body: 'x'.repeat(7000) })!;
+    const own = ['Own one', 'Own two', 'Own three', 'Own four', 'Own five'].map(long).map((s) => skills.getSkill(s.slug)!);
+    const r = ownSkillsShown(own);
+    expect(r.seen.size).toBe(3);
+    expect(r.text.length).toBeLessThan(OWN_SKILLS_TOTAL + 2000);
+    expect(r.text).toContain('not shown here');
+    expect(r.text).toContain('[id: own-five]');
+  });
+
+  it("doesn't post a learned note when the skill was already given", async () => {
+    skills.ensureBuiltinSkills();
+    saveSettings({ brainSkills: [skills.SELF_IMPROVEMENT] });
+    const sk = skills.saveSkill({ name: 'Already there', description: 'Use it.', body: 'Steps.' })!;
+    const a = newAgent({ name: 'Has it', skills: [sk.slug] });
+    clearHistory();
+    noteFinishedRun(a.id, finishedChat(a.id, 6).id);
+    answers.push(`\n\`\`\`actions\n[{"do":"give_skill","skill":"${sk.slug}","to":"agent","id":"${a.id}"}]\n\`\`\``);
+    expect(await flushLearning(activeProject().id)).toBeNull();
+    expect(history()).toEqual([]);
+  });
+
+  it('a review that fails is tried again instead of losing the work', async () => {
+    const a = newAgent({ name: 'Retry me' });
+    clearHistory();
+    noteFinishedRun(a.id, finishedChat(a.id, 6).id);
+    asked.length = 0;
+    answers.push(new Error('model is down'));
+    expect(await flushLearning(activeProject().id)).toBeNull();
+    answers.push('Saved it.\n```actions\n[{"do":"create_skill","name":"Retried skill","description":"Use after a retry.","body":"## Steps\\n1. Try again."}]\n```');
+    const r = await flushLearning(activeProject().id);
+    expect(asked).toHaveLength(2);
+    expect(asked[1].user).toContain('Retry me');
+    expect(r?.done[0].text).toBe('Made the skill "Retried skill"');
+  });
+
+  it('runs one review at a time, even when several flushes wait for the one running', async () => {
+    const a = newAgent({ name: 'One at a time' });
+    const pid = activeProject().id;
+    noteFinishedRun(a.id, finishedChat(a.id, 6).id);
+    asked.length = 0;
+    let release!: (t: string) => void;
+    answers.push(new Promise<string>((r) => (release = r)));
+    const first = flushLearning(pid);
+    await new Promise((r) => setTimeout(r, 10));
+    noteFinishedRun(a.id, finishedChat(a.id, 7).id);
+    const second = flushLearning(pid);
+    const third = flushLearning(pid);
+    release('NOTHING');
+    await Promise.all([first, second, third]);
+    // the first job, then the second: not a third review alongside
+    expect(asked).toHaveLength(2);
+  });
+});
+

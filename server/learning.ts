@@ -6,7 +6,7 @@
 import { bus, agents, chats, activeProject, withProject, listProjects, log, emit } from './store.ts';
 import { listTeams, getTeam } from './teams.ts';
 import { think } from './brain.ts';
-import { applyActions, parseActions, skillTexts, skillsNamedIn, ownSkillsText, addBrainNote } from './overseer.ts';
+import { applyActions, parseActions, skillTexts, skillsNamedIn, ownSkillsText, ownSkillsShown, addBrainNote } from './overseer.ts';
 import { listSkills, getSkill, skillsFor, brainSkills, brainSkillSlugs, SELF_IMPROVEMENT } from './skills.ts';
 import type { BrainDone, Chat, ChatItem, Project, RunEvent } from '../shared/types.ts';
 
@@ -23,6 +23,8 @@ export interface FinishedWork {
   errors: number;
   answer: string;
   at: number;
+  /** reviews of it that failed (it's tried again, up to MAX_TRIES) */
+  tries?: number;
 }
 
 // A job counts as sizeable from this many tool calls in one turn.
@@ -33,6 +35,8 @@ const LEARN_DELAY_MS = 45_000;
 const PER_REVIEW = 4;
 const WAITING_MAX = 8;
 const PER_DAY = 24;
+// A job whose review failed (the model was down, say) waits for the next review, this many times at most.
+const MAX_TRIES = 3;
 // What the review may do: only skills (never teams, routines, files or handing out work).
 export const LEARN_ACTIONS = ['create_skill', 'update_skill', 'give_skill'] as const;
 
@@ -114,7 +118,8 @@ export async function flushLearning(pid: string): Promise<ReviewResult | null> {
   if (!q) return null;
   if (q.timer) clearTimeout(q.timer);
   q.timer = null;
-  if (q.busy) await q.busy;
+  // one review at a time: a flush that waited for one must not start alongside another that waited too
+  while (q.busy) await q.busy;
   if (!q.work.length) return null;
   if (q.day !== today()) (q.day = today()), (q.reviews = 0);
   if (q.reviews >= PER_DAY) {
@@ -127,7 +132,10 @@ export async function flushLearning(pid: string): Promise<ReviewResult | null> {
   const project = listProjects().find((x) => x.id === pid);
   if (!project) return null;
   const p = withProject(project, () => review(project, batch)).catch((e: unknown) => {
-    log('error', `The Brain couldn't review finished work: ${(e as Error).message}`);
+    // not lost: back in line for the next review (a few times), unless the day's reviews are used up
+    const again = batch.filter((w) => (w.tries || 0) + 1 < MAX_TRIES).map((w) => ({ ...w, tries: (w.tries || 0) + 1 }));
+    q.work = [...again, ...q.work].slice(-WAITING_MAX);
+    log('error', `The Brain couldn't review finished work${again.length ? ' (it will try again)' : ''}: ${(e as Error).message}`);
     return null;
   });
   q.busy = p;
@@ -176,7 +184,7 @@ async function review(project: Project, batch: FinishedWork[]): Promise<ReviewRe
   });
   const named = skillsNamedIn(batch.map((w) => `${w.task}\n${w.answer}`).join('\n'));
   const texts = skillTexts([...had, ...named].filter((slug) => !own.some((sk) => sk.slug === slug)));
-  const seenSkills = new Set([...own.map((sk) => sk.slug), ...texts.seen]);
+  const seenSkills = new Set([...ownSkillsShown(own).seen, ...texts.seen]);
 
   const skillLines = listSkills().map((sk) => {
     const who = [
@@ -206,7 +214,8 @@ async function review(project: Project, batch: FinishedWork[]): Promise<ReviewRe
   const answer = nothing ? '' : parsed.answer.trim();
   const { done } = parsed.actions.length ? applyActions(parsed.actions.slice(0, 3), project, { seenSkills, only: LEARN_ACTIONS, auto: true }) : { done: [] as BrainDone[] };
   for (const d of done) if (d.kind === 'error') log('error', `The Brain's review of finished work: ${d.text}`);
-  const changed = done.filter((d) => d.kind !== 'error');
+  // (a "they already have it" note isn't a change)
+  const changed = done.filter((d) => d.kind !== 'error' && d.kind !== 'note');
   if (!changed.length && !answer) return null;
   const who = [...new Set(batch.map((w) => w.agentName))].join(', ');
   const text = [`**Learned from ${who}'s work.** ${answer}`.trim(), ...changed.map((d) => `(${d.text})`)].join('\n');

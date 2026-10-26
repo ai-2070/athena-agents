@@ -97,6 +97,8 @@ export const ROUTINE_TEXT_SHOWN = 4000;
 // How much skill text (whole skills only) goes into one Brain turn, and how much of each of the Brain's own skills.
 const SKILL_TEXT_BUDGET = 16000;
 const OWN_SKILL_MAX = 8000;
+// and of all of them together (the rest are named, not shown), so many long ones can't overflow a turn
+export const OWN_SKILLS_TOTAL = 24000;
 
 const ago = (ts: number | null | undefined) => {
   if (!ts) return '';
@@ -301,11 +303,31 @@ function catalog() {
   return `LIBRARY (The Agency, hire with {"library":"<slug>"}):\n${lib.join('\n') || '(not downloaded)'}\n\nSTARTERS (hire with {"starter":"<name>"}):\n${STARTERS.map((x) => `${x.name} | ${x.specialty}`).join('\n')}`;
 }
 
-// The Brain's own skills, in full (each up to OWN_SKILL_MAX), for its instructions.
-export function ownSkillsText(own: SkillDetail[]): string {
-  if (!own.length) return '';
-  return `\n\n# Your own skills\nYou follow these in every turn, on top of everything above.\n${own.map((sk) => `\n## Skill: ${sk.name} [id: ${sk.slug}]\n${sk.body.length > OWN_SKILL_MAX ? `${sk.body.slice(0, OWN_SKILL_MAX)}…` : sk.body.trim()}`).join('\n')}`;
+// The Brain's own skills for its instructions: each up to OWN_SKILL_MAX, all together up to
+// OWN_SKILLS_TOTAL (the ones that don't fit are named only). seen: the ones shown whole.
+export function ownSkillsShown(own: SkillDetail[]): { text: string; seen: Set<string> } {
+  const seen = new Set<string>();
+  if (!own.length) return { text: '', seen };
+  let left = OWN_SKILLS_TOTAL;
+  const parts: string[] = [];
+  const named: string[] = [];
+  for (const sk of own) {
+    const body = sk.body.trim();
+    const room = Math.min(OWN_SKILL_MAX, left);
+    if (room < 500) {
+      named.push(`${sk.name} [id: ${sk.slug}]`);
+      continue;
+    }
+    const whole = body.length <= room;
+    if (whole) seen.add(sk.slug);
+    const shown = whole ? body : `${body.slice(0, room)}…`;
+    parts.push(`\n## Skill: ${sk.name} [id: ${sk.slug}]\n${shown}`);
+    left -= shown.length;
+  }
+  const more = named.length ? `\n\n(Also yours, not shown here: too long together: ${named.join(', ')}. Open one with read_skill when it matters.)` : '';
+  return { text: `\n\n# Your own skills\nYou follow these in every turn, on top of everything above.\n${parts.join('\n')}${more}`, seen };
 }
+export const ownSkillsText = (own: SkillDetail[]): string => ownSkillsShown(own).text;
 
 const SYSTEM = (projectName: string, canRead: boolean, own: SkillDetail[] = []) => `You are the Brain: the overseer of the user's project "${projectName}" in their personal AI agent dashboard (local, only for them).
 You see everything in the SNAPSHOT: the project folder and its files, Git, every agent and team, what each is doing right now, and what waits for the user. You also run the roster: you build teams, hire agents from the library, and hand out work.
@@ -376,11 +398,13 @@ export function skillTexts(slugs: readonly string[], { budget = SKILL_TEXT_BUDGE
 }
 
 // Skills a message is about: named (or their id written) in it.
+// (whole words only: "JavaScript" doesn't name a skill called "Java")
 export function skillsNamedIn(text: string): string[] {
   const t = String(text || '').toLowerCase();
   if (!t) return [];
+  const word = (w: string) => new RegExp(`(^|[^a-z0-9])${w.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z0-9])`).test(t);
   return listSkills()
-    .filter((sk) => (sk.name.length >= 3 && t.includes(sk.name.toLowerCase())) || (sk.slug.length >= 4 && t.includes(sk.slug)))
+    .filter((sk) => (sk.name.length >= 3 && word(sk.name)) || (sk.slug.length >= 4 && word(sk.slug)))
     .map((sk) => sk.slug);
 }
 
@@ -621,7 +645,8 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
               log('skill', `The Brain changed ${holder.label}'s skills (${[added.length ? `added ${names(added)}` : '', removed.length ? `took away ${names(removed)}` : ''].filter(Boolean).join('; ')})`);
             }
             const text = [added.length ? `Gave ${names(added)} to ${holder.label}` : '', removed.length ? `Took ${names(removed)} from ${holder.label} (they stay in the library)` : ''].filter(Boolean).join('; ');
-            done.push({ kind: 'skill', text: text || (kind === 'take_skill' ? `${holder.label} didn't have ${names(slugs)}` : `${holder.label} already has ${names(slugs) || 'those skills'}`), ...(slugs.length === 1 ? { skillId: slugs[0] } : {}) });
+            // (nothing changed: a note, not a change)
+            done.push({ kind: text ? 'skill' : 'note', text: text || (kind === 'take_skill' ? `${holder.label} didn't have ${names(slugs)}` : `${holder.label} already has ${names(slugs) || 'those skills'}`), ...(slugs.length === 1 ? { skillId: slugs[0] } : {}) });
           } catch (e) {
             done.push({ kind: 'error', text: `${kind}: ${(e as Error).message}` });
           }
@@ -844,7 +869,7 @@ export async function ask(text: string, { project, attachments = [] }: { project
   // skills: its own (in its instructions), and the whole text of the ones this message or the last few name
   const own = brainSkills();
   const named = skillTexts(skillsNamedIn([text, ...past.slice(-4).map((m) => m.text)].join('\n')).filter((slug) => !own.some((sk) => sk.slug === slug)));
-  const seenSkills = new Set([...own.filter((sk) => sk.body.length <= OWN_SKILL_MAX).map((sk) => sk.slug), ...named.seen]);
+  const seenSkills = new Set([...ownSkillsShown(own).seen, ...named.seen]);
   const system = SYSTEM(p.name, canRead, own);
   const prompt = `SNAPSHOT\n${snap}${named.text}\n\n${catalog()}${convo}${earlierFiles}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}`;
   const opts = { tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '', cwd: ensureBrain(p), timeout: 180000, maxTokens: 4000 };
