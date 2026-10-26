@@ -92,7 +92,9 @@ them back.
 `My Dashboard Backups` in your home folder (`C:\Users\<you>` on Windows, `~` on macOS and Linux).
 It holds the project's agents, teams, routines, layout, Brain chat, team and agent chats, knowledge
 files, logo, PROJECT.md and notes, plus every skill in your library and every saved preset. No keys
-or tokens. To restore: **New project > From backup**, drop the file in (or pick one from the
+or tokens. Each kind has a size limit: agent chats 200 MB, knowledge files 50 MB, skills 50 MB,
+PROJECT.md and notes 20 MB. A file that no longer fits is left out, and the "Backup saved" message
+says how many were. To restore: **New project > From backup**, drop the file in (or pick one from the
 backups folder). It becomes a new project in a new folder. Skills and presets you don't have are
 added; a skill you have with the same id but different content is kept, and the backup's copy is
 added as `<id>-restored`. Scheduled teams and routines come back paused, so a copy never runs

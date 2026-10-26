@@ -154,6 +154,8 @@ describe('workspace backups', () => {
       }),
     );
     expect(fs.existsSync(outside)).toBe(false);
+    // where '../../escaped.txt' from a skill's folder would land
+    expect(fs.existsSync(dataPath('escaped.txt'))).toBe(false);
     expect(restored.agents).toBe(1);
     expect(restored.knowledgeFiles).toBe(1);
     expect(restored.brainFiles).toBe(0);
@@ -202,6 +204,16 @@ describe('workspace backups', () => {
     const bytes = fs.readFileSync(backup.createBackup(src.id).file);
     await expect(backup.restoreBackup(bytes, { folder: alias })).rejects.toThrow(/belongs to the project "Backed Up"/);
     await expect(backup.restoreBackup(bytes, { folder: path.join(alias, '.') })).rejects.toThrow(/belongs to the project/);
+  });
+
+  it('leaves out and counts the files over a size limit', async () => {
+    const p = await createProject({ name: 'Big notes', mode: 'new', folder: folder('big-notes') });
+    fs.writeFileSync(path.join(p.brainPath, 'notes', 'small.md'), 'fits');
+    fs.writeFileSync(path.join(p.brainPath, 'notes', 'huge.bin'), Buffer.alloc(21 * 1024 * 1024));
+    const r = backup.createBackup(p.id);
+    expect(r.summary.omitted).toBe(1);
+    expect(backup.decodeBackup(fs.readFileSync(r.file)).brain.map((f) => f.path)).toContain('notes/small.md');
+    expect(backup.listBackups().find((x) => x.name === r.name)?.summary?.omitted).toBe(1);
   });
 
   it('moves paths inside the old project folder to the new one, across Windows and Unix', () => {

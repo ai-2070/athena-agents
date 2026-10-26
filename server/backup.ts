@@ -23,7 +23,8 @@ const UNPACKED_MAX = 512 * 1024 * 1024; // the most a backup may unpack to (abou
 /** The biggest backup file accepted (it is gzipped, so never bigger than what it unpacks to). */
 export const BACKUP_MAX = UNPACKED_MAX;
 
-// How much of each kind is packed at most (the same limits as the auto-save into the project folder)
+// How much of each kind is packed at most (the same limits as the auto-save into the project folder).
+// A file that doesn't fit any more is left out and counted (BackupSummary.omitted). Keep README.md in step.
 const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, skills: 50 * 1024 * 1024 };
 // Files from the project folder that go in: the brief and the notes, not the whole folder (it can be a big repo)
 const BRAIN_FILES = ['PROJECT.md', 'BRAIN.md'];
@@ -58,6 +59,8 @@ export interface BackupSummary {
   knowledgeFiles: number;
   /** The first few agents, to recognise the backup by */
   agentList: { name: string; emoji: string }[];
+  /** Files left out because their kind's size limit was reached */
+  omitted: number;
 }
 
 /** The whole backup (the gzipped part). */
@@ -79,6 +82,8 @@ export interface BackupData {
   logo: PackedFile | null;
   skills: { slug: string; files: PackedFile[] }[];
   presets: Preset[];
+  /** Files left out because their kind's size limit was reached (see CAP) */
+  omitted: number;
 }
 
 /** A backup file in the backups folder. */
@@ -127,7 +132,14 @@ const jsonFiles = (dir: string): string[] => {
 const readAll = <T>(dir: string): T[] => jsonFiles(dir).map((n) => readJSON<T>(path.join(dir, n))).filter((x): x is T => Boolean(x));
 
 /** Every plain file under dir (links are skipped), until budget bytes are used. */
-function packTree(dir: string, budget: { left: number }, prefix = ''): PackedFile[] {
+/** What is left of a kind's size limit, and how many files didn't fit. */
+interface Budget {
+  left: number;
+  omitted: number;
+}
+const budget = (left: number): Budget => ({ left, omitted: 0 });
+
+function packTree(dir: string, budget: Budget, prefix = ''): PackedFile[] {
   const out: PackedFile[] = [];
   const walk = (d: string, rel: string) => {
     let list: fs.Dirent[] = [];
@@ -147,7 +159,10 @@ function packTree(dir: string, budget: { left: number }, prefix = ''): PackedFil
         } catch {
           continue;
         }
-        if (size > budget.left) continue;
+        if (size > budget.left) {
+          budget.omitted++;
+          continue;
+        }
         budget.left -= size;
         out.push({ path: prefix + r, data: fs.readFileSync(full).toString('base64') });
       }
@@ -157,9 +172,8 @@ function packTree(dir: string, budget: { left: number }, prefix = ''): PackedFil
   return out;
 }
 
-function packChats(id: string): BackupData['chats'] {
+function packChats(id: string, budget: Budget): BackupData['chats'] {
   const out: BackupData['chats'] = [];
-  let left = CAP.chats;
   const root = projectDir(id, 'chats');
   let agentDirs: fs.Dirent[] = [];
   try {
@@ -178,10 +192,13 @@ function packChats(id: string): BackupData['chats'] {
       } catch {
         continue;
       }
-      if (size > left) continue;
+      if (size > budget.left) {
+        budget.omitted++;
+        continue;
+      }
       const chat = readJSON<Chat>(file);
       if (!chat || !Array.isArray(chat.items)) continue;
-      left -= size;
+      budget.left -= size;
       out.push({ agentId: a.name, chat });
     }
   }
@@ -202,6 +219,7 @@ function summarize(b: BackupData): BackupSummary {
     skills: b.skills.length,
     presets: b.presets.length,
     knowledgeFiles: b.knowledge.length,
+    omitted: b.omitted,
     agentList: b.agents.slice(0, 12).map((a) => ({ name: String(a.name || '').slice(0, 80), emoji: String(a.emoji || '🤖').slice(0, 8) })),
   };
 }
@@ -209,13 +227,14 @@ function summarize(b: BackupData): BackupSummary {
 /** Everything in the project, the skill library and the saved presets, as one object. */
 export function packProject(p: Project): BackupData {
   const id = p.id;
-  const brainBudget = { left: CAP.brain };
+  const brainBudget = budget(CAP.brain);
   const brain: PackedFile[] = [];
   for (const f of BRAIN_FILES) {
     const full = path.join(p.brainPath, f);
     try {
       const st = fs.lstatSync(full);
-      if (st.isFile() && st.size <= brainBudget.left) {
+      if (st.isFile() && st.size > brainBudget.left) brainBudget.omitted++;
+      else if (st.isFile()) {
         brainBudget.left -= st.size;
         brain.push({ path: f, data: fs.readFileSync(full).toString('base64') });
       }
@@ -243,13 +262,17 @@ export function packProject(p: Project): BackupData {
       /* none */
     }
   }
-  const skillBudget = { left: CAP.skills };
+  const skillBudget = budget(CAP.skills);
   const skills: BackupData['skills'] = [];
   for (const e of fs.readdirSync(skillsLibrary(), { withFileTypes: true })) {
     if (!e.isDirectory() || !isSkillSlug(e.name)) continue;
     const files = packTree(path.join(skillsLibrary(), e.name), skillBudget);
     if (files.some((f) => f.path === 'SKILL.md')) skills.push({ slug: e.name, files });
   }
+  const chatBudget = budget(CAP.chats);
+  const knowledgeBudget = budget(CAP.knowledge);
+  const chats = packChats(id, chatBudget);
+  const knowledge = packTree(projectDir(id, 'knowledge'), knowledgeBudget);
   const presets = jsonFiles(dataPath('presets'))
     .map((n) => readJSON<Preset>(dataPath('presets', n)))
     .filter((x): x is Preset => !!x && PRESET_RE.test(String(x.id)));
@@ -265,12 +288,13 @@ export function packProject(p: Project): BackupData {
     layout: readJSON<unknown>(projectDir(id, 'layout.json'), {}),
     brainChat: readJSON<unknown>(projectDir(id, 'brain-chat.json'), { messages: [] }),
     teamChats: jsonFiles(projectDir(id, 'teamchats')).map((name) => ({ name, data: readJSON<unknown>(projectDir(id, 'teamchats', name)) })).filter((x) => x.data != null),
-    chats: packChats(id),
-    knowledge: packTree(projectDir(id, 'knowledge'), { left: CAP.knowledge }),
+    chats,
+    knowledge,
     brain,
     logo,
     skills,
     presets,
+    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted,
   };
 }
 
@@ -374,6 +398,7 @@ export function decodeBackup(buf: Buffer): BackupData {
       .map((s) => ({ slug: s.slug, files: files(s.files) }))
       .filter((s) => s.files.some((f) => f.path === 'SKILL.md')),
     presets: arr<Preset>(b.presets).filter((p) => p && typeof p === 'object' && PRESET_RE.test(String(p.id)) && (p.kind === 'agent' || p.kind === 'team')),
+    omitted: Number(b.omitted) || 0,
   };
 }
 

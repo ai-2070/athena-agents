@@ -21,6 +21,8 @@ export interface BackupSummary {
   presets: number;
   knowledgeFiles: number;
   agentList: { name: string; emoji: string }[];
+  /** Files left out because a size limit was reached (older backups: missing) */
+  omitted?: number;
 }
 
 /** GET /api/backups */
@@ -59,11 +61,38 @@ export async function readBackupSummary(file: Blob): Promise<BackupSummary | nul
   const lines = text.split('\n');
   if (!/^MY-DASHBOARD-BACKUP \d+$/.test(lines[0]?.trim() || '') || lines.length < 3) return null;
   try {
-    const s = JSON.parse(lines[1]) as BackupSummary;
-    return s && s.app === 'my-dashboard' ? s : null;
+    return cleanSummary(JSON.parse(lines[1]));
   } catch {
     return null;
   }
+}
+
+/** A summary the page can show safely, or null: the file is anyone's, so every field is checked. */
+export function cleanSummary(v: unknown): BackupSummary | null {
+  if (!v || typeof v !== 'object') return null;
+  const s = v as Record<string, unknown>;
+  if (s.app !== 'my-dashboard') return null;
+  const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 ? Math.floor(x) : 0);
+  const str = (x: unknown, max: number) => (typeof x === 'string' ? x.slice(0, max) : '');
+  return {
+    app: 'my-dashboard',
+    format: num(s.format),
+    createdAt: num(s.createdAt),
+    name: str(s.name, 120),
+    description: str(s.description, 6000),
+    agents: num(s.agents),
+    teams: num(s.teams),
+    routines: num(s.routines),
+    chats: num(s.chats),
+    skills: num(s.skills),
+    presets: num(s.presets),
+    knowledgeFiles: num(s.knowledgeFiles),
+    agentList: (Array.isArray(s.agentList) ? s.agentList : [])
+      .filter((a): a is { name?: unknown; emoji?: unknown } => !!a && typeof a === 'object')
+      .slice(0, 12)
+      .map((a) => ({ name: str(a.name, 80), emoji: str(a.emoji, 8) || '🤖' })),
+    omitted: num(s.omitted),
+  };
 }
 
 /** Back up a project and show where the file went. */
@@ -76,6 +105,9 @@ export async function backupProject(p: Pick<Project, 'id' | 'name'>): Promise<vo
     body: h(
       'div.col',
       h('p', `${p.name}: ${summaryLine(r.summary)}, in one file (${fileSize(r.size)}). No keys or passwords are in it.`),
+      r.summary.omitted
+        ? h('p.backup-warn', icon('triangle-alert', 14), ` ${r.summary.omitted} file${r.summary.omitted === 1 ? ' was' : 's were'} too big to fit and left out (limits: chats 200 MB, knowledge 50 MB, skills 50 MB, PROJECT.md and notes 20 MB).`)
+        : null,
       h('div.backup-path', h('code', r.file), h('button.icon-btn', { title: 'Copy the path', 'aria-label': 'Copy the path', onclick: () => copy(r.file) }, icon('copy', 14))),
       h('p.hint', 'To bring it back, here or on another PC: New project > From backup, and drop this file in.'),
     ),
@@ -112,5 +144,6 @@ export function restoredText(name: string, r: BackupRestored): string {
   return text;
 }
 
-export const listBackups = () => GET<{ dir: string; backups: BackupListing[] }>('/backups');
+// the server reads these from files in the backups folder: anyone could have put one there
+export const listBackups = () => GET<{ dir: string; backups: BackupListing[] }>('/backups').then((r) => ({ ...r, backups: r.backups.map((b) => ({ ...b, summary: cleanSummary(b.summary) })) }));
 export const backupAgo = (s: BackupSummary | null, modifiedAt: number) => ago(s?.createdAt || modifiedAt);
