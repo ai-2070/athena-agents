@@ -47,6 +47,28 @@ const agentName = (id: string) => agents.get(id)?.name || `(deleted agent ${id})
 const skillName = (slug: string) => getSkill(slug)?.name || slug;
 const list = (xs: unknown) => (Array.isArray(xs) && xs.length ? xs.join(', ') : '-');
 
+// Anything a version has that the lines above don't show, so a change is never invisible.
+function otherFields(item: Record<string, unknown>, shown: readonly string[], ignore: readonly string[]): string {
+  const rest = Object.keys(item)
+    .filter((k) => !shown.includes(k) && !ignore.includes(k) && k !== 'id' && item[k] !== undefined && item[k] !== null && item[k] !== '' && !(Array.isArray(item[k]) && !(item[k] as unknown[]).length))
+    .sort();
+  return rest.length ? `Other settings:\n${rest.map((k) => `  ${k}: ${JSON.stringify(item[k])}`).join('\n')}` : '';
+}
+
+const AGENT_SHOWN = ['name', 'emoji', 'specialty', 'description', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'temperature', 'autonomy', 'toolGroups', 'mcpServers', 'skills', 'knowledge', 'workspace', 'alwaysAllow', 'systemPrompt'];
+const TEAM_SHOWN = ['name', 'description', 'members', 'lead', 'access', 'skills', 'files', 'schedule', 'enabled', 'steps'];
+
+// One step of an old-style step list (or a member's step), with everything that changes what it does.
+function stepLine(st: Record<string, unknown>, i: number): string {
+  const { id: _id, type, agentId, label, prompt, ...rest } = st;
+  const head = `  ${i + 1}. ${String(type || 'step')}${agentId ? ` ${agentName(String(agentId))}` : ''}${label ? ` "${String(label)}"` : ''}`;
+  const extra = Object.keys(rest)
+    .filter((k) => rest[k] !== undefined && rest[k] !== '' && rest[k] !== null)
+    .sort()
+    .map((k) => `${k}: ${typeof rest[k] === 'string' ? rest[k] : JSON.stringify(rest[k])}`);
+  return [head, prompt ? `     prompt: ${String(prompt)}` : '', ...extra.map((x) => `     ${x}`)].filter(Boolean).join('\n');
+}
+
 export function asText(kind: VersionKind, item: Item): string {
   if (kind === 'skill') {
     const s = item as SkillVersionItem;
@@ -59,6 +81,9 @@ export function asText(kind: VersionKind, item: Item): string {
       `Specialty: ${a.specialty || '-'}`,
       a.description ? `Description: ${a.description}` : '',
       `Runs on: ${a.engine}${a.model ? ` (${a.model})` : ''}${a.engine === 'hermes' && a.hermesProfile ? `, profile ${a.hermesProfile}` : ''}`,
+      a.provider ? `Provider: ${a.provider}` : '',
+      a.claudeAuth ? `Sign-in: ${a.claudeAuth}` : '',
+      `Temperature: ${a.temperature === '' || a.temperature === undefined ? 'default' : a.temperature}`,
       `Autonomy: ${a.autonomy || 'ask'}`,
       `Tools: ${list(a.toolGroups)}`,
       `MCP servers: ${list(a.mcpServers)}`,
@@ -66,6 +91,7 @@ export function asText(kind: VersionKind, item: Item): string {
       `Knowledge folders: ${list(a.knowledge?.folders)}`,
       `Workspace: ${a.workspace || '(default)'}`,
       `Always allowed: ${list(a.alwaysAllow)}`,
+      otherFields(a as unknown as Record<string, unknown>, AGENT_SHOWN, agents.versionIgnore),
       '',
       'Instructions:',
       (a.systemPrompt || '').trim() || '(none)',
@@ -75,7 +101,16 @@ export function asText(kind: VersionKind, item: Item): string {
   }
   const t = item as Team;
   const members = Array.isArray(t.members) ? t.members : [...new Set((t.steps || []).filter((x) => x.type === 'agent' && x.agentId).map((x) => x.agentId as string))];
-  const other = (t.steps || []).filter((x) => x.type !== 'agent');
+  const sc = t.schedule;
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const schedule = sc && sc.type !== 'none'
+    ? [
+        `Schedule: ${sc.type}${sc.time ? ` at ${sc.time}` : ''}${sc.minutes ? ` every ${sc.minutes} min` : ''}${sc.days?.length ? ` on ${sc.days.map((d) => DAYS[d] ?? d).join(', ')}` : ''}${t.enabled === false ? ' (off)' : ''}`,
+        sc.input ? `  with: ${sc.input}` : '',
+      ].filter(Boolean).join('\n')
+    : t.enabled ? 'Schedule: none (on)' : '';
+  // members' steps carry nothing beyond the member; any other step (or a member step with more) is listed in full
+  const steps = (t.steps || []).filter((x) => x.type !== 'agent' || Object.keys(x).some((k) => !['id', 'type', 'agentId', 'label'].includes(k) && x[k] !== undefined && x[k] !== ''));
   return [
     `Name: ${t.name}`,
     `Goal: ${t.description || '-'}`,
@@ -84,8 +119,9 @@ export function asText(kind: VersionKind, item: Item): string {
     `MCP servers: ${list(t.access?.mcpServers)}`,
     `Skills: ${list((t.skills || []).map(skillName))}`,
     `Files: ${list(t.files)}`,
-    t.schedule && t.schedule.type !== 'none' ? `Schedule: ${t.schedule.type} ${t.schedule.time || ''}${t.schedule.minutes ? `every ${t.schedule.minutes} min` : ''}${t.enabled === false ? ' (off)' : ''}`.trim() : '',
-    other.length ? `Other steps: ${other.map((x) => x.label || x.type).join(', ')}` : '',
+    schedule,
+    steps.length ? `Steps:\n${steps.map((x, i) => stepLine(x as Record<string, unknown>, i)).join('\n')}` : '',
+    otherFields(t as unknown as Record<string, unknown>, TEAM_SHOWN, workflows.versionIgnore),
   ]
     .filter(Boolean)
     .join('\n');
@@ -101,14 +137,18 @@ const entry = (kind: VersionKind, v: Version<Item>, newer: Item | null, ignore: 
   changes: newer ? changedFields(v.item, newer, ignore).map((k) => fieldName(kind, k)) : v.deleted ? ['deleted'] : [],
 });
 
+// What version i turned into: the next newer version's item, or what it is now (nothing: it was deleted).
+const newerThan = (versions: Version<Item>[], i: number, now: Item | null): Item | null => (i > 0 ? versions[i - 1].item : now);
+
 export function historyOf(kind: VersionKind, id: string): VersionHistory {
   if (!okId(id)) throw notFound('Nothing by that id.');
   const k = kindOf(kind);
   const now = k.now(id);
   const versions = listVersions<Item>(k.dir(id));
   if (!now && !versions.length) throw notFound(`No ${k.label} by that id.`);
-  // each version's changes: what the one after it (the next newer, or the current) is different in
-  const entries = versions.map((v, i) => entry(kind, v, i === 0 ? (v.deleted ? null : now) : versions[i - 1].deleted ? null : versions[i - 1].item, k.ignore));
+  // each version's changes: what the one after it (the next newer, or the current) is different in.
+  // (a deletion's version holds what it was when it was deleted, so it's what the older one became)
+  const entries = versions.map((v, i) => entry(kind, v, newerThan(versions, i, now), k.ignore));
   return { kind, id, name: String((now || versions[0].item).name || id), current: now ? asText(kind, now) : null, versions: entries };
 }
 
@@ -119,8 +159,7 @@ export function versionOf(kind: VersionKind, id: string, vid: string): VersionDe
   const i = versions.findIndex((v) => v.id === vid);
   if (i === -1) throw notFound('That version is gone.');
   const v = versions[i];
-  const newer = i === 0 ? (v.deleted ? null : k.now(id)) : versions[i - 1].deleted ? null : versions[i - 1].item;
-  return { ...entry(kind, v, newer, k.ignore), name: String(v.item.name || id), text: asText(kind, v.item) };
+  return { ...entry(kind, v, newerThan(versions, i, k.now(id)), k.ignore), name: String(v.item.name || id), text: asText(kind, v.item) };
 }
 
 /** Put a version back. The current one is kept as a version first, so this can be undone too. */

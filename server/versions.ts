@@ -63,6 +63,13 @@ export function changedFields(a: unknown, b: unknown, ignore: readonly string[] 
 }
 
 // ---------- reading and writing ----------
+// When a version was made: never the same as or before the one made just before it (two in the same
+// millisecond would otherwise sort by their random ids, and an older one could hide a deletion).
+let lastStamp = 0;
+const stamp = (after = 0) => (lastStamp = Math.max(Date.now(), lastStamp + 1, after + 1));
+/** A version's files kept next to it (a deleted skill's extra files): <dir>/files-<version id>. */
+export const versionFilesDir = (dir: string, id: string): string => path.join(dir, `files-${id}`);
+
 /** Every version in dir, newest first. */
 export function listVersions<T>(dir: string): Version<T>[] {
   return listFiles(dir, (n) => n.endsWith('.json'))
@@ -85,10 +92,13 @@ export function keepVersion<T>(dir: string, before: T, after: T | null, { ignore
   const by = ctx?.by || 'you';
   const last = listVersions<T>(dir)[0];
   if (!deleted && !ctx?.force && last && !last.deleted && last.by === by && Date.now() - last.at < COALESCE_MS) return null;
-  const v: Version<T> = { id: uid('v'), at: Date.now(), by, ...(deleted ? { deleted: true } : {}), ...(ctx?.note ? { note: ctx.note } : {}), item: before };
+  const v: Version<T> = { id: uid('v'), at: stamp(last?.at), by, ...(deleted ? { deleted: true } : {}), ...(ctx?.note ? { note: ctx.note } : {}), item: before };
   writeJSON(path.join(ensureDir(dir), `${v.id}.json`), v);
   const all = listVersions<T>(dir);
-  for (const old of all.slice(VERSIONS_KEPT)) fs.rmSync(path.join(dir, `${old.id}.json`), { force: true });
+  for (const old of all.slice(VERSIONS_KEPT)) {
+    fs.rmSync(path.join(dir, `${old.id}.json`), { force: true });
+    fs.rmSync(versionFilesDir(dir, old.id), { recursive: true, force: true });
+  }
   return v;
 }
 

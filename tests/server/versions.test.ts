@@ -8,7 +8,7 @@ import { newAgent } from '../../server/library.ts';
 import * as skills from '../../server/skills.ts';
 import { applyActions } from '../../server/overseer.ts';
 import { historyOf, versionOf, restoreVersion, deletedItems, undelete, asText } from '../../server/history.ts';
-import { keepVersion, listVersions, canonical, changedFields, withActor, COALESCE_MS, VERSIONS_KEPT } from '../../server/versions.ts';
+import { keepVersion, listVersions, canonical, changedFields, withActor, versionFilesDir, COALESCE_MS, VERSIONS_KEPT } from '../../server/versions.ts';
 import { dataPath } from '../../server/util.ts';
 import type { Agent, Team } from '../../shared/types.ts';
 
@@ -41,6 +41,30 @@ describe('versions.ts', () => {
     expect(keepVersion(dir, { a: 5 }, null, { deleted: true })?.deleted).toBe(true);
     for (let i = 0; i < VERSIONS_KEPT + 5; i++) withActor('you', () => keepVersion(dir, { i }, { i: i + 1 }), { force: true });
     expect(listVersions(dir)).toHaveLength(VERSIONS_KEPT);
+  });
+});
+
+describe('versions made close together (review fixes)', () => {
+  it('a deletion in the same millisecond as an edit is still the newest version', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2030-01-01T00:00:00Z'));
+    for (let i = 0; i < 20; i++) {
+      const a = newAgent({ name: `Same ms ${i}` });
+      withActor('brain', () => agents.save({ ...agents.get(a.id)!, specialty: 'changed' }));
+      agents.remove(a.id);
+      expect(listVersions(agents.versionsDir(a.id)!)[0].deleted).toBe(true);
+      expect(deletedItems('agent').map((x) => x.id)).toContain(a.id);
+    }
+  });
+
+  it("drops a version's kept files when the version itself is dropped", () => {
+    const dir = dataPath('versions', 'unit', 'sidecars');
+    const first = withActor('you', () => keepVersion(dir, { n: 0 }, { n: 1 }), { force: true })!;
+    fs.mkdirSync(versionFilesDir(dir, first.id), { recursive: true });
+    fs.writeFileSync(path.join(versionFilesDir(dir, first.id), 'f.txt'), 'x');
+    for (let i = 1; i <= VERSIONS_KEPT; i++) withActor('you', () => keepVersion(dir, { n: i }, { n: i + 1 }), { force: true });
+    expect(listVersions(dir).some((v) => v.id === first.id)).toBe(false);
+    expect(fs.existsSync(versionFilesDir(dir, first.id))).toBe(false);
   });
 });
 
@@ -126,6 +150,35 @@ describe('skills', () => {
     undelete('skill', s.slug);
     expect(skills.getSkill(s.slug)?.body).toContain('See ref.md.');
     expect(fs.readFileSync(path.join(dataPath('skills', s.slug), 'refs', 'ref.md'), 'utf8')).toBe('the reference');
+  });
+
+  it('a version older than a deletion still says what changed next', () => {
+    const a = newAgent({ name: 'Edited then deleted', systemPrompt: 'v1' });
+    agents.save({ ...agents.get(a.id)!, systemPrompt: 'v2' });
+    later();
+    agents.remove(a.id);
+    const h = historyOf('agent', a.id);
+    expect(h.versions.map((v) => v.changes)).toEqual([['deleted'], ['instructions']]);
+    expect(versionOf('agent', a.id, h.versions[1].id).changes).toEqual(['instructions']);
+  });
+
+  it('shows every versioned field, so a listed change is never invisible', () => {
+    const agent = asText('agent', { name: 'A', engine: 'openai', provider: 'openrouter', temperature: 0.3, color: '#123456', systemPrompt: 'x' } as Agent);
+    expect(agent).toContain('Provider: openrouter');
+    expect(agent).toContain('Temperature: 0.3');
+    expect(agent).toContain('color: "#123456"');
+    const team = asText('team', {
+      name: 'T',
+      description: 'g',
+      members: [],
+      lead: null,
+      schedule: { type: 'daily', time: '09:00', days: [1, 3], input: 'the news' },
+      steps: [{ type: 'tool', tool: 'web_search', args: '{"q":"x"}', label: 'Search' }, { type: 'agent', agentId: 'a1', prompt: 'Sum it up' }],
+    } as unknown as Team);
+    expect(team).toContain('Schedule: daily at 09:00 on Mon, Wed');
+    expect(team).toContain('with: the news');
+    expect(team).toContain('tool: web_search');
+    expect(team).toContain('prompt: Sum it up');
   });
 
   it('as text', () => {
