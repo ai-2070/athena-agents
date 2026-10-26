@@ -1,0 +1,48 @@
+shared/types.ts
+  s_438d1f6577d2a3::t_d9cd19126d10e7 261-262
+server/uistream.ts
+  s_438d1f6577d2a3::t_d9cd19126d10e7 120-121,140-142,144-145,178-180
+tests/server/brain-stream.test.ts
+  s_438d1f6577d2a3::t_ac8084f9b3f85f 16-17,21-33,36-42,71-76
+  s_438d1f6577d2a3::t_cd059d99eb06ba 77
+server/engines/index.ts
+  s_438d1f6577d2a3::t_d9cd19126d10e7 15,293-294,456-458
+server/teams.ts
+  s_438d1f6577d2a3::t_d9cd19126d10e7 298-299
+tests/server/teams.test.ts
+  s_438d1f6577d2a3::t_ac8084f9b3f85f 87-89,95-97
+tests/server/uistream.test.ts
+  s_438d1f6577d2a3::t_ac8084f9b3f85f 36,46-48,99-126,191-203,220-223
+server/overseer.ts
+  s_438d1f6577d2a3::t_d9cd19126d10e7 869-870
+tests/server/files.test.ts
+  s_438d1f6577d2a3::t_ac8084f9b3f85f 49,55-56
+server/richanswers.ts
+  s_438d1f6577d2a3::t_d9cd19126d10e7 5,27-31
+tests/server/brain-codex.test.ts
+  s_438d1f6577d2a3::t_bf37a6a558947a 1-39
+tests/server/richanswers.test.ts
+  s_438d1f6577d2a3::t_4adb32a83a4b2c 5,55-69
+  s_438d1f6577d2a3::t_b059e965350d7b 70
+server/util.ts
+  s_438d1f6577d2a3::t_d9cd19126d10e7 253-254,264-266,273-277
+  s_438d1f6577d2a3::t_cac42798c4c8d5 262-263
+server/brain.ts
+  s_438d1f6577d2a3::t_d9cd19126d10e7 183-184,189-190,192-193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "254787f1adb61630399c99794e823c3c99a62c8f",
+  "prompts": {},
+  "sessions": {
+    "s_438d1f6577d2a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a3e60d4-d433-413c-8c13-3a59a05169f5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
