@@ -477,7 +477,7 @@ const INTEGRATIONS: Integration[] = [
   { id: 'hermes', label: 'Hermes', glyph: '☤', color: '#d8c25a' },
   { id: 'codex', label: 'OpenAI Codex', glyph: '◎', color: '#e6e8e0' },
   { id: 'reddit', label: 'Reddit', glyph: 'r/', color: '#ff4500' },
-  { id: 'openrouter', label: 'OpenRouter', glyph: '⇄', color: '#8f94ff' },
+  { id: 'openrouter', label: 'OpenRouter', glyph: '⇄', color: '#94a3b8' },
   { id: 'lmstudio', label: 'LM Studio', glyph: 'LM', color: '#b48cff' },
   { id: 'ollama', label: 'Ollama', glyph: 'OL', color: '#e6e8e0' },
   { id: 'x', label: 'X', glyph: '𝕏', color: '#e6e8e0' },
@@ -2614,7 +2614,7 @@ function drawHud(): void {
     !d.accounts.telegram.configured && { glyph: logo('telegram', 13) || '✈', title: 'Telegram · not set up (Connections)', href: '#/settings?tab=connections' },
     !(d.accounts.reddit || []).length && { glyph: logo('reddit', 13) || 'r/', title: 'Reddit · not connected (Settings > Connections)', href: '#/settings?tab=connections' },
     !d.accounts.discord.configured && { glyph: logo('discord', 13) || 'D', title: 'Discord · not set up (Connections)', href: '#/settings?tab=connections' },
-    !d.secrets.openrouterKey.set && { glyph: '⇄', title: 'OpenRouter · no key yet (Settings)', href: '#/settings' },
+    !d.secrets.openrouterKey.set && { glyph: logo('openrouter', 13) || '⇄', title: 'OpenRouter · no key yet (Settings)', href: '#/settings' },
   ].filter(Boolean) as { glyph: SVGSVGElement | string; title: string; href: string }[];
   for (const m of missing) tiles.push({ key: m.title, glyph: m.glyph, color: '#555850', on: false, missing: true, title: m.title, onclick: () => navigate(m.href) });
   const seen = new Set<string>();
@@ -2623,7 +2623,7 @@ function drawHud(): void {
   const busyIds = new Set((d.runs || []).map((r) => r.agentId));
   const engines = [
     { id: 'claude-code', brain: 'claude', name: 'Claude Code', glyph: logo('claude', 15) || '✳', color: '#d97757', ready: d.engines['claude-code'].installed, why: d.engines['claude-code'].installed ? '' : 'not installed', find: 'Claude Code' },
-    { id: 'openai', brain: 'openrouter', name: 'OpenRouter', glyph: '◇', color: '#8f94ff', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
+    { id: 'openai', brain: 'openrouter', name: 'OpenRouter', glyph: logo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
     { id: 'hermes', brain: 'hermes', name: 'Hermes', glyph: '☤', color: '#d8c25a', ready: d.engines.hermes.installed, why: d.engines.hermes.installed ? '' : 'not installed', find: 'Hermes' },
     { id: 'codex', brain: 'codex', name: 'OpenAI Codex', glyph: logo('openai', 14) || '◎', color: '#e6e8e0', ready: !!(d.engines.codex?.installed && d.engines.codex.loggedIn), why: !d.engines.codex?.installed ? 'not installed' : d.engines.codex.loggedIn ? '' : 'not signed in', find: 'OpenAI Codex' },
     // pi, oh-my-pi and OpenClaw: only when installed or an agent uses them (most PCs have none)
@@ -2778,7 +2778,7 @@ function connectorLook(name: string): { glyph: string; color: string } {
   return { color: craft || '#a9d3e2', glyph: name.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '⌁' };
 }
 
-const USAGE_LOOK: Record<string, { brand?: string; glyph: string; color: string }> = { claude: { brand: 'claude', glyph: '✳', color: '#d97757' }, openrouter: { glyph: '◇', color: '#8f94ff' }, codex: { brand: 'openai', glyph: '◎', color: '#e6e8e0' } };
+const USAGE_LOOK: Record<string, { brand?: string; glyph: string; color: string }> = { claude: { brand: 'claude', glyph: '✳', color: '#d97757' }, openrouter: { brand: 'openrouter', glyph: '◇', color: '#94a3b8' }, codex: { brand: 'openai', glyph: '◎', color: '#e6e8e0' } };
 function drawUsage(animate: boolean): void {
   const list = S?.headbar?.usages || [];
   if (!S?.usageEl || !list.length) return;

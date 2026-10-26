@@ -63,7 +63,7 @@ const CODEX_PICKS = [{ id: 'gpt-6-astra', note: 'OpenAI flagship' }];
 
 const TABS: ModelTab[] = [
   { engine: 'claude-code', label: 'Claude', brand: 'claude' },
-  { engine: 'openai', label: 'OpenRouter', brand: null, glyph: '◇' },
+  { engine: 'openai', label: 'OpenRouter', brand: 'openrouter', glyph: '◇' },
   { engine: 'hermes', label: 'Hermes', brand: null, glyph: '☤' },
   { engine: 'codex', label: 'Codex', brand: 'openai' },
   { engine: 'pi', label: 'pi', brand: null, glyph: 'π' },
@@ -98,7 +98,7 @@ export function modelInfo(a: ModelTarget): ModelInfo {
   const where = ({ lmstudio: 'LM Studio', ollama: 'Ollama', custom: 'Custom server' } as Record<string, string | undefined>)[a.provider as string] || 'OpenRouter';
   const id = m.split('/').pop() || 'model';
   const c = CLAUDE.find((x) => id.replace(/\./g, '-').startsWith(x.id));
-  return { name: c ? `Claude ${c.family} ${c.version}` : id, short: c ? `${c.family} ${c.version}` : id, latest: false, brand: /claude|anthropic/.test(m) ? 'claude' : /llama|ollama/.test(m) ? 'ollama' : 'openrouter', where };
+  return { name: c ? `Claude ${c.family} ${c.version}` : id, short: c ? `${c.family} ${c.version}` : id, latest: false, brand: /claude|anthropic/.test(m) ? 'claude' : /llama|ollama/.test(m) ? 'ollama' : where === 'OpenRouter' ? 'openrouter' : null, where };
 }
 
 const chipIcon = (mi: ModelInfo, engine: string): SVGSVGElement | HTMLSpanElement => (mi.brand && logo(mi.brand, 13)) || (GLYPH[engine] ? h('span.model-glyph', GLYPH[engine]) : icon('cpu', 13));
