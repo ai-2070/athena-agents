@@ -1,0 +1,27 @@
+README.md
+  s_3ee9638266ae65::t_5cc6b0705e8a1d 29
+src-tauri/src/main.rs
+  s_3ee9638266ae65::t_5cc6b0705e8a1d 26-28
+docs/guide.md
+  s_3ee9638266ae65::t_5cc6b0705e8a1d 25
+docs/desktop.md
+  s_3ee9638266ae65::t_5cc6b0705e8a1d 32-33
+src-tauri/Cargo.lock
+  s_3ee9638266ae65::t_f245c006b5bd00 273-286
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9eb3476d839f07e629c5a8aef702d292e3412612",
+  "prompts": {},
+  "sessions": {
+    "s_3ee9638266ae65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "541a5902-77ed-4017-8f45-3e7605579b0f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
