@@ -419,6 +419,23 @@ async function runTurn(team: Team, item: QueueItem) {
   }
 }
 
+/** Take an agent off the turns it waits for in this project's teams (it was stopped, so it doesn't start
+ *  on the next one as soon as its turn ends). Returns how many it had. */
+export function dropQueuedTurns(agentId: string): number {
+  let n = 0;
+  for (const [teamId, r] of rt) {
+    const team = getTeam(teamId);
+    if (!team) continue; // another project's team
+    const before = r.queue.length;
+    r.queue = r.queue.filter((q) => q.agentId !== agentId);
+    if (r.queue.length === before) continue;
+    n += before - r.queue.length;
+    state(team);
+    settled(teamId);
+  }
+  return n;
+}
+
 export function stopTeam(teamId: string) {
   const team = getTeam(teamId);
   const r = runtime(teamId);

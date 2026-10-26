@@ -6,7 +6,7 @@ import { applyActions } from '../../server/overseer.ts';
 import { newAgent } from '../../server/library.ts';
 import { runs, saveSettings, workflows } from '../../server/store.ts';
 import { startWorkflow } from '../../server/workflows.ts';
-import { postUserMessage, teamState } from '../../server/teams.ts';
+import { getThread, postUserMessage, teamState } from '../../server/teams.ts';
 import { activeRuns, askAgent } from '../../server/engines/index.ts';
 import type { Team } from '../../shared/types.ts';
 
@@ -45,6 +45,25 @@ describe('the Brain stops work', () => {
     expect(r.done).toEqual([expect.objectContaining({ kind: 'stop', agentId: a.id, text: 'Stopped Busy bee' })]);
     await until(() => !running(a.id));
     expect(applyActions([{ do: 'stop', to: 'agent', id: a.id }]).done[0]).toMatchObject({ kind: 'note', text: "Busy bee wasn't working" });
+  });
+
+  it('stopping an agent also takes it off the team turns it waits for', async () => {
+    const a = slow('Queued one');
+    const lead = slow('Room lead');
+    const t = team('Two jobs', [lead.id, a.id]);
+    await postUserMessage(t.id, '@Queued one first job');
+    await until(() => teamState(t.id).working.includes(a.id));
+    // a second job for it while it works: it waits in the queue
+    await postUserMessage(t.id, '@Queued one second job');
+    expect(teamState(t.id).queued).toEqual([a.id]);
+    const r = applyActions([{ do: 'stop', to: 'agent', id: a.id }]);
+    expect(r.done[0]).toMatchObject({ kind: 'stop', text: 'Stopped Queued one (and took it off 1 waiting team turn)' });
+    await until(() => !running(a.id) && !teamState(t.id).working.length);
+    // and it doesn't start on the second job once the first one is stopped
+    await new Promise((res) => setTimeout(res, 150));
+    expect(running(a.id)).toBe(false);
+    expect(teamState(t.id).queued).toEqual([]);
+    expect(getThread(t.id).messages.filter((m) => m.from === a.id).map((m) => m.text)).toEqual(['(stopped)']);
   });
 
   it('stops a team and its queue', async () => {

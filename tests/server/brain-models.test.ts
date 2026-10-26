@@ -51,6 +51,8 @@ describe('providers and model lists', () => {
     expect(modelProvider('anthropic')).toBe('claude');
     expect(modelProvider('LM Studio')).toBe('lmstudio');
     expect(modelProvider('nope')).toBeNull();
+    // (built-in object keys aren't providers)
+    expect(['constructor', 'toString', '__proto__', 'hasOwnProperty'].map(modelProvider)).toEqual([null, null, null, null]);
     expect(providerOfAgent({ engine: 'openai', provider: 'ollama' })).toBe('ollama');
     expect(providerOfAgent({ engine: 'claude-code', provider: 'openrouter' })).toBe('claude');
   });
@@ -72,6 +74,7 @@ describe('providers and model lists', () => {
     expect(text).not.toContain('claude-opus');
     expect(await findModels('claude', 'opus')).toContain('claude-opus-5-5');
     expect(await findModels('who', '')).toContain('No provider "who"');
+    expect(await findModels('constructor', '')).toContain('No provider "constructor"');
   });
 
   it('checks a model id against the provider, with close matches when it is wrong', async () => {
@@ -150,6 +153,32 @@ describe('set_model', () => {
     expect(r.done[3].text).toContain('no agent "nobody"');
     expect(r.done[4].text).toContain('say which LM Studio model');
     expect(agents.get(a.id)?.model).toBe('sonnet');
+  });
+
+  it('checks the model for an agent made earlier in the same answer', () => {
+    const r = applyActions([
+      { do: 'hire', members: [{ new: { name: 'Fresh hire', specialty: 'new' } }] },
+      { do: 'set_model', to: 'agent', id: 'new', model: 'gpt-6' },
+      { do: 'set_model', to: 'agent', id: 'new', model: 'opus' },
+    ]);
+    const hired = agents.list().find((a) => a.name === 'Fresh hire')!;
+    expect(r.done.map((d) => d.kind)).toEqual(['hired', 'error', 'model']);
+    expect(r.done[1].text).toContain("Fresh hire: \"gpt-6\" isn't a Claude Code model");
+    expect(agents.get(hired.id)?.model).toBe('opus');
+  });
+
+  it('checks the model for a team made earlier in the same answer, against the fetched list', async () => {
+    const a = newAgent({ name: 'Router', engine: 'openai', provider: 'openrouter', model: 'google/gemini-3-pro' });
+    const acts: BrainAction[] = [
+      { do: 'create_team', name: 'Fresh team', members: [{ agent: a.id }] },
+      { do: 'set_model', to: 'team', id: 'new', model: 'google/gemini-3-flsh' },
+      { do: 'set_model', to: 'team', id: 'new', model: 'google/gemini-3-flash' },
+    ];
+    await prepareModels(acts);
+    const r = applyActions(acts);
+    expect(r.done.map((d) => d.kind)).toEqual(['team', 'error', 'model']);
+    expect(r.done[1].text).toMatch(/Router: OpenRouter has no model "google\/gemini-3-flsh".*close: .*gemini-3-flash/);
+    expect(agents.get(a.id)?.model).toBe('google/gemini-3-flash');
   });
 
   it('a model the provider does not have is refused before anything changes', async () => {

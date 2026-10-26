@@ -32,8 +32,11 @@ const freePort = () =>
 
 // Start our own server and wait until it answers. Another dashboard (another test run, another checkout)
 // may grab the port first: then ours exits and the one answering isn't ours (other data folder), so try again.
+// (all attempts together stay within START_MS, well under beforeAll's timeout)
+const START_MS = 45_000;
 async function startServer(home: string): Promise<void> {
-  for (let attempt = 0; attempt < 5; attempt++) {
+  const deadline = Date.now() + START_MS;
+  for (let attempt = 0; attempt < 5 && Date.now() < deadline; attempt++) {
     port = await freePort();
     base = `http://localhost:${port}`;
     const child = spawn('bun', ['server/index.ts', '--port', String(port), '--no-open'], {
@@ -44,7 +47,7 @@ async function startServer(home: string): Promise<void> {
     proc = child;
     let exited = false;
     child.once('exit', () => (exited = true));
-    for (let i = 0; i < 100 && !exited; i++) {
+    for (let i = 0; i < 100 && !exited && Date.now() < deadline; i++) {
       try {
         const r = await req('/api/state');
         if (r.ok && String(((await r.json()) as { dataDir?: string }).dataDir || '').startsWith(tmp)) return;

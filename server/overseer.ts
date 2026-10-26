@@ -8,7 +8,7 @@ import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from 
 import { TOOL_GROUPS, workspaceOf } from './tools.ts';
 import { listServers } from './mcp.ts';
 import { ensureBrain, brainInfo, updateProject } from './projects.ts';
-import { listTeams, teamState, getThread, getTeam, teamSteps, stopTeam } from './teams.ts';
+import { listTeams, teamState, getThread, getTeam, teamSteps, stopTeam, dropQueuedTurns } from './teams.ts';
 import { liveActivity, runInfo, defaultModel, activeRuns, stopRun } from './engines/index.ts';
 import { runningWorkflowRuns, stopWorkflowRun } from './workflows.ts';
 import { listApprovals } from './approvals.ts';
@@ -25,7 +25,7 @@ import { installFromGitHub, parseGitHubUrl, reposIn } from './skillinstall.ts';
 import type { SkillInstallResult } from '../shared/types.ts';
 import { cleanSchedule, scheduleText } from '../shared/routines.ts';
 import { EFFORTS, EFFORT_NAMES, effortFor, isEffort } from '../shared/effort.ts';
-import { MODEL_PROVIDERS, PROVIDER_IDS, modelProvider, providerOfAgent, providerProblem, readyProviders, defaultModelFor, checkModel, findModels } from './models.ts';
+import { MODEL_PROVIDERS, PROVIDER_IDS, modelProvider, providerOfAgent, providerProblem, readyProviders, defaultModelFor, checkModel, checkModelNow, availableModels, findModels } from './models.ts';
 import type { Effort } from '../shared/effort.ts';
 import type { ModelProvider } from './models.ts';
 import { listBriefs } from './briefs.ts';
@@ -516,14 +516,16 @@ function modelTargets(t: BrainAction, last: { agent: string | null; team: string
 
 const targetList = (act: BrainAction): BrainAction[] => (Array.isArray(act.targets) && act.targets.length ? (act.targets as BrainAction[]) : [act]);
 
-/** Check the model ids of set_model actions against their provider's list (before applyActions). */
+/** Check the model ids of set_model actions against their provider's list (before applyActions, which
+ *  checks each agent again against the lists fetched here: see checkModelNow). */
 export async function prepareModels(actions: BrainAction[]): Promise<void> {
   for (const act of actions.slice(0, ACTIONS_MAX)) {
     if (actionKind(act) !== 'set_model' || act.model === undefined || act.model === null) continue;
     const model = String(act.model).trim();
     const prov = modelProvider(act.provider);
-    // no provider: the model is for the provider each agent runs on now ('new' ones aren't made yet)
+    // no provider: the model is for the provider each agent runs on now
     const byProvider = new Map<ModelProvider, string[]>();
+    let later = false;
     if (prov) byProvider.set(prov, []);
     else {
       for (const t of targetList(act)) {
@@ -533,10 +535,13 @@ export async function prepareModels(actions: BrainAction[]): Promise<void> {
             byProvider.set(p, [...(byProvider.get(p) || []), a.name]);
           }
         } catch {
-          /* reported when the action runs */
+          // ('new': made by an earlier action, so not there yet; anything else is reported when it runs)
+          later = true;
         }
       }
     }
+    // who it is about is known only when the actions run: have every provider's list ready for that check
+    if (later) await Promise.all(readyProviders().map((p) => availableModels(p).catch(() => [])));
     for (const [p, names] of byProvider) {
       const why = await checkModel(p, model);
       if (why) {
@@ -586,11 +591,14 @@ function stopWork(t: BrainAction, p: Project, last: { agent: string | null; team
   if (to === 'agent' || (!to && ref)) {
     const a = findAgentRef(ref === 'new' ? last.agent : ref);
     if (!a) throw new Error(`no agent "${ref || ''}"`);
+    // its waiting team turns first, so it doesn't pick the next one up as soon as the stopped one ends
+    const waiting = dropQueuedTurns(a.id);
     const list = runsHere(a.id);
-    if (!list.length) return { kind: 'note', text: `${a.name} wasn't working`, agentId: a.id };
+    if (!list.length && !waiting) return { kind: 'note', text: `${a.name} wasn't working`, agentId: a.id };
     for (const r of list) stopRun(r.id);
     log('agent', `The Brain stopped ${a.name}`, { agentId: a.id });
-    return { kind: 'stop', text: `Stopped ${a.name}${list.length > 1 ? ` (${list.length} jobs)` : ''}`, agentId: a.id };
+    const jobs = [list.length > 1 ? `${list.length} jobs` : '', waiting ? `and took it off ${waiting} waiting team turn${waiting > 1 ? 's' : ''}` : ''].filter(Boolean).join(', ');
+    return { kind: 'stop', text: `Stopped ${a.name}${jobs ? ` (${jobs})` : ''}`, agentId: a.id };
   }
   throw new Error('say what to stop: "to" is agent, team or all');
 }
@@ -785,12 +793,19 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
             const { label, list, teamId, agentId } = modelTargets(target, { agent: lastAgent, team: lastTeam });
             const changed: Agent[] = [];
             const same: Agent[] = [];
+            const refused: string[] = [];
             let nearest = false;
             for (const a of list) {
               const next: Agent = { ...a };
               if (prov) {
                 next.engine = MODEL_PROVIDERS[prov].engine;
                 if (MODEL_PROVIDERS[prov].provider) next.provider = MODEL_PROVIDERS[prov].provider!;
+              }
+              // (also catches agents made earlier in this answer, which prepareModels couldn't see)
+              const wrong = hasModel ? checkModelNow(providerOfAgent(next), model) : null;
+              if (wrong) {
+                refused.push(`${a.name}: ${wrong}`);
+                continue;
               }
               const moved = providerOfAgent(next) !== providerOfAgent(a);
               if (hasModel) next.model = model;
@@ -807,6 +822,8 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
             for (const a of changed) groups.set(modelText(a), [...(groups.get(modelText(a)) || []), a.name]);
             const said = [...groups].map(([what, names]) => `${names.join(', ')} now ${names.length > 1 ? 'run' : 'runs'} on ${what}`);
             if (same.length) said.push(`${same.map((a) => a.name).join(', ')} already ${same.length > 1 ? 'run' : 'runs'} on that`);
+            if (refused.length) done.push({ kind: 'error', text: `set_model: ${refused.join('; ')}` });
+            if (!said.length) continue;
             const text = `${teamId ? `${label}: ` : ''}${said.join('; ')}${nearest ? ` (${EFFORT_NAMES[effort as Effort].toLowerCase()} effort isn't a level there, so the nearest one)` : ''}`;
             if (changed.length) log('agent', `The Brain switched ${changed.map((a) => a.name).join(', ')} to ${[...groups.keys()].join(' / ')}`);
             done.push({ kind: changed.length ? 'model' : 'note', text, ...(teamId ? { teamId } : {}), ...(agentId ? { agentId } : {}) });

@@ -44,8 +44,9 @@ const ALIASES: Record<string, ModelProvider> = {
 export function modelProvider(name: unknown): ModelProvider | null {
   const n = String(name ?? '').trim().toLowerCase();
   if (!n) return null;
-  if (n in MODEL_PROVIDERS) return n as ModelProvider;
-  return ALIASES[n] || null;
+  // own keys only: "constructor" or "toString" isn't a provider
+  if (Object.hasOwn(MODEL_PROVIDERS, n)) return n as ModelProvider;
+  return Object.hasOwn(ALIASES, n) ? ALIASES[n] : null;
 }
 
 /** The provider an agent runs on now. */
@@ -169,6 +170,13 @@ export async function findModels(providerName: unknown, query: unknown, { limit 
 
 /** Is this a model the provider has? null when it is (or the provider can't say). Else why not. */
 export async function checkModel(p: ModelProvider, model: string): Promise<string | null> {
+  if (p !== 'claude' && p !== 'codex' && p !== 'hermes') await availableModels(p);
+  return checkModelNow(p, model);
+}
+
+/** The same check, without fetching: an API provider's list only when it is fetched already (else the
+ *  id is taken as given). For actions that run after the lists were fetched (prepareModels). */
+export function checkModelNow(p: ModelProvider, model: string): string | null {
   const id = model.trim();
   if (!id) return p === 'codex' || p === 'hermes' ? null : `${MODEL_PROVIDERS[p].label} needs a model id`;
   if (p === 'claude') {
@@ -176,7 +184,8 @@ export async function checkModel(p: ModelProvider, model: string): Promise<strin
     return `"${id}" isn't a Claude Code model (opus, sonnet, haiku, fable or a full claude-… id)`;
   }
   if (p === 'codex' || p === 'hermes') return null;
-  const all = await availableModels(p);
+  const hit = cache.get(p);
+  const all = hit && Date.now() - hit.at < CACHE_MS ? hit.list : [];
   // can't list them (server not running): take the id as given
   if (!all.length || all.some((m) => m.id === id)) return null;
   const like = closeModels(all, id);
