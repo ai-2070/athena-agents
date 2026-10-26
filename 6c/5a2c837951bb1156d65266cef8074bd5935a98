@@ -1,0 +1,23 @@
+web/icons.ts
+  s_d7145df1586b54::t_4b11273dc1c9ea 8
+scripts/build-icons.ts
+  s_d7145df1586b54::t_4b11273dc1c9ea 58-60,65-66
+scripts/brand-fallbacks.json
+  s_d7145df1586b54::t_4b11273dc1c9ea 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6c5a2c837951bb1156d65266cef8074bd5935a98",
+  "prompts": {},
+  "sessions": {
+    "s_d7145df1586b54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0d804681-b982-4507-9130-2735cb25a87a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
