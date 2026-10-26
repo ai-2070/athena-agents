@@ -44,6 +44,8 @@ export interface EngineResult {
   text: string;
   cost?: number;
   tokens?: number;
+  /** of those, read from the provider's prompt cache */
+  cached?: number;
   context?: number;
   window?: number;
 }
@@ -178,7 +180,9 @@ export function liveChat(chatId: string): Chat | null {
 }
 
 export function buildSystemPrompt(agent: Agent): string {
-  const date = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
+  // the day only: the instructions stay the same all day, so the provider's prompt cache can reuse them
+  // and the chat after them (with the time in here, every message started a new cache)
+  const date = new Date().toLocaleDateString('en-US', { dateStyle: 'full' });
   const tools = toolsForAgent(agent).map((t) => t.name);
   const project = activeProject();
   return [
@@ -190,7 +194,7 @@ export function buildSystemPrompt(agent: Agent): string {
 You are one of several agents on the user's personal dashboard, running on their Windows PC (user folder ${HOME}).
 You work on the project "${project.name}". Its Brain is the folder ${project.brainPath}: the project's files, notes${project.repo ? ` and its GitHub repo (${project.repo})` : ''}. Look there first for context (BRAIN.md, notes/, docs) and keep your work in it.
 Your workspace folder is ${workspaceOf(agent)}; save files you make there unless told otherwise.
-Today is ${date}.
+Today is ${date}. (For the exact time, check the clock with a command if you can.)
 ${tools.includes('x_draft_post') ? 'Posts you write for X go to the Outbox for the user to approve; say so when you draft one.\n' : ''}${tools.includes('ask_agent') ? 'You can hand sub-tasks to teammates with ask_agent (see list_agents). When the user writes @Name (or @Name [id] when names are shared), they mean that agent: give it its part with ask_agent.\n' : ''}Be direct. When you finish a task, say what you did and where the results are.`,
   ]
     .filter(Boolean)
@@ -319,7 +323,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       if (result?.text && !chat.items.some((i, idx) => idx > chat.items.findLastIndex((x) => x.type === 'user') && i.type === 'assistant')) {
         pushItem(chat, { type: 'assistant', text: result.text });
       }
-      if (result?.cost) pushItem(chat, { type: 'meta', text: `$${result.cost.toFixed(4)}${result.tokens ? ` · ${result.tokens} tokens` : ''}` });
+      if (result?.cost) pushItem(chat, { type: 'meta', text: `$${result.cost.toFixed(4)}${result.tokens ? ` · ${result.tokens} tokens` : ''}${result.cached ? ` · ${result.cached} from cache` : ''}` });
       persist();
       send({ kind: 'done', text: result?.text || '', cost: result?.cost || 0, seconds: Math.round((Date.now() - started) / 1000) });
       log('run', `${agent.name} finished (${Math.round((Date.now() - started) / 1000)}s)`, { agentId: agent.id, chatId: chat.id });

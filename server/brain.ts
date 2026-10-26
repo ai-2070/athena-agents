@@ -6,6 +6,7 @@ import { TOOL_GROUPS } from './tools.ts';
 import { listServers } from './mcp.ts';
 import { run, which, tmpFile } from './util.ts';
 import { describeAttachments } from './uploads.ts';
+import { systemMessage } from './promptcache.ts';
 import { effortFor } from '../shared/effort.ts';
 import type { Agent, BrainSetting, Effort, EngineId, Team, TeamAccess } from '../shared/types.ts';
 
@@ -136,7 +137,7 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
     const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json', 'X-Title': 'My Dashboard' },
-      body: JSON.stringify({ model: bm.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, ...(bm.effort ? { reasoning: { effort: bm.effort } } : {}), ...(onPart ? { stream: true } : {}) }),
+      body: JSON.stringify({ model: bm.model, messages: [systemMessage(bm.model, system), { role: 'user', content: user }], max_tokens: maxTokens, ...(bm.effort ? { reasoning: { effort: bm.effort } } : {}), ...(onPart ? { stream: true } : {}) }),
       signal: AbortSignal.timeout(timeout),
     });
     if (!onPart || !r.ok || !r.body) {

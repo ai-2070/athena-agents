@@ -46,6 +46,8 @@ interface ClaudeStreamMsg {
   result?: string;
   is_error?: boolean;
   total_cost_usd?: number;
+  /** on the result: the whole run's tokens, cache reads included */
+  usage?: ClaudeUsage;
   model?: string;
   mcp_servers?: { name: string; status?: string }[];
 }
@@ -250,7 +252,8 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
   }
   if (result.is_error) throw new Error(result.result || `Claude Code reported an error (${result.subtype}).`);
   const window = Math.max(0, ...Object.values(result.modelUsage || {}).map((m) => Number(m?.contextWindow) || 0));
-  return { text: result.result || '', cost: agent.claudeAuth && agent.claudeAuth !== 'login' ? result.total_cost_usd || 0 : 0, ...(context ? { context } : {}), ...(window ? { window } : {}) };
+  const cached = Number(result.usage?.cache_read_input_tokens || 0);
+  return { text: result.result || '', cost: agent.claudeAuth && agent.claudeAuth !== 'login' ? result.total_cost_usd || 0 : 0, ...(cached ? { cached } : {}), ...(context ? { context } : {}), ...(window ? { window } : {}) };
 }
 
 function prettyTool(name: string): string {
