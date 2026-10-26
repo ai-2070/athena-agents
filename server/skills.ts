@@ -389,18 +389,29 @@ Read \`result.launch\`: \`outcome.handle\` is the agent's handle, \`outcome.kind
 // GitHub repo. Each keeps that repo as its origin, so "Download again" updates it like an installed one.
 // `under` is the folder in that repo that holds the skill folders ('' = its top level): the origin's
 // path must be the skill's real path there, or "Download again" would add a second copy.
-const BUNDLED: { dir: string; repo: string; ref: string; under: string }[] = [
+// `private`: the repo isn't public, so its skills come without a link back to it (no "from" label,
+// no "Download again").
+const BUNDLED: { dir: string; repo: string; ref: string; under: string; private?: boolean }[] = [
   { dir: 'storytold', repo: 'hermes-pro/storytold-skills', ref: 'main', under: '' },
   { dir: 'oomol', repo: 'oomol-lab/oo-cli', ref: 'main', under: 'contrib/skills/shared' },
   { dir: 'composio', repo: 'ComposioHQ/skills', ref: 'main', under: 'skills' },
   { dir: 'orca', repo: 'stablyai/orca', ref: 'main', under: 'skills' },
+  { dir: 'subagent-skills', repo: 'ai-2070/subagent-skills', ref: 'master', under: '', private: true },
 ];
 /** The folder in this repo that holds the bundled skill folders. */
 export const bundledSkillsRoot = (): string => path.join(ROOT, 'skills');
 
+/** A bundled skill: its folder, its repo, and where it was copied from (none for a private repo). */
+export interface BundledSkill {
+  slug: string;
+  dir: string;
+  repo: string;
+  origin?: Omit<SkillOrigin, 'installedAt'>;
+}
+
 /** The bundled skills: each one's folder, and where it was copied from. */
-export function bundledSkills(): { slug: string; dir: string; origin: Omit<SkillOrigin, 'installedAt'> }[] {
-  const out: { slug: string; dir: string; origin: Omit<SkillOrigin, 'installedAt'> }[] = [];
+export function bundledSkills(): BundledSkill[] {
+  const out: BundledSkill[] = [];
   for (const b of BUNDLED) {
     const base = path.join(bundledSkillsRoot(), b.dir);
     let list: fs.Dirent[] = [];
@@ -412,7 +423,8 @@ export function bundledSkills(): { slug: string; dir: string; origin: Omit<Skill
     for (const e of list) {
       if (!e.isDirectory() || !SAFE.test(e.name) || !exists(path.join(base, e.name, 'SKILL.md'))) continue;
       const at = b.under ? `${b.under}/${e.name}` : e.name;
-      out.push({ slug: e.name, dir: path.join(base, e.name), origin: { url: `https://github.com/${b.repo}/tree/${b.ref}/${at}`, repo: b.repo, ref: b.ref, path: at } });
+      const origin = b.private ? undefined : { url: `https://github.com/${b.repo}/tree/${b.ref}/${at}`, repo: b.repo, ref: b.ref, path: at };
+      out.push({ slug: e.name, dir: path.join(base, e.name), repo: b.repo, ...(origin ? { origin } : {}) });
     }
   }
   return out.sort((a, b) => a.slug.localeCompare(b.slug));
@@ -431,7 +443,14 @@ export function ensureBuiltinSkills() {
     now.push(b.slug);
   }
   for (const b of bundledSkills()) {
-    if (added.includes(b.slug)) continue;
+    if (added.includes(b.slug)) {
+      // added before its repo was marked private: drop the link back to it
+      if (!b.origin) {
+        const src = path.join(LIB(), b.slug, '.source.json');
+        if (readJSON<Partial<SkillOrigin>>(src, {}).repo === b.repo) fs.rmSync(src, { force: true });
+      }
+      continue;
+    }
     // a skill of the same id already in the library is the user's: leave it be
     if (!exists(path.join(LIB(), b.slug))) {
       // copied into a fresh folder first, so a failed copy leaves no half skill (and is tried again next start)
@@ -439,7 +458,7 @@ export function ensureBuiltinSkills() {
       try {
         fs.copyFileSync(path.join(b.dir, 'SKILL.md'), path.join(tmp, 'SKILL.md'));
         copySkillFiles(b.dir, tmp);
-        writeJSON(path.join(tmp, '.source.json'), { ...b.origin, installedAt: Date.now() } satisfies SkillOrigin);
+        if (b.origin) writeJSON(path.join(tmp, '.source.json'), { ...b.origin, installedAt: Date.now() } satisfies SkillOrigin);
         fs.renameSync(tmp, path.join(LIB(), b.slug));
       } catch (e) {
         fs.rmSync(tmp, { recursive: true, force: true });
