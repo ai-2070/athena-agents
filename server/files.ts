@@ -20,12 +20,14 @@ export function viewRoots(): string[] {
 /** The real path of p when it is inside one of the folders above (links followed), else null. */
 export const viewable = (p: unknown, roots = viewRoots()): string | null => (typeof p === 'string' && p.trim() && path.isAbsolute(p.trim()) ? insideRoots(path.resolve(p.trim()), roots) : null);
 
-export type FileKind = 'image' | 'video' | 'audio' | 'file' | 'folder';
+export type FileKind = 'image' | 'video' | 'audio' | 'model' | 'file' | 'folder';
 const IMAGE = /\.(png|jpe?g|webp|gif)$/i;
 const VIDEO = /\.(mp4|webm|m4v|mov)$/i;
 const AUDIO = /\.(mp3|wav|ogg|oga|m4a)$/i;
+// 3D models the page can show (.blend and the like stay plain files)
+const MODEL = /\.(glb|gltf|obj|stl|ply|fbx)$/i;
 
-export const kindOf = (p: string, isDir = false): FileKind => (isDir ? 'folder' : IMAGE.test(p) ? 'image' : VIDEO.test(p) ? 'video' : AUDIO.test(p) ? 'audio' : 'file');
+export const kindOf = (p: string, isDir = false): FileKind => (isDir ? 'folder' : IMAGE.test(p) ? 'image' : VIDEO.test(p) ? 'video' : AUDIO.test(p) ? 'audio' : MODEL.test(p) ? 'model' : 'file');
 
 /** What a chat needs to preview a mentioned path. ok: false when it isn't there or isn't allowed. */
 export type FileInfo = { path: string; ok: false } | { path: string; ok: true; kind: FileKind; name: string; size: number; modified: number };

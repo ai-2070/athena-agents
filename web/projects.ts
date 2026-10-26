@@ -1,7 +1,8 @@
 // Project switcher and "New project" dialog.
-import { h, mount, state, GET, POST, attempt, modal, seg, field, toast, refreshSoon, ago } from './core.ts';
+import { h, mount, state, GET, POST, PUT, attempt, promptBox, confirmBox, modal, seg, field, toast, refreshSoon, ago } from './core.ts';
 import { icon } from './icons.ts';
 import { projectMark } from './projectlogo.ts';
+import { moveId } from './projectnav.ts';
 import { uiZoom } from './look.ts';
 import { askBrain } from './dock.ts';
 import { BACKUP_EXT, backupProject, backupAgo, fileSize, listBackups, readBackupSummary, restoreBackup, restoredText, summaryLine } from './backup.ts';
@@ -41,6 +42,45 @@ interface ProjectsOverview {
 const slug = (s: string | null | undefined) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'project';
 
 // A small menu under the project name: switch, create, or manage.
+// ---------- what you can do with a project: rename, clone, delete (in the project menu and on the All projects screen) ----------
+type ProjectRef = Pick<Project, 'id' | 'name'>;
+
+/** Asks for a new name and saves it (only the name: the folder and files keep theirs). */
+export async function renameProject(p: ProjectRef): Promise<boolean> {
+  const name = (await promptBox('Rename project', { value: p.name }))?.trim();
+  if (!name || name === p.name) return false;
+  const r = await attempt(() => PUT(`/projects/${encodeURIComponent(p.id)}`, { name }), `Renamed to ${name}`);
+  refreshSoon(0);
+  return !!r;
+}
+
+/** A copy as a new project (agents, teams, routines, notes, skills and chats; schedules start paused), which is opened. */
+export async function cloneProject(p: ProjectRef): Promise<boolean> {
+  const name = (await promptBox('Clone project', { label: 'Name of the copy', value: `${p.name} (copy)`, ok: 'Clone' }))?.trim();
+  if (!name) return false;
+  const made = await attempt(() => POST<CreatedProject>(`/projects/${encodeURIComponent(p.id)}/clone`, { name }), (r) => `Cloned as ${r.name}: ${r.restored?.agents ?? 0} agents, ${r.restored?.teams ?? 0} teams`);
+  if (!made) return false;
+  await attempt(() => POST(`/projects/${encodeURIComponent(made.id)}/activate`));
+  refreshSoon(0);
+  return true;
+}
+
+/** Deletes a project after a backup that is made and checked first. Its folder and files on the PC are never touched. */
+export async function deleteProject(p: ProjectRef): Promise<boolean> {
+  const sure = await confirmBox(
+    h(
+      'div',
+      h('p', `Delete the project "${p.name}"?`),
+      h('p.hint', 'First a backup is made in My Dashboard Backups and checked. Only if it is complete is the project removed: its agents, teams, chats and settings leave the dashboard (set aside on this PC, not erased). The project\'s own folder and files are not touched.'),
+    ),
+    { ok: 'Back up and delete', danger: true },
+  );
+  if (!sure) return false;
+  const r = await attempt(() => POST<{ backup: { name: string } }>(`/projects/${encodeURIComponent(p.id)}/delete`), (x) => `Deleted ${p.name}. Backup: ${x.backup.name}`);
+  refreshSoon(0);
+  return !!r;
+}
+
 export function openProjectMenu(anchor: Element): void {
   document.querySelector('.proj-menu')?.remove();
   const d = state.data!;
@@ -56,19 +96,121 @@ export function openProjectMenu(anchor: Element): void {
     await attempt(() => POST(`/projects/${p.id}/activate`), `Opened ${p.name}`);
     refreshSoon(0);
   };
+  // the projects in their order (the floors): drag one, or Alt+Up / Alt+Down on it, to move it; the pencil (or F2) renames it
+  const list = h('div.proj-menu-list');
+  const rows = new Map<string, HTMLElement>();
+  const order = () => [...list.children].map((c) => (c as HTMLElement).dataset.id!);
+  const save = (ids: string[]) => {
+    for (const id of ids) list.append(rows.get(id)!);
+    void attempt(() => POST('/projects/order', { ids })).then(() => refreshSoon(0));
+  };
+  let dragId = '';
+  const clearMarks = () => list.querySelectorAll('.drop-above, .drop-below, .dragging').forEach((el) => el.classList.remove('drop-above', 'drop-below', 'dragging'));
+  // the name turns into a box: Enter or leaving it saves, Esc keeps the old name
+  const startRename = (p: Project, row: HTMLElement, item: HTMLElement, label: HTMLElement) => {
+    if (row.querySelector('.proj-rename-row')) return;
+    const input = h('input', { value: p.name, maxlength: 80, 'aria-label': `New name for ${p.name}` });
+    const box = h('div.proj-rename-row', projectMark(p, 16), input);
+    let done = false;
+    const finish = (commit: boolean) => {
+      if (done) return;
+      done = true;
+      box.remove();
+      item.classList.remove('hidden');
+      row.draggable = true;
+      const next = input.value.trim();
+      if (!commit || !next || next === p.name) return;
+      label.textContent = next;
+      p.name = next;
+      void attempt(() => PUT(`/projects/${encodeURIComponent(p.id)}`, { name: next }), `Renamed to ${next}`).then(() => refreshSoon(0));
+    };
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        finish(true);
+        setTimeout(() => item.focus(), 0);
+      } else if (e.key === 'Escape') {
+        e.preventDefault(); // (the menu itself stays open)
+        finish(false);
+        setTimeout(() => item.focus(), 0);
+      }
+    });
+    input.addEventListener('blur', () => finish(true));
+    row.draggable = false;
+    item.classList.add('hidden');
+    row.prepend(box);
+    input.focus();
+    input.select();
+  };
+  for (const p of d.projects || []) {
+    const label = h('span.grow', p.name);
+    const item = h(
+      `button.st-menu-item${p.id === d.project.id ? '.on' : ''}`,
+      { title: 'Drag to change the order (or Alt+Up / Alt+Down)', onclick: () => switchTo(p) },
+      icon('grip-vertical', 13),
+      projectMark(p, 16),
+      label,
+      p.id === d.project.id ? icon('check', 14) : null,
+    );
+    const row = h('div.proj-menu-row', { draggable: 'true', 'data-id': p.id }, item);
+    row.append(h('button.proj-rename-btn', { title: `Rename ${p.name} (F2)`, 'aria-label': `Rename ${p.name}`, onclick: () => startRename(p, row, item, label) }, icon('pencil', 13)));
+    row.addEventListener('dragstart', (e) => {
+      dragId = p.id;
+      e.dataTransfer?.setData('text/plain', p.id);
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => row.classList.add('dragging'), 0);
+    });
+    row.addEventListener('dragend', clearMarks);
+    row.addEventListener('dragover', (e) => {
+      if (!dragId || dragId === p.id) return;
+      e.preventDefault();
+      const r2 = row.getBoundingClientRect();
+      const below = e.clientY > r2.top + r2.height / 2;
+      list.querySelectorAll('.drop-above, .drop-below').forEach((el) => el.classList.remove('drop-above', 'drop-below'));
+      row.classList.add(below ? 'drop-below' : 'drop-above');
+    });
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const below = row.classList.contains('drop-below');
+      clearMarks();
+      const dragged = dragId;
+      dragId = '';
+      if (!dragged || dragged === p.id) return;
+      const without = order().filter((x) => x !== dragged);
+      const at = without.indexOf(p.id) + (below ? 1 : 0);
+      save([...without.slice(0, at), dragged, ...without.slice(at)]);
+    });
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        return startRename(p, row, item, label);
+      }
+      if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+      e.preventDefault();
+      const ids = order();
+      const i = ids.indexOf(p.id);
+      save(moveId(ids, p.id, e.key === 'ArrowUp' ? i - 1 : i + 1));
+      setTimeout(() => item.focus(), 0);
+    });
+    rows.set(p.id, row);
+    list.append(row);
+  }
   const menu = h(
     'div.st-menu.proj-menu',
     { style: { position: 'fixed', left: `${r.left / uiZoom()}px`, top: `${r.bottom / uiZoom() + 6}px`, transform: 'none' } },
     h('div.st-menu-head', 'Projects'),
-    (d.projects || []).map((p) =>
-      h(`button.st-menu-item${p.id === d.project.id ? '.on' : ''}`, { onclick: () => switchTo(p) }, projectMark(p, 16), h('span.grow', p.name), p.id === d.project.id ? icon('check', 14) : null),
-    ),
+    h('div.st-menu-hint', 'Drag to reorder, the pencil renames. On the Station, Up and Down switch between them.'),
+    list,
     h('div.st-menu-sep'),
     h('button.st-menu-item', { onclick: () => (close(), openLauncher({ force: true })) }, icon('folder-open', 15), 'All projects…'),
     h('button.st-menu-item', { onclick: () => (close(), openNewProject()) }, icon('plus', 15), 'New project'),
+    h('button.st-menu-item', { onclick: () => (close(), void cloneProject(d.project)) }, icon('copy', 15), 'Clone this project…'),
     h('div.st-menu-sep'),
     h('button.st-menu-item', { onclick: () => (close(), backupProject(d.project)) }, icon('archive', 15), 'Back up this project'),
     h('button.st-menu-item', { onclick: () => (close(), openNewProject({ mode: 'backup' })) }, icon('upload', 15), 'Restore a backup…'),
+    h('div.st-menu-sep'),
+    h('button.st-menu-item.danger', { onclick: () => (close(), void deleteProject(d.project)) }, icon('trash-2', 15), 'Delete this project…'),
   );
   document.body.append(menu);
   setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
@@ -396,13 +538,24 @@ export async function openLauncher({ force = false }: { force?: boolean } = {}):
       ),
       icon('chevron-right', 18),
     );
+  // the card, with rename / clone / delete beside it (they close this screen, do their thing, and bring it back with the new list)
+  const row = (p: ProjectsOverview['projects'][number]) => {
+    const again = async (action: (x: ProjectRef) => Promise<boolean>) => {
+      m.close();
+      await action(p);
+      void openLauncher({ force: true });
+    };
+    const btn = (ico: string, title: string, action: (x: ProjectRef) => Promise<boolean>, danger = false) =>
+      h(`button.launch-act${danger ? '.danger' : ''}`, { type: 'button', title: `${title} ${p.name}`, 'aria-label': `${title} ${p.name}`, onclick: () => void again(action) }, icon(ico, 14));
+    return h('div.launch-row', card(p), h('div.launch-actions', btn('pencil', 'Rename', renameProject), btn('copy', 'Clone', cloneProject), btn('trash-2', 'Delete', deleteProject, true)));
+  };
   m = modal({
     title: 'Open a project',
     onClose: done,
     body: h(
       'div.launcher',
       h('p.hint', 'Each project has its own agents, teams, chats and a Brain folder, and is auto-saved into that folder. Pick one to load it, open a folder you saved before, or start a new one.'),
-      h('div.launch-list', o.projects.map(card)),
+      h('div.launch-list', o.projects.map(row)),
       o.found.length
         ? h(
             'div.mt',

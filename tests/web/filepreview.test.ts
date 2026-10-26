@@ -8,6 +8,8 @@ const FILES: Record<string, { kind: string; size: number }> = {
   '/w/song.mp3': { kind: 'audio', size: 100 },
   '/w/plan.pdf': { kind: 'file', size: 12 },
   '/w/renders': { kind: 'folder', size: 0 },
+  '/w/ship.glb': { kind: 'model', size: 5_000 },
+  '/w/huge.glb': { kind: 'model', size: 80 * 1024 * 1024 },
 };
 let calls: { url: string; body: { paths?: string[]; path?: string } }[] = [];
 
@@ -51,6 +53,19 @@ describe('filePreviews()', () => {
       expect(bar.querySelector('.fp-reveal')!.textContent).toBe(revealLabel());
     }
     expect(cards[1].querySelector('.fp-size')!.textContent).toBe('3.5 MB');
+  });
+
+  it('shows a 3D model in a viewer box, and only offers a download when it is too big', async () => {
+    const box = filePreviews(['/w/ship.glb', '/w/huge.glb']);
+    document.body.append(box);
+    await settle();
+    const cards = [...box.querySelectorAll('.fp-card')];
+    expect(cards.map((c) => c.className.split(' ').find((x) => x.startsWith('fp-kind-')))).toEqual(['fp-kind-model', 'fp-kind-model']);
+    expect(cards[0].querySelector('.fp-model')).not.toBeNull();
+    expect(cards[0].querySelector('.fp-reveal')).not.toBeNull();
+    // 80 MB: not loaded at all, said in words
+    expect(cards[1].querySelector('.fp-model-note')!.textContent).toMatch(/80 MB, too big to show here/);
+    expect(cards[1].querySelector('canvas')).toBeNull();
   });
 
   it('Show in Explorer / Finder asks the server to reveal that file', async () => {

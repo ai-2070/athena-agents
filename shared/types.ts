@@ -87,6 +87,10 @@ export interface Team {
   name: string;
   description: string;
   color?: string;
+  /** The symbol in the middle of the team's pod on the map: an emoji ('' or unset = the default 💬). */
+  mark?: string;
+  /** A picture or 3D model shown there instead of the emoji (a file the server keeps; set by the server, not by saving the team). */
+  markFile?: { kind: 'image' | 'model'; ext: string; at: number } | null;
   members: string[];
   lead: string | null;
   access?: TeamAccess;
@@ -229,6 +233,9 @@ export interface Project {
   openedAt?: number;
   /** When its logo (.dashboard/logo.*) last changed; null = no logo. Added by the server when it sends projects. */
   logoAt?: number | null;
+  /** The 3D model that replaces the logo inside the Brain's globe (.dashboard/brain-model.*): when it last changed and its file type; null = none. */
+  modelAt?: number | null;
+  modelExt?: string | null;
 }
 
 // ---------- chats ----------

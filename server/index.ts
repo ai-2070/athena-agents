@@ -25,6 +25,7 @@ import * as comfy from './comfyui.ts';
 import * as mcp from './mcp.ts';
 import * as social from './social.ts';
 import { removeArtifact } from './artifacts.ts';
+import * as teamMarks from './teammark.ts';
 import * as library from './library.ts';
 import { isEffort } from '../shared/effort.ts';
 import { queuedText } from '../shared/queue.ts';
@@ -145,6 +146,8 @@ get('/api/state', async (): Promise<AppState> => ({
 get('/api/activity', async () => activity(200));
 // ---------- projects ----------
 get('/api/projects', async () => ({ active: projects.withLogo(store.activeProject()), projects: store.listProjects().map(projects.withLogo), root: projects.projectsRoot() }));
+// The order projects are listed in: the project menu, and the Up / Down keys on the Station.
+post<{ ids?: unknown }>('/api/projects/order', async (_p, body) => ({ projects: store.reorderProjects(body.ids).map(projects.withLogo) }));
 // The project's logo: shown on the start screen, in the project menu and inside the Brain.
 get('/api/projects/:id/logo', async ({ id }, _b, _q, res) => {
   const p = need(store.listProjects().find((x) => x.id === id));
@@ -160,6 +163,24 @@ post<{ data?: unknown }>('/api/projects/:id/logo', async ({ id }, body) => {
 });
 del('/api/projects/:id/logo', async ({ id }) => {
   const p = projects.removeLogo(id);
+  store.emit('project-logo', { id });
+  return p;
+});
+// The 3D model that replaces the logo inside the Brain's globe.
+get('/api/projects/:id/model', async ({ id }, _b, _q, res) => {
+  const p = need(store.listProjects().find((x) => x.id === id));
+  const f = projects.modelFile(p);
+  if (!f) throw new HttpError(404, 'No 3D model');
+  sendFileSafely(res, f);
+  return undefined;
+});
+post<{ name?: unknown; data?: unknown }>('/api/projects/:id/model', async ({ id }, body) => {
+  const p = projects.setModel(id, body.name, body.data);
+  store.emit('project-logo', { id });
+  return p;
+});
+del('/api/projects/:id/model', async ({ id }) => {
+  const p = projects.removeModel(id);
   store.emit('project-logo', { id });
   return p;
 });
@@ -216,6 +237,30 @@ postFile('/api/backups/restore', async (_p, upload, q) => {
   return { ...projects.withLogo(r.project), restored: r.restored };
 });
 del('/api/projects/:id', async ({ id }) => projects.removeProject(id));
+// A copy of a project as a new one. Shares the restore's lock: both hold a whole unpacked project in memory.
+post<{ name?: string }>('/api/projects/:id/clone', async ({ id }, body) => {
+  if (restoring) throw new HttpError(409, 'Another project is being copied or restored. Try again when it is done.');
+  restoring = true;
+  let r: Awaited<ReturnType<typeof backup.cloneProject>>;
+  try {
+    r = await backup.cloneProject(id, body.name);
+  } catch (e) {
+    throw new HttpError(400, (e as Error).message);
+  } finally {
+    restoring = false;
+  }
+  projects.touch(r.project.id);
+  return { ...projects.withLogo(r.project), restored: r.restored };
+});
+// Delete a project: back it up, check the backup, then remove it. Not while an agent is working in it.
+post('/api/projects/:id/delete', async ({ id }) => {
+  if (engines.activeRuns().some((run) => engines.runInfo(run.id)?.projectId === id)) throw new HttpError(409, 'An agent is still working in this project. Stop it first, then delete the project.');
+  try {
+    return backup.backupAndDeleteProject(id);
+  } catch (e) {
+    throw new HttpError(400, (e as Error).message);
+  }
+});
 get('/api/brain', async () => projects.brainInfo());
 // Where things sit on the Station map (per project), e.g. { bench: { x, z } }.
 get('/api/layout', async () => readJSON<Record<string, unknown>>(store.projectData('layout.json'), {}));
@@ -739,13 +784,28 @@ get('/api/workflows', async () =>
 );
 // a team's files: only uploads of this project
 const teamFiles = (body: Partial<Team>): Partial<Team> => ('files' in body ? { ...body, files: uploads.cleanAttachments(body.files) } : body);
-post<Partial<Team>>('/api/workflows', async (_p, body) => workflows.save({ name: 'New workflow', steps: [], schedule: { type: 'none' }, enabled: false, ...teamFiles(body), id: undefined }));
+// a team's symbol: only an emoji comes in through here (a picture or model has its own route, so saving a team can't point it at another file)
+const teamMark = (body: Partial<Team>): Partial<Team> => {
+  const { markFile: _ignored, ...rest } = body;
+  return 'mark' in rest ? { ...rest, mark: teamMarks.cleanMark(rest.mark) } : rest;
+};
+post<Partial<Team>>('/api/workflows', async (_p, body) => workflows.save({ name: 'New workflow', steps: [], schedule: { type: 'none' }, enabled: false, ...teamMark(teamFiles(body)), id: undefined }));
 get('/api/workflows/:id', async ({ id }) => need(teams.getTeam(id)));
-put<Partial<Team>>('/api/workflows/:id', async ({ id }, body) => workflows.save({ ...need(workflows.get(id)), ...teamFiles(body), id }));
+put<Partial<Team>>('/api/workflows/:id', async ({ id }, body) => workflows.save({ ...need(workflows.get(id)), ...teamMark(teamFiles(body)), id }));
+// the picture or 3D model in the middle of a team's pod, instead of its emoji
+get('/api/workflows/:id/mark', async ({ id }, _b, _q, res) => {
+  const f = teamMarks.markFile(need(workflows.get(id)));
+  if (!f) throw new HttpError(404, 'No picture or model');
+  sendFileSafely(res, f);
+  return undefined;
+});
+post<{ name?: unknown; data?: unknown }>('/api/workflows/:id/mark', async ({ id }, body) => teamMarks.setMarkFile(id, body.name, body.data));
+del('/api/workflows/:id/mark', async ({ id }) => teamMarks.removeMarkFile(id));
 del('/api/workflows/:id', async ({ id }) => {
   const gone = workflows.get(id);
   if (!gone) return { ok: true };
   workflows.remove(gone.id);
+  teamMarks.dropMarkFiles(gone.id);
   log('team', `Deleted team ${gone.name}`);
   return { ok: true };
 });

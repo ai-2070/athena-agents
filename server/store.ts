@@ -127,6 +127,20 @@ export function saveProjects(list: Project[]) {
   emit('projects');
 }
 
+/**
+ * The order projects are listed in (the project menu, and the Up / Down arrow keys on the Station). `ids` is the new order;
+ * projects it leaves out keep their relative order after it, and ids that are not projects are ignored. Returns the list.
+ */
+export function reorderProjects(ids: unknown): Project[] {
+  const list = listProjects();
+  const want = (Array.isArray(ids) ? ids : []).filter((x): x is string => typeof x === 'string');
+  const byId = new Map(list.map((p) => [p.id, p]));
+  const first = [...new Set(want)].map((id) => byId.get(id)).filter((p): p is Project => !!p);
+  const next = [...first, ...list.filter((p) => !first.includes(p))];
+  if (next.some((p, i) => p !== list[i])) saveProjects(next);
+  return next;
+}
+
 // Work that started in one project keeps working there (an agent run, a workflow), even if you open
 // another project meanwhile. withProject() pins the project for fn and everything it starts, sync or
 // async; inside it, activeProject() and projectData() mean that project instead of the open one.

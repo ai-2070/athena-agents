@@ -74,7 +74,12 @@ export function updateProject(id: string, patch: ProjectPatch): Project {
   const list = listProjects();
   const p = list.find((x) => x.id === id);
   if (!p) throw new Error('No such project.');
-  if (patch.name) p.name = String(patch.name).slice(0, 80);
+  if (patch.name !== undefined) {
+    const name = String(patch.name).trim().slice(0, 80);
+    if (!name) throw new Error('Give the project a name.');
+    if (name !== p.name) log('project', `Renamed the project "${p.name}" to "${name}"`);
+    p.name = name;
+  }
   if (typeof patch.description === 'string') p.description = patch.description.trim().slice(0, 6000);
   // skills every agent in the project gets
   if (Array.isArray(patch.skills)) p.skills = [...new Set(patch.skills.map(String))].slice(0, 100);
@@ -263,8 +268,8 @@ export function logoFile(p: Project): string | null {
   return null;
 }
 
-/** The project plus when its logo last changed (the page adds it to the logo URL so a new one shows at once). */
-export function withLogo(p: Project): Project & { logoAt: number | null } {
+/** The project plus when its logo and its 3D model last changed (the page adds it to their URLs so a new one shows at once). */
+export function withLogo(p: Project): Project & { logoAt: number | null; modelAt: number | null; modelExt: string | null } {
   const f = logoFile(p);
   let logoAt: number | null = null;
   if (f) {
@@ -274,11 +279,20 @@ export function withLogo(p: Project): Project & { logoAt: number | null } {
       /* just removed */
     }
   }
-  return { ...p, logoAt };
+  const m = modelFile(p);
+  let modelAt: number | null = null;
+  if (m) {
+    try {
+      modelAt = Math.round(fs.statSync(m).mtimeMs);
+    } catch {
+      /* just removed */
+    }
+  }
+  return { ...p, logoAt, modelAt, modelExt: m && modelAt ? path.extname(m).slice(1) : null };
 }
 
 // What the bytes really are (the data URL's type is only what the browser says).
-function sniffImage(buf: Buffer): (typeof LOGO_EXT)[number] | null {
+export function sniffImage(buf: Buffer): (typeof LOGO_EXT)[number] | null {
   if (buf.length > 8 && buf[0] === 0x89 && buf.toString('ascii', 1, 4) === 'PNG') return 'png';
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
   if (buf.length > 6 && buf.toString('ascii', 0, 3) === 'GIF') return 'gif';
@@ -317,6 +331,74 @@ export function removeLogo(id: string): Project & { logoAt: number | null } {
   if (!p) throw new Error('No such project.');
   const dir = path.join(p.brainPath, '.dashboard');
   for (const e of LOGO_EXT) fs.rmSync(path.join(dir, `logo.${e}`), { force: true });
+  return withLogo(p);
+}
+
+// ---------- the project's 3D model ----------
+// Replaces the logo inside the Brain's globe. Kept next to the logo (.dashboard/brain-model.<ext>). Only the formats the page can
+// draw, and each file must really be one (its first bytes are checked).
+export const MODEL_EXT = ['glb', 'gltf', 'obj', 'stl', 'ply', 'fbx'] as const;
+export const MODEL_MAX = 15 * 1024 * 1024;
+
+export function modelFile(p: Project): string | null {
+  for (const ext of MODEL_EXT) {
+    const f = path.join(p.brainPath, '.dashboard', `brain-model.${ext}`);
+    if (exists(f)) return f;
+  }
+  return null;
+}
+
+/** Is this buffer really a model of the type its name says? */
+export function looksLikeModel(ext: string, buf: Buffer): boolean {
+  const head = buf.toString('latin1', 0, 4096);
+  switch (ext) {
+    case 'glb':
+      return buf.length > 12 && buf.toString('ascii', 0, 4) === 'glTF';
+    case 'gltf':
+      try {
+        return typeof (JSON.parse(buf.toString('utf8')) as { asset?: unknown }).asset === 'object';
+      } catch {
+        return false;
+      }
+    case 'ply':
+      return head.startsWith('ply');
+    case 'fbx':
+      return head.startsWith('Kaydara FBX Binary') || head.startsWith('; FBX');
+    case 'stl':
+      // ASCII starts with "solid"; binary is an 80-byte header, a triangle count and 50 bytes per triangle
+      return head.trimStart().startsWith('solid') || (buf.length > 84 && buf.length === 84 + 50 * buf.readUInt32LE(80));
+    case 'obj':
+      return /^\s*(#|mtllib|o |g |v |vn |vt |f )/m.test(head) && /^\s*v\s/m.test(head);
+    default:
+      return false;
+  }
+}
+
+export function setModel(id: string, name: unknown, dataUrl: unknown): Project & { logoAt: number | null; modelAt: number | null; modelExt: string | null } {
+  const p = listProjects().find((x) => x.id === id);
+  if (!p) throw new Error('No such project.');
+  const ext = path.extname(String(name || '')).slice(1).toLowerCase();
+  if (!(MODEL_EXT as readonly string[]).includes(ext)) throw new Error(`Pick a 3D model file: ${MODEL_EXT.map((e) => `.${e}`).join(', ')}.`);
+  const m = /^data:[^,]*;base64,([A-Za-z0-9+/=\s]+)$/i.exec(String(dataUrl || ''));
+  if (!m) throw new Error("Couldn't read that file.");
+  const buf = Buffer.from(m[1], 'base64');
+  if (buf.length > MODEL_MAX) throw new Error(`That model is too big (${MODEL_MAX / 1048576} MB at most).`);
+  if (!looksLikeModel(ext, buf)) throw new Error(`That file isn't a real .${ext} model.`);
+  const dir = logoDir(p);
+  for (const e of MODEL_EXT) {
+    const old = path.join(dir, `brain-model.${e}`);
+    if (fs.existsSync(old) || isLink(old)) fs.rmSync(old, { force: true });
+  }
+  fs.writeFileSync(path.join(dir, `brain-model.${ext}`), buf);
+  log('project', `New 3D model for "${p.name}"`);
+  return withLogo(p);
+}
+
+export function removeModel(id: string): Project & { logoAt: number | null; modelAt: number | null; modelExt: string | null } {
+  const p = listProjects().find((x) => x.id === id);
+  if (!p) throw new Error('No such project.');
+  const dir = path.join(p.brainPath, '.dashboard');
+  for (const e of MODEL_EXT) fs.rmSync(path.join(dir, `brain-model.${e}`), { force: true });
   return withLogo(p);
 }
 

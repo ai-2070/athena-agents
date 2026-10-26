@@ -3,7 +3,7 @@ import { h, POST, DEL, attempt, refreshSoon, toast } from './core.ts';
 import { icon } from './icons.ts';
 import type { Project } from '../shared/types.ts';
 
-type ProjectRef = Pick<Project, 'id'> & Partial<Pick<Project, 'logoAt' | 'repo' | 'name'>>;
+type ProjectRef = Pick<Project, 'id'> & Partial<Pick<Project, 'logoAt' | 'modelAt' | 'modelExt' | 'repo' | 'name'>>;
 
 /** The logo's URL (changes when the logo does, so the new one shows at once), or null. */
 export function logoUrl(p: ProjectRef | null | undefined): string | null {
@@ -17,10 +17,57 @@ export function projectMark(p: ProjectRef | null | undefined, size = 16, fallbac
   return icon(fallback || (p?.repo ? 'git-branch' : 'folder'), size);
 }
 
+/** The project's 3D model (it replaces the logo in the Brain's globe): its URL, or null. */
+export function modelUrl(p: ProjectRef | null | undefined): string | null {
+  return p?.id && p.modelAt ? `/api/projects/${encodeURIComponent(p.id)}/model?v=${p.modelAt}` : null;
+}
+
+const MODEL_ACCEPT = '.glb,.gltf,.obj,.stl,.ply,.fbx';
+const MODEL_MAX = 15 * 1024 * 1024;
+
+/** Ask for a 3D model file and make it the project's Brain model. Resolves to true when it was saved. */
+export function pickModel(p: Pick<Project, 'id' | 'name'>): Promise<boolean> {
+  return new Promise((resolve) => {
+    const input = h('input', { type: 'file', accept: MODEL_ACCEPT });
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return resolve(false);
+      if (!/\.(glb|gltf|obj|stl|ply|fbx)$/i.test(file.name)) {
+        toast('Pick a 3D model: .glb, .gltf, .obj, .stl, .ply or .fbx.', 'error');
+        return resolve(false);
+      }
+      if (file.size > MODEL_MAX) {
+        toast(`That model is ${(file.size / 1048576).toFixed(0)} MB; the most is ${MODEL_MAX / 1048576} MB.`, 'error');
+        return resolve(false);
+      }
+      const data = await new Promise<string | null>((ok) => {
+        const r = new FileReader();
+        r.onload = () => ok(String(r.result));
+        r.onerror = () => ok(null);
+        r.readAsDataURL(file);
+      });
+      if (!data) {
+        toast("Couldn't read that file.", 'error');
+        return resolve(false);
+      }
+      const r = await attempt(() => POST<Project>(`/projects/${encodeURIComponent(p.id)}/model`, { name: file.name, data }), `New 3D model for ${p.name}`);
+      refreshSoon(0);
+      resolve(!!r);
+    });
+    input.click();
+  });
+}
+
+export async function removeModel(p: Pick<Project, 'id' | 'name'>): Promise<boolean> {
+  const r = await attempt(() => DEL<Project>(`/projects/${encodeURIComponent(p.id)}/model`), '3D model removed');
+  refreshSoon(0);
+  return !!r;
+}
+
 const MAX_SIDE = 512;
 
 // Big photos are shrunk to 512 px (PNG keeps transparency); small images and GIFs go up as they are.
-async function readImage(file: File): Promise<string> {
+export async function readImage(file: File): Promise<string> {
   const raw = await new Promise<string>((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result));

@@ -78,14 +78,14 @@ Projects keep separate agents, teams and chats. The project name at the top left
 
 | Place | Use it for |
 |---|---|
-| **Station** | The live 3D view of the project: the Brain in the middle, agents grouped into team pods. Click to open panels and chats. |
+| **Station** | The live 3D view of the project: the Brain in the middle, agents grouped into team pods, each with a symbol in the middle (an emoji, or your own picture or 3D model, set in the team's Setup tab). Click to open panels and chats. Projects are like floors: the project menu (top left) lists them in an order you can drag to change, and the Up and Down keys on the Station switch between them. From the menu or the All projects screen you can rename a project, clone it, or delete it (a delete first makes a backup and checks it; the project's own folder is never touched). Click the Brain to give the project a logo or a 3D model (`.glb`, `.obj`, `.stl`, `.ply`, `.fbx`, up to 15 MB) that turns inside its globe. |
 | **Brain chat** | Project-wide questions, building teams, changing skills, routines and MCP servers, switching models, stopping work and handing work on. On every page. |
 | **Agents** | Instructions, knowledge, MEMORY.md, model and effort, autonomy, tools, MCP servers, skills and workspace. |
 | **Library** | Ready-made starters, The Agency's 270+ specialists (they come with the dashboard), Hermes profiles, Claude Code subagents and your presets. |
 | **Skills** | Reusable instructions, their assignments, earlier versions and recently deleted ones. |
 | **Routines** | Repeatable jobs, their schedules and the results of each run. |
 | **Outbox** | X and Reddit drafts waiting to be approved, edited or rejected. |
-| **Artifacts** | Written results, files and folders that agents have saved. |
+| **Artifacts** | Written results, files and folders that agents have saved, each with a preview (images, video, audio, 3D models you can turn) and a search box. Chats show the same previews for files agents mention. |
 | **Settings** | Engines and keys, accounts and connections, MCP servers, programs, UI scale, accent colour and motion. |
 
 In any agent, team or Brain chat, **/** lists the commands (`/queue`, `/stop`, `/resume`, `/resend`, `/loop`, `/goal`, `/compact`) and **@** picks another agent. What each one does, and how files and long chats are handled: [Chats and files](docs/guide.md#chats-and-files).

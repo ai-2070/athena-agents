@@ -1,13 +1,14 @@
-// Previews of the files a chat mentions: images and videos shown, audio playable, other files and folders
+// Previews of the files a chat mentions: images and videos shown, audio playable, 3D models you can turn, other files and folders
 // as a card, each with a "Show in Explorer / Finder" button below. Only files the dashboard may show
 // (inside the project's folders, see server/files.ts) get one; anything else is left as plain text.
 import { h, mount, POST, attempt, lightbox } from './core.ts';
 import { icon } from './icons.ts';
 import { isMac } from './shortcuts.ts';
 import { findFileMentions } from './mentions.ts';
+import { modelViewer } from './modelviewer.ts';
 
 /** POST /api/files/info, one entry per path. */
-export type FileInfo = { path: string; ok: false } | { path: string; ok: true; kind: 'image' | 'video' | 'audio' | 'file' | 'folder'; name: string; size: number; modified: number };
+export type FileInfo = { path: string; ok: false } | { path: string; ok: true; kind: 'image' | 'video' | 'audio' | 'model' | 'file' | 'folder'; name: string; size: number; modified: number };
 
 const isWindows = (): boolean => /win/i.test((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || navigator.platform || '');
 /** What the button says on this computer. */
@@ -78,7 +79,9 @@ function card(f: Extract<FileInfo, { ok: true }>): HTMLElement {
         ? h('video.fp-media', { src: url, controls: true, preload: 'metadata', playsinline: true })
         : f.kind === 'audio'
           ? h('audio.fp-audio', { src: url, controls: true, preload: 'metadata' })
-          : h(
+          : f.kind === 'model'
+            ? modelViewer(url, f.name, f.size)
+            : h(
               f.kind === 'folder' ? 'div.fp-file' : 'a.fp-file',
               f.kind === 'folder' ? {} : { href: url, target: '_blank', rel: 'noopener', title: `Download ${f.name}` },
               icon(f.kind === 'folder' ? 'folder' : 'file-text', 22),

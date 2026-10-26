@@ -29,6 +29,12 @@ describe('fileInfo()', () => {
     expect(d).toMatchObject({ ok: true, kind: 'folder' });
   });
 
+  it('tells 3D models the page can show from other files', () => {
+    for (const f of ['ship.glb', 'ship.GLTF', 'part.obj', 'part.stl', 'scan.ply', 'rig.fbx']) expect(kindOf(f), f).toBe('model');
+    // (a Blender scene or a Unity package can't be drawn: they stay plain files)
+    for (const f of ['scene.blend', 'level.unitypackage', 'shot.png', 'notes.md']) expect(kindOf(f), f).not.toBe('model');
+  });
+
   it('knows nothing about files outside the project, missing files, or relative paths', () => {
     const outside = write(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'elsewhere-')), 'secret.png'));
     const [a, b, c, d] = fileInfo([outside, path.join(ensureBrain(), 'nope.png'), 'renders/shot.png', 42]);

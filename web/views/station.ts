@@ -12,7 +12,10 @@ import { uiZoom } from '../look.ts';
 import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.ts';
 import { skillPicker } from '../skillpick.ts';
 import { historyButton } from '../history.ts';
-import { logoUrl, projectMark, pickLogo, removeLogo } from '../projectlogo.ts';
+import { logoUrl, modelUrl, projectMark, pickLogo, removeLogo, pickModel, removeModel } from '../projectlogo.ts';
+import { loadModel } from '../modelviewer.ts';
+import { teamMarkUrl, pickTeamMark, EMOJI_CHOICES, DEFAULT_TEAM_MARK } from '../teammark.ts';
+import { neighbours, stepIndex, floorDirection, shortName } from '../projectnav.ts';
 import { slideIn, slideOut } from '../motion.ts';
 import { icon, logo, brandPath } from '../icons.ts';
 import { craftIcon, craftColor } from '../crafticons.ts';
@@ -282,6 +285,9 @@ interface Link2d {
   lift?: number;
   members?: MapNode[];
   flash: number;
+  /** how far the dashes have travelled down the wire (they flow from the tile toward the desk), and how fast they go now */
+  flow?: number;
+  speed?: number;
 }
 /** A hovered team or agent: the connections it uses and the map nodes its wires run to. */
 interface Hover {
@@ -337,7 +343,11 @@ interface Brain {
   light: THREE.PointLight;
   /** the project's logo, floating inside the globe */
   logo: THREE.Sprite | null;
+  /** what is shown in there now (the logo's address, or "model:" and the model's), so a change is noticed */
   logoKey: string;
+  /** the project's 3D model: it takes the logo's place in the globe */
+  model: THREE.Object3D | null;
+  modelLight: THREE.PointLight | null;
 }
 /** Everything the mounted Station holds. Null between mounts. */
 interface StationState {
@@ -356,6 +366,8 @@ interface StationState {
   intNodes: Map<string, IntNode>;
   curves: Curve[];
   particles: Particle[];
+  /** 3D-model symbols in the pods' hubs: they turn */
+  spinners: THREE.Object3D[];
   labelEls: Label[];
   progs: Program[];
   workflows: TeamView[];
@@ -902,6 +914,7 @@ export async function render(el: HTMLElement): Promise<void> {
     intNodes: new Map(),
     curves: [],
     particles: [],
+    spinners: [],
     labelEls: [],
     progs: [],
     workflows: [],
@@ -933,7 +946,8 @@ export async function render(el: HTMLElement): Promise<void> {
   resetView(true);
   S.offState = onState(() => {
     if (!S) return;
-    if (signature() !== S.signature) rebuild();
+    if (floorBusy) updateStatuses();
+    else if (signature() !== S.signature) rebuild();
     else updateStatuses();
     drawHud();
     if (S.selected && S.selected.type !== 'agent' && S.selected.type !== 'branch') renderPanel();
@@ -957,7 +971,7 @@ export async function render(el: HTMLElement): Promise<void> {
     const p = await GET<Program[]>('/programs').catch(() => null);
     if (S && p) {
       S.progs = p;
-      if (signature() !== S.signature) rebuild();
+      if (!floorBusy && signature() !== S.signature) rebuild();
       drawHud();
     }
   }, 30000);
@@ -1014,6 +1028,9 @@ export function unmount(): void {
   clearInterval(S.clockTimer);
   clearInterval(S.usageTimer);
   window.removeEventListener('keydown', S.onKey);
+  if (floorPick?.timer) clearTimeout(floorPick.timer);
+  floorPick = null;
+  endFloorOut();
   document.removeEventListener('pointerdown', S.onDocDown, true);
   document.removeEventListener('paste', S.onPaste);
   S.renderer.dispose();
@@ -1054,7 +1071,7 @@ function signature(): string {
   if (!d) return '';
   const ints = availableIntegrations(d, S.progs).map((i) => `${i.id}${i.live ? '+' : ''}`).join(',');
   return JSON.stringify([
-    S.workflows.map((w) => [w.id, w.name, w.color, w.angle, w.pos, w.rot, w.access, w.lead, w.members]),
+    S.workflows.map((w) => [w.id, w.name, w.color, w.angle, w.pos, w.rot, w.access, w.lead, w.members, w.mark, w.markFile?.at]),
     d.agents.map((a) => [a.id, a.name, a.emoji, a.color, a.model, a.engine, [...agentLinks(a)].join('|')]),
     ints,
   ]);
@@ -1111,24 +1128,90 @@ function buildBrain(): void {
   g.add(light);
   g.traverse((o) => (o.userData.pick = { type: 'brain' }));
   S.scene.add(g);
-  S.brain = { group: g, cloud, ico, halo, beam, star, light, logo: null, logoKey: '' };
+  S.brain = { group: g, cloud, ico, halo, beam, star, light, logo: null, logoKey: '', model: null, modelLight: null };
   setBrainLogo();
 }
 
-// Put the project's logo inside the globe (or take it out). It always faces you and gently floats,
-// while the globe and its particles turn around it. Cheap to call often: nothing happens unless it changed.
+// Put the project's 3D model, or else its logo, inside the globe (or take it out). The logo always faces you and gently
+// floats; a model slowly turns. The globe and its particles turn around either one. Cheap to call often: nothing happens
+// unless it changed.
 function setBrainLogo(): void {
   const b = S?.brain;
   if (!b) return;
-  const url = logoUrl(state.data?.project) || '';
-  if (url === b.logoKey) return;
-  b.logoKey = url;
+  const proj = state.data?.project;
+  const mUrl = modelUrl(proj) || '';
+  const lUrl = logoUrl(proj) || '';
+  const key = mUrl ? `model:${mUrl}` : lUrl;
+  if (key === b.logoKey) return;
+  b.logoKey = key;
+  clearBrainCentre(b);
+  if (mUrl) {
+    loadModel(mUrl, proj?.modelExt || 'glb')
+      .then((obj) => {
+        if (!S?.brain || S.brain.logoKey !== key) return disposeObject(obj);
+        // fit it inside the globe, centred on it
+        const box = new THREE.Box3().setFromObject(obj);
+        const size = box.getSize(new THREE.Vector3());
+        const centre = box.getCenter(new THREE.Vector3());
+        const k = 3.4 / (Math.max(size.x, size.y, size.z) || 1);
+        const holder = new THREE.Group();
+        obj.scale.setScalar(k);
+        obj.position.copy(centre.multiplyScalar(-k));
+        holder.add(obj);
+        holder.position.y = 3.2;
+        holder.traverse((o) => (o.userData.pick = { type: 'brain' }));
+        // a front light so the model is not just lit from above
+        const fill = new THREE.PointLight(0xffffff, 45, 22, 1.4);
+        fill.position.set(0, 4.8, 7);
+        S.brain.group.add(holder, fill);
+        S.brain.model = holder;
+        S.brain.modelLight = fill;
+      })
+      .catch(() => {
+        // a model the page can't read: show the logo instead, and say why
+        toast("Couldn't read the 3D model, so the logo is shown instead.", 'warn');
+        if (S?.brain && S.brain.logoKey === key) {
+          S.brain.logoKey = lUrl;
+          showBrainLogo(lUrl);
+        }
+      });
+    return;
+  }
+  showBrainLogo(lUrl);
+}
+
+function disposeObject(o: THREE.Object3D): void {
+  o.traverse((n) => {
+    const m = n as THREE.Mesh;
+    m.geometry?.dispose();
+    for (const mat of Array.isArray(m.material) ? m.material : m.material ? [m.material] : []) {
+      for (const v of Object.values(mat)) if (v instanceof THREE.Texture) v.dispose();
+      mat.dispose();
+    }
+  });
+}
+
+/** Takes whatever is in the middle of the globe out (the logo or the model, and the model's light). */
+function clearBrainCentre(b: Brain): void {
   if (b.logo) {
     b.group.remove(b.logo);
     b.logo.material.map?.dispose();
     b.logo.material.dispose();
     b.logo = null;
   }
+  if (b.model) {
+    b.group.remove(b.model);
+    disposeObject(b.model);
+    b.model = null;
+  }
+  if (b.modelLight) {
+    b.group.remove(b.modelLight);
+    b.modelLight.dispose();
+    b.modelLight = null;
+  }
+}
+
+function showBrainLogo(url: string): void {
   if (!url) return;
   new THREE.TextureLoader().load(url, (tex) => {
     if (!S?.brain || S.brain.logoKey !== url) return tex.dispose();
@@ -1164,7 +1247,7 @@ function rebuild(): void {
     });
   }
   for (const l of S.labelEls) l.el.remove();
-  Object.assign(S, { labelEls: [], desks: [], nodes: [], curves: [], particles: [] });
+  Object.assign(S, { labelEls: [], desks: [], nodes: [], curves: [], particles: [], spinners: [] });
   S.branches.clear();
   S.benchCenter = null;
   S.bench = null;
@@ -1224,6 +1307,50 @@ function rebuild(): void {
 // desk → hub → desk. Teams can sit anywhere (drag) and spin (Shift+drag); wf.pos / wf.rot keep it.
 const podRadius = (n: number): number => Math.max(6, (Math.max(1, n) * 5.6) / (2 * Math.PI) + 3.4);
 
+/** A team's own picture or 3D model in its hub, in place of the emoji (which stays if it can't be read). */
+function loadTeamMark(wf: TeamView, hub: THREE.Group, mark: THREE.Sprite): void {
+  const m = wf.markFile;
+  const url = teamMarkUrl(wf);
+  const world = S?.world;
+  if (!m || !url) return;
+  if (m.kind === 'image') {
+    new THREE.TextureLoader().load(url, (tex) => {
+      if (!S || S.world !== world) return tex.dispose();
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const img = tex.image as { width: number; height: number };
+      const aspect = img.width && img.height ? img.width / img.height : 1;
+      mark.material.map = tex;
+      mark.material.needsUpdate = true;
+      mark.scale.set(aspect >= 1 ? 1.6 : 1.6 * aspect, aspect >= 1 ? 1.6 / aspect : 1.6, 1);
+    });
+    return;
+  }
+  loadModel(url, m.ext)
+    .then((obj) => {
+      if (!S || S.world !== world) return disposeObject(obj);
+      const box = new THREE.Box3().setFromObject(obj);
+      const size = box.getSize(new THREE.Vector3());
+      const centre = box.getCenter(new THREE.Vector3());
+      const k = 1.5 / (Math.max(size.x, size.y, size.z) || 1);
+      obj.scale.setScalar(k);
+      obj.position.copy(centre.multiplyScalar(-k));
+      const holder = new THREE.Group();
+      holder.add(obj);
+      holder.position.y = 2.1;
+      // a little light of its own so it is not left dark
+      const lamp = new THREE.PointLight(0xffffff, 10, 7, 1.4);
+      lamp.position.set(0.9, 1.4, 1.6);
+      holder.add(lamp);
+      holder.traverse((o) => (o.userData.pick = { type: 'branch', id: wf.id }));
+      hub.add(holder);
+      mark.visible = false;
+      S.spinners.push(holder);
+    })
+    .catch(() => {
+      /* the emoji stays */
+    });
+}
+
 function buildBranch(wf: TeamView, i: number, ang: number, agentsById: Map<string, Agent>, dist: number): number {
   assertMounted(S);
   const color = new THREE.Color(wfColor(wf, i));
@@ -1274,10 +1401,12 @@ function buildBranch(wf: TeamView, i: number, ang: number, agentsById: Map<strin
   const holo2 = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.04, 8, 40), holo.material.clone());
   holo2.position.y = 2.1;
   hub.add(holo2);
-  const mark = new THREE.Sprite(new THREE.SpriteMaterial({ map: glyphTex('@', '#' + light.getHexString()), transparent: true, depthWrite: false }));
+  // the team's symbol: its emoji (💬 unless it chose another), or its own picture or 3D model once that has loaded
+  const mark = new THREE.Sprite(new THREE.SpriteMaterial({ map: glyphTex(wf.mark || DEFAULT_TEAM_MARK, '#' + light.getHexString()), transparent: true, depthWrite: false }));
   mark.scale.set(1.3, 1.3, 1);
   mark.position.y = 2.1;
   hub.add(mark);
+  if (wf.markFile) loadTeamMark(wf, hub, mark);
   const hubGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
   hubGlow.scale.set(4.5, 4.5, 1);
   hubGlow.position.y = 1.8;
@@ -1818,6 +1947,12 @@ function loop(): void {
     b.logo.scale.set(base.x * k, base.y * k, 1);
     b.logo.material.rotation = Math.sin(t * 0.5) * 0.06;
   }
+  for (const o of S.spinners) o.rotation.y += dt * 0.9;
+  if (b.model) {
+    // the 3D model turns slowly and floats a little, livelier while agents work
+    b.model.rotation.y += dt * (busy ? 0.9 : 0.4);
+    b.model.position.y = 3.2 + Math.sin(t * 1.1) * 0.12;
+  }
 
   // desks of the agents a hovered tile or engine lights (fade in and out)
   const lit = S.hover?.agents;
@@ -1899,6 +2034,10 @@ function loop(): void {
 
 // The dashed wires: header tile (top) to the desk or pedestal (in the map), as SVG curves.
 const SVGNS = 'http://www.w3.org/2000/svg';
+/** The length of one dash and its gap on a wire (the wire's dash pattern is "3 4"). */
+const DASH_PERIOD = 7;
+const REDUCED_MOTION = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 function drawWires(dt: number): void {
   assertMounted(S);
   const svg = S.wires;
@@ -1922,6 +2061,8 @@ function drawWires(dt: number): void {
   S.hudTop?.querySelector('.st-connected')?.classList.toggle('soft', !!focus?.only);
   S.tileEls?.forEach((el, id) => el.classList.toggle('hot', !!focus?.links.has(id)));
   const ends: (number[] | null)[] = [];
+  const motion = !REDUCED_MOTION();
+  const zoom = uiZoom();
   links.forEach((l, i) => {
     assertMounted(S);
     const p = svg.childNodes[i] as SVGPathElement;
@@ -1933,8 +2074,9 @@ function drawWires(dt: number): void {
       ends.push(null);
       return;
     }
-    const x1 = r.left + r.width / 2 - rootBox.left;
-    const y1 = r.bottom - rootBox.top + 2;
+    // (the tile's box is measured on screen, already scaled by the interface scale in Settings; the wire is drawn inside the scaled page, so it is scaled again: divide it back out)
+    const x1 = (r.left + r.width / 2 - rootBox.left) / zoom;
+    const y1 = (r.bottom - rootBox.top) / zoom + 2;
     if (l.node) {
       l.node.obj.getWorldPosition(v3);
       v3.y += l.node.kind === 'agent' ? 2.3 : 1.3;
@@ -1958,6 +2100,14 @@ function drawWires(dt: number): void {
     p.setAttribute('stroke', info?.color || '#8f968a');
     p.setAttribute('stroke-opacity', String(live + l.flash * 0.6));
     p.setAttribute('stroke-width', String((mine ? 1.5 : 1) + weight + l.flash * 1.2));
+    // the dashes flow down from the program to the agents; faster on the wires you are looking at or that just carried a call,
+    // and not at all for a program that is off (nothing flows from it) or when motion is switched off
+    const flowing = motion && !tile!.classList.contains('off') && !(focus && !mine);
+    const goal = flowing ? 11 + (mine ? 16 : 0) + l.flash * 40 : 0;
+    // ease toward the goal speed, so hovering or a call lighting a wire speeds it up and slows it down smoothly
+    l.speed = (l.speed ?? goal) + (goal - (l.speed ?? goal)) * Math.min(1, dt * 5);
+    l.flow = ((l.flow || 0) + dt * l.speed) % DASH_PERIOD;
+    p.setAttribute('stroke-dashoffset', (-l.flow).toFixed(2));
   });
   // light running down a wire
   const dotsLayer = S.wireDots;
@@ -2126,6 +2276,14 @@ function setupControls(): void {
       } else if (S.selected) {
         choose(null);
         e.preventDefault();
+      }
+    }
+    // Up / Down: the previous / next project (floor). Only here on the Station, and not while a dialog or menu is open.
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !e.isComposing) {
+      const t = e.target as Element;
+      if ((t === document.body || t.closest?.('.st-root')) && !document.querySelector('.modal-back, .model-menu, .proj-menu')) {
+        e.preventDefault();
+        stepFloor(e.key === 'ArrowDown' ? 1 : -1);
       }
     }
     if (e.key === '+' || e.key === '=') zoomAt(1.25);
@@ -2562,6 +2720,191 @@ function flyTo(vec: THREE.Vector3, zoom: number): void {
   S.cam.goal = { target, zoom: z };
 }
 
+// ---------- projects as floors ----------
+/** The open project's id as far as the Station knows (to tell which way a switch goes). */
+let floorId: string | null = null;
+/** The floor an arrow key has moved to and not opened yet: it opens a moment after the last press. */
+let floorPick: { idx: number; timer: ReturnType<typeof setTimeout> | null } | null = null;
+/** The "leaving" slide, kept until the new floor's slide takes over. */
+let floorOut: Animation[] = [];
+let floorOutDone: Promise<void> | null = null;
+/** A project switch is under way: it rebuilds the map once, itself, when the new project has loaded (other updates must not rebuild it meanwhile, on the old project's data). */
+let floorBusy = false;
+let floorBusyTimer: ReturnType<typeof setTimeout> | null = null;
+/** Marks a switch as under way or over. It clears itself after a few seconds, so a switch that never finishes cannot leave the map frozen. */
+function setFloorBusy(on: boolean): void {
+  floorBusy = on;
+  if (floorBusyTimer) clearTimeout(floorBusyTimer);
+  floorBusyTimer = on ? setTimeout(() => (floorBusy = false), 8000) : null;
+}
+/** Lets the browser draw a frame (or a few) before going on, so heavy work lands while the map is hidden. */
+const frames = (n = 1): Promise<void> => new Promise((ok) => { const step = (k: number) => (k <= 0 ? ok() : requestAnimationFrame(() => step(k - 1))); step(n); });
+const FLOOR_WAIT = 150;
+
+/** The project button (just the open project, or the picked floor while keys are moving), with the floors above and below it in faint type outside its box, each beside its arrow key. Names show at most 13 characters. */
+function projectWrapParts(): HTMLElement[] {
+  const d = state.data!;
+  const list = d.projects || [];
+  const open = Math.max(0, list.findIndex((p) => p.id === d.project?.id));
+  if (floorPick && list[floorPick.idx]?.id === d.project?.id && !floorPick.timer) floorPick = null; // it opened
+  const idx = floorPick ? floorPick.idx : open;
+  const shown = (floorPick && list[idx]) || d.project;
+  const { above, below } = neighbours(list, idx);
+  const ghost = (p: { name: string } | null, where: string) => h(`span.st-project-ghost.${where}`, { 'aria-hidden': 'true' }, p ? shortName(p.name) : '');
+  // the arrow keys, drawn as small keys: they show what the keyboard does, and can be clicked too
+  const key = (dir: 1 | -1, enabled: boolean) => {
+    const k = h(`button.st-floor-key.${dir < 0 ? 'up' : 'down'}`, { type: 'button', title: dir < 0 ? 'The project above (Up arrow)' : 'The project below (Down arrow)', 'aria-label': dir < 0 ? 'Previous project' : 'Next project', onclick: () => stepFloor(dir) }, icon(dir < 0 ? 'arrow-up' : 'arrow-down', 10));
+    k.disabled = !enabled;
+    return k;
+  };
+  const name = shown?.name || 'Project';
+  const button = h(
+    `button.st-project${floorPick ? '.pending' : ''}`,
+    { title: `${name} · Switch or create a project (the Up and Down keys move between them)`, onclick: (e) => openProjectMenu(e.currentTarget) },
+    shown?.logoAt ? h('span.st-mark.logo', projectMark(shown as Project, 18)) : h('span.st-mark', '◢'),
+    // every project's name sits (unseen) in the same spot, so the button is as wide as the longest one: switching never moves what is next to it
+    h('span.st-project-namebox', h('span.st-project-name', shortName(name)), ...list.map((p) => h('span.st-project-sizer', { 'aria-hidden': 'true' }, shortName(p.name)))),
+    icon('chevron-down', 14),
+  );
+  return list.length > 1 ? [h('div.st-floor-row.above', key(-1, !!above), ghost(above, 'above')), button, h('div.st-floor-row.below', key(1, !!below), ghost(below, 'below'))] : [button];
+}
+
+/** The text in the middle of the roll: one element changes its words by sliding the old ones out and the new ones in from the other side. */
+const rolling = new WeakMap<Element, Animation[]>();
+function rollText(el: HTMLElement, text: string, dir: 1 | -1 | 0): void {
+  if (el.textContent === text) return;
+  const running = rolling.get(el);
+  running?.forEach((a) => a.cancel());
+  rolling.delete(el);
+  if (!dir || REDUCED_MOTION() || !el.isConnected || typeof el.animate !== 'function') {
+    el.textContent = text;
+    return;
+  }
+  const rest = parseFloat(getComputedStyle(el).opacity) || 1;
+  const dy = 9 * dir;
+  const slideIn = () => {
+    el.textContent = text;
+    const inn = el.animate([{ transform: `translateY(${dy}px)`, opacity: 0 }, { transform: 'translateY(0)', opacity: rest }], { duration: 140, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+    rolling.set(el, [inn]);
+    void inn.finished.then(() => rolling.delete(el)).catch(() => undefined);
+  };
+  // pressed again before the last roll ended: no slide out (it would look like a stutter), just the new words sliding in
+  if (running?.length) return slideIn();
+  const out = el.animate([{ transform: 'translateY(0)', opacity: rest }, { transform: `translateY(${-dy}px)`, opacity: 0 }], { duration: 70, easing: 'ease-in', fill: 'forwards' });
+  rolling.set(el, [out]);
+  void out.finished.then(() => (out.cancel(), slideIn())).catch(() => undefined);
+}
+
+/** Shows the picked floor: the names change in place (rolling when `dir` says which way), so nothing is rebuilt under your fingers. */
+function paintFloorPick(dir: 1 | -1 | 0 = 0): void {
+  const wrap = S?.hudTop?.querySelector('.st-project-wrap');
+  if (!wrap) return;
+  const d = state.data!;
+  const list = d.projects || [];
+  const open = Math.max(0, list.findIndex((p) => p.id === d.project?.id));
+  const idx = floorPick ? floorPick.idx : open;
+  const shown = (floorPick && list[idx]) || d.project;
+  const { above, below } = neighbours(list, idx);
+  const button = wrap.querySelector<HTMLElement>('.st-project');
+  const aboveEl = wrap.querySelector<HTMLElement>('.st-project-ghost.above');
+  const belowEl = wrap.querySelector<HTMLElement>('.st-project-ghost.below');
+  const nameEl = wrap.querySelector<HTMLElement>('.st-project-name');
+  if (!button || !nameEl || (list.length > 1) !== !!aboveEl) return wrap.replaceChildren(...projectWrapParts());
+  button.classList.toggle('pending', !!floorPick);
+  if (aboveEl) rollText(aboveEl, shortName(above?.name || ''), dir);
+  rollText(nameEl, shortName(shown?.name || 'Project'), dir);
+  if (belowEl) rollText(belowEl, shortName(below?.name || ''), dir);
+  const upKey = wrap.querySelector<HTMLButtonElement>('.st-floor-key.up');
+  const downKey = wrap.querySelector<HTMLButtonElement>('.st-floor-key.down');
+  if (upKey) upKey.disabled = !above;
+  if (downKey) downKey.disabled = !below;
+  button.title = `${shown?.name || 'Project'} · Switch or create a project (the Up and Down keys move between them)`;
+  // the logo changes with the project (no roll: it is small)
+  const mark = button.querySelector('.st-mark');
+  mark?.replaceWith(shown?.logoAt ? h('span.st-mark.logo', projectMark(shown as Project, 18)) : h('span.st-mark', '◢'));
+}
+
+/** An arrow key: move to the project above (-1) or below (1); it opens a moment after the last press. It stops at the ends. */
+function stepFloor(dir: 1 | -1): void {
+  const d = state.data;
+  const list = d?.projects || [];
+  if (!S || !d || list.length < 2) return;
+  const from = floorPick ? floorPick.idx : Math.max(0, list.findIndex((p) => p.id === d.project?.id));
+  const idx = stepIndex(list.length, from, dir);
+  if (idx === from) return;
+  if (floorPick?.timer) clearTimeout(floorPick.timer);
+  floorPick = { idx, timer: setTimeout(() => void openFloor(), FLOOR_WAIT) };
+  paintFloorPick(dir);
+}
+
+async function openFloor(): Promise<void> {
+  const pick = floorPick;
+  const d = state.data;
+  const target = pick && d?.projects?.[pick.idx];
+  if (!pick || !target || !d) return;
+  pick.timer = null;
+  if (target.id === d.project?.id) {
+    floorPick = null;
+    paintFloorPick();
+    return;
+  }
+  // the old floor starts leaving now; the new one comes in when the project has loaded
+  setFloorBusy(true);
+  void floorSlide('out', floorDirection((d.projects || []).map((p) => p.id), d.project?.id, target.id) || 1);
+  const ok = await attempt(() => POST(`/projects/${target.id}/activate`), `Opened ${target.name}`);
+  if (!ok) {
+    // it did not open: bring the old floor back
+    setFloorBusy(false);
+    endFloorOut();
+    if (floorPick === pick) {
+      floorPick = null;
+      paintFloorPick();
+    }
+  }
+}
+
+/** Ends the "leaving" slide (put everything back as it was). */
+function endFloorOut(): void {
+  floorOut.forEach((a) => a.cancel());
+  floorOut = [];
+  floorOutDone = null;
+}
+
+/**
+ * The whole map slides and fades out or in, like the elevator changing floors. The wires (programs to agents) go with it: on the way out
+ * they draw back up into the program tiles, on the way in they come down again once the new floor has arrived (their ends follow
+ * the desks, so they wait until the desks have stopped sliding).
+ */
+function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
+  if (!S || typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve();
+  if (phase === 'out' && floorOutDone) return floorOutDone; // already leaving (it started when the arrow keys came to rest)
+  const els = [S.host, S.labels];
+  const wires = S.root.querySelector<SVGSVGElement>('.st-wires');
+  if (phase === 'in') endFloorOut();
+  const gone = dir > 0 ? '-7%' : '7%';
+  const from = dir > 0 ? '7%' : '-7%';
+  const frames: Keyframe[] =
+    phase === 'out'
+      ? [{ opacity: 1, transform: 'translateY(0)', filter: 'blur(0px)' }, { opacity: 0, transform: `translateY(${gone})`, filter: 'blur(5px)' }]
+      : [{ opacity: 0, transform: `translateY(${from})`, filter: 'blur(5px)' }, { opacity: 1, transform: 'translateY(0)', filter: 'blur(0px)' }];
+  const anims = els.map((el) => el.animate(frames, { duration: phase === 'out' ? 120 : 240, easing: phase === 'out' ? 'ease-in' : 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: phase === 'out' ? 'forwards' : 'none' }));
+  if (wires) {
+    const up = 'inset(0 0 100% 0)';
+    const all = 'inset(0 0 0 0)';
+    anims.push(
+      phase === 'out'
+        ? wires.animate([{ clipPath: all }, { clipPath: up }], { duration: 120, easing: 'ease-in', fill: 'forwards' })
+        : wires.animate([{ clipPath: up }, { clipPath: all }], { duration: 380, delay: 150, easing: 'cubic-bezier(0.3, 0.7, 0.2, 1)', fill: 'backwards' }),
+    );
+  }
+  const done = Promise.all(anims.map((a) => a.finished.catch(() => undefined))).then(() => undefined);
+  if (phase === 'out') {
+    floorOut = anims;
+    floorOutDone = done;
+  }
+  return done;
+}
+
 // ---------- HUD ----------
 function badge(id: string): HTMLSpanElement | null {
   const it = intInfo(id);
@@ -2583,6 +2926,7 @@ interface HudTile {
 function drawHud(): void {
   const d = state.data;
   if (!d || !S) return;
+  floorId = d.project?.id ?? floorId;
   setBrainLogo();
   const ints = availableIntegrations(d, S.progs);
   const needs = d.approvals.length + d.outboxPending;
@@ -2644,7 +2988,7 @@ function drawHud(): void {
   S.tileEls = new Map();
   mount(
     S.hudTop,
-    h('button.st-project', { title: 'Switch or create a project', onclick: (e) => openProjectMenu(e.currentTarget) }, d.project?.logoAt ? h('span.st-mark.logo', projectMark(d.project, 18)) : h('span.st-mark', '◢'), h('span.st-project-name', d.project?.name || 'Project'), icon('chevron-down', 14)),
+    h('div.st-project-wrap', ...projectWrapParts()),
     h(
       'div.st-connected',
       h('span.st-conn-label', h('span.dot.on'), 'CONNECTED TO'),
@@ -2844,7 +3188,7 @@ async function reloadWorkflows(): Promise<void> {
   }
   S.wfRuns = runs;
   shareTeams();
-  if (signature() !== S.signature) rebuild();
+  if (!floorBusy && signature() !== S.signature) rebuild();
   else updateStatuses();
   drawHud();
   if (S.selected?.type === 'branch') renderPanel();
@@ -2995,8 +3339,15 @@ async function renderPanel(): Promise<void> {
           : h(
               'div.row.st-about-actions',
               h('button.btn.ghost.tiny', { onclick: () => drawAbout(summary, true) }, icon('pencil', 12), text ? 'Edit description' : 'Add a description'),
+              h('button.btn.ghost.tiny', { title: 'Change the name of this project (its folder keeps its name)', onclick: async () => {
+                const name = (await promptBox('Rename project', { value: proj.name || '' }))?.trim();
+                if (!name || name === proj.name || !proj.id) return;
+                if (await attempt(() => PUT(`/projects/${encodeURIComponent(proj.id!)}`, { name }), `Renamed to ${name}`)) refreshSoon(0);
+              } }, icon('pencil', 12), 'Rename'),
               h('button.btn.ghost.tiny', { onclick: () => proj.id && pickLogo({ id: proj.id, name: proj.name || '' }).then((ok) => ok && S?.selected?.type === 'brain' && setTimeout(renderPanel, 300)) }, icon('image', 12), proj.logoAt ? 'Change logo' : 'Add logo'),
               proj.logoAt ? h('button.btn.ghost.tiny', { onclick: () => proj.id && removeLogo({ id: proj.id, name: proj.name || '' }).then(() => S?.selected?.type === 'brain' && setTimeout(renderPanel, 300)) }, 'Remove logo') : null,
+              h('button.btn.ghost.tiny', { title: 'A 3D model (.glb, .obj, .stl, .ply, .fbx) that replaces the logo inside the Brain', onclick: () => proj.id && pickModel({ id: proj.id, name: proj.name || '' }).then((ok) => ok && S?.selected?.type === 'brain' && setTimeout(renderPanel, 300)) }, icon('box', 12), proj.modelAt ? 'Change 3D model' : 'Add 3D model'),
+              proj.modelAt ? h('button.btn.ghost.tiny', { onclick: () => proj.id && removeModel({ id: proj.id, name: proj.name || '' }).then(() => S?.selected?.type === 'brain' && setTimeout(renderPanel, 300)) }, 'Remove 3D model') : null,
             ),
       );
       if (editing) setTimeout(() => editor.focus(), 30);
@@ -3214,6 +3565,34 @@ function renderBranchPanel(id: string): void {
       clearTimeout(accessTimer ?? undefined);
       accessTimer = setTimeout(() => saveWorkflow(wf), 500);
     };
+    // the symbol in the middle of the team's pod: an emoji, or a picture or 3D model instead
+    const symbolPicker = () => {
+      const own = wf.markFile ? (wf.markFile.kind === 'image' ? 'picture' : '3D model') : null;
+      const setEmoji = async (e: string) => {
+        if (wf.markFile) await attempt(() => DEL(`/workflows/${id}/mark`));
+        await saveWorkflow({ ...wf, mark: e, markFile: null });
+        renderBranchPanel(id);
+      };
+      const custom = h('input', { placeholder: 'Type or paste an emoji', maxlength: 16, style: { width: '170px' } });
+      custom.addEventListener('change', () => custom.value.trim() && setEmoji(custom.value.trim()));
+      const current = wf.mark || DEFAULT_TEAM_MARK;
+      return h(
+        'div',
+        h('div.row', { style: { gap: '4px', flexWrap: 'wrap' } }, EMOJI_CHOICES.map((e) => h(`button.btn.ghost.small${!own && current === e ? '.on' : ''}`, { title: e, style: { fontSize: '17px', padding: '2px 8px' }, onclick: () => setEmoji(e) }, e))),
+        h(
+          'div.row.mt',
+          { style: { gap: '6px', flexWrap: 'wrap' } },
+          custom,
+          h('button.btn.ghost.small', { onclick: () => pickTeamMark({ id, name: wf.name }).then(async (ok) => {
+            if (!ok) return;
+            await reloadWorkflows();
+            renderBranchPanel(id);
+          }) }, icon('image', 14), 'Use a picture or 3D model…'),
+          own ? h('button.btn.ghost.small', { onclick: () => setEmoji(wf.mark || '') }, 'Back to the emoji') : null,
+        ),
+        own ? h('p.hint.mt', `Showing your ${own} (a .glb turns, a picture stays flat).`) : null,
+      );
+    };
     wf.schedule ||= { type: 'none' };
     const routineEl = h('div');
     const drawRoutine = () => {
@@ -3251,6 +3630,9 @@ function renderBranchPanel(id: string): void {
       h('div.label.mt-lg', 'Daily routine'),
       h('p.hint', 'The team gets this message on its schedule, as if you wrote it in the chat.'),
       routineEl,
+      h('div.label.mt-lg', 'Symbol on the map'),
+      h('p.hint', "Shown in the middle of the team's pod. An emoji, or a picture or 3D model of your own."),
+      symbolPicker(),
       h('div.label.mt-lg', 'On the map'),
       h('p.hint', 'Drag the team to move it anywhere. Shift+drag spins it.'),
       h(
@@ -3466,7 +3848,7 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
       .then((p) => {
         if (!S || !p) return;
         S.progs = p;
-        if (signature() !== S.signature) rebuild();
+        if (!floorBusy && signature() !== S.signature) rebuild();
         drawHud();
         if (S.selected) renderPanel();
       })
@@ -3500,12 +3882,32 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
     closeChatsForProject();
     choose(null);
     S.shape = null;
-    loadData().then(() => {
-      if (!S) return;
-      rebuild();
-      drawHud();
-      resetView();
-    });
+    // the old floor slides away, the new one comes in from the other side (down the list = it rises from below)
+    const to = String(ev.id || '');
+    const dir = floorDirection((state.data?.projects || []).map((p) => p.id), floorId, to) || 1;
+    floorId = to || floorId;
+    setFloorBusy(true);
+    Promise.all([loadData(), floorSlide('out', dir)])
+      .then(async () => {
+        if (!S) return;
+        // (the old floor has already slid away, so the heavy part happens while nothing is visible)
+        rebuild();
+        drawHud();
+        resetView();
+        // draw the new map once now (it is still hidden): the card uploads every shape and texture on its first draw, and that must not
+        // happen on the first frame of the slide-in
+        S.renderer.compile(S.scene, S.camera);
+        S.renderer.render(S.scene, S.camera);
+        await frames(1);
+        void floorSlide('in', dir);
+      })
+      .catch(() => {})
+      .finally(() => {
+        setFloorBusy(false);
+        endFloorOut();
+        // anything that changed meanwhile (an agent started, a program opened) is picked up now
+        if (S && signature() !== S.signature) rebuild();
+      });
     return;
   }
   if (isEvent(ev, 'workflow-run') && ev.run) {

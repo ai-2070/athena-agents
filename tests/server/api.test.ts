@@ -90,6 +90,28 @@ describe('API', () => {
     expect(list.find((x: { id: string }) => x.id === t.id)).toMatchObject({ name: 'Crew', members: [a.id] });
   });
 
+  it("keeps a team's emoji symbol, and a picture or model only through its own route", async () => {
+    const send = async (method: string, p: string, body?: unknown) => req(p, { method, headers: json, ...(body ? { body: JSON.stringify(body) } : {}) });
+    const a = await (await send('POST', '/api/agents', { name: 'Symbol Tester' })).json();
+    const t = await (await send('POST', '/api/workflows', { name: 'Symbols', members: [a.id], lead: a.id, mark: '🎬' })).json();
+    expect(t.mark).toBe('🎬');
+    // anything that is not an emoji falls back to the default (empty)
+    expect((await (await send('PUT', `/api/workflows/${t.id}`, { mark: '@' })).json()).mark).toBe('');
+    // saving a team cannot make it point at a file: markFile only comes from the picture/model route
+    const spoof = await (await send('PUT', `/api/workflows/${t.id}`, { markFile: { kind: 'image', ext: 'png', at: 1 } })).json();
+    expect(spoof.markFile ?? null).toBeNull();
+    expect((await send('GET', `/api/workflows/${t.id}/mark`)).status).toBe(404);
+    // a real picture goes in, comes back out, and saving the team afterwards keeps it
+    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const saved = await (await send('POST', `/api/workflows/${t.id}/mark`, { name: 'badge.png', data: png })).json();
+    expect(saved.markFile).toMatchObject({ kind: 'image', ext: 'png' });
+    expect((await send('GET', `/api/workflows/${t.id}/mark`)).headers.get('content-type')).toBe('image/png');
+    expect((await (await send('PUT', `/api/workflows/${t.id}`, { description: 'x' })).json()).markFile).toMatchObject({ kind: 'image' });
+    expect((await send('POST', `/api/workflows/${t.id}/mark`, { name: 'bad.png', data: 'data:image/png;base64,AAAA' })).status).toBeGreaterThanOrEqual(400);
+    expect((await (await send('DELETE', `/api/workflows/${t.id}/mark`)).json()).markFile).toBeNull();
+    expect((await send('GET', `/api/workflows/${t.id}/mark`)).status).toBe(404);
+  });
+
   it('makes and edits a routine that mentions an agent and a team', async () => {
     // its own agent and team, so this test runs on its own too
     const post = async (p: string, body: unknown) => (await req(p, { method: 'POST', headers: json, body: JSON.stringify(body) })).json();

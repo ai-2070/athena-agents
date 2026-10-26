@@ -37,7 +37,7 @@ export type Preset = AgentPreset | TeamPreset;
 const DIR = () => ensureDir(dataPath('presets'));
 const RUNTIME_FIELDS = ['id', 'createdAt', 'updatedAt', 'lastModel', 'lastModelAt', 'pinned', 'workspace'];
 const agentTemplate = (a: Agent): AgentTemplate => Object.fromEntries(Object.entries(a).filter(([k]) => !RUNTIME_FIELDS.includes(k) && !k.startsWith('_'))) as AgentTemplate;
-const TEAM_FIELDS = ['name', 'description', 'color', 'access', 'skills', 'schedule'] as const;
+const TEAM_FIELDS = ['name', 'description', 'color', 'mark', 'access', 'skills', 'schedule'] as const;
 const teamTemplate = (t: Partial<Team>): TeamTemplate => Object.fromEntries(TEAM_FIELDS.filter((k) => t[k] !== undefined).map((k) => [k, structuredClone(t[k])])) as TeamTemplate;
 
 export function listPresets(): PresetListing[] {

@@ -11,7 +11,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { HOME, IS_WIN, dataPath, ensureDir, exists, insideRoots, isPlainDir, readJSON, readPlain, realTarget, slugify, writeJSON } from './util.ts';
 import { listProjects, emit, log } from './store.ts';
-import { createProject, projectsRoot, setLogo, updateProject } from './projects.ts';
+import { createProject, projectsRoot, removeProject, setLogo, updateProject } from './projects.ts';
 import { isSkillSlug, skillsLibrary, skillDir, skillVersionsDir, skillVersionItem } from './skills.ts';
 import { checkVersion, listVersions, pruneVersions, versionFilesDir, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
 import type { Version } from './versions.ts';
@@ -383,6 +383,64 @@ export function createBackup(id: string): BackupResult {
   const summary = summarize(b);
   log('project', `Backed up "${p.name}" (${summary.agents} agents, ${summary.teams} teams, ${summary.skills} skills) to ${file}`);
   return { file, name, size: bytes.length, summary };
+}
+
+/**
+ * Checks a backup that was just written before anything is deleted because of it: the file is there, is not empty, is the size that was
+ * written, reads back completely, and is of this project. Throws (saying nothing was deleted) when any of that is not so.
+ */
+export function verifyBackup(made: BackupResult, p: Pick<Project, 'name'>): void {
+  let size: number;
+  try {
+    size = fs.statSync(made.file).size;
+  } catch {
+    throw new Error('The backup was not written, so nothing was deleted.');
+  }
+  if (size < 100 || size !== made.size) throw new Error('The backup is empty or incomplete, so nothing was deleted.');
+  let data: BackupData;
+  try {
+    data = decodeBackup(fs.readFileSync(made.file));
+  } catch (e) {
+    throw new Error(`The backup could not be read back (${(e as Error).message}), so nothing was deleted.`);
+  }
+  if (data.project?.name !== p.name) throw new Error('The backup is not of this project, so nothing was deleted.');
+}
+
+/** The project's data in the dashboard (agents, teams, chats, Outbox, artifacts…) is moved here, not erased: data/_removed-<day>/. */
+function setAsideProjectData(id: string): string {
+  const from = dataPath('projects', id);
+  if (!isPlainDir(from)) return '';
+  const day = new Date().toISOString().slice(0, 10);
+  const dir = ensureDir(dataPath(`_removed-${day}`));
+  let to = path.join(dir, `project-${id}`);
+  for (let i = 2; exists(to); i++) to = path.join(dir, `project-${id}-${i}`);
+  fs.renameSync(from, to);
+  return to;
+}
+
+/**
+ * Delete a project, safely: back it up, check the backup, and only then remove it from the dashboard. Its dashboard data is set
+ * aside (not erased) and its Brain folder on the PC is never touched. Returns the backup and where the data went.
+ */
+export function backupAndDeleteProject(id: string): { backup: BackupResult; setAside: string } {
+  const list = listProjects();
+  const p = list.find((x) => x.id === id);
+  if (!p) throw new Error('No such project.');
+  if (list.length <= 1) throw new Error('Keep at least one project.');
+  const made = createBackup(id);
+  verifyBackup(made, p);
+  removeProject(id);
+  const setAside = setAsideProjectData(id);
+  log('project', `Deleted the project "${p.name}" (backup ${made.file}${setAside ? `, its data set aside in ${setAside}` : ''})`);
+  return { backup: made, setAside };
+}
+
+/** A copy of a project (its agents, teams, routines, notes, skills and chats; schedules start paused) as a new project. */
+export async function cloneProject(id: string, name?: string): Promise<{ project: Project; restored: BackupRestoreResult }> {
+  const p = listProjects().find((x) => x.id === id);
+  if (!p) throw new Error('No such project.');
+  const bytes = encodeBackup(packProject(p));
+  return restoreBackup(bytes, { name: String(name || '').trim() || `${p.name} (copy)` });
 }
 
 // ---------- reading ----------
