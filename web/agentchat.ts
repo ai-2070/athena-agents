@@ -21,6 +21,15 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
   let chatId: string | null = null;
   let alive = true;
   let convo: MountedChat | null = null;
+  // focus asked for before the chat had loaded: given once it has
+  let wantFocus = false;
+  const focusNow = () => {
+    const api = convo?.api.current;
+    if (api) {
+      wantFocus = false;
+      api.focus();
+    } else wantFocus = true;
+  };
   const agent = () => state.data?.agents.find((a) => a.id === agentId);
   const tray = attachTray();
   const chipBox = h('span.ac-model');
@@ -60,9 +69,13 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
       chatId: pick,
       compact: true,
       tray,
-      // (a first message makes the chat)
-      onChat: (c: Chat) => (chatId = c.id),
+      // (a first message makes the chat; a view replaced since says nothing)
+      onChat: (c: Chat) => {
+        if (my === seq) chatId = c.id;
+      },
     });
+    // (its api is there once it has drawn)
+    if (wantFocus) setTimeout(() => my === seq && wantFocus && focusNow(), 60);
   };
   async function fresh() {
     const c = await attempt(() => POST<Chat>(`/agents/${agentId}/chats`));
@@ -73,7 +86,7 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
   drawChrome();
   void open(undefined);
   return {
-    focus: () => convo?.api.current?.focus(),
+    focus: focusNow,
     destroy: () => {
       alive = false;
       convo?.destroy();

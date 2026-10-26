@@ -38,6 +38,8 @@ interface TeamChatData {
   activity: Record<string, string>;
   /** each agent's own session for this team (agentId → chatId): where its turn streams from */
   sessions: Record<string, string>;
+  /** whose turn is going now, by the turn events (a state update can lag behind a turn's end) */
+  turning: Set<string>;
   alive: boolean;
 }
 interface MentionOption {
@@ -53,7 +55,7 @@ export function mergeSnapshot(snapshot: TeamMessage[], live: TeamMessage[], clea
 }
 
 export function renderTeamChat(container: HTMLElement, teamId: string, { height = 360, fill = false }: TeamChatOptions = {}): TeamChatApi {
-  const C: TeamChatData = { team: null, messages: [], working: [], queued: [], replyTo: null, activity: {}, sessions: {}, alive: true };
+  const C: TeamChatData = { team: null, messages: [], working: [], queued: [], replyTo: null, activity: {}, sessions: {}, turning: new Set(), alive: true };
   // fill: grow with the window it sits in (the chat window); otherwise a fixed height
   const list = h('div.tc-list', fill ? {} : { style: { maxHeight: `${height}px` } });
   const status = h('div.tc-status');
@@ -171,16 +173,16 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
               ),
               parent ? h('div.tc-quote', `↪ ${parent.from === 'user' ? 'You' : agent(parent.from)?.name || ''}: ${String(parent.text).slice(0, 90)}`) : null,
               m.text ? renderText(m.text) : null,
-              mentionPreviews(m.text, m.attachments, { compact: true, key: m.id }),
+              mentionPreviews(m.text, m.attachments, { compact: true, key: `team:${m.id}` }),
               workFor(m),
               m.mentions?.length && m.from !== 'user' ? h('div.tc-handoff', icon('send', 11), `handed to ${m.mentions.map((id) => agent(id)?.name).filter(Boolean).join(', ')}`) : null,
             );
           })
         : h('div.tc-empty', icon('message-square', 22), h('p', C.team?.lead ? `Write to the team. ${agent(C.team.lead)?.name} (lead) takes it and brings in the others.` : 'Write to the team. The best fit answers, or @mention someone.')),
-      // who is working now, their turn streaming in
-      C.working.map(liveTurn),
+      // whose turn is going now, streaming in
+      [...C.turning].map(liveTurn),
     );
-    for (const id of [...live.keys()]) if (!C.working.includes(id)) endLive(id);
+    for (const id of [...live.keys()]) if (!C.turning.has(id)) endLive(id);
     if (near) list.scrollTop = list.scrollHeight;
     const busy = [...C.working, ...C.queued.filter((q) => !C.working.includes(q))];
     mount(
@@ -294,16 +296,22 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
         early.state ||= early.loading;
       }
       if (e.kind === 'cleared') {
+        // (the agents' sessions are gone with it)
         C.messages = [];
+        C.sessions = {};
+        C.working = [];
+        C.turning.clear();
         dropTurns();
         early.cleared ||= early.loading;
       }
-      if (e.kind === 'turn' && e.state === 'start' && e.chatId) C.sessions[e.agentId] = e.chatId;
+      if (e.kind === 'turn' && e.state === 'start') {
+        if (e.chatId) C.sessions[e.agentId] = e.chatId;
+        C.turning.add(e.agentId);
+      }
       if (e.kind === 'turn' && e.state === 'end') {
         delete C.activity[e.agentId];
+        C.turning.delete(e.agentId);
         endLive(e.agentId);
-        // (its turn is over; the next state update says if it is queued again)
-        C.working = C.working.filter((id) => id !== e.agentId);
       }
       draw();
     }
@@ -320,9 +328,14 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   GET<TeamChatResponse>(`/teams/${teamId}/chat`)
     .then((r) => {
       C.team = r.team;
-      C.sessions = { ...(r.sessions || {}), ...C.sessions };
       C.messages = mergeSnapshot(r.messages, C.messages, early.cleared);
-      if (!early.state) Object.assign(C, { working: r.working, queued: r.queued });
+      // (cleared while it loaded: the snapshot's sessions and who was working are from before)
+      if (!early.cleared) {
+        C.sessions = { ...(r.sessions || {}), ...C.sessions };
+        // who was already working when this opened: their turns are going now
+        for (const id of r.working) C.turning.add(id);
+      }
+      if (!early.state && !early.cleared) Object.assign(C, { working: r.working, queued: r.queued });
       draw();
     })
     .catch(() => {})

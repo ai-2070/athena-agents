@@ -42,8 +42,28 @@ export function Previews({ paths, small }: { paths: readonly string[]; small?: b
   return <Dom make={() => filePreviews(paths, { compact: small })} deps={[key, small]} />;
 }
 
-/** OpenUI Lang (a Rich answer) rather than markdown: "root = Card(…)" and other statements. */
-export const isRichCode = (text: string): boolean => /^\s*root\s*=\s*[A-Z]\w*\(/m.test(text) && !/^\s*```/.test(text);
+/** OpenUI Lang (a Rich answer) rather than markdown: it starts with a statement ("root = Card(…)", or
+ *  another name = Component(…)) and has a root. Markdown that shows an example after some prose is not. */
+export const isRichCode = (text: string): boolean => /^\s*[A-Za-z_]\w*\s*=\s*[A-Z]\w*\(/.test(text) && /^\s*root\s*=\s*[A-Z]\w*\(/m.test(text);
+
+/** An image that opens big: a button to the keyboard (Enter / Space) and to screen readers. */
+function ZoomImg({ src, label }: { src: string; label: string }) {
+  return (
+    <img
+      src={src}
+      alt={label}
+      role="button"
+      tabIndex={0}
+      aria-label={`Show ${label} bigger`}
+      onClick={() => lightbox(src)}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        lightbox(src);
+      }}
+    />
+  );
+}
 
 const brief = (input: unknown): string =>
   input && typeof input === 'object' ? Object.values(input as Record<string, unknown>).filter((v) => typeof v === 'string').join(' · ').slice(0, 140) : typeof input === 'string' ? input.slice(0, 140) : '';
@@ -86,8 +106,8 @@ export function ToolCard({ part, variant, busy }: { part: DynamicToolUIPart; var
       </details>
       {images.length ? (
         <div className={small ? 'st-imgs' : 'tool-images'}>
-          {images.slice(0, small ? 6 : 24).map((src) => (
-            <img key={src} src={src} onClick={() => lightbox(src)} />
+          {images.slice(0, small ? 6 : 24).map((src, i) => (
+            <ZoomImg key={src} src={src} label={`${part.toolName} image ${i + 1}`} />
           ))}
         </div>
       ) : null}
@@ -103,7 +123,7 @@ function TextPart({ text, variant, streaming, dim, onSend }: { text: string; var
   return (
     <>
       {rich ? (
-        <div className={`msg assistant rich${cls}`}>
+        <div className={`${variant === 'compact' ? 'ac-msg agent' : variant === 'mini' ? 'st-msg assistant' : 'msg assistant'} rich${cls}`}>
           <Suspense fallback={<pre className="hint">{text}</pre>}>
             <RichAnswer code={text} streaming={streaming} onSend={onSend} />
           </Suspense>

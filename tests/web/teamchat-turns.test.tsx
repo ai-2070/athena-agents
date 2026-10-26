@@ -6,6 +6,7 @@ import type { UIMessageChunk } from 'ai';
 import { connectEvents, state } from '../../web/core.ts';
 import { forgetFiles } from '../../web/filepreview.ts';
 import { renderTeamChat } from '../../web/teamchat.ts';
+import type { TeamChatApi } from '../../web/teamchat.ts';
 import type { AppState, Chat, ChatItem } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -67,15 +68,20 @@ beforeEach(() => {
     return json({});
   });
 });
+let open: TeamChatApi | null = null;
 afterEach(() => {
+  // (a failed assertion must not leave a chat listening for the next test)
+  open?.destroy();
+  open = null;
   document.body.innerHTML = '';
 });
+const teamEvent = (event: object) => act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'team', teamId: 't1', ts: 0, event }) }));
 
 describe('team chat turns', () => {
   it("a working agent's turn streams in: its tool calls and text as they come", async () => {
     const el = document.createElement('div');
     document.body.append(el);
-    const chat = renderTeamChat(el, 't1');
+    const chat = (open = renderTeamChat(el, 't1'));
     // (the chat views load on demand: wait for the stream to be asked for)
     for (let i = 0; i < 100 && !requests.includes('GET /api/agents/maker/chats/maker-chat/stream'); i++) await settle();
     expect(requests).toContain('GET /api/agents/maker/chats/maker-chat/stream');
@@ -94,13 +100,12 @@ describe('team chat turns', () => {
     await act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'team', teamId: 't1', ts: 0, event: { kind: 'turn', agentId: 'maker', state: 'end' } }) }));
     await settle();
     expect(el.querySelector('.tc-live')).toBeNull();
-    chat.destroy();
   });
 
   it('"Show the work" opens the steps and tool calls behind a reply', async () => {
     const el = document.createElement('div');
     document.body.append(el);
-    const chat = renderTeamChat(el, 't1');
+    const chat = (open = renderTeamChat(el, 't1'));
     await settle();
     const work = el.querySelector('details.tc-work') as HTMLDetailsElement;
     expect(work).not.toBeNull();
@@ -114,6 +119,32 @@ describe('team chat turns', () => {
     expect(work.querySelector('details.tool .tname')!.textContent).toBe('read_file');
     // (the message to the agent isn't repeated: the thread shows it)
     expect(work.textContent).not.toContain('team brief');
-    chat.destroy();
+  });
+
+  it('a state update that still lists a finished agent as working does not bring its turn back', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    for (let i = 0; i < 100 && !el.querySelector('.tc-live'); i++) await settle();
+    await teamEvent({ kind: 'turn', agentId: 'maker', state: 'end' });
+    // (the server's state can lag: it still says Maker is working)
+    await teamEvent({ kind: 'state', working: ['maker'], queued: [] });
+    await settle();
+    expect(el.querySelector('.tc-live')).toBeNull();
+    // a new turn does show
+    await teamEvent({ kind: 'turn', agentId: 'maker', state: 'start', chatId: 'maker-chat' });
+    await settle();
+    expect(el.querySelector('.tc-live')).not.toBeNull();
+  });
+
+  it('clearing the chat takes the live turns away with the sessions', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    for (let i = 0; i < 100 && !el.querySelector('.tc-live'); i++) await settle();
+    await teamEvent({ kind: 'cleared' });
+    await settle();
+    expect(el.querySelector('.tc-live')).toBeNull();
+    expect(el.querySelector('.tc-work')).toBeNull();
   });
 });

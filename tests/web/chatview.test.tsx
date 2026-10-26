@@ -171,6 +171,48 @@ describe('the agent chat (AI SDK)', () => {
     expect(el.querySelector('textarea')!.value).toBe('are you there?');
   });
 
+  it('a run that fails says so, and the message stays sent (it is not put back in the box)', async () => {
+    const el = await open();
+    await type(el, 'go');
+    await settle();
+    const s = sendStream!;
+    chat.items.push({ type: 'user', text: 'go' }, { type: 'error', text: 'Claude Code exited (1) without an answer.' });
+    await act(async () => {
+      s.push({ type: 'start', messageId: 'run-r1' });
+      s.push({ type: 'error', errorText: 'Claude Code exited (1) without an answer.' });
+      s.push({ type: 'finish' });
+      s.end();
+    });
+    await settle();
+    await settle();
+    expect(document.getElementById('toasts')!.textContent).toBe('Claude Code exited (1) without an answer.');
+    expect(el.querySelector('textarea')!.value).toBe('');
+    expect(el.querySelector('.msg.error')!.textContent).toBe('Claude Code exited (1) without an answer.');
+  });
+
+  it('nothing can be sent while it compacts', async () => {
+    const el = await open();
+    let finish = () => {};
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      requests.push({ method: init.method || 'GET', url, body: {} });
+      if (url.endsWith('/compact')) {
+        await new Promise<void>((r) => (finish = r));
+        return new Response(JSON.stringify({ compacted: false, message: 'Nothing to compact yet' }), { headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify(url === '/api/agents/a1/chats/c1' ? chat : []), { headers: { 'content-type': 'application/json' } });
+    });
+    await type(el, '/compact');
+    await settle();
+    const sendBtn = [...el.querySelectorAll('button')].find((b) => b.textContent === 'Send')!;
+    expect(sendBtn.disabled).toBe(true);
+    await type(el, 'are you there?');
+    await settle();
+    expect(requests.some((r) => r.url.endsWith('/stream') && r.method === 'POST')).toBe(false);
+    await act(async () => finish());
+    await settle();
+    expect([...el.querySelectorAll('button')].find((b) => b.textContent === 'Send')!.disabled).toBe(false);
+  });
+
   it('/compact compacts instead of sending', async () => {
     const el = await open();
     await type(el, '/compact');
@@ -227,5 +269,9 @@ describe('Rich answers', () => {
     expect(isRichCode('root = Card([t])\nt = TextContent("hi")')).toBe(true);
     expect(isRichCode('Here is the plan:\n\n- one\n- two')).toBe(false);
     expect(isRichCode('```\nroot = Card([t])\n```')).toBe(false);
+    // an example after some prose is markdown, not a Rich answer
+    expect(isRichCode('You can write it like this:\n\nroot = Card([t])\nt = TextContent("hi")')).toBe(false);
+    // other statements may come first, as long as there is a root
+    expect(isRichCode('t = TextContent("hi")\nroot = Card([t])')).toBe(true);
   });
 });

@@ -6,6 +6,7 @@
 // and the Station's agent panel (mini).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useChat } from '@ai-sdk/react';
+import { APICallError } from 'ai';
 import { GET, POST, attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
 import { restoreDraft } from '../attach.ts';
 import type { AttachTray } from '../attach.ts';
@@ -75,7 +76,9 @@ export function ChatView(p: ChatViewProps) {
   const input = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const near = useRef(true);
-  const failed = useRef<string | null>(null);
+  // why the last send failed; refused: the server never took it (so the text goes back in the box)
+  const failed = useRef<{ message: string; refused: boolean } | null>(null);
+  const [compacting, setCompacting] = useState(false);
   const onChat = useRef(p.onChat);
   onChat.current = p.onChat;
   // one id for this view's useChat, even when its first message makes the chat
@@ -88,14 +91,16 @@ export function ChatView(p: ChatViewProps) {
     onData: (part) => {
       if (part.type === 'data-status') setStatusText((part.data as { text: string }).text);
     },
-    onError: (e) => (failed.current = e.message || 'Could not send.'),
+    // a refusal (busy, a bad request) comes as the AI SDK's APICallError; a run that failed, as an
+    // error in its stream (the message was sent and is in the chat)
+    onError: (e) => (failed.current = { message: e.message || 'Could not send.', refused: APICallError.isInstance(e) }),
   });
   const streaming = status === 'submitted' || status === 'streaming';
   const streamingRef = useRef(streaming);
   streamingRef.current = streaming;
 
   const serverRunning = !!chatId && !!app?.runs.some((r) => r.chatId === chatId);
-  const busy = streaming || serverRunning;
+  const busy = streaming || serverRunning || compacting;
   const approvals = (app?.approvals || []).filter((a) => a.agentId === agent.id);
 
   // the saved chat, shown as it is. after: a stream just ended (its flag may not have caught up yet)
@@ -156,10 +161,12 @@ export function ChatView(p: ChatViewProps) {
       const id = chatIdRef.current;
       if (!id) return void toast('Nothing to compact yet');
       setStatusText(mode === 'summary' ? 'Compacting: the Brain’s model is writing a summary…' : 'Compacting…');
+      // (nothing can be sent meanwhile: the server would refuse it)
+      setCompacting(true);
       const r = await attempt(
         () => POST<{ compacted: boolean; message?: string }>(`/agents/${agent.id}/chats/${id}/compact`, mode ? { mode } : {}),
         (x) => (x.compacted ? 'Compacted: the agent now remembers the older messages as a short history' : x.message || 'Nothing to compact yet'),
-      );
+      ).finally(() => setCompacting(false));
       setStatusText('');
       if (r?.compacted) await reload();
     },
@@ -206,10 +213,14 @@ export function ChatView(p: ChatViewProps) {
         failed.current = null;
         setStatusText('Thinking…');
         await sendMessage({ role: 'user', parts: userParts(text, attachments), metadata: {} });
-        if (failed.current) {
-          toast(failed.current, 'error');
-          if (typed == null && box) restoreDraft(box, text);
-          tray?.put(taken);
+        // (set by onError while it streamed)
+        const fail = failed.current as { message: string; refused: boolean } | null;
+        if (fail) {
+          toast(fail.message, 'error');
+          if (fail.refused) {
+            if (typed == null && box) restoreDraft(box, text);
+            tray?.put(taken);
+          }
         }
       } finally {
         sending.current = false;

@@ -36,4 +36,17 @@ describe('findFileMentions()', () => {
     expect(findFileMentions('')).toEqual([]);
     expect(findFileMentions(null)).toEqual([]);
   });
+
+  it('a name with dots keeps its whole extension', () => {
+    expect(findFileMentions('Packed /out/archive.tar.gz and C:\\out\\data.2024.zip')).toEqual(['/out/archive.tar.gz', 'C:\\out\\data.2024.zip']);
+  });
+
+  it('two different paths that end the same are both kept', () => {
+    expect(findFileMentions('/archive/project/shared/x.png and /project/shared/x.png')).toEqual(['/archive/project/shared/x.png', '/project/shared/x.png']);
+  });
+
+  it('Mac/Linux paths differ by case; Windows paths do not', () => {
+    expect(findFileMentions('/w/A.png and /w/a.png')).toEqual(['/w/A.png', '/w/a.png']);
+    expect(findFileMentions('C:\\w\\A.png and c:/w/a.png')).toEqual(['C:\\w\\A.png']);
+  });
 });

@@ -51,6 +51,20 @@ export const forgetFiles = (): void => known.clear();
 const fileUrl = (p: string): string => `/api/file?path=${encodeURIComponent(p)}`;
 const size = (n: number): string => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : n >= 1e3 ? `${Math.round(n / 1e3)} KB` : `${n} B`);
 
+/** An image that opens big when clicked, or with Enter / Space (a button to the keyboard and screen readers). */
+export function zoomable<E extends HTMLElement>(el: E, src: string, name: string): E {
+  el.setAttribute('role', 'button');
+  el.tabIndex = 0;
+  el.setAttribute('aria-label', `Show ${name} bigger`);
+  el.addEventListener('click', () => lightbox(src));
+  el.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    lightbox(src);
+  });
+  return el;
+}
+
 export function revealButton(path: string): HTMLButtonElement {
   return h('button.btn.tiny.ghost.fp-reveal', { type: 'button', title: path, onclick: () => attempt(() => POST('/files/reveal', { path })) }, icon('folder-open', 13), revealLabel());
 }
@@ -59,7 +73,7 @@ function card(f: Extract<FileInfo, { ok: true }>): HTMLElement {
   const url = fileUrl(f.path);
   const preview =
     f.kind === 'image'
-      ? h('img.fp-media', { src: url, alt: f.name, loading: 'lazy', onclick: () => lightbox(url) })
+      ? zoomable(h('img.fp-media', { src: url, alt: f.name, loading: 'lazy' }), url, f.name)
       : f.kind === 'video'
         ? h('video.fp-media', { src: url, controls: true, preload: 'metadata', playsinline: true })
         : f.kind === 'audio'
@@ -94,22 +108,23 @@ export function filePreviews(paths: readonly string[], { compact = false }: { co
 }
 
 // Views that redraw on every streamed word get the same box back for the same message (by key), so
-// its images and videos don't load again each time.
-const boxes = new Map<string, HTMLDivElement>();
+// its images and videos don't load again each time. A box that found nothing to show is looked up again
+// after a while (the file may have been written since).
+const boxes = new Map<string, { box: HTMLDivElement; at: number }>();
 
-/** Previews for the files a message's text mentions (and the files sent with it). key: the message's
- *  id, so a redraw gets the same box back. null when it mentions none. */
+/** Previews for the files a message's text mentions (and the files sent with it). key: the message,
+ *  scoped to its view ("team:<id>", "dock:<id>": a box can only be in one place), so a redraw gets the
+ *  same box back. null when it mentions none. */
 export function mentionPreviews(text: string | null | undefined, attachments: readonly string[] = [], { compact = false, key }: { compact?: boolean; key?: string } = {}): HTMLDivElement | null {
   const paths = [...new Set([...attachments, ...findFileMentions(text)])];
   if (!paths.length) return null;
   if (!key) return filePreviews(paths, { compact });
   const id = `${key}\n${compact}\n${paths.join('\n')}`;
-  let box = boxes.get(id);
-  if (!box) {
-    box = filePreviews(paths, { compact });
-    boxes.set(id, box);
-    // (the oldest go once there are many)
-    if (boxes.size > 300) boxes.delete(boxes.keys().next().value!);
-  }
+  const hit = boxes.get(id);
+  if (hit && !(hit.box.classList.contains('hidden') && Date.now() - hit.at > MISSING_FOR)) return hit.box;
+  const box = filePreviews(paths, { compact });
+  boxes.set(id, { box, at: Date.now() });
+  // (the oldest go once there are many)
+  if (boxes.size > 300) boxes.delete(boxes.keys().next().value!);
   return box;
 }

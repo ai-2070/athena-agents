@@ -93,6 +93,39 @@ describe('mentionPreviews()', () => {
   });
 });
 
+describe('keyboard and later files', () => {
+  it('a previewed image opens big with Enter or Space, and says so to screen readers', async () => {
+    // (the page's dialog layer, as in public/index.html)
+    document.body.append(Object.assign(document.createElement('div'), { id: 'modal-root' }));
+    const box = filePreviews(['/w/shot.png']);
+    document.body.append(box);
+    await settle();
+    const img = box.querySelector('img')!;
+    expect(img.getAttribute('role')).toBe('button');
+    expect(img.tabIndex).toBe(0);
+    expect(img.getAttribute('aria-label')).toBe('Show shot.png bigger');
+    img.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(document.querySelector('.lightbox, .lb, [class*="light"]')).not.toBeNull();
+  });
+
+  it('a message whose file was not there yet looks again later (the file may have been written since)', async () => {
+    const t0 = Date.now();
+    const now = vi.spyOn(Date, 'now').mockReturnValue(t0);
+    const first = mentionPreviews('see /w/later.png', [], { key: 'dock:m9' })!;
+    await settle();
+    expect(first.classList.contains('hidden')).toBe(true);
+    // now it exists
+    FILES['/w/later.png'] = { kind: 'image', size: 1 };
+    now.mockReturnValue(t0 + 16_000);
+    const again = mentionPreviews('see /w/later.png', [], { key: 'dock:m9' })!;
+    expect(again).not.toBe(first);
+    await settle();
+    expect(again.classList.contains('hidden')).toBe(false);
+    now.mockRestore();
+    delete FILES['/w/later.png'];
+  });
+});
+
 describe('revealLabel()', () => {
   it('names the file manager of this computer', () => {
     const platform = vi.spyOn(navigator, 'platform', 'get');

@@ -45,7 +45,8 @@ export function TurnView({ agentId, chatId, live, from, to, empty, onEnd, onSend
       // as saved. Only the agent's side: the message to it is what the team or the Brain already shows.
       const chat = await GET<Chat>(`/agents/${agentId}/chats/${chatId}`).catch(() => null);
       if (!alive) return;
-      if (chat) {
+      // (a chat that is gone, or not one: nothing to show)
+      if (chat && Array.isArray(chat.items)) {
         const last = chat.items.findLastIndex((i) => i.type === 'user');
         const a = live || from == null ? last : from;
         const b = live || to == null ? chat.items.length : to;

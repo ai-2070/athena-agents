@@ -3324,7 +3324,8 @@ async function renderAgentPanel(id: string, wfId?: string): Promise<void> {
   const d = state.data!;
   const a = d.agents.find((x) => x.id === id);
   if (!a) return choose(null);
-  if (!S) return;
+  // (a save that finished after you picked something else: that one's panel stays)
+  if (!S || S.selected?.type !== 'agent' || S.selected.id !== id) return;
   const onBranches = S.workflows.filter((w) => (w.members || []).includes(id));
   const others = S.workflows.filter((w) => !onBranches.includes(w));
   let addTo = others[0]?.id || '';
