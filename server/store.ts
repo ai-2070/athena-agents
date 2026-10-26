@@ -42,6 +42,7 @@ const DEFAULT_SETTINGS: Settings = {
   telegram: { chatId: '' },
   maxToolSteps: 16,
   costLimitUsdPerRun: 2,
+  compaction: { auto: true, instant: true, thresholdPercent: 50, keepMessages: 10, windowTokens: 0 },
 };
 
 /** What saveSettings takes: any top-level setting, with its own fields optional too (they are merged in). */

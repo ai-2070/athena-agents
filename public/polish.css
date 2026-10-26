@@ -473,6 +473,30 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .bottom-bar .cw-pill { position: relative; right: auto; bottom: auto; z-index: auto; padding: 11px 16px; animation: none; }
 .bottom-bar .cw-pill:hover { transform: translateY(-2px); }
 
+/* ---------- chat memory: the COMPACTED mark (web/compactmark.ts) ---------- */
+details.compaction { max-width: 860px; width: 100%; align-self: stretch; }
+details.compaction > summary { list-style: none; display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 0; font: 11px var(--mono); letter-spacing: 0.08em; color: var(--accent-dim); }
+details.compaction > summary::-webkit-details-marker { display: none; }
+details.compaction > summary:hover, details.compaction[open] > summary { color: var(--accent); }
+details.compaction .cmp-rule { flex: 1; min-width: 16px; border-top: 1px dashed currentColor; opacity: 0.6; }
+details.compaction .cmp-label { font-weight: 700; }
+details.compaction .cmp-facts { color: var(--faint); letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+details.compaction.engine > summary { color: var(--faint); }
+details.compaction .cmp-body { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
+details.compaction .cmp-body .hint { margin: 0; }
+details.compaction .hint.warn { color: var(--amber, #e0b341); }
+details.compaction .cmp-text { margin: 0; max-height: 420px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 11.5px/1.5 var(--mono); }
+details.compaction .cmp-edit { width: 100%; min-height: 260px; font: 11.5px/1.5 var(--mono); resize: vertical; }
+details.compaction.small .cmp-facts { display: none; }
+details.compaction.small .cmp-text { max-height: 260px; }
+/* messages the agent now only remembers as the compacted history */
+.compacted { opacity: 0.55; transition: opacity 0.15s; }
+.compacted:hover { opacity: 0.9; }
+.pill.mem { font: 10.5px var(--mono); cursor: default; }
+.pill.mem.warn { color: var(--amber, #e0b341); border-color: color-mix(in srgb, var(--amber, #e0b341) 40%, var(--line)); }
+.st-msg.cmp { align-self: stretch; text-align: center; font: 10.5px var(--mono); letter-spacing: 0.08em; color: var(--accent-dim); border-top: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent); padding-top: 4px; }
+.toggle-text { cursor: pointer; }
+
 /* ---------- attached files (web/attach.ts) ---------- */
 .att-picker { position: relative; display: inline-flex; flex: none; }
 .att-btn { padding: 0 9px; height: 34px; color: var(--dim); }

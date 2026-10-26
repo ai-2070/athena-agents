@@ -331,6 +331,16 @@ export function toggle(checked: boolean | null | undefined, onChange: (checked: 
   return h('label.toggle', input, h('span'));
 }
 
+// A switch with its text next to it. The text is its own <label for=…>, so clicking it flips the
+// switch (a toggle() inside another <label> nests labels, and the outer one then does nothing).
+let toggleIds = 0;
+export function toggleRow(checked: boolean | null | undefined, onChange: (checked: boolean) => void, text: Child, cls = ''): HTMLDivElement {
+  const t = toggle(checked, onChange);
+  const input = t.querySelector('input')!;
+  input.id = `toggle-${++toggleIds}`;
+  return h(`div.row${cls}`, t, h('label.toggle-text', { for: input.id }, text));
+}
+
 export function field(label: Child, control: Child, hint?: Child): HTMLLabelElement {
   return h('label.field', h('span', label), control, hint ? h('span.hint', hint) : null);
 }

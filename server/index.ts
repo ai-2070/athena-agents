@@ -335,7 +335,9 @@ put<{ title?: unknown; reset?: unknown }>('/api/agents/:id/chats/:cid', async ({
   if (body.reset) {
     c.sessionId = null;
     c.llm = [];
-    c.items.push({ type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', ts: Date.now() });
+    delete c.reseed;
+    delete c.context;
+    c.items.push({ type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', reset: true, ts: Date.now() });
   }
   return chats.save(c);
 });
@@ -345,9 +347,19 @@ post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/mess
   const text = String(body.text || '').trim();
   const attachments = uploads.cleanAttachments(body.attachments);
   if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
+  // "/compact" (or "/compact summary", "/compact instant") compacts the chat instead of sending a message
+  const cmd = attachments.length ? null : /^\/compact(?:\s+(instant|summary))?\s*$/i.exec(text);
+  if (cmd) return compactResult(await engines.compactNow(a, c.id, cmd[1]?.toLowerCase() as 'instant' | 'summary' | undefined));
   const { runId } = engines.startRun(a, c, text, { attachments });
   return { runId };
 });
+// Compaction: the Compact button, the memory meter, and editing the compacted history
+const compactResult = ({ item }: Awaited<ReturnType<typeof engines.compactNow>>) => ({ compacted: !!item, item, ...(item ? {} : { message: 'Nothing to compact yet: the chat is short enough to keep in full.' }) });
+post<{ mode?: unknown }>('/api/agents/:id/chats/:cid/compact', async ({ id, cid }, body) =>
+  compactResult(await engines.compactNow(need(agents.get(id)), cid, body.mode === 'summary' || body.mode === 'instant' ? body.mode : undefined)),
+);
+get('/api/agents/:id/chats/:cid/memory', async ({ id, cid }) => engines.memoryOf(need(agents.get(id)), cid));
+put<{ text?: unknown }>('/api/agents/:id/chats/:cid/compactions/:kid', async ({ id, cid, kid }, body) => engines.editCompaction(id, cid, kid, String(body.text ?? '')));
 post('/api/agents/:id/chats/:cid/stop', async ({ cid }) => {
   engines.stopChat(cid);
   return { ok: true };

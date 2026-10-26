@@ -234,6 +234,24 @@ describe('attached files', () => {
     const m = await (await req(`/api/teams/${t.id}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: 'Sum it', attachments: [f.path] }) })).json();
     expect(m).toMatchObject({ from: 'user', text: 'Sum it', attachments: [f.path] });
   });
+
+  it('/compact compacts instead of sending, unless files come with it', async () => {
+    // an API-model agent with no server address: a run fails at once, nothing real is asked
+    const a = await (await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Compactor', engine: 'openai', provider: 'custom' }) })).json();
+    const c = await (await req(`/api/agents/${a.id}/chats`, { method: 'POST', headers: json })).json();
+    const path_ = `/api/agents/${a.id}/chats/${c.id}`;
+    const r = await (await req(`${path_}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: '/compact' }) })).json();
+    expect(r).toMatchObject({ compacted: false, message: expect.stringContaining('Nothing to compact') });
+    expect((await (await req(path_)).json()).items).toEqual([]);
+    const mem = await (await req(`${path_}/memory`)).json();
+    expect(mem).toMatchObject({ tokens: expect.any(Number), window: expect.any(Number), auto: true });
+    // with a file it is an ordinary message
+    const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
+    const f = await (await upload(batch, 'notes.txt', 'hello')).json();
+    const sent = await (await req(`${path_}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: '/compact', attachments: [f.path] }) })).json();
+    expect(sent.runId).toEqual(expect.any(String));
+    expect((await (await req(path_)).json()).items[0]).toMatchObject({ type: 'user', text: '/compact', attachments: [f.path] });
+  });
 });
 
 describe('agent runs and projects', () => {
