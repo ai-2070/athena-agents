@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attachmentChips, baseName, filesFromDrop, filesFromInput, isFolderPath } from '../../web/attach.ts';
+import { attachmentChips, baseName, filesFromDrop, filesFromInput, filesFromPaste, isFolderPath, namePasted } from '../../web/attach.ts';
 
 // A stand-in for the browser's FileSystemEntry tree (happy-dom has no drag and drop).
 type Fake = { name: string; children?: Fake[] };
@@ -65,5 +65,57 @@ describe('attachment chips on a message', () => {
     expect(isFolderPath('C:\\a\\docs\\')).toBe(true);
     expect(isFolderPath('/a/Makefile')).toBe(false);
     expect(baseName('C:\\a\\docs\\')).toBe('docs');
+  });
+});
+
+// A stand-in for a paste's clipboardData: some text types and some files (no folder entries).
+function clip(text: Record<string, string>, files: File[]): DataTransfer {
+  return {
+    types: [...Object.keys(text), ...(files.length ? ['Files'] : [])],
+    items: files.map((f) => ({ kind: 'file', getAsFile: () => f })),
+    files,
+    getData: (t: string) => text[t] ?? '',
+  } as unknown as DataTransfer;
+}
+const png = (name = 'image.png') => new File([new Uint8Array([1, 2, 3])], name, { type: 'image/png' });
+
+describe('filesFromPaste()', () => {
+  it('takes a pasted screenshot, named so it can be told apart', async () => {
+    const picked = await filesFromPaste(clip({}, [png(), png()]));
+    expect(picked!.map((p) => p.rel)).toEqual(['pasted-image.png', 'pasted-image-2.png']);
+  });
+
+  it('takes files copied from the file manager, keeping their names', async () => {
+    const files = [new File(['a'], 'brief.pdf', { type: 'application/pdf' }), new File(['b'], 'notes.md')];
+    const picked = await filesFromPaste(clip({ 'text/plain': 'brief.pdf' }, files));
+    expect(picked!.map((p) => p.rel)).toEqual(['brief.pdf', 'notes.md']);
+  });
+
+  it('leaves plain text, and text copied from Word or Excel (with its picture), to paste as usual', () => {
+    expect(filesFromPaste(clip({ 'text/plain': 'hello' }, []))).toBeNull();
+    expect(filesFromPaste(clip({ 'text/plain': 'Q1\t120', 'text/html': '<table>…</table>' }, [png()]))).toBeNull();
+    expect(filesFromPaste(null)).toBeNull();
+  });
+
+  it('takes an image copied from a web page (its text is only the link)', async () => {
+    const picked = await filesFromPaste(clip({ 'text/plain': 'https://example.com/cat.png', 'text/html': '<img src="…">' }, [png('cat.png')]));
+    expect(picked!.map((p) => p.rel)).toEqual(['cat.png']);
+  });
+
+  it('leaves out a folder that came through as an unreadable file', async () => {
+    document.body.innerHTML = '<div id="toasts"></div>';
+    const folder = new File([], 'assets');
+    Object.defineProperty(folder, 'slice', { value: () => ({ arrayBuffer: () => Promise.reject(new Error('NotReadableError')) }) });
+    const picked = await filesFromPaste(clip({}, [folder, new File([], 'empty.txt')]));
+    expect(picked!.map((p) => p.rel)).toEqual(['empty.txt']);
+    expect(document.getElementById('toasts')!.textContent).toContain('A folder couldn’t be read');
+  });
+});
+
+describe('namePasted()', () => {
+  it('names unnamed images by their type and keeps other names apart', () => {
+    const jpg = new File(['x'], '', { type: 'image/jpeg' });
+    const out = namePasted([{ file: jpg, rel: '' }, { file: png('a.png'), rel: 'a.png' }, { file: png('a.png'), rel: 'a.png' }, { file: png(), rel: 'docs/image.png' }]);
+    expect(out.map((p) => p.rel)).toEqual(['pasted-image.jpg', 'a.png', 'a-2.png', 'docs/image.png']);
   });
 });

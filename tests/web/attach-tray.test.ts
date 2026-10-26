@@ -165,6 +165,37 @@ describe('attachTray()', () => {
   });
 });
 
+describe('pasting into a chat', () => {
+  const paste = (target: HTMLElement, data: DataTransfer) => {
+    const e = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'clipboardData', { value: data });
+    target.dispatchEvent(e);
+    return e;
+  };
+  const clip = (text: Record<string, string>, list: File[]) =>
+    ({ types: [...Object.keys(text), ...(list.length ? ['Files'] : [])], items: list.map((f) => ({ kind: 'file', getAsFile: () => f })), files: list, getData: (t: string) => text[t] ?? '' }) as unknown as DataTransfer;
+
+  it('attaches a screenshot pasted into the message box, and stops it pasting as text', async () => {
+    const tray = attachTray();
+    const zone = document.createElement('div');
+    const input = document.createElement('textarea');
+    zone.append(input);
+    document.body.append(zone);
+    const stop = tray.dropZone(zone);
+    const e = paste(input, clip({}, [new File(['x'], 'image.png', { type: 'image/png' })]));
+    expect(e.defaultPrevented).toBe(true);
+    await flush();
+    expect(tray.count()).toBe(1);
+    expect(open().map((x) => x.rel)).toEqual(['pasted-image.png']);
+    // plain text is left alone, and a stopped zone takes nothing
+    expect(paste(input, clip({ 'text/plain': 'hi' }, [])).defaultPrevented).toBe(false);
+    stop();
+    expect(paste(input, clip({}, [new File(['x'], 'b.txt')])).defaultPrevented).toBe(false);
+    await flush();
+    expect(tray.count()).toBe(1);
+  });
+});
+
 describe('restoreDraft()', () => {
   it('puts the text back without losing what was typed since', () => {
     const input = document.createElement('textarea');
