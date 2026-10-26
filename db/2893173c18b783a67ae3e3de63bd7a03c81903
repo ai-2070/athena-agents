@@ -1,0 +1,64 @@
+server/store.ts
+  s_aa9a7a7a250dde::t_cfff1d83e994f7 9,343
+server/teams.ts
+  s_aa9a7a7a250dde::t_23c847bcfa12a5 544
+web/questions.tsx
+  s_aa9a7a7a250dde::t_e20cb31aa942bb 1-107
+server/questions.ts
+  s_aa9a7a7a250dde::t_a443d389e14507 1-146,149-176
+  s_aa9a7a7a250dde::t_080c898fc8945b 147-148
+web/views/outbox.tsx
+  s_aa9a7a7a250dde::t_e20cb31aa942bb 1-2,9-10,48,70-102
+docs/guide.md
+  s_aa9a7a7a250dde::t_20215c427488d4 44,192-193
+web/app.ts
+  s_aa9a7a7a250dde::t_db28a82447cee4 57,122,159,166-167,171,182-187,189-192,195,207-213,242
+  s_aa9a7a7a250dde::t_c605925c4e7324 188
+server/index.ts
+  s_aa9a7a7a250dde::t_d570a128461180 43,134,775-782
+public/app.css
+  s_aa9a7a7a250dde::t_7ca568ca71130e 426-435
+server/engines/index.ts
+  s_aa9a7a7a250dde::t_77dc53849e5beb 208
+server/engines/claude.ts
+  s_aa9a7a7a250dde::t_8a739eaadf7158 132-133
+tests/server/questions.test.ts
+  s_aa9a7a7a250dde::t_37a47f6d9cb111 1-24,30-48,50-87,89,99-120,122-129,131-134,136-149
+  s_aa9a7a7a250dde::t_080c898fc8945b 25-29,49,88,90-98,121,130,135
+tests/server/claude-args.test.ts
+  s_aa9a7a7a250dde::t_302eb44499ad7a 30-41
+shared/types.ts
+  s_aa9a7a7a250dde::t_359dcdf2467c9e 395-425
+  s_aa9a7a7a250dde::t_67582550b8893c 622-623
+server/overseer.ts
+  s_aa9a7a7a250dde::t_b965ffad342c82 6,326,346,1718
+web/views/home.tsx
+  s_aa9a7a7a250dde::t_3c04c035e67c10 42
+tests/web/questions.test.tsx
+  s_aa9a7a7a250dde::t_f295f52ae6c21c 1-120
+server/tools.ts
+  s_aa9a7a7a250dde::t_6054524a3afa01 188-216
+web/chat/parts.tsx
+  s_aa9a7a7a250dde::t_7f28d5c4940c97 12-13,92-94,97
+README.md
+  s_aa9a7a7a250dde::t_20215c427488d4 30-31,131,145
+web/views/station.ts
+  s_aa9a7a7a250dde::t_3c04c035e67c10 2759
+  s_aa9a7a7a250dde::t_c605925c4e7324 612-614,617,1561
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "db2893173c18b783a67ae3e3de63bd7a03c81903",
+  "prompts": {},
+  "sessions": {
+    "s_aa9a7a7a250dde": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "45ce9a7e-3fb9-474e-acff-10080f9c33da",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
