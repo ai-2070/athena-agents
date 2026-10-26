@@ -24,6 +24,7 @@ import * as social from './social.ts';
 import { removeArtifact } from './artifacts.ts';
 import * as library from './library.ts';
 import { isEffort } from '../shared/effort.ts';
+import { queuedText } from '../shared/queue.ts';
 import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
@@ -46,7 +47,7 @@ import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import type { RestoreResult } from './projectsync.ts';
-import type { Agent, AppState, Project, ProviderUsage, Routine, SecretKey, Team, VersionKind } from '../shared/types.ts';
+import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, VersionKind } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
@@ -343,7 +344,8 @@ del('/api/agents/:id/knowledge', async ({ id }, _b, q) => {
 // chats
 get('/api/agents/:id/chats', async ({ id }) => chats.list(id));
 post('/api/agents/:id/chats', async ({ id }) => chats.create(need(agents.get(id)).id));
-get('/api/agents/:id/chats/:cid', async ({ id, cid }) => need(chats.get(id, cid)));
+// (with your /queue messages still waiting)
+get('/api/agents/:id/chats/:cid', async ({ id, cid }) => ({ ...need(chats.get(id, cid)), queued: engines.queuedMessages(cid) }));
 del('/api/agents/:id/chats/:cid', async ({ id, cid }) => {
   engines.forgetChat(cid);
   chats.remove(id, cid);
@@ -371,9 +373,21 @@ post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/mess
   // "/compact" (or "/compact summary", "/compact instant") compacts the chat instead of sending a message
   const cmd = attachments.length ? null : /^\/compact(?:\s+(instant|summary))?\s*$/i.exec(text);
   if (cmd) return compactResult(await engines.compactNow(a, c.id, cmd[1]?.toLowerCase() as 'instant' | 'summary' | undefined));
+  // "/queue …" waits until the agent is done here (or goes now)
+  const queued = queuedText(text);
+  if (queued != null) return queueIn(a, c, queued, attachments);
   const { runId } = engines.startRun(a, c, text, { attachments });
   return { runId };
 });
+// /queue: a message that goes once the agent is done in this chat (now, if it isn't working)
+function queueIn(a: Agent, c: Chat, text: string, attachments: string[]) {
+  if (!text && !attachments.length) throw new HttpError(400, 'Write the message after /queue.');
+  return engines.queueMessage(a, c, text, attachments);
+}
+post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/queue', async ({ id, cid }, body) =>
+  queueIn(need(agents.get(id)), need(chats.get(id, cid)), String(body.text || '').trim(), uploads.cleanAttachments(body.attachments)),
+);
+del('/api/agents/:id/chats/:cid/queue/:qid', async ({ cid, qid }) => ({ unqueued: engines.unqueue(cid, qid) }));
 // The chat views (Vercel AI SDK useChat): send a message and stream its run as a UI message stream,
 // or pick up the run going in a chat (the turn so far, then the rest; 204 when nothing runs).
 post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, body, _q, res) => {
@@ -404,8 +418,10 @@ post<{ mode?: unknown }>('/api/agents/:id/chats/:cid/compact', async ({ id, cid 
 get('/api/agents/:id/chats/:cid/memory', async ({ id, cid }) => engines.memoryOf(need(agents.get(id)), cid));
 put<{ text?: unknown }>('/api/agents/:id/chats/:cid/compactions/:kid', async ({ id, cid, kid }, body) => engines.editCompaction(id, cid, kid, String(body.text ?? '')));
 post('/api/agents/:id/chats/:cid/stop', async ({ cid }) => {
+  // the /queue messages come back to you (they'd otherwise start as soon as it stopped)
+  const unqueued = engines.unqueue(cid);
   engines.stopChat(cid);
-  return { ok: true };
+  return { ok: true, unqueued };
 });
 get('/api/runs', async () => engines.activeRuns());
 post('/api/runs/:id/stop', async ({ id }) => ({ ok: engines.stopRun(id) }));
@@ -703,7 +719,15 @@ post<{ input?: string }>('/api/workflows/:id/run', async ({ id }, body) =>
 // ---------- team chats ----------
 get('/api/teams/:id/chat', async ({ id }) => ({ team: need(teams.getTeam(id)), ...teams.getThread(id) }));
 post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/teams/:id/messages', async ({ id }, body) => teams.postUserMessage(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember, attachments: uploads.cleanAttachments(body.attachments) }));
-post('/api/teams/:id/stop', async ({ id }) => ({ ok: teams.stopTeam(need(teams.getTeam(id)).id) }));
+// /queue: posted once nobody in the team is working (now, if nobody is)
+post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/teams/:id/queue', async ({ id }, body) => teams.queueUserMessage(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember, attachments: uploads.cleanAttachments(body.attachments) }));
+del('/api/teams/:id/queue/:qid', async ({ id, qid }) => ({ unqueued: teams.unqueueTeam(need(teams.getTeam(id)).id, qid) }));
+post('/api/teams/:id/stop', async ({ id }) => {
+  const teamId = need(teams.getTeam(id)).id;
+  // the held /queue messages come back to you
+  const unqueued = teams.unqueueTeam(teamId);
+  return { ok: teams.stopTeam(teamId), unqueued };
+});
 post('/api/teams/:id/clear', async ({ id }) => {
   teams.clearThread(need(teams.getTeam(id)).id);
   return { ok: true };

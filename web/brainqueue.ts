@@ -53,3 +53,62 @@ export function latestLoad(): { start(): () => boolean; reset(): void } {
     },
   };
 }
+
+// "/queue …" in the Brain chat: the message waits here, in the page, until nothing in the chat is
+// working (the Brain's answer and whatever it handed on), then goes like any message, one at a time.
+export interface Held<X> {
+  id: string;
+  text: string;
+  extra: X;
+}
+
+export interface HoldQueue<X> {
+  add(text: string, extra: X): Held<X>;
+  remove(id: string): void;
+  /** Forget them all (new conversation, other project); returns what was waiting. */
+  clear(): Held<X>[];
+  items(): Held<X>[];
+  /** Send the next one if the chat is idle now (call it whenever something finished). */
+  check(): void;
+}
+
+/** idle: nothing in the chat is working. send: sends one, resolving once it is on its way (it may
+ *  then keep the chat busy by itself). onChange: the waiting list changed. */
+export function holdQueue<X>({ idle, send, onChange }: { idle: () => boolean; send: (m: Held<X>) => Promise<unknown>; onChange: () => void }): HoldQueue<X> {
+  let items: Held<X>[] = [];
+  let sending = false;
+  let n = 0;
+  const check = () => {
+    if (sending || !items.length || !idle()) return;
+    const next = items.shift()!;
+    sending = true;
+    onChange();
+    void send(next)
+      .catch(() => {})
+      .finally(() => {
+        sending = false;
+        check();
+      });
+  };
+  return {
+    add(text, extra) {
+      const m = { id: `q${++n}`, text, extra };
+      items.push(m);
+      onChange();
+      check();
+      return m;
+    },
+    remove(id) {
+      items = items.filter((m) => m.id !== id);
+      onChange();
+    },
+    clear() {
+      const out = items;
+      items = [];
+      onChange();
+      return out;
+    },
+    items: () => [...items],
+    check,
+  };
+}

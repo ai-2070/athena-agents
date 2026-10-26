@@ -6,7 +6,7 @@ import { readJSON, writeJSON, uid, dataPath } from './util.ts';
 import { askAgent, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
 import { isStepList, teamSteps } from '../shared/teams.ts';
 import { attachmentNames } from './uploads.ts';
-import type { Agent, Team, TeamMessage, TeamState } from '../shared/types.ts';
+import type { Agent, QueuedMessage, Team, TeamMessage, TeamState } from '../shared/types.ts';
 
 const MAX_TURNS = 16; // agent turns per message you send
 const MAX_PER_AGENT = 5; // turns per agent per message you send
@@ -45,6 +45,12 @@ interface Runtime {
   episode: { turns: number; per: Record<string, number> };
   stopped?: boolean;
   epoch: number; // bumped by stop and clear: turns started before then are dropped
+  /** your /queue messages, posted one by one once nobody is working; heldIn: the project they were typed in */
+  held: QueuedMessage[];
+  heldIn?: string;
+  route?: RouteFn | null;
+  /** a held message is being posted */
+  releasing?: boolean;
 }
 
 /** Picks the member who should answer when nobody is named and there is no lead (brain.pickMember). */
@@ -93,13 +99,13 @@ function saveChat(teamId: string, c: TeamChat, pid?: string) {
 // ---------- who is working ----------
 const rt = new Map<string, Runtime>(); // teamId -> { queue: [{agentId, msgIds}], running: Set, episode: {turns, per}, stopped }
 function runtime(teamId: string): Runtime {
-  if (!rt.has(teamId)) rt.set(teamId, { queue: [], running: new Set(), episode: { turns: 0, per: {} }, epoch: 0 });
+  if (!rt.has(teamId)) rt.set(teamId, { queue: [], running: new Set(), episode: { turns: 0, per: {} }, epoch: 0, held: [] });
   return rt.get(teamId)!;
 }
 
 export function teamState(teamId: string): TeamState {
   const r = runtime(teamId);
-  return { working: [...r.running], queued: [...new Set(r.queue.map((q) => q.agentId))] };
+  return { working: [...r.running], queued: [...new Set(r.queue.map((q) => q.agentId))], held: [...r.held] };
 }
 
 export function getThread(teamId: string, limit = 200): TeamState & { messages: TeamMessage[]; sessions: Record<string, string> } {
@@ -216,6 +222,7 @@ function pump(teamId: string) {
       r.running.delete(item.agentId);
       state(team);
       pump(teamId);
+      releaseHeld(teamId);
     });
   }
 }
@@ -318,12 +325,65 @@ async function runTurn(team: Team, item: QueueItem) {
   }
 }
 
+// ---------- /queue: your messages that wait until the team is done ----------
+const idle = (r: Runtime) => !r.running.size && !r.queue.length && !r.releasing;
+
+/** Post now if nobody is working, else once the whole team is done (one held message at a time). */
+export async function queueUserMessage(teamId: string, text: string | null | undefined, { replyTo = null, route = null, attachments = [] }: { replyTo?: string | null; route?: RouteFn | null; attachments?: string[] } = {}): Promise<{ message: TeamMessage } | { queued: QueuedMessage }> {
+  const team = getTeam(teamId);
+  if (!team) throw new Error('No such team.');
+  if (!team.members.length) throw new Error('This team has no agents yet. Add some first.');
+  text = String(text || '').trim();
+  if (!text && !attachments.length) throw new Error('Write the message after /queue.');
+  const r = runtime(team.id);
+  if (idle(r) && !r.held.length) return { message: await postUserMessage(team.id, text, { replyTo, route, attachments }) };
+  const queued: QueuedMessage = { id: uid('q'), text, ...(attachments.length ? { attachments } : {}), ...(replyTo ? { replyTo } : {}), ts: Date.now() };
+  r.held.push(queued);
+  r.heldIn = activeProject().id;
+  r.route = route;
+  state(team);
+  return { queued };
+}
+
+/** Take back one held message (id), or all of them. Returns what was taken. */
+export function unqueueTeam(teamId: string, id?: string): QueuedMessage[] {
+  const r = runtime(teamId);
+  const taken = id ? r.held.filter((q) => q.id === id) : r.held;
+  r.held = id ? r.held.filter((q) => q.id !== id) : [];
+  const team = getTeam(teamId);
+  if (taken.length && team) state(team);
+  return taken;
+}
+
+// Nobody is working any more: post the next held message.
+function releaseHeld(teamId: string) {
+  const r = runtime(teamId);
+  if (!r.held.length || !idle(r) || r.stopped) return;
+  const team = getTeam(teamId);
+  // (typed in another project: that project's thread isn't open now)
+  if (!team || r.heldIn !== openProject().id) {
+    r.held = [];
+    if (team) state(team);
+    return;
+  }
+  const next = r.held.shift()!;
+  r.releasing = true;
+  postUserMessage(team.id, next.text, { replyTo: next.replyTo || null, route: r.route, attachments: next.attachments || [] })
+    .catch((e: unknown) => log('error', `${team.name}: a queued message couldn't be sent: ${e instanceof Error ? e.message : String(e)}`))
+    .finally(() => {
+      r.releasing = false;
+      state(team);
+      releaseHeld(teamId);
+    });
+}
+
 export function stopTeam(teamId: string) {
   const team = getTeam(teamId);
   const r = runtime(teamId);
   r.stopped = true;
   r.epoch++;
   r.queue = [];
+  r.held = [];
   stopChildren(`team:${teamId}`);
   if (team) post(team, { from: 'system', text: 'Stopped. Nothing new will start until you write again.' });
   if (team) state(team);
@@ -336,6 +396,7 @@ export function clearThread(teamId: string) {
   const r = runtime(teamId);
   r.epoch++;
   r.queue = [];
+  r.held = [];
   r.episode = { turns: 0, per: {} };
   stopChildren(`team:${teamId}`);
   const c = loadChat(teamId);

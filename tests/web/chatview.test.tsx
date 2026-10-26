@@ -11,7 +11,7 @@ import { forgetFiles } from '../../web/filepreview.ts';
 import { mountChat } from '../../web/chat/mount.tsx';
 import { isRichCode } from '../../web/chat/ChatView.tsx';
 import type { MountedChat } from '../../web/chat/mount.tsx';
-import type { AppState, Chat, ChatItem } from '../../shared/types.ts';
+import type { AppState, Chat, ChatItem, QueuedMessage } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -52,6 +52,7 @@ let chat: Chat;
 let requests: { method: string; url: string; body: Record<string, unknown> }[];
 let sendStream: ReturnType<typeof uiStream> | null;
 let resumeStream: ReturnType<typeof uiStream> | null;
+let unqueuedOnStop: QueuedMessage[];
 
 const settle = () => act(() => new Promise((r) => setTimeout(r, 40)));
 const wsEvent = (ev: Record<string, unknown>) => act(() => FakeSocket.last!.onmessage!({ data: JSON.stringify({ ts: 0, ...ev }) }));
@@ -65,6 +66,7 @@ beforeEach(() => {
   requests = [];
   sendStream = null;
   resumeStream = null;
+  unqueuedOnStop = [];
   forgetFiles();
   document.body.append(Object.assign(document.createElement('div'), { id: 'toasts' }));
   state.data = { runs: [], approvals: [], agents: [] } as unknown as AppState;
@@ -77,6 +79,7 @@ beforeEach(() => {
     if (url === '/api/agents/a1/chats/c1/stream' && method === 'POST') return (sendStream = uiStream()).response();
     if (url === '/api/agents/a1/chats/c1/stream' && method === 'GET') return resumeStream ? resumeStream.response() : new Response(null, { status: 204 });
     if (url === '/api/agents/a1/chats/c1/compact') return json({ compacted: true, item: {} });
+    if (url === '/api/agents/a1/chats/c1/stop') return json({ ok: true, unqueued: unqueuedOnStop });
     if (url === '/api/files/info') return json((body.paths as string[]).map((p) => ({ path: p, ok: p === '/w/render.png', kind: 'image', name: 'render.png', size: 10, modified: 0 })));
     return json({});
   });
@@ -239,6 +242,70 @@ describe('the agent chat (AI SDK)', () => {
     expect(el.textContent).toContain('from the team');
     expect(el.textContent).toContain('Reading it now');
     expect([...el.querySelectorAll('.tname')].map((n) => n.textContent)).toContain('read_file');
+  });
+
+  it('/queue while it works: the server holds it, it shows, × takes it back', async () => {
+    const el = await open();
+    await type(el, 'go');
+    await settle();
+    await type(el, '/queue then write the tests');
+    await settle();
+    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/queue')!.body).toEqual({ text: 'then write the tests', attachments: [] });
+    expect(requests.filter((r) => r.url.endsWith('/stream') && r.method === 'POST')).toHaveLength(1);
+    expect(el.querySelector('textarea')!.value).toBe('');
+    await wsEvent({ type: 'queue', agentId: 'a1', chatId: 'c1', queued: [{ id: 'q1', text: 'then write the tests', ts: 0 }] });
+    expect(el.querySelector('.queued-msg')!.textContent).toContain('then write the tests');
+    expect(el.querySelector('.queued-head')!.textContent).toBe('Sends when Renderer is done');
+    await act(async () => (el.querySelector('.queued-msg button') as HTMLButtonElement).click());
+    await settle();
+    expect(requests.some((r) => r.method === 'DELETE' && r.url === '/api/agents/a1/chats/c1/queue/q1')).toBe(true);
+    expect(el.querySelector('.queued-msg')).toBeNull();
+  });
+
+  it('the queued message starts as the turn before it ends: that turn streams in too', async () => {
+    const el = await open();
+    await type(el, 'go');
+    await settle();
+    await wsEvent({ type: 'queue', agentId: 'a1', chatId: 'c1', queued: [{ id: 'q1', text: 'next one', ts: 0 }] });
+    // the server ends this run and starts the queued one before this view's stream has closed
+    await wsEvent({ type: 'run', runId: 'r2', agentId: 'a1', chatId: 'c1', event: { kind: 'start', text: 'next one' } });
+    await wsEvent({ type: 'queue', agentId: 'a1', chatId: 'c1', queued: [] });
+    chat.items.push({ type: 'user', text: 'go' }, { type: 'assistant', text: 'Went.' }, { type: 'user', text: 'next one' });
+    resumeStream = uiStream();
+    const s = sendStream!;
+    await act(async () => {
+      s.push({ type: 'start', messageId: 'run-r1' });
+      s.push({ type: 'finish' });
+      s.end();
+    });
+    await settle();
+    await settle();
+    expect(requests.some((r) => r.method === 'GET' && r.url.endsWith('/stream'))).toBe(true);
+    await act(async () => {
+      resumeStream!.push({ type: 'start', messageId: 'run-r2' });
+      resumeStream!.push({ type: 'text-start', id: 'b' });
+      resumeStream!.push({ type: 'text-delta', id: 'b', delta: 'On the next one' });
+    });
+    await settle();
+    expect(el.textContent).toContain('On the next one');
+  });
+
+  it('/queue when nothing is working just sends it', async () => {
+    const el = await open();
+    await type(el, '/queue hello there');
+    await settle();
+    expect(requests.find((r) => r.method === 'POST' && r.url.endsWith('/stream'))!.body).toEqual({ text: 'hello there', attachments: [] });
+    expect(requests.some((r) => r.url.endsWith('/queue'))).toBe(false);
+  });
+
+  it('Stop puts what you queued back in the box', async () => {
+    const el = await open();
+    await type(el, 'go');
+    await settle();
+    unqueuedOnStop = [{ id: 'q1', text: 'later one', ts: 0 }, { id: 'q2', text: 'later two', ts: 0 }];
+    await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'Stop')!.click());
+    await settle();
+    expect(el.querySelector('textarea')!.value).toBe('later one\n\nlater two');
   });
 
   it('the mini version (the Station panel): the last messages, tool calls still open', async () => {

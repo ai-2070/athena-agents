@@ -204,6 +204,16 @@ body.in-chat .dock-launcher { display: none; }
 .tc-typing { display: flex; align-items: center; gap: 7px; font: 11.5px var(--mono); color: var(--amber); }
 .tc-typing.queued { color: var(--dim); }
 .tc-reply { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ice); }
+/* /queue messages waiting for the agent, team or Brain to be done */
+.queued-list { display: flex; flex-direction: column; gap: 3px; padding: 6px 28px 0; }
+.queued-list.compact { padding: 4px 0 0; }
+.dock-held { padding: 6px 14px 0; }
+.queued-head { font: 500 10.5px var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.queued-msg { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--dim); background: var(--panel-2); border: 1px dashed var(--line-2); border-radius: 8px; padding: 4px 6px 4px 9px; min-width: 0; }
+.queued-msg > .ico-svg, .queued-msg > div:first-child { color: var(--amber); flex: none; }
+.queued-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queued-msg .hint { flex: none; font-size: 11px; }
+@media (max-width: 700px) { .queued-list { padding: 6px 16px 0; } .queued-list.compact { padding: 4px 0 0; } }
 .tc-compose { display: flex; gap: 6px; align-items: flex-end; position: relative; }
 .tc-field { flex: 1; position: relative; }
 .tc-input { min-height: 44px; max-height: 140px; resize: none; font-size: 13.5px; }

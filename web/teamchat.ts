@@ -1,9 +1,10 @@
 // A team's group chat: everyone's messages, who is working, @mention suggestions, reply-to, stop.
-import { h, mount, state, GET, POST, attempt, md, ago, avatar, onEvent, confirmBox } from './core.ts';
+import { h, mount, state, GET, POST, DEL, attempt, md, ago, avatar, onEvent, confirmBox, toast } from './core.ts';
 import { icon } from './icons.ts';
 import { attachTray, restoreDraft } from './attach.ts';
 import { mentionPreviews } from './filepreview.ts';
-import type { Agent, RunEvent, Team, TeamMessage, TeamState } from '../shared/types.ts';
+import { queuedText } from '../shared/queue.ts';
+import type { Agent, QueuedMessage, RunEvent, Team, TeamMessage, TeamState } from '../shared/types.ts';
 
 /** What the server pushes as a 'team' event (ev.event). */
 export type TeamEvent =
@@ -34,6 +35,8 @@ interface TeamChatData {
   messages: TeamMessage[];
   working: string[];
   queued: string[];
+  /** your /queue messages, posted when nobody is working (the server keeps them) */
+  held: QueuedMessage[];
   replyTo: TeamMessage | null;
   activity: Record<string, string>;
   /** each agent's own session for this team (agentId → chatId): where its turn streams from */
@@ -55,17 +58,19 @@ export function mergeSnapshot(snapshot: TeamMessage[], live: TeamMessage[], clea
 }
 
 export function renderTeamChat(container: HTMLElement, teamId: string, { height = 360, fill = false }: TeamChatOptions = {}): TeamChatApi {
-  const C: TeamChatData = { team: null, messages: [], working: [], queued: [], replyTo: null, activity: {}, sessions: {}, turning: new Set(), alive: true };
+  const C: TeamChatData = { team: null, messages: [], working: [], queued: [], held: [], replyTo: null, activity: {}, sessions: {}, turning: new Set(), alive: true };
   // fill: grow with the window it sits in (the chat window); otherwise a fixed height
   const list = h('div.tc-list', fill ? {} : { style: { maxHeight: `${height}px` } });
   const status = h('div.tc-status');
+  const heldEl = h('div.queued-list.compact.hidden');
   const replyChip = h('div.tc-reply.hidden');
-  const input = h('textarea.tc-input', { rows: 2, placeholder: 'Message the team… type @ to mention someone' });
+  const PLACEHOLDER = 'Message the team… type @ to mention someone';
+  const input = h('textarea.tc-input', { rows: 2, placeholder: PLACEHOLDER });
   const suggest = h('div.tc-suggest.hidden');
   const sendBtn = h('button.btn.small', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 14));
-  const stopBtn = h('button.btn.danger.small.hidden', { onclick: () => attempt(() => POST(`/teams/${teamId}/stop`)), title: 'Stop the whole team' }, icon('square', 13), 'Stop');
+  const stopBtn = h('button.btn.danger.small.hidden', { onclick: () => stop(), title: 'Stop the whole team' }, icon('square', 13), 'Stop');
   const tray = attachTray();
-  const root = h(`div.tc${fill ? '.fill' : ''}`, list, status, replyChip, tray.el, h('div.tc-compose', tray.picker, h('div.tc-field', input, suggest), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all · drop or paste files to attach'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat')));
+  const root = h(`div.tc${fill ? '.fill' : ''}`, list, heldEl, status, replyChip, tray.el, h('div.tc-compose', tray.picker, h('div.tc-field', input, suggest), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all · /queue to send when the team is done · drop or paste files to attach'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat')));
   mount(container, root);
   const offDrop = tray.dropZone(root, 'Drop files or folders for the team');
 
@@ -222,6 +227,41 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
       C.queued.filter((q) => !C.working.includes(q)).map((id) => h('span.tc-typing.queued', icon('clock', 12), `${agent(id)?.name || 'Agent'} is next`)),
     );
     stopBtn.classList.toggle('hidden', !busy.length);
+    input.placeholder = busy.length ? 'The team is working… /queue a message to send when it is done' : PLACEHOLDER;
+    drawHeld();
+  };
+
+  // your /queue messages, in the order they will go (× takes one back)
+  let heldSig = '';
+  const drawHeld = () => {
+    const sig = JSON.stringify(C.held.map((q) => q.id));
+    if (sig === heldSig) return;
+    heldSig = sig;
+    heldEl.classList.toggle('hidden', !C.held.length);
+    mount(
+      heldEl,
+      C.held.length ? h('div.queued-head', 'Sends when the team is done') : null,
+      C.held.map((q) =>
+        h(
+          'div.queued-msg',
+          icon('clock', 12),
+          h('span.queued-text', q.text || `${q.attachments?.length || 0} file(s)`),
+          h('button.tc-act', { title: "Don't send this", 'aria-label': "Don't send this", onclick: () => unqueue(q) }, icon('x', 12)),
+        ),
+      ),
+    );
+  };
+  const unqueue = (q: QueuedMessage) => {
+    C.held = C.held.filter((x) => x.id !== q.id);
+    drawHeld();
+    void attempt(() => DEL(`/teams/${teamId}/queue/${q.id}`));
+  };
+  const stop = async () => {
+    const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`/teams/${teamId}/stop`));
+    // what you queued comes back to the box, so stopping never loses it
+    const back = r?.unqueued || [];
+    if (back.length) restoreDraft(input, back.map((q) => q.text).filter(Boolean).join('\n\n'));
+    if (back.some((q) => q.attachments?.length)) toast('Your queued messages are back in the box. Attach their files again.');
   };
 
   // (at most once a frame, however many events come)
@@ -317,15 +357,27 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
       draw();
       if (!attachments) return;
       // what is in the box now (more may have been typed while the files uploaded)
-      const text = input.value.trim();
-      if (!text && !attachments.length) return;
+      const typed = input.value.trim();
+      // "/queue …": posted once nobody is working (now, if nobody is)
+      const queued = queuedText(typed);
+      const text = queued ?? typed;
+      if (!text && !attachments.length) return void (typed && toast('Write the message after /queue'));
       input.value = '';
       const taken = tray.take();
-      const r = await attempt(() => POST<TeamMessage>(`/teams/${teamId}/messages`, { text, replyTo: C.replyTo?.id || null, attachments }));
+      const body = { text, replyTo: C.replyTo?.id || null, attachments };
+      type Sent = { message?: TeamMessage; queued?: QueuedMessage };
+      const r = await attempt((): Promise<Sent> => (queued != null ? POST<Sent>(`/teams/${teamId}/queue`, body) : POST<TeamMessage>(`/teams/${teamId}/messages`, body).then((message) => ({ message }))));
       if (!r) {
-        restoreDraft(input, text);
+        restoreDraft(input, typed);
         tray.put(taken);
-      } else setReply(null);
+        return;
+      }
+      setReply(null);
+      const held = r.queued;
+      if (held && !C.held.some((q) => q.id === held.id)) {
+        C.held = [...C.held, held];
+        drawHeld();
+      }
     } finally {
       sending = false;
     }
@@ -344,7 +396,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
       const e = ev.event as TeamEvent;
       if (e.kind === 'message' && !C.messages.some((m) => m.id === e.message.id)) C.messages.push(e.message);
       if (e.kind === 'state') {
-        Object.assign(C, { working: e.working, queued: e.queued });
+        Object.assign(C, { working: e.working, queued: e.queued, held: e.held || [] });
         early.state ||= early.loading;
       }
       if (e.kind === 'cleared') {
@@ -352,6 +404,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
         C.messages = [];
         C.sessions = {};
         C.working = [];
+        C.held = [];
         C.turning.clear();
         dropTurns();
         early.cleared ||= early.loading;
@@ -388,7 +441,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
         // who was already working when this opened: their turns are going now
         for (const id of r.working) C.turning.add(id);
       }
-      if (!early.state && !early.cleared) Object.assign(C, { working: r.working, queued: r.queued });
+      if (!early.state && !early.cleared) Object.assign(C, { working: r.working, queued: r.queued, held: r.held || [] });
       draw();
     })
     .catch(() => {})

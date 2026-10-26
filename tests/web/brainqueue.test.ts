@@ -1,6 +1,6 @@
 // Brain messages wait their turn, and belong to the project and conversation they were typed in.
 import { describe, expect, it } from 'vitest';
-import { brainQueue, latestLoad } from '../../web/brainqueue.ts';
+import { brainQueue, holdQueue, latestLoad } from '../../web/brainqueue.ts';
 
 // a fake server: each request waits until the test answers it
 function fakeServer() {
@@ -111,5 +111,81 @@ describe('latestLoad()', () => {
     loads.reset();
     expect(second()).toBe(false);
     expect(loads.start()()).toBe(true);
+  });
+});
+
+describe('holdQueue() (/queue in the Brain chat)', () => {
+  // a chat that is busy until the test says so; each send stays on its way until the test finishes it
+  function chat() {
+    let busy = true;
+    const sent: { text: string; done: () => void }[] = [];
+    let changes = 0;
+    const q = holdQueue<string>({
+      idle: () => !busy,
+      send: (m) => new Promise<void>((done) => sent.push({ text: `${m.text}→${m.extra}`, done })),
+      onChange: () => changes++,
+    });
+    return { q, sent, setBusy: (b: boolean) => (busy = b), changes: () => changes };
+  }
+
+  it('holds messages while the chat works, then sends them one at a time, in order', async () => {
+    const c = chat();
+    c.q.add('one', 'brain');
+    c.q.add('two', 'agent');
+    c.q.check();
+    expect(c.sent).toEqual([]);
+    expect(c.q.items().map((m) => m.text)).toEqual(['one', 'two']);
+    c.setBusy(false);
+    c.q.check();
+    c.q.check();
+    expect(c.sent.map((s) => s.text)).toEqual(['one→brain']);
+    expect(c.q.items().map((m) => m.text)).toEqual(['two']);
+    // the first one keeps the chat busy after it went (the Brain is answering it)
+    c.setBusy(true);
+    c.sent[0].done();
+    await tick();
+    expect(c.sent).toHaveLength(1);
+    c.setBusy(false);
+    c.q.check();
+    expect(c.sent.map((s) => s.text)).toEqual(['one→brain', 'two→agent']);
+    expect(c.q.items()).toEqual([]);
+  });
+
+  it('sends straight away when nothing is working', () => {
+    const c = chat();
+    c.setBusy(false);
+    c.q.add('now', 'brain');
+    expect(c.sent.map((s) => s.text)).toEqual(['now→brain']);
+  });
+
+  it('takes one back, or all of them (a new conversation)', () => {
+    const c = chat();
+    const one = c.q.add('one', 'x');
+    c.q.add('two', 'x');
+    c.q.add('three', 'x');
+    c.q.remove(one.id);
+    expect(c.q.items().map((m) => m.text)).toEqual(['two', 'three']);
+    expect(c.q.clear().map((m) => m.text)).toEqual(['two', 'three']);
+    c.setBusy(false);
+    c.q.check();
+    expect(c.sent).toEqual([]);
+    expect(c.changes()).toBeGreaterThan(0);
+  });
+
+  it('keeps going after a send fails', async () => {
+    let busy = true;
+    const sent: string[] = [];
+    const q = holdQueue<null>({
+      idle: () => !busy,
+      send: (m) => (sent.push(m.text), m.text === 'bad' ? Promise.reject(new Error('no')) : Promise.resolve()),
+      onChange: () => {},
+    });
+    q.add('bad', null);
+    q.add('good', null);
+    busy = false;
+    q.check();
+    await tick();
+    await tick();
+    expect(sent).toEqual(['bad', 'good']);
   });
 });

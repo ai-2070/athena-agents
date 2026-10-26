@@ -8,7 +8,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { APICallError } from 'ai';
-import { GET, POST, attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
+import { GET, POST, DEL, attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
 import { restoreDraft } from '../attach.ts';
 import type { AttachTray } from '../attach.ts';
 import { icon } from '../icons.ts';
@@ -20,8 +20,9 @@ import { chatTransport } from './transport.ts';
 import { agentMentions, insertMention } from './mention.ts';
 import type { MentionAgent } from './mention.ts';
 import { agentRef } from '../../shared/agentref.ts';
+import { queuedText } from '../../shared/queue.ts';
 import type { ChatMessage } from './messages.ts';
-import type { AppState, Chat, ChatItem } from '../../shared/types.ts';
+import type { AppState, Chat, ChatItem, QueuedMessage } from '../../shared/types.ts';
 
 export { isRichCode };
 
@@ -83,6 +84,12 @@ export function ChatView(p: ChatViewProps) {
   // why the last send failed; refused: the server never took it (so the text goes back in the box)
   const failed = useRef<{ message: string; refused: boolean } | null>(null);
   const [compacting, setCompacting] = useState(false);
+  // your /queue messages, waiting for the agent to be done here (the server keeps them)
+  const [queued, setQueued] = useState<QueuedMessage[]>([]);
+  const queuedRef = useRef(queued);
+  queuedRef.current = queued;
+  // the next queued message started while this view was still streaming the turn before it
+  const missedStart = useRef(false);
   const onChat = useRef(p.onChat);
   onChat.current = p.onChat;
   // one id for this view's useChat, even when its first message makes the chat
@@ -114,6 +121,7 @@ export function ChatView(p: ChatViewProps) {
     const saved = await GET<Chat>(`/agents/${agent.id}/chats/${id}`).catch(() => null);
     if (!saved || chatIdRef.current !== id) return;
     setItems(saved.items);
+    setQueued(saved.queued || []);
     // (while a stream is going it keeps its own message; the saved chat comes when it ends)
     if (after || !streamingRef.current) setMessages(toUIMessages(saved.items));
     onChat.current?.(saved);
@@ -132,8 +140,18 @@ export function ChatView(p: ChatViewProps) {
       following.current = false;
       setStatusText('');
       await reload(true);
+      catchUp();
     }
   }, [resumeStream, reload, setMessages]);
+  // a queued message started while a turn was streaming here: stream that one in too, once this
+  // view has seen its own stream end (the effect runs after that render)
+  const [ended, setEnded] = useState(0);
+  const catchUp = () => setEnded((n) => n + 1);
+  useEffect(() => {
+    if (!missedStart.current || streaming || sending.current || following.current) return;
+    missedStart.current = false;
+    void follow();
+  }, [ended, streaming, follow]);
 
   useEffect(() => {
     void (async () => {
@@ -152,8 +170,11 @@ export function ChatView(p: ChatViewProps) {
           if (!streamingRef.current) void reload();
           return;
         }
+        if (ev.type === 'queue') return void setQueued((ev.queued as QueuedMessage[]) || []);
         if (ev.type !== 'run') return;
         const kind = (ev.event as { kind?: string })?.kind;
+        // (the server starts a queued message right as the turn before it ends: this view may still be streaming that one)
+        if (kind === 'start' && (streamingRef.current || sending.current || following.current) && queuedRef.current.length) missedStart.current = true;
         if (kind === 'start' && !streamingRef.current && !sending.current) void reload().then(follow);
         else if ((kind === 'done' || kind === 'error') && !streamingRef.current && !sending.current) void reload();
       }),
@@ -192,8 +213,10 @@ export function ChatView(p: ChatViewProps) {
         setStatusText('');
         if (!attachments) return;
         // what is in the box now (more may have been typed while the files uploaded)
-        const text = typed ?? box?.value.trim() ?? '';
-        if (!text && !attachments.length) return;
+        const typedNow = typed ?? box?.value.trim() ?? '';
+        // "/queue …" while it isn't working: nothing to wait for, so it goes now
+        const text = typed == null ? (queuedText(typedNow) ?? typedNow) : typedNow;
+        if (!text && !attachments.length) return void (typedNow && toast('Write the message after /queue'));
         if (typed == null && box) {
           box.value = '';
           box.style.height = '';
@@ -230,15 +253,65 @@ export function ChatView(p: ChatViewProps) {
         sending.current = false;
         setStatusText('');
         await reload(true);
+        catchUp();
       }
     },
     [busy, tray, sendMessage, compactNow, reload, agent.id],
   );
 
-  const stop = useCallback(() => {
+  // "/queue …" while the agent works: the server holds it and sends it when this turn is done
+  const queueing = useRef(false);
+  const queueNext = useCallback(async () => {
+    const box = input.current;
     const id = chatIdRef.current;
-    if (id) attempt(() => POST(`/agents/${agent.id}/chats/${id}/stop`));
+    if (!box || !id || queueing.current) return;
+    queueing.current = true;
+    try {
+      const attachments = tray ? await tray.ready() : [];
+      if (!attachments) return;
+      // (what is in the box now: more may have been typed while the files uploaded)
+      const text = queuedText(box.value) ?? box.value.trim();
+      if (!text && !attachments.length) return void toast('Write the message after /queue');
+      box.value = '';
+      box.style.height = '';
+      const taken = tray?.take() || [];
+      const r = await attempt(() => POST<{ runId?: string; queued?: QueuedMessage }>(`/agents/${agent.id}/chats/${id}/queue`, { text, attachments }));
+      if (!r) {
+        restoreDraft(box, `/queue ${text}`);
+        tray?.put(taken);
+        return;
+      }
+      const added = r.queued;
+      if (added) setQueued((q) => (q.some((x) => x.id === added.id) ? q : [...q, added]));
+    } finally {
+      queueing.current = false;
+    }
+  }, [agent.id, tray]);
+  const unqueue = useCallback(
+    (q: QueuedMessage) => {
+      const id = chatIdRef.current;
+      if (!id) return;
+      setQueued((list) => list.filter((x) => x.id !== q.id));
+      void attempt(() => DEL(`/agents/${agent.id}/chats/${id}/queue/${q.id}`));
+    },
+    [agent.id],
+  );
+  // Enter: a /queue while it works waits its turn; anything else is sent (when it isn't working)
+  const submit = () => {
+    const box = input.current;
+    if (box && queuedText(box.value) != null && (busy || sending.current)) return void queueNext();
+    void send();
+  };
+
+  const stop = useCallback(async () => {
+    const id = chatIdRef.current;
     void stopStream();
+    if (!id) return;
+    const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`/agents/${agent.id}/chats/${id}/stop`));
+    // what you queued comes back to the box, so stopping never loses it
+    const back = r?.unqueued || [];
+    if (back.length && input.current) restoreDraft(input.current, back.map((q) => q.text).filter(Boolean).join('\n\n'));
+    if (back.some((q) => q.attachments?.length)) toast('Your queued messages are back in the box. Attach their files again.');
   }, [agent.id, stopStream]);
 
   if (p.apiRef)
@@ -351,12 +424,12 @@ export function ChatView(p: ChatViewProps) {
         ref={input}
         className={compact ? 'ac-input' : undefined}
         rows={variant === 'mini' ? 1 : 2}
-        placeholder={compact ? `Message ${agent.name}…  (Enter to send, @ for another agent)` : `Message ${agent.name}…`}
+        placeholder={busy ? `/queue a message to send when ${agent.name} is done` : compact ? `Message ${agent.name}…  (Enter to send, @ for another agent)` : `Message ${agent.name}…`}
         onKeyDown={(e) => {
           if (onMentionKey(e)) return;
           if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
-            void send();
+            submit();
           }
         }}
         onInput={(e) => {
@@ -410,6 +483,22 @@ export function ChatView(p: ChatViewProps) {
     </button>
   ) : null;
 
+  // your /queue messages, in the order they will go (× takes one back)
+  const queuedList = queued.length ? (
+    <div className={`queued-list${compact ? ' compact' : ''}`}>
+      <div className="queued-head">Sends when {agent.name} is done</div>
+      {queued.map((q) => (
+        <div key={q.id} className="queued-msg">
+          <Dom make={() => icon('clock', 12)} deps={[]} />
+          <span className="queued-text">{q.text || `${q.attachments?.length || 0} file(s)`}</span>
+          <button type="button" className="tc-act" title="Don't send this" aria-label="Don't send this" onClick={() => unqueue(q)}>
+            <Dom make={() => icon('x', 12)} deps={[]} />
+          </button>
+        </div>
+      ))}
+    </div>
+  ) : null;
+
   return (
     <>
       <div ref={list} className={variant === 'mini' ? 'oc-mini-list' : compact ? 'ac-list' : 'messages'} onScroll={onScroll}>
@@ -448,6 +537,7 @@ export function ChatView(p: ChatViewProps) {
           ))}
         </div>
       )}
+      {queuedList}
       <div className={compact ? 'ac-status' : 'status-line'}>
         {statusLine ? (
           compact ? (
@@ -481,7 +571,7 @@ export function ChatView(p: ChatViewProps) {
           </div>
           <div className="row between" style={{ maxWidth: '1000px', marginTop: '6px' }}>
             {p.footer ? <Dom make={() => p.footer!} deps={[p.footer]} /> : <span />}
-            <span className="hint">Enter to send · Shift+Enter for a new line · @ to bring in another agent</span>
+            <span className="hint">Enter to send · Shift+Enter for a new line · @ to bring in another agent · /queue to send when it’s done</span>
           </div>
         </div>
       )}

@@ -38,6 +38,7 @@ const SESSION: ChatItem[] = [
 ];
 let live: ReturnType<typeof uiStream>;
 let requests: string[];
+let bodies: Record<string, unknown>;
 const settle = () => act(() => new Promise((r) => setTimeout(r, 40)));
 
 beforeAll(() => {
@@ -47,10 +48,12 @@ beforeAll(() => {
 beforeEach(() => {
   forgetFiles();
   requests = [];
+  bodies = {};
   live = uiStream();
   state.data = { runs: [], approvals: [], agents: [{ id: 'lead', name: 'Lead', emoji: '🧭', color: '#fff' }, { id: 'maker', name: 'Maker', emoji: '🎨', color: '#fff' }] } as unknown as AppState;
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     requests.push(`${init.method || 'GET'} ${url}`);
+    if (init.body) bodies[url] = JSON.parse(String(init.body));
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (url === '/api/teams/t1/chat')
       return json({
@@ -64,6 +67,8 @@ beforeEach(() => {
         sessions: { lead: 'lead-chat', maker: 'maker-chat' },
       });
     if (url === '/api/agents/maker/chats/maker-chat/stream') return live.response();
+    if (url === '/api/teams/t1/queue') return json({ queued: { id: 'q1', text: 'then the banner', ts: 5 } });
+    if (url === '/api/teams/t1/stop') return json({ ok: true, unqueued: [{ id: 'q2', text: 'and a logo', ts: 6 }] });
     if (url === '/api/agents/lead/chats/lead-chat') return json({ id: 'lead-chat', agentId: 'lead', items: SESSION } as Partial<Chat>);
     return json({});
   });
@@ -173,5 +178,35 @@ describe('team chat turns', () => {
     expect(removed.filter((n) => before.includes(n as Element))).toEqual([]);
     // the status line still says what the working agent does
     expect(el.querySelector('.tc-status')!.textContent).toContain('Maker is working · writing');
+  });
+
+  it('/queue while the team works: held until it is done, shown, × takes it back, Stop gives it back', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    const box = el.querySelector('textarea')!;
+    expect(box.placeholder).toContain('/queue');
+    box.value = '/queue then the banner';
+    await act(async () => box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    await settle();
+    expect(bodies['/api/teams/t1/queue']).toEqual({ text: 'then the banner', replyTo: null, attachments: [] });
+    expect(requests).not.toContain('POST /api/teams/t1/messages');
+    expect(el.querySelector('.queued-msg')!.textContent).toContain('then the banner');
+    expect(el.querySelector('.queued-head')!.textContent).toBe('Sends when the team is done');
+    // the server's state says it was posted: it leaves the list
+    await teamEvent({ kind: 'state', working: ['lead'], queued: [], held: [] });
+    await settle();
+    expect(el.querySelector('.queued-list')!.classList.contains('hidden')).toBe(true);
+    await teamEvent({ kind: 'state', working: ['lead'], queued: [], held: [{ id: 'q2', text: 'and a logo', ts: 6 }] });
+    await settle();
+    (el.querySelector('.queued-msg button') as HTMLButtonElement).click();
+    await settle();
+    expect(requests).toContain('DELETE /api/teams/t1/queue/q2');
+    expect(el.querySelector('.queued-msg')).toBeNull();
+    // Stop: the held ones come back to the box
+    [...el.querySelectorAll('button')].find((b) => b.textContent === 'Stop')!.click();
+    await settle();
+    expect(box.value).toBe('and a logo');
   });
 });

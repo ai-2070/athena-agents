@@ -106,6 +106,18 @@ export interface Team {
 export interface TeamState {
   working: string[];
   queued: string[];
+  /** your /queue messages, posted one by one once nobody is working */
+  held?: QueuedMessage[];
+}
+
+/** A message typed with /queue: it waits until the agent or team is done, then goes as usual. */
+export interface QueuedMessage {
+  id: string;
+  text: string;
+  attachments?: string[];
+  /** (team chats) the message it answers */
+  replyTo?: string | null;
+  ts: number;
 }
 
 /** A team as GET /api/workflows returns it: with who is working and its latest message. */
@@ -269,6 +281,8 @@ export interface Chat {
   createdAt: number;
   updatedAt: number;
   _deleted?: boolean;
+  /** Your /queue messages for when the current run is done (kept in memory; GET adds them, never saved). */
+  queued?: QueuedMessage[];
 }
 
 export interface ChatSummary {
