@@ -21,7 +21,6 @@ import { renderTeamChat } from '../teamchat.ts';
 import type { Child } from '../core.ts';
 import { teamSteps } from '../../shared/teams.ts';
 import type { ActivityEntry, Agent, AppState, Chat, ChatItem, ChatSummary, Project, ProviderUsage, RunEvent, Schedule, ServerEvent, Team, TeamAccess, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter } from '../../shared/types.ts';
-import { mentionPreviews } from '../filepreview.ts';
 
 // ---------- types ----------
 /** A connection a step can reach: a service, a program, an MCP server ('mcp:x') or a Claude account connector ('cc:x'). */
@@ -305,12 +304,6 @@ interface FeedItem {
   kind: string;
   ts: number;
 }
-/** The agent panel's mini chat. */
-interface MiniChat {
-  agentId: string;
-  id: string | null;
-  items: ChatItem[];
-}
 interface DropTarget {
   wfId?: string;
   bench?: boolean;
@@ -373,7 +366,6 @@ interface StationState {
   feed: FeedItem[];
   clock: THREE.Clock;
   alive: boolean;
-  chat: MiniChat | null;
   wires: SVGGElement | null;
   dots: WireDot[];
   links2dAll?: Link2d[];
@@ -423,12 +415,9 @@ interface StationState {
   tileEls: Map<string, HTMLButtonElement>;
   // the side panel
   teamTab?: string;
-  chatEl?: HTMLDivElement;
   /** Files dragged over the map: 'map', or 'brain' when they are over the Brain (it glows). */
   fileDrag?: 'map' | 'brain' | null;
   dropHint?: HTMLDivElement | null;
-  chatStatus?: HTMLDivElement;
-  chatStream?: number | null;
 }
 
 // Live events the Station reads (ServerEvent with its fields).
@@ -919,7 +908,6 @@ export async function render(el: HTMLElement): Promise<void> {
     feed: [],
     clock: new THREE.Clock(),
     alive: true,
-    chat: null,
     wires: null,
     dots: [],
     links2d: [],
@@ -2861,7 +2849,6 @@ function newBranch(): void {
 function choose(p: MapPick | null): void {
   if (!S) return;
   S.selected = p;
-  S.chat = null;
   for (const l of S.labelEls) l.el.classList.toggle('sel', !!p && l.kind === p.type && l.id === p.id && (!p.wf || !l.wf || l.wf === p.wf));
   if (!p) {
     // slide out, then hide (unless something was picked meanwhile)
@@ -3337,23 +3324,10 @@ async function renderAgentPanel(id: string, wfId?: string): Promise<void> {
   const d = state.data!;
   const a = d.agents.find((x) => x.id === id);
   if (!a) return choose(null);
-  const chats = await GET<ChatSummary[]>(`/agents/${id}/chats`).catch((): ChatSummary[] => []);
-  if (S?.selected?.id !== id) return;
-  const chat = chats[0] ? await GET<Chat>(`/agents/${id}/chats/${chats[0].id}`).catch(() => null) : null;
-  if (S?.selected?.id !== id) return;
-  S.chat = chat ? { agentId: id, id: chat.id, items: chat.items } : { agentId: id, id: null, items: [] };
+  if (!S) return;
   const onBranches = S.workflows.filter((w) => (w.members || []).includes(id));
   const others = S.workflows.filter((w) => !onBranches.includes(w));
   let addTo = others[0]?.id || '';
-  const input = h('textarea', { rows: 2, placeholder: `Message ${a.name}…  (Enter to send)` });
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-      e.preventDefault();
-      sendMini(input);
-    }
-  });
-  S.chatEl = h('div.st-chat');
-  S.chatStatus = h('div.st-chat-status');
   const running = d.runs.find((r) => r.agentId === id);
   const removeFrom = async (w: TeamView) => {
     const copy = structuredClone(w);
@@ -3447,46 +3421,6 @@ async function renderAgentPanel(id: string, wfId?: string): Promise<void> {
       d.approvals.filter((x) => x.agentId === id).map((x) => h('div.mt', approvalCard(x))),
     ),
   );
-}
-
-function drawMiniChat(): void {
-  if (!S?.chatEl || !S.chat) return;
-  const chatKey = S.chat.id || 'new';
-  const items = S.chat.items.map((it, at) => ({ it, at })).filter(({ it }) => it.type !== 'meta').slice(-14);
-  mount(
-    S.chatEl,
-    items.length
-      ? items.map(({ it: i, at }) => {
-          if (i.type === 'user') return [h('div.st-msg.user', i.text), mentionPreviews(i.text, i.attachments, { compact: true, key: `${chatKey}:${at}` })];
-          if (i.type === 'assistant') {
-            const m = md(i.text.length > 2500 ? i.text.slice(0, 2500) + '…' : i.text);
-            m.className = 'st-msg assistant';
-            return [m, mentionPreviews(i.text, [], { compact: true, key: `${chatKey}:${at}` })];
-          }
-          if (i.type === 'tool')
-            return h('div.st-msg.tool', { class: i.isError ? 'err' : '' }, i.status === 'running' ? h('span.dot.busy') : h('span', i.isError ? '✕' : '✓'), ` ${i.name}`, i.images?.length ? h('div.st-imgs', i.images.slice(0, 4).map((src) => h('img', { src }))) : null);
-          if (i.type === 'error') return h('div.st-msg.err', i.text);
-          if (i.type === 'compaction') return h('div.st-msg.cmp', { title: 'The agent’s memory of the messages above was compacted. Open the full chat to see or edit it.' }, '— COMPACTED —');
-          return null;
-        })
-      : h('p.empty', 'No messages yet.'),
-  );
-  S.chatEl.scrollTop = S.chatEl.scrollHeight;
-}
-
-async function sendMini(input: HTMLTextAreaElement): Promise<void> {
-  const text = input.value.trim();
-  if (!text || !S?.chat) return;
-  const { agentId } = S.chat;
-  input.value = '';
-  let chatId = S.chat.id;
-  if (!chatId) {
-    const c = await attempt(() => POST<Chat>(`/agents/${agentId}/chats`));
-    if (!c) return;
-    chatId = S.chat.id = c.id;
-  }
-  const r = await attempt(() => POST(`/agents/${agentId}/chats/${chatId}/messages`, { text }));
-  if (!r) input.value = text;
 }
 
 // ---------- live events ----------
@@ -3596,66 +3530,5 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
       for (const desk of desks) desk.act = { kind: 'thinking', since: Date.now() };
     } else if (e.kind === 'done' && a) feedPush(`${a.emoji || ''} ${a.name} finished (${e.seconds}s)`);
     else if (e.kind === 'error' && a) feedPush(`${a.name}: ${String(e.text).slice(0, 80)}`, 'error');
-
-    if (S.chat && S.chat.agentId === ev.agentId && (!S.chat.id || S.chat.id === ev.chatId)) {
-      S.chat.id ||= ev.chatId;
-      const items = S.chat.items;
-      if (e.kind === 'start') {
-        const last = items[items.length - 1];
-        if (!(last?.type === 'user' && last.text === e.text)) items.push({ type: 'user', text: e.text });
-        S.chatStream = null;
-        setChatStatus('Thinking…');
-      } else if (e.kind === 'text') {
-        if (S.chatStream == null || items[S.chatStream]?.type !== 'assistant') {
-          items.push({ type: 'assistant', text: '' });
-          S.chatStream = items.length - 1;
-        }
-        (items[S.chatStream] as Extract<ChatItem, { type: 'assistant' }>).text += e.text;
-        setChatStatus('Writing…');
-      } else if (e.kind === 'tool') {
-        S.chatStream = null;
-        items.push({ type: 'tool', id: e.id, name: e.name, status: 'running' });
-        setChatStatus(`Using ${e.name}…`);
-      } else if (e.kind === 'tool_result') {
-        const it = [...items].reverse().find((x) => x.type === 'tool' && x.id === e.id);
-        if (it) Object.assign(it, { status: 'done', isError: e.isError, images: e.images });
-      } else if (e.kind === 'status') setChatStatus(e.text);
-      else if (e.kind === 'done' || e.kind === 'error') {
-        setChatStatus('');
-        // Sync with the saved chat so nothing streamed before the panel opened is missing.
-        const { agentId, id } = S.chat;
-        if (id) GET<Chat>(`/agents/${agentId}/chats/${id}`).then((c) => {
-          if (S?.chat?.id === id) {
-            S.chat.items = c.items;
-            drawMiniChat();
-          }
-        }).catch(() => {});
-      }
-      scheduleChat();
-    }
   } else if (isEvent(ev, 'activity') && ev.entry && !['run', 'workflow'].includes(ev.entry.kind)) feedPush(ev.entry.text, ev.entry.kind);
-  else if (ev.type === 'compacted' && S.chat?.id && S.chat.id === ev.chatId) {
-    // show the COMPACTED mark where it went
-    const { agentId, id } = S.chat;
-    GET<Chat>(`/agents/${agentId}/chats/${id}`).then((c) => {
-      if (S?.chat?.id === id) {
-        S.chat.items = c.items;
-        drawMiniChat();
-      }
-    }).catch(() => {});
-  }
-}
-
-let chatFrame = false;
-function scheduleChat(): void {
-  if (chatFrame) return;
-  chatFrame = true;
-  requestAnimationFrame(() => {
-    chatFrame = false;
-    drawMiniChat();
-  });
-}
-
-function setChatStatus(t: string): void {
-  if (S?.chatStatus) mount(S.chatStatus, t ? [h('span.dot.busy'), ` ${t}`] : []);
 }
