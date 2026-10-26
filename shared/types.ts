@@ -152,8 +152,11 @@ export interface TeamListing extends Team {
 export interface TeamMessage {
   id: string;
   ts: number;
-  from: string; // 'user' | 'system' | 'brain' | agent id
+  from: string; // 'user' | 'system' | 'brain' | agent id | 'team:<id>' (another team)
   text: string;
+  /** From another team (#Team Name): who there wrote it, and, for that team's answer to a question
+   *  asked from here, the message that asked. Names are kept so it reads right after renames. */
+  relay?: TeamRelay;
   mentions: string[];
   replyTo?: string | null;
   handedTo?: string[];
@@ -163,6 +166,25 @@ export interface TeamMessage {
   /** Files and folders attached to the message (paths in the project's uploads/ folder). */
   attachments?: string[];
   [k: string]: unknown;
+}
+
+export interface TeamRelay {
+  teamId: string;
+  teamName: string;
+  /** who wrote it there: an agent id, 'user' or 'brain' */
+  by: string;
+  byName: string;
+  /** set on an answer: the message here that asked */
+  answers?: string;
+}
+
+/** Another team, as a team's chat lists them (for #Team Name). */
+export interface TeamRef {
+  id: string;
+  name: string;
+  color?: string;
+  mark?: string;
+  description: string;
 }
 
 // ---------- routines ----------

@@ -1,5 +1,6 @@
 // A team's group chat: everyone's messages, who is working, @mention suggestions, reply-to, stop.
 // The Brain writes here too (from 'brain'): its briefs, follow-ups, and answers to @Brain.
+// Other teams too (from 'team:<id>'): what they ask this team after a #Team Name, and their answers.
 import { h, mount, state, GET, POST, DEL, attempt, md, ago, avatar, onEvent, confirmBox, toast } from './core.ts';
 import { icon } from './icons.ts';
 import { attachTray } from './attach.ts';
@@ -8,7 +9,7 @@ import { mentionPreviews } from './filepreview.ts';
 import { queuedText } from '../shared/queue.ts';
 import { parseCommand } from '../shared/commands.ts';
 import { commandChips, slashMenu } from './chatcommands.ts';
-import type { Agent, BrainBrief, LoopInfo, QueuedMessage, RunEvent, Team, TeamMessage, TeamState } from '../shared/types.ts';
+import type { Agent, BrainBrief, LoopInfo, QueuedMessage, RunEvent, Team, TeamMessage, TeamRef, TeamState } from '../shared/types.ts';
 
 /** What the server pushes as a 'team' event (ev.event). */
 export type TeamEvent =
@@ -25,6 +26,8 @@ export interface TeamChatResponse extends TeamState {
   sessions?: Record<string, string>;
   /** your /goal for the team, while the Brain follows it */
   goal?: BrainBrief | null;
+  /** the other teams it can ask (#Team Name) */
+  others?: TeamRef[];
 }
 /** What renderTeamChat() hands back. */
 export interface TeamChatApi {
@@ -38,6 +41,8 @@ interface TeamChatOptions {
 }
 interface TeamChatData {
   team: Team | null;
+  /** the other teams (#Team Name) */
+  others: TeamRef[];
   messages: TeamMessage[];
   working: string[];
   queued: string[];
@@ -57,6 +62,21 @@ interface TeamChatData {
 interface MentionOption {
   label: string;
   a?: Agent;
+  /** another team, typed as #Name */
+  t?: TeamRef;
+}
+
+/** Who wrote a message, in a few words (the quote above a reply). */
+export function senderName(m: TeamMessage, agentName: (id: string) => string | undefined): string {
+  if (m.relay) return `#${m.relay.teamName}`;
+  return m.from === 'user' ? 'You' : m.from === 'brain' ? 'Brain' : m.from === 'system' ? 'System' : agentName(m.from) || '';
+}
+
+/** What highlights @Names and #Teams in a message (group 1: an @name, group 2: a #team). */
+export function mentionPattern(names: string[], teams: string[]): RegExp {
+  const esc = (n: string) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const longest = (xs: string[]) => [...xs].sort((a, b) => b.length - a.length).map(esc).join('|');
+  return new RegExp(`@(${longest(names)})${teams.length ? `|(?<![\\w#&/])#(${longest(teams)})(?![\\w-])` : ''}`, 'gi');
 }
 
 // The first GET's messages, plus what live events added meanwhile. After a clear the snapshot may be from before it, so only the live ones count.
@@ -67,7 +87,7 @@ export function mergeSnapshot(snapshot: TeamMessage[], live: TeamMessage[], clea
 }
 
 export function renderTeamChat(container: HTMLElement, teamId: string, { height = 360, fill = false }: TeamChatOptions = {}): TeamChatApi {
-  const C: TeamChatData = { team: null, messages: [], working: [], queued: [], held: [], loop: null, goal: null, replyTo: null, activity: {}, sessions: {}, turning: new Set(), alive: true };
+  const C: TeamChatData = { team: null, others: [], messages: [], working: [], queued: [], held: [], loop: null, goal: null, replyTo: null, activity: {}, sessions: {}, turning: new Set(), alive: true };
   // fill: grow with the window it sits in (the chat window); otherwise a fixed height
   const list = h('div.tc-list', fill ? {} : { style: { maxHeight: `${height}px` } });
   const status = h('div.tc-status');
@@ -84,7 +104,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   // long pasted text, folded into a chip until it is sent
   const pastes = pasteBox();
   const offPastes = pastes.attach(input);
-  const root = h(`div.tc${fill ? '.fill' : ''}`, list, chipsEl, heldEl, status, replyChip, tray.el, pastes.el, h('div.tc-compose', tray.picker, h('div.tc-field', input, suggest, slash.el), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all · @Brain asks the Brain · / for commands · drop or paste files to attach'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat')));
+  const root = h(`div.tc${fill ? '.fill' : ''}`, list, chipsEl, heldEl, status, replyChip, tray.el, pastes.el, h('div.tc-compose', tray.picker, h('div.tc-field', input, suggest, slash.el), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all · @Brain asks the Brain · #Team asks another team · / for commands · drop or paste files to attach'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat')));
   mount(container, root);
   const offDrop = tray.dropZone(root, 'Drop files or folders for the team');
 
@@ -147,16 +167,17 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   const renderText = (text: string) => {
     const el = md(text);
     el.className = 'tc-text';
-    const names = members().map((a) => a.name).concat(['everyone', 'Brain']).sort((a, b) => b.length - a.length);
-    const re = new RegExp(`@(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+    const re = mentionPattern(members().map((a) => a.name).concat(['everyone', 'Brain']), [...C.others.map((t) => t.name), ...(C.team ? [C.team.name] : [])]);
     const walk = (node: Node) => {
       for (const child of [...node.childNodes]) {
         if (child.nodeType === 3 && re.test(child.textContent!)) {
           re.lastIndex = 0;
           const frag = document.createDocumentFragment();
           let last = 0;
-          child.textContent!.replace(re, (m: string, _n: string, idx: number) => {
-            frag.append(child.textContent!.slice(last, idx), h('span.tc-mention', m));
+          // (the match's offset is next to last: the pattern has one group without other teams, two with)
+          child.textContent!.replace(re, (m: string, ...rest: unknown[]) => {
+            const idx = rest[rest.length - 2] as number;
+            frag.append(child.textContent!.slice(last, idx), h(`span.tc-mention${m.startsWith('#') ? '.tc-team' : ''}`, m));
             last = idx + m.length;
             return m;
           });
@@ -175,10 +196,12 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   const shown = new Map<string, { sig: string; el: HTMLElement; when?: HTMLElement; ts: number }>();
   const messageEl = (m: TeamMessage): HTMLElement => {
     const brain = m.from === 'brain';
-    const a = m.from === 'user' || m.from === 'system' || brain ? null : agent(m.from);
+    const relay = m.relay;
+    const t = relay ? C.others.find((x) => x.id === relay.teamId) : null;
+    const a = m.from === 'user' || m.from === 'system' || brain || relay ? null : agent(m.from);
     const parent = m.replyTo ? C.messages.find((x) => x.id === m.replyTo) : null;
     // what it is drawn from (not its "5m ago": that is updated in place)
-    const sig = JSON.stringify([m.text, m.attachments, m.mentions, m.turn, parent?.text, a?.name, a?.emoji, a?.color, C.team?.lead === m.from, members().map((x) => x.name)]);
+    const sig = JSON.stringify([m.text, m.attachments, m.mentions, m.turn, parent?.text, a?.name, a?.emoji, a?.color, t?.name, t?.color, t?.mark, C.team?.lead === m.from, members().map((x) => x.name), C.others.map((x) => x.name)]);
     const hit = shown.get(m.id);
     if (hit && hit.sig === sig) {
       if (hit.when) hit.when.textContent = ago(hit.ts);
@@ -191,17 +214,19 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     }
     const when = h('span.hint', ago(m.ts));
     const el = h(
-      `div.tc-msg${m.from === 'user' ? '.me' : ''}`,
+      `div.tc-msg${m.from === 'user' ? '.me' : ''}${relay ? '.tc-relay' : ''}`,
+      relay ? { style: { '--team-color': t?.color || 'var(--ice)' } } : {},
       h(
         'div.tc-who',
-        a ? avatar(a) : brain ? h('div.avatar.brain-av', icon('brain', 14)) : h('div.avatar.tc-you', icon('users', 14)),
-        h('b', a ? a.name : brain ? 'Brain' : m.from === 'user' ? 'You' : 'Someone'),
+        a ? avatar(a) : brain ? h('div.avatar.brain-av', icon('brain', 14)) : relay ? h('div.avatar.tc-team-av', t?.mark || '#') : h('div.avatar.tc-you', icon('users', 14)),
+        h('b', a ? a.name : brain ? 'Brain' : relay ? `#${t?.name || relay.teamName}` : m.from === 'user' ? 'You' : 'Someone'),
+        relay ? h('span.tc-relay-tag', relay.answers ? `answered · ${relay.byName}` : `asks this team · ${relay.byName}`) : null,
         a && a.id === C.team?.lead ? h('span.tc-lead', '★ lead') : null,
         when,
         h('span.grow'),
         a ? h('button.tc-act', { title: `Reply to ${a.name}`, onclick: () => setReply(m) }, icon('message-circle', 13)) : null,
       ),
-      parent ? h('div.tc-quote', `↪ ${parent.from === 'user' ? 'You' : parent.from === 'brain' ? 'Brain' : agent(parent.from)?.name || ''}: ${String(parent.text).slice(0, 90)}`) : null,
+      parent ? h('div.tc-quote', `↪ ${senderName(parent, (id) => agent(id)?.name)}: ${String(parent.text).slice(0, 90)}`) : null,
       m.text ? renderText(m.text) : null,
       mentionPreviews(m.text, m.attachments, { compact: true, key: `team:${m.id}` }),
       workFor(m),
@@ -328,24 +353,37 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   const suggestions = (): { start: number; opts: MentionOption[] } | null => {
     const pos = input.selectionStart;
     const before = input.value.slice(0, pos);
-    const m = /(^|\s)@([\w .-]{0,30})$/.exec(before);
+    const m = /(^|\s)([@#])([\w .-]{0,30})$/.exec(before);
     if (!m) return null;
-    const q = m[2].toLowerCase();
-    const opts: MentionOption[] = [...members().map((a) => ({ label: a.name, a })), { label: 'everyone' }, { label: 'Brain' }].filter((o) => o.label.toLowerCase().startsWith(q) || o.label.toLowerCase().includes(q));
-    return { start: pos - m[2].length - 1, opts };
+    const q = m[3].toLowerCase();
+    const all: MentionOption[] = m[2] === '#' ? C.others.map((t) => ({ label: t.name, t })) : [...members().map((a) => ({ label: a.name, a })), { label: 'everyone' }, { label: 'Brain' }];
+    const opts = all.filter((o) => o.label.toLowerCase().startsWith(q) || o.label.toLowerCase().includes(q));
+    return { start: pos - m[3].length - 1, opts };
   };
   const drawSuggest = () => {
     const s = suggestions();
     if (!s || !s.opts.length) return suggest.classList.add('hidden');
     sIndex = Math.min(sIndex, s.opts.length - 1);
-    mount(suggest, s.opts.map((o, i) => h(`button.tc-sopt${i === sIndex ? '.on' : ''}`, { onmousedown: (e) => (e.preventDefault(), pickSuggest(o)) }, o.a ? avatar(o.a) : icon(o.label === 'Brain' ? 'brain' : 'users', 14), `@${o.label}`, o.label === 'Brain' ? h('span.hint', 'ask the Brain') : null, o.a?.specialty ? h('span.hint', o.a.specialty) : null)));
+    mount(
+      suggest,
+      s.opts.map((o, i) =>
+        h(
+          `button.tc-sopt${i === sIndex ? '.on' : ''}`,
+          { onmousedown: (e) => (e.preventDefault(), pickSuggest(o)) },
+          o.a ? avatar(o.a) : o.t ? h('div.avatar.tc-team-av', { style: { '--team-color': o.t.color || 'var(--ice)' } }, o.t.mark || '#') : icon(o.label === 'Brain' ? 'brain' : 'users', 14),
+          `${o.t ? '#' : '@'}${o.label}`,
+          o.label === 'Brain' && !o.t ? h('span.hint', 'ask the Brain') : null,
+          o.a?.specialty ? h('span.hint', o.a.specialty) : o.t ? h('span.hint', o.t.description || 'ask this team') : null,
+        ),
+      ),
+    );
     suggest.classList.remove('hidden');
   };
   const pickSuggest = (o: MentionOption) => {
     const s = suggestions();
     if (!s) return;
     const pos = input.selectionStart;
-    input.value = `${input.value.slice(0, s.start)}@${o.label} ${input.value.slice(pos)}`;
+    input.value = `${input.value.slice(0, s.start)}${o.t ? '#' : '@'}${o.label} ${input.value.slice(pos)}`;
     const caret = s.start + o.label.length + 2;
     input.setSelectionRange(caret, caret);
     suggest.classList.add('hidden');
@@ -517,6 +555,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   GET<TeamChatResponse>(`/teams/${teamId}/chat`)
     .then((r) => {
       C.team = r.team;
+      C.others = r.others || [];
       C.messages = mergeSnapshot(r.messages, C.messages, early.cleared);
       // (cleared while it loaded: the snapshot's sessions and who was working are from before)
       if (!early.cleared) {
