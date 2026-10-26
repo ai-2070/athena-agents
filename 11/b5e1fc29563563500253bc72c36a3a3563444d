@@ -1,0 +1,27 @@
+server/brain.ts
+  s_6b9c1c7648be1a::t_ce9815ceaf48f0 9,140
+server/engines/openai.ts
+  s_6b9c1c7648be1a::t_ad5ff676ac428a 447-457
+tests/server/promptcache.test.ts
+  s_6b9c1c7648be1a::t_c93d7037edd862 5,7-9,11,39-82,87-88
+  s_6b9c1c7648be1a::t_66cbd082f7c520 83-86
+  s_6b9c1c7648be1a::t_98269a3a505da6 89
+server/promptcache.ts
+  s_6b9c1c7648be1a::t_ce9815ceaf48f0 3,22-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "11b5e1fc29563563500253bc72c36a3a3563444d",
+  "prompts": {},
+  "sessions": {
+    "s_6b9c1c7648be1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b5a75027-8316-4117-8d43-4a0602a6b45e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
