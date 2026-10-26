@@ -175,12 +175,32 @@ describe('workspace backups', () => {
     }
     fs.mkdirSync(dataPath('presets'), { recursive: true });
     fs.symlinkSync(dataPath('secrets.json'), dataPath('presets', 'pa-leak.json'));
+    fs.symlinkSync(dataPath('secrets.json'), dataPath('projects', p.id, 'layout.json'));
+    fs.symlinkSync(dataPath('secrets.json'), dataPath('projects', p.id, 'brain-chat.json'));
     const r = backup.createBackup(p.id);
     const bytes = fs.readFileSync(r.file);
     const all = zlib.gunzipSync(bytes.subarray(bytes.indexOf(0x0a, bytes.indexOf(0x0a) + 1) + 1)).toString();
     expect(all).not.toContain('linked-sentinel');
     expect(r.summary.agents).toBe(1);
     fs.rmSync(dataPath('presets', 'pa-leak.json'));
+  });
+
+  it.skipIf(!linksWork)('never packs from a data folder that is itself a link', async () => {
+    const elsewhere = path.join(os.homedir(), 'elsewhere-backup');
+    fs.mkdirSync(path.join(elsewhere, 'some-agent'), { recursive: true });
+    fs.writeFileSync(path.join(elsewhere, 'stolen.json'), JSON.stringify({ id: 'stolen', name: 'Stolen', items: [], note: 'dir-link-sentinel-6060' }));
+    fs.writeFileSync(path.join(elsewhere, 'some-agent', 'c1.json'), JSON.stringify({ id: 'c1', items: [], note: 'dir-link-sentinel-6060' }));
+    const p = await createProject({ name: 'Linked dirs', mode: 'new', folder: folder('linked-dirs') });
+    const pd = (...x: string[]) => dataPath('projects', p.id, ...x);
+    for (const sub of ['agents', 'workflows', 'routines', 'teamchats', 'knowledge', 'chats']) {
+      fs.rmSync(pd(sub), { recursive: true, force: true });
+      fs.mkdirSync(pd(), { recursive: true });
+      fs.symlinkSync(elsewhere, pd(sub));
+    }
+    const r = backup.createBackup(p.id);
+    const bytes = fs.readFileSync(r.file);
+    expect(zlib.gunzipSync(bytes.subarray(bytes.indexOf(0x0a, bytes.indexOf(0x0a) + 1) + 1)).toString()).not.toContain('dir-link-sentinel');
+    expect(r.summary).toMatchObject({ agents: 0, teams: 0, chats: 0, knowledgeFiles: 0 });
   });
 
   it('counts a skill as the same only when it has exactly the same files', async () => {

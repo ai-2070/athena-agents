@@ -78,6 +78,25 @@ export function isInside(root: string, p: string, { orEqual = false }: { orEqual
   return (orEqual && q === r) || q.startsWith(r.endsWith(path.sep) ? r : r + path.sep);
 }
 
+/** A JSON file, only when it is a plain file: a link could point at data/secrets.json or anywhere else. */
+export function readPlain<T>(file: string, fallback: T): T {
+  try {
+    if (!fs.lstatSync(file).isFile()) return fallback;
+  } catch {
+    return fallback;
+  }
+  return readJSON<T>(file, fallback);
+}
+
+/** A folder that is really there, not a link to one (lstat: the link itself is not followed). */
+export function isPlainDir(p: string): boolean {
+  try {
+    return fs.lstatSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 export function exists(p: string): boolean {
   try {
     fs.accessSync(p);
