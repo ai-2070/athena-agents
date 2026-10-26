@@ -1,6 +1,6 @@
 // Chat with one agent: the agent and its chats on the left; the conversation itself is the AI SDK chat
 // (web/chat): streaming answers, tool calls you can open, images, file previews, COMPACTED marks.
-import { h, mount, GET, POST, PUT, DEL, attempt, avatar, navigate, ago, confirmBox } from '../core.ts';
+import { h, mount, GET, POST, PUT, DEL, attempt, avatar, navigate, ago, confirmBox, ENGINE_LABEL } from '../core.ts';
 import { openTerminal } from './agents.ts';
 import { memoryButton } from '../memory.ts';
 import { modelChip, modelInfo } from '../models.ts';
@@ -35,6 +35,8 @@ interface MemoryInfo {
   compactAt: number;
   percent: number;
   auto: boolean;
+  /** the engine compacts this chat by itself (compactAt is then the whole window) */
+  own?: boolean;
 }
 
 let ctx: ChatCtx | null = null;
@@ -182,7 +184,8 @@ async function drawMemory(): Promise<void> {
   if (!ctx || my !== memorySeq || !m) return;
   ctx.memoryEl.textContent = `Memory ${m.percent}%`;
   ctx.memoryEl.classList.toggle('warn', m.tokens >= m.compactAt * 0.8);
-  ctx.memoryEl.title = `About ${kTokens(m.tokens)} of ${kTokens(m.window)} tokens. ${m.auto ? `Compacts by itself at ${kTokens(m.compactAt)} (Settings > Chat memory).` : 'Automatic compaction is off (Settings > Chat memory).'}`;
+  const how = m.own ? `${ENGINE_LABEL[ctx.agent.engine] || 'Its engine'} compacts it by itself when it is nearly full` : m.auto ? `Compacts by itself at ${kTokens(m.compactAt)}` : 'Automatic compaction is off';
+  ctx.memoryEl.title = `About ${kTokens(m.tokens)} of ${kTokens(m.window)} tokens. ${how} (Settings > Chat memory).`;
 }
 
 async function newChat(): Promise<void> {

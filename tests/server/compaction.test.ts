@@ -5,13 +5,13 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { chats, saveSettings } from '../../server/store.ts';
-import { compactNow, editCompaction, forgetChat, liveChat, startRun } from '../../server/engines/index.ts';
+import { compactNow, editCompaction, forgetChat, liveChat, memoryOf, startRun } from '../../server/engines/index.ts';
 import { compactChat, compileHistory, contextWindow, measuredBy, memoryTokens, cutTokens, estimateTokens, GUIDE, INSTANT, latestCompaction, memoryStart, planTail, rebuildLlm, recall, seedPrompt, sizesFor } from '../../server/compaction.ts';
 import type { LlmMessage } from '../../server/engines/openai.ts';
 import type { Chat, ChatItem, CompactionItem } from '../../shared/types.ts';
 
 // ---------- a fake Claude Code: records what it was sent ----------
-const cli = vi.hoisted(() => ({ prompts: [] as string[], sessions: [] as (string | null)[], compactOnce: false }));
+const cli = vi.hoisted(() => ({ prompts: [] as string[], sessions: [] as (string | null)[], compactOnce: false, overflowOnce: false }));
 vi.mock('../../server/engines/claude.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/engines/claude.ts')>()),
   run: async ({ chat, text, onEvent }: { chat: Chat; text: string; onEvent: (e: unknown) => void }) => {
@@ -23,6 +23,10 @@ vi.mock('../../server/engines/claude.ts', async (orig) => ({
       chat.sessionId = null;
       chat.reseed = true;
       throw new SessionGone('Claude Code exited (1) without an answer.\nNo conversation found with session ID: gone');
+    }
+    if (cli.overflowOnce) {
+      cli.overflowOnce = false;
+      throw new Error('Claude Code reported an error: Prompt is too long');
     }
     if (cli.compactOnce) {
       cli.compactOnce = false;
@@ -79,7 +83,7 @@ beforeAll(async () => {
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 beforeEach(() => {
-  saveSettings({ compaction: { auto: true, instant: true, thresholdPercent: 50, keepMessages: 4, windowTokens: 0 } });
+  saveSettings({ compaction: { auto: true, engineOwn: true, instant: true, thresholdPercent: 50, keepMessages: 4, windowTokens: 0 } });
   requests.length = 0;
   replies.length = 0;
   cli.prompts.length = 0;
@@ -330,8 +334,40 @@ describe('seedPrompt() and recall()', () => {
 });
 
 describe('during runs', () => {
-  it('Claude Code: compacts before the run when full, and the new session gets the compacted history', async () => {
+  it('Claude Code compacts its own session: a full chat goes on in that session, with no compaction here', async () => {
     saveSettings({ compaction: { windowTokens: 20_000, keepMessages: 2 } });
+    const a = newAgent({ name: 'Own', engine: 'claude-code', toolGroups: [] });
+    const chat = chats.create(a.id);
+    chat.items.push(...history(8));
+    chat.sessionId = 'long-session';
+    chats.save(chat);
+    await startRun(a, chat, 'carry on').promise;
+    const saved = chats.get(a.id, chat.id)!;
+    expect(saved.items.some((i) => i.type === 'compaction')).toBe(false);
+    expect(cli.sessions[0]).toBe('long-session');
+    expect(cli.prompts[0]).toBe('carry on');
+    // the meter says the engine does it, at the whole window rather than the threshold here
+    expect(await memoryOf(a, chat.id)).toMatchObject({ own: true, window: 20_000, compactAt: 20_000 });
+  });
+
+  it('Claude Code compacts its own session, but when it says the chat is too long: compacts once here and tries again', async () => {
+    saveSettings({ compaction: { windowTokens: 20_000, keepMessages: 2 } });
+    const a = newAgent({ name: 'Overflow', engine: 'claude-code', toolGroups: [] });
+    const chat = chats.create(a.id);
+    chat.items.push(...history(8));
+    chat.sessionId = 'long-session';
+    chats.save(chat);
+    cli.overflowOnce = true;
+    await startRun(a, chat, 'carry on').promise;
+    const saved = chats.get(a.id, chat.id)!;
+    expect(saved.items.find((i): i is CompactionItem => i.type === 'compaction')).toMatchObject({ trigger: 'overflow' });
+    expect(cli.sessions).toEqual(['long-session', null]);
+    expect(cli.prompts[1]).toContain('<compacted-history>');
+    expect(saved.items.some((i) => i.type === 'error')).toBe(false);
+  });
+
+  it('Claude Code (left to the dashboard): compacts before the run when full, and the new session gets the compacted history', async () => {
+    saveSettings({ compaction: { windowTokens: 20_000, keepMessages: 2, engineOwn: false } });
     const a = newAgent({ name: 'Coder', engine: 'claude-code', toolGroups: [] });
     const chat = chats.create(a.id);
     chat.items.push(...history(8));
