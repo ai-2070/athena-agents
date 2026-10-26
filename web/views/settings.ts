@@ -13,6 +13,26 @@ interface OpenRouterKeyInfo {
 }
 
 let root: HTMLElement;
+// Programs whose place can be set by hand (server/programs.ts reads settings.paths[key]).
+const PROGRAM_PATHS: [string, string][] = [
+  ['blender', 'Blender'],
+  ['maya', 'Maya'],
+  ['houdini', 'Houdini'],
+  ['painter', 'Substance 3D Painter'],
+  ['designer', 'Substance 3D Designer'],
+  ['photoshop', 'Photoshop'],
+  ['aftereffects', 'After Effects'],
+  ['premiere', 'Premiere Pro'],
+  ['resolve', 'DaVinci Resolve'],
+  ['handbrakecli', 'HandBrakeCLI'],
+  ['imagemagick', 'ImageMagick (magick)'],
+  ['openscad', 'OpenSCAD'],
+  ['prusaslicer', 'PrusaSlicer'],
+  ['orcaslicer', 'OrcaSlicer'],
+  ['nvtt', 'NVIDIA Texture Tools (nvtt_export)'],
+  ['comfyui', 'ComfyUI'],
+];
+
 export const title = () => 'Settings';
 
 export async function render(el: HTMLElement): Promise<void> {
@@ -209,7 +229,7 @@ async function draw(): Promise<void> {
             field('ComfyUI address', h('input.code', { value: s.comfyui.url, placeholder: 'auto (tries :8188 and :8000)', oninput: (e) => setP('comfyui.url', e.target.value.trim()) })),
             field('Extra ComfyUI workflow folders', h('textarea.code', { rows: 2, value: (s.comfyui.workflowDirs || []).join('\n'), placeholder: 'One folder per line', oninput: (e) => setP('comfyui.workflowDirs', e.target.value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean)) })),
             h('p.hint', 'Paths below are found automatically. Set one only to pick a different version.'),
-            ['blender', 'premiere', 'photoshop', 'aftereffects', 'comfyui'].map((k) => field(`${k} path`, h('input.code', { value: s.paths[k] || '', placeholder: 'auto', oninput: (e) => setP(`paths.${k}`, e.target.value.trim()) }))),
+            PROGRAM_PATHS.map(([k, label]) => field(`${label} path`, h('input.code', { value: s.paths[k] || '', placeholder: 'auto', oninput: (e) => setP(`paths.${k}`, e.target.value.trim()) }))),
           ),
         ),
         h(

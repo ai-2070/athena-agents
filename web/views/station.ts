@@ -501,10 +501,16 @@ const INTEGRATIONS: Integration[] = [
   { id: 'photoshop', label: 'Photoshop', glyph: 'Ps', color: '#31a8ff' },
   { id: 'aftereffects', label: 'After Effects', glyph: 'Ae', color: '#d291ff' },
   { id: 'ffmpeg', label: 'FFmpeg', glyph: '▶', color: '#5fe3a0' },
+  { id: 'maya', label: 'Maya', glyph: 'M', color: '#37a5cc' },
+  { id: 'houdini', label: 'Houdini', glyph: 'H', color: '#ff4713' },
+  { id: 'substance', label: 'Substance 3D', glyph: 'Sb', color: '#ff6b4a' },
+  { id: 'cad', label: 'CAD and 3D printing', glyph: '⚙', color: '#f9d72f' },
+  { id: 'nvidia', label: 'NVIDIA', glyph: 'NV', color: '#76b900' },
+  { id: 'assets', label: 'Free asset libraries', glyph: '▦', color: '#9fd8ff' },
   { id: 'orca', label: 'Orca', glyph: '🐋', color: '#7ab8ff' },
   { id: 'browser', label: 'Browser', glyph: '🌐', color: '#a9d3e2' },
 ];
-const BRAND_OF: Record<string, string> = { codex: 'openai', reddit: 'reddit', claude: 'claude', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
+const BRAND_OF: Record<string, string> = { codex: 'openai', reddit: 'reddit', claude: 'claude', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', maya: 'maya', houdini: 'houdini', cad: 'openscad', nvidia: 'nvidia', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
 // A brand logo, or a Craft app's own icon (PhotoCraft…), for a connector or MCP server name.
 const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null => logo(name, size) || craftIcon(name, size);
 // The brand logo for an integration (or connector name), falling back to its glyph.
@@ -529,7 +535,11 @@ function availableIntegrations(d: AppState, progs: Program[]): AvailableIntegrat
     discord: d.accounts.discord.configured,
     browser: true,
   };
-  for (const id of ['comfyui', 'blender', 'premiere', 'photoshop', 'aftereffects', 'ffmpeg', 'orca']) avail[id] = !!P(id)?.installed;
+  for (const id of ['comfyui', 'blender', 'maya', 'houdini', 'premiere', 'photoshop', 'aftereffects', 'ffmpeg', 'orca']) avail[id] = !!P(id)?.installed;
+  avail.substance = ['painter', 'designer', 'sampler'].some((id) => P(id)?.installed);
+  avail.cad = ['openscad', 'prusaslicer'].some((id) => P(id)?.installed);
+  avail.nvidia = ['nvidiasmi', 'nvtt'].some((id) => P(id)?.installed);
+  avail.assets = true;
   const list = INTEGRATIONS.filter((i) => avail[i.id]).map((i): AvailableIntegration => {
     const p = P(i.id);
     const live = p ? (p.cli ? true : !!p.running) : true;
@@ -554,6 +564,7 @@ function agentLinks(a: LinkSource | null | undefined): Set<string> {
   if (g.has('blender')) s.add('blender');
   if (g.has('adobe')) ['premiere', 'photoshop', 'aftereffects'].forEach((x) => s.add(x));
   if (g.has('media')) s.add('ffmpeg');
+  for (const id of ['maya', 'houdini', 'substance', 'cad', 'nvidia', 'assets']) if (g.has(id)) s.add(id);
   if (g.has('orca')) s.add('orca');
   if (g.has('browser')) s.add('browser');
   for (const m of a.mcpServers || []) s.add(`mcp:${m}`);
@@ -569,7 +580,13 @@ function toolIntegration(name: unknown): string | null {
     [/^photoshop_/, 'photoshop'],
     [/^aftereffects_/, 'aftereffects'],
     [/^premiere_/, 'premiere'],
-    [/^ff(mpeg|probe)$/, 'ffmpeg'],
+    [/^(ff(mpeg|probe)|handbrake_encode|imagemagick)$/, 'ffmpeg'],
+    [/^maya_/, 'maya'],
+    [/^houdini_/, 'houdini'],
+    [/^substance_/, 'substance'],
+    [/^(openscad_render|slice_model)$/, 'cad'],
+    [/^nvidia_/, 'nvidia'],
+    [/^asset_/, 'assets'],
     [/^(x_|social_)/, 'x'],
     [/^telegram_/, 'telegram'],
     [/^reddit_/, 'reddit'],
@@ -681,10 +698,24 @@ function describeTool(name: unknown, args: ToolArgs = {}): ToolDesc {
   if (n === 'blender_run_python') return A('Blender', 'running a script', base(args.blend_file) || (args.code || '').split('\n').find((l) => l.trim() && !l.startsWith('import')) || '', 'blender', '#f5792a');
   if (n === 'blender_open') return A('Blender', 'opening', base(args.file), 'blender', '#f5792a');
   if (n.startsWith('comfyui_')) return A('ComfyUI', n === 'comfyui_run' ? `rendering ${args.workflow || ''}` : n.replace('comfyui_', '').replace(/_/g, ' '), args.prompt || '', null, '#ffd36e');
+  if (n === 'imagemagick') return A('ImageMagick', 'editing images', base((args.args || []).at(-1)), null, '#5fe3a0');
+  if (n === 'handbrake_encode') return A('HandBrake', 'encoding', base(args.input), null, '#5fe3a0');
   if (n === 'ffmpeg') return A('FFmpeg', 'processing video', base((args.args || []).at(-1)), 'ffmpeg', '#5fe3a0');
   if (n === 'ffprobe') return A('FFmpeg', 'inspecting', base(args.file), 'ffmpeg', '#5fe3a0');
   if (n === 'photoshop_run_script') return A('Photoshop', 'running a script', '', 'photoshop', '#31a8ff');
   if (n === 'aftereffects_run_script') return A('After Effects', 'running a script', '', 'aftereffects', '#d291ff');
+  if (n === 'maya_run_python') return A('Maya', 'running a script', base(args.scene) || (args.code || '').split('\n').find((l) => l.trim() && !l.startsWith('import')) || '', 'maya', '#37a5cc');
+  if (n === 'maya_open') return A('Maya', 'opening', base(args.file), 'maya', '#37a5cc');
+  if (n === 'houdini_run_python') return A('Houdini', 'running a script', base(args.hip) || (args.code || '').split('\n').find((l) => l.trim() && !l.startsWith('import')) || '', 'houdini', '#ff4713');
+  if (n === 'houdini_open') return A('Houdini', 'opening', base(args.file), 'houdini', '#ff4713');
+  if (n === 'substance_render') return A('Substance 3D', 'rendering textures', base(args.input), null, '#ff6b4a');
+  if (n === 'substance_open') return A('Substance 3D', `opening ${args.app || ''}`, base(args.file), null, '#ff6b4a');
+  if (n === 'openscad_render') return A('OpenSCAD', 'building a model', base(args.output), 'openscad', '#f9d72f');
+  if (n === 'slice_model') return A('PrusaSlicer', 'slicing', base(args.input), null, '#fa6831');
+  if (n === 'nvidia_gpu_status') return A('NVIDIA', 'checking the GPU', '', 'nvidia', '#76b900');
+  if (n === 'nvidia_texture_export') return A('NVIDIA', 'compressing a texture', base(args.output), 'nvidia', '#76b900');
+  if (n === 'asset_search') return A(args.source === 'ambientcg' ? 'ambientCG' : 'Poly Haven', 'searching', args.query || args.kind || '', null, '#9fd8ff');
+  if (n === 'asset_download') return A(args.source === 'ambientcg' ? 'ambientCG' : 'Poly Haven', 'downloading', args.id || '', null, '#9fd8ff');
   if (n === 'premiere_open') return A('Premiere Pro', 'opening', base(args.file), 'premiere', '#9a9aff');
   if (n === 'fetch_url' || n === 'WebFetch') return A('Browser', 'reading', host(args.url), 'chrome', '#a9d3e2');
   if (n === 'open_url') return A('Browser', 'opening', host(args.url), 'chrome', '#a9d3e2');

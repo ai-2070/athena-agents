@@ -2,7 +2,10 @@
 // Risk decides when you're asked first: autonomy "ask" checks low + high, "auto" checks high only, "full" never asks.
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, ROOT, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which, insideRoots } from './util.ts';
+import { HOME, ROOT, IS_WIN, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which, insideRoots } from './util.ts';
+import * as assetLib from './assets.ts';
+import type { AssetSource, AssetKind } from './assets.ts';
+import { mayaScript, houdiniScript, sibling, sbsrenderArgs, openscadArgs, prusaSlicerArgs, nvttArgs, handbrakeArgs, GPU_FIELDS, formatGpus } from './dcc.ts';
 import { agents as agentStore, chats, getSettings, emit, log } from './store.ts';
 import { startHandoff, awaitHandoff, listHandoffs, DEFAULT_WAIT_S, MAX_WAIT_S } from './handoffs.ts';
 
@@ -83,7 +86,13 @@ export const TOOL_GROUPS: ToolGroup[] = [
   { id: 'comfyui', label: 'ComfyUI', description: 'Run your ComfyUI workflows and get the images back.' },
   { id: 'blender', label: 'Blender', description: 'Run Blender Python (modeling, rendering, exports).' },
   { id: 'adobe', label: 'Adobe', description: 'Photoshop and After Effects scripts, open Premiere projects.' },
-  { id: 'media', label: 'FFmpeg', description: 'Convert, cut and inspect audio and video.' },
+  { id: 'maya', label: 'Maya', description: 'Run Maya Python (scenes, rigging, animation, renders, exports).' },
+  { id: 'houdini', label: 'Houdini', description: 'Run Houdini Python (node networks, simulations, renders, exports).' },
+  { id: 'substance', label: 'Substance 3D', description: 'Render Substance materials to texture maps, open Painter, Designer and Sampler.' },
+  { id: 'cad', label: 'CAD and 3D printing', description: 'Turn OpenSCAD models into STL and other files, slice models into G-code.' },
+  { id: 'nvidia', label: 'NVIDIA', description: 'See how busy the graphics cards are, convert textures to DDS.' },
+  { id: 'assets', label: 'Free asset libraries', description: 'Search and download free CC0 HDRIs, PBR textures and models from Poly Haven and ambientCG.' },
+  { id: 'media', label: 'FFmpeg, HandBrake and ImageMagick', description: 'Convert, cut and inspect audio and video, shrink videos with HandBrake presets, edit images in bulk with ImageMagick.' },
   { id: 'social', label: 'Social', description: 'Draft X and Reddit posts (they wait in the Outbox unless auto-post is on), read posts, mentions and subreddits, Telegram, Discord.' },
   { id: 'agents', label: 'Delegate', description: 'Ask other agents and Hermes profiles for help.' },
   { id: 'files', label: 'Files', description: 'Read and write files in its workspace and folders you allow.' },
@@ -357,6 +366,228 @@ const TOOLS: ToolDef[] = [
     parameters: obj({ file: str('Optional .prproj or media file') }),
     run: async ({ file }: { file?: string }) => ({ text: await launchProgram('premiere', { file }) }),
   },
+  // ---------- Maya ----------
+  {
+    name: 'maya_run_python',
+    group: 'maya',
+    risk: 'high', // Python can do anything
+    description: 'Run Python in Maya without opening its window (mayapy, maya.cmds is imported as cmds), optionally on a scene, and return what it prints. Use it to build and rig scenes, key animation, bake, render and export (FBX, Alembic, OBJ). Save outputs to absolute paths.',
+    parameters: obj({ code: str('Python code using maya.cmds (as cmds)'), scene: str('Optional .ma/.mb scene to open first'), save_as: str('Optional .ma or .mb path to save the scene afterwards') }, ['code']),
+    run: async ({ code, scene, save_as }: { code: string; scene?: string; save_as?: string }, ctx) => {
+      const exe = programExe('maya');
+      if (!exe) throw new Error('Maya was not found. Set its path in Settings.');
+      return runPython(sibling(exe, IS_WIN ? 'mayapy.exe' : 'mayapy'), mayaScript({ code, scene, saveAs: save_as }), ctx);
+    },
+  },
+  {
+    name: 'maya_open',
+    group: 'maya',
+    risk: 'low',
+    description: 'Open Maya with its window, optionally loading a scene (.ma/.mb) or model file.',
+    parameters: obj({ file: str('Optional scene or model file') }),
+    run: async ({ file }: { file?: string }) => ({ text: await launchProgram('maya', { file }) }),
+  },
+  // ---------- Houdini ----------
+  {
+    name: 'houdini_run_python',
+    group: 'houdini',
+    risk: 'high', // Python can do anything
+    description: 'Run Python in Houdini without opening its window (hython, hou is imported), optionally on a .hip file, and return what it prints. Use it to build node networks, simulate, cook and render ROPs, and export geometry (bgeo, USD, Alembic, FBX). Save outputs to absolute paths.',
+    parameters: obj({ code: str('Python code using hou'), hip: str('Optional .hip/.hipnc file to open first'), save_as: str('Optional .hip path to save afterwards') }, ['code']),
+    run: async ({ code, hip, save_as }: { code: string; hip?: string; save_as?: string }, ctx) => {
+      const exe = programExe('houdini');
+      if (!exe) throw new Error('Houdini was not found. Set its path in Settings.');
+      return runPython(sibling(exe, IS_WIN ? 'hython.exe' : 'hython'), houdiniScript({ code, hip, saveAs: save_as }), ctx);
+    },
+  },
+  {
+    name: 'houdini_open',
+    group: 'houdini',
+    risk: 'low',
+    description: 'Open Houdini with its window, optionally loading a .hip file.',
+    parameters: obj({ file: str('Optional .hip file') }),
+    run: async ({ file }: { file?: string }) => ({ text: await launchProgram('houdini', { file }) }),
+  },
+  // ---------- Substance 3D ----------
+  {
+    name: 'substance_render',
+    group: 'substance',
+    risk: 'low',
+    description: 'Render a Substance material (.sbsar) to texture maps (base color, normal, roughness and so on, one file per output) with sbsrender from Substance 3D Designer. Set the size (1024, 2048, 4096…) and any exposed parameters by name.',
+    parameters: obj(
+      {
+        input: str('The .sbsar file'),
+        output_dir: str('Folder for the texture files (relative = workspace)'),
+        format: str('png (default), jpg, tga, tif, exr, hdr, bmp, psd or dds'),
+        size: { type: 'number', description: 'Texture size in pixels, a power of two (e.g. 2048)' },
+        graph: str('Optional graph inside the .sbsar, when it has several'),
+        values: { type: 'object', description: 'Optional exposed parameters, name to value, e.g. {"$randomseed": 7, "roughness": 0.4}' },
+      },
+      ['input', 'output_dir'],
+    ),
+    run: async ({ input, output_dir, format, size, graph, values }: { input: string; output_dir: string; format?: string; size?: number; graph?: string; values?: Record<string, string | number> }, ctx) => {
+      const designer = programExe('designer');
+      const exe = (designer && [sibling(designer, 'sbsrender.exe')].find(exists)) || which('sbsrender');
+      if (!exe) throw new Error('sbsrender was not found. It comes with Substance 3D Designer; set Designer\'s path in Settings.');
+      const src = readablePath(ctx, input);
+      const out = writableDir(ctx, output_dir);
+      const r = await run(exe, sbsrenderArgs({ input: src, outputDir: out, format, size, graph, values }), { timeout: 30 * 60_000, signal: ctx.signal });
+      const made = fs.readdirSync(out).filter((f) => !f.startsWith('.'));
+      return { text: `${r.code === 0 ? `Rendered into ${out}` : `sbsrender failed (exit ${r.code})`}\n${truncate((r.stdout + '\n' + r.stderr).trim(), 4000)}\nFiles there now: ${made.join(', ') || 'none'}`, isError: r.code !== 0 };
+    },
+  },
+  {
+    name: 'substance_open',
+    group: 'substance',
+    risk: 'low',
+    description: 'Open Substance 3D Painter, Designer or Sampler, optionally with a file. Painter starts with remote scripting on, so a Substance Painter MCP server can drive it.',
+    parameters: obj({ app: { type: 'string', enum: ['painter', 'designer', 'sampler'], description: 'Which app' }, file: str('Optional project or file to open') }, ['app']),
+    run: async ({ app, file }: { app: string; file?: string }) => {
+      if (!['painter', 'designer', 'sampler'].includes(app)) throw new Error('app must be painter, designer or sampler.');
+      return { text: await launchProgram(app, { file, args: app === 'painter' ? ['--enable-remote-scripting'] : [] }) };
+    },
+  },
+  // ---------- CAD and 3D printing ----------
+  {
+    name: 'openscad_render',
+    group: 'cad',
+    risk: 'low',
+    description: 'Turn an OpenSCAD model (a .scad file, or OpenSCAD code you write) into an STL, 3MF, OBJ, DXF, SVG or PNG. Set model variables with defines, e.g. {"width": 40, "label": "A"}.',
+    parameters: obj(
+      {
+        input: str('A .scad file (or use code)'),
+        code: str('OpenSCAD code to render instead of a file'),
+        output: str('Output file; its extension picks the format (.stl, .3mf, .obj, .off, .amf, .dxf, .svg, .png, .pdf)'),
+        defines: { type: 'object', description: 'Optional variables to set, name to value' },
+      },
+      ['output'],
+    ),
+    run: async ({ input, code, output, defines }: { input?: string; code?: string; output: string; defines?: Record<string, string | number | boolean> }, ctx) => {
+      const main = programExe('openscad');
+      if (!main) throw new Error('OpenSCAD was not found. Install it or set its path in Settings.');
+      // on Windows openscad.com is the console version, so its messages come back
+      const exe = [sibling(main, 'openscad.com')].find(exists) || main;
+      if (!input && !code) throw new Error('Give a .scad file (input) or OpenSCAD code (code).');
+      let src: string;
+      if (code) {
+        src = tmpFile('model.scad');
+        fs.writeFileSync(src, code);
+      } else src = readablePath(ctx, input);
+      const out = writablePath(ctx, output);
+      const r = await run(exe, openscadArgs({ input: src, output: out, defines }), { timeout: 15 * 60_000, signal: ctx.signal });
+      const ok = r.code === 0 && exists(out);
+      return { text: `${ok ? `Saved ${out}` : `OpenSCAD failed (exit ${r.code})`}\n${truncate(r.stderr.trim(), 6000)}`, isError: !ok };
+    },
+  },
+  {
+    name: 'slice_model',
+    group: 'cad',
+    risk: 'low',
+    description: 'Slice a 3D model (STL, 3MF, OBJ, STEP) into G-code for a 3D printer with PrusaSlicer. Load printer, filament and print profiles exported from PrusaSlicer (.ini), and change single settings such as {"layer-height": 0.2, "fill-density": "20%", "support-material": true}. It does not start a print.',
+    parameters: obj(
+      {
+        input: str('The model file'),
+        output: str('The .gcode (or .bgcode) file to write'),
+        profiles: { type: 'array', items: { type: 'string' }, description: 'Optional .ini profile files to load, in order' },
+        settings: { type: 'object', description: 'Optional PrusaSlicer settings, name to value' },
+      },
+      ['input', 'output'],
+    ),
+    run: async ({ input, output, profiles, settings }: { input: string; output: string; profiles?: string[]; settings?: Record<string, string | number | boolean> }, ctx) => {
+      const main = programExe('prusaslicer');
+      const exe = (main && [sibling(main, 'prusa-slicer-console.exe')].find(exists)) || which('prusa-slicer-console') || main;
+      if (!exe) throw new Error('PrusaSlicer was not found. Install it or set its path in Settings.');
+      const out = writablePath(ctx, output);
+      const args = prusaSlicerArgs({ input: readablePath(ctx, input), output: out, profiles: (profiles || []).map((p) => readablePath(ctx, p)), settings });
+      const r = await run(exe, args, { timeout: 30 * 60_000, signal: ctx.signal });
+      const ok = r.code === 0 && exists(out);
+      return { text: `${ok ? `Saved ${out}` : `PrusaSlicer failed (exit ${r.code})`}\n${truncate((r.stdout + '\n' + r.stderr).trim().split(/\r?\n/).slice(-30).join('\n'), 6000)}`, isError: !ok };
+    },
+  },
+  // ---------- free asset libraries ----------
+  {
+    name: 'asset_search',
+    group: 'assets',
+    risk: 'none',
+    description: 'Search free CC0 asset libraries: Poly Haven (HDRIs, PBR textures, models) and ambientCG (PBR materials, HDRIs, models). Free for any use, no credit needed. Returns ids for asset_download.',
+    parameters: obj(
+      {
+        source: { type: 'string', enum: ['polyhaven', 'ambientcg'], description: 'Which library' },
+        kind: { type: 'string', enum: ['hdri', 'texture', 'model'], description: 'Optional: only this kind' },
+        query: str('Words to look for, e.g. "worn brick" or "forest sunset"'),
+        category: str('Optional Poly Haven category, e.g. "outdoor", "wood"'),
+        limit: { type: 'number', description: 'How many (default 20)' },
+      },
+      ['source'],
+    ),
+    run: async ({ source, kind, query, category, limit }: { source: AssetSource; kind?: AssetKind; query?: string; category?: string; limit?: number }) => {
+      const hits = source === 'ambientcg' ? await assetLib.ambientcgSearch({ kind, query, limit }) : await assetLib.polyhavenSearch({ kind, query, category, limit });
+      if (!hits.length) return { text: 'Nothing found. Try fewer or other words.' };
+      return { text: hits.map((a) => `${a.id}: ${a.name} (${a.kind}${a.categories.length ? `; ${a.categories.join(', ')}` : ''}${a.maxSize ? `; up to ${a.maxSize}` : ''})${a.tags.length ? ` tags: ${a.tags.join(', ')}` : ''}`).join('\n') + (source === 'ambientcg' ? '\nFrom ambientCG.' : '\nPowered by Poly Haven.') };
+    },
+  },
+  {
+    name: 'asset_download',
+    group: 'assets',
+    risk: 'low',
+    description: 'Download a free asset from Poly Haven or ambientCG into a folder (relative = workspace). Textures come as one file per map (color, normal, roughness, AO, displacement…). Poly Haven: resolution 1k/2k/4k/8k, format jpg/png/exr for texture maps, hdr/exr for HDRIs, gltf/fbx/blend for models (with their textures). ambientCG: resolution 1K/2K/4K/8K, format JPG or PNG (EXR for HDRIs).',
+    parameters: obj(
+      {
+        source: { type: 'string', enum: ['polyhaven', 'ambientcg'], description: 'Which library' },
+        id: str('The asset id from asset_search'),
+        folder: str('Folder to save into (a folder named after the asset is made inside)'),
+        resolution: str('Size, e.g. 2k (default)'),
+        format: str('File format, see above'),
+      },
+      ['source', 'id', 'folder'],
+    ),
+    run: async ({ source, id, folder, resolution, format }: { source: AssetSource; id: string; folder: string; resolution?: string; format?: string }, ctx) => {
+      if (source !== 'polyhaven' && source !== 'ambientcg') throw new Error('source must be polyhaven or ambientcg.');
+      if (!/^[\w-]+$/.test(String(id))) throw new Error('That is not an asset id.');
+      const dir = path.join(writableDir(ctx, folder), id);
+      ctx.progress?.(`Downloading ${id}…`);
+      const files = await assetLib.downloadAsset(source, id, dir, { resolution, format, signal: ctx.signal });
+      return { text: `Saved ${files.length} file${files.length === 1 ? '' : 's'} in ${dir}:\n${files.join('\n')}\nLicence: CC0 (free for any use, no credit needed). ${source === 'polyhaven' ? 'Powered by Poly Haven (polyhaven.com).' : 'From ambientCG (ambientcg.com).'}` };
+    },
+  },
+  // ---------- NVIDIA ----------
+  {
+    name: 'nvidia_gpu_status',
+    group: 'nvidia',
+    risk: 'none',
+    description: 'How busy the NVIDIA graphics cards are: name, driver, load, temperature, memory and power. Check it before a big render or AI job.',
+    parameters: obj({}),
+    run: async () => {
+      const exe = which('nvidia-smi');
+      if (!exe) throw new Error('nvidia-smi was not found. It comes with the NVIDIA graphics driver.');
+      const r = await run(exe, [`--query-gpu=${GPU_FIELDS.join(',')}`, '--format=csv,noheader,nounits'], { timeout: 20000 });
+      if (r.code !== 0) return { text: `nvidia-smi failed (exit ${r.code})\n${truncate(r.stderr || r.stdout, 2000)}`, isError: true };
+      return { text: formatGpus(r.stdout) };
+    },
+  },
+  {
+    name: 'nvidia_texture_export',
+    group: 'nvidia',
+    risk: 'low',
+    description: 'Compress an image (PNG, TGA, JPG, EXR…) into a DDS or KTX texture for games with the NVIDIA Texture Tools Exporter. Formats: bc7 (default, color), bc1 (color, smallest), bc3 (color with alpha), bc4 (one channel, e.g. roughness), bc5 (normal maps), rgba8 (no compression).',
+    parameters: obj(
+      {
+        input: str('The image file'),
+        output: str('The .dds, .ktx or .ktx2 file to write'),
+        format: str('Compression format, e.g. bc7, bc1, bc3, bc4, bc5, rgba8'),
+        mips: { type: 'boolean', description: 'Make mipmaps (default true)' },
+      },
+      ['input', 'output'],
+    ),
+    run: async ({ input, output, format, mips }: { input: string; output: string; format?: string; mips?: boolean }, ctx) => {
+      const exe = programExe('nvtt') || which('nvtt_export');
+      if (!exe) throw new Error('The NVIDIA Texture Tools Exporter was not found. Install it from developer.nvidia.com/texture-tools-exporter or set its path in Settings.');
+      const out = writablePath(ctx, output);
+      const r = await run(exe, nvttArgs({ input: readablePath(ctx, input), output: out, format, mips: mips !== false }), { timeout: 15 * 60_000, signal: ctx.signal });
+      const ok = r.code === 0 && exists(out);
+      return { text: `${ok ? `Saved ${out}` : `nvtt_export failed (exit ${r.code})`}\n${truncate((r.stdout + '\n' + r.stderr).trim(), 4000)}`, isError: !ok };
+    },
+  },
   // ---------- media ----------
   {
     name: 'ffmpeg',
@@ -368,6 +599,48 @@ const TOOLS: ToolDef[] = [
       if (!which('ffmpeg')) throw new Error('ffmpeg is not installed.');
       const r = await run('ffmpeg', ['-hide_banner', ...args], { timeout: 60 * 60_000, signal: ctx.signal });
       return { text: `${r.code === 0 ? 'Done' : `ffmpeg failed (exit ${r.code})`}\n${truncate(r.stderr.split(/\r?\n/).slice(-40).join('\n'), 6000)}`, isError: r.code !== 0 };
+    },
+  },
+  {
+    name: 'handbrake_encode',
+    group: 'media',
+    risk: 'low',
+    description: 'Convert or shrink a video with HandBrake (HandBrakeCLI) using one of its presets, e.g. "Fast 1080p30" (default), "Fast 720p30", "HQ 1080p30 Surround", "Fast 2160p60 4K HEVC". Optional quality (RF, lower is better, 18–28 is usual) and encoder (x264, x265, svt_av1, or nvenc_h264 / nvenc_h265 on NVIDIA cards). Set list_presets to see every preset.',
+    parameters: obj({
+      input: str('The video file'),
+      output: str('The .mp4, .mkv or .webm file to write'),
+      preset: str('HandBrake preset name'),
+      quality: { type: 'number', description: 'Optional constant quality (RF)' },
+      encoder: str('Optional video encoder'),
+      list_presets: { type: 'boolean', description: 'Only list the presets' },
+    }),
+    run: async ({ input, output, preset, quality, encoder, list_presets }: { input?: string; output?: string; preset?: string; quality?: number; encoder?: string; list_presets?: boolean }, ctx) => {
+      const exe = programExe('handbrakecli') || which('HandBrakeCLI');
+      if (!exe) throw new Error('HandBrakeCLI was not found. It is a separate free download from handbrake.fr/downloads2.php (the HandBrake window app is not enough); then set its path in Settings or put it on PATH.');
+      if (list_presets) {
+        const r = await run(exe, ['--preset-list'], { timeout: 60000 });
+        return { text: truncate((r.stdout + '\n' + r.stderr).trim(), 10000) };
+      }
+      if (!input || !output) throw new Error('Give input and output.');
+      const out = writablePath(ctx, output);
+      ctx.progress?.('HandBrake is encoding…');
+      const r = await run(exe, handbrakeArgs({ input: readablePath(ctx, input), output: out, preset, quality, encoder }), { timeout: 4 * 60 * 60_000, signal: ctx.signal });
+      const ok = r.code === 0 && exists(out);
+      return { text: `${ok ? `Saved ${out}` : `HandBrake failed (exit ${r.code})`}\n${truncate(r.stderr.split(/\r?\n/).filter((l) => l.trim() && !/^Encoding: task/.test(l)).slice(-25).join('\n'), 5000)}`, isError: !ok };
+    },
+  },
+  {
+    name: 'imagemagick',
+    group: 'media',
+    risk: 'high', // it can read and overwrite any file; "Always allow" it for your image agents
+    description: 'Run ImageMagick (magick) with the given arguments (no shell) to resize, crop, convert, combine, add text or batch-edit images. Use absolute paths and write to new files. Example args: ["C:/in.png","-resize","50%","C:/out.webp"]. For many files use ["mogrify","-path","C:/out","-resize","1024x1024","C:/in/*.png"].',
+    parameters: obj({ args: { type: 'array', items: { type: 'string' } } }, ['args']),
+    run: async ({ args }: { args: string[] }, ctx) => {
+      const exe = programExe('imagemagick');
+      if (!exe) throw new Error('ImageMagick is not installed (imagemagick.org/script/download.php), or set its path in Settings.');
+      if (!Array.isArray(args) || !args.length) throw new Error('Give the arguments as a list.');
+      const r = await run(exe, args.map(String), { timeout: 30 * 60_000, signal: ctx.signal });
+      return { text: `${r.code === 0 ? 'Done' : `ImageMagick failed (exit ${r.code})`}\n${truncate((r.stdout + '\n' + r.stderr).trim(), 6000)}`, isError: r.code !== 0 };
     },
   },
   {
@@ -777,9 +1050,9 @@ export async function callTool(agent: ToolAgent, name: string, args: ToolArgs = 
 
 function describeCall(name: string, args: ToolArgs): string | undefined {
   if (name === 'run_command') return args.command as string | undefined;
-  if (name.endsWith('_run_script') || name === 'blender_run_python') return args.code as string | undefined;
+  if (name.endsWith('_run_script') || name.endsWith('_run_python')) return args.code as string | undefined;
   if (name === 'write_file') return `${args.path}\n\n${String(args.content || '').slice(0, 1500)}`;
-  if (name === 'ffmpeg' || name === 'orca') return `${name} ${((args.args as string[] | undefined) || []).join(' ')}`;
+  if (name === 'ffmpeg' || name === 'orca' || name === 'imagemagick') return `${name} ${((args.args as string[] | undefined) || []).join(' ')}`;
   return JSON.stringify(args, null, 2);
 }
 
@@ -801,6 +1074,35 @@ function htmlToText(html: string): string {
     .replace(/[ \t]+/g, ' ')
     .replace(/\n\s*\n\s*\n+/g, '\n\n')
     .trim();
+}
+
+// Run a Python script with a program's own Python (mayapy, hython) and return what it printed.
+async function runPython(exe: string, script: string, ctx: ToolContext): Promise<ToolResult> {
+  if (!exists(exe)) throw new Error(`${path.basename(exe)} was not found next to the program.`);
+  const file = tmpFile('script.py');
+  fs.writeFileSync(file, script);
+  const r = await run(exe, [file], { timeout: 30 * 60_000, signal: ctx.signal });
+  return { text: `${r.code === 0 ? 'Finished' : `Failed (exit ${r.code})`}\n${truncate((r.stdout + '\n' + r.stderr).trim(), 12000)}`, isError: r.code !== 0 };
+}
+
+// A file an agent may read, as its real path.
+function readablePath(ctx: ToolContext, p: string | undefined): string {
+  const r = resolveInside(ctx.agent, p);
+  if (!r.ok) throw new Error(`${r.abs} is outside the folders this agent may read.`);
+  if (!exists(r.real)) throw new Error(`${r.abs} does not exist.`);
+  return r.real;
+}
+// A file an agent may write (its folder is made), as its real path.
+function writablePath(ctx: ToolContext, p: string | undefined): string {
+  const r = resolveInside(ctx.agent, p, { write: true });
+  if (!r.ok) throw new Error(`${r.abs} is outside the folders this agent may write to.`);
+  ensureDir(path.dirname(r.real));
+  return r.real;
+}
+function writableDir(ctx: ToolContext, p: string | undefined): string {
+  const r = resolveInside(ctx.agent, p, { write: true });
+  if (!r.ok) throw new Error(`${r.abs} is outside the folders this agent may write to.`);
+  return ensureDir(r.real);
 }
 
 async function runJsx(appId: 'photoshop' | 'aftereffects', code: string): Promise<ToolResult> {

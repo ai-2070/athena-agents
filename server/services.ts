@@ -19,6 +19,13 @@ const GROUP_SERVICES: Service[] = [
   { label: 'Blender', words: /\bblender\b/i, group: 'blender' },
   { label: 'Adobe', words: /\b(adobe|photoshop|after effects|premiere)\b/i, group: 'adobe' },
   { label: 'FFmpeg', words: /\bffmpeg\b/i, group: 'media' },
+  // Maya is also a name, so only "in Maya", "Autodesk Maya" and the like
+  { label: 'Maya', words: /\b((in|with|using|open|into|from) maya|autodesk maya|maya (scene|python|rig|file)s?|mayapy)\b/i, group: 'maya' },
+  { label: 'Houdini', words: /\b(houdini|hython)\b/i, group: 'houdini' },
+  { label: 'Substance 3D', words: /\bsubstance (3d|painter|designer|sampler)\b|\.sbsar\b|\bsbsar\b/i, group: 'substance' },
+  { label: 'CAD and 3D printing', words: /\b(openscad|prusaslicer|g-?code|slic(e|ing) (the |a |this )?(model|stl))\b/i, group: 'cad' },
+  { label: 'NVIDIA', words: /\b(nvidia-smi|nvtt|dds textures?)\b/i, group: 'nvidia' },
+  { label: 'Free asset libraries', words: /\b(poly ?haven|ambient ?cg|hdris?)\b/i, group: 'assets' },
   { label: 'social posts', words: /\b(tweets?|tweet(ed|ing)|post(ed|ing)? (it )?(on|to) x|x (post|thread|dm)s?|reddit|subreddits?|telegram|discord)\b/i, group: 'social' },
   { label: 'Orca', words: /\borca\b/i, group: 'orca' },
 ];

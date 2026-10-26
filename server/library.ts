@@ -141,6 +141,12 @@ function suggestTools(text: string): string[] {
   if (/twitter|\bx\b|social|tiktok|reddit|instagram|linkedin|community|growth|content|marketing/.test(t)) groups.add('social');
   if (/image|visual|art|illustrat|comfy|diffusion|prompt engineer/.test(t)) groups.add('comfyui');
   if (/3d|blender|spatial|game|model(l)?ing|render/.test(t)) groups.add('blender');
+  if (/\bmaya\b|animator|rigging/.test(t)) groups.add('maya');
+  if (/houdini|vfx|simulation|procedural/.test(t)) groups.add('houdini');
+  if (/texture|material artist|substance|\bpbr\b/.test(t)) groups.add('substance');
+  if (/\bcad\b|3d print|slicer|openscad|g-?code/.test(t)) groups.add('cad');
+  if (/texture|\bgpu\b|nvidia/.test(t)) groups.add('nvidia');
+  if (/3d|texture|material|hdri|environment art|level design|game/.test(t)) groups.add('assets');
   if (/video|edit|premiere|after effects|motion|photoshop|design/.test(t)) {
     groups.add('adobe');
     groups.add('media');

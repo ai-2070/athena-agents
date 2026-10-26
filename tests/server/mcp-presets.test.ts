@@ -37,6 +37,28 @@ describe('MCP presets', () => {
     for (const n of ['unity', 'unreal', 'godot', 'elevenlabs']) expect(names).toContain(n);
   });
 
+  it('include Maya, Houdini and Substance Painter, each with its setup step', () => {
+    const by = (name: string) => PRESETS.find((p) => p.name === name);
+    for (const n of ['maya', 'houdini', 'substance-painter']) expect(presetNeeds(by(n)!), n).toMatch(/^setup: /);
+    expect(presetNeeds(by('maya')!)).toContain('commandPort');
+    expect(presetNeeds(by('substance-painter')!)).toContain('--enable-remote-scripting');
+  });
+
+  it('include 3D sources, stock images, design and free creative programs', () => {
+    const names = PRESETS.map((p) => p.name);
+    for (const n of ['tripo', 'meshy', 'sketchfab', 'unsplash', 'pixabay', 'pexels', 'canva', 'freepik', 'google-design', 'gimp', 'krita', 'inkscape', 'audacity', 'reaper', 'musescore', 'obs', 'topaz']) {
+      expect(names, n).toContain(n);
+    }
+    const by = (name: string) => PRESETS.find((p) => p.name === name)!;
+    expect(presetNeeds(by('unsplash'))).toBe('needs UNSPLASH_ACCESS_KEY');
+    expect(presetNeeds(by('google-design'))).toBe('');
+    // Canva and Freepik sign in through the browser, so they say so instead of asking for a key
+    expect(presetNeeds(by('canva'))).toMatch(/^setup: sign in/);
+    expect(presetNeeds(by('audacity'))).toMatch(/Audacity 3/);
+    // Tripo's usage tracking stays off; it is not a key the user has to fill in
+    expect(presetNeeds(by('tripo'))).toBe('needs TRIPO_API_KEY');
+  });
+
   it('tell the Brain what each one needs from you', () => {
     const by = (name: string) => PRESETS.find((p) => p.name === name)!;
     expect(presetNeeds(by('playwright'))).toBe('');

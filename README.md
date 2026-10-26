@@ -15,7 +15,7 @@
   <img alt="MCP: Model Context Protocol" src="https://img.shields.io/badge/MCP-ready-1f2a14?style=flat-square">
 </p>
 
-Blacksite is a local-first **AI agent dashboard**: build teams of agents, give each one its own model, tools, skills and memory, and watch them work on a live 3D map. It works with **Claude Code, OpenAI Codex, Hermes, pi, oh-my-pi, OpenClaw, Ollama, LM Studio** and any **OpenAI-compatible API**, and connects to programs and services through the **Model Context Protocol (MCP)**: browsers, Blender, ComfyUI, ffmpeg, Unity, Unreal Engine, Godot, GitHub, Notion, Linear and more.
+Blacksite is a local-first **AI agent dashboard**: build teams of agents, give each one its own model, tools, skills and memory, and watch them work on a live 3D map. It works with **Claude Code, OpenAI Codex, Hermes, pi, oh-my-pi, OpenClaw, Ollama, LM Studio** and any **OpenAI-compatible API**, and connects to programs and services through the **Model Context Protocol (MCP)**: browsers, Blender, Maya, Houdini, Substance 3D Painter, ComfyUI, ffmpeg, FreeCAD, Rhino, OpenSCAD, 3D printers, Unity, Unreal Engine, Godot, GitHub, Notion, Linear and more.
 
 The dashboard runs at **http://localhost:4800**, with no dashboard account or login. Its server and saved state stay on your computer. **Local does not mean offline:** hosted models and connected services receive the requests you send them. You can also use local models through LM Studio or Ollama.
 
@@ -25,7 +25,7 @@ The dashboard runs at **http://localhost:4800**, with no dashboard account or lo
 
 - **Build a team for a job.** Describe the outcome to the Brain, or choose agents from the Library. Each agent keeps its own instructions, knowledge, memory, model, skills and tools.
 - **Mix models.** Use Claude Code, Codex, Hermes, pi, oh-my-pi, OpenClaw or OpenAI-compatible APIs, including local model servers. Team members do not need to use the same engine.
-- **Work with your files and programs.** Give agents a project folder, attach reference files, and connect tools for programs such as Blender, ComfyUI and ffmpeg. Add more tools through MCP servers.
+- **Work with your files and programs.** Give agents a project folder, attach reference files, and connect tools for programs such as Blender, Maya, Houdini, Substance 3D, ComfyUI, ffmpeg, HandBrake, ImageMagick, OpenSCAD, PrusaSlicer and NVIDIA's texture tools, and let them pull free textures, HDRIs and models from Poly Haven and ambientCG. The Programs page also finds Adobe apps, free creative programs (GIMP, Krita, Inkscape, Audacity and more), video editors (DaVinci Resolve, CapCut, Kdenlive and more), CAD programs and slicers. Add more tools through MCP servers.
 - **Keep useful instructions.** Write skills in plain words, share them across agents and teams, and turn repeated work into routines you can run by hand or on a schedule.
 - **Review work before it goes out.** Handle permission requests in **Needs you**, review X and Reddit drafts in the **Outbox**, and find saved results in **Artifacts**.
 
@@ -53,7 +53,13 @@ Written results, files and folders that agents saved, each with a preview, who m
 
 ### MCP servers in one click
 
-Add a browser, GitHub, Notion, Linear, Unity, Unreal Engine, Godot or ElevenLabs from a list, or ask the Brain to do it.
+Add servers from a list, or ask the Brain to do it:
+
+- **Work:** a browser, GitHub, Notion, Linear, web search.
+- **3D and games:** Blender, Maya, Houdini, Substance 3D Painter, Unity, Unreal Engine, Godot, Tripo, Meshy, Sketchfab.
+- **Images, design and stock:** Canva, Freepik, Unsplash, Pixabay, Pexels, Google Fonts, GIMP, Krita, Inkscape, Topaz (AI upscaling).
+- **Audio and video:** ElevenLabs, Audacity, REAPER, MuseScore, OBS.
+- **CAD and 3D printing:** FreeCAD, Rhino, OpenSCAD, your 3D printer.
 
 ![The MCP servers page with ready-made presets, some marked as needing a key](docs/images/mcp-servers.png)
 

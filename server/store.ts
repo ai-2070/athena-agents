@@ -33,7 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
     custom: { baseUrl: '', label: 'Custom (OpenAI-compatible)' },
   },
   comfyui: { url: '', workflowDirs: [] },
-  paths: { blender: '', photoshop: '', aftereffects: '', premiere: '', comfyui: '' },
+  paths: { blender: '', photoshop: '', aftereffects: '', premiere: '', comfyui: '', maya: '', houdini: '', painter: '', designer: '', resolve: '', openscad: '', prusaslicer: '', orcaslicer: '', nvtt: '', handbrakecli: '', imagemagick: '' },
   allowedFolders: [],
   x: { clientId: '' },
   reddit: { clientId: '', username: '' },
