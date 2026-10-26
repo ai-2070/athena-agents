@@ -269,7 +269,7 @@ get('/api/agents/:id', async ({ id }) => {
 });
 put<Partial<Agent>>('/api/agents/:id', async ({ id }, body) => {
   const a = need(agents.get(id));
-  const allowed: (keyof Agent)[] = ['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'autonomy', 'toolGroups', 'mcpServers', 'knowledge', 'workspace', 'temperature', 'pinned', 'alwaysAllow', 'skills'];
+  const allowed: (keyof Agent)[] = ['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'autonomy', 'toolGroups', 'mcpServers', 'knowledge', 'workspace', 'temperature', 'pinned', 'alwaysAllow', 'skills', 'richAnswers'];
   for (const k of allowed) if (k in body) (a as Record<keyof Agent, unknown>)[k] = body[k];
   return agents.save(a);
 });

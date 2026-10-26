@@ -36,6 +36,8 @@ export interface Agent {
   temperature: number | '';
   alwaysAllow: string[];
   skills: string[];
+  /** Rich answers: in your own chats it answers in OpenUI Lang, shown as live components (cards, tables, charts, forms). */
+  richAnswers?: boolean;
   source: AgentSource;
   pinned: boolean;
   lastModel?: string;
