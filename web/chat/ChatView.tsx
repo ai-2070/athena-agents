@@ -9,8 +9,8 @@ import type { CSSProperties, KeyboardEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { APICallError } from 'ai';
 import { GET, POST, DEL, attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
-import { restoreDraft } from '../attach.ts';
 import type { AttachTray } from '../attach.ts';
+import { pasteBox } from '../pastes.ts';
 import { icon } from '../icons.ts';
 import { latestCompaction, memoryStart } from '../../shared/compaction.ts';
 import { Dom, MessageView, isRichCode } from './parts.tsx';
@@ -79,6 +79,9 @@ export function ChatView(p: ChatViewProps) {
   const [items, setItems] = useState<ChatItem[]>([]);
   const [statusText, setStatusText] = useState('');
   const input = useRef<HTMLTextAreaElement>(null);
+  // long pasted text, folded into a chip until it is sent
+  const [pastes] = useState(pasteBox);
+  useEffect(() => (input.current ? pastes.attach(input.current) : undefined), [pastes]);
   const list = useRef<HTMLDivElement>(null);
   const near = useRef(true);
   // why the last send failed; refused: the server never took it (so the text goes back in the box)
@@ -213,13 +216,14 @@ export function ChatView(p: ChatViewProps) {
         setStatusText('');
         if (!attachments) return;
         // what is in the box now (more may have been typed while the files uploaded)
-        const typedNow = typed ?? box?.value.trim() ?? '';
+        const typedNow = typed ?? (box ? pastes.text().trim() : '');
         // "/queue …" while it isn't working: nothing to wait for, so it goes now
         const text = typed == null ? (queuedText(typedNow) ?? typedNow) : typedNow;
         if (!text && !attachments.length) return void (typedNow && toast('Write the message after /queue'));
         if (typed == null && box) {
           box.value = '';
           box.style.height = '';
+          pastes.sync();
         }
         // /compact, /compact instant, /compact summary (with no files attached)
         const cmd = attachments.length ? null : /^\/compact(?:\s+(instant|summary))?\s*$/i.exec(text);
@@ -228,7 +232,7 @@ export function ChatView(p: ChatViewProps) {
         if (!chatIdRef.current) {
           const made = await attempt(() => POST<Chat>(`/agents/${agent.id}/chats`));
           if (!made) {
-            if (typed == null && box) restoreDraft(box, text);
+            if (typed == null && box) pastes.restore(text);
             return;
           }
           chatIdRef.current = made.id;
@@ -245,7 +249,7 @@ export function ChatView(p: ChatViewProps) {
         if (fail) {
           toast(fail.message, 'error');
           if (fail.refused) {
-            if (typed == null && box) restoreDraft(box, text);
+            if (typed == null && box) pastes.restore(text);
             tray?.put(taken);
           }
         }
@@ -256,7 +260,7 @@ export function ChatView(p: ChatViewProps) {
         catchUp();
       }
     },
-    [busy, tray, sendMessage, compactNow, reload, agent.id],
+    [busy, tray, pastes, sendMessage, compactNow, reload, agent.id],
   );
 
   // "/queue …" while the agent works: the server holds it and sends it when this turn is done
@@ -270,14 +274,16 @@ export function ChatView(p: ChatViewProps) {
       const attachments = tray ? await tray.ready() : [];
       if (!attachments) return;
       // (what is in the box now: more may have been typed while the files uploaded)
-      const text = queuedText(box.value) ?? box.value.trim();
+      const all = pastes.text();
+      const text = queuedText(all) ?? all.trim();
       if (!text && !attachments.length) return void toast('Write the message after /queue');
       box.value = '';
       box.style.height = '';
+      pastes.sync();
       const taken = tray?.take() || [];
       const r = await attempt(() => POST<{ runId?: string; queued?: QueuedMessage }>(`/agents/${agent.id}/chats/${id}/queue`, { text, attachments }));
       if (!r) {
-        restoreDraft(box, `/queue ${text}`);
+        pastes.restore(`/queue ${text}`);
         tray?.put(taken);
         return;
       }
@@ -286,7 +292,7 @@ export function ChatView(p: ChatViewProps) {
     } finally {
       queueing.current = false;
     }
-  }, [agent.id, tray]);
+  }, [agent.id, tray, pastes]);
   const unqueue = useCallback(
     (q: QueuedMessage) => {
       const id = chatIdRef.current;
@@ -310,9 +316,9 @@ export function ChatView(p: ChatViewProps) {
     const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`/agents/${agent.id}/chats/${id}/stop`));
     // what you queued comes back to the box, so stopping never loses it
     const back = r?.unqueued || [];
-    if (back.length && input.current) restoreDraft(input.current, back.map((q) => q.text).filter(Boolean).join('\n\n'));
+    if (back.length) pastes.restore(back.map((q) => q.text).filter(Boolean).join('\n\n'));
     if (back.some((q) => q.attachments?.length)) toast('Your queued messages are back in the box. Attach their files again.');
-  }, [agent.id, stopStream]);
+  }, [agent.id, stopStream, pastes]);
 
   if (p.apiRef)
     p.apiRef.current = {
@@ -322,6 +328,7 @@ export function ChatView(p: ChatViewProps) {
       setDraft: (t) => {
         if (!input.current) return;
         input.current.value = t;
+        pastes.sync();
         input.current.focus();
       },
     };
@@ -553,6 +560,7 @@ export function ChatView(p: ChatViewProps) {
       {compact ? (
         <>
           {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
+          <Dom make={() => pastes.el} deps={[pastes]} />
           <div className="ac-compose">
             {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
             {composer}
@@ -563,6 +571,7 @@ export function ChatView(p: ChatViewProps) {
       ) : (
         <div className="composer">
           {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
+          <Dom make={() => pastes.el} deps={[pastes]} />
           <div className="composer-box">
             {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
             {composer}

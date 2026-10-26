@@ -8,10 +8,12 @@ import { brainQueue, holdQueue, latestLoad } from './brainqueue.ts';
 import { queuedText } from '../shared/queue.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import { attachTray } from './attach.ts';
+import { pasteBox } from './pastes.ts';
 import { openMemory, BRAIN } from './memory.ts';
 import { mentionPreviews } from './filepreview.ts';
 import { brainKeyLabel, brainKeyTitle, brainShortcut } from './shortcuts.ts';
 import type { AttachTray, PickedFile } from './attach.ts';
+import type { PasteBox } from './pastes.ts';
 import type { Child } from './core.ts';
 import type { AgentDraft, BranchDesign } from './builder.ts';
 import type { TeamEvent } from './teamchat.ts';
@@ -78,6 +80,8 @@ interface Dock {
   launcher?: HTMLButtonElement;
   /** Files waiting to go with the next message. */
   tray?: AttachTray;
+  /** Long pasted text, folded into a chip until it is sent. */
+  pastes?: PasteBox;
   /** Your /queue messages, waiting for the chat to be done. */
   heldEl?: HTMLDivElement;
 }
@@ -97,6 +101,8 @@ export function initDock(): void {
   watchList(D.list);
   D.input = h('textarea.dock-input', { rows: 2, placeholder: PLACEHOLDER });
   D.tray = attachTray({ onChange: () => (D.input!.placeholder = D.tray?.count() ? 'What should be done with these files?' : PLACEHOLDER) });
+  D.pastes = pasteBox();
+  D.pastes.attach(D.input);
   D.input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -114,7 +120,7 @@ export function initDock(): void {
     h('div.dock-head', h('b', icon('brain', 16), 'Brain chat'), h('span.grow'), h('span.dock-to', 'to'), D.sel, D.modelEl, h('button.icon-btn', { onclick: () => openMemory(BRAIN), title: "The Brain's MEMORY.md: what it remembers across conversations", 'aria-label': "The Brain's MEMORY.md" }, icon('file-text', 15)), h('button.icon-btn', { onclick: newConversation, title: 'New conversation (the Brain forgets this chat)', 'aria-label': 'New conversation' }, icon('rotate-ccw', 15)), h('button.icon-btn', { onclick: () => toggle(false), 'aria-label': 'Close' }, '✕')),
     D.list,
     (D.heldEl = h('div.queued-list.compact.dock-held.hidden')),
-    h('div.dock-tray-wrap', D.tray.el),
+    h('div.dock-tray-wrap', D.tray.el, D.pastes.el),
     h('div.dock-compose', D.tray.picker, D.input, h('button.btn', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 15))),
   );
   D.tray.dropZone(D.panel, 'Drop files or folders for the Brain');
@@ -203,7 +209,10 @@ function projectChanged(d: { project?: { id: string } | null }) {
 export function openDock(target: string | null = null, text = ''): void {
   if (target) D.target = target;
   toggle(true);
-  if (text) D.input!.value = text;
+  if (text) {
+    D.input!.value = text;
+    D.pastes!.sync();
+  }
 }
 
 // Opening grows the chat out of the "Ask the Brain" button; closing folds it back into it.
@@ -514,7 +523,7 @@ async function send(given: string[] = []) {
   if (!attachments) return;
   attachments = [...given, ...attachments];
   // what is in the box now (more may have been typed while the files uploaded)
-  const typed = input.value.trim();
+  const typed = D.pastes!.text().trim();
   // "/queue …": waits until everything in this chat is done (goes now if nothing is working)
   const queued = queuedText(typed);
   const text = queued ?? typed;
@@ -522,6 +531,7 @@ async function send(given: string[] = []) {
   // a Brain message belongs to a project: wait until the page knows which one is open
   if (D.target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Send it again in a moment.');
   input.value = '';
+  D.pastes!.sync();
   tray.take();
   if (queued != null) return void held.add(text, { attachments, target: D.target });
   return track(() => dispatch(text, attachments, D.target));
