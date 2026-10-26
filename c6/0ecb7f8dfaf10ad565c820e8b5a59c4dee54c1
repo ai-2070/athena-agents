@@ -1,0 +1,24 @@
+tests/server/projectsync.test.ts
+  s_86f670bdc2e031::t_bd6ff8ed7652bf 5,70-139
+  s_86f670bdc2e031::t_b6db673296c091 140
+server/store.ts
+  s_86f670bdc2e031::t_5c4e3e4a833080 270-271,281
+server/projectsync.ts
+  s_86f670bdc2e031::t_5c4e3e4a833080 1-2,9,43,50,162-163,225-252,256,259-260
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c60ecb7f8dfaf10ad565c820e8b5a59c4dee54c1",
+  "prompts": {},
+  "sessions": {
+    "s_86f670bdc2e031": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6340fd4e-3c25-4ffa-aefd-cf1ac985cbb5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
