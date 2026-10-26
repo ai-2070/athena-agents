@@ -1,0 +1,33 @@
+scripts/build-icons.ts
+  s_280f012de0b84d::t_f1691837d232f0 26
+web/icons.ts
+  s_280f012de0b84d::t_f1691837d232f0 8
+public/craft-icons/README.md
+  s_280f012de0b84d::t_81d95e00c7df35 1-25
+tests/web/crafticons.test.ts
+  s_280f012de0b84d::t_b12e01010880bc 1-28
+web/views/station.ts
+  s_280f012de0b84d::t_18808d119380ec 18,496-497,499,501,503,2575,2607,2776-2777,3449
+public/polish.css
+  s_280f012de0b84d::t_a0781d767a7744 76-81
+README.md
+  s_280f012de0b84d::t_3673c50e2db6ff 136
+web/crafticons.ts
+  s_280f012de0b84d::t_1d014f2a34f808 1-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "14299b3bae08595995741a6290beaa37dcd3a18b",
+  "prompts": {},
+  "sessions": {
+    "s_280f012de0b84d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f553f14f-f6a0-4ae3-8721-c11bbf98c834",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
