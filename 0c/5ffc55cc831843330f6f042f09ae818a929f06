@@ -1,0 +1,26 @@
+server/teams.ts
+  s_86f670bdc2e031::t_06685758eee425 257,261-263,285
+  s_86f670bdc2e031::t_b0f48d9f57f195 6
+server/engines/index.ts
+  s_86f670bdc2e031::t_06685758eee425 15-22,196,282,322,327,332-334
+tests/server/workflow-stop.test.ts
+  s_86f670bdc2e031::t_c48a29676c66de 8,48-75
+server/workflows.ts
+  s_86f670bdc2e031::t_06685758eee425 5,175-176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0c5ffc55cc831843330f6f042f09ae818a929f06",
+  "prompts": {},
+  "sessions": {
+    "s_86f670bdc2e031": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6340fd4e-3c25-4ffa-aefd-cf1ac985cbb5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
