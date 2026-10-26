@@ -1,10 +1,12 @@
 // A long chat draws only the messages near what you see (and a few around them), so a chat of
 // thousands of messages scrolls and streams as lightly as a short one. Each message is measured once
-// it has drawn; the ones not drawn keep their last height (or a guess), so the scrollbar stays right.
+// it has drawn; the ones not drawn keep their last height, or a guess from what they hold (estimate.ts),
+// so the scrollbar stays right and a jump to the top lands there. Heights are remembered per message,
+// so a chat opened again starts with the real ones.
 // Short chats draw every message as before (the browser's own Find still sees them all).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { measureElement, useVirtualizer } from '@tanstack/react-virtual';
 
 /** From this many messages on, a chat draws only what is near the screen. */
 export const WINDOW_FROM = 50;
@@ -17,18 +19,47 @@ export interface WindowedProps<T extends { id: string }> {
   atEnd: boolean;
   /** the space between messages, in px (the list's own gap) */
   gap: number;
-  /** a guess at a message's height before it has drawn */
-  estimate: number;
+  /** a guess at a message's height before it has drawn (width: the list's) */
+  estimate: number | ((item: T, width: number) => number);
   render: (item: T) => ReactNode;
 }
+
+/** Heights measured before, by message id, with the list width they were measured at. */
+const remembered = new Map<string, { width: number; size: number }>();
+/** A remembered height still holds while the list is about as wide. */
+const SAME_WIDTH = 40;
+/** At most this many heights are kept (the oldest go first). */
+const REMEMBER = 5000;
 
 export function Windowed<T extends { id: string }>({ items, scroller, atEnd, gap, estimate, render }: WindowedProps<T>) {
   // (read once, when the list first draws)
   const startAtEnd = useRef(atEnd);
+  // the list's width while it is on the page (gone by the time the list unmounts)
+  const lastWidth = useRef(800);
+  const width = () => (lastWidth.current = scroller.current?.clientWidth || lastWidth.current);
+  const guess = (i: number): number => {
+    const item = items[i];
+    const w = width();
+    const known = item && remembered.get(item.id);
+    if (known && Math.abs(known.width - w) < SAME_WIDTH) return known.size;
+    if (typeof estimate === 'number' || !item) return typeof estimate === 'number' ? estimate : 110;
+    return estimate(item, w);
+  };
   const v = useVirtualizer({
     count: items.length,
     getScrollElement: () => scroller.current,
-    estimateSize: () => estimate,
+    estimateSize: guess,
+    // measured as usual, and remembered for the next time this chat opens
+    measureElement: (el, entry, instance) => {
+      const size = measureElement(el, entry, instance);
+      const item = items[Number((el as HTMLElement).dataset.index)];
+      if (item) {
+        remembered.delete(item.id);
+        remembered.set(item.id, { width: width(), size });
+        if (remembered.size > REMEMBER) remembered.delete(remembered.keys().next().value!);
+      }
+      return size;
+    },
     getItemKey: useCallback((i: number) => items[i]?.id ?? i, [items]),
     gap,
     overscan: 6,

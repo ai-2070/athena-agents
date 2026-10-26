@@ -515,8 +515,8 @@ describe('a long chat', () => {
     await rest();
     const list = el.querySelector<HTMLElement>('.messages')!;
     expect(list.querySelector('.msg-window')).not.toBeNull();
-    // (the window is sized for every message, so the scrollbar is right)
-    expect(contentHeight(list)).toBeGreaterThan(400 * ROW * 0.9);
+    // (the window is sized for every message, drawn or not, so the scrollbar is right)
+    expect(contentHeight(list)).toBeGreaterThan(400 * 50);
     const rows = drawn(el);
     expect(rows.length).toBeLessThan(30);
     expect(rows).toContain('answer 399');
@@ -546,6 +546,10 @@ describe('a long chat', () => {
     const el = await open('compact');
     await rest();
     const list = el.querySelector<HTMLElement>('.ac-list')!;
+    // (the chat keeps to the bottom as its messages measure taller than guessed; a browser then fires
+    // a scroll event, which happy-dom doesn't, so send it)
+    await act(async () => void list.dispatchEvent(new Event('scroll')));
+    await rest();
     expect(drawn(el)).toContain('answer 299');
     await scrollTo(list, 0);
     expect(drawn(el)).toContain('question 0');
