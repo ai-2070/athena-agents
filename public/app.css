@@ -407,3 +407,18 @@ label.field > span:first-child, div.field > span:first-child { font: 500 11px/1.
 .prog-app { padding: 10px 12px; flex-direction: row; align-items: center; }
 .prog-app-name { font-weight: 600; font-size: 14px; }
 .img-button { padding: 0; border: 0; background: none; cursor: zoom-in; }
+
+/* Connections and Outbox (web/views/connections.tsx, outbox.tsx) */
+.conn-account { border-bottom: 1px solid var(--line); padding: 10px 0; }
+.conn-avatar { border: 1px solid var(--line-2); }
+.conn-reddit-icon { border-radius: 50%; }
+.conn-post { font-size: 13.5px; }
+.conn-steps { padding-left: 18px; margin: 0 0 14px; color: var(--dim); font-size: 14px; }
+.push-right { margin-left: auto; }
+.pre-wrap { white-space: pre-wrap; }
+.outbox-images { flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.outbox-image { display: flex; flex-direction: column; gap: 6px; }
+.outbox-frame { position: relative; }
+.outbox-frame img { max-height: 120px; max-width: 180px; border-radius: 8px; display: block; }
+.outbox-unpick { position: absolute; top: 4px; right: 4px; }
+.outbox-image-actions { gap: 6px; }

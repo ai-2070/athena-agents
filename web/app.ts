@@ -9,7 +9,8 @@ import * as library from './views/library.tsx';
 import * as workflows from './views/workflows.ts';
 import * as programs from './views/programs.tsx';
 import * as mcp from './views/mcp.tsx';
-import * as connections from './views/connections.ts';
+import * as connections from './views/connections.tsx';
+import * as outboxView from './views/outbox.tsx';
 import * as terminals from './views/terminals.ts';
 import * as setup from './views/setup.tsx';
 import * as skillsView from './views/skills.ts';
@@ -53,7 +54,7 @@ interface NavLink extends Route {
 // The menu stays short. Other pages still open from links (branch editor, terminals, overview).
 const NAV: NavLink[] = [
   { path: 'station', label: 'Station', ico: 'orbit', view: station },
-  { path: 'outbox', label: 'Outbox', ico: 'send', view: connections.outboxPage, count: () => state.data?.outboxPending },
+  { path: 'outbox', label: 'Outbox', ico: 'send', view: outboxView, count: () => state.data?.outboxPending },
   { path: 'artifacts', label: 'Artifacts', ico: 'archive', view: artifactsView },
   { path: 'agents', label: 'Agents', ico: 'bot', view: agents },
   { path: 'library', label: 'Library', ico: 'library-big', view: library },

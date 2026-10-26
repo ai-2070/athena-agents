@@ -1,26 +1,23 @@
 // Settings: everything you set up once, in tabs. General · Connections · MCP servers · Programs · Look.
 // A search box finds any setting: it switches to its tab, scrolls to it and flashes it.
 // Links can do the same with #/settings?tab=general&find=OpenAI Codex
-// The shell is React (Base UI tabs and autocomplete); the tabs are still plain-DOM pages, hosted in it.
+// React and Base UI: the tabs, the search (an autocomplete) and every tab's page.
 import { useEffect, useRef, useState } from 'react';
 import { Autocomplete } from '@base-ui/react/autocomplete';
 import { GeneralTab } from './settings.tsx';
-import * as connections from './connections.ts';
+import { ConnectionsTab } from './connections.tsx';
 import { McpTab } from './mcp.tsx';
 import { ProgramsTab } from './programs.tsx';
 import { LookTab } from './look.tsx';
 import { Tabs } from '../ui/controls.tsx';
-import { Icon, ViewHost, reactPage } from '../ui/react.tsx';
-import type { PlainView } from '../ui/react.tsx';
+import { Icon, reactPage } from '../ui/react.tsx';
 import type { ComponentType } from 'react';
 
 type TabId = 'general' | 'connections' | 'mcp' | 'programs' | 'look';
-/** A tab is a React page, or a plain-DOM page still waiting to move (run in a ViewHost). */
 interface Tab {
   id: TabId;
   label: string;
-  view?: PlainView;
-  Page?: ComponentType;
+  Page: ComponentType;
 }
 /** One searchable setting. */
 interface IndexEntry {
@@ -33,7 +30,7 @@ interface IndexEntry {
 
 const TABS: Tab[] = [
   { id: 'general', label: 'General & keys', Page: GeneralTab },
-  { id: 'connections', label: 'Connections', view: connections },
+  { id: 'connections', label: 'Connections', Page: ConnectionsTab },
   { id: 'mcp', label: 'MCP servers', Page: McpTab },
   { id: 'programs', label: 'Programs', Page: ProgramsTab },
   { id: 'look', label: 'Look', Page: LookTab },
@@ -195,14 +192,11 @@ function SettingsSearch({ onChoose }: { onChoose: (hit: Hit) => void }) {
 }
 
 function TabBody({ tab, hostRef }: { tab: Tab; hostRef: (el: HTMLDivElement | null) => void }) {
-  const { Page, view } = tab;
-  if (Page)
-    return (
-      <div ref={hostRef}>
-        <Page />
-      </div>
-    );
-  return <ViewHost view={view!} hostRef={hostRef} />;
+  return (
+    <div ref={hostRef}>
+      <tab.Page />
+    </div>
+  );
 }
 
 function SettingsPage() {
