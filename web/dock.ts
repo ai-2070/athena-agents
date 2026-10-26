@@ -395,7 +395,7 @@ function renderItem(it: DockItem): HTMLElement | null {
     const body = it.live && !it.answer ? h('div.dock-note', h('span.dot.busy'), 'The Brain is looking at the project…') : md(it.answer || (it.done?.length ? '' : '(no answer)'));
     body.classList?.add('dock-answer');
     if (it.live && it.answer) body.classList.add('cursor');
-    const ico = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', error: 'triangle-alert', note: 'check' };
+    const ico = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', model: 'cpu', stop: 'square', error: 'triangle-alert', note: 'check' };
     return h(
       'div.dock-msg.agent.brain',
       h('div.dock-who', h('div.avatar.brain-av', icon('brain', 14)), h('b', 'Brain'), h('span.dock-answer-model', modelInfo(brainAsAgent(b)).short)),

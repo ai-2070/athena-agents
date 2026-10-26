@@ -3,26 +3,31 @@
 // hands real work to the best agent or team.
 import fs from 'node:fs';
 import path from 'node:path';
-import { agents, workflows, activeProject, openProject, projectSwitches, listProjects, getSettings, outbox, activity, log, emit } from './store.ts';
+import { agents, workflows, activeProject, openProject, projectSwitches, listProjects, getSettings, outbox, activity, log, emit, routineRuns, runs as workflowRuns } from './store.ts';
 import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from './library.ts';
 import { TOOL_GROUPS, workspaceOf } from './tools.ts';
 import { listServers } from './mcp.ts';
 import { ensureBrain, brainInfo, updateProject } from './projects.ts';
-import { listTeams, teamState, getThread, getTeam, teamSteps } from './teams.ts';
-import { liveActivity, runInfo, defaultModel } from './engines/index.ts';
+import { listTeams, teamState, getThread, getTeam, teamSteps, stopTeam } from './teams.ts';
+import { liveActivity, runInfo, defaultModel, activeRuns, stopRun } from './engines/index.ts';
+import { runningWorkflowRuns, stopWorkflowRun } from './workflows.ts';
 import { listApprovals } from './approvals.ts';
 import type { BrainVerdict } from './approvals.ts';
 import { think, brainModel, parseJSON } from './brain.ts';
 import type { ThinkPart } from './brain.ts';
 import { readJSON, writeJSON, run, dataPath } from './util.ts';
 import { describeAttachments, attachmentNames } from './uploads.ts';
-import { listRoutines, saveRoutine, deleteRoutine, getRoutine, startRoutine, routineTargets } from './routines.ts';
+import { listRoutines, saveRoutine, deleteRoutine, getRoutine, startRoutine, routineTargets, runningRoutineRuns, stopRoutineRun } from './routines.ts';
 import { listSkills, getSkill, findSkill, saveSkill, deleteSkillEverywhere, brainSkills, brainSkillSlugs, setBrainSkills } from './skills.ts';
 import type { SkillDetail } from './skills.ts';
 import { withActor, currentActor } from './versions.ts';
 import { installFromGitHub, parseGitHubUrl, reposIn } from './skillinstall.ts';
 import type { SkillInstallResult } from '../shared/types.ts';
 import { cleanSchedule, scheduleText } from '../shared/routines.ts';
+import { EFFORTS, EFFORT_NAMES, effortFor, isEffort } from '../shared/effort.ts';
+import { MODEL_PROVIDERS, PROVIDER_IDS, modelProvider, providerOfAgent, providerProblem, readyProviders, defaultModelFor, checkModel, findModels } from './models.ts';
+import type { Effort } from '../shared/effort.ts';
+import type { ModelProvider } from './models.ts';
 import type { Agent, Approval, BrainAnswer, BrainDelegate, BrainDone, Project, Routine, Team } from '../shared/types.ts';
 
 /** One line of the Brain chat history (data/projects/<id>/brain-chat.json). */
@@ -83,11 +88,19 @@ export interface BrainAction {
   /** install_skill: the GitHub link, and who gets what it installs */
   url?: unknown;
   give?: unknown;
+  /** set_model: the model id, its provider (to move agents to another one) and the effort */
+  model?: unknown;
+  provider?: unknown;
+  effort?: unknown;
+  /** find_models: words to match */
+  query?: unknown;
 }
 
 // The most actions one answer can take, and GitHub installs among them.
 const ACTIONS_MAX = 12;
 const INSTALLS_MAX = 3;
+// model look-ups (find_models) in one answer
+const MODEL_SEARCHES_MAX = 4;
 // install_skill downloads, so ask() runs it before the actions (prepareInstalls) and leaves its result
 // here for applyActions to report and hand out. (Only results made here count: the model can't fake one.)
 const installed = new WeakMap<BrainAction, SkillInstallResult | Error>();
@@ -193,7 +206,16 @@ function keyFiles(root: string, budget: number): string {
   return picked.join('\n\n');
 }
 
-const modelOf = (a: Agent) => a.model || defaultModel(a.engine) || a.lastModel || 'default';
+// Which model an agent runs on and how hard it thinks, for the snapshot:
+// "provider: openrouter | model: anthropic/claude-opus-5.5 | effort: high"
+const runsOn = (a: Agent) => {
+  const p = providerOfAgent(a);
+  const model = a.model || (p === 'codex' ? "Codex's default model" : p === 'hermes' ? `the model of Hermes profile "${a.hermesProfile || 'default'}"` : defaultModel(a.engine) || 'its default model');
+  // the full id the engine reported last time (a short name like "sonnet" points to the latest version)
+  const last = a.lastModel && a.lastModel !== a.model ? ` (last ran as ${a.lastModel})` : '';
+  const e = effortFor(a.engine, a.effort, a.provider);
+  return `provider: ${p} | model: ${model}${last} | effort: ${e || "default (the model's own)"}`;
+};
 
 // Everything the Brain knows right now, as text.
 export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = {}): Promise<string> {
@@ -217,7 +239,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
           .map((r) => `WORKING ${r.seconds}s on "${cut(r.task, 140)}"${r.tool ? `, now using ${r.tool.name}${r.tool.status === 'running' ? ' (running)' : ''}` : ''}${r.saying ? `, last said: "${cut(r.saying, 120)}"` : ''}`)
           .join(' | ')
       : 'idle';
-    return `- id=${a.id} | ${a.emoji || ''} ${a.name} | ${a.specialty || a.description || ''} | runs on ${a.engine} (${modelOf(a)}) | tools: ${(a.toolGroups || []).join(',') || 'none'} | skills: ${(a.skills || []).join(',') || 'none'} | autonomy: ${a.autonomy || 'ask'} | teams: ${(teamOf.get(a.id) || []).join(', ') || 'none (on the bench)'} | NOW: ${now}`;
+    return `- id=${a.id} | ${a.emoji || ''} ${a.name} | ${a.specialty || a.description || ''} | ${runsOn(a)} | tools: ${(a.toolGroups || []).join(',') || 'none'} | skills: ${(a.skills || []).join(',') || 'none'} | autonomy: ${a.autonomy || 'ask'} | teams: ${(teamOf.get(a.id) || []).join(', ') || 'none (on the bench)'} | NOW: ${now}`;
   });
 
   const teamLines = teams.map((t) => {
@@ -343,6 +365,8 @@ Kinds of request:
 4. Routines: work the user wants done again and again, or on a schedule ("every morning…", "each Friday…", "set up a routine that…"), or changes to an existing routine. Create, update, run or delete them with the routine actions. A routine's text says what to do and @mentions, by their exact names from the SNAPSHOT, who does it (one or more agents and/or teams) and the skills they use (e.g. "@Researcher finds the 3 biggest AI stories, then @Content Team writes a post using @Brand voice."). Every mentioned agent and team gets the routine; an agent in a mentioned team gets it in that team chat. Mention at least one agent or team. If the right agent or team doesn't exist, build it first in the same answer, then mention it by name.
 5. Work to be done (make, write, research, draft a post or DM, edit a video, generate images, fix code…): never do it yourself. Delegate it to the best existing team or agent. If nothing fits, build what's needed first (a team or an agent) and then delegate to it in the same answer.
 6. Skills: the project's recorded know-how (workflows, checklists, house rules, pitfalls) in Claude Code's SKILL.md format. Agents read a skill before work that matches its description. Create, edit, give, take back, re-assign or delete skills with the skill actions when the user asks, or when a workflow is worth keeping (see your own skills). Re-assigning is take_skill from one and give_skill to another, or set_skills for an agent's or team's whole list. Install skills from a GitHub link the user gives with install_skill, and give them to whoever needs them. Before rewriting a skill's whole text you must have seen it: its text is under SKILL TEXTS, or open it with read_skill first (you get its text and answer again). To add a step or a pitfall without rewriting, use "append".
+7. Stop work: when the user asks to stop an agent, a team or everything, stop it with the stop action right away (it can't be undone, but nothing is lost: they pick up again when someone writes to them).
+8. Models: which model an agent, several agents or a whole team run on, and how hard they think (effort). The SNAPSHOT shows each agent's provider, model and effort: answer questions about them from there (for a team, its members'). Change them with set_model when the user asks. When you don't know a model's exact id, or the user asks which models a provider has, look it up with find_models first (you get the list and answer again); never guess an id.
 
 A team is a group chat of 2-6 agents with a shared goal. A lead (planner type) coordinates when there are 3+ members; members hand work to each other by @mentioning. Prefer agents the user already has; otherwise hire from the LIBRARY (pick the slugs that match best); only invent a new agent when nothing in the library fits.
 
@@ -368,15 +392,20 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"take_skill","skills":["<skill id>",…],"to":…,"id":…}   (or "targets", like give_skill)
 {"do":"set_skills","skills":["<skill id>",…],"to":"agent"|"team"|"project"|"brain","id":"…"}   (their whole list becomes exactly this; [] takes all away)
 {"do":"install_skill","url":"<a GitHub link the user gave: repo, folder or SKILL.md>","give":[{"to":"agent"|"team"|"project","id":"…"}]}   (installs every skill at or under the link; "give" is optional; installing again from the same place updates it)
-{"do":"read_skill","skill":"<skill id>"}   (alone in its block: you get the skill's whole text, then answer again)
+{"do":"read_skill","skill":"<skill id>"}   (alone in its block, or with other look-ups: you get the skill's whole text, then answer again)
 {"do":"delete_skill","skill":"<skill id>"}
+{"do":"stop","to":"agent"|"team"|"all","id":"<agent or team id; not needed for all>"}   (stops the work going on now: an agent's jobs, a team's chat with its queue, or with "all" everything running in this project: every team, agent, routine and workflow; "targets":[{"to":…,"id":…},…] for several)
+{"do":"set_model","to":"agent"|"team","id":"<agent or team id, or 'new'>","model":"<model id>","provider":"PROVIDER","effort":"EFFORT"}   (or "targets":[{"to":…,"id":…},…] instead of "to"/"id", for several at once; a team means every agent on it; give the model, the effort or both; "provider" only to move them to another provider, else the model is for the provider each one runs on now)
+{"do":"find_models","provider":"PROVIDER","query":"words to match, e.g. gemini flash"}   (a look-up like read_skill: you get the matching model ids, then answer again; leave out "provider" to search every provider that is set up, leave out "query" to list them all)
+PROVIDER is one of: claude (Claude Code: opus, sonnet, haiku, fable, which always mean the latest version, or a full claude-… id), openrouter (any model on OpenRouter, ids like google/gemini-…), lmstudio, ollama, custom (model servers on this PC), codex (OpenAI Codex), hermes. Set up on this PC now: ${readyProviders().join(', ') || 'none'}.
+EFFORT is one of ${EFFORTS.join(', ')}, or "default" (the model's own). Claude Code takes low to max, Codex and OpenRouter minimal to xhigh, servers on this PC low to high, Hermes minimal to max; a level a provider doesn't have becomes its nearest one.
 SCHEDULE is {"type":"none"} (run by hand) or {"type":"daily","time":"HH:MM","days":[0-6, 0 = Sunday; leave out for every day]} or {"type":"interval","minutes":N}. Set "enabled":true when the user wants it to run on its own.
 MEMBER is {"agent":"<existing agent id>"} or {"library":"<slug>"} or {"starter":"<name>"} or {"new":{"name":"…","emoji":"…","specialty":"one line","instructions":"5-10 sentences, second person","tools":["ids"],"skills":["skill ids"]}}
 create_team and update_team also take "skills":["skill ids"] (update_team: the team's whole list).
 Tool group ids: ${GROUP_IDS.join(', ')}
 MCP servers: ${Object.keys(listServers()).join(', ') || '(none)'}
 
-Rules: at most one delegate per answer. Never delete agents or teams (removing from a team is fine). Delete a routine or a skill only when the user clearly asks for that one to be deleted. Never put secrets (keys, passwords, tokens) in a skill. Posts and DMs always wait for the user's approval in the Outbox. Say "nobody is working right now" when that's true. Never invent status, files or numbers.${ownSkillsText(own)}`;
+Rules: at most one delegate per answer. Never delete agents or teams (removing from a team is fine). Delete a routine or a skill only when the user clearly asks for that one to be deleted. Change an agent's model or effort, or stop work, only when the user asks for it. Never put secrets (keys, passwords, tokens) in a skill. Posts and DMs always wait for the user's approval in the Outbox. Say "nobody is working right now" when that's true. Never invent status, files or numbers.${ownSkillsText(own)}`;
 
 // Whole skills as text, within a budget (a skill that doesn't fit whole is left out, so "seen" is only
 // ever a skill whose every word the Brain got).
@@ -434,6 +463,133 @@ export function parseActions(text: string): { answer: string; actions: BrainActi
 
 const cleanTools = (t: unknown): string[] => (Array.isArray(t) ? (t as unknown[]) : []).filter((x): x is string => GROUP_IDS.includes(x as string));
 const cleanMcp = (t: unknown): string[] => (Array.isArray(t) ? (t as unknown[]) : []).filter((x): x is string => (x as string) in listServers());
+
+// ---------- models ----------
+// set_model checks its model ids before the actions run (prepareModels: the lists come over the network)
+// and leaves what is wrong with one here, so applyActions refuses it.
+const modelProblems = new WeakMap<BrainAction, string>();
+
+/** The effort an action asks for: undefined = leave it, '' = the model's own. */
+export function effortAsked(v: unknown): Effort | '' | undefined {
+  if (v === undefined) return undefined;
+  const e = String(v ?? '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+  if (!e || ['default', 'none', 'auto', 'reset'].includes(e)) return '';
+  if (e === 'extrahigh') return 'xhigh';
+  if (isEffort(e)) return e;
+  throw new Error(`the effort is one of ${EFFORTS.join(', ')} or "default"`);
+}
+
+const findAgentRef = (ref: unknown): Agent | null => {
+  if (!ref) return null;
+  const r = String(ref);
+  return agents.get(r) || agents.list().find((x) => x.name.toLowerCase() === r.toLowerCase()) || null;
+};
+
+/** Who a set_model target is: one agent, or every agent on a team. last: what 'new' points to. */
+function modelTargets(t: BrainAction, last: { agent: string | null; team: string | null }): { label: string; list: Agent[]; teamId?: string; agentId?: string } {
+  const to = String(t.to || '').toLowerCase();
+  const ref = t.id || t.team;
+  if (to === 'team') {
+    const wf = ref === 'new' ? (last.team ? getTeam(last.team) : null) : ref ? getTeam(ref) || listTeams().find((w) => w.name.toLowerCase() === String(ref).toLowerCase()) || null : null;
+    if (!wf) throw new Error(`no team "${ref || ''}"`);
+    const list = wf.members.map((id) => agents.get(id)).filter((a): a is Agent => Boolean(a));
+    if (!list.length) throw new Error(`nobody is on the team "${wf.name}"`);
+    return { label: `the team "${wf.name}"`, list, teamId: wf.id };
+  }
+  if (to === 'agent' || (!to && ref)) {
+    const a = findAgentRef(ref === 'new' ? last.agent : ref);
+    if (!a) throw new Error(`no agent "${ref || ''}"`);
+    return { label: a.name, list: [a], agentId: a.id };
+  }
+  throw new Error('say who: "to" is agent or team');
+}
+
+const targetList = (act: BrainAction): BrainAction[] => (Array.isArray(act.targets) && act.targets.length ? (act.targets as BrainAction[]) : [act]);
+
+/** Check the model ids of set_model actions against their provider's list (before applyActions). */
+export async function prepareModels(actions: BrainAction[]): Promise<void> {
+  for (const act of actions.slice(0, ACTIONS_MAX)) {
+    if (actionKind(act) !== 'set_model' || act.model === undefined || act.model === null) continue;
+    const model = String(act.model).trim();
+    const prov = modelProvider(act.provider);
+    // no provider: the model is for the provider each agent runs on now ('new' ones aren't made yet)
+    const byProvider = new Map<ModelProvider, string[]>();
+    if (prov) byProvider.set(prov, []);
+    else {
+      for (const t of targetList(act)) {
+        try {
+          for (const a of modelTargets(t, { agent: null, team: null }).list) {
+            const p = providerOfAgent(a);
+            byProvider.set(p, [...(byProvider.get(p) || []), a.name]);
+          }
+        } catch {
+          /* reported when the action runs */
+        }
+      }
+    }
+    for (const [p, names] of byProvider) {
+      const why = await checkModel(p, model);
+      if (why) {
+        modelProblems.set(act, names.length ? `${why}: ${names.join(', ')} ${names.length > 1 ? 'run' : 'runs'} on ${MODEL_PROVIDERS[p].label} (give "provider" to move them)` : why);
+        break;
+      }
+    }
+  }
+}
+
+// ---------- stopping work ----------
+const listNames = (names: string[]) => [...new Set(names)].join(', ');
+
+/** Stop what an agent, a team or (to "all") the whole project p is doing right now. */
+function stopWork(t: BrainAction, p: Project, last: { agent: string | null; team: string | null }): BrainDone {
+  const to = String(t.to || '').toLowerCase();
+  const ref = t.id || t.team;
+  // an agent's runs in this project (in another project it works on: that's not the one you're in)
+  const runsHere = (agentId?: string) => activeRuns().filter((r) => (!agentId || r.agentId === agentId) && runInfo(r.id)?.projectId === p.id);
+  const busy = (teamId: string) => {
+    const s = teamState(teamId);
+    return s.working.length + s.queued.length > 0;
+  };
+  if (to === 'all' || to === 'project' || to === 'everything') {
+    const teams = listTeams().filter((x) => busy(x.id));
+    for (const x of teams) stopTeam(x.id);
+    const routinesNow = runningRoutineRuns().map((id) => routineRuns.get(id)).filter((r): r is NonNullable<typeof r> => Boolean(r));
+    for (const r of routinesNow) stopRoutineRun(r.id);
+    const flowsNow = runningWorkflowRuns().map((id) => workflowRuns.get(id)).filter((r): r is NonNullable<typeof r> => Boolean(r));
+    for (const r of flowsNow) stopWorkflowRun(r.id);
+    // whatever still runs (an agent's own chat, or work handed to it)
+    const left = runsHere();
+    for (const r of left) stopRun(r.id);
+    const parts = [teams.length ? `teams ${listNames(teams.map((x) => x.name))}` : '', left.length ? `agents ${listNames(left.map((r) => r.agentName || agents.get(r.agentId)?.name || r.agentId))}` : '', routinesNow.length ? `routines ${listNames(routinesNow.map((r) => r.routineName))}` : '', flowsNow.length ? `workflows ${listNames(flowsNow.map((r) => r.workflowName))}` : ''].filter(Boolean);
+    if (!parts.length) return { kind: 'note', text: `Nothing was running in "${p.name}"` };
+    log('system', `The Brain stopped everything in "${p.name}"`);
+    return { kind: 'stop', text: `Stopped everything running in "${p.name}": ${parts.join('; ')}` };
+  }
+  if (to === 'team') {
+    const wf = ref === 'new' ? (last.team ? getTeam(last.team) : null) : ref ? getTeam(ref) || listTeams().find((w) => w.name.toLowerCase() === String(ref).toLowerCase()) || null : null;
+    if (!wf) throw new Error(`no team "${ref || ''}"`);
+    if (!busy(wf.id)) return { kind: 'note', text: `The team "${wf.name}" wasn't working`, teamId: wf.id };
+    stopTeam(wf.id);
+    log('team', `The Brain stopped the team "${wf.name}"`);
+    return { kind: 'stop', text: `Stopped the team "${wf.name}" (nothing new starts there until someone writes in it again)`, teamId: wf.id };
+  }
+  if (to === 'agent' || (!to && ref)) {
+    const a = findAgentRef(ref === 'new' ? last.agent : ref);
+    if (!a) throw new Error(`no agent "${ref || ''}"`);
+    const list = runsHere(a.id);
+    if (!list.length) return { kind: 'note', text: `${a.name} wasn't working`, agentId: a.id };
+    for (const r of list) stopRun(r.id);
+    log('agent', `The Brain stopped ${a.name}`, { agentId: a.id });
+    return { kind: 'stop', text: `Stopped ${a.name}${list.length > 1 ? ` (${list.length} jobs)` : ''}`, agentId: a.id };
+  }
+  throw new Error('say what to stop: "to" is agent, team or all');
+}
+
+/** "Claude Code · opus, high effort" */
+function modelText(a: Agent): string {
+  const e = effortFor(a.engine, a.effort, a.provider);
+  return `${MODEL_PROVIDERS[providerOfAgent(a)].label} · ${a.model || 'its default model'}, ${e ? `${EFFORT_NAMES[e].toLowerCase()} effort` : "the model's default effort"}`;
+}
 
 // Run the Brain's actions in project p. Returns what happened, plus a delegate for the chat to send.
 // seenSkills: skills whose whole text the Brain had in this turn (only those can be rewritten).
@@ -589,7 +745,68 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
     try {
       const kind = actionKind(act);
       if (only && !only.includes(kind)) throw new Error('not allowed here');
-      if (kind === 'read_skill') continue; // answered before the actions run (see ask)
+      if (kind === 'read_skill' || kind === 'find_models') continue; // look-ups, answered before the actions run (see ask)
+      if (kind === 'stop') {
+        for (const target of targetsOf(act)) {
+          try {
+            done.push(stopWork(target, p, { agent: lastAgent, team: lastTeam }));
+          } catch (e) {
+            done.push({ kind: 'error', text: `stop: ${(e as Error).message}` });
+          }
+        }
+        continue;
+      }
+      if (kind === 'set_model') {
+        const problem = modelProblems.get(act);
+        if (problem) throw new Error(problem);
+        const hasModel = act.model !== undefined && act.model !== null;
+        const model = hasModel ? String(act.model).trim() : '';
+        const prov = act.provider === undefined || act.provider === null || act.provider === '' ? null : modelProvider(act.provider);
+        if (act.provider && !prov) throw new Error(`no provider "${String(act.provider)}" (it is one of ${PROVIDER_IDS.join(', ')})`);
+        const effort = effortAsked(act.effort);
+        if (!hasModel && effort === undefined && !prov) throw new Error('say the model, the effort or both');
+        if (prov) {
+          const why = providerProblem(prov);
+          if (why) throw new Error(`can't use ${MODEL_PROVIDERS[prov].label}: ${why}`);
+          if (!hasModel && defaultModelFor(prov) === null) throw new Error(`say which ${MODEL_PROVIDERS[prov].label} model (find_models lists them)`);
+        }
+        for (const target of targetsOf(act)) {
+          try {
+            const { label, list, teamId, agentId } = modelTargets(target, { agent: lastAgent, team: lastTeam });
+            const changed: Agent[] = [];
+            const same: Agent[] = [];
+            let nearest = false;
+            for (const a of list) {
+              const next: Agent = { ...a };
+              if (prov) {
+                next.engine = MODEL_PROVIDERS[prov].engine;
+                if (MODEL_PROVIDERS[prov].provider) next.provider = MODEL_PROVIDERS[prov].provider!;
+              }
+              const moved = providerOfAgent(next) !== providerOfAgent(a);
+              if (hasModel) next.model = model;
+              else if (moved && prov) next.model = defaultModelFor(prov) ?? '';
+              if (effort !== undefined) {
+                next.effort = effortFor(next.engine, effort, next.provider);
+                if (effort && next.effort !== effort) nearest = true;
+              }
+              if (next.engine === a.engine && next.provider === a.provider && next.model === a.model && (next.effort || '') === (a.effort || '')) same.push(a);
+              else changed.push(agents.save(next));
+            }
+            // one line: who now runs on what (agents that ended up the same, together)
+            const groups = new Map<string, string[]>();
+            for (const a of changed) groups.set(modelText(a), [...(groups.get(modelText(a)) || []), a.name]);
+            const said = [...groups].map(([what, names]) => `${names.join(', ')} now ${names.length > 1 ? 'run' : 'runs'} on ${what}`);
+            if (same.length) said.push(`${same.map((a) => a.name).join(', ')} already ${same.length > 1 ? 'run' : 'runs'} on that`);
+            const text = `${teamId ? `${label}: ` : ''}${said.join('; ')}${nearest ? ` (${EFFORT_NAMES[effort as Effort].toLowerCase()} effort isn't a level there, so the nearest one)` : ''}`;
+            if (changed.length) log('agent', `The Brain switched ${changed.map((a) => a.name).join(', ')} to ${[...groups.keys()].join(' / ')}`);
+            done.push({ kind: changed.length ? 'model' : 'note', text, ...(teamId ? { teamId } : {}), ...(agentId ? { agentId } : {}) });
+            if (agentId) lastAgent = agentId;
+          } catch (e) {
+            done.push({ kind: 'error', text: `set_model: ${(e as Error).message}` });
+          }
+        }
+        continue;
+      }
       if (kind === 'create_skill') {
         const name = String(act.name || '').trim();
         const body = String(act.body || act.content || act.text || '').trim();
@@ -891,18 +1108,20 @@ export async function ask(text: string, { project, attachments = [], onPart }: {
   const prompt = `SNAPSHOT\n${snap}${named.text}\n\n${catalog()}${convo}${earlierFiles}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}`;
   const opts = { tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '', cwd: ensureBrain(p), timeout: 180000, maxTokens: 4000, onPart };
   let parsed = parseActions(await think(system, prompt, opts));
-  // it asked to open skills: give it their text and let it answer again (once)
+  // it asked to open skills or look up models: give it what it asked for and let it answer again (once)
   const asked = parsed.actions.filter((a) => actionKind(a) === 'read_skill').map((a) => String(a.skill || a.id || a.name || ''));
-  if (asked.length && generation(p.id) === gen) {
+  const searches = parsed.actions.filter((a) => actionKind(a) === 'find_models').slice(0, MODEL_SEARCHES_MAX);
+  if ((asked.length || searches.length) && generation(p.id) === gen) {
     const found = asked.map((ref) => findSkill(ref));
     const opened = skillTexts(found.filter((sk): sk is SkillDetail => sk !== null).map((sk) => sk.slug), { budget: 40000, heading: 'SKILLS YOU OPENED (read_skill)' });
     const missing = asked.filter((_ref, i) => !found[i]);
     for (const slug of opened.seen) seenSkills.add(slug);
-    const again = `${prompt}\n\nYOUR FIRST ANSWER:\n${parsed.answer || '(none)'}${opened.text}${missing.length ? `\n\nNo skill named: ${missing.join(', ')}` : ''}\n\nNow give your full answer to the user (with any actions). Don't ask to read these skills again.`;
+    const models = searches.length ? `\n\nMODELS YOU LOOKED UP (find_models):\n${(await Promise.all(searches.map(async (a) => `--- provider: ${String(a.provider || 'all set up')} | query: ${String(a.query || '(all)')} ---\n${await findModels(a.provider, a.query).catch((e: unknown) => `Couldn't look them up: ${(e as Error).message}`)}`))).join('\n\n')}` : '';
+    const again = `${prompt}\n\nYOUR FIRST ANSWER:\n${parsed.answer || '(none)'}${opened.text}${missing.length ? `\n\nNo skill named: ${missing.join(', ')}` : ''}${models}\n\nNow give your full answer to the user (with any actions). Don't ask for these look-ups again.`;
     onPart?.({ kind: 'restart' });
     parsed = parseActions(await think(system, again, opts));
   }
-  parsed.actions = parsed.actions.filter((a) => actionKind(a) !== 'read_skill');
+  parsed.actions = parsed.actions.filter((a) => actionKind(a) !== 'read_skill' && actionKind(a) !== 'find_models');
   // you started a new conversation while it thought: this answer belongs to the old one, so change nothing and don't bring it back
   if (generation(p.id) !== gen) {
     const dropped: BrainDone = { kind: 'error', text: 'You started a new conversation while the Brain was thinking, so nothing was changed.' };
@@ -919,6 +1138,8 @@ export async function ask(text: string, { project, attachments = [], onPart }: {
     const r = installed.get(a);
     return r && !(r instanceof Error) ? r.installed.map((x): BrainDone => ({ kind: 'skill', text: `${x.updated ? 'Updated' : 'Installed'} the skill "${x.name}" from GitHub`, skillId: x.slug })) : [];
   });
+  // model ids checked against their provider's list (a switch meanwhile is caught below)
+  if (!stale() && parsed.actions.slice(0, ACTIONS_MAX).some((a) => actionKind(a) === 'set_model')) await prepareModels(parsed.actions);
   if (finished.length) skipped.text = `You switched projects while the Brain was thinking, so nothing else was changed. Open "${p.name}" and ask again.`;
   const { done, delegate } = stale() ? { done: parsed.actions.length ? [skipped, ...finished] : [], delegate: null } : applyActions(parsed.actions, p, { seenSkills });
   // the work is handed on with the files

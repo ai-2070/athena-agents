@@ -13,6 +13,7 @@ import { listApprovals, decide, requestApproval, setReviewer } from './approvals
 import * as engines from './engines/index.ts';
 import { PROVIDERS, listModels } from './engines/openai.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
+import { CODEX_MODELS } from './models.ts';
 import { listProfiles } from './engines/hermes.ts';
 import * as codexEngine from './engines/codex.ts';
 import { clearWhichCache } from './util.ts';
@@ -491,7 +492,7 @@ post<{ source?: string; slug: string; profile: string; name: string; overrides?:
 get('/api/models', async (_p, _b, q) => {
   if (q.engine === 'claude-code') return CLAUDE_MODELS;
   if (q.engine === 'hermes') return [];
-  if (q.engine === 'codex') return [{ id: '', name: "Codex's default model" }, { id: 'gpt-6-astra', name: 'GPT-6 Astra' }];
+  if (q.engine === 'codex') return CODEX_MODELS;
   return listModels(q.provider || 'openrouter');
 });
 get('/api/providers', async () => Object.entries(PROVIDERS).map(([id, p]) => ({ id, label: p.label })));
