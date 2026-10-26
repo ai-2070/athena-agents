@@ -1,5 +1,6 @@
 // Prompt caching on OpenRouter: the start of a request that was sent a moment ago is read back from
 // the provider's cache (much cheaper and faster) instead of being processed again.
+import { createHash } from 'node:crypto';
 
 /** Claude models on OpenRouter cache only when asked; the others (OpenAI, Gemini, DeepSeek, Grok…) cache by themselves. */
 export const asksForCache = (providerId: string, model: string): boolean => providerId === 'openrouter' && /^~?anthropic\//i.test(model);
@@ -18,3 +19,8 @@ export function systemMessage(model: string, system: string): { role: 'system'; 
   if (!asksForCache('openrouter', model)) return { role: 'system', content: system };
   return { role: 'system', content: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }] };
 }
+
+/** The session the Brain's requests go in: one per set of instructions, so calls that start the same
+ *  way go to the same provider and read its cache. (Without one, OpenRouter keys a session on the first
+ *  user message too, and the Brain's changes every time: each call could land on a provider without the cache.) */
+export const brainSession = (system: string): string => `brain-${createHash('sha256').update(system).digest('hex').slice(0, 32)}`;
