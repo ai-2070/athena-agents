@@ -285,6 +285,14 @@ The helper also accepts `--approve`, which automatically approves **all pending 
 
 Run `bun run check` and `bun run build` before submitting code changes. See [`AGENTS.md`](AGENTS.md) for code conventions and security boundaries.
 
+## License
+
+My Dashboard is yours to use under either the [MIT license](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), whichever you prefer.
+
+Unless you say otherwise, anything you contribute is offered under the same two licenses.
+
+Some bundled pieces keep their own licenses: the skills in `skills/` and The Agency's agents in `library/agency-agents/` (each folder's `README.md` says where it's from), the Crafting App icons in `public/craft-icons/` (MIT OR Apache-2.0), Lucide icons (ISC) and Simple Icons logos (CC0). Brand names and logos stay their owners' trademarks.
+
 ## Credits
 
-Inspired by [agent-office](https://github.com/AgentSystemLabs/agent-office). The Library includes specialists from [agency-agents](https://github.com/msitarzewski/agency-agents). Instant chat compaction draws on [dsh-compaction-instant](https://github.com/TsFreddie/dsh-compaction-instant).
+Inspired by [agent-office](https://github.com/AgentSystemLabs/agent-office). The Library includes specialists from [agency-agents](https://github.com/msitarzewski/agency-agents). Instant chat compaction draws on [dsh-compaction-instant](https://github.com/TsFreddie/dsh-compaction-instant). The Crafting App icons come from each app's repository (MIT OR Apache-2.0), see `public/craft-icons/README.md`.
