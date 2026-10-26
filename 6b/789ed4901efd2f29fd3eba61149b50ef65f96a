@@ -1,0 +1,85 @@
+src-tauri/Entitlements.plist
+  s_333cde880e1e62::t_64a45290076a40 1-15
+src-tauri/app-icon.svg
+  s_333cde880e1e62::t_7b3374d5cd0972 1
+scripts/build-desktop.ts
+  s_333cde880e1e62::t_a1ce99b4df98fe 1-176
+.github/workflows/desktop.yml
+  s_333cde880e1e62::t_3a9a8d2d4a27d5 1-132
+src-tauri/rustfmt.toml
+  s_333cde880e1e62::t_dc218e5bbf67d3 1
+scripts/desktop-smoke.ts
+  s_333cde880e1e62::t_21052088792347 1-3,5-13,16-114
+  s_333cde880e1e62::t_af3b746b0db9e2 4,14-15
+package.json
+  s_333cde880e1e62::t_8cac6c6117d977 16-19
+  s_333cde880e1e62::t_abf2451178468d 44
+server/engines/pi.ts
+  s_333cde880e1e62::t_7087917d807a91 284
+  s_333cde880e1e62::t_78177ebb914e35 8
+AGENTS.md
+  s_333cde880e1e62::t_7038b502a1c1fb 24-25,30-31,51-52,68-70,110-111
+scripts/desktop-target.ts
+  s_333cde880e1e62::t_898f99b82cf808 1-50
+docs/desktop.md
+  s_333cde880e1e62::t_ddad778e4b41ff 1-107
+server/engines/codex.ts
+  s_333cde880e1e62::t_78177ebb914e35 5
+  s_333cde880e1e62::t_7087917d807a91 93
+src-tauri/Cargo.toml
+  s_333cde880e1e62::t_76ae8a2774c992 1-24
+src-tauri/loading/index.html
+  s_333cde880e1e62::t_05a9e0929b7b1c 1-2,4-12,17,21-25,28-37,39-40,42-44,47-51,53-71,73-80
+  s_333cde880e1e62::t_fcf8a0c83a39b3 3,72
+  s_333cde880e1e62::t_4aea60adb11469 13-16,18-20,26-27,38,41,45-46,52
+tests/server/desktop.test.ts
+  s_333cde880e1e62::t_13839b5ad153ff 1-88
+README.md
+  s_333cde880e1e62::t_391e5b311dc5cd 19-37,264,289-297,306
+  s_333cde880e1e62::t_cd5b96610e8dd7 233
+src-tauri/.taurignore
+  s_333cde880e1e62::t_64a45290076a40 1-3
+.github/workflows/ci.yml
+  s_333cde880e1e62::t_5c9da90bee6de8 45-89
+src-tauri/build.rs
+  s_333cde880e1e62::t_76ae8a2774c992 1-3
+server/util.ts
+  s_333cde880e1e62::t_7087917d807a91 14-15
+src-tauri/.gitignore
+  s_333cde880e1e62::t_64a45290076a40 1-6
+server/index.ts
+  s_333cde880e1e62::t_caa00ba75107aa 1136-1141
+src-tauri/tauri.conf.json
+  s_333cde880e1e62::t_d2ecef293e59be 1-19,21-32,34-37
+  s_333cde880e1e62::t_d38519749eda58 33
+  s_333cde880e1e62::t_5e4e79541a41b0 20
+server/mcp.ts
+  s_333cde880e1e62::t_78177ebb914e35 8
+  s_333cde880e1e62::t_7087917d807a91 296,319
+src-tauri/src/main.rs
+  s_333cde880e1e62::t_5ce41c98fa737c 1-10,12,14-17,19-25,27-31,33-80,82-83,91,94-140,142-143,150-165,173-227,229-243,249-253,255-257,262-269,275-281,285-301,308-333,337-359,364-380
+  s_333cde880e1e62::t_fda1d1646e8b52 11,18,81,90,92-93
+  s_333cde880e1e62::t_dc218e5bbf67d3 84-89,145-149,244-245,247-248,258-261,282-284,302-307,334-336,360-363
+  s_333cde880e1e62::t_ad63d9046998e3 13,32,228
+  s_333cde880e1e62::t_fcf8a0c83a39b3 26,141,144,166-172,246,254,270-274
+bun.lock
+  s_333cde880e1e62::t_9e3023c6ced7f8 27,257-280
+src-tauri/Cargo.lock
+  s_333cde880e1e62::t_b475a3b43cfebf 1-4842
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6b789ed4901efd2f29fd3eba61149b50ef65f96a",
+  "prompts": {},
+  "sessions": {
+    "s_333cde880e1e62": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5cd36fd2-6178-4bbc-8d01-5ec32c4bea38",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
