@@ -4,6 +4,7 @@ import { icon } from './icons.ts';
 import { projectMark } from './projectlogo.ts';
 import { uiZoom } from './look.ts';
 import { askBrain } from './dock.ts';
+import { attachTray } from './attach.ts';
 import type { ModalHandle } from './core.ts';
 import type { Project } from '../shared/types.ts';
 
@@ -78,6 +79,8 @@ export async function openNewProject({ mode: startMode = 'new', onDone }: { mode
   const repo = h('input.code', { placeholder: 'owner/repo or https://github.com/owner/repo' });
   const about = h('textarea', { rows: 4, placeholder: 'What is it, who is it for, what should come out of it? e.g. "Launch campaign for my app NET: X and Reddit posts, a 30s promo video and thumbnails, in a calm, technical voice."' });
   const kickoff = h('input', { type: 'checkbox', checked: true });
+  // the project's folder doesn't exist yet: the files wait and go into it once it is created
+  const tray = attachTray({ deferred: true });
   const extra = h('div.col');
   const hint = h('p.hint');
   // a blank name falls back to the repo's name (GitHub only); otherwise the server asks for one
@@ -103,15 +106,38 @@ export async function openNewProject({ mode: startMode = 'new', onDone }: { mode
     suggest();
   };
   let m: ModalHandle;
+  // made already (its files failed to upload): the next click only tries the files again
+  let created: CreatedProject | null = null;
   const create = async (btn: HTMLButtonElement) => {
     btn.disabled = true;
-    btn.textContent = mode === 'github' ? 'Cloning…' : 'Creating…';
-    const p = await attempt(() => POST<CreatedProject>('/projects', { name: name.value.trim() || repoName(), mode, folder: folder.value.trim(), repo: repo.value.trim(), description: about.value.trim() }));
-    btn.disabled = false;
-    btn.textContent = 'Create project';
-    if (!p) return;
+    btn.textContent = created ? 'Uploading files…' : mode === 'github' ? 'Cloning…' : 'Creating…';
+    const p = created || (await attempt(() => POST<CreatedProject>('/projects', { name: name.value.trim() || repoName(), mode, folder: folder.value.trim(), repo: repo.value.trim(), description: about.value.trim() })));
+    if (!p) {
+      btn.disabled = false;
+      btn.textContent = 'Create project';
+      return;
+    }
+    if (!created) {
+      created = p;
+      // the project exists now: only its files can still change
+      for (const f of [name, folder, repo, about]) f.disabled = true;
+    }
+    // the new project is the active one now, so the files land in its folder (uploads/), shown here while they go
+    let files: string[] = [];
+    if (tray.count()) {
+      btn.textContent = 'Uploading files…';
+      const up = await tray.ready();
+      if (!up) {
+        // stay open: try again, or remove the ones that failed and go on
+        btn.disabled = false;
+        btn.textContent = 'Try the files again';
+        return;
+      }
+      files = up;
+    }
     m.close();
     toast(p.restored ? `Loaded "${p.name}": ${p.restored.agents} agents and ${p.restored.teams} teams from the folder` : `Project "${p.name}" is open`);
+    if (files.length && !kickoff.checked) toast(`Added ${files.length} file${files.length === 1 ? '' : 's'} to the project folder (uploads/)`);
     await refreshSoon(0);
     onDone?.(p);
     // the Brain studies the new project, asks what it needs, then writes PROJECT.md and sets up teams
@@ -119,8 +145,9 @@ export async function openNewProject({ mode: startMode = 'new', onDone }: { mode
       setTimeout(
         () =>
           askBrain(
-            `I just created the project "${p.name}".${about.value.trim() ? ` What it is: ${about.value.trim()}` : ''}
+            `I just created the project "${p.name}".${about.value.trim() ? ` What it is: ${about.value.trim()}` : ''}${files.length ? ' I attached files for it: study them too.' : ''}
 Look at the project folder and help me set it up: ask me what you need to know first, then write PROJECT.md and create the teams and agents it needs.`,
+            files,
           ),
         600,
       );
@@ -145,10 +172,14 @@ Look at the project folder and help me set it up: ask me what you need to know f
       ),
       extra,
       hint,
+      h('div', h('div.label', 'Files'), h('div.col.mt', { style: { gap: '8px' } }, tray.el, h('div.row', { style: { gap: '8px' } }, tray.picker, h('span.hint', 'Briefs, docs, assets: drop files or folders anywhere here. They go into the project folder and the Brain reads them.')))),
       h('label.row', { style: { gap: '8px', cursor: 'pointer' } }, kickoff, h('span', 'Let the Brain set it up (PROJECT.md, teams and agents)')),
     ),
     foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), createBtn],
+    // closed after the project was made but before its files went: it is still open in the dashboard
+    onClose: () => created && refreshSoon(0),
   });
+  tray.dropZone(m.el.querySelector<HTMLElement>('.modal')!, 'Drop files or folders for the new project');
   draw();
   setTimeout(() => name.focus(), 30);
 }

@@ -5,25 +5,26 @@
 
 export type BrainTurn<T> = { kind: 'answer'; answer: T } | { kind: 'error'; error: string } | { kind: 'stale' };
 
-export interface BrainQueue<T> {
+export interface BrainQueue<T, X = undefined> {
   /** Send text, typed in project. currentProject says which project is open now. A message typed before
-   *  the project was known (null) goes stale as soon as one is: it was never meant for that project. */
-  ask(text: string, project: string | null, currentProject: () => string | null): Promise<BrainTurn<T>>;
+   *  the project was known (null) goes stale as soon as one is: it was never meant for that project.
+   *  extra: anything else the message carries (its attachments), handed to post as is. */
+  ask(text: string, project: string | null, currentProject: () => string | null, extra?: X): Promise<BrainTurn<T>>;
   /** Forget every waiting and pending message (new conversation, other project). */
   reset(): void;
 }
 
-export function brainQueue<T>(post: (text: string, project: string | null) => Promise<T>): BrainQueue<T> {
+export function brainQueue<T, X = undefined>(post: (text: string, project: string | null, extra?: X) => Promise<T>): BrainQueue<T, X> {
   let turn: Promise<unknown> = Promise.resolve();
   let conversation = 0;
   return {
-    ask(text, project, currentProject) {
+    ask(text, project, currentProject, extra) {
       const mine = conversation;
       const stale = () => mine !== conversation || currentProject() !== project;
       const next = turn.then(async (): Promise<BrainTurn<T>> => {
         if (stale()) return { kind: 'stale' };
         try {
-          const answer = await post(text, project);
+          const answer = await post(text, project, extra);
           return stale() ? { kind: 'stale' } : { kind: 'answer', answer };
         } catch (e) {
           return stale() ? { kind: 'stale' } : { kind: 'error', error: (e as Error).message || String(e) };

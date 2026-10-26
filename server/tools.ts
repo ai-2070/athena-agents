@@ -11,6 +11,7 @@ import * as social from './social.ts';
 import * as reddit from './reddit.ts';
 import * as kb from './knowledge.ts';
 import { ensureBrain } from './projects.ts';
+import { uploadsRoot } from './uploads.ts';
 import * as skills from './skills.ts';
 import type { Agent, ToolGroup } from '../shared/types.ts';
 
@@ -91,7 +92,8 @@ export function workspaceOf(agent: { workspace?: string }): string {
 // Reading: workspace, outputs, knowledge, allowed folders. Writing: not linked knowledge folders.
 function allowedRoots(agent: ToolAgent, write = false): string[] {
   const s = getSettings();
-  return [workspaceOf(agent), dataPath('outputs'), ...(write ? [] : kb.knowledgeRoots(agent)), ...(s.allowedFolders || [])];
+  // attached files (the Brain folder's uploads/) can be read even by an agent with its own workspace
+  return [workspaceOf(agent), dataPath('outputs'), ...(write ? [] : [...kb.knowledgeRoots(agent), uploadsRoot()]), ...(s.allowedFolders || [])];
 }
 
 // abs: the path as asked (for messages). real: where it really is, links followed; use it for the file
