@@ -2,7 +2,8 @@
 // The Brain writes here too (from 'brain'): its briefs, follow-ups, and answers to @Brain.
 import { h, mount, state, GET, POST, DEL, attempt, md, ago, avatar, onEvent, confirmBox, toast } from './core.ts';
 import { icon } from './icons.ts';
-import { attachTray, restoreDraft } from './attach.ts';
+import { attachTray } from './attach.ts';
+import { pasteBox } from './pastes.ts';
 import { mentionPreviews } from './filepreview.ts';
 import { queuedText } from '../shared/queue.ts';
 import { parseCommand } from '../shared/commands.ts';
@@ -80,7 +81,10 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   const sendBtn = h('button.btn.small', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 14));
   const stopBtn = h('button.btn.danger.small.hidden', { onclick: () => stop(), title: 'Stop the whole team' }, icon('square', 13), 'Stop');
   const tray = attachTray();
-  const root = h(`div.tc${fill ? '.fill' : ''}`, list, chipsEl, heldEl, status, replyChip, tray.el, h('div.tc-compose', tray.picker, h('div.tc-field', input, suggest, slash.el), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all · @Brain asks the Brain · / for commands · drop or paste files to attach'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat')));
+  // long pasted text, folded into a chip until it is sent
+  const pastes = pasteBox();
+  const offPastes = pastes.attach(input);
+  const root = h(`div.tc${fill ? '.fill' : ''}`, list, chipsEl, heldEl, status, replyChip, tray.el, pastes.el, h('div.tc-compose', tray.picker, h('div.tc-field', input, suggest, slash.el), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all · @Brain asks the Brain · / for commands · drop or paste files to attach'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat')));
   mount(container, root);
   const offDrop = tray.dropZone(root, 'Drop files or folders for the team');
 
@@ -286,7 +290,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`/teams/${teamId}/stop`));
     // what you queued comes back to the box, so stopping never loses it
     const back = r?.unqueued || [];
-    if (back.length) restoreDraft(input, back.map((q) => q.text).filter(Boolean).join('\n\n'));
+    if (back.length) pastes.restore(back.map((q) => q.text).filter(Boolean).join('\n\n'));
     if (back.some((q) => q.attachments?.length)) toast('Your queued messages are back in the box. Attach their files again.');
   };
 
@@ -379,6 +383,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   async function command(name: string, rest: string, typed: string) {
     input.value = '';
     slash.update();
+    pastes.sync();
     if (name === 'stop') return stop();
     if (name === 'goal' && !rest) {
       const r = await attempt(() => GET<TeamChatResponse>(`/teams/${teamId}/chat`));
@@ -386,7 +391,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     }
     type Done = { goal?: BrainBrief | null; queued?: QueuedMessage };
     const r = await attempt(() => POST<Done>(`/teams/${teamId}/${name}`, name === 'goal' ? { text: rest } : {}));
-    if (!r) return restoreDraft(input, typed);
+    if (!r) return pastes.restore(typed);
     if (name === 'goal') {
       C.goal = r.goal || null;
       drawChips();
@@ -400,8 +405,9 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
 
   let sending = false;
   async function send() {
-    const now = parseCommand(input.value, 'team');
-    if (now && ['stop', 'resume', 'resend', 'goal'].includes(now.name)) return command(now.name, now.rest, input.value.trim());
+    // (with pasted text put back: a long goal pasted in goes in full)
+    const now = parseCommand(pastes.text(), 'team');
+    if (now && ['stop', 'resume', 'resend', 'goal'].includes(now.name)) return command(now.name, now.rest, pastes.text().trim());
     if ((!input.value.trim() && !tray.count()) || sending) return;
     sending = true;
     try {
@@ -410,15 +416,16 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
       draw();
       if (!attachments) return;
       // what is in the box now (more may have been typed while the files uploaded)
-      const typed = input.value.trim();
+      const typed = pastes.text().trim();
       // "/loop [15m] [5x] …": posted again and again (with the files), or /loop off
       const cmd = parseCommand(typed, 'team');
       if (cmd?.name === 'loop') {
         input.value = '';
         slash.update();
+        pastes.sync();
         const taken = tray.take();
         const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`/teams/${teamId}/loop`, { text: cmd.rest, attachments }));
-        if (!r) return void (restoreDraft(input, typed), tray.put(taken));
+        if (!r) return void (pastes.restore(typed), tray.put(taken));
         C.loop = r.loop;
         return drawChips();
       }
@@ -429,12 +436,13 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
       if (!text && !attachments.length) return void (typed && toast('Write the message after /queue'));
       input.value = '';
       slash.update();
+      pastes.sync();
       const taken = tray.take();
       const body = { text, replyTo: C.replyTo?.id || null, attachments };
       type Sent = { message?: TeamMessage; queued?: QueuedMessage };
       const r = await attempt((): Promise<Sent> => (queued != null ? POST<Sent>(`/teams/${teamId}/queue`, body) : POST<TeamMessage>(`/teams/${teamId}/messages`, body).then((message) => ({ message }))));
       if (!r) {
-        restoreDraft(input, typed);
+        pastes.restore(typed);
         tray.put(taken);
         return;
       }
@@ -539,6 +547,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
       dropTurns();
       off();
       offDrop();
+      offPastes();
       // the tab closed: unsent attachments go too
       tray.discard();
     },

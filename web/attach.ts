@@ -120,13 +120,16 @@ export function namePasted(picked: PickedFile[]): PickedFile[] {
 // Decided straight away (so the caller can stop the paste); the files themselves come after.
 // Copying from Word, Excel or a web page brings a picture of the text along: that stays text.
 export function filesFromPaste(dt: DataTransfer | null): Promise<PickedFile[]> | null {
-  if (!dt) return null;
+  return dt && pasteHasFiles(dt) ? filesFromDrop(dt).then(namePasted) : null;
+}
+
+/** Whether a paste is files to attach (rather than text to paste as usual). */
+export function pasteHasFiles(dt: DataTransfer): boolean {
   const types = [...dt.types];
   const count = [...dt.items].filter((i) => i.kind === 'file').length || dt.files.length;
-  if (!count) return null;
+  if (!count) return false;
   const text = types.includes('text/plain') ? dt.getData('text/plain').trim() : '';
-  if (types.includes('text/html') && text && !/^\S+:\/\/\S+$/.test(text)) return null;
-  return filesFromDrop(dt).then(namePasted);
+  return !(types.includes('text/html') && text && !/^\S+:\/\/\S+$/.test(text));
 }
 
 // From an <input type=file> (a folder picker gives each file's path inside the folder).

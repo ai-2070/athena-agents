@@ -343,9 +343,11 @@ describe('the agent chat (AI SDK)', () => {
     await wsEvent({ type: 'brief', projectId: 'p', brief: { id: 'b1', kind: 'agent', targetId: 'a1', chatId: 'c1', name: 'Renderer', text: 'the build is green', goal: 'the build is green', ts: 0, followUps: 1, status: 'open' } });
     expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('Goal: the build is green');
     expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('1 of 5 follow-ups');
-    // × on the loop ends it
+    // × on the loop ends it (and leaves what you are typing alone)
+    el.querySelector('textarea')!.value = 'half a thought';
     await act(async () => (el.querySelector('.cmd-chip.loop button') as HTMLButtonElement).click());
     await settle();
+    expect(el.querySelector('textarea')!.value).toBe('half a thought');
     expect(requests.filter((r) => r.url === '/api/agents/a1/chats/c1/loop').at(-1)!.body).toEqual({ text: 'off', attachments: [] });
     // the goal reached: its chip goes
     await wsEvent({ type: 'brief', projectId: 'p', brief: { id: 'b1', kind: 'agent', targetId: 'a1', chatId: 'c1', name: 'Renderer', text: 'x', goal: 'x', ts: 0, followUps: 1, status: 'done' } });

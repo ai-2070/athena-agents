@@ -5,7 +5,7 @@
 // and open a skill with the read_skill tool when it fits the task, on any engine.
 import fs from 'node:fs';
 import path from 'node:path';
-import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME } from './util.ts';
+import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME, ROOT } from './util.ts';
 import { activeProject, agents, workflows, listProjects, getSettings, saveSettings, withProject, log, emit } from './store.ts';
 import { updateProject } from './projects.ts';
 import crypto from 'node:crypto';
@@ -328,6 +328,31 @@ Say in one line what you recorded or changed and why, e.g. "Saved how Ana render
   },
 ];
 
+// Whole skill folders that come with the dashboard: skills/<dir>/<slug>/ in this repo, copied from a
+// GitHub repo. Each keeps that repo as its origin, so "Download again" updates it like an installed one.
+const BUNDLED: { dir: string; repo: string; ref: string }[] = [{ dir: 'storytold', repo: 'hermes-pro/storytold-skills', ref: 'main' }];
+/** The folder in this repo that holds the bundled skill folders. */
+export const bundledSkillsRoot = (): string => path.join(ROOT, 'skills');
+
+/** The bundled skills: each one's folder, and where it was copied from. */
+export function bundledSkills(): { slug: string; dir: string; origin: Omit<SkillOrigin, 'installedAt'> }[] {
+  const out: { slug: string; dir: string; origin: Omit<SkillOrigin, 'installedAt'> }[] = [];
+  for (const b of BUNDLED) {
+    const base = path.join(bundledSkillsRoot(), b.dir);
+    let list: fs.Dirent[] = [];
+    try {
+      list = fs.readdirSync(base, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of list) {
+      if (!e.isDirectory() || !SAFE.test(e.name) || !exists(path.join(base, e.name, 'SKILL.md'))) continue;
+      out.push({ slug: e.name, dir: path.join(base, e.name), origin: { url: `https://github.com/${b.repo}/tree/${b.ref}/${e.name}`, repo: b.repo, ref: b.ref, path: e.name } });
+    }
+  }
+  return out.sort((a, b) => a.slug.localeCompare(b.slug));
+}
+
 export function ensureBuiltinSkills() {
   const marker = path.join(LIB(), '.builtin.json');
   const added = readJSON<{ added: string[] }>(marker, { added: [] }).added;
@@ -337,6 +362,25 @@ export function ensureBuiltinSkills() {
     if (!exists(path.join(LIB(), b.slug))) {
       fs.mkdirSync(path.join(LIB(), b.slug), { recursive: true });
       fs.writeFileSync(path.join(LIB(), b.slug, 'SKILL.md'), compose(b));
+    }
+    now.push(b.slug);
+  }
+  for (const b of bundledSkills()) {
+    if (added.includes(b.slug)) continue;
+    // a skill of the same id already in the library is the user's: leave it be
+    if (!exists(path.join(LIB(), b.slug))) {
+      // copied into a fresh folder first, so a failed copy leaves no half skill (and is tried again next start)
+      const tmp = ensureDir(dataPath('tmp', `bundled-${b.slug}-${Date.now()}`));
+      try {
+        fs.copyFileSync(path.join(b.dir, 'SKILL.md'), path.join(tmp, 'SKILL.md'));
+        copySkillFiles(b.dir, tmp);
+        writeJSON(path.join(tmp, '.source.json'), { ...b.origin, installedAt: Date.now() } satisfies SkillOrigin);
+        fs.renameSync(tmp, path.join(LIB(), b.slug));
+      } catch (e) {
+        fs.rmSync(tmp, { recursive: true, force: true });
+        log('skill', `Couldn't add the skill "${b.slug}" that comes with the dashboard: ${e instanceof Error ? e.message : String(e)}`);
+        continue;
+      }
     }
     now.push(b.slug);
   }
@@ -353,8 +397,8 @@ export function importClaudeSkill(name: string): SkillDetail | null {
   return getSkill(id);
 }
 
-// Read a file that belongs to a skill (for read_skill with a file).
-export function readSkillFile(slug: string, rel: unknown): string {
+// Where a skill's file is on disk, checked to be inside the skill.
+function skillFilePath(slug: string, rel: unknown): string {
   const s = getSkill(slug);
   if (!s) throw new Error(`No skill "${slug}".`);
   // compare real paths, so a link inside the skill can't point outside it
@@ -366,7 +410,51 @@ export function readSkillFile(slug: string, rel: unknown): string {
     throw new Error(`The skill has no file "${rel}".`);
   }
   if (!abs.toLowerCase().startsWith(root.toLowerCase() + path.sep)) throw new Error('That file is not part of the skill.');
-  return fs.readFileSync(abs, 'utf8').slice(0, 60000);
+  return abs;
+}
+
+const FILE_SHOWN = 60000;
+// Read a file that belongs to a skill (for read_skill with a file), from line `from` on, as much as
+// fits. A file that doesn't fit says where to go on.
+export function readSkillFile(slug: string, rel: unknown, from = 1): string {
+  const text = fs.readFileSync(skillFilePath(slug, rel), 'utf8');
+  if (from <= 1 && text.length <= FILE_SHOWN) return text;
+  const lines = text.split('\n');
+  const start = Math.min(Math.max(1, Math.floor(from) || 1), lines.length);
+  let end = start - 1;
+  let size = 0;
+  while (end < lines.length && (end === start - 1 || size + lines[end].length + 1 <= FILE_SHOWN)) size += lines[end++].length + 1;
+  const shown = lines.slice(start - 1, end).join('\n');
+  return end < lines.length || start > 1 ? `${shown}\n\n[Lines ${start}-${end} of ${lines.length}.${end < lines.length ? ` Go on with from=${end + 1}, or search with find.` : ''}]` : shown;
+}
+
+const MATCHES_SHOWN = 120;
+// Search a skill's files line by line (for read_skill with find): a regular expression, or plain
+// words when it isn't one; case doesn't matter. Without a file, SKILL.md and every text file it has.
+export function searchSkill(slug: string, find: string, rel?: unknown): string {
+  const s = getSkill(slug);
+  if (!s) throw new Error(`No skill "${slug}".`);
+  let re: RegExp;
+  try {
+    re = new RegExp(find, 'i');
+  } catch {
+    re = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  }
+  const files = rel ? [String(rel)] : ['SKILL.md', ...s.files.map((f) => f.path)];
+  const hits: string[] = [];
+  let total = 0;
+  for (const f of files) {
+    const abs = skillFilePath(slug, f);
+    if (fs.statSync(abs).size > 10 * 1024 * 1024) continue;
+    const text = fs.readFileSync(abs, 'utf8');
+    if (!rel && text.includes('\0')) continue; // not text
+    text.split('\n').forEach((line, i) => {
+      if (!re.test(line)) return;
+      if (++total <= MATCHES_SHOWN) hits.push(`${f}:${i + 1}: ${line.length > 400 ? `${line.slice(0, 400)}…` : line}`);
+    });
+  }
+  if (!total) return `No line in ${rel ? String(rel) : "the skill's files"} matches "${find}".`;
+  return `${hits.join('\n')}${total > MATCHES_SHOWN ? `\n\n[First ${MATCHES_SHOWN} of ${total} matching lines: search for something narrower.]` : ''}`;
 }
 
 // Find a skill by slug or name (agents may use either).

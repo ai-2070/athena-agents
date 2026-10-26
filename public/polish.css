@@ -589,6 +589,12 @@ a.att-chip.sent:hover { border-color: var(--accent-dim); color: var(--accent); }
 .st-brain-label.att-target { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 30px color-mix(in srgb, var(--accent) 40%, transparent); }
 .st-drop-hint { position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 8px; padding: 9px 14px; pointer-events: none; background: var(--glass-strong); border: 1px solid var(--line-2); border-radius: 999px; color: var(--dim); font: 600 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; animation: fade .15s ease-out; }
 .st-drop-hint.on { color: var(--accent); border-color: var(--accent); }
+/* long pasted text, folded into a chip (web/pastes.ts) */
+.paste-chip { padding: 0 6px 0 0; }
+.paste-chip:hover { border-color: var(--accent-dim); }
+.paste-open { display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 0 4px 6px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.paste-open:hover { color: var(--accent); }
+.paste-view { margin: 0; max-height: 60vh; overflow: auto; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg); font: 12.5px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .composer .att-tray { max-width: 1000px; margin-bottom: 8px; }
 .dock-tray-wrap { padding: 0 14px; }
 .dock-tray-wrap .att-tray { padding-top: 10px; }
