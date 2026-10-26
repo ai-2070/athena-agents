@@ -295,7 +295,8 @@ async function runTurn(team: Team, item: QueueItem) {
   if (openProject().id !== pid) {
     // you switched projects while it worked: keep the reply in its own project, start nothing new there
     const back = loadChat(team.id, pid);
-    back.messages.push({ id: uid('m'), ts: Date.now(), from: agent.id, text: text || '(no answer)', mentions: [] });
+    const to = chats.get(agent.id, chatId)?.items.length ?? from;
+    back.messages.push({ id: uid('m'), ts: Date.now(), from: agent.id, text: text || '(no answer)', mentions: [], ...(to > from ? { turn: { chatId, from, to } } : {}) });
     back.seen[agent.id] = back.messages.length;
     saveChat(team.id, back, pid);
     return;

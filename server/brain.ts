@@ -180,15 +180,17 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
           }
           const it = ev.item || {};
           const done = ev.type === 'item.completed';
+          // (a tool starts once, on item.started; item.updated says it is still going)
+          const started = ev.type === 'item.started';
           if (it.type === 'agent_message' && done && it.text) {
             part({ kind: 'text', text: (said ? '\n\n' : '') + it.text });
             said = true;
           } else if (it.type === 'command_execution' && it.id) {
-            if (!done) part({ kind: 'tool', id: it.id, name: 'Bash', args: { command: it.command } });
-            else part({ kind: 'tool_result', id: it.id, text: String(it.aggregated_output ?? '').slice(0, 20000), isError: it.exit_code != null && it.exit_code !== 0 });
+            if (started) part({ kind: 'tool', id: it.id, name: 'Bash', args: { command: it.command } });
+            else if (done) part({ kind: 'tool_result', id: it.id, text: String(it.aggregated_output ?? '').slice(0, 20000), isError: it.exit_code != null && it.exit_code !== 0 });
           } else if (it.type === 'mcp_tool_call' && it.id) {
-            if (!done) part({ kind: 'tool', id: it.id, name: `${it.server}__${it.tool}`, args: it.arguments ?? {} });
-            else part({ kind: 'tool_result', id: it.id, text: asText(it.result ?? it.error).slice(0, 20000), isError: !!it.error });
+            if (started) part({ kind: 'tool', id: it.id, name: `${it.server}__${it.tool}`, args: it.arguments ?? {} });
+            else if (done) part({ kind: 'tool_result', id: it.id, text: asText(it.result ?? it.error).slice(0, 20000), isError: !!it.error });
           }
         }
       : undefined;

@@ -258,6 +258,8 @@ export interface Chat {
   reseed?: boolean;
   /** How full the agent's memory is (see ChatContext). Cleared by a compaction or Clear memory. */
   context?: ChatContext;
+  /** Its last run had Rich answers' instructions (a chat of your own, not a handoff or a team's). */
+  rich?: boolean;
   createdAt: number;
   updatedAt: number;
   _deleted?: boolean;

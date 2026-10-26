@@ -13,14 +13,33 @@ describe('think() with onPart', () => {
     setSecret('openrouterKey', 'sk-or-test');
     saveSettings({ brain: { provider: 'openrouter', model: 'mock' } });
     let asked: Record<string, unknown> = {};
+    // the server sends a piece, then waits: the first piece must arrive before the answer is over
+    let release = () => {};
     vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
       asked = JSON.parse(String(init.body));
       const enc = new TextEncoder();
-      const lines = ['Plan', ' ready.'].map((d) => `data: ${JSON.stringify({ choices: [{ delta: { content: d } }] })}\n\n`).join('') + 'data: [DONE]\n\n';
-      return new Response(new ReadableStream({ start: (c) => (c.enqueue(enc.encode(lines)), c.close()) }), { status: 200 });
+      const piece = (d: string) => enc.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: d } }] })}\n\n`);
+      return new Response(
+        new ReadableStream({
+          async start(c) {
+            c.enqueue(piece('Plan'));
+            await new Promise<void>((r) => (release = r));
+            c.enqueue(piece(' ready.'));
+            c.enqueue(enc.encode('data: [DONE]\n\n'));
+            c.close();
+          },
+        }),
+        { status: 200 },
+      );
     });
     const parts: ThinkPart[] = [];
-    const text = await think('system', 'user', { onPart: (p) => parts.push(p) });
+    let ended = false;
+    const thinking = think('system', 'user', { onPart: (p) => parts.push(p) }).finally(() => (ended = true));
+    for (let i = 0; i < 100 && !parts.length; i++) await new Promise((r) => setTimeout(r, 10));
+    expect(parts).toEqual([{ kind: 'text', text: 'Plan' }]);
+    expect(ended).toBe(false);
+    release();
+    const text = await thinking;
     expect(asked.stream).toBe(true);
     expect(text).toBe('Plan ready.');
     expect(parts).toEqual([
@@ -48,5 +67,12 @@ describe('run() with onLine', () => {
     const r = await run(process.execPath, ['-e', "process.stdout.write('one\\ntwo\\nthree')"], { onLine: (l) => lines.push(l) });
     expect(r.code).toBe(0);
     expect(lines).toEqual(['one', 'two', 'three']);
+  });
+
+  it('a line longer than maxBytes is dropped, not kept growing; the lines after it still come', async () => {
+    const lines: string[] = [];
+    const script = "process.stdout.write('a\\n' + 'x'.repeat(5000) + '\\nb\\n')";
+    await run(process.execPath, ['-e', script], { onLine: (l) => lines.push(l), maxBytes: 1000 });
+    expect(lines).toEqual(['a', 'b']);
   });
 });

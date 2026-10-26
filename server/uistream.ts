@@ -117,6 +117,8 @@ export function streamRun(res: http.ServerResponse, { chatId, runId, items = [],
     const listen = (ev: ServerEvent) => {
       if (ev.type !== 'run' || ev.chatId !== chatId || ev.runId !== runId) return;
       const e = ev.event as RunEvent;
+      // a run that failed ends the stream with the AI SDK's error (useChat's onError); "Stopped." is you
+      if (e.kind === 'error' && e.text && e.text !== 'Stopped.') write({ type: 'error', errorText: e.text });
       if (e.kind === 'done' || e.kind === 'error') end();
       else w.event(e);
     };
@@ -135,10 +137,12 @@ export type BrainStreamPart = { kind: 'text'; text: string } | { kind: 'tool'; i
 
 /** The part of the Brain's answer to read: everything before its actions block (```actions), and
  *  never the start of that fence while it is still being written. */
-export function readable(text: string): string {
-  const at = text.indexOf('```actions');
+export function readable(text: string, final = false): string {
+  // (any case, as parseActions reads it)
+  const at = text.search(/```actions/i);
   let out = at === -1 ? text : text.slice(0, at);
-  const tail = /`{1,3}(?:a(?:c(?:t(?:i(?:o(?:n(?:s)?)?)?)?)?)?)?$/.exec(out);
+  if (final) return out;
+  const tail = /`{1,3}(?:a(?:c(?:t(?:i(?:o(?:n(?:s)?)?)?)?)?)?)?$/i.exec(out);
   if (tail) out = out.slice(0, tail.index);
   return out;
 }
@@ -171,6 +175,9 @@ export async function streamBrain(res: http.ServerResponse, answer: (onPart: (p:
         shown = '';
       }
     });
+    // what was held back in case it began the actions fence, but didn't (an answer ending in `code`)
+    const rest = readable(full, true);
+    if (rest.length > shown.length && rest.startsWith(shown)) w.text(rest.slice(shown.length));
     w.data('answer', a);
   } catch (e) {
     write({ type: 'error', errorText: (e as Error).message || String(e) });

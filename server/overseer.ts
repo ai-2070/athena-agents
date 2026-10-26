@@ -853,8 +853,6 @@ export async function prepareInstalls(actions: BrainAction[], userText: string, 
   }
 }
 
-/** project: the project the message was typed in. A message that waited while you switched projects is refused.
- *  attachments: files the user attached (paths in uploads/). */
 /** What the Brain does while it answers, as it happens: its model's parts, and "restart" when it answers
  *  again (after opening skills it asked for: the text so far is replaced). */
 export type BrainPart = ThinkPart | { kind: 'restart' };
@@ -868,6 +866,8 @@ export function checkProject(project: string | null | undefined): void {
   }
 }
 
+/** project: the project the message was typed in. A message that waited while you switched projects is refused.
+ *  attachments: files the user attached (paths in uploads/). onPart: what it does as it happens (streamed). */
 export async function ask(text: string, { project, attachments = [], onPart }: { project?: string | null; attachments?: string[]; onPart?: (p: BrainPart) => void } = {}): Promise<BrainAnswer> {
   checkProject(project);
   const p = activeProject();

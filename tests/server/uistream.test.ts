@@ -33,7 +33,7 @@ async function read(runId = 'r1', drive: () => Promise<void>): Promise<{ last: U
   const stream = (await transport.reconnectToStream({ chatId: 'c1' }))!;
   // (transient data parts, the status lines, come through the stream but don't stay in the message)
   const [a, b] = stream.tee();
-  void (async () => {
+  const collecting = (async () => {
     for await (const c of b as unknown as AsyncIterable<UIMessageChunk>) if (c.type.startsWith('data-')) data.push(c);
   })();
   const reading = (async () => {
@@ -43,7 +43,9 @@ async function read(runId = 'r1', drive: () => Promise<void>): Promise<{ last: U
   })();
   await tick(30);
   await drive();
-  return { last: await reading, data };
+  const last = await reading;
+  await collecting;
+  return { last, data };
 }
 
 describe('streamRun()', () => {
@@ -91,6 +93,34 @@ describe('streamRun()', () => {
     expect(parts.map((p) => (p.type === 'text' ? p.text : (p as { toolName: string }).toolName))).toEqual(['Reading the brief. ', 'read_file', 'write_file', 'All done.']);
     expect(parts[1]).toMatchObject({ state: 'output-available', output: { text: 'the brief', images: [] } });
     expect(parts[2]).toMatchObject({ state: 'output-available', output: { text: 'written', images: [] } });
+  });
+});
+
+describe('streamRun() when the run fails', () => {
+  it("ends with the AI SDK's error (so the chat can say so); being stopped is no error", async () => {
+    replayItems = [];
+    const errors: string[] = [];
+    const transport = new DefaultChatTransport({ api: `${base}/?run=r9`, prepareReconnectToStreamRequest: () => ({ api: `${base}/?run=r9` }) });
+    const stream = (await transport.reconnectToStream({ chatId: 'c1' }))!;
+    const reading = (async () => {
+      for await (const _m of readUIMessageStream({ stream, onError: (e) => errors.push(String((e as Error).message)) }));
+    })();
+    await tick(30);
+    run({ kind: 'text', text: 'Trying' }, 'r9');
+    run({ kind: 'error', text: 'Claude Code exited (1) without an answer.' }, 'r9');
+    await reading;
+    expect(errors).toEqual(['Claude Code exited (1) without an answer.']);
+
+    const errors2: string[] = [];
+    const t2 = new DefaultChatTransport({ api: `${base}/?run=r10`, prepareReconnectToStreamRequest: () => ({ api: `${base}/?run=r10` }) });
+    const s2 = (await t2.reconnectToStream({ chatId: 'c1' }))!;
+    const r2 = (async () => {
+      for await (const _m of readUIMessageStream({ stream: s2, onError: (e) => errors2.push(String(e)) }));
+    })();
+    await tick(30);
+    run({ kind: 'error', text: 'Stopped.' }, 'r10');
+    await r2;
+    expect(errors2).toEqual([]);
   });
 });
 
@@ -158,6 +188,19 @@ describe('streamBrain()', () => {
     expect(last.parts.find((p) => p.type === 'dynamic-tool')).toMatchObject({ toolName: 'Read', state: 'output-available', output: { text: '# Brain' } });
   });
 
+  it('an answer ending in `code` keeps its closing backtick; an ACTIONS fence in any case stays hidden', async () => {
+    script = async (onPart) => {
+      for (const t of ['Run ', '`npm test`']) onPart({ kind: 'text', text: t });
+      return { answer: 'Run `npm test`', done: [], delegate: null };
+    };
+    expect(text((await ask()).last)).toBe('Run `npm test`');
+    script = async (onPart) => {
+      for (const t of ['Done.\n', '```ACTIONS\n[{"do":"x"}]\n```']) onPart({ kind: 'text', text: t });
+      return { answer: 'Done.', done: [], delegate: null };
+    };
+    expect(text((await ask()).last)).toBe('Done.\n');
+  });
+
   it('a Brain that fails says why', async () => {
     script = async () => {
       throw new Error('Codex is not signed in.');
@@ -174,5 +217,9 @@ describe('readable()', () => {
     expect(readable('Done.\n``')).toBe('Done.\n');
     expect(readable('Done.\n```acti')).toBe('Done.\n');
     expect(readable('Use `npm test` to check')).toBe('Use `npm test` to check');
+    expect(readable('Done.\n```Actions\n[]')).toBe('Done.\n');
+    expect(readable('Done.\n```AC')).toBe('Done.\n');
+    // at the end, only the fence itself is cut
+    expect(readable('Run `npm test`', true)).toBe('Run `npm test`');
   });
 });

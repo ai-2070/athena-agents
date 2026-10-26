@@ -46,13 +46,14 @@ describe('fileInfo()', () => {
     expect(fileInfo([write(path.join(ws, 'out.webm'))])[0]).toMatchObject({ ok: true, kind: 'video' });
   });
 
-  it('a link inside the project that points outside does not count', () => {
+  it('a link inside the project that points outside does not count', (ctx) => {
     const target = write(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'linked-')), 'x.png'));
     const link = path.join(ensureBrain(), 'link.png');
     try {
       fs.symlinkSync(target, link);
     } catch {
-      return; // (no symlinks allowed here, e.g. Windows without developer mode)
+      // (no symlinks allowed here, e.g. Windows without developer mode): reported as skipped
+      ctx.skip();
     }
     expect(fileInfo([link])[0].ok).toBe(false);
   });

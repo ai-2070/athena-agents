@@ -250,6 +250,8 @@ export function run(cmd: string, args: string[] = [], { timeout = 60000, input, 
   return new Promise<RunResult>((resolve) => {
     let out = '';
     let partial = '';
+    // a line longer than maxBytes is dropped (up to its end), so the buffer never grows past it
+    let skipping = false;
     const lines = (d: string, end = false) => {
       if (!onLine) return;
       partial += d;
@@ -257,12 +259,22 @@ export function run(cmd: string, args: string[] = [], { timeout = 60000, input, 
       while ((nl = partial.indexOf('\n')) !== -1) {
         const line = partial.slice(0, nl);
         partial = partial.slice(nl + 1);
+        // (the end of one that grew too long, or a whole one that came too long at once)
+        if (skipping || line.length > maxBytes) {
+          skipping = false;
+          continue;
+        }
         try {
           onLine(line);
         } catch {
           /* a listener's problem is not the program's */
         }
       }
+      if (partial.length > maxBytes) {
+        partial = '';
+        skipping = true;
+      }
+      if (skipping && end) partial = '';
       if (end && partial) {
         const last = partial;
         partial = '';

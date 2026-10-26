@@ -12,7 +12,7 @@ import * as claude from './claude.ts';
 import * as hermes from './hermes.ts';
 import * as codex from './codex.ts';
 import * as compaction from '../compaction.ts';
-import { richSection } from '../richanswers.ts';
+import { richFor, richSection } from '../richanswers.ts';
 import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, Project, RunEvent } from '../../shared/types.ts';
 
 /** A run was stopped (by its caller or directly, e.g. its Stop button) before it answered. */
@@ -290,6 +290,8 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   const promise = inProject(async () => {
     try {
       const systemPrompt = buildSystemPrompt(agent) + (await richSection(agent, chat, depth));
+      // (the memory meter counts its instructions the same way: see memoryOf)
+      chat.rich = richFor(agent, chat, depth);
       // The API-model engine compacts by itself (before each step); the CLI engines keep their own
       // session, so they compact here, before the run, and start a new session from the compacted history.
       const cli = agent.engine !== 'openai';
@@ -451,7 +453,9 @@ export async function memoryOf(agent: Agent, chatId: string): Promise<{ tokens: 
   if (!chat) throw httpError(404, 'Not found');
   const window = await compaction.contextWindow(agent, chat);
   const s = compaction.compactionSettings();
-  const tokens = compaction.memoryTokens(chat, agent, buildSystemPrompt(agent) + (await richSection(agent, chat, 0)));
+  // as its runs go: a chat that is handed work (or a team's) never has Rich answers' instructions
+  const rich = chat.rich ?? richFor(agent, chat, 0);
+  const tokens = compaction.memoryTokens(chat, agent, buildSystemPrompt(agent) + (rich ? await richSection(agent, {}, 0) : ''));
   return { tokens, window, compactAt: compaction.compactAt(window, s), percent: Math.round((tokens / window) * 100), auto: s.auto };
 }
 

@@ -84,12 +84,17 @@ describe("a reply's work", () => {
         await new Promise((r) => setTimeout(r, 100));
         thread = getThread(team.id);
       }
+      // you → Lead → Maker → Lead: every reply came, and each of the three turns said it started
+      expect(thread.messages).toHaveLength(4);
+      expect(starts.map((s) => s.agentId)).toEqual([lead.id, maker.id, lead.id]);
       // the thread names each agent's own session for this team
       expect(thread.sessions[lead.id]).toEqual(expect.any(String));
       expect(thread.sessions[maker.id]).toEqual(expect.any(String));
       // and each turn's start says which one it streams in
       expect(starts.map((s) => s.chatId)).toEqual(starts.map((s) => thread.sessions[s.agentId]));
-      for (const m of thread.messages.filter((x) => x.from !== 'user')) {
+      const replies = thread.messages.filter((x) => x.from !== 'user');
+      expect(replies).toHaveLength(3);
+      for (const m of replies) {
         expect(m.turn).toMatchObject({ chatId: thread.sessions[m.from] });
         const items = chats.get(m.from, m.turn!.chatId)!.items.slice(m.turn!.from, m.turn!.to);
         // the turn: the message to the agent, then its answer (the reply in the thread)

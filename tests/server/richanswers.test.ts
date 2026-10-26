@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { agents, chats } from '../../server/store.ts';
-import { askAgent, startRun } from '../../server/engines/index.ts';
+import { askAgent, memoryOf, startRun } from '../../server/engines/index.ts';
 import { richFor, richSection } from '../../server/richanswers.ts';
 import type { Chat } from '../../shared/types.ts';
 
@@ -51,5 +51,21 @@ describe('in a run', () => {
     agents.save({ ...fresh, richAnswers: false });
     await startRun(agents.get(a.id)!, chats.create(a.id), 'again').promise;
     expect(seen.prompts.at(-1)).not.toContain('openui-lang');
+  }, 30_000);
+
+  it("the memory meter counts Rich answers' instructions only for the chats that get them", async () => {
+    const a = newAgent({ name: 'Metered', engine: 'claude-code', toolGroups: [] });
+    agents.save({ ...agents.get(a.id)!, richAnswers: true });
+    const fresh = agents.get(a.id)!;
+    const mine = chats.create(a.id);
+    await startRun(fresh, mine, 'compare A and B').promise;
+    await askAgent(fresh, 'compare A and B', { depth: 1, from: 'Planner' });
+    const handed = chats.list(a.id).find((c) => c.title === 'Asked by Planner')!;
+    const direct = (await memoryOf(fresh, mine.id)).tokens;
+    const other = (await memoryOf(fresh, handed.id)).tokens;
+    // (OpenUI's prompt is about 13k tokens)
+    expect(direct - other).toBeGreaterThan(10_000);
+    expect(chats.get(a.id, handed.id)!.rich).toBe(false);
+    expect(chats.get(a.id, mine.id)!.rich).toBe(true);
   }, 30_000);
 });
