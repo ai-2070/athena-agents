@@ -152,4 +152,45 @@ describe('backups with earlier versions', () => {
     const { restored } = await backup.restoreBackup(craft({ agents: [{ id: 'agent-old', name: 'Old' }] }), { name: 'Older backup' });
     expect(restored.versions).toBe(0);
   });
+
+  it('turns away versions dated in the future, and a future one here never swallows later edits', async () => {
+    const future = Date.now() + 10 * 365 * 24 * 3600 * 1000;
+    const { project, restored } = await backup.restoreBackup(
+      craft({ agents: [{ id: 'agent-f', name: 'F' }], versions: [{ path: 'agents/agent-f/v-future.json', data: b64({ at: future, by: 'you', item: { name: 'From the future' } }) }] }),
+      { name: 'Future versions' },
+    );
+    expect(restored.versions).toBe(0);
+    setActiveProject(project.id);
+    // and if one got here some other way, ordinary edits still each keep a version, dated now
+    const dir = agents.versionsDir('agent-f')!;
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'v-planted.json'), JSON.stringify({ id: 'v-planted', at: future, by: 'you', item: { id: 'agent-f', name: 'Planted' } }));
+    agents.save({ ...agents.get('agent-f')!, specialty: 'one' });
+    agents.save({ ...agents.get('agent-f')!, specialty: 'two' });
+    const mine = listVersions(dir).filter((v) => v.id !== 'v-planted');
+    expect(mine).toHaveLength(2);
+    expect(mine.every((v) => v.at <= Date.now())).toBe(true);
+  });
+
+  it('cleans agent and team versions field by field, so History never breaks on odd data', async () => {
+    const buf = craft({
+      agents: [{ id: 'agent-o', name: 'Odd' }],
+      teams: [{ id: 'team-o', name: 'Odd team', members: [], lead: null, steps: [] }],
+      versions: [
+        { path: 'agents/agent-o/v-a.json', data: b64({ at: 3, by: 'you', item: { name: 'Odd v1', systemPrompt: { evil: true }, skills: 'nope', toolGroups: ['web', 3], knowledge: { folders: 'x' }, temperature: 'hot' } }) },
+        { path: 'agents/agent-o/v-noname.json', data: b64({ at: 4, by: 'you', item: { systemPrompt: 'no name' } }) },
+        { path: 'teams/team-o/v-t.json', data: b64({ at: 3, by: 'you', item: { name: 'Odd team v1', steps: 'nope', members: [1, 2], schedule: { type: 'daily', days: 'mon', input: { x: 1 } }, access: { toolGroups: 'web' } } }) },
+      ],
+    });
+    const { project, restored } = await backup.restoreBackup(buf, { name: 'Odd versions' });
+    setActiveProject(project.id);
+    expect(restored.versions).toBe(2);
+    const av = listVersions<Record<string, unknown>>(agents.versionsDir('agent-o')!)[0].item;
+    expect(av).toEqual({ id: 'agent-o', name: 'Odd v1', skills: [] });
+    expect(versionOf('agent', 'agent-o', historyOf('agent', 'agent-o').versions[0].id).text).toContain('Odd v1');
+    const tv = listVersions<Record<string, unknown>>(workflows.versionsDir('team-o')!)[0].item;
+    expect(tv).toEqual({ id: 'team-o', name: 'Odd team v1', schedule: { type: 'daily' }, access: { toolGroups: [], mcpServers: [] }, skills: [] });
+    expect(versionOf('team', 'team-o', historyOf('team', 'team-o').versions[0].id).text).toContain('Odd team v1');
+  });
 });
+

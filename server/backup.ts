@@ -13,7 +13,7 @@ import { HOME, IS_WIN, dataPath, ensureDir, exists, insideRoots, readJSON, realT
 import { listProjects, emit, log } from './store.ts';
 import { createProject, projectsRoot, setLogo, updateProject } from './projects.ts';
 import { isSkillSlug, skillsLibrary, skillDir, skillVersionsDir, skillVersionItem } from './skills.ts';
-import { checkVersion, listVersions, pruneVersions, versionFilesDir } from './versions.ts';
+import { checkVersion, listVersions, pruneVersions, versionFilesDir, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
 import type { Version } from './versions.ts';
 import type { Preset } from './presets.ts';
 import type { Agent, Chat, Project, Routine, Team } from '../shared/types.ts';
@@ -757,10 +757,16 @@ function restoreVersions(b: BackupData, id: string, skillMap: Map<string, string
     let check: (item: Record<string, unknown>) => unknown;
     if (g.kind === 'agents') {
       dir = projectDir(id, 'versions', 'agents', g.itemId);
-      check = (item) => fix.agent({ ...(item as unknown as Agent), id: g.itemId });
+      check = (item) => {
+        const a = cleanAgentVersion(item, g.itemId);
+        return a ? fix.agent(a as unknown as Agent) : null;
+      };
     } else if (g.kind === 'teams') {
       dir = projectDir(id, 'versions', 'workflows', g.itemId);
-      check = (item) => fix.team({ ...(item as unknown as Team), id: g.itemId });
+      check = (item) => {
+        const t = cleanTeamVersion(item, g.itemId);
+        return t ? fix.team(t as unknown as Team) : null;
+      };
     } else {
       const slug = skillMap.get(g.itemId) || g.itemId;
       // a deleted skill in the backup whose id a skill here has: not the same skill, so not its history

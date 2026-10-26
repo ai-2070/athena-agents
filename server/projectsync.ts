@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { bus, listProjects, activeProject, log } from './store.ts';
 import { dataPath, ensureDir, exists, readJSON, writeJSON, realTarget } from './util.ts';
-import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir, checkVersion } from './versions.ts';
+import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir, checkVersion, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
 import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, skillVersionItem, SKILL_BODY_MAX } from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
 import type { Version } from './versions.ts';
@@ -311,7 +311,7 @@ function restoreVersions(folder: string, id: string): number {
   let n = 0;
   for (const kind of VERSIONED) {
     for (const itemId of savedDirs(folder, ['versions', kind], (x) => /^[\w.-]+$/.test(x) && !x.startsWith('.'))) {
-      for (const v of savedVersions(folder, ['versions', kind], itemId, (item) => ({ ...item, id: itemId }))) {
+      for (const v of savedVersions(folder, ['versions', kind], itemId, (item) => (kind === 'agents' ? cleanAgentVersion(item, itemId) : cleanTeamVersion(item, itemId)))) {
         writeJSON(projectDir(id, 'versions', kind, itemId, `${v.id}.json`), v);
         n++;
       }
