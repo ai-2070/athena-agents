@@ -112,7 +112,7 @@ export function internalToken(): string {
 // A project has its own agents, branches, runs and chats (data/projects/<id>/) and a Brain:
 // a real folder with the project's files, notes and (optionally) its GitHub repo.
 const PROJECTS_FILE = dataPath('projects.json');
-const DEFAULT_PROJECT = (): Project => ({ id: 'default', name: 'My workspace', brainPath: path.join(HOME, 'Documents', 'My Dashboard', 'My workspace'), repo: '', createdAt: Date.now() });
+const DEFAULT_PROJECT = (): Project => ({ id: 'default', name: 'My workspace', brainPath: path.join(HOME, 'Documents', 'Blacksite', 'My workspace'), repo: '', createdAt: Date.now() });
 
 export function listProjects(): Project[] {
   const list = readJSON<Project[]>(PROJECTS_FILE, null);

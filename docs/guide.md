@@ -21,7 +21,7 @@ The [README](../README.md) says what the dashboard is, how to install it, which 
 
 The [desktop app](../README.md#desktop-app) is the same dashboard in its own window. It starts the dashboard's server when you open it and stops it when you quit. Links to other sites open in your browser.
 
-- **Its data is separate** from a checkout's `data/` folder. It lives in `%APPDATA%\com.ai2070.mydashboard\data` on Windows, `~/Library/Application Support/com.ai2070.mydashboard/data` on macOS and `~/.local/share/com.ai2070.mydashboard/data` on Linux. To use another folder, start the app with `DASH_DATA` set to it.
+- **Its data is separate** from a checkout's `data/` folder. It lives in `%APPDATA%\com.ai2070.blacksite\data` on Windows, `~/Library/Application Support/com.ai2070.blacksite/data` on macOS and `~/.local/share/com.ai2070.blacksite/data` on Linux. To use another folder, start the app with `DASH_DATA` set to it.
 - **It uses port 4800** when that is free, so X and Reddit sign-in work as in the browser. If another dashboard already uses it, the app takes the next free port.
 - **The installers are not signed yet.** On Windows, choose **More info → Run anyway**. On macOS, Control-click the app in Finder and choose **Open**, or allow it under **System Settings → Privacy & Security**.
 - **It updates itself.** A little after it opens, and every few hours after that, the app checks for a new version. When there is one, it asks you: **Install and restart** downloads it (the window's title shows how far it got), installs it and opens the app again. Installing restarts the dashboard, so agents that are working stop; they pick up again when you write to them. **Later** asks again the next time you open the app. On Linux, a `.deb` or `.rpm` update asks for your password. To turn updates off, start the app with `DASH_NO_UPDATES` set. What the updater did is in `updater.log`, next to the server's log.
@@ -185,7 +185,7 @@ These copies exclude stored keys and account tokens, **not private content you p
 
 ### Back up a project
 
-Choose **Project menu → Back up this project**. The dashboard writes a `.dashbackup` file under **`My Dashboard Backups`** in your home folder.
+Choose **Project menu → Back up this project**. The dashboard writes a `.dashbackup` file under **`Blacksite Backups`** in your home folder.
 
 A backup includes the project's agents, teams, routines, layout, Brain and agent/team chats, knowledge files, MEMORY.md files, logo, `PROJECT.md` and notes. It also includes **every skill and saved preset in your library**, plus earlier versions of the project's agents, teams and memories and of library skills, including deleted items. It does not include stored keys or account tokens.
 

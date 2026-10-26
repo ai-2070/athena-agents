@@ -1,7 +1,7 @@
 // Backups: one file with everything in a project (agents, teams, routines, layout, chats, knowledge
 // files, MEMORY.md files, logo, PROJECT.md and notes, and the kept versions of its agents, teams and memories) plus every skill in
 // the library with its versions, and every saved preset. Written
-// to <home>/My Dashboard Backups on Windows, macOS and Linux. Drop one into "New project > From
+// to <home>/Blacksite Backups on Windows, macOS and Linux. Drop one into "New project > From
 // backup" to get it all back as a new project, here or on another PC. Keys and tokens are never in it.
 //
 // The file: a first line naming the format, a second line with a short JSON summary (so the page can
@@ -45,7 +45,21 @@ const CHAT_ID_RE = /^[\w-]+$/;
 const PRESET_RE = /^p[at][\w-]+$/;
 
 /** Where backups are written: a folder in your home folder. */
-export const backupsRoot = (): string => path.join(HOME, 'My Dashboard Backups');
+export const backupsRoot = (): string => {
+  const dir = path.join(HOME, 'Blacksite Backups');
+  if (!movedOld) {
+    movedOld = true;
+    // Backups made before the app was called Blacksite: bring the whole folder along, once
+    const old = path.join(HOME, 'My Dashboard Backups');
+    try {
+      if (exists(old) && !exists(dir)) fs.renameSync(old, dir);
+    } catch {
+      /* in use or not allowed: new backups still go to the new folder */
+    }
+  }
+  return dir;
+};
+let movedOld = false;
 
 /** A file inside the backup, its bytes as base64. path uses "/" on every OS. */
 export interface PackedFile {
