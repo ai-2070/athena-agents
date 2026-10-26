@@ -89,6 +89,50 @@ describe('API', () => {
   });
 });
 
+describe('backups', () => {
+  it('backs up a project into the home folder and restores it from an upload or from the backups folder', async () => {
+    const st = await (await req('/api/state')).json();
+    const made = await (await req(`/api/projects/${st.project.id}/backup`, { method: 'POST', headers: json })).json();
+    expect(made.file.startsWith(path.join(tmp, 'home', 'My Dashboard Backups'))).toBe(true);
+    const list = await (await req('/api/backups')).json();
+    expect(list.backups.map((b: { name: string }) => b.name)).toContain(made.name);
+
+    const bytes = fs.readFileSync(made.file);
+    // the file as the body: bigger than a JSON body may be is fine too, but it needs the x-dash header
+    expect((await req('/api/backups/restore', { method: 'POST', body: bytes })).status).toBe(403);
+    const up = await req('/api/backups/restore?name=From%20upload', { method: 'POST', headers: { 'x-dash': '1', 'content-type': 'application/octet-stream' }, body: bytes });
+    expect(up.status).toBe(200);
+    const p1 = await up.json();
+    expect(p1).toMatchObject({ name: 'From upload', restored: { agents: made.summary.agents, teams: made.summary.teams } });
+
+    const p2 = await (await req(`/api/backups/restore?file=${encodeURIComponent(made.name)}&name=From%20folder`, { method: 'POST', headers: { 'x-dash': '1' } })).json();
+    expect(p2.name).toBe('From folder');
+    expect(p2.brainPath).not.toBe(p1.brainPath);
+
+    const bad = await req('/api/backups/restore', { method: 'POST', headers: { 'x-dash': '1' }, body: 'not a backup' });
+    expect(bad.status).toBe(400);
+    expect((await bad.json()).error).toMatch(/isn't a dashboard backup/);
+    expect((await req('/api/backups/restore?file=..%2Fsecrets.json', { method: 'POST', headers: { 'x-dash': '1' } })).status).toBe(400);
+    expect((await req('/api/backups/restore', { method: 'POST', headers: { 'x-dash': '1' } })).status).toBe(400);
+  });
+
+  it('streams a restore upload to a temporary file and always removes it', async () => {
+    const received = path.join(tmp, 'data', 'tmp', 'received');
+    // bigger than a JSON body may be: it still arrives (and is turned away as not a backup)
+    const big = Buffer.alloc(30 * 1024 * 1024, 0x61);
+    const r = await req('/api/backups/restore', { method: 'POST', headers: { 'x-dash': '1', 'content-type': 'application/octet-stream' }, body: big });
+    expect(r.status).toBe(400);
+    expect((await r.json()).error).toMatch(/isn't a dashboard backup/);
+    expect(fs.existsSync(received) ? fs.readdirSync(received) : []).toEqual([]);
+    // and after a restore that worked
+    const st = await (await req('/api/state')).json();
+    const made = await (await req(`/api/projects/${st.project.id}/backup`, { method: 'POST', headers: json })).json();
+    const ok = await req('/api/backups/restore?name=Streamed', { method: 'POST', headers: { 'x-dash': '1' }, body: fs.readFileSync(made.file) });
+    expect(ok.status).toBe(200);
+    expect(fs.readdirSync(received)).toEqual([]);
+  });
+});
+
 describe('local-only security', () => {
   it('rejects requests for another host name (DNS rebinding)', async () => {
     const r = await new Promise<number>((resolve) => {

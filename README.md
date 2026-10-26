@@ -88,6 +88,18 @@ Keys and tokens never go to the browser. Each project's agents, teams and chats 
 auto-saved into `<project folder>/.dashboard` (no keys), so opening that folder elsewhere brings
 them back.
 
+**Backups.** Project menu > **Back up this project** writes one `.dashbackup` file to
+`My Dashboard Backups` in your home folder (`C:\Users\<you>` on Windows, `~` on macOS and Linux).
+It holds the project's agents, teams, routines, layout, Brain chat, team and agent chats, knowledge
+files, logo, PROJECT.md and notes, plus every skill in your library and every saved preset. No keys
+or tokens. Each kind has a size limit: agent chats 200 MB, knowledge files 50 MB, skills 50 MB,
+PROJECT.md and notes 20 MB. A file that no longer fits is left out, and the "Backup saved" message
+says how many were. To restore: **New project > From backup**, drop the file in (or pick one from the
+backups folder). It becomes a new project in a new folder. Skills and presets you don't have are
+added; a skill you have with the same id but different content is kept, and the backup's copy is
+added as `<id>-restored`. Scheduled teams and routines come back paused, so a copy never runs
+them twice.
+
 ## Security
 
 Listens on 127.0.0.1 only, answers only to `localhost`/`127.0.0.1` host names, needs a custom
