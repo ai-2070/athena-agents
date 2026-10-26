@@ -742,6 +742,9 @@ a.fp-file:hover { color: var(--accent); }
 
 /* Skills (web/views/skills.tsx): "Give to…" is a Base UI menu, placed by its positioner */
 .skp-positioner { z-index: 96; outline: none; }
+/* the Station's right-click menu (Base UI places it where you clicked) */
+.st-menu-positioner { z-index: 96; outline: none; }
+.st-menu-positioner .st-menu { position: static; }
 .skp-menu { position: static; width: 300px; max-width: 300px; }
 .skp-emoji { width: 14px; text-align: center; }
 .st-menu-item[data-highlighted] { background: var(--panel-2); color: var(--accent); outline: none; }

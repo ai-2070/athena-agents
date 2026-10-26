@@ -22,6 +22,8 @@ import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, too
 import type { AvailableIntegration, Headbar, MapPick, Program, TeamView } from './stationdata.ts';
 import { mountStationPanel } from './stationpanel.tsx';
 import type { StationPanelApi } from './stationpanel.tsx';
+import { mountStationMenu } from './stationmenu.tsx';
+import type { MenuEntry, StationMenu } from './stationmenu.tsx';
 import type { ActivityEntry, Agent, AppState, Chat, Project, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter } from '../../shared/types.ts';
 
 // ---------- types ----------
@@ -351,7 +353,8 @@ interface StationState {
   radius?: number;
   shape?: string | null;
   opened?: string;
-  menu?: HTMLDivElement | null;
+  /** the right-click menu (React) */
+  menuView?: StationMenu;
   agentDrag?: AgentDrag | null;
   // the HUD
   hudBuilt?: boolean;
@@ -743,6 +746,9 @@ export async function render(el: HTMLElement): Promise<void> {
   S.wires = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   wires.append(S.wires);
   S.panelView = mountStationPanel(panel, panelApi);
+  const menuHost = h('div.dom-contents');
+  root.append(menuHost);
+  S.menuView = mountStationMenu(menuHost);
   buildBrain();
   setupControls();
   S.ro = new ResizeObserver(resize);
@@ -844,6 +850,7 @@ export function unmount(): void {
   document.removeEventListener('pointerdown', S.onDocDown, true);
   document.removeEventListener('paste', S.onPaste);
   S.panelView?.unmount();
+  S.menuView?.unmount();
   S.renderer.dispose();
   S.scene.traverse((o: Disposable) => {
     o.geometry?.dispose?.();
@@ -2082,7 +2089,7 @@ function setupControls(): void {
     // Esc closes the Station's own menu or panel; with nothing open, app.ts opens the big sidebar
     if (e.key === 'Escape') {
       if (e.defaultPrevented) return; // a dialog or the Brain chat took it
-      if (S.menu) {
+      if (S.menuView?.isOpen()) {
         closeMenu();
         e.preventDefault();
       } else if (S.selected) {
@@ -2104,7 +2111,7 @@ function setupControls(): void {
   };
   window.addEventListener('keydown', S.onKey);
   S.onDocDown = (e) => {
-    if (S?.menu && !S.menu.contains(e.target as Node)) closeMenu();
+    if (S?.menuView?.isOpen() && !S.menuView.contains(e.target as Node)) closeMenu();
   };
   document.addEventListener('pointerdown', S.onDocDown, true);
   // files pasted on the Station (not into a box, and not taken by a chat): they go to the Brain
@@ -2310,18 +2317,17 @@ async function dropAgent(): Promise<void> {
 
 // ---------- right-click menu ----------
 function closeMenu(): void {
-  S?.menu?.remove();
-  if (S) S.menu = null;
+  S?.menuView?.close();
 }
 
 function openMenu(e: MouseEvent, p: MapPick | null): void {
   assertMounted(S);
   closeMenu();
   const d = state.data!;
-  const items: HTMLElement[] = [];
-  const item = (label: string, fn: () => unknown, cls = '', ico: string | null = null) => items.push(h(`button.st-menu-item${cls ? '.' + cls : ''}`, { onclick: () => (closeMenu(), fn()) }, ico ? icon(ico, 15) : h('span', { style: { width: '15px' } }), label));
-  const head = (text: string) => items.push(h('div.st-menu-head', text));
-  const sep = () => items.push(h('div.st-menu-sep'));
+  const items: MenuEntry[] = [];
+  const item = (label: string, run: () => unknown, cls = '', ico: string | null = null) => items.push({ kind: 'item', label, run, danger: cls === 'danger', ...(ico ? { icon: ico } : {}) });
+  const head = (text: string) => items.push({ kind: 'head', text });
+  const sep = () => items.push({ kind: 'sep' });
   const addStep = async (w: TeamView, a: Agent) => {
     const copy = structuredClone(w);
     copy.steps.push({ id: Math.random().toString(36).slice(2), type: 'agent', agentId: a.id, prompt: copy.steps.length ? 'Continue from this:\n{{prev}}' : '{{input}}' });
@@ -2417,14 +2423,7 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
     sep();
     item('Reset view', () => resetView(), '', 'rotate-ccw');
   }
-  const menu = h('div.st-menu', items);
-  S.root.append(menu);
-  const r = S.root.getBoundingClientRect();
-  const z = uiZoom();
-  const x = Math.min((e.clientX - r.left) / z, r.width / z - 250);
-  const y = Math.min((e.clientY - r.top) / z, r.height / z - Math.min(460, items.length * 34 + 24));
-  menu.style.transform = `translate(${Math.max(8, x)}px, ${Math.max(8, y)}px)`;
-  S.menu = menu;
+  S.menuView?.open(e.clientX, e.clientY, items);
 }
 
 // Right-clicking a label works like right-clicking the thing it names.
