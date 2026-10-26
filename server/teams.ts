@@ -1,5 +1,7 @@
-// Teams are group chats of agents. You write in the team chat; the lead (or the best member) answers,
-// agents hand work to each other by @mentioning a teammate, and everyone sees one shared thread.
+// Teams are group chats of agents. You write in the team chat; who answers: whoever you name, else the
+// author of the message you replied to, else the only member with a service it needs (services.ts),
+// else the lead, else the best fit. Agents hand work to each other by @mentioning a teammate, and
+// everyone sees one shared thread.
 // Each agent keeps its own memory of the team (its own chat session), and gets the new messages each turn.
 // The Brain writes here too: it hands the team work, answers when someone writes @Brain, and looks at
 // the thread when the team goes quiet (see irc.ts).
@@ -8,6 +10,7 @@ import { readJSON, writeJSON, uid, dataPath } from './util.ts';
 import { askAgent, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
 import { isStepList, teamSteps } from '../shared/teams.ts';
 import { attachmentNames } from './uploads.ts';
+import { soleHolder, servicesOf } from './services.ts';
 import type { Agent, LoopInfo, QueuedMessage, Team, TeamMessage, TeamState } from '../shared/types.ts';
 import type { LoopRequest } from '../shared/commands.ts';
 
@@ -227,6 +230,14 @@ async function postAndRoute(teamId: string, from: 'user' | typeof BRAIN, text: s
     const parent = loadChat(team.id).messages.find((m) => m.id === replyTo);
     if (parent && team.members.includes(parent.from)) targets = [parent.from];
   }
+  if (!targets.length && text) {
+    // it needs a service only one member has (GitHub, Blender, posting on X…): that member
+    const sole = soleHolder(text, team.members.map((id) => agents.get(id)).filter((a): a is Agent => Boolean(a)));
+    if (sole) {
+      targets = [sole.id];
+      why = `the only one with ${sole.service}`;
+    }
+  }
   if (!targets.length && team.lead) {
     targets = [team.lead];
     why = 'the lead';
@@ -352,7 +363,10 @@ function briefing(team: Team, agent: Agent): string {
   const roster = team.members
     .map((id) => agents.get(id))
     .filter((a): a is Agent => Boolean(a))
-    .map((a) => `- @${a.name}${a.id === team.lead ? ' (lead)' : ''}${a.id === agent.id ? ' (you)' : ''}: ${a.specialty || a.description || ''}`)
+    .map((a) => {
+      const services = servicesOf(a);
+      return `- @${a.name}${a.id === team.lead ? ' (lead)' : ''}${a.id === agent.id ? ' (you)' : ''}: ${a.specialty || a.description || ''}${services.length ? ` (has ${services.join(', ')})` : ''}`;
+    })
     .join('\n');
   return `You are in the team chat "${team.name}".${team.description ? `\nTeam goal: ${team.description}` : ''}
 Team members:
@@ -362,6 +376,7 @@ How this chat works:
 - Everyone sees the whole thread. Your reply is posted to the team as a message from you.
 - To hand work to a teammate, mention them exactly as @Name and say precisely what you need back. Only mention someone who needs to act now; each stage should have one owner.
 - Do your own part fully before handing off. Don't redo work a teammate owns.
+- A task you hand to a teammate is theirs: don't also do it yourself, and don't give the same task to two people. Work that needs something only one member has (see "has" above) goes to that member.
 - Anything that needs the user's judgment: ask them in your reply, without mentioning a teammate.
 - The Brain (the project's overseer) hands the team work and checks on it. To ask it something (about the project, other teams, what to do next) or to say you're stuck, write @Brain.
 - Keep replies short: what you did, the result, and who acts next.${team.lead === agent.id ? '\n- You are the lead: break the request down, give each part to one owner, and when everyone is done post the combined result for the user.' : ''}`;

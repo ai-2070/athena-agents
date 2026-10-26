@@ -4,6 +4,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { HOME, ROOT, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which, insideRoots } from './util.ts';
 import { agents as agentStore, chats, getSettings, emit, log } from './store.ts';
+import { startHandoff, awaitHandoff, listHandoffs, DEFAULT_WAIT_S, MAX_WAIT_S } from './handoffs.ts';
+
+/** Hermes' own MCP tool timeout is 300 s: await_agent answers it well within that. */
+const HERMES_WAIT_S = 240;
 import { requestApproval } from './approvals.ts';
 import { discoverPrograms, launchProgram, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
@@ -519,7 +523,8 @@ const TOOLS: ToolDef[] = [
     name: 'ask_agent',
     group: 'agents',
     risk: 'none',
-    description: 'Give a task to another agent and wait for its answer. Say exactly what you need back.',
+    description:
+      'Give a task to another agent. It starts at once and you get a handle back right away (the answer is not in it): keep working, then get the answer with await_agent. To run several tasks in parallel, send them all first, then await each. Say exactly what you need back. A task you hand off is theirs: don\'t also do it yourself.',
     parameters: obj({ agent: str('Agent name, id, or "Name [id]" as list_agents shows it'), message: str('The task or question') }, ['agent', 'message']),
     run: async ({ agent, message }: { agent: string; message: string }, ctx) => {
       if ((ctx.depth || 0) >= 3) throw new Error('Too many agents deep; answer this yourself.');
@@ -527,9 +532,22 @@ const TOOLS: ToolDef[] = [
       if ('error' in found) throw new Error(found.error);
       const target = found.agent;
       if (target.id === ctx.agent.id) throw new Error("That's you.");
-      const { askAgent } = await import('./engines/index.ts');
-      const answer = await askAgent(target, message, { depth: (ctx.depth || 0) + 1, from: ctx.agent.name, parentRunId: ctx.runId, signal: ctx.signal });
-      return { text: `${target.name} says:\n${answer}` };
+      const h = await startHandoff(ctx.agent, target, String(message || ''), { depth: (ctx.depth || 0) + 1, parentRunId: ctx.runId, signal: ctx.signal });
+      return { text: `Sent to ${target.name} (handle ${h.id}). They are working on it now. Get the answer with await_agent and handle "${h.id}".` };
+    },
+  },
+  {
+    name: 'await_agent',
+    group: 'agents',
+    risk: 'none',
+    description: `Get the answer to a task you gave with ask_agent. Waits up to wait_seconds (default ${DEFAULT_WAIT_S}, at most ${MAX_WAIT_S}); if they are still working, call it again with the same handle until they finish. When their answer is a question, a blocker or something only the user can decide, that is the outcome: pass it on instead of waiting for more. Without a handle: lists your handoffs.`,
+    parameters: obj({ handle: str('The handle ask_agent gave you'), wait_seconds: { type: 'number', description: `How long to wait for the answer this time (1-${MAX_WAIT_S})` } }),
+    run: async ({ handle, wait_seconds }: { handle?: string; wait_seconds?: number }, ctx) => {
+      if (!handle) return { text: listHandoffs(ctx.agent.id) };
+      // Hermes gives up on an MCP call after 5 minutes: wait less, and it calls again
+      const hermes = agentStore.get(ctx.agent.id)?.engine === 'hermes';
+      const wait = hermes ? Math.min(HERMES_WAIT_S, Number(wait_seconds) || HERMES_WAIT_S) : wait_seconds;
+      return awaitHandoff(handle, ctx.agent.id, wait, ctx.signal);
     },
   },
   {

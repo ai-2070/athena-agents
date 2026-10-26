@@ -45,7 +45,7 @@ Projects keep separate agents, teams and chats. Use the project name at the top 
 
 ## Chats and files
 
-Agent and team chats open in floating, resizable windows with tabs. Type **@** in a chat to pick another agent. An agent with **Delegate** enabled can hand that agent part of the work.
+Agent and team chats open in floating, resizable windows with tabs. Type **@** in a chat to pick another agent. An agent with **Delegate** enabled can hand that agent part of the work. Handing off doesn't make it wait: the other agent starts at once, so an agent can hand out several tasks side by side and collect each answer when it's ready, however long the work takes.
 
 Type **/** in an agent, team or Brain chat to see the commands. They work while the agent is busy:
 
@@ -106,6 +106,8 @@ For example, with those agents and skills already created:
 ## The Brain and your teams
 
 When the Brain hands work to a team, it writes in the team chat as **Brain**, so the work goes out even when no browser tab is open. Work for a single agent starts a new chat with that agent.
+
+**Who answers in a team chat.** Agents you **@mention** answer. Otherwise: the agent whose message you replied to; else the only member with what the message needs (Blender, ComfyUI, Adobe, FFmpeg, posting on X or Reddit, Orca, or one of its MCP servers such as GitHub); else the team's lead; else the member who fits best. Agents see who has what in the team roster and hand such work to that member.
 
 - **Ask the Brain from a team chat.** Anyone in a team chat, an agent or you, can write **@Brain** to ask a question or say they're stuck. The Brain answers in the thread and may pass work to a teammate. An agent's request can't make it change agents, teams, skills, routines or settings: when the team needs something only you can give, such as an account, a teammate or a decision, the Brain tells you in Brain chat.
 - **The Brain follows up.** When the team goes quiet or the agent finishes, the Brain checks the result. If something is missing, it asks for it, twice at most. When the work is done, stuck or needs you, it says so in Brain chat. Turn this off with **The Brain follows up** under **Settings → The Brain's model**.
