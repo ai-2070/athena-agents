@@ -1,0 +1,21 @@
+docs/internal/plans/MACHINES_PLAN.md
+  s_3ee9638266ae65::t_81ee15ec9fb18b 363-374
+  s_3ee9638266ae65::t_574ac9052e829b 102-160
+  s_3ee9638266ae65::t_857d1122f7766b 3,357
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d0dc7f3b1c82a200f8d7585aa5f1784e7b9ead64",
+  "prompts": {},
+  "sessions": {
+    "s_3ee9638266ae65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "541a5902-77ed-4017-8f45-3e7605579b0f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
