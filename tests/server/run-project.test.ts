@@ -7,8 +7,10 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { activeProject, agents, chats, openProject, runs, saveSettings, setActiveProject, withProject, workflows } from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
+import { dataPath, readJSON } from '../../server/util.ts';
 import { newAgent } from '../../server/library.ts';
-import { runInfo, startRun } from '../../server/engines/index.ts';
+import { activeRuns, runInfo, startRun, stopRun } from '../../server/engines/index.ts';
+import { listRuns, saveRoutine, startRoutine } from '../../server/routines.ts';
 import { startWorkflow } from '../../server/workflows.ts';
 import type { Team } from '../../shared/types.ts';
 
@@ -100,5 +102,37 @@ describe('a run', () => {
     setActiveProject(b.id);
     expect(runs.get(run.id)).toBeNull();
     expect(fs.existsSync(path.join(b.brainPath, 'out.txt'))).toBe(false);
+  });
+
+  it("a routine's record and agent stay in its project", async () => {
+    const a = await createProject({ name: 'Routine A', mode: 'new', folder: folder('routine-a') });
+    newAgent({ name: 'Scribe', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: ['files'], autonomy: 'auto' });
+    const r = saveRoutine({ name: 'Write it down', text: '@Scribe write the file.' });
+    const run = await startRoutine(r.id);
+    await until(() => held.length > 0);
+    const b = await createProject({ name: 'Routine B', mode: 'new', folder: folder('routine-b') });
+    await release();
+    await release();
+    // wait for it to finish while B is still open, reading A's record straight from disk
+    const record = () => readJSON<{ status?: string }>(dataPath('projects', a.id, 'routine-runs', `${run.id}.json`), {});
+    await until(() => record().status !== 'running');
+    expect(activeProject().id).toBe(b.id);
+    expect(record()).toMatchObject({ status: 'done' });
+    expect(listRuns()).toEqual([]);
+    expect(fs.readFileSync(path.join(a.brainPath, 'out.txt'), 'utf8')).toBe('from-project-a-run');
+    setActiveProject(a.id);
+    expect(listRuns(r.id)[0]).toMatchObject({ id: run.id, status: 'done' });
+  });
+
+  it("a routine whose agent's run is stopped directly ends stopped, not done", async () => {
+    await createProject({ name: 'Routine stop', mode: 'new', folder: folder('routine-stop') });
+    newAgent({ name: 'Stoppable', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+    const r = saveRoutine({ name: 'Stop me', text: '@Stoppable do the thing.' });
+    const run = await startRoutine(r.id);
+    await until(() => held.length > 0);
+    stopRun(activeRuns().find((x) => x.parentRunId === run.id)!.id);
+    held.shift()!.release(); // let the fake model's request finish
+    await until(() => listRuns(r.id)[0]?.status !== 'running');
+    expect(listRuns(r.id)[0]).toMatchObject({ status: 'stopped', targets: [expect.objectContaining({ status: 'stopped' })] });
   });
 });

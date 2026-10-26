@@ -2,9 +2,9 @@
 // it (one or more agents and teams) and which skills they use for it. Each mentioned agent gets the
 // routine in its own chat; each mentioned team gets it in its team chat (where @mentioned members
 // pick it up). An agent that is in a mentioned team is reached through the team, not twice.
-import { routines, routineRuns, agents, chats, emit, log } from './store.ts';
+import { routines, routineRuns, agents, chats, emit, log, activeProject, withProject } from './store.ts';
 import { uid } from './util.ts';
-import { askAgent, stopChildren } from './engines/index.ts';
+import { askAgent, stopChildren, RunStopped } from './engines/index.ts';
 import { getTeam, listTeams, postUserMessage } from './teams.ts';
 import { getSkill, listSkills } from './skills.ts';
 import { pickMember } from './brain.ts';
@@ -152,7 +152,9 @@ export async function startRoutine(id: string, { trigger = 'manual', input = '' 
   };
   save();
   const label = (t: RoutineRunTarget) => `@${t.name}${t.kind === 'team' ? ' (team)' : ''}`;
-  const jobs = targets.map(async (t) => {
+  // the run stays in this project (its record and agents) if you open another one meanwhile
+  const project = activeProject();
+  const jobs = withProject(project, () => targets.map(async (t) => {
     const message = routineMessage(r, { skills, input, others: targets.filter((x) => x !== t).map(label) });
     try {
       if (t.kind === 'team') {
@@ -172,21 +174,24 @@ export async function startRoutine(id: string, { trigger = 'manual', input = '' 
         t.output = summary(text);
       }
     } catch (e) {
-      t.status = ac.signal.aborted ? 'stopped' : 'failed';
+      // stopped: the whole routine, or this agent's own run (its Stop button)
+      t.status = ac.signal.aborted || e instanceof RunStopped ? 'stopped' : 'failed';
       t.output = (e as Error).message;
     }
     save();
-  });
-  void Promise.all(jobs).then(() => {
+  }));
+  void withProject(project, () =>
+    Promise.all(jobs).then(() => {
     active.delete(run.id);
-    run.status = ac.signal.aborted ? 'stopped' : targets.every((t) => t.status === 'failed') ? 'failed' : 'done';
+    run.status = ac.signal.aborted || targets.every((t) => t.status === 'stopped') ? 'stopped' : targets.every((t) => t.status === 'failed') ? 'failed' : 'done';
     const failed = targets.filter((t) => t.status === 'failed');
     run.error = failed.length ? failed.map((t) => `${t.name}: ${t.output}`).join('\n') : null;
     run.finishedAt = Date.now();
     save();
     prune(r.id);
     log(run.status === 'failed' ? 'error' : 'routine', `Routine "${r.name}" ${run.status}`);
-  });
+    }),
+  );
   return run;
 }
 
