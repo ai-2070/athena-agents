@@ -81,7 +81,7 @@ The app's version is `package.json`'s `version`.
 - **`ci.yml`, job "Desktop app"** (Linux and Windows, every push and PR): stages the app, runs the smoke
   test and checks the Rust code (`cargo fmt`, `clippy`). It doesn't build installers.
 - **`desktop.yml`** builds installers for Windows (x64, arm64), macOS (Apple silicon, Intel) and Linux
-  (x64, arm64; `.deb`, `.rpm`, AppImage). Run it from the Actions tab to get them as artifacts.
+  (x64, arm64; `.deb`, `.rpm`, and an AppImage on x64). Run it from the Actions tab to get them as artifacts.
 
 To release: set `version` in `package.json`, merge, then push a matching tag:
 
@@ -110,7 +110,7 @@ silicon Macs say a downloaded app is "damaged".
 
 The app updates itself with [Tauri's updater](https://tauri.app/plugin/updater/) (`src-tauri/src/updater.rs`).
 It reads `latest.json` from the newest **published** release
-(`https://github.com/ai-2070/ai-dashboard/releases/latest/download/latest.json`), so a draft release
+(`https://github.com/ai-2070/blacksite/releases/latest/download/latest.json`), so a draft release
 reaches nobody until you publish it. The repository must be public for apps to download it.
 
 When `latest.json` has a newer version, the app asks with a native dialog (the page plays no part: there is

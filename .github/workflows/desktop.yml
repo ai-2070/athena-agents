@@ -52,10 +52,12 @@ jobs:
             target: x86_64-unknown-linux-gnu
             bundles: deb,rpm,appimage
             native: true
+          # no AppImage: linuxdeploy rewrites the bundled Bun with patchelf, which breaks
+          # arm64 binaries laid out in 64 KB pages, and the AppImage build fails
           - name: Linux arm64
             runner: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
-            bundles: deb,rpm,appimage
+            bundles: deb,rpm
             native: true
     steps:
       - uses: actions/checkout@v7
@@ -110,7 +112,7 @@ jobs:
           else
             echo "::warning::No TAURI_SIGNING_PRIVATE_KEY secret: these installers can't be used as updates."
           fi
-          bunx tauri build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} "${updates[@]}"
+          bunx tauri build --ci --verbose --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} "${updates[@]}"
 
       - name: Run the bundled server the way the app does
         if: matrix.native
