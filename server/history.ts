@@ -58,7 +58,7 @@ function otherFields(item: Record<string, unknown>, shown: readonly string[], ig
   return rest.length ? `Other settings:\n${rest.map((k) => `  ${k}: ${JSON.stringify(item[k])}`).join('\n')}` : '';
 }
 
-const AGENT_SHOWN = ['name', 'emoji', 'specialty', 'description', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'temperature', 'autonomy', 'toolGroups', 'mcpServers', 'skills', 'knowledge', 'workspace', 'alwaysAllow', 'systemPrompt'];
+const AGENT_SHOWN = ['name', 'emoji', 'specialty', 'description', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'temperature', 'effort', 'autonomy', 'toolGroups', 'mcpServers', 'skills', 'knowledge', 'workspace', 'alwaysAllow', 'systemPrompt'];
 const TEAM_SHOWN = ['name', 'description', 'members', 'lead', 'access', 'skills', 'files', 'schedule', 'enabled', 'steps'];
 
 // One step of an old-style step list (or a member's step), with everything that changes what it does.
@@ -87,6 +87,7 @@ export function asText(kind: VersionKind, item: Item): string {
       a.provider ? `Provider: ${a.provider}` : '',
       a.claudeAuth ? `Sign-in: ${a.claudeAuth}` : '',
       `Temperature: ${a.temperature === '' || a.temperature === undefined ? 'default' : a.temperature}`,
+      `Effort: ${a.effort || 'default'}`,
       `Autonomy: ${a.autonomy || 'ask'}`,
       `Tools: ${list(a.toolGroups)}`,
       `MCP servers: ${list(a.mcpServers)}`,

@@ -297,6 +297,22 @@ body.in-chat .dock-launcher { display: none; }
 .model-tab.cur::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .model-glyph { font-size: 13px; line-height: 13px; }
 .model-body { max-height: 380px; overflow-y: auto; }
+.model-row { display: flex; align-items: center; gap: 2px; }
+.model-row > .st-menu-item { flex: 1; min-width: 0; }
+.model-fav { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-right: 2px; border: 0; border-radius: 6px; background: none; color: var(--faint); cursor: pointer; opacity: 0; transition: opacity .15s, color .15s, background .15s; }
+.model-row:hover .model-fav, .model-fav:focus-visible, .model-fav.on { opacity: 1; }
+.model-fav:hover { color: var(--accent); background: var(--panel-2); }
+.model-fav.on { color: var(--accent); }
+.model-fav.on .ico-svg { fill: currentColor; }
+@media (hover: none) { .model-fav { opacity: 1; } }
+.model-effort { padding: 0 6px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.model-effort-head { display: flex; align-items: center; gap: 6px; padding: 0 4px 5px; font: 600 11px var(--sans, inherit); color: var(--dim); }
+.model-effort-note { margin-left: auto; font-weight: 400; color: var(--faint); }
+.model-effort-levels { display: flex; gap: 3px; }
+.model-effort-level { flex: 1; min-width: 0; padding: 5px 2px; border: 1px solid var(--line); border-radius: 7px; background: none; color: var(--dim); font: 500 11px var(--sans, inherit); cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s, background .15s; }
+.model-effort-level:hover { color: var(--ink); border-color: var(--line-2); }
+.model-effort-level.on { border-color: var(--accent); color: var(--ink); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.model-effort-tag { font: 600 10px var(--sans, inherit); color: var(--accent); border: 1px solid var(--accent-dim); border-radius: 999px; padding: 0 6px; line-height: 15px; }
 .model-missing { display: flex; align-items: center; gap: 8px; margin: 0 6px 6px; padding: 7px 9px; border-radius: 8px; font-size: 12px; color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent); }
 
 /* Tab strips: scroll sideways on small screens, never show a scrollbar */

@@ -8,6 +8,7 @@ import * as mcp from '../mcp.ts';
 import { PORT } from '../util.ts';
 import { checkpointSection, compactAt, compactionSettings, contextWindow, estimateTokens, isOverflowError } from '../compaction.ts';
 import type { FetchError } from '../util.ts';
+import { effortFor } from '../../shared/effort.ts';
 import type { Agent, EngineStatus, ProviderId, RunEvent } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 
@@ -283,6 +284,8 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
   let vision = true;
   onEvent({ kind: 'model', model });
   let { defs, route } = await gatherTools(agent, onEvent);
+  // how hard it thinks: OpenRouter takes reasoning.effort, other OpenAI-compatible servers reasoning_effort
+  let effort = effortFor('openai', agent.effort, provider.id);
   let cost = 0;
   let tokens = 0;
   let finalText = '';
@@ -319,6 +322,7 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
       ...(defs.length ? { tools: defs } : {}),
       ...(provider.id === 'openrouter' ? { usage: { include: true } } : { stream_options: { include_usage: true } }),
       ...(agent.temperature != null && agent.temperature !== '' ? { temperature: Number(agent.temperature) } : {}),
+      ...(effort ? (provider.id === 'openrouter' ? { reasoning: { effort } } : { reasoning_effort: effort }) : {}),
     };
     let r: Completion;
     try {
@@ -337,6 +341,13 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
       if (vision && hasImages(trimHistory(chat.llm as LlmMessage[], historyChars)) && [400, 404, 415, 422].includes(err.status ?? 0) && /image|vision|multimodal|modalit/i.test(err.message)) {
         onEvent({ kind: 'status', text: `${model} can't see images; sending it the file paths instead.` });
         vision = false;
+        step--;
+        continue;
+      }
+      // A server that doesn't take an effort level: ask again without one.
+      if (effort && [400, 422].includes(err.status ?? 0) && /reasoning/i.test(err.message)) {
+        onEvent({ kind: 'status', text: `${model} doesn't take an effort level; using its default.` });
+        effort = '';
         step--;
         continue;
       }

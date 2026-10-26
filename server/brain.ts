@@ -6,7 +6,8 @@ import { TOOL_GROUPS } from './tools.ts';
 import { listServers } from './mcp.ts';
 import { run, which, tmpFile } from './util.ts';
 import { describeAttachments } from './uploads.ts';
-import type { Agent, BrainSetting, Team, TeamAccess } from '../shared/types.ts';
+import { effortFor } from '../shared/effort.ts';
+import type { Agent, BrainSetting, Effort, Team, TeamAccess } from '../shared/types.ts';
 
 // ---------- what the models send back (JSON boundaries) ----------
 interface OpenRouterChat {
@@ -56,6 +57,8 @@ interface BranchAnswer {
 export interface BrainModel {
   provider: BrainSetting['provider'];
   model: string;
+  /** for this provider ('' = the model's default) */
+  effort: Effort | '';
   fallback: boolean;
 }
 export type BrainRoute = { kind: 'none'; reason: string } | { kind: 'agent' | 'branch'; id: string; name: string; reason: string };
@@ -88,7 +91,9 @@ export function brainModel(): BrainModel {
   const p: BrainSetting['provider'] = ok[b.provider as BrainSetting['provider']] ? (b.provider as BrainSetting['provider']) : (['claude', 'openrouter', 'hermes', 'codex'] as const).find((x) => ok[x]) || b.provider || 'claude';
   const model = p === b.provider ? b.model ?? '' : '';
   const dflt = { claude: 'haiku', openrouter: 'anthropic/claude-haiku-5.5', hermes: '', codex: '' }[p];
-  return { provider: p, model: model || dflt, fallback: p !== (b.provider || 'claude') };
+  const engine = { claude: 'claude-code', openrouter: 'openai', hermes: 'hermes', codex: 'codex' }[p];
+  const effort = p === b.provider ? effortFor(engine, b.effort) : '';
+  return { provider: p, model: model || dflt, effort, fallback: p !== (b.provider || 'claude') };
 }
 
 // tools: read-only Claude Code tools (e.g. "Read,Glob,Grep") the Brain may use inside cwd.
@@ -100,7 +105,7 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
     const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json', 'X-Title': 'My Dashboard' },
-      body: JSON.stringify({ model: bm.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens }),
+      body: JSON.stringify({ model: bm.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, ...(bm.effort ? { reasoning: { effort: bm.effort } } : {}) }),
       signal: AbortSignal.timeout(timeout),
     });
     const j = (await r.json()) as OpenRouterChat;
@@ -110,7 +115,7 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
     return j.choices?.[0]?.message?.content || '';
   }
   if (bm.provider === 'codex') {
-    const args = ['exec', '--json', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', ...(cwd ? ['-C', cwd] : []), ...(bm.model ? ['-m', bm.model] : []), '-'];
+    const args = ['exec', '--json', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', ...(cwd ? ['-C', cwd] : []), ...(bm.model ? ['-m', bm.model] : []), ...(bm.effort ? ['-c', `model_reasoning_effort="${bm.effort}"`] : []), '-'];
     const r = await run('codex', args, { input: `<instructions>\n${system}\n</instructions>\n\n${user}`, timeout, cwd });
     let answer = '';
     let err = '';
@@ -129,7 +134,7 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
     return answer;
   }
   if (bm.provider === 'hermes') {
-    const r = await run('hermes', ['chat', '--query-file', '-', '--format', 'stream-json', ...(bm.model ? ['-m', bm.model] : [])], { input: `${system}\n\n---\n\n${user}`, timeout, cwd, env: { PYTHONIOENCODING: 'utf-8' } });
+    const r = await run('hermes', ['chat', '--query-file', '-', '--format', 'stream-json', ...(bm.model ? ['-m', bm.model] : []), ...(bm.effort ? ['--reasoning', bm.effort] : [])], { input: `${system}\n\n---\n\n${user}`, timeout, cwd, env: { PYTHONIOENCODING: 'utf-8' } });
     let text = '';
     let result: HermesLine | null = null;
     for (const line of r.stdout.split('\n')) {
@@ -151,7 +156,7 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
   fs.writeFileSync(promptFile, system);
   const r = await run(
     'claude',
-    ['-p', '--model', bm.model, '--output-format', 'json', '--no-session-persistence', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--tools', tools, ...(tools ? ['--allowedTools', ...tools.split(',')] : []), '--system-prompt-file', promptFile],
+    ['-p', '--model', bm.model, ...(bm.effort ? ['--effort', bm.effort] : []), '--output-format', 'json', '--no-session-persistence', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--tools', tools, ...(tools ? ['--allowedTools', ...tools.split(',')] : []), '--system-prompt-file', promptFile],
     { input: user, timeout, cwd },
   );
   fs.rm(promptFile, { force: true }, () => {});

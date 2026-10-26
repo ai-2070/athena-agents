@@ -4,6 +4,7 @@ import { skillPicker } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.ts';
 import type { Option } from '../core.ts';
 import type { ModelListing } from '../models.ts';
+import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import type { Agent, Autonomy, EngineStatus, Team, Terminal } from '../../shared/types.ts';
 
 /** GET /api/agents/:id: the agent plus its knowledge files and resolved workspace. */
@@ -187,7 +188,7 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
               a.provider || 'openrouter',
               (v) => {
                 set('provider')(v);
-                loadModels();
+                drawEngine(); // a server on this PC takes fewer effort levels
               },
             ),
           ),
@@ -211,6 +212,13 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
         h('p.hint', 'Hermes uses its own tools. To give it the dashboard tools too, use "Give Hermes the dashboard tools" on the Tools & MCP page.'),
       );
     }
+    parts.push(
+      field(
+        'Effort',
+        select([{ value: '', label: "Model's default" }, ...effortLevels(a.engine, a.provider).map((e) => ({ value: e, label: EFFORT_NAMES[e] }))], effortFor(a.engine, a.effort, a.provider), (v) => set('effort')(v as Agent['effort'])),
+        'How hard the model thinks before it answers. More effort: better on hard work, but slower and uses more of your plan.',
+      ),
+    );
     mount(engineBox, parts);
     loadModels();
   };

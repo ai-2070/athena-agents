@@ -49,7 +49,7 @@ describe('model picker: models on this PC', () => {
     expect(menu.textContent).toContain('No models found. Is LM Studio running?');
     expect(menu.querySelector('.st-menu-item.on')?.textContent).toContain('llama3.2');
     buttons(menu, 'qwen3')[0].click();
-    expect(picked).toEqual([{ engine: 'openai', provider: 'ollama', model: 'qwen3' }]);
+    expect(picked).toEqual([{ engine: 'openai', provider: 'ollama', model: 'qwen3', effort: '' }]);
   });
 
   it('can type a model id for a local server', async () => {
@@ -60,7 +60,99 @@ describe('model picker: models on this PC', () => {
     const input = [...document.querySelectorAll<HTMLInputElement>('.model-search')].find((i) => i.placeholder.includes('LM Studio'))!;
     input.value = 'my-model';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    expect(picked).toEqual([{ engine: 'openai', provider: 'lmstudio', model: 'my-model' }]);
+    expect(picked).toEqual([{ engine: 'openai', provider: 'lmstudio', model: 'my-model', effort: '' }]);
+  });
+});
+
+describe('model picker: effort', () => {
+  const levels = () => [...document.querySelectorAll<HTMLButtonElement>('.model-effort-level')];
+  const tab = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('.model-tab')].find((b) => b.textContent === label)!;
+
+  it("shows the engine's own levels and changes the effort of the model in use at once, staying open", () => {
+    serve(() => ({ body: [] }));
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'claude-code', model: 'opus', effort: 'high' }, (p) => picked.push(p));
+    expect(levels().map((b) => b.textContent)).toEqual(['Default', 'Low', 'Med', 'High', 'X-High', 'Max']);
+    expect(document.querySelector('.model-effort-level.on')?.textContent).toBe('High');
+    levels().find((b) => b.textContent === 'Max')!.click();
+    expect(picked).toEqual([{ engine: 'claude-code', model: 'opus', effort: 'max' }]);
+    expect(document.querySelector('.model-menu')).not.toBeNull();
+    expect(document.querySelector('.model-effort-level.on')?.textContent).toBe('Max');
+  });
+
+  it('carries the effort to a model on another engine, as its nearest level', () => {
+    serve(() => ({ body: [] }));
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'claude-code', model: 'opus', effort: 'max' }, (p) => picked.push(p));
+    tab('Codex').click();
+    // Codex has no "max": its highest level shows, and nothing is applied yet
+    expect(levels().map((b) => b.textContent)).toEqual(['Default', 'Min', 'Low', 'Med', 'High', 'X-High']);
+    expect(document.querySelector('.model-effort-level.on')?.textContent).toBe('X-High');
+    expect(picked).toEqual([]);
+    buttons(document.querySelector('.model-menu')!, 'gpt-6-astra')[0].click();
+    expect(picked).toEqual([{ engine: 'codex', model: 'gpt-6-astra', effort: 'xhigh' }]);
+    expect(document.querySelector('.model-menu')).toBeNull();
+  });
+
+  it('"Default" sends no effort', () => {
+    serve(() => ({ body: [] }));
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'codex', model: '', effort: 'low' }, (p) => picked.push(p));
+    levels()[0].click();
+    expect(picked).toEqual([{ engine: 'codex', model: '', effort: '' }]);
+  });
+});
+
+describe('model picker: favorites', () => {
+  const settings = () => state.data!.settings;
+  beforeEach(() => {
+    state.data!.settings = { favoriteModels: [] } as unknown as AppState['settings'];
+  });
+
+  it('stars a model, saves it in the settings, and opens on a Favorites tab next time', async () => {
+    serve((method, path, body) => (method === 'PUT' && path === '/settings' ? { body: { ...settings(), ...(body as object) } } : undefined));
+    openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {});
+    expect([...document.querySelectorAll('.model-tab')].map((t) => t.textContent)).not.toContain('Favorites');
+    const opusRow = [...document.querySelectorAll('.model-row')].find((r) => r.textContent?.includes('Opus (latest)'))!;
+    const star = opusRow.querySelector<HTMLButtonElement>('.model-fav')!;
+    expect(star.getAttribute('aria-pressed')).toBe('false');
+    star.click();
+    await settle();
+    expect(star.getAttribute('aria-pressed')).toBe('true');
+    expect(calls.find((c) => c.method === 'PUT' && c.path === '/settings')?.body).toEqual({ favoriteModels: [{ engine: 'claude-code', model: 'opus' }] });
+    // the menu is still open, now with a Favorites tab
+    expect(document.querySelector('.model-tab')?.textContent).toBe('Favorites');
+
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet', effort: 'high' }, (p) => picked.push(p));
+    expect(document.querySelector('.model-tab.on')?.textContent).toBe('Favorites');
+    const rows = [...document.querySelectorAll('.model-body .model-row')];
+    expect(rows.map((r) => r.textContent)).toEqual([expect.stringContaining('Claude Opus 5.5')]);
+    rows[0].querySelector<HTMLButtonElement>('.st-menu-item')!.click();
+    expect(picked).toEqual([{ engine: 'claude-code', model: 'opus', effort: 'high' }]);
+  });
+
+  it('unstarring the last favorite goes back to the engine in use', async () => {
+    settings().favoriteModels = [{ engine: 'openai', provider: 'ollama', model: 'llama3.2' }];
+    serve((method, path, body) => (method === 'PUT' && path === '/settings' ? { body: { ...settings(), ...(body as object) } } : { body: [] }));
+    openModelPicker(document.body, { engine: 'codex', model: '' }, () => {});
+    expect(document.querySelector('.model-body')?.textContent).toContain('llama3.2');
+    expect(document.querySelector('.model-body')?.textContent).toContain('Ollama');
+    document.querySelector<HTMLButtonElement>('.model-body .model-fav')!.click();
+    await settle();
+    expect(settings().favoriteModels).toEqual([]);
+    expect(document.querySelector('.model-tab.on')?.textContent).toBe('Codex');
+    expect([...document.querySelectorAll('.model-tab')].map((t) => t.textContent)).not.toContain('Favorites');
+  });
+
+  it('puts the star back when saving fails', async () => {
+    serve((method, path) => (method === 'PUT' && path === '/settings' ? { status: 500, body: { error: 'disk full' } } : undefined));
+    openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {});
+    const star = document.querySelector<HTMLButtonElement>('.model-fav')!;
+    star.click();
+    await settle();
+    expect(star.getAttribute('aria-pressed')).toBe('false');
+    expect(settings().favoriteModels).toEqual([]);
   });
 });
 
