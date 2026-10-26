@@ -35,6 +35,7 @@ import * as projectSync from './projectsync.ts';
 import * as skills from './skills.ts';
 import * as presets from './presets.ts';
 import * as routinesMod from './routines.ts';
+import * as backup from './backup.ts';
 import type { RestoreResult } from './projectsync.ts';
 import type { Agent, AppState, Project, ProviderUsage, Routine, SecretKey, Team } from '../shared/types.ts';
 
@@ -67,17 +68,21 @@ interface Route {
   re: RegExp;
   keys: string[];
   handler: Handler<unknown>;
+  /** The body is a file, not JSON: the handler gets its bytes. */
+  raw?: boolean;
 }
 
 const routes: Route[] = [];
 // B is the body shape the handler expects: the JSON is trusted to match it here (the HTTP boundary).
-const route = <B>(method: string, pattern: string, handler: Handler<B>) => {
+const route = <B>(method: string, pattern: string, handler: Handler<B>, raw = false) => {
   const keys: string[] = [];
   const re = new RegExp('^' + pattern.replace(/:(\w+)/g, (_, k: string) => (keys.push(k), '([^/]+)')) + '$');
-  routes.push({ method, re, keys, handler: handler as Handler<unknown> });
+  routes.push({ method, re, keys, handler: handler as Handler<unknown>, raw });
 };
 const get = <B = Body>(p: string, h: Handler<B>) => route('GET', p, h);
 const post = <B = Body>(p: string, h: Handler<B>) => route('POST', p, h);
+/** A POST whose body is a file (its bytes), e.g. a backup. */
+const postFile = (p: string, h: Handler<Buffer>) => route('POST', p, h, true);
 const put = <B = Body>(p: string, h: Handler<B>) => route('PUT', p, h);
 const del = <B = Body>(p: string, h: Handler<B>) => route('DELETE', p, h);
 
@@ -167,6 +172,27 @@ post('/api/projects/:id/activate', async ({ id }) => {
   return p;
 });
 put<projects.ProjectPatch | null>('/api/projects/:id', async ({ id }, body) => projects.updateProject(id, body || {}));
+// ---------- backups: a project with its agents, chats and knowledge, plus every skill and preset ----------
+post('/api/projects/:id/backup', async ({ id }) => backup.createBackup(id));
+get('/api/backups', async () => ({ dir: backup.backupsRoot(), backups: backup.listBackups() }));
+post('/api/backups/open', async () => {
+  openWithShell(ensureDir(backup.backupsRoot()));
+  return { ok: true };
+});
+// A new project from a backup: the file as the body, or ?file=<name> for one in the backups folder.
+postFile('/api/backups/restore', async (_p, body, q) => {
+  let r: Awaited<ReturnType<typeof backup.restoreBackup>>;
+  try {
+    const bytes = q.file ? backup.readBackupFile(q.file) : body;
+    if (!bytes.length) throw new Error('Drop a backup file first.');
+    r = await backup.restoreBackup(bytes, { name: q.name, folder: q.folder, description: q.description });
+  } catch (e) {
+    throw new HttpError(400, (e as Error).message);
+  }
+  projects.touch(r.project.id);
+  launcherPending = false;
+  return { ...projects.withLogo(r.project), restored: r.restored };
+});
 del('/api/projects/:id', async ({ id }) => projects.removeProject(id));
 get('/api/brain', async () => projects.brainInfo());
 // Where things sit on the Station map (per project), e.g. { bench: { x, z } }.
@@ -665,32 +691,37 @@ function page(res: http.ServerResponse, status: number, title: string, text: str
 }
 
 // ---------- server ----------
-function readBody(req: http.IncomingMessage): Promise<unknown> {
-  return new Promise<unknown>((resolve, reject) => {
+function readRaw(req: http.IncomingMessage, limit: number): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
     let size = 0;
     const chunks: Buffer[] = [];
     req.on('data', (c: Buffer) => {
       size += c.length;
-      if (size > 25 * 1024 * 1024) {
+      if (size > limit) {
         reject(new HttpError(413, 'Too large'));
         req.destroy();
       } else chunks.push(c);
     });
-    req.on('end', () => {
-      if (!chunks.length) return resolve({});
-      let v: unknown;
-      try {
-        v = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-      } catch {
-        return reject(new HttpError(400, 'Body must be JSON'));
-      }
-      // routes read fields from the body: null or a bare number/string would crash them
-      if (v === null || typeof v !== 'object') return reject(new HttpError(400, 'Body must be a JSON object'));
-      resolve(v);
-    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
 }
+
+async function readBody(req: http.IncomingMessage): Promise<unknown> {
+  const buf = await readRaw(req, 25 * 1024 * 1024);
+  if (!buf.length) return {};
+  let v: unknown;
+  try {
+    v = JSON.parse(buf.toString('utf8'));
+  } catch {
+    throw new HttpError(400, 'Body must be JSON');
+  }
+  // routes read fields from the body: null or a bare number/string would crash them
+  if (v === null || typeof v !== 'object') throw new HttpError(400, 'Body must be a JSON object');
+  return v;
+}
+// A file sent as the body (a backup): up to 1 GB
+const FILE_LIMIT = 1024 * 1024 * 1024;
 
 function serveStatic(url: URL, res: http.ServerResponse): boolean {
   let rel = decodeURIComponent(url.pathname);
@@ -751,7 +782,7 @@ const server = http.createServer(async (req, res) => {
         const m = r.re.exec(url.pathname);
         if (!m) continue;
         const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
-        const body = req.method === 'GET' || req.method === 'DELETE' ? {} : await readBody(req);
+        const body = req.method === 'GET' || req.method === 'DELETE' ? {} : r.raw ? await readRaw(req, FILE_LIMIT) : await readBody(req);
         const out = await r.handler(params, body, Object.fromEntries(url.searchParams), res);
         if (out === undefined && res.headersSent) return;
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
