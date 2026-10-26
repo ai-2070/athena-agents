@@ -1,0 +1,32 @@
+web/views/artifacts.tsx
+  s_3ee9638266ae65::t_bc6c576bbcbfd6 1-95
+web/app.ts
+  s_3ee9638266ae65::t_7c46fa9c1f4202 5
+web/ui/react.tsx
+  s_3ee9638266ae65::t_00afeffa6c80c6 2-3,5,7,16-45
+  s_3ee9638266ae65::t_afed57e123df8a 46
+tests/web/artifacts.test.ts
+  s_3ee9638266ae65::t_7c46fa9c1f4202 6
+  s_3ee9638266ae65::t_1054dad327fdb3 2-5,99-109,112
+  s_3ee9638266ae65::t_f0bddaaa9db933 38-98,110-111,113-116
+web/views/library.tsx
+  s_3ee9638266ae65::t_00afeffa6c80c6 7,424
+public/app.css
+  s_3ee9638266ae65::t_7c46fa9c1f4202 380-384
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f4f57d04582cce0a9681c2fc9d560f107f3a872",
+  "prompts": {},
+  "sessions": {
+    "s_3ee9638266ae65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "541a5902-77ed-4017-8f45-3e7605579b0f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
