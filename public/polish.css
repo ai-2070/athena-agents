@@ -211,6 +211,10 @@ body.in-chat .dock-launcher { display: none; }
 .tc-sopt .avatar { width: 22px; height: 22px; font-size: 12px; }
 .tc-sopt .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tc-sopt.on, .tc-sopt:hover { background: var(--panel-2); color: var(--accent); }
+/* the agent chat box: @ opens the same menu as the team chat */
+.mention-field { flex: 1; min-width: 0; position: relative; display: flex; }
+.mention-field > textarea { flex: 1; }
+.mention-note { padding: 6px 8px 4px; border-top: 1px solid var(--line); margin-top: 4px; font-size: 12px; }
 .tc-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .st-chip-lead { color: var(--amber); }
 .st-step-actions button.on { color: var(--amber); border-color: var(--amber); }

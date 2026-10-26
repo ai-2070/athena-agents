@@ -5,6 +5,7 @@
 // Used by the full chat page (views/chat.ts), the floating window's agent tabs (agentchat.ts, compact)
 // and the Station's agent panel (mini).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties, KeyboardEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { APICallError } from 'ai';
 import { GET, POST, attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
@@ -16,6 +17,9 @@ import { Dom, MessageView, isRichCode } from './parts.tsx';
 import type { Variant } from './parts.tsx';
 import { beforeTurn, toUIMessages, userParts } from './messages.ts';
 import { chatTransport } from './transport.ts';
+import { agentMentions, insertMention } from './mention.ts';
+import type { MentionAgent } from './mention.ts';
+import { agentRef } from '../../shared/agentref.ts';
 import type { ChatMessage } from './messages.ts';
 import type { AppState, Chat, ChatItem } from '../../shared/types.ts';
 
@@ -276,6 +280,41 @@ export function ChatView(p: ChatViewProps) {
     if (el) near.current = el.scrollHeight - el.scrollTop - el.clientHeight < (compact ? 80 : 140);
   };
 
+  // @ to pick another agent: a menu above the box while the caret is in an "@…"
+  const [mention, setMention] = useState<{ start: number; options: MentionAgent[]; active: number } | null>(null);
+  const others = app?.agents || [];
+  // (it can only hand work on with ask_agent, which the Delegate tools give it)
+  const canDelegate = !!others.find((a) => a.id === agent.id)?.toolGroups?.includes('agents');
+  const lookForMention = () => {
+    const box = input.current;
+    const found = box && box.selectionStart === box.selectionEnd ? agentMentions(box.value, box.selectionStart, others, agent.id) : null;
+    setMention((was) => (found ? { ...found, active: was && was.start === found.start ? Math.min(was.active, found.options.length - 1) : 0 } : null));
+  };
+  const pickMention = (a: MentionAgent) => {
+    const box = input.current;
+    if (!box || !mention) return;
+    // with the id when the name is shared, so ask_agent reaches this one
+    const r = insertMention(box.value, mention.start, box.selectionStart, agentRef(a, others));
+    box.value = r.text;
+    box.setSelectionRange(r.caret, r.caret);
+    box.focus();
+    setMention(null);
+  };
+  // arrows move through the menu, Enter or Tab picks, Escape closes it. true: the key was used.
+  const onMentionKey = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    if (!mention || e.nativeEvent.isComposing) return false;
+    const n = mention.options.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') setMention({ ...mention, active: (mention.active + (e.key === 'ArrowDown' ? 1 : n - 1)) % n });
+    else if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') pickMention(mention.options[mention.active]);
+    else if (e.key === 'Escape') {
+      // (and not the chat window)
+      e.stopPropagation();
+      setMention(null);
+    } else return false;
+    e.preventDefault();
+    return true;
+  };
+
   const latest = latestCompaction(items);
   const dimBefore = latest ? memoryStart(items) : -1;
   const shown = variant === 'mini' ? messages.slice(-14) : variant === 'compact' ? messages.slice(-120) : messages;
@@ -307,24 +346,57 @@ export function ChatView(p: ChatViewProps) {
   const generic = !statusText || /^(Thinking|Working)…$/.test(statusText);
   const statusLine = (approvals.length && busy ? `Waiting for you: ${approvals[0].title}` : '') || (generic && doing) || statusText || (busy ? 'Working…' : '');
   const composer = (
-    <textarea
-      ref={input}
-      className={compact ? 'ac-input' : undefined}
-      rows={variant === 'mini' ? 1 : 2}
-      placeholder={compact ? `Message ${agent.name}…  (Enter to send, Shift+Enter for a new line)` : `Message ${agent.name}…`}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-          e.preventDefault();
-          void send();
-        }
-      }}
-      onInput={(e) => {
-        if (compact) return;
-        const t = e.currentTarget;
-        t.style.height = 'auto';
-        t.style.height = `${Math.min(260, t.scrollHeight + 2)}px`;
-      }}
-    />
+    <div className="mention-field">
+      <textarea
+        ref={input}
+        className={compact ? 'ac-input' : undefined}
+        rows={variant === 'mini' ? 1 : 2}
+        placeholder={compact ? `Message ${agent.name}…  (Enter to send, @ for another agent)` : `Message ${agent.name}…`}
+        onKeyDown={(e) => {
+          if (onMentionKey(e)) return;
+          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            void send();
+          }
+        }}
+        onInput={(e) => {
+          lookForMention();
+          if (compact) return;
+          const t = e.currentTarget;
+          t.style.height = 'auto';
+          t.style.height = `${Math.min(260, t.scrollHeight + 2)}px`;
+        }}
+        onClick={lookForMention}
+        onKeyUp={(e) => {
+          if (/^(ArrowLeft|ArrowRight|Home|End)$/.test(e.key)) lookForMention();
+        }}
+        onBlur={() => setMention(null)}
+      />
+      {mention ? (
+        <div className="tc-suggest mention-menu" role="listbox">
+          {mention.options.map((a, i) => (
+            <button
+              key={a.id}
+              type="button"
+              role="option"
+              aria-selected={i === mention.active}
+              className={`tc-sopt${i === mention.active ? ' on' : ''}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pickMention(a);
+              }}
+            >
+              <span className="avatar" style={{ '--agent-color': a.color || 'var(--accent)' } as CSSProperties}>
+                {a.emoji || '🤖'}
+              </span>
+              @{a.name}
+              {a.specialty ? <span className="hint">{a.specialty}</span> : null}
+            </button>
+          ))}
+          {canDelegate ? null : <div className="hint mention-note">To pass work on, {agent.name} needs Delegate turned on in its tools.</div>}
+        </div>
+      ) : null}
+    </div>
   );
   const sendBtn =
     busy && compact ? null : (
@@ -409,7 +481,7 @@ export function ChatView(p: ChatViewProps) {
           </div>
           <div className="row between" style={{ maxWidth: '1000px', marginTop: '6px' }}>
             {p.footer ? <Dom make={() => p.footer!} deps={[p.footer]} /> : <span />}
-            <span className="hint">Enter to send · Shift+Enter for a new line</span>
+            <span className="hint">Enter to send · Shift+Enter for a new line · @ to bring in another agent</span>
           </div>
         </div>
       )}

@@ -13,6 +13,7 @@ import * as kb from './knowledge.ts';
 import { ensureBrain } from './projects.ts';
 import { uploadsRoot } from './uploads.ts';
 import * as skills from './skills.ts';
+import { findAgent } from '../shared/agentref.ts';
 import type { Agent, ToolGroup } from '../shared/types.ts';
 
 /** none: never asks. low: asks when autonomy is "ask". high: asks unless autonomy is "full". */
@@ -505,12 +506,12 @@ const TOOLS: ToolDef[] = [
     group: 'agents',
     risk: 'none',
     description: 'Give a task to another agent and wait for its answer. Say exactly what you need back.',
-    parameters: obj({ agent: str('Agent name or id'), message: str('The task or question') }, ['agent', 'message']),
+    parameters: obj({ agent: str('Agent name, id, or "Name [id]" as list_agents shows it'), message: str('The task or question') }, ['agent', 'message']),
     run: async ({ agent, message }: { agent: string; message: string }, ctx) => {
       if ((ctx.depth || 0) >= 3) throw new Error('Too many agents deep; answer this yourself.');
-      const all = agentStore.list();
-      const target = all.find((a) => a.id === agent) || all.find((a) => a.name.toLowerCase() === String(agent).toLowerCase()) || all.find((a) => a.name.toLowerCase().includes(String(agent).toLowerCase()));
-      if (!target) throw new Error(`No agent called "${agent}".`);
+      const found = findAgent(agentStore.list(), agent);
+      if ('error' in found) throw new Error(found.error);
+      const target = found.agent;
       if (target.id === ctx.agent.id) throw new Error("That's you.");
       const { askAgent } = await import('./engines/index.ts');
       const answer = await askAgent(target, message, { depth: (ctx.depth || 0) + 1, from: ctx.agent.name, parentRunId: ctx.runId, signal: ctx.signal });
