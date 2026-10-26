@@ -57,6 +57,20 @@ describe('bundled skills', () => {
     expect(fs.readdirSync(dataPath('tmp')).filter((x) => x.startsWith('bundled-'))).toEqual([]);
   });
 
+  it('include a skill of our own for starting coding agents in Orca', () => {
+    skills.ensureBuiltinSkills();
+    const s = skills.getSkill('orca-agents');
+    expect(s?.name).toBe('Start agents in Orca');
+    // Orca's ids for each agent, and the check that Orca is installed before anything starts
+    for (const id of ['claude', 'codex', 'pi', 'omp', 'openclaw']) expect(s?.body).toContain(`| \`${id}\` |`);
+    expect(s?.body).toContain('ORCA status --json');
+    expect(s?.body).toContain('ORCA worktree create --name <short-task-name> --no-parent --agent <id> --prompt "<brief>" --json');
+    expect(s?.body).toContain('ORCA agent launch --agent <id>');
+    // not one of the bundled folders, so no GitHub origin
+    expect(s?.origin).toBeFalsy();
+    expect(skills.bundledSkills().map((b) => b.slug)).not.toContain('orca-agents');
+  });
+
   it('stay deleted once deleted', () => {
     skills.ensureBuiltinSkills();
     skills.deleteSkillEverywhere('photocraft');
