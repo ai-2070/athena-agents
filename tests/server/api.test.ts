@@ -3,39 +3,67 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
-const port = 4870 + Math.floor(Math.random() * 20);
-const base = `http://localhost:${port}`;
+// set in beforeAll: a port nothing else is using (see startServer)
+let port = 0;
+let base = '';
 let proc: ChildProcess;
 let tmp: string;
 
 const req = (p: string, init: RequestInit & { headers?: Record<string, string> } = {}) => fetch(base + p, init);
 const json = { 'content-type': 'application/json', 'x-dash': '1' };
 
+// A port the system says is free right now.
+const freePort = () =>
+  new Promise<number>((resolve, reject) => {
+    const srv = net.createServer();
+    srv.once('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const p = (srv.address() as net.AddressInfo).port;
+      srv.close(() => resolve(p));
+    });
+  });
+
+// Start our own server and wait until it answers. Another dashboard (another test run, another checkout)
+// may grab the port first: then ours exits and the one answering isn't ours (other data folder), so try again.
+async function startServer(home: string): Promise<void> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    port = await freePort();
+    base = `http://localhost:${port}`;
+    const child = spawn('bun', ['server/index.ts', '--port', String(port), '--no-open'], {
+      cwd: root,
+      env: { ...process.env, DASH_DATA: path.join(tmp, 'data'), HOME: home, USERPROFILE: home },
+      stdio: 'ignore',
+    });
+    proc = child;
+    let exited = false;
+    child.once('exit', () => (exited = true));
+    for (let i = 0; i < 100 && !exited; i++) {
+      try {
+        const r = await req('/api/state');
+        if (r.ok && String(((await r.json()) as { dataDir?: string }).dataDir || '').startsWith(tmp)) return;
+      } catch {
+        /* not up yet */
+      }
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    child.kill();
+  }
+  throw new Error('the server did not start');
+}
+
 beforeAll(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dash-api-'));
   const home = path.join(tmp, 'home');
   fs.mkdirSync(home);
-  proc = spawn('bun', ['server/index.ts', '--port', String(port), '--no-open'], {
-    cwd: root,
-    env: { ...process.env, DASH_DATA: path.join(tmp, 'data'), HOME: home, USERPROFILE: home },
-    stdio: 'ignore',
-  });
-  for (let i = 0; i < 100; i++) {
-    try {
-      if ((await req('/api/state')).ok) return;
-    } catch {
-      /* not up yet */
-    }
-    await new Promise((r) => setTimeout(r, 150));
-  }
-  throw new Error('the server did not start');
-}, 30_000);
+  await startServer(home);
+}, 60_000);
 
 afterAll(() => {
   proc?.kill();
