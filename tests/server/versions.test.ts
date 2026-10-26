@@ -44,6 +44,34 @@ describe('versions.ts', () => {
   });
 });
 
+describe("the Brain's changes", () => {
+  it('each answer is a new version, even right after the last one; one answer changing it twice is one', () => {
+    skills.saveSkill({ name: 'Brain edits', description: 'Use for testing.', body: 'One.' });
+    applyActions([{ do: 'update_skill', skill: 'brain-edits', append: 'Two.' }]);
+    applyActions([{ do: 'update_skill', skill: 'brain-edits', append: 'Three.' }]);
+    applyActions([
+      { do: 'update_skill', skill: 'brain-edits', append: 'Four.' },
+      { do: 'update_skill', skill: 'brain-edits', append: 'Five.' },
+    ]);
+    const h = historyOf('skill', 'brain-edits');
+    expect(h.versions.map((v) => v.by)).toEqual(['brain', 'brain', 'brain']);
+    expect(listVersions<{ body: string }>(skills.skillVersionsDir('brain-edits')).map((v) => v.item.body.split(/\s+/).pop())).toEqual(['Three.', 'Two.', 'One.']);
+    // your edits close together on the page are still one change
+    skills.saveSkill({ slug: 'brain-edits', name: 'Brain edits', description: 'Use for testing.', body: 'Six.' });
+    skills.saveSkill({ slug: 'brain-edits', name: 'Brain edits', description: 'Use for testing.', body: 'Seven.' });
+    expect(historyOf('skill', 'brain-edits').versions.map((v) => v.by)).toEqual(['you', 'brain', 'brain', 'brain']);
+  });
+
+  it('the same for teams', () => {
+    const a = newAgent({ name: 'Brain team member' });
+    applyActions([{ do: 'create_team', name: 'Brain edited team', members: [{ agent: a.id }] }]);
+    const t = workflows.list().find((w) => w.name === 'Brain edited team')!;
+    applyActions([{ do: 'update_team', team: t.id, description: 'Goal one' }]);
+    applyActions([{ do: 'update_team', team: t.id, description: 'Goal two' }]);
+    expect(historyOf('team', t.id).versions.map((v) => v.by)).toEqual(['brain', 'brain']);
+  });
+});
+
 describe('versions made close together (review fixes)', () => {
   it('a deletion in the same millisecond as an edit is still the newest version', () => {
     vi.useFakeTimers({ toFake: ['Date'] });

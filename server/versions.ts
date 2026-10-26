@@ -26,14 +26,17 @@ export interface Version<T = unknown> {
 
 // Keep this many versions per item.
 export const VERSIONS_KEPT = 50;
-// Edits by the same one this close together are one change: the version from before the first is kept.
+// Edits on the page by the same one this close together are one change: the version from before the
+// first is kept. (A run of withActor, e.g. one answer of the Brain, is one change of its own instead.)
 export const COALESCE_MS = 3 * 60_000;
 
 // ---------- who is changing things ----------
-const actor = new AsyncLocalStorage<{ by: Actor; note?: string; force?: boolean }>();
-/** Run fn as a change by `by` (e.g. the Brain's actions). force: always keep a version (a restore). */
+// kept: the version folders this change has already kept a version in
+const actor = new AsyncLocalStorage<{ by: Actor; note?: string; force?: boolean; kept: Set<string> }>();
+/** Run fn as one change by `by` (e.g. one answer of the Brain): each item it changes gets one version,
+ *  however soon after the last one. force: always keep a version (a restore). */
 export function withActor<T>(by: Actor, fn: () => T, { note, force = false }: { note?: string; force?: boolean } = {}): T {
-  return actor.run({ by, note, force }, fn);
+  return actor.run({ by, note, force, kept: new Set() }, fn);
 }
 export const currentActor = (): Actor => actor.getStore()?.by || 'you';
 
@@ -88,7 +91,8 @@ export function getVersion<T>(dir: string, id: string): Version<T> | null {
 }
 
 /** Keep `before` (what an item was until now) in dir, unless it's the same as `after` or part of the
- *  same run of edits as the last version. Returns the version kept, or null. */
+ *  same change as the last version (the same withActor run, or else edits close together). Returns the
+ *  version kept, or null. */
 export function keepVersion<T>(dir: string, before: T, after: T | null, { ignore = [], deleted = false }: { ignore?: readonly string[]; deleted?: boolean } = {}): Version<T> | null {
   if (!before) return null;
   if (!deleted && after && canonical(before, ignore) === canonical(after, ignore)) return null;
@@ -96,9 +100,10 @@ export function keepVersion<T>(dir: string, before: T, after: T | null, { ignore
   const by = ctx?.by || 'you';
   const last = listVersions<T>(dir)[0];
   const age = last ? Date.now() - last.at : Infinity;
-  if (!deleted && !ctx?.force && last && !last.deleted && last.by === by && age >= 0 && age < COALESCE_MS) return null;
+  if (!deleted && !ctx?.force && (ctx ? ctx.kept.has(path.resolve(dir)) : last && !last.deleted && last.by === by && age >= 0 && age < COALESCE_MS)) return null;
   const v: Version<T> = { id: uid('v'), at: stamp(last?.at), by, ...(deleted ? { deleted: true } : {}), ...(ctx?.note ? { note: ctx.note } : {}), item: before };
   writeJSON(path.join(ensureDir(dir), `${v.id}.json`), v);
+  ctx?.kept.add(path.resolve(dir));
   pruneVersions(dir);
   return v;
 }
