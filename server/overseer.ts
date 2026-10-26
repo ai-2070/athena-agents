@@ -14,7 +14,10 @@ import { listApprovals } from './approvals.ts';
 import type { BrainVerdict } from './approvals.ts';
 import { think, brainModel, parseJSON } from './brain.ts';
 import { readJSON, writeJSON, run, dataPath } from './util.ts';
-import type { Agent, Approval, BrainAnswer, BrainDelegate, BrainDone, Project, Team } from '../shared/types.ts';
+import { listRoutines, saveRoutine, deleteRoutine, getRoutine, startRoutine, routineTargets } from './routines.ts';
+import { listSkills } from './skills.ts';
+import { cleanSchedule, scheduleText } from '../shared/routines.ts';
+import type { Agent, Approval, BrainAnswer, BrainDelegate, BrainDone, Project, Routine, Team } from '../shared/types.ts';
 
 /** One line of the Brain chat history (data/projects/<id>/brain-chat.json). */
 export interface BrainChatMessage {
@@ -55,11 +58,20 @@ export interface BrainAction {
   to?: string;
   id?: string;
   message?: unknown;
+  /** routines: which one (id, exact name, or 'new' for the one made just before) */
+  routine?: string;
+  text?: unknown;
+  schedule?: unknown;
+  enabled?: unknown;
+  input?: unknown;
 }
 
 const SKIP = new Set(['node_modules', '.git', '.next', 'dist', 'build', '.venv', '__pycache__', '.cache', '.claude']);
 const TEXT = /\.(md|txt|json|ya?ml|toml|csv|js|ts|py|html|css)$/i;
 const HISTORY_KEEP = 24;
+// How much of a routine's text the Brain sees. A longer routine's text can't be rewritten by the
+// Brain (it would lose the part it never saw); its name, schedule and so on still can.
+export const ROUTINE_TEXT_SHOWN = 4000;
 
 const ago = (ts: number | null | undefined) => {
   if (!ts) return '';
@@ -181,13 +193,21 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     const st = teamState(t.id);
     const thread = getThread(t.id, 4).messages;
     const name = (id: string) => (id === 'user' ? 'You' : byId.get(id)?.name || id);
-    const sched = t.schedule && t.schedule.type !== 'none' ? ` | routine: ${t.schedule.type} ${t.schedule.time || ''}${t.enabled === false ? ' (off)' : ''}` : '';
+    const sched = t.schedule && t.schedule.type !== 'none' ? ` | schedule: ${t.schedule.type} ${t.schedule.time || ''}${t.enabled === false ? ' (off)' : ''}` : '';
     return [
       `- id=${t.id} | ${t.name} | goal: ${t.description || '-'} | members: ${t.members.map((id) => `${name(id)}${t.lead === id ? ' (lead)' : ''}`).join(', ') || 'none'}${sched}`,
       `  NOW: ${st.working.length ? `working: ${st.working.map(name).join(', ')}` : 'quiet'}${st.queued.length ? ` | queued: ${st.queued.map(name).join(', ')}` : ''}`,
       ...thread.map((m) => `  [${ago(m.ts)}] ${name(m.from)}: ${cut(m.text, 160)}`),
     ].join('\n');
   });
+
+  const routineLines = listRoutines().map((r) => {
+    const names = (kind: string) => r.mentions.filter((m) => m.kind === kind).map((m) => `${m.name}${m.missing ? ' (deleted)' : ''}`).join(', ') || '-';
+    const sched = r.schedule && r.schedule.type !== 'none' ? `${scheduleText(r.schedule)}${r.enabled ? '' : ' (off)'}` : 'run by hand';
+    const last = r.lastRun ? `${r.lastRun.status} ${ago(r.lastRun.createdAt)}` : 'never run';
+    return `- id=${r.id} | ${r.name} | ${sched} | agents: ${names('agent')} | teams: ${names('team')} | skills: ${names('skill')} | last run: ${last}\n  text: ${r.text.length > ROUTINE_TEXT_SHOWN ? `${r.text.slice(0, ROUTINE_TEXT_SHOWN)}… (${r.text.length - ROUTINE_TEXT_SHOWN} more characters not shown: too long to rewrite here, the user edits its text on the Routines page)` : r.text.trim() || '(empty)'}`;
+  });
+  const skillLines = listSkills().map((sk) => `- ${sk.name}: ${cut(sk.description, 120)}`);
 
   const approvals = listApprovals();
   const pendingPosts = outbox.list().filter((x) => x.status === 'pending');
@@ -206,6 +226,8 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     fileBudget ? `\nKEY FILES:\n${keyFiles(root, fileBudget) || '(none)'}` : '',
     `\nAGENTS (${all.length}, ${live.length} running now):\n${agentLines.join('\n') || '(none)'}`,
     `\nTEAMS (${teams.length}; a team is a group chat of agents with a shared goal):\n${teamLines.join('\n') || '(none)'}`,
+    `\nROUTINES (${routineLines.length}; saved instructions run by hand or on a schedule):\n${routineLines.join('\n') || '(none)'}`,
+    `\nSKILLS (${skillLines.length}; mention one in a routine as @Name):\n${skillLines.slice(0, 80).join('\n') || '(none)'}`,
     `\nWAITING FOR THE USER: ${approvals.length} approval(s)${approvals.length ? `: ${approvals.map((x) => `${x.agentName || 'agent'} wants "${cut(x.title, 80)}"`).join('; ')}` : ''} | ${pendingPosts.length} post(s) in the Outbox${pendingPosts.length ? `: ${pendingPosts.map((x) => `${x.platform}: "${cut((x.parts || [x.text]).join(' '), 70)}"`).join('; ')}` : ''}`,
     `\nRECENT ACTIVITY:\n${recent.join('\n') || '(nothing yet)'}`,
   ]
@@ -243,7 +265,8 @@ Kinds of request:
 1. A question (about the project, its files, progress, who is doing what, what is stuck, what next): just answer it.${canRead ? ' You can open files in the project folder with Read, Glob and Grep (you work inside it) when the answer needs what is in a file. Never change files yourself (PROJECT.md goes through the write_project_md action).' : ''}
 2. Change the roster: create a team, add or remove agents, change a team's goal, lead or access, hire an agent. Do it with actions.
 3. Set up a project (the user just created it, or asks you to set it up): study the folder and its key files, then ask the user up to 5 short, numbered, specific questions you need answered (goals, audience, deliverables, style and voice, accounts and programs, deadlines). Ask, don't build, until you know enough. Once you do: write PROJECT.md with write_project_md and create the teams and agents the project needs, then tell the user what you set up and what each team will do. Keep PROJECT.md up to date whenever the user tells you something new about the project.
-4. Work to be done (make, write, research, draft a post or DM, edit a video, generate images, fix code…): never do it yourself. Delegate it to the best existing team or agent. If nothing fits, build what's needed first (a team or an agent) and then delegate to it in the same answer.
+4. Routines: work the user wants done again and again, or on a schedule ("every morning…", "each Friday…", "set up a routine that…"), or changes to an existing routine. Create, update, run or delete them with the routine actions. A routine's text says what to do and @mentions, by their exact names from the SNAPSHOT, who does it (one or more agents and/or teams) and the skills they use (e.g. "@Researcher finds the 3 biggest AI stories, then @Content Team writes a post using @Brand voice."). Every mentioned agent and team gets the routine; an agent in a mentioned team gets it in that team chat. Mention at least one agent or team. If the right agent or team doesn't exist, build it first in the same answer, then mention it by name.
+5. Work to be done (make, write, research, draft a post or DM, edit a video, generate images, fix code…): never do it yourself. Delegate it to the best existing team or agent. If nothing fits, build what's needed first (a team or an agent) and then delegate to it in the same answer.
 
 A team is a group chat of 2-6 agents with a shared goal. A lead (planner type) coordinates when there are 3+ members; members hand work to each other by @mentioning. Prefer agents the user already has; otherwise hire from the LIBRARY (pick the slugs that match best); only invent a new agent when nothing in the library fits.
 
@@ -259,11 +282,16 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"hire","members":[MEMBER,…]}   (agents on the bench, no team)
 {"do":"write_project_md","content":"the whole PROJECT.md in markdown"}   (the project brief every agent reads: what it is, goals, audience, deliverables, voice and style, accounts and programs, the teams and who does what, open questions)
 {"do":"delegate","to":"team"|"agent","id":"<id, or 'new' for the team/agent created just before>","message":"a clear brief with the context from the snapshot they need"}
+{"do":"create_routine","name":"…","description":"one line","text":"what to do, with @Name mentions","schedule":SCHEDULE,"enabled":true|false}
+{"do":"update_routine","routine":"<routine id>","name":"…","description":"…","text":"the whole new text","schedule":SCHEDULE,"enabled":true|false}   (only the fields that change)
+{"do":"run_routine","routine":"<routine id, or 'new'>","input":"optional extra for this run"}
+{"do":"delete_routine","routine":"<routine id>"}
+SCHEDULE is {"type":"none"} (run by hand) or {"type":"daily","time":"HH:MM","days":[0-6, 0 = Sunday; leave out for every day]} or {"type":"interval","minutes":N}. Set "enabled":true when the user wants it to run on its own.
 MEMBER is {"agent":"<existing agent id>"} or {"library":"<slug>"} or {"starter":"<name>"} or {"new":{"name":"…","emoji":"…","specialty":"one line","instructions":"5-10 sentences, second person","tools":["ids"]}}
 Tool group ids: ${GROUP_IDS.join(', ')}
 MCP servers: ${Object.keys(listServers()).join(', ') || '(none)'}
 
-Rules: at most one delegate per answer. Never delete agents or teams (removing from a team is fine). Posts and DMs always wait for the user's approval in the Outbox. Say "nobody is working right now" when that's true. Never invent status, files or numbers.`;
+Rules: at most one delegate per answer. Never delete agents or teams (removing from a team is fine). Delete a routine only when the user clearly asks for that routine to be deleted. Posts and DMs always wait for the user's approval in the Outbox. Say "nobody is working right now" when that's true. Never invent status, files or numbers.`;
 
 export function parseActions(text: string): { answer: string; actions: BrainAction[] } {
   const m = /```actions\s*([\s\S]*?)```/i.exec(text);
@@ -292,6 +320,26 @@ export function applyActions(actions: BrainAction[], p: Project = activeProject(
   let delegate: BrainDelegate | null = null;
   let lastTeam: string | null = null;
   let lastAgent: string | null = null;
+  let lastRoutine: string | null = null;
+  const findRoutine = (ref: string | null | undefined): Routine | null => {
+    if (!ref) return null;
+    if (ref === 'new') return lastRoutine ? getRoutine(lastRoutine) : null;
+    const byName = listRoutines().find((r) => r.name.toLowerCase() === String(ref).toLowerCase());
+    return getRoutine(ref) || (byName ? getRoutine(byName.id) : null);
+  };
+  // what a routine does, in one line for the chat
+  const routineLine = (r: Routine): string => {
+    const t = routineTargets(r);
+    const who = [...t.teams.map((x) => x.name), ...t.agents.map((a) => a.name)];
+    const skills = r.mentions.filter((m) => m.kind === 'skill' && !m.missing).map((m) => m.name);
+    const when = r.schedule && r.schedule.type !== 'none' ? `${scheduleText(r.schedule)}${r.enabled ? '' : ', schedule off'}` : 'run by hand';
+    return `${when}; ${who.length ? `for ${who.join(', ')}` : 'nobody mentioned yet'}${skills.length ? `; skills: ${skills.join(', ')}` : ''}`;
+  };
+  // a routine nobody can run: say so, so it can be fixed in the next message
+  const checkRoutine = (r: Routine) => {
+    const t = routineTargets(r);
+    if (!t.teams.length && !t.agents.length) done.push({ kind: 'error', text: `"${r.name}" doesn't mention an agent or team by its exact name yet, so it can't run.`, routineId: r.id });
+  };
   const findTeam = (ref: string | null | undefined): Team | null => {
     if (!ref) return null;
     // normalized: an old step list gets its members from its agent steps
@@ -433,6 +481,54 @@ export function applyActions(actions: BrainAction[], p: Project = activeProject(
         fs.writeFileSync(file, `${content.slice(0, 60000)}\n`);
         log('project', `The Brain wrote PROJECT.md for "${p.name}"`);
         done.push({ kind: 'file', text: 'Wrote PROJECT.md in the project folder', file });
+      } else if (kind === 'create_routine') {
+        const text = String(act.text || '').trim();
+        if (!text) throw new Error('no text for the routine');
+        const r = getRoutine(saveRoutine({
+          name: String(act.name || 'New routine').slice(0, 120),
+          description: String(act.description || ''),
+          text,
+          schedule: cleanSchedule(act.schedule),
+          enabled: act.enabled === true,
+        }).id)!;
+        lastRoutine = r.id;
+        log('routine', `The Brain made the routine "${r.name}"`);
+        done.push({ kind: 'routine', text: `Made the routine "${r.name}" (${routineLine(r)})`, routineId: r.id });
+        checkRoutine(r);
+      } else if (kind === 'update_routine') {
+        const old = findRoutine(act.routine || act.id);
+        if (!old) throw new Error(`no routine "${act.routine || act.id || ''}"`);
+        const patch: Partial<Routine> = {};
+        const changed: string[] = [];
+        if (act.name) (patch.name = String(act.name).slice(0, 120)), changed.push('name');
+        if (act.description !== undefined) (patch.description = String(act.description || '')), changed.push('description');
+        if (act.text) {
+          // the Brain only saw the start of a long routine: rewriting it would drop the rest
+          if (old.text.length > ROUTINE_TEXT_SHOWN) throw new Error(`"${old.name}" is too long to rewrite here (the Brain sees only the start). Edit its text on the Routines page.`);
+          patch.text = String(act.text);
+          changed.push('what to do');
+        }
+        if (act.schedule !== undefined) (patch.schedule = cleanSchedule(act.schedule)), changed.push('schedule');
+        if (act.enabled !== undefined) (patch.enabled = act.enabled === true), changed.push(act.enabled === true ? 'schedule on' : 'schedule off');
+        const r = getRoutine(saveRoutine(patch, old.id).id)!;
+        lastRoutine = r.id;
+        log('routine', `The Brain updated the routine "${r.name}" (${changed.join(', ')})`);
+        done.push({ kind: 'routine', text: `Updated "${r.name}": ${changed.join(', ') || 'nothing changed'} (${routineLine(r)})`, routineId: r.id });
+        checkRoutine(r);
+      } else if (kind === 'run_routine') {
+        const r = findRoutine(act.routine || act.id);
+        if (!r) throw new Error(`no routine "${act.routine || act.id || ''}"`);
+        const t = routineTargets(r);
+        if (!t.teams.length && !t.agents.length) throw new Error(`"${r.name}" doesn't mention an agent or team, so it can't run`);
+        // started, not waited for: each agent and team works in its own chat
+        void startRoutine(r.id, { input: String(act.input || '').slice(0, 20000) }).catch((e: unknown) => log('error', `The Brain couldn't run "${r.name}": ${(e as Error).message}`));
+        done.push({ kind: 'routine', text: `Started the routine "${r.name}" for ${[...t.teams.map((x) => x.name), ...t.agents.map((a) => a.name)].join(', ')}`, routineId: r.id });
+      } else if (kind === 'delete_routine') {
+        const r = findRoutine(act.routine || act.id);
+        if (!r) throw new Error(`no routine "${act.routine || act.id || ''}"`);
+        deleteRoutine(r.id);
+        log('routine', `The Brain deleted the routine "${r.name}"`);
+        done.push({ kind: 'routine', text: `Deleted the routine "${r.name}"` });
       } else if (kind === 'delegate' && !delegate) {
         const to = act.to === 'agent' ? 'agent' : 'branch';
         let id: string | null | undefined = act.id;

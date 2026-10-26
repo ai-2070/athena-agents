@@ -49,6 +49,26 @@ describe('auto-save into the project folder', () => {
     expect(old.agents).toHaveLength(2);
   });
 
+  it('keeps a backup when only a routine was deleted, and brings routines back from the folder', async () => {
+    const { saveRoutine, deleteRoutine } = await import('../../server/routines.ts');
+    const p = await createProject({ name: 'Routine backups', mode: 'new', folder: folder('routine-backups') });
+    newAgent({ name: 'Keeper' });
+    const r1 = saveRoutine({ name: 'Daily', text: '@Keeper checks in.' });
+    saveRoutine({ name: 'Weekly', text: '@Keeper sums up.' });
+    sync.saveProject(p.id);
+    deleteRoutine(r1.id);
+    sync.saveProject(p.id);
+    const dir = path.join(p.brainPath, '.dashboard');
+    const backups = fs.readdirSync(path.join(dir, 'backups'));
+    expect(backups.length).toBe(1);
+    expect(JSON.parse(fs.readFileSync(path.join(dir, 'backups', backups[0]), 'utf8')).routines.map((x: { name: string }) => x.name).sort()).toEqual(['Daily', 'Weekly']);
+    expect(JSON.parse(fs.readFileSync(path.join(dir, 'project.json'), 'utf8')).routines.map((x: { name: string }) => x.name)).toEqual(['Weekly']);
+    // the folder opened as another project brings the routine back
+    const copy = await createProject({ name: 'Routine copy', mode: 'existing', folder: p.brainPath });
+    expect(sync.restoreInto(copy.id, p.brainPath)).toMatchObject({ agents: 1 });
+    expect(fs.readdirSync(dataPath('projects', copy.id, 'routines'))).toHaveLength(1);
+  });
+
   it('opening a saved folder as a new project brings its agents and teams back', async () => {
     const dir = folder('round-trip');
     const p = await createProject({ name: 'Round trip', mode: 'new', folder: dir });
