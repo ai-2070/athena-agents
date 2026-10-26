@@ -35,7 +35,7 @@ interface StarterListing {
 }
 /** GET /api/library */
 interface LibraryIndex {
-  agency: { installed: boolean; agents: AgencyListing[] };
+  agency: { agents: AgencyListing[] };
   hermes: HermesProfile[];
   claude: ClaudeSubagentListing[];
   starters: StarterListing[];
@@ -147,24 +147,6 @@ function drawStarters(body: HTMLElement) {
 }
 
 function drawAgency(body: HTMLElement) {
-  if (!lib!.agency.installed) {
-    const btn = h('button.btn', {
-      onclick: async () => {
-        btn.disabled = true;
-        btn.textContent = 'Downloading…';
-        const r = await attempt(() => POST('/library/install'));
-        if (r) {
-          lib = await GET<LibraryIndex>('/library');
-          draw();
-        } else {
-          btn.disabled = false;
-          btn.textContent = 'Download the library';
-        }
-      },
-    }, 'Download the library');
-    mount(body, h('div.empty.box', h('p', 'The Agency is a free collection of 270+ specialist agents (marketing, engineering, design, game dev, sales and more) from github.com/msitarzewski/agency-agents.'), btn));
-    return;
-  }
   const divisions = [...new Map(lib!.agency.agents.map((a) => [a.division, a.divisionLabel])).entries()];
   const grid = h('div.cards');
   const fill = () => {
@@ -200,7 +182,6 @@ function drawAgency(body: HTMLElement) {
       divisions.map(([id, label]) => h(`button.chip${division === id ? '.on' : ''}`, { onclick: () => ((division = id), draw()) }, label)),
     ),
     h('div.mt', grid),
-    h('div.row.mt-lg', h('button.btn.ghost.small', { onclick: () => attempt(() => POST<{ message: string }>('/library/install'), (r) => r.message).then(async () => ((lib = await GET<LibraryIndex>('/library')), draw())) }, 'Update library')),
   );
   fill();
   setTimeout(() => search.focus(), 30);

@@ -1,8 +1,8 @@
-// Agent library: The Agency (msitarzewski/agency-agents), your Hermes profiles and your Claude Code subagents.
+// Agent library: The Agency (msitarzewski/agency-agents, bundled in library/agency-agents), your Hermes profiles and your Claude Code subagents.
 // Plus creating, hiring and exporting agents.
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, dataPath, exists, listDirs, listFiles, parseFrontmatter, readJSON, run, slugify, uid, ensureDir } from './util.ts';
+import { HOME, ROOT, exists, listDirs, listFiles, parseFrontmatter, readJSON, slugify, uid, ensureDir } from './util.ts';
 import { agents, getSettings, log } from './store.ts';
 import { listProfiles } from './engines/hermes.ts';
 import { isEffort } from '../shared/effort.ts';
@@ -35,39 +35,25 @@ export type Starter = Pick<Agent, 'name' | 'emoji' | 'specialty' | 'systemPrompt
 
 type DivisionInfo = { id?: string; slug?: string; dir?: string; label?: string };
 
-const AGENCY_DIR = dataPath('library', 'agency-agents');
-const AGENCY_REPO = 'https://github.com/msitarzewski/agency-agents.git';
+// The Agency comes with the dashboard: library/agency-agents/ in this repo is a copy of the divisions of
+// msitarzewski/agency-agents (its README.md says which commit), so the Library works with no download.
+const AGENCY_DIR = path.join(ROOT, 'library', 'agency-agents');
 const SKIP_DIRS = new Set(['scripts', 'examples', 'integrations', '.github', 'node_modules']);
-
-export function agencyInstalled(): boolean {
-  return exists(path.join(AGENCY_DIR, 'README.md'));
-}
-
-export async function installAgency(): Promise<string> {
-  if (agencyInstalled()) {
-    const r = await run('git', ['-C', AGENCY_DIR, 'pull', '--ff-only'], { timeout: 120000 });
-    agencyCache = null;
-    return r.code === 0 ? 'Library updated.' : `Update failed: ${r.stderr.trim()}`;
-  }
-  ensureDir(path.dirname(AGENCY_DIR));
-  const r = await run('git', ['clone', '--depth', '1', AGENCY_REPO, AGENCY_DIR], { timeout: 300000 });
-  agencyCache = null;
-  if (r.code !== 0) throw new Error(`Couldn't download the library: ${r.stderr.trim()}`);
-  log('library', 'Downloaded The Agency agent library');
-  return 'Library downloaded.';
-}
+// The repo's own notes (README.md, README_zh.md, CONTRIBUTING.md, SECURITY.md). Matched whole: the security
+// division's agents are named security-*.md.
+const NOT_AGENT = /^(?:(?:README|CONTRIBUTING)(?:[._-].*)?|SECURITY|LICENSE)\.md$/i;
 
 let agencyCache: AgencyAgent[] | null = null;
 export function agencyAgents(): AgencyAgent[] {
   if (agencyCache) return agencyCache;
-  if (!agencyInstalled()) return [];
+  if (!exists(AGENCY_DIR)) return [];
   const divisions = readJSON<{ divisions?: DivisionInfo[] | Record<string, DivisionInfo> }>(path.join(AGENCY_DIR, 'divisions.json'), {});
   const raw = divisions.divisions || {};
   const labels: Record<string, DivisionInfo> = Array.isArray(raw) ? Object.fromEntries(raw.map((d) => [d.id || d.slug || d.dir, d] as [string, DivisionInfo])) : raw;
   const known = new Set(Object.keys(labels));
   const out: AgencyAgent[] = [];
   const visit = (dir: string, division: string) => {
-    for (const f of listFiles(dir, (n) => n.endsWith('.md') && !/^(README|CONTRIBUTING|LICENSE|SECURITY)/i.test(n))) {
+    for (const f of listFiles(dir, (n) => n.endsWith('.md') && !NOT_AGENT.test(n))) {
       const file = path.join(dir, f);
       let text = '';
       try {
@@ -107,7 +93,7 @@ export function claudeSubagents(): ClaudeSubagent[] {
 
 export async function libraryIndex() {
   return {
-    agency: { installed: agencyInstalled(), agents: agencyAgents().map(({ file, ...a }) => a) },
+    agency: { agents: agencyAgents().map(({ file, ...a }) => a) },
     hermes: await listProfiles().catch(() => []),
     claude: claudeSubagents().map(({ file, ...a }) => a),
   };

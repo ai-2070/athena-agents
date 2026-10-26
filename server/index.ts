@@ -523,7 +523,6 @@ post<{ withAgents?: unknown } | null>('/api/workflows/:id/clone', async ({ id },
 
 // ---------- library ----------
 get('/api/library', async () => ({ ...(await library.libraryIndex()), starters: library.STARTERS.map(({ name, emoji, specialty }) => ({ name, emoji, specialty })) }));
-post('/api/library/install', async () => ({ message: await library.installAgency() }));
 get('/api/library/agency/:slug', async ({ slug }) => {
   const a = need(library.agencyAgents().find((x) => x.slug === slug));
   return { ...a, body: fs.readFileSync(a.file, 'utf8') };

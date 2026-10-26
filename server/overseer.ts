@@ -341,7 +341,7 @@ const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a
 // The library the Brain can hire from (compact: slug | name).
 function catalog() {
   const lib = agencyAgents().map((a) => `${a.slug} | ${a.name}`);
-  return `LIBRARY (The Agency, hire with {"library":"<slug>"}):\n${lib.join('\n') || '(not downloaded)'}\n\nSTARTERS (hire with {"starter":"<name>"}):\n${STARTERS.map((x) => `${x.name} | ${x.specialty}`).join('\n')}`;
+  return `LIBRARY (The Agency, hire with {"library":"<slug>"}):\n${lib.join('\n') || '(none)'}\n\nSTARTERS (hire with {"starter":"<name>"}):\n${STARTERS.map((x) => `${x.name} | ${x.specialty}`).join('\n')}`;
 }
 
 // The Brain's own skills for its instructions: each up to OWN_SKILL_MAX, all together up to

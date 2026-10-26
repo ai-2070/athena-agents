@@ -94,7 +94,7 @@ Projects keep separate agents, teams and chats. Use the project name at the top 
 | **Station** | The live 3D view of the project. The Brain sits in the middle, with agents grouped into team pods. Click to open panels and chats; drag a team to move it or Shift+drag to rotate it. |
 | **Brain chat** | Project-wide questions, building teams, changing skills and routines, switching models, stopping work, and handing off work. Available from every page. |
 | **Agents** | Agent instructions, knowledge, MEMORY.md, model and effort, autonomy, tools, MCP servers, skills and workspace. Star models in the picker to keep them in Favorites. |
-| **Library** | Ready-made starters, The Agency specialists, Hermes profiles, Claude Code subagents and your saved presets. |
+| **Library** | Ready-made starters, The Agency's 270+ specialists (they come with the dashboard, nothing to download), Hermes profiles, Claude Code subagents and your saved presets. |
 | **Skills** | Reusable instructions, their assignments, earlier versions and recently deleted skills. |
 | **Routines** | Repeatable jobs, schedules and the results of each run. |
 | **Outbox** | X and Reddit drafts waiting to be approved, edited or rejected. |

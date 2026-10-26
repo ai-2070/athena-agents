@@ -1,5 +1,5 @@
 node_modules/
-# Everything personal lives here: keys, account tokens, chats, agents, library clone.
+# Everything personal lives here: keys, account tokens, chats, agents.
 data/
 *.log
 # Design tool cache

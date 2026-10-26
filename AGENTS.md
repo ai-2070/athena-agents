@@ -42,6 +42,7 @@ CI (`.github/workflows/ci.yml`) runs typecheck, test and build on ubuntu and win
 | `web/views/` | One module per page (`station.ts` is the 3D map, three.js) |
 | `public/` | `index.html` and CSS. `public/dist` is build output, never edit it |
 | `skills/` | Skill folders that come with the dashboard (`storytold`, `oomol`, `composio`), copied unchanged from GitHub: each folder's `README.md` says from where and which commit. `BUNDLED` in `server/skills.ts` lists them; `ensureBuiltinSkills` adds them to the library |
+| `library/agency-agents/` | The Agency's agent files (the Library's specialists), copied unchanged from GitHub: its `README.md` says from where and which commit. `server/library.ts` reads the folder directly |
 | `tests/server`, `tests/web` | Vitest: server in Node, web in happy-dom |
 | `docs/internal/plans/` | Review notes and plans |
 
