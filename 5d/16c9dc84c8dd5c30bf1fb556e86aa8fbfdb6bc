@@ -1,0 +1,32 @@
+public/polish.css
+  s_d7de01d4c8f205::t_1227f46764c007 425-429
+tests/server/skill-assist.test.ts
+  s_d7de01d4c8f205::t_1227f46764c007 1-65
+server/index.ts
+  s_d7de01d4c8f205::t_047f01a342fc3d 401-403
+  s_d7de01d4c8f205::t_16106ccd8bc065 392-400,404-410
+server/brain.ts
+  s_d7de01d4c8f205::t_16106ccd8bc065 264-339
+web/views/skills.ts
+  s_d7de01d4c8f205::t_047f01a342fc3d 9,225-286,300,313-314,316-317
+tests/server/api.test.ts
+  s_d7de01d4c8f205::t_1227f46764c007 136-144
+README.md
+  s_d7de01d4c8f205::t_ada647480e86f6 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5d16c9dc84c8dd5c30bf1fb556e86aa8fbfdb6bc",
+  "prompts": {},
+  "sessions": {
+    "s_d7de01d4c8f205": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3448e488-4120-4310-ae07-584ad76fc736",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
