@@ -1,0 +1,51 @@
+tests/server/uistream.test.ts
+  s_438d1f6577d2a3::t_08fb6ac684f97d 9-10,111-178
+server/uistream.ts
+  s_438d1f6577d2a3::t_40e6b92ade1716 40-45,131-185
+web/dock.ts
+  s_438d1f6577d2a3::t_b1bcd5388cfd84 17,42-43,45-54,175,189,291-321,327-330,333,351-352,354,359,361,405-410,412-434,474-487,489-490,492-494,511-512
+  s_438d1f6577d2a3::t_34d3fa497a9cbb 411,435
+tests/web/dock-stream.test.tsx
+  s_438d1f6577d2a3::t_c3763ba97b8865 1-96
+server/index.ts
+  s_438d1f6577d2a3::t_728ae49c9a106b 241-252
+server/util.ts
+  s_438d1f6577d2a3::t_4088d60e509fff 237-238,249,252-275,301,311
+web/chat/transport.ts
+  s_438d1f6577d2a3::t_9ef030ecd63b22 1-41
+web/chat/ChatView.tsx
+  s_438d1f6577d2a3::t_9ef030ecd63b22 16-17,63
+  s_438d1f6577d2a3::t_2129b605c27b51 292-297
+public/polish.css
+  s_438d1f6577d2a3::t_27dcbfcc553f4f 600-602
+server/overseer.ts
+  s_438d1f6577d2a3::t_728ae49c9a106b 862-863,869-873
+  s_438d1f6577d2a3::t_40e6b92ade1716 16
+  s_438d1f6577d2a3::t_45683d9dc808e5 858-861,892,902
+tests/server/brain-stream.test.ts
+  s_438d1f6577d2a3::t_296c8cd6c81dd2 1-52
+web/chat/TurnView.tsx
+  s_438d1f6577d2a3::t_9ef030ecd63b22 8
+  s_438d1f6577d2a3::t_2cbfc15ff04d8d 41-42,44-54
+server/brain.ts
+  s_438d1f6577d2a3::t_3f6c4a0d2e35ef 78-79,96-116,119-120,123-129,134,137-167,171-195,213-224,244-262,265-266,271
+tests/web/chatview.test.tsx
+  s_438d1f6577d2a3::t_2129b605c27b51 141
+  s_438d1f6577d2a3::t_9ef030ecd63b22 170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2c5420b7bfb3cd1890e8d3ea8d1552837c48154b",
+  "prompts": {},
+  "sessions": {
+    "s_438d1f6577d2a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a3e60d4-d433-413c-8c13-3a59a05169f5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
