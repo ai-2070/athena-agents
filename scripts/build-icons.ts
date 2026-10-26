@@ -16,7 +16,7 @@ const UI = [
   'arrow-up', 'arrow-down', 'ellipsis', 'external-link', 'maximize-2', 'radio', 'rotate-ccw', 'circle-check', 'circle-x', 'clock', 'shield-check',
   'key-round', 'server', 'monitor', 'film', 'palette', 'pen-line', 'list-checks', 'circle-pause', 'grip-vertical', 'mouse-pointer-click', 'store',
   'file-text', 'folder-open', 'rotate-cw', 'chevron-right', 'rocket',
-  'puzzle', 'copy', 'bookmark-plus', 'download', 'repeat', 'at-sign', 'paperclip', 'file', 'folder-up', 'upload', 'history', 'archive-restore',
+  'puzzle', 'copy', 'bookmark-plus', 'download', 'repeat', 'at-sign', 'paperclip', 'file', 'folder-up', 'upload', 'archive', 'history', 'archive-restore',
 ];
 const BRANDS: Record<string, string> = {
   gmail: 'gmail', notion: 'notion', 'google drive': 'googledrive', drive: 'googledrive', 'google calendar': 'googlecalendar', calendar: 'googlecalendar',
@@ -50,7 +50,9 @@ for (const name of UI) {
   ui[name] = svg.slice(svg.indexOf('>', svg.indexOf('<svg')) + 1, svg.lastIndexOf('</svg>')).replace(/\s+/g, ' ').trim();
 }
 
-const data: SimpleIcon[] | { icons: SimpleIcon[] } = JSON.parse(fs.readFileSync(path.join(SI, '_data', 'simple-icons.json'), 'utf8'));
+// (simple-icons 16 keeps its data in data/, older versions in _data/)
+const dataFile = [path.join(SI, 'data', 'simple-icons.json'), path.join(SI, '_data', 'simple-icons.json')].find((f) => fs.existsSync(f))!;
+const data: SimpleIcon[] | { icons: SimpleIcon[] } = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
 const list = Array.isArray(data) ? data : data.icons;
 const slugOf = (t: SimpleIcon): string => t.slug || t.title.toLowerCase().replace(/\+/g, 'plus').replace(/\./g, 'dot').replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
 const brands: Record<string, Brand> = {};

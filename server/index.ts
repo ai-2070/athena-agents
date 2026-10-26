@@ -39,6 +39,7 @@ import * as skillInstall from './skillinstall.ts';
 import * as presets from './presets.ts';
 import * as uploads from './uploads.ts';
 import * as routinesMod from './routines.ts';
+import * as backup from './backup.ts';
 import type { RestoreResult } from './projectsync.ts';
 import type { Agent, AppState, Project, ProviderUsage, Routine, SecretKey, Team, VersionKind } from '../shared/types.ts';
 
@@ -71,17 +72,21 @@ interface Route {
   re: RegExp;
   keys: string[];
   handler: Handler<unknown>;
+  /** The body is a file, not JSON: it is streamed to a temporary file, and the handler gets its path. */
+  raw?: boolean;
 }
 
 const routes: Route[] = [];
 // B is the body shape the handler expects: the JSON is trusted to match it here (the HTTP boundary).
-const route = <B>(method: string, pattern: string, handler: Handler<B>) => {
+const route = <B>(method: string, pattern: string, handler: Handler<B>, raw = false) => {
   const keys: string[] = [];
   const re = new RegExp('^' + pattern.replace(/:(\w+)/g, (_, k: string) => (keys.push(k), '([^/]+)')) + '$');
-  routes.push({ method, re, keys, handler: handler as Handler<unknown> });
+  routes.push({ method, re, keys, handler: handler as Handler<unknown>, raw });
 };
 const get = <B = Body>(p: string, h: Handler<B>) => route('GET', p, h);
 const post = <B = Body>(p: string, h: Handler<B>) => route('POST', p, h);
+/** A POST whose body is a file, e.g. a backup: the handler gets the path of a temporary copy (removed afterwards). */
+const postFile = (p: string, h: Handler<string>) => route('POST', p, h, true);
 const put = <B = Body>(p: string, h: Handler<B>) => route('PUT', p, h);
 const del = <B = Body>(p: string, h: Handler<B>) => route('DELETE', p, h);
 
@@ -171,6 +176,33 @@ post('/api/projects/:id/activate', async ({ id }) => {
   return p;
 });
 put<projects.ProjectPatch | null>('/api/projects/:id', async ({ id }, body) => projects.updateProject(id, body || {}));
+// ---------- backups: a project with its agents, chats and knowledge, plus every skill and preset ----------
+post('/api/projects/:id/backup', async ({ id }) => backup.createBackup(id));
+get('/api/backups', async () => ({ dir: backup.backupsRoot(), backups: backup.listBackups() }));
+post('/api/backups/open', async () => {
+  openWithShell(ensureDir(backup.backupsRoot()));
+  return { ok: true };
+});
+// A new project from a backup: the file as the body, or ?file=<name> for one in the backups folder.
+// One at a time: a restore holds the whole unpacked backup in memory.
+let restoring = false;
+postFile('/api/backups/restore', async (_p, upload, q) => {
+  if (restoring) throw new HttpError(409, 'Another backup is being restored. Try again when it is done.');
+  restoring = true;
+  let r: Awaited<ReturnType<typeof backup.restoreBackup>>;
+  try {
+    const bytes = q.file ? backup.readBackupFile(q.file) : fs.readFileSync(upload);
+    if (!bytes.length) throw new Error('Drop a backup file first.');
+    r = await backup.restoreBackup(bytes, { name: q.name, folder: q.folder, description: q.description });
+  } catch (e) {
+    throw new HttpError(400, (e as Error).message);
+  } finally {
+    restoring = false;
+  }
+  projects.touch(r.project.id);
+  launcherPending = false;
+  return { ...projects.withLogo(r.project), restored: r.restored };
+});
 del('/api/projects/:id', async ({ id }) => projects.removeProject(id));
 get('/api/brain', async () => projects.brainInfo());
 // Where things sit on the Station map (per project), e.g. { bench: { x, z } }.
@@ -306,7 +338,9 @@ put<{ title?: unknown; reset?: unknown }>('/api/agents/:id/chats/:cid', async ({
   if (body.reset) {
     c.sessionId = null;
     c.llm = [];
-    c.items.push({ type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', ts: Date.now() });
+    delete c.reseed;
+    delete c.context;
+    c.items.push({ type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', reset: true, ts: Date.now() });
   }
   return chats.save(c);
 });
@@ -316,9 +350,19 @@ post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/mess
   const text = String(body.text || '').trim();
   const attachments = uploads.cleanAttachments(body.attachments);
   if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
+  // "/compact" (or "/compact summary", "/compact instant") compacts the chat instead of sending a message
+  const cmd = attachments.length ? null : /^\/compact(?:\s+(instant|summary))?\s*$/i.exec(text);
+  if (cmd) return compactResult(await engines.compactNow(a, c.id, cmd[1]?.toLowerCase() as 'instant' | 'summary' | undefined));
   const { runId } = engines.startRun(a, c, text, { attachments });
   return { runId };
 });
+// Compaction: the Compact button, the memory meter, and editing the compacted history
+const compactResult = ({ item }: Awaited<ReturnType<typeof engines.compactNow>>) => ({ compacted: !!item, item, ...(item ? {} : { message: 'Nothing to compact yet: the chat is short enough to keep in full.' }) });
+post<{ mode?: unknown }>('/api/agents/:id/chats/:cid/compact', async ({ id, cid }, body) =>
+  compactResult(await engines.compactNow(need(agents.get(id)), cid, body.mode === 'summary' || body.mode === 'instant' ? body.mode : undefined)),
+);
+get('/api/agents/:id/chats/:cid/memory', async ({ id, cid }) => engines.memoryOf(need(agents.get(id)), cid));
+put<{ text?: unknown }>('/api/agents/:id/chats/:cid/compactions/:kid', async ({ id, cid, kid }, body) => engines.editCompaction(id, cid, kid, String(body.text ?? '')));
 post('/api/agents/:id/chats/:cid/stop', async ({ cid }) => {
   engines.stopChat(cid);
   return { ok: true };
@@ -694,30 +738,64 @@ function page(res: http.ServerResponse, status: number, title: string, text: str
 }
 
 // ---------- server ----------
-function readBody(req: http.IncomingMessage): Promise<unknown> {
-  return new Promise<unknown>((resolve, reject) => {
+function readRaw(req: http.IncomingMessage, limit: number): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
     let size = 0;
     const chunks: Buffer[] = [];
     req.on('data', (c: Buffer) => {
       size += c.length;
-      if (size > 25 * 1024 * 1024) {
+      if (size > limit) {
         reject(new HttpError(413, 'Too large'));
         req.destroy();
       } else chunks.push(c);
     });
-    req.on('end', () => {
-      if (!chunks.length) return resolve({});
-      let v: unknown;
-      try {
-        v = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-      } catch {
-        return reject(new HttpError(400, 'Body must be JSON'));
-      }
-      // routes read fields from the body: null or a bare number/string would crash them
-      if (v === null || typeof v !== 'object') return reject(new HttpError(400, 'Body must be a JSON object'));
-      resolve(v);
-    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
+  });
+}
+
+async function readBody(req: http.IncomingMessage): Promise<unknown> {
+  const buf = await readRaw(req, 25 * 1024 * 1024);
+  if (!buf.length) return {};
+  let v: unknown;
+  try {
+    v = JSON.parse(buf.toString('utf8'));
+  } catch {
+    throw new HttpError(400, 'Body must be JSON');
+  }
+  // routes read fields from the body: null or a bare number/string would crash them
+  if (v === null || typeof v !== 'object') throw new HttpError(400, 'Body must be a JSON object');
+  return v;
+}
+// A file sent as the body (a backup), streamed to disk: never more than a backup may be
+const FILE_LIMIT = backup.BACKUP_MAX;
+const RECEIVED = () => ensureDir(dataPath('tmp', 'received'));
+
+function receiveFile(req: http.IncomingMessage, limit: number): Promise<string> {
+  const file = path.join(RECEIVED(), `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}.part`);
+  return new Promise<string>((resolve, reject) => {
+    const out = fs.createWriteStream(file, { flags: 'wx' });
+    let size = 0;
+    let failed = false;
+    const fail = (e: Error) => {
+      if (failed) return;
+      failed = true;
+      req.unpipe(out);
+      out.destroy();
+      fs.rm(file, { force: true }, () => reject(e));
+    };
+    req.on('data', (c: Buffer) => {
+      size += c.length;
+      if (size > limit) {
+        fail(new HttpError(413, 'That file is too big for a backup.'));
+        req.destroy();
+      }
+    });
+    req.on('error', fail);
+    req.on('aborted', () => fail(new HttpError(400, 'The upload was cut off.')));
+    out.on('error', fail);
+    out.on('finish', () => !failed && resolve(file));
+    req.pipe(out);
   });
 }
 
@@ -787,8 +865,18 @@ const server = http.createServer(async (req, res) => {
         const m = r.re.exec(url.pathname);
         if (!m) continue;
         const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
-        const body = req.method === 'GET' || req.method === 'DELETE' ? {} : await readBody(req);
-        const out = await r.handler(params, body, Object.fromEntries(url.searchParams), res);
+        let out: unknown;
+        if (r.raw) {
+          const file = await receiveFile(req, FILE_LIMIT);
+          try {
+            out = await r.handler(params, file, Object.fromEntries(url.searchParams), res);
+          } finally {
+            fs.rmSync(file, { force: true });
+          }
+        } else {
+          const body = req.method === 'GET' || req.method === 'DELETE' ? {} : await readBody(req);
+          out = await r.handler(params, body, Object.fromEntries(url.searchParams), res);
+        }
         if (out === undefined && res.headersSent) return;
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
         return res.end(JSON.stringify(out ?? null));
@@ -856,6 +944,7 @@ const pageReady = exists(path.join(PUBLIC, 'dist', 'app.js'))
       child.on('error', () => done());
     });
 ensureDir(dataPath('outputs'));
+fs.rmSync(dataPath('tmp', 'received'), { recursive: true, force: true }); // uploads cut off by a crash
 internalToken();
 store.migrateLayout();
 wfs.markInterruptedRuns();

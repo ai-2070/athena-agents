@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, h, mount } from '../../web/core.ts';
+import { ago, h, mount, toggleRow } from '../../web/core.ts';
 
 describe('h()', () => {
   it('builds elements from tag.class#id notation', () => {
@@ -46,5 +46,23 @@ describe('ago()', () => {
     expect(ago(Date.now() - 5 * 60_000)).toMatch(/5m/);
     expect(ago(Date.now() - 3 * 3600_000)).toMatch(/3h/);
     expect(ago(null)).toBe('');
+  });
+});
+
+describe('toggleRow()', () => {
+  it('clicking its text flips the switch, and no label sits inside another', () => {
+    const seen: boolean[] = [];
+    const row = toggleRow(false, (on) => seen.push(on), 'Compact long chats automatically');
+    document.body.append(row);
+    const input = row.querySelector('input')!;
+    const text = row.querySelector('label.toggle-text') as HTMLLabelElement;
+    expect(text.htmlFor).toBe(input.id);
+    expect(row.querySelector('label label')).toBeNull();
+    text.click();
+    expect(input.checked).toBe(true);
+    expect(seen).toEqual([true]);
+    // two rows never share an id
+    expect(toggleRow(true, () => {}, 'Other').querySelector('input')!.id).not.toBe(input.id);
+    row.remove();
   });
 });

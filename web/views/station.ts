@@ -3464,6 +3464,7 @@ function drawMiniChat(): void {
           if (i.type === 'tool')
             return h('div.st-msg.tool', { class: i.isError ? 'err' : '' }, i.status === 'running' ? h('span.dot.busy') : h('span', i.isError ? '✕' : '✓'), ` ${i.name}`, i.images?.length ? h('div.st-imgs', i.images.slice(0, 4).map((src) => h('img', { src }))) : null);
           if (i.type === 'error') return h('div.st-msg.err', i.text);
+          if (i.type === 'compaction') return h('div.st-msg.cmp', { title: 'The agent’s memory of the messages above was compacted. Open the full chat to see or edit it.' }, '— COMPACTED —');
           return null;
         })
       : h('p.empty', 'No messages yet.'),
@@ -3631,6 +3632,16 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
       scheduleChat();
     }
   } else if (isEvent(ev, 'activity') && ev.entry && !['run', 'workflow'].includes(ev.entry.kind)) feedPush(ev.entry.text, ev.entry.kind);
+  else if (ev.type === 'compacted' && S.chat?.id && S.chat.id === ev.chatId) {
+    // show the COMPACTED mark where it went
+    const { agentId, id } = S.chat;
+    GET<Chat>(`/agents/${agentId}/chats/${id}`).then((c) => {
+      if (S?.chat?.id === id) {
+        S.chat.items = c.items;
+        drawMiniChat();
+      }
+    }).catch(() => {});
+  }
 }
 
 let chatFrame = false;

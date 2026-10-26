@@ -99,6 +99,29 @@ come to you.
 Posts to X and Reddit always go to the Outbox unless you turn on auto-post for that account; DMs
 always wait for you.
 
+## Chat memory
+
+Long chats fill up the model's memory, so the dashboard compacts them (Settings > General > Chat
+memory). When an agent's memory of a chat reaches **50%** of the model's context window, the older
+messages become a short history the agent keeps reading, and up to the **latest 10 messages**
+(with their tool calls) stay in full, as far as the size budget allows (very long ones are trimmed
+to fit). Both numbers are settings.
+
+- **Instant compaction** (on by default, after
+  [dsh-compaction-instant](https://github.com/TsFreddie/dsh-compaction-instant)): no model call. It
+  keeps the original words, cut to fit: long messages are shortened, a tool call becomes one line,
+  and tool results are left out. Every entry keeps its `[seq N]`, and the agent can read any of them
+  back in full with the `recall_history` tool. Off: the Brain's model writes a summary instead.
+- **Sized by the context window**: everything it keeps grows with the window, so a 1M-token model
+  keeps far more (about 150k tokens of compacted history and up to 250k tokens of recent messages)
+  than a 200k one. Set the window under Context window if your models have 1M and don't say so.
+- Every message stays in the chat for you. A **— COMPACTED —** mark shows where it happened; open it
+  to read what the agent remembers, and edit the latest one. Compact by hand with **Compact** in a
+  chat, or type `/compact` (`/compact summary` for a summary).
+- API-model agents compact between tool steps too, and once more if the model says the chat is too
+  long. Claude Code, Codex and Hermes start a fresh session from the compacted history. When Claude
+  Code compacts its own memory, that is marked too.
+
 ## Data
 
 Everything lives in `data/` (git-ignored): projects (agents, teams, chats, knowledge), skills,
@@ -108,6 +131,18 @@ project, a team or an agent, or mentioned in a routine, with their files) and th
 also auto-saved into `<project folder>/.dashboard` (no keys), so opening that folder elsewhere brings them back.
 Skills the library doesn't have are added; one it already has is never changed, and a different copy from the folder
 is kept as one of its versions.
+
+**Backups.** Project menu > **Back up this project** writes one `.dashbackup` file to
+`My Dashboard Backups` in your home folder (`C:\Users\<you>` on Windows, `~` on macOS and Linux).
+It holds the project's agents, teams, routines, layout, Brain chat, team and agent chats, knowledge
+files, logo, PROJECT.md and notes, plus every skill in your library and every saved preset. No keys
+or tokens. Each kind has a size limit: agent chats 200 MB, knowledge files 50 MB, skills 50 MB,
+PROJECT.md and notes 20 MB. A file that no longer fits is left out, and the "Backup saved" message
+says how many were. To restore: **New project > From backup**, drop the file in (or pick one from the
+backups folder). It becomes a new project in a new folder. Skills and presets you don't have are
+added; a skill you have with the same id but different content is kept, and the backup's copy is
+added as `<id>-restored`. Scheduled teams and routines come back paused, so a copy never runs
+them twice.
 
 ## Security
 

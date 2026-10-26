@@ -197,7 +197,48 @@ export type ChatItem =
   | { type: 'assistant'; text: string; ts?: number }
   | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number }
   | { type: 'error'; text: string; ts?: number }
-  | { type: 'meta'; text: string; ts?: number };
+  /** reset: "Clear memory" (the agent starts fresh after it) */
+  | { type: 'meta'; text: string; ts?: number; reset?: boolean }
+  | CompactionItem;
+
+/** How a compaction was made. instant: the original words, cut to fit (no model call). summary: a model
+ *  wrote a summary. engine: the engine compacted its own memory (Claude Code), so there is no text here. */
+export type CompactionMode = 'instant' | 'summary' | 'engine';
+/** auto: the chat got full. manual: you asked (button or /compact). overflow: the model said it was too long. */
+export type CompactionTrigger = 'auto' | 'manual' | 'overflow';
+
+/** The "--- COMPACTED ---" marker in a chat. From here on the agent remembers the items before it as text
+ *  (the checkpoint), plus the items from upto on word for word. */
+export interface CompactionItem {
+  type: 'compaction';
+  id: string;
+  /** The compacted history the agent sees (you can edit it). Empty for mode "engine". */
+  text: string;
+  mode: CompactionMode;
+  trigger: CompactionTrigger;
+  /** Index of the first item kept word for word (the items before it are in text). */
+  upto: number;
+  /** Rough size of the agent's memory before and after, in tokens. */
+  tokensBefore?: number;
+  tokensAfter?: number;
+  /** Set when you changed text by hand. */
+  editedAt?: number;
+  /** Why it is not what you asked for (e.g. the summary failed, so it is instant). */
+  note?: string;
+  ts?: number;
+}
+
+/** How full the agent's memory of a chat is, as the engine last said (or as estimated). */
+export interface ChatContext {
+  tokens: number;
+  /** the model's context window, when the engine says it */
+  window?: number;
+  /** chat.items.length when this was measured: items after it are not counted yet */
+  items: number;
+  at: number;
+  /** which engine, provider and model measured it ("engine|provider|model"): another one ignores it */
+  by?: string;
+}
 
 export interface Chat {
   id: string;
@@ -208,6 +249,10 @@ export interface Chat {
   sessionId: string | null;
   /** Set when this is the agent's session for a team chat. */
   teamId?: string | null;
+  /** Set after a compaction: the next run starts a new engine session that gets the compacted history first. */
+  reseed?: boolean;
+  /** How full the agent's memory is (see ChatContext). Cleared by a compaction or Clear memory. */
+  context?: ChatContext;
   createdAt: number;
   updatedAt: number;
   _deleted?: boolean;
@@ -231,6 +276,8 @@ export type RunEvent =
   | { kind: 'status'; text: string }
   | { kind: 'model'; model: string }
   | { kind: 'done'; text: string; cost?: number; seconds?: number }
+  /** the engine compacted its own memory (Claude Code): marked in the chat, never sent on as a run event */
+  | { kind: 'compacted'; trigger?: string; tokensBefore?: number }
   | { kind: 'error'; text: string };
 
 export interface ActiveRun {
@@ -304,6 +351,21 @@ export interface BrainSetting {
   model: string;
 }
 
+/** Settings > Chat memory: compacting long chats so the agent never runs out of room. */
+export interface CompactionSetting {
+  /** Compact a chat by itself when the agent's memory of it gets full. */
+  auto: boolean;
+  /** Instant compaction: keeps the original words (cut to fit) and needs no model call. Off: the Brain's model writes a summary. */
+  instant: boolean;
+  /** Compact when the memory reaches this share of the model's context window (10-95). */
+  thresholdPercent: number;
+  /** How many of the latest messages (yours and the agent's) stay in full, with their tool calls.
+   *  The message being answered always does. The rest is compacted. */
+  keepMessages: number;
+  /** The context window in tokens, for every agent. 0: as the engine or model list says (else a safe default). */
+  windowTokens: number;
+}
+
 export interface LookSetting {
   scale: number;
   accent: string;
@@ -329,6 +391,7 @@ export interface Settings {
   telegram: { chatId: string };
   maxToolSteps: number;
   costLimitUsdPerRun: number;
+  compaction: CompactionSetting;
   activeProject?: string;
 }
 

@@ -325,12 +325,20 @@ export function chipSet<V extends string>(options: OptionList<V>, selected: read
   return wrap;
 }
 
-// name: what it switches, for screen readers (when its visible text sits outside it)
-export function toggle(checked: boolean | null | undefined, onChange: (checked: boolean) => void, { name }: { name?: string } = {}): HTMLLabelElement {
+export function toggle(checked: boolean | null | undefined, onChange: (checked: boolean) => void): HTMLLabelElement {
   const input = h('input', { type: 'checkbox', checked });
-  if (name) input.setAttribute('aria-label', name);
   input.addEventListener('change', () => onChange(input.checked));
   return h('label.toggle', input, h('span'));
+}
+
+// A switch with its text next to it. The text is its own <label for=…>, so clicking it flips the
+// switch (a toggle() inside another <label> nests labels, and the outer one then does nothing).
+let toggleIds = 0;
+export function toggleRow(checked: boolean | null | undefined, onChange: (checked: boolean) => void, text: Child, cls = ''): HTMLDivElement {
+  const t = toggle(checked, onChange);
+  const input = t.querySelector('input')!;
+  input.id = `toggle-${++toggleIds}`;
+  return h(`div.row${cls}`, t, h('label.toggle-text', { for: input.id }, text));
 }
 
 export function field(label: Child, control: Child, hint?: Child): HTMLLabelElement {

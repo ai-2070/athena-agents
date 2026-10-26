@@ -89,6 +89,50 @@ describe('API', () => {
   });
 });
 
+describe('backups', () => {
+  it('backs up a project into the home folder and restores it from an upload or from the backups folder', async () => {
+    const st = await (await req('/api/state')).json();
+    const made = await (await req(`/api/projects/${st.project.id}/backup`, { method: 'POST', headers: json })).json();
+    expect(made.file.startsWith(path.join(tmp, 'home', 'My Dashboard Backups'))).toBe(true);
+    const list = await (await req('/api/backups')).json();
+    expect(list.backups.map((b: { name: string }) => b.name)).toContain(made.name);
+
+    const bytes = fs.readFileSync(made.file);
+    // the file as the body: bigger than a JSON body may be is fine too, but it needs the x-dash header
+    expect((await req('/api/backups/restore', { method: 'POST', body: bytes })).status).toBe(403);
+    const up = await req('/api/backups/restore?name=From%20upload', { method: 'POST', headers: { 'x-dash': '1', 'content-type': 'application/octet-stream' }, body: bytes });
+    expect(up.status).toBe(200);
+    const p1 = await up.json();
+    expect(p1).toMatchObject({ name: 'From upload', restored: { agents: made.summary.agents, teams: made.summary.teams } });
+
+    const p2 = await (await req(`/api/backups/restore?file=${encodeURIComponent(made.name)}&name=From%20folder`, { method: 'POST', headers: { 'x-dash': '1' } })).json();
+    expect(p2.name).toBe('From folder');
+    expect(p2.brainPath).not.toBe(p1.brainPath);
+
+    const bad = await req('/api/backups/restore', { method: 'POST', headers: { 'x-dash': '1' }, body: 'not a backup' });
+    expect(bad.status).toBe(400);
+    expect((await bad.json()).error).toMatch(/isn't a dashboard backup/);
+    expect((await req('/api/backups/restore?file=..%2Fsecrets.json', { method: 'POST', headers: { 'x-dash': '1' } })).status).toBe(400);
+    expect((await req('/api/backups/restore', { method: 'POST', headers: { 'x-dash': '1' } })).status).toBe(400);
+  });
+
+  it('streams a restore upload to a temporary file and always removes it', async () => {
+    const received = path.join(tmp, 'data', 'tmp', 'received');
+    // bigger than a JSON body may be: it still arrives (and is turned away as not a backup)
+    const big = Buffer.alloc(30 * 1024 * 1024, 0x61);
+    const r = await req('/api/backups/restore', { method: 'POST', headers: { 'x-dash': '1', 'content-type': 'application/octet-stream' }, body: big });
+    expect(r.status).toBe(400);
+    expect((await r.json()).error).toMatch(/isn't a dashboard backup/);
+    expect(fs.existsSync(received) ? fs.readdirSync(received) : []).toEqual([]);
+    // and after a restore that worked
+    const st = await (await req('/api/state')).json();
+    const made = await (await req(`/api/projects/${st.project.id}/backup`, { method: 'POST', headers: json })).json();
+    const ok = await req('/api/backups/restore?name=Streamed', { method: 'POST', headers: { 'x-dash': '1' }, body: fs.readFileSync(made.file) });
+    expect(ok.status).toBe(200);
+    expect(fs.readdirSync(received)).toEqual([]);
+  });
+});
+
 describe('local-only security', () => {
   it('rejects requests for another host name (DNS rebinding)', async () => {
     const r = await new Promise<number>((resolve) => {
@@ -189,6 +233,24 @@ describe('attached files', () => {
     expect(t.files).toEqual([f.path]);
     const m = await (await req(`/api/teams/${t.id}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: 'Sum it', attachments: [f.path] }) })).json();
     expect(m).toMatchObject({ from: 'user', text: 'Sum it', attachments: [f.path] });
+  });
+
+  it('/compact compacts instead of sending, unless files come with it', async () => {
+    // an API-model agent with no server address: a run fails at once, nothing real is asked
+    const a = await (await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Compactor', engine: 'openai', provider: 'custom' }) })).json();
+    const c = await (await req(`/api/agents/${a.id}/chats`, { method: 'POST', headers: json })).json();
+    const path_ = `/api/agents/${a.id}/chats/${c.id}`;
+    const r = await (await req(`${path_}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: '/compact' }) })).json();
+    expect(r).toMatchObject({ compacted: false, message: expect.stringContaining('Nothing to compact') });
+    expect((await (await req(path_)).json()).items).toEqual([]);
+    const mem = await (await req(`${path_}/memory`)).json();
+    expect(mem).toMatchObject({ tokens: expect.any(Number), window: expect.any(Number), auto: true });
+    // with a file it is an ordinary message
+    const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
+    const f = await (await upload(batch, 'notes.txt', 'hello')).json();
+    const sent = await (await req(`${path_}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: '/compact', attachments: [f.path] }) })).json();
+    expect(sent.runId).toEqual(expect.any(String));
+    expect((await (await req(path_)).json()).items[0]).toMatchObject({ type: 'user', text: '/compact', attachments: [f.path] });
   });
 });
 

@@ -6,6 +6,7 @@ import { attachedImages } from '../uploads.ts';
 import { callTool as callBuiltin, toolDefs, gate } from '../tools.ts';
 import * as mcp from '../mcp.ts';
 import { PORT } from '../util.ts';
+import { checkpointSection, compactAt, compactionSettings, contextWindow, estimateTokens, isOverflowError } from '../compaction.ts';
 import type { FetchError } from '../util.ts';
 import type { Agent, EngineStatus, ProviderId, RunEvent } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
@@ -68,6 +69,8 @@ type ToolRoute = { kind: 'builtin'; name: string } | { kind: 'mcp'; server: stri
 interface Usage {
   cost?: number;
   total_tokens?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
 }
 
 /** One `data:` line of a streamed chat completion. */
@@ -269,7 +272,7 @@ export function expandImages(msgs: LlmMessage[], vision: boolean, maxImages = MA
 
 const hasImages = (msgs: LlmMessage[]) => msgs.some((m) => m.role === 'user' && Array.isArray(m.content) && m.content.some((x) => x.type === 'image_url'));
 
-export async function run({ agent, chat, text, signal, onEvent, depth, runId, systemPrompt, attachments = [] }: EngineRunArgs): Promise<EngineResult> {
+export async function run({ agent, chat, text, signal, onEvent, depth, runId, systemPrompt, attachments = [], compact }: EngineRunArgs): Promise<EngineResult> {
   const provider = providerOf(agent);
   const settings = getSettings();
   const model = agent.model || settings.defaults.openrouterModel;
@@ -284,11 +287,34 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
   let tokens = 0;
   let finalText = '';
   const maxSteps = settings.maxToolSteps || 16;
+  // How full the model's memory is: what it said last (and what was added since), else an estimate.
+  const cs = compactionSettings();
+  const window = await contextWindow(agent, chat);
+  // the last-resort cut below compaction: never more than the window holds, never less than before
+  const historyChars = Math.max(400_000, window * 3);
+  const toolTokens = estimateTokens(JSON.stringify(defs));
+  let measured: { tokens: number; len: number } | null = null;
+  let overflowRetried = false;
+  const used = (): number => {
+    const llm = chat.llm as LlmMessage[];
+    if (measured && measured.len <= llm.length) return measured.tokens + estimateTokens(JSON.stringify(llm.slice(measured.len)));
+    return estimateTokens(systemPrompt + checkpointSection(chat.items)) + toolTokens + estimateTokens(JSON.stringify(trimHistory(llm, historyChars)));
+  };
+  const compactNow = async (trigger: 'auto' | 'overflow'): Promise<boolean> => {
+    if (!compact) return false;
+    const item = await compact({ trigger }).catch(() => null);
+    if (item) measured = null;
+    return !!item;
+  };
 
   for (let step = 0; step < maxSteps; step++) {
+    // nearly full: compact first (before the first request, and between tool steps)
+    if (cs.auto && used() >= compactAt(window, cs)) await compactNow('auto');
+    if (signal.aborted) throw new Error('Stopped.');
     const body = {
       model,
-      messages: [{ role: 'system', content: systemPrompt }, ...expandImages(trimHistory(chat.llm as LlmMessage[]), vision)],
+      // (the compacted history, if any, goes with the instructions: an edit to it counts from the next request)
+      messages: [{ role: 'system', content: systemPrompt + checkpointSection(chat.items) }, ...expandImages(trimHistory(chat.llm as LlmMessage[], historyChars), vision)],
       stream: true,
       ...(defs.length ? { tools: defs } : {}),
       ...(provider.id === 'openrouter' ? { usage: { include: true } } : { stream_options: { include_usage: true } }),
@@ -298,9 +324,17 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
     try {
       r = await streamCompletion({ provider, body, signal, onEvent });
     } catch (e) {
+      // too long for the model: compact once and ask again (first: such an error can mention tools or images)
+      if (cs.auto && !overflowRetried && isOverflowError(e)) {
+        overflowRetried = true;
+        if (await compactNow('overflow')) {
+          step--;
+          continue;
+        }
+      }
       // A model without vision: send the images as notes instead.
       const err = e as FetchError;
-      if (vision && hasImages(trimHistory(chat.llm as LlmMessage[])) && [400, 404, 415, 422].includes(err.status ?? 0) && /image|vision|multimodal|modalit/i.test(err.message)) {
+      if (vision && hasImages(trimHistory(chat.llm as LlmMessage[], historyChars)) && [400, 404, 415, 422].includes(err.status ?? 0) && /image|vision|multimodal|modalit/i.test(err.message)) {
         onEvent({ kind: 'status', text: `${model} can't see images; sending it the file paths instead.` });
         vision = false;
         step--;
@@ -315,13 +349,18 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
       }
       throw e;
     }
+    // how full the memory is now, if this answer says (one without usage keeps the last measurement,
+    // and the messages since then are estimated)
+    let context = 0;
     if (r.usage) {
       cost += Number(r.usage.cost || 0);
       tokens += Number(r.usage.total_tokens || 0);
+      context = Number(r.usage.total_tokens || 0) || Number(r.usage.prompt_tokens || 0) + Number(r.usage.completion_tokens || 0);
     }
     // Some providers leave ids empty; results must match their call.
     for (const c of r.calls) c.id ||= `call_${Math.random().toString(36).slice(2, 12)}`;
     chat.llm.push({ role: 'assistant', content: r.content || null, ...(r.calls.length ? { tool_calls: r.calls } : {}) });
+    if (context) measured = { tokens: context, len: chat.llm.length };
     if (r.content) finalText = r.content;
     if (!r.calls.length) break;
 
@@ -371,10 +410,12 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
     }
     if (step === maxSteps - 1) onEvent({ kind: 'text', text: `\n\n_Stopped after ${maxSteps} tool steps (Settings > Max tool steps)._` });
   }
-  return { text: finalText, cost, tokens };
+  // (not measured, or compacted since: say nothing and let the estimate do)
+  return { text: finalText, cost, tokens, ...(measured ? { context: used() } : {}) };
 }
 
 // Keep the conversation under a rough size budget, cutting oldest turns at a user message boundary.
+// (Compaction normally keeps it far below this; this only matters with automatic compaction off.)
 function trimHistory(msgs: LlmMessage[], maxChars = 400_000): LlmMessage[] {
   let total = 0;
   let start = msgs.length;

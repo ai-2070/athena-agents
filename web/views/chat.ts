@@ -2,6 +2,8 @@
 import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, avatar, engineBadge, navigate, md, ago, lightbox, confirmBox, approvalCard, onState } from '../core.ts';
 import { openTerminal } from './agents.ts';
 import { modelChip, modelInfo } from '../models.ts';
+import { compactionMark } from '../compactmark.ts';
+import { latestCompaction, memoryStart, kTokens } from '../../shared/compaction.ts';
 import { attachTray, attachmentChips, restoreDraft } from '../attach.ts';
 import type { AttachTray } from '../attach.ts';
 import type { AgentDetail } from './agents.ts';
@@ -31,6 +33,18 @@ interface ChatCtx {
   stopBtn: HTMLButtonElement;
   /** Index of the assistant item being streamed into. */
   streaming?: number | null;
+  /** Items before this one are only remembered as the compacted history (shown dimmed). */
+  compactedBefore: number;
+  memoryEl: HTMLSpanElement;
+}
+
+/** GET /api/agents/:id/chats/:cid/memory */
+interface MemoryInfo {
+  tokens: number;
+  window: number;
+  compactAt: number;
+  percent: number;
+  auto: boolean;
 }
 
 let ctx: ChatCtx | null = null;
@@ -83,6 +97,8 @@ function draw(): void {
   ctx!.input = h('textarea', { rows: 2, placeholder: `Message ${agent.name}…` });
   ctx!.sendBtn = h('button.btn', { onclick: send }, 'Send');
   ctx!.stopBtn = h('button.btn.danger.hidden', { onclick: stop }, 'Stop');
+  ctx!.memoryEl = h('span.pill.mem', { title: 'How full the agent’s memory of this chat is' });
+  ctx!.compactedBefore = latestCompaction(chat.items) ? memoryStart(chat.items) : -1;
   ctx!.input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -123,7 +139,7 @@ function draw(): void {
           'div.row.between',
           { style: { padding: '10px 28px', borderBottom: '1px solid var(--line)' } },
           h('div.grow', h('span.mono.dim', { style: { fontSize: '12px' } }, chat.title || 'Chat')),
-          h('div.row', { style: { gap: '6px' } }, h('button.btn.tiny.ghost', { onclick: rename }, 'Rename'), h('button.btn.tiny.ghost', { onclick: resetMemory, title: 'Keep the messages here but start the agent fresh' }, 'Clear memory'), h('button.btn.tiny.danger', { onclick: removeChat }, 'Delete')),
+          h('div.row', { style: { gap: '6px' } }, ctx!.memoryEl, h('button.btn.tiny.ghost', { onclick: () => compactNow(), title: 'Compact the agent’s memory of this chat now: older messages become a short history, the latest stay in full (or type /compact)' }, 'Compact'), h('button.btn.tiny.ghost', { onclick: rename }, 'Rename'), h('button.btn.tiny.ghost', { onclick: resetMemory, title: 'Keep the messages here but start the agent fresh' }, 'Clear memory'), h('button.btn.tiny.danger', { onclick: removeChat }, 'Delete')),
         ),
         ctx!.messages,
         ctx!.approvalsEl,
@@ -138,7 +154,31 @@ function draw(): void {
   scrollDown(true);
   updateRunning();
   drawApprovals();
+  drawMemory();
   setTimeout(() => ctx?.input.focus(), 50);
+}
+
+// The memory meter next to Compact.
+let memorySeq = 0;
+async function drawMemory(): Promise<void> {
+  if (!ctx) return;
+  const my = ++memorySeq;
+  const m = await GET<MemoryInfo>(`/agents/${ctx.agent.id}/chats/${ctx.chat.id}/memory`).catch(() => null);
+  if (!ctx || my !== memorySeq || !m) return;
+  ctx.memoryEl.textContent = `Memory ${m.percent}%`;
+  ctx.memoryEl.classList.toggle('warn', m.tokens >= m.compactAt * 0.8);
+  ctx.memoryEl.title = `About ${kTokens(m.tokens)} of ${kTokens(m.window)} tokens. ${m.auto ? `Compacts by itself at ${kTokens(m.compactAt)} (Settings > Chat memory).` : 'Automatic compaction is off (Settings > Chat memory).'}`;
+}
+
+async function compactNow(mode?: 'instant' | 'summary'): Promise<void> {
+  if (!ctx) return;
+  setStatus(mode === 'summary' ? 'Compacting: the Brain’s model is writing a summary…' : 'Compacting…');
+  const r = await attempt(
+    () => POST<{ compacted: boolean; message?: string }>(`/agents/${ctx!.agent.id}/chats/${ctx!.chat.id}/compact`, mode ? { mode } : {}),
+    (x) => (x.compacted ? 'Compacted: the agent now remembers the older messages as a short history' : x.message || 'Nothing to compact yet'),
+  );
+  if (ctx) setStatus('');
+  if (r?.compacted) reload();
 }
 
 function emptyHint(): HTMLDivElement {
@@ -171,6 +211,8 @@ function suggestions(a: AgentDetail): string[] {
 }
 
 function renderItem(item: ChatItem): HTMLElement {
+  if (item.type === 'compaction')
+    return compactionMark(item, { chatPath: `/agents/${ctx!.agent.id}/chats/${ctx!.chat.id}`, latest: latestCompaction(ctx!.chat.items)?.item.id === item.id, busy: running(), onSaved: () => reload() });
   if (item.type === 'user')
     return h('div.msg.user', item.from ? h('div.from', `from ${item.from}`) : null, item.text, attachmentChips(item.attachments));
   if (item.type === 'assistant') {
@@ -208,6 +250,7 @@ function placeItem(i: number): void {
     wrap = h('div.col', { style: { gap: '6px' } }, el, h('div.tool-images', item.images.map((src) => h('img', { src, onclick: () => lightbox(src) }))));
     el.querySelector('.tool-images')?.remove();
   }
+  if (i < ctx!.compactedBefore && item.type !== 'compaction' && item.type !== 'meta') wrap.classList.add('compacted');
   const prev = ctx!.els[i];
   if (prev) prev.replaceWith(wrap);
   else ctx!.messages.append(wrap);
@@ -267,6 +310,9 @@ async function send(): Promise<void> {
     if (!text && !attachments.length) return;
     c.input.value = '';
     autosize();
+    // /compact, /compact instant, /compact summary (with no files attached)
+    const cmd = attachments.length ? null : /^\/compact(?:\s+(instant|summary))?\s*$/i.exec(text);
+    if (cmd) return await compactNow(cmd[1]?.toLowerCase() as 'instant' | 'summary' | undefined);
     const taken = c.tray.take();
     const r = await attempt(() => POST(`/agents/${c.agent.id}/chats/${c.chat.id}/messages`, { text, attachments }));
     if (!r && ctx === c) {
@@ -320,6 +366,11 @@ async function reload(): Promise<void> {
 
 // ---------- live updates ----------
 export function onEvent(ev: ServerEvent): void {
+  // compacted (automatically, by the engine, or an edit): show the marker where it went
+  if (ctx && ev.type === 'compacted' && ev.chatId === ctx.chat.id) {
+    reload().then(() => scrollDown(true));
+    return;
+  }
   if (!ctx || ev.type !== 'run' || ev.chatId !== ctx.chat.id) return;
   const e = ev.event as RunEvent;
   const items = ctx.chat.items;

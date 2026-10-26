@@ -1,5 +1,5 @@
 // Settings: keys, defaults, local model servers, program paths, limits.
-import { h, mount, GET, POST, PUT, attempt, field, seg, select, toggle, toast, refreshSoon, state, navigate } from '../core.ts';
+import { h, mount, GET, POST, PUT, attempt, field, seg, select, toggleRow, toast, refreshSoon, state, navigate } from '../core.ts';
 import { brainModelChip } from '../models.ts';
 import type { Child } from '../core.ts';
 import type { EngineStatus, SecretKey, SecretStatus, Settings, Terminal } from '../../shared/types.ts';
@@ -17,13 +17,6 @@ export const title = () => 'Settings';
 export async function render(el: HTMLElement): Promise<void> {
   root = el;
   await draw();
-}
-
-// A switch with its text beside it: one label (the switch's own, named for screen readers), and the
-// text flips it too.
-function switchRow(text: string, on: boolean, onChange: (on: boolean) => void): HTMLDivElement {
-  const sw = toggle(on, onChange, { name: text });
-  return h('div.row.mt', sw, h('span', { style: { cursor: 'pointer' }, onclick: () => sw.querySelector('input')?.click() }, text));
 }
 
 async function draw(): Promise<void> {
@@ -109,18 +102,28 @@ async function draw(): Promise<void> {
           h('div.panel-head', h('h2', "The Brain's model")),
           h('p.hint', 'The Brain oversees the project: it answers about the project and its files, builds teams and agents, writes PROJECT.md and hands work out. It can run on Claude Code, OpenRouter, Hermes or Codex. Claude Code and Codex can also open files in the project folder.'),
           h('div.row.mt', field('Model', brainModelChip({ prefix: '', onChange: (b) => (s.brain = b) }))),
-          switchRow('The Brain approves', s.brainApproves !== false, async (on) => {
-            const saved = await attempt(() => PUT('/settings', { brainApproves: on }), on ? 'The Brain approves for you' : 'Every request comes to you');
-            // didn't save: redraw so the switch shows what is really set
-            if (saved) refreshSoon(0);
-            else await draw();
-          }),
+          toggleRow(
+            s.brainApproves !== false,
+            async (on) => {
+              const saved = await attempt(() => PUT('/settings', { brainApproves: on }), on ? 'The Brain approves for you' : 'Every request comes to you');
+              // didn't save: redraw so the switch shows what is really set
+              if (saved) refreshSoon(0);
+              else await draw();
+            },
+            'The Brain approves',
+            '.mt',
+          ),
           h('p.hint', "When an agent or team asks permission, the Brain allows routine, on-task work by itself and only passes the risky or unclear requests (deleting, pushing, sending, secrets, anything outside the project) to Needs you. Workflow checkpoints and Outbox posts and DMs always wait for you."),
-          switchRow('Install skills from any GitHub link', s.brainAnyGitHub === true, async (on) => {
-            const saved = await attempt(() => PUT('/settings', { brainAnyGitHub: on }), on ? 'The Brain may install skills from any GitHub link' : 'The Brain installs only from links you give');
-            if (saved) refreshSoon(0);
-            else await draw();
-          }),
+          toggleRow(
+            s.brainAnyGitHub === true,
+            async (on) => {
+              const saved = await attempt(() => PUT('/settings', { brainAnyGitHub: on }), on ? 'The Brain may install skills from any GitHub link' : 'The Brain installs only from links you give');
+              if (saved) refreshSoon(0);
+              else await draw();
+            },
+            'Install skills from any GitHub link',
+            '.mt',
+          ),
           h('p.hint', "Off: the Brain installs skills only from GitHub repos you named in the Brain chat yourself. On: also from links it finds in files, pages or agents' answers. Skills are instructions your agents follow, so only turn this on if you trust where those links come from."),
         ),
         h(
@@ -142,6 +145,31 @@ async function draw(): Promise<void> {
             field('Cost limit per message (USD)', h('input', { type: 'number', min: 0, step: '0.5', value: s.costLimitUsdPerRun, oninput: (e) => setP('costLimitUsdPerRun', Number(e.target.value)) }), 'OpenRouter runs stop past this. 0 = no limit.'),
           ),
         ),
+        (() => {
+          // Settings > Chat memory: compacting long chats (server/compaction.ts)
+          const c = s.compaction;
+          return h(
+            'div.panel#chat-memory',
+            h('div.panel-head', h('h2', 'Chat memory')),
+            h('p.hint', 'Long chats fill up the model’s memory. Compacting turns the older messages into a short history the agent keeps reading, and keeps the latest messages in full. Every message stays in the chat for you, marked “COMPACTED” where it happened; open the mark to read or edit what the agent remembers. You can also press Compact in a chat, or type /compact.'),
+            toggleRow(c.auto, (on) => setP('compaction.auto', on), 'Compact long chats automatically', '.mt'),
+            toggleRow(c.instant, (on) => setP('compaction.instant', on), 'Instant compaction', '.mt'),
+            h('p.hint', 'Instant keeps the original words, cut to fit: long messages are shortened, tool calls become one line and their results are left out (the agent can read any of them back). No model call, so it takes no time and costs nothing. Off: the Brain’s model writes a summary instead (slower, smaller).'),
+            h(
+              'div.grid-2.mt',
+              field('Messages kept in full', h('input', { type: 'number', min: 0, max: 1000, value: c.keepMessages, oninput: (e) => setP('compaction.keepMessages', Number(e.target.value)) }), 'Up to this many of the latest messages (yours and the agent’s, with their tool calls) stay word for word, as far as the size budget allows. The rest is compacted.'),
+              field('Compact at (% of the context window)', h('input', { type: 'number', min: 10, max: 95, value: c.thresholdPercent, oninput: (e) => setP('compaction.thresholdPercent', Number(e.target.value)) }), 'Compacts when the agent’s memory of a chat reaches this share of the model’s context window.'),
+            ),
+            h(
+              'div.mt',
+              field(
+                'Context window (tokens)',
+                h('input', { type: 'number', min: 0, step: 1000, value: c.windowTokens || '', placeholder: 'auto', oninput: (e) => setP('compaction.windowTokens', Number(e.target.value) || 0) }),
+                'Leave empty to use what each engine or model says (Claude Code 200k, or 1M for a “[1m]” model). Set 1000000 if your models have a 1M-token window: everything the compaction keeps grows with the window.',
+              ),
+            ),
+          );
+        })(),
         h('div.row', h('button.btn', { onclick: save }, 'Save settings')),
       ),
       h(

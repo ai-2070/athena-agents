@@ -22,7 +22,10 @@ export type AgentSkill = SkillDetail & { via: 'agent' | 'team' | 'project' };
 const LIB = () => ensureDir(dataPath('skills'));
 const CLAUDE_DIR = path.join(HOME, '.claude', 'skills');
 const SAFE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
-export const isSkillSlug = (s: unknown): s is string => SAFE.test(String(s));
+/** The skill library's folder (data/skills): one folder per skill. */
+export const skillsLibrary = (): string => LIB();
+/** A skill id that is safe to use as a folder name in the library. */
+export const isSkillSlug = (s: unknown): s is string => typeof s === 'string' && SAFE.test(s);
 /** Where a skill lives in the library. */
 export const skillDir = (slug: string): string => path.join(LIB(), slug);
 
