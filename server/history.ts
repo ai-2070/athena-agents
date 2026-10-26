@@ -41,6 +41,7 @@ const FIELD_NAMES: Record<string, string> = {
   alwaysAllow: 'always allowed',
   claudeAuth: 'sign-in',
   hermesProfile: 'Hermes profile',
+  openclawAgent: 'OpenClaw agent',
   knowledge: 'knowledge',
   steps: 'steps',
   lead: 'lead',
@@ -63,7 +64,7 @@ function otherFields(item: Record<string, unknown>, shown: readonly string[], ig
   return rest.length ? `Other settings:\n${rest.map((k) => `  ${k}: ${JSON.stringify(item[k])}`).join('\n')}` : '';
 }
 
-const AGENT_SHOWN = ['name', 'emoji', 'specialty', 'description', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'temperature', 'effort', 'autonomy', 'toolGroups', 'mcpServers', 'skills', 'knowledge', 'workspace', 'alwaysAllow', 'systemPrompt'];
+const AGENT_SHOWN = ['name', 'emoji', 'specialty', 'description', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'openclawAgent', 'temperature', 'effort', 'autonomy', 'toolGroups', 'mcpServers', 'skills', 'knowledge', 'workspace', 'alwaysAllow', 'systemPrompt'];
 const TEAM_SHOWN = ['name', 'description', 'members', 'lead', 'access', 'skills', 'files', 'schedule', 'enabled', 'steps'];
 
 // One step of an old-style step list (or a member's step), with everything that changes what it does.
@@ -89,7 +90,7 @@ export function asText(kind: VersionKind, item: Item): string {
       `Name: ${a.emoji || ''} ${a.name}`.replace(/ +/g, ' '),
       `Specialty: ${a.specialty || '-'}`,
       a.description ? `Description: ${a.description}` : '',
-      `Runs on: ${a.engine}${a.model ? ` (${a.model})` : ''}${a.engine === 'hermes' && a.hermesProfile ? `, profile ${a.hermesProfile}` : ''}`,
+      `Runs on: ${a.engine}${a.model ? ` (${a.model})` : ''}${a.engine === 'hermes' && a.hermesProfile ? `, profile ${a.hermesProfile}` : ''}${a.engine === 'openclaw' && a.openclawAgent ? `, OpenClaw agent ${a.openclawAgent}` : ''}`,
       a.provider ? `Provider: ${a.provider}` : '',
       a.claudeAuth ? `Sign-in: ${a.claudeAuth}` : '',
       `Temperature: ${a.temperature === '' || a.temperature === undefined ? 'default' : a.temperature}`,

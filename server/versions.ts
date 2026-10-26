@@ -173,7 +173,7 @@ const obj = (x: unknown) => (x && typeof x === 'object' && !Array.isArray(x) ? (
 /** An agent version made elsewhere, cleaned (see above), as the agent `id`'s; null without a name. */
 export function cleanAgentVersion(item: Fields, id: string): Fields | null {
   const out = keepTyped(item, {
-    ...Object.fromEntries(['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'autonomy', 'workspace', 'lastModel'].map((k) => [k, str])),
+    ...Object.fromEntries(['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'openclawAgent', 'autonomy', 'workspace', 'lastModel'].map((k) => [k, str])),
     ...Object.fromEntries(['toolGroups', 'mcpServers', 'alwaysAllow', 'skills'].map((k) => [k, strList])),
     temperature: (x) => (x === '' ? '' : num(x)),
     effort: (x) => (x === '' || isEffort(x) ? x : undefined),

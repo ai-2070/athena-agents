@@ -133,13 +133,15 @@ async function draw(): Promise<void> {
     h(
       'div.panel',
       h('div.panel-head', h('h2', 'Share the dashboard tools')),
-      h('p', 'Claude Code agents here get the dashboard tools automatically. Hermes and other MCP apps can have them too: ComfyUI, Blender, Adobe, programs, X drafts, your other agents.'),
+      h('p', 'Claude Code and Codex agents here get the dashboard tools automatically. Hermes, pi, oh-my-pi and other MCP apps can have them too: ComfyUI, Blender, Adobe, programs, X drafts, your other agents.'),
       h(
         'div.row',
         h('button.btn.small', { onclick: () => attempt(() => POST('/hermes/add-bridge'), 'Hermes now has the dashboard tools (restart Hermes sessions to see them)') }, 'Give Hermes the dashboard tools'),
+        h('button.btn.small', { onclick: () => attempt(() => POST<{ message: string }>('/pi/add-bridge'), (r) => r.message) }, 'Give pi and oh-my-pi the dashboard tools'),
         h('button.btn.ghost.small', { onclick: () => copy(bridgeJson) }, 'Copy MCP config for other apps'),
       ),
       h('details.mt', h('summary.label', { style: { cursor: 'pointer' } }, 'Show config'), h('pre', bridgeJson), h('p.hint', 'Paste into Claude Desktop, Cursor, or any MCP client. They act as "External MCP client": everything except shell, and they ask you first. The dashboard must be running.')),
+      h('p.hint', 'pi and oh-my-pi keep it in their own mcp.json (pi needs version 0.99 or newer). Their agents here then use the dashboard tools as themselves; when you run pi on your own, it acts as "External MCP client".'),
     ),
     h(
       'div.panel',

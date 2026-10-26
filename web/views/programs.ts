@@ -60,6 +60,9 @@ const CATS: [string, string][] = [
 const ABOUT: Partial<Record<string, string>> = {
   claude: 'Agents run on it. Open it in a terminal from Terminals.',
   hermes: 'Agents run on your Hermes profiles; hermes_ask lets any agent consult one.',
+  pi: 'Agents can run on pi (Agents > Brain > pi).',
+  omp: 'Agents can run on oh-my-pi (Agents > Brain > oh-my-pi).',
+  openclaw: 'Agents can run on your OpenClaw agents (Agents > Brain > OpenClaw).',
   orca: 'Agents with the Orca tools can run Orca commands.',
   comfyui: 'Agents with ComfyUI tools run your saved workflows.',
   lmstudio: 'Start its local server to use local models (API model > LM Studio).',
@@ -150,8 +153,8 @@ async function draw(force: boolean): Promise<void> {
 }
 
 async function openCli(p: ProgramInfo): Promise<void> {
-  const cmd = ({ claude: 'claude', hermes: 'hermes', orca: 'orca', gh: 'gh', python: 'python' } as Partial<Record<string, string>>)[p.id];
-  const t = await attempt(() => POST<Terminal>('/terminals', { kind: 'command', command: cmd, args: p.id === 'orca' ? ['status'] : [] }));
+  const cmd = ({ claude: 'claude', hermes: 'hermes', pi: 'pi', omp: 'omp', openclaw: 'openclaw', orca: 'orca', gh: 'gh', python: 'python' } as Partial<Record<string, string>>)[p.id];
+  const t = await attempt(() => POST<Terminal>('/terminals', { kind: 'command', command: cmd, args: p.id === 'orca' ? ['status'] : p.id === 'openclaw' ? ['tui'] : [] }));
   if (t) navigate(`#/terminals/${t.id}`);
 }
 

@@ -17,6 +17,7 @@ describe('effort levels', () => {
     expect(effortLevels('claude-code')).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
     expect(effortLevels('codex')).toEqual(['minimal', 'low', 'medium', 'high', 'xhigh']);
     expect(effortLevels('hermes')).toEqual([...EFFORTS]);
+    for (const e of ['pi', 'omp', 'openclaw'] as const) expect(effortLevels(e)).toEqual([...EFFORTS]);
     expect(effortLevels('openai', 'openrouter')).toEqual(['minimal', 'low', 'medium', 'high', 'xhigh']);
     expect(effortLevels('openai', 'ollama')).toEqual(['low', 'medium', 'high']);
   });

@@ -16,7 +16,9 @@ import { CLAUDE_MODELS } from './engines/claude.ts';
 import { CODEX_MODELS } from './models.ts';
 import { listProfiles } from './engines/hermes.ts';
 import * as codexEngine from './engines/codex.ts';
-import { clearWhichCache } from './util.ts';
+import * as piEngine from './engines/pi.ts';
+import * as openclawEngine from './engines/openclaw.ts';
+import { clearWhichCache, which } from './util.ts';
 import * as tools from './tools.ts';
 import * as programs from './programs.ts';
 import * as comfy from './comfyui.ts';
@@ -288,7 +290,7 @@ get('/api/agents/:id', async ({ id }) => {
 });
 put<Partial<Agent>>('/api/agents/:id', async ({ id }, body) => {
   const a = need(agents.get(id));
-  const allowed: (keyof Agent)[] = ['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'autonomy', 'toolGroups', 'mcpServers', 'knowledge', 'workspace', 'temperature', 'effort', 'pinned', 'alwaysAllow', 'skills', 'richAnswers'];
+  const allowed: (keyof Agent)[] = ['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'openclawAgent', 'autonomy', 'toolGroups', 'mcpServers', 'knowledge', 'workspace', 'temperature', 'effort', 'pinned', 'alwaysAllow', 'skills', 'richAnswers'];
   for (const k of allowed) if (k in body) (a as Record<keyof Agent, unknown>)[k] = body[k];
   if ('effort' in body) a.effort = isEffort(body.effort) ? body.effort : '';
   return agents.save(a);
@@ -525,10 +527,13 @@ get('/api/models', async (_p, _b, q) => {
   if (q.engine === 'claude-code') return CLAUDE_MODELS;
   if (q.engine === 'hermes') return [];
   if (q.engine === 'codex') return CODEX_MODELS;
+  if (q.engine === 'pi' || q.engine === 'omp') return piEngine.listModels(q.engine).catch(() => []);
+  if (q.engine === 'openclaw') return openclawEngine.listModels().catch(() => []);
   return listModels(q.provider || 'openrouter');
 });
 get('/api/providers', async () => Object.entries(PROVIDERS).map(([id, p]) => ({ id, label: p.label })));
 get('/api/hermes/profiles', async () => listProfiles());
+get('/api/openclaw/agents', async () => openclawEngine.listAgents().catch(() => []));
 // OpenAI Codex: install the CLI (npm) and check its sign-in.
 post('/api/codex/install', async () => {
   const r = await run('npm', ['install', '-g', '@openai/codex'], { timeout: 10 * 60_000 });
@@ -631,6 +636,21 @@ post('/api/hermes/add-bridge', async () => {
   if (r.code !== 0) throw new HttpError(500, (r.stderr || r.stdout).trim().slice(-800) || 'hermes mcp add failed');
   log('mcp', 'Gave Hermes the dashboard tools (hermes mcp add dashboard)');
   return { message: (r.stdout || 'Added.').trim().slice(-800) };
+});
+// pi and oh-my-pi: the bridge goes in their own mcp.json (neither takes MCP servers per run)
+post<{ flavor?: string }>('/api/pi/add-bridge', async (_p, body) => {
+  const flavors: piEngine.PiFlavor[] = body.flavor === 'pi' || body.flavor === 'omp' ? [body.flavor] : (['pi', 'omp'] as const).filter((f) => which(f));
+  if (!flavors.length) throw new HttpError(400, 'Neither pi nor oh-my-pi is installed on this PC.');
+  const files: string[] = [];
+  for (const f of flavors) {
+    try {
+      files.push(piEngine.addBridge(f));
+    } catch (e) {
+      throw new HttpError(500, (e as Error).message);
+    }
+  }
+  log('mcp', `Gave ${flavors.map((f) => (f === 'pi' ? 'pi' : 'oh-my-pi')).join(' and ')} the dashboard tools (${files.join(', ')})`);
+  return { message: `Added to ${files.join(' and ')}. New ${flavors.includes('pi') ? 'pi' : 'oh-my-pi'} sessions have the dashboard tools.`, files };
 });
 
 // ---------- settings ----------

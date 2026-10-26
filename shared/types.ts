@@ -3,14 +3,14 @@
 import type { Effort } from './effort.ts';
 export type { Effort } from './effort.ts';
 
-export type EngineId = 'claude-code' | 'openai' | 'hermes' | 'codex';
+export type EngineId = 'claude-code' | 'openai' | 'hermes' | 'codex' | 'pi' | 'omp' | 'openclaw';
 export type Autonomy = 'ask' | 'auto' | 'full';
 export type ProviderId = 'openrouter' | 'lmstudio' | 'ollama' | 'custom';
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
 
 // ---------- agents ----------
 export interface AgentSource {
-  type: 'custom' | 'agency' | 'starter' | 'hermes' | 'claude' | 'brain' | 'preset' | string;
+  type: 'custom' | 'agency' | 'starter' | 'hermes' | 'openclaw' | 'claude' | 'brain' | 'preset' | string;
   slug?: string;
   division?: string;
   preset?: string;
@@ -30,6 +30,8 @@ export interface Agent {
   provider: ProviderId | string;
   claudeAuth: ClaudeAuth | string;
   hermesProfile: string;
+  /** OpenClaw engine: which of your OpenClaw agents answers ('' = its default agent). */
+  openclawAgent?: string;
   autonomy: Autonomy;
   toolGroups: string[];
   mcpServers: string[];
@@ -468,6 +470,9 @@ export interface EngineStatus {
   openai: { openrouter: boolean; custom: boolean };
   hermes: { installed: boolean; path: string | null };
   codex: { installed: boolean; loggedIn: boolean; version: string | null; path?: string | null; how?: string };
+  pi: { installed: boolean; path: string | null; version: string | null };
+  omp: { installed: boolean; path: string | null; version: string | null };
+  openclaw: { installed: boolean; path: string | null; version: string | null };
 }
 
 export interface EngineInfo {

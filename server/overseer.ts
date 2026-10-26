@@ -212,7 +212,7 @@ function keyFiles(root: string, budget: number): string {
 // "provider: openrouter | model: anthropic/claude-opus-5.5 | effort: high"
 const runsOn = (a: Agent) => {
   const p = providerOfAgent(a);
-  const model = a.model || (p === 'codex' ? "Codex's default model" : p === 'hermes' ? `the model of Hermes profile "${a.hermesProfile || 'default'}"` : defaultModel(a.engine) || 'its default model');
+  const model = a.model || (p === 'codex' ? "Codex's default model" : p === 'hermes' ? `the model of Hermes profile "${a.hermesProfile || 'default'}"` : p === 'openclaw' ? `the model of OpenClaw agent "${a.openclawAgent || 'default'}"` : p === 'pi' || p === 'omp' ? `${p === 'pi' ? "pi's" : "oh-my-pi's"} default model` : defaultModel(a.engine) || 'its default model');
   // the full id the engine reported last time (a short name like "sonnet" points to the latest version)
   const last = a.lastModel && a.lastModel !== a.model ? ` (last ran as ${a.lastModel})` : '';
   const e = effortFor(a.engine, a.effort, a.provider);
@@ -410,8 +410,8 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"stop","to":"agent"|"team"|"all","id":"<agent or team id; not needed for all>"}   (stops the work going on now: an agent's jobs, a team's chat with its queue, or with "all" everything running in this project: every team, agent, routine and workflow; "targets":[{"to":…,"id":…},…] for several)
 {"do":"set_model","to":"agent"|"team","id":"<agent or team id, or 'new'>","model":"<model id>","provider":"PROVIDER","effort":"EFFORT"}   (or "targets":[{"to":…,"id":…},…] instead of "to"/"id", for several at once; a team means every agent on it; give the model, the effort or both; "provider" only to move them to another provider, else the model is for the provider each one runs on now)
 {"do":"find_models","provider":"PROVIDER","query":"words to match, e.g. gemini flash"}   (a look-up like read_skill: you get the matching model ids, then answer again; leave out "provider" to search every provider that is set up, leave out "query" to list them all)
-PROVIDER is one of: claude (Claude Code: opus, sonnet, haiku, fable, which always mean the latest version, or a full claude-… id), openrouter (any model on OpenRouter, ids like google/gemini-…), lmstudio, ollama, custom (model servers on this PC), codex (OpenAI Codex), hermes. Set up on this PC now: ${readyProviders().join(', ') || 'none'}.
-EFFORT is one of ${EFFORTS.join(', ')}, or "default" (the model's own). Claude Code takes low to max, Codex and OpenRouter minimal to xhigh, servers on this PC low to high, Hermes minimal to max; a level a provider doesn't have becomes its nearest one.
+PROVIDER is one of: claude (Claude Code: opus, sonnet, haiku, fable, which always mean the latest version, or a full claude-… id), openrouter (any model on OpenRouter, ids like google/gemini-…), lmstudio, ollama, custom (model servers on this PC), codex (OpenAI Codex), hermes, pi and omp (the pi and oh-my-pi coding agents: provider/model ids like anthropic/claude-sonnet-5-5), openclaw (OpenClaw agents). Set up on this PC now: ${readyProviders().join(', ') || 'none'}.
+EFFORT is one of ${EFFORTS.join(', ')}, or "default" (the model's own). Claude Code takes low to max, Codex and OpenRouter minimal to xhigh, servers on this PC low to high, Hermes, pi, oh-my-pi and OpenClaw minimal to max; a level a provider doesn't have becomes its nearest one.
 SCHEDULE is {"type":"none"} (run by hand) or {"type":"daily","time":"HH:MM","days":[0-6, 0 = Sunday; leave out for every day]} or {"type":"interval","minutes":N}. Set "enabled":true when the user wants it to run on its own.
 MEMBER is {"agent":"<existing agent id>"} or {"library":"<slug>"} or {"starter":"<name>"} or {"new":{"name":"…","emoji":"…","specialty":"one line","instructions":"5-10 sentences, second person","tools":["ids"],"skills":["skill ids"]}}
 create_team and update_team also take "skills":["skill ids"] (update_team: the team's whole list).

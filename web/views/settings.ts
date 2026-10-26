@@ -71,6 +71,7 @@ async function draw(): Promise<void> {
               h('span', cc.installed ? h('span', h('span.pill.ok', 'found'), ' ', cc.version || '', h('div.hint', 'Agents on "My Claude login" use your Claude subscription. Nothing to paste.')) : h('span.pill.bad', 'not installed')),
               h('span', 'Hermes'),
               h('span', st.engines.hermes.installed ? h('span.pill.ok', 'found') : h('span.pill', 'not installed')),
+              ...cliRows(st.engines),
               h('span', 'OpenAI Codex'),
               h(
                 'span',
@@ -223,4 +224,17 @@ async function draw(): Promise<void> {
       ),
     ),
   );
+}
+
+// pi, oh-my-pi and OpenClaw: found or not, and how to install them (they sign in to models in their own terminal).
+function cliRows(e: EngineStatus): HTMLElement[] {
+  const rows: [keyof EngineStatus & ('pi' | 'omp' | 'openclaw'), string, string][] = [
+    ['pi', 'pi coding agent', 'Install: npm install -g @earendil-works/pi-coding-agent. Sign in to a model provider with /login in pi.'],
+    ['omp', 'oh-my-pi', 'Install: bun install -g @oh-my-pi/pi-coding-agent (needs Bun). Sign in with /login in omp.'],
+    ['openclaw', 'OpenClaw', 'Install: npm install -g openclaw, then run openclaw onboard.'],
+  ];
+  return rows.flatMap(([id, label, how]) => {
+    const s: Partial<EngineStatus['pi']> = e[id] || {};
+    return [h('span', label), h('span', s.installed ? h('span', h('span.pill.ok', 'found'), ' ', s.version || '') : h('span', h('span.pill', 'not installed'), h('div.hint', how)))];
+  });
 }

@@ -102,6 +102,9 @@ function drawLauncher() {
         card('PowerShell', 'A normal shell in your user folder.', () => open({ kind: 'shell' })),
         e['claude-code'].installed ? card('Claude Code', 'Plain interactive Claude Code session.', () => open({ kind: 'command', command: 'claude', title: 'Claude Code' })) : null,
         e.hermes.installed ? card('Hermes', 'Interactive Hermes (default profile).', () => open({ kind: 'command', command: 'hermes', title: 'Hermes' })) : null,
+        e.pi?.installed ? card('pi', 'Interactive pi coding agent.', () => open({ kind: 'command', command: 'pi', title: 'pi' })) : null,
+        e.omp?.installed ? card('oh-my-pi', 'Interactive oh-my-pi (omp).', () => open({ kind: 'command', command: 'omp', title: 'oh-my-pi' })) : null,
+        e.openclaw?.installed ? card('OpenClaw', "OpenClaw's chat screen (through its Gateway).", () => open({ kind: 'command', command: 'openclaw', args: ['tui'], title: 'OpenClaw' })) : null,
         card('Orca', 'Orca CLI: status, worktrees, agent sessions.', () => open({ kind: 'command', command: 'orca', args: ['status'], title: 'Orca' })),
       ),
       agents.length

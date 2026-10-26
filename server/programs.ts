@@ -124,6 +124,9 @@ const CATALOG: CatalogEntry[] = [
   // AI tools
   { id: 'claude', name: 'Claude Code', category: 'ai', icon: '✳️', detect: () => ({ exe: which('claude') }), cli: true, actions: ['terminal'] },
   { id: 'hermes', name: 'Hermes Agent', category: 'ai', icon: '☤', detect: () => ({ exe: which('hermes') }), cli: true, actions: ['terminal'] },
+  { id: 'pi', name: 'pi', category: 'ai', icon: 'π', detect: () => ({ exe: which('pi') }), cli: true, actions: ['terminal'] },
+  { id: 'omp', name: 'oh-my-pi', category: 'ai', icon: 'Ω', detect: () => ({ exe: which('omp') }), cli: true, actions: ['terminal'] },
+  { id: 'openclaw', name: 'OpenClaw', category: 'ai', icon: '🦞', detect: () => ({ exe: which('openclaw') }), cli: true, actions: ['terminal'] },
   {
     id: 'orca',
     name: 'Orca',

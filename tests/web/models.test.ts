@@ -15,6 +15,12 @@ describe('modelInfo()', () => {
     expect(modelInfo({ engine: 'hermes', model: '' }).short).toBe('Hermes');
   });
 
+  it('handles pi, oh-my-pi and OpenClaw: their own default, or a provider/model id', () => {
+    expect(modelInfo({ engine: 'pi', model: '' })).toMatchObject({ short: 'pi', where: 'pi' });
+    expect(modelInfo({ engine: 'omp', model: 'anthropic/claude-sonnet-5-5' })).toMatchObject({ short: 'claude-sonnet-5-5', brand: 'claude', where: 'oh-my-pi · anthropic' });
+    expect(modelInfo({ engine: 'openclaw', model: '', openclawAgent: 'ops' })).toMatchObject({ short: 'OpenClaw', where: 'OpenClaw · ops' });
+  });
+
   it("maps the Brain's setting onto the same picker", () => {
     expect(brainAsAgent({ provider: 'claude', model: 'haiku' })).toMatchObject({ engine: 'claude-code', model: 'haiku' });
     expect(brainAsAgent({ provider: 'openrouter', model: 'x/y' })).toMatchObject({ engine: 'openai', model: 'x/y' });

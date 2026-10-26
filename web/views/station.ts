@@ -2622,6 +2622,14 @@ function drawHud(): void {
     { id: 'openai', brain: 'openrouter', name: 'OpenRouter', glyph: '◇', color: '#8f94ff', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
     { id: 'hermes', brain: 'hermes', name: 'Hermes', glyph: '☤', color: '#d8c25a', ready: d.engines.hermes.installed, why: d.engines.hermes.installed ? '' : 'not installed', find: 'Hermes' },
     { id: 'codex', brain: 'codex', name: 'OpenAI Codex', glyph: logo('openai', 14) || '◎', color: '#e6e8e0', ready: !!(d.engines.codex?.installed && d.engines.codex.loggedIn), why: !d.engines.codex?.installed ? 'not installed' : d.engines.codex.loggedIn ? '' : 'not signed in', find: 'OpenAI Codex' },
+    // pi, oh-my-pi and OpenClaw: only when installed or an agent uses them (most PCs have none)
+    ...([
+      { id: 'pi', name: 'pi', glyph: 'π', color: '#9fd3a8', find: 'pi coding agent' },
+      { id: 'omp', name: 'oh-my-pi', glyph: 'Ω', color: '#c8a2f0', find: 'oh-my-pi' },
+      { id: 'openclaw', name: 'OpenClaw', glyph: '🦞', color: '#ff6f5e', find: 'OpenClaw' },
+    ] as const)
+      .filter((e) => d.engines[e.id]?.installed || d.agents.some((a) => a.engine === e.id))
+      .map((e) => ({ ...e, brain: '', ready: !!d.engines[e.id]?.installed, why: d.engines[e.id]?.installed ? '' : 'not installed' })),
   ].map((e) => {
     const users = d.agents.filter((a) => a.engine === e.id);
     const busy = users.some((a) => busyIds.has(a.id));

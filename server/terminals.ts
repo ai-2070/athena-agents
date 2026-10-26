@@ -8,6 +8,8 @@ import { emit, log } from './store.ts';
 import { prepareFiles, claudeArgs, claudeEnv } from './engines/claude.ts';
 import { hermesArgs } from './engines/hermes.ts';
 import { codexArgs, terminalPromptFile } from './engines/codex.ts';
+import { terminalArgs as piTerminalArgs, bridgeEnv } from './engines/pi.ts';
+import { openclawTerminalArgs } from './engines/openclaw.ts';
 import { buildSystemPrompt } from './engines/index.ts';
 import { workspaceOf } from './tools.ts';
 
@@ -65,7 +67,14 @@ export function createTerminal({ kind = 'shell', agent = null, command = null, a
     } else if (agent.engine === 'codex') {
       cmd = 'codex';
       argv = codexArgs(agent, { interactive: true, promptFile: terminalPromptFile(agent, buildSystemPrompt(agent)) });
-    } else throw new Error('API-model agents chat in the dashboard; open a terminal for a Claude Code, Codex or Hermes agent.');
+    } else if (agent.engine === 'pi' || agent.engine === 'omp') {
+      cmd = agent.engine;
+      argv = piTerminalArgs(agent.engine, agent, buildSystemPrompt(agent));
+      env = { ...process.env, ...bridgeEnv(agent.id) };
+    } else if (agent.engine === 'openclaw') {
+      cmd = 'openclaw';
+      argv = openclawTerminalArgs(agent);
+    } else throw new Error('API-model agents chat in the dashboard; open a terminal for a Claude Code, Codex, Hermes, pi, oh-my-pi or OpenClaw agent.');
     name ||= `${agent.emoji || ''} ${agent.name}`.trim();
   } else if (kind === 'command' && command) {
     cmd = command;
