@@ -9,6 +9,7 @@ import { PORT } from '../util.ts';
 import { checkpointSection, compactAt, compactionSettings, contextWindow, estimateTokens, isOverflowError } from '../compaction.ts';
 import type { FetchError } from '../util.ts';
 import { effortFor } from '../../shared/effort.ts';
+import { cacheFields } from '../promptcache.ts';
 import type { Agent, EngineStatus, ProviderId, RunEvent } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 
@@ -72,6 +73,8 @@ interface Usage {
   total_tokens?: number;
   prompt_tokens?: number;
   completion_tokens?: number;
+  /** cached_tokens: read from the provider's prompt cache (cheaper) */
+  prompt_tokens_details?: { cached_tokens?: number; cache_write_tokens?: number };
 }
 
 /** One `data:` line of a streamed chat completion. */
@@ -298,6 +301,7 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
   let effort = effortFor('openai', agent.effort, provider.id);
   let cost = 0;
   let tokens = 0;
+  let cached = 0;
   let finalText = '';
   const maxSteps = settings.maxToolSteps || 16;
   // How full the model's memory is: what it said last (and what was added since), else an estimate.
@@ -333,6 +337,7 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
       ...(provider.id === 'openrouter' ? { usage: { include: true } } : { stream_options: { include_usage: true } }),
       ...(agent.temperature != null && agent.temperature !== '' ? { temperature: Number(agent.temperature) } : {}),
       ...(effort ? (provider.id === 'openrouter' ? { reasoning: { effort } } : { reasoning_effort: effort }) : {}),
+      ...cacheFields(provider.id, model, chat.id),
     };
     let r: Completion;
     try {
@@ -377,6 +382,7 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
     if (r.usage) {
       cost += Number(r.usage.cost || 0);
       tokens += Number(r.usage.total_tokens || 0);
+      cached += Number(r.usage.prompt_tokens_details?.cached_tokens || 0);
       context = Number(r.usage.total_tokens || 0) || Number(r.usage.prompt_tokens || 0) + Number(r.usage.completion_tokens || 0);
     }
     // Some providers leave ids empty; results must match their call.
@@ -433,7 +439,7 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
     if (step === maxSteps - 1) onEvent({ kind: 'text', text: `\n\n_Stopped after ${maxSteps} tool steps (Settings > Max tool steps)._` });
   }
   // (not measured, or compacted since: say nothing and let the estimate do)
-  return { text: finalText, cost, tokens, ...(measured ? { context: used() } : {}) };
+  return { text: finalText, cost, tokens, ...(cached ? { cached } : {}), ...(measured ? { context: used() } : {}) };
 }
 
 // Keep the conversation under a rough size budget, cutting oldest turns at a user message boundary.
