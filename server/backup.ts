@@ -28,7 +28,7 @@ const UNPACKED_MAX = 512 * 1024 * 1024; // the most a backup may unpack to (abou
 export const BACKUP_MAX = UNPACKED_MAX;
 
 // How much of each kind is packed at most (the same limits as the auto-save into the project folder).
-// A file that doesn't fit any more is left out and counted (BackupSummary.omitted). Keep README.md in step.
+// A file that doesn't fit any more is left out and counted (BackupSummary.omitted). Keep docs/guide.md in step.
 const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024 };
 // A kept version in a backup: <kind>/<item id>/<version id>.json, and a skill version's files under
 // skills/<slug>/files-<version id>/. Agents and teams are the project's; skills are the library's

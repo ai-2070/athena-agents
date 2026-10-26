@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Guidance for AI coding agents working in this repo. For what the app does from a user's point of
-view, read `README.md`.
+view, read `README.md`; `docs/guide.md` is the long version of it.
 
 ## What this is
 
@@ -98,8 +98,8 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 ## User-facing text
 
 UI copy, README and commit messages use short, plain words for non-technical users
-("Needs you", "Back up this project"), not jargon. Keep the README's feature descriptions in step
-with behavior changes you make.
+("Needs you", "Back up this project"), not jargon. Keep the README's feature descriptions — and
+`docs/guide.md`'s — in step with behavior changes you make.
 
 ## Git
 
