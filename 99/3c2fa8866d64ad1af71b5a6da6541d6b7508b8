@@ -1,0 +1,37 @@
+tests/web/chatview.test.tsx
+  s_99cbec1ba2c932::t_b29b3f9d0d5681 288
+  s_99cbec1ba2c932::t_0314e6fc038c64 253-287,289-302
+web/chat/ChatView.tsx
+  s_99cbec1ba2c932::t_ce476d34dd11f0 20-21
+  s_99cbec1ba2c932::t_0b4da1467de618 8
+  s_99cbec1ba2c932::t_77cb897815abbf 347-397
+  s_99cbec1ba2c932::t_5eebfc60730f9b 482
+  s_99cbec1ba2c932::t_3f1f17ef4cc117 282-315
+README.md
+  s_99cbec1ba2c932::t_8682e72b983ba8 40
+web/chat/mention.ts
+  s_99cbec1ba2c932::t_ca3287e612b8f8 1-41
+server/engines/index.ts
+  s_99cbec1ba2c932::t_6b30668b78d1bd 194
+public/polish.css
+  s_99cbec1ba2c932::t_2c165bfb09569c 214-217
+tests/web/agent-mention.test.ts
+  s_99cbec1ba2c932::t_638cbc4efb226c 31
+  s_99cbec1ba2c932::t_20890235e9969f 1-30,32-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "993c2fa8866d64ad1af71b5a6da6541d6b7508b8",
+  "prompts": {},
+  "sessions": {
+    "s_99cbec1ba2c932": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b4b9aa7-a4f9-41c7-8092-c885642de822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
