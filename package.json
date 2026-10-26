@@ -3,7 +3,34 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT OR Apache-2.0",
-  "description": "Local, login-free command center for AI agents, tools, programs, MCP servers and social accounts.",
+  "description": "Run AI agents and teams from one local workspace: a live 3D map, team chats, Claude Code, Codex and local models, MCP tools, Outbox and Artifacts. No account, runs on your computer.",
+  "keywords": [
+    "ai-agents",
+    "multi-agent",
+    "agent-orchestration",
+    "ai-dashboard",
+    "local-first",
+    "claude-code",
+    "codex",
+    "mcp",
+    "model-context-protocol",
+    "llm",
+    "ollama",
+    "lm-studio",
+    "desktop-app",
+    "tauri",
+    "bun",
+    "typescript",
+    "threejs"
+  ],
+  "homepage": "https://github.com/ai-2070/blacksite#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ai-2070/blacksite.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ai-2070/blacksite/issues"
+  },
   "type": "module",
   "main": "server/index.ts",
   "scripts": {

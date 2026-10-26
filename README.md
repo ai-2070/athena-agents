@@ -2,9 +2,23 @@
 
 **Run AI agents and teams from one local workspace.** Give each agent a role, a model and the tools it needs. Talk to them directly, let them work together, and keep their work with the project it belongs to.
 
+<p align="center">
+  <img src="docs/images/station.png" alt="Blacksite's Station: a live 3D map of a project, with the Brain in the middle, three teams of AI agents at their desks, and the programs and tools connected to them" width="100%">
+</p>
+
+<p align="center">
+  <img alt="License: MIT or Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-c4ff3d?style=flat-square">
+  <img alt="Runs locally, no account" src="https://img.shields.io/badge/runs-locally%2C%20no%20account-1f2a14?style=flat-square">
+  <img alt="Desktop app for Windows, macOS and Linux" src="https://img.shields.io/badge/desktop-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-1f2a14?style=flat-square">
+  <img alt="Built with Bun, TypeScript and Tauri" src="https://img.shields.io/badge/built%20with-Bun%20%C2%B7%20TypeScript%20%C2%B7%20Tauri-1f2a14?style=flat-square">
+  <img alt="MCP: Model Context Protocol" src="https://img.shields.io/badge/MCP-ready-1f2a14?style=flat-square">
+</p>
+
+Blacksite is a local-first **AI agent dashboard**: build teams of agents, give each one its own model, tools, skills and memory, and watch them work on a live 3D map. It works with **Claude Code, OpenAI Codex, Hermes, pi, oh-my-pi, OpenClaw, Ollama, LM Studio** and any **OpenAI-compatible API**, and connects to programs and services through the **Model Context Protocol (MCP)**: browsers, Blender, ComfyUI, ffmpeg, Unity, Unreal Engine, Godot, GitHub, Notion, Linear and more.
+
 The dashboard runs at **http://localhost:4800**, with no dashboard account or login. Its server and saved state stay on your computer. **Local does not mean offline:** hosted models and connected services receive the requests you send them. You can also use local models through LM Studio or Ollama.
 
-[What you can do](#what-you-can-do) · [Get started](#get-started) · [Connect a model](#connect-a-model) · [Your first project](#your-first-project) · [Where things are](#where-things-are) · [Approvals and safety](#approvals-and-safety) · [Save and restore](#save-and-restore) · [Development](#development) · [Detailed guide](docs/guide.md)
+[What you can do](#what-you-can-do) · [Screenshots](#screenshots) · [Get started](#get-started) · [Connect a model](#connect-a-model) · [Your first project](#your-first-project) · [Where things are](#where-things-are) · [Approvals and safety](#approvals-and-safety) · [Save and restore](#save-and-restore) · [Development](#development) · [Detailed guide](docs/guide.md)
 
 ## What you can do
 
@@ -13,6 +27,42 @@ The dashboard runs at **http://localhost:4800**, with no dashboard account or lo
 - **Work with your files and programs.** Give agents a project folder, attach reference files, and connect tools for programs such as Blender, ComfyUI and ffmpeg. Add more tools through MCP servers.
 - **Keep useful instructions.** Write skills in plain words, share them across agents and teams, and turn repeated work into routines you can run by hand or on a schedule.
 - **Review work before it goes out.** Handle permission requests in **Needs you**, review X and Reddit drafts in the **Outbox**, and find saved results in **Artifacts**.
+
+## Screenshots
+
+The screenshots show made-up demo data.
+
+### The Station: your agents, teams and tools on one live map
+
+Each team is a pod with its agents at their desks. The Brain sits in the middle and sets up teams, skills and routines when you ask. Lines run from the programs and services at the top to the agents that use them, and light up when an agent makes a call.
+
+![The Station, a live 3D map with three teams, the Brain, and the programs connected to the agents](docs/images/station.png)
+
+### Team chats where agents work together
+
+Everyone sees the whole conversation. Agents hand work to each other with @mentions, and the files they make show up in the chat: images, video, audio and 3D models you can turn with the mouse.
+
+![A team chat with an audio player and a 3D model preview, next to the team's panel with its members and their models](docs/images/team-chat.png)
+
+### Artifacts: what the teams finished
+
+Written results, files and folders that agents saved, each with a preview, who made it, which team it was for and when, and a search box for when there are many.
+
+![The Artifacts page with an image preview and a 3D crystal model preview](docs/images/artifacts.png)
+
+### MCP servers in one click
+
+Add a browser, GitHub, Notion, Linear, Unity, Unreal Engine, Godot or ElevenLabs from a list, or ask the Brain to do it.
+
+![The MCP servers page with ready-made presets, some marked as needing a key](docs/images/mcp-servers.png)
+
+### Projects as floors
+
+<img src="docs/images/project-menu.png" alt="The project menu: drag to reorder, rename, clone, back up, restore or delete a project" width="320" align="right">
+
+Each project has its own agents, teams, chats and Brain folder. Drag projects into the order you like, and press Up and Down on the Station to move between them. You can rename, clone or delete a project (a delete first makes a backup and checks it).
+
+<br clear="right">
 
 ## Get started
 
