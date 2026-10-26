@@ -88,12 +88,15 @@ export interface FoundModel {
 
 // The lists are fetched over the network for API providers: kept for a few minutes.
 const CACHE_MS = 5 * 60_000;
-const cache = new Map<ModelProvider, { at: number; list: FoundModel[] }>();
+// keyed by provider and address: a server on this PC moved to another address lists its own models
+const cache = new Map<string, { at: number; list: FoundModel[] }>();
+const cacheKey = (p: ModelProvider) => (p === 'claude' || p === 'codex' || p === 'hermes' || p === 'openrouter' ? p : `${p}|${getSettings().providers?.[p]?.baseUrl || ''}`);
 export const clearModelCache = (): void => cache.clear();
 
 /** Every model a provider has. [] when it can't be listed (not set up, server not running, Codex). */
 export async function availableModels(p: ModelProvider): Promise<FoundModel[]> {
-  const hit = cache.get(p);
+  const key = cacheKey(p);
+  const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.list;
   let list: FoundModel[] = [];
   if (p === 'claude') list = CLAUDE_MODELS.map((m) => ({ id: m.id, name: m.name }));
@@ -113,7 +116,7 @@ export async function availableModels(p: ModelProvider): Promise<FoundModel[]> {
     }));
   }
   // an empty list may be a server that isn't running yet: ask again next time
-  if (list.length) cache.set(p, { at: Date.now(), list });
+  if (list.length) cache.set(key, { at: Date.now(), list });
   return list;
 }
 
@@ -184,7 +187,7 @@ export function checkModelNow(p: ModelProvider, model: string): string | null {
     return `"${id}" isn't a Claude Code model (opus, sonnet, haiku, fable or a full claude-… id)`;
   }
   if (p === 'codex' || p === 'hermes') return null;
-  const hit = cache.get(p);
+  const hit = cache.get(cacheKey(p));
   const all = hit && Date.now() - hit.at < CACHE_MS ? hit.list : [];
   // can't list them (server not running): take the id as given
   if (!all.length || all.some((m) => m.id === id)) return null;

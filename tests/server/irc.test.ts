@@ -1,19 +1,22 @@
 // IRC between the Brain and teams: the Brain hands work on as itself, answers @Brain in team chats,
 // and follows up on what it handed out (end to end, with a fake model for the agents and the Brain).
 import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ask, clearHistory, history } from '../../server/overseer.ts';
 import { startIrc, FOLLOW_UPS_MAX } from '../../server/irc.ts';
 import { listBriefs } from '../../server/briefs.ts';
 import { newAgent } from '../../server/library.ts';
-import { chats, saveSettings, workflows } from '../../server/store.ts';
+import { activeProject, chats, saveSettings, setActiveProject, workflows } from '../../server/store.ts';
+import { createProject } from '../../server/projects.ts';
 import { getThread, postUserMessage, stopTeam } from '../../server/teams.ts';
 import type { Team } from '../../shared/types.ts';
 
 // the Brain's model: answers queued per kind of question it gets
 const answers: string[] = []; // the Brain chat
-const verdicts: string[] = []; // checking finished work
+const verdicts: (string | Promise<string>)[] = []; // checking finished work (a promise: a check that takes a while)
 const replies: string[] = []; // @Brain in a team chat
 const asked: { system: string; user: string }[] = [];
 vi.mock('../../server/brain.ts', async (orig) => ({
@@ -27,8 +30,9 @@ vi.mock('../../server/brain.ts', async (orig) => ({
   },
 }));
 
-// the agents' model: what each one says, by name
+// the agents' model: what each one says, by name. "Holder" answers only when the test lets it go.
 const calls: Record<string, number> = {};
+const held: (() => void)[] = [];
 const say = (name: string, last: string): string => {
   calls[name] = (calls[name] || 0) + 1;
   if (name === 'Finisher') return 'Done: saved thumb.png.';
@@ -47,7 +51,8 @@ beforeAll(async () => {
     const j = JSON.parse(body) as { messages: { content: string | { text?: string }[] }[] };
     const text = (c: string | { text?: string }[]) => (typeof c === 'string' ? c : c.map((x) => x.text || '').join(''));
     const name = /You are ([A-Z]\w+)/.exec(text(j.messages[0].content))?.[1] || '';
-    const reply = say(name, text(j.messages.at(-1)!.content));
+    if (name === 'Holder') await new Promise<void>((go) => held.push(go));
+    const reply = name === 'Holder' ? 'Held answer.' : say(name, text(j.messages.at(-1)!.content));
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: reply } }] })}\n\n`);
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
@@ -131,6 +136,66 @@ describe('the Brain hands work on as itself', () => {
     await ask('edit please');
     stopTeam(t.id);
     await until(() => briefFor(t.id)?.status === 'stopped');
+  });
+});
+
+describe('follow-up edge cases', () => {
+  it('a check that says "not done" without saying what is missing tells you it is stuck', async () => {
+    const lead = agent('Finisher');
+    const t = team('Vague', lead.id);
+    verdicts.push('{"done":false,"followUp":"","summary":"Hard to tell what is left."}');
+    answers.push(delegate('team', t.id, 'Make it'));
+    await ask('make it');
+    await until(() => briefFor(t.id)?.status === 'stuck');
+    expect(thread(t.id).filter((m) => m.from === 'brain')).toHaveLength(1);
+    expect(notes().at(-1)).toMatch(/Vague hasn't finished\*\*\. Hard to tell/);
+  });
+
+  it('turning follow-ups off also stops checking on work handed out before', async () => {
+    const h = agent('Holder');
+    answers.push(delegate('agent', h.id, 'Hold on'));
+    await ask('hold');
+    await until(() => held.length > 0);
+    saveSettings({ brainFollowsUp: false });
+    const checks = asked.filter((a) => a.system.includes('Decide whether')).length;
+    held.shift()!();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(asked.filter((a) => a.system.includes('Decide whether')).length).toBe(checks);
+    expect(briefFor(h.id)?.status).toBe('open');
+  });
+
+  it('an answer for work handed on anew meanwhile is not followed up', async () => {
+    const w = agent('Writer');
+    let judge!: (v: string) => void;
+    verdicts.push(new Promise<string>((r) => (judge = r)), '{"done":true,"summary":"The new one is done."}');
+    answers.push(delegate('agent', w.id, 'First version'));
+    const first = await ask('first');
+    const firstChat = first.delegate!.sent!.chatId!;
+    await until(() => asked.some((a) => a.user.includes('First version') && a.system.includes('Decide whether')));
+    // handed on anew while the first answer is being checked
+    answers.push(delegate('agent', w.id, 'Second version'));
+    await ask('second');
+    await until(() => briefFor(w.id)?.status === 'done' && briefFor(w.id)?.text === 'Second version');
+    judge('{"done":false,"followUp":"Add the summary","summary":"Missing the summary."}');
+    await new Promise((r) => setTimeout(r, 200));
+    // no follow-up went into the first chat
+    expect(chats.get(w.id, firstChat)!.items.filter((i) => i.type === 'user')).toHaveLength(1);
+    expect(listBriefs().find((b) => b.text === 'First version')?.status).toBe('replaced');
+  });
+
+  it("checks an agent's answer in its own project after you open another", async () => {
+    const a = await createProject({ name: 'IRC A', mode: 'new', folder: path.join(os.homedir(), 'irc-projects', 'a') });
+    const h = agent('Holder');
+    answers.push(delegate('agent', h.id, 'Work in project A'));
+    await ask('work');
+    await until(() => held.length > 0);
+    const b = await createProject({ name: 'IRC B', mode: 'new', folder: path.join(os.homedir(), 'irc-projects', 'b') });
+    expect(activeProject().id).toBe(b.id);
+    held.shift()!();
+    await until(() => listBriefs(a.id).findLast((x) => x.targetId === h.id)?.status === 'done');
+    expect(listBriefs(b.id)).toEqual([]);
+    setActiveProject(a.id);
+    expect(notes().at(-1)).toContain('**Holder finished.**');
   });
 });
 

@@ -2,7 +2,7 @@
 // answers in a team chat when someone writes @Brain, and follows up on the work it handed out: when a
 // team goes quiet or an agent finishes, it checks the result, asks for what is missing (a few times at
 // most) and tells you in the Brain chat how it went.
-import { agents, chats, activeProject, openProject, getSettings, emit, log } from './store.ts';
+import { agents, chats, activeProject, openProject, getSettings, emit, log, withProject } from './store.ts';
 import { getTeam, getThread, postBrainMessage, setBrainHandlers, teamState, BRAIN } from './teams.ts';
 import { startRun } from './engines/index.ts';
 import { think, parseJSON, brainModel, pickMember } from './brain.ts';
@@ -55,11 +55,10 @@ function runForBrief(agent: Agent, chatId: string, text: string, attachments: st
   if (!chat) throw new Error('that chat is gone');
   const { runId, promise, signal } = startRun(agent, chat, text, { from: 'the Brain', attachments });
   if (brief) {
-    const pid = activeProject().id;
-    void promise.then(
-      (answer) => agentFinished(brief.id, pid, answer, signal.aborted),
-      () => agentFinished(brief.id, pid, '', signal.aborted),
-    );
+    // (checked in the project it runs in, even if you open another one meanwhile)
+    const project = activeProject();
+    const done = (answer: string) => withProject(project, () => agentFinished(brief.id, project.id, answer, signal.aborted));
+    void promise.then(done, () => done(''));
   }
   return { runId };
 }
@@ -89,16 +88,18 @@ const checking = new Set<string>();
 
 // What happens after a check: done, a follow-up, or stuck.
 function settle(brief: BrainBrief, pid: string, v: Verdict, followUp: (text: string) => Promise<unknown>): Promise<void> | void {
-  if (v.done || !v.followUp) {
+  if (v.done) {
     updateBrief(brief.id, { status: 'done', summary: v.summary }, pid);
     log('brain', `${brief.name} finished what the Brain asked`);
     tellUser(pid, `**${brief.name} finished.** ${v.summary || ''}`.trim());
     return;
   }
-  if (brief.followUps >= FOLLOW_UPS_MAX) {
+  // not done, and out of follow-ups (or the Brain didn't say what is missing): you decide
+  if (brief.followUps >= FOLLOW_UPS_MAX || !v.followUp) {
     updateBrief(brief.id, { status: 'stuck', summary: v.summary }, pid);
     log('brain', `${brief.name} is stuck on what the Brain asked`);
-    tellUser(pid, `**${brief.name} hasn't finished** after ${FOLLOW_UPS_MAX} follow-ups. ${v.summary || ''} Tell me how to go on, or take a look yourself.`.trim());
+    const after = brief.followUps ? ` after ${brief.followUps} follow-up${brief.followUps > 1 ? 's' : ''}` : '';
+    tellUser(pid, `**${brief.name} hasn't finished**${after}. ${v.summary || ''} Tell me how to go on, or take a look yourself.`.trim());
     return;
   }
   updateBrief(brief.id, { followUps: brief.followUps + 1, summary: v.summary }, pid);
@@ -119,6 +120,8 @@ export async function teamIdle(teamId: string, { stopped }: { stopped: boolean }
   if (openProject().id !== p.id) return;
   const brief = openBrief('team', teamId, p.id);
   if (!brief || checking.has(brief.id)) return;
+  // follow-ups turned off since it was handed out: leave it to them
+  if (!followsUp()) return;
   if (stopped) {
     updateBrief(brief.id, { status: 'stopped' }, p.id);
     return;
@@ -150,9 +153,9 @@ export async function teamIdle(teamId: string, { stopped }: { stopped: boolean }
 
 // An agent the Brain handed work to finished (or was stopped): check its answer.
 async function agentFinished(briefId: string, pid: string, answer: string, stopped: boolean): Promise<void> {
-  if (openProject().id !== pid) return;
-  const b = listBriefs(pid).find((x) => x.id === briefId && x.status === 'open');
-  if (!b) return;
+  const stillOpen = () => listBriefs(pid).find((x) => x.id === briefId && x.status === 'open') || null;
+  const b = stillOpen();
+  if (!b || !followsUp()) return;
   if (stopped) {
     updateBrief(b.id, { status: 'stopped' }, pid);
     return;
@@ -162,8 +165,10 @@ async function agentFinished(briefId: string, pid: string, answer: string, stopp
   checking.add(b.id);
   try {
     const v = await reviewWork(b, cut(answer, WORK_CHARS) || '(no answer)', null);
-    if (openProject().id !== pid) return;
-    await settle(b, pid, v, async (text) => runForBrief(agent, b.chatId!, text, [], b));
+    // handed on anew (or stopped) while it was being checked: this answer is for old work
+    const now = stillOpen();
+    if (!now) return;
+    await settle(now, pid, v, async (text) => runForBrief(agent, now.chatId!, text, [], now));
   } catch (e) {
     log('error', `The Brain couldn't check on ${b.name}: ${(e as Error).message}`);
   } finally {

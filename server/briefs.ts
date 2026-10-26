@@ -3,6 +3,7 @@ import { activeProject } from './store.ts';
 import { readJSON, writeJSON, dataPath, uid } from './util.ts';
 import type { BrainBrief } from '../shared/types.ts';
 
+// finished briefs kept (open ones are always kept: they are still followed up)
 const KEEP = 40;
 const file = (pid: string) => dataPath('projects', pid, 'brain-briefs.json');
 
@@ -11,7 +12,9 @@ export function listBriefs(pid = activeProject().id): BrainBrief[] {
 }
 
 function save(pid: string, list: BrainBrief[]) {
-  writeJSON(file(pid), { briefs: list.slice(-KEEP) });
+  const closed = list.filter((b) => b.status !== 'open');
+  const drop = new Set(closed.slice(0, Math.max(0, closed.length - KEEP)));
+  writeJSON(file(pid), { briefs: list.filter((b) => !drop.has(b)) });
 }
 
 /** A new brief. Older open ones to the same team or agent are replaced by it. */

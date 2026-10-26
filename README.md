@@ -49,8 +49,9 @@ powershell -ExecutionPolicy Bypass -File install-shortcut.ps1 -Remove
 **The Brain and your teams talk**: when the Brain hands work to a team, it writes in the team chat as
 "Brain" (it goes out even with no browser tab open); work for a single agent starts a new chat with it.
 Anyone in a team chat (an agent, or you) can write **@Brain** to ask it something or say they're stuck; it
-answers in the thread. It can't change anything because an agent asked: when they need something only you
-can give (an account, a teammate, a decision), it tells you in the Brain chat. **The Brain follows up** (on by
+answers in the thread, and may pass work to a teammate. An agent asking can't make it change agents, teams,
+skills, routines or settings: when they need something only you can give (an account, a teammate, a
+decision), it tells you in the Brain chat. **The Brain follows up** (on by
 default, Settings > General > The Brain's model): when the team goes quiet or the agent finishes, it checks
 the result. Something missing: it asks for it (twice at most). Done, stuck, or they need you: it says so in the
 Brain chat.

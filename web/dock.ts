@@ -545,7 +545,25 @@ async function send(given: string[] = []) {
   // the server already handed it on, as the Brain: follow the agent's chat or the team's thread here
   const d = r.delegate;
   if (d?.kind === 'agent' && d.sent?.chatId) add({ kind: 'agent', agentId: d.id, chatId: d.sent.chatId, text: '', tools: [], images: [], reason: 'from the Brain', done: false, started: true });
-  if (d?.kind === 'branch' && d.sent?.ts) add({ kind: 'branch', wfId: d.id, name: d.name, reason: 'from the Brain', since: d.sent.ts, messages: [], working: [], briefId: d.sent.messageId });
+  if (d?.kind === 'branch' && d.sent?.ts) {
+    const it = add({ kind: 'branch', wfId: d.id, name: d.name, reason: 'from the Brain', since: d.sent.ts, messages: [], working: [], briefId: d.sent.messageId });
+    // the team may have answered before this answer got here: those messages came before the item did
+    void GET<{ messages: TeamMessage[]; working: string[] }>(`/teams/${d.id}/chat`)
+      .then((t) => {
+        if (!D.items.includes(it)) return;
+        mergeTeamMessages(it, t.messages);
+        it.working = t.working;
+        draw();
+      })
+      .catch(() => {});
+  }
+}
+
+// Team messages for a dock item: the ones since its brief (not yours, not the brief itself), each once, in order.
+export function mergeTeamMessages(it: Pick<BranchItem, 'messages' | 'since' | 'briefId'>, messages: TeamMessage[]): void {
+  const have = new Set(it.messages.map((m) => m.id));
+  for (const m of messages) if (!have.has(m.id) && m.from !== 'user' && m.id !== it.briefId && m.ts >= it.since) it.messages.push(m);
+  it.messages.sort((a, b) => a.ts - b.ts);
 }
 
 async function toAgent(agentId: string, text: string, reason = '', attachments: string[] = []) {
@@ -636,7 +654,7 @@ function handleEvent(ev: ServerEvent) {
     const it = items[items.length - 1];
     if (!it) return;
     const e = ev.event as TeamEvent;
-    if (e.kind === 'message' && e.message.from !== 'user' && e.message.id !== it.briefId && e.message.ts >= it.since) it.messages.push(e.message);
+    if (e.kind === 'message') mergeTeamMessages(it, [e.message]);
     if (e.kind === 'state') it.working = e.working;
     draw();
     return;

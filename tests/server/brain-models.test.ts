@@ -3,8 +3,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyActions, ask, clearHistory, effortAsked, prepareModels, snapshot } from '../../server/overseer.ts';
 import type { BrainAction } from '../../server/overseer.ts';
-import { checkModel, clearModelCache, findModels, matchModels, modelProvider, providerOfAgent } from '../../server/models.ts';
-import { agents, setSecret, workflows } from '../../server/store.ts';
+import { availableModels, checkModel, clearModelCache, findModels, matchModels, modelProvider, providerOfAgent } from '../../server/models.ts';
+import { agents, saveSettings, setSecret, workflows } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
 import { listVersions } from '../../server/versions.ts';
 
@@ -75,6 +75,23 @@ describe('providers and model lists', () => {
     expect(await findModels('claude', 'opus')).toContain('claude-opus-5-5');
     expect(await findModels('who', '')).toContain('No provider "who"');
     expect(await findModels('constructor', '')).toContain('No provider "constructor"');
+  });
+
+  it("keeps each address's own list: a server on this PC moved elsewhere lists its own models", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const id = String(url).startsWith('http://first.local') ? 'model-a' : String(url).startsWith('http://second.local') ? 'model-b' : null;
+        if (!id) throw new Error('offline');
+        return new Response(JSON.stringify({ data: [{ id }] }));
+      }),
+    );
+    saveSettings({ providers: { lmstudio: { baseUrl: 'http://first.local/v1' } } });
+    expect((await availableModels('lmstudio')).map((m) => m.id)).toEqual(['model-a']);
+    saveSettings({ providers: { lmstudio: { baseUrl: 'http://second.local/v1' } } });
+    expect((await availableModels('lmstudio')).map((m) => m.id)).toEqual(['model-b']);
+    expect(await checkModel('lmstudio', 'model-a')).toMatch(/has no model "model-a"/);
+    saveSettings({ providers: { lmstudio: { baseUrl: 'http://127.0.0.1:1234/v1' } } });
   });
 
   it('checks a model id against the provider, with close matches when it is wrong', async () => {
@@ -223,6 +240,7 @@ describe('in the Brain chat', () => {
 
   it('refuses a misspelled model id', async () => {
     const a = newAgent({ name: 'Typist', engine: 'openai', provider: 'openrouter', model: 'google/gemini-3-pro' });
+    clearHistory();
     answers.push(`On it.\n\`\`\`actions\n[{"do":"set_model","to":"agent","id":"${a.id}","model":"google/gemini-3-flsh"}]\n\`\`\``);
     const r = await ask('use gemini flash for the typist');
     expect(r.done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('close: google/gemini-3-flash') });

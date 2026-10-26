@@ -124,7 +124,7 @@ async function draw(): Promise<void> {
             'The Brain follows up',
             '.mt',
           ),
-          h('p.hint', 'When a team or agent finishes work the Brain handed them, it checks the result. Something missing: it asks them for it (twice at most). Done, stuck, or they need you: it tells you in the Brain chat. Off: it only hands the work out.'),
+          h('p.hint', 'When a team or agent finishes work the Brain handed them, it checks the result. Something missing: it asks them for it (twice at most). Done, stuck, or they need you: it tells you in the Brain chat. Off: it only hands the work out, and stops checking on work it handed out before.'),
           toggleRow(
             s.brainAnyGitHub === true,
             async (on) => {
