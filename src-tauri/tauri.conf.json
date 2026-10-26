@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "My Dashboard",
+  "version": "../package.json",
+  "identifier": "com.ai2070.mydashboard",
+  "build": {
+    "beforeDevCommand": { "script": "bun scripts/build-desktop.ts", "wait": true },
+    "beforeBuildCommand": "bun scripts/build-desktop.ts",
+    "frontendDist": "loading"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi", "app", "dmg", "deb", "rpm", "appimage"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.png", "icons/icon.icns", "icons/icon.ico"],
+    "externalBin": ["binaries/bun"],
+    "resources": { "app/": "app/" },
+    "category": "DeveloperTool",
+    "shortDescription": "A local command center for AI agents",
+    "longDescription": "Run AI agents and teams from one local workspace. Give each agent a role, a model and the tools it needs. Its server and saved state stay on your computer.",
+    "copyright": "ai-2070",
+    "homepage": "https://github.com/ai-2070/ai-dashboard",
+    "windows": {
+      "nsis": { "installMode": "currentUser" }
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": "-",
+      "entitlements": "Entitlements.plist"
+    }
+  }
+}

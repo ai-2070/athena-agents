@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { which, spawnCommand, run as runCmd, ROOT, PORT, DATA, HOME, dataPath, ensureDir, writeJSON } from '../util.ts';
+import { which, spawnCommand, run as runCmd, BRIDGE_SCRIPT, PORT, DATA, HOME, dataPath, ensureDir, writeJSON } from '../util.ts';
 import { internalToken } from '../store.ts';
 import { workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
@@ -281,7 +281,7 @@ export function addBridge(flavor: PiFlavor): string {
   }
   const servers = cfg.mcpServers && typeof cfg.mcpServers === 'object' && !Array.isArray(cfg.mcpServers) ? cfg.mcpServers : {};
   // a call can wait while you decide on an approval: pi counts seconds, oh-my-pi milliseconds
-  servers.dashboard = { command: process.execPath, args: [path.join(ROOT, 'server', 'mcp-bridge.ts')], timeout: flavor === 'pi' ? 3600 : 3_600_000 };
+  servers.dashboard = { command: process.execPath, args: [BRIDGE_SCRIPT], timeout: flavor === 'pi' ? 3600 : 3_600_000 };
   ensureDir(path.dirname(file));
   writeJSON(file, { ...cfg, mcpServers: servers });
   return file;

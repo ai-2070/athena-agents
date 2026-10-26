@@ -13,7 +13,10 @@
     "typecheck": "tsc -p tsconfig.server.json && tsc -p tsconfig.web.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "bun run typecheck && bun run test"
+    "check": "bun run typecheck && bun run test",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build",
+    "desktop:smoke": "bun scripts/desktop-smoke.ts"
   },
   "engines": {
     "bun": ">=1.2"
@@ -38,6 +41,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
     "@types/bun": "^1.4.4",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^26.6.5",

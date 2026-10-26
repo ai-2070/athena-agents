@@ -21,10 +21,14 @@ bun run build        # bundle web/ into public/dist
 bun run icons        # regenerate web/icons.ts after adding names in scripts/build-icons.ts
 bun server/index.ts --port 4900 --no-open   # a second instance that won't open a browser
 bun scripts/try-agent.ts <agentId> "message" [--port 4800] [--approve]
+bun run desktop:dev    # the desktop app (needs Rust); desktop:build makes installers
+bun scripts/build-desktop.ts && bun run desktop:smoke   # run the bundled server the way the app does
 ```
 
 Single test file: `bunx vitest run tests/server/skills.test.ts`.
 CI (`.github/workflows/ci.yml`) runs typecheck, test and build on ubuntu and windows. All three must pass.
+Its "Desktop app" job also stages the desktop app, runs the smoke test and checks the Rust code.
+`.github/workflows/desktop.yml` builds the installers (on `v*` tags, or by hand).
 
 ## Layout
 
@@ -44,6 +48,8 @@ CI (`.github/workflows/ci.yml`) runs typecheck, test and build on ubuntu and win
 | `skills/` | Skill folders that come with the dashboard (`storytold`, `oomol`, `composio`), copied unchanged from GitHub: each folder's `README.md` says from where and which commit. `BUNDLED` in `server/skills.ts` lists them; `ensureBuiltinSkills` adds them to the library |
 | `library/agency-agents/` | The Agency's agent files (the Library's specialists), copied unchanged from GitHub: its `README.md` says from where and which commit. `server/library.ts` reads the folder directly |
 | `tests/server`, `tests/web` | Vitest: server in Node, web in happy-dom |
+| `src-tauri/` | The desktop app (Tauri 2, Rust): starts the bundled server with a bundled Bun and shows it. `docs/desktop.md` explains it |
+| `scripts/build-desktop.ts` | Fills `src-tauri/app/` (server bundled with `Bun.build`, page, skills, library, node-pty) and `src-tauri/binaries/` (Bun) |
 | `docs/internal/plans/` | Review notes and plans |
 
 ## Code rules
@@ -59,6 +65,9 @@ CI (`.github/workflows/ci.yml`) runs typecheck, test and build on ubuntu and win
   (`collection`, `readJSON`/`writeJSON`, `dataPath`/`projectData`), not ad-hoc `fs` writes.
 - Tell open tabs about changes with `emit(type, payload)` from `store.ts`.
 - Comments are short and in plain words; explain why, not what. Match the existing style.
+- The desktop app runs the server bundled into one file. Server imports must bundle with `Bun.build`
+  (native modules go in `external` and get copied, like node-pty), and files read relative to `ROOT` must be
+  copied in `scripts/build-desktop.ts`. The installed app folder is read-only: write under `DATA` only.
 - Large files exist (`web/views/station.ts`, `server/index.ts`). Edit the relevant part; don't
   reformat or reorganize unrelated code.
 
@@ -98,4 +107,5 @@ with behavior changes you make.
   `Skills: write a new one or change one in plain words`, `Test: ...`, `Review fixes (server): ...`.
 - `bun.lock` is committed; CI installs with `--frozen-lockfile`, so update it when you change
   dependencies. Renovate handles routine upgrades.
-- Never commit `data/`, `public/dist/`, logs or keys.
+- Never commit `data/`, `public/dist/`, `src-tauri/app/`, `src-tauri/binaries/`, logs or keys.
+  `src-tauri/Cargo.lock` is committed.

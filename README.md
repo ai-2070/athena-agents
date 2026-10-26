@@ -16,6 +16,25 @@ The dashboard runs at **http://localhost:4800**, with no dashboard account or lo
 
 ## Get started
 
+### Desktop app
+
+Install **My Dashboard** like any other app; it needs no Bun and no terminal. Installers are on this repository's **Releases** page:
+
+| System | Download |
+|---|---|
+| Windows (x64 or Arm) | `…_x64-setup.exe` or `…_arm64-setup.exe` (an `.msi` is there for x64 too) |
+| macOS (Apple silicon or Intel) | `…_aarch64.dmg` or `…_x64.dmg` |
+| Linux (x64 or Arm) | `.deb`, `.rpm` or `.AppImage` |
+
+The app is the same dashboard in its own window. It starts the dashboard's server when you open it and stops it when you quit. Links to other sites open in your browser.
+
+- **Its data is separate** from a checkout's `data/` folder. It lives in `%APPDATA%\com.ai2070.mydashboard\data` on Windows, `~/Library/Application Support/com.ai2070.mydashboard/data` on macOS and `~/.local/share/com.ai2070.mydashboard/data` on Linux. To use another folder, start the app with `DASH_DATA` set to it.
+- **It uses port 4800** when that is free, so X and Reddit sign-in work as in the browser. If another dashboard already uses it, the app takes the next free port.
+- **The installers are not signed yet.** On Windows, choose **More info → Run anyway**. On macOS, Control-click the app in Finder and choose **Open**, or allow it under **System Settings → Privacy & Security**.
+- Agent CLIs such as `claude` and `codex` are found the same way your terminal finds them.
+
+To run from the source code instead, read on.
+
 ### Requirements
 
 - [Bun](https://bun.sh) **1.2 or newer**.
@@ -211,7 +230,7 @@ Workflow checkpoints and approval requests from outside MCP clients always come 
 
 ### Where work is stored
 
-Local dashboard state lives under **`data/`**, which is git-ignored: projects, agents, teams, chats, knowledge, MEMORY.md files, skills, presets, settings, the Outbox and activity. Keys are in `secrets.json`; account tokens are in `accounts.json`.
+Local dashboard state lives under **`data/`**, which is git-ignored (the [desktop app](#desktop-app) uses its own data folder): projects, agents, teams, chats, knowledge, MEMORY.md files, skills, presets, settings, the Outbox and activity. Keys are in `secrets.json`; account tokens are in `accounts.json`.
 
 The dashboard also auto-saves project state into **`<project folder>/.dashboard`**, including its agents, teams, routines, chats, MEMORY.md files, assigned or routine-mentioned skills and earlier versions. Opening that folder as a project brings the saved state back. Existing library skills are not overwritten: a different copy from the project folder is kept as a version.
 
@@ -242,6 +261,7 @@ The dashboard keeps the last **50 versions** per item and groups nearby edits. *
 ## Troubleshooting
 
 - **Bun is not found:** install it from [bun.sh](https://bun.sh), then open a new terminal. The Windows launcher also checks Bun's default install location.
+- **The desktop app says it could not start:** it shows where the server's log is (`server.log`; the one before is `server.old.log`). Choose **Try again**, or check the log for the error.
 - **The page does not open:** visit http://localhost:4800 directly and check the server terminal for errors. Use the port you selected if you changed it.
 - **Browser changes are missing:** rebuild with `bun run build` and reload, or use `bun run dev` while editing. Direct server startup only builds when the bundle is missing.
 - **An agent cannot run:** check its selected engine in Settings, its login or API key, and whether a local model server is running. For missing Hermes dashboard tools, add the MCP bridge as described in [Connect a model](#connect-a-model).
@@ -266,6 +286,15 @@ bunx vitest run tests/server/skills.test.ts
 bun run icons        # Regenerate icons after editing scripts/build-icons.ts
 ```
 
+Desktop app (needs [Rust](https://rustup.rs) and, on Linux, [Tauri's system libraries](https://tauri.app/start/prerequisites/)):
+
+```sh
+bun run desktop:dev     # Build and open the app (Tauri)
+bun run desktop:build   # Make installers in src-tauri/target/release/bundle
+```
+
+See [`docs/desktop.md`](docs/desktop.md) for how it works and how releases are made.
+
 | Path | Contents |
 |---|---|
 | [`server/`](server/) | HTTP and WebSocket server, agent engines, tools, the Brain and JSON storage. |
@@ -274,6 +303,7 @@ bun run icons        # Regenerate icons after editing scripts/build-icons.ts
 | [`public/`](public/) | HTML and styles. `public/dist/` is generated build output; do not edit it. |
 | [`tests/`](tests/) | Vitest server and browser tests. Server tests use temporary data and home folders, not your real state. |
 | [`scripts/`](scripts/) | Build and development scripts, icon generation and the agent CLI helper. |
+| [`src-tauri/`](src-tauri/) | The desktop app (Tauri): a window that starts the bundled server. |
 
 To send a message to an existing agent from a terminal while the server is running:
 

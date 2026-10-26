@@ -1133,4 +1133,10 @@ const shutdown = () => {
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+// The desktop app holds our stdin open. It closes when the app quits or crashes: stop with it.
+if (process.env.DASH_DESKTOP) {
+  process.stdin.on('end', shutdown);
+  process.stdin.on('error', shutdown);
+  process.stdin.resume();
+}
 process.on('unhandledRejection', (e) => console.error('Unhandled:', e));
