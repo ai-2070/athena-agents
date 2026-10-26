@@ -9,7 +9,7 @@ import { openBranchBuilder } from '../builder.ts';
 import { openDock, attachToBrain } from '../dock.ts';
 import { filesFromDrop, filesFromPaste, hasFiles } from '../attach.ts';
 import { uiZoom } from '../look.ts';
-import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.ts';
+import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.tsx';
 import { skillPicker } from '../skillpick.ts';
 import { historyButton } from '../history.ts';
 import { logoUrl, modelUrl, projectMark, pickLogo, removeLogo, pickModel, removeModel } from '../projectlogo.ts';

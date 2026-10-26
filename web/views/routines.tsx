@@ -6,7 +6,7 @@ import { h, GET, POST, PUT, DEL, attempt, navigate, confirmBox, ago, state } fro
 import { icon } from '../icons.ts';
 import { loadSkills, skillsCache } from '../skillpick.ts';
 import { scheduleEditor, scheduleText } from '../schedule.ts';
-import { openChat } from '../chatwin.ts';
+import { openChat } from '../chatwin.tsx';
 import { attachMentions, startMention, KIND_LABEL } from '../routinemention.ts';
 import type { Candidate } from '../routinemention.ts';
 import { findMentions } from '../../shared/routines.ts';
