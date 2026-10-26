@@ -1,5 +1,5 @@
 // App shell: navigation, routing, the "Needs you" drawer and live notifications.
-import { h, mount, clear, state, onState, onEvent, refreshState, refreshSoon, connectEvents, toast, navigate, approvalCard, ago } from './core.ts';
+import { h, mount, clear, freshElement, state, onState, onEvent, refreshState, refreshSoon, connectEvents, toast, navigate, approvalCard, ago } from './core.ts';
 import * as home from './views/home.ts';
 import * as station from './views/station.ts';
 import * as artifactsView from './views/artifacts.ts';
@@ -72,7 +72,7 @@ const HIDDEN: Route[] = [
   { path: 'terminals', label: 'Terminals', view: terminals },
 ];
 
-const viewEl = document.getElementById('view')!;
+let viewEl = document.getElementById('view')!;
 const titleEl = document.getElementById('page-title')!;
 let current: { view: View; params: string[] } | null = null;
 
@@ -134,20 +134,21 @@ async function route() {
   if (top === 'agents' && params[0] && params[1] !== 'edit') view = chat;
   else view = [...NAV, ...HIDDEN].find((n) => n.path === top)?.view || station;
   if (current?.view?.unmount) current.view.unmount();
-  current = { view, params };
-  viewEl.className = view.flush ? 'flush' : '';
+  const here = (current = { view, params });
+  // Each page gets its own element: one still loading when you leave draws into the old one, unseen.
+  const el = (viewEl = freshElement(viewEl));
+  el.className = view.flush ? 'flush' : '';
   document.body.classList.toggle('station-mode', !!view.station);
   document.body.classList.remove('nav-wide');
   // a full chat page has its own message box
   document.body.classList.toggle('in-chat', view === chat);
-  clear(viewEl);
   titleEl.textContent = view.title?.(params) || [...NAV, ...HIDDEN].find((n) => n.path === top)?.label || '';
   renderNav();
   try {
-    await view.render(viewEl, params, { setTitle: (t) => (titleEl.textContent = t) });
+    await view.render(el, params, { setTitle: (t) => current === here && (titleEl.textContent = t) });
   } catch (e) {
-    mount(viewEl, h('div.panel', h('p.red', `Something went wrong: ${(e as Error).message}`)));
     console.error(e);
+    if (current === here) mount(el, h('div.panel', h('p.red', `Something went wrong: ${(e as Error).message}`)));
   }
 }
 

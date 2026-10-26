@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, h, mount, toggleRow } from '../../web/core.ts';
+import { ago, freshElement, h, mount, toggleRow } from '../../web/core.ts';
 
 describe('h()', () => {
   it('builds elements from tag.class#id notation', () => {
@@ -64,5 +64,24 @@ describe('toggleRow()', () => {
     // two rows never share an id
     expect(toggleRow(true, () => {}, 'Other').querySelector('input')!.id).not.toBe(input.id);
     row.remove();
+  });
+});
+
+describe('freshElement()', () => {
+  it('swaps in an empty copy, so a page that loads late draws out of sight', () => {
+    const shell = h('main', h('section#view.flush', h('p', 'Station')));
+    document.body.append(shell);
+    const old = shell.querySelector('#view')!;
+    const fresh = freshElement(old);
+    expect(fresh).not.toBe(old);
+    expect(document.getElementById('view')).toBe(fresh);
+    expect(fresh.className).toBe('flush');
+    expect(fresh.childNodes.length).toBe(0);
+    // the page you left finishes loading: it draws into the old element, not the one on screen
+    mount(old, h('p', 'Library'));
+    expect(shell.textContent).toBe('');
+    mount(fresh, h('p', 'Agents'));
+    expect(shell.textContent).toBe('Agents');
+    shell.remove();
   });
 });
