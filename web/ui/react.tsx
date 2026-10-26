@@ -2,7 +2,7 @@
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { DependencyList, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { onEvent, onState, state } from '../core.ts';
+import { h, mount, onEvent, onState, state } from '../core.ts';
 import { icon } from '../icons.ts';
 import type { AppState, ServerEvent } from '../../shared/types.ts';
 
@@ -42,6 +42,35 @@ export function DomNode({ make, deps, className }: { make: () => Node; deps: Dep
   const node = useMemo(make, deps);
   const ref = useCallback((el: HTMLElement | null) => void (el && el.replaceChildren(node)), [node]);
   return <div ref={ref} className={className} />;
+}
+
+/** A page module that still draws plain DOM (render/unmount/onEvent, as in app.ts). */
+export interface PlainView {
+  render(el: HTMLElement, params?: string[]): unknown;
+  unmount?(): unknown;
+  onEvent?(ev: ServerEvent): unknown;
+}
+
+/** Runs a plain-DOM page inside a React page (a Settings tab), with live events, until React moves on.
+ *  Each mount gets a fresh element, so a slow render from a page you left lands out of sight. */
+export function ViewHost({ view, params = [], hostRef }: { view: PlainView; params?: string[]; hostRef?: (el: HTMLDivElement | null) => void }) {
+  const box = useRef<HTMLDivElement | null>(null);
+  const key = params.join('/');
+  useEffect(() => {
+    const el = document.createElement('div');
+    box.current!.append(el);
+    let live = true;
+    Promise.resolve(view.render(el, key ? key.split('/') : [])).catch((e: unknown) => {
+      if (live) mount(el, h('div.panel', h('p.red', `Something went wrong: ${e instanceof Error ? e.message : String(e)}`)));
+    });
+    return () => {
+      live = false;
+      view.unmount?.();
+      el.remove();
+    };
+  }, [view, key]);
+  useServerEvents((ev) => view.onEvent?.(ev));
+  return <div ref={(el) => ((box.current = el), hostRef?.(el))} />;
 }
 
 const subscribe = (fn: () => void) => onState(fn);

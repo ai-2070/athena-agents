@@ -1,29 +1,27 @@
-// Settings: everything you set up once, in tabs. General · Connections · MCP servers · Programs.
+// Settings: everything you set up once, in tabs. General · Connections · MCP servers · Programs · Look.
 // A search box finds any setting: it switches to its tab, scrolls to it and flashes it.
 // Links can do the same with #/settings?tab=general&find=OpenAI Codex
-import { h, mount } from '../core.ts';
-import { icon } from '../icons.ts';
+// The shell is React (Base UI tabs and autocomplete); the tabs are still plain-DOM pages, hosted in it.
+import { useEffect, useRef, useState } from 'react';
+import { Autocomplete } from '@base-ui/react/autocomplete';
 import * as general from './settings.ts';
 import * as connections from './connections.ts';
 import * as mcp from './mcp.ts';
 import * as programs from './programs.ts';
 import * as look from './look.ts';
-import type { ServerEvent } from '../../shared/types.ts';
+import { Tabs } from '../ui/controls.tsx';
+import { Icon, ViewHost, reactPage } from '../ui/react.tsx';
+import type { PlainView } from '../ui/react.tsx';
 
-/** What a tab's view module offers (the same shape as the views in app.ts). */
-interface TabView {
-  render(el: HTMLElement, params?: string[]): Promise<void> | void;
-  unmount?(): void;
-  onEvent?(ev: ServerEvent): unknown;
-}
+type TabId = 'general' | 'connections' | 'mcp' | 'programs' | 'look';
 interface Tab {
-  id: string;
+  id: TabId;
   label: string;
-  view: TabView;
+  view: PlainView;
 }
 /** One searchable setting. */
 interface IndexEntry {
-  tab: string;
+  tab: TabId;
   sub?: string;
   find: string;
   label: string;
@@ -84,15 +82,13 @@ const INDEX: IndexEntry[] = [
   { tab: 'programs', find: 'Not found', label: 'Programs not found', words: 'missing install' },
 ];
 
-let tab = 'general';
-let inner: TabView | null = null;
-
-export const title = () => 'Settings';
+// kept while you move around the app, as before
+let lastTab: TabId = 'general';
 
 const norm = (s: string | null | undefined): string => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
-// Find the element whose text best matches `text`, scroll to it and flash it. Views load async, so retry a bit.
-function focusText(root: ParentNode, text: string | null, tries = 14): void {
+// Find the element whose text best matches `text`, scroll to it and flash it. Tabs load async, so retry a bit.
+export function focusText(root: ParentNode, text: string | null, tries = 14): void {
   const want = norm(text);
   if (!want) return;
   const cands = [...root.querySelectorAll<HTMLElement>('h2, h3, .label, .title, .card-title, label, li, b, span')].filter((e) => {
@@ -113,109 +109,131 @@ function focusText(root: ParentNode, text: string | null, tries = 14): void {
   setTimeout(() => box.classList.remove('flash-find'), 2200);
 }
 
-export async function render(el: HTMLElement): Promise<void> {
-  const q = new URLSearchParams(location.hash.split('?')[1] || '');
-  if (TABS.some((t) => t.id === q.get('tab'))) tab = q.get('tab')!;
-  let body = h('div');
-  const search = h('input.settings-search-input', { type: 'search', placeholder: 'Search settings…', 'aria-label': 'Search settings' });
-  const results = h('div.settings-search-results.hidden');
-  let picked = 0;
-  let hits: IndexEntry[] = [];
+/** The settings that match every word typed, best first (at most 9). */
+export function searchSettings(query: string): IndexEntry[] {
+  const qv = norm(query);
+  if (!qv) return [];
+  const words = qv.split(' ');
+  return INDEX.map((it) => {
+    const hay = norm(`${it.label} ${it.find} ${it.words}`);
+    if (!words.every((w) => hay.includes(w))) return null;
+    return { it, score: norm(it.label).startsWith(qv) ? 0 : norm(it.label).includes(qv) ? 1 : 2 };
+  })
+    .filter((x): x is { it: IndexEntry; score: number } => !!x)
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 9)
+    .map((x) => x.it);
+}
 
-  const go = async (t: string, { sub, find }: { sub?: string; find?: string } = {}) => {
-    tab = t;
-    const hash = `#/settings?tab=${t}${sub ? `&sub=${sub}` : ''}`;
-    history.replaceState(null, '', hash);
-    await draw();
-    if (find) focusText(body, find);
+const tabLabel = (id: TabId) => TABS.find((t) => t.id === id)?.label || id;
+/** What the list offers: matching settings, or (none matching) finding the text on this tab. */
+type Hit = IndexEntry | { here: string };
+
+function SettingsSearch({ onChoose }: { onChoose: (hit: Hit) => void }) {
+  const [text, setText] = useState('');
+  // open while there is something typed; closed after a pick, Escape or leaving the box
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const found = searchSettings(text);
+  const items: Hit[] = text.trim() ? (found.length ? found : [{ here: text.trim() }]) : [];
+  const choose = (hit: Hit) => {
+    setOpen(false);
+    onChoose(hit);
+    input.current?.blur();
   };
+  return (
+    <Autocomplete.Root
+      items={items}
+      filter={null}
+      value={text}
+      onValueChange={(v, d) => {
+        if (d.reason === 'item-press') return;
+        setText(v);
+        setOpen(!!v.trim());
+      }}
+      open={open}
+      onOpenChange={(o) => setOpen(o && !!text.trim())}
+      itemToStringValue={(hit: Hit) => ('here' in hit ? hit.here : hit.label)}
+      autoHighlight
+    >
+      <div className="settings-search" ref={anchor}>
+        <Icon name="search" size={15} />
+        <Autocomplete.Input ref={input} className="settings-search-input" type="search" placeholder="Search settings…" aria-label="Search settings" />
+      </div>
+      <Autocomplete.Portal>
+        <Autocomplete.Positioner anchor={anchor} align="end" sideOffset={6} className="settings-search-positioner">
+          <Autocomplete.Popup className="settings-search-pop">
+            <Autocomplete.List>
+              {(hit: Hit) => (
+                <Autocomplete.Item
+                  key={'here' in hit ? '?here' : `${hit.tab}:${hit.find}`}
+                  value={hit}
+                  className={(s) => `settings-search-hit${s.highlighted ? ' on' : ''}`}
+                  onClick={() => choose(hit)}
+                >
+                  <Icon name="search" size={14} />
+                  {'here' in hit ? (
+                    <span className="grow">{`Find "${hit.here}" on this tab`}</span>
+                  ) : (
+                    <>
+                      <span className="grow">{hit.label}</span>
+                      <span className="hint">{tabLabel(hit.tab)}</span>
+                    </>
+                  )}
+                </Autocomplete.Item>
+              )}
+            </Autocomplete.List>
+          </Autocomplete.Popup>
+        </Autocomplete.Positioner>
+      </Autocomplete.Portal>
+    </Autocomplete.Root>
+  );
+}
 
-  const drawResults = () => {
-    const qv = norm(search.value);
-    if (!qv) {
-      hits = [];
-      picked = 0;
-      results.classList.add('hidden');
+function SettingsPage() {
+  const q = new URLSearchParams(location.hash.split('?')[1] || '');
+  const asked = q.get('tab');
+  const [tab, setTab] = useState<TabId>(() => (TABS.some((t) => t.id === asked) ? (lastTab = asked as TabId) : lastTab));
+  const panel = useRef<HTMLDivElement | null>(null);
+  // text to find once the tab is drawn (from a link, or a search that switched tabs)
+  const pendingFind = useRef<string | null>(q.get('find'));
+
+  useEffect(() => {
+    if (pendingFind.current && panel.current) focusText(panel.current, pendingFind.current);
+    pendingFind.current = null;
+  }, [tab]);
+
+  const go = (t: TabId, { sub, find }: { sub?: string; find?: string } = {}) => {
+    lastTab = t;
+    // the tab reads ?sub= when it draws (Connections: Accounts or Outbox)
+    history.replaceState(null, '', `#/settings?tab=${t}${sub ? `&sub=${sub}` : ''}`);
+    if (t === tab) {
+      if (find && panel.current) focusText(panel.current, find);
       return;
     }
-    const words = qv.split(' ');
-    hits = INDEX.map((it) => {
-      const hay = norm(`${it.label} ${it.find} ${it.words}`);
-      if (!words.every((w) => hay.includes(w))) return null;
-      return { it, score: (norm(it.label).startsWith(qv) ? 0 : norm(it.label).includes(qv) ? 1 : 2) };
-    })
-      .filter((x): x is { it: IndexEntry; score: number } => !!x)
-      .sort((a, b) => a.score - b.score)
-      .slice(0, 9)
-      .map((x) => x.it);
-    picked = Math.min(picked, Math.max(0, hits.length - 1));
-    const tabLabel = (id: string) => TABS.find((t) => t.id === id)?.label || id;
-    mount(
-      results,
-      hits.length
-        ? hits.map((it, i) =>
-            h(
-              `button.settings-search-hit${i === picked ? '.on' : ''}`,
-              { type: 'button', onmousedown: (e) => (e.preventDefault(), choose(it)) },
-              icon('search', 14),
-              h('span.grow', it.label),
-              h('span.hint', tabLabel(it.tab)),
-            ),
-          )
-        : h('button.settings-search-hit', { type: 'button', onmousedown: (e) => (e.preventDefault(), choose(null)) }, icon('search', 14), h('span.grow', `Find "${search.value.trim()}" on this tab`)),
-    );
-    results.classList.remove('hidden');
+    pendingFind.current = find || null;
+    setTab(t);
   };
-  const choose = (it: IndexEntry | null) => {
-    results.classList.add('hidden');
-    if (it) go(it.tab, { sub: it.sub, find: it.find });
-    else focusText(body, search.value, 0);
-    search.blur();
+  const choose = (hit: Hit) => {
+    if ('here' in hit) {
+      if (panel.current) focusText(panel.current, hit.here, 0);
+    } else go(hit.tab, { sub: hit.sub, find: hit.find });
   };
-  search.addEventListener('input', () => ((picked = 0), drawResults()));
-  search.addEventListener('focus', drawResults);
-  search.addEventListener('blur', () => setTimeout(() => results.classList.add('hidden'), 120));
-  search.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      picked = (picked + (e.key === 'ArrowDown' ? 1 : -1) + Math.max(1, hits.length)) % Math.max(1, hits.length);
-      drawResults();
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      choose(hits[picked] || null);
-    } else if (e.key === 'Escape' && (search.value || !results.classList.contains('hidden'))) {
-      e.preventDefault();
-      search.value = '';
-      hits = [];
-      results.classList.add('hidden');
-    }
-  });
-  const searchBox = h('div.settings-search', icon('search', 15), search, results);
 
-  const draw = async () => {
-    inner?.unmount?.();
-    inner = TABS.find((t) => t.id === tab)!.view;
-    // a fresh box per draw: a slow render from a tab left meanwhile lands in the old, detached one
-    body = h('div');
-    mount(
-      el,
-      h(
-        'div.settings-top',
-        h('div.tabs', TABS.map((t) => h(`button${tab === t.id ? '.on' : ''}`, { onclick: () => go(t.id) }, t.label))),
-        searchBox,
-      ),
-      body,
-    );
-    await inner.render(body, []);
-  };
-  await draw();
-  if (q.get('find')) focusText(body, q.get('find'));
+  return (
+    <Tabs
+      label="Settings"
+      tabs={TABS.map((t) => ({ value: t.id, label: t.label }))}
+      value={tab}
+      onChange={(t) => go(t)}
+      rowClassName="settings-top"
+      aside={<SettingsSearch onChoose={choose} />}
+    >
+      <ViewHost key={tab} view={TABS.find((t) => t.id === tab)!.view} hostRef={(el) => void (panel.current = el)} />
+    </Tabs>
+  );
 }
 
-export function unmount(): void {
-  inner?.unmount?.();
-}
-
-export function onEvent(ev: ServerEvent): void {
-  inner?.onEvent?.(ev);
-}
+export const title = () => 'Settings';
+export const { render, unmount } = reactPage(() => <SettingsPage />);

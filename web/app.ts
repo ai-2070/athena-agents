@@ -12,7 +12,7 @@ import * as mcp from './views/mcp.ts';
 import * as connections from './views/connections.ts';
 import * as terminals from './views/terminals.ts';
 import * as settings from './views/settings.ts';
-import * as setup from './views/setup.ts';
+import * as setup from './views/setup.tsx';
 import * as skillsView from './views/skills.ts';
 import * as routinesView from './views/routines.ts';
 import { initDock } from './dock.ts';

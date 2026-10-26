@@ -1,0 +1,97 @@
+// The Settings page (React shell on Base UI) and ViewHost, which runs the plain-DOM tabs inside it.
+import { act } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { state } from '../../web/core.ts';
+import * as settings from '../../web/views/setup.tsx';
+import { searchSettings } from '../../web/views/setup.tsx';
+import { ViewHost, mountReact } from '../../web/ui/react.tsx';
+import type { PlainView } from '../../web/ui/react.tsx';
+import type { AppState, ServerEvent } from '../../shared/types.ts';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
+let el: HTMLElement;
+
+beforeEach(() => {
+  document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><section id="view"></section>';
+  el = document.getElementById('view')!;
+  state.data = { settings: { look: {} } } as unknown as AppState;
+  vi.stubGlobal('fetch', async () => new Response('{}'));
+});
+afterEach(() => {
+  act(() => settings.unmount());
+  vi.unstubAllGlobals();
+});
+
+describe('searchSettings()', () => {
+  it('finds by label, the text on the page and extra words, best match first', () => {
+    expect(searchSettings('accent')[0].label).toBe('Accent colour');
+    expect(searchSettings('zoom').map((h) => h.label)).toEqual(['UI scale']);
+    expect(searchSettings('codex')[0].label).toBe('OpenAI Codex');
+    expect(searchSettings('nothing like this')).toEqual([]);
+    expect(searchSettings('   ')).toEqual([]);
+  });
+});
+
+describe('the Settings page', () => {
+  const open = async (hash: string) => {
+    location.hash = hash;
+    await act(async () => settings.render(el));
+    await settle();
+  };
+
+  it('opens the tab a link names, with labelled tabs', async () => {
+    await open('#/settings?tab=look');
+    const on = el.querySelector('[role="tab"].on')!;
+    expect(on.textContent).toBe('Look');
+    expect(el.querySelector('[role="tablist"]')!.getAttribute('aria-label')).toBe('Settings');
+    expect(el.textContent).toContain('Accent colour');
+  });
+
+  it('search lists matching settings and jumps to the one picked', async () => {
+    await open('#/settings?tab=look');
+    const input = el.querySelector<HTMLInputElement>('input[aria-label="Search settings"]')!;
+    await act(async () => {
+      input.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'accent');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await settle();
+    const hits = [...document.querySelectorAll<HTMLElement>('.settings-search-hit')];
+    expect(hits.map((h) => h.textContent!.trim())).toEqual(['Accent colourLook']);
+    expect(input.getAttribute('role')).toBe('combobox');
+    await act(async () => hits[0].click());
+    await settle();
+    expect(el.querySelector('.flash-find')).not.toBeNull();
+  });
+});
+
+describe('ViewHost', () => {
+  it('draws a plain-DOM page and unmounts it when React moves on', async () => {
+    const seen: string[] = [];
+    const view: PlainView = {
+      render: (box) => void ((box.textContent = 'plain page'), seen.push('render')),
+      unmount: () => void seen.push('unmount'),
+      onEvent: (ev: ServerEvent) => void seen.push(ev.type),
+    };
+    const host = document.createElement('div');
+    document.body.append(host);
+    let page!: { unmount: () => void };
+    await act(async () => void (page = mountReact(host, <ViewHost view={view} />)));
+    expect(host.textContent).toBe('plain page');
+    await act(async () => page.unmount());
+    expect(host.textContent).toBe('');
+    // (tests run React's development build, which mounts twice on purpose: each render has its unmount)
+    expect(seen.filter((s) => s === 'render').length).toBe(seen.filter((s) => s === 'unmount').length);
+    expect(seen.at(-1)).toBe('unmount');
+  });
+
+  it('shows the error when the page fails to draw', async () => {
+    const host = document.createElement('div');
+    let page!: { unmount: () => void };
+    await act(async () => void (page = mountReact(host, <ViewHost view={{ render: async () => Promise.reject(new Error('no data')) }} />)));
+    await settle();
+    expect(host.textContent).toBe('Something went wrong: no data');
+    await act(async () => page.unmount());
+  });
+});
