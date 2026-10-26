@@ -1,0 +1,33 @@
+server/engines/claude.ts
+  s_60f3e3abc949a7::t_d38d433a6d2328 5
+  s_60f3e3abc949a7::t_d6fb37a830ccf9 11,118-125,137
+server/overseer.ts
+  s_60f3e3abc949a7::t_6b634e3ca9654e 464-467
+server/brain.ts
+  s_60f3e3abc949a7::t_b66420fcba8a38 221
+server/teams.ts
+  s_60f3e3abc949a7::t_b66420fcba8a38 8,21,163-164,231,258-262,264,266-269
+tests/server/brain-files.test.ts
+  s_60f3e3abc949a7::t_42f89d2b89d965 1-49
+tests/server/attachments-flow.test.ts
+  s_60f3e3abc949a7::t_653cf438679f37 1-106
+server/engines/openai.ts
+  s_60f3e3abc949a7::t_6b634e3ca9654e 223,236,241-246,252,259
+  s_60f3e3abc949a7::t_884a350d9849c1 247-251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3554e1a13740101bdc0dedd0cd897d0cb1b53387",
+  "prompts": {},
+  "sessions": {
+    "s_60f3e3abc949a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f3bddc23-1447-47fb-bdbd-6782a63a28bf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
