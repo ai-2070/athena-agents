@@ -1,4 +1,5 @@
 // MCP servers: the dashboard connects to them for API-model agents and hands them to Claude Code agents.
+import fs from 'node:fs';
 import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -6,7 +7,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { HOME, IS_WIN, BRIDGE_SCRIPT, PORT, dataPath, readJSON, writeJSON, which, exists } from './util.ts';
-import { emit, log, internalToken } from './store.ts';
+import { emit, log, internalToken, agents, workflows, listProjects, withProject } from './store.ts';
 
 /** One saved MCP server (data/mcp.json). */
 export interface McpServerConfig {
@@ -144,8 +145,11 @@ function saveAll(servers: McpServers) {
   emit('mcp');
 }
 
+/** A server's name as it is saved: letters, digits, _ and - only. */
+export const serverName = (name: unknown): string => String(name ?? '').trim().replace(/[^\w-]/g, '-');
+
 export function saveServer(name: string, cfg: McpServerInput): McpServerConfig {
-  const clean = String(name).trim().replace(/[^\w-]/g, '-');
+  const clean = serverName(name);
   if (!clean) throw new Error('Give the server a name.');
   if (clean === 'dashboard') throw new Error('"dashboard" is reserved for the built-in tools.');
   const servers = listServers();
@@ -170,6 +174,63 @@ export function removeServer(name: string) {
   delete servers[name];
   saveAll(servers);
   disconnect(name);
+}
+
+// An always-allowed tool of a server, after the server is renamed (or null when it is removed). Claude Code
+// names a server's tools mcp__<server>__<tool>; API-model agents name them <server>__<tool>.
+export function renamedGrant(grant: string, from: string, to: string | null, engine: string): string {
+  const forms: [string, string][] = [[`mcp__${from}__`, `mcp__${to}__`]];
+  if (engine === 'openai') forms.push([`${from}__`, `${to}__`]);
+  if (grant === `mcp__${from}`) return to ? `mcp__${to}` : '';
+  for (const [was, now] of forms) if (grant.startsWith(was)) return to ? now + grant.slice(was.length) : '';
+  return grant;
+}
+
+// Agents and teams name their servers, so a removed or renamed server changes on all of them, in every
+// project. Always-allowed tools go too: a new server with the old name mustn't inherit them.
+function renameOnEveryone(from: string, to: string | null) {
+  const swap = (list: string[] | undefined): string[] | null => (list || []).includes(from) ? [...new Set((list || []).map((x) => (x === from ? to : x)).filter((x): x is string => Boolean(x)))] : null;
+  for (const p of listProjects()) {
+    withProject(p, () => {
+      for (const a of agents.list()) {
+        const servers = swap(a.mcpServers);
+        const had = a.alwaysAllow || [];
+        const grants = had.map((g) => renamedGrant(g, from, to, a.engine));
+        const grantsChanged = grants.some((g, i) => g !== had[i]);
+        if (servers || grantsChanged) agents.save({ ...a, ...(servers ? { mcpServers: servers } : {}), ...(grantsChanged ? { alwaysAllow: [...new Set(grants.filter(Boolean))] } : {}) });
+      }
+      for (const w of workflows.list()) {
+        const next = swap(w.access?.mcpServers);
+        if (next) workflows.save({ ...w, access: { toolGroups: w.access?.toolGroups || [], mcpServers: next } });
+      }
+    });
+  }
+}
+
+/** Remove a server and take it off every agent and team that had it. */
+export function removeServerEverywhere(name: string) {
+  removeServer(name);
+  renameOnEveryone(name, null);
+  log('mcp', `Removed MCP server "${name}"`);
+}
+
+/** Give a server a new name, on every agent and team that has it too, and optionally new settings in the
+ *  same step (so a refused name changes nothing). Returns the name it got. */
+export function renameServer(from: string, to: string, cfg?: McpServerInput): string {
+  const servers = listServers();
+  const was = servers[from];
+  if (!was) throw new Error(`No MCP server named "${from}".`);
+  const clean = serverName(to);
+  if (clean === from) {
+    if (cfg) saveServer(from, cfg);
+    return from;
+  }
+  if (servers[clean]) throw new Error(`There already is an MCP server named "${clean}".`);
+  saveServer(clean, cfg || was);
+  removeServer(from);
+  renameOnEveryone(from, clean);
+  log('mcp', `Renamed MCP server "${from}" to "${clean}"`);
+  return clean;
 }
 
 // Windows can't spawn npx/uvx .cmd shims directly; resolve or wrap them.
@@ -267,19 +328,38 @@ export async function testServer(name: string): Promise<{ name: string; descript
 }
 
 // ---------- import from Claude configs ----------
+// ~/.claude.json can be many MB and the Brain looks every turn: read the configs again only when they change.
+const CLAUDE_JSON = () => path.join(HOME, '.claude.json');
+const DESKTOP_JSON = () => path.join(process.env.APPDATA || '', 'Claude', 'claude_desktop_config.json');
+let importCache: { key: string; found: ImportableServer[] } | null = null;
+const fileKey = (file: string): string => {
+  try {
+    const st = fs.statSync(file);
+    return `${file}:${st.size}:${st.mtimeMs}`;
+  } catch {
+    return `${file}:-`;
+  }
+};
+
 export function importableServers(): ImportableServer[] {
+  const key = [CLAUDE_JSON(), DESKTOP_JSON()].map(fileKey).join('|');
+  if (importCache?.key !== key) importCache = { key, found: readImportable() };
+  return importCache.found.map((x) => ({ ...x, args: [...x.args], env: { ...x.env }, headers: { ...x.headers } }));
+}
+
+function readImportable(): ImportableServer[] {
   const found: ImportableServer[] = [];
   const add = (source: string, servers: Record<string, ForeignServer> | undefined) => {
     for (const [name, cfg] of Object.entries(servers || {})) {
       found.push({ source, name, type: cfg.type === 'http' || cfg.type === 'sse' || cfg.url ? 'http' : 'stdio', command: cfg.command, args: cfg.args || [], env: cfg.env || {}, url: cfg.url, headers: cfg.headers || {} });
     }
   };
-  const claudeJson = readJSON<ClaudeJson>(path.join(HOME, '.claude.json'), null);
+  const claudeJson = readJSON<ClaudeJson>(CLAUDE_JSON(), null);
   if (claudeJson) {
     add('Claude Code (user)', claudeJson.mcpServers);
     for (const [proj, p] of Object.entries(claudeJson.projects || {})) add(`Claude Code (${path.basename(proj)})`, p.mcpServers);
   }
-  const desktop = readJSON<ClaudeJson>(path.join(process.env.APPDATA || '', 'Claude', 'claude_desktop_config.json'), null);
+  const desktop = readJSON<ClaudeJson>(DESKTOP_JSON(), null);
   if (desktop) add('Claude Desktop', desktop.mcpServers);
   return found;
 }

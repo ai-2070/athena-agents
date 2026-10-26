@@ -438,7 +438,7 @@ function renderItem(it: DockItem): HTMLElement | null {
     const body = it.live && !it.answer ? h('div.dock-note', h('span.dot.busy'), 'The Brain is looking at the project…') : md(it.answer || (it.done?.length ? '' : '(no answer)'));
     body.classList?.add('dock-answer');
     if (it.live && it.answer) body.classList.add('cursor');
-    const ico = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', model: 'cpu', stop: 'square', memory: 'file-text', error: 'triangle-alert', note: 'check' };
+    const ico = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', model: 'cpu', mcp: 'plug', stop: 'square', memory: 'file-text', error: 'triangle-alert', note: 'check' };
     return h(
       'div.dock-msg.agent.brain',
       h('div.dock-who', h('div.avatar.brain-av', icon('brain', 14)), h('b', 'Brain'), h('span.dock-answer-model', modelInfo(brainAsAgent(b)).short)),
@@ -446,7 +446,7 @@ function renderItem(it: DockItem): HTMLElement | null {
       body,
       it.answer && !it.live ? mentionPreviews(it.answer, [], { compact: true, key: `dock:${it.id}` }) : null,
       it.done?.length
-        ? h('div.brain-done', it.done.map((d) => h(`div.brain-act${d.kind === 'error' ? '.err' : ''}`, icon(ico[d.kind] || 'check', 13), h('span', d.text), d.teamId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/station?team=${d.teamId}`) }, 'Show') : d.routineId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/routines/${d.routineId}`) }, 'Open') : d.skillId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/skills/${d.skillId}`) }, 'Open') : d.memory ? h('button.btn.tiny.ghost', { onclick: () => openMemory(d.memory!, d.memory === BRAIN ? 'The Brain' : state.data?.agents.find((a) => a.id === d.memory)?.name) }, 'Open') : null)))
+        ? h('div.brain-done', it.done.map((d) => h(`div.brain-act${d.kind === 'error' ? '.err' : ''}`, icon(ico[d.kind] || 'check', 13), h('span', d.text), d.teamId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/station?team=${d.teamId}`) }, 'Show') : d.routineId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/routines/${d.routineId}`) }, 'Open') : d.skillId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/skills/${d.skillId}`) }, 'Open') : d.kind === 'mcp' ? h('button.btn.tiny.ghost', { onclick: () => navigate('#/settings?tab=mcp') }, 'Open') : d.memory ? h('button.btn.tiny.ghost', { onclick: () => openMemory(d.memory!, d.memory === BRAIN ? 'The Brain' : state.data?.agents.find((a) => a.id === d.memory)?.name) }, 'Open') : null)))
         : null,
       it.delegate ? h('div.brain-act.handoff', icon('send', 13), h('span', 'Handed to ', h('b', it.delegate.name))) : null,
     );

@@ -11,6 +11,7 @@ The [README](../README.md) says what the dashboard is, how to install it, which 
 - [Routines: work worth repeating](#routines-work-worth-repeating)
 - [The Brain and your teams](#the-brain-and-your-teams)
 - [Models, effort and stopping work from Brain chat](#models-effort-and-stopping-work-from-brain-chat)
+- [MCP servers from Brain chat](#mcp-servers-from-brain-chat)
 - [Long chats](#long-chats)
 - [Approvals and safety](#approvals-and-safety)
 - [Save and restore](#save-and-restore)
@@ -119,6 +120,19 @@ When the Brain hands work to a team, it writes in the team chat as **Brain**, so
 - **Stop work.** "Stop the Writer", "stop the video team" or "stop everything" stops an agent, a team, or everything running in the open project: teams, agents, routines and workflows.
 
 The Brain changes models or stops work only when you ask.
+
+## MCP servers from Brain chat
+
+The Brain can set up MCP servers and decide who gets them, the same as **Settings → MCP servers**.
+
+- **Add one.** "Add the Playwright browser and give it to the Researcher." The Brain prefers the ready-made servers and the ones it finds in your Claude Code or Claude Desktop settings. For any other server, give it the exact command or link: "Add the weather server: `npx -y @acme/weather-mcp`".
+- **Change one.** Change its command, link, keys, description or name, or turn it off and on. A new name is updated on every agent and team that has the server.
+- **Give, take back, move.** Give a server to agents or teams, take it back, or move it from one to another. A team's servers are available to every member while they work for that team.
+- **Remove one.** "Remove the weather server" deletes it and takes it off every agent and team, in every project. The Brain removes a server only when you ask.
+
+A server runs a program on your PC or connects to a site, with the keys you give it. So the Brain only uses a command, link, environment variable or header **that you typed in Brain chat**. For a new program that means the whole command, as you wrote it (`npx -y @acme/weather-mcp`, not just "weather"). For a link, the site must be one you wrote. Commands found in files, on web pages or in agent replies are refused. When a server needs a key, the Brain asks you for it. It doesn't write the key back in its reply, and its view of your servers shows key names, not their values, and hides anything in a command or link that looks like a key or password. The server starts the next time an agent that has it runs.
+
+Renaming or removing a server also renames or removes the tools you always allowed for it, so a new server with an old name starts with nothing allowed.
 
 ## Long chats
 

@@ -60,7 +60,7 @@ Open **Settings → General & keys**. You only need to set up the engines you wa
 | **oh-my-pi** | The `omp` CLI (`bun install -g @oh-my-pi/pi-coding-agent`), signed in with `/login` in omp. |
 | **OpenClaw** | The `openclaw` CLI, set up with `openclaw onboard`. Pick which of your OpenClaw agents answers in the agent's settings. |
 
-Choose **The Brain's model** in the same settings page. The Brain is the project-wide assistant: it answers questions, builds agents and teams, writes the project brief, manages skills and routines, switches agents' models, stops work, and hands work to the right people.
+Choose **The Brain's model** in the same settings page. The Brain is the project-wide assistant: it answers questions, builds agents and teams, writes the project brief, manages skills, routines and MCP servers, switches agents' models, stops work, and hands work to the right people.
 
 Claude Code and Codex receive dashboard tools through an MCP bridge; API-model agents call them directly. Hermes, pi and oh-my-pi need a one-time **Give … the dashboard tools** click under **Settings → MCP servers**. See [Giving engine CLIs the dashboard tools](docs/guide.md#giving-engine-clis-the-dashboard-tools).
 
@@ -79,7 +79,7 @@ Projects keep separate agents, teams and chats. The project name at the top left
 | Place | Use it for |
 |---|---|
 | **Station** | The live 3D view of the project: the Brain in the middle, agents grouped into team pods. Click to open panels and chats. |
-| **Brain chat** | Project-wide questions, building teams, changing skills and routines, switching models, stopping work and handing work on. On every page. |
+| **Brain chat** | Project-wide questions, building teams, changing skills, routines and MCP servers, switching models, stopping work and handing work on. On every page. |
 | **Agents** | Instructions, knowledge, MEMORY.md, model and effort, autonomy, tools, MCP servers, skills and workspace. |
 | **Library** | Ready-made starters, The Agency's 270+ specialists (they come with the dashboard), Hermes profiles, Claude Code subagents and your presets. |
 | **Skills** | Reusable instructions, their assignments, earlier versions and recently deleted ones. |
