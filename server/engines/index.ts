@@ -127,8 +127,9 @@ export const ENGINE_LIST: EngineInfo[] = [
 ];
 
 const active = new Map<string, RunEntry>(); // runId -> { abort, agentId, chatId, chat, depth, parentRunId }
-// chats being compacted outside a run (Compact button, /compact): no run may start meanwhile
-const compacting = new Set<string>();
+// chats being compacted outside a run (Compact button, /compact), by id: no run may start meanwhile,
+// and edits or a delete meanwhile go to this copy (see liveChat)
+const compacting = new Map<string, Chat>();
 
 export function activeRuns(): ActiveRun[] {
   return [...active.entries()].map(([id, r]) => ({ id, agentId: r.agentId, chatId: r.chatId, startedAt: r.startedAt, agentName: r.agentName, parentRunId: r.parentRunId || null }));
@@ -170,7 +171,7 @@ export function runInfo(runId: string | null | undefined): RunInfo | null {
 // The chat object a running agent is writing to, so edits made meanwhile aren't overwritten.
 export function liveChat(chatId: string): Chat | null {
   for (const r of active.values()) if (r.chatId === chatId) return r.chat;
-  return null;
+  return compacting.get(chatId) || null;
 }
 
 export function buildSystemPrompt(agent: Agent): string {
@@ -395,12 +396,15 @@ const httpError = (status: number, msg: string) => Object.assign(new Error(msg),
 
 /** Compacts a chat now (the Compact button, or /compact). Not while it is answering. */
 export async function compactNow(agent: Agent, chatId: string, mode?: 'instant' | 'summary'): Promise<{ item: CompactionItem | null; chat: Chat }> {
-  if (liveChat(chatId) || compacting.has(chatId)) throw httpError(409, 'The agent is answering in this chat. Compact it when it is done (or stop it).');
+  if (compacting.has(chatId)) throw httpError(409, 'This chat is being compacted already.');
+  if (liveChat(chatId)) throw httpError(409, 'The agent is answering in this chat. Compact it when it is done (or stop it).');
   const chat = chats.get(agent.id, chatId);
   if (!chat) throw httpError(404, 'Not found');
-  compacting.add(chatId);
+  compacting.set(chatId, chat);
   try {
     const item = await compaction.compactChat(chat, { trigger: 'manual', mode, window: await compaction.contextWindow(agent, chat), current: false });
+    // deleted while the summary was being written: don't write it back
+    if (chat._deleted) return { item: null, chat };
     if (item) {
       chats.save(chat);
       emit('compacted', { agentId: agent.id, chatId, itemId: item.id });
@@ -414,7 +418,7 @@ export async function compactNow(agent: Agent, chatId: string, mode?: 'instant' 
 
 /** Changes the text of a chat's latest compaction: the agent's next message works from your version. */
 export function editCompaction(agentId: string, chatId: string, itemId: string, text: string): Chat {
-  if (liveChat(chatId) || compacting.has(chatId)) throw httpError(409, 'The agent is answering in this chat. Edit it when it is done (or stop it).');
+  if (liveChat(chatId)) throw httpError(409, 'The agent is answering in this chat (or it is being compacted). Edit it when it is done.');
   const chat = chats.get(agentId, chatId);
   if (!chat) throw httpError(404, 'Not found');
   const latest = compaction.latestCompaction(chat.items);

@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { chats, saveSettings } from '../../server/store.ts';
-import { compactNow, editCompaction, startRun } from '../../server/engines/index.ts';
+import { compactNow, editCompaction, forgetChat, liveChat, startRun } from '../../server/engines/index.ts';
 import { compactChat, compileHistory, cutTokens, estimateTokens, GUIDE, INSTANT, latestCompaction, memoryStart, planTail, rebuildLlm, recall, seedPrompt, sizesFor } from '../../server/compaction.ts';
 import type { LlmMessage } from '../../server/engines/openai.ts';
 import type { Chat, ChatItem, CompactionItem } from '../../shared/types.ts';
@@ -26,6 +26,17 @@ vi.mock('../../server/engines/claude.ts', async (orig) => ({
     return { text: 'done', context: 1000 };
   },
 }));
+
+// ---------- a fake Brain model for summaries: answers when the test says so ----------
+const brain = vi.hoisted(() => ({ pending: [] as ((text: string) => void)[] }));
+vi.mock('../../server/brain.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brain.ts')>()),
+  think: () => new Promise<string>((resolve) => brain.pending.push(resolve)),
+}));
+const until = async (ok: () => boolean) => {
+  for (let i = 0; i < 300 && !ok(); i++) await new Promise((r) => setTimeout(r, 10));
+  if (!ok()) throw new Error('timed out');
+};
 
 // ---------- a fake API model ----------
 let server: http.Server;
@@ -373,6 +384,53 @@ describe('compacting by hand and editing', () => {
     expect(edited.reseed).toBe(true);
     await startRun(a, edited, 'go on').promise;
     expect(cli.prompts.at(-1)).toContain('MY OWN NOTES');
+  });
+
+  it('a summary compaction writes what the Brain model wrote', async () => {
+    const a = newAgent({ name: 'Summed', engine: 'claude-code', toolGroups: [] });
+    const chat = chats.create(a.id);
+    chat.items.push(...history(6));
+    chats.save(chat);
+    const job = compactNow(a, chat.id, 'summary');
+    await until(() => brain.pending.length > 0);
+    brain.pending.shift()!('- you fixed the parser (seq 4)');
+    const { item } = await job;
+    expect(item).toMatchObject({ mode: 'summary', text: expect.stringContaining('you fixed the parser') });
+  });
+
+  it('a chat deleted while its summary is written stays deleted', async () => {
+    const a = newAgent({ name: 'Deleter', engine: 'claude-code', toolGroups: [] });
+    const chat = chats.create(a.id);
+    chat.items.push(...history(6));
+    chats.save(chat);
+    const job = compactNow(a, chat.id, 'summary');
+    await until(() => brain.pending.length > 0);
+    // what DELETE /api/agents/:id/chats/:cid does
+    forgetChat(chat.id);
+    chats.remove(a.id, chat.id);
+    brain.pending.shift()!('a summary');
+    expect((await job).item).toBeNull();
+    expect(chats.get(a.id, chat.id)).toBeNull();
+    expect(liveChat(chat.id)).toBeNull();
+  });
+
+  it('a rename while compacting is kept, and Clear memory meanwhile cancels the compaction', async () => {
+    const a = newAgent({ name: 'Renamer', engine: 'claude-code', toolGroups: [] });
+    const chat = chats.create(a.id);
+    chat.items.push(...history(6));
+    chats.save(chat);
+    const job = compactNow(a, chat.id, 'summary');
+    await until(() => brain.pending.length > 0);
+    // what PUT /api/agents/:id/chats/:cid does: edit the live copy
+    const live = liveChat(chat.id)!;
+    live.title = 'Renamed meanwhile';
+    live.items.push({ type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', reset: true });
+    chats.save(live);
+    brain.pending.shift()!('a summary');
+    expect((await job).item).toBeNull();
+    const saved = chats.get(a.id, chat.id)!;
+    expect(saved.title).toBe('Renamed meanwhile');
+    expect(saved.items.some((i) => i.type === 'compaction')).toBe(false);
   });
 
   it('says so when there is nothing to compact', async () => {

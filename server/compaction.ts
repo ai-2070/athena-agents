@@ -396,6 +396,7 @@ export async function compactChat(chat: Chat, o: CompactOptions): Promise<Compac
   let text = `${GUIDE}\n\n${instant.body}`;
   let mode: 'instant' | 'summary' = 'instant';
   let note: string | undefined;
+  const count = items.length;
   if ((o.mode ?? (settings.instant ? 'instant' : 'summary')) === 'summary') {
     try {
       const source = compileHistory(items, seqs, priorRef, sizes.summarySource);
@@ -411,6 +412,8 @@ export async function compactChat(chat: Chat, o: CompactOptions): Promise<Compac
       note = `The summary failed (${String((e as Error).message || e).slice(0, 200)}), so this is an instant compaction.`;
     }
   }
+  // the chat changed while the summary was written (Clear memory, say): what was planned no longer fits
+  if (items.length !== count) return null;
   const after = estimateTokens(text) + kept;
   if (after >= before) return null;
 
