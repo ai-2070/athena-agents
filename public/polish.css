@@ -401,6 +401,15 @@ body.in-chat .dock-launcher { display: none; }
 .look-big { font-size: 20px; color: var(--dim); }
 .look-pct { min-width: 52px; text-align: right; font: 600 15px var(--mono); color: var(--accent); }
 .look-range { flex: 1; accent-color: var(--accent); height: 22px; cursor: pointer; }
+/* the UI scale slider (Base UI, web/views/look.tsx) */
+.look-slider { flex: 1; }
+.look-control { display: flex; align-items: center; height: 22px; cursor: pointer; touch-action: none; }
+.look-track { position: relative; flex: 1; height: 4px; border-radius: 2px; background: var(--line-2); }
+.look-fill { border-radius: 2px; background: var(--accent); }
+.look-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.look-thumb:has(:focus-visible) { outline: 1px solid var(--accent); outline-offset: 3px; }
+.look-presets { gap: 6px; flex-wrap: wrap; }
+.look-preview { gap: 8px; flex-wrap: wrap; align-items: center; }
 .look-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
 .look-swatch { display: flex; align-items: center; gap: 9px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: none; color: var(--ink); font: inherit; cursor: pointer; transition: border-color .15s, background .15s; }
 .look-swatch:hover { border-color: var(--sw); }

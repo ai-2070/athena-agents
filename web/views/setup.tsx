@@ -8,16 +8,19 @@ import * as general from './settings.ts';
 import * as connections from './connections.ts';
 import * as mcp from './mcp.ts';
 import * as programs from './programs.ts';
-import * as look from './look.ts';
+import { LookTab } from './look.tsx';
 import { Tabs } from '../ui/controls.tsx';
 import { Icon, ViewHost, reactPage } from '../ui/react.tsx';
 import type { PlainView } from '../ui/react.tsx';
+import type { ComponentType } from 'react';
 
 type TabId = 'general' | 'connections' | 'mcp' | 'programs' | 'look';
+/** A tab is a React page, or a plain-DOM page still waiting to move (run in a ViewHost). */
 interface Tab {
   id: TabId;
   label: string;
-  view: PlainView;
+  view?: PlainView;
+  Page?: ComponentType;
 }
 /** One searchable setting. */
 interface IndexEntry {
@@ -33,7 +36,7 @@ const TABS: Tab[] = [
   { id: 'connections', label: 'Connections', view: connections },
   { id: 'mcp', label: 'MCP servers', view: mcp },
   { id: 'programs', label: 'Programs', view: programs },
-  { id: 'look', label: 'Look', view: look },
+  { id: 'look', label: 'Look', Page: LookTab },
 ];
 
 // What can be found. find = text on the page to jump to; words = extra search words.
@@ -191,6 +194,17 @@ function SettingsSearch({ onChoose }: { onChoose: (hit: Hit) => void }) {
   );
 }
 
+function TabBody({ tab, hostRef }: { tab: Tab; hostRef: (el: HTMLDivElement | null) => void }) {
+  const { Page, view } = tab;
+  if (Page)
+    return (
+      <div ref={hostRef}>
+        <Page />
+      </div>
+    );
+  return <ViewHost view={view!} hostRef={hostRef} />;
+}
+
 function SettingsPage() {
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
   const asked = q.get('tab');
@@ -230,7 +244,7 @@ function SettingsPage() {
       rowClassName="settings-top"
       aside={<SettingsSearch onChoose={choose} />}
     >
-      <ViewHost key={tab} view={TABS.find((t) => t.id === tab)!.view} hostRef={(el) => void (panel.current = el)} />
+      <TabBody key={tab} tab={TABS.find((t) => t.id === tab)!} hostRef={(el) => void (panel.current = el)} />
     </Tabs>
   );
 }

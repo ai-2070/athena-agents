@@ -95,3 +95,39 @@ describe('ViewHost', () => {
     await act(async () => page.unmount());
   });
 });
+
+describe('the Look tab', () => {
+  it('picks an accent from labelled radios, applies it at once and saves it a moment later', async () => {
+    const puts: unknown[] = [];
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit = {}) => {
+      if (init.method === 'PUT') puts.push(JSON.parse(String(init.body)));
+      return new Response('{}');
+    });
+    location.hash = '#/settings?tab=look';
+    await act(async () => settings.render(el));
+    await settle();
+    const group = el.querySelector('[role="radiogroup"]')!;
+    expect(group.getAttribute('aria-labelledby')).toBe('look-accent');
+    const radios = [...group.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
+    expect(radios.length).toBeGreaterThan(3);
+    const rose = radios.find((r) => r.textContent === 'Rose')!;
+    await act(async () => rose.click());
+    expect(rose.getAttribute('aria-checked')).toBe('true');
+    expect(rose.classList.contains('on')).toBe(true);
+    expect(puts).toEqual([]);
+    await act(() => new Promise((r) => setTimeout(r, 400)));
+    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full' } }]);
+  });
+
+  it('has a UI scale slider screen readers read as a percentage, and preset sizes', async () => {
+    location.hash = '#/settings?tab=look';
+    await act(async () => settings.render(el));
+    await settle();
+    const slider = el.querySelector<HTMLInputElement>('input[type="range"][aria-label="UI scale"]')!;
+    expect(slider.getAttribute('aria-valuetext')).toBe('100%');
+    const big = [...el.querySelectorAll<HTMLButtonElement>('.look-presets button')].find((b) => b.textContent === '125%')!;
+    await act(async () => big.click());
+    expect(big.getAttribute('aria-pressed')).toBe('true');
+    expect(el.querySelector('.look-pct')!.textContent).toBe('125%');
+  });
+});
