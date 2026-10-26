@@ -1,0 +1,119 @@
+// A team chat with the Vercel AI SDK: a working agent's turn streams in (its text and tool calls), and
+// "Show the work" opens the steps and tool calls behind a finished reply.
+import { act } from 'react';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { UIMessageChunk } from 'ai';
+import { connectEvents, state } from '../../web/core.ts';
+import { forgetFiles } from '../../web/filepreview.ts';
+import { renderTeamChat } from '../../web/teamchat.ts';
+import type { AppState, Chat, ChatItem } from '../../shared/types.ts';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+class FakeSocket {
+  static last: FakeSocket | null = null;
+  onmessage: ((m: { data: string }) => void) | null = null;
+  onclose: (() => void) | null = null;
+  onopen: (() => void) | null = null;
+  constructor() {
+    FakeSocket.last = this;
+  }
+}
+function uiStream() {
+  const enc = new TextEncoder();
+  let ctl!: ReadableStreamDefaultController<Uint8Array>;
+  const body = new ReadableStream<Uint8Array>({ start: (c) => void (ctl = c) });
+  return {
+    response: () => new Response(body, { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } }),
+    push: (c: UIMessageChunk) => ctl.enqueue(enc.encode(`data: ${JSON.stringify(c)}\n\n`)),
+    end: () => (ctl.enqueue(enc.encode('data: [DONE]\n\n')), ctl.close()),
+  };
+}
+
+const SESSION: ChatItem[] = [
+  { type: 'user', text: 'team brief…' },
+  { type: 'tool', id: 'r1', name: 'read_file', args: { path: 'brief.md' }, result: 'the brief', status: 'done' },
+  { type: 'assistant', text: 'Plan: @Maker make the thumbnail.' },
+];
+let live: ReturnType<typeof uiStream>;
+let requests: string[];
+const settle = () => act(() => new Promise((r) => setTimeout(r, 40)));
+
+beforeAll(() => {
+  vi.stubGlobal('WebSocket', FakeSocket);
+  connectEvents();
+});
+beforeEach(() => {
+  forgetFiles();
+  requests = [];
+  live = uiStream();
+  state.data = { runs: [], approvals: [], agents: [{ id: 'lead', name: 'Lead', emoji: '🧭', color: '#fff' }, { id: 'maker', name: 'Maker', emoji: '🎨', color: '#fff' }] } as unknown as AppState;
+  vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+    requests.push(`${init.method || 'GET'} ${url}`);
+    const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
+    if (url === '/api/teams/t1/chat')
+      return json({
+        team: { id: 't1', name: 'Thumbs', members: ['lead', 'maker'], lead: 'lead', steps: [] },
+        messages: [
+          { id: 'u1', ts: 0, from: 'user', text: 'Make a thumbnail', mentions: [] },
+          { id: 'm1', ts: 1, from: 'lead', text: 'Plan: @Maker make the thumbnail.', mentions: ['maker'], turn: { chatId: 'lead-chat', from: 0, to: 3 } },
+        ],
+        working: ['maker'],
+        queued: [],
+        sessions: { lead: 'lead-chat', maker: 'maker-chat' },
+      });
+    if (url === '/api/agents/maker/chats/maker-chat/stream') return live.response();
+    if (url === '/api/agents/lead/chats/lead-chat') return json({ id: 'lead-chat', agentId: 'lead', items: SESSION } as Partial<Chat>);
+    return json({});
+  });
+});
+afterEach(() => {
+  document.body.innerHTML = '';
+});
+
+describe('team chat turns', () => {
+  it("a working agent's turn streams in: its tool calls and text as they come", async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    const chat = renderTeamChat(el, 't1');
+    // (the chat views load on demand: wait for the stream to be asked for)
+    for (let i = 0; i < 100 && !requests.includes('GET /api/agents/maker/chats/maker-chat/stream'); i++) await settle();
+    expect(requests).toContain('GET /api/agents/maker/chats/maker-chat/stream');
+    const block = el.querySelector('.tc-live')!;
+    expect(block.textContent).toContain('Maker');
+    await act(async () => {
+      live.push({ type: 'start', messageId: 'run-x' });
+      live.push({ type: 'tool-input-available', toolCallId: 'g1', toolName: 'comfyui_run', input: { workflow: 'thumb' }, dynamic: true });
+      live.push({ type: 'text-start', id: 'a' });
+      live.push({ type: 'text-delta', id: 'a', delta: 'Rendering the thumbnail' });
+    });
+    await settle();
+    expect(block.querySelector('details.tool .tname')!.textContent).toBe('comfyui_run');
+    expect(block.textContent).toContain('Rendering the thumbnail');
+    // its turn ends: the live block goes (the reply comes as a message)
+    await act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'team', teamId: 't1', ts: 0, event: { kind: 'turn', agentId: 'maker', state: 'end' } }) }));
+    await settle();
+    expect(el.querySelector('.tc-live')).toBeNull();
+    chat.destroy();
+  });
+
+  it('"Show the work" opens the steps and tool calls behind a reply', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    const chat = renderTeamChat(el, 't1');
+    await settle();
+    const work = el.querySelector('details.tc-work') as HTMLDetailsElement;
+    expect(work).not.toBeNull();
+    expect(requests).not.toContain('GET /api/agents/lead/chats/lead-chat');
+    await act(async () => {
+      work.open = true;
+      work.dispatchEvent(new Event('toggle'));
+    });
+    for (let i = 0; i < 100 && !work.querySelector('details.tool'); i++) await settle();
+    expect(requests).toContain('GET /api/agents/lead/chats/lead-chat');
+    expect(work.querySelector('details.tool .tname')!.textContent).toBe('read_file');
+    // (the message to the agent isn't repeated: the thread shows it)
+    expect(work.textContent).not.toContain('team brief');
+    chat.destroy();
+  });
+});

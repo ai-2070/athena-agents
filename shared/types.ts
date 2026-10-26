@@ -118,6 +118,9 @@ export interface TeamMessage {
   mentions: string[];
   replyTo?: string | null;
   handedTo?: string[];
+  /** An agent's reply: where its turn is in the agent's own session for this team (its steps and tool
+   *  calls are items from..to of that chat), so the team chat can show the work behind it. */
+  turn?: { chatId: string; from: number; to: number };
   /** Files and folders attached to the message (paths in the project's uploads/ folder). */
   attachments?: string[];
   [k: string]: unknown;

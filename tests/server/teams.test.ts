@@ -3,9 +3,9 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
-import { saveSettings, workflows } from '../../server/store.ts';
+import { bus, chats, saveSettings, workflows } from '../../server/store.ts';
 import { getThread, parseMentions, postUserMessage } from '../../server/teams.ts';
-import type { Team } from '../../shared/types.ts';
+import type { ServerEvent, Team } from '../../shared/types.ts';
 
 // a fake OpenAI-compatible model: the Lead hands off to the Maker, the Maker reports back, the Lead wraps up
 let server: http.Server;
@@ -63,5 +63,41 @@ describe('a team chat', () => {
       'Lead: All done, the thumbnail is ready.',
     ]);
     expect(thread.messages[1].mentions).toEqual([maker.id]);
+  });
+});
+
+describe("a reply's work", () => {
+  it('each reply says where its turn is in the agent’s session, and the session is named when it starts', async () => {
+    const lead = agent('Lead');
+    const maker = agent('Maker');
+    const team = workflows.save({ name: 'Work', description: 'Show the work', members: [lead.id, maker.id], lead: lead.id, steps: [] } as Partial<Team>);
+    const starts: { agentId: string; chatId?: string }[] = [];
+    const listen = (ev: ServerEvent) => {
+      const e = ev.event as { kind?: string; state?: string; agentId: string; chatId?: string };
+      if (ev.type === 'team' && ev.teamId === team.id && e.kind === 'turn' && e.state === 'start') starts.push(e);
+    };
+    bus.on('event', listen);
+    try {
+      await postUserMessage(team.id, 'Make a thumbnail');
+      let thread = getThread(team.id);
+      for (let i = 0; i < 60 && thread.messages.length < 4; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+        thread = getThread(team.id);
+      }
+      // the thread names each agent's own session for this team
+      expect(thread.sessions[lead.id]).toEqual(expect.any(String));
+      expect(thread.sessions[maker.id]).toEqual(expect.any(String));
+      // and each turn's start says which one it streams in
+      expect(starts.map((s) => s.chatId)).toEqual(starts.map((s) => thread.sessions[s.agentId]));
+      for (const m of thread.messages.filter((x) => x.from !== 'user')) {
+        expect(m.turn).toMatchObject({ chatId: thread.sessions[m.from] });
+        const items = chats.get(m.from, m.turn!.chatId)!.items.slice(m.turn!.from, m.turn!.to);
+        // the turn: the message to the agent, then its answer (the reply in the thread)
+        expect(items[0]).toMatchObject({ type: 'user' });
+        expect(items.find((i) => i.type === 'assistant')).toMatchObject({ text: m.text });
+      }
+    } finally {
+      bus.off('event', listen);
+    }
   });
 });

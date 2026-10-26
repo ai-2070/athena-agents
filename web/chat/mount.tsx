@@ -3,9 +3,12 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ChatView } from './ChatView.tsx';
+import { TurnView } from './TurnView.tsx';
 import type { ChatViewApi, ChatViewProps } from './ChatView.tsx';
+import type { TurnViewProps } from './TurnView.tsx';
 
 export type { ChatAgent, ChatViewApi, ChatViewProps } from './ChatView.tsx';
+export type { TurnViewProps } from './TurnView.tsx';
 
 export interface MountedChat {
   /** Reload, compact, focus, set the draft (once it has drawn). */
@@ -22,4 +25,11 @@ export function mountChat(el: HTMLElement, props: Omit<ChatViewProps, 'apiRef'>)
     </StrictMode>,
   );
   return { api, destroy: () => root.unmount() };
+}
+
+/** One agent's turn (live, or a finished one) inside a plain-DOM view: a team chat, the Brain chat. */
+export function mountTurn(el: HTMLElement, props: TurnViewProps): { destroy: () => void } {
+  const root = createRoot(el);
+  root.render(<TurnView {...props} />);
+  return { destroy: () => root.unmount() };
 }
