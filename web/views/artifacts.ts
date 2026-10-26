@@ -3,9 +3,9 @@
 import { h, mount, GET, DEL, attempt, md, copy, confirmBox } from '../core.ts';
 import { icon } from '../icons.ts';
 import { filePreviews } from '../filepreview.ts';
+import { fileUrl } from '../client/connection.ts';
 import type { Artifact, ServerEvent } from '../../shared/types.ts';
 
-const fileUrl = (p: string) => `/api/file?path=${encodeURIComponent(p)}`;
 const when = (ts?: number) => (ts ? new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 
 /** Everything you can search an artifact by, in lower case. */

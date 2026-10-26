@@ -43,6 +43,7 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 | `server/projectsync.ts`, `backup.ts`, `versions.ts` | Auto-save into `<project>/.dashboard`, `.dashbackup` files, version history |
 | `shared/` | Types and logic both sides import (`types.ts` is the source of truth for data shapes) |
 | `web/` | Browser app. Mostly plain DOM via the `h()` helper in `web/core.ts`; agent chats are React (`web/chat/*.tsx`, Vercel AI SDK + OpenUI) |
+| `web/client/` | The page's only way to the server: addresses (`apiUrl`, `fileUrl`, `serverUrl`), requests (`api`, uploads) and sockets. A test fails if other code writes `/api/`, `fetch(` or `new WebSocket(` |
 | `web/views/` | One module per page (`station.ts` is the 3D map, three.js) |
 | `public/` | `index.html` and CSS. `public/dist` is build output, never edit it |
 | `skills/` | Skill folders that come with the dashboard (`storytold`, `oomol`, `composio`, `orca`, `subagent-skills`), copied unchanged from GitHub: each folder's `README.md` says from where and which commit. `BUNDLED` in `server/skills.ts` lists them; `ensureBuiltinSkills` adds them to the library. Skills the dashboard writes itself (Self-improvement, Start agents in Orca) are in `BUILTIN` there instead |
@@ -74,7 +75,7 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 ## Security boundaries (don't weaken these)
 
 - The server listens on `127.0.0.1` only and checks the `Host` header (DNS rebinding).
-- Every non-GET `/api/` request needs the `x-dash: 1` header (`api()` in `web/core.ts` sends it).
+- Every non-GET `/api/` request needs the `x-dash: 1` header (`web/client/` sends it).
   Cross-site requests are refused via `Sec-Fetch-Site`; only the X/Reddit OAuth callbacks are exempt.
 - `/api/internal/` routes need the `x-dash-internal` token (used by the MCP bridge).
 - Secrets (`data/secrets.json`) and account tokens never go to the browser and never go into

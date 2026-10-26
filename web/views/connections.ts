@@ -1,5 +1,7 @@
 // Connections: X accounts, Telegram, Discord, and the Outbox where posts wait for you.
 import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, field, toggle, toast, copy, ago, confirmBox, refreshSoon, onState } from '../core.ts';
+import { fetchFile } from '../client/http.ts';
+import { fileUrl, serverUrl } from '../client/connection.ts';
 import type { Accounts, OutboxPost, SecretStatus, ServerEvent, Settings } from '../../shared/types.ts';
 
 /** One entry of GET /api/accounts/x/:id/posts. */
@@ -72,7 +74,7 @@ async function draw() {
 
 async function drawAccounts(body: HTMLElement) {
   const [{ settings, secrets }, accounts] = await Promise.all([GET<{ settings: Settings; secrets: SecretStatus }>('/settings'), GET<Accounts>('/accounts')]);
-  const callback = `http://${location.host}/oauth/x/callback`;
+  const callback = new URL(serverUrl('/oauth/x/callback'), location.href).href;
   const clientId = h('input.code', { value: settings.x.clientId, placeholder: 'Client ID from your X app' });
   const clientSecret = h('input', { type: 'password', placeholder: secrets.xClientSecret.set ? `saved (${secrets.xClientSecret.hint})` : 'Client Secret (only for confidential apps)' });
   const saveX = async () => {
@@ -83,7 +85,7 @@ async function drawAccounts(body: HTMLElement) {
     draw();
   };
 
-  const rdCallback = `http://${location.host}/oauth/reddit/callback`;
+  const rdCallback = new URL(serverUrl('/oauth/reddit/callback'), location.href).href;
   const rdId = h('input.code', { value: settings.reddit?.clientId || '', placeholder: 'Client ID (under the app name)' });
   const rdSecret = h('input', { type: 'password', placeholder: secrets.redditClientSecret?.set ? `saved (${secrets.redditClientSecret.hint})` : 'Secret' });
   const rdUser = h('input', { value: settings.reddit?.username || '', placeholder: 'Your Reddit username (Reddit asks apps to say who runs them)' });
@@ -106,7 +108,7 @@ async function drawAccounts(body: HTMLElement) {
         'div.col.gap-lg',
         h(
           'div.panel',
-          h('div.panel-head', h('h2', '𝕏 X accounts'), h('div.actions', accounts.xAppConfigured ? h('a.btn.small', { href: '/oauth/x/start' }, '+ Connect an account') : null)),
+          h('div.panel-head', h('h2', '𝕏 X accounts'), h('div.actions', accounts.xAppConfigured ? h('a.btn.small', { href: serverUrl('/oauth/x/start') }, '+ Connect an account') : null)),
           accounts.x.length
             ? h(
                 'div.list',
@@ -131,7 +133,7 @@ async function drawAccounts(body: HTMLElement) {
                         const list = await attempt(() => GET<XPost[]>(`/accounts/x/${a.id}/posts`));
                         mount(posts, list ? list.map((p) => h('div.list-item', h('div.grow', { style: { fontSize: '13.5px' } }, p.text, h('div.hint', `♥ ${p.metrics?.like_count ?? 0} · ↻ ${p.metrics?.retweet_count ?? 0} · 💬 ${p.metrics?.reply_count ?? 0} · ${ago(Date.parse(p.createdAt))}`)), h('a.btn.tiny.ghost', { href: p.url, target: '_blank' }, 'Open'))) : []);
                       } }, 'Recent posts'),
-                      h('a.btn.tiny.ghost', { href: '/oauth/x/start' }, 'Reconnect'),
+                      h('a.btn.tiny.ghost', { href: serverUrl('/oauth/x/start') }, 'Reconnect'),
                       h('button.btn.tiny.danger', { onclick: async () => (await confirmBox(`Disconnect @${a.username}?`, { ok: 'Disconnect', danger: true })) && attempt(() => DEL(`/accounts/x/${a.id}`)).then(draw) }, 'Disconnect'),
                     ),
                     posts,
@@ -143,7 +145,7 @@ async function drawAccounts(body: HTMLElement) {
         ),
         h(
           'div.panel',
-          h('div.panel-head', h('h2', 'Reddit accounts'), h('div.actions', accounts.redditAppConfigured ? h('a.btn.small', { href: '/oauth/reddit/start' }, '+ Connect an account') : null)),
+          h('div.panel-head', h('h2', 'Reddit accounts'), h('div.actions', accounts.redditAppConfigured ? h('a.btn.small', { href: serverUrl('/oauth/reddit/start') }, '+ Connect an account') : null)),
           (accounts.reddit || []).length
             ? h(
                 'div.list',
@@ -257,7 +259,7 @@ async function drawOutbox(body: HTMLElement) {
 /** Puts an image on the clipboard (as a PNG, which is what pasting into a post accepts). */
 async function copyImage(url: string): Promise<void> {
   try {
-    let blob = await (await fetch(url)).blob();
+    let blob = await (await fetchFile(url)).blob();
     if (blob.type !== 'image/png') {
       const bmp = await createImageBitmap(blob);
       const canvas = document.createElement('canvas');
@@ -278,7 +280,7 @@ function postCard(p: OutboxPost) {
   const keep = new Set(p.images || []);
   const thumbs = p.images?.length
     ? h('div.row.mt', { style: { flexWrap: 'wrap', gap: '12px', alignItems: 'flex-start' } }, p.images.map((f) => {
-        const url = `/api/file?path=${encodeURIComponent(f)}`;
+        const url = fileUrl(f);
         const name = f.split(/[\/]/).pop() || 'image';
         const img = h('img', { src: url, alt: name, title: f, style: { maxHeight: '120px', maxWidth: '180px', borderRadius: '8px', display: 'block' } });
         const frame = h('div', { style: { position: 'relative' } }, img);

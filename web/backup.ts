@@ -1,6 +1,6 @@
 // Backups on the page: back up the open project (with every skill and preset) into the backups
 // folder, read what a backup file holds, and restore one as a new project.
-import { h, GET, POST, attempt, modal, copy, ago } from './core.ts';
+import { h, GET, POST, api, attempt, modal, copy, ago } from './core.ts';
 import { icon } from './icons.ts';
 import type { Project } from '../shared/types.ts';
 
@@ -127,18 +127,9 @@ export async function backupProject(p: Pick<Project, 'id' | 'name'>): Promise<vo
 
 /** Restore a backup as a new project: a dropped file, or the name of one in the backups folder. */
 export async function restoreBackup(src: { file: File } | { listed: string }, opts: { name: string; folder: string; description: string }): Promise<Project & { restored: BackupRestored }> {
-  const q = new URLSearchParams();
-  if (opts.name) q.set('name', opts.name);
-  if (opts.folder) q.set('folder', opts.folder);
-  if (opts.description) q.set('description', opts.description);
-  if ('listed' in src) q.set('file', src.listed);
-  const res = await fetch(`/api/backups/restore?${q}`, {
-    method: 'POST',
-    headers: { 'x-dash': '1', 'content-type': 'application/octet-stream' },
-    body: 'file' in src ? src.file : undefined,
-  });
-  const data = (await res.json().catch(() => null)) as (Project & { restored: BackupRestored }) | { error?: string } | null;
-  if (!res.ok || !data || !('restored' in data)) throw new Error((data && 'error' in data && data.error) || `Restore failed (${res.status})`);
+  const query = { name: opts.name || null, folder: opts.folder || null, description: opts.description || null, file: 'listed' in src ? src.listed : null };
+  const data = await api<(Project & { restored: BackupRestored }) | null>('/backups/restore', { method: 'POST', raw: 'file' in src ? src.file : undefined, query });
+  if (!data || !('restored' in data)) throw new Error('Restore failed: the dashboard gave no answer.');
   return data;
 }
 

@@ -9,6 +9,7 @@
 // items once it ends.
 import type { DynamicToolUIPart, UIMessage } from 'ai';
 import type { ChatItem, CompactionItem } from '../../shared/types.ts';
+import { fileUrl } from '../client/connection.ts';
 
 export interface MessageMeta {
   /** the item it came from */
@@ -32,7 +33,7 @@ export interface ToolOutput {
   images: string[];
 }
 
-export const fileUrl = (p: string): string => `/api/file?path=${encodeURIComponent(p)}`;
+export { fileUrl };
 const MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', mp3: 'audio/mpeg', wav: 'audio/wav', pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', json: 'application/json', csv: 'text/csv' };
 export const mimeOf = (p: string): string => MIME[/\.([a-z0-9]+)$/i.exec(p)?.[1]?.toLowerCase() || ''] || 'application/octet-stream';
 const baseName = (p: string): string => p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p;

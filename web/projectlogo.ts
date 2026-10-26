@@ -1,13 +1,14 @@
 // A project's logo: its URL, a small logo-or-icon mark for lists and buttons, and picking a new one.
 import { h, POST, DEL, attempt, refreshSoon, toast } from './core.ts';
 import { icon } from './icons.ts';
+import { apiUrl } from './client/connection.ts';
 import type { Project } from '../shared/types.ts';
 
 type ProjectRef = Pick<Project, 'id'> & Partial<Pick<Project, 'logoAt' | 'modelAt' | 'modelExt' | 'repo' | 'name'>>;
 
 /** The logo's URL (changes when the logo does, so the new one shows at once), or null. */
 export function logoUrl(p: ProjectRef | null | undefined): string | null {
-  return p?.id && p.logoAt ? `/api/projects/${encodeURIComponent(p.id)}/logo?v=${p.logoAt}` : null;
+  return p?.id && p.logoAt ? apiUrl(`/projects/${encodeURIComponent(p.id)}/logo`, { v: p.logoAt }) : null;
 }
 
 /** The logo, or the project's folder / GitHub icon when it has none. */
@@ -19,7 +20,7 @@ export function projectMark(p: ProjectRef | null | undefined, size = 16, fallbac
 
 /** The project's 3D model (it replaces the logo in the Brain's globe): its URL, or null. */
 export function modelUrl(p: ProjectRef | null | undefined): string | null {
-  return p?.id && p.modelAt ? `/api/projects/${encodeURIComponent(p.id)}/model?v=${p.modelAt}` : null;
+  return p?.id && p.modelAt ? apiUrl(`/projects/${encodeURIComponent(p.id)}/model`, { v: p.modelAt }) : null;
 }
 
 const MODEL_ACCEPT = '.glb,.gltf,.obj,.stl,.ply,.fbx';

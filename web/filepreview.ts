@@ -6,6 +6,7 @@ import { icon } from './icons.ts';
 import { isMac } from './shortcuts.ts';
 import { findFileMentions } from './mentions.ts';
 import { modelViewer } from './modelviewer.ts';
+import { fileUrl } from './client/connection.ts';
 
 /** POST /api/files/info, one entry per path. */
 export type FileInfo = { path: string; ok: false } | { path: string; ok: true; kind: 'image' | 'video' | 'audio' | 'model' | 'file' | 'folder'; name: string; size: number; modified: number };
@@ -49,7 +50,6 @@ export function lookupFiles(paths: readonly string[]): Promise<FileInfo[]> {
 export const forgetFiles = (): void => known.clear();
 
 // ---------- drawing ----------
-const fileUrl = (p: string): string => `/api/file?path=${encodeURIComponent(p)}`;
 const size = (n: number): string => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : n >= 1e3 ? `${Math.round(n / 1e3)} KB` : `${n} B`);
 
 /** An image that opens big when clicked, or with Enter / Space (a button to the keyboard and screen readers). */

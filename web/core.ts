@@ -2,33 +2,13 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { Agent, AppState, Approval, ServerEvent } from '../shared/types.ts';
+import { GET, POST } from './client/http.ts';
+import { openSocket } from './client/connection.ts';
 
 // ---------- API ----------
-export interface ApiOptions {
-  method?: string;
-  body?: unknown;
-}
-// The JSON the server sent back. T is what the caller expects: GET<Agent[]>('/agents').
-export async function api<T = unknown>(path: string, { method = 'GET', body }: ApiOptions = {}): Promise<T> {
-  const res = await fetch(`/api${path}`, {
-    method,
-    headers: { 'x-dash': '1', ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let data: unknown = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-  if (!res.ok) throw new Error(((data && (data as { error?: string }).error) || `${res.status} ${res.statusText}`) as string);
-  return data as T;
-}
-export const GET = <T = unknown>(p: string): Promise<T> => api<T>(p);
-export const POST = <T = unknown>(p: string, body: unknown = {}): Promise<T> => api<T>(p, { method: 'POST', body });
-export const PUT = <T = unknown>(p: string, body: unknown = {}): Promise<T> => api<T>(p, { method: 'PUT', body });
-export const DEL = <T = unknown>(p: string): Promise<T> => api<T>(p, { method: 'DELETE' });
+// Requests live in web/client/; pages keep importing them from here.
+export { api, GET, POST, PUT, DEL } from './client/http.ts';
+export type { ApiOptions } from './client/http.ts';
 
 // Run an action, show errors as toasts. Returns the result or undefined.
 export async function attempt<T>(fn: () => Promise<T>, okMsg?: string | ((r: T) => string)): Promise<T | undefined> {
@@ -77,7 +57,7 @@ export function onState(fn: StateListener): () => void {
 
 let socket: WebSocket | undefined;
 export function connectEvents(): void {
-  socket = new WebSocket(`ws://${location.host}/ws`);
+  socket = openSocket('/ws');
   socket.onmessage = (m: MessageEvent<string>) => {
     let ev: ServerEvent;
     try {

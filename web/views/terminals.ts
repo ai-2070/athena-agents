@@ -2,6 +2,7 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { h, mount, clear, state, GET, POST, DEL, attempt, navigate, select, onState } from '../core.ts';
+import { openSocket } from '../client/connection.ts';
 import type { Terminal as TerminalInfo } from '../../shared/types.ts';
 
 interface ActiveTerm {
@@ -137,7 +138,7 @@ function attach(id: string) {
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.open(hostEl);
-  const ws = new WebSocket(`ws://${location.host}/ws/term?id=${encodeURIComponent(id)}`);
+  const ws = openSocket('/ws/term', { id });
   const sendSize = () => {
     try {
       fit.fit();
