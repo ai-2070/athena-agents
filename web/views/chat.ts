@@ -1,4 +1,4 @@
-// Chat with one agent: the agent and its chats on the left; the conversation itself is the OpenUI chat
+// Chat with one agent: the agent and its chats on the left; the conversation itself is the AI SDK chat
 // (web/chat): streaming answers, tool calls you can open, images, file previews, COMPACTED marks.
 import { h, mount, GET, POST, PUT, DEL, attempt, avatar, navigate, ago, confirmBox } from '../core.ts';
 import { openTerminal } from './agents.ts';

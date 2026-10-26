@@ -39,6 +39,7 @@ import * as skillInstall from './skillinstall.ts';
 import * as presets from './presets.ts';
 import * as uploads from './uploads.ts';
 import * as files from './files.ts';
+import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import type { RestoreResult } from './projectsync.ts';
@@ -356,6 +357,28 @@ post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/mess
   if (cmd) return compactResult(await engines.compactNow(a, c.id, cmd[1]?.toLowerCase() as 'instant' | 'summary' | undefined));
   const { runId } = engines.startRun(a, c, text, { attachments });
   return { runId };
+});
+// The chat views (Vercel AI SDK useChat): send a message and stream its run as a UI message stream,
+// or pick up the run going in a chat (the turn so far, then the rest; 204 when nothing runs).
+post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, body, _q, res) => {
+  const a = need(agents.get(id));
+  const c = need(chats.get(id, cid));
+  const text = String(body.text || '').trim();
+  const attachments = uploads.cleanAttachments(body.attachments);
+  if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
+  const { runId } = engines.startRun(a, c, text, { attachments });
+  await uistream.streamRun(res, { chatId: c.id, runId });
+  return undefined;
+});
+get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {
+  const run = engines.activeRuns().find((r) => r.chatId === cid && r.agentId === id);
+  if (!run) {
+    res.writeHead(204, { 'cache-control': 'no-store' });
+    res.end();
+    return undefined;
+  }
+  await uistream.streamRun(res, { chatId: cid, runId: run.id, items: engines.liveChat(cid)?.items || [] });
+  return undefined;
 });
 // Compaction: the Compact button, the memory meter, and editing the compacted history
 const compactResult = ({ item }: Awaited<ReturnType<typeof engines.compactNow>>) => ({ compacted: !!item, item, ...(item ? {} : { message: 'Nothing to compact yet: the chat is short enough to keep in full.' }) });

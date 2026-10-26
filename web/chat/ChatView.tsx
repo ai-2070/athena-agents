@@ -1,28 +1,24 @@
-// One agent's conversation, on OpenUI: its chat state (react-headless) holds the messages and streams
-// our runs; the list and the composer are ours, in the dashboard's look. Used by the full chat page
-// (views/chat.ts) and the floating chat window's agent tabs (agentchat.ts, compact).
-//   - our sends go through OpenUI (processMessage → llm.ts → the server), streaming as they come
-//   - runs this view didn't start (team turns, routines, handoffs, another tab) are shown live from
-//     the server's events (live.ts), and the saved chat is loaded again when any run ends
-//   - our own rows: COMPACTED marks, errors and notes; file previews with Show in Explorer / Finder;
-//     answers in OpenUI Lang (Rich answers) as live components
-import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChatProvider, useThread, useThreadList, useToolActivities } from '@openuidev/react-headless';
-import type { ActivityMessage, AssistantMessage, ChatStorage, Message, ToolActivity, UserMessage } from '@openuidev/react-headless';
-import { GET, POST, attempt, toast, state, onState, onEvent, md, approvalCard, lightbox } from '../core.ts';
+// One agent's conversation, on the Vercel AI SDK (useChat): the saved chat as UI messages, a message
+// you send streams in as its run goes (text as written, tool calls as they happen), and a run started
+// anywhere else (a team turn, a routine, another tab) is picked up and streamed too (a resume: the
+// turn so far, then the rest). The server speaks the AI SDK's UI message stream (server/uistream.ts).
+// Used by the full chat page (views/chat.ts), the floating window's agent tabs (agentchat.ts, compact)
+// and the Station's agent panel (mini).
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
+import { GET, POST, attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
 import { restoreDraft } from '../attach.ts';
 import type { AttachTray } from '../attach.ts';
-import { compactionMark } from '../compactmark.ts';
-import { filePreviews } from '../filepreview.ts';
-import { findFileMentions } from '../mentions.ts';
 import { icon } from '../icons.ts';
 import { latestCompaction, memoryStart } from '../../shared/compaction.ts';
-import { dashboardLLM } from './llm.ts';
-import { applyRunEvent } from './live.ts';
-import { readToolContent, readUserContent, seqOf, toMessages, userContent } from './convert.ts';
-import type { AppState, Chat, ChatItem, CompactionItem, RunEvent } from '../../shared/types.ts';
+import { Dom, MessageView, isRichCode } from './parts.tsx';
+import type { Variant } from './parts.tsx';
+import { beforeTurn, readUser, toUIMessages, userParts } from './messages.ts';
+import type { ChatMessage } from './messages.ts';
+import type { AppState, Chat, ChatItem } from '../../shared/types.ts';
 
-const RichAnswer = lazy(() => import('./rich.tsx'));
+export { isRichCode };
 
 export interface ChatAgent {
   id: string;
@@ -34,7 +30,7 @@ export interface ChatAgent {
 
 export interface ChatViewApi {
   /** Load the saved chat again (after a rename, Clear memory, a compaction…). */
-  reload: () => Promise<void>;
+  reload: (after?: boolean) => Promise<void>;
   /** Compact the chat now (the Compact button; /compact). */
   compact: (mode?: 'instant' | 'summary') => Promise<void>;
   focus: () => void;
@@ -45,10 +41,11 @@ export interface ChatViewProps {
   agent: ChatAgent;
   /** The conversation; null: a new one, made when the first message is sent. */
   chatId: string | null;
-  /** The floating window's small version. */
+  /** full: the chat page. compact: the floating window. mini: the Station panel. (compact: true = compact) */
+  variant?: Variant;
   compact?: boolean;
   /** Files for the next message (the host owns it, so it can make the whole page a drop zone). */
-  tray: AttachTray;
+  tray?: AttachTray | null;
   /** Shown under the composer (the model chip). */
   footer?: HTMLElement | null;
   /** The chat as it was (re)loaded, or made by the first message. */
@@ -56,7 +53,6 @@ export interface ChatViewProps {
   apiRef?: { current: ChatViewApi | null };
 }
 
-// ---------- helpers ----------
 /** The page's shared state (agents, runs, approvals), kept current. */
 function useAppState(): AppState | null {
   const [data, setData] = useState(state.data);
@@ -64,252 +60,136 @@ function useAppState(): AppState | null {
   return data;
 }
 
-/** A piece of the page built with plain DOM (approval cards, the COMPACTED mark, file previews…). */
-const Dom = memo(function Dom({ make, deps, className }: { make: () => Node | null; deps: readonly unknown[]; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const node = make();
-    ref.current?.replaceChildren(...(node ? [node] : []));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-  return <div ref={ref} className={className} style={className ? undefined : { display: 'contents' }} />;
-}, (a, b) => a.className === b.className && a.deps.length === b.deps.length && a.deps.every((d, i) => Object.is(d, b.deps[i])));
+export const streamUrl = (agentId: string, chatId: string): string => `/api/agents/${agentId}/chats/${chatId}/stream`;
 
-const Markdown = memo(function Markdown({ text, className }: { text: string; className: string }) {
-  // (md() is marked + DOMPurify, as everywhere in the dashboard)
-  const html = useMemo(() => md(text).innerHTML, [text]);
-  return <div className={className} dangerouslySetInnerHTML={{ __html: html }} />;
-});
-
-function Previews({ paths, compact }: { paths: readonly string[]; compact?: boolean }) {
-  const key = paths.join('\n');
-  if (!paths.length) return null;
-  return <Dom make={() => filePreviews(paths, { compact })} deps={[key, compact]} />;
+/** The AI SDK transport for one agent's chats: a send posts only the new message (the server keeps the
+ *  history); a resume picks up the run going in the chat. */
+export function chatTransport(agentId: string, chatId: () => string | null): DefaultChatTransport<ChatMessage> {
+  return new DefaultChatTransport<ChatMessage>({
+    api: '/api/agents',
+    headers: { 'x-dash': '1' },
+    prepareSendMessagesRequest: ({ messages }) => ({ api: streamUrl(agentId, chatId() || 'none'), body: readUser(messages[messages.length - 1]) }),
+    prepareReconnectToStreamRequest: () => ({ api: streamUrl(agentId, chatId() || 'none') }),
+  });
 }
 
-/** OpenUI Lang (a Rich answer) rather than markdown: "root = Card(…)" and other statements. */
-export const isRichCode = (text: string): boolean => /^\s*root\s*=\s*[A-Z]\w*\(/m.test(text) && !/^\s*```/.test(text);
-
-const brief = (input: unknown): string =>
-  input && typeof input === 'object' ? Object.values(input as Record<string, unknown>).filter((v) => typeof v === 'string').join(' · ').slice(0, 140) : typeof input === 'string' ? input.slice(0, 140) : '';
-
-// ---------- rows ----------
-function ToolCard({ t, compact, busy }: { t: ToolActivity; compact?: boolean; busy: boolean }) {
-  const done = t.status === 'complete' || t.status === 'error';
-  const result = done ? readToolContent(t.result) : null;
-  const images = result?.images || [];
-  const running = !done && busy;
-  const mark = running ? <span className="dot busy" /> : t.isError ? <span className="red">✕</span> : done ? <span className="accent">✓</span> : <span className="faint">·</span>;
-  if (compact)
-    return (
-      <div className={`ac-tool${t.isError ? ' err' : running ? ' run' : ''}`}>
-        {mark}
-        <span>{t.toolName}</span>
-        {images.length ? (
-          <div className="st-imgs">
-            {images.slice(0, 6).map((src) => (
-              <img key={src} src={src} onClick={() => lightbox(src)} />
-            ))}
-          </div>
-        ) : null}
-      </div>
-    );
-  const input = t.toolCall.function.arguments;
-  let pretty = input;
-  try {
-    pretty = JSON.stringify(JSON.parse(input || '{}'), null, 2);
-  } catch {
-    /* as sent */
-  }
-  return (
-    <div className="col" style={{ gap: '6px' }}>
-      <details className={`tool${t.isError ? ' error' : ''}`}>
-        <summary>
-          {mark}
-          <span className="tname">{t.toolName}</span>
-          <span className="targ">{brief(t.input)}</span>
-        </summary>
-        <div className="tbody">
-          <div className="label">Input</div>
-          <pre>{pretty}</pre>
-          {result ? (
-            <>
-              <div className="label">Result</div>
-              <pre>{result.text || '(empty)'}</pre>
-            </>
-          ) : (
-            <div className="hint">{running ? 'Running…' : 'Did not finish.'}</div>
-          )}
-        </div>
-      </details>
-      {images.length ? (
-        <div className="tool-images">
-          {images.map((src) => (
-            <img key={src} src={src} onClick={() => lightbox(src)} />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function AssistantTurn({ m, all, compact, busy, streaming, dim, onSend }: { m: AssistantMessage; all: Message[]; compact?: boolean; busy: boolean; streaming: boolean; dim: boolean; onSend: (t: string) => void }) {
-  const tools = useToolActivities(m, all);
-  const text = m.content || '';
-  const rich = !!text && isRichCode(text);
-  const mentions = useMemo(() => (rich ? [] : findFileMentions(text)), [text, rich]);
-  const cls = dim ? ' compacted' : '';
-  return (
-    <>
-      {text ? (
-        rich ? (
-          <div className={`msg assistant rich${cls}`}>
-            <Suspense fallback={<pre className="hint">{text}</pre>}>
-              <RichAnswer code={text} streaming={streaming} onSend={onSend} />
-            </Suspense>
-          </div>
-        ) : compact ? (
-          <div className={`ac-msg agent${cls}`}>
-            <Markdown text={text} className="ac-text" />
-          </div>
-        ) : (
-          <Markdown text={text} className={`msg assistant${streaming ? ' cursor' : ''}${cls}`} />
-        )
-      ) : null}
-      {mentions.length ? <Previews paths={mentions} compact={compact} /> : null}
-      {tools.map((t) => (
-        <ToolCard key={t.id} t={t} compact={compact} busy={busy} />
-      ))}
-    </>
-  );
-}
-
-function UserBubble({ m, compact, dim }: { m: UserMessage; compact?: boolean; dim: boolean }) {
-  const { text, attachments } = readUserContent(m);
-  const paths = useMemo(() => [...attachments, ...findFileMentions(text)], [text, attachments.join('\n')]);
-  return (
-    <>
-      <div className={`${compact ? 'ac-msg user' : 'msg user'}${dim ? ' compacted' : ''}`}>
-        {m.name && !compact ? <div className="from">from {m.name}</div> : null}
-        {text ? compact ? <div className="ac-text">{text}</div> : text : null}
-      </div>
-      {paths.length ? <Previews paths={paths} compact={compact} /> : null}
-    </>
-  );
-}
-
-// ---------- the conversation ----------
-interface ThreadProps extends ChatViewProps {
-  bridge: { loaded: (chat: Chat) => void; failed?: (message: string) => void };
-  sending: { current: boolean };
-  setStatus: (s: string) => void;
-  status: string;
-}
-
-function Thread(p: ThreadProps) {
-  const { agent, compact, tray } = p;
-  const messages = useThread((s) => s.messages);
-  const ourRun = useThread((s) => s.isRunning);
-  const processMessage = useThread((s) => s.processMessage);
-  const setMessages = useThread((s) => s.setMessages);
-  const cancelMessage = useThread((s) => s.cancelMessage);
-  const selectThread = useThreadList((s) => s.selectThread);
-  const chatId = useThreadList((s) => s.selectedThreadId);
+export function ChatView(p: ChatViewProps) {
+  const { agent } = p;
+  const variant: Variant = p.variant || (p.compact ? 'compact' : 'full');
+  const compact = variant !== 'full';
+  const tray = p.tray || null;
   const app = useAppState();
+  const chatIdRef = useRef<string | null>(p.chatId);
+  const [chatId, setChatId] = useState<string | null>(p.chatId);
   const [items, setItems] = useState<ChatItem[]>([]);
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
-  const chatIdRef = useRef(chatId);
-  chatIdRef.current = chatId;
+  const [statusText, setStatusText] = useState('');
   const input = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const near = useRef(true);
-  const pendingReload = useRef(false);
-  // why the last send failed (the server's message), set by the adapter
   const failed = useRef<string | null>(null);
-  p.bridge.failed = (m) => (failed.current = m);
+  const onChat = useRef(p.onChat);
+  onChat.current = p.onChat;
+  // one id for this view's useChat, even when its first message makes the chat
+  const [viewId] = useState(() => p.chatId || `new-${agent.id}-${Math.random().toString(36).slice(2, 8)}`);
+
+  const transport = useMemo(() => chatTransport(agent.id, () => chatIdRef.current), [agent.id]);
+  const { messages, setMessages, sendMessage, status, stop: stopStream, resumeStream } = useChat<ChatMessage>({
+    id: viewId,
+    transport,
+    onData: (part) => {
+      if (part.type === 'data-status') setStatusText((part.data as { text: string }).text);
+    },
+    onError: (e) => (failed.current = e.message || 'Could not send.'),
+  });
+  const streaming = status === 'submitted' || status === 'streaming';
+  const streamingRef = useRef(streaming);
+  streamingRef.current = streaming;
 
   const serverRunning = !!chatId && !!app?.runs.some((r) => r.chatId === chatId);
-  const busy = ourRun || serverRunning;
+  const busy = streaming || serverRunning;
   const approvals = (app?.approvals || []).filter((a) => a.agentId === agent.id);
 
-  // the saved chat, shown as it is
-  const show = useCallback(
-    (chat: Chat) => {
-      setItems(chat.items);
-      setMessages(toMessages(chat.items));
-      p.onChat?.(chat);
-    },
-    [setMessages, p.onChat],
-  );
-  p.bridge.loaded = (chat) => {
-    setItems(chat.items);
-    p.onChat?.(chat);
-  };
-  const reload = useCallback(async () => {
+  // the saved chat, shown as it is. after: a stream just ended (its flag may not have caught up yet)
+  const reload = useCallback(async (after = false) => {
     const id = chatIdRef.current;
     if (!id) return;
-    const chat = await GET<Chat>(`/agents/${agent.id}/chats/${id}`).catch(() => null);
-    if (chat && chatIdRef.current === id) show(chat);
-  }, [agent.id, show]);
+    const saved = await GET<Chat>(`/agents/${agent.id}/chats/${id}`).catch(() => null);
+    if (!saved || chatIdRef.current !== id) return;
+    setItems(saved.items);
+    // (while a stream is going it keeps its own message; the saved chat comes when it ends)
+    if (after || !streamingRef.current) setMessages(toUIMessages(saved.items));
+    onChat.current?.(saved);
+  }, [agent.id, setMessages]);
+
+  // pick up a run going in this chat: the messages before its turn, then the turn streamed in
+  const following = useRef(false);
+  const follow = useCallback(async () => {
+    if (streamingRef.current || following.current || !chatIdRef.current) return;
+    following.current = true;
+    try {
+      setMessages((m) => beforeTurn(m));
+      setStatusText('Working…');
+      await resumeStream();
+    } finally {
+      following.current = false;
+      setStatusText('');
+      await reload(true);
+    }
+  }, [resumeStream, reload, setMessages]);
 
   useEffect(() => {
-    if (p.chatId) selectThread(p.chatId);
-  }, [p.chatId, selectThread]);
+    void (async () => {
+      await reload();
+      if (chatIdRef.current && state.data?.runs.some((r) => r.chatId === chatIdRef.current)) await follow();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // runs this view didn't start, and compactions: shown live, then the saved chat
-  useEffect(() => {
-    let frame = 0;
-    return onEvent((ev) => {
-      if (!chatIdRef.current || ev.chatId !== chatIdRef.current) return;
-      if (ev.type === 'compacted') {
-        if (p.sending.current) pendingReload.current = true;
-        else void reload();
-        return;
-      }
-      if (ev.type !== 'run' || p.sending.current) return;
-      const e = ev.event as RunEvent;
-      if (e.kind === 'status') return p.setStatus(e.text);
-      if (e.kind === 'done' || e.kind === 'error') {
-        p.setStatus('');
-        return void reload();
-      }
-      if (e.kind === 'start') p.setStatus('Thinking…');
-      const next = applyRunEvent(itemsRef.current, e);
-      itemsRef.current = next;
-      setItems(next);
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => setMessages(toMessages(itemsRef.current)));
-    });
-  }, [reload, setMessages]);
+  // a run starting here from elsewhere, compactions, and runs ending without a stream (missed ones)
+  useEffect(
+    () =>
+      onEvent((ev) => {
+        if (!chatIdRef.current || ev.chatId !== chatIdRef.current) return;
+        if (ev.type === 'compacted') {
+          if (!streamingRef.current) void reload();
+          return;
+        }
+        if (ev.type !== 'run') return;
+        const kind = (ev.event as { kind?: string })?.kind;
+        if (kind === 'start' && !streamingRef.current && !sending.current) void reload().then(follow);
+        else if ((kind === 'done' || kind === 'error') && !streamingRef.current && !sending.current) void reload();
+      }),
+    [reload, follow],
+  );
 
   const compactNow = useCallback(
     async (mode?: 'instant' | 'summary') => {
       const id = chatIdRef.current;
       if (!id) return void toast('Nothing to compact yet');
-      p.setStatus(mode === 'summary' ? 'Compacting: the Brain’s model is writing a summary…' : 'Compacting…');
+      setStatusText(mode === 'summary' ? 'Compacting: the Brain’s model is writing a summary…' : 'Compacting…');
       const r = await attempt(
         () => POST<{ compacted: boolean; message?: string }>(`/agents/${agent.id}/chats/${id}/compact`, mode ? { mode } : {}),
         (x) => (x.compacted ? 'Compacted: the agent now remembers the older messages as a short history' : x.message || 'Nothing to compact yet'),
       );
-      p.setStatus('');
+      setStatusText('');
       if (r?.compacted) await reload();
     },
     [agent.id, reload],
   );
 
+  const sending = useRef(false);
   const send = useCallback(
     async (typed?: string) => {
       const box = input.current;
-      if (p.sending.current || busy) return;
+      if (sending.current || busy) return;
       const draft = typed ?? box?.value.trim() ?? '';
-      if (!draft && !tray.count()) return;
-      p.sending.current = true;
+      if (!draft && !tray?.count()) return;
+      sending.current = true;
       let taken: ReturnType<AttachTray['take']> = [];
       try {
-        if (tray.busy()) p.setStatus('Uploading files…');
-        const attachments = typed != null ? [] : await tray.ready();
-        p.setStatus('');
+        if (tray?.busy()) setStatusText('Uploading files…');
+        const attachments = typed != null || !tray ? [] : await tray.ready();
+        setStatusText('');
         if (!attachments) return;
         // what is in the box now (more may have been typed while the files uploaded)
         const text = typed ?? box?.value.trim() ?? '';
@@ -321,29 +201,41 @@ function Thread(p: ThreadProps) {
         // /compact, /compact instant, /compact summary (with no files attached)
         const cmd = attachments.length ? null : /^\/compact(?:\s+(instant|summary))?\s*$/i.exec(text);
         if (cmd) return void (await compactNow(cmd[1]?.toLowerCase() as 'instant' | 'summary' | undefined));
-        taken = tray.take();
+        // a new conversation: make the chat first
+        if (!chatIdRef.current) {
+          const made = await attempt(() => POST<Chat>(`/agents/${agent.id}/chats`));
+          if (!made) {
+            if (typed == null && box) restoreDraft(box, text);
+            return;
+          }
+          chatIdRef.current = made.id;
+          setChatId(made.id);
+          onChat.current?.(made);
+        }
+        taken = tray?.take() || [];
         near.current = true;
-        p.setStatus('Thinking…');
         failed.current = null;
-        await processMessage({ role: 'user', content: userContent(text, attachments) });
+        setStatusText('Thinking…');
+        await sendMessage({ role: 'user', parts: userParts(text, attachments), metadata: {} });
         if (failed.current) {
           toast(failed.current, 'error');
           if (typed == null && box) restoreDraft(box, text);
-          tray.put(taken);
+          tray?.put(taken);
         }
       } finally {
-        p.sending.current = false;
-        p.setStatus('');
-        pendingReload.current = false;
-        await reload();
+        sending.current = false;
+        setStatusText('');
+        await reload(true);
       }
     },
-    [busy, tray, processMessage, compactNow, reload],
+    [busy, tray, sendMessage, compactNow, reload, agent.id],
   );
+
   const stop = useCallback(() => {
-    if (ourRun) cancelMessage();
-    else if (chatIdRef.current) attempt(() => POST(`/agents/${agent.id}/chats/${chatIdRef.current}/stop`));
-  }, [ourRun, cancelMessage, agent.id]);
+    const id = chatIdRef.current;
+    if (id) attempt(() => POST(`/agents/${agent.id}/chats/${id}/stop`));
+    void stopStream();
+  }, [agent.id, stopStream]);
 
   if (p.apiRef)
     p.apiRef.current = {
@@ -386,30 +278,34 @@ function Thread(p: ThreadProps) {
 
   const latest = latestCompaction(items);
   const dimBefore = latest ? memoryStart(items) : -1;
-  const shown = compact ? messages.slice(-120) : messages;
-  const lastAssistant = messages.findLast((m) => m.role === 'assistant')?.id;
+  const shown = variant === 'mini' ? messages.slice(-14) : variant === 'compact' ? messages.slice(-120) : messages;
+  const lastId = messages[messages.length - 1]?.id;
   const chatPath = chatId ? `/agents/${agent.id}/chats/${chatId}` : undefined;
   const rows = shown.map((m) => {
-    const seq = seqOf(m.id);
-    const dim = seq != null && seq < dimBefore;
-    if (m.role === 'user') return <UserBubble key={m.id} m={m} compact={compact} dim={dim} />;
-    if (m.role === 'assistant') return <AssistantTurn key={m.id} m={m} all={messages} compact={compact} busy={busy} streaming={ourRun && m.id === lastAssistant} dim={dim} onSend={(t) => void send(t)} />;
-    if (m.role !== 'activity') return null;
-    const it = (m as ActivityMessage).content as ChatItem;
-    if (it.type === 'compaction')
-      return <Dom key={m.id} make={() => compactionMark(it as CompactionItem, { chatPath, latest: latest?.item.id === (it as CompactionItem).id, busy, compact, onSaved: () => void reload() })} deps={[(it as CompactionItem).id, (it as CompactionItem).text, latest?.item.id, busy, chatPath]} />;
-    if (it.type === 'error') return <div key={m.id} className={compact ? 'ac-msg err' : 'msg error'}>{it.text}</div>;
-    if (it.type === 'meta') return compact ? null : <div key={m.id} className="msg meta">{it.text}</div>;
-    return null;
+    const seq = m.metadata?.seq;
+    return (
+      <MessageView
+        key={m.id}
+        m={m}
+        variant={variant}
+        busy={busy}
+        streaming={streaming && m.id === lastId}
+        dim={seq != null && seq < dimBefore}
+        onSend={(t) => void send(t)}
+        chatPath={chatPath}
+        latestCompaction={latest?.item.id ?? null}
+        onCompactionSaved={() => void reload()}
+      />
+    );
   });
 
   const empty = !messages.length && !busy;
-  const ideas = suggestions(agent);
+  const statusLine = statusText || (busy ? (approvals.length ? `Waiting for you: ${approvals[0].title}` : 'Working…') : '');
   const composer = (
     <textarea
       ref={input}
       className={compact ? 'ac-input' : undefined}
-      rows={2}
+      rows={variant === 'mini' ? 1 : 2}
       placeholder={compact ? `Message ${agent.name}…  (Enter to send, Shift+Enter for a new line)` : `Message ${agent.name}…`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -425,23 +321,25 @@ function Thread(p: ThreadProps) {
       }}
     />
   );
-  const sendBtn = (
-    <button className={compact ? 'btn small' : 'btn'} onClick={() => void send()} disabled={busy} title="Send (Enter)" style={busy && compact ? { display: 'none' } : undefined}>
-      {compact ? <Dom make={() => icon('send', 14)} deps={[]} /> : 'Send'}
-    </button>
-  );
+  const sendBtn =
+    busy && compact ? null : (
+      <button className={compact ? 'btn small' : 'btn'} onClick={() => void send()} disabled={busy} title="Send (Enter)">
+        {compact ? <Dom make={() => icon('send', 14)} deps={[]} /> : 'Send'}
+      </button>
+    );
   const stopBtn = busy ? (
     <button className={compact ? 'btn danger small' : 'btn danger'} onClick={stop}>
       {compact ? <Dom make={() => icon('square', 13)} deps={[]} /> : null}Stop
     </button>
   ) : null;
-  const statusText = p.status || (busy ? (approvals.length ? `Waiting for you: ${approvals[0].title}` : 'Working…') : '');
 
   return (
     <>
-      <div ref={list} className={compact ? 'ac-list' : 'messages'} onScroll={onScroll}>
+      <div ref={list} className={variant === 'mini' ? 'oc-mini-list' : compact ? 'ac-list' : 'messages'} onScroll={onScroll}>
         {empty ? (
-          compact ? (
+          variant === 'mini' ? (
+            <p className="empty">No messages yet.</p>
+          ) : compact ? (
             <div className="ac-empty">
               <Dom make={() => icon('message-circle', 22)} deps={[]} />
               <p>Say hi to {agent.name}.</p>
@@ -454,7 +352,7 @@ function Thread(p: ThreadProps) {
                 Ask {agent.name} anything{agent.specialty ? `. Good at: ${agent.specialty}` : ''}.
               </p>
               <div className="chips" style={{ justifyContent: 'center', marginTop: '12px' }}>
-                {ideas.map((t) => (
+                {suggestions(agent).map((t) => (
                   <button key={t} className="chip" onClick={() => p.apiRef?.current?.setDraft(t)}>
                     {t}
                   </button>
@@ -466,28 +364,30 @@ function Thread(p: ThreadProps) {
           rows
         )}
       </div>
-      <div className={compact ? 'ac-approvals' : undefined} style={compact ? undefined : { padding: '0 28px' }}>
-        {approvals.map((a) => (
-          <Dom key={a.id} className={compact ? undefined : 'oc-approval'} make={() => approvalCard(a)} deps={[a.id]} />
-        ))}
-      </div>
+      {variant === 'mini' ? null : (
+        <div className={compact ? 'ac-approvals' : undefined} style={compact ? undefined : { padding: '0 28px' }}>
+          {approvals.map((a) => (
+            <Dom key={a.id} className={compact ? undefined : 'oc-approval'} make={() => approvalCard(a)} deps={[a.id]} />
+          ))}
+        </div>
+      )}
       <div className={compact ? 'ac-status' : 'status-line'}>
-        {statusText ? (
+        {statusLine ? (
           compact ? (
-            statusText
+            statusLine
           ) : (
             <>
               <span className="dot busy" />
-              {statusText}
+              {statusLine}
             </>
           )
         ) : null}
       </div>
       {compact ? (
         <>
-          <Dom make={() => tray.el} deps={[tray]} />
+          {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
           <div className="ac-compose">
-            <Dom make={() => tray.picker} deps={[tray]} />
+            {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
             {composer}
             {sendBtn}
             {stopBtn}
@@ -495,9 +395,9 @@ function Thread(p: ThreadProps) {
         </>
       ) : (
         <div className="composer">
-          <Dom make={() => tray.el} deps={[tray]} />
+          {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
           <div className="composer-box">
-            <Dom make={() => tray.picker} deps={[tray]} />
+            {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
             {composer}
             {stopBtn}
             {sendBtn}
@@ -523,46 +423,4 @@ function suggestions(a: ChatAgent): string[] {
   if (t.includes('list_programs')) out.push('What programs can you use on my PC?');
   if (!out.length) out.push('What can you do?', 'Summarize what you know');
   return out.slice(0, 4);
-}
-
-export function ChatView(props: ChatViewProps) {
-  const [status, setStatus] = useState('');
-  const sending = useRef(false);
-  const bridge = useRef<{ loaded: (chat: Chat) => void; failed?: (m: string) => void }>({ loaded: () => {} }).current;
-  const agentId = props.agent.id;
-  // the server keeps the chats; OpenUI only reads one and makes one for a first message
-  const storage = useMemo<ChatStorage>(
-    () => ({
-      thread: {
-        listThreads: async () => ({ threads: [] }),
-        getMessages: async (id) => {
-          const chat = await GET<Chat>(`/agents/${agentId}/chats/${id}`);
-          bridge.loaded(chat);
-          return toMessages(chat.items);
-        },
-        createThread: async () => {
-          const chat = await POST<Chat>(`/agents/${agentId}/chats`);
-          bridge.loaded(chat);
-          return { id: chat.id, title: chat.title, createdAt: chat.createdAt };
-        },
-        updateThread: async (t) => t,
-        deleteThread: async () => {},
-      },
-    }),
-    [agentId, bridge],
-  );
-  const llm = useMemo(
-    () =>
-      dashboardLLM(agentId, {
-        onStatus: setStatus,
-        onSendFailed: (m) => bridge.failed?.(m),
-        isRunning: (chatId) => !!state.data?.runs.some((r) => r.chatId === chatId),
-      }),
-    [agentId, bridge],
-  );
-  return (
-    <ChatProvider llm={llm} storage={storage}>
-      <Thread {...props} bridge={bridge} sending={sending} status={status} setStatus={setStatus} />
-    </ChatProvider>
-  );
 }

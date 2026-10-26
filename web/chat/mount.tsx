@@ -1,5 +1,5 @@
-// Puts an agent chat (ChatView, on OpenUI) into a plain-DOM page. Loaded with import() when a chat
-// opens, so React and OpenUI are only fetched then.
+// Puts an agent chat (ChatView, on the Vercel AI SDK) into a plain-DOM page. Loaded with import() when a chat
+// opens, so React and the AI SDK are only fetched then.
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ChatView } from './ChatView.tsx';

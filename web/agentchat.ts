@@ -1,4 +1,4 @@
-// One agent's chat, for the floating chat window: its latest conversation as the OpenUI chat (web/chat,
+// One agent's chat, for the floating chat window: its latest conversation as the AI SDK chat (web/chat,
 // the small version): streaming replies, tools it uses (with images), file previews, approvals it waits
 // on, and a composer with Stop. The bar above picks the model, starts a new chat or opens the full page.
 import { h, mount, state, GET, POST, attempt, navigate, onState } from './core.ts';
