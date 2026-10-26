@@ -102,6 +102,8 @@ Agent and team chats open in floating, resizable windows with tabs. Type **@** i
 
 To line up your next message while an agent is still working, type `/queue` and the message (for example `/queue then write the tests`) and press Enter. It waits above the box and goes as soon as the agent is done, one queued message at a time. In a team chat it goes when the whole team is done. In Brain chat it goes when the Brain and any agent or team it handed work to are done. Use **×** to take a queued message back. In agent and team chats, **Stop** puts queued messages back in the box instead of sending them. If nothing is working, `/queue` sends the message right away.
 
+When you paste a lot of text (more than 10 lines or 800 characters) into an agent, team or Brain chat, the box shows a short `[Pasted text #1 · 52 lines]` instead, with a chip above it. Click the chip (or the marker) to see what you pasted, copy it, remove it, or put the whole text in the box to change it. Backspace right after the marker removes it. The full text is sent in its place.
+
 Use the paperclip, drop files and folders, or paste them (**Ctrl+V**, **⌘V** on macOS) into a chat, the Brain on the Station, the team builder or the New project dialog. A pasted screenshot is saved as `pasted-image.png`. Pasting on the Station, outside a text box, gives the files to the Brain. Text copied from Word, Excel or a web page still pastes as text. Attachments are saved under the project folder's `uploads/` directory, and the agent or Brain receives their paths. Files attached in the team builder are shared with every team member.
 
 ### Skills: instructions worth keeping
