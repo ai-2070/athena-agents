@@ -1,0 +1,47 @@
+skills/subagent-skills/reviewed-stage-delivery/SKILL.md
+  s_1c7c5e2e47e8a0::t_7109c8b7538ec2 1-281
+skills/subagent-skills/reviewed-stage-delivery/references/ci-triage.md
+  s_1c7c5e2e47e8a0::t_7109c8b7538ec2 1-85
+tests/server/bundled-skills.test.ts
+  s_1c7c5e2e47e8a0::t_7109c8b7538ec2 13,15-16,19-20,61,63-64
+  s_1c7c5e2e47e8a0::t_39424105d209b9 62
+  s_1c7c5e2e47e8a0::t_da663f82e7425c 84-91,94-95
+  s_1c7c5e2e47e8a0::t_52abc6034cf8b1 92-93
+  s_1c7c5e2e47e8a0::t_46767127f1a6c3 27
+  s_1c7c5e2e47e8a0::t_4a9e57af5abd75 38-40
+skills/subagent-skills/witness-discipline/SKILL.md
+  s_1c7c5e2e47e8a0::t_7109c8b7538ec2 1-196
+skills/subagent-skills/commissioning-a-reviewer/SKILL.md
+  s_1c7c5e2e47e8a0::t_7109c8b7538ec2 1-136
+skills/subagent-skills/independent-review/SKILL.md
+  s_1c7c5e2e47e8a0::t_7109c8b7538ec2 1-126
+skills/subagent-skills/delegating-to-subagents/SKILL.md
+  s_1c7c5e2e47e8a0::t_7109c8b7538ec2 1-133
+skills/subagent-skills/README.md
+  s_1c7c5e2e47e8a0::t_7109c8b7538ec2 1-33
+server/skills.ts
+  s_1c7c5e2e47e8a0::t_576edb270e8eeb 392-394
+  s_1c7c5e2e47e8a0::t_3c134e8dccfdef 426-427
+  s_1c7c5e2e47e8a0::t_5d4cf9577cff80 446-453
+  s_1c7c5e2e47e8a0::t_bda9f8e66850a3 461
+  s_1c7c5e2e47e8a0::t_2c4c46f2c92a46 399
+  s_1c7c5e2e47e8a0::t_a47f6588d158d0 404-411,413-414
+AGENTS.md
+  s_1c7c5e2e47e8a0::t_7109c8b7538ec2 48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "07e6b3aaa51e00e4cc2cfa029ce9e02dc236cffa",
+  "prompts": {},
+  "sessions": {
+    "s_1c7c5e2e47e8a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71b6147b-0acf-4dd5-9036-e1204eb6d74e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
