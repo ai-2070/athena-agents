@@ -2,7 +2,7 @@
 // you send streams in as its run goes (text as written, tool calls as they happen), and a run started
 // anywhere else (a team turn, a routine, another tab) is picked up and streamed too (a resume: the
 // turn so far, then the rest). The server speaks the AI SDK's UI message stream (server/uistream.ts).
-// Used by the full chat page (views/chat.tsx), the floating window's agent tabs (agentchat.ts, compact)
+// Used by the full chat page (views/chat.tsx), the floating window's agent tabs (agentchat.tsx, compact)
 // and the Station's agent panel (mini).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';

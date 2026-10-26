@@ -4,7 +4,7 @@
 import { h, mount, state, avatar, onState, GET } from './core.ts';
 import { icon } from './icons.ts';
 import { renderTeamChat } from './teamchat.ts';
-import { renderAgentChat } from './agentchat.ts';
+import { renderAgentChat } from './agentchat.tsx';
 import { uiZoom } from './look.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import type { TeamListing } from '../shared/types.ts';
