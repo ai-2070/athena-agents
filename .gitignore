@@ -9,3 +9,6 @@ data/
 public/dist/
 coverage/
 public/.dist-tmp/
+
+# Desktop release files gathered by scripts/desktop-release.ts
+release/

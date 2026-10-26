@@ -37,6 +37,7 @@ When it opens, the app:
    If the server stops, the same page shows the error, the log's location and **Try again**.
 4. On macOS and Linux, asks the login shell for its `PATH`. Apps opened from the Dock or a menu get a
    short one, and agents' CLIs (`claude`, `codex`, `gh`…) would not be found.
+5. After 30 seconds, and every 6 hours after that, looks for an update (below).
 
 Quitting closes the server's stdin. With `DASH_DESKTOP` set, the server takes that as "stop" (in
 `server/index.ts`), so it also stops if the app crashes. After 5 seconds the app kills it.
@@ -88,8 +89,9 @@ To release: set `version` in `package.json`, merge, then push a matching tag:
 git tag v0.3.0 && git push origin v0.3.0
 ```
 
-`desktop.yml` builds every target and puts the installers in a **draft** release. Check it, then publish.
-If one target fails, nothing is released.
+`desktop.yml` builds every target and puts the installers, the signed updates and `latest.json` in a
+**draft** release. Check it, then publish: installed apps see the update from then on. If one target
+fails, nothing is released.
 
 ### Signing (not set up yet)
 
@@ -103,5 +105,42 @@ silicon Macs say a downloaded app is "damaged".
   `src-tauri/Entitlements.plist` already allows what Bun and node-pty need under the hardened runtime.
 - **Windows**: see [Tauri's guide](https://tauri.app/distribute/sign/windows/) (for example Azure Trusted Signing
   through `bundle.windows.signCommand`).
+
+## Updates
+
+The app updates itself with [Tauri's updater](https://tauri.app/plugin/updater/) (`src-tauri/src/updater.rs`).
+It reads `latest.json` from the newest **published** release
+(`https://github.com/ai-2070/ai-dashboard/releases/latest/download/latest.json`), so a draft release
+reaches nobody until you publish it. The repository must be public for apps to download it.
+
+When `latest.json` has a newer version, the app asks with a native dialog (the page plays no part: there is
+no IPC). **Install and restart** downloads the update while the dashboard keeps working, then shows
+"Installing the update…", stops the server (Windows can't replace a running `bun.exe`), installs and
+restarts. If installing fails, the server starts again and the app says so. **Later** skips that version
+until the app opens next time. Development builds and apps started with `DASH_NO_UPDATES` never check.
+What it did goes to `updater.log` in the app's log folder.
+
+Each kind of install updates from the same kind: the NSIS installer or the MSI on Windows, the
+`.app.tar.gz` on macOS, the AppImage, `.deb` or `.rpm` on Linux (the updater looks for
+`<os>-<arch>-<installer>` in `latest.json`). Windows installs quietly with a progress bar (`passive`).
+
+### The updater key
+
+Updates are signed, and the app only installs one whose signature matches `plugins.updater.pubkey` in
+`tauri.conf.json`. This is separate from code signing (below). The private key was made with
+`bunx tauri signer generate` and has no password.
+
+- Keep the private key safe (a password manager, plus a backup). **If it is lost, installed apps can never
+  update again**: a new key means everyone reinstalls once.
+- CI needs it as the repository secret `TAURI_SIGNING_PRIVATE_KEY` (the key file's contents). If you
+  make a key with a password, add `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` too.
+- A tag build without the secret fails, so no release goes out that apps can't update to. A build run by
+  hand without it only warns.
+- Local builds don't make update files. To try them, set `TAURI_SIGNING_PRIVATE_KEY` and add
+  `--config '{"bundle":{"createUpdaterArtifacts":true}}'` to `tauri build`.
+
+`scripts/desktop-release.ts collect` gathers each build's installers and signed updates (names without
+spaces, so the links in `latest.json` match the release), and `manifest` writes `latest.json` from all of
+them. The logic is in `scripts/desktop-updates.ts`, tested in `tests/server/desktop.test.ts`.
 
 Mobile (iOS, Android) is out of scope: the dashboard runs agent CLIs and a Bun server, which phones can't.

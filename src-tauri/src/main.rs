@@ -3,8 +3,11 @@
 // the page talks to its server over 127.0.0.1 exactly as it does in a browser, with no Tauri IPC.
 //
 // Quitting the app closes the server's stdin, which tells the server to stop (see server/index.ts).
+// Updates are looked for and installed from here too (updater.rs).
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod updater;
 
 use std::fs::{self, File};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
@@ -45,11 +48,14 @@ fn main() {
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Server::default())
         .setup(|app| {
             let handle = app.handle().clone();
             build_window(&handle)?;
             start_server(&handle);
+            updater::start(&handle);
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -139,9 +145,18 @@ fn open_outside(app: &AppHandle, url: &Url) {
 
 /// Puts the start page back with an error and the log's location.
 fn show_error(app: &AppHandle, title: &str, message: &str) {
-    let Some(w) = app.get_webview_window(MAIN) else { return };
     let log = log_file(app).map(|p| p.display().to_string()).unwrap_or_default();
-    let payload = serde_json::json!({ "title": title, "error": message, "log": log }).to_string();
+    show_start_page(app, serde_json::json!({ "title": title, "error": message, "log": log }));
+}
+
+/// Puts the start page back with a message, while the app works (installing an update).
+fn show_message(app: &AppHandle, title: &str, text: &str) {
+    show_start_page(app, serde_json::json!({ "title": title, "text": text }));
+}
+
+fn show_start_page(app: &AppHandle, info: serde_json::Value) {
+    let Some(w) = app.get_webview_window(MAIN) else { return };
+    let payload = info.to_string();
     let base = if cfg!(windows) {
         "http://tauri.localhost/index.html"
     } else {
