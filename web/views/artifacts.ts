@@ -31,7 +31,7 @@ export const title = () => 'Artifacts';
 
 export async function render(el: HTMLElement): Promise<void> {
   root = el;
-  const input = h('input', { type: 'search', placeholder: 'Search by name, note, team, who made it, file name…', value: query, 'aria-label': 'Search artifacts' });
+  const input = h('input', { type: 'search', placeholder: 'Search by name, note, team, who made it, file name…', value: query, 'aria-label': 'Search artifacts', style: { width: '100%' } });
   input.addEventListener('input', () => {
     query = input.value;
     show();
