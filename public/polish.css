@@ -520,7 +520,8 @@ details.compaction.small .cmp-text { max-height: 260px; }
 .att-thumb { width: 22px; height: 22px; object-fit: cover; border-radius: 4px; flex: none; }
 .att-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .att-meta { color: var(--faint); font: 10.5px var(--mono); white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
-.att-bar { position: absolute; left: 0; bottom: 0; height: 2px; width: var(--p, 0%); background: var(--accent); transition: width .15s linear; }
+/* upload progress: scaled, not resized (no layout work while it fills) */
+.att-bar { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; transform: scaleX(var(--p, 0)); transform-origin: left center; background: var(--accent); transition: transform .15s linear; }
 .att-x { display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--dim); cursor: pointer; flex: none; }
 .att-x:hover { color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); }
 /* on a sent message */
