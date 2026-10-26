@@ -1,7 +1,7 @@
 // Teams are group chats of agents. You write in the team chat; the lead (or the best member) answers,
 // agents hand work to each other by @mentioning a teammate, and everyone sees one shared thread.
 // Each agent keeps its own memory of the team (its own chat session), and gets the new messages each turn.
-import { workflows as teamStore, agents, chats, emit, log, activeProject } from './store.ts';
+import { workflows as teamStore, agents, chats, emit, log, activeProject, openProject } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath } from './util.ts';
 import { askAgent, stopChildren, forgetChat } from './engines/index.ts';
 import { isStepList, teamSteps } from '../shared/teams.ts';
@@ -265,7 +265,7 @@ async function runTurn(team: Team, item: QueueItem) {
     if (loadChat(team.id, pid).sessions[agent.id] !== chatId) chats.remove(agent.id, chatId);
     return;
   }
-  if (activeProject().id !== pid) {
+  if (openProject().id !== pid) {
     // you switched projects while it worked: keep the reply in its own project, start nothing new there
     const back = loadChat(team.id, pid);
     back.messages.push({ id: uid('m'), ts: Date.now(), from: agent.id, text: text || '(no answer)', mentions: [] });

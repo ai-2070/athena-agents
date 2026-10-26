@@ -3,7 +3,7 @@
 // hands real work to the best agent or team.
 import fs from 'node:fs';
 import path from 'node:path';
-import { agents, workflows, activeProject, listProjects, getSettings, outbox, activity, log, emit } from './store.ts';
+import { agents, workflows, activeProject, openProject, listProjects, getSettings, outbox, activity, log, emit } from './store.ts';
 import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from './library.ts';
 import { TOOL_GROUPS } from './tools.ts';
 import { listServers } from './mcp.ts';
@@ -481,7 +481,7 @@ export async function ask(text: string, { project }: { project?: string | null }
   }
   // you switched projects while it thought: its actions were meant for the other project, so skip them
   const skipped: BrainDone = { kind: 'error', text: `You switched projects while the Brain was thinking, so nothing was changed. Open "${p.name}" and ask again.` };
-  const { done, delegate } = activeProject().id !== p.id ? { done: parsed.actions.length ? [skipped] : [], delegate: null } : applyActions(parsed.actions, p);
+  const { done, delegate } = openProject().id !== p.id ? { done: parsed.actions.length ? [skipped] : [], delegate: null } : applyActions(parsed.actions, p);
   const r = { answer: parsed.answer, done, delegate };
   const now = Date.now();
   // on top of the history as it is now (not as it was before thinking), so nothing saved meanwhile is lost

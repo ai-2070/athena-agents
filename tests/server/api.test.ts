@@ -126,3 +126,42 @@ describe('local-only security', () => {
     expect(fs.existsSync(keep)).toBe(true);
   });
 });
+
+describe('agent runs and projects', () => {
+  it("tool calls through the MCP bridge stay in the run's project after you open another", async () => {
+    // a fake model that holds its answer until the test lets it go
+    let release = () => {};
+    const model = http.createServer((rq, rs) => {
+      if (rq.url?.endsWith('/models')) return rs.end(JSON.stringify({ data: [{ id: 'mock' }] }));
+      new Promise<void>((r) => (release = r)).then(() => {
+        rs.writeHead(200, { 'content-type': 'text/event-stream' });
+        rs.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ok' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+      });
+    });
+    await new Promise<void>((r) => model.listen(0, '127.0.0.1', () => r()));
+    try {
+      const send = async (p: string, body: unknown, method = 'POST') => (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
+      await send('/api/settings', { providers: { custom: { baseUrl: `http://127.0.0.1:${(model.address() as { port: number }).port}/v1` } } }, 'PUT');
+      const home = path.join(tmp, 'home');
+      const a = await send('/api/projects', { name: 'Bridge A', mode: 'new', folder: path.join(home, 'bridge-a') });
+      const agent = await send('/api/agents', { name: 'Bridged', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: ['files'], autonomy: 'auto' });
+      const chat = await send(`/api/agents/${agent.id}/chats`, {});
+      const { runId } = await send(`/api/agents/${agent.id}/chats/${chat.id}/messages`, { text: 'hello' });
+      const b = await send('/api/projects', { name: 'Bridge B', mode: 'new', folder: path.join(home, 'bridge-b') });
+      expect((await (await req('/api/state')).json()).project.id).toBe(b.id);
+
+      const internal = { 'content-type': 'application/json', 'x-dash-internal': fs.readFileSync(path.join(tmp, 'data', '.internal-token'), 'utf8').trim() };
+      const tools = await (await req(`/api/internal/tools?agent=${agent.id}&run=${runId}`, { headers: internal })).json();
+      // the run's own agent (files only), not the outside-client stand-in
+      expect(tools.tools.map((t: { name: string }) => t.name)).toContain('write_file');
+      expect(tools.tools.map((t: { name: string }) => t.name)).not.toContain('list_programs');
+      const r = await (await req('/api/internal/tools/call', { method: 'POST', headers: internal, body: JSON.stringify({ agent: agent.id, run: runId, name: 'write_file', args: { path: 'bridge.txt', content: 'via-bridge' } }) })).json();
+      expect(r.isError).toBe(false);
+      expect(fs.readFileSync(path.join(a.brainPath, 'bridge.txt'), 'utf8')).toBe('via-bridge');
+      expect(fs.existsSync(path.join(b.brainPath, 'bridge.txt'))).toBe(false);
+    } finally {
+      release();
+      await new Promise<void>((r) => model.close(() => r()));
+    }
+  });
+});

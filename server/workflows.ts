@@ -1,6 +1,6 @@
 // Workflows: a list of steps run in order. Each step sees the input and earlier outputs as {{input}}, {{prev}}, {{step1}}…
 // Step types: agent (ask an agent), tool (call a dashboard tool), approval (wait for you, editable), x_post (to the Outbox), notify.
-import { workflows, runs, agents as agentStore, emit, log } from './store.ts';
+import { workflows, runs, agents as agentStore, emit, log, activeProject, withProject } from './store.ts';
 import { renderTemplate, uid } from './util.ts';
 import { askAgent, stopChildren } from './engines/index.ts';
 import { callTool, TOOL_GROUPS } from './tools.ts';
@@ -77,7 +77,9 @@ export async function startWorkflow(id: string, input = '', { trigger = 'manual'
   const ac = new AbortController();
   const ctl: RunControl = { stopped: false, signal: ac.signal, abort: () => ac.abort() };
   activeRuns.set(run.id, ctl);
-  execute(wf, run, ctl).finally(() => activeRuns.delete(run.id));
+  // the run stays in this project (its record, agents and tool calls) if you open another one meanwhile
+  const project = activeProject();
+  withProject(project, () => execute(wf, run, ctl)).finally(() => activeRuns.delete(run.id));
   return run;
 }
 

@@ -1,6 +1,6 @@
 // Runs agents. One run = one user message answered by an agent (with any tool calls in between).
 // Engines stream events; this file turns them into chat history and live updates for the browser.
-import { agents as agentStore, chats, emit, log, getSettings, activeProject } from '../store.ts';
+import { agents as agentStore, chats, emit, log, getSettings, activeProject, withProject } from '../store.ts';
 import { uid, HOME } from '../util.ts';
 import { cancelForRun } from '../approvals.ts';
 import { knowledgeContext } from '../knowledge.ts';
@@ -10,7 +10,7 @@ import * as openai from './openai.ts';
 import * as claude from './claude.ts';
 import * as hermes from './hermes.ts';
 import * as codex from './codex.ts';
-import type { ActiveRun, Agent, Chat, ChatItem, EngineId, EngineInfo, EngineStatus, RunEvent } from '../../shared/types.ts';
+import type { ActiveRun, Agent, Chat, ChatItem, EngineId, EngineInfo, EngineStatus, Project, RunEvent } from '../../shared/types.ts';
 
 /** What every engine's run() gets. */
 export interface EngineRunArgs {
@@ -51,6 +51,8 @@ export interface RunEntry {
   parentRunId: string | null;
   startedAt: number;
   agentName: string;
+  /** the project the run started in: its chat, tools and files stay there */
+  project: Project;
 }
 
 /** What a running agent is doing right now (liveActivity()). */
@@ -72,6 +74,7 @@ export interface RunInfo {
   chatId: string;
   depth: number;
   signal: AbortSignal;
+  project: Project;
 }
 
 export interface StartRunOptions {
@@ -142,7 +145,7 @@ export function liveActivity(): LiveActivity[] {
 
 export function runInfo(runId: string | null | undefined): RunInfo | null {
   const r = runId && active.get(runId);
-  return r ? { id: runId, agentId: r.agentId, chatId: r.chatId, depth: r.depth, signal: r.signal } : null;
+  return r ? { id: runId, agentId: r.agentId, chatId: r.chatId, depth: r.depth, signal: r.signal, project: r.project } : null;
 }
 
 // The chat object a running agent is writing to, so edits made meanwhile aren't overwritten.
@@ -177,6 +180,8 @@ function pushItem<T extends ChatItem>(chat: Chat, item: T): T {
 }
 
 // Start answering a message in a chat. Returns immediately with the run id.
+// The run belongs to the project it starts in (see withProject): opening another project meanwhile
+// doesn't move its chat, tool calls or files there.
 export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null }: StartRunOptions = {}): { runId: string; promise: Promise<string> } {
   if ([...active.values()].some((r) => r.chatId === chat.id)) throw new Error('This chat is already working on something. Stop it or wait.');
   // agent.engine comes from a JSON file, so it may be something unknown.
@@ -185,11 +190,14 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   const runId = uid('r');
   const controller = new AbortController();
   const started = Date.now();
-  active.set(runId, { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, startedAt: started, agentName: agent.name });
+  const project = activeProject();
+  const inProject = <T>(fn: () => T): T => withProject(project, fn);
+  active.set(runId, { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, startedAt: started, agentName: agent.name, project });
   // Saving skips chats deleted while the run was going.
-  const persist = () => {
-    if (!chat._deleted) chats.save(chat);
-  };
+  const persist = () =>
+    inProject(() => {
+      if (!chat._deleted) chats.save(chat);
+    });
 
   pushItem(chat, { type: 'user', text, from, attachments });
   if (chat.title === 'New chat') chat.title = text.replace(/\s+/g, ' ').slice(0, 60);
@@ -207,7 +215,9 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     }
   };
 
-  const onEvent = (ev: RunEvent) => {
+  // (engines call this from their own callbacks: pinned again so it never depends on where they come from)
+  const onEvent = (ev: RunEvent) => inProject(() => onEventIn(ev));
+  const onEventIn = (ev: RunEvent) => {
     if (ev.kind === 'text') {
       if (!current) current = pushItem(chat, { type: 'assistant', text: '' });
       current.text += ev.text;
@@ -229,7 +239,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     send(ev);
   };
 
-  const promise = (async () => {
+  const promise = inProject(async () => {
     try {
       const result = await engine.run({ agent, chat, text, signal: controller.signal, onEvent, depth, runId, systemPrompt: buildSystemPrompt(agent), attachments });
       if (controller.signal.aborted) throw new Error('Stopped.');
@@ -256,7 +266,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       cancelForRun(runId);
       emit('runs');
     }
-  })();
+  });
   emit('runs');
   return { runId, promise };
 }
