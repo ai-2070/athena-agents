@@ -115,6 +115,22 @@ describe('backups', () => {
     expect((await req('/api/backups/restore?file=..%2Fsecrets.json', { method: 'POST', headers: { 'x-dash': '1' } })).status).toBe(400);
     expect((await req('/api/backups/restore', { method: 'POST', headers: { 'x-dash': '1' } })).status).toBe(400);
   });
+
+  it('streams a restore upload to a temporary file and always removes it', async () => {
+    const received = path.join(tmp, 'data', 'tmp', 'received');
+    // bigger than a JSON body may be: it still arrives (and is turned away as not a backup)
+    const big = Buffer.alloc(30 * 1024 * 1024, 0x61);
+    const r = await req('/api/backups/restore', { method: 'POST', headers: { 'x-dash': '1', 'content-type': 'application/octet-stream' }, body: big });
+    expect(r.status).toBe(400);
+    expect((await r.json()).error).toMatch(/isn't a dashboard backup/);
+    expect(fs.existsSync(received) ? fs.readdirSync(received) : []).toEqual([]);
+    // and after a restore that worked
+    const st = await (await req('/api/state')).json();
+    const made = await (await req(`/api/projects/${st.project.id}/backup`, { method: 'POST', headers: json })).json();
+    const ok = await req('/api/backups/restore?name=Streamed', { method: 'POST', headers: { 'x-dash': '1' }, body: fs.readFileSync(made.file) });
+    expect(ok.status).toBe(200);
+    expect(fs.readdirSync(received)).toEqual([]);
+  });
 });
 
 describe('local-only security', () => {

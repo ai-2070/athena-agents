@@ -20,6 +20,8 @@ const MAGIC = 'MY-DASHBOARD-BACKUP';
 const FORMAT = 1;
 const HEAD_MAX = 64 * 1024; // the two header lines fit in this
 const UNPACKED_MAX = 512 * 1024 * 1024; // the most a backup may unpack to (about the largest string JSON can read)
+/** The biggest backup file accepted (it is gzipped, so never bigger than what it unpacks to). */
+export const BACKUP_MAX = UNPACKED_MAX;
 
 // How much of each kind is packed at most (the same limits as the auto-save into the project folder)
 const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, skills: 50 * 1024 * 1024 };
@@ -411,6 +413,7 @@ export function readBackupFile(name: string): Buffer {
   if (base !== name || !base.endsWith(BACKUP_EXT)) throw new Error('No such backup.');
   const file = insideRoots(path.join(backupsRoot(), base), [backupsRoot()]);
   if (!file || !exists(file)) throw new Error('No such backup.');
+  if (fs.statSync(file).size > BACKUP_MAX) throw new Error('That backup is too big to open.');
   return fs.readFileSync(file);
 }
 

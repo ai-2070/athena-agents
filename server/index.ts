@@ -69,7 +69,7 @@ interface Route {
   re: RegExp;
   keys: string[];
   handler: Handler<unknown>;
-  /** The body is a file, not JSON: the handler gets its bytes. */
+  /** The body is a file, not JSON: it is streamed to a temporary file, and the handler gets its path. */
   raw?: boolean;
 }
 
@@ -82,8 +82,8 @@ const route = <B>(method: string, pattern: string, handler: Handler<B>, raw = fa
 };
 const get = <B = Body>(p: string, h: Handler<B>) => route('GET', p, h);
 const post = <B = Body>(p: string, h: Handler<B>) => route('POST', p, h);
-/** A POST whose body is a file (its bytes), e.g. a backup. */
-const postFile = (p: string, h: Handler<Buffer>) => route('POST', p, h, true);
+/** A POST whose body is a file, e.g. a backup: the handler gets the path of a temporary copy (removed afterwards). */
+const postFile = (p: string, h: Handler<string>) => route('POST', p, h, true);
 const put = <B = Body>(p: string, h: Handler<B>) => route('PUT', p, h);
 const del = <B = Body>(p: string, h: Handler<B>) => route('DELETE', p, h);
 
@@ -181,14 +181,20 @@ post('/api/backups/open', async () => {
   return { ok: true };
 });
 // A new project from a backup: the file as the body, or ?file=<name> for one in the backups folder.
-postFile('/api/backups/restore', async (_p, body, q) => {
+// One at a time: a restore holds the whole unpacked backup in memory.
+let restoring = false;
+postFile('/api/backups/restore', async (_p, upload, q) => {
+  if (restoring) throw new HttpError(409, 'Another backup is being restored. Try again when it is done.');
+  restoring = true;
   let r: Awaited<ReturnType<typeof backup.restoreBackup>>;
   try {
-    const bytes = q.file ? backup.readBackupFile(q.file) : body;
+    const bytes = q.file ? backup.readBackupFile(q.file) : fs.readFileSync(upload);
     if (!bytes.length) throw new Error('Drop a backup file first.');
     r = await backup.restoreBackup(bytes, { name: q.name, folder: q.folder, description: q.description });
   } catch (e) {
     throw new HttpError(400, (e as Error).message);
+  } finally {
+    restoring = false;
   }
   projects.touch(r.project.id);
   launcherPending = false;
@@ -734,8 +740,37 @@ async function readBody(req: http.IncomingMessage): Promise<unknown> {
   if (v === null || typeof v !== 'object') throw new HttpError(400, 'Body must be a JSON object');
   return v;
 }
-// A file sent as the body (a backup): up to 1 GB
-const FILE_LIMIT = 1024 * 1024 * 1024;
+// A file sent as the body (a backup), streamed to disk: never more than a backup may be
+const FILE_LIMIT = backup.BACKUP_MAX;
+const RECEIVED = () => ensureDir(dataPath('tmp', 'received'));
+
+function receiveFile(req: http.IncomingMessage, limit: number): Promise<string> {
+  const file = path.join(RECEIVED(), `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}.part`);
+  return new Promise<string>((resolve, reject) => {
+    const out = fs.createWriteStream(file, { flags: 'wx' });
+    let size = 0;
+    let failed = false;
+    const fail = (e: Error) => {
+      if (failed) return;
+      failed = true;
+      req.unpipe(out);
+      out.destroy();
+      fs.rm(file, { force: true }, () => reject(e));
+    };
+    req.on('data', (c: Buffer) => {
+      size += c.length;
+      if (size > limit) {
+        fail(new HttpError(413, 'That file is too big for a backup.'));
+        req.destroy();
+      }
+    });
+    req.on('error', fail);
+    req.on('aborted', () => fail(new HttpError(400, 'The upload was cut off.')));
+    out.on('error', fail);
+    out.on('finish', () => !failed && resolve(file));
+    req.pipe(out);
+  });
+}
 
 function serveStatic(url: URL, res: http.ServerResponse): boolean {
   let rel = decodeURIComponent(url.pathname);
@@ -803,8 +838,18 @@ const server = http.createServer(async (req, res) => {
         const m = r.re.exec(url.pathname);
         if (!m) continue;
         const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
-        const body = req.method === 'GET' || req.method === 'DELETE' ? {} : r.raw ? await readRaw(req, FILE_LIMIT) : await readBody(req);
-        const out = await r.handler(params, body, Object.fromEntries(url.searchParams), res);
+        let out: unknown;
+        if (r.raw) {
+          const file = await receiveFile(req, FILE_LIMIT);
+          try {
+            out = await r.handler(params, file, Object.fromEntries(url.searchParams), res);
+          } finally {
+            fs.rmSync(file, { force: true });
+          }
+        } else {
+          const body = req.method === 'GET' || req.method === 'DELETE' ? {} : await readBody(req);
+          out = await r.handler(params, body, Object.fromEntries(url.searchParams), res);
+        }
         if (out === undefined && res.headersSent) return;
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
         return res.end(JSON.stringify(out ?? null));
@@ -872,6 +917,7 @@ const pageReady = exists(path.join(PUBLIC, 'dist', 'app.js'))
       child.on('error', () => done());
     });
 ensureDir(dataPath('outputs'));
+fs.rmSync(dataPath('tmp', 'received'), { recursive: true, force: true }); // uploads cut off by a crash
 internalToken();
 store.migrateLayout();
 wfs.markInterruptedRuns();
