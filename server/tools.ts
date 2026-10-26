@@ -111,6 +111,8 @@ const RUNNABLE = /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|msi|msp
 // Programs that run whatever they are given.
 const INTERPRETERS = /^(cmd|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python\d*|py|node|bash|sh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget)(\.exe)?$/i;
 
+/** The chat a tool call runs in (to tell which team it is for). */
+const chatOf = async (ctx: ToolContext): Promise<string | null> => (await import('./engines/index.ts')).runInfo(ctx.runId)?.chatId ?? null;
 const str = (description: string): JSONSchema => ({ type: 'string', description });
 const obj = (properties: Record<string, JSONSchema>, required: string[] = []): JSONSchema => ({ type: 'object', properties, required });
 
@@ -152,9 +154,8 @@ const TOOLS: ToolDef[] = [
     description: 'Hand in a finished result that is not an outgoing post or email: a written answer, a file or a folder (a render, a report, a cut video). It appears in the Outbox page under Artifacts with who made it, which team it was for and when. Give either path (full path of a file or folder inside the project) or text (the result, in Markdown). Posts and emails go to the Outbox instead.',
     parameters: obj({ title: str('Short name for the result'), path: str('Full path of the file or folder'), text: str('The result itself, when it is text'), note: str('One line: what it is or how to use it') }, ['title']),
     run: async ({ title, path: target, text, note }: { title: string; path?: string; text?: string; note?: string }, ctx) => {
-      const { runInfo } = await import('./engines/index.ts');
       const { addArtifact } = await import('./artifacts.ts');
-      const a = addArtifact({ title, path: target, text, note, agentId: ctx.agent.id, chatId: runInfo(ctx.runId)?.chatId });
+      const a = addArtifact({ title, path: target, text, note, agentId: ctx.agent.id, chatId: await chatOf(ctx) });
       return { text: `Saved to Artifacts${a.teamName ? ` (team ${a.teamName})` : ''}: ${a.title}.` };
     },
   },
@@ -393,7 +394,7 @@ const TOOLS: ToolDef[] = [
       },
     ),
     run: async ({ text, thread, images, account, reply_to, note }: { text?: string; thread?: string[]; images?: string[]; account?: string; reply_to?: string; note?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'x', text, thread, images, account, replyTo: reply_to, note, agentId: ctx.agent.id, agentName: ctx.agent.name });
+      const r = await social.draftPost({ platform: 'x', text, thread, images, account, replyTo: reply_to, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: r.status === 'posted' ? `Posted: ${r.url}` : r.status === 'failed' ? `Auto-post failed: ${r.error}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },
@@ -404,7 +405,7 @@ const TOOLS: ToolDef[] = [
     description: 'Write a direct message on X to someone. It always waits in the Outbox for the user to approve, edit or reject; it is never sent on its own.',
     parameters: obj({ to: str('Their X handle, e.g. @someone'), text: str('The message'), account: str('Which of your handles to send from (default: first connected)'), note: str('Why, for the reviewer') }, ['to', 'text']),
     run: async ({ to, text, account, note }: { to: string; text: string; account?: string; note?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'x_dm', to, text, account, note, agentId: ctx.agent.id, agentName: ctx.agent.name });
+      const r = await social.draftPost({ platform: 'x_dm', to, text, account, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: `Saved the DM to @${r.to} in the Outbox for approval (id ${r.id}).` };
     },
   },
@@ -455,7 +456,7 @@ const TOOLS: ToolDef[] = [
     description: 'Write a Reddit post. It waits in the Outbox for the user to approve or edit, unless that account has auto-post on, in which case it is published straight away. Follow the subreddit rules; no spam or self-promotion where it is not allowed.',
     parameters: obj({ subreddit: str('Subreddit, e.g. LocalLLaMA'), title: str('Post title'), text: str('Post body (markdown)'), link: str('Or a link to share instead of text'), account: str('Which of your Reddit accounts') }, ['subreddit', 'title']),
     run: async ({ subreddit, title, text, link, account, note }: { subreddit: string; title: string; text?: string; link?: string; account?: string; note?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'reddit', subreddit, title, text, link, account, note, agentId: ctx.agent.id, agentName: ctx.agent.name });
+      const r = await social.draftPost({ platform: 'reddit', subreddit, title, text, link, account, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: r.status === 'posted' ? `Posted: ${r.url}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },
@@ -466,7 +467,7 @@ const TOOLS: ToolDef[] = [
     description: 'Write a Reddit comment replying to a post or comment (give its URL or id). It waits in the Outbox for the user to approve, unless that account has auto-post on, in which case it is published straight away.',
     parameters: obj({ reply_to: str('Post or comment URL, or id like t3_abc / t1_abc'), text: str('The comment (markdown)'), account: str('Which of your Reddit accounts') }, ['reply_to', 'text']),
     run: async ({ reply_to, text, account }: { reply_to: string; text: string; account?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'reddit', parent: reply_to, text, account, agentId: ctx.agent.id, agentName: ctx.agent.name });
+      const r = await social.draftPost({ platform: 'reddit', parent: reply_to, text, account, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: r.status === 'posted' ? `Posted: ${r.url}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },

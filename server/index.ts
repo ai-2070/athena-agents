@@ -647,6 +647,7 @@ del('/api/artifacts/:id', async ({ id }) => {
 get('/api/outbox', async () => outbox.list().sort((a, b) => b.createdAt! - a.createdAt!));
 post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, images: body.images, to: body.to, agentName: 'You' }));
 post<Parameters<typeof social.approvePost>[1]>('/api/outbox/:id/approve', async ({ id }, body) => social.approvePost(id, body));
+post<{ text?: string }>('/api/outbox/:id/discuss', async ({ id }, body) => social.returnPost(id, String(body.text || ''), (teamId, text) => teams.postUserMessage(teamId, text, { route: brain.pickMember })));
 post<{ reason?: string }>('/api/outbox/:id/reject', async ({ id }, body) => social.rejectPost(id, body.reason));
 put<{ parts?: string[]; images?: string[]; title?: string }>('/api/outbox/:id', async ({ id }, body) => {
   const it = need(outbox.get(id));

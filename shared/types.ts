@@ -349,8 +349,11 @@ export interface OutboxPost {
   parts: string[];
   /** Image files (full paths inside the project's folders) that go with the first part. X only. */
   images?: string[];
-  status: 'pending' | 'posting' | 'posted' | 'failed' | 'rejected' | string;
+  status: 'pending' | 'posting' | 'posted' | 'failed' | 'rejected' | 'returned' | string;
   agentId?: string | null;
+  /** The team the draft was written for (named at the time); where Send back to the team goes. */
+  teamId?: string | null;
+  teamName?: string;
   /** X: ids of the parts already posted (a thread can be finished later), and what it replies to */
   postIds?: string[];
   replyTo?: string | null;
