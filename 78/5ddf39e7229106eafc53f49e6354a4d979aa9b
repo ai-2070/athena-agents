@@ -1,0 +1,30 @@
+web/backup.ts
+  s_d7de01d4c8f205::t_4d002db1842ebb 24-25,64,70-97,108-110,147-148
+tests/web/backup.test.ts
+  s_d7de01d4c8f205::t_54e2eab1f03680 1-35
+server/backup.ts
+  s_d7de01d4c8f205::t_103ccd0a1a0827 26-27,62-63,85-86,135-142,162-165,175,195-198,201,222,230,236-237,265,272-275,291-292,297,401
+tests/server/backup.test.ts
+  s_d7de01d4c8f205::t_4d002db1842ebb 157-158,209-216
+  s_d7de01d4c8f205::t_b512172447ee5b 217-218
+public/polish.css
+  s_d7de01d4c8f205::t_4d002db1842ebb 278-279
+README.md
+  s_d7de01d4c8f205::t_4d002db1842ebb 95-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "785ddf39e7229106eafc53f49e6354a4d979aa9b",
+  "prompts": {},
+  "sessions": {
+    "s_d7de01d4c8f205": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3448e488-4120-4310-ae07-584ad76fc736",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
