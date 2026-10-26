@@ -24,7 +24,7 @@ Install **Blacksite** like any other app; it needs no Bun and no terminal. Insta
 |---|---|
 | Windows (x64 or Arm) | `…_x64-setup.exe` or `…_arm64-setup.exe` (an `.msi` is there for x64 too) |
 | macOS (Apple silicon or Intel) | `…_aarch64.dmg` or `…_x64.dmg` |
-| Linux (x64 or Arm) | `.deb`, `.rpm` or `.AppImage` |
+| Linux (x64 or Arm) | `.deb` or `.rpm`, or an `.AppImage` on x64 |
 
 The installers are not signed yet: on Windows choose **More info → Run anyway**; on macOS, Control-click the app in Finder and choose **Open**. The app keeps its own data folder and takes port 4800 when that is free. It checks for new versions and asks before installing one. See [desktop app notes](docs/guide.md#desktop-app-notes).
 

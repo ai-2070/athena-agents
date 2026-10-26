@@ -81,7 +81,7 @@ The app's version is `package.json`'s `version`.
 - **`ci.yml`, job "Desktop app"** (Linux and Windows, every push and PR): stages the app, runs the smoke
   test and checks the Rust code (`cargo fmt`, `clippy`). It doesn't build installers.
 - **`desktop.yml`** builds installers for Windows (x64, arm64), macOS (Apple silicon, Intel) and Linux
-  (x64, arm64; `.deb`, `.rpm`, AppImage). Run it from the Actions tab to get them as artifacts.
+  (x64, arm64; `.deb`, `.rpm`, and an AppImage on x64). Run it from the Actions tab to get them as artifacts.
 
 To release: set `version` in `package.json`, merge, then push a matching tag:
 

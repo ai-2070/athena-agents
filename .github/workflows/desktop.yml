@@ -52,10 +52,12 @@ jobs:
             target: x86_64-unknown-linux-gnu
             bundles: deb,rpm,appimage
             native: true
+          # no AppImage: linuxdeploy rewrites the bundled Bun with patchelf, which breaks
+          # arm64 binaries laid out in 64 KB pages, and the AppImage build fails
           - name: Linux arm64
             runner: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
-            bundles: deb,rpm,appimage
+            bundles: deb,rpm
             native: true
     steps:
       - uses: actions/checkout@v7
