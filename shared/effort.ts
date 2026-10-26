@@ -13,7 +13,7 @@ export const isEffort = (x: unknown): x is Effort => typeof x === 'string' && (E
 
 /** The levels an engine takes (always a run of EFFORTS, in order).
  *  provider: for API models, OpenRouter or a server on this PC. */
-export function effortLevels(engine: EngineId | string, provider?: string): Effort[] {
+export function effortLevels(engine: EngineId, provider?: string): Effort[] {
   const from = (a: Effort, b: Effort) => EFFORTS.slice(EFFORTS.indexOf(a), EFFORTS.indexOf(b) + 1);
   if (engine === 'claude-code') return from('low', 'max'); // claude --effort
   if (engine === 'codex') return from('minimal', 'xhigh'); // model_reasoning_effort
@@ -23,7 +23,7 @@ export function effortLevels(engine: EngineId | string, provider?: string): Effo
 }
 
 /** The level to send for an engine: the one asked for, or the nearest one the engine has. '' = the default. */
-export function effortFor(engine: EngineId | string, effort: unknown, provider?: string): Effort | '' {
+export function effortFor(engine: EngineId, effort: unknown, provider?: string): Effort | '' {
   if (!isEffort(effort)) return '';
   const levels = effortLevels(engine, provider);
   if (levels.includes(effort)) return effort;

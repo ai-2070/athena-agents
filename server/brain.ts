@@ -7,7 +7,7 @@ import { listServers } from './mcp.ts';
 import { run, which, tmpFile } from './util.ts';
 import { describeAttachments } from './uploads.ts';
 import { effortFor } from '../shared/effort.ts';
-import type { Agent, BrainSetting, Effort, Team, TeamAccess } from '../shared/types.ts';
+import type { Agent, BrainSetting, Effort, EngineId, Team, TeamAccess } from '../shared/types.ts';
 
 // ---------- what the models send back (JSON boundaries) ----------
 interface OpenRouterChat {
@@ -91,7 +91,7 @@ export function brainModel(): BrainModel {
   const p: BrainSetting['provider'] = ok[b.provider as BrainSetting['provider']] ? (b.provider as BrainSetting['provider']) : (['claude', 'openrouter', 'hermes', 'codex'] as const).find((x) => ok[x]) || b.provider || 'claude';
   const model = p === b.provider ? b.model ?? '' : '';
   const dflt = { claude: 'haiku', openrouter: 'anthropic/claude-haiku-5.5', hermes: '', codex: '' }[p];
-  const engine = { claude: 'claude-code', openrouter: 'openai', hermes: 'hermes', codex: 'codex' }[p];
+  const engine = ({ claude: 'claude-code', openrouter: 'openai', hermes: 'hermes', codex: 'codex' } as const satisfies Record<BrainSetting['provider'], EngineId>)[p];
   const effort = p === b.provider ? effortFor(engine, b.effort) : '';
   return { provider: p, model: model || dflt, effort, fallback: p !== (b.provider || 'claude') };
 }

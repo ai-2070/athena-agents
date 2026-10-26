@@ -140,6 +140,11 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
     }
   };
 
+  // A new engine or provider may not have the effort level: save the nearest one it has, the one the Effort field shows.
+  const fitEffort = () => {
+    if (a.effort) a.effort = effortFor(a.engine, a.effort, a.provider);
+  };
+
   // engine-dependent section
   const engineBox = h('div.col');
   const modelList = h('datalist#models');
@@ -188,7 +193,8 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
               a.provider || 'openrouter',
               (v) => {
                 set('provider')(v);
-                drawEngine(); // a server on this PC takes fewer effort levels
+                fitEffort(); // a server on this PC takes fewer effort levels
+                drawEngine();
               },
             ),
           ),
@@ -325,6 +331,7 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
             (v) => {
               a.engine = v;
               a.model = v === 'claude-code' ? d.settings.defaults.claudeModel : v === 'openai' ? d.settings.defaults.openrouterModel : '';
+              fitEffort();
               mark();
               drawEngine();
             },

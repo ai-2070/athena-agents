@@ -94,6 +94,22 @@ describe('model picker: effort', () => {
     expect(document.querySelector('.model-menu')).toBeNull();
   });
 
+  it('goes back to the old level when saving the new one fails', async () => {
+    serve(() => ({ body: [] }));
+    openModelPicker(document.body, { engine: 'claude-code', model: 'opus', effort: 'low' }, async () => false);
+    levels().find((b) => b.textContent === 'High')!.click();
+    expect(document.querySelector('.model-effort-level.on')?.textContent).toBe('High');
+    await settle();
+    expect(document.querySelector('.model-effort-level.on')?.textContent).toBe('Low');
+    // picking a model afterwards uses the level that is really set
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'claude-code', model: 'opus', effort: 'low' }, (p) => (picked.push(p), false));
+    levels().find((b) => b.textContent === 'High')!.click();
+    await settle();
+    buttons(document.querySelector('.model-menu')!, 'Sonnet (latest)')[0].click();
+    expect(picked.at(-1)).toMatchObject({ model: 'sonnet', effort: 'low' });
+  });
+
   it('"Default" sends no effort', () => {
     serve(() => ({ body: [] }));
     const picked: ModelPatch[] = [];
@@ -143,6 +159,24 @@ describe('model picker: favorites', () => {
     expect(settings().favoriteModels).toEqual([]);
     expect(document.querySelector('.model-tab.on')?.textContent).toBe('Codex');
     expect([...document.querySelectorAll('.model-tab')].map((t) => t.textContent)).not.toContain('Favorites');
+  });
+
+  it("leaves out favorites on this PC's servers where they can't be used (the Brain)", () => {
+    settings().favoriteModels = [
+      { engine: 'openai', provider: 'ollama', model: 'llama3.2' },
+      { engine: 'openai', provider: 'openrouter', model: 'x/y' },
+    ];
+    serve(() => ({ body: [] }));
+    openModelPicker(document.body, { engine: 'claude-code', model: 'haiku' }, () => {}, { local: false });
+    const rows = [...document.querySelectorAll('.model-body .model-row')].map((r) => r.textContent);
+    expect(rows).toEqual([expect.stringContaining('OpenRouter')]);
+    // with only a local favorite there is no Favorites tab at all
+    settings().favoriteModels = [{ engine: 'openai', provider: 'ollama', model: 'llama3.2' }];
+    openModelPicker(document.body, { engine: 'claude-code', model: 'haiku' }, () => {}, { local: false });
+    expect([...document.querySelectorAll('.model-tab')].map((t) => t.textContent)).not.toContain('Favorites');
+    // an agent's picker does show it
+    openModelPicker(document.body, { engine: 'claude-code', model: 'haiku' }, () => {});
+    expect(document.querySelector('.model-body')!.textContent).toContain('llama3.2');
   });
 
   it('puts the star back when saving fails', async () => {

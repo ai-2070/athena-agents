@@ -130,13 +130,14 @@ export function modelChip(agent: Agent, { onChange, compact = false }: { onChang
     openModelPicker(chip, agent, async (patch) => {
       const sameOne = sameModel(agent, patch);
       const r = await attempt(() => PUT<Agent>(`/agents/${agent.id}`, patch));
-      if (!r) return;
+      if (!r) return false;
       Object.assign(agent, patch);
       draw();
       refreshSoon(0);
       const e = effortOf(agent);
       toast(sameOne ? `${agent.name} now thinks at ${e ? `${EFFORT_NAMES[e].toLowerCase()} effort` : "the model's default effort"}` : `${agent.name} now uses ${withEffort(agent)}`);
       onChange?.(agent);
+      return true;
     }, { title: agent.name, local: true });
   });
   draw();
@@ -164,13 +165,14 @@ export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: 
       const sameOne = sameModel(brainAsAgent(), patch);
       const brain: BrainSetting = { provider: BRAIN_PROVIDER[patch.engine] || 'claude', model: patch.model ?? '', effort: patch.effort };
       const r = await attempt(() => PUT('/settings', { brain }));
-      if (!r) return;
+      if (!r) return false;
       if (state.data?.settings) state.data.settings.brain = brain;
       draw();
       refreshSoon(0);
       const e = effortOf(brainAsAgent(brain));
       toast(sameOne ? `The Brain now thinks at ${e ? `${EFFORT_NAMES[e].toLowerCase()} effort` : "the model's default effort"}` : `The Brain now thinks with ${withEffort(brainAsAgent(brain))}`);
       onChange?.(brain);
+      return true;
     }, { title: "The Brain's model", local: false });
   });
   draw();
@@ -179,7 +181,9 @@ export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: 
 
 // ---------- the picker ----------
 // cur: { engine, model, provider, effort }. apply(patch) gets { engine, model, provider?, effort }.
-// Picking a model closes the picker; changing the effort of the model in use applies it at once and keeps it open.
+// Picking a model closes the picker; changing the effort of the model in use applies it at once and keeps it open
+// (apply returns, or resolves to, false when that failed: the row goes back to what it was).
+// local: offer models on this PC (LM Studio, Ollama, a custom server); the Brain can't use them.
 export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch: ModelPatch) => unknown, { title = 'Model', local = true }: { title?: string; local?: boolean } = {}): void {
   document.querySelector('.model-menu')?.remove();
   const r = anchor.getBoundingClientRect();
@@ -191,7 +195,9 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   const outside = (e: PointerEvent) => !menu.contains(e.target as Node | null) && close();
   // the effort asked for (kept as asked: each engine sends its nearest level)
   let effort: Effort | '' = effortOf(cur);
-  let tab: EngineId | 'fav' = favoriteModels().length ? 'fav' : TABS.some((t) => t.engine === cur.engine) ? cur.engine : 'claude-code';
+  // favorites this picker can use (without local servers, only OpenRouter's API models)
+  const favs = () => favoriteModels().filter((f) => local || f.engine !== 'openai' || (f.provider || 'openrouter') === 'openrouter');
+  let tab: EngineId | 'fav' = favs().length ? 'fav' : TABS.some((t) => t.engine === cur.engine) ? cur.engine : 'claude-code';
   // the engine the effort row is for: on Favorites, the one in use
   const tabEngine = (): EngineId => (tab === 'fav' ? cur.engine : tab);
   const body = h('div.model-body');
@@ -213,7 +219,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
       drawTabs();
       // on Favorites the list itself changes (and with none left, back to the engine in use)
       if (tab === 'fav') {
-        if (!favoriteModels().length) tab = TABS.some((t) => t.engine === cur.engine) ? cur.engine : 'claude-code';
+        if (!favs().length) tab = TABS.some((t) => t.engine === cur.engine) ? cur.engine : 'claude-code';
         drawTabs();
         drawEffort();
         drawBody();
@@ -251,12 +257,18 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
           type: 'button',
           title: value ? `${EFFORT_NAMES[value]} effort` : "The model's own default",
           'aria-pressed': String(shown === value),
-          onclick: (e: MouseEvent) => {
+          onclick: async (e: MouseEvent) => {
             e.stopPropagation();
+            const before = effort;
             effort = value;
             drawEffort();
-            // the model in use: change its effort now (the picker stays open)
-            if (live) apply({ engine: cur.engine, model: cur.model ?? '', ...(cur.engine === 'openai' ? { provider: cur.provider } : {}), effort: effortFor(cur.engine, value, cur.provider) });
+            if (!live) return;
+            // the model in use: change its effort now (the picker stays open); not saved: back to what it was
+            const ok = await apply({ engine: cur.engine, model: cur.model ?? '', ...(cur.engine === 'openai' ? { provider: cur.provider } : {}), effort: effortFor(cur.engine, value, cur.provider) });
+            if (ok === false && effort === value) {
+              effort = before;
+              drawEffort();
+            }
           },
         },
         value ? SHORT[value] : 'Default',
@@ -273,7 +285,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
     const items: Child[] = [];
     if (tab === 'fav') {
       items.push(h('div.st-menu-head', 'Favorites'));
-      for (const f of favoriteModels()) {
+      for (const f of favs()) {
         const mi = modelInfo(f);
         items.push(row(mi.name || f.model, mi.where, sameModel(cur, f), f, mi.brand));
       }
@@ -339,7 +351,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
 
   const tabs = h('div.model-tabs');
   const drawTabs = (): HTMLDivElement => {
-    const shown: ModelTab[] = favoriteModels().length ? [{ engine: 'fav', label: 'Favorites', brand: null }, ...TABS] : TABS;
+    const shown: ModelTab[] = favs().length ? [{ engine: 'fav', label: 'Favorites', brand: null }, ...TABS] : TABS;
     tabs.style.gridTemplateColumns = `repeat(${shown.length}, 1fr)`;
     return mount(
       tabs,

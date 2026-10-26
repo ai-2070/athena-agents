@@ -76,7 +76,8 @@ interface Usage {
 
 /** One `data:` line of a streamed chat completion. */
 interface StreamChunk {
-  error?: { message?: string };
+  /** an error sent inside the stream (OpenRouter puts the HTTP status in code) */
+  error?: { message?: string; code?: number | string };
   usage?: Usage;
   choices?: {
     finish_reason?: string | null;
@@ -162,6 +163,9 @@ async function gatherTools(agent: Agent, onEvent: (ev: RunEvent) => void): Promi
   return { defs, route };
 }
 
+/** An error from the model server; midStream: part of the answer had come already. */
+type StreamError = FetchError & { midStream?: boolean };
+
 async function streamCompletion({ provider, body, signal, onEvent }: { provider: Provider; body: Record<string, unknown>; signal: AbortSignal; onEvent: (ev: RunEvent) => void }): Promise<Completion> {
   const res = await fetch(`${provider.base}/chat/completions`, { method: 'POST', headers: provider.headers, body: JSON.stringify(body), signal });
   if (!res.ok) {
@@ -200,7 +204,13 @@ async function streamCompletion({ provider, body, signal, onEvent }: { provider:
       } catch {
         continue;
       }
-      if (j.error) throw new Error(j.error.message || JSON.stringify(j.error));
+      if (j.error) {
+        const e: StreamError = new Error(j.error.message || JSON.stringify(j.error));
+        if (typeof j.error.code === 'number') e.status = j.error.code;
+        // after part of the answer was shown, asking again would show it twice
+        e.midStream = !!content || calls.length > 0;
+        throw e;
+      }
       if (j.usage) usage = j.usage;
       const ch = j.choices?.[0];
       if (!ch) continue;
@@ -345,7 +355,8 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
         continue;
       }
       // A server that doesn't take an effort level: ask again without one.
-      if (effort && [400, 422].includes(err.status ?? 0) && /reasoning/i.test(err.message)) {
+      // (an error inside the stream may have no status)
+      if (effort && !(err as StreamError).midStream && (err.status == null || [400, 422].includes(err.status)) && /reasoning/i.test(err.message)) {
         onEvent({ kind: 'status', text: `${model} doesn't take an effort level; using its default.` });
         effort = '';
         step--;

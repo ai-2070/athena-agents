@@ -341,7 +341,7 @@ describe('effort and favorite models', () => {
 
   it('sends a server on this PC its nearest effort level, and asks again without one if it says no', async () => {
     const bodies: Record<string, unknown>[] = [];
-    let refuse = false;
+    let refuse: false | 'http' | 'stream' | 'late' = false;
     const model = http.createServer((rq, rs) => {
       if (rq.url?.endsWith('/models')) return rs.end(JSON.stringify({ data: [{ id: 'mock' }] }));
       let raw = '';
@@ -349,9 +349,19 @@ describe('effort and favorite models', () => {
       rq.on('end', () => {
         const body = JSON.parse(raw) as Record<string, unknown>;
         bodies.push(body);
-        if (refuse && 'reasoning_effort' in body) {
+        if (refuse === 'http' && 'reasoning_effort' in body) {
           rs.writeHead(400, { 'content-type': 'application/json' });
           return rs.end(JSON.stringify({ error: { message: 'Unrecognized request argument supplied: reasoning_effort' } }));
+        }
+        if (refuse === 'stream' && 'reasoning_effort' in body) {
+          // a 200 whose stream carries the error (no HTTP status on it)
+          rs.writeHead(200, { 'content-type': 'text/event-stream' });
+          return rs.end(`data: ${JSON.stringify({ error: { message: 'reasoning_effort is not supported by this model' } })}\n\n`);
+        }
+        if (refuse === 'late' && 'reasoning_effort' in body) {
+          // part of the answer, then an error: never asked again (it would show twice)
+          rs.writeHead(200, { 'content-type': 'text/event-stream' });
+          return rs.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'half' } }] })}\n\ndata: ${JSON.stringify({ error: { message: 'reasoning budget exceeded' } })}\n\n`);
         }
         rs.writeHead(200, { 'content-type': 'text/event-stream' });
         rs.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ok' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
@@ -376,12 +386,20 @@ describe('effort and favorite models', () => {
       expect(bodies.at(-1)).toMatchObject({ reasoning_effort: 'high' });
       expect(bodies.at(-1)).not.toHaveProperty('reasoning');
 
-      refuse = true;
+      for (const how of ['http', 'stream'] as const) {
+        refuse = how;
+        bodies.length = 0;
+        const items = await ask(`again (${how})`);
+        expect(items.some((x) => x.type === 'assistant')).toBe(true);
+        expect(bodies).toHaveLength(2);
+        expect(bodies[1]).not.toHaveProperty('reasoning_effort');
+      }
+
+      refuse = 'late';
       bodies.length = 0;
-      const items = await ask('again');
-      expect(items.some((x) => x.type === 'assistant')).toBe(true);
-      expect(bodies).toHaveLength(2);
-      expect(bodies[1]).not.toHaveProperty('reasoning_effort');
+      const items = await ask('late error');
+      expect(items.some((x) => x.type === 'error')).toBe(true);
+      expect(bodies).toHaveLength(1);
     } finally {
       await new Promise<void>((r) => model.close(() => r()));
     }
