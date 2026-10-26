@@ -1,0 +1,31 @@
+tests/web/station-panel.test.tsx
+  s_3ee9638266ae65::t_f4933f62b1dcf3 1-133,136-139,141-148,150-158,160-168
+  s_3ee9638266ae65::t_8734534ea4c6e4 134-135,140,149,159
+web/views/station.ts
+  s_3ee9638266ae65::t_25cdd2a99e91bb 22
+  s_3ee9638266ae65::t_850e0cf05ba80e 853,2946
+  s_3ee9638266ae65::t_5a777f62fdbccd 23-24,366-367,745,846,3011-3039,3074
+  s_3ee9638266ae65::t_81569da95ab9a2 6,13,15,19,21,25
+web/views/stationdata.ts
+  s_3ee9638266ae65::t_25cdd2a99e91bb 7,66-70,92,94,98,100,126-127,143,147,168,179,195
+  s_3ee9638266ae65::t_f0b0d3b757800f 1-6,8-65,71-91,93,95-97,99,101-125,128-142,144-146,148-167,169-178,180-194,196-216
+web/views/stationpanel.tsx
+  s_3ee9638266ae65::t_0ccf7e0c8056e4 1-4,6-89,92-109,111-884,886-1095
+  s_3ee9638266ae65::t_44f554158b9602 5,90-91,110,885
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "495d865f4e027f4d9e39c5127cad3ce6661d7c39",
+  "prompts": {},
+  "sessions": {
+    "s_3ee9638266ae65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "541a5902-77ed-4017-8f45-3e7605579b0f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
