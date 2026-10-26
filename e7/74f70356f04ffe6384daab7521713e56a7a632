@@ -1,0 +1,40 @@
+web/chat/mount.tsx
+  s_438d1f6577d2a3::t_81131fd28f2e3f 6,8,11,29-34
+  s_438d1f6577d2a3::t_16aeae14667a3c 35
+tests/web/teamchat-turns.test.tsx
+  s_438d1f6577d2a3::t_f2a5f028a6fb18 1-78,81-111,113-119
+  s_438d1f6577d2a3::t_03813fc8835ead 79-80,112
+server/teams.ts
+  s_438d1f6577d2a3::t_81131fd28f2e3f 31
+  s_438d1f6577d2a3::t_90b2595725a8cd 105,107-108,277-279,304-305
+tests/server/teams.test.ts
+  s_438d1f6577d2a3::t_7518d2a531e34b 6,8,68-101
+  s_438d1f6577d2a3::t_a1c36bcbe856ca 102-103
+web/teamchat.ts
+  s_438d1f6577d2a3::t_81131fd28f2e3f 13,19-20
+  s_438d1f6577d2a3::t_ba7f9d60b37c70 305-306
+  s_438d1f6577d2a3::t_3fff2a89717c5b 39-40,56,71-122,175,180-181,183,298,301-304,323,342
+  s_438d1f6577d2a3::t_9d9473fc907d18 307
+public/polish.css
+  s_438d1f6577d2a3::t_f4ddd16d074efe 582-599
+shared/types.ts
+  s_438d1f6577d2a3::t_90b2595725a8cd 121-123
+web/chat/TurnView.tsx
+  s_438d1f6577d2a3::t_81131fd28f2e3f 1-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e774f70356f04ffe6384daab7521713e56a7a632",
+  "prompts": {},
+  "sessions": {
+    "s_438d1f6577d2a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a3e60d4-d433-413c-8c13-3a59a05169f5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
