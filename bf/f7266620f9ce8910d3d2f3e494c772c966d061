@@ -1,0 +1,23 @@
+tests/server/api.test.ts
+  s_d7de01d4c8f205::t_e38e61b7bde96b 118-133
+server/backup.ts
+  s_d7de01d4c8f205::t_b8ecf112156523 23-24,416
+server/index.ts
+  s_d7de01d4c8f205::t_b8ecf112156523 72,85-86,184-188,191,196-197,743-773,841-852,920
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bff7266620f9ce8910d3d2f3e494c772c966d061",
+  "prompts": {},
+  "sessions": {
+    "s_d7de01d4c8f205": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3448e488-4120-4310-ae07-584ad76fc736",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
