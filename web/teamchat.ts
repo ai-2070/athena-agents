@@ -1,7 +1,8 @@
 // A team's group chat: everyone's messages, who is working, @mention suggestions, reply-to, stop.
 import { h, mount, state, GET, POST, attempt, md, ago, avatar, onEvent, confirmBox } from './core.ts';
 import { icon } from './icons.ts';
-import { attachTray, attachmentChips, restoreDraft } from './attach.ts';
+import { attachTray, restoreDraft } from './attach.ts';
+import { mentionPreviews } from './filepreview.ts';
 import type { Agent, RunEvent, Team, TeamMessage, TeamState } from '../shared/types.ts';
 
 /** What the server pushes as a 'team' event (ev.event). */
@@ -114,7 +115,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
               ),
               parent ? h('div.tc-quote', `↪ ${parent.from === 'user' ? 'You' : agent(parent.from)?.name || ''}: ${String(parent.text).slice(0, 90)}`) : null,
               m.text ? renderText(m.text) : null,
-              attachmentChips(m.attachments),
+              mentionPreviews(m.text, m.attachments, { compact: true, key: m.id }),
               m.mentions?.length && m.from !== 'user' ? h('div.tc-handoff', icon('send', 11), `handed to ${m.mentions.map((id) => agent(id)?.name).filter(Boolean).join(', ')}`) : null,
             );
           })

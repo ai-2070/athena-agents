@@ -6,7 +6,8 @@ import { icon, logo } from './icons.ts';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.ts';
 import { brainQueue, latestLoad } from './brainqueue.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
-import { attachTray, attachmentChips } from './attach.ts';
+import { attachTray } from './attach.ts';
+import { mentionPreviews } from './filepreview.ts';
 import { brainKeyLabel, brainKeyTitle, brainShortcut } from './shortcuts.ts';
 import type { AttachTray, PickedFile } from './attach.ts';
 import type { Child } from './core.ts';
@@ -275,7 +276,7 @@ function draw() {
 }
 
 function renderItem(it: DockItem): HTMLElement | null {
-  if (it.kind === 'user') return h('div.dock-msg.user', it.text || null, attachmentChips(it.attachments));
+  if (it.kind === 'user') return h('div.col', { style: { gap: '6px' } }, h('div.dock-msg.user', it.text || null), mentionPreviews(it.text, it.attachments, { compact: true, key: it.id }));
   if (it.kind === 'note') return h('div.dock-note', { class: it.error ? 'err' : '' }, it.busy ? h('span.dot.busy') : null, it.text);
   if (it.kind === 'agent') {
     const a = state.data?.agents.find((x) => x.id === it.agentId);
@@ -286,6 +287,7 @@ function renderItem(it: DockItem): HTMLElement | null {
       h('div.dock-who', a ? avatar(a) : null, h('b', a?.name || 'Agent'), a ? h('span.dock-answer-model', modelInfo(a).short) : null, it.reason ? h('span.hint', it.reason) : null, h('span.grow'), h('button.btn.tiny.ghost', { onclick: () => navigate(`#/agents/${it.agentId}/${it.chatId}`) }, 'Open chat')),
       it.tools?.length ? h('div.dock-tools', it.tools.map((t) => h('span', { class: t.status === 'running' ? 'run' : t.isError ? 'err' : '' }, `${t.status === 'running' ? '●' : t.isError ? '✕' : '✓'} ${t.name}`))) : null,
       body,
+      it.done ? mentionPreviews(it.text, [], { compact: true, key: it.id }) : null,
       it.images?.length ? h('div.st-imgs', it.images.slice(0, 4).map((src) => h('img', { src }))) : null,
       !it.done ? h('div.dock-note', h('span.dot.busy'), it.status || 'Working…') : null,
     );
@@ -299,7 +301,7 @@ function renderItem(it: DockItem): HTMLElement | null {
         const a = agentOf(m.from);
         const body = md(String(m.text).slice(0, 3000));
         body.classList.add('dock-answer');
-        return h('div.dock-team-msg', h('div.dock-who', a ? avatar(a) : null, h('b', a?.name || 'Team'), m.mentions?.length ? h('span.hint', `→ ${m.mentions.map((id) => agentOf(id)?.name).filter(Boolean).join(', ')}`) : null), body);
+        return h('div.dock-team-msg', h('div.dock-who', a ? avatar(a) : null, h('b', a?.name || 'Team'), m.mentions?.length ? h('span.hint', `→ ${m.mentions.map((id) => agentOf(id)?.name).filter(Boolean).join(', ')}`) : null), body, mentionPreviews(m.text, m.attachments, { compact: true, key: m.id }));
       }),
       it.working?.length ? h('div.dock-note', h('span.dot.busy'), `${it.working.map((id) => agentOf(id)?.name || 'Agent').join(', ')} working…`) : !it.messages?.length ? h('div.dock-note', h('span.dot.busy'), 'Sent to the team…') : null,
     );
@@ -313,6 +315,7 @@ function renderItem(it: DockItem): HTMLElement | null {
       'div.dock-msg.agent.brain',
       h('div.dock-who', h('div.avatar.brain-av', icon('brain', 14)), h('b', 'Brain'), h('span.dock-answer-model', modelInfo(brainAsAgent(b)).short)),
       body,
+      it.answer ? mentionPreviews(it.answer, [], { compact: true, key: it.id }) : null,
       it.done?.length
         ? h('div.brain-done', it.done.map((d) => h(`div.brain-act${d.kind === 'error' ? '.err' : ''}`, icon(ico[d.kind] || 'check', 13), h('span', d.text), d.teamId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/station?team=${d.teamId}`) }, 'Show') : d.routineId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/routines/${d.routineId}`) }, 'Open') : d.skillId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/skills/${d.skillId}`) }, 'Open') : null)))
         : null,

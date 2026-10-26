@@ -327,6 +327,27 @@ export function openWithShell(target: string) {
   }
 }
 
+// Show a file or folder selected in Explorer / Finder (Linux: open the folder it is in).
+export function revealInShell(target: string) {
+  target = path.resolve(String(target));
+  if (/[\r\n]/.test(target)) throw new Error('Invalid path.');
+  let isDir = false;
+  try {
+    isDir = fs.statSync(target).isDirectory();
+  } catch {
+    /* gone: open what is left */
+  }
+  const [exe, args]: [string, string[]] = IS_WIN
+    ? // "/select," then the path as its own argument: Explorer opens the folder with it selected
+      ['explorer.exe', ['/select,', target]]
+    : process.platform === 'darwin'
+      ? ['open', ['-R', target]]
+      : ['xdg-open', [isDir ? target : path.dirname(target)]];
+  const child = spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
+  child.on('error', () => {});
+  child.unref();
+}
+
 export interface FetchJSONOptions extends RequestInit {
   /** Milliseconds; ignored when a signal is given. */
   timeout?: number;

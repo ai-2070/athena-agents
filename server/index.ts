@@ -38,6 +38,7 @@ import * as history from './history.ts';
 import * as skillInstall from './skillinstall.ts';
 import * as presets from './presets.ts';
 import * as uploads from './uploads.ts';
+import * as files from './files.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import type { RestoreResult } from './projectsync.ts';
@@ -57,7 +58,7 @@ const ALLOWED_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`, `[::1]:
 const VENDOR: Record<string, string> = {
   'xterm.css': 'node_modules/@xterm/xterm/css/xterm.css',
 };
-const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4', '.webm': 'video/webm', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.wav': 'audio/wav', '.mp3': 'audio/mpeg' };
+const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.ogg': 'audio/ogg', '.oga': 'audio/ogg', '.m4a': 'audio/mp4', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.wav': 'audio/wav', '.mp3': 'audio/mpeg' };
 
 // ---------- tiny router ----------
 /** :name parts of the path. */
@@ -483,9 +484,8 @@ del('/api/uploads', async (_p, _b, q) => ({ ok: uploads.removeUpload(q.path) }))
 
 // Files the browser may show: workspaces, outputs, knowledge, ComfyUI outputs, allowed folders.
 get('/api/file', async (_p, _b, q, res) => {
-  const roots = [projects.ensureBrain(), store.projectData('knowledge'), dataPath('outputs'), ...programs.comfyOutputDirs(), ...(getSettings().allowedFolders || [])];
   // links are followed before checking, so a link in a workspace can't serve files from elsewhere
-  const p = insideRoots(path.resolve(String(q.path || '')), roots);
+  const p = insideRoots(path.resolve(String(q.path || '')), files.viewRoots());
   if (!p) throw new HttpError(403, 'That file is outside the dashboard folders.');
   let st: fs.Stats;
   try {
@@ -496,6 +496,13 @@ get('/api/file', async (_p, _b, q, res) => {
   if (!st.isFile()) throw new HttpError(400, 'That is a folder, not a file.');
   sendFileSafely(res, p);
   return undefined;
+});
+
+// Files a chat mentions: whether each is there and what it is (for its preview), and Show in Explorer / Finder.
+post<{ paths?: unknown }>('/api/files/info', async (_p, body) => files.fileInfo(body.paths));
+post<{ path?: unknown }>('/api/files/reveal', async (_p, body) => {
+  files.reveal(body.path);
+  return { ok: true };
 });
 
 // Agent-made files are shown, never run: only media display inline; everything else downloads, sandboxed.

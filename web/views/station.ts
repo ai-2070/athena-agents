@@ -21,6 +21,7 @@ import { renderTeamChat } from '../teamchat.ts';
 import type { Child } from '../core.ts';
 import { teamSteps } from '../../shared/teams.ts';
 import type { ActivityEntry, Agent, AppState, Chat, ChatItem, ChatSummary, Project, ProviderUsage, RunEvent, Schedule, ServerEvent, Team, TeamAccess, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter } from '../../shared/types.ts';
+import { mentionPreviews } from '../filepreview.ts';
 
 // ---------- types ----------
 /** A connection a step can reach: a service, a program, an MCP server ('mcp:x') or a Claude account connector ('cc:x'). */
@@ -3450,16 +3451,17 @@ async function renderAgentPanel(id: string, wfId?: string): Promise<void> {
 
 function drawMiniChat(): void {
   if (!S?.chatEl || !S.chat) return;
-  const items = S.chat.items.filter((i) => i.type !== 'meta').slice(-14);
+  const chatKey = S.chat.id || 'new';
+  const items = S.chat.items.map((it, at) => ({ it, at })).filter(({ it }) => it.type !== 'meta').slice(-14);
   mount(
     S.chatEl,
     items.length
-      ? items.map((i) => {
-          if (i.type === 'user') return h('div.st-msg.user', i.text);
+      ? items.map(({ it: i, at }) => {
+          if (i.type === 'user') return [h('div.st-msg.user', i.text), mentionPreviews(i.text, i.attachments, { compact: true, key: `${chatKey}:${at}` })];
           if (i.type === 'assistant') {
             const m = md(i.text.length > 2500 ? i.text.slice(0, 2500) + '…' : i.text);
             m.className = 'st-msg assistant';
-            return m;
+            return [m, mentionPreviews(i.text, [], { compact: true, key: `${chatKey}:${at}` })];
           }
           if (i.type === 'tool')
             return h('div.st-msg.tool', { class: i.isError ? 'err' : '' }, i.status === 'running' ? h('span.dot.busy') : h('span', i.isError ? '✕' : '✓'), ` ${i.name}`, i.images?.length ? h('div.st-imgs', i.images.slice(0, 4).map((src) => h('img', { src }))) : null);

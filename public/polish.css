@@ -555,3 +555,21 @@ a.att-chip.sent:hover { border-color: var(--accent-dim); color: var(--accent); }
 .ver-line.del { color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); }
 .ver-line.add { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 @media (max-width: 760px) { .ver { grid-template-columns: 1fr; } .ver-list { max-height: 30vh; } }
+
+/* ---------- file previews with Show in Explorer / Finder (web/filepreview.ts) ---------- */
+.fp-list { display: flex; flex-wrap: wrap; gap: 10px; max-width: 860px; width: 100%; }
+.fp-card { display: flex; flex-direction: column; width: min(380px, 100%); border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); overflow: hidden; }
+.fp-media { display: block; width: 100%; max-height: 320px; object-fit: contain; background: #000; }
+img.fp-media { cursor: zoom-in; }
+.fp-audio { display: block; width: calc(100% - 20px); margin: 12px 10px 8px; }
+.fp-file { display: flex; align-items: center; gap: 10px; padding: 16px 14px; color: var(--ink); text-decoration: none; }
+a.fp-file:hover { color: var(--accent); }
+.fp-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: 13.5px; }
+.fp-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; border-top: 1px solid var(--line); font: 11.5px var(--mono); color: var(--dim); min-width: 0; }
+.fp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.fp-size { color: var(--faint); white-space: nowrap; }
+.fp-reveal { flex: none; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.fp-list.compact { gap: 6px; }
+.fp-list.compact .fp-card { width: 100%; }
+.fp-list.compact .fp-media { max-height: 200px; }
+.fp-list.compact .fp-file { padding: 10px 12px; }
