@@ -45,7 +45,7 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 | `web/` | Browser app. Mostly plain DOM via the `h()` helper in `web/core.ts`; agent chats are React (`web/chat/*.tsx`, Vercel AI SDK + OpenUI) |
 | `web/views/` | One module per page (`station.ts` is the 3D map, three.js) |
 | `public/` | `index.html` and CSS. `public/dist` is build output, never edit it |
-| `skills/` | Skill folders that come with the dashboard (`storytold`, `oomol`, `composio`), copied unchanged from GitHub: each folder's `README.md` says from where and which commit. `BUNDLED` in `server/skills.ts` lists them; `ensureBuiltinSkills` adds them to the library |
+| `skills/` | Skill folders that come with the dashboard (`storytold`, `oomol`, `composio`, `orca`), copied unchanged from GitHub: each folder's `README.md` says from where and which commit. `BUNDLED` in `server/skills.ts` lists them; `ensureBuiltinSkills` adds them to the library |
 | `library/agency-agents/` | The Agency's agent files (the Library's specialists), copied unchanged from GitHub: its `README.md` says from where and which commit. `server/library.ts` reads the folder directly |
 | `tests/server`, `tests/web` | Vitest: server in Node, web in happy-dom |
 | `src-tauri/` | The desktop app (Tauri 2, Rust): starts the bundled server with a bundled Bun and shows it. `docs/desktop.md` explains it |

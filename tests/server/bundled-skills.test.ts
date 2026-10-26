@@ -10,10 +10,12 @@ import { dataPath } from '../../server/util.ts';
 const agent = { id: 'a1', name: 'Tester' };
 
 describe('bundled skills', () => {
-  it('include the storytold, OOMOL and Composio skills', () => {
+  it('include the storytold, OOMOL, Composio and Orca skills', () => {
     const slugs = skills.bundledSkills().map((b) => b.slug);
-    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio']));
-    expect(slugs).toHaveLength(20);
+    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio', 'orca-cli', 'orchestration', 'computer-use', 'orca-linear', 'orca-jira', 'jira-tickets', 'orca-emulator', 'orca-emulator-android', 'orca-per-workspace-env']));
+    expect(slugs).toHaveLength(29);
+    // only Orca's current name for its Linear skill, not the old one too
+    expect(slugs).not.toContain('linear-tickets');
     // the library holds one skill per id, so no two bundles may share one
     expect(new Set(slugs).size).toBe(slugs.length);
   });
@@ -29,6 +31,7 @@ describe('bundled skills', () => {
     const origin = Object.fromEntries(skills.bundledSkills().map((b) => [b.slug, b.origin]));
     expect(origin.oo).toMatchObject({ repo: 'oomol-lab/oo-cli', path: 'contrib/skills/shared/oo' });
     expect(origin.composio).toMatchObject({ repo: 'ComposioHQ/skills', path: 'skills/composio' });
+    expect(origin['orca-cli']).toMatchObject({ repo: 'stablyai/orca', path: 'skills/orca-cli' });
   });
 
   it("are added once, keep where they came from, and don't replace a skill of yours", () => {
@@ -46,6 +49,9 @@ describe('bundled skills', () => {
     expect(skills.getSkill('oo')?.files.map((f) => f.path)).toContain('references/connector-execution.md');
     expect(skills.getSkill('composio')?.files.map((f) => f.path)).toContain('rules/composio-cli.md');
     expect(skills.getSkill('composio')?.origin).toMatchObject({ repo: 'ComposioHQ/skills', path: 'skills/composio', url: 'https://github.com/ComposioHQ/skills/tree/main/skills/composio' });
+    expect(skills.getSkill('orchestration')?.origin).toMatchObject({ repo: 'stablyai/orca', path: 'skills/orchestration', url: 'https://github.com/stablyai/orca/tree/main/skills/orchestration' });
+    // Orca writes its descriptions as folded YAML ("description: >-")
+    expect(skills.getSkill('orchestration')?.description).toMatch(/^Coordinate supervised Orca workers: .* coordinate a DAG, and for terminal control/);
     expect(skills.getSkill('cadcraft')?.name).toBe('My CAD notes');
     // nothing half-copied left behind
     expect(fs.readdirSync(dataPath('tmp')).filter((x) => x.startsWith('bundled-'))).toEqual([]);
