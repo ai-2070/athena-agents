@@ -45,8 +45,8 @@ export const outboxPage = {
 };
 
 export function onEvent(ev: ServerEvent): void {
-  if (standalone && ev.type === 'outbox') return void draw();
-  if (!standalone && ev.type === 'outbox' && tab === 'outbox') draw();
+  if (standalone && (ev.type === 'outbox' || ev.type === 'project')) return void draw();
+  if (!standalone && (ev.type === 'outbox' || ev.type === 'project') && tab === 'outbox') draw();
   if (ev.type === 'accounts' && tab === 'accounts') draw();
 }
 

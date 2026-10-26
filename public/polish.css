@@ -66,7 +66,8 @@
 body.station-mode #nav-links a { padding: 12px 0; }
 body.station-mode #nav-links a.active { box-shadow: inset 2px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 body.station-mode #nav-links a:hover .ico { color: var(--accent); }
-.st-int { display: grid; place-items: center; }
+/* no padding: a button's own 6px each side leaves less room than the logo and pushes it off centre */
+.st-int { display: grid; place-items: center; padding: 0; }
 .st-int .logo-svg { width: 14px; height: 14px; }
 .st-int.off .logo-svg path { fill: #5d6359; }
 .st-int:not(.off) { background: color-mix(in srgb, var(--c) 10%, #0d100d); }

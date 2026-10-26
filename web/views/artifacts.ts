@@ -19,7 +19,7 @@ export function unmount(): void {
   root = undefined;
 }
 export function onEvent(ev: ServerEvent): void {
-  if (ev.type === 'artifacts') void draw();
+  if (ev.type === 'artifacts' || ev.type === 'project') void draw();
 }
 async function draw(): Promise<void> {
   if (!root) return;

@@ -1037,6 +1037,7 @@ server.on('error', (e: NodeJS.ErrnoException) => {
   throw e;
 });
 
+store.migrateGlobalOutbox();
 server.listen(PORT, '127.0.0.1', () => {
   const url = `http://localhost:${PORT}`;
   console.log(`\n  My Dashboard is running at ${url}\n  Data folder: ${dataPath()}\n  Press Ctrl+C to stop.\n`);
