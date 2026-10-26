@@ -79,11 +79,18 @@ export { latestCompaction, memoryStart } from '../shared/compaction.ts';
 // What each engine adds on its own (its system prompt and tool list) that the chat doesn't show.
 const ENGINE_OVERHEAD: Record<string, number> = { 'claude-code': 18_000, codex: 12_000, hermes: 8_000, openai: 1_000 };
 
+type ModelOf = Pick<Agent, 'engine' | 'model' | 'provider'>;
+
+/** Who measures a chat's memory: a measurement by another engine, provider or model doesn't apply. */
+export const measuredBy = (agent: ModelOf): string => `${agent.engine}|${agent.engine === 'openai' ? agent.provider || 'openrouter' : ''}|${agent.model || ''}`;
+const measurement = (chat: Chat | null | undefined, agent: ModelOf) => (chat?.context && chat.context.by === measuredBy(agent) ? chat.context : null);
+
 /** How full the agent's memory of this chat is, in tokens: what the engine last said plus what came
  *  since, or else an estimate from the chat itself. */
-export function memoryTokens(chat: Chat, engine: string, systemPrompt = ''): number {
+export function memoryTokens(chat: Chat, agent: ModelOf, systemPrompt = ''): number {
+  const engine = agent.engine;
   const items = chat.items;
-  const c = chat.context;
+  const c = measurement(chat, agent);
   if (c && c.tokens > 0 && c.items <= items.length) return c.tokens + itemsTokens(items, c.items);
   const start = memoryStart(items);
   const cp = latestCompaction(items);
@@ -93,10 +100,11 @@ export function memoryTokens(chat: Chat, engine: string, systemPrompt = ''): num
 const windows = new Map<string, { at: number; models: Map<string, number> }>();
 
 /** The model's context window in tokens: what the engine reported, the model list, or a safe default. */
-export async function contextWindow(agent: Pick<Agent, 'engine' | 'model' | 'provider'>, chat?: Chat | null): Promise<number> {
+export async function contextWindow(agent: ModelOf, chat?: Chat | null): Promise<number> {
   const set = compactionSettings().windowTokens;
   if (set) return set;
-  if (chat?.context?.window) return chat.context.window;
+  const reported = measurement(chat, agent)?.window;
+  if (reported) return reported;
   const model = String(agent.model || '');
   if (agent.engine === 'claude-code') return /\[1m\]/i.test(model) ? 1_000_000 : 200_000;
   if (agent.engine === 'codex') return 272_000;

@@ -290,7 +290,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       const settings = compaction.compactionSettings();
       if (cli && settings.auto) {
         const window = await compaction.contextWindow(agent, chat);
-        if (compaction.memoryTokens(chat, agent.engine, systemPrompt) >= compaction.compactAt(window, settings)) await compact({ trigger: 'auto' }).catch(() => null);
+        if (compaction.memoryTokens(chat, agent, systemPrompt) >= compaction.compactAt(window, settings)) await compact({ trigger: 'auto' }).catch(() => null);
       }
       if (controller.signal.aborted) throw new Error('Stopped.');
       const seeded = async () => (cli && chat.reseed ? compaction.seedPrompt(chat.items, text, await compaction.contextWindow(agent, chat)) : text);
@@ -306,7 +306,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       if (controller.signal.aborted) throw new Error('Stopped.');
       // the new session has the compacted history now
       if (cli && chat.sessionId) delete chat.reseed;
-      if (result?.context) chat.context = { tokens: result.context, ...(result.window ? { window: result.window } : {}), items: chat.items.length, at: Date.now() };
+      if (result?.context) chat.context = { tokens: result.context, ...(result.window ? { window: result.window } : {}), items: chat.items.length, at: Date.now(), by: compaction.measuredBy(agent) };
       if (result?.text && !chat.items.some((i, idx) => idx > chat.items.findLastIndex((x) => x.type === 'user') && i.type === 'assistant')) {
         pushItem(chat, { type: 'assistant', text: result.text });
       }
@@ -444,7 +444,7 @@ export async function memoryOf(agent: Agent, chatId: string): Promise<{ tokens: 
   if (!chat) throw httpError(404, 'Not found');
   const window = await compaction.contextWindow(agent, chat);
   const s = compaction.compactionSettings();
-  const tokens = compaction.memoryTokens(chat, agent.engine, buildSystemPrompt(agent));
+  const tokens = compaction.memoryTokens(chat, agent, buildSystemPrompt(agent));
   return { tokens, window, compactAt: compaction.compactAt(window, s), percent: Math.round((tokens / window) * 100), auto: s.auto };
 }
 

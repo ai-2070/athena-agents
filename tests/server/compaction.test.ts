@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { newAgent } from '../../server/library.ts';
 import { chats, saveSettings } from '../../server/store.ts';
 import { compactNow, editCompaction, forgetChat, liveChat, startRun } from '../../server/engines/index.ts';
-import { compactChat, compileHistory, cutTokens, estimateTokens, GUIDE, INSTANT, latestCompaction, memoryStart, planTail, rebuildLlm, recall, seedPrompt, sizesFor } from '../../server/compaction.ts';
+import { compactChat, compileHistory, contextWindow, measuredBy, memoryTokens, cutTokens, estimateTokens, GUIDE, INSTANT, latestCompaction, memoryStart, planTail, rebuildLlm, recall, seedPrompt, sizesFor } from '../../server/compaction.ts';
 import type { LlmMessage } from '../../server/engines/openai.ts';
 import type { Chat, ChatItem, CompactionItem } from '../../shared/types.ts';
 
@@ -175,6 +175,28 @@ describe('which messages stay in full', () => {
     // a small local model still fits: checkpoint + tail stay under the threshold
     const small = sizesFor(8_000);
     expect(small.compile.cap + small.tail).toBeLessThan(8_000 * 0.5);
+  });
+});
+
+describe('what the engine measured', () => {
+  it('only counts for the engine and model that measured it', async () => {
+    const claude1m = { engine: 'claude-code', model: 'opus[1m]', provider: '' } as const;
+    const hermes = { engine: 'hermes', model: '', provider: '' } as const;
+    const chat: Chat = { id: 'c', agentId: 'a', title: 't', items: history(2, 10), llm: [], sessionId: null, createdAt: 0, updatedAt: 0, context: { tokens: 400_000, window: 1_000_000, items: 6, at: 0, by: measuredBy(claude1m) } };
+    expect(await contextWindow(claude1m, chat)).toBe(1_000_000);
+    expect(memoryTokens(chat, claude1m)).toBe(400_000);
+    // switched to Hermes: its own window, and an estimate instead of Claude's count
+    expect(await contextWindow(hermes, chat)).toBe(128_000);
+    expect(memoryTokens(chat, hermes)).toBeLessThan(20_000);
+    // the same engine with another model doesn't count either
+    expect(await contextWindow({ ...claude1m, model: 'sonnet' }, chat)).toBe(200_000);
+  });
+
+  it('a run saves who measured it', async () => {
+    const a = newAgent({ name: 'Measured', engine: 'claude-code', model: 'sonnet', toolGroups: [] });
+    const chat = chats.create(a.id);
+    await startRun(a, chat, 'hi').promise;
+    expect(chats.get(a.id, chat.id)!.context).toMatchObject({ tokens: 1000, by: 'claude-code||sonnet' });
   });
 });
 

@@ -232,6 +232,8 @@ export interface ChatContext {
   /** chat.items.length when this was measured: items after it are not counted yet */
   items: number;
   at: number;
+  /** which engine, provider and model measured it ("engine|provider|model"): another one ignores it */
+  by?: string;
 }
 
 export interface Chat {
