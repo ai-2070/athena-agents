@@ -1,7 +1,7 @@
 // Settings > Connections and the Outbox (React): approving edited drafts, discussing, auto-post, the app setup forms.
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { state } from '../../web/core.ts';
+import { connectEvents, state } from '../../web/core.ts';
 import * as connections from '../../web/views/connections.tsx';
 import * as outbox from '../../web/views/outbox.tsx';
 import { chars } from '../../web/views/outbox.tsx';
@@ -93,6 +93,34 @@ describe('the Outbox', () => {
     await act(async () => btn(el, 'Send to team').click());
     await settle();
     expect(requests.find((r) => r.url === '/api/outbox/p1/discuss')!.body).toEqual({ text: 'Shorter please' });
+  });
+
+  it('shows a newer version of a draft from the server, unless you are changing it', async () => {
+    class FakeSocket {
+      static last: FakeSocket | null = null;
+      onmessage: ((m: { data: string }) => void) | null = null;
+      onclose: (() => void) | null = null;
+      onopen: (() => void) | null = null;
+      constructor() {
+        FakeSocket.last = this;
+      }
+    }
+    vi.stubGlobal('WebSocket', FakeSocket);
+    connectEvents();
+    const outboxEvent = () => act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'outbox', ts: 0 }) }));
+    await openOutbox();
+    const text = () => el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Text"]')!;
+    // (saved in another tab)
+    posts = [{ ...posts[0], parts: ['Newer text'] }, posts[1]];
+    await outboxEvent();
+    await settle();
+    expect(text().value).toBe('Newer text');
+    // your own changes are kept while you make them
+    await type(text(), 'Mine');
+    posts = [{ ...posts[0], parts: ['Even newer'] }, posts[1]];
+    await outboxEvent();
+    await settle();
+    expect(text().value).toBe('Mine');
   });
 
   it('lets you change a Reddit post title before approving', async () => {

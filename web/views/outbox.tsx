@@ -1,6 +1,6 @@
 // The Outbox: posts, comments and DMs agents drafted, waiting for you to approve, edit, discuss or reject.
 // A page of its own (the left menu) and a tab in Settings > Connections.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { GET, POST, PUT, DEL, attempt, toast, ago, refreshSoon } from '../core.ts';
 import { fetchFile } from '../client/http.ts';
 import { fileUrl } from '../client/connection.ts';
@@ -103,10 +103,30 @@ const STATUS: Record<string, [string, string]> = {
 
 function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
   const editable = p.status === 'pending' || p.status === 'failed';
-  const [parts, setParts] = useState(p.parts);
+  const serverTitle = p.platform === 'reddit' && p.reddit?.kind === 'post' ? p.reddit.title || '' : null;
+  const [parts, setPartsNow] = useState(p.parts);
   // images that go with the first part; an ✕ on a thumbnail takes it off before approving
-  const [images, setImages] = useState(p.images || []);
-  const [title, setTitle] = useState(p.platform === 'reddit' && p.reddit?.kind === 'post' ? p.reddit.title || '' : null);
+  const [images, setImagesNow] = useState(p.images || []);
+  const [title, setTitleNow] = useState(serverTitle);
+  // changed here and not saved yet: until then, a newer version from the server (saved in another
+  // tab, a thread partly posted) replaces what the card shows, so Approve never sends an old copy
+  const edited = useRef(false);
+  const touch = <T,>(set: (v: T) => void) => (v: T) => {
+    edited.current = true;
+    set(v);
+  };
+  const setParts = touch(setPartsNow);
+  const setImages = touch(setImagesNow);
+  const setTitle = touch(setTitleNow);
+  const fromServer = JSON.stringify([p.parts, p.images || [], serverTitle]);
+  useEffect(() => {
+    if (edited.current) return;
+    setPartsNow(p.parts);
+    setImagesNow(p.images || []);
+    setTitleNow(serverTitle);
+    // (fromServer stands for all three)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromServer]);
   const [discussing, setDiscussing] = useState(false);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -198,7 +218,7 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
         <>
           <div className="row mt">
             <button className="btn small" disabled={busy} onClick={() => void approve()}>{p.platform === 'x' ? 'Approve & post' : 'Approve & send'}</button>
-            <button className="btn ghost small" onClick={() => void attempt(() => PUT(`/outbox/${p.id}`, edits()), 'Saved')}>Save edits</button>
+            <button className="btn ghost small" onClick={() => void attempt(() => PUT(`/outbox/${p.id}`, edits()), 'Saved').then((r) => r && (edited.current = false))}>Save edits</button>
             <button className="btn ghost small" aria-expanded={discussing} title="Talk it over with the team that wrote it: your note goes into their chat and the draft is sent back" onClick={() => setDiscussing(!discussing)}>Discuss with team</button>
             <button className="btn danger small" onClick={() => void attempt(() => POST(`/outbox/${p.id}/reject`, {})).then(changed)}>Reject</button>
           </div>

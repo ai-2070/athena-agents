@@ -18,18 +18,28 @@ export function LookTab() {
   // the scale while dragging: shown and applied live, saved when let go
   const [dragging, setDragging] = useState<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => clearTimeout(timer.current ?? undefined), []);
+  // the change waiting to be saved: leaving the tab saves it now rather than dropping it
+  const unsaved = useRef<LookSetting | null>(null);
+  const save = () => {
+    clearTimeout(timer.current ?? undefined);
+    timer.current = null;
+    const next = unsaved.current;
+    unsaved.current = null;
+    if (!next) return;
+    void attempt(() => PUT('/settings', { look: next })).then((r) => {
+      if (r && state.data?.settings) state.data.settings.look = { ...next };
+    });
+  };
+  useEffect(() => save, []);
 
   const set = (patch: Partial<LookSetting>) => {
     const next = { ...look, ...patch };
     setLook(next);
     setDragging(null);
     applyLook(next);
+    unsaved.current = next;
     clearTimeout(timer.current ?? undefined);
-    timer.current = setTimeout(async () => {
-      const r = await attempt(() => PUT('/settings', { look: next }));
-      if (r && state.data?.settings) state.data.settings.look = { ...next };
-    }, SAVE_AFTER);
+    timer.current = setTimeout(save, SAVE_AFTER);
   };
   const scale = dragging ?? look.scale;
 

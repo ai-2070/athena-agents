@@ -5,7 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { UIMessageChunk } from 'ai';
 import { connectEvents, state } from '../../web/core.ts';
 import { forgetFiles } from '../../web/filepreview.ts';
-import { renderTeamChat } from '../../web/teamchat.tsx';
+import { clock, renderTeamChat } from '../../web/teamchat.tsx';
 import type { TeamChatApi } from '../../web/teamchat.tsx';
 import type { AppState, Chat, ChatItem } from '../../shared/types.ts';
 
@@ -82,6 +82,31 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 const teamEvent = (event: object) => act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'team', teamId: 't1', ts: 0, event }) }));
+
+describe('team chat box', () => {
+  it('a mention asked for as the chat opens lands in the box once it is drawn', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    // (what the Station does: open the chat, then mention the member straight away)
+    open = renderTeamChat(el, 't1');
+    open.mention('Maker');
+    await settle();
+    const box = el.querySelector('textarea')!;
+    expect(box.value).toBe('@Maker ');
+    expect(document.activeElement).toBe(box);
+  });
+
+  it('every "5m ago" shares one timer', () => {
+    const spy = vi.spyOn(globalThis, 'setInterval');
+    const offs = [clock(() => {}), clock(() => {}), clock(() => {})];
+    expect(spy).toHaveBeenCalledTimes(1);
+    offs.forEach((off) => off());
+    // (all gone: the timer stops, and starts again for the next one)
+    clock(() => {})();
+    expect(spy).toHaveBeenCalledTimes(2);
+    spy.mockRestore();
+  });
+});
 
 describe('team chat turns', () => {
   it("a working agent's turn streams in: its tool calls and text as they come", async () => {

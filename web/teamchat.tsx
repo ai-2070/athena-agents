@@ -159,9 +159,21 @@ function useTeamData(teamId: string): [TeamChatData, () => void, { current: Team
 
 // "5m ago" moves on by itself: one clock for every message, ticking while any is shown
 let minute = 0;
-const clock = (tick: () => void) => {
-  const t = setInterval(() => ((minute = Date.now()), tick()), 30_000);
-  return () => clearInterval(t);
+const ticks = new Set<() => void>();
+let clockTimer: ReturnType<typeof setInterval> | null = null;
+export const clock = (tick: () => void) => {
+  ticks.add(tick);
+  clockTimer ??= setInterval(() => {
+    minute = Date.now();
+    for (const t of ticks) t();
+  }, 30_000);
+  return () => {
+    ticks.delete(tick);
+    if (!ticks.size && clockTimer) {
+      clearInterval(clockTimer);
+      clockTimer = null;
+    }
+  };
 };
 function Ago({ ts }: { ts: number }) {
   useSyncExternalStore(clock, () => minute);
@@ -279,6 +291,16 @@ function LiveTurn({ agentId, chatId }: { agentId: string; chatId: string }) {
 /** The parts the box shares with renderTeamChat's focus() and mention(). */
 interface BoxRef {
   input: HTMLTextAreaElement | null;
+  /** asked for before the box was drawn (React draws it a moment after renderTeamChat returns) */
+  pending: { focus: boolean; mentions: string[] };
+}
+
+/** Start a message to someone: "@Name " at the front of the box, the caret at the end. */
+function mentionIn(input: HTMLTextAreaElement, name: string): void {
+  const tag = `@${name} `;
+  if (!input.value.includes(tag)) input.value = `${tag}${input.value}`;
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
 }
 
 function TeamChat({ teamId, height, fill, box }: { teamId: string; height: number; fill: boolean; box: BoxRef }) {
@@ -459,6 +481,11 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   useEffect(() => {
     const ta = input.current!;
     box.input = ta;
+    // what was asked before the box was here (opened from the Station with a member's @)
+    const { focus, mentions } = box.pending;
+    box.pending = { focus: false, mentions: [] };
+    for (const name of mentions) mentionIn(ta, name);
+    if (focus && !mentions.length) ta.focus();
     const menu = slashMenu(ta, 'team', { run: () => void sendRef.current() });
     slashRef.current = menu;
     setSlash(menu);
@@ -642,19 +669,13 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
 }
 
 export function renderTeamChat(container: HTMLElement, teamId: string, { height = 360, fill = false }: TeamChatOptions = {}): TeamChatApi {
-  const box: BoxRef = { input: null };
+  const box: BoxRef = { input: null, pending: { focus: false, mentions: [] } };
   const root = mountReact(container, <TeamChat teamId={teamId} height={height} fill={fill} box={box} />);
   return {
-    focus: () => box.input?.focus(),
+    // (before the box is drawn, kept until it is)
+    focus: () => (box.input ? box.input.focus() : (box.pending.focus = true)),
     // start a message to someone: "@Name "
-    mention: (name: string) => {
-      const input = box.input;
-      if (!input) return;
-      const tag = `@${name} `;
-      if (!input.value.includes(tag)) input.value = `${tag}${input.value}`;
-      input.focus();
-      input.setSelectionRange(input.value.length, input.value.length);
-    },
+    mention: (name: string) => (box.input ? mentionIn(box.input, name) : void box.pending.mentions.push(name)),
     destroy: () => root.unmount(),
   };
 }

@@ -43,3 +43,13 @@ export function estimateHeight(m: ChatMessage, width: number, compact = false): 
   const h = (user ? BASE.user : BASE.assistant) + lines * (user ? LINE.user : LINE.assistant) + extra;
   return Math.round(h * (compact ? COMPACT : 1));
 }
+
+/**
+ * A short mark of what a message holds (its parts' kinds and text lengths), cheap to make: a height
+ * remembered under it is only reused while the message would still draw the same.
+ */
+export function messageSig(m: ChatMessage): string {
+  let s = m.role === 'user' ? 'u' : 'a';
+  for (const p of m.parts) s += `.${p.type === 'text' || p.type === 'reasoning' ? (p.text || '').length : p.type.slice(0, 6)}`;
+  return s;
+}

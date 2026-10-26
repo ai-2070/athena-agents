@@ -29,6 +29,32 @@ describe('renderAgentChat()', () => {
 });
 
 describe('the agent tab', () => {
+  it('New chat clicked before the latest chat was found stays on the new chat', async () => {
+    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'openai', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
+    let found!: () => void;
+    const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      // (the list of chats is slow to come)
+      if (url === '/api/agents/a1/chats' && init.method !== 'POST') return new Promise<Response>((r) => (found = () => r(json([{ id: 'c7', title: 'Mine' }]))));
+      if (url === '/api/agents/a1/chats') return json({ id: 'c8', title: 'New chat', items: [] });
+      if (/\/chats\/c\d$/.test(url)) return json({ id: url.split('/').pop(), title: 'Chat', items: [] });
+      return json(url.endsWith('/commands') ? [] : {});
+    });
+    const el = document.createElement('div');
+    document.body.append(el);
+    const tab = renderAgentChat(el, 'a1');
+    await settle();
+    const full = () => el.querySelector<HTMLAnchorElement>('a[title="Open the full chat page"]')!.getAttribute('href');
+    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('New chat'))!.click());
+    await settle();
+    expect(full()).toBe('#/agents/a1/c8');
+    await act(async () => found());
+    await settle();
+    expect(full()).toBe('#/agents/a1/c8');
+    act(() => tab.destroy());
+  });
+
+
   it('opens its latest own chat (not a team session), and New chat starts a fresh one', async () => {
     state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'openai', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
     const posts: string[] = [];

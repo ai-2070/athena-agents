@@ -1,7 +1,8 @@
 // A message's guessed height before it draws (web/chat/estimate.ts): close guesses let a long chat's
 // jump to the top land on the first message.
 import { describe, expect, it } from 'vitest';
-import { charsPerLine, estimateHeight, wrappedLines } from '../../web/chat/estimate.ts';
+import { charsPerLine, estimateHeight, messageSig, wrappedLines } from '../../web/chat/estimate.ts';
+import { rememberHeight, rememberedHeight } from '../../web/chat/window.tsx';
 import type { ChatMessage } from '../../web/chat/messages.ts';
 
 const msg = (role: 'user' | 'assistant', parts: ChatMessage['parts']): ChatMessage => ({ id: 'm', role, parts }) as ChatMessage;
@@ -39,5 +40,21 @@ describe('estimateHeight()', () => {
     expect(estimateHeight(withTool, 900) - estimateHeight(plain, 900)).toBe(44);
     expect(estimateHeight(withFile, 900)).toBeGreaterThan(250);
     expect(estimateHeight(plain, 900, true)).toBeLessThan(estimateHeight(plain, 900));
+  });
+});
+
+describe('remembered heights', () => {
+  it('are kept per message content, so the same id in another chat or after a compaction is guessed again', () => {
+    const long = msg('assistant', [text('word '.repeat(400))]);
+    const short = msg('assistant', [text('ok')]);
+    expect(messageSig(long)).not.toBe(messageSig(short));
+    expect(messageSig(short)).toBe(messageSig(msg('assistant', [text('no')])));
+    rememberHeight(`a1/chatA/m-10/${messageSig(long)}`, 800, 900);
+    expect(rememberedHeight(`a1/chatA/m-10/${messageSig(long)}`, 810)).toBe(900);
+    // (another chat, or the same chat with other text at that place)
+    expect(rememberedHeight(`a1/chatB/m-10/${messageSig(short)}`, 800)).toBeUndefined();
+    expect(rememberedHeight(`a1/chatA/m-10/${messageSig(short)}`, 800)).toBeUndefined();
+    // (a much narrower list: measured again)
+    expect(rememberedHeight(`a1/chatA/m-10/${messageSig(long)}`, 400)).toBeUndefined();
   });
 });

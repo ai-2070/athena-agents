@@ -40,13 +40,16 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
   const [chatId, setChatId] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const tray = useMemo(() => attachTray(), []);
+  // New chat was clicked: a slow first look for the latest chat must not take the tab back to it
+  const chosen = useRef(false);
   useEffect(() => {
     let live = true;
+    chosen.current = false;
     // its own conversations, not the sessions it keeps for each team chat
     void GET<ChatSummary[]>(`/agents/${agentId}/chats`)
       .catch((): ChatSummary[] => [])
       .then((chats) => {
-        if (!live) return;
+        if (!live || chosen.current) return;
         const id = chats.find((c) => !isTeamSession(c))?.id || null;
         setPick({ id, n: 0 });
         setChatId(id);
@@ -62,12 +65,14 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
     };
     // (the drop zone's text is set once; the agent's name hardly changes while the tab is open)
   }, [tray]);
-  // focus asked for before the box existed: given as soon as it does
+  // focus asked for before the box existed: given as soon as it does. It looks only until the box is
+  // there (once it is, renderAgentChat's focus() gives it straight away), and again after New chat.
   useEffect(() => {
     if (!pick) return;
     const t = setInterval(() => {
-      if (!ask.wanted) return;
-      if (ask.api.current && root.current?.querySelector('textarea')) {
+      if (!ask.api.current || !root.current?.querySelector('textarea')) return;
+      clearInterval(t);
+      if (ask.wanted) {
         ask.wanted = false;
         ask.api.current.focus();
       }
@@ -78,6 +83,7 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
   const fresh = async () => {
     const c = await attempt(() => POST<Chat>(`/agents/${agentId}/chats`));
     if (c) {
+      chosen.current = true;
       setPick((p) => ({ id: c.id, n: (p?.n || 0) + 1 }));
       setChatId(c.id);
     }

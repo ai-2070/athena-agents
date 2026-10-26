@@ -64,6 +64,31 @@ describe('the Settings page', () => {
     await settle();
     expect(el.querySelector('.flash-find')).not.toBeNull();
   });
+
+  it('a hit in another part of the open tab switches to that part', async () => {
+    state.data = { settings: { look: {} }, outboxPending: 0, accounts: { x: [], reddit: [] } } as unknown as AppState;
+    const replies: Record<string, unknown> = {
+      '/api/outbox': [],
+      '/api/accounts': { x: [], reddit: [], xAppConfigured: false, redditAppConfigured: false },
+      '/api/settings': { settings: { x: {}, reddit: {}, telegram: { chatId: '' } }, secrets: { xClientSecret: { set: false }, redditClientSecret: { set: false }, telegramBotToken: { set: false }, discordWebhook: { set: false } } },
+    };
+    vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(replies[url] ?? {})));
+    await open('#/settings?tab=connections&sub=accounts');
+    const sub = () => [...el.querySelectorAll('[role="tab"].on')].map((t) => t.textContent);
+    expect(sub()).toContain('Accounts');
+    const input = el.querySelector<HTMLInputElement>('input[aria-label="Search settings"]')!;
+    await act(async () => {
+      input.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'outbox');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await settle();
+    const hit = [...document.querySelectorAll<HTMLElement>('.settings-search-hit')].find((h) => h.textContent!.includes('Outbox (posts waiting for you)'))!;
+    await act(async () => hit.click());
+    await settle();
+    expect(sub().some((t) => t?.startsWith('Outbox'))).toBe(true);
+    expect(location.hash).toContain('sub=outbox');
+  });
 });
 
 describe('ViewHost', () => {
@@ -117,6 +142,25 @@ describe('the Look tab', () => {
     expect(puts).toEqual([]);
     await act(() => new Promise((r) => setTimeout(r, 400)));
     expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full' } }]);
+  });
+
+  it('a change made just before leaving the tab is still saved', async () => {
+    const puts: unknown[] = [];
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit = {}) => {
+      if (init.method === 'PUT') puts.push(JSON.parse(String(init.body)));
+      return new Response('{}');
+    });
+    location.hash = '#/settings?tab=look';
+    await act(async () => settings.render(el));
+    await settle();
+    const rose = [...el.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((r) => r.textContent === 'Rose')!;
+    await act(async () => rose.click());
+    // (off to another page at once, before the save was due)
+    act(() => settings.unmount());
+    await settle();
+    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full' } }]);
+    await act(() => new Promise((r) => setTimeout(r, 400)));
+    expect(puts).toHaveLength(1);
   });
 
   it('has a UI scale slider screen readers read as a percentage, and preset sizes', async () => {

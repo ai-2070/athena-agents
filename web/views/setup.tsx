@@ -206,18 +206,24 @@ function SettingsPage() {
   const panel = useRef<HTMLDivElement | null>(null);
   // text to find once the tab is drawn (from a link, or a search that switched tabs)
   const pendingFind = useRef<string | null>(q.get('find'));
+  // bumped to draw the open tab again: it reads ?sub= only when it draws
+  const [drawn, setDrawn] = useState(0);
 
   useEffect(() => {
     if (pendingFind.current && panel.current) focusText(panel.current, pendingFind.current);
     pendingFind.current = null;
-  }, [tab]);
+  }, [tab, drawn]);
 
   const go = (t: TabId, { sub, find }: { sub?: string; find?: string } = {}) => {
     lastTab = t;
     // the tab reads ?sub= when it draws (Connections: Accounts or Outbox)
     history.replaceState(null, '', `#/settings?tab=${t}${sub ? `&sub=${sub}` : ''}`);
     if (t === tab) {
-      if (find && panel.current) focusText(panel.current, find);
+      // (a hit in a part of the open tab, which may show another part now: drawn again on it, then found)
+      if (sub) {
+        pendingFind.current = find || null;
+        setDrawn((n) => n + 1);
+      } else if (find && panel.current) focusText(panel.current, find);
       return;
     }
     pendingFind.current = find || null;
@@ -238,7 +244,7 @@ function SettingsPage() {
       rowClassName="settings-top"
       aside={<SettingsSearch onChoose={choose} />}
     >
-      <TabBody key={tab} tab={TABS.find((t) => t.id === tab)!} hostRef={(el) => void (panel.current = el)} />
+      <TabBody key={`${tab}:${drawn}`} tab={TABS.find((t) => t.id === tab)!} hostRef={(el) => void (panel.current = el)} />
     </Tabs>
   );
 }
