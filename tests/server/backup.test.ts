@@ -175,6 +175,8 @@ describe('workspace backups', () => {
     }
     fs.mkdirSync(dataPath('presets'), { recursive: true });
     fs.symlinkSync(dataPath('secrets.json'), dataPath('presets', 'pa-leak.json'));
+    fs.symlinkSync(dataPath('secrets.json'), dataPath('projects', p.id, 'layout.json'));
+    fs.symlinkSync(dataPath('secrets.json'), dataPath('projects', p.id, 'brain-chat.json'));
     const r = backup.createBackup(p.id);
     const bytes = fs.readFileSync(r.file);
     const all = zlib.gunzipSync(bytes.subarray(bytes.indexOf(0x0a, bytes.indexOf(0x0a) + 1) + 1)).toString();

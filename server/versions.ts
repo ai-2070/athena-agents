@@ -66,7 +66,10 @@ export function changedFields(a: unknown, b: unknown, ignore: readonly string[] 
 // When a version was made: never the same as or before the one made just before it (two in the same
 // millisecond would otherwise sort by their random ids, and an older one could hide a deletion).
 let lastStamp = 0;
-const stamp = (after = 0) => (lastStamp = Math.max(Date.now(), lastStamp + 1, after + 1));
+// (a time in the future, from data made elsewhere, is never followed: it would push every later version
+// into the future too)
+const FUTURE_SLACK_MS = 60_000;
+const stamp = (after = 0) => (lastStamp = Math.max(Date.now(), lastStamp + 1, after < Date.now() + FUTURE_SLACK_MS ? after + 1 : 0));
 /** A version's files kept next to it (a deleted skill's extra files): <dir>/files-<version id>. */
 export const versionFilesDir = (dir: string, id: string): string => path.join(dir, `files-${id}`);
 
@@ -91,15 +94,104 @@ export function keepVersion<T>(dir: string, before: T, after: T | null, { ignore
   const ctx = actor.getStore();
   const by = ctx?.by || 'you';
   const last = listVersions<T>(dir)[0];
-  if (!deleted && !ctx?.force && last && !last.deleted && last.by === by && Date.now() - last.at < COALESCE_MS) return null;
+  const age = last ? Date.now() - last.at : Infinity;
+  if (!deleted && !ctx?.force && last && !last.deleted && last.by === by && age >= 0 && age < COALESCE_MS) return null;
   const v: Version<T> = { id: uid('v'), at: stamp(last?.at), by, ...(deleted ? { deleted: true } : {}), ...(ctx?.note ? { note: ctx.note } : {}), item: before };
   writeJSON(path.join(ensureDir(dir), `${v.id}.json`), v);
-  const all = listVersions<T>(dir);
-  for (const old of all.slice(VERSIONS_KEPT)) {
+  pruneVersions(dir);
+  return v;
+}
+
+/** Keep only the newest VERSIONS_KEPT versions in dir (and the files kept with each). */
+export function pruneVersions(dir: string) {
+  for (const old of listVersions(dir).slice(VERSIONS_KEPT)) {
     fs.rmSync(path.join(dir, `${old.id}.json`), { force: true });
     fs.rmSync(versionFilesDir(dir, old.id), { recursive: true, force: true });
   }
-  return v;
+}
+
+/** A version read from somewhere else (a project folder, a backup), checked field by field, or null.
+ *  vid: the id it was saved under (whatever the version claims); check: the item, cleaned, or null. */
+export function checkVersion<T>(raw: unknown, vid: string, check: (item: Record<string, unknown>) => T | null): Version<T> | null {
+  if (!/^[\w-]+$/.test(vid) || !raw || typeof raw !== 'object') return null;
+  const v = raw as Partial<Version<unknown>>;
+  // (a time in the future would make every later edit look like part of the same change, and be dropped)
+  if (typeof v.at !== 'number' || !Number.isFinite(v.at) || v.at < 0 || v.at > Date.now() + FUTURE_SLACK_MS || !v.item || typeof v.item !== 'object' || Array.isArray(v.item)) return null;
+  const item = check(v.item as Record<string, unknown>);
+  if (!item) return null;
+  return {
+    id: vid,
+    at: v.at,
+    by: v.by === 'brain' ? 'brain' : 'you',
+    ...(v.deleted === true ? { deleted: true } : {}),
+    ...(typeof v.note === 'string' ? { note: v.note.slice(0, 300) } : {}),
+    item,
+  };
+}
+
+// ---------- agents and teams from elsewhere ----------
+// A version made elsewhere (a backup, a project folder) has whatever someone put in it: each known field
+// keeps its value only when it has the right type (else it's left out), and one without a name isn't one.
+type Fields = Record<string, unknown>;
+const isStr = (x: unknown): x is string => typeof x === 'string';
+const strList = (x: unknown): string[] | undefined => (Array.isArray(x) && x.every(isStr) ? x : undefined);
+function keepTyped(item: Fields, spec: Record<string, (x: unknown) => unknown>): Fields {
+  const out: Fields = {};
+  for (const [k, v] of Object.entries(item)) {
+    if (!(k in spec)) {
+      // anything else: plain JSON values only
+      if (v === null || ['string', 'number', 'boolean'].includes(typeof v) || (typeof v === 'object' && v)) out[k] = v;
+      continue;
+    }
+    const ok = spec[k](v);
+    if (ok !== undefined) out[k] = ok;
+  }
+  return out;
+}
+const str = (x: unknown) => (isStr(x) ? x : undefined);
+const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : undefined);
+const bool = (x: unknown) => (typeof x === 'boolean' ? x : undefined);
+const obj = (x: unknown) => (x && typeof x === 'object' && !Array.isArray(x) ? (x as Fields) : undefined);
+
+/** An agent version made elsewhere, cleaned (see above), as the agent `id`'s; null without a name. */
+export function cleanAgentVersion(item: Fields, id: string): Fields | null {
+  const out = keepTyped(item, {
+    ...Object.fromEntries(['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'autonomy', 'workspace', 'lastModel'].map((k) => [k, str])),
+    ...Object.fromEntries(['toolGroups', 'mcpServers', 'alwaysAllow', 'skills'].map((k) => [k, strList])),
+    temperature: (x) => (x === '' ? '' : num(x)),
+    pinned: bool,
+    knowledge: (x) => {
+      const k = obj(x);
+      return k && strList(k.folders) ? { ...k, folders: k.folders } : undefined;
+    },
+    source: obj,
+  });
+  return isStr(out.name) ? { ...out, id } : null;
+}
+
+/** A team version made elsewhere, cleaned (see above), as the team `id`'s; null without a name. */
+export function cleanTeamVersion(item: Fields, id: string): Fields | null {
+  const out = keepTyped(item, {
+    ...Object.fromEntries(['name', 'description', 'color', 'createdBy'].map((k) => [k, str])),
+    ...Object.fromEntries(['members', 'skills', 'files'].map((k) => [k, strList])),
+    lead: (x) => (x === null || isStr(x) ? x : undefined),
+    enabled: bool,
+    rot: num,
+    angle: num,
+    lastScheduledAt: num,
+    pos: obj,
+    access: (x) => {
+      const a = obj(x);
+      return a ? { toolGroups: strList(a.toolGroups) ?? [], mcpServers: strList(a.mcpServers) ?? [] } : undefined;
+    },
+    steps: (x) => (Array.isArray(x) ? x.filter((s): s is Fields => !!obj(s) && isStr((s as Fields).type)) : undefined),
+    schedule: (x) => {
+      const s = obj(x);
+      if (!s || !isStr(s.type)) return undefined;
+      return keepTyped(s, { type: str, time: str, input: str, minutes: num, days: (d) => (Array.isArray(d) && d.every((n) => typeof n === 'number') ? d : undefined) });
+    },
+  });
+  return isStr(out.name) ? { ...out, id } : null;
 }
 
 /** Items with versions whose newest version says they were deleted (and that aren't back): newest first. */

@@ -137,6 +137,20 @@ export interface SkillVersionItem {
   /** a fingerprint of those files, so a version that differs only in its files still counts */
   filesHash?: string;
 }
+/** A skill version read from elsewhere (a project folder, a backup), checked, as the skill `slug`'s. */
+export const skillVersionItem = (slug: string) => (item: Record<string, unknown>): SkillVersionItem | null => {
+  if (typeof item.name !== 'string' || typeof item.description !== 'string' || typeof item.body !== 'string') return null;
+  const files = Array.isArray(item.files) ? item.files.filter((f): f is string => typeof f === 'string' && f.length < 300 && !f.split('/').includes('..')).slice(0, 1000) : undefined;
+  return {
+    slug,
+    name: item.name.slice(0, 80),
+    description: item.description.slice(0, 1000),
+    body: item.body.slice(0, SKILL_BODY_MAX),
+    ...(files ? { files } : {}),
+    ...(typeof item.filesHash === 'string' && /^[0-9a-f]{40}$/.test(item.filesHash) ? { filesHash: item.filesHash } : {}),
+  };
+};
+
 // Versions of every skill: data/versions/skills/<slug>/ (outside the skill, so they outlive it)
 export const skillVersionsDir = (slug = ''): string => dataPath('versions', 'skills', slug);
 const versionItem = (s: Skill | SkillDetail): SkillVersionItem => ({ slug: s.slug, name: s.name, description: s.description, body: s.body.trim() });

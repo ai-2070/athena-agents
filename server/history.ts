@@ -45,6 +45,9 @@ const fieldName = (kind: VersionKind, k: string) => (kind === 'team' && k === 'd
 
 const agentName = (id: string) => agents.get(id)?.name || `(deleted agent ${id})`;
 const skillName = (slug: string) => getSkill(slug)?.name || slug;
+// (a version can come from elsewhere: never trust a field's type when turning it into text)
+const arr = (x: unknown): unknown[] => (Array.isArray(x) ? x : []);
+const text = (x: unknown): string => (typeof x === 'string' ? x : x === undefined || x === null ? '' : JSON.stringify(x));
 const list = (xs: unknown) => (Array.isArray(xs) && xs.length ? xs.join(', ') : '-');
 
 // Anything a version has that the lines above don't show, so a change is never invisible.
@@ -87,37 +90,38 @@ export function asText(kind: VersionKind, item: Item): string {
       `Autonomy: ${a.autonomy || 'ask'}`,
       `Tools: ${list(a.toolGroups)}`,
       `MCP servers: ${list(a.mcpServers)}`,
-      `Skills: ${list((a.skills || []).map(skillName))}`,
+      `Skills: ${list(arr(a.skills).map((x) => skillName(String(x))))}`,
       `Knowledge folders: ${list(a.knowledge?.folders)}`,
       `Workspace: ${a.workspace || '(default)'}`,
       `Always allowed: ${list(a.alwaysAllow)}`,
       otherFields(a as unknown as Record<string, unknown>, AGENT_SHOWN, agents.versionIgnore),
       '',
       'Instructions:',
-      (a.systemPrompt || '').trim() || '(none)',
+      text(a.systemPrompt).trim() || '(none)',
     ]
       .filter((x, i, all) => x || all[i + 1] === 'Instructions:')
       .join('\n');
   }
   const t = item as Team;
-  const members = Array.isArray(t.members) ? t.members : [...new Set((t.steps || []).filter((x) => x.type === 'agent' && x.agentId).map((x) => x.agentId as string))];
+  const allSteps = arr(t.steps).filter((x): x is Team['steps'][number] => !!x && typeof x === 'object');
+  const members = Array.isArray(t.members) ? t.members.map(String) : [...new Set(allSteps.filter((x) => x.type === 'agent' && x.agentId).map((x) => String(x.agentId)))];
   const sc = t.schedule;
   const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const schedule = sc && sc.type !== 'none'
     ? [
-        `Schedule: ${sc.type}${sc.time ? ` at ${sc.time}` : ''}${sc.minutes ? ` every ${sc.minutes} min` : ''}${sc.days?.length ? ` on ${sc.days.map((d) => DAYS[d] ?? d).join(', ')}` : ''}${t.enabled === false ? ' (off)' : ''}`,
+        `Schedule: ${text(sc.type)}${sc.time ? ` at ${text(sc.time)}` : ''}${sc.minutes ? ` every ${text(sc.minutes)} min` : ''}${arr(sc.days).length ? ` on ${arr(sc.days).map((d) => DAYS[d as number] ?? text(d)).join(', ')}` : ''}${t.enabled === false ? ' (off)' : ''}`,
         sc.input ? `  with: ${sc.input}` : '',
       ].filter(Boolean).join('\n')
     : t.enabled ? 'Schedule: none (on)' : '';
   // members' steps carry nothing beyond the member; any other step (or a member step with more) is listed in full
-  const steps = (t.steps || []).filter((x) => x.type !== 'agent' || Object.keys(x).some((k) => !['id', 'type', 'agentId', 'label'].includes(k) && x[k] !== undefined && x[k] !== ''));
+  const steps = allSteps.filter((x) => x.type !== 'agent' || Object.keys(x).some((k) => !['id', 'type', 'agentId', 'label'].includes(k) && x[k] !== undefined && x[k] !== ''));
   return [
     `Name: ${t.name}`,
     `Goal: ${t.description || '-'}`,
     `Members: ${list(members.map((id) => `${agentName(id)}${t.lead === id ? ' (lead)' : ''}`))}`,
     `Tools: ${list(t.access?.toolGroups)}`,
     `MCP servers: ${list(t.access?.mcpServers)}`,
-    `Skills: ${list((t.skills || []).map(skillName))}`,
+    `Skills: ${list(arr(t.skills).map((x) => skillName(String(x))))}`,
     `Files: ${list(t.files)}`,
     schedule,
     steps.length ? `Steps:\n${steps.map((x, i) => stepLine(x as Record<string, unknown>, i)).join('\n')}` : '',

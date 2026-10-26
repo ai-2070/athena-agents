@@ -6,9 +6,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { bus, listProjects, activeProject, log } from './store.ts';
-import { dataPath, ensureDir, exists, isPlainDir, readJSON, writeJSON, realTarget } from './util.ts';
-import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir } from './versions.ts';
-import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, SKILL_BODY_MAX } from './skills.ts';
+import { dataPath, ensureDir, exists, isPlainDir, readJSON, readPlain, writeJSON, realTarget } from './util.ts';
+import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir, checkVersion, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
+import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, skillVersionItem, SKILL_BODY_MAX } from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
 import type { Version } from './versions.ts';
 import type { Agent, Chat, Routine, Team } from '../shared/types.ts';
@@ -81,15 +81,7 @@ const jsonFiles = (dir: string): string[] => {
   }
 };
 const readAll = <T>(dir: string): T[] => jsonFiles(dir).map((n) => readJSON<T>(path.join(dir, n))).filter((x): x is T => Boolean(x));
-// One JSON file, only when it is a plain file (not a link)
-function readPlain<T>(file: string, fallback: T): T {
-  try {
-    if (!fs.lstatSync(file).isFile()) return fallback;
-  } catch {
-    return fallback;
-  }
-  return readJSON<T>(file, fallback);
-}
+
 
 // Refuse to write through a link anywhere from base down to target (a crafted project folder could
 // point .dashboard/... at another file).
@@ -311,18 +303,8 @@ function savedVersions<T>(folder: string, parts: string[], itemId: string, check
     const vid = name.slice(0, -'.json'.length);
     const file = savedPath(folder, ...parts, itemId, name);
     if (!/^[\w-]+$/.test(vid) || !file || !fs.lstatSync(file).isFile()) continue;
-    const v = readJSON<Partial<Version<unknown>>>(file, null);
-    if (!v || typeof v.at !== 'number' || !Number.isFinite(v.at) || !v.item || typeof v.item !== 'object' || Array.isArray(v.item)) continue;
-    const item = check(v.item as Record<string, unknown>);
-    if (!item) continue;
-    out.push({
-      id: vid,
-      at: v.at,
-      by: v.by === 'brain' ? 'brain' : 'you',
-      ...(v.deleted === true ? { deleted: true } : {}),
-      ...(typeof v.note === 'string' ? { note: v.note.slice(0, 300) } : {}),
-      item,
-    });
+    const v = checkVersion(readJSON<unknown>(file, null), vid, check);
+    if (v) out.push(v);
   }
   return out.sort((a, b) => b.at - a.at).slice(0, VERSIONS_KEPT);
 }
@@ -347,7 +329,7 @@ function restoreVersions(folder: string, id: string): number {
   let n = 0;
   for (const kind of VERSIONED) {
     for (const itemId of savedDirs(folder, ['versions', kind], (x) => /^[\w.-]+$/.test(x) && !x.startsWith('.'))) {
-      for (const v of savedVersions(folder, ['versions', kind], itemId, (item) => ({ ...item, id: itemId }))) {
+      for (const v of savedVersions(folder, ['versions', kind], itemId, (item) => (kind === 'agents' ? cleanAgentVersion(item, itemId) : cleanTeamVersion(item, itemId)))) {
         writeJSON(projectDir(id, 'versions', kind, itemId, `${v.id}.json`), v);
         n++;
       }
@@ -385,19 +367,6 @@ export function projectsWithSkills(slugs: string[]): string[] {
     .map((p) => p.id);
 }
 
-const skillItem = (slug: string) => (item: Record<string, unknown>): SkillVersionItem | null => {
-  if (typeof item.name !== 'string' || typeof item.description !== 'string' || typeof item.body !== 'string') return null;
-  const files = Array.isArray(item.files) ? item.files.filter((f): f is string => typeof f === 'string' && f.length < 300 && !f.split('/').includes('..')).slice(0, 1000) : undefined;
-  return {
-    slug,
-    name: item.name.slice(0, 80),
-    description: item.description.slice(0, 1000),
-    body: item.body.slice(0, SKILL_BODY_MAX),
-    ...(files ? { files } : {}),
-    ...(typeof item.filesHash === 'string' && /^[0-9a-f]{40}$/.test(item.filesHash) ? { filesHash: item.filesHash } : {}),
-  };
-};
-
 // Skills the library doesn't have yet are added (with their files and versions). One it has is never
 // changed: when the folder's copy is different, that copy is kept as one of its versions, to restore by hand.
 function restoreSkills(folder: string, projectName: string): { added: string[]; kept: string[] } {
@@ -426,7 +395,7 @@ function restoreSkills(folder: string, projectName: string): { added: string[]; 
       fs.rmSync(skillDir(slug), { recursive: true, force: true });
       continue;
     }
-    for (const v of savedVersions(folder, ['skill-versions'], slug, skillItem(slug))) {
+    for (const v of savedVersions(folder, ['skill-versions'], slug, skillVersionItem(slug))) {
       writeJSON(path.join(skillVersionsDir(slug), `${v.id}.json`), v);
       // and the files kept with it (a deleted version's)
       const files = savedPath(folder, 'skill-versions', slug, `files-${v.id}`);
