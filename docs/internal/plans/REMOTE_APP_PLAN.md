@@ -110,8 +110,12 @@ Artifacts, Outbox, Skills, Terminals, Overview, the agent chat page, Agents, Rou
 editor. Plain-DOM pieces they still use (the skill picker, the schedule editor, the memory editor,
 the routine @ menu, approval cards) are hosted with `<DomNode>` and can move later. The Brain chat
 (`web/dock.tsx`), the floating chat window (`web/chatwin.tsx`), an agent's tab in it
-(`web/agentchat.tsx`) and team chats (`web/teamchat.tsx`) are React too. Still to do: the Station
-(its panels around the three.js map).
+(`web/agentchat.tsx`) and team chats (`web/teamchat.tsx`) are React too. On the Station, the side
+panel (`web/views/stationpanel.tsx`) and the right-click menu (`web/views/stationmenu.tsx`, Base UI
+Menu) are React; `web/views/stationdata.ts` holds the connection helpers the map and the panel share.
+The map itself (three.js, its labels and wires) stays plain code. So does its header for now: the
+map reads the header's connection tiles every frame to draw wires and hover light, and the project
+switcher animates the header's text directly. It can move once those read from a React ref instead.
 
 ## C. Net: pairing, relay and the Android app
 
