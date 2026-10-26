@@ -1,0 +1,38 @@
+tests/web/library.test.tsx
+  s_3ee9638266ae65::t_5708a26cd103db 1-38,40-57,59-167
+  s_3ee9638266ae65::t_16c99a564fa5af 39
+  s_3ee9638266ae65::t_f5cf1fceabf876 58
+public/app.css
+  s_3ee9638266ae65::t_b6b8407933734c 371-379
+web/views/library.tsx
+  s_3ee9638266ae65::t_a1fd8a85351549 1-3,5-230,239-247,249-412,420-435
+  s_3ee9638266ae65::t_b6b8407933734c 4,248
+  s_3ee9638266ae65::t_16c99a564fa5af 231-238,413-419
+web/ui/controls.tsx
+  s_3ee9638266ae65::t_132f2c6fb352b1 17,26-27,31,41
+  s_3ee9638266ae65::t_1e1284c270abdb 1-16,18-25,28-30,32-40,42-83
+web/ui/react.tsx
+  s_3ee9638266ae65::t_6bac94edd59e20 1-40
+web/app.ts
+  s_3ee9638266ae65::t_b6b8407933734c 8
+AGENTS.md
+  s_3ee9638266ae65::t_d2fa9014fcaea0 45-46
+docs/internal/plans/REMOTE_APP_PLAN.md
+  s_3ee9638266ae65::t_75602b24117bee 104-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4dcdbae35a07e0e08b2c080ed18a35f19756a86d",
+  "prompts": {},
+  "sessions": {
+    "s_3ee9638266ae65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "541a5902-77ed-4017-8f45-3e7605579b0f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
