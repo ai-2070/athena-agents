@@ -1,0 +1,50 @@
+tests/server/approvals.test.ts
+  s_86f670bdc2e031::t_929c534dddf3ab 1-86
+server/approvals.ts
+  s_86f670bdc2e031::t_929c534dddf3ab 3-5,28-34,39-40,45-54,60-63,67-91,98,109,111-114
+shared/types.ts
+  s_86f670bdc2e031::t_929c534dddf3ab 201-202,260-261
+web/views/settings.ts
+  s_86f670bdc2e031::t_929c534dddf3ab 2,105-115
+server/engines/index.ts
+  s_86f670bdc2e031::t_929c534dddf3ab 57,76
+  s_86f670bdc2e031::t_02baee3249527b 56,151,198
+web/views/setup.ts
+  s_86f670bdc2e031::t_929c534dddf3ab 49
+server/store.ts
+  s_86f670bdc2e031::t_929c534dddf3ab 40
+server/overseer.ts
+  s_86f670bdc2e031::t_929c534dddf3ab 8,12,14-15,17,493-522,524-525,528,530-548
+  s_86f670bdc2e031::t_7a5450877adbd7 523,526-527,529
+  s_86f670bdc2e031::t_53a7acebcb5c4b 549
+web/core.ts
+  s_86f670bdc2e031::t_929c534dddf3ab 389
+server/index.ts
+  s_86f670bdc2e031::t_929c534dddf3ab 12,176-177
+README.md
+  s_86f670bdc2e031::t_929c534dddf3ab 64,68-72
+  s_86f670bdc2e031::t_603fe09c022c60 73
+server/brain.ts
+  s_86f670bdc2e031::t_929c534dddf3ab 165
+.github/workflows/ci.yml
+  s_86f670bdc2e031::t_929c534dddf3ab 23,30
+tests/server/review.test.ts
+  s_86f670bdc2e031::t_929c534dddf3ab 1-69
+  s_86f670bdc2e031::t_278977e0a55ffc 70-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e992f3447be59ece79784427db881a50e65b13fe",
+  "prompts": {},
+  "sessions": {
+    "s_86f670bdc2e031": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6340fd4e-3c25-4ffa-aefd-cf1ac985cbb5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
