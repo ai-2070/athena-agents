@@ -1,0 +1,19 @@
+AGENTS.md
+  s_55cb7c48306eca::t_ad3b5f5bd7636e 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "413b0dac127f3b5eb90a398cee0a967c58163c47",
+  "prompts": {},
+  "sessions": {
+    "s_55cb7c48306eca": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd339a0c-e25c-4988-b552-a09e203c0ccf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
