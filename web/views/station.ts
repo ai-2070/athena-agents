@@ -2588,7 +2588,8 @@ function drawHud(): void {
     const ok = c.status === 'connected';
     tiles.push({ key: `cc:${c.name}`, int: `cc:${c.name}`, glyph: logo(c.name, 14) || look.glyph, color: look.color, on: ok, title: `${c.name} · Claude account connector · ${ok ? 'connected' : c.status === 'needs-auth' ? 'needs sign-in (run /mcp in Claude Code)' : c.detail}`, onclick: () => navigate('#/settings?tab=mcp') });
   }
-  for (const it of ints) tiles.push({ key: it.id, int: it.id, glyph: mark(it.id), color: it.color, on: it.live, title: `${it.label} · ${it.live ? 'ready' : 'installed, not running'}`, onclick: () => choose({ type: 'int', id: it.id }) });
+  // Claude and Hermes already have their own engine tiles on the right.
+  for (const it of ints) if (it.id !== 'claude' && it.id !== 'hermes') tiles.push({ key: it.id, int: it.id, glyph: mark(it.id), color: it.color, on: it.live, title: `${it.label} · ${it.live ? 'ready' : 'installed, not running'}`, onclick: () => choose({ type: 'int', id: it.id }) });
   const missing = [
     !d.accounts.x.length && { glyph: logo('x', 13) || '𝕏', title: 'X · not connected (Connections)', href: '#/settings?tab=connections' },
     !d.accounts.telegram.configured && { glyph: logo('telegram', 13) || '✈', title: 'Telegram · not set up (Connections)', href: '#/settings?tab=connections' },
@@ -3040,7 +3041,9 @@ async function renderPanel(): Promise<void> {
   if (p.type === 'int') {
     const it = availableIntegrations(d, S.progs).find((x) => x.id === p.id) || ({ ...intInfo(p.id), live: false, missing: true } as AvailableIntegration);
     if (!it?.label) return choose(null);
-    const agentsUsing = d.agents.filter((a) => agentLinks(a).has(it.id));
+    // A team's own access reaches every member, so count those agents too (same rule as stepLinks).
+    const viaTeam = new Set(S.workflows.filter((w) => w.access && agentLinks({ toolGroups: w.access.toolGroups, mcpServers: w.access.mcpServers }).has(it.id)).flatMap((w) => w.members));
+    const agentsUsing = d.agents.filter((a) => agentLinks(a).has(it.id) || viaTeam.has(a.id));
     const branchesUsing = S.workflows.filter((w) => S!.branches.get(w.id)?.links.has(it.id));
     const prog = it.program;
     mount(

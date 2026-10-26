@@ -5,6 +5,7 @@ import path from 'node:path';
 import { HOME, dataPath, exists, listDirs, listFiles, parseFrontmatter, readJSON, run, slugify, uid, ensureDir } from './util.ts';
 import { agents, getSettings, log } from './store.ts';
 import { listProfiles } from './engines/hermes.ts';
+import { isEffort } from '../shared/effort.ts';
 import type { Agent } from '../shared/types.ts';
 
 /** An agent in The Agency library (not hired yet). */
@@ -137,6 +138,7 @@ export function newAgent(fields: Partial<Agent> = {}): Agent {
     knowledge: { folders: fields.knowledge?.folders || [] },
     workspace: fields.workspace || '',
     temperature: fields.temperature ?? '',
+    effort: isEffort(fields.effort) ? fields.effort : '',
     alwaysAllow: [], // grants stay with the agent they were given to, never copies
     skills: Array.isArray(fields.skills) ? fields.skills : [],
     source: fields.source || { type: 'custom' },

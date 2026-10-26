@@ -133,6 +133,15 @@ describe('backups', () => {
   });
 });
 
+describe('skills from plain words', () => {
+  it('asks for words or files before calling the Brain', async () => {
+    const r = await req('/api/assist/skill', { method: 'POST', headers: json, body: JSON.stringify({ text: '   ' }) });
+    expect(r.status).toBe(400);
+    expect((await r.json()).error).toMatch(/Say what the skill should do/);
+    expect((await req('/api/assist/skill', { method: 'POST', body: JSON.stringify({ text: 'x' }) })).status).toBe(403); // needs x-dash
+  });
+});
+
 describe('local-only security', () => {
   it('rejects requests for another host name (DNS rebinding)', async () => {
     const r = await new Promise<number>((resolve) => {
@@ -310,5 +319,89 @@ describe('agent runs and projects', () => {
     await send(`/api/versions/agent/${a.id}/undelete`, {});
     expect((await req(`/api/agents/${a.id}`)).ok).toBe(true);
     expect((await req('/api/versions/routine')).status).toBe(404);
+  });
+});
+
+describe('effort and favorite models', () => {
+  const send = async (p: string, body: unknown, method = 'POST') => (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
+
+  it('saves an effort level on an agent, and turns anything else into the default', async () => {
+    const a = await send('/api/agents', { name: 'Effortful', effort: 'high' });
+    expect(a.effort).toBe('high');
+    expect((await send(`/api/agents/${a.id}`, { effort: 'max' }, 'PUT')).effort).toBe('max');
+    expect((await send(`/api/agents/${a.id}`, { effort: 'warp' }, 'PUT')).effort).toBe('');
+  });
+
+  it('keeps favorite models in the settings', async () => {
+    const favoriteModels = [{ engine: 'claude-code', model: 'opus' }, { engine: 'openai', provider: 'openrouter', model: 'x/y' }];
+    expect((await send('/api/settings', { favoriteModels }, 'PUT')).favoriteModels).toEqual(favoriteModels);
+    expect((await (await req('/api/state')).json()).settings.favoriteModels).toEqual(favoriteModels);
+    expect((await send('/api/settings', { favoriteModels: [] }, 'PUT')).favoriteModels).toEqual([]);
+  });
+
+  it('sends a server on this PC its nearest effort level, and asks again without one if it says no', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    let refuse: false | 'http' | 'stream' | 'late' = false;
+    const model = http.createServer((rq, rs) => {
+      if (rq.url?.endsWith('/models')) return rs.end(JSON.stringify({ data: [{ id: 'mock' }] }));
+      let raw = '';
+      rq.on('data', (d) => (raw += d));
+      rq.on('end', () => {
+        const body = JSON.parse(raw) as Record<string, unknown>;
+        bodies.push(body);
+        if (refuse === 'http' && 'reasoning_effort' in body) {
+          rs.writeHead(400, { 'content-type': 'application/json' });
+          return rs.end(JSON.stringify({ error: { message: 'Unrecognized request argument supplied: reasoning_effort' } }));
+        }
+        if (refuse === 'stream' && 'reasoning_effort' in body) {
+          // a 200 whose stream carries the error (no HTTP status on it)
+          rs.writeHead(200, { 'content-type': 'text/event-stream' });
+          return rs.end(`data: ${JSON.stringify({ error: { message: 'reasoning_effort is not supported by this model' } })}\n\n`);
+        }
+        if (refuse === 'late' && 'reasoning_effort' in body) {
+          // part of the answer, then an error: never asked again (it would show twice)
+          rs.writeHead(200, { 'content-type': 'text/event-stream' });
+          return rs.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'half' } }] })}\n\ndata: ${JSON.stringify({ error: { message: 'reasoning budget exceeded' } })}\n\n`);
+        }
+        rs.writeHead(200, { 'content-type': 'text/event-stream' });
+        rs.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ok' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+      });
+    });
+    await new Promise<void>((r) => model.listen(0, '127.0.0.1', () => r()));
+    try {
+      await send('/api/settings', { providers: { custom: { baseUrl: `http://127.0.0.1:${(model.address() as { port: number }).port}/v1` } } }, 'PUT');
+      const agent = await send('/api/agents', { name: 'Thinker', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [], effort: 'max' });
+      const ask = async (text: string) => {
+        const chat = await send(`/api/agents/${agent.id}/chats`, {});
+        await send(`/api/agents/${agent.id}/chats/${chat.id}/messages`, { text });
+        for (let i = 0; i < 100; i++) {
+          const items = (await (await req(`/api/agents/${agent.id}/chats/${chat.id}`)).json()).items as { type: string }[];
+          if (items.some((x) => x.type === 'assistant' || x.type === 'error')) return items;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+        throw new Error('no answer');
+      };
+      await ask('think hard');
+      // max is more than an OpenAI-compatible server takes: it gets high
+      expect(bodies.at(-1)).toMatchObject({ reasoning_effort: 'high' });
+      expect(bodies.at(-1)).not.toHaveProperty('reasoning');
+
+      for (const how of ['http', 'stream'] as const) {
+        refuse = how;
+        bodies.length = 0;
+        const items = await ask(`again (${how})`);
+        expect(items.some((x) => x.type === 'assistant')).toBe(true);
+        expect(bodies).toHaveLength(2);
+        expect(bodies[1]).not.toHaveProperty('reasoning_effort');
+      }
+
+      refuse = 'late';
+      bodies.length = 0;
+      const items = await ask('late error');
+      expect(items.some((x) => x.type === 'error')).toBe(true);
+      expect(bodies).toHaveLength(1);
+    } finally {
+      await new Promise<void>((r) => model.close(() => r()));
+    }
   });
 });

@@ -286,7 +286,7 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
       it.preview ? h('img.att-thumb', { src: it.preview, alt: '' }) : h('span.att-ico', icon(it.kind === 'folder' ? 'folder' : 'file', 14)),
       h('span.att-name', it.name),
       h('span.att-meta', meta),
-      it.state === 'uploading' ? h('span.att-bar', { style: { '--p': `${pct}%` } }) : null,
+      it.state === 'uploading' ? h('span.att-bar', { style: { '--p': String(pct / 100) } }) : null,
       h('button.att-x', { type: 'button', title: 'Remove', 'aria-label': `Remove ${it.name}`, onclick: () => remove(it) }, icon('x', 12)),
     );
   };

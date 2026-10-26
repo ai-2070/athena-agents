@@ -4,6 +4,7 @@ import { skillPicker } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.ts';
 import type { Option } from '../core.ts';
 import type { ModelListing } from '../models.ts';
+import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import type { Agent, Autonomy, EngineStatus, Team, Terminal } from '../../shared/types.ts';
 
 /** GET /api/agents/:id: the agent plus its knowledge files and resolved workspace. */
@@ -139,6 +140,11 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
     }
   };
 
+  // A new engine or provider may not have the effort level: save the nearest one it has, the one the Effort field shows.
+  const fitEffort = () => {
+    if (a.effort) a.effort = effortFor(a.engine, a.effort, a.provider);
+  };
+
   // engine-dependent section
   const engineBox = h('div.col');
   const modelList = h('datalist#models');
@@ -187,7 +193,8 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
               a.provider || 'openrouter',
               (v) => {
                 set('provider')(v);
-                loadModels();
+                fitEffort(); // a server on this PC takes fewer effort levels
+                drawEngine();
               },
             ),
           ),
@@ -211,6 +218,13 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
         h('p.hint', 'Hermes uses its own tools. To give it the dashboard tools too, use "Give Hermes the dashboard tools" on the Tools & MCP page.'),
       );
     }
+    parts.push(
+      field(
+        'Effort',
+        select([{ value: '', label: "Model's default" }, ...effortLevels(a.engine, a.provider).map((e) => ({ value: e, label: EFFORT_NAMES[e] }))], effortFor(a.engine, a.effort, a.provider), (v) => set('effort')(v as Agent['effort'])),
+        'How hard the model thinks before it answers. More effort: better on hard work, but slower and uses more of your plan.',
+      ),
+    );
     mount(engineBox, parts);
     loadModels();
   };
@@ -317,6 +331,7 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
             (v) => {
               a.engine = v;
               a.model = v === 'claude-code' ? d.settings.defaults.claudeModel : v === 'openai' ? d.settings.defaults.openrouterModel : '';
+              fitEffort();
               mark();
               drawEngine();
             },

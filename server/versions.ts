@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { ensureDir, listFiles, readJSON, uid, writeJSON } from './util.ts';
+import { isEffort } from '../shared/effort.ts';
 
 /** Who made a change: you (the page, the API) or the Brain. */
 export type Actor = 'you' | 'brain';
@@ -159,6 +160,7 @@ export function cleanAgentVersion(item: Fields, id: string): Fields | null {
     ...Object.fromEntries(['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'autonomy', 'workspace', 'lastModel'].map((k) => [k, str])),
     ...Object.fromEntries(['toolGroups', 'mcpServers', 'alwaysAllow', 'skills'].map((k) => [k, strList])),
     temperature: (x) => (x === '' ? '' : num(x)),
+    effort: (x) => (x === '' || isEffort(x) ? x : undefined),
     pinned: bool,
     knowledge: (x) => {
       const k = obj(x);

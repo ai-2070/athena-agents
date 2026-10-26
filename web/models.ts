@@ -1,9 +1,11 @@
 // Model names with versions, and one picker used everywhere a model can be switched
-// (agents, the Brain chat, Settings): tabs for Claude Code, OpenRouter, Hermes and Codex.
+// (agents, the Brain chat, Settings): tabs for your favorites, Claude Code, OpenRouter, Hermes and Codex,
+// and how hard the model thinks (effort).
 import { h, mount, state, GET, PUT, attempt, refreshSoon, toast, navigate } from './core.ts';
 import { icon, logo } from './icons.ts';
 import { uiZoom } from './look.ts';
-import type { Agent, BrainSetting, EngineId, EngineStatus } from '../shared/types.ts';
+import { EFFORT_NAMES, effortFor, effortLevels } from '../shared/effort.ts';
+import type { Agent, BrainSetting, Effort, EngineId, EngineStatus, FavoriteModel } from '../shared/types.ts';
 import type { Child } from './core.ts';
 
 /** What modelInfo() needs: an agent, or the Brain dressed up as one (brainAsAgent). */
@@ -13,12 +15,17 @@ export interface ModelTarget {
   provider?: string;
   claudeAuth?: string;
   hermesProfile?: string;
+  effort?: Effort | '';
 }
-/** What the picker hands to apply(): the new engine and model (and provider for API models). */
-export interface ModelPatch {
+/** A model in the picker: its engine and model (and provider for API models). */
+export interface ModelChoice {
   engine: EngineId;
   model?: string;
   provider?: string;
+}
+/** What the picker hands to apply(): the model, and the effort for it ('' = the model's default). */
+export interface ModelPatch extends ModelChoice {
+  effort: Effort | '';
 }
 export interface ModelInfo {
   name: string;
@@ -36,7 +43,7 @@ export interface ModelListing {
   price?: { in: number; out: number } | null;
 }
 interface ModelTab {
-  engine: EngineId;
+  engine: EngineId | 'fav';
   label: string;
   brand: string | null;
   glyph?: string;
@@ -79,23 +86,58 @@ export function modelInfo(a: ModelTarget): ModelInfo {
 
 const chipIcon = (mi: ModelInfo, engine: string): SVGSVGElement | HTMLSpanElement => (mi.brand && logo(mi.brand, 13)) || (engine === 'hermes' ? h('span.model-glyph', '☤') : icon('cpu', 13));
 
+/** The effort a target runs at, as its engine takes it ('' = the model's default). */
+export const effortOf = (a: ModelTarget): Effort | '' => effortFor(a.engine, a.effort, a.provider);
+const effortTag = (a: ModelTarget) => {
+  const e = effortOf(a);
+  return e ? h('span.model-effort-tag', { title: `Effort: ${EFFORT_NAMES[e]}` }, EFFORT_NAMES[e]) : null;
+};
+/** "Claude Opus 5.5" or "Claude Opus 5.5 (high effort)" */
+const withEffort = (a: ModelTarget) => {
+  const e = effortOf(a);
+  return `${modelInfo(a).name}${e ? ` (${EFFORT_NAMES[e].toLowerCase()} effort)` : ''}`;
+};
+const sameModel = (a: ModelChoice, b: ModelChoice) => a.engine === b.engine && String(a.model || '') === String(b.model || '') && (a.engine !== 'openai' || (a.provider || 'openrouter') === (b.provider || 'openrouter'));
+
+// ---------- favorites (Settings: favoriteModels) ----------
+const ENGINES: EngineId[] = ['claude-code', 'openai', 'hermes', 'codex'];
+export function favoriteModels(): FavoriteModel[] {
+  const list = state.data?.settings?.favoriteModels;
+  return Array.isArray(list) ? list.filter((f) => f && ENGINES.includes(f.engine) && typeof f.model === 'string') : [];
+}
+export const isFavorite = (m: ModelChoice) => favoriteModels().some((f) => sameModel(f, m));
+/** Star or unstar a model. Saved in Settings, so every picker shows it. */
+export async function toggleFavorite(m: ModelChoice): Promise<boolean> {
+  const before = favoriteModels();
+  const on = !before.some((f) => sameModel(f, m));
+  const fav: FavoriteModel = { engine: m.engine, model: m.model || '', ...(m.engine === 'openai' ? { provider: m.provider || 'openrouter' } : {}) };
+  const list = on ? [...before, fav] : before.filter((f) => !sameModel(f, m));
+  if (state.data?.settings) state.data.settings.favoriteModels = list;
+  const r = await attempt(() => PUT('/settings', { favoriteModels: list }));
+  if (!r && state.data?.settings) state.data.settings.favoriteModels = before;
+  return r ? on : !on;
+}
+
 // A chip showing an agent's model; click it to switch (model or what it runs on).
 export function modelChip(agent: Agent, { onChange, compact = false }: { onChange?: (agent: Agent) => void; compact?: boolean } = {}): HTMLButtonElement {
   const chip = h('button.model-chip', { type: 'button', title: 'Switch model' });
   const draw = () => {
     const mi = modelInfo(agent);
-    mount(chip, chipIcon(mi, agent.engine), h('span', mi.short), mi.latest && !compact ? h('span.model-latest', 'latest') : null, icon('chevron-down', 12));
+    mount(chip, chipIcon(mi, agent.engine), h('span', mi.short), effortTag(agent), mi.latest && !compact ? h('span.model-latest', 'latest') : null, icon('chevron-down', 12));
   };
   chip.addEventListener('click', (e) => {
     e.stopPropagation();
     openModelPicker(chip, agent, async (patch) => {
+      const sameOne = sameModel(agent, patch);
       const r = await attempt(() => PUT<Agent>(`/agents/${agent.id}`, patch));
-      if (!r) return;
+      if (!r) return false;
       Object.assign(agent, patch);
       draw();
       refreshSoon(0);
-      toast(`${agent.name} now uses ${modelInfo(agent).name}`);
+      const e = effortOf(agent);
+      toast(sameOne ? `${agent.name} now thinks at ${e ? `${EFFORT_NAMES[e].toLowerCase()} effort` : "the model's default effort"}` : `${agent.name} now uses ${withEffort(agent)}`);
       onChange?.(agent);
+      return true;
     }, { title: agent.name, local: true });
   });
   draw();
@@ -106,28 +148,31 @@ export function modelChip(agent: Agent, { onChange, compact = false }: { onChang
 // settings.brain = { provider: 'claude' | 'openrouter' | 'hermes' | 'codex', model }
 const BRAIN_ENGINE: Record<string, EngineId | undefined> = { claude: 'claude-code', openrouter: 'openai', hermes: 'hermes', codex: 'codex' };
 const BRAIN_PROVIDER: Record<string, BrainSetting['provider'] | undefined> = { 'claude-code': 'claude', openai: 'openrouter', hermes: 'hermes', codex: 'codex' };
-export function brainAsAgent(b: { provider?: string; model?: string } | null | undefined = state.data?.settings?.brain): ModelTarget & { model: string; provider: string } {
+export function brainAsAgent(b: { provider?: string; model?: string; effort?: Effort | '' } | null | undefined = state.data?.settings?.brain): ModelTarget & { model: string; provider: string } {
   const p = b?.provider || 'claude';
-  return { engine: BRAIN_ENGINE[p] || 'claude-code', model: b?.model ?? 'haiku', provider: 'openrouter' };
+  return { engine: BRAIN_ENGINE[p] || 'claude-code', model: b?.model ?? 'haiku', provider: 'openrouter', effort: b?.effort || '' };
 }
 export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: (brain: BrainSetting) => void; prefix?: string } = {}): HTMLButtonElement {
   const chip = h('button.model-chip', { type: 'button', title: "The Brain's model: answers about the project, builds teams and agents, hands out work" });
   const draw = () => {
     const a = brainAsAgent();
     const mi = modelInfo(a);
-    mount(chip, chipIcon(mi, a.engine), h('span', `${prefix}${mi.short}`), icon('chevron-down', 12));
+    mount(chip, chipIcon(mi, a.engine), h('span', `${prefix}${mi.short}`), effortTag(a), icon('chevron-down', 12));
   };
   chip.addEventListener('click', (e) => {
     e.stopPropagation();
     openModelPicker(chip, brainAsAgent(), async (patch) => {
-      const brain: BrainSetting = { provider: BRAIN_PROVIDER[patch.engine] || 'claude', model: patch.model ?? '' };
+      const sameOne = sameModel(brainAsAgent(), patch);
+      const brain: BrainSetting = { provider: BRAIN_PROVIDER[patch.engine] || 'claude', model: patch.model ?? '', effort: patch.effort };
       const r = await attempt(() => PUT('/settings', { brain }));
-      if (!r) return;
+      if (!r) return false;
       if (state.data?.settings) state.data.settings.brain = brain;
       draw();
       refreshSoon(0);
-      toast(`The Brain now thinks with ${modelInfo(brainAsAgent(brain)).name}`);
+      const e = effortOf(brainAsAgent(brain));
+      toast(sameOne ? `The Brain now thinks at ${e ? `${EFFORT_NAMES[e].toLowerCase()} effort` : "the model's default effort"}` : `The Brain now thinks with ${withEffort(brainAsAgent(brain))}`);
       onChange?.(brain);
+      return true;
     }, { title: "The Brain's model", local: false });
   });
   draw();
@@ -135,7 +180,10 @@ export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: 
 }
 
 // ---------- the picker ----------
-// cur: { engine, model, provider }. apply(patch) gets { engine, model, provider? }.
+// cur: { engine, model, provider, effort }. apply(patch) gets { engine, model, provider?, effort }.
+// Picking a model closes the picker; changing the effort of the model in use applies it at once and keeps it open
+// (apply returns, or resolves to, false when that failed: the row goes back to what it was).
+// local: offer models on this PC (LM Studio, Ollama, a custom server); the Brain can't use them.
 export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch: ModelPatch) => unknown, { title = 'Model', local = true }: { title?: string; local?: boolean } = {}): void {
   document.querySelector('.model-menu')?.remove();
   const r = anchor.getBoundingClientRect();
@@ -145,24 +193,103 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
     document.removeEventListener('pointerdown', outside, true);
   };
   const outside = (e: PointerEvent) => !menu.contains(e.target as Node | null) && close();
-  let tab: EngineId = TABS.some((t) => t.engine === cur.engine) ? cur.engine : 'claude-code';
+  // the effort asked for (kept as asked: each engine sends its nearest level)
+  let effort: Effort | '' = effortOf(cur);
+  // favorites this picker can use (without local servers, only OpenRouter's API models)
+  const favs = () => favoriteModels().filter((f) => local || f.engine !== 'openai' || (f.provider || 'openrouter') === 'openrouter');
+  let tab: EngineId | 'fav' = favs().length ? 'fav' : TABS.some((t) => t.engine === cur.engine) ? cur.engine : 'claude-code';
+  // the engine the effort row is for: on Favorites, the one in use
+  const tabEngine = (): EngineId => (tab === 'fav' ? cur.engine : tab);
   const body = h('div.model-body');
-  const pick = (patch: ModelPatch) => (close(), apply(patch));
-  const row = (label: string, sub: string | null, active: boolean, patch: ModelPatch, brand: string | null = null) =>
-    h(`button.st-menu-item${active ? '.on' : ''}`, { onclick: () => pick(patch) }, active ? icon('check', 15) : (brand && logo(brand, 14)) || icon('cpu', 15), h('span.grow', label, sub ? h('span.model-sub', sub) : null));
-  const free = (placeholder: string, toPatch: (model: string) => ModelPatch) => {
+  const effortBox = h('div.model-effort');
+  const pick = (choice: ModelChoice) => (close(), apply({ ...choice, effort: effortFor(choice.engine, effort, choice.provider) }));
+  const star = (choice: ModelChoice) => {
+    const btn = h('button.model-fav', { type: 'button' });
+    const draw = (on: boolean) => {
+      btn.classList.toggle('on', on);
+      btn.title = on ? 'Remove from favorites' : 'Add to favorites';
+      btn.setAttribute('aria-label', btn.title);
+      btn.setAttribute('aria-pressed', String(on));
+      mount(btn, icon('star', 14));
+    };
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const on = await toggleFavorite(choice);
+      draw(on);
+      drawTabs();
+      // on Favorites the list itself changes (and with none left, back to the engine in use)
+      if (tab === 'fav') {
+        if (!favs().length) tab = TABS.some((t) => t.engine === cur.engine) ? cur.engine : 'claude-code';
+        drawTabs();
+        drawEffort();
+        drawBody();
+      }
+    });
+    draw(isFavorite(choice));
+    return btn;
+  };
+  const row = (label: string, sub: string | null, active: boolean, choice: ModelChoice, brand: string | null = null) =>
+    h(
+      'div.model-row',
+      h(`button.st-menu-item${active ? '.on' : ''}`, { type: 'button', onclick: () => pick(choice) }, active ? icon('check', 15) : (brand && logo(brand, 14)) || icon('cpu', 15), h('span.grow', label, sub ? h('span.model-sub', sub) : null)),
+      star(choice),
+    );
+  const free = (placeholder: string, toChoice: (model: string) => ModelChoice) => {
     const input = h('input.model-search', { placeholder });
-    input.addEventListener('keydown', (e) => e.key === 'Enter' && input.value.trim() && pick(toPatch(input.value.trim())));
+    input.addEventListener('keydown', (e) => e.key === 'Enter' && input.value.trim() && pick(toChoice(input.value.trim())));
     return input;
   };
   const missing = (text: string, settingsFind: string) =>
     h('div.model-missing', icon('triangle-alert', 14), h('span.grow', text), h('button.btn.tiny', { onclick: () => (close(), navigate(`#/settings?tab=general&find=${encodeURIComponent(settingsFind)}`)) }, 'Set up'));
   const same = (engine: EngineId, model: string) => cur.engine === engine && String(cur.model || '') === model;
 
+  // Effort: the levels the tab's engine takes, and the model's own default.
+  const SHORT: Record<Effort, string> = { minimal: 'Min', low: 'Low', medium: 'Med', high: 'High', xhigh: 'X-High', max: 'Max' };
+  const drawEffort = () => {
+    const engine = tabEngine();
+    const provider = engine === 'openai' ? (tab === 'fav' || cur.engine === 'openai' ? cur.provider : 'openrouter') : undefined;
+    const shown = effortFor(engine, effort, provider);
+    const live = engine === cur.engine;
+    const level = (value: Effort | '') =>
+      h(
+        `button.model-effort-level${shown === value ? '.on' : ''}`,
+        {
+          type: 'button',
+          title: value ? `${EFFORT_NAMES[value]} effort` : "The model's own default",
+          'aria-pressed': String(shown === value),
+          onclick: async (e: MouseEvent) => {
+            e.stopPropagation();
+            const before = effort;
+            effort = value;
+            drawEffort();
+            if (!live) return;
+            // the model in use: change its effort now (the picker stays open); not saved: back to what it was
+            const ok = await apply({ engine: cur.engine, model: cur.model ?? '', ...(cur.engine === 'openai' ? { provider: cur.provider } : {}), effort: effortFor(cur.engine, value, cur.provider) });
+            if (ok === false && effort === value) {
+              effort = before;
+              drawEffort();
+            }
+          },
+        },
+        value ? SHORT[value] : 'Default',
+      );
+    mount(
+      effortBox,
+      h('div.model-effort-head', icon('gauge', 13), h('span', 'Effort'), h('span.model-effort-note', live ? 'how hard it thinks' : 'for the model you pick here')),
+      h('div.model-effort-levels', { role: 'group', 'aria-label': 'Effort' }, level(''), effortLevels(engine, provider).map(level)),
+    );
+  };
+
   const drawBody = () => {
     const eng: Partial<EngineStatus> = state.data?.engines || {};
     const items: Child[] = [];
-    if (tab === 'claude-code') {
+    if (tab === 'fav') {
+      items.push(h('div.st-menu-head', 'Favorites'));
+      for (const f of favs()) {
+        const mi = modelInfo(f);
+        items.push(row(mi.name || f.model, mi.where, sameModel(cur, f), f, mi.brand));
+      }
+    } else if (tab === 'claude-code') {
       if (eng['claude-code'] && !eng['claude-code'].installed) items.push(missing('Claude Code is not installed on this PC.', 'Claude Code'));
       items.push(h('div.st-menu-head', 'Always the newest'));
       for (const c of CLAUDE) items.push(row(`${c.family} (latest)`, `now ${c.version} · ${c.note}`, same('claude-code', c.alias), { engine: 'claude-code', model: c.alias }, 'claude'));
@@ -223,27 +350,31 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   };
 
   const tabs = h('div.model-tabs');
-  const drawTabs = (): HTMLDivElement =>
-    mount(
+  const drawTabs = (): HTMLDivElement => {
+    const shown: ModelTab[] = favs().length ? [{ engine: 'fav', label: 'Favorites', brand: null }, ...TABS] : TABS;
+    tabs.style.gridTemplateColumns = `repeat(${shown.length}, 1fr)`;
+    return mount(
       tabs,
-      TABS.map((t) =>
+      shown.map((t) =>
         h(
           `button.model-tab${tab === t.engine ? '.on' : ''}${cur.engine === t.engine ? '.cur' : ''}`,
-          { type: 'button', title: cur.engine === t.engine ? `${t.label} (in use)` : t.label, onclick: (e) => (e.stopPropagation(), (tab = t.engine), drawTabs(), drawBody()) },
-          (t.brand && logo(t.brand, 13)) || h('span.model-glyph', t.glyph || '•'),
+          { type: 'button', title: cur.engine === t.engine ? `${t.label} (in use)` : t.label, onclick: (e) => (e.stopPropagation(), (tab = t.engine), drawTabs(), drawEffort(), drawBody()) },
+          t.engine === 'fav' ? icon('star', 13) : (t.brand && logo(t.brand, 13)) || h('span.model-glyph', t.glyph || '•'),
           h('span', t.label),
         ),
       ),
     );
+  };
   drawTabs();
+  drawEffort();
   drawBody();
-  mount(menu, h('div.st-menu-head', title), tabs, body);
+  mount(menu, h('div.st-menu-head', title), tabs, effortBox, body);
   document.body.append(menu);
   const z = uiZoom();
   const W = window.innerWidth / z;
   const H = window.innerHeight / z;
   const R = { left: r.left / z, top: r.top / z, bottom: r.bottom / z };
-  const height = Math.min(520, menu.offsetHeight || 420);
+  const height = Math.min(600, menu.offsetHeight || 480);
   const below = R.bottom + 6 + height < H - 10;
   Object.assign(menu.style, { position: 'fixed', left: `${Math.max(10, Math.min(R.left, W - 330))}px`, top: `${below ? R.bottom + 6 : Math.max(10, R.top - 6 - height)}px`, transform: 'none', zIndex: 95 });
   setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);

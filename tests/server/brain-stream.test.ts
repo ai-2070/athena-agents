@@ -48,6 +48,17 @@ describe('think() with onPart', () => {
     ]);
   });
 
+  it('streamed too, an answer cut off at the length limit is no answer', async () => {
+    setSecret('openrouterKey', 'sk-or-test');
+    saveSettings({ brain: { provider: 'openrouter', model: 'mock' } });
+    vi.stubGlobal('fetch', async () => {
+      const enc = new TextEncoder();
+      const body = `data: ${JSON.stringify({ choices: [{ delta: { content: '{"half": ' } }] })}\n\ndata: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'length' }] })}\n\n`;
+      return new Response(new ReadableStream({ start: (c) => (c.enqueue(enc.encode(body)), c.close()) }), { status: 200 });
+    });
+    await expect(think('system', 'user', { onPart: () => {} })).rejects.toThrow(/cut off/);
+  });
+
   it('without onPart nothing changes: one answer, not a stream', async () => {
     setSecret('openrouterKey', 'sk-or-test');
     saveSettings({ brain: { provider: 'openrouter', model: 'mock' } });

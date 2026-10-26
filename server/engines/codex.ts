@@ -6,6 +6,7 @@ import { which, spawnCommand, killTree, run as runCmd, ROOT, PORT, dataPath, ens
 import { internalToken } from '../store.ts';
 import { listServers } from '../mcp.ts';
 import { workspaceOf } from '../tools.ts';
+import { effortFor } from '../../shared/effort.ts';
 import type { Agent } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 
@@ -83,6 +84,8 @@ export function codexArgs(agent: Agent, { runId = '', interactive = false, promp
   const args: string[] = interactive ? [] : ['exec', '--json', '--skip-git-repo-check'];
   args.push('-C', workspaceOf(agent));
   if (agent.model) args.push('-m', agent.model);
+  const effort = effortFor('codex', agent.effort);
+  if (effort) args.push('-c', `model_reasoning_effort=${tstr(effort)}`);
   if (promptFile) args.push('-c', `developer_instructions=${tstr(`Your agent instructions are in ${promptFile}. Read that file before anything else and follow it for this whole session.`)}`);
   // the dashboard's own tools, plus the agent's MCP servers
   const bridge = { DASH_PORT: String(PORT), DASH_TOKEN: internalToken(), DASH_AGENT: agent.id, ...(runId ? { DASH_RUN: runId } : {}) };

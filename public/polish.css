@@ -297,6 +297,22 @@ body.in-chat .dock-launcher { display: none; }
 .model-tab.cur::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .model-glyph { font-size: 13px; line-height: 13px; }
 .model-body { max-height: 380px; overflow-y: auto; }
+.model-row { display: flex; align-items: center; gap: 2px; }
+.model-row > .st-menu-item { flex: 1; min-width: 0; }
+.model-fav { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-right: 2px; border: 0; border-radius: 6px; background: none; color: var(--faint); cursor: pointer; opacity: 0; transition: opacity .15s, color .15s, background .15s; }
+.model-row:hover .model-fav, .model-fav:focus-visible, .model-fav.on { opacity: 1; }
+.model-fav:hover { color: var(--accent); background: var(--panel-2); }
+.model-fav.on { color: var(--accent); }
+.model-fav.on .ico-svg { fill: currentColor; }
+@media (hover: none) { .model-fav { opacity: 1; } }
+.model-effort { padding: 0 6px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.model-effort-head { display: flex; align-items: center; gap: 6px; padding: 0 4px 5px; font: 600 11px var(--sans, inherit); color: var(--dim); }
+.model-effort-note { margin-left: auto; font-weight: 400; color: var(--faint); }
+.model-effort-levels { display: flex; gap: 3px; }
+.model-effort-level { flex: 1; min-width: 0; padding: 5px 2px; border: 1px solid var(--line); border-radius: 7px; background: none; color: var(--dim); font: 500 11px var(--sans, inherit); cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s, background .15s; }
+.model-effort-level:hover { color: var(--ink); border-color: var(--line-2); }
+.model-effort-level.on { border-color: var(--accent); color: var(--ink); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.model-effort-tag { font: 600 10px var(--sans, inherit); color: var(--accent); border: 1px solid var(--accent-dim); border-radius: 999px; padding: 0 6px; line-height: 15px; }
 .model-missing { display: flex; align-items: center; gap: 8px; margin: 0 6px 6px; padding: 7px 9px; border-radius: 8px; font-size: 12px; color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent); }
 
 /* Tab strips: scroll sideways on small screens, never show a scrollbar */
@@ -422,6 +438,12 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .skill-use.proj { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
 .skill-use.team { color: var(--ink); border-color: color-mix(in srgb, var(--c) 55%, var(--line)); background: color-mix(in srgb, var(--c) 14%, transparent); }
 .skill-foot { display: flex; align-items: center; gap: 6px; margin-top: auto; }
+.skill-ask { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--accent) 5%, var(--panel)); }
+.skill-ask .label { display: flex; align-items: center; gap: 6px; color: var(--accent); }
+.skill-ask-input { resize: vertical; min-height: 52px; }
+.skill-ask.busy ~ label.field input, .skill-ask.busy ~ label.field textarea { opacity: .55; cursor: progress; }
+.skill-ask .row .hint { overflow-wrap: anywhere; }
+.skill-ask > .hint { margin: 0; }
 .skill-files { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .preset-members { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0; }
 .preset-card .avatar { color: #fff; }
@@ -514,7 +536,8 @@ details.compaction.small .cmp-text { max-height: 260px; }
 .att-thumb { width: 22px; height: 22px; object-fit: cover; border-radius: 4px; flex: none; }
 .att-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .att-meta { color: var(--faint); font: 10.5px var(--mono); white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
-.att-bar { position: absolute; left: 0; bottom: 0; height: 2px; width: var(--p, 0%); background: var(--accent); transition: width .15s linear; }
+/* upload progress: scaled, not resized (no layout work while it fills) */
+.att-bar { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; transform: scaleX(var(--p, 0)); transform-origin: left center; background: var(--accent); transition: transform .15s linear; }
 .att-x { display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--dim); cursor: pointer; flex: none; }
 .att-x:hover { color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); }
 /* on a sent message */

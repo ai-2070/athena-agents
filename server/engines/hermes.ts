@@ -2,6 +2,7 @@
 // Hermes brings its own tools, memory and skills from the chosen profile.
 import { which, spawnCommand, killTree, run as runCmd } from '../util.ts';
 import { workspaceOf } from '../tools.ts';
+import { effortFor } from '../../shared/effort.ts';
 import type { Agent, EngineStatus } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 
@@ -58,6 +59,8 @@ export function hermesArgs(agent: Agent, { interactive = false }: { interactive?
   args.push('chat');
   if (!interactive) args.push('--query-file', '-', '--format', 'stream-json');
   if (agent.model) args.push('-m', agent.model);
+  const effort = effortFor('hermes', agent.effort);
+  if (effort) args.push('--reasoning', effort);
   if (agent.autonomy === 'full') args.push('--yolo');
   return args;
 }

@@ -464,4 +464,62 @@ describe('auto-save into the project folder', () => {
     sync.restoreInto(p.id, dir);
     expect(fs.existsSync(dataPath('projects', p.id, 'teamchats', 'stolen.json'))).toBe(false);
   });
+
+  it.runIf(linksWork)('never saves through a link in the data folder (keys or files elsewhere on the PC)', async () => {
+    setSecret('openrouterKey', 'sk-or-v1-autosave-link-sentinel-9191');
+    const outside = path.join(os.homedir(), 'private-notes');
+    fs.mkdirSync(outside, { recursive: true });
+    fs.writeFileSync(path.join(outside, 'diary.md'), 'outside-sentinel-3131');
+    const p = await createProject({ name: 'Links in data', mode: 'new', folder: folder('links-in-data') });
+    const a = newAgent({ name: 'Plain' });
+    const pd = (...x: string[]) => dataPath('projects', p.id, ...x);
+    // a knowledge file saved first: it must go once knowledge/ turns into a link
+    fs.mkdirSync(pd('knowledge', a.id), { recursive: true });
+    fs.writeFileSync(pd('knowledge', a.id, 'brief.md'), 'fine');
+    sync.saveProject(p.id);
+    const out = path.join(p.brainPath, '.dashboard');
+    expect(fs.existsSync(path.join(out, 'knowledge', a.id, 'brief.md'))).toBe(true);
+
+    for (const sub of ['agents', 'workflows', 'routines', 'teamchats']) {
+      fs.mkdirSync(pd(sub), { recursive: true });
+      fs.symlinkSync(dataPath('secrets.json'), pd(sub, 'leak.json'));
+    }
+    fs.symlinkSync(dataPath('secrets.json'), pd('layout.json'));
+    fs.symlinkSync(dataPath('secrets.json'), pd('brain-chat.json'));
+    fs.rmSync(pd('knowledge'), { recursive: true });
+    fs.symlinkSync(outside, pd('knowledge'));
+    fs.mkdirSync(pd('chats'), { recursive: true });
+    fs.symlinkSync(outside, pd('chats', 'linked-agent'));
+
+    const st = sync.saveProject(p.id);
+    expect(st?.error).toBeUndefined();
+    expect(st).toMatchObject({ agents: 1 });
+    const text = allText(out);
+    expect(text).not.toContain('autosave-link-sentinel');
+    expect(text).not.toContain('outside-sentinel');
+    expect(fs.existsSync(path.join(out, 'knowledge', a.id, 'brief.md'))).toBe(false);
+    expect(fs.existsSync(path.join(out, 'teamchats', 'leak.json'))).toBe(false);
+    const saved = JSON.parse(fs.readFileSync(path.join(out, 'project.json'), 'utf8'));
+    expect(saved.layout).toEqual({});
+    expect(saved.brainChat).toEqual({ messages: [] });
+    // and the folder the link pointed at is untouched
+    expect(fs.readFileSync(path.join(outside, 'diary.md'), 'utf8')).toBe('outside-sentinel-3131');
+  });
+
+  it.runIf(linksWork)('never saves from a data folder that is itself a link (agents/, teamchats/ -> elsewhere)', async () => {
+    const elsewhere = path.join(os.homedir(), 'elsewhere-json');
+    fs.mkdirSync(path.join(elsewhere, 'agent-dir'), { recursive: true });
+    fs.writeFileSync(path.join(elsewhere, 'stolen.json'), JSON.stringify({ id: 'stolen', name: 'Stolen', token: 'folder-link-sentinel-4242', members: [], mentions: [] }));
+    const p = await createProject({ name: 'Linked folders', mode: 'new', folder: folder('linked-folders') });
+    const pd = (...x: string[]) => dataPath('projects', p.id, ...x);
+    for (const sub of ['agents', 'workflows', 'routines', 'teamchats']) {
+      fs.rmSync(pd(sub), { recursive: true, force: true });
+      fs.mkdirSync(pd(), { recursive: true });
+      fs.symlinkSync(elsewhere, pd(sub));
+    }
+    const st = sync.saveProject(p.id);
+    expect(st?.error).toBeUndefined();
+    expect(st).toMatchObject({ agents: 0, teams: 0 });
+    expect(allText(path.join(p.brainPath, '.dashboard'))).not.toContain('folder-link-sentinel');
+  });
 });
