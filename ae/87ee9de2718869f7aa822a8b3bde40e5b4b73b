@@ -1,0 +1,48 @@
+shared/types.ts
+  s_395c9c62b8d841::t_ddd1f1c9e20db1 622
+server/index.ts
+  s_395c9c62b8d841::t_def2141d52d2cb 16,495
+web/dock.ts
+  s_395c9c62b8d841::t_ddd1f1c9e20db1 398
+server/routines.ts
+  s_395c9c62b8d841::t_ddd1f1c9e20db1 198-200
+tests/server/brain-stop.test.ts
+  s_395c9c62b8d841::t_751e70661d001c 1-92
+tests/server/brain-models.test.ts
+  s_395c9c62b8d841::t_70432a05e65b32 167-168
+  s_395c9c62b8d841::t_705fc20582afb9 187-189
+  s_395c9c62b8d841::t_b016723ea2de2f 1-3,5-161,173-185,190-202
+  s_395c9c62b8d841::t_c07bb4dcfd8e46 4,162-166,169-172
+  s_395c9c62b8d841::t_411f6c953339c4 186
+server/overseer.ts
+  s_395c9c62b8d841::t_9072785d670f47 27-29,91-96,211,216,218
+  s_395c9c62b8d841::t_411f6c953339c4 209-210,212-215,217,242,369
+  s_395c9c62b8d841::t_ebe992bbd146bf 30,516,521-524,531,533
+  s_395c9c62b8d841::t_ddd1f1c9e20db1 6,11-13,20,368,397,408,540-587,749-758
+  s_395c9c62b8d841::t_9d56050e504805 395,398-401
+  s_395c9c62b8d841::t_659d8d73750a66 102-103,1111,1113-1114,1119-1120,1124,1141-1142
+  s_395c9c62b8d841::t_1a9f77991b08d0 467-515,517-520,525-530,532,534-539,588-593,748,759-809
+README.md
+  s_395c9c62b8d841::t_2b1d9f2a555e9c 41
+server/workflows.ts
+  s_395c9c62b8d841::t_ddd1f1c9e20db1 86-88
+server/models.ts
+  s_395c9c62b8d841::t_705fc20582afb9 129-140,182
+  s_395c9c62b8d841::t_f24caa6113cbea 1-128,141-181,183-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ae87ee9de2718869f7aa822a8b3bde40e5b4b73b",
+  "prompts": {},
+  "sessions": {
+    "s_395c9c62b8d841": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c824b2a4-4105-4b57-8952-85373c71ae2d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
