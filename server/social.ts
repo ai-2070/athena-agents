@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { dataPath, readJSON, writeJSON, fetchJSON, uid } from './util.ts';
 import { viewable, kindOf } from './files.ts';
+import { teamOf } from './artifacts.ts';
 import { getSettings, getSecrets, outbox as outboxStore, emit, log } from './store.ts';
 import * as reddit from './reddit.ts';
 import type { FetchError } from './util.ts';
@@ -47,6 +48,8 @@ export interface OutboxItem {
   status: OutboxPost['status'] | 'posting';
   agentId?: string | null;
   agentName?: string;
+  teamId?: string | null;
+  teamName?: string;
   note?: string;
   url?: string;
   to?: string;
@@ -70,6 +73,8 @@ export interface DraftInput {
   replyTo?: string | null;
   to?: string | null;
   agentId?: string | null;
+  /** The chat the agent is working in, to find its team. */
+  chatId?: string | null;
   agentName?: string;
   note?: string;
   subreddit?: string;
@@ -347,7 +352,9 @@ export function checkImages(platform: string, images: unknown): string[] {
   });
 }
 
-export async function draftPost({ platform = 'x', account, text, thread = null, images = null, replyTo = null, to = null, agentId = null, agentName = '', note = '', subreddit = '', title = '', link = '', parent = '' }: DraftInput): Promise<OutboxItem & { autoPosted?: boolean }> {
+export async function draftPost({ platform = 'x', account, text, thread = null, images = null, replyTo = null, to = null, agentId = null, chatId = null, agentName = '', note = '', subreddit = '', title = '', link = '', parent = '' }: DraftInput): Promise<OutboxItem & { autoPosted?: boolean }> {
+  const team = agentId ? teamOf(agentId, chatId) : null;
+  const teamFields = team ? { teamId: team.id, teamName: team.name } : {};
   // Reddit: a post (subreddit + title + text or link) or a comment (parent = post/comment id or URL)
   if (platform === 'reddit') {
     const acc = reddit.resolveRedditAccount(account);
@@ -366,7 +373,7 @@ export async function draftPost({ platform = 'x', account, text, thread = null, 
       if (!body && !link) throw new Error('Add the post text or a link.');
     }
     const label = isComment ? `u/${acc.username} · comment` : `u/${acc.username} → r/${sr}`;
-    const item = outbox.save({ id: uid('p'), platform: 'reddit', accountId: acc.id, accountLabel: label, parts: [body || link], reddit: { kind: isComment ? 'comment' : 'post', subreddit: sr, title: String(title).trim().slice(0, 300), link: link || '', parent: parentId }, agentId, agentName, note, status: 'pending' });
+    const item = outbox.save({ id: uid('p'), platform: 'reddit', accountId: acc.id, accountLabel: label, parts: [body || link], reddit: { kind: isComment ? 'comment' : 'post', subreddit: sr, title: String(title).trim().slice(0, 300), link: link || '', parent: parentId }, agentId, agentName, ...teamFields, note, status: 'pending' });
     log('social', `${agentName || 'You'} drafted a Reddit ${isComment ? 'comment' : 'post'} (${label})`, { agentId });
     if (acc.autopost) return { ...(await approvePost(item.id)), autoPosted: true };
     return item;
@@ -382,7 +389,7 @@ export async function draftPost({ platform = 'x', account, text, thread = null, 
     const body = parts.join('\n\n');
     if (body.length > 10000) throw new Error('DMs can be at most 10,000 characters.');
     const acc = resolveXAccount(account);
-    const item = outbox.save({ id: uid('p'), platform, accountId: acc.id, accountLabel: `@${acc.username} → DM @${handle}`, to: handle, parts: [body], agentId, agentName, note, status: 'pending' });
+    const item = outbox.save({ id: uid('p'), platform, accountId: acc.id, accountLabel: `@${acc.username} → DM @${handle}`, to: handle, parts: [body], agentId, agentName, ...teamFields, note, status: 'pending' });
     log('social', `${agentName || 'You'} drafted a DM to @${handle}`, { agentId });
     return item; // DMs always wait for you, even with auto-post on
   }
@@ -393,7 +400,7 @@ export async function draftPost({ platform = 'x', account, text, thread = null, 
     accountId = acc.id;
     accountLabel = `@${acc.username}`;
   }
-  const item = outbox.save({ id: uid('p'), platform, accountId, accountLabel, parts, ...(imagePaths.length ? { images: imagePaths } : {}), replyTo, agentId, agentName, note, status: 'pending' });
+  const item = outbox.save({ id: uid('p'), platform, accountId, accountLabel, parts, ...(imagePaths.length ? { images: imagePaths } : {}), replyTo, agentId, agentName, ...teamFields, note, status: 'pending' });
   log('social', `${agentName || 'You'} drafted a ${platform} post for ${accountLabel}`, { agentId });
   const acc = platform === 'x' ? loadAccounts().x[String(accountId)] : null;
   if (acc?.autopost) {
@@ -446,6 +453,28 @@ export async function approvePost(id: string, edits: ApproveEdits | null = null)
   } finally {
     publishing.delete(id);
   }
+  return outbox.save(item);
+}
+
+/**
+ * Send a draft back to the team that wrote it, with your feedback: it goes into their chat as a message to its author,
+ * and the draft leaves the Outbox as "sent back" (the author saves a new one once it is revised).
+ */
+export async function returnPost(id: string, feedback: string, send: (teamId: string, text: string) => Promise<unknown>): Promise<OutboxItem> {
+  const item = outbox.get(id);
+  if (!item) throw new Error('No such post.');
+  if (item.status !== 'pending' && item.status !== 'failed') throw new Error('Only a post that is waiting can be sent back.');
+  const note = String(feedback || '').trim();
+  if (!note) throw new Error('Say what should change first.');
+  const team = item.teamId ? { id: item.teamId, name: item.teamName || 'the team' } : item.agentId ? teamOf(item.agentId) : null;
+  if (!team) throw new Error("This draft isn't linked to a team, so there is nowhere to send it back to.");
+  const quoted = item.parts.map((t) => t.split('\n').map((l) => `> ${l}`).join('\n')).join('\n>\n');
+  const images = item.images?.length ? `\nImages with it: ${item.images.map((p) => path.basename(p)).join(', ')}` : '';
+  const who = item.agentName ? `@${item.agentName}` : 'Team';
+  const text = `${who}: I'm sending your ${item.platform} draft for ${item.accountLabel || item.platform} back for changes (Outbox id ${item.id}). It is out of the Outbox now.\n\nYour draft:\n${quoted}${images}\n\nMy feedback: ${note}\n\nPlease talk it through with me if something is unclear, and save a revised draft when it is ready.`;
+  await send(team.id, text);
+  Object.assign(item, { status: 'returned', reason: note, teamId: team.id, teamName: team.name });
+  log('social', `${item.accountLabel || item.platform} draft sent back to ${team.name}`, { agentId: item.agentId });
   return outbox.save(item);
 }
 

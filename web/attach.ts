@@ -1,4 +1,4 @@
-// Attaching files and folders: drop them on a chat (or the Brain on the map), or pick them with the
+// Attaching files and folders: drop or paste them on a chat (or the Brain on the map), or pick them with the
 // paperclip. They upload straight away into the project's Brain folder (uploads/…), and the message
 // then carries their paths. A tray shows each one as a chip with its progress.
 import { h, mount, POST, DEL, toast } from './core.ts';
@@ -68,7 +68,7 @@ export async function filesFromDrop(dt: DataTransfer): Promise<PickedFile[]> {
       }
     }
   };
-  if (!entries.some(Boolean)) return loose.filter((f) => !SKIP_FILES.test(f.name)).map((file) => ({ file, rel: file.name }));
+  if (!entries.some(Boolean)) return readable(loose.filter((f) => !SKIP_FILES.test(f.name)).map((file) => ({ file, rel: file.name })));
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i];
     if (e) await walk(e, '');
@@ -76,6 +76,57 @@ export async function filesFromDrop(dt: DataTransfer): Promise<PickedFile[]> {
   }
   if (capped) toast(`Only the first ${MAX_FILES} files were taken.`, 'warn');
   return out;
+}
+
+// Without folder entries a folder can come through as an empty, unreadable "file"; leave those out.
+async function readable(picked: PickedFile[]): Promise<PickedFile[]> {
+  const ok = await Promise.all(
+    picked.map((p) =>
+      p.file.size || p.file.type
+        ? true
+        : p.file
+            .slice(0, 1)
+            .arrayBuffer()
+            .then(() => true, () => false),
+    ),
+  );
+  const out = picked.filter((_, i) => ok[i]);
+  if (out.length < picked.length) toast('A folder couldn’t be read this way. Drop it, or pick it with the paperclip.', 'warn', 6000);
+  return out;
+}
+
+// A pasted screenshot has no name of its own ("image.png"): call it pasted-image.png, -2, -3…
+// Names are also kept apart, since two files with one name would turn into one chip.
+const GENERIC = /^(image|blob)?(\.\w+)?$/i;
+export function namePasted(picked: PickedFile[]): PickedFile[] {
+  const taken = new Set<string>();
+  return picked.map((p) => {
+    // files inside a folder already have names of their own
+    if (p.rel.includes('/')) return p;
+    let ext = p.rel.match(/\.\w+$/)?.[0] || '';
+    let base = p.rel.slice(0, p.rel.length - ext.length);
+    if (p.file.type.startsWith('image/') && GENERIC.test(p.rel)) {
+      base = 'pasted-image';
+      ext = (ext || `.${p.file.type.slice(6).replace(/\+.*/, '').replace('jpeg', 'jpg')}`).toLowerCase();
+    }
+    let rel = base + ext;
+    for (let i = 2; taken.has(rel.toLowerCase()); i++) rel = `${base}-${i}${ext}`;
+    taken.add(rel.toLowerCase());
+    return { file: p.file, rel };
+  });
+}
+
+// What a paste carries as attachments, or null when it is text to paste as usual.
+// Decided straight away (so the caller can stop the paste); the files themselves come after.
+// Copying from Word, Excel or a web page brings a picture of the text along: that stays text.
+export function filesFromPaste(dt: DataTransfer | null): Promise<PickedFile[]> | null {
+  if (!dt) return null;
+  const types = [...dt.types];
+  const count = [...dt.items].filter((i) => i.kind === 'file').length || dt.files.length;
+  if (!count) return null;
+  const text = types.includes('text/plain') ? dt.getData('text/plain').trim() : '';
+  if (types.includes('text/html') && text && !/^\S+:\/\/\S+$/.test(text)) return null;
+  return filesFromDrop(dt).then(namePasted);
 }
 
 // From an <input type=file> (a folder picker gives each file's path inside the folder).
@@ -220,7 +271,7 @@ export interface AttachTray {
   /** The paperclip, with a small Files / Folder menu. */
   picker: HTMLSpanElement;
   add: (picked: PickedFile[]) => void;
-  /** Make an element take dropped files; returns a function that stops it. */
+  /** Make an element take dropped and pasted files; returns a function that stops it. */
   dropZone: (el: HTMLElement, label?: string) => () => void;
   count: () => number;
   busy: () => boolean;
@@ -249,7 +300,7 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
   const outside = (e: PointerEvent) => !picker.contains(e.target as Node) && closeMenu();
   const btn = h('button.btn.ghost.small.att-btn', {
     type: 'button',
-    title: 'Attach files or a folder (or drop them here)',
+    title: 'Attach files or a folder (or drop or paste them here)',
     'aria-label': 'Attach files',
     onclick: () => {
       const open = menu.classList.toggle('hidden') === false;
@@ -373,16 +424,26 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
       show(false);
       void filesFromDrop(e.dataTransfer!).then(add);
     };
+    // Ctrl+V / ⌘V anywhere inside, the message box included; plain text pastes as usual
+    const paste = (e: ClipboardEvent) => {
+      if (e.defaultPrevented) return;
+      const files = filesFromPaste(e.clipboardData);
+      if (!files) return;
+      e.preventDefault();
+      void files.then(add);
+    };
     zone.addEventListener('dragenter', over);
     zone.addEventListener('dragover', over);
     zone.addEventListener('dragleave', leave);
     zone.addEventListener('drop', drop);
+    zone.addEventListener('paste', paste);
     return () => {
       show(false);
       zone.removeEventListener('dragenter', over);
       zone.removeEventListener('dragover', over);
       zone.removeEventListener('dragleave', leave);
       zone.removeEventListener('drop', drop);
+      zone.removeEventListener('paste', paste);
     };
   };
 

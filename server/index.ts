@@ -26,6 +26,7 @@ import { removeArtifact } from './artifacts.ts';
 import * as library from './library.ts';
 import { isEffort } from '../shared/effort.ts';
 import * as kb from './knowledge.ts';
+import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
 import * as terms from './terminals.ts';
 import * as status from './status.ts';
@@ -454,9 +455,23 @@ put<{ skills?: unknown }>('/api/brain/skills', async (_p, body) => ({ skills: sk
 post<{ name: string }>('/api/skills/import', async (_p, body) => skills.importClaudeSkill(body.name));
 post<{ url?: unknown }>('/api/skills/install', async (_p, body) => skillInstall.installFromGitHub(String(body.url || '')));
 
-// ---------- versions of skills, agents and teams ----------
+// ---------- MEMORY.md: each agent's and the Brain's ("brain") ----------
+const memoryOwner = (owner: string): string => {
+  if (owner !== memory.BRAIN && !agents.get(owner)) throw new HttpError(404, 'No agent by that id.');
+  return owner;
+};
+get('/api/memory/:owner', async ({ owner }) => memory.memoryInfo(memoryOwner(owner)));
+put<{ text?: unknown } | null>('/api/memory/:owner', async ({ owner }, body) => {
+  if (typeof body?.text !== 'string') throw new HttpError(400, 'Send the whole MEMORY.md as text.');
+  const before = memory.memoryStamp(memoryOwner(owner));
+  const m = memory.writeMemory(owner, body.text);
+  if (m.updatedAt !== Math.round(before)) log('memory', `You edited ${memory.memoryTitle(owner)}`, owner === memory.BRAIN ? {} : { agentId: owner });
+  return m;
+});
+
+// ---------- versions of skills, agents, teams and MEMORY.md files ----------
 const versionKind = (k: string): VersionKind => {
-  if (!history.isVersionKind(k)) throw new HttpError(404, 'Versions are kept for skills, agents and teams.');
+  if (!history.isVersionKind(k)) throw new HttpError(404, 'Versions are kept for skills, agents, teams and MEMORY.md files.');
   return k;
 };
 get('/api/versions/:kind', async ({ kind }) => history.deletedItems(versionKind(kind)));
@@ -649,6 +664,7 @@ del('/api/artifacts/:id', async ({ id }) => {
 get('/api/outbox', async () => outbox.list().sort((a, b) => b.createdAt! - a.createdAt!));
 post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, images: body.images, to: body.to, agentName: 'You' }));
 post<Parameters<typeof social.approvePost>[1]>('/api/outbox/:id/approve', async ({ id }, body) => social.approvePost(id, body));
+post<{ text?: string }>('/api/outbox/:id/discuss', async ({ id }, body) => social.returnPost(id, String(body.text || ''), (teamId, text) => teams.postUserMessage(teamId, text, { route: brain.pickMember })));
 post<{ reason?: string }>('/api/outbox/:id/reject', async ({ id }, body) => social.rejectPost(id, body.reason));
 put<{ parts?: string[]; images?: string[]; title?: string }>('/api/outbox/:id', async ({ id }, body) => {
   const it = need(outbox.get(id));
@@ -1039,6 +1055,7 @@ server.on('error', (e: NodeJS.ErrnoException) => {
   throw e;
 });
 
+store.migrateGlobalOutbox();
 server.listen(PORT, '127.0.0.1', () => {
   const url = `http://localhost:${PORT}`;
   console.log(`\n  My Dashboard is running at ${url}\n  Data folder: ${dataPath()}\n  Press Ctrl+C to stop.\n`);

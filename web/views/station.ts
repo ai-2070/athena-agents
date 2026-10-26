@@ -7,7 +7,7 @@ import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, appro
 import { openTerminal } from './agents.ts';
 import { openBranchBuilder } from '../builder.ts';
 import { openDock, attachToBrain } from '../dock.ts';
-import { filesFromDrop, hasFiles } from '../attach.ts';
+import { filesFromDrop, filesFromPaste, hasFiles } from '../attach.ts';
 import { uiZoom } from '../look.ts';
 import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.ts';
 import { skillPicker } from '../skillpick.ts';
@@ -380,6 +380,7 @@ interface StationState {
   teamLast: Record<string, TeamMessage | null | undefined>;
   onKey: (e: KeyboardEvent) => void;
   onDocDown: (e: PointerEvent) => void;
+  onPaste: (e: ClipboardEvent) => void;
   ro?: ResizeObserver;
   offState?: () => void;
   headTimer?: ReturnType<typeof setInterval>;
@@ -1010,6 +1011,7 @@ export function unmount(): void {
   clearInterval(S.usageTimer);
   window.removeEventListener('keydown', S.onKey);
   document.removeEventListener('pointerdown', S.onDocDown, true);
+  document.removeEventListener('paste', S.onPaste);
   S.renderer.dispose();
   S.scene.traverse((o: Disposable) => {
     o.geometry?.dispose?.();
@@ -1196,7 +1198,7 @@ function rebuild(): void {
     id: 'brain',
     obj: S.brain.group,
     offset: new THREE.Vector3(0, 9.5, 0),
-    el: h('div.st-brain-label', { onclick: () => choose({ type: 'brain' }), title: 'Click for the project Brain · drop files here to give them to it', ondragenter: brainDragOver, ondragover: brainDragOver, ondrop: brainDrop }, icon('brain', 14), 'THE BRAIN', h('span.st-brain-n', `${d.project?.name || ''} · ${wfs.length} team${wfs.length === 1 ? '' : 's'} · ${d.agents.length} agent${d.agents.length === 1 ? '' : 's'}`)),
+    el: h('div.st-brain-label', { onclick: () => choose({ type: 'brain' }), title: 'Click for the project Brain · drop files here (or paste them on the Station) to give them to it', ondragenter: brainDragOver, ondragover: brainDragOver, ondrop: brainDrop }, icon('brain', 14), 'THE BRAIN', h('span.st-brain-n', `${d.project?.name || ''} · ${wfs.length} team${wfs.length === 1 ? '' : 's'} · ${d.agents.length} agent${d.agents.length === 1 ? '' : 's'}`)),
   });
   // A branch added or removed: make sure the whole station still fits.
   const shape = `${wfs.length}:${bench.length}`;
@@ -2131,6 +2133,19 @@ function setupControls(): void {
     if (S?.menu && !S.menu.contains(e.target as Node)) closeMenu();
   };
   document.addEventListener('pointerdown', S.onDocDown, true);
+  // files pasted on the Station (not into a box, and not taken by a chat): they go to the Brain
+  S.onPaste = (e) => {
+    if (e.defaultPrevented || document.querySelector('.modal-back') || (e.target as Element).closest?.('input, textarea, select, [contenteditable]')) return;
+    const files = filesFromPaste(e.clipboardData);
+    if (!files) return;
+    e.preventDefault();
+    void files.then((picked) => {
+      if (!picked.length) return;
+      attachToBrain(picked);
+      pulseBrain();
+    });
+  };
+  document.addEventListener('paste', S.onPaste);
 }
 
 // ---------- files dropped on the Brain ----------

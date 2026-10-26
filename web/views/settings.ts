@@ -1,6 +1,7 @@
 // Settings: keys, defaults, local model servers, program paths, limits.
 import { h, mount, GET, POST, PUT, attempt, field, seg, select, toggleRow, toast, refreshSoon, state, navigate } from '../core.ts';
 import { brainModelChip } from '../models.ts';
+import { memoryButton, BRAIN } from '../memory.ts';
 import type { Child } from '../core.ts';
 import type { EngineStatus, SecretKey, SecretStatus, Settings, Terminal } from '../../shared/types.ts';
 
@@ -102,6 +103,7 @@ async function draw(): Promise<void> {
           h('div.panel-head', h('h2', "The Brain's model")),
           h('p.hint', 'The Brain oversees the project: it answers about the project and its files, builds teams and agents, writes PROJECT.md and hands work out. It can run on Claude Code, OpenRouter, Hermes or Codex. Claude Code and Codex can also open files in the project folder.'),
           h('div.row.mt', field('Model', brainModelChip({ prefix: '', onChange: (b) => (s.brain = b) }))),
+          h('div.row.mt', memoryButton(BRAIN, 'The Brain'), h('span.hint', 'What the Brain remembers across its conversations in this project. Read or change it any time.')),
           toggleRow(
             s.brainApproves !== false,
             async (on) => {

@@ -286,7 +286,7 @@ Look at the project folder and help me set it up: ask me what you need to know f
   };
   const createBtn = h('button.btn', { onclick: (e) => create(e.currentTarget) }, 'Create project');
   const kickoffRow = h('label.row', { style: { gap: '8px', cursor: 'pointer' } }, kickoff, h('span', 'Let the Brain set it up (PROJECT.md, teams and agents)'));
-  const filesRow = h('div', h('div.label', 'Files'), h('div.col.mt', { style: { gap: '8px' } }, tray.el, h('div.row', { style: { gap: '8px' } }, tray.picker, h('span.hint', 'Briefs, docs, assets: drop files or folders anywhere here. They go into the project folder and the Brain reads them.'))));
+  const filesRow = h('div', h('div.label', 'Files'), h('div.col.mt', { style: { gap: '8px' } }, tray.el, h('div.row', { style: { gap: '8px' } }, tray.picker, h('span.hint', 'Briefs, docs, assets: drop or paste files or folders anywhere here. They go into the project folder and the Brain reads them.'))));
   const modes = () =>
     seg(
       [

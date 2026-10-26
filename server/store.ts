@@ -292,7 +292,39 @@ export const workflows = collection<Team>('workflows', { versioned: true, ignore
 export const runs = collection<WorkflowRun>('runs');
 export const routines = collection<Routine>('routines');
 export const routineRuns = collection<RoutineRun>('routine-runs');
-export const outbox = collection<OutboxPost>('outbox', { global: true }); // one Outbox for every project
+export const outbox = collection<OutboxPost>('outbox'); // each project has its own Outbox
+
+/**
+ * The Outbox used to be one for every project (data/outbox). Moves what is left there into the project
+ * each post's author belongs to, or the open project when that agent is gone. Returns how many moved.
+ */
+export function migrateGlobalOutbox(): number {
+  const dir = dataPath('outbox');
+  let files: string[];
+  try {
+    files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'));
+  } catch {
+    return 0;
+  }
+  const projects = listProjects();
+  let moved = 0;
+  for (const f of files) {
+    const from = path.join(dir, f);
+    const post = readJSON<Partial<OutboxPost>>(from, {});
+    const owner = typeof post.agentId === 'string' && /^[\w-]+$/.test(post.agentId) ? projects.find((p) => exists(dataPath('projects', p.id, 'agents', `${post.agentId}.json`))) : undefined;
+    const to = path.join(ensureDir(dataPath('projects', owner?.id || activeProject().id, 'outbox')), f);
+    if (exists(to)) fs.rmSync(from, { force: true });
+    else fs.renameSync(from, to);
+    moved++;
+  }
+  try {
+    fs.rmdirSync(dir);
+  } catch {
+    /* not empty: leave it */
+  }
+  if (moved) emit('outbox');
+  return moved;
+}
 export const artifacts = collection<Artifact>('artifacts'); // what a project's teams finished
 
 // Chats are stored per agent: data/chats/<agentId>/<chatId>.json

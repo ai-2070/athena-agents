@@ -10,9 +10,12 @@ import * as comfy from './comfyui.ts';
 import * as social from './social.ts';
 import * as reddit from './reddit.ts';
 import * as kb from './knowledge.ts';
+import * as memory from './memory.ts';
+import { withActor } from './versions.ts';
 import { ensureBrain } from './projects.ts';
 import { uploadsRoot } from './uploads.ts';
 import * as skills from './skills.ts';
+import { findAgent } from '../shared/agentref.ts';
 import type { Agent, ToolGroup } from '../shared/types.ts';
 
 /** none: never asks. low: asks when autonomy is "ask". high: asks unless autonomy is "full". */
@@ -110,6 +113,8 @@ const RUNNABLE = /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|msi|msp
 // Programs that run whatever they are given.
 const INTERPRETERS = /^(cmd|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python\d*|py|node|bash|sh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget)(\.exe)?$/i;
 
+/** The chat a tool call runs in (to tell which team it is for). */
+const chatOf = async (ctx: ToolContext): Promise<string | null> => (await import('./engines/index.ts')).runInfo(ctx.runId)?.chatId ?? null;
 const str = (description: string): JSONSchema => ({ type: 'string', description });
 const obj = (properties: Record<string, JSONSchema>, required: string[] = []): JSONSchema => ({ type: 'object', properties, required });
 
@@ -151,9 +156,8 @@ const TOOLS: ToolDef[] = [
     description: 'Hand in a finished result that is not an outgoing post or email: a written answer, a file or a folder (a render, a report, a cut video). It appears in the Outbox page under Artifacts with who made it, which team it was for and when. Give either path (full path of a file or folder inside the project) or text (the result, in Markdown). Posts and emails go to the Outbox instead.',
     parameters: obj({ title: str('Short name for the result'), path: str('Full path of the file or folder'), text: str('The result itself, when it is text'), note: str('One line: what it is or how to use it') }, ['title']),
     run: async ({ title, path: target, text, note }: { title: string; path?: string; text?: string; note?: string }, ctx) => {
-      const { runInfo } = await import('./engines/index.ts');
       const { addArtifact } = await import('./artifacts.ts');
-      const a = addArtifact({ title, path: target, text, note, agentId: ctx.agent.id, chatId: runInfo(ctx.runId)?.chatId });
+      const a = addArtifact({ title, path: target, text, note, agentId: ctx.agent.id, chatId: await chatOf(ctx) });
       return { text: `Saved to Artifacts${a.teamName ? ` (team ${a.teamName})` : ''}: ${a.title}.` };
     },
   },
@@ -392,7 +396,7 @@ const TOOLS: ToolDef[] = [
       },
     ),
     run: async ({ text, thread, images, account, reply_to, note }: { text?: string; thread?: string[]; images?: string[]; account?: string; reply_to?: string; note?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'x', text, thread, images, account, replyTo: reply_to, note, agentId: ctx.agent.id, agentName: ctx.agent.name });
+      const r = await social.draftPost({ platform: 'x', text, thread, images, account, replyTo: reply_to, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: r.status === 'posted' ? `Posted: ${r.url}` : r.status === 'failed' ? `Auto-post failed: ${r.error}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },
@@ -403,7 +407,7 @@ const TOOLS: ToolDef[] = [
     description: 'Write a direct message on X to someone. It always waits in the Outbox for the user to approve, edit or reject; it is never sent on its own.',
     parameters: obj({ to: str('Their X handle, e.g. @someone'), text: str('The message'), account: str('Which of your handles to send from (default: first connected)'), note: str('Why, for the reviewer') }, ['to', 'text']),
     run: async ({ to, text, account, note }: { to: string; text: string; account?: string; note?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'x_dm', to, text, account, note, agentId: ctx.agent.id, agentName: ctx.agent.name });
+      const r = await social.draftPost({ platform: 'x_dm', to, text, account, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: `Saved the DM to @${r.to} in the Outbox for approval (id ${r.id}).` };
     },
   },
@@ -454,7 +458,7 @@ const TOOLS: ToolDef[] = [
     description: 'Write a Reddit post. It waits in the Outbox for the user to approve or edit, unless that account has auto-post on, in which case it is published straight away. Follow the subreddit rules; no spam or self-promotion where it is not allowed.',
     parameters: obj({ subreddit: str('Subreddit, e.g. LocalLLaMA'), title: str('Post title'), text: str('Post body (markdown)'), link: str('Or a link to share instead of text'), account: str('Which of your Reddit accounts') }, ['subreddit', 'title']),
     run: async ({ subreddit, title, text, link, account, note }: { subreddit: string; title: string; text?: string; link?: string; account?: string; note?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'reddit', subreddit, title, text, link, account, note, agentId: ctx.agent.id, agentName: ctx.agent.name });
+      const r = await social.draftPost({ platform: 'reddit', subreddit, title, text, link, account, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: r.status === 'posted' ? `Posted: ${r.url}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },
@@ -465,7 +469,7 @@ const TOOLS: ToolDef[] = [
     description: 'Write a Reddit comment replying to a post or comment (give its URL or id). It waits in the Outbox for the user to approve, unless that account has auto-post on, in which case it is published straight away.',
     parameters: obj({ reply_to: str('Post or comment URL, or id like t3_abc / t1_abc'), text: str('The comment (markdown)'), account: str('Which of your Reddit accounts') }, ['reply_to', 'text']),
     run: async ({ reply_to, text, account }: { reply_to: string; text: string; account?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'reddit', parent: reply_to, text, account, agentId: ctx.agent.id, agentName: ctx.agent.name });
+      const r = await social.draftPost({ platform: 'reddit', parent: reply_to, text, account, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: r.status === 'posted' ? `Posted: ${r.url}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },
@@ -505,12 +509,12 @@ const TOOLS: ToolDef[] = [
     group: 'agents',
     risk: 'none',
     description: 'Give a task to another agent and wait for its answer. Say exactly what you need back.',
-    parameters: obj({ agent: str('Agent name or id'), message: str('The task or question') }, ['agent', 'message']),
+    parameters: obj({ agent: str('Agent name, id, or "Name [id]" as list_agents shows it'), message: str('The task or question') }, ['agent', 'message']),
     run: async ({ agent, message }: { agent: string; message: string }, ctx) => {
       if ((ctx.depth || 0) >= 3) throw new Error('Too many agents deep; answer this yourself.');
-      const all = agentStore.list();
-      const target = all.find((a) => a.id === agent) || all.find((a) => a.name.toLowerCase() === String(agent).toLowerCase()) || all.find((a) => a.name.toLowerCase().includes(String(agent).toLowerCase()));
-      if (!target) throw new Error(`No agent called "${agent}".`);
+      const found = findAgent(agentStore.list(), agent);
+      if ('error' in found) throw new Error(found.error);
+      const target = found.agent;
       if (target.id === ctx.agent.id) throw new Error("That's you.");
       const { askAgent } = await import('./engines/index.ts');
       const answer = await askAgent(target, message, { depth: (ctx.depth || 0) + 1, from: ctx.agent.name, parentRunId: ctx.runId, signal: ctx.signal });
@@ -551,6 +555,38 @@ const TOOLS: ToolDef[] = [
     run: async ({ file, from_line = 1 }: { file: string; from_line?: number }, ctx) => {
       const r = kb.readKnowledge(ctx.agent, file, from_line);
       return { text: `${r.file} lines ${r.from}-${r.to} of ${r.total}\n\n${r.text}` };
+    },
+  },
+  // ---------- memory (every agent of its own: its MEMORY.md, also in its instructions) ----------
+  {
+    name: 'memory_read',
+    group: 'memory',
+    risk: 'none',
+    description: 'Read your whole MEMORY.md as it is now (your instructions have it as it was when this chat started).',
+    parameters: obj({}),
+    run: async (_args, ctx) => ({ text: memory.readMemory(ctx.agent.id).trim() || '(empty: nothing remembered yet)' }),
+  },
+  {
+    name: 'memory_add',
+    group: 'memory',
+    // (it only adds to the agent's own notes, and every change can be undone in its History)
+    risk: 'low',
+    description: 'Add one short note to your MEMORY.md, so you still know it in later chats: how the user likes things done, a decision, a fact about the project, a pitfall. Never secrets.',
+    parameters: obj({ note: str('The note, one line') }, ['note']),
+    run: async ({ note }: { note: string }, ctx) => {
+      const m = withActor('agent', () => memory.addToMemory(ctx.agent.id, note));
+      return { text: `Remembered. MEMORY.md is now ${m.text.length} characters.` };
+    },
+  },
+  {
+    name: 'memory_write',
+    group: 'memory',
+    risk: 'low',
+    description: 'Replace your whole MEMORY.md (markdown), to correct notes, drop outdated ones or tidy it up. Read it first with memory_read so nothing is lost. The earlier version is kept.',
+    parameters: obj({ content: str('The whole new MEMORY.md') }, ['content']),
+    run: async ({ content }: { content: string }, ctx) => {
+      const m = withActor('agent', () => memory.writeMemory(ctx.agent.id, content));
+      return { text: `Saved MEMORY.md (${m.text.length} characters).` };
     },
   },
   // ---------- files ----------
@@ -642,6 +678,8 @@ const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 export function toolsForAgent(agent: ToolAgent): ToolDef[] {
   const groups = new Set(['core', ...(agent.toolGroups || [])]);
   if (kb.knowledgeFiles(agent).length) groups.add('knowledge');
+  // a memory of its own: real agents only (not stand-ins like workflows or outside MCP clients)
+  if (memory.hasMemory(agent)) groups.add('memory');
   return TOOLS.filter((t) => groups.has(t.group));
 }
 

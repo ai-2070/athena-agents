@@ -1,21 +1,25 @@
-// The history of skills, agents and teams: their kept versions as readable text, putting one back,
-// and bringing back deleted ones. (Versions are kept by store.ts and skills.ts; see versions.ts.)
+// The history of skills, agents, teams and MEMORY.md files: their kept versions as readable text, putting
+// one back, and bringing back deleted ones. (Versions are kept by store.ts, skills.ts and memory.ts; see versions.ts.)
 import { agents, workflows, log } from './store.ts';
+import { memoryTitle, memoryVersionsDir, readMemory, writeMemory, isMemoryOwner } from './memory.ts';
+import type { MemoryVersionItem } from './memory.ts';
 import { getSkill, restoreSkill, skillVersionsDir } from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
 import { listVersions, getVersion, changedFields, deletedIn, withActor } from './versions.ts';
 import type { Version } from './versions.ts';
 import type { Agent, DeletedItem, Team, VersionDetail, VersionEntry, VersionHistory, VersionKind } from '../shared/types.ts';
 
-type Item = Agent | Team | SkillVersionItem;
+type Item = Agent | Team | SkillVersionItem | MemoryVersionItem;
 const notFound = (msg: string) => Object.assign(new Error(msg), { status: 404 });
-export const VERSION_KINDS: VersionKind[] = ['skill', 'agent', 'team'];
+export const VERSION_KINDS: VersionKind[] = ['skill', 'agent', 'team', 'memory'];
 export const isVersionKind = (k: unknown): k is VersionKind => VERSION_KINDS.includes(k as VersionKind);
 
 // Each kind: where its versions are, what it is now, and the fields that don't count.
 function kindOf(kind: VersionKind) {
   if (kind === 'agent') return { dir: (id = '') => agents.versionsDir(id)!, now: (id: string): Item | null => agents.get(id), ignore: agents.versionIgnore, label: 'agent' };
   if (kind === 'team') return { dir: (id = '') => workflows.versionsDir(id)!, now: (id: string): Item | null => workflows.get(id), ignore: workflows.versionIgnore, label: 'team' };
+  // (a memory is never deleted: one never written is just empty)
+  if (kind === 'memory') return { dir: (id = '') => memoryVersionsDir(id), now: (id: string): Item | null => (isMemoryOwner(id) ? { name: memoryTitle(id), text: readMemory(id) } : null), ignore: ['name'] as readonly string[], label: 'memory' };
   return {
     dir: (id = '') => skillVersionsDir(id),
     now: (id: string): Item | null => {
@@ -40,6 +44,7 @@ const FIELD_NAMES: Record<string, string> = {
   knowledge: 'knowledge',
   steps: 'steps',
   lead: 'lead',
+  text: 'notes',
 };
 const fieldName = (kind: VersionKind, k: string) => (kind === 'team' && k === 'description' ? 'goal' : kind === 'skill' && k === 'description' ? 'when to use it' : FIELD_NAMES[k] || k);
 
@@ -73,6 +78,7 @@ function stepLine(st: Record<string, unknown>, i: number): string {
 }
 
 export function asText(kind: VersionKind, item: Item): string {
+  if (kind === 'memory') return text((item as MemoryVersionItem).text).trim() || '(empty)';
   if (kind === 'skill') {
     const s = item as SkillVersionItem;
     return [`Name: ${s.name}`, `When to use it: ${s.description}`, s.files?.length ? `Extra files: ${s.files.join(', ')}` : '', '', s.body.trim()].filter((x, i) => x || i === 3).join('\n');
@@ -193,6 +199,12 @@ export function restoreVersion(kind: VersionKind, id: string, vid: string): { na
         log('team', `${now ? 'Restored an earlier version of' : 'Brought back'} the team ${t.name}`);
         return { name: t.name };
       }
+      if (kind === 'memory') {
+        const name = memoryTitle(id);
+        writeMemory(id, text((v.item as MemoryVersionItem).text));
+        log('memory', `Restored an earlier version of ${name}`, id === 'brain' ? {} : { agentId: id });
+        return { name };
+      }
       const had = getSkill(id);
       const s = restoreSkill({ ...(v.item as SkillVersionItem), slug: id }, v.id);
       log('skill', `${had ? 'Restored an earlier version of' : 'Brought back'} the skill "${s?.name || id}"`);
@@ -204,6 +216,7 @@ export function restoreVersion(kind: VersionKind, id: string, vid: string): { na
 
 /** What was deleted and can come back (in this project for agents and teams; every skill). */
 export function deletedItems(kind: VersionKind): DeletedItem[] {
+  if (kind === 'memory') return [];
   const k = kindOf(kind);
   return deletedIn<Item>(k.dir(), (id) => k.now(id) !== null).map(({ id, version }) => ({ kind, id, name: String(version.item.name || id), at: version.at, by: version.by }));
 }

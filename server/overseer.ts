@@ -21,6 +21,7 @@ import { listRoutines, saveRoutine, deleteRoutine, getRoutine, startRoutine, rou
 import { listSkills, getSkill, findSkill, saveSkill, deleteSkillEverywhere, brainSkills, brainSkillSlugs, setBrainSkills } from './skills.ts';
 import type { SkillDetail } from './skills.ts';
 import { withActor, currentActor } from './versions.ts';
+import { BRAIN, addToMemory, writeMemory, readMemory, brainMemoryContext, hasMemory, memoryName, memoryTitle } from './memory.ts';
 import { installFromGitHub, parseGitHubUrl, reposIn } from './skillinstall.ts';
 import type { SkillInstallResult } from '../shared/types.ts';
 import { cleanSchedule, scheduleText } from '../shared/routines.ts';
@@ -363,7 +364,7 @@ export function ownSkillsShown(own: SkillDetail[]): { text: string; seen: Set<st
 }
 export const ownSkillsText = (own: SkillDetail[]): string => ownSkillsShown(own).text;
 
-const SYSTEM = (projectName: string, canRead: boolean, own: SkillDetail[] = []) => `You are the Brain: the overseer of the user's project "${projectName}" in their personal AI agent dashboard (local, only for them).
+const SYSTEM = (projectName: string, canRead: boolean, own: SkillDetail[] = [], memory = '') => `You are the Brain: the overseer of the user's project "${projectName}" in their personal AI agent dashboard (local, only for them).
 You see everything in the SNAPSHOT: the project folder and its files, Git, every agent and team, what each is doing right now, and what waits for the user. You also run the roster: you build teams, hire agents from the library, and hand out work.
 
 Kinds of request:
@@ -404,6 +405,8 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"install_skill","url":"<a GitHub link the user gave: repo, folder or SKILL.md>","give":[{"to":"agent"|"team"|"project","id":"…"}]}   (installs every skill at or under the link; "give" is optional; installing again from the same place updates it)
 {"do":"read_skill","skill":"<skill id>"}   (alone in its block, or with other look-ups: you get the skill's whole text, then answer again)
 {"do":"delete_skill","skill":"<skill id>"}
+{"do":"remember","text":"one short note"}   (adds it to your own MEMORY.md; with "to":"agent","id":"<agent id>" to an agent's MEMORY.md instead, when the user wants that agent to remember something)
+{"do":"write_memory","content":"the whole new MEMORY.md"}   (rewrites your own MEMORY.md, to correct it or drop what's outdated)
 {"do":"stop","to":"agent"|"team"|"all","id":"<agent or team id; not needed for all>"}   (stops the work going on now: an agent's jobs, a team's chat with its queue, or with "all" everything running in this project: every team, agent, routine and workflow; "targets":[{"to":…,"id":…},…] for several)
 {"do":"set_model","to":"agent"|"team","id":"<agent or team id, or 'new'>","model":"<model id>","provider":"PROVIDER","effort":"EFFORT"}   (or "targets":[{"to":…,"id":…},…] instead of "to"/"id", for several at once; a team means every agent on it; give the model, the effort or both; "provider" only to move them to another provider, else the model is for the provider each one runs on now)
 {"do":"find_models","provider":"PROVIDER","query":"words to match, e.g. gemini flash"}   (a look-up like read_skill: you get the matching model ids, then answer again; leave out "provider" to search every provider that is set up, leave out "query" to list them all)
@@ -415,7 +418,7 @@ create_team and update_team also take "skills":["skill ids"] (update_team: the t
 Tool group ids: ${GROUP_IDS.join(', ')}
 MCP servers: ${Object.keys(listServers()).join(', ') || '(none)'}
 
-Rules: at most one delegate per answer. Never delete agents or teams (removing from a team is fine). Delete a routine or a skill only when the user clearly asks for that one to be deleted. Change an agent's model or effort, or stop work, only when the user asks for it. Never put secrets (keys, passwords, tokens) in a skill. Posts and DMs always wait for the user's approval in the Outbox. Say "nobody is working right now" when that's true. Never invent status, files or numbers.${ownSkillsText(own)}`;
+Rules: at most one delegate per answer. Never delete agents or teams (removing from a team is fine). Delete a routine or a skill only when the user clearly asks for that one to be deleted. Change an agent's model or effort, or stop work, only when the user asks for it. Never put secrets (keys, passwords, tokens) in a skill or a memory. Posts and DMs always wait for the user's approval in the Outbox. Say "nobody is working right now" when that's true. Never invent status, files or numbers.${memory}${ownSkillsText(own)}`;
 
 // Whole skills as text, within a budget (a skill that doesn't fit whole is left out, so "seen" is only
 // ever a skill whose every word the Brain got).
@@ -1008,6 +1011,31 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         fs.writeFileSync(file, `${content.slice(0, 60000)}\n`);
         log('project', `The Brain wrote PROJECT.md for "${p.name}"`);
         done.push({ kind: 'file', text: 'Wrote PROJECT.md in the project folder', file });
+      } else if (kind === 'remember' || kind === 'write_memory') {
+        // whose: the Brain's own, or an agent's (the review of finished work may change neither: see only)
+        if (auto) throw new Error('only you can change a MEMORY.md');
+        const to = String(act.to || '').toLowerCase();
+        let owner = BRAIN;
+        if (to && to !== 'brain') {
+          if (to !== 'agent') throw new Error('"to" is brain or agent');
+          const ref = act.id === 'new' ? lastAgent : act.id;
+          const a = agents.get(ref) || agents.list().find((x) => x.name.toLowerCase() === String(ref || '').toLowerCase());
+          if (!a || !hasMemory(a)) throw new Error(`no agent "${act.id || ''}"`);
+          // (it never sees an agent's whole memory, so it can only add to it)
+          if (kind === 'write_memory') throw new Error(`the Brain can only add notes to ${a.name}'s MEMORY.md (use remember)`);
+          owner = a.id;
+        }
+        const pid = p.id;
+        if (kind === 'remember') addToMemory(owner, act.text ?? act.content, pid);
+        else {
+          const content = String(act.content ?? act.body ?? act.text ?? '');
+          // (a whole memory can't be emptied by accident: say so to clear it on the page)
+          if (!content.trim() && readMemory(owner, pid).trim()) throw new Error('write_memory needs the whole new text (to clear a memory, the user can do it on its page)');
+          writeMemory(owner, content, pid);
+        }
+        const whose = owner === BRAIN ? 'my' : `${memoryName(owner)}'s`;
+        log('memory', `The Brain ${kind === 'remember' ? 'added to' : 'rewrote'} ${memoryTitle(owner)}`, owner === BRAIN ? {} : { agentId: owner });
+        done.push({ kind: 'memory', text: kind === 'remember' ? `Remembered in ${whose} MEMORY.md: ${cut(act.text ?? act.content, 120)}` : `Rewrote ${whose} MEMORY.md`, memory: owner, ...(owner === BRAIN ? {} : { agentId: owner }) });
       } else if (kind === 'create_routine') {
         const text = String(act.text || '').trim();
         if (!text) throw new Error('no text for the routine');
@@ -1131,7 +1159,7 @@ export async function ask(text: string, { project, attachments = [], onPart }: {
   const own = brainSkills();
   const named = skillTexts(skillsNamedIn([text, ...past.slice(-4).map((m) => m.text)].join('\n')).filter((slug) => !own.some((sk) => sk.slug === slug)));
   const seenSkills = new Set([...ownSkillsShown(own).seen, ...named.seen]);
-  const system = SYSTEM(p.name, canRead, own);
+  const system = SYSTEM(p.name, canRead, own, brainMemoryContext(p.id));
   const prompt = `SNAPSHOT\n${snap}${named.text}\n\n${catalog()}${convo}${earlierFiles}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}`;
   const opts = { tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '', cwd: ensureBrain(p), timeout: 180000, maxTokens: 4000, onPart };
   let parsed = parseActions(await think(system, prompt, opts));

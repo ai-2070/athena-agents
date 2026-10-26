@@ -264,6 +264,8 @@ export interface Chat {
   context?: ChatContext;
   /** Its last run had Rich answers' instructions (a chat of your own, not a handoff or a team's). */
   rich?: boolean;
+  /** When the agent's MEMORY.md had last changed as of its last run here (see engines/index.ts). */
+  memoryAt?: number;
   createdAt: number;
   updatedAt: number;
   _deleted?: boolean;
@@ -349,8 +351,11 @@ export interface OutboxPost {
   parts: string[];
   /** Image files (full paths inside the project's folders) that go with the first part. X only. */
   images?: string[];
-  status: 'pending' | 'posting' | 'posted' | 'failed' | 'rejected' | string;
+  status: 'pending' | 'posting' | 'posted' | 'failed' | 'rejected' | 'returned' | string;
   agentId?: string | null;
+  /** The team the draft was written for (named at the time); where Send back to the team goes. */
+  teamId?: string | null;
+  teamName?: string;
   /** X: ids of the parts already posted (a thread can be finished later), and what it replies to */
   postIds?: string[];
   replyTo?: string | null;
@@ -584,14 +589,16 @@ export interface PresetListing {
 }
 
 // ---------- versions (skills, agents, teams) ----------
-export type VersionKind = 'skill' | 'agent' | 'team';
+export type VersionKind = 'skill' | 'agent' | 'team' | 'memory';
+/** Who replaced a version: you, the Brain, or an agent (its own MEMORY.md). */
+export type VersionAuthor = 'you' | 'brain' | 'agent';
 /** One kept version, as GET /api/versions/:kind/:id lists it. */
 export interface VersionEntry {
   id: string;
   /** when it was replaced or deleted */
   at: number;
   /** who replaced it */
-  by: 'you' | 'brain';
+  by: VersionAuthor;
   deleted?: boolean;
   note?: string;
   /** what the next version (or the current one) changed in it */
@@ -617,11 +624,24 @@ export interface DeletedItem {
   id: string;
   name: string;
   at: number;
-  by: 'you' | 'brain';
+  by: VersionAuthor;
+}
+
+// ---------- MEMORY.md ----------
+/** GET /api/memory/:owner: an agent's MEMORY.md (owner: its id), or the Brain's (owner "brain"). */
+export interface MemoryInfo {
+  owner: string;
+  /** whose it is: the agent's name, or "The Brain" */
+  name: string;
+  text: string;
+  /** when it last changed (0: never written) */
+  updatedAt: number;
+  /** the most it may hold, in characters */
+  max: number;
 }
 
 // ---------- the Brain ----------
-export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'stop' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string };
+export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'stop' | 'memory' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
 export interface BrainDelegate {
   kind: 'agent' | 'branch';
   id: string;

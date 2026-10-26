@@ -45,8 +45,8 @@ export const outboxPage = {
 };
 
 export function onEvent(ev: ServerEvent): void {
-  if (standalone && ev.type === 'outbox') return void draw();
-  if (!standalone && ev.type === 'outbox' && tab === 'outbox') draw();
+  if (standalone && (ev.type === 'outbox' || ev.type === 'project')) return void draw();
+  if (!standalone && (ev.type === 'outbox' || ev.type === 'project') && tab === 'outbox') draw();
   if (ev.type === 'accounts' && tab === 'accounts') draw();
 }
 
@@ -226,7 +226,7 @@ async function drawAccounts(body: HTMLElement) {
 async function drawOutbox(body: HTMLElement) {
   const list = await GET<OutboxPost[]>('/outbox');
   const pending = list.filter((p) => ['pending', 'failed', 'posting'].includes(p.status));
-  const done = list.filter((p) => p.status === 'posted' || p.status === 'rejected');
+  const done = list.filter((p) => p.status === 'posted' || p.status === 'rejected' || p.status === 'returned');
   const accounts = state.data!.accounts.x;
   const compose = h('textarea', { rows: 3, placeholder: accounts.length ? 'Write a post yourself…' : 'Connect an X account first' });
   let composeAcc = accounts[0]?.username || '';
@@ -254,14 +254,40 @@ async function drawOutbox(body: HTMLElement) {
   );
 }
 
+/** Puts an image on the clipboard (as a PNG, which is what pasting into a post accepts). */
+async function copyImage(url: string): Promise<void> {
+  try {
+    let blob = await (await fetch(url)).blob();
+    if (blob.type !== 'image/png') {
+      const bmp = await createImageBitmap(blob);
+      const canvas = document.createElement('canvas');
+      canvas.width = bmp.width;
+      canvas.height = bmp.height;
+      canvas.getContext('2d')!.drawImage(bmp, 0, 0);
+      blob = await new Promise<Blob>((ok, no) => canvas.toBlob((b) => (b ? ok(b) : no(new Error('no image'))), 'image/png'));
+    }
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    toast('Image copied');
+  } catch {
+    toast("Couldn't copy the image here. Use Save instead.", 'error');
+  }
+}
+
 function postCard(p: OutboxPost) {
   // images that go with the first part; an X on a thumbnail takes it off before approving
   const keep = new Set(p.images || []);
   const thumbs = p.images?.length
-    ? h('div.row.mt', { style: { flexWrap: 'wrap', gap: '8px' } }, p.images.map((f) => {
-        const img = h('img', { src: `/api/file?path=${encodeURIComponent(f)}`, alt: f.split(/[\/]/).pop() || '', title: f, style: { maxHeight: '120px', maxWidth: '180px', borderRadius: '8px', display: 'block' } });
-        const box = h('div', { style: { position: 'relative' } }, img);
-        if (p.status === 'pending' || p.status === 'failed') box.append(h('button.btn.tiny.ghost', { title: 'Take this image off the post', style: { position: 'absolute', top: '4px', right: '4px' }, onclick: () => (keep.delete(f), box.remove()) }, '✕'));
+    ? h('div.row.mt', { style: { flexWrap: 'wrap', gap: '12px', alignItems: 'flex-start' } }, p.images.map((f) => {
+        const url = `/api/file?path=${encodeURIComponent(f)}`;
+        const name = f.split(/[\/]/).pop() || 'image';
+        const img = h('img', { src: url, alt: name, title: f, style: { maxHeight: '120px', maxWidth: '180px', borderRadius: '8px', display: 'block' } });
+        const frame = h('div', { style: { position: 'relative' } }, img);
+        const box = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, frame,
+          h('div.row', { style: { gap: '6px' } },
+            h('button.btn.ghost.tiny', { title: 'Copy the image, to paste it into a post yourself', onclick: () => copyImage(url) }, 'Copy'),
+            h('a.btn.ghost.tiny', { href: url, download: name, title: 'Save the image file' }, 'Save'),
+          ));
+        if (p.status === 'pending' || p.status === 'failed') frame.append(h('button.btn.tiny.ghost', { title: 'Take this image off the post', style: { position: 'absolute', top: '4px', right: '4px' }, onclick: () => (keep.delete(f), box.remove()) }, '✕'));
         return box;
       }))
     : null;
@@ -278,18 +304,33 @@ function postCard(p: OutboxPost) {
   const editable = p.status === 'pending' || p.status === 'failed';
   const titleIn = p.platform === 'reddit' && p.reddit?.kind === 'post' ? h('input', { value: p.reddit.title || '', placeholder: 'Title' }) : null;
   if (titleIn) titleIn.disabled = !editable;
-  const status = ({ pending: h('span.pill.warn', 'waiting'), failed: h('span.pill.bad', 'failed'), posting: h('span.pill.info', 'posting…'), posted: h('span.pill.ok', 'posted'), rejected: h('span.pill', 'rejected') } as Record<string, HTMLSpanElement | undefined>)[p.status];
+  // what should change: goes to the team's chat as a message to the agent who wrote it, and the draft leaves the Outbox
+  const note = h('textarea', { rows: 3, placeholder: `What should change? This goes to ${p.agentName || 'the team'}${p.teamName ? ` in the ${p.teamName} chat` : ''}.` });
+  const discuss: HTMLElement = h('div.col.mt.hidden', note, h('div.row',
+    h('button.btn.small', { onclick: async (e) => {
+      const btn = e.target as HTMLButtonElement;
+      btn.disabled = true;
+      const r = await attempt(() => POST<OutboxPost>(`/outbox/${p.id}/discuss`, { text: note.value }), `Sent back to ${p.teamName || 'the team'}`);
+      if (r) {
+        draw();
+        refreshSoon(0);
+      } else btn.disabled = false;
+    } }, 'Send to team'),
+    h('button.btn.ghost.small', { onclick: () => discuss.classList.add('hidden') }, 'Cancel'),
+  ));
+  const status = ({ pending: h('span.pill.warn', 'waiting'), failed: h('span.pill.bad', 'failed'), posting: h('span.pill.info', 'posting…'), posted: h('span.pill.ok', 'posted'), rejected: h('span.pill', 'rejected'), returned: h('span.pill.info', 'sent back') } as Record<string, HTMLSpanElement | undefined>)[p.status];
   return h(
     'div.panel',
-    h('div.row', status, h('b', p.accountLabel), h('span.hint', `by ${p.agentName || 'you'} · ${ago(p.createdAt)}`), p.parts.length > 1 ? h('span.pill.info', `thread of ${p.parts.length}`) : null, p.url ? h('a.btn.tiny.ghost', { href: p.url, target: '_blank', style: { marginLeft: 'auto' } }, p.platform === 'reddit' ? 'View on Reddit' : p.platform === 'x_dm' ? 'Open messages' : 'View on X') : null),
+    h('div.row', status, h('b', p.accountLabel), h('span.hint', `by ${p.agentName || 'you'}${p.teamName ? ` · team ${p.teamName}` : ''} · ${ago(p.createdAt)}`), p.parts.length > 1 ? h('span.pill.info', `thread of ${p.parts.length}`) : null, p.url ? h('a.btn.tiny.ghost', { href: p.url, target: '_blank', style: { marginLeft: 'auto' } }, p.platform === 'reddit' ? 'View on Reddit' : p.platform === 'x_dm' ? 'Open messages' : 'View on X') : null),
     p.platform === 'reddit' ? h('div.hint.mt', p.reddit?.kind === 'comment' ? `Comment replying to ${p.reddit.parent}` : `Post in r/${p.reddit?.subreddit}${p.reddit?.link ? ` · link: ${p.reddit.link}` : ''}`) : null,
     titleIn ? h('div.mt', titleIn) : null,
     p.note ? h('p.hint.mt', p.note) : null,
     p.error ? h('p.red.mt', p.error as string) : null,
+    p.status === 'returned' && p.reason ? h('p.hint.mt', `Sent back to the team: ${p.reason}`) : null,
     thumbs,
     editable ? h('div.col.mt', editors.map((e, i) => h('div', e.ta, h('div.row.between', h('span.hint', p.parts.length > 1 ? `Part ${i + 1}` : ''), e.count)))) : h('div.col.mt', p.parts.map((t) => h('div', { style: { whiteSpace: 'pre-wrap' } }, t))),
     editable
-      ? h(
+      ? [h(
           'div.row.mt',
           h('button.btn.small', { onclick: async (e) => {
             (e.target as HTMLButtonElement).disabled = true;
@@ -300,8 +341,9 @@ function postCard(p: OutboxPost) {
             refreshSoon(0);
           } }, p.platform === 'x' ? 'Approve & post' : 'Approve & send'),
           h('button.btn.ghost.small', { onclick: () => attempt(() => PUT(`/outbox/${p.id}`, { parts: editors.map((x) => x.ta.value), ...(p.images ? { images: [...keep] } : {}), ...(titleIn ? { title: titleIn.value } : {}) }), 'Saved') }, 'Save edits'),
+          h('button.btn.ghost.small', { title: 'Talk it over with the team that wrote it: your note goes into their chat and the draft is sent back', onclick: () => discuss.classList.toggle('hidden') }, 'Discuss with team'),
           h('button.btn.danger.small', { onclick: () => attempt(() => POST(`/outbox/${p.id}/reject`, {})).then(() => (draw(), refreshSoon(0))) }, 'Reject'),
-        )
+        ), discuss]
       : h('div.row.mt', h('button.btn.tiny.ghost', { onclick: () => attempt(() => DEL(`/outbox/${p.id}`)).then(draw) }, 'Remove')),
   );
 }

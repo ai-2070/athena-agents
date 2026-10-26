@@ -2,6 +2,7 @@
 import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, refreshSoon, avatar, engineBadge, navigate, seg, chipSet, field, select, toast, confirmBox, promptBox, onState, isRunning, copy, ago, toggleRow } from '../core.ts';
 import { skillPicker } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.ts';
+import { memoryEditor } from '../memory.ts';
 import type { Option } from '../core.ts';
 import type { ModelListing } from '../models.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
@@ -289,6 +290,8 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
     drawKnowledge();
   };
 
+  // (saved by its own Save button: the agent may write to it while you edit the rest)
+  const memory = memoryEditor(id, { rows: 10 });
   const servers = Object.keys(mcpData.servers);
   const emoji = h('input', { value: a.emoji, style: { width: '64px', textAlign: 'center', fontSize: '20px' }, oninput: (e) => set('emoji')(e.target.value) });
   const color = h('input', { type: 'color', value: a.color || '#c4ff3d', style: { width: '44px', height: '38px', padding: '2px', background: 'var(--panel)', border: '1px solid var(--line-2)' }, oninput: (e) => set('color')(e.target.value) });
@@ -319,6 +322,7 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
           ),
         ),
         h('div.panel', h('div.panel-head', h('h2', 'Knowledge')), kbBox),
+        h('div.panel', h('div.panel-head', h('h2', 'MEMORY.md'), h('span.hint', 'saved on its own')), memory.el),
       ),
       h(
         'div.col.gap-lg',
@@ -414,5 +418,5 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
   );
   drawEngine();
   drawKnowledge();
-  window.onbeforeunload = () => (dirty ? true : undefined);
+  window.onbeforeunload = () => (dirty || memory.dirty() ? true : undefined);
 }

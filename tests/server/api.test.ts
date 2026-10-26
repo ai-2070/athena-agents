@@ -356,6 +356,24 @@ describe('agent runs and projects', () => {
 describe('effort and favorite models', () => {
   const send = async (p: string, body: unknown, method = 'POST') => (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
 
+  it("reads and edits an agent's and the Brain's MEMORY.md, with history", async () => {
+    const a = await (await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Rememberer' }) })).json();
+    const put = (owner: string, body: unknown, headers: Record<string, string> = json) => req(`/api/memory/${owner}`, { method: 'PUT', headers, body: JSON.stringify(body) });
+    expect(await (await req(`/api/memory/${a.id}`)).json()).toMatchObject({ owner: a.id, name: 'Rememberer', text: '', updatedAt: 0 });
+    expect((await put(a.id, { text: '- Likes lists.' })).status).toBe(200);
+    expect((await put(a.id, { text: '- Likes short lists.' })).status).toBe(200);
+    expect(await (await req(`/api/memory/${a.id}`)).json()).toMatchObject({ text: '- Likes short lists.\n' });
+    const hist = await (await req(`/api/versions/memory/${a.id}`)).json();
+    expect(hist).toMatchObject({ kind: 'memory', current: '- Likes short lists.' });
+    expect((await put('brain', { text: '- Keep it short.' })).status).toBe(200);
+    expect((await (await req('/api/memory/brain')).json()).name).toBe('The Brain');
+    // no such agent, no text, no x-dash header
+    expect((await req('/api/memory/nobody')).status).toBe(404);
+    expect((await put(a.id, { nope: 1 })).status).toBe(400);
+    expect((await put(a.id, { text: 'x' }, { 'content-type': 'application/json' })).status).toBe(403);
+    expect((await req('/api/memory/..%2Fsecrets')).status).toBeGreaterThanOrEqual(400);
+  });
+
   it('saves an effort level on an agent, and turns anything else into the default', async () => {
     const a = await send('/api/agents', { name: 'Effortful', effort: 'high' });
     expect(a.effort).toBe('high');

@@ -1,194 +1,265 @@
 # My Dashboard
 
-A local command center for your AI agents. No login, no cloud: it runs on this PC at
-**http://localhost:4800** and only this PC can open it.
+**Run AI agents and teams from one local workspace.** Give each agent a role, a model and the tools it needs. Talk to them directly, let them work together, and keep their work with the project it belongs to.
 
-Build agents, each with its own instructions, knowledge, model, skills and tools, and put them in
-teams that work together in a group chat. They can use the programs on your PC (Blender, Premiere,
-Photoshop, After Effects, ComfyUI, ffmpeg, Orca, browsers…), any MCP server, your X and Reddit
-accounts (posts wait for your approval), and each other. The Brain oversees the whole project.
+The dashboard runs at **http://localhost:4800**, with no dashboard account or login. Its server and saved state stay on your computer. **Local does not mean offline:** hosted models and connected services receive the requests you send them. You can also use local models through LM Studio or Ollama.
 
-Built from ideas in [agent-office](https://github.com/AgentSystemLabs/agent-office),
-[agency-agents](https://github.com/msitarzewski/agency-agents) (270+ ready specialists in the
-Library) and Net Desk in `net-internal/ops`.
+[Get started](#get-started) · [Your first project](#your-first-project) · [Find-your-way guide](#find-your-way-guide) · [Approvals and safety](#approvals-and-safety) · [Save and restore](#save-and-restore) · [Development](#development)
 
-## Start
+## What you can do
 
-Double-click **`start.cmd`**. The first run installs what it needs. Or in a terminal:
+- **Build a team for a job.** Describe the outcome to the Brain, or choose agents from the Library. Each agent keeps its own instructions, knowledge, memory, model, skills and tools.
+- **Mix models.** Use Claude Code, Codex, Hermes or OpenAI-compatible APIs, including local model servers. Team members do not need to use the same engine.
+- **Work with your files and programs.** Give agents a project folder, attach reference files, and connect tools for programs such as Blender, ComfyUI and ffmpeg. Add more tools through MCP servers.
+- **Keep useful instructions.** Write skills in plain words, share them across agents and teams, and turn repeated work into routines you can run by hand or on a schedule.
+- **Review work before it goes out.** Handle permission requests in **Needs you**, review X and Reddit drafts in the **Outbox**, and find saved results in **Artifacts**.
 
-```powershell
+## Get started
+
+### Requirements
+
+- [Bun](https://bun.sh) **1.2 or newer**.
+- A model to run your agents: a supported CLI and login, an API key, or a running local model server. See [Connect a model](#connect-a-model).
+
+The app is mainly used on Windows. CI checks Windows and Linux; the terminal commands below can also be used on macOS.
+
+### Start from a terminal
+
+Open a terminal in this repository's folder:
+
+```sh
 bun install
-bun run start              # builds the page, then http://localhost:4800 (opens your browser)
+bun run start
+```
+
+The start command builds the browser app, starts the server and opens **http://localhost:4800**. Keep the terminal running; press **Ctrl+C** to stop the server.
+
+To choose another port or avoid opening a browser:
+
+```sh
 bun server/index.ts --port 4900 --no-open
 ```
 
-Needs [Bun](https://bun.sh) 1.2+ (`powershell -c "irm bun.sh/install.ps1 | iex"`).
+This starts the server directly and builds the page if it has not been built yet. After changing browser code, run `bun run build` first, or use `bun run dev`.
 
-Desktop shortcut (and optional start-with-Windows):
+### Start on Windows
+
+Once Bun is installed, double-click **[`start.cmd`](start.cmd)**. It installs project dependencies if `node_modules` is missing, builds the page, then starts the server in a minimized window.
+
+Optional desktop shortcut:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File install-shortcut.ps1            # Desktop shortcut
-powershell -ExecutionPolicy Bypass -File install-shortcut.ps1 -Autostart # also start at sign-in
-powershell -ExecutionPolicy Bypass -File install-shortcut.ps1 -Remove
+powershell -ExecutionPolicy Bypass -File install-shortcut.ps1
 ```
 
-## What's where
+Add `-Autostart` to also launch at Windows sign-in. Use `-Remove` to remove both the desktop and sign-in shortcuts.
 
-| Page | What it does |
+### Connect a model
+
+Open **Settings → General & keys**. You only need to set up the engines you want to use.
+
+| Engine | What you need |
 |---|---|
-| **Station** (start page) | The live 3D map. The Brain in the middle; each team is a round pod where its agents sit around a chat hub (the lead ★ faces the Brain). Drag a team anywhere, Shift+drag to spin it. Light shows handoffs between agents. Click a team or agent for its panel and its chat. The top bar shows connections, AI engines and your plan usage. |
-| **Chat window** | Floating, resizable, one tab per team group chat or agent. Opens when you click a team or agent. |
-| **Brain chat** (Space on the Station, or Ctrl+K / ⌘K anywhere) | Ask the Brain anything about the project, or for anything to be done: it answers, builds teams from the Library, writes PROJECT.md, makes and edits skills and routines, switches the model and effort of an agent, several agents or a whole team ("put the video team on Opus at high effort"), looks up which models a provider has ("which Gemini models are on OpenRouter?"), tells you which model and effort each agent is on, stops an agent, a team or everything running in the project ("stop everything"), and hands work to the right agent or team. |
-| **Projects** | Pick or create at the start screen or top left. Each project has its own agents, teams and chats and a folder (new, existing, or a GitHub repo). Auto-saved into that folder. |
-| **Agents** | Each agent: instructions, knowledge, model (Claude Code, OpenRouter, Hermes or Codex) and effort (how hard it thinks), autonomy, tools, MCP servers, skills, workspace. In the model picker, star the models you use most: they get a Favorites tab at the front. |
-| **Library** | Starters, The Agency (270+ specialists), Hermes profiles, Claude Code subagents, and your saved presets. |
-| **Skills** | Reusable instructions (Claude Code's SKILL.md format). Give a skill to one agent, a team, the whole project, or the Brain itself. Write one in plain words ("how we write release notes: short bullets, user-facing changes first") or tell an existing one what to change ("add a section on thumbnails"): the Brain fills in the editor, you look it over and save (Undo puts back what was there). Import your Claude Code skills, or install them from a GitHub link (repo, folder or SKILL.md; installing again updates them). The Brain can make, edit, give, take back, re-assign, install and delete skills too. |
-| **Routines** | Work you want done again and again. Write it once and @mention who does it (one or more agents and teams) and the skills they use. Run it by hand or on a schedule; each run shows what every agent and team did. |
-| **Settings** | Keys and engines, connections (X, Reddit, Telegram, Discord, Outbox), MCP servers, programs, Look (UI scale, accent, motion). Searchable. |
+| **Claude Code** | The `claude` CLI. Use your Claude login, an Anthropic key or OpenRouter. |
+| **API model** | An OpenRouter key, a running LM Studio or Ollama server, or another OpenAI-compatible endpoint. Configure local endpoints under **Local and custom models**. |
+| **Hermes** | An installed Hermes setup with a profile to use. |
+| **OpenAI Codex** | The `codex` CLI and your ChatGPT login. Settings offers installation and sign-in; installation uses npm. |
 
-**The Brain and your teams talk**: when the Brain hands work to a team, it writes in the team chat as
-"Brain" (it goes out even with no browser tab open); work for a single agent starts a new chat with it.
-Anyone in a team chat (an agent, or you) can write **@Brain** to ask it something or say they're stuck; it
-answers in the thread, and may pass work to a teammate. An agent asking can't make it change agents, teams,
-skills, routines or settings: when they need something only you can give (an account, a teammate, a
-decision), it tells you in the Brain chat. **The Brain follows up** (on by
-default, Settings > General > The Brain's model): when the team goes quiet or the agent finishes, it checks
-the result. Something missing: it asks for it (twice at most). Done, stuck, or they need you: it says so in the
-Brain chat.
+Choose **The Brain's model** in the same settings page. The Brain is the project-wide assistant: it answers questions, builds agents and teams, writes the project brief, manages skills and routines, switches agents' models, stops work, and hands work to the right people.
 
-**Attach files**: drop files or whole folders on any chat (Brain, agent, team), the team builder, the New
-project dialog, or the Brain on the map, or use the paperclip. They're saved in the project folder under
-`uploads/`, and the agent (or the Brain) is told where they are. Files added in the team builder stay with the
-team: every member is told about them.
+Claude Code and Codex receive dashboard tools through an MCP bridge; API-model agents call them directly. For Hermes, open **Settings → MCP servers** and click **Give Hermes the dashboard tools**, then restart Hermes sessions.
 
-**Self-improvement**: the Brain comes with this skill. With it, after an agent finishes a sizeable job (5+ tool
-calls), the Brain reviews how it went. When it finds something worth keeping, it records the workflow as a skill,
-improves a skill that was missing a step, or gives a skill to whoever needs it, and says what it did in the Brain
-chat; when it doesn't, it changes nothing and says nothing. This review can only touch skills, and
-never the Brain's own skills. Take the skill away from the Brain (Skills page) to turn it off.
+## Your first project
 
-**Skills from GitHub**: the Brain installs skills only from GitHub repos you named in the Brain chat yourself, so a
-link planted in a file, a page or an agent's answer can't get a skill installed. To allow any link, turn on Settings >
-The Brain's model > "Install skills from any GitHub link". Private repos work once you sign in with the GitHub CLI
-(`gh auth login`) or set `GITHUB_TOKEN`.
+1. **Choose a folder.** From the project picker, select **New project**. Start in a new folder, use an existing one, or clone a GitHub repo. Give the project a name and describe what you want to make. GitHub cloning uses your `gh` login, including for private repos.
+2. **Ask the Brain for a small, concrete job.** Open **Ask the Brain**, press **Ctrl+K** (**⌘K** on macOS), or press **Space** on the Station when you are not typing. For example:
 
-**Versions**: every change to a skill, agent or team keeps the version from before it, and who made the change (you
-or the Brain); edits within a few minutes of each other count as one. **History** (skill editor, agent editor, team
-panel) compares any version with the current one and puts it back; restoring keeps the current version too, so it can
-be undone. **Recently deleted** (Skills page, Agents page) brings deleted ones back, skills with their extra files. The
-last 50 versions of each are kept, in `data/versions` (skills) and `data/projects/<id>/versions` (agents and teams).
-Agent and team versions are also saved into the project folder's `.dashboard`, so they come back when you open it.
-An agent's last model, a pin, and a team's place on the map don't count as changes.
+   > Build a small team to review this project's docs. Have one agent find confusing setup steps and another suggest clearer wording. Do not change files yet.
 
-**Needs you** (top right) collects everything waiting on you: tool approvals, Claude Code
-permission requests and Outbox posts.
+3. **Review the agents and their access.** Check their models, instructions, tools and work folders. You can also add a ready-made agent from **Library** instead of asking the Brain to build one.
+4. **Follow the work.** Click a team or agent on the Station to open its panel and chat. Team chats show the conversation and handoffs; individual chats let you work with one agent directly.
+5. **Handle anything waiting on you.** Check **Needs you** for permissions and **Outbox** for outgoing drafts. Results that agents save as artifacts appear in **Artifacts**; files they create stay in their work folders.
 
-## Engines
+Projects keep separate agents, teams and chats. Use the project name at the top left to switch projects, create another one or make a backup.
 
-- **Claude Code**: the `claude` CLI, headless. Your Claude login, an Anthropic key, or OpenRouter.
-- **API model**: any OpenRouter model, LM Studio, Ollama, or any OpenAI-compatible server.
-- **Hermes**: one of your Hermes profiles.
-- **OpenAI Codex**: the `codex` CLI with your ChatGPT login (install and sign in from Settings).
+## Find-your-way guide
 
-Claude Code and Codex get the dashboard tools through the MCP bridge (`server/mcp-bridge.ts`);
-API-model agents call them directly. Hermes gets them once you click "Give Hermes the dashboard
-tools" in Tools & MCP.
+| Place | Use it for |
+|---|---|
+| **Station** | The live 3D view of the project. The Brain sits in the middle, with agents grouped into team pods. Click to open panels and chats; drag a team to move it or Shift+drag to rotate it. |
+| **Brain chat** | Project-wide questions, building teams, changing skills and routines, switching models, stopping work, and handing off work. Available from every page. |
+| **Agents** | Agent instructions, knowledge, MEMORY.md, model and effort, autonomy, tools, MCP servers, skills and workspace. Star models in the picker to keep them in Favorites. |
+| **Library** | Ready-made starters, The Agency specialists, Hermes profiles, Claude Code subagents and your saved presets. |
+| **Skills** | Reusable instructions, their assignments, earlier versions and recently deleted skills. |
+| **Routines** | Repeatable jobs, schedules and the results of each run. |
+| **Outbox** | X and Reddit drafts waiting to be approved, edited or rejected. |
+| **Artifacts** | Written results, files and folders that agents have saved to the results list. |
+| **Settings** | Engines and keys, accounts and connections, MCP servers, programs, UI scale, accent colour and motion. Use search to jump to a setting. |
 
-## Autonomy
+### Chats and files
 
-- **Ask first**: anything that changes something needs an OK (from the Brain first, when The Brain approves is on).
-- **Auto** (default): asks only for risky actions (shell, scripts, sending messages).
-- **Full**: never asks.
+Agent and team chats open in floating, resizable windows with tabs. Type **@** in a chat to pick another agent. An agent with **Delegate** enabled can hand that agent part of the work.
 
-**The Brain approves** (on by default, Settings > General > The Brain's model): when an agent or
-team asks permission, the Brain answers first. It allows routine, on-task work and passes anything
-risky or unclear (deleting, pushing, sending, secrets, work outside the project and the agent's
-work folders) to Needs you, with its reason. Workflow checkpoints and outside MCP clients always
-come to you.
+Use the paperclip, drop files and folders, or paste them (**Ctrl+V**, **⌘V** on macOS) into a chat, the Brain on the Station, the team builder or the New project dialog. A pasted screenshot is saved as `pasted-image.png`. Pasting on the Station, outside a text box, gives the files to the Brain. Text copied from Word, Excel or a web page still pastes as text. Attachments are saved under the project folder's `uploads/` directory, and the agent or Brain receives their paths. Files attached in the team builder are shared with every team member.
 
-Posts to X and Reddit always go to the Outbox unless you turn on auto-post for that account; DMs
-always wait for you.
+### Skills: instructions worth keeping
 
-## Chat memory
+Skills use Claude Code's `SKILL.md` format. Assign them to an agent, a team, the whole project or the Brain.
 
-Long chats fill up the model's memory, so the dashboard compacts them (Settings > General > Chat
-memory). When an agent's memory of a chat reaches **50%** of the model's context window, the older
-messages become a short history the agent keeps reading, and up to the **latest 10 messages**
-(with their tool calls) stay in full, as far as the size budget allows (very long ones are trimmed
-to fit). Both numbers are settings.
+- **Write or change one in plain words.** Ask for something like “Short release notes, with user-facing changes first.” The Brain fills in the editor for you to review and save. Undo restores the previous editor contents.
+- **Bring your own.** Import Claude Code skills or install from a GitHub repository, folder or `SKILL.md` link. Installing the same skill again updates it. Private repos use `gh auth login` or `GITHUB_TOKEN`.
+- **Let the Brain manage assignments.** It can create, edit, assign, remove assignments, install and delete skills.
 
-- **Instant compaction** (on by default, after
-  [dsh-compaction-instant](https://github.com/TsFreddie/dsh-compaction-instant)): no model call. It
-  keeps the original words, cut to fit: long messages are shortened, a tool call becomes one line,
-  and tool results are left out. Every entry keeps its `[seq N]`, and the agent can read any of them
-  back in full with the `recall_history` tool. Off: the Brain's model writes a summary instead.
-- **Sized by the context window**: everything it keeps grows with the window, so a 1M-token model
-  keeps far more (about 150k tokens of compacted history and up to 250k tokens of recent messages)
-  than a 200k one. Set the window under Context window if your models have 1M and don't say so.
-- Every message stays in the chat for you. A **— COMPACTED —** mark shows where it happened; open it
-  to read what the agent remembers, and edit the latest one. Compact by hand with **Compact** in a
-  chat, or type `/compact` (`/compact summary` for a summary).
-- API-model agents compact between tool steps too, and once more if the model says the chat is too
-  long. Claude Code, Codex and Hermes start a fresh session from the compacted history. When Claude
-  Code compacts its own memory, that is marked too.
+By default, the Brain only installs from GitHub repos **you named in Brain chat**. Links found in files, web pages or agent replies do not grant permission. **Install skills from any GitHub link**, under The Brain's model settings, relaxes that rule; leave it off unless you trust those sources.
 
-## Data
+The Brain starts with a **Self-improvement** skill. After substantial agent work, it can review the outcome and save a useful workflow as a skill, improve an existing skill or assign one where it is needed. Changes are reported in Brain chat. The review is limited to skills and cannot change the Brain's own skills. Remove Self-improvement from the Brain on the Skills page to turn it off.
 
-Everything lives in `data/` (git-ignored): projects (agents, teams, chats, knowledge), skills,
-presets, settings, `secrets.json` (keys), `accounts.json` (tokens), the Outbox, the activity log.
-Keys and tokens never go to the browser. Each project's agents, teams, chats, the skills it uses (given to the
-project, a team or an agent, or mentioned in a routine, with their files) and their earlier versions are
-also auto-saved into `<project folder>/.dashboard` (no keys), so opening that folder elsewhere brings them back.
-Skills the library doesn't have are added; one it already has is never changed, and a different copy from the folder
-is kept as one of its versions.
+### MEMORY.md: what agents remember
 
-**Backups.** Project menu > **Back up this project** writes one `.dashbackup` file to
-`My Dashboard Backups` in your home folder (`C:\Users\<you>` on Windows, `~` on macOS and Linux).
-It holds the project's agents, teams, routines, layout, Brain chat, team and agent chats, knowledge
-files, logo, PROJECT.md and notes, plus every skill in your library and every saved preset, and the
-earlier versions of the project's agents and teams and of every skill (deleted ones too, so History and
-Recently deleted come back with it). No keys or tokens. Each kind has a size limit: agent chats 200 MB,
-knowledge files 50 MB, skills 50 MB, earlier versions 50 MB, PROJECT.md and notes 20 MB. A file that no longer fits is left out, and the "Backup saved" message
-says how many were. To restore: **New project > From backup**, drop the file in (or pick one from the
-backups folder). It becomes a new project in a new folder. Skills and presets you don't have are
-added; a skill you have with the same id but different content is kept, and the backup's copy is
-added as `<id>-restored` (its history goes with it, under that id). A skill you have that is the same
-gets the backup's earlier versions added to its own. Scheduled teams and routines come back paused, so a
-copy never runs them twice.
+Every agent, and the Brain, keeps a **MEMORY.md** for each project: short notes it carries from one chat to the next, such as how you like things done, decisions you made and mistakes to avoid. It reads them with every message.
 
-## Security
+- **Agents add to it as they learn**, with the memory tools every agent has. With **Ask first** autonomy you approve each change.
+- **The Brain keeps its own** and can add a note to an agent's memory when you ask it to ("Tell the Writer to remember we use British spelling"). It never rewrites an agent's memory, and the self-improvement review can't change any memory.
+- **Read and change it yourself.** Open an agent's editor or its chat page and use **MEMORY.md**. For the Brain, use the page icon at the top of the Brain chat, or **Settings → The Brain's model**. **History** shows earlier versions, who changed them and can restore one.
 
-Listens on 127.0.0.1 only, answers only to `localhost`/`127.0.0.1` host names, needs a custom
-header for every API change, and refuses API requests and WebSocket connections from other
-websites. The one exception is the X and Reddit sign-in callbacks, which arrive from those sites.
-There is no login, so anyone using this Windows account can open it.
+A chat's **Clear memory** button is different: it starts that chat fresh and leaves MEMORY.md alone. Don't keep keys or passwords in a memory.
+
+### Routines: work worth repeating
+
+Create a routine, write the instructions, and **@mention** the agents or teams that should do the work and the skills they should use. Run it when needed or set a schedule. Each run records what its agents and teams did.
+
+For example, with those agents and skills already created:
+
+> @Researcher finds the week's main product updates. @Content Team turns them into a short report using @Brand voice.
+
+### The Brain and your teams
+
+When the Brain hands work to a team, it writes in the team chat as **Brain**, so the work goes out even when no browser tab is open. Work for a single agent starts a new chat with that agent.
+
+- **Ask the Brain from a team chat.** Anyone in a team chat, an agent or you, can write **@Brain** to ask a question or say they're stuck. The Brain answers in the thread and may pass work to a teammate. An agent's request can't make it change agents, teams, skills, routines or settings: when the team needs something only you can give, such as an account, a teammate or a decision, the Brain tells you in Brain chat.
+- **The Brain follows up.** When the team goes quiet or the agent finishes, the Brain checks the result. If something is missing, it asks for it, twice at most. When the work is done, stuck or needs you, it says so in Brain chat. Turn this off with **The Brain follows up** under **Settings → The Brain's model**.
+
+### Models, effort and stopping work from Brain chat
+
+- **Switch models and effort.** "Put the video team on Opus at high effort" changes one agent, several agents or every agent on a team. The Brain checks model names against the provider's list before it changes anything.
+- **Look up models.** "Which Gemini models are on OpenRouter?" lists matching models with prices and context size. Ask "which model is each agent on?" to see every agent's model and effort.
+- **Stop work.** "Stop the Writer", "stop the video team" or "stop everything" stops an agent, a team, or everything running in the open project: teams, agents, routines and workflows.
+
+The Brain changes models or stops work only when you ask.
+
+### Long chats
+
+The dashboard compacts older messages so long conversations fit the model's context window. The original messages stay visible to you.
+
+By default, compaction starts at **50%** of the context window and keeps up to the **latest 10 messages** in full, within the size budget. Change these settings under **Settings → General & keys → Chat memory**.
+
+- **Instant compaction** is on by default. It shortens the original text, reduces tool calls to one line and omits tool results without making a model call. Agents can use `recall_history` to retrieve the full entries.
+- Turn instant compaction off to have the Brain's model write a summary instead.
+- Open a **COMPACTED** marker to see what the agent remembers; you can edit the latest one. Use **Compact** or `/compact` to compact by hand, or `/compact summary` to request a summary.
+
+The amount retained scales with the context window. Set **Context window** if a model's reported size is wrong.
+
+## Approvals and safety
+
+### Choose how much agents may do
+
+| Autonomy | When dashboard tools ask for permission |
+|---|---|
+| **Ask first** | For low- and high-risk actions. Tools marked as having no risk run without asking. |
+| **Auto** (default) | For high-risk actions, such as shell commands, scripts and sending messages. |
+| **Full** | Tool approvals are skipped. Use only when you trust the agent and its access. |
+
+An explicit **Always allow** choice can also skip later approval requests for that tool. Autonomy is not an operating-system sandbox: shell commands and external tools can act with the access of the account running them.
+
+**The Brain approves** is on by default. When an agent or team requests permission, the Brain reviews it first. It is instructed to allow routine, reversible work within the task and pass risky or unclear requests to **Needs you**, with a reason. This is a model's judgment, not a hard safety guarantee. Turn it off under **Settings → General & keys → The Brain's model** if you want requests to come to you directly.
+
+Workflow checkpoints and approval requests from outside MCP clients always come to you. X and Reddit drafts wait in the Outbox unless you enable auto-post for that account. **X direct messages always wait for your approval.**
+
+### What “local” protects—and what it does not
+
+- The server listens on **127.0.0.1** only. Host checks, custom headers for API changes and browser-origin checks help stop other websites from controlling it. X and Reddit sign-in callbacks are allowed back from those services.
+- There is **no dashboard login**. Anyone with local access to the running service may be able to use it. Do not expose it through a public tunnel or reverse proxy.
+- Stored API keys and account tokens are kept server-side, not sent to the browser or included in project exports. They are saved in local files; protect the machine and its data folder.
+- Hosted models, MCP servers and connected services have their own access and data handling. Only enable tools, folders and accounts that an agent needs. Built-in file tools enforce allowed roots; this does not constrain arbitrary shell commands or outside tools.
+
+## Save and restore
+
+### Where work is stored
+
+Local dashboard state lives under **`data/`**, which is git-ignored: projects, agents, teams, chats, knowledge, MEMORY.md files, skills, presets, settings, the Outbox and activity. Keys are in `secrets.json`; account tokens are in `accounts.json`.
+
+The dashboard also auto-saves project state into **`<project folder>/.dashboard`**, including its agents, teams, routines, chats, MEMORY.md files, assigned or routine-mentioned skills and earlier versions. Opening that folder as a project brings the saved state back. Existing library skills are not overwritten: a different copy from the project folder is kept as a version.
+
+These copies exclude stored keys and account tokens, **not private content you put in chats, knowledge files, memories or skills**. Review `.dashboard` before sharing or committing a project folder.
+
+### Back up a project
+
+Choose **Project menu → Back up this project**. The dashboard writes a `.dashbackup` file under **`My Dashboard Backups`** in your home folder.
+
+A backup includes the project's agents, teams, routines, layout, Brain and agent/team chats, knowledge files, MEMORY.md files, logo, `PROJECT.md` and notes. It also includes **every skill and saved preset in your library**, plus earlier versions of the project's agents, teams and memories and of library skills, including deleted items. It does not include stored keys or account tokens.
+
+Backups are not a full copy of your working folder: back up source files, uploads and generated work separately. Size limits also apply: 200 MB of agent chats, 50 MB each of knowledge files, skills and earlier versions, and 20 MB each of MEMORY.md files and of project brief and notes. Files that do not fit are left out; the saved-backup message reports the number omitted.
+
+### Restore a backup
+
+Choose **New project → From backup**, then drop in a `.dashbackup` file or choose one from the backups folder.
+
+- Restore creates a new project; it does not replace the original.
+- Missing skills and presets are added. If a skill has the same ID but different contents, your existing skill stays and the restored copy gets an `-restored` suffix. Matching skills receive the backup's earlier versions.
+- Scheduled teams and routines return **paused**, so the restored copy does not run the same work twice. Re-enable the schedules you want.
+
+### Undo changes
+
+Open **History** in a skill editor, agent editor, team panel or MEMORY.md to compare an earlier version with the current one and restore it. Restoring also keeps the current version, so you can undo the restore.
+
+The dashboard keeps the last **50 versions** per item and groups nearby edits. **Recently deleted** on the Skills and Agents pages can bring deleted items back, including a skill's extra files. Agent and team history is also saved with the project's `.dashboard` copy.
+
+## Troubleshooting
+
+- **Bun is not found:** install it from [bun.sh](https://bun.sh), then open a new terminal. The Windows launcher also checks Bun's default install location.
+- **The page does not open:** visit http://localhost:4800 directly and check the server terminal for errors. Use the port you selected if you changed it.
+- **Browser changes are missing:** rebuild with `bun run build` and reload, or use `bun run dev` while editing. Direct server startup only builds when the bundle is missing.
+- **An agent cannot run:** check its selected engine in Settings, its login or API key, and whether a local model server is running. For missing Hermes dashboard tools, add the MCP bridge as described in [Connect a model](#connect-a-model).
 
 ## Development
 
-TypeScript everywhere, run by Bun. Strict mode, no `any`.
+Bun runs the TypeScript server and bundles the browser app. The code uses strict TypeScript; server and shared modules also need to work under Node because Vitest imports them there. CI uses **Bun 1.4.4** and **Node 24**, and checks Windows and Linux.
 
-| Folder | What's in it |
+```sh
+bun run dev          # Watch browser and server changes
+bun run check        # Typecheck both sides, then run tests
+bun run build        # Build the browser bundle
+```
+
+Other commands:
+
+```sh
+bun run typecheck
+bun run test
+bun run test:watch
+bunx vitest run tests/server/skills.test.ts
+bun run icons        # Regenerate icons after editing scripts/build-icons.ts
+```
+
+| Path | Contents |
 |---|---|
-| `server/` | The server (`bun server/index.ts`): router, engines, tools, teams, the Brain, storage |
-| `web/` | The page, bundled by Bun into `public/dist` (`bun run build`) |
-| `shared/types.ts` | Types both sides use: agents, teams, projects, chats, skills, events |
-| `public/` | `index.html`, styles, icon |
-| `tests/` | Vitest: `tests/server` (logic, API and security, with throwaway data) and `tests/web` (DOM helpers) |
-| `scripts/` | Build, dev, icon generator, `try-agent.ts` |
+| [`server/`](server/) | HTTP and WebSocket server, agent engines, tools, the Brain and JSON storage. |
+| [`web/`](web/) | Browser app: mostly plain DOM; React for agent chats; three.js for the Station. |
+| [`shared/`](shared/) | Shared types and logic. Data shapes start in `shared/types.ts`. |
+| [`public/`](public/) | HTML and styles. `public/dist/` is generated build output; do not edit it. |
+| [`tests/`](tests/) | Vitest server and browser tests. Server tests use temporary data and home folders, not your real state. |
+| [`scripts/`](scripts/) | Build and development scripts, icon generation and the agent CLI helper. |
 
-```powershell
-bun run dev          # rebuild the page and restart the server on every change
-bun run typecheck    # tsc for server/ and web/
-bun run test         # Vitest (bun run test:watch to keep it running)
-bun run check        # both
-bun run icons        # after adding icon names in scripts/build-icons.ts
+To send a message to an existing agent from a terminal while the server is running:
+
+```sh
+bun scripts/try-agent.ts <agentId> "your message" --port 4800
 ```
 
-The tests never touch your real data: they use a throwaway data folder and home folder, and stop
-if that isn't in place.
+The helper also accepts `--approve`, which automatically approves **all pending permission requests** it receives. Use it only in an isolated test instance.
 
-Talk to an agent from the terminal:
+Run `bun run check` and `bun run build` before submitting code changes. See [`AGENTS.md`](AGENTS.md) for code conventions and security boundaries.
 
-```powershell
-bun scripts/try-agent.ts <agentId> "your message" [--port 4800] [--approve]
-```
+## Credits
+
+Inspired by [agent-office](https://github.com/AgentSystemLabs/agent-office). The Library includes specialists from [agency-agents](https://github.com/msitarzewski/agency-agents). Instant chat compaction draws on [dsh-compaction-instant](https://github.com/TsFreddie/dsh-compaction-instant).

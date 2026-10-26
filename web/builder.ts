@@ -129,7 +129,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   const filesEl = h(
     'div',
     h('div.label', 'Files'),
-    h('div.col.mt', { style: { gap: '8px' } }, keptEl, tray.el, h('div.row', { style: { gap: '8px' } }, tray.picker, h('span.hint', 'Briefs, brand guides, assets: drop files or folders anywhere here. Auto-build reads them, and every member is told where they are.'))),
+    h('div.col.mt', { style: { gap: '8px' } }, keptEl, tray.el, h('div.row', { style: { gap: '8px' } }, tray.picker, h('span.hint', 'Briefs, brand guides, assets: drop or paste files or folders anywhere here. Auto-build reads them, and every member is told where they are.'))),
   );
   const allFiles = async () => {
     const fresh = await tray.ready();
