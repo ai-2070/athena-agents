@@ -135,14 +135,16 @@ is kept as one of its versions.
 **Backups.** Project menu > **Back up this project** writes one `.dashbackup` file to
 `My Dashboard Backups` in your home folder (`C:\Users\<you>` on Windows, `~` on macOS and Linux).
 It holds the project's agents, teams, routines, layout, Brain chat, team and agent chats, knowledge
-files, logo, PROJECT.md and notes, plus every skill in your library and every saved preset. No keys
-or tokens. Each kind has a size limit: agent chats 200 MB, knowledge files 50 MB, skills 50 MB,
-PROJECT.md and notes 20 MB. A file that no longer fits is left out, and the "Backup saved" message
+files, logo, PROJECT.md and notes, plus every skill in your library and every saved preset, and the
+earlier versions of the project's agents and teams and of every skill (deleted ones too, so History and
+Recently deleted come back with it). No keys or tokens. Each kind has a size limit: agent chats 200 MB,
+knowledge files 50 MB, skills 50 MB, earlier versions 50 MB, PROJECT.md and notes 20 MB. A file that no longer fits is left out, and the "Backup saved" message
 says how many were. To restore: **New project > From backup**, drop the file in (or pick one from the
 backups folder). It becomes a new project in a new folder. Skills and presets you don't have are
 added; a skill you have with the same id but different content is kept, and the backup's copy is
-added as `<id>-restored`. Scheduled teams and routines come back paused, so a copy never runs
-them twice.
+added as `<id>-restored` (its history goes with it, under that id). A skill you have that is the same
+gets the backup's earlier versions added to its own. Scheduled teams and routines come back paused, so a
+copy never runs them twice.
 
 ## Security
 

@@ -33,3 +33,15 @@ describe('reading what a backup holds', () => {
     expect(cleanSummary(null)).toBeNull();
   });
 });
+
+describe('earlier versions in a backup', () => {
+  it('counts them in the summary and in what a restore brought back, and reads old summaries without them', async () => {
+    const { cleanSummary, summaryLine, restoredText } = await import('../../web/backup.ts');
+    const s = cleanSummary({ app: 'my-dashboard', agents: 1, teams: 0, skills: 2, versions: 14 })!;
+    expect(s.versions).toBe(14);
+    expect(summaryLine(s)).toContain('14 earlier versions');
+    expect(summaryLine(cleanSummary({ app: 'my-dashboard', agents: 1, teams: 0, skills: 2 })!)).not.toContain('earlier');
+    const r = { agents: 1, teams: 0, routines: 0, chats: 0, knowledgeFiles: 0, brainFiles: 0, skills: { added: 0, same: 0, renamed: [] }, presets: { added: 0, same: 0 }, versions: 3, paused: 0, logo: false };
+    expect(restoredText('P', r)).toContain('3 earlier versions');
+  });
+});
