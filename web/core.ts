@@ -386,6 +386,7 @@ export function approvalCard(a: Approval): HTMLDivElement {
     'div.approval',
     h('div.t', a.title),
     h('div.label', a.kind === 'claude' ? 'Claude Code permission' : a.kind === 'workflow' ? 'Workflow checkpoint' : 'Tool call'),
+    a.brainNote ? h('div.hint', `The Brain passed this to you: ${a.brainNote}`) : null,
     a.detail && !editor ? h('pre', a.detail) : null,
     editor ? h('div', h('div.hint', 'You can edit this before it continues:'), editor) : null,
     h('div.mt', note),
