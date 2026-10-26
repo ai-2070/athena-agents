@@ -1,0 +1,21 @@
+AGENTS.md
+  s_395c9c62b8d841::t_5a4434af0bf9ad 82
+tests/server/api.test.ts
+  s_395c9c62b8d841::t_5a4434af0bf9ad 6,13-15,22-30,32-54,56,59-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3abcc0315189eb824a060ad0e168bd1238467b2e",
+  "prompts": {},
+  "sessions": {
+    "s_395c9c62b8d841": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c824b2a4-4105-4b57-8952-85373c71ae2d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
