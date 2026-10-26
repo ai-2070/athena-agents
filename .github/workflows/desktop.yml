@@ -110,7 +110,7 @@ jobs:
           else
             echo "::warning::No TAURI_SIGNING_PRIVATE_KEY secret: these installers can't be used as updates."
           fi
-          bunx tauri build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} "${updates[@]}"
+          bunx tauri build --ci --verbose --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} "${updates[@]}"
 
       - name: Run the bundled server the way the app does
         if: matrix.native
