@@ -39,7 +39,7 @@ function HomePage() {
   useServerEvents((ev) => ev.type === 'activity' && setActivity((a) => [ev.entry as ActivityEntry, ...a].slice(0, KEEP)));
   if (!d) return null;
   const agents = d.agents || [];
-  const needs = d.approvals.length + d.outboxPending;
+  const needs = d.approvals.length + d.outboxPending + (d.questions?.length || 0);
   const services = (progs || []).filter((p) => p.installed && SERVICES.includes(p.id));
   return (
     <>

@@ -392,6 +392,37 @@ export interface Approval {
   brainNote?: string;
 }
 
+/** A question an agent asked you with ask_user: a choice to make, something only you know, a place it is stuck.
+ *  It waits in the Outbox with its choices as buttons and a box for an answer in your own words. */
+export interface AgentQuestion {
+  id: string;
+  question: string;
+  /** what you need to know to answer (Markdown) */
+  detail?: string;
+  /** the answers you can click (none: an open question) */
+  choices: string[];
+  /** waiting: not answered yet. closed: the run that asked was stopped. */
+  status: 'waiting' | 'answered' | 'dismissed' | 'closed';
+  agentId?: string | null;
+  agentName?: string;
+  /** the chat it was asked in, and the run (while it waits there for the answer) */
+  chatId?: string | null;
+  runId?: string | null;
+  /** asked in a team chat: a late answer goes there */
+  teamId?: string | null;
+  teamName?: string;
+  /** what you clicked, and what you wrote */
+  choice?: string;
+  reply?: string;
+  answeredAt?: number;
+  /** how the answer reached the agent: while it waited, or as a new message in its chat or team chat */
+  delivered?: 'live' | 'chat' | 'team' | 'nowhere';
+  /** why it couldn't be delivered, or why it closed */
+  note?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 /** Something a team finished that isn't an outgoing post: a written result, a file or a folder. */
 export interface Artifact {
   id: string;
@@ -588,6 +619,8 @@ export interface AppState {
   projects: Project[];
   approvals: Approval[];
   outboxPending: number;
+  /** questions from agents waiting for your answer (in the Outbox) */
+  questions: AgentQuestion[];
   runs: ActiveRun[];
   engines: EngineStatus;
   engineList: EngineInfo[];

@@ -609,10 +609,12 @@ function drawScreen(desk: Desk, tick = 0): void {
     ctx.fillStyle = '#e6e8e0';
     ctx.font = '24px "Segoe UI", sans-serif';
     const ap = (state.data?.approvals || []).find((x) => x.agentId === a.id);
-    ctx.fillText(fitText(ctx, (ap?.title || 'needs your OK').replace(`${a.name} wants to `, ''), W - 190), 170, 168);
+    // (no approval: it asked you a question, in the Outbox)
+    const asks = ap ? null : (state.data?.questions || []).find((x) => x.agentId === a.id);
+    ctx.fillText(fitText(ctx, asks ? asks.question : (ap?.title || 'needs your OK').replace(`${a.name} wants to `, ''), W - 190), 170, 168);
     ctx.fillStyle = '#9a8a6a';
     ctx.font = '22px Consolas, monospace';
-    ctx.fillText('open Needs you to answer', 170, 214);
+    ctx.fillText(asks ? 'answer it in the Outbox' : 'open Needs you to answer', 170, 214);
   } else {
     // working
     ctx.fillStyle = '#0b130a';
@@ -1556,7 +1558,7 @@ function updateStatuses(): void {
   const d = state.data;
   if (!d || !S) return;
   for (const desk of S.desks) {
-    const needs = d.approvals.some((a) => a.agentId === desk.agent.id);
+    const needs = d.approvals.some((a) => a.agentId === desk.agent.id) || (d.questions || []).some((q) => q.agentId === desk.agent.id);
     const working = d.runs.some((r) => r.agentId === desk.agent.id);
     const st = needs ? 'needs' : working ? 'working' : 'idle';
     if (st !== desk.status) {
@@ -2754,7 +2756,7 @@ function drawHud(): void {
   floorId = d.project?.id ?? floorId;
   setBrainLogo();
   const ints = availableIntegrations(d, S.progs);
-  const needs = d.approvals.length + d.outboxPending;
+  const needs = d.approvals.length + d.outboxPending + (d.questions?.length || 0);
   if (!S.hudBuilt) {
     S.hudBuilt = true;
     S.hudTop = h('div.st-top');

@@ -185,6 +185,35 @@ const TOOLS: ToolDef[] = [
       return { text: `Saved to Artifacts${a.teamName ? ` (team ${a.teamName})` : ''}: ${a.title}.` };
     },
   },
+  // ---------- asking the user (every agent) ----------
+  {
+    name: 'ask_user',
+    group: 'core',
+    risk: 'none',
+    description:
+      "Ask the user when you need them: a decision or a choice between options, something only they know or can do (a login, a key, a file, an OK), or when you are stuck. It goes to their Outbox with your choices as buttons and a box for an answer in their own words, and you get their answer back. Use this instead of asking in your reply (they may not be watching this chat). Give 2-6 short choices whenever there are options; leave choices out only for an open question. One question per call. If no answer comes in time, end your turn and say you are waiting: the answer comes to you later as a new message.",
+    parameters: obj(
+      {
+        question: str('The question, short and plain, e.g. "Which style should the logo use?"'),
+        choices: { type: 'array', items: { type: 'string' }, description: 'The answers the user can click, each a few words, e.g. ["Flat", "3D", "Hand-drawn"]. They can always write their own answer instead.' },
+        detail: str('Optional: what they need to know to decide (what you tried, what each choice means). Markdown, a few lines.'),
+      },
+      ['question'],
+    ),
+    run: async ({ question, choices, detail }: { question: string; choices?: unknown; detail?: string }, ctx) => {
+      const q = await import('./questions.ts');
+      // Hermes gives up on an MCP call after 5 minutes: wait less there, and the answer comes as a message
+      const hermes = agentStore.get(ctx.agent.id)?.engine === 'hermes';
+      const waitMs = hermes ? HERMES_WAIT_S * 1000 : q.WAIT_MS;
+      const asker = agentStore.get(ctx.agent.id) ? ctx.agent.id : null;
+      const { question: asked, outcome } = await q.ask({ question, detail, choices, agentId: asker, chatId: await chatOf(ctx), runId: ctx.runId || null }, { signal: ctx.signal, waitMs });
+      if (outcome.kind === 'answer') return { text: q.answerResult(outcome) };
+      if (outcome.kind === 'dismissed') return { text: "The user dismissed the question without answering. Don't ask it again: carry on with what you can, or say in your reply what is blocking you." };
+      if (outcome.kind === 'stopped') return { text: 'Stopped.', isError: true };
+      const where = asked.teamId ? 'in the team chat' : asked.chatId ? 'in this chat' : null;
+      return { text: `No answer yet (waited ${Math.round(waitMs / 60_000)} minutes). The question stays in the user's Outbox${where ? `, and their answer will come to you as a new message ${where}` : ''}. End your turn now: say in one line that you are waiting for their answer, and don't guess it.` };
+    },
+  },
   // ---------- programs ----------
   {
     name: 'list_programs',
