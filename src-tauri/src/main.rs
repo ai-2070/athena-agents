@@ -2,11 +2,13 @@
 // the bundled server in resources/app), waits for it, and shows it in a window. Nothing else changes:
 // the page talks to its server over 127.0.0.1 exactly as it does in a browser, with no Tauri IPC.
 //
-// Quitting the app closes the server's stdin, which tells the server to stop (see server/index.ts).
+// Closing the window hides it to the tray (tray.rs); quitting from the tray closes the server's
+// stdin, which tells the server to stop (see server/index.ts).
 // Updates are looked for and installed from here too (updater.rs).
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod tray;
 mod updater;
 
 use std::fs::{self, File};
@@ -21,6 +23,7 @@ use std::time::{Duration, Instant};
 use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_window_state::StateFlags;
 
 const MAIN: &str = "main";
 /// Far from the browser version's 4800, so the app and a dev server can run side by side. Try the
@@ -40,21 +43,25 @@ struct Server {
 fn main() {
     let app = tauri::Builder::default()
         // a second launch focuses the open window instead of starting a second server
+        // (also how to get the window back on a system with no tray)
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(w) = app.get_webview_window(MAIN) {
-                let _ = w.unminimize();
-                let _ = w.show();
-                let _ = w.set_focus();
-            }
+            tray::show_window(app)
         }))
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        // not whether it was visible: quitting from the tray while it is hidden must not open it hidden
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(StateFlags::all() & !StateFlags::VISIBLE)
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Server::default())
+        .on_window_event(tray::on_window_event)
         .setup(|app| {
             let handle = app.handle().clone();
             build_window(&handle)?;
+            tray::start(&handle);
             start_server(&handle);
             updater::start(&handle);
             Ok(())
@@ -62,10 +69,16 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("could not start Blacksite");
 
-    app.run(|app, event| {
-        if let RunEvent::Exit = event {
-            stop_server(app);
-        }
+    app.run(|app, event| match event {
+        RunEvent::ExitRequested { .. } => tray::quitting(),
+        RunEvent::Exit => stop_server(app),
+        // clicking the Dock icon while the window is hidden
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen {
+            has_visible_windows: false,
+            ..
+        } => tray::show_window(app),
+        _ => {}
     });
 }
 
@@ -148,6 +161,8 @@ fn open_outside(app: &AppHandle, url: &Url) {
 fn show_error(app: &AppHandle, title: &str, message: &str) {
     let log = log_file(app).map(|p| p.display().to_string()).unwrap_or_default();
     show_start_page(app, serde_json::json!({ "title": title, "error": message, "log": log }));
+    // the window may be hidden in the tray: don't let the server stop without anyone seeing it
+    tray::show_window(app);
 }
 
 /// Puts the start page back with a message, while the app works (installing an update).
