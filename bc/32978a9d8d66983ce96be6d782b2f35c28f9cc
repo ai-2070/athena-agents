@@ -1,0 +1,52 @@
+server/store.ts
+  s_d7145df1586b54::t_1cecd64eea09dc 41
+server/learning.ts
+  s_d7145df1586b54::t_6bfd02d9ae0236 1-206,208-232
+  s_d7145df1586b54::t_7bfc0ab8b70807 207
+shared/types.ts
+  s_d7145df1586b54::t_1cecd64eea09dc 324-325,457
+tests/server/brain-skills.test.ts
+  s_d7145df1586b54::t_370257b4e0b0af 1-102,118-153
+  s_d7145df1586b54::t_7bfc0ab8b70807 103-117
+server/index.ts
+  s_d7145df1586b54::t_244be6e83be46d 36,341-342,345-347,849-850
+web/views/skills.ts
+  s_d7145df1586b54::t_282a6ff43cbfcd 3,23-24,28,39-40,51,55-57,86,93-103,127,170,213
+tests/server/brain-learning.test.ts
+  s_d7145df1586b54::t_370257b4e0b0af 1-57,59-124
+  s_d7145df1586b54::t_7c36ac93dff490 58
+tests/server/overseer.test.ts
+  s_d7145df1586b54::t_169614510a56da 154
+web/dock.ts
+  s_d7145df1586b54::t_282a6ff43cbfcd 303,309,454-458
+server/skills.ts
+  s_d7145df1586b54::t_1963e3e754ce47 8-10,112-115,122-124,128-136,149-229
+  s_d7145df1586b54::t_c81ef3ccfe1890 230
+server/overseer.ts
+  s_d7145df1586b54::t_fcee1f194132d0 275-278
+  s_d7145df1586b54::t_74e34e88c03a25 10,19-20,70-73,82-84,220-229,249
+  s_d7145df1586b54::t_139f68ff60fc14 337-369,393-394,403-412,414-431,511-530,532-579,719
+  s_d7145df1586b54::t_414ac2e3e664ec 745-763,771
+  s_d7145df1586b54::t_531852bde8a3af 289-295,304,324-329,335
+  s_d7145df1586b54::t_7bfc0ab8b70807 395-397,413,531
+  s_d7145df1586b54::t_91542acca77d63 336
+README.md
+  s_d7145df1586b54::t_e566fbf276d3d0 41,45,54-57
+  s_d7145df1586b54::t_8b27224a166aaa 58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bc32978a9d8d66983ce96be6d782b2f35c28f9cc",
+  "prompts": {},
+  "sessions": {
+    "s_d7145df1586b54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0d804681-b982-4507-9130-2735cb25a87a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
