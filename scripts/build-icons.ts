@@ -55,11 +55,15 @@ const dataFile = [path.join(SI, 'data', 'simple-icons.json'), path.join(SI, '_da
 const data: SimpleIcon[] | { icons: SimpleIcon[] } = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
 const list = Array.isArray(data) ? data : data.icons;
 const slugOf = (t: SimpleIcon): string => t.slug || t.title.toLowerCase().replace(/\+/g, 'plus').replace(/\./g, 'dot').replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+// Logos Simple Icons has since removed (16 dropped OpenAI, Canva, Slack and the Adobe apps), kept here
+// so a rebuild never loses them. Add one by copying its entry from web/icons.ts before it's gone.
+const FALLBACKS: Record<string, Brand> = JSON.parse(fs.readFileSync(path.join(root, 'scripts', 'brand-fallbacks.json'), 'utf8'));
 const brands: Record<string, Brand> = {};
 for (const [key, slug] of Object.entries(BRANDS)) {
   const file = path.join(SI, 'icons', `${slug}.svg`);
   if (!fs.existsSync(file)) {
-    console.warn('missing brand', slug);
+    if (Object.hasOwn(FALLBACKS, slug)) brands[key] = FALLBACKS[slug];
+    else console.warn('missing brand', slug);
     continue;
   }
   const svg = fs.readFileSync(file, 'utf8');
