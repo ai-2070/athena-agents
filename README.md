@@ -52,8 +52,9 @@ project dialog, or the Brain on the map, or use the paperclip. They're saved in 
 team: every member is told about them.
 
 **Self-improvement**: the Brain comes with this skill. With it, after an agent finishes a sizeable job (5+ tool
-calls), the Brain reviews how it went and records the workflow as a skill, improves a skill that was missing a step,
-or gives a skill to whoever needs it, then says what it did in the Brain chat. This review can only touch skills, and
+calls), the Brain reviews how it went. When it finds something worth keeping, it records the workflow as a skill,
+improves a skill that was missing a step, or gives a skill to whoever needs it, and says what it did in the Brain
+chat; when it doesn't, it changes nothing and says nothing. This review can only touch skills, and
 never the Brain's own skills. Take the skill away from the Brain (Skills page) to turn it off.
 
 **Skills from GitHub**: the Brain installs skills only from GitHub repos you named in the Brain chat yourself, so a

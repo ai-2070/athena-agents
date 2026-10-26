@@ -126,10 +126,20 @@ export async function openDeleted(kinds: VersionKind[], { onRestored }: { onRest
   let m: ModalHandle;
   const box = h('div.list');
   const load = async () => {
-    const lists = await Promise.all(kinds.map((k) => GET<DeletedItem[]>(`/versions/${k}`).catch((): DeletedItem[] => [])));
-    const items = lists.flat().sort((a, b) => b.at - a.at);
+    // a list that couldn't load says so (it isn't "nothing deleted")
+    const lists = await Promise.allSettled(kinds.map((k) => GET<DeletedItem[]>(`/versions/${k}`)));
+    const items = lists.flatMap((r) => (r.status === 'fulfilled' ? r.value : [])).sort((a, b) => b.at - a.at);
+    const failed = lists.flatMap((r, i) => (r.status === 'rejected' ? [{ kind: kinds[i], error: (r.reason as Error)?.message || 'failed' }] : []));
     mount(
       box,
+      failed.length
+        ? h(
+            'div.list-item',
+            icon('triangle-alert', 14),
+            h('div.grow', h('div.title', `Couldn't load the deleted ${failed.map((f) => `${KIND_NAME[f.kind]}s`).join(' and ')}`), h('div.hint', failed.map((f) => f.error).join('; '))),
+            h('button.btn.ghost.small', { onclick: () => load() }, icon('rotate-cw', 13), 'Retry'),
+          )
+        : null,
       items.length
         ? items.map((it) =>
             h(
@@ -139,16 +149,20 @@ export async function openDeleted(kinds: VersionKind[], { onRestored }: { onRest
               h('button.btn.ghost.small', { onclick: () => openHistory(it.kind, it.id, { onRestored: () => (load(), onRestored?.()) }) }, icon('history', 13), 'History'),
               h('button.btn.small', {
                 onclick: async (e: MouseEvent) => {
-                  (e.currentTarget as HTMLButtonElement).disabled = true;
+                  // (the button, kept: the event forgets it once this awaits)
+                  const btn = e.currentTarget as HTMLButtonElement;
+                  btn.disabled = true;
                   if (await attempt(() => POST(`/versions/${it.kind}/${encodeURIComponent(it.id)}/undelete`), `Brought back ${it.name}`)) {
                     onRestored?.();
                     load();
-                  } else (e.currentTarget as HTMLButtonElement).disabled = false;
+                  } else btn.disabled = false;
                 },
               }, icon('archive-restore', 13), 'Bring back'),
             ),
           )
-        : h('p.empty', 'Nothing deleted.'),
+        : failed.length
+          ? null
+          : h('p.empty', 'Nothing deleted.'),
     );
   };
   m = modal({

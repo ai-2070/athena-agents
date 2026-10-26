@@ -54,7 +54,12 @@ function usedBy(slug: string) {
 }
 
 const brainList = (): string[] => state.data?.settings?.brainSkills || [];
-const saveBrain = (skills: string[]) => attempt(() => PUT('/brain/skills', { skills })).then(() => refreshSoon(0));
+// (the saved list goes into the page's state right away, so a menu redrawn next shows it)
+const saveBrain = (skills: string[]) =>
+  attempt(() => PUT<{ skills: string[] }>('/brain/skills', { skills })).then((r) => {
+    if (r && state.data) state.data.settings.brainSkills = r.skills;
+    refreshSoon(0);
+  });
 
 const saveProject = (skills: string[]) => attempt(() => PUT(`/projects/${state.data!.project.id}`, { skills })).then(() => refreshSoon(0));
 const saveAgent = (a: Agent, skills: string[]) => attempt(() => PUT(`/agents/${a.id}`, { skills })).then(() => refreshSoon(0));
