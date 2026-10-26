@@ -105,6 +105,13 @@ The Library is the first page on React (`web/views/library.tsx`), with `Tabs`, `
 `Chips` from `web/ui/controls.tsx`. Same look; tabs move with the arrow keys, and the page simply
 unmounts when you leave it.
 
+Since then every page in `web/views/` has moved except the Station: Settings and all its tabs,
+Artifacts, Outbox, Skills, Terminals, Overview, the agent chat page, Agents, Routines and the Team
+editor. Plain-DOM pieces they still use (the skill picker, the schedule editor, the memory editor,
+the routine @ menu, approval cards) are hosted with `<DomNode>` and can move later. Still to do:
+the Station (its panels around the three.js map), then the Brain dock, the floating chat window and
+team chats.
+
 ## C. Net: pairing, relay and the Android app
 
 **Goal:** a phone (or another computer) reaches the dashboard over Net, end to end encrypted,
