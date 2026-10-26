@@ -13,12 +13,15 @@ interface XPost {
 
 let root: HTMLElement | undefined;
 let tab = 'accounts';
+// the Outbox shown as its own page (no Accounts/Outbox tabs)
+let standalone = false;
 let off: (() => void) | undefined;
 
 export const title = () => 'Connections';
 
 export async function render(el: HTMLElement): Promise<void> {
   root = el;
+  standalone = false;
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
   if ((['accounts', 'outbox'] as (string | null)[]).includes(q.get('sub'))) tab = q.get('sub')!;
   await draw();
@@ -28,14 +31,32 @@ export function unmount(): void {
   off?.();
 }
 
+/** The Outbox as a page of its own (the left menu), the same list as the Outbox tab here. */
+export const outboxPage = {
+  title: () => 'Outbox',
+  async render(el: HTMLElement): Promise<void> {
+    root = el;
+    standalone = true;
+    tab = 'outbox';
+    await draw();
+  },
+  unmount,
+  onEvent,
+};
+
 export function onEvent(ev: ServerEvent): void {
-  if (ev.type === 'outbox' && tab === 'outbox') draw();
+  if (standalone && ev.type === 'outbox') return void draw();
+  if (!standalone && ev.type === 'outbox' && tab === 'outbox') draw();
   if (ev.type === 'accounts' && tab === 'accounts') draw();
 }
 
 async function draw() {
   const body = h('div');
   const pending = state.data?.outboxPending || 0;
+  if (standalone) {
+    mount(root!, body);
+    return drawOutbox(body);
+  }
   mount(
     root!,
     h(
@@ -234,6 +255,16 @@ async function drawOutbox(body: HTMLElement) {
 }
 
 function postCard(p: OutboxPost) {
+  // images that go with the first part; an X on a thumbnail takes it off before approving
+  const keep = new Set(p.images || []);
+  const thumbs = p.images?.length
+    ? h('div.row.mt', { style: { flexWrap: 'wrap', gap: '8px' } }, p.images.map((f) => {
+        const img = h('img', { src: `/api/file?path=${encodeURIComponent(f)}`, alt: f.split(/[\/]/).pop() || '', title: f, style: { maxHeight: '120px', maxWidth: '180px', borderRadius: '8px', display: 'block' } });
+        const box = h('div', { style: { position: 'relative' } }, img);
+        if (p.status === 'pending' || p.status === 'failed') box.append(h('button.btn.tiny.ghost', { title: 'Take this image off the post', style: { position: 'absolute', top: '4px', right: '4px' }, onclick: () => (keep.delete(f), box.remove()) }, '✕'));
+        return box;
+      }))
+    : null;
   const editors = p.parts.map((t) => {
     const ta = h('textarea', { rows: Math.min(6, Math.ceil(t.length / 70) + 1), value: t });
     const count = h('span.hint.mono', `${[...t].length}/280`);
@@ -255,19 +286,20 @@ function postCard(p: OutboxPost) {
     titleIn ? h('div.mt', titleIn) : null,
     p.note ? h('p.hint.mt', p.note) : null,
     p.error ? h('p.red.mt', p.error as string) : null,
+    thumbs,
     editable ? h('div.col.mt', editors.map((e, i) => h('div', e.ta, h('div.row.between', h('span.hint', p.parts.length > 1 ? `Part ${i + 1}` : ''), e.count)))) : h('div.col.mt', p.parts.map((t) => h('div', { style: { whiteSpace: 'pre-wrap' } }, t))),
     editable
       ? h(
           'div.row.mt',
           h('button.btn.small', { onclick: async (e) => {
             (e.target as HTMLButtonElement).disabled = true;
-            const r = await attempt(() => POST<OutboxPost>(`/outbox/${p.id}/approve`, { parts: editors.map((x) => x.ta.value), ...(titleIn ? { title: titleIn.value } : {}) }));
+            const r = await attempt(() => POST<OutboxPost>(`/outbox/${p.id}/approve`, { parts: editors.map((x) => x.ta.value), ...(p.images ? { images: [...keep] } : {}), ...(titleIn ? { title: titleIn.value } : {}) }));
             if (r?.status === 'posted') toast('Posted ✓');
             else if (r?.status === 'failed') toast(r.error as string, 'error', 8000);
             draw();
             refreshSoon(0);
           } }, p.platform === 'x' ? 'Approve & post' : 'Approve & send'),
-          h('button.btn.ghost.small', { onclick: () => attempt(() => PUT(`/outbox/${p.id}`, { parts: editors.map((x) => x.ta.value), ...(titleIn ? { title: titleIn.value } : {}) }), 'Saved') }, 'Save edits'),
+          h('button.btn.ghost.small', { onclick: () => attempt(() => PUT(`/outbox/${p.id}`, { parts: editors.map((x) => x.ta.value), ...(p.images ? { images: [...keep] } : {}), ...(titleIn ? { title: titleIn.value } : {}) }), 'Saved') }, 'Save edits'),
           h('button.btn.danger.small', { onclick: () => attempt(() => POST(`/outbox/${p.id}/reject`, {})).then(() => (draw(), refreshSoon(0))) }, 'Reject'),
         )
       : h('div.row.mt', h('button.btn.tiny.ghost', { onclick: () => attempt(() => DEL(`/outbox/${p.id}`)).then(draw) }, 'Remove')),

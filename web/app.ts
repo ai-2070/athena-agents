@@ -2,6 +2,7 @@
 import { h, mount, clear, state, onState, onEvent, refreshState, refreshSoon, connectEvents, toast, navigate, approvalCard, ago } from './core.ts';
 import * as home from './views/home.ts';
 import * as station from './views/station.ts';
+import * as artifactsView from './views/artifacts.ts';
 import * as agents from './views/agents.ts';
 import * as chat from './views/chat.ts';
 import * as library from './views/library.ts';
@@ -53,11 +54,13 @@ interface NavLink extends Route {
 // The menu stays short. Other pages still open from links (branch editor, terminals, overview).
 const NAV: NavLink[] = [
   { path: 'station', label: 'Station', ico: 'orbit', view: station },
+  { path: 'outbox', label: 'Outbox', ico: 'send', view: connections.outboxPage, count: () => state.data?.outboxPending },
+  { path: 'artifacts', label: 'Artifacts', ico: 'archive', view: artifactsView },
   { path: 'agents', label: 'Agents', ico: 'bot', view: agents },
   { path: 'library', label: 'Library', ico: 'library-big', view: library },
   { path: 'skills', label: 'Skills', ico: 'puzzle', view: skillsView },
   { path: 'routines', label: 'Routines', ico: 'repeat', view: routinesView },
-  { path: 'settings', label: 'Settings', ico: 'settings', view: setup, count: () => state.data?.outboxPending },
+  { path: 'settings', label: 'Settings', ico: 'settings', view: setup },
 ];
 const HIDDEN: Route[] = [
   { path: 'home', label: 'Overview', view: home },
@@ -112,7 +115,7 @@ function navStatus(d: AppState) {
     line(rd.length ? 'on' : '', 'Reddit', rd.length ? (rd.length === 1 ? `u/${rd[0].username}` : `${rd.length} accounts`) : 'not connected', S('tab=connections&sub=accounts&find=Reddit accounts')),
     line(acc.telegram?.configured ? 'on' : '', 'Telegram', acc.telegram?.configured ? 'ready' : 'off', S('tab=connections&sub=accounts&find=Telegram')),
     line((d.mcpServers || []).length ? 'on' : '', 'MCP servers', String((d.mcpServers || []).length), S('tab=mcp&find=Your MCP servers')),
-    d.outboxPending ? line('busy', 'Outbox', `${d.outboxPending} waiting`, S('tab=connections&sub=outbox&find=Waiting for you')) : null,
+    d.outboxPending ? line('busy', 'Outbox', `${d.outboxPending} waiting`, '#/outbox') : null,
   ];
   const sv = d.projectSaved;
   const savedLine = sv ? (sv.error ? `not saved: ${sv.error}` : `auto-saved ${ago(sv.at)}`) : 'auto-save on';
@@ -171,7 +174,7 @@ function renderApprovals() {
   clear(drawerBody);
   if (state.data?.outboxPending) {
     drawerBody.append(
-      h('div.approval', h('div.t', `${state.data.outboxPending} post${state.data.outboxPending > 1 ? 's' : ''} waiting in the Outbox`), h('button.btn.small', { onclick: () => (navigate('#/settings?tab=connections&sub=outbox'), drawer.classList.add('hidden')) }, 'Review posts')),
+      h('div.approval', h('div.t', `${state.data.outboxPending} post${state.data.outboxPending > 1 ? 's' : ''} waiting in the Outbox`), h('button.btn.small', { onclick: () => (navigate('#/outbox'), drawer.classList.add('hidden')) }, 'Review posts')),
     );
   }
   for (const c of approvalCards.values()) drawerBody.append(c.el);

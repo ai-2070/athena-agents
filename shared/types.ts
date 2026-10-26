@@ -322,12 +322,33 @@ export interface Approval {
   brainNote?: string;
 }
 
+/** Something a team finished that isn't an outgoing post: a written result, a file or a folder. */
+export interface Artifact {
+  id: string;
+  title: string;
+  kind: 'text' | 'file' | 'folder';
+  /** file / folder: the full path, inside the project's folders */
+  path?: string;
+  /** text: the result itself (Markdown) */
+  text?: string;
+  note?: string;
+  agentId?: string | null;
+  agentName?: string;
+  /** The team it was done for, named at the time (a renamed team keeps its old name here). */
+  teamId?: string | null;
+  teamName?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 export interface OutboxPost {
   id: string;
   platform: 'x' | 'x_dm' | 'reddit' | 'telegram' | 'discord' | string;
   accountId?: string | null;
   accountLabel?: string;
   parts: string[];
+  /** Image files (full paths inside the project's folders) that go with the first part. X only. */
+  images?: string[];
   status: 'pending' | 'posting' | 'posted' | 'failed' | 'rejected' | string;
   agentId?: string | null;
   /** X: ids of the parts already posted (a thread can be finished later), and what it replies to */

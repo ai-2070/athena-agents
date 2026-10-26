@@ -144,6 +144,19 @@ const TOOLS: ToolDef[] = [
       return recall(chat.items, args);
     },
   },
+  {
+    name: 'save_artifact',
+    group: 'core',
+    risk: 'none',
+    description: 'Hand in a finished result that is not an outgoing post or email: a written answer, a file or a folder (a render, a report, a cut video). It appears in the Outbox page under Artifacts with who made it, which team it was for and when. Give either path (full path of a file or folder inside the project) or text (the result, in Markdown). Posts and emails go to the Outbox instead.',
+    parameters: obj({ title: str('Short name for the result'), path: str('Full path of the file or folder'), text: str('The result itself, when it is text'), note: str('One line: what it is or how to use it') }, ['title']),
+    run: async ({ title, path: target, text, note }: { title: string; path?: string; text?: string; note?: string }, ctx) => {
+      const { runInfo } = await import('./engines/index.ts');
+      const { addArtifact } = await import('./artifacts.ts');
+      const a = addArtifact({ title, path: target, text, note, agentId: ctx.agent.id, chatId: runInfo(ctx.runId)?.chatId });
+      return { text: `Saved to Artifacts${a.teamName ? ` (team ${a.teamName})` : ''}: ${a.title}.` };
+    },
+  },
   // ---------- programs ----------
   {
     name: 'list_programs',
@@ -367,18 +380,19 @@ const TOOLS: ToolDef[] = [
     name: 'x_draft_post',
     group: 'social',
     risk: 'none',
-    description: 'Write a post (or thread) for X. It goes to the Outbox where the user approves, edits or rejects it; it is only published straight away if that account has auto-post on. Each part max 280 characters.',
+    description: 'Write a post (or thread) for X. It goes to the Outbox where the user approves, edits or rejects it; it is only published straight away if that account has auto-post on. Each part max 280 characters. Attach up to 4 images (full paths of PNG/JPEG/WebP files in the project, e.g. ones you rendered) with images; they go on the first post.',
     parameters: obj(
       {
         text: str('The post'),
         thread: { type: 'array', items: { type: 'string' }, description: 'For a thread: every part in order (instead of text)' },
+        images: { type: 'array', items: { type: 'string' }, description: 'Full paths of up to 4 image files (PNG, JPEG, WebP, max 5 MB each) to attach to the first post' },
         account: str('Handle to post as (default: first connected)'),
         reply_to: str('Tweet ID to reply to'),
         note: str('Why this post, for the reviewer'),
       },
     ),
-    run: async ({ text, thread, account, reply_to, note }: { text?: string; thread?: string[]; account?: string; reply_to?: string; note?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'x', text, thread, account, replyTo: reply_to, note, agentId: ctx.agent.id, agentName: ctx.agent.name });
+    run: async ({ text, thread, images, account, reply_to, note }: { text?: string; thread?: string[]; images?: string[]; account?: string; reply_to?: string; note?: string }, ctx) => {
+      const r = await social.draftPost({ platform: 'x', text, thread, images, account, replyTo: reply_to, note, agentId: ctx.agent.id, agentName: ctx.agent.name });
       return { text: r.status === 'posted' ? `Posted: ${r.url}` : r.status === 'failed' ? `Auto-post failed: ${r.error}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },
