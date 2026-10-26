@@ -143,8 +143,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
 textarea.code, input.code { font-family: var(--mono); font-size: 12.5px; }
 select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--dim) 50%), linear-gradient(135deg, var(--dim) 50%, transparent 50%); background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 28px; }
-label.field { display: flex; flex-direction: column; gap: 6px; }
-label.field > span:first-child { font: 500 11px/1.3 var(--mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+label.field, div.field { display: flex; flex-direction: column; gap: 6px; }
+label.field > span:first-child, div.field > span:first-child { font: 500 11px/1.3 var(--mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
 .hint { font-size: 12.5px; color: var(--faint); line-height: 1.45; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
@@ -176,6 +176,13 @@ label.field > span:first-child { font: 500 11px/1.3 var(--mono); letter-spacing:
 .toggle span::after { content: ''; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; background: var(--dim); transition: transform 0.15s; }
 .toggle input:checked + span { border-color: var(--accent); }
 .toggle input:checked + span::after { transform: translateX(18px); background: var(--accent); }
+/* the same switch on Base UI (web/ui/controls.tsx) */
+.switch { position: relative; display: inline-block; width: 38px; height: 20px; flex: none; border: 1px solid var(--line-2); cursor: pointer; transition: border-color 0.15s; }
+.switch-thumb { position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; background: var(--dim); transition: transform 0.15s; }
+.switch[data-checked] { border-color: var(--accent); }
+.switch[data-checked] .switch-thumb { transform: translateX(18px); background: var(--accent); }
+.switch[data-disabled] { opacity: 0.5; cursor: default; }
+.switch-row { cursor: pointer; }
 
 .badge {
   display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px;
@@ -318,7 +325,9 @@ label.field > span:first-child { font: 500 11px/1.3 var(--mono); letter-spacing:
 .lightbox img { max-width: 92vw; max-height: 88vh; display: block; border: 1px solid var(--line-2); }
 
 /* ---------- toasts ---------- */
-#toasts { position: fixed; bottom: 18px; right: 18px; z-index: 70; display: flex; flex-direction: column; gap: 8px; max-width: min(420px, calc(100vw - 36px)); }
+#toasts { position: fixed; bottom: 18px; right: 18px; z-index: 70; max-width: min(420px, calc(100vw - 36px)); }
+#toasts .toast-stack { display: flex; flex-direction: column; gap: 8px; outline: none; }
+.toast[data-limited] { display: none; }
 .toast { --tone: var(--accent); display: flex; gap: 10px; align-items: baseline; background: var(--panel-2); border: 1px solid var(--line-2); padding: 10px 14px; font-size: 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); animation: slide 0.2s ease-out; }
 .toast::before { content: ''; flex: none; width: 7px; height: 7px; background: var(--tone); transform: translateY(-1px); }
 .toast.error { --tone: var(--red); }
@@ -366,3 +375,111 @@ label.field > span:first-child { font: 500 11px/1.3 var(--mono); letter-spacing:
   .status-line { padding: 4px 16px 0; }
   .kv { grid-template-columns: 1fr; }
 }
+
+/* Library (web/views/library.tsx) */
+.lib-tabs { margin-bottom: 6px; }
+.lib-tabs .tabs { margin-bottom: 0; border-bottom: 0; }
+.lib-panel { border-top: 1px solid var(--line); padding-top: 18px; }
+.lib-branch { margin-bottom: 14px; border-color: var(--accent-dim); }
+.lib-search { max-width: 560px; }
+.lib-division { margin-top: 2px; }
+.lib-intro { margin-bottom: 14px; }
+
+/* Artifacts (web/views/artifacts.tsx) */
+.art-search { margin-bottom: 14px; gap: 12px; }
+.art-search input { width: 100%; }
+.art-path { word-break: break-all; }
+.wrap-anywhere { overflow-wrap: anywhere; }
+
+/* MCP servers (web/views/mcp.tsx) */
+.mcp-server { border-bottom: 1px solid var(--line); padding: 10px 0; }
+.mcp-cmd { font-size: 11.5px; overflow-wrap: anywhere; }
+.mcp-tools { margin-top: 6px; font-size: 11px; }
+.mcp-summary { cursor: pointer; }
+.mcp-group { margin-bottom: 14px; }
+.mcp-tool { cursor: help; }
+
+/* Programs (web/views/programs.tsx) */
+.prog-head { margin-bottom: 14px; }
+.prog-head .lede { margin: 0; }
+.prog-search { max-width: 420px; margin-bottom: 12px; }
+.prog-apps { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.prog-app { padding: 10px 12px; flex-direction: row; align-items: center; }
+.prog-app-name { font-weight: 600; font-size: 14px; }
+.img-button { padding: 0; border: 0; background: none; cursor: zoom-in; }
+
+/* Connections and Outbox (web/views/connections.tsx, outbox.tsx) */
+.conn-account { border-bottom: 1px solid var(--line); padding: 10px 0; }
+.conn-avatar { border: 1px solid var(--line-2); }
+.conn-reddit-icon { border-radius: 50%; }
+.conn-post { font-size: 13.5px; }
+.conn-steps { padding-left: 18px; margin: 0 0 14px; color: var(--dim); font-size: 14px; }
+.push-right { margin-left: auto; }
+.pre-wrap { white-space: pre-wrap; }
+.outbox-images { flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.outbox-image { display: flex; flex-direction: column; gap: 6px; }
+.outbox-frame { position: relative; }
+.outbox-frame img { max-height: 120px; max-width: 180px; border-radius: 8px; display: block; }
+.outbox-unpick { position: absolute; top: 4px; right: 4px; }
+.outbox-image-actions { gap: 6px; }
+
+/* Terminals (web/views/terminals.tsx): tabs are links with their own close button, launcher cards are buttons */
+.term-tabs .tt a { display: flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; }
+.term-card { text-align: left; font: inherit; color: inherit; width: 100%; }
+.term-launcher { overflow-y: auto; }
+.term-launcher-body { padding: 20px 18px; max-width: 760px; }
+.term-agent-pick { width: 300px; }
+
+/* Home / Overview (web/views/home.tsx): stats and agent cards are links or buttons */
+.stat-link { cursor: pointer; color: inherit; text-decoration: none; text-align: left; font: inherit; width: 100%; display: block; }
+.stat-link:hover { border-color: var(--accent-dim); }
+a.card.clickable { color: inherit; text-decoration: none; }
+.home-agents { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.home-specialty { -webkit-line-clamp: 2; }
+.home-prog-icon { width: 22px; text-align: center; }
+.home-kind { width: 16px; text-align: center; }
+.home-activity { font-size: 13.5px; }
+.home-ago { font-size: 11px; }
+.home-start { margin-bottom: 16px; border-color: var(--accent-dim); }
+.home-steps { list-style: none; padding: 0; margin: 0; }
+.home-pick { max-width: 300px; }
+
+/* Agent chat page (web/views/chat.tsx) */
+.chat-gone { padding: 28px; }
+.chat-specialty { margin-top: 2px; }
+.chat-buttons { gap: 6px; }
+.chat-tools-summary { cursor: pointer; }
+.chat-tools { margin-top: 6px; font-size: 11px; line-height: 1.7; }
+.chat-head { padding: 10px 28px; border-bottom: 1px solid var(--line); }
+.chat-title { font-size: 12px; }
+
+/* Agents (web/views/agents.tsx) */
+.agents-head { margin-bottom: 16px; }
+.agents-search { width: min(360px, 100%); }
+.agents-badges { gap: 6px; }
+.agent-who { align-items: flex-end; }
+.agent-who > label.field { flex: none; }
+.agent-who > .grow > label.field { flex: 1; }
+.agent-who .agent-emoji { width: 64px; text-align: center; font-size: 20px; }
+.agent-who .agent-color { width: 44px; height: 38px; padding: 2px; background: var(--panel); border: 1px solid var(--line-2); }
+.agents-path { font-size: 12.5px; overflow-wrap: anywhere; }
+.agents-upload { cursor: pointer; }
+
+/* Routines (web/views/routines.tsx) */
+.rt-head { margin-bottom: 14px; }
+.rt-head .section { margin: 0; }
+.rt-empty-title { margin: 0 0 12px; }
+.rt-empty-example { margin: 0 auto 14px; max-width: 520px; }
+.rt-edit-head { margin-bottom: 16px; }
+.rt-target { gap: 8px; }
+.rt-card-link { color: inherit; text-decoration: none; }
+.rt-card-link:hover { color: var(--accent); }
+
+/* Workflows / Team editor (web/views/workflows.tsx) */
+.wf-head { margin-bottom: 14px; }
+.wf-edit-head { margin-bottom: 16px; }
+.wf-steps { list-style: none; padding: 0; margin: 0; }
+.wf-label { width: 220px; }
+.wf-step-buttons { gap: 4px; }
+.wf-run-head { cursor: pointer; padding: 6px 0; }
+.wf-run-sum { display: inline-flex; }

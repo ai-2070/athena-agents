@@ -24,7 +24,7 @@ describe('writing a skill in plain words', () => {
   it('locks the fields while the Brain writes, then fills them in', async () => {
     document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div>';
     state.data = { agents: [], project: { id: 'p', name: 'P', skills: [] }, settings: { brainSkills: [] } } as unknown as AppState;
-    const view = await import('../../web/views/skills.ts');
+    const view = await import('../../web/views/skills.tsx');
     const el = document.createElement('section');
     document.body.append(el);
     const loading = view.render(el, []);

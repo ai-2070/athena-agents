@@ -2,33 +2,15 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { Agent, AppState, Approval, ServerEvent } from '../shared/types.ts';
+import { GET, POST } from './client/http.ts';
+import { openSocket } from './client/connection.ts';
+import { openDialog, showToast } from './ui/overlays.tsx';
+import type { ToastKind } from './ui/overlays.tsx';
 
 // ---------- API ----------
-export interface ApiOptions {
-  method?: string;
-  body?: unknown;
-}
-// The JSON the server sent back. T is what the caller expects: GET<Agent[]>('/agents').
-export async function api<T = unknown>(path: string, { method = 'GET', body }: ApiOptions = {}): Promise<T> {
-  const res = await fetch(`/api${path}`, {
-    method,
-    headers: { 'x-dash': '1', ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let data: unknown = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-  if (!res.ok) throw new Error(((data && (data as { error?: string }).error) || `${res.status} ${res.statusText}`) as string);
-  return data as T;
-}
-export const GET = <T = unknown>(p: string): Promise<T> => api<T>(p);
-export const POST = <T = unknown>(p: string, body: unknown = {}): Promise<T> => api<T>(p, { method: 'POST', body });
-export const PUT = <T = unknown>(p: string, body: unknown = {}): Promise<T> => api<T>(p, { method: 'PUT', body });
-export const DEL = <T = unknown>(p: string): Promise<T> => api<T>(p, { method: 'DELETE' });
+// Requests live in web/client/; pages keep importing them from here.
+export { api, GET, POST, PUT, DEL } from './client/http.ts';
+export type { ApiOptions } from './client/http.ts';
 
 // Run an action, show errors as toasts. Returns the result or undefined.
 export async function attempt<T>(fn: () => Promise<T>, okMsg?: string | ((r: T) => string)): Promise<T | undefined> {
@@ -77,7 +59,7 @@ export function onState(fn: StateListener): () => void {
 
 let socket: WebSocket | undefined;
 export function connectEvents(): void {
-  socket = new WebSocket(`ws://${location.host}/ws`);
+  socket = openSocket('/ws');
   socket.onmessage = (m: MessageEvent<string>) => {
     let ev: ServerEvent;
     try {
@@ -203,11 +185,12 @@ export function md(text: unknown): HTMLDivElement {
 }
 
 // ---------- toasts ----------
-export type ToastKind = 'info' | 'warn' | 'error';
+// Dialogs and toasts are Base UI (web/ui/overlays.tsx); these keep the plain-DOM way of calling them.
+export type { ToastKind } from './ui/overlays.tsx';
+const asNodes = (c: Child): Node[] => [...mount(document.createDocumentFragment(), c).childNodes];
+
 export function toast(text: Child, kind: ToastKind = 'info', ms = 4200): void {
-  const el = h(`div.toast${kind !== 'info' ? '.' + kind : ''}`, text);
-  document.getElementById('toasts')!.append(el);
-  setTimeout(() => el.remove(), ms);
+  showToast(asNodes(text), kind, ms);
 }
 
 // ---------- modals ----------
@@ -220,29 +203,11 @@ export interface ModalOptions {
 }
 export interface ModalHandle {
   close: () => void;
+  /** The backdrop (.modal-back); the dialog is the .modal inside it. */
   el: HTMLDivElement;
 }
 export function modal({ title, body, foot = [], narrow = false, onClose }: ModalOptions = {}): ModalHandle {
-  const root = document.getElementById('modal-root')!;
-  const close = () => {
-    back.remove();
-    document.removeEventListener('keydown', onKey);
-    onClose?.();
-  };
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      close();
-    }
-  };
-  const back: HTMLDivElement = h(
-    'div.modal-back',
-    { onmousedown: (e) => e.target === back && close() },
-    h(`div.modal${narrow ? '.narrow' : ''}`, h('div.modal-head', h('h2', title), h('button.icon-btn', { onclick: close, 'aria-label': 'Close' }, '✕')), h('div.modal-body', body), foot.length ? h('div.modal-foot', foot) : null),
-  );
-  root.append(back);
-  document.addEventListener('keydown', onKey);
-  return { close, el: back };
+  return openDialog({ title: asNodes(title), body: asNodes(body), foot: foot.length ? asNodes(foot) : null, narrow, onClose });
 }
 
 export function confirmBox(text: Child, { ok = 'Yes', danger = false }: { ok?: string; danger?: boolean } = {}): Promise<boolean> {

@@ -5,8 +5,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { UIMessageChunk } from 'ai';
 import { connectEvents, state } from '../../web/core.ts';
 import { forgetFiles } from '../../web/filepreview.ts';
-import { renderTeamChat } from '../../web/teamchat.ts';
-import type { TeamChatApi } from '../../web/teamchat.ts';
+import { clock, renderTeamChat } from '../../web/teamchat.tsx';
+import type { TeamChatApi } from '../../web/teamchat.tsx';
 import type { AppState, Chat, ChatItem } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -66,7 +66,8 @@ beforeEach(() => {
         queued: [],
         sessions: { lead: 'lead-chat', maker: 'maker-chat' },
       });
-    if (url === '/api/agents/maker/chats/maker-chat/stream') return live.response();
+    // (a fresh stream for each ask, as the server does: React's dev mode mounts twice and asks again)
+    if (url === '/api/agents/maker/chats/maker-chat/stream') return (live = uiStream()).response();
     if (url === '/api/teams/t1/queue') return json({ queued: { id: 'q1', text: 'then the banner', ts: 5 } });
     if (url === '/api/teams/t1/stop') return json({ ok: true, unqueued: [{ id: 'q2', text: 'and a logo', ts: 6 }] });
     if (url === '/api/agents/lead/chats/lead-chat') return json({ id: 'lead-chat', agentId: 'lead', items: SESSION } as Partial<Chat>);
@@ -81,6 +82,31 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 const teamEvent = (event: object) => act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'team', teamId: 't1', ts: 0, event }) }));
+
+describe('team chat box', () => {
+  it('a mention asked for as the chat opens lands in the box once it is drawn', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    // (what the Station does: open the chat, then mention the member straight away)
+    open = renderTeamChat(el, 't1');
+    open.mention('Maker');
+    await settle();
+    const box = el.querySelector('textarea')!;
+    expect(box.value).toBe('@Maker ');
+    expect(document.activeElement).toBe(box);
+  });
+
+  it('every "5m ago" shares one timer', () => {
+    const spy = vi.spyOn(globalThis, 'setInterval');
+    const offs = [clock(() => {}), clock(() => {}), clock(() => {})];
+    expect(spy).toHaveBeenCalledTimes(1);
+    offs.forEach((off) => off());
+    // (all gone: the timer stops, and starts again for the next one)
+    clock(() => {})();
+    expect(spy).toHaveBeenCalledTimes(2);
+    spy.mockRestore();
+  });
+});
 
 describe('team chat turns', () => {
   it("a working agent's turn streams in: its tool calls and text as they come", async () => {

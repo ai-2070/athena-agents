@@ -2,6 +2,8 @@
 // paperclip. They upload straight away into the project's Brain folder (uploads/…), and the message
 // then carries their paths. A tray shows each one as a chip with its progress.
 import { h, mount, POST, DEL, toast } from './core.ts';
+import { upload } from './client/http.ts';
+import { fileUrl } from './client/connection.ts';
 import { icon } from './icons.ts';
 import type { UploadedFile } from '../shared/types.ts';
 
@@ -25,7 +27,8 @@ interface Item {
   path: string | null;
   preview: string | null;
   removed: boolean;
-  xhrs: Set<XMLHttpRequest>;
+  /** Stops its uploads when it is taken back. */
+  cancel: AbortController;
   /** Settles once the item is uploaded, failed or taken back. */
   done: Promise<void>;
   settle: () => void;
@@ -137,31 +140,9 @@ export function filesFromInput(list: FileList | null): PickedFile[] {
   return [...(list || [])].filter((f) => !SKIP_FILES.test(f.name)).map((file) => ({ file, rel: file.webkitRelativePath || file.name }));
 }
 
-// One file to POST /api/uploads/<batch>, raw, with progress (fetch can't report upload progress).
-function sendFile(batch: string, p: PickedFile, onProgress: (sent: number) => void, track: Set<XMLHttpRequest>): Promise<UploadedFile> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    track.add(xhr);
-    xhr.open('POST', `/api/uploads/${encodeURIComponent(batch)}?path=${encodeURIComponent(p.rel)}`);
-    xhr.setRequestHeader('x-dash', '1');
-    xhr.setRequestHeader('content-type', 'application/octet-stream');
-    xhr.upload.onprogress = (e) => onProgress(e.loaded);
-    xhr.onload = () => {
-      track.delete(xhr);
-      let data: (UploadedFile & { error?: string }) | null = null;
-      try {
-        data = JSON.parse(xhr.responseText);
-      } catch {
-        /* not JSON */
-      }
-      if (xhr.status >= 200 && xhr.status < 300 && data) resolve(data);
-      else reject(new Error(data?.error || `Upload failed (${xhr.status})`));
-    };
-    xhr.onerror = () => (track.delete(xhr), reject(new Error('Upload failed: the dashboard could not be reached.')));
-    xhr.onabort = () => (track.delete(xhr), reject(new Error('Cancelled')));
-    xhr.send(p.file);
-  });
-}
+// One file to POST /api/uploads/<batch>, raw, with progress.
+const sendFile = (batch: string, p: PickedFile, onProgress: (sent: number) => void, signal: AbortSignal): Promise<UploadedFile> =>
+  upload<UploadedFile>(`/uploads/${encodeURIComponent(batch)}`, p.file, { query: { path: p.rel }, onProgress, signal });
 
 // At most a few uploads at once, across every chip and tray on the page.
 const MAX_PARALLEL = 4;
@@ -200,7 +181,7 @@ function group(picked: PickedFile[]): Item[] {
       path: null,
       preview: !folder && IMAGE.test(key) && files[0].file.size < 20_000_000 ? URL.createObjectURL(files[0].file) : null,
       removed: false,
-      xhrs: new Set(),
+      cancel: new AbortController(),
     });
   });
 }
@@ -226,7 +207,7 @@ async function uploadItem(it: Item, batch: string, redraw: () => void): Promise<
             sentBy.set(p, n);
             it.sent = [...sentBy.values()].reduce((a, b) => a + b, 0);
             redraw();
-          }, it.xhrs);
+          }, it.cancel.signal);
           sentBy.set(p, p.file.size);
           it.path ||= saved.top;
         } catch (e) {
@@ -347,7 +328,7 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
   const forget = (p: string) => DEL(`/uploads?path=${encodeURIComponent(p)}`).catch(() => {});
   const remove = (it: Item) => {
     it.removed = true;
-    for (const x of it.xhrs) x.abort();
+    it.cancel.abort();
     // what arrived (a folder that failed halfway too); one still uploading cleans up when it stops
     if (it.state !== 'uploading' && it.path) forget(it.path);
     if (it.preview) URL.revokeObjectURL(it.preview);
@@ -491,7 +472,7 @@ export function attachmentChips(paths: readonly string[] | undefined | null): HT
     'div.att-sent',
     paths.map((p) => {
       const name = baseName(p);
-      const url = `/api/file?path=${encodeURIComponent(p)}`;
+      const url = fileUrl(p);
       if (isFolderPath(p)) return h('span.att-chip.sent', { title: p }, h('span.att-ico', icon('folder', 13)), h('span.att-name', `${name}/`));
       if (IMAGE.test(p)) return h('a.att-img', { href: url, target: '_blank', rel: 'noopener', title: p }, h('img', { src: url, alt: name, loading: 'lazy' }));
       return h('a.att-chip.sent', { href: url, target: '_blank', rel: 'noopener', title: p }, h('span.att-ico', icon('file', 13)), h('span.att-name', name));

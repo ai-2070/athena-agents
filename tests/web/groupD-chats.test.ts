@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { mergeSnapshot } from '../../web/teamchat.ts';
-import { isTeamSession } from '../../web/agentchat.ts';
+import { mergeSnapshot } from '../../web/teamchat.tsx';
+import { isTeamSession } from '../../web/agentchat.tsx';
 import type { TeamMessage } from '../../shared/types.ts';
 
 const msg = (id: string, ts: number): TeamMessage => ({ id, ts, from: 'user', text: id, mentions: [] });

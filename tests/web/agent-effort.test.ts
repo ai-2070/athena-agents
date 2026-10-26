@@ -1,7 +1,8 @@
 // The agent editor's Effort field: what it shows is what gets saved, also after switching engines.
+import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
-import { render, unmount } from '../../web/views/agents.ts';
+import { render, unmount } from '../../web/views/agents.tsx';
 import type { Agent, AppState } from '../../shared/types.ts';
 
 const agent = { id: 'a1', name: 'Thinker', emoji: '🤖', color: '#fff', specialty: '', description: '', systemPrompt: '', engine: 'claude-code', model: 'opus', provider: 'openrouter', claudeAuth: 'login', hermesProfile: '', autonomy: 'auto', toolGroups: [], mcpServers: [], knowledge: { folders: [] }, workspace: '', temperature: '', effort: 'max', alwaysAllow: [], skills: [], source: { type: 'custom' }, pinned: false } as Agent;
@@ -37,8 +38,11 @@ beforeEach(() => {
     }),
   );
 });
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
+
 afterEach(() => {
-  unmount();
+  act(() => unmount());
   vi.unstubAllGlobals();
   state.data = null;
 });
@@ -48,14 +52,15 @@ const effortSelect = () => [...document.querySelectorAll<HTMLLabelElement>('labe
 describe('agent editor: effort', () => {
   it("shows the engine's levels and saves the nearest one after switching engines", async () => {
     const el = document.getElementById('view')!;
-    await render(el, ['a1', 'edit']);
+    await act(async () => render(el, ['a1', 'edit']));
+    await settle();
     expect(effortSelect().value).toBe('max');
     expect([...effortSelect().options].map((o) => o.value)).toEqual(['', 'low', 'medium', 'high', 'xhigh', 'max']);
     // Codex has no "max"
-    [...el.querySelectorAll('button')].find((b) => b.textContent === 'Codex')!.click();
+    await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'Codex')!.click());
     expect(effortSelect().value).toBe('xhigh');
-    [...el.querySelectorAll('button')].find((b) => b.textContent === 'Save')!.click();
-    await new Promise((r) => setTimeout(r, 20));
+    await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'Save')!.click());
+    await settle();
     expect(saved).toMatchObject({ engine: 'codex', effort: 'xhigh' });
   });
 });

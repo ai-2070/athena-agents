@@ -21,7 +21,7 @@ afterEach(() => (pending.length = 0));
 describe('the Routines page', () => {
   it("draws nothing once you've moved on to another page", async () => {
     state.data = { agents: [] } as unknown as AppState;
-    const view = await import('../../web/views/routines.ts');
+    const view = await import('../../web/views/routines.tsx');
     const el = document.createElement('section');
     document.body.append(el);
     const loading = view.render(el, []);
@@ -34,7 +34,7 @@ describe('the Routines page', () => {
   });
 
   it('draws the list when you stay', async () => {
-    const view = await import('../../web/views/routines.ts');
+    const view = await import('../../web/views/routines.tsx');
     const el = document.createElement('section');
     document.body.append(el);
     const loading = view.render(el, []);

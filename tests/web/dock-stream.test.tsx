@@ -4,7 +4,7 @@ import { act } from 'react';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { UIMessageChunk } from 'ai';
 import { state } from '../../web/core.ts';
-import { brainProgress, initDock } from '../../web/dock.ts';
+import { brainProgress, initDock } from '../../web/dock.tsx';
 import type { AppState } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -66,6 +66,7 @@ describe('the Brain chat', () => {
     await settle();
     const msg = list.querySelector('.dock-msg.brain')!;
     expect(msg.textContent).toContain('I am building');
+    // (the answer stays this element while it streams in, so it never replays its entrance)
     expect(msg.querySelector('details.tool .tname')!.textContent).toBe('Read');
     expect(msg.querySelector('details.tool')!.textContent).toContain('# Brain notes');
     await act(async () => {
@@ -81,8 +82,8 @@ describe('the Brain chat', () => {
     watch.disconnect();
     expect(list.querySelector('.dock-msg.user')!.parentElement).toBe(mine);
     expect(removed).not.toContain(mine);
-    // the answer, drawn again as it streamed, did not replay its entrance
-    expect(done.classList.contains('kept')).toBe(true);
+    // the answer, drawn again as it streamed, is the same element: no entrance again
+    expect(done).toBe(msg);
     expect(done.textContent).toContain('Made the team "Thumbs"');
     expect(list.querySelectorAll('.dock-msg.brain')).toHaveLength(1);
   });

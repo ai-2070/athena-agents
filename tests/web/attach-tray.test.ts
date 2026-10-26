@@ -157,10 +157,11 @@ describe('attachTray()', () => {
     expect(await req).toEqual(['/up/a.txt', '/up/b.txt']);
   });
 
-  it(`takes at most ${MAX_ATTACHMENTS} files or folders`, () => {
+  it(`takes at most ${MAX_ATTACHMENTS} files or folders`, async () => {
     const tray = attachTray({ deferred: true });
     tray.add(files(...Array.from({ length: MAX_ATTACHMENTS + 10 }, (_, i) => `f${i}.txt`)));
     expect(tray.count()).toBe(MAX_ATTACHMENTS);
+    await flush(); // toasts draw right after the current work
     expect(document.getElementById('toasts')!.textContent).toContain(`${MAX_ATTACHMENTS} files or folders`);
   });
 });

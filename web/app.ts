@@ -1,21 +1,21 @@
 // App shell: navigation, routing, the "Needs you" drawer and live notifications.
 import { h, mount, clear, freshElement, state, onState, onEvent, refreshState, refreshSoon, connectEvents, toast, navigate, approvalCard, ago } from './core.ts';
-import * as home from './views/home.ts';
+import * as home from './views/home.tsx';
 import * as station from './views/station.ts';
-import * as artifactsView from './views/artifacts.ts';
-import * as agents from './views/agents.ts';
-import * as chat from './views/chat.ts';
-import * as library from './views/library.ts';
-import * as workflows from './views/workflows.ts';
-import * as programs from './views/programs.ts';
-import * as mcp from './views/mcp.ts';
-import * as connections from './views/connections.ts';
-import * as terminals from './views/terminals.ts';
-import * as settings from './views/settings.ts';
-import * as setup from './views/setup.ts';
-import * as skillsView from './views/skills.ts';
-import * as routinesView from './views/routines.ts';
-import { initDock } from './dock.ts';
+import * as artifactsView from './views/artifacts.tsx';
+import * as agents from './views/agents.tsx';
+import * as chat from './views/chat.tsx';
+import * as library from './views/library.tsx';
+import * as workflows from './views/workflows.tsx';
+import * as programs from './views/programs.tsx';
+import * as mcp from './views/mcp.tsx';
+import * as connections from './views/connections.tsx';
+import * as outboxView from './views/outbox.tsx';
+import * as terminals from './views/terminals.tsx';
+import * as setup from './views/setup.tsx';
+import * as skillsView from './views/skills.tsx';
+import * as routinesView from './views/routines.tsx';
+import { initDock } from './dock.tsx';
 import { guardPageDrops } from './attach.ts';
 import { applyLook, applySavedLook } from './look.ts';
 
@@ -54,7 +54,7 @@ interface NavLink extends Route {
 // The menu stays short. Other pages still open from links (branch editor, terminals, overview).
 const NAV: NavLink[] = [
   { path: 'station', label: 'Station', ico: 'orbit', view: station },
-  { path: 'outbox', label: 'Outbox', ico: 'send', view: connections.outboxPage, count: () => state.data?.outboxPending },
+  { path: 'outbox', label: 'Outbox', ico: 'send', view: outboxView, count: () => state.data?.outboxPending },
   { path: 'artifacts', label: 'Artifacts', ico: 'archive', view: artifactsView },
   { path: 'agents', label: 'Agents', ico: 'bot', view: agents },
   { path: 'library', label: 'Library', ico: 'library-big', view: library },

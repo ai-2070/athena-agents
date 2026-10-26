@@ -1,6 +1,7 @@
 // A team's symbol in the middle of its pod on the Station: an emoji (the default), or a picture or 3D model of your own.
 import { h, POST, DEL, attempt, toast } from './core.ts';
 import { readImage } from './projectlogo.ts';
+import { apiUrl } from './client/connection.ts';
 import type { Team } from '../shared/types.ts';
 
 export const DEFAULT_TEAM_MARK = '💬';
@@ -15,7 +16,7 @@ type MarkRef = Pick<Team, 'id'> & Partial<Pick<Team, 'markFile'>>;
 
 /** The picture or model's URL (changes when it does, so a new one shows at once), or null for the emoji. */
 export function teamMarkUrl(t: MarkRef | null | undefined): string | null {
-  return t?.id && t.markFile ? `/api/workflows/${encodeURIComponent(t.id)}/mark?v=${t.markFile.at}` : null;
+  return t?.id && t.markFile ? apiUrl(`/workflows/${encodeURIComponent(t.id)}/mark`, { v: t.markFile.at }) : null;
 }
 
 const readDataUrl = (file: File): Promise<string | null> =>

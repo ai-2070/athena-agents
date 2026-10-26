@@ -2,6 +2,7 @@
 // three.js and the loaders come in only when a model is first shown. Each viewer draws only while it is on screen and
 // gives its graphics context back when it leaves, so a long chat of models doesn't run out of them.
 import { h } from './core.ts';
+import { fetchFile } from './client/http.ts';
 import type { Group, Object3D, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
@@ -17,8 +18,7 @@ export async function loadModel(url: string, ext: string): Promise<Object3D> {
 }
 
 async function parseModel(THREE: Three, url: string, ext: string): Promise<Object3D> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${res.status}`);
+  const res = await fetchFile(url);
   const gray = () => new THREE.MeshStandardMaterial({ color: 0xc8ccd0, roughness: 0.6, metalness: 0.1 });
   if (ext === 'obj') {
     const { OBJLoader } = await import('three/examples/jsm/loaders/OBJLoader.js');

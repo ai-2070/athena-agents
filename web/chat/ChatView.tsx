@@ -2,7 +2,7 @@
 // you send streams in as its run goes (text as written, tool calls as they happen), and a run started
 // anywhere else (a team turn, a routine, another tab) is picked up and streamed too (a resume: the
 // turn so far, then the rest). The server speaks the AI SDK's UI message stream (server/uistream.ts).
-// Used by the full chat page (views/chat.ts), the floating window's agent tabs (agentchat.ts, compact)
+// Used by the full chat page (views/chat.tsx), the floating window's agent tabs (agentchat.tsx, compact)
 // and the Station's agent panel (mini).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
@@ -17,6 +17,7 @@ import { Dom, MessageView, isRichCode } from './parts.tsx';
 import type { Variant } from './parts.tsx';
 import { beforeTurn, toUIMessages, userParts } from './messages.ts';
 import { WINDOW_FROM, Windowed } from './window.tsx';
+import { estimateHeight, messageSig } from './estimate.ts';
 import { chatTransport } from './transport.ts';
 import { agentMentions, insertMention } from './mention.ts';
 import type { MentionAgent } from './mention.ts';
@@ -407,6 +408,7 @@ export function ChatView(p: ChatViewProps) {
     if (el && near.current) el.scrollTop = el.scrollHeight;
   });
   // previews, videos and Rich answers arrive after the first draw: stay at the bottom as they grow
+  // (style too: a long chat's list grows as its messages are measured)
   useEffect(() => {
     const el = list.current;
     if (!el) return;
@@ -414,7 +416,7 @@ export function ChatView(p: ChatViewProps) {
       if (near.current) el.scrollTop = el.scrollHeight;
     };
     const watch = new MutationObserver(stick);
-    watch.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    watch.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
     el.addEventListener('load', stick, true);
     el.addEventListener('loadedmetadata', stick, true);
     return () => {
@@ -521,7 +523,7 @@ export function ChatView(p: ChatViewProps) {
     );
   };
   const rows = windowed ? (
-    <Windowed items={shown} scroller={list} atEnd={near.current} gap={compact ? 8 : 14} estimate={compact ? 70 : 110} render={row} />
+    <Windowed items={shown} scroller={list} atEnd={near.current} gap={compact ? 8 : 14} estimate={(m, width) => estimateHeight(m, width, compact)} memoKey={(m) => `${agent.id}/${chatId || viewId}/${compact ? 'c' : ''}${m.id}/${messageSig(m)}`} render={row} />
   ) : (
     shown.map(row)
   );
