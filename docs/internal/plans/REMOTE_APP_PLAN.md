@@ -101,6 +101,10 @@ React root, behind the same `modal()` / `confirmBox()` / `promptBox()` / `toast(
 changed. A dialog opened from another nests in it: Escape closes only the top one, focus stays inside
 and goes back to what opened it, and the page behind doesn't scroll. React now loads with the page.
 
+The Library is the first page on React (`web/views/library.tsx`), with `Tabs`, `Segmented` and
+`Chips` from `web/ui/controls.tsx`. Same look; tabs move with the arrow keys, and the page simply
+unmounts when you leave it.
+
 ## C. Net: pairing, relay and the Android app
 
 **Goal:** a phone (or another computer) reaches the dashboard over Net, end to end encrypted,

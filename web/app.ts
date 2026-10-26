@@ -5,7 +5,7 @@ import * as station from './views/station.ts';
 import * as artifactsView from './views/artifacts.ts';
 import * as agents from './views/agents.ts';
 import * as chat from './views/chat.ts';
-import * as library from './views/library.ts';
+import * as library from './views/library.tsx';
 import * as workflows from './views/workflows.ts';
 import * as programs from './views/programs.ts';
 import * as mcp from './views/mcp.ts';

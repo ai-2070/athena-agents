@@ -42,8 +42,8 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 | `server/brain.ts`, `overseer.ts`, `teams.ts`, `learning.ts` | The Brain, approvals review, team chats, self-improvement |
 | `server/projectsync.ts`, `backup.ts`, `versions.ts` | Auto-save into `<project>/.dashboard`, `.dashbackup` files, version history |
 | `shared/` | Types and logic both sides import (`types.ts` is the source of truth for data shapes) |
-| `web/` | Browser app. Mostly plain DOM via the `h()` helper in `web/core.ts`; agent chats are React (`web/chat/*.tsx`, Vercel AI SDK + OpenUI) |
-| `web/ui/` | Base UI (`@base-ui/react`) pieces. `overlays.tsx` draws every dialog and toast: `modal()`, `confirmBox()`, `promptBox()` and `toast()` in `web/core.ts` call it with plain DOM |
+| `web/` | Browser app. Mostly plain DOM via the `h()` helper in `web/core.ts`; agent chats (`web/chat/*.tsx`, Vercel AI SDK + OpenUI) and the Library (`web/views/library.tsx`) are React. Pages are moving to React and Base UI one at a time (`docs/internal/plans/REMOTE_APP_PLAN.md`) |
+| `web/ui/` | Base UI (`@base-ui/react`) pieces. `overlays.tsx` draws every dialog and toast: `modal()`, `confirmBox()`, `promptBox()` and `toast()` in `web/core.ts` call it with plain DOM. `react.tsx` mounts a React page (`mountReact`, `useAppState`, `Icon`); `controls.tsx` has `Tabs`, `Segmented` and `Chips` in the app's own classes |
 | `web/client/` | The page's only way to the server: addresses (`apiUrl`, `fileUrl`, `serverUrl`), requests (`api`, uploads) and sockets. A test fails if other code writes `/api/`, `fetch(` or `new WebSocket(` |
 | `web/views/` | One module per page (`station.ts` is the 3D map, three.js) |
 | `public/` | `index.html` and CSS. `public/dist` is build output, never edit it |
