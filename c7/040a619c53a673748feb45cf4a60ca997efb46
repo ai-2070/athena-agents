@@ -1,0 +1,78 @@
+server/projectsync.ts
+  s_60f3e3abc949a7::t_2447682b48e378 1-2,8-9,44,51,165-166,201-217,220-221,227-228,236-238,240-267,269,273,276-277
+docs/internal/plans/CODE_REVIEW_2026-10-26.md
+  s_60f3e3abc949a7::t_2447682b48e378 1-268
+server/overseer.ts
+  s_60f3e3abc949a7::t_2447682b48e378 6,250-256,560-565,583-588,595,630,633-634,636
+  s_60f3e3abc949a7::t_0e000071e1b02d 556-558,590,596
+tests/server/projectsync.test.ts
+  s_60f3e3abc949a7::t_2447682b48e378 5,90-191
+  s_60f3e3abc949a7::t_9d7d138733da40 192
+tests/server/file-tools.test.ts
+  s_60f3e3abc949a7::t_2447682b48e378 1-110
+server/tools.ts
+  s_60f3e3abc949a7::t_2447682b48e378 5,99-102,104-105,534,536,547,549,559,561-562
+server/teams.ts
+  s_60f3e3abc949a7::t_2447682b48e378 4,6,277,281-283,291,305
+tests/server/workflow-stop.test.ts
+  s_60f3e3abc949a7::t_2447682b48e378 1-76
+server/routines.ts
+  s_60f3e3abc949a7::t_2447682b48e378 5,7,155-157,177-178,182-184,186,193-194
+tests/server/review.test.ts
+  s_60f3e3abc949a7::t_2447682b48e378 18,69-76
+  s_60f3e3abc949a7::t_4dee285b899dec 77
+server/util.ts
+  s_60f3e3abc949a7::t_2447682b48e378 90-131
+web/brainqueue.ts
+  s_60f3e3abc949a7::t_bacb6e4b7bd3ed 8,10-12,17,21,27
+  s_60f3e3abc949a7::t_2447682b48e378 1-7,9,13-16,18-20,22-26,28-55
+server/engines/claude.ts
+  s_60f3e3abc949a7::t_2447682b48e378 109-111
+tests/server/api.test.ts
+  s_60f3e3abc949a7::t_a87a489a3c8dd4 194
+  s_60f3e3abc949a7::t_2447682b48e378 195-230
+  s_60f3e3abc949a7::t_1ff1fd66a06958 231-232
+server/workflows.ts
+  s_60f3e3abc949a7::t_2447682b48e378 3,5,80-82,161-162,170,175-176
+tests/server/claude-args.test.ts
+  s_60f3e3abc949a7::t_2447682b48e378 1-29
+server/engines/index.ts
+  s_60f3e3abc949a7::t_2447682b48e378 3,14-22,63-65,89,161,196-198,206-208,210-213,234-236,258,285,287,327,337-339
+  s_60f3e3abc949a7::t_0e000071e1b02d 332
+server/index.ts
+  s_60f3e3abc949a7::t_0e000071e1b02d 198,202
+  s_60f3e3abc949a7::t_2447682b48e378 9,427-430,583-598,600,602-607
+server/store.ts
+  s_60f3e3abc949a7::t_2447682b48e378 6,124-133,136-138,143-152,156,163,298-299,309
+tests/server/brain-chat.test.ts
+  s_60f3e3abc949a7::t_2447682b48e378 1-88
+web/dock.ts
+  s_60f3e3abc949a7::t_2447682b48e378 7,60-61,68,100,102,138-139,141-142,144,152-153,158-172,350,352,379-380,392-397
+  s_60f3e3abc949a7::t_bacb6e4b7bd3ed 351,391
+server/mcp-bridge.ts
+  s_60f3e3abc949a7::t_2447682b48e378 75
+server/uploads.ts
+  s_60f3e3abc949a7::t_f2208d87d8358d 10,116-122
+tests/server/brain-files.test.ts
+  s_60f3e3abc949a7::t_a87a489a3c8dd4 43
+tests/server/run-project.test.ts
+  s_60f3e3abc949a7::t_2447682b48e378 1-138
+tests/web/brainqueue.test.ts
+  s_60f3e3abc949a7::t_2447682b48e378 1-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c7040a619c53a673748feb45cf4a60ca997efb46",
+  "prompts": {},
+  "sessions": {
+    "s_60f3e3abc949a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f3bddc23-1447-47fb-bdbd-6782a63a28bf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
