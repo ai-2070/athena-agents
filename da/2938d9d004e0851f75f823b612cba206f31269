@@ -1,0 +1,25 @@
+web/dock.ts
+  s_d22ee385de9730::t_eaf5456d852dc7 231,237
+tests/server/overseer.test.ts
+  s_d22ee385de9730::t_4e0bfe744d0f81 90-136
+server/overseer.ts
+  s_d22ee385de9730::t_eaf5456d852dc7 319-338,480-513,516-522
+  s_d22ee385de9730::t_bc9baca3dc7a69 16-19,60-65,192,200-207,225-226,264-265,281-285,290
+  s_d22ee385de9730::t_082e7f4f99b55b 514-515
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "da2938d9d004e0851f75f823b612cba206f31269",
+  "prompts": {},
+  "sessions": {
+    "s_d22ee385de9730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6b6b3e2e-df27-48d7-b1dc-c6e1c8ef286b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
