@@ -3,6 +3,7 @@
 // hands real work to the best agent or team.
 import fs from 'node:fs';
 import path from 'node:path';
+import { waitingQuestions } from './questions.ts';
 import { agents, workflows, activeProject, openProject, projectSwitches, listProjects, getSettings, outbox, activity, log, emit, routineRuns, runs as workflowRuns } from './store.ts';
 import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from './library.ts';
 import { TOOL_GROUPS, workspaceOf } from './tools.ts';
@@ -322,6 +323,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
 
   const approvals = listApprovals();
   const pendingPosts = outbox.list().filter((x) => x.status === 'pending');
+  const asked = waitingQuestions();
   const recent = activity(25)
     .filter((e) => e.kind !== 'terminal')
     .map((e) => `- ${ago(e.ts)}: ${cut(e.text, 160)}`);
@@ -341,7 +343,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     `\nROUTINES (${routineLines.length}; saved instructions run by hand or on a schedule):\n${routineLines.join('\n') || '(none)'}`,
     `\nSKILLS (${skillLines.length}; the project's recorded know-how and workflows; mention one in a routine as @Name):\n${skillLines.slice(0, 120).join('\n') || '(none)'}`,
     `\nMCP SERVERS (${mcpLines.length}; outside tool servers agents and teams can be given):\n${mcpLines.join('\n') || '(none)'}\nReady-made, to add: ${ready}${found ? `\nFound in the user's Claude configs, to add: ${found}` : ''}`,
-    `\nWAITING FOR THE USER: ${approvals.length} approval(s)${approvals.length ? `: ${approvals.map((x) => `${x.agentName || 'agent'} wants "${cut(x.title, 80)}"`).join('; ')}` : ''} | ${pendingPosts.length} post(s) in the Outbox${pendingPosts.length ? `: ${pendingPosts.map((x) => `${x.platform}: "${cut((x.parts || [x.text]).join(' '), 70)}"`).join('; ')}` : ''}`,
+    `\nWAITING FOR THE USER: ${approvals.length} approval(s)${approvals.length ? `: ${approvals.map((x) => `${x.agentName || 'agent'} wants "${cut(x.title, 80)}"`).join('; ')}` : ''} | ${pendingPosts.length} post(s) in the Outbox${pendingPosts.length ? `: ${pendingPosts.map((x) => `${x.platform}: "${cut((x.parts || [x.text]).join(' '), 70)}"`).join('; ')}` : ''} | ${asked.length} question(s) from agents in the Outbox${asked.length ? `: ${asked.map((x) => `${x.agentName || 'agent'} asks "${cut(x.question, 80)}"`).join('; ')}` : ''}`,
     `\nRECENT ACTIVITY:\n${recent.join('\n') || '(nothing yet)'}`,
   ]
     .filter(Boolean)
@@ -1713,6 +1715,7 @@ export function pulse() {
     teamsWorking: teams.filter((t) => teamState(t.id).working.length).length,
     approvals: listApprovals().length,
     outbox: outbox.list().filter((x) => x.status === 'pending').length,
+    questions: waitingQuestions().length,
     brain: getSettings().brain || null,
   };
 }

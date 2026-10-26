@@ -27,7 +27,8 @@ The dashboard runs at **http://localhost:4800**, with no dashboard account or lo
 - **Mix models.** Use Claude Code, Codex, Hermes, pi, oh-my-pi, OpenClaw or OpenAI-compatible APIs, including local model servers. Team members do not need to use the same engine.
 - **Work with your files and programs.** Give agents a project folder, attach reference files, and connect tools for programs such as Blender, Maya, Houdini, Substance 3D, ComfyUI, ffmpeg, HandBrake, ImageMagick, OpenSCAD, PrusaSlicer and NVIDIA's texture tools, and let them pull free textures, HDRIs and models from Poly Haven and ambientCG. The Programs page also finds Adobe apps, free creative programs (GIMP, Krita, Inkscape, Audacity and more), video editors (DaVinci Resolve, CapCut, Kdenlive and more), CAD programs and slicers. Add more tools through MCP servers.
 - **Keep useful instructions.** Write skills in plain words, share them across agents and teams, and turn repeated work into routines you can run by hand or on a schedule.
-- **Review work before it goes out.** Handle permission requests in **Needs you**, review X and Reddit drafts in the **Outbox**, and find saved results in **Artifacts**.
+- **Review work before it goes out.** Handle permission requests in **Needs you**, answer agents' questions and review X and Reddit drafts in the **Outbox**, and find saved results in **Artifacts**.
+- **Agents ask you when they need you.** When an agent has to choose, needs something only you can give, or is stuck, its question goes to the **Outbox** with the choices as buttons and a box to answer in your own words. You can also answer right in its chat while it waits.
 
 ## Screenshots
 
@@ -127,7 +128,7 @@ Claude Code and Codex receive dashboard tools through an MCP bridge; API-model a
 2. **Ask the Brain for a small, concrete job.** Open **Ask the Brain**, press **Ctrl+K** (**⌘K** on macOS), or press **Space** on the Station when you are not typing: *“Build a small team to review this project's docs. Have one agent find confusing setup steps and another suggest clearer wording. Do not change files yet.”*
 3. **Review the agents and their access** — models, instructions, tools, work folders — or add a ready-made agent from **Library**.
 4. **Follow the work.** Click a team or agent on the Station to open its panel and chat.
-5. **Handle anything waiting on you:** permissions in **Needs you**, outgoing drafts in **Outbox**, saved results in **Artifacts**.
+5. **Handle anything waiting on you:** permissions in **Needs you**, agents' questions and outgoing drafts in **Outbox**, saved results in **Artifacts**.
 
 Projects keep separate agents, teams and chats. The project name at the top left switches projects, creates another one, or makes a backup.
 
@@ -141,7 +142,7 @@ Projects keep separate agents, teams and chats. The project name at the top left
 | **Library** | Ready-made starters, The Agency's 270+ specialists (they come with the dashboard), Hermes profiles, Claude Code subagents and your presets. |
 | **Skills** | Reusable instructions, their assignments, earlier versions and recently deleted ones. |
 | **Routines** | Repeatable jobs, their schedules and the results of each run. |
-| **Outbox** | X and Reddit drafts waiting to be approved, edited or rejected. |
+| **Outbox** | Questions from agents (click a choice or write an answer), and X and Reddit drafts waiting to be approved, edited or rejected. |
 | **Artifacts** | Written results, files and folders that agents have saved, each with a preview (images, video, audio, 3D models you can turn) and a search box. Chats show the same previews for files agents mention. |
 | **Settings** | Engines and keys, accounts and connections, MCP servers, programs, UI scale, accent colour and motion. |
 

@@ -40,6 +40,7 @@ import * as brain from './brain.ts';
 import * as irc from './irc.ts';
 import * as projects from './projects.ts';
 import * as teams from './teams.ts';
+import * as questions from './questions.ts';
 import * as reddit from './reddit.ts';
 import * as overseer from './overseer.ts';
 import * as projectSync from './projectsync.ts';
@@ -130,6 +131,7 @@ get('/api/state', async (): Promise<AppState> => ({
   projects: store.listProjects().map(projects.withLogo),
   approvals: listApprovals(),
   outboxPending: outbox.list().filter((p) => p.status === 'pending').length,
+  questions: questions.waitingQuestions(),
   runs: engines.activeRuns(),
   engines: engines.engineStatus(),
   engineList: engines.ENGINE_LIST,
@@ -769,6 +771,14 @@ put<{ parts?: string[]; images?: string[]; title?: string }>('/api/outbox/:id', 
   if (body.images && it.images) it.images = it.images.filter((p) => body.images!.includes(p));
   if (body.title != null && it.reddit) it.reddit.title = String(body.title).trim();
   return outbox.save(it);
+});
+// questions agents asked you (ask_user): answer with a choice, your own words, or both
+get('/api/questions', async () => store.questions.list().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 100));
+post<{ choice?: string; text?: string }>('/api/questions/:id/answer', async ({ id }, body) => questions.answerQuestion(id, { choice: body.choice, text: body.text }));
+post('/api/questions/:id/dismiss', async ({ id }) => questions.dismissQuestion(id));
+del('/api/questions/:id', async ({ id }) => {
+  questions.removeQuestion(id);
+  return { ok: true };
 });
 del('/api/outbox/:id', async ({ id }) => {
   outbox.remove(id);

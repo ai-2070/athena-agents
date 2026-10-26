@@ -27,3 +27,15 @@ describe('claudeArgs() permission mode', () => {
     expect(modeOf(claudeArgs(agent('full'), files))).toBe('bypassPermissions');
   });
 });
+
+describe('claudeArgs() questions', () => {
+  it("turns off Claude's own question box in dashboard runs: it asks with ask_user (the Outbox)", () => {
+    const args = claudeArgs(agent('auto'), files);
+    expect(args[args.indexOf('--disallowedTools') + 1]).toBe('AskUserQuestion');
+    expect(claudeArgs(agent('full'), files)).toContain('--disallowedTools');
+  });
+
+  it('keeps it in a terminal, where you are there to answer', () => {
+    expect(claudeArgs(agent('auto'), { ...files, interactive: true })).not.toContain('--disallowedTools');
+  });
+});

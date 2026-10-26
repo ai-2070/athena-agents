@@ -41,7 +41,7 @@ pi and oh-my-pi run their own tools (files, shell, edits) without asking, whatev
 
 3. **Review the agents and their access.** Check their models, instructions, tools and work folders. You can also add a ready-made agent from **Library** instead of asking the Brain to build one.
 4. **Follow the work.** Click a team or agent on the Station to open its panel and chat. Team chats show the conversation and handoffs; individual chats let you work with one agent directly.
-5. **Handle anything waiting on you.** Check **Needs you** for permissions and **Outbox** for outgoing drafts. Results that agents save as artifacts appear in **Artifacts**; files they create stay in their work folders.
+5. **Handle anything waiting on you.** Check **Needs you** for permissions and **Outbox** for agents' questions and outgoing drafts. Results that agents save as artifacts appear in **Artifacts**; files they create stay in their work folders.
 
 Projects keep separate agents, teams and chats. Use the project name at the top left to switch projects, create another one or make a backup.
 
@@ -188,6 +188,8 @@ An explicit **Always allow** choice can also skip later approval requests for th
 **The Brain approves** is on by default. When an agent or team requests permission, the Brain reviews it first. It is instructed to allow routine, reversible work within the task and pass risky or unclear requests to **Needs you**, with a reason. This is a model's judgment, not a hard safety guarantee. Turn it off under **Settings → General & keys → The Brain's model** if you want requests to come to you directly.
 
 Workflow checkpoints and approval requests from outside MCP clients always come to you. X and Reddit drafts wait in the Outbox unless you enable auto-post for that account. **X direct messages always wait for your approval.**
+
+**Questions from agents.** When an agent needs you to decide something, needs something only you can give (a login, a file, an OK) or is stuck, it asks with its `ask_user` tool instead of only writing the question in its reply. The question goes to the top of the **Outbox** (and the **Needs you** count), with its choices as buttons and a box for an answer in your own words; whatever you write goes along with a choice you click. While the agent waits, the same card shows under its tool call in the chat, so you can answer there too. The agent waits up to 30 minutes (4 for Hermes). If you answer later, your answer goes to its chat as a new message, or to its team chat addressed to it, so it picks up where it stopped. **Dismiss** closes a question without an answer, and stopping the run closes its question.
 
 ### What “local” protects—and what it does not
 

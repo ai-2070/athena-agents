@@ -54,7 +54,7 @@ interface NavLink extends Route {
 // The menu stays short. Other pages still open from links (branch editor, terminals, overview).
 const NAV: NavLink[] = [
   { path: 'station', label: 'Station', ico: 'orbit', view: station },
-  { path: 'outbox', label: 'Outbox', ico: 'send', view: outboxView, count: () => state.data?.outboxPending },
+  { path: 'outbox', label: 'Outbox', ico: 'send', view: outboxView, count: () => (state.data?.outboxPending || 0) + (state.data?.questions?.length || 0) },
   { path: 'artifacts', label: 'Artifacts', ico: 'archive', view: artifactsView },
   { path: 'agents', label: 'Agents', ico: 'bot', view: agents },
   { path: 'library', label: 'Library', ico: 'library-big', view: library },
@@ -119,7 +119,7 @@ function navStatus(d: AppState) {
     line(rd.length ? 'on' : '', 'Reddit', rd.length ? (rd.length === 1 ? `u/${rd[0].username}` : `${rd.length} accounts`) : 'not connected', S('tab=connections&sub=accounts&find=Reddit accounts')),
     line(acc.telegram?.configured ? 'on' : '', 'Telegram', acc.telegram?.configured ? 'ready' : 'off', S('tab=connections&sub=accounts&find=Telegram')),
     line((d.mcpServers || []).length ? 'on' : '', 'MCP servers', String((d.mcpServers || []).length), S('tab=mcp&find=Your MCP servers')),
-    d.outboxPending ? line('busy', 'Outbox', `${d.outboxPending} waiting`, '#/outbox') : null,
+    d.outboxPending || d.questions?.length ? line('busy', 'Outbox', `${d.outboxPending + (d.questions?.length || 0)} waiting`, '#/outbox') : null,
   ];
   const sv = d.projectSaved;
   const savedLine = sv ? (sv.error ? `not saved: ${sv.error}` : `auto-saved ${ago(sv.at)}`) : 'auto-save on';
@@ -156,17 +156,19 @@ async function route() {
 const drawer = document.getElementById('drawer')!;
 const drawerBody = document.getElementById('drawer-body')!;
 let seenApprovals = new Set<string>();
+let seenQuestions: Set<string> | null = null;
 // Cards are kept while their approval is unchanged, so a typed note or edit survives other refreshes.
 let drawnApprovals = '';
 let approvalCards = new Map<string, { key: string; el: HTMLElement }>();
 
 function renderApprovals() {
   const list = state.data?.approvals || [];
-  const n = list.length + (state.data?.outboxPending || 0);
+  const asked = state.data?.questions || [];
+  const n = list.length + (state.data?.outboxPending || 0) + asked.length;
   const count = document.getElementById('needs-count')!;
   count.textContent = String(n);
   count.classList.toggle('hot', n > 0);
-  const drawn = JSON.stringify([list, state.data?.outboxPending || 0]);
+  const drawn = JSON.stringify([list, state.data?.outboxPending || 0, asked.map((q) => q.id)]);
   if (drawn === drawnApprovals) return;
   drawnApprovals = drawn;
   approvalCards = new Map(
@@ -177,9 +179,20 @@ function renderApprovals() {
     }),
   );
   clear(drawerBody);
+  const toOutbox = () => (navigate('#/outbox'), drawer.classList.add('hidden'));
+  if (asked.length) {
+    drawerBody.append(
+      h(
+        'div.approval',
+        h('div.t', asked.length === 1 ? `${asked[0].agentName || 'An agent'} asks: ${asked[0].question}` : `${asked.length} questions from agents in the Outbox`),
+        asked.length === 1 && asked[0].choices.length ? h('div.hint', `Choices: ${asked[0].choices.join(' · ')}`) : null,
+        h('button.btn.small', { onclick: toOutbox }, asked.length === 1 ? 'Answer' : 'Answer them'),
+      ),
+    );
+  }
   if (state.data?.outboxPending) {
     drawerBody.append(
-      h('div.approval', h('div.t', `${state.data.outboxPending} post${state.data.outboxPending > 1 ? 's' : ''} waiting in the Outbox`), h('button.btn.small', { onclick: () => (navigate('#/outbox'), drawer.classList.add('hidden')) }, 'Review posts')),
+      h('div.approval', h('div.t', `${state.data.outboxPending} post${state.data.outboxPending > 1 ? 's' : ''} waiting in the Outbox`), h('button.btn.small', { onclick: toOutbox }, 'Review posts')),
     );
   }
   for (const c of approvalCards.values()) drawerBody.append(c.el);
@@ -191,6 +204,13 @@ function renderApprovals() {
     toast(fresh[0].title, 'warn');
   }
   seenApprovals = new Set(list.map((a) => a.id));
+  // a new question from an agent: say so (not for the ones already there when the page opened)
+  const newQ = seenQuestions ? asked.filter((q) => !seenQuestions!.has(q.id)) : [];
+  if (newQ.length && !fresh.length) {
+    if (!location.hash.startsWith('#/outbox')) drawer.classList.remove('hidden');
+    toast(`${newQ[0].agentName || 'An agent'} asks: ${newQ[0].question}`, 'warn');
+  }
+  seenQuestions = new Set(asked.map((q) => q.id));
 }
 
 function renderRunning() {
@@ -219,7 +239,7 @@ onState(() => {
   renderRunning();
 });
 
-const STATE_EVENTS = new Set(['agents', 'approvals', 'outbox', 'runs', 'settings', 'accounts', 'terminals', 'mcp', 'project', 'project-logo', 'projects']);
+const STATE_EVENTS = new Set(['agents', 'approvals', 'outbox', 'questions', 'runs', 'settings', 'accounts', 'terminals', 'mcp', 'project', 'project-logo', 'projects']);
 onEvent((ev) => {
   if (STATE_EVENTS.has(ev.type)) refreshSoon();
   if (ev.type === 'toast') toast(ev.text as string);

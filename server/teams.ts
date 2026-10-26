@@ -541,7 +541,7 @@ How this chat works:
 - To hand work to a teammate, mention them exactly as @Name and say precisely what you need back. Only mention someone who needs to act now; each stage should have one owner.
 - Do your own part fully before handing off. Don't redo work a teammate owns.
 - A task you hand to a teammate is theirs: don't also do it yourself, and don't give the same task to two people. Work that needs something only one member has (see "has" above) goes to that member.
-- Anything that needs the user's judgment: ask them in your reply, without mentioning a teammate.
+- Anything that needs the user's judgment or help, or that only they can unblock: ask them with ask_user (with short choices to click), not only in your reply, and don't mention a teammate for it.
 - The Brain (the project's overseer) hands the team work and checks on it. To ask it something (about the project, other teams, what to do next) or to say you're stuck, write @Brain.
 - Keep replies short: what you did, the result, and who acts next.${team.lead === agent.id ? '\n- You are the lead: break the request down, give each part to one owner, and when everyone is done post the combined result for the user.' : ''}`;
 }

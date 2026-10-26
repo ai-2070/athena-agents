@@ -1,11 +1,13 @@
-// The Outbox: posts, comments and DMs agents drafted, waiting for you to approve, edit, discuss or reject.
+// The Outbox: questions agents asked you, and posts, comments and DMs they drafted, waiting for you to
+// answer, or to approve, edit, discuss or reject.
 // A page of its own (the left menu) and a tab in Settings > Connections.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GET, POST, PUT, DEL, attempt, toast, ago, refreshSoon } from '../core.ts';
 import { fetchFile } from '../client/http.ts';
 import { fileUrl } from '../client/connection.ts';
 import { reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
-import type { OutboxPost } from '../../shared/types.ts';
+import { QuestionCard } from '../questions.tsx';
+import type { AgentQuestion, OutboxPost } from '../../shared/types.ts';
 
 /** X's limit for one post. */
 const LIMIT = 280;
@@ -43,6 +45,7 @@ export function Outbox() {
   const changed = () => (void reload(), refreshSoon(0));
   return (
     <>
+      <Questions />
       {data.accounts.x.length ? <Compose accounts={data.accounts.x.map((a) => a.username)} added={() => void reload()} /> : null}
       <h2 className="section mt-lg">{`Waiting for you (${pending.length})`}</h2>
       {pending.length ? (
@@ -60,6 +63,39 @@ export function Outbox() {
           </div>
         </>
       ) : null}
+    </>
+  );
+}
+
+/** What agents asked you (ask_user): the waiting ones first, then the last ones you answered. */
+function Questions() {
+  const [list, setList] = useState<AgentQuestion[] | null>(null);
+  const reload = useCallback(() => GET<AgentQuestion[]>('/questions').then(setList), []);
+  useEffect(() => void reload().catch(() => setList([])), [reload]);
+  useServerEvents((ev) => (ev.type === 'questions' || ev.type === 'project') && void reload().catch(() => {}));
+  if (!list?.length) return null;
+  const waiting = list.filter((q) => q.status === 'waiting').reverse();
+  const done = list.filter((q) => q.status !== 'waiting').slice(0, 20);
+  const changed = () => void reload().catch(() => {});
+  return (
+    <>
+      <h2 className="section">{`Questions from agents (${waiting.length})`}</h2>
+      {waiting.length ? (
+        <div className="col">
+          {waiting.map((q) => <QuestionCard key={q.id} q={q} changed={changed} />)}
+        </div>
+      ) : (
+        <div className="empty box">No questions waiting. When an agent needs you to choose or is stuck, it asks here.</div>
+      )}
+      {done.length ? (
+        <details className="mt">
+          <summary className="hint">{`Answered and closed (${done.length})`}</summary>
+          <div className="col mt">
+            {done.map((q) => <QuestionCard key={q.id} q={q} changed={changed} />)}
+          </div>
+        </details>
+      ) : null}
+      <div className="mt-lg" />
     </>
   );
 }

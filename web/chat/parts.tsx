@@ -9,6 +9,8 @@ import { compactionMark } from '../compactmark.ts';
 import { filePreviews } from '../filepreview.ts';
 import { findFileMentions } from '../mentions.ts';
 import { readOutput, readUser } from './messages.ts';
+import { useAppState } from '../ui/react.tsx';
+import { QuestionCard, questionFor } from '../questions.tsx';
 import type { ChatMessage, ChatPart } from './messages.ts';
 import type { CompactionItem } from '../../shared/types.ts';
 
@@ -87,8 +89,12 @@ export function ToolCard({ part, variant, busy }: { part: DynamicToolUIPart; var
     input = String(part.input);
   }
   const small = variant !== 'full';
+  // ask_user while the agent waits: answer right here (it's in the Outbox too)
+  const asked = useAppState()?.questions;
+  const question = part.toolName === 'ask_user' && !done ? questionFor(asked, part.input) : null;
   return (
     <div className={`col oc-tool${small ? ' small' : ''}`} style={{ gap: '6px' }}>
+      {question ? <QuestionCard q={question} inChat /> : null}
       <details
         className={`tool${failed ? ' error' : ''}${small ? ' small' : ''}`}
         open={open}

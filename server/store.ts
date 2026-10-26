@@ -6,7 +6,7 @@ import { EventEmitter } from 'node:events';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { DATA, HOME, dataPath, ensureDir, readJSON, writeJSON, uid, listFiles, exists } from './util.ts';
 import { keepVersion } from './versions.ts';
-import type { ActivityEntry, Agent, Artifact, Chat, ChatSummary, OutboxPost, Project, Routine, RoutineRun, SecretKey, SecretStatus, ServerEvent, Settings, Team } from '../shared/types.ts';
+import type { ActivityEntry, Agent, AgentQuestion, Artifact, Chat, ChatSummary, OutboxPost, Project, Routine, RoutineRun, SecretKey, SecretStatus, ServerEvent, Settings, Team } from '../shared/types.ts';
 
 ensureDir(DATA);
 
@@ -340,6 +340,7 @@ export function migrateGlobalOutbox(): number {
   return moved;
 }
 export const artifacts = collection<Artifact>('artifacts'); // what a project's teams finished
+export const questions = collection<AgentQuestion>('questions'); // what agents asked you (ask_user), shown in the Outbox
 
 // Chats are stored per agent: data/chats/<agentId>/<chatId>.json
 const SAFE_ID = /^[\w-]+$/;
