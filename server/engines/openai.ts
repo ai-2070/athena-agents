@@ -444,14 +444,17 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
 
 // Keep the conversation under a rough size budget, cutting oldest turns at a user message boundary.
 // (Compaction normally keeps it far below this; this only matters with automatic compaction off.)
-function trimHistory(msgs: LlmMessage[], maxChars = 400_000): LlmMessage[] {
-  let total = 0;
-  let start = msgs.length;
-  for (let i = msgs.length - 1; i >= 0; i--) {
-    total += JSON.stringify(msgs[i]).length;
-    if (total > maxChars) break;
-    start = i;
-  }
+// The cut moves in steps of half the budget, not with every message: the history then starts the same
+// way for many requests in a row, so the provider's prompt cache can be read (a cut that moved each time
+// made every request start differently, and nothing was ever read back from the cache).
+export function trimHistory(msgs: LlmMessage[], maxChars = 400_000): LlmMessage[] {
+  const sizes = msgs.map((m) => JSON.stringify(m).length);
+  const total = sizes.reduce((a, b) => a + b, 0);
+  const step = Math.max(1, Math.floor(maxChars / 2));
+  // what to drop from the start, rounded up to a whole step
+  const drop = total > maxChars ? Math.ceil((total - maxChars) / step) * step : 0;
+  let start = 0;
+  for (let cut = 0; start < msgs.length && cut < drop; start++) cut += sizes[start];
   while (start < msgs.length && msgs[start].role !== 'user') start++;
   return msgs.slice(start);
 }
