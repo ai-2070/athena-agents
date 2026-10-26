@@ -40,12 +40,20 @@ When it opens, the app:
    short one, and agents' CLIs (`claude`, `codex`, `gh`…) would not be found.
 5. After 30 seconds, and every 6 hours after that, looks for an update (below).
 
+Closing the window hides it (`src-tauri/src/tray.rs`): the server and agents keep running, and the tray
+icon brings the window back (a left click, or **Open Blacksite** in its menu; on Linux, only the menu).
+**Quit Blacksite** in the tray's menu quits. If the tray can't be made, closing the window quits as before.
+Some Linux desktops (GNOME without an extension) make the tray but never show it: there, opening the app
+again is the way back.
+A second launch, the macOS Dock icon and a server error also show the hidden window. The window-state
+plugin doesn't save whether the window was visible, so quitting while it is hidden doesn't open it hidden.
+
 Quitting closes the server's stdin. With `DASH_DESKTOP` set, the server takes that as "stop" (in
 `server/index.ts`), so it also stops if the app crashes. After 5 seconds the app kills it.
 
 The window only shows the dashboard and its start page. Other `http(s)`/`mailto` links and every new
 window (`target=_blank`, `window.open`) open in the default browser; other schemes (`file:`…) are dropped.
-A second launch focuses the open window. Size and position are remembered.
+A second launch shows and focuses the open window. Size and position are remembered.
 
 ### Keep in mind when changing the server
 
