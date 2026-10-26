@@ -1,7 +1,7 @@
 // A team's group chat: everyone's messages, who is working, @mention suggestions, reply-to, stop.
 import { h, mount, state, GET, POST, attempt, md, ago, avatar, onEvent, confirmBox } from './core.ts';
 import { icon } from './icons.ts';
-import { attachTray, attachmentChips } from './attach.ts';
+import { attachTray, attachmentChips, restoreDraft } from './attach.ts';
 import type { Agent, RunEvent, Team, TeamMessage, TeamState } from '../shared/types.ts';
 
 /** What the server pushes as a 'team' event (ev.event). */
@@ -194,19 +194,21 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
 
   let sending = false;
   async function send() {
-    const text = input.value.trim();
-    if ((!text && !tray.count()) || sending) return;
+    if ((!input.value.trim() && !tray.count()) || sending) return;
     sending = true;
     try {
       if (tray.busy()) mount(status, h('span.tc-typing', h('span.dot.busy'), 'Uploading files…'));
       const attachments = await tray.ready();
       draw();
       if (!attachments) return;
+      // what is in the box now (more may have been typed while the files uploaded)
+      const text = input.value.trim();
+      if (!text && !attachments.length) return;
       input.value = '';
       const taken = tray.take();
       const r = await attempt(() => POST<TeamMessage>(`/teams/${teamId}/messages`, { text, replyTo: C.replyTo?.id || null, attachments }));
       if (!r) {
-        input.value = text;
+        restoreDraft(input, text);
         tray.put(taken);
       } else setReply(null);
     } finally {
@@ -270,6 +272,8 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
       C.alive = false;
       off();
       offDrop();
+      // the tab closed: unsent attachments go too
+      tray.discard();
     },
   };
 }

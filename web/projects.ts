@@ -106,20 +106,34 @@ export async function openNewProject({ mode: startMode = 'new', onDone }: { mode
     suggest();
   };
   let m: ModalHandle;
+  // made already (its files failed to upload): the next click only tries the files again
+  let created: CreatedProject | null = null;
   const create = async (btn: HTMLButtonElement) => {
     btn.disabled = true;
-    btn.textContent = mode === 'github' ? 'Cloning…' : 'Creating…';
-    const p = await attempt(() => POST<CreatedProject>('/projects', { name: name.value.trim() || repoName(), mode, folder: folder.value.trim(), repo: repo.value.trim(), description: about.value.trim() }));
+    btn.textContent = created ? 'Uploading files…' : mode === 'github' ? 'Cloning…' : 'Creating…';
+    const p = created || (await attempt(() => POST<CreatedProject>('/projects', { name: name.value.trim() || repoName(), mode, folder: folder.value.trim(), repo: repo.value.trim(), description: about.value.trim() })));
     if (!p) {
       btn.disabled = false;
       btn.textContent = 'Create project';
       return;
     }
+    if (!created) {
+      created = p;
+      // the project exists now: only its files can still change
+      for (const f of [name, folder, repo, about]) f.disabled = true;
+    }
     // the new project is the active one now, so the files land in its folder (uploads/), shown here while they go
     let files: string[] = [];
     if (tray.count()) {
       btn.textContent = 'Uploading files…';
-      files = (await tray.ready()) || [];
+      const up = await tray.ready();
+      if (!up) {
+        // stay open: try again, or remove the ones that failed and go on
+        btn.disabled = false;
+        btn.textContent = 'Try the files again';
+        return;
+      }
+      files = up;
     }
     m.close();
     toast(p.restored ? `Loaded "${p.name}": ${p.restored.agents} agents and ${p.restored.teams} teams from the folder` : `Project "${p.name}" is open`);
@@ -162,6 +176,8 @@ Look at the project folder and help me set it up: ask me what you need to know f
       h('label.row', { style: { gap: '8px', cursor: 'pointer' } }, kickoff, h('span', 'Let the Brain set it up (PROJECT.md, teams and agents)')),
     ),
     foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), createBtn],
+    // closed after the project was made but before its files went: it is still open in the dashboard
+    onClose: () => created && refreshSoon(0),
   });
   tray.dropZone(m.el.querySelector<HTMLElement>('.modal')!, 'Drop files or folders for the new project');
   draw();

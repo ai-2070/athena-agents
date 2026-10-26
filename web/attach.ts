@@ -32,6 +32,8 @@ interface Item {
 }
 
 export const MAX_FILES = 2000;
+/** Files and folders one message can carry (the server takes no more). */
+export const MAX_ATTACHMENTS = 50;
 const SKIP_DIRS = new Set(['.git', 'node_modules', '__pycache__', '.venv', '.next', '.cache']);
 const SKIP_FILES = /^(\.DS_Store|Thumbs\.db|desktop\.ini)$/i;
 const IMAGE = /\.(png|jpe?g|webp|gif)$/i;
@@ -107,12 +109,19 @@ function sendFile(batch: string, p: PickedFile, onProgress: (sent: number) => vo
   });
 }
 
-// Run jobs a few at a time.
-async function pool<T>(list: T[], n: number, job: (x: T) => Promise<void>): Promise<void> {
-  let i = 0;
-  await Promise.all(Array.from({ length: Math.min(n, list.length) }, async () => {
-    while (i < list.length) await job(list[i++]);
-  }));
+// At most a few uploads at once, across every chip and tray on the page.
+const MAX_PARALLEL = 4;
+let active = 0;
+const queue: (() => void)[] = [];
+async function limited<T>(job: () => Promise<T>): Promise<T> {
+  if (active >= MAX_PARALLEL) await new Promise<void>((go) => queue.push(go));
+  active++;
+  try {
+    return await job();
+  } finally {
+    active--;
+    queue.shift()?.();
+  }
 }
 
 // What was dropped, as chips: loose files one each, a folder as one chip.
@@ -125,9 +134,7 @@ function group(picked: PickedFile[]): Item[] {
   }
   return [...byTop].map(([key, files]) => {
     const folder = key.endsWith('/');
-    let settle!: () => void;
-    const done = new Promise<void>((r) => (settle = r));
-    return {
+    return withDone({
       key: `${key}:${Math.random().toString(36).slice(2)}`,
       name: folder ? key.slice(0, -1) : key,
       kind: folder ? 'folder' : 'file',
@@ -140,15 +147,49 @@ function group(picked: PickedFile[]): Item[] {
       preview: !folder && IMAGE.test(key) && files[0].file.size < 20_000_000 ? URL.createObjectURL(files[0].file) : null,
       removed: false,
       xhrs: new Set(),
-      done,
-      settle,
-    };
+    });
   });
 }
 
+// A fresh 'done' promise for an item (new, or tried again).
+function withDone<T extends Omit<Item, 'done' | 'settle'>>(it: T): Item {
+  let settle!: () => void;
+  const done = new Promise<void>((r) => (settle = r));
+  return Object.assign(it, { done, settle });
+}
+
+// One chip's files into the batch. The first failure stops the rest, and nothing is reported
+// until every request already going has finished.
+async function uploadItem(it: Item, batch: string, redraw: () => void): Promise<void> {
+  const sentBy = new Map<PickedFile, number>();
+  let failure: Error | null = null;
+  await Promise.all(
+    it.picked.map((p) =>
+      limited(async () => {
+        if (it.removed || failure) return;
+        try {
+          const saved = await sendFile(batch, p, (n) => {
+            sentBy.set(p, n);
+            it.sent = [...sentBy.values()].reduce((a, b) => a + b, 0);
+            redraw();
+          }, it.xhrs);
+          sentBy.set(p, p.file.size);
+          it.path ||= saved.top;
+        } catch (e) {
+          failure ||= e as Error;
+        }
+      }),
+    ),
+  );
+  if (failure) throw failure;
+}
+
 // Upload items into one new batch folder; each item ends 'done' (with its path) or 'error'.
+// They are marked 'uploading' straight away, so a second call never picks them up again.
 async function uploadItems(items: Item[], redraw: () => void): Promise<void> {
   if (!items.length) return;
+  for (const it of items) it.state = 'uploading';
+  redraw();
   let batch: string;
   try {
     batch = (await POST<{ batch: string }>('/uploads')).batch;
@@ -159,20 +200,8 @@ async function uploadItems(items: Item[], redraw: () => void): Promise<void> {
   }
   await Promise.all(
     items.map(async (it) => {
-      it.state = 'uploading';
-      redraw();
-      const sentBy = new Map<PickedFile, number>();
       try {
-        await pool(it.picked, 3, async (p) => {
-          if (it.removed) return;
-          const saved = await sendFile(batch, p, (n) => {
-            sentBy.set(p, n);
-            it.sent = [...sentBy.values()].reduce((a, b) => a + b, 0);
-            redraw();
-          }, it.xhrs);
-          sentBy.set(p, p.file.size);
-          it.path ||= saved.top;
-        });
+        await uploadItem(it, batch, redraw);
         if (!it.removed) it.state = 'done';
       } catch (e) {
         if (!it.removed) Object.assign(it, { state: 'error', error: (e as Error).message });
@@ -195,9 +224,10 @@ export interface AttachTray {
   dropZone: (el: HTMLElement, label?: string) => () => void;
   count: () => number;
   busy: () => boolean;
-  /** Paths once every upload is done; null (with a message) if one failed. Deferred trays upload now. */
+  /** Paths once every upload is done, including files added meanwhile; null (with a message) if one failed.
+   *  Failed ones are tried again on each call. Deferred trays upload now. */
   ready: () => Promise<string[] | null>;
-  /** Take the chips out (after sending); put() brings them back if sending failed. */
+  /** Take the uploaded chips out (after sending); put() brings them back if sending failed. */
   take: () => Item[];
   put: (items: Item[]) => void;
   clear: () => void;
@@ -260,24 +290,44 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
       h('button.att-x', { type: 'button', title: 'Remove', 'aria-label': `Remove ${it.name}`, onclick: () => remove(it) }, icon('x', 12)),
     );
   };
+  const forget = (p: string) => DEL(`/uploads?path=${encodeURIComponent(p)}`).catch(() => {});
   const remove = (it: Item) => {
     it.removed = true;
     for (const x of it.xhrs) x.abort();
-    if (it.state === 'done' && it.path) DEL(`/uploads?path=${encodeURIComponent(it.path)}`).catch(() => {});
+    // what arrived (a folder that failed halfway too); one still uploading cleans up when it stops
+    if (it.state !== 'uploading' && it.path) forget(it.path);
     if (it.preview) URL.revokeObjectURL(it.preview);
     items = items.filter((x) => x !== it);
     draw();
   };
   const add = (picked: PickedFile[]) => {
     if (!picked.length) return;
-    const fresh = group(picked);
+    let fresh = group(picked);
+    const room = MAX_ATTACHMENTS - items.length;
+    if (fresh.length > room) {
+      toast(`A message can carry ${MAX_ATTACHMENTS} files or folders. ${room > 0 ? `Only the first ${room} were added; put` : 'Put'} the rest in a folder and attach that instead.`, 'warn', 7000);
+      for (const it of fresh.slice(Math.max(0, room))) if (it.preview) URL.revokeObjectURL(it.preview);
+      fresh = fresh.slice(0, Math.max(0, room));
+      if (!fresh.length) return;
+    }
     items = [...items, ...fresh];
     draw();
     if (!deferred) void uploadItems(fresh, draw);
   };
+  // a failed chip gets another go: its partial upload goes, it starts over in a new batch
+  const retry = (it: Item) => {
+    if (it.path) forget(it.path);
+    withDone(Object.assign(it, { state: 'waiting', error: null, path: null, sent: 0 }));
+  };
   const ready = async (): Promise<string[] | null> => {
-    if (deferred) await uploadItems(items.filter((it) => it.state === 'waiting'), draw);
-    await Promise.all(items.map((it) => it.done));
+    items.filter((it) => it.state === 'error').forEach(retry);
+    // until nothing is left to upload: files added while waiting are included too
+    for (;;) {
+      void uploadItems(items.filter((it) => it.state === 'waiting'), draw);
+      const pending = items.filter((it) => it.state === 'uploading');
+      if (!pending.length) break;
+      await Promise.all(pending.map((it) => it.done));
+    }
     const failed = items.filter((it) => it.state === 'error');
     if (failed.length) {
       toast(`${failed.map((f) => f.name).join(', ')} didn't upload: ${failed[0].error}. Remove ${failed.length === 1 ? 'it' : 'them'} or attach again.`, 'error', 7000);
@@ -345,8 +395,8 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
     busy: () => items.some((it) => it.state === 'uploading' || (!deferred && it.state === 'waiting')),
     ready,
     take: () => {
-      const out = items;
-      items = [];
+      const out = items.filter((it) => it.state === 'done');
+      items = items.filter((it) => it.state !== 'done');
       draw();
       return out;
     },
@@ -361,6 +411,13 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
     },
     discard: () => [...items].forEach(remove),
   };
+}
+
+// A message that didn't go: put its text back without losing what was typed since.
+export function restoreDraft(input: HTMLTextAreaElement, text: string): void {
+  if (!text) return;
+  const now = input.value.trim();
+  input.value = !now ? text : now.startsWith(text) ? input.value : `${text}\n${input.value}`;
 }
 
 // The files a sent message carries, as chips (images as thumbnails). Files open in a new tab.

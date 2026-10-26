@@ -2,7 +2,7 @@
 import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, avatar, engineBadge, navigate, md, ago, lightbox, confirmBox, approvalCard, onState } from '../core.ts';
 import { openTerminal } from './agents.ts';
 import { modelChip, modelInfo } from '../models.ts';
-import { attachTray, attachmentChips } from '../attach.ts';
+import { attachTray, attachmentChips, restoreDraft } from '../attach.ts';
 import type { AttachTray } from '../attach.ts';
 import type { AgentDetail } from './agents.ts';
 import type { Chat, ChatItem, ChatSummary, RunEvent, ServerEvent } from '../../shared/types.ts';
@@ -68,6 +68,8 @@ export async function render(el: HTMLElement, params: string[] = [], view?: { se
 export function unmount(): void {
   ctx?.offState?.();
   ctx?.offDrop();
+  // leaving the page: unsent attachments go too
+  ctx?.tray.discard();
   ctx = null;
 }
 
@@ -252,8 +254,7 @@ function drawApprovals(): void {
 
 async function send(): Promise<void> {
   const c = ctx!;
-  const text = c.input.value.trim();
-  if ((!text && !c.tray.count()) || running() || c.sending) return;
+  if ((!c.input.value.trim() && !c.tray.count()) || running() || c.sending) return;
   c.sending = true;
   try {
     if (c.tray.busy()) setStatus('Uploading files…');
@@ -261,12 +262,15 @@ async function send(): Promise<void> {
     if (ctx !== c) return;
     if (!running()) setStatus('');
     if (!attachments) return;
+    // what is in the box now (more may have been typed while the files uploaded)
+    const text = c.input.value.trim();
+    if (!text && !attachments.length) return;
     c.input.value = '';
     autosize();
     const taken = c.tray.take();
     const r = await attempt(() => POST(`/agents/${c.agent.id}/chats/${c.chat.id}/messages`, { text, attachments }));
     if (!r && ctx === c) {
-      c.input.value = text;
+      restoreDraft(c.input, text);
       c.tray.put(taken);
     }
   } finally {

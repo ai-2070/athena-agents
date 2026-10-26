@@ -3,7 +3,7 @@
 import { h, mount, state, GET, POST, attempt, md, onEvent, onState, navigate, approvalCard } from './core.ts';
 import { icon } from './icons.ts';
 import { modelChip } from './models.ts';
-import { attachTray, attachmentChips } from './attach.ts';
+import { attachTray, attachmentChips, restoreDraft } from './attach.ts';
 import type { Chat, ChatItem, ChatSummary, RunEvent } from '../shared/types.ts';
 
 /** What renderAgentChat() hands back. */
@@ -122,9 +122,8 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
 
   let sending = false;
   async function send() {
-    const text = input.value.trim();
     // busy: keep the text in the composer (the server would refuse it anyway)
-    if ((!text && !tray.count()) || running() || sending) return;
+    if ((!input.value.trim() && !tray.count()) || running() || sending) return;
     sending = true;
     try {
       if (tray.busy()) C.status = 'Uploading files…';
@@ -133,9 +132,12 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
       C.status = '';
       draw();
       if (!attachments) return;
+      // what is in the box now (more may have been typed while the files uploaded)
+      const text = input.value.trim();
+      if (!text && !attachments.length) return;
       input.value = '';
       const taken = tray.take();
-      const undo = () => ((input.value = text), tray.put(taken));
+      const undo = () => (restoreDraft(input, text), tray.put(taken));
       if (!C.chatId) {
         const c = await attempt(() => POST<Chat>(`/agents/${agentId}/chats`));
         if (!c) return undo();
@@ -199,6 +201,8 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
       offEv?.();
       offState?.();
       offDrop();
+      // the tab closed: unsent attachments go too
+      tray.discard();
     },
   };
 }

@@ -221,12 +221,12 @@ onEvent((ev) => {
 });
 
 window.addEventListener('hashchange', route);
+// files dropped where nothing takes them must not open in the tab (from the start, not once the state loads)
+guardPageDrops();
 await refreshState();
 if (state.data?.settings?.look) applyLook(state.data.settings.look);
 connectEvents();
 initDock();
-// files dropped where nothing takes them must not open in the tab
-guardPageDrops();
 openLauncher();
 // Esc: whatever is open closes first (dialogs, menus, the Brain chat, Station panels handle it
 // themselves). With nothing open, Esc opens the big sidebar, and Esc again closes it.

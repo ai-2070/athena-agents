@@ -330,8 +330,7 @@ let sending = false;
 async function send(given: string[] = []) {
   const input = D.input!;
   const tray = D.tray!;
-  const text = input.value.trim();
-  if ((!text && !tray.count() && !given.length) || sending) return;
+  if ((!input.value.trim() && !tray.count() && !given.length) || sending) return;
   sending = true;
   let attachments: string[] | null;
   let uploading: NoteItem | null = null;
@@ -347,6 +346,9 @@ async function send(given: string[] = []) {
   }
   if (!attachments) return;
   attachments = [...given, ...attachments];
+  // what is in the box now (more may have been typed while the files uploaded)
+  const text = input.value.trim();
+  if (!text && !attachments.length) return;
   input.value = '';
   tray.take();
   add({ kind: 'user', text, attachments });

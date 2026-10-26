@@ -171,6 +171,8 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   let m: ModalHandle;
   let saving = false;
   let savedOk = false;
+  // closed while saving: if nothing was saved yet, stop there (and the files go)
+  let closed = false;
   // one save at a time, or a double click hires everyone twice
   const saveBtn = h(
     'button.btn',
@@ -190,6 +192,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   const save = async () => {
     if (!b.name.trim()) return toast('Give the team a name.', 'warn');
     const teamFiles = await allFiles();
+    if (closed) return tray.discard();
     if (!teamFiles) return;
     // hire the new agents the Brain suggested; each becomes a normal member right away, so a retry won't hire it again
     for (const mem of [...b.members]) {
@@ -210,7 +213,11 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
     const saved = wf
       ? await attempt(() => PUT<Team>(`/workflows/${wf.id}`, { ...rest, ...body }))
       : await attempt(() => POST<Team>('/workflows', { ...body, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], schedule: { type: 'none' }, enabled: false }));
-    if (!saved) return (refreshSoon(0), drawMembers());
+    if (!saved) {
+      // already closed: nothing will save these now
+      if (closed) tray.discard();
+      return (refreshSoon(0), drawMembers());
+    }
     savedOk = true;
     refreshSoon(0);
     m.close();
@@ -230,7 +237,11 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
     ),
     foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), saveBtn],
     // closed without saving: the files dropped here go too
-    onClose: () => !savedOk && tray.discard(),
+    // (a save already under way finishes, with its files; one still waiting for uploads stops)
+    onClose: () => {
+      closed = true;
+      if (!savedOk && !saving) tray.discard();
+    },
   });
   tray.dropZone(m.el.querySelector<HTMLElement>('.modal')!, 'Drop files or folders for the team');
   drawMembers();
