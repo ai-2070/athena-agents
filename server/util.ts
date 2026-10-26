@@ -78,15 +78,6 @@ export function isInside(root: string, p: string, { orEqual = false }: { orEqual
   return (orEqual && q === r) || q.startsWith(r.endsWith(path.sep) ? r : r + path.sep);
 }
 
-// Where a path really points (symlinks followed); the path itself while it doesn't exist.
-export function realPath(p: string): string {
-  try {
-    return fs.realpathSync.native(p);
-  } catch {
-    return path.resolve(p);
-  }
-}
-
 export function exists(p: string): boolean {
   try {
     fs.accessSync(p);
@@ -94,6 +85,48 @@ export function exists(p: string): boolean {
   } catch {
     return false;
   }
+}
+
+// Where a path really is on disk, with every link followed. A path that doesn't exist yet (a new file)
+// is placed under the real location of its nearest existing folder. Returns null when that can't be
+// worked out safely: a link that points nowhere, a link loop, or a folder that can't be read.
+export function realTarget(p: string): string | null {
+  const abs = path.resolve(p);
+  const rest: string[] = [];
+  let head = abs;
+  for (;;) {
+    try {
+      return path.join(fs.realpathSync.native(head), ...rest);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') return null;
+      // ENOENT also comes from a link whose target is missing: writing through it would land outside
+      try {
+        fs.lstatSync(head);
+        return null;
+      } catch {
+        /* really not there: try the folder above */
+      }
+      const parent = path.dirname(head);
+      if (parent === head) return abs;
+      rest.unshift(path.basename(head));
+      head = parent;
+    }
+  }
+}
+
+// The real location of p when it lies inside one of roots (links followed on both sides), else null.
+// Case is ignored only on Windows. Elsewhere a folder may have a sibling that differs only in case
+// (Linux), and real paths already come back in the folder's own case where the disk ignores it (macOS).
+export function insideRoots(p: string, roots: string[]): string | null {
+  const real = realTarget(p);
+  if (!real) return null;
+  const fold = (s: string) => (IS_WIN ? s.toLowerCase() : s);
+  const target = fold(real);
+  for (const root of roots) {
+    const r = fold(realTarget(root) || path.resolve(root));
+    if (target === r || target.startsWith(r.endsWith(path.sep) ? r : r + path.sep)) return real;
+  }
+  return null;
 }
 
 export function listDirs(dir: string): string[] {

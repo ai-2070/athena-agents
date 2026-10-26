@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type http from 'node:http';
-import { ensureDir, exists, isInside, realPath } from './util.ts';
+import { ensureDir, exists, isInside, realTarget } from './util.ts';
 import { ensureBrain } from './projects.ts';
 import type { Project, UploadedFile } from '../shared/types.ts';
 
@@ -113,8 +113,13 @@ export async function receive(req: http.IncomingMessage, batch: string, rel: str
   return { path: target, top: folder ? path.join(dir, parts[0]) + path.sep : target, kind: folder ? 'folder' : 'file', name: path.basename(target), size };
 }
 
-// Inside root once links are followed (case only ignored on Windows).
-const inside = (root: string, p: string) => isInside(realPath(root), realPath(p));
+// Strictly inside root once links are followed (case only ignored on Windows). A link that can't be
+// followed safely counts as outside.
+const inside = (root: string, p: string) => {
+  const r = realTarget(root);
+  const q = realTarget(p);
+  return !!r && !!q && isInside(r, q);
+};
 
 // The attachments a request names, keeping only uploads of this project that still exist.
 // Folders end with a separator.

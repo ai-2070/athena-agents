@@ -106,7 +106,9 @@ export function claudeArgs(agent: Agent, { promptFile, mcpFile, interactive = fa
   const mode = agent.autonomy || 'auto';
   if (mode === 'full') args.push('--permission-mode', 'bypassPermissions');
   else {
-    args.push('--permission-mode', mode === 'auto' ? 'auto' : 'acceptEdits');
+    // "Ask first" uses Claude's default mode, so edits and commands come to you for a yes.
+    // (acceptEdits would let Claude change files and run mkdir/mv/cp without ever asking.)
+    args.push('--permission-mode', mode === 'auto' ? 'auto' : 'default');
     if (!interactive) args.push('--permission-prompt-tool', PERMISSION_TOOL);
   }
   args.push('--allowedTools', 'mcp__dashboard', ...(mode !== 'ask' ? (agent.mcpServers || []).map((s) => `mcp__${s}`) : []));

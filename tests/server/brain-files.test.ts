@@ -40,7 +40,7 @@ describe('the Brain and attached files', () => {
   it('still has the text of files attached in an earlier turn', async () => {
     const report = await upload('report.md', 'REPORT-BODY: revenue up 12%');
     reply = 'Got the report.';
-    await ask('Here is the report', [report]);
+    await ask('Here is the report', { attachments: [report] });
     prompts.length = 0;
     await ask('Summarize that report');
     expect(prompts[0]).toContain('Files the user attached earlier in this chat');

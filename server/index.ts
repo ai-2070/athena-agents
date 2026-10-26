@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
-import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, run, ensureDir, HOME, readJSON, writeJSON } from './util.ts';
+import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, run, ensureDir, HOME, readJSON, writeJSON, insideRoots } from './util.ts';
 import * as store from './store.ts';
 import { agents, chats, outbox, workflows, runs, bus, getSettings, saveSettings, setSecret, secretStatus, internalToken, activity, log } from './store.ts';
 import { listApprovals, decide, requestApproval, setReviewer } from './approvals.ts';
@@ -195,11 +195,11 @@ get('/api/assist/model', async () => brain.brainModel());
 // The Brain as overseer: ask it anything about the project; it answers or hands the work on.
 // The Brain answers agents' and teams' permission requests (Settings > The Brain approves).
 setReviewer(overseer.reviewApproval);
-post<{ text?: unknown; attachments?: unknown }>('/api/brain/ask', async (_p, body) => {
+post<{ text?: unknown; project?: unknown; attachments?: unknown }>('/api/brain/ask', async (_p, body) => {
   const attachments = uploads.cleanAttachments(body.attachments);
   const text = String(body.text || '').trim().slice(0, 20000);
   if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
-  return overseer.ask(text, attachments);
+  return overseer.ask(text, { project: typeof body.project === 'string' ? body.project : null, attachments });
 });
 get('/api/brain/history', async () => overseer.history());
 post('/api/brain/clear', async () => (overseer.clearHistory(), { ok: true }));
@@ -424,9 +424,10 @@ del('/api/uploads', async (_p, _b, q) => ({ ok: uploads.removeUpload(q.path) }))
 
 // Files the browser may show: workspaces, outputs, knowledge, ComfyUI outputs, allowed folders.
 get('/api/file', async (_p, _b, q, res) => {
-  const p = path.resolve(String(q.path || ''));
-  const roots = [projects.ensureBrain(), store.projectData('knowledge'), dataPath('outputs'), ...programs.comfyOutputDirs(), ...(getSettings().allowedFolders || [])].map((r) => path.resolve(r).toLowerCase());
-  if (!roots.some((r) => p.toLowerCase().startsWith(r + path.sep))) throw new HttpError(403, 'That file is outside the dashboard folders.');
+  const roots = [projects.ensureBrain(), store.projectData('knowledge'), dataPath('outputs'), ...programs.comfyOutputDirs(), ...(getSettings().allowedFolders || [])];
+  // links are followed before checking, so a link in a workspace can't serve files from elsewhere
+  const p = insideRoots(path.resolve(String(q.path || '')), roots);
+  if (!p) throw new HttpError(403, 'That file is outside the dashboard folders.');
   let st: fs.Stats;
   try {
     st = fs.statSync(p);
@@ -579,24 +580,31 @@ post<Omit<Parameters<typeof terms.createTerminal>[0], 'agent'> & { agentId?: str
 del('/api/terminals/:id', async ({ id }) => ({ ok: terms.closeTerminal(id) }));
 
 // ---------- internal: the MCP bridge calls these ----------
-get('/api/internal/tools', async (_p, _b, q) => {
-  const agent = agentFor(q.agent);
-  const list = tools.toolDefs(agent);
-  if (agent.engine === 'claude-code')
-    list.push({
-      name: 'permission_prompt',
-      description: 'Internal: Claude Code uses this to ask the user for permission. Never call it yourself.',
-      parameters: { type: 'object', properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } }, required: ['tool_name'] },
-    });
-  return { tools: list };
-});
+// A bridge that belongs to a run works in the run's project (its agent, workspace and data), even
+// after you open another one. Without a run (an outside MCP client) it's the project open now.
+const inRunProject = <T>(run: engines.RunInfo | null, fn: () => T): T => (run ? store.withProject(run.project, fn) : fn());
+get('/api/internal/tools', async (_p, _b, q) =>
+  inRunProject(engines.runInfo(q.run), () => {
+    const agent = agentFor(q.agent);
+    const list = tools.toolDefs(agent);
+    if (agent.engine === 'claude-code')
+      list.push({
+        name: 'permission_prompt',
+        description: 'Internal: Claude Code uses this to ask the user for permission. Never call it yourself.',
+        parameters: { type: 'object', properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } }, required: ['tool_name'] },
+      });
+    return { tools: list };
+  }),
+);
 post<{ agent?: string; run?: string; name: string; args?: Record<string, unknown> }>('/api/internal/tools/call', async (_p, body) => {
-  const agent = agentFor(body.agent);
-  // The bridge says which run it belongs to; that gives the right approvals, Stop button and delegation depth.
+  // The bridge says which run it belongs to; that gives the right project, approvals, Stop button and delegation depth.
   const run = engines.runInfo(body.run);
-  const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
-  if (body.name === 'permission_prompt') return { text: JSON.stringify(await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId)) };
-  return tools.callTool(agent, body.name, body.args || {}, ctx);
+  return inRunProject(run, async () => {
+    const agent = agentFor(body.agent);
+    const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
+    if (body.name === 'permission_prompt') return { text: JSON.stringify(await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId)) };
+    return tools.callTool(agent, body.name, body.args || {}, ctx);
+  });
 });
 
 /** What Claude Code sends to permission_prompt. */

@@ -4,6 +4,7 @@ import { h, mount, clear, state, GET, POST, PUT, attempt, md, onEvent, onState, 
 import { openBranchBuilder } from './builder.ts';
 import { icon, logo } from './icons.ts';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.ts';
+import { brainQueue, latestLoad } from './brainqueue.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import { attachTray, attachmentChips } from './attach.ts';
 import type { AttachTray, PickedFile } from './attach.ts';
@@ -56,13 +57,15 @@ interface Dock {
   input: HTMLTextAreaElement | null;
   sel: HTMLSelectElement | null;
   workflows: TeamListing[];
+  /** the project this chat shows */
+  project: string | null;
   panel?: HTMLDivElement;
   launcher?: HTMLButtonElement;
   /** Files waiting to go with the next message. */
   tray?: AttachTray;
 }
 
-const D: Dock = { modelEl: null, open: false, target: 'auto', items: [], el: null, list: null, input: null, sel: null, workflows: [] };
+const D: Dock = { modelEl: null, open: false, target: 'auto', items: [], el: null, list: null, input: null, sel: null, workflows: [], project: null };
 const PLACEHOLDER = 'What do you want done?';
 
 export function initDock(): void {
@@ -94,7 +97,9 @@ export function initDock(): void {
   launcher.addEventListener('dragenter', (e) => e.dataTransfer?.types.includes('Files') && toggle(true));
   D.launcher = launcher;
   document.body.append(h('div.bottom-bar', launcher), D.panel);
+  D.project = state.data?.project?.id || null;
   onState(drawTargets);
+  onState(projectChanged);
   // Ctrl+K opens the chat from anywhere
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -130,9 +135,13 @@ export function attachToBrain(picked: PickedFile[]): void {
 }
 
 // The last few turns with the Brain, so the chat picks up where it left off.
+// (only the newest load counts: one from a project you have since left must not fill this one's chat)
+const historyLoads = latestLoad();
 async function loadHistory() {
+  const current = historyLoads.start();
+  const project = D.project;
   const msgs = await GET<BrainHistoryEntry[]>('/brain/history').catch((): BrainHistoryEntry[] => []);
-  if (D.items.length) return;
+  if (!current() || project !== D.project || D.items.length) return;
   for (const m of msgs.slice(-6)) D.items.push(m.role === 'user' ? { id: `h${m.ts}u`, kind: 'user', text: m.text, attachments: m.attachments } : { id: `h${m.ts}b`, kind: 'brain', answer: m.text, done: [], old: true });
   draw();
 }
@@ -140,8 +149,25 @@ async function loadHistory() {
 async function newConversation() {
   // keep the transcript if the Brain still remembers it
   if (!(await attempt(() => POST('/brain/clear')))) return;
+  brainAsks.reset(); // answers still on their way belong to the old conversation
+  historyLoads.reset();
   D.items = [];
   draw();
+}
+
+// Another project was opened: this chat was about the old one. Drop it (and anything still waiting
+// to be sent or answered there) and show the new project's Brain chat.
+function projectChanged(d: { project?: { id: string } | null }) {
+  const id = d.project?.id || null;
+  if (!id || id === D.project) return;
+  const first = D.project === null;
+  D.project = id;
+  if (first) return;
+  brainAsks.reset();
+  D.items = [];
+  draw();
+  loadHistory();
+  loadWorkflows();
 }
 
 export function openDock(target: string | null = null, text = ''): void {
@@ -321,8 +347,9 @@ function draftCard(it: DraftItem) {
 }
 
 // ---------- sending ----------
-// One Brain ask at a time: the server saves each turn on top of the history it read, so overlapping asks would drop one.
-let brainTurn: Promise<unknown> = Promise.resolve();
+// One Brain ask at a time, each tied to the project and conversation it was typed in (see brainqueue.ts).
+const brainAsks = brainQueue<BrainAnswer, string[]>((text, project, attachments) => POST<BrainAnswer>('/brain/ask', { text, project, attachments }));
+const openProject = () => state.data?.project?.id || null;
 
 let sending = false;
 
@@ -349,6 +376,8 @@ async function send(given: string[] = []) {
   // what is in the box now (more may have been typed while the files uploaded)
   const text = input.value.trim();
   if (!text && !attachments.length) return;
+  // a Brain message belongs to a project: wait until the page knows which one is open
+  if (D.target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Send it again in a moment.');
   input.value = '';
   tray.take();
   add({ kind: 'user', text, attachments });
@@ -359,11 +388,13 @@ async function send(given: string[] = []) {
   if (t === 'new-branch') return newBranch(text, attachments);
   // The Brain: answers, changes the roster, or hands the work on
   const thinking = add({ kind: 'note', text: 'The Brain is looking at the project…', busy: true });
-  const ask = brainTurn.then(() => POST<BrainAnswer>('/brain/ask', { text, attachments }).catch((e: Error): Failed => ({ error: e.message })));
-  brainTurn = ask;
-  const r: Partial<BrainAnswer> & Failed = await ask;
-  D.items.splice(D.items.indexOf(thinking), 1);
-  if (r.error) return add({ kind: 'note', text: `The Brain couldn't answer: ${r.error}`, error: true });
+  const turn = await brainAsks.ask(text, D.project || openProject(), () => D.project || openProject(), attachments);
+  const at = D.items.indexOf(thinking);
+  if (at !== -1) D.items.splice(at, 1);
+  // a new conversation or another project since: this answer is no longer wanted here
+  if (turn.kind === 'stale') return draw();
+  if (turn.kind === 'error') return add({ kind: 'note', text: `The Brain couldn't answer: ${turn.error}`, error: true });
+  const r = turn.answer;
   add({ kind: 'brain', answer: r.answer, done: r.done || [], delegate: r.delegate });
   if (r.done?.length) {
     refreshSoon(0);

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { DATA, HOME, dataPath, ensureDir, readJSON, writeJSON, uid, listFiles, exists } from './util.ts';
 import type { ActivityEntry, Agent, Chat, ChatSummary, OutboxPost, Project, Routine, RoutineRun, SecretKey, SecretStatus, ServerEvent, Settings, Team } from '../shared/types.ts';
 
@@ -120,22 +121,46 @@ export function saveProjects(list: Project[]) {
   emit('projects');
 }
 
+// Work that started in one project keeps working there (an agent run, a workflow), even if you open
+// another project meanwhile. withProject() pins the project for fn and everything it starts, sync or
+// async; inside it, activeProject() and projectData() mean that project instead of the open one.
+const pinned = new AsyncLocalStorage<Project>();
+
+export function withProject<T>(p: Project, fn: () => T): T {
+  return pinned.run(p, fn);
+}
+
+/** The project the current work belongs to: the pinned one inside withProject(), else the one open in the dashboard. */
 export function activeProject(): Project {
   const list = listProjects();
+  const pin = pinned.getStore();
+  // (pinned and since renamed or moved: the fresh copy; removed: the copy it started with)
+  if (pin) return list.find((p) => p.id === pin.id) || pin;
   const id = readJSON<Partial<Settings>>(SETTINGS_FILE, {}).activeProject;
   return list.find((p) => p.id === id) || list[0];
 }
 
+/** The project open in the dashboard right now, even inside withProject() (to notice a switch). */
+export function openProject(): Project {
+  return pinned.exit(activeProject);
+}
+
+// How many times another project was opened. Work that outlives a switch can tell it happened even
+// if you came back to its project since.
+let switches = 0;
+export const projectSwitches = (): number => switches;
+
 export function setActiveProject(id: string): Project {
   const p = listProjects().find((x) => x.id === id);
   if (!p) throw new Error('No such project.');
+  if (openProject().id !== id) switches++;
   const cur = readJSON<Partial<Settings>>(SETTINGS_FILE, {});
   writeJSON(SETTINGS_FILE, { ...cur, activeProject: id });
   emit('project', { id });
   return p;
 }
 
-// Where the active project keeps its dashboard data.
+// Where the active (or pinned) project keeps its dashboard data.
 export const projectData = (...p: string[]): string => dataPath('projects', activeProject().id, ...p);
 
 // Older installs kept agents etc. at the top of data/: move them into the first project once.
@@ -270,6 +295,8 @@ export const chats = {
   save(chat: Chat): Chat {
     chat.updatedAt = Date.now();
     writeJSON(path.join(this.dir(chat.agentId), `${chat.id}.json`), chat);
+    // project: whose chat this is, for the auto-save (a run can outlive a project switch)
+    emit('chats', { agentId: chat.agentId, chatId: chat.id, project: activeProject().id });
     return chat;
   },
   remove(agentId: string, chatId: string) {
@@ -279,6 +306,7 @@ export const chats = {
     } catch {
       /* gone */
     }
+    emit('chats', { agentId, chatId, removed: true, project: activeProject().id });
   },
 };
 

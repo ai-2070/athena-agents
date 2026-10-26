@@ -1,9 +1,9 @@
 // Teams are group chats of agents. You write in the team chat; the lead (or the best member) answers,
 // agents hand work to each other by @mentioning a teammate, and everyone sees one shared thread.
 // Each agent keeps its own memory of the team (its own chat session), and gets the new messages each turn.
-import { workflows as teamStore, agents, chats, emit, log, activeProject } from './store.ts';
+import { workflows as teamStore, agents, chats, emit, log, activeProject, openProject } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath } from './util.ts';
-import { askAgent, stopChildren, forgetChat } from './engines/index.ts';
+import { askAgent, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
 import { isStepList, teamSteps } from '../shared/teams.ts';
 import { attachmentNames } from './uploads.ts';
 import type { Agent, Team, TeamMessage, TeamState } from '../shared/types.ts';
@@ -274,10 +274,13 @@ async function runTurn(team: Team, item: QueueItem) {
   const prompt = `${first ? `${briefing(team, agent)}\n\n` : ''}${filesNote}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\nDo your part now, then reply to the team.`;
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'start' } });
   let text = '';
+  let stopped = false;
   try {
     text = await askAgent(agent, prompt, { depth: 1, from: `team ${team.name}`, chatId, parentRunId: `team:${team.id}`, extra: { ...(team.access || {}), skills: [...new Set([...(team.skills || []), ...item.skills])] }, attachments });
   } catch (e) {
-    text = `(I hit a problem: ${(e as Error).message})`;
+    // you stopped this agent's turn: say so in the thread, and hand nothing on
+    stopped = e instanceof RunStopped;
+    text = stopped ? '(stopped)' : `(I hit a problem: ${(e as Error).message})`;
   }
   const r = runtime(team.id);
   if (r.stopped || r.epoch !== epoch) {
@@ -285,7 +288,7 @@ async function runTurn(team: Team, item: QueueItem) {
     if (loadChat(team.id, pid).sessions[agent.id] !== chatId) chats.remove(agent.id, chatId);
     return;
   }
-  if (activeProject().id !== pid) {
+  if (openProject().id !== pid) {
     // you switched projects while it worked: keep the reply in its own project, start nothing new there
     const back = loadChat(team.id, pid);
     back.messages.push({ id: uid('m'), ts: Date.now(), from: agent.id, text: text || '(no answer)', mentions: [] });
@@ -299,6 +302,7 @@ async function runTurn(team: Team, item: QueueItem) {
   c2.seen[agent.id] = c2.messages.length;
   saveChat(team.id, c2);
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'end' } });
+  if (stopped) return;
   for (const id of mentions) if (team.members.includes(id)) enqueue(team, id, msg.id, false, false, item.skills);
   // A handed-off job is done and nobody new is named: the answer goes back to the lead (or whoever asked), once.
   if (!mentions.length && !item.returning && agent.id !== team.lead) {
