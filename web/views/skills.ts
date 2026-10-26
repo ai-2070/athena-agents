@@ -2,11 +2,11 @@
 // per agent, per team (every member while it works for the team) or per project (every agent).
 // The Brain has skills too: it follows them in every turn (Self-improvement: it records workflows itself).
 import { h, mount, state, GET, POST, PUT, DEL, attempt, modal, field, toast, refreshSoon, confirmBox, navigate, avatar } from '../core.ts';
-import { icon } from '../icons.ts';
+import { icon, logo } from '../icons.ts';
 import { uiZoom } from '../look.ts';
 import { skillPicker, loadSkills, forgetSkills } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.ts';
-import type { Agent, ClaudeSkill, Project, ServerEvent, Skill, SkillListing, TeamListing } from '../../shared/types.ts';
+import type { Agent, ClaudeSkill, Project, ServerEvent, Skill, SkillInstallResult, SkillListing, TeamListing } from '../../shared/types.ts';
 import type { Child, ModalHandle } from '../core.ts';
 
 interface SkillsData {
@@ -109,6 +109,7 @@ function draw() {
         'div.row',
         { style: { gap: '8px' } },
         deletedButton(['skill'], () => void reload()),
+        h('button.btn.ghost.small', { onclick: () => openGitHub() }, logo('github', 14) || icon('download', 14), 'From GitHub'),
         toImport.length ? h('button.btn.ghost.small', { onclick: openImport }, icon('download', 14), `Import from Claude Code (${toImport.length})`) : null,
         h('button.btn.small', { onclick: () => openEditor() }, icon('plus', 14), 'New skill'),
       ),
@@ -133,13 +134,33 @@ function card(s: SkillListing) {
   ].filter(Boolean);
   return h(
     'div.skill-card',
-    h('div.skill-top', h('div.skill-ico', icon('puzzle', 18)), h('div.grow', h('div.skill-name', s.name), h('div.hint', s.files.length ? `${s.files.length} extra file${s.files.length === 1 ? '' : 's'}` : 'instructions only'))),
+    h(
+      'div.skill-top',
+      h('div.skill-ico', icon('puzzle', 18)),
+      h(
+        'div.grow',
+        h('div.skill-name', s.name),
+        h('div.hint', s.files.length ? `${s.files.length} extra file${s.files.length === 1 ? '' : 's'}` : 'instructions only', s.origin ? h('span', ' · from ', h('a', { href: s.origin.url, target: '_blank', rel: 'noopener' }, s.origin.repo)) : null),
+      ),
+    ),
     h('p.skill-desc', s.description),
     h('div.skill-uses', chips.length ? chips : h('span.hint', 'Not given to anyone yet')),
     h(
       'div.skill-foot',
       h('button.btn.small', { onclick: (e) => openAssign(e.currentTarget, s) }, icon('plus', 13), 'Give to…'),
       h('button.btn.ghost.small', { onclick: () => openEditor(s.slug) }, icon('pencil', 13), 'Edit'),
+      s.origin
+        ? h('button.btn.ghost.small', {
+            title: `Download it again from ${s.origin.repo} (the current version is kept in History)`,
+            onclick: async (e: MouseEvent) => {
+              const btn = e.currentTarget as HTMLButtonElement;
+              btn.disabled = true;
+              const r = await attempt(() => POST<SkillInstallResult>('/skills/install', { url: s.origin!.url }), (x) => (x.installed.length ? `Updated ${x.installed.map((i) => i.name).join(', ')}` : 'Nothing updated'));
+              btn.disabled = false;
+              if (r) reload();
+            },
+          }, icon('rotate-cw', 13), 'Update')
+        : null,
       h('span.grow'),
       h('button.btn.ghost.tiny.danger', {
         title: 'Delete the skill',
@@ -222,6 +243,41 @@ async function openEditor(slug: string | null = null) {
     ],
   });
   setTimeout(() => (slug ? body : name).focus(), 40);
+}
+
+// Install skills from a GitHub link: a repo, a folder or a SKILL.md.
+function openGitHub() {
+  let m: ModalHandle;
+  const url = h('input', { placeholder: 'https://github.com/owner/repo/tree/main/skills/my-skill' });
+  const out = h('div.col');
+  const go = async (btn: HTMLButtonElement) => {
+    if (!url.value.trim()) return url.focus();
+    btn.disabled = true;
+    btn.textContent = 'Installing…';
+    const r = await attempt(() => POST<SkillInstallResult>('/skills/install', { url: url.value.trim() }));
+    btn.disabled = false;
+    btn.textContent = 'Install';
+    if (!r) return;
+    mount(
+      out,
+      r.installed.map((x) => h('div.list-item', icon('check', 14), h('div.grow', h('b', x.name), h('span.hint', ` · ${x.updated ? 'updated' : 'installed'}, ${x.files} file${x.files === 1 ? '' : 's'}`)))),
+      r.skipped.map((x) => h('div.list-item', icon('triangle-alert', 14), h('div.grow.hint', x))),
+      r.installed.length ? h('p.hint', 'Give them to an agent, a team or the project with "Give to…" on each card.') : null,
+    );
+    if (r.installed.length) reload();
+  };
+  url.addEventListener('keydown', (e) => e.key === 'Enter' && go(m.el.querySelector<HTMLButtonElement>('.gh-install')!));
+  m = modal({
+    title: 'Install skills from GitHub',
+    body: h(
+      'div.col',
+      field('GitHub link', url, 'A repo, a folder or a SKILL.md. Every folder with a SKILL.md at or under the link is installed, with its files (up to 20 skills). Installing from the same place again updates them; the old version stays in History.'),
+      h('p.hint', 'Skills are instructions your agents follow: install them only from people you trust. Private repos work once you sign in with the GitHub CLI (gh auth login).'),
+      out,
+    ),
+    foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Close'), h('button.btn.gh-install', { onclick: (e) => go(e.currentTarget) }, 'Install')],
+  });
+  setTimeout(() => url.focus(), 40);
 }
 
 function openImport() {

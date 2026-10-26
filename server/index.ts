@@ -35,6 +35,7 @@ import * as projectSync from './projectsync.ts';
 import * as skills from './skills.ts';
 import * as learning from './learning.ts';
 import * as history from './history.ts';
+import * as skillInstall from './skillinstall.ts';
 import * as presets from './presets.ts';
 import * as uploads from './uploads.ts';
 import * as routinesMod from './routines.ts';
@@ -347,6 +348,7 @@ del('/api/skills/:slug', async ({ slug }) => {
 get('/api/brain/skills', async () => ({ skills: skills.brainSkillSlugs() }));
 put<{ skills?: unknown }>('/api/brain/skills', async (_p, body) => ({ skills: skills.setBrainSkills(body?.skills) }));
 post<{ name: string }>('/api/skills/import', async (_p, body) => skills.importClaudeSkill(body.name));
+post<{ url?: unknown }>('/api/skills/install', async (_p, body) => skillInstall.installFromGitHub(String(body.url || '')));
 
 // ---------- versions of skills, agents and teams ----------
 const versionKind = (k: string): VersionKind => {

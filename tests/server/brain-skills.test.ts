@@ -80,6 +80,45 @@ describe('the Brain makes and edits skills', () => {
     expect(skills.getSkill('cut-list')).not.toBeNull();
   });
 
+  it('gives and takes several skills to and from several agents and teams at once, and sets a whole list', () => {
+    const a = newAgent({ name: 'Multi A' });
+    const b = newAgent({ name: 'Multi B' });
+    applyActions([{ do: 'create_team', name: 'Multi team', members: [{ agent: a.id }] }]);
+    const team = workflows.list().find((w) => w.name === 'Multi team')!;
+    for (const n of ['Multi one', 'Multi two', 'Multi three']) skills.saveSkill({ name: n, description: `Use for ${n}.`, body });
+    const r = applyActions([{ do: 'give_skill', skills: ['multi-one', 'Multi two'], targets: [{ to: 'agent', id: a.id }, { to: 'agent', id: 'Multi B' }, { to: 'team', id: team.id }] }]);
+    expect(r.done.map((d) => d.text)).toEqual(['Gave "Multi one", "Multi two" to Multi A', 'Gave "Multi one", "Multi two" to Multi B', 'Gave "Multi one", "Multi two" to the team "Multi team"']);
+    expect(agents.get(b.id)?.skills).toEqual(['multi-one', 'multi-two']);
+    // re-assign: take from A, give to B
+    applyActions([
+      { do: 'take_skill', skills: ['multi-two'], to: 'agent', id: a.id },
+      { do: 'give_skill', skill: 'multi-three', to: 'agent', id: b.id },
+    ]);
+    expect(agents.get(a.id)?.skills).toEqual(['multi-one']);
+    expect(agents.get(b.id)?.skills).toEqual(['multi-one', 'multi-two', 'multi-three']);
+    // a whole list
+    const set = applyActions([{ do: 'set_skills', skills: ['multi-three', 'nope'], to: 'team', id: team.id }]);
+    expect(workflows.get(team.id)?.skills).toEqual(['multi-three']);
+    expect(set.done.map((d) => d.kind)).toEqual(['error', 'skill']);
+    applyActions([{ do: 'set_skills', skills: [], to: 'agent', id: b.id }]);
+    expect(agents.get(b.id)?.skills).toEqual([]);
+  });
+
+  it('new agents and teams can come with skills, and a team\'s skills can be updated', () => {
+    skills.saveSkill({ name: 'Starter skill', description: 'Use to start.', body });
+    applyActions([{ do: 'create_team', name: 'Skilled crew', members: [{ new: { name: 'Fresh hand', skills: ['starter-skill'] } }], skills: ['Starter skill'] }]);
+    const team = workflows.list().find((w) => w.name === 'Skilled crew')!;
+    expect(team.skills).toEqual(['starter-skill']);
+    expect(agents.list().find((x) => x.name === 'Fresh hand')?.skills).toEqual(['starter-skill']);
+    applyActions([{ do: 'update_team', team: team.id, skills: [] }]);
+    expect(workflows.get(team.id)?.skills).toEqual([]);
+  });
+
+  it("install_skill only works from the chat (it downloads first)", () => {
+    const r = applyActions([{ do: 'install_skill', url: 'https://github.com/a/b' }]);
+    expect(r.done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('Brain chat') });
+  });
+
   it('deleting a skill takes it off everyone, the Brain too', () => {
     const a = newAgent({ name: 'Holder' });
     skills.saveSkill({ name: 'Doomed', description: 'Use for nothing.', body });

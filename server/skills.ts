@@ -9,7 +9,7 @@ import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME } from 
 import { activeProject, agents, workflows, listProjects, getSettings, saveSettings, log, emit } from './store.ts';
 import { updateProject } from './projects.ts';
 import { keepVersion } from './versions.ts';
-import type { ClaudeSkill, Skill, SkillFile, SkillListing } from '../shared/types.ts';
+import type { ClaudeSkill, Skill, SkillFile, SkillListing, SkillOrigin } from '../shared/types.ts';
 
 /** A skill as getSkill returns it (dir is cleared so it never reaches the browser). */
 export type SkillDetail = Skill & { dir?: undefined };
@@ -81,7 +81,8 @@ function readDir(dir: string, source: Skill['source']): (Skill & { dir: string }
   if (!exists(file)) return null;
   const { meta, body } = parse(fs.readFileSync(file, 'utf8'));
   const slug = path.basename(dir);
-  return { slug, name: meta.name || slug, description: meta.description || '', body, source, dir, files: filesIn(dir), updatedAt: fs.statSync(file).mtimeMs };
+  const origin = readJSON<SkillOrigin | null>(path.join(dir, '.source.json'), null);
+  return { slug, name: meta.name || slug, description: meta.description || '', body, source, dir, files: filesIn(dir), updatedAt: fs.statSync(file).mtimeMs, ...(origin?.repo ? { origin } : {}) };
 }
 
 /** A SKILL.md's text as a skill's version (name, description, instructions). */
@@ -148,7 +149,7 @@ export function saveSkill({ slug, name, description, body }: { slug?: string; na
   return getSkill(id);
 }
 
-function uniqueSlug(name: string): string {
+export function uniqueSlug(name: string): string {
   const base = slugify(name).slice(0, 50) || 'skill';
   let s = base;
   for (let i = 2; exists(path.join(LIB(), s)); i++) s = `${base}-${i}`;

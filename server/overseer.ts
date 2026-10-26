@@ -19,6 +19,8 @@ import { listRoutines, saveRoutine, deleteRoutine, getRoutine, startRoutine, rou
 import { listSkills, getSkill, findSkill, saveSkill, deleteSkillEverywhere, brainSkills, brainSkillSlugs, setBrainSkills } from './skills.ts';
 import type { SkillDetail } from './skills.ts';
 import { withActor, currentActor } from './versions.ts';
+import { installFromGitHub, parseGitHubUrl, reposIn } from './skillinstall.ts';
+import type { SkillInstallResult } from '../shared/types.ts';
 import { cleanSchedule, scheduleText } from '../shared/routines.ts';
 import type { Agent, Approval, BrainAnswer, BrainDelegate, BrainDone, Project, Routine, Team } from '../shared/types.ts';
 
@@ -38,6 +40,7 @@ interface NewAgentRef {
   instructions?: unknown;
   systemPrompt?: unknown;
   tools?: unknown;
+  skills?: unknown;
 }
 /** MEMBER in the Brain's actions: an existing agent, a library slug, a starter or a new agent. */
 interface MemberRef {
@@ -70,9 +73,20 @@ export interface BrainAction {
   input?: unknown;
   /** skills: which one (slug, exact name, or 'new' for the one made just before) */
   skill?: string;
+  /** several skills at once (ids or names; 'new' = the one made just before, 'installed' = all just installed) */
+  skills?: unknown;
+  /** several agents, teams… at once: [{"to":"agent","id":"…"}, …] */
+  targets?: unknown;
   body?: unknown;
   append?: unknown;
+  /** install_skill: the GitHub link, and who gets what it installs */
+  url?: unknown;
+  give?: unknown;
 }
+
+// install_skill downloads, so ask() runs it before the actions (prepareInstalls) and leaves its result
+// here for applyActions to report and hand out. (Only results made here count: the model can't fake one.)
+const installed = new WeakMap<BrainAction, SkillInstallResult | Error>();
 
 const SKIP = new Set(['node_modules', '.git', '.next', 'dist', 'build', '.venv', '__pycache__', '.cache', '.claude']);
 const TEXT = /\.(md|txt|json|ya?ml|toml|csv|js|ts|py|html|css)$/i;
@@ -197,7 +211,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
           .map((r) => `WORKING ${r.seconds}s on "${cut(r.task, 140)}"${r.tool ? `, now using ${r.tool.name}${r.tool.status === 'running' ? ' (running)' : ''}` : ''}${r.saying ? `, last said: "${cut(r.saying, 120)}"` : ''}`)
           .join(' | ')
       : 'idle';
-    return `- id=${a.id} | ${a.emoji || ''} ${a.name} | ${a.specialty || a.description || ''} | runs on ${a.engine} (${modelOf(a)}) | tools: ${(a.toolGroups || []).join(',') || 'none'} | autonomy: ${a.autonomy || 'ask'} | teams: ${(teamOf.get(a.id) || []).join(', ') || 'none (on the bench)'} | NOW: ${now}`;
+    return `- id=${a.id} | ${a.emoji || ''} ${a.name} | ${a.specialty || a.description || ''} | runs on ${a.engine} (${modelOf(a)}) | tools: ${(a.toolGroups || []).join(',') || 'none'} | skills: ${(a.skills || []).join(',') || 'none'} | autonomy: ${a.autonomy || 'ask'} | teams: ${(teamOf.get(a.id) || []).join(', ') || 'none (on the bench)'} | NOW: ${now}`;
   });
 
   const teamLines = teams.map((t) => {
@@ -206,7 +220,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     const name = (id: string) => (id === 'user' ? 'You' : byId.get(id)?.name || id);
     const sched = t.schedule && t.schedule.type !== 'none' ? ` | schedule: ${t.schedule.type} ${t.schedule.time || ''}${t.enabled === false ? ' (off)' : ''}` : '';
     return [
-      `- id=${t.id} | ${t.name} | goal: ${t.description || '-'} | members: ${t.members.map((id) => `${name(id)}${t.lead === id ? ' (lead)' : ''}`).join(', ') || 'none'}${sched}`,
+      `- id=${t.id} | ${t.name} | goal: ${t.description || '-'} | members: ${t.members.map((id) => `${name(id)}${t.lead === id ? ' (lead)' : ''}`).join(', ') || 'none'} | skills: ${(t.skills || []).join(',') || 'none'}${sched}`,
       `  NOW: ${st.working.length ? `working: ${st.working.map(name).join(', ')}` : 'quiet'}${st.queued.length ? ` | queued: ${st.queued.map(name).join(', ')}` : ''}`,
       ...thread.map((m) => `  [${ago(m.ts)}] ${name(m.from)}: ${cut(m.text, 160)}`),
     ].join('\n');
@@ -226,7 +240,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
       ...all.filter((a) => (a.skills || []).includes(sk.slug)).map((a) => a.name),
       ownSkills.includes(sk.slug) ? 'you (the Brain)' : '',
     ].filter(Boolean);
-    return `- id=${sk.slug} | ${sk.name}: ${cut(sk.description, 160)} | given to: ${who.join(', ') || 'nobody yet'}`;
+    return `- id=${sk.slug} | ${sk.name}: ${cut(sk.description, 160)} | given to: ${who.join(', ') || 'nobody yet'}${sk.origin ? ` | from GitHub ${sk.origin.repo}` : ''}`;
   });
 
   const approvals = listApprovals();
@@ -302,7 +316,7 @@ Kinds of request:
 3. Set up a project (the user just created it, or asks you to set it up): study the folder and its key files, then ask the user up to 5 short, numbered, specific questions you need answered (goals, audience, deliverables, style and voice, accounts and programs, deadlines). Ask, don't build, until you know enough. Once you do: write PROJECT.md with write_project_md and create the teams and agents the project needs, then tell the user what you set up and what each team will do. Keep PROJECT.md up to date whenever the user tells you something new about the project.
 4. Routines: work the user wants done again and again, or on a schedule ("every morning…", "each Friday…", "set up a routine that…"), or changes to an existing routine. Create, update, run or delete them with the routine actions. A routine's text says what to do and @mentions, by their exact names from the SNAPSHOT, who does it (one or more agents and/or teams) and the skills they use (e.g. "@Researcher finds the 3 biggest AI stories, then @Content Team writes a post using @Brand voice."). Every mentioned agent and team gets the routine; an agent in a mentioned team gets it in that team chat. Mention at least one agent or team. If the right agent or team doesn't exist, build it first in the same answer, then mention it by name.
 5. Work to be done (make, write, research, draft a post or DM, edit a video, generate images, fix code…): never do it yourself. Delegate it to the best existing team or agent. If nothing fits, build what's needed first (a team or an agent) and then delegate to it in the same answer.
-6. Skills: the project's recorded know-how (workflows, checklists, house rules, pitfalls) in Claude Code's SKILL.md format. Agents read a skill before work that matches its description. Create, edit, give, take back or delete skills with the skill actions when the user asks, or when a workflow is worth keeping (see your own skills). Before rewriting a skill's whole text you must have seen it: its text is under SKILL TEXTS, or open it with read_skill first (you get its text and answer again). To add a step or a pitfall without rewriting, use "append".
+6. Skills: the project's recorded know-how (workflows, checklists, house rules, pitfalls) in Claude Code's SKILL.md format. Agents read a skill before work that matches its description. Create, edit, give, take back, re-assign or delete skills with the skill actions when the user asks, or when a workflow is worth keeping (see your own skills). Re-assigning is take_skill from one and give_skill to another, or set_skills for an agent's or team's whole list. Install skills from a GitHub link the user gives with install_skill, and give them to whoever needs them. Before rewriting a skill's whole text you must have seen it: its text is under SKILL TEXTS, or open it with read_skill first (you get its text and answer again). To add a step or a pitfall without rewriting, use "append".
 
 A team is a group chat of 2-6 agents with a shared goal. A lead (planner type) coordinates when there are 3+ members; members hand work to each other by @mentioning. Prefer agents the user already has; otherwise hire from the LIBRARY (pick the slugs that match best); only invent a new agent when nothing in the library fits.
 
@@ -324,12 +338,15 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"delete_routine","routine":"<routine id>"}
 {"do":"create_skill","name":"short name","description":"one or two sentences: WHEN to use it (agents decide from this alone)","body":"the instructions in markdown"}
 {"do":"update_skill","skill":"<skill id, or 'new'>","name":"…","description":"…","body":"the whole new text","append":"text added at the end"}   (only the fields that change; "body" only for a skill whose whole text you have seen)
-{"do":"give_skill","skill":"<skill id, or 'new'>","to":"agent"|"team"|"project"|"brain","id":"<agent or team id, or 'new'; not needed for project and brain>"}
-{"do":"take_skill","skill":"<skill id>","to":"agent"|"team"|"project"|"brain","id":"<agent or team id>"}
+{"do":"give_skill","skills":["<skill id, or 'new'>",…],"to":"agent"|"team"|"project"|"brain","id":"<agent or team id, or 'new'; not needed for project and brain>"}   (or "targets":[{"to":…,"id":…},…] instead of "to"/"id", for several at once)
+{"do":"take_skill","skills":["<skill id>",…],"to":…,"id":…}   (or "targets", like give_skill)
+{"do":"set_skills","skills":["<skill id>",…],"to":"agent"|"team"|"project"|"brain","id":"…"}   (their whole list becomes exactly this; [] takes all away)
+{"do":"install_skill","url":"<a GitHub link the user gave: repo, folder or SKILL.md>","give":[{"to":"agent"|"team"|"project","id":"…"}]}   (installs every skill at or under the link; "give" is optional; installing again from the same place updates it)
 {"do":"read_skill","skill":"<skill id>"}   (alone in its block: you get the skill's whole text, then answer again)
 {"do":"delete_skill","skill":"<skill id>"}
 SCHEDULE is {"type":"none"} (run by hand) or {"type":"daily","time":"HH:MM","days":[0-6, 0 = Sunday; leave out for every day]} or {"type":"interval","minutes":N}. Set "enabled":true when the user wants it to run on its own.
-MEMBER is {"agent":"<existing agent id>"} or {"library":"<slug>"} or {"starter":"<name>"} or {"new":{"name":"…","emoji":"…","specialty":"one line","instructions":"5-10 sentences, second person","tools":["ids"]}}
+MEMBER is {"agent":"<existing agent id>"} or {"library":"<slug>"} or {"starter":"<name>"} or {"new":{"name":"…","emoji":"…","specialty":"one line","instructions":"5-10 sentences, second person","tools":["ids"],"skills":["skill ids"]}}
+create_team and update_team also take "skills":["skill ids"] (update_team: the team's whole list).
 Tool group ids: ${GROUP_IDS.join(', ')}
 MCP servers: ${Object.keys(listServers()).join(', ') || '(none)'}
 
@@ -412,11 +429,31 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
   let lastRoutine: string | null = null;
   let lastSkill: string | null = null;
   const seen = new Set(seenSkills);
+  let lastInstalled: string[] = [];
   const findSkillRef = (ref: unknown): SkillDetail | null => {
     if (!ref) return null;
     if (ref === 'new') return lastSkill ? getSkill(lastSkill) : null;
     return findSkill(ref);
   };
+  // skill refs (one or a list) -> skills; 'installed' = everything the last install_skill installed
+  const findSkills = (refs: unknown): { found: SkillDetail[]; missing: string[] } => {
+    const list = (Array.isArray(refs) ? refs : refs === undefined || refs === null || refs === '' ? [] : [refs]).map(String);
+    const found: SkillDetail[] = [];
+    const missing: string[] = [];
+    for (const ref of list) {
+      const hits = ref === 'installed' ? lastInstalled.map(getSkill).filter((x): x is SkillDetail => x !== null) : [findSkillRef(ref)].filter((x): x is SkillDetail => x !== null);
+      if (!hits.length) missing.push(ref);
+      for (const sk of hits) if (!found.some((x) => x.slug === sk.slug)) found.push(sk);
+    }
+    return { found, missing };
+  };
+  const skillSlugs = (refs: unknown): string[] => {
+    const { found, missing } = findSkills(refs);
+    if (missing.length) done.push({ kind: 'error', text: `No skill ${missing.map((m) => `"${m}"`).join(', ')}` });
+    return found.map((sk) => sk.slug);
+  };
+  // who an action is about: "targets":[{to,id},…], or "to" and "id"
+  const targetsOf = (act: BrainAction): BrainAction[] => (Array.isArray(act.targets) && act.targets.length ? (act.targets as BrainAction[]).map((t) => ({ ...t, do: act.do })) : [act]);
   // who a skill goes to: { label, skills, save }
   const skillHolder = (act: BrainAction): { label: string; skills: string[]; save: (list: string[]) => void } => {
     const to = String(act.to || '').toLowerCase();
@@ -497,6 +534,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         specialty: String(n.specialty || '').slice(0, 140),
         systemPrompt: String(n.instructions || n.systemPrompt || '').slice(0, 8000),
         toolGroups: cleanTools(n.tools).length ? cleanTools(n.tools) : undefined,
+        skills: skillSlugs(n.skills),
         engine: 'claude-code',
         source: { type: 'brain' },
       });
@@ -516,7 +554,10 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
   // a step list keeps its other steps (tools, approvals, posts)
   const saveTeam = (wf: Partial<Team> & { members: string[] }): Team => workflows.save({ ...wf, steps: teamSteps({ steps: wf.steps || [], members: wf.members }) });
 
-  for (const act of actions.slice(0, 12)) {
+  // (a queue: install_skill adds the give_skill actions for what it installed)
+  const queue = actions.slice(0, 12);
+  for (let i = 0; i < queue.length && i < 24; i++) {
+    const act = queue[i];
     try {
       const kind = actionKind(act);
       if (only && !only.includes(kind)) throw new Error('not allowed here');
@@ -562,21 +603,43 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         done.push({ kind: 'skill', text: `Updated the skill "${sk.name}": ${changed.join(', ')}`, skillId: sk.slug });
         continue;
       }
-      if (kind === 'give_skill' || kind === 'take_skill') {
-        const sk = findSkillRef(act.skill);
-        if (!sk) throw new Error(`no skill "${act.skill || ''}"`);
-        const holder = skillHolder(act);
-        const has = holder.skills.includes(sk.slug);
-        if (kind === 'give_skill') {
-          if (!has) holder.save([...holder.skills, sk.slug]);
-          lastSkill = sk.slug;
-          if (!has) log('skill', `The Brain gave the skill "${sk.name}" to ${holder.label}`);
-          done.push({ kind: 'skill', text: has ? `${holder.label} already has "${sk.name}"` : `Gave "${sk.name}" to ${holder.label}`, skillId: sk.slug });
-        } else {
-          if (has) holder.save(holder.skills.filter((x) => x !== sk.slug));
-          if (has) log('skill', `The Brain took the skill "${sk.name}" from ${holder.label}`);
-          done.push({ kind: 'skill', text: has ? `Took "${sk.name}" from ${holder.label} (the skill stays in the library)` : `${holder.label} didn't have "${sk.name}"`, skillId: sk.slug });
+      if (kind === 'give_skill' || kind === 'take_skill' || kind === 'set_skills') {
+        const { found, missing } = findSkills(act.skills ?? act.skill);
+        if (missing.length) done.push({ kind: 'error', text: `${kind}: no skill ${missing.map((m) => `"${m}"`).join(', ')}` });
+        if (!found.length && kind !== 'set_skills') continue;
+        const slugs = found.map((sk) => sk.slug);
+        const names = (list: string[]) => list.map((slug) => `"${getSkill(slug)?.name || slug}"`).join(', ');
+        for (const target of targetsOf(act)) {
+          try {
+            const holder = skillHolder(target);
+            const had = holder.skills;
+            const next = kind === 'give_skill' ? [...new Set([...had, ...slugs])] : kind === 'take_skill' ? had.filter((x) => !slugs.includes(x)) : [...new Set(slugs)];
+            const added = next.filter((x) => !had.includes(x));
+            const removed = had.filter((x) => !next.includes(x));
+            if (added.length || removed.length) {
+              holder.save(next);
+              log('skill', `The Brain changed ${holder.label}'s skills (${[added.length ? `added ${names(added)}` : '', removed.length ? `took away ${names(removed)}` : ''].filter(Boolean).join('; ')})`);
+            }
+            const text = [added.length ? `Gave ${names(added)} to ${holder.label}` : '', removed.length ? `Took ${names(removed)} from ${holder.label} (they stay in the library)` : ''].filter(Boolean).join('; ');
+            done.push({ kind: 'skill', text: text || (kind === 'take_skill' ? `${holder.label} didn't have ${names(slugs)}` : `${holder.label} already has ${names(slugs) || 'those skills'}`), ...(slugs.length === 1 ? { skillId: slugs[0] } : {}) });
+          } catch (e) {
+            done.push({ kind: 'error', text: `${kind}: ${(e as Error).message}` });
+          }
         }
+        if (slugs.length) lastSkill = slugs[slugs.length - 1];
+        continue;
+      }
+      if (kind === 'install_skill') {
+        const r = installed.get(act);
+        if (!r) throw new Error('installing from GitHub works only in the Brain chat');
+        if (r instanceof Error) throw r;
+        for (const x of r.installed) done.push({ kind: 'skill', text: `${x.updated ? 'Updated' : 'Installed'} the skill "${x.name}" from GitHub (${x.files} file${x.files === 1 ? '' : 's'})`, skillId: x.slug });
+        for (const x of r.skipped) done.push({ kind: 'error', text: `Didn't install ${x}` });
+        lastInstalled = r.installed.map((x) => x.slug);
+        if (lastInstalled.length) lastSkill = lastInstalled[lastInstalled.length - 1];
+        // and give them to whoever should have them
+        const give = (Array.isArray(act.give) ? act.give : act.give ? [act.give] : []) as BrainAction[];
+        if (give.length && lastInstalled.length) for (const g of give) queue.push({ ...g, do: 'give_skill', skills: [...lastInstalled] });
         continue;
       }
       if (kind === 'delete_skill') {
@@ -598,6 +661,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
           members,
           lead: members.length > 1 ? lead : null,
           access: { toolGroups: cleanTools(act.access?.tools || act.access?.toolGroups), mcpServers: cleanMcp(act.access?.mcpServers) },
+          skills: skillSlugs(act.skills),
           color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
           schedule: { type: 'none' },
           enabled: false,
@@ -644,6 +708,10 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
             mcpServers: act.access.mcpServers !== undefined ? cleanMcp(act.access.mcpServers) : wf.access?.mcpServers || [],
           };
           changed.push('access');
+        }
+        if (act.skills !== undefined) {
+          wf.skills = skillSlugs(act.skills);
+          changed.push('skills');
         }
         saveTeam(wf);
         lastTeam = wf.id;
@@ -732,6 +800,27 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
   return { done, delegate };
 }
 
+// Run the install_skill actions (downloads) before the rest. Only from a repo the user named in this chat,
+// unless they allowed any link (Settings > The Brain's model): a link in a file or an agent's answer
+// could otherwise get a skill installed that agents would then follow.
+export async function prepareInstalls(actions: BrainAction[], userText: string): Promise<void> {
+  const mine = reposIn(userText);
+  for (const act of actions.filter((a) => actionKind(a) === 'install_skill').slice(0, 3)) {
+    try {
+      const url = String(act.url || '').trim();
+      if (!url) throw new Error('no GitHub link');
+      const link = parseGitHubUrl(url);
+      const repo = `${link.owner}/${link.repo}`.toLowerCase();
+      if (!mine.has(repo) && getSettings().brainAnyGitHub !== true) {
+        throw new Error(`${link.owner}/${link.repo} isn't a repo you gave in this chat, so the Brain didn't install from it. Paste the link yourself, or allow any link in Settings > The Brain's model ("Install skills from any GitHub link").`);
+      }
+      installed.set(act, await withActor('brain', () => installFromGitHub(url)));
+    } catch (e) {
+      installed.set(act, e as Error);
+    }
+  }
+}
+
 /** project: the project the message was typed in. A message that waited while you switched projects is refused.
  *  attachments: files the user attached (paths in uploads/). */
 export async function ask(text: string, { project, attachments = [] }: { project?: string | null; attachments?: string[] } = {}): Promise<BrainAnswer> {
@@ -778,7 +867,10 @@ export async function ask(text: string, { project, attachments = [] }: { project
   }
   // you switched projects while it thought (even if you came back since: the chat dropped this turn), so skip its actions
   const skipped: BrainDone = { kind: 'error', text: `You switched projects while the Brain was thinking, so nothing was changed. Open "${p.name}" and ask again.` };
-  const { done, delegate } = projectSwitches() !== switchesAtStart || openProject().id !== p.id ? { done: parsed.actions.length ? [skipped] : [], delegate: null } : applyActions(parsed.actions, p, { seenSkills });
+  const stale = () => projectSwitches() !== switchesAtStart || openProject().id !== p.id;
+  // GitHub installs first (they download), with the user's own words to check the links against
+  if (!stale() && parsed.actions.some((a) => actionKind(a) === 'install_skill')) await prepareInstalls(parsed.actions, [text, ...past.filter((m) => m.role === 'user').map((m) => m.text)].join('\n'));
+  const { done, delegate } = stale() ? { done: parsed.actions.length ? [skipped] : [], delegate: null } : applyActions(parsed.actions, p, { seenSkills });
   // the work is handed on with the files
   if (delegate && attachments.length) delegate.attachments = attachments;
   const r = { answer: parsed.answer, done, delegate };

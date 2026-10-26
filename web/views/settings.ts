@@ -113,6 +113,16 @@ async function draw(): Promise<void> {
             h('span', 'The Brain approves'),
           ),
           h('p.hint', "When an agent or team asks permission, the Brain allows routine, on-task work by itself and only passes the risky or unclear requests (deleting, pushing, sending, secrets, anything outside the project) to Needs you. Workflow checkpoints and Outbox posts and DMs always wait for you."),
+          h(
+            'label.row.mt',
+            toggle(s.brainAnyGitHub === true, async (on) => {
+              const saved = await attempt(() => PUT('/settings', { brainAnyGitHub: on }), on ? 'The Brain may install skills from any GitHub link' : 'The Brain installs only from links you give');
+              if (saved) refreshSoon(0);
+              else await draw();
+            }),
+            h('span', 'Install skills from any GitHub link'),
+          ),
+          h('p.hint', "Off: the Brain installs skills only from GitHub repos you named in the Brain chat yourself. On: also from links it finds in files, pages or agents' answers. Skills are instructions your agents follow, so only turn this on if you trust where those links come from."),
         ),
         h(
           'div.panel',

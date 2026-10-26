@@ -323,6 +323,8 @@ export interface Settings {
   brainApproves: boolean;
   /** Skills the Brain itself follows (slugs). With "self-improvement" it also learns from finished work. */
   brainSkills: string[];
+  /** The Brain may install skills from any GitHub link, not only from repos you named in the chat. */
+  brainAnyGitHub: boolean;
   look: LookSetting;
   telegram: { chatId: string };
   maxToolSteps: number;
@@ -426,6 +428,26 @@ export interface Skill {
   source: 'library' | 'claude';
   files: SkillFile[];
   updatedAt: number;
+  /** Where it was installed from (GitHub), if it was. */
+  origin?: SkillOrigin;
+}
+
+/** A skill installed from GitHub: where from (<skill>/.source.json). */
+export interface SkillOrigin {
+  url: string;
+  /** owner/repo */
+  repo: string;
+  ref: string;
+  /** the skill's folder in the repo ('' = the repo itself) */
+  path: string;
+  installedAt: number;
+}
+
+/** POST /api/skills/install: what installing from a GitHub link did. */
+export interface SkillInstallResult {
+  installed: { slug: string; name: string; updated: boolean; files: number }[];
+  /** skills found but not installed, and why */
+  skipped: string[];
 }
 
 export interface SkillListing extends Omit<Skill, 'body'> {

@@ -42,7 +42,7 @@ powershell -ExecutionPolicy Bypass -File install-shortcut.ps1 -Remove
 | **Projects** | Pick or create at the start screen or top left. Each project has its own agents, teams and chats and a folder (new, existing, or a GitHub repo). Auto-saved into that folder. |
 | **Agents** | Each agent: instructions, knowledge, model (Claude Code, OpenRouter, Hermes or Codex), autonomy, tools, MCP servers, skills, workspace. |
 | **Library** | Starters, The Agency (270+ specialists), Hermes profiles, Claude Code subagents, and your saved presets. |
-| **Skills** | Reusable instructions (Claude Code's SKILL.md format). Give a skill to one agent, a team, the whole project, or the Brain itself. Import your Claude Code skills. The Brain can make, edit, give and delete skills too. |
+| **Skills** | Reusable instructions (Claude Code's SKILL.md format). Give a skill to one agent, a team, the whole project, or the Brain itself. Import your Claude Code skills, or install them from a GitHub link (repo, folder or SKILL.md; installing again updates them). The Brain can make, edit, give, take back, re-assign, install and delete skills too. |
 | **Routines** | Work you want done again and again. Write it once and @mention who does it (one or more agents and teams) and the skills they use. Run it by hand or on a schedule; each run shows what every agent and team did. |
 | **Settings** | Keys and engines, connections (X, Reddit, Telegram, Discord, Outbox), MCP servers, programs, Look (UI scale, accent, motion). Searchable. |
 
@@ -55,6 +55,11 @@ team: every member is told about them.
 calls), the Brain reviews how it went and records the workflow as a skill, improves a skill that was missing a step,
 or gives a skill to whoever needs it, then says what it did in the Brain chat. This review can only touch skills, and
 never the Brain's own skills. Take the skill away from the Brain (Skills page) to turn it off.
+
+**Skills from GitHub**: the Brain installs skills only from GitHub repos you named in the Brain chat yourself, so a
+link planted in a file, a page or an agent's answer can't get a skill installed. To allow any link, turn on Settings >
+The Brain's model > "Install skills from any GitHub link". Private repos work once you sign in with the GitHub CLI
+(`gh auth login`) or set `GITHUB_TOKEN`.
 
 **Versions**: every change to a skill, agent or team keeps the version from before it, and who made the change (you
 or the Brain); edits within a few minutes of each other count as one. **History** (skill editor, agent editor, team
