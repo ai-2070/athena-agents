@@ -9,7 +9,7 @@ import type { WebSocket } from 'ws';
 import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, run, ensureDir, HOME, readJSON, writeJSON, insideRoots } from './util.ts';
 import * as store from './store.ts';
 import { agents, chats, outbox, workflows, runs, bus, getSettings, saveSettings, setSecret, secretStatus, internalToken, activity, log } from './store.ts';
-import { listApprovals, decide, requestApproval } from './approvals.ts';
+import { listApprovals, decide, requestApproval, setReviewer } from './approvals.ts';
 import * as engines from './engines/index.ts';
 import { PROVIDERS, listModels } from './engines/openai.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
@@ -173,6 +173,8 @@ post<{ app?: string }>('/api/brain/open', async (_p, body) => {
 post<{ text?: unknown }>('/api/assist/route', async (_p, body) => brain.route(String(body.text || '')));
 get('/api/assist/model', async () => brain.brainModel());
 // The Brain as overseer: ask it anything about the project; it answers or hands the work on.
+// The Brain answers agents' and teams' permission requests (Settings > The Brain approves).
+setReviewer(overseer.reviewApproval);
 post<{ text?: unknown; project?: unknown }>('/api/brain/ask', async (_p, body) => overseer.ask(String(body.text || '').slice(0, 20000), { project: typeof body.project === 'string' ? body.project : null }));
 get('/api/brain/history', async () => overseer.history());
 post('/api/brain/clear', async () => (overseer.clearHistory(), { ok: true }));
