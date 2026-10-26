@@ -1,0 +1,30 @@
+server/index.ts
+  s_86f670bdc2e031::t_0c1fc0e83e9606 176
+server/overseer.ts
+  s_86f670bdc2e031::t_0c1fc0e83e9606 6,225-231,457-458,460-464,477-481,487-488
+tests/web/brainqueue.test.ts
+  s_86f670bdc2e031::t_aeebc2ae0c916d 1-71
+tests/server/brain-chat.test.ts
+  s_86f670bdc2e031::t_aeebc2ae0c916d 1-68
+web/brainqueue.ts
+  s_86f670bdc2e031::t_cf8d73adbbcce6 1-38
+web/dock.ts
+  s_86f670bdc2e031::t_f5584c39bcf456 7,56-57,62,90,127,132-146,299-301,316-322
+  s_86f670bdc2e031::t_29febffdc849f1 88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "75536af041fe353d8c9f3d16f450b5714252be96",
+  "prompts": {},
+  "sessions": {
+    "s_86f670bdc2e031": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6340fd4e-3c25-4ffa-aefd-cf1ac985cbb5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
