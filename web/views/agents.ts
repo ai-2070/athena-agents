@@ -14,6 +14,12 @@ export interface AgentDetail extends Agent {
   workspacePath: string;
   tools: string[];
 }
+/** One entry of GET /api/openclaw/agents. */
+interface OpenClawAgent {
+  id: string;
+  model: string;
+  isDefault: boolean;
+}
 /** One entry of GET /api/hermes/profiles. */
 interface HermesProfile {
   name: string;
@@ -113,11 +119,12 @@ const AUTONOMY: Option<Autonomy>[] = [
 ];
 
 async function renderEditor(el: HTMLElement, id: string): Promise<void> {
-  const [agent, mcpData, profiles, teams] = await Promise.all([
+  const [agent, mcpData, profiles, teams, clawAgents] = await Promise.all([
     GET<AgentDetail>(`/agents/${id}`),
     GET<McpListing>('/mcp'),
     GET<HermesProfile[]>('/hermes/profiles').catch((): HermesProfile[] => []),
     GET<Team[]>('/workflows').catch((): Team[] => []),
+    GET<OpenClawAgent[]>('/openclaw/agents').catch((): OpenClawAgent[] => []),
   ]);
   const d = state.data!;
   const a: Agent = structuredClone(agent);
@@ -156,7 +163,7 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
     for (const m of models.slice(0, 600)) modelList.append(h('option', { value: m.id }, `${m.name}${m.price ? ` · $${m.price.in.toFixed(2)}/$${m.price.out.toFixed(2)} per M` : ''}${m.tools === false ? ' · no tools' : ''}`));
   };
   const drawEngine = () => {
-    const modelInput = h('input', { value: a.model || '', list: 'models', placeholder: a.engine === 'claude-code' ? 'sonnet' : a.engine === 'hermes' ? "profile's default" : 'anthropic/claude-sonnet-5.5', oninput: (e) => set('model')(e.target.value.trim()) });
+    const modelInput = h('input', { value: a.model || '', list: 'models', placeholder: a.engine === 'claude-code' ? 'sonnet' : a.engine === 'hermes' ? "profile's default" : a.engine === 'openclaw' ? "the OpenClaw agent's model" : a.engine === 'pi' || a.engine === 'omp' ? 'its default (e.g. anthropic/claude-sonnet-5-5)' : 'anthropic/claude-sonnet-5.5', oninput: (e) => set('model')(e.target.value.trim()) });
     const parts: HTMLElement[] = [];
     if (a.engine === 'claude-code') {
       parts.push(
@@ -217,6 +224,22 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
           field('Model override', modelInput, "Leave empty to use the profile's model."),
         ),
         h('p.hint', 'Hermes uses its own tools. To give it the dashboard tools too, use "Give Hermes the dashboard tools" on the Tools & MCP page.'),
+      );
+    } else if (a.engine === 'pi' || a.engine === 'omp') {
+      const name = a.engine === 'pi' ? 'pi' : 'oh-my-pi';
+      const st: Partial<EngineStatus['pi']> = d.engines[a.engine] || {};
+      parts.push(
+        h('div.grid-2', field('Model', modelInput, `Empty = ${name}'s default. Ids are provider/model, e.g. anthropic/claude-sonnet-5-5.`), h('div', h('div.label', name), h('p.hint', st.installed ? `Found${st.version ? ` · ${st.version}` : ''}` : `Not installed yet: ${a.engine === 'pi' ? 'npm install -g @earendil-works/pi-coding-agent' : 'bun install -g @oh-my-pi/pi-coding-agent'}`))),
+        h('p.hint', `${name} works in the workspace folder with its own tools (read, bash, edit, write…) and runs them without asking, whatever the autonomy below says. Sign it in to a model provider in a terminal (/login). For the dashboard tools too, use "Give pi and oh-my-pi the dashboard tools" on the Tools & MCP page.`),
+      );
+    } else if (a.engine === 'openclaw') {
+      parts.push(
+        h(
+          'div.grid-2',
+          field('OpenClaw agent', select([{ value: '', label: 'its default agent' }, ...clawAgents.map((x) => ({ value: x.id, label: `${x.id}${x.model ? ` (${x.model})` : ''}${x.isDefault ? ' · default' : ''}` }))], a.openclawAgent || '', set('openclawAgent')), 'It brings its own memory, skills and tools.'),
+          field('Model override', modelInput, "Leave empty to use the OpenClaw agent's model."),
+        ),
+        h('p.hint', "Each chat here is its own OpenClaw session. It goes through your OpenClaw Gateway when it is running, else OpenClaw answers here on its own. OpenClaw's own approval settings apply to its tools."),
       );
     }
     parts.push(

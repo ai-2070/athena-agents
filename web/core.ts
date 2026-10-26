@@ -368,10 +368,10 @@ export function ago(ts: number | null | undefined): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export const ENGINE_LABEL: Partial<Record<string, string>> = { 'claude-code': 'Claude Code', openai: 'API model', hermes: 'Hermes', codex: 'Codex' };
-export function engineBadge(agent: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'provider' | 'hermesProfile'>>): HTMLSpanElement {
+export const ENGINE_LABEL: Partial<Record<string, string>> = { 'claude-code': 'Claude Code', openai: 'API model', hermes: 'Hermes', codex: 'Codex', pi: 'pi', omp: 'oh-my-pi', openclaw: 'OpenClaw' };
+export function engineBadge(agent: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'provider' | 'hermesProfile' | 'openclawAgent'>>): HTMLSpanElement {
   const label = ENGINE_LABEL[agent.engine] || agent.engine;
-  const extra = agent.engine === 'openai' ? ` · ${agent.provider}` : agent.engine === 'hermes' && agent.hermesProfile ? ` · ${agent.hermesProfile}` : '';
+  const extra = agent.engine === 'openai' ? ` · ${agent.provider}` : agent.engine === 'hermes' && agent.hermesProfile ? ` · ${agent.hermesProfile}` : agent.engine === 'openclaw' && agent.openclawAgent ? ` · ${agent.openclawAgent}` : '';
   return h('span.pill', `${label}${extra}`);
 }
 

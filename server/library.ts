@@ -132,6 +132,7 @@ export function newAgent(fields: Partial<Agent> = {}): Agent {
     provider: fields.provider || 'openrouter',
     claudeAuth: fields.claudeAuth || 'login',
     hermesProfile: fields.hermesProfile ?? d.hermesProfile ?? '',
+    ...(fields.openclawAgent ? { openclawAgent: fields.openclawAgent } : {}),
     autonomy: fields.autonomy || d.autonomy || 'auto',
     toolGroups: fields.toolGroups || ['programs', 'browser', 'agents', 'files'],
     mcpServers: fields.mcpServers || [],

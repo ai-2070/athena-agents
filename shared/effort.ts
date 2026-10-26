@@ -18,6 +18,7 @@ export function effortLevels(engine: EngineId, provider?: string): Effort[] {
   if (engine === 'claude-code') return from('low', 'max'); // claude --effort
   if (engine === 'codex') return from('minimal', 'xhigh'); // model_reasoning_effort
   if (engine === 'hermes') return from('minimal', 'max'); // hermes chat --reasoning
+  if (engine === 'pi' || engine === 'omp' || engine === 'openclaw') return from('minimal', 'max'); // --thinking
   // OpenRouter's reasoning.effort; OpenAI-compatible servers take reasoning_effort low/medium/high
   return (provider || 'openrouter') === 'openrouter' ? from('minimal', 'xhigh') : from('low', 'high');
 }

@@ -77,7 +77,7 @@ export { latestCompaction, memoryStart } from '../shared/compaction.ts';
 
 // ---------- how big the memory is, and how big it may get ----------
 // What each engine adds on its own (its system prompt and tool list) that the chat doesn't show.
-const ENGINE_OVERHEAD: Record<string, number> = { 'claude-code': 18_000, codex: 12_000, hermes: 8_000, openai: 1_000 };
+const ENGINE_OVERHEAD: Record<string, number> = { 'claude-code': 18_000, codex: 12_000, hermes: 8_000, pi: 4_000, omp: 12_000, openclaw: 10_000, openai: 1_000 };
 
 type ModelOf = Pick<Agent, 'engine' | 'model' | 'provider'>;
 
@@ -108,7 +108,7 @@ export async function contextWindow(agent: ModelOf, chat?: Chat | null): Promise
   const model = String(agent.model || '');
   if (agent.engine === 'claude-code') return /\[1m\]/i.test(model) ? 1_000_000 : 200_000;
   if (agent.engine === 'codex') return 272_000;
-  if (agent.engine === 'hermes') return 128_000;
+  if (agent.engine === 'hermes' || agent.engine === 'pi' || agent.engine === 'omp' || agent.engine === 'openclaw') return 128_000;
   const provider = String(agent.provider || 'openrouter');
   const local = provider === 'lmstudio' || provider === 'ollama';
   const id = model || getSettings().defaults.openrouterModel;

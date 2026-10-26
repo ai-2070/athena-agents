@@ -204,7 +204,7 @@ export function which(cmd: string): string | null {
     const exts = IS_WIN ? (process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';').map((e) => e.toLowerCase()) : [''];
     const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
     // Common user-level install spots that are not always on PATH.
-    dirs.push(path.join(HOME, '.local', 'bin'), path.join(HOME, 'AppData', 'Local', 'hermes', 'bin'));
+    dirs.push(path.join(HOME, '.local', 'bin'), path.join(HOME, 'AppData', 'Local', 'hermes', 'bin'), path.join(HOME, '.bun', 'bin'));
     outer: for (const d of dirs) {
       for (const ext of IS_WIN ? ['.exe', '.cmd', '.bat', ...exts] : ['']) {
         const p = path.join(d, cmd + ext);

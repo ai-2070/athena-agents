@@ -55,6 +55,15 @@ describe('providers and model lists', () => {
     expect(['constructor', 'toString', '__proto__', 'hasOwnProperty'].map(modelProvider)).toEqual([null, null, null, null]);
     expect(providerOfAgent({ engine: 'openai', provider: 'ollama' })).toBe('ollama');
     expect(providerOfAgent({ engine: 'claude-code', provider: 'openrouter' })).toBe('claude');
+    expect(modelProvider('oh-my-pi')).toBe('omp');
+    for (const e of ['pi', 'omp', 'openclaw'] as const) expect(providerOfAgent({ engine: e, provider: 'openrouter' })).toBe(e);
+  });
+
+  it('pi, oh-my-pi and OpenClaw take any model id, or none (their own default)', async () => {
+    for (const p of ['pi', 'omp', 'openclaw'] as const) {
+      expect(await checkModel(p, '')).toBeNull();
+      expect(await checkModel(p, 'anthropic/claude-sonnet-5-5')).toBeNull();
+    }
   });
 
   it('matches every word of a query in the id or name', () => {

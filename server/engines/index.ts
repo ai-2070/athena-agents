@@ -12,6 +12,8 @@ import * as openai from './openai.ts';
 import * as claude from './claude.ts';
 import * as hermes from './hermes.ts';
 import * as codex from './codex.ts';
+import * as openclaw from './openclaw.ts';
+import { pi, omp } from './pi.ts';
 import * as compaction from '../compaction.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent } from '../../shared/types.ts';
@@ -125,12 +127,15 @@ export interface AskAgentOptions {
   attachments?: string[];
 }
 
-const ENGINES = { 'claude-code': claude, openai, hermes, codex } satisfies { [K in EngineId]: Engine<EngineStatus[K]> };
+const ENGINES = { 'claude-code': claude, openai, hermes, codex, pi, omp, openclaw } satisfies { [K in EngineId]: Engine<EngineStatus[K]> };
 export const ENGINE_LIST: EngineInfo[] = [
   { id: 'claude-code', label: 'Claude Code', description: 'The Claude Code CLI on this PC: its own coding, files, web search and your claude.ai connectors, plus the dashboard tools. Signs in with your Claude login, an Anthropic key, or OpenRouter.' },
   { id: 'openai', label: 'API model', description: 'Any OpenRouter model, or a local model in LM Studio / Ollama. Uses the dashboard tools and MCP servers directly.' },
   { id: 'hermes', label: 'Hermes', description: 'One of your Hermes Agent profiles, with its own memory, skills and tools.' },
   { id: 'codex', label: 'Codex', description: 'OpenAI Codex CLI on this PC: coding, shell and files with your ChatGPT login (codex login), plus the dashboard tools.' },
+  { id: 'pi', label: 'pi', description: 'The pi coding agent on this PC: coding, shell and files on any model pi is signed in to. Runs its tools without asking.' },
+  { id: 'omp', label: 'oh-my-pi', description: 'oh-my-pi (omp) on this PC: pi with more tools (LSP, Python, web search, subagents). Runs its tools without asking.' },
+  { id: 'openclaw', label: 'OpenClaw', description: 'One of your OpenClaw agents, with its own memory, skills, channels and tools.' },
 ];
 
 const active = new Map<string, RunEntry>(); // runId -> { abort, agentId, chatId, chat, depth, parentRunId }
@@ -311,10 +316,10 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
         if (compaction.memoryTokens(chat, agent, systemPrompt) >= compaction.compactAt(window, settings)) await compact({ trigger: 'auto' }).catch(() => null);
       }
       if (controller.signal.aborted) throw new Error('Stopped.');
-      // Codex and Hermes get the instructions only when their session starts: a session that is
+      // Codex, Hermes and OpenClaw get the instructions only when their session starts: a session that is
       // already going is told when MEMORY.md changed since its last run (by you, or in another chat)
       const memoryAt = hasMemory(agent) ? memoryStamp(agent.id) : 0;
-      const memoryNote = !chat.reseed && chat.sessionId && (agent.engine === 'codex' || agent.engine === 'hermes') && memoryAt > (chat.memoryAt || 0) ? `<memory-update>\nYour MEMORY.md changed since your last message here. It now says:\n${readMemory(agent.id).trim() || '(empty)'}\n</memory-update>\n\n` : '';
+      const memoryNote = !chat.reseed && chat.sessionId && (agent.engine === 'codex' || agent.engine === 'hermes' || agent.engine === 'openclaw') && memoryAt > (chat.memoryAt || 0) ? `<memory-update>\nYour MEMORY.md changed since your last message here. It now says:\n${readMemory(agent.id).trim() || '(empty)'}\n</memory-update>\n\n` : '';
       chat.memoryAt = memoryAt;
       // (prompt: the message with its attachments, as the engine gets it)
       const seeded = async () => (cli && chat.reseed ? compaction.seedPrompt(chat.items, prompt, await compaction.contextWindow(agent, chat)) : memoryNote + prompt);
@@ -669,6 +674,9 @@ export function engineStatus(): EngineStatus {
     openai: openai.status(),
     hermes: hermes.status(),
     codex: codex.status(),
+    pi: pi.status(),
+    omp: omp.status(),
+    openclaw: openclaw.status(),
   };
 }
 

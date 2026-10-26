@@ -1,5 +1,6 @@
 // Model names with versions, and one picker used everywhere a model can be switched
-// (agents, the Brain chat, Settings): tabs for your favorites, Claude Code, OpenRouter, Hermes and Codex,
+// (agents, the Brain chat, Settings): tabs for your favorites, Claude Code, OpenRouter, Hermes, Codex, pi,
+// oh-my-pi and OpenClaw,
 // and how hard the model thinks (effort).
 import { h, mount, state, GET, PUT, attempt, refreshSoon, toast, navigate } from './core.ts';
 import { icon, logo } from './icons.ts';
@@ -15,6 +16,7 @@ export interface ModelTarget {
   provider?: string;
   claudeAuth?: string;
   hermesProfile?: string;
+  openclawAgent?: string;
   effort?: Effort | '';
 }
 /** A model in the picker: its engine and model (and provider for API models). */
@@ -64,7 +66,17 @@ const TABS: ModelTab[] = [
   { engine: 'openai', label: 'OpenRouter', brand: null, glyph: '◇' },
   { engine: 'hermes', label: 'Hermes', brand: null, glyph: '☤' },
   { engine: 'codex', label: 'Codex', brand: 'openai' },
+  { engine: 'pi', label: 'pi', brand: null, glyph: 'π' },
+  { engine: 'omp', label: 'OMP', brand: null, glyph: 'Ω' },
+  { engine: 'openclaw', label: 'OpenClaw', brand: null, glyph: '🦞' },
 ];
+// The CLI engines with their own model lists (GET /models?engine=…): what an empty model means, and where to set them up.
+const CLI_TABS: Partial<Record<EngineId, { name: string; own: string; find: string }>> = {
+  pi: { name: 'pi', own: "pi's default model", find: 'pi coding agent' },
+  omp: { name: 'oh-my-pi', own: "oh-my-pi's default model", find: 'oh-my-pi' },
+  openclaw: { name: 'OpenClaw', own: "the OpenClaw agent's own model", find: 'OpenClaw' },
+};
+const GLYPH: Partial<Record<string, string>> = { hermes: '☤', pi: 'π', omp: 'Ω', openclaw: '🦞' };
 
 // { name: "Claude Sonnet 5.5", short: "Sonnet 5.5", latest: true/false, brand: "claude" | null, where: "Claude Code · Claude login" }
 export function modelInfo(a: ModelTarget): ModelInfo {
@@ -78,13 +90,18 @@ export function modelInfo(a: ModelTarget): ModelInfo {
   }
   if (a.engine === 'codex') return { name: m || 'Codex default model', short: m || 'Codex', latest: !m, brand: 'openai', where: 'OpenAI Codex · ChatGPT login' };
   if (a.engine === 'hermes') return { name: m || `Hermes profile "${a.hermesProfile || 'default'}"`, short: m ? m.split('/').pop()! : 'Hermes', latest: false, brand: null, where: `Hermes · ${a.hermesProfile || 'default'}` };
+  if (a.engine === 'openclaw') return { name: m || `OpenClaw agent "${a.openclawAgent || 'default'}"`, short: m ? m.split('/').pop()! : 'OpenClaw', latest: false, brand: /claude|anthropic/.test(m) ? 'claude' : null, where: `OpenClaw · ${a.openclawAgent || 'default agent'}` };
+  if (a.engine === 'pi' || a.engine === 'omp') {
+    const label = a.engine === 'pi' ? 'pi' : 'oh-my-pi';
+    return { name: m || `${label} default model`, short: m ? m.split('/').pop()! : label, latest: false, brand: /claude|anthropic/.test(m) ? 'claude' : null, where: `${label}${m.includes('/') ? ` · ${m.split('/')[0]}` : ''}` };
+  }
   const where = ({ lmstudio: 'LM Studio', ollama: 'Ollama', custom: 'Custom server' } as Record<string, string | undefined>)[a.provider as string] || 'OpenRouter';
   const id = m.split('/').pop() || 'model';
   const c = CLAUDE.find((x) => id.replace(/\./g, '-').startsWith(x.id));
   return { name: c ? `Claude ${c.family} ${c.version}` : id, short: c ? `${c.family} ${c.version}` : id, latest: false, brand: /claude|anthropic/.test(m) ? 'claude' : /llama|ollama/.test(m) ? 'ollama' : 'openrouter', where };
 }
 
-const chipIcon = (mi: ModelInfo, engine: string): SVGSVGElement | HTMLSpanElement => (mi.brand && logo(mi.brand, 13)) || (engine === 'hermes' ? h('span.model-glyph', '☤') : icon('cpu', 13));
+const chipIcon = (mi: ModelInfo, engine: string): SVGSVGElement | HTMLSpanElement => (mi.brand && logo(mi.brand, 13)) || (GLYPH[engine] ? h('span.model-glyph', GLYPH[engine]) : icon('cpu', 13));
 
 /** The effort a target runs at, as its engine takes it ('' = the model's default). */
 export const effortOf = (a: ModelTarget): Effort | '' => effortFor(a.engine, a.effort, a.provider);
@@ -100,7 +117,7 @@ const withEffort = (a: ModelTarget) => {
 const sameModel = (a: ModelChoice, b: ModelChoice) => a.engine === b.engine && String(a.model || '') === String(b.model || '') && (a.engine !== 'openai' || (a.provider || 'openrouter') === (b.provider || 'openrouter'));
 
 // ---------- favorites (Settings: favoriteModels) ----------
-const ENGINES: EngineId[] = ['claude-code', 'openai', 'hermes', 'codex'];
+const ENGINES: EngineId[] = ['claude-code', 'openai', 'hermes', 'codex', 'pi', 'omp', 'openclaw'];
 export function favoriteModels(): FavoriteModel[] {
   const list = state.data?.settings?.favoriteModels;
   return Array.isArray(list) ? list.filter((f) => f && ENGINES.includes(f.engine) && typeof f.model === 'string') : [];
@@ -338,6 +355,28 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
       items.push(h('div.st-menu-head', 'Hermes'), row("The profile's own model", 'whatever your Hermes profile uses', same('hermes', ''), { engine: 'hermes', model: '' }));
       for (const id of OPENROUTER_PICKS.slice(1)) items.push(row(id.split('/').pop()!, id, same('hermes', id), { engine: 'hermes', model: id }, 'claude'));
       items.push(free('or type a model id and press Enter', (m) => ({ engine: 'hermes', model: m })));
+    } else if (CLI_TABS[tab]) {
+      const engine: EngineId = tab;
+      const t = CLI_TABS[engine]!;
+      const st: Partial<{ installed: boolean }> = (eng as Partial<Record<string, { installed: boolean }>>)[engine] || {};
+      if (eng[engine] && !st.installed) items.push(missing(`${t.name} is not installed on this PC.`, t.find));
+      const search = h('input.model-search', { placeholder: 'Search its models, or type a provider/model id and press Enter' });
+      const list = h('div.model-list', h('div.model-sub', { style: { padding: '4px 10px' } }, 'Looking for models…'));
+      let all: ModelListing[] = [];
+      const fill = () => {
+        const q = search.value.toLowerCase();
+        const shown = (q ? all.filter((m) => `${m.id} ${m.name}`.toLowerCase().includes(q)) : all).slice(0, 60);
+        mount(list, all.length ? shown.map((m) => row(m.name || m.id, m.id, same(engine, m.id), { engine, model: m.id }, /claude|anthropic/.test(m.id) ? 'claude' : null)) : h('div.model-sub', { style: { padding: '4px 10px' } }, `No models listed. Sign ${t.name} in to a provider, or type a model id.`));
+      };
+      search.addEventListener('input', fill);
+      search.addEventListener('keydown', (e) => e.key === 'Enter' && search.value.trim() && pick({ engine, model: search.value.trim() }));
+      items.push(h('div.st-menu-head', t.name), row(t.own, 'whatever it is set to use', same(engine, ''), { engine, model: '' }), search, list);
+      GET<ModelListing[]>(`/models?engine=${engine}`)
+        .then((ms) => {
+          all = ms;
+          fill();
+        })
+        .catch(() => fill());
     } else {
       const cx: Partial<EngineStatus['codex']> = eng.codex || {};
       if (!cx.installed) items.push(missing('Codex is not installed yet.', 'OpenAI Codex'));
@@ -352,7 +391,6 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   const tabs = h('div.model-tabs');
   const drawTabs = (): HTMLDivElement => {
     const shown: ModelTab[] = favs().length ? [{ engine: 'fav', label: 'Favorites', brand: null }, ...TABS] : TABS;
-    tabs.style.gridTemplateColumns = `repeat(${shown.length}, 1fr)`;
     return mount(
       tabs,
       shown.map((t) =>

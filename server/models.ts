@@ -5,9 +5,11 @@ import { which } from './util.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { listModels } from './engines/openai.ts';
 import { listProfiles } from './engines/hermes.ts';
+import { listModels as piModels } from './engines/pi.ts';
+import { listModels as openclawModels } from './engines/openclaw.ts';
 import type { Agent, EngineId, ProviderId } from '../shared/types.ts';
 
-export type ModelProvider = 'claude' | 'openrouter' | 'lmstudio' | 'ollama' | 'custom' | 'codex' | 'hermes';
+export type ModelProvider = 'claude' | 'openrouter' | 'lmstudio' | 'ollama' | 'custom' | 'codex' | 'hermes' | 'pi' | 'omp' | 'openclaw';
 
 interface ProviderInfo {
   label: string;
@@ -24,8 +26,14 @@ export const MODEL_PROVIDERS: Record<ModelProvider, ProviderInfo> = {
   custom: { label: 'Custom server', engine: 'openai', provider: 'custom' },
   codex: { label: 'OpenAI Codex', engine: 'codex' },
   hermes: { label: 'Hermes', engine: 'hermes' },
+  pi: { label: 'pi', engine: 'pi' },
+  omp: { label: 'oh-my-pi', engine: 'omp' },
+  openclaw: { label: 'OpenClaw', engine: 'openclaw' },
 };
 export const PROVIDER_IDS = Object.keys(MODEL_PROVIDERS) as ModelProvider[];
+
+// CLIs that pick a model themselves when none is named, and take any id they know (no fixed list to check against)
+const OWN_DEFAULT = new Set<ModelProvider>(['codex', 'hermes', 'pi', 'omp', 'openclaw']);
 
 export const CODEX_MODELS: { id: string; name: string }[] = [
   { id: '', name: "Codex's default model" },
@@ -38,6 +46,7 @@ const ALIASES: Record<string, ModelProvider> = {
   'lm-studio': 'lmstudio',
   'lm studio': 'lmstudio',
   'openai-codex': 'codex',
+  'oh-my-pi': 'omp',
 };
 
 /** A provider as the Brain names it ('' or unknown: null). */
@@ -54,6 +63,7 @@ export function providerOfAgent(a: Pick<Agent, 'engine' | 'provider'>): ModelPro
   if (a.engine === 'claude-code') return 'claude';
   if (a.engine === 'codex') return 'codex';
   if (a.engine === 'hermes') return 'hermes';
+  if (a.engine === 'pi' || a.engine === 'omp' || a.engine === 'openclaw') return a.engine;
   return modelProvider(a.provider) || 'openrouter';
 }
 
@@ -62,6 +72,7 @@ export function providerProblem(p: ModelProvider): string | null {
   if (p === 'claude') return which('claude') ? null : 'Claude Code is not installed on this PC';
   if (p === 'codex') return which('codex') ? null : 'OpenAI Codex is not installed on this PC';
   if (p === 'hermes') return which('hermes') ? null : 'Hermes is not installed on this PC';
+  if (p === 'pi' || p === 'omp' || p === 'openclaw') return which(p) ? null : `${MODEL_PROVIDERS[p].label} is not installed on this PC`;
   if (p === 'openrouter') return getSecrets().openrouterKey ? null : 'there is no OpenRouter key (Settings)';
   const base = getSettings().providers?.[p]?.baseUrl;
   return base ? null : `${MODEL_PROVIDERS[p].label} has no address (Settings)`;
@@ -74,7 +85,7 @@ export function defaultModelFor(p: ModelProvider): string | null {
   const d = getSettings().defaults;
   if (p === 'claude') return d.claudeModel || 'sonnet';
   if (p === 'openrouter') return d.openrouterModel || null;
-  if (p === 'codex' || p === 'hermes') return '';
+  if (OWN_DEFAULT.has(p)) return '';
   // a server on this PC: there is no sensible default, a model has to be named
   return null;
 }
@@ -90,7 +101,10 @@ export interface FoundModel {
 const CACHE_MS = 5 * 60_000;
 // keyed by provider and address: a server on this PC moved to another address lists its own models
 const cache = new Map<string, { at: number; list: FoundModel[] }>();
-const cacheKey = (p: ModelProvider) => (p === 'claude' || p === 'codex' || p === 'hermes' || p === 'openrouter' ? p : `${p}|${getSettings().providers?.[p]?.baseUrl || ''}`);
+const cacheKey = (p: ModelProvider) => {
+  const srv = MODEL_PROVIDERS[p].provider;
+  return srv === 'lmstudio' || srv === 'ollama' || srv === 'custom' ? `${p}|${getSettings().providers?.[srv]?.baseUrl || ''}` : p;
+};
 export const clearModelCache = (): void => cache.clear();
 
 /** Every model a provider has. [] when it can't be listed (not set up, server not running, Codex). */
@@ -108,7 +122,9 @@ export async function availableModels(p: ModelProvider): Promise<FoundModel[]> {
       seen.add(pr.model);
       list.push({ id: pr.model, name: pr.model, note: `the model of Hermes profile "${pr.name}"` });
     }
-  } else if (!providerProblem(p)) {
+  } else if (p === 'pi' || p === 'omp') list = (await piModels(p).catch(() => [])).map((m) => ({ id: m.id, name: m.name, ...(m.context ? { note: `${Math.round(m.context / 1000)}k context` } : {}) }));
+  else if (p === 'openclaw') list = (await openclawModels().catch(() => [])).map((m) => ({ id: m.id, name: m.name }));
+  else if (!providerProblem(p)) {
     list = (await listModels(MODEL_PROVIDERS[p].provider!)).map((m) => ({
       id: m.id,
       name: m.name,
@@ -160,9 +176,9 @@ export async function findModels(providerName: unknown, query: unknown, { limit 
     const all = await availableModels(p);
     const hits = matchModels(all, q);
     const extra =
-      p === 'codex' ? '\n(Codex takes any model id your ChatGPT plan has; an empty model means Codex picks.)' : p === 'hermes' ? '\n(an empty model means the profile\'s own model)' : p === 'claude' ? '\n(the short names always point to the latest version)' : '';
+      p === 'codex' ? '\n(Codex takes any model id your ChatGPT plan has; an empty model means Codex picks.)' : p === 'hermes' ? '\n(an empty model means the profile\'s own model)' : p === 'pi' || p === 'omp' ? '\n(ids are provider/model; an empty model means its own default)' : p === 'openclaw' ? "\n(an empty model means the OpenClaw agent's own model)" : p === 'claude' ? '\n(the short names always point to the latest version)' : '';
     if (!all.length) {
-      parts.push(`${label}: ${why ? `not usable: ${why}.` : p === 'codex' || p === 'hermes' ? 'no list of models.' : "couldn't list its models (is it running?)."}${extra}`);
+      parts.push(`${label}: ${why ? `not usable: ${why}.` : OWN_DEFAULT.has(p) ? 'no list of models.' : "couldn't list its models (is it running?)."}${extra}`);
       continue;
     }
     const shown = hits.slice(0, per);
@@ -173,7 +189,7 @@ export async function findModels(providerName: unknown, query: unknown, { limit 
 
 /** Is this a model the provider has? null when it is (or the provider can't say). Else why not. */
 export async function checkModel(p: ModelProvider, model: string): Promise<string | null> {
-  if (p !== 'claude' && p !== 'codex' && p !== 'hermes') await availableModels(p);
+  if (p !== 'claude' && !OWN_DEFAULT.has(p)) await availableModels(p);
   return checkModelNow(p, model);
 }
 
@@ -181,12 +197,12 @@ export async function checkModel(p: ModelProvider, model: string): Promise<strin
  *  id is taken as given). For actions that run after the lists were fetched (prepareModels). */
 export function checkModelNow(p: ModelProvider, model: string): string | null {
   const id = model.trim();
-  if (!id) return p === 'codex' || p === 'hermes' ? null : `${MODEL_PROVIDERS[p].label} needs a model id`;
+  if (!id) return OWN_DEFAULT.has(p) ? null : `${MODEL_PROVIDERS[p].label} needs a model id`;
   if (p === 'claude') {
     if (CLAUDE_MODELS.some((m) => m.id === id) || /^claude-[a-z0-9][a-z0-9.-]*(\[1m\])?$/i.test(id)) return null;
     return `"${id}" isn't a Claude Code model (opus, sonnet, haiku, fable or a full claude-… id)`;
   }
-  if (p === 'codex' || p === 'hermes') return null;
+  if (OWN_DEFAULT.has(p)) return null;
   const hit = cache.get(cacheKey(p));
   const all = hit && Date.now() - hit.at < CACHE_MS ? hit.list : [];
   // can't list them (server not running): take the id as given
