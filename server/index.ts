@@ -39,6 +39,8 @@ import * as history from './history.ts';
 import * as skillInstall from './skillinstall.ts';
 import * as presets from './presets.ts';
 import * as uploads from './uploads.ts';
+import * as files from './files.ts';
+import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import type { RestoreResult } from './projectsync.ts';
@@ -58,7 +60,7 @@ const ALLOWED_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`, `[::1]:
 const VENDOR: Record<string, string> = {
   'xterm.css': 'node_modules/@xterm/xterm/css/xterm.css',
 };
-const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4', '.webm': 'video/webm', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.wav': 'audio/wav', '.mp3': 'audio/mpeg' };
+const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.ogg': 'audio/ogg', '.oga': 'audio/ogg', '.m4a': 'audio/mp4', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.wav': 'audio/wav', '.mp3': 'audio/mpeg' };
 
 // ---------- tiny router ----------
 /** :name parts of the path. */
@@ -237,6 +239,18 @@ post<{ text?: unknown; project?: unknown; attachments?: unknown }>('/api/brain/a
   if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
   return overseer.ask(text, { project: typeof body.project === 'string' ? body.project : null, attachments });
 });
+// The same, streamed (Vercel AI SDK UI message stream): the answer as it is written, the files the
+// Brain reads, then the whole answer (data-answer). The Brain chat reads it with the AI SDK.
+post<{ text?: unknown; project?: unknown; attachments?: unknown }>('/api/brain/stream', async (_p, body, _q, res) => {
+  const attachments = uploads.cleanAttachments(body.attachments);
+  const text = String(body.text || '').trim().slice(0, 20000);
+  if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
+  const project = typeof body.project === 'string' ? body.project : null;
+  // (refused before the stream starts, so it comes back as an error the chat can show)
+  overseer.checkProject(project);
+  await uistream.streamBrain(res, (onPart) => overseer.ask(text, { project, attachments, onPart }));
+  return undefined;
+});
 get('/api/brain/history', async () => overseer.history());
 post('/api/brain/clear', async () => (overseer.clearHistory(), { ok: true }));
 get('/api/brain/snapshot', async () => ({ text: await overseer.snapshot() }));
@@ -269,7 +283,7 @@ get('/api/agents/:id', async ({ id }) => {
 });
 put<Partial<Agent>>('/api/agents/:id', async ({ id }, body) => {
   const a = need(agents.get(id));
-  const allowed: (keyof Agent)[] = ['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'autonomy', 'toolGroups', 'mcpServers', 'knowledge', 'workspace', 'temperature', 'effort', 'pinned', 'alwaysAllow', 'skills'];
+  const allowed: (keyof Agent)[] = ['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'autonomy', 'toolGroups', 'mcpServers', 'knowledge', 'workspace', 'temperature', 'effort', 'pinned', 'alwaysAllow', 'skills', 'richAnswers'];
   for (const k of allowed) if (k in body) (a as Record<keyof Agent, unknown>)[k] = body[k];
   if ('effort' in body) a.effort = isEffort(body.effort) ? body.effort : '';
   return agents.save(a);
@@ -357,6 +371,28 @@ post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/mess
   if (cmd) return compactResult(await engines.compactNow(a, c.id, cmd[1]?.toLowerCase() as 'instant' | 'summary' | undefined));
   const { runId } = engines.startRun(a, c, text, { attachments });
   return { runId };
+});
+// The chat views (Vercel AI SDK useChat): send a message and stream its run as a UI message stream,
+// or pick up the run going in a chat (the turn so far, then the rest; 204 when nothing runs).
+post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, body, _q, res) => {
+  const a = need(agents.get(id));
+  const c = need(chats.get(id, cid));
+  const text = String(body.text || '').trim();
+  const attachments = uploads.cleanAttachments(body.attachments);
+  if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
+  const { runId } = engines.startRun(a, c, text, { attachments });
+  await uistream.streamRun(res, { chatId: c.id, runId });
+  return undefined;
+});
+get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {
+  const run = engines.activeRuns().find((r) => r.chatId === cid && r.agentId === id);
+  if (!run) {
+    res.writeHead(204, { 'cache-control': 'no-store' });
+    res.end();
+    return undefined;
+  }
+  await uistream.streamRun(res, { chatId: cid, runId: run.id, items: engines.liveChat(cid)?.items || [] });
+  return undefined;
 });
 // Compaction: the Compact button, the memory meter, and editing the compacted history
 const compactResult = ({ item }: Awaited<ReturnType<typeof engines.compactNow>>) => ({ compacted: !!item, item, ...(item ? {} : { message: 'Nothing to compact yet: the chat is short enough to keep in full.' }) });
@@ -504,9 +540,8 @@ del('/api/uploads', async (_p, _b, q) => ({ ok: uploads.removeUpload(q.path) }))
 
 // Files the browser may show: workspaces, outputs, knowledge, ComfyUI outputs, allowed folders.
 get('/api/file', async (_p, _b, q, res) => {
-  const roots = [projects.ensureBrain(), store.projectData('knowledge'), dataPath('outputs'), ...programs.comfyOutputDirs(), ...(getSettings().allowedFolders || [])];
   // links are followed before checking, so a link in a workspace can't serve files from elsewhere
-  const p = insideRoots(path.resolve(String(q.path || '')), roots);
+  const p = insideRoots(path.resolve(String(q.path || '')), files.viewRoots());
   if (!p) throw new HttpError(403, 'That file is outside the dashboard folders.');
   let st: fs.Stats;
   try {
@@ -517,6 +552,13 @@ get('/api/file', async (_p, _b, q, res) => {
   if (!st.isFile()) throw new HttpError(400, 'That is a folder, not a file.');
   sendFileSafely(res, p);
   return undefined;
+});
+
+// Files a chat mentions: whether each is there and what it is (for its preview), and Show in Explorer / Finder.
+post<{ paths?: unknown }>('/api/files/info', async (_p, body) => files.fileInfo(body.paths));
+post<{ path?: unknown }>('/api/files/reveal', async (_p, body) => {
+  files.reveal(body.path);
+  return { ok: true };
 });
 
 // Agent-made files are shown, never run: only media display inline; everything else downloads, sandboxed.

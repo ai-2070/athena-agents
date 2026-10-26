@@ -40,6 +40,8 @@ export interface Agent {
   effort?: Effort | '';
   alwaysAllow: string[];
   skills: string[];
+  /** Rich answers: in your own chats it answers in OpenUI Lang, shown as live components (cards, tables, charts, forms). */
+  richAnswers?: boolean;
   source: AgentSource;
   pinned: boolean;
   lastModel?: string;
@@ -120,6 +122,9 @@ export interface TeamMessage {
   mentions: string[];
   replyTo?: string | null;
   handedTo?: string[];
+  /** An agent's reply: where its turn is in the agent's own session for this team (its steps and tool
+   *  calls are items from..to of that chat), so the team chat can show the work behind it. */
+  turn?: { chatId: string; from: number; to: number };
   /** Files and folders attached to the message (paths in the project's uploads/ folder). */
   attachments?: string[];
   [k: string]: unknown;
@@ -257,6 +262,8 @@ export interface Chat {
   reseed?: boolean;
   /** How full the agent's memory is (see ChatContext). Cleared by a compaction or Clear memory. */
   context?: ChatContext;
+  /** Its last run had Rich answers' instructions (a chat of your own, not a handoff or a team's). */
+  rich?: boolean;
   createdAt: number;
   updatedAt: number;
   _deleted?: boolean;

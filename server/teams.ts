@@ -28,6 +28,7 @@ interface NewMessage {
   mentions?: string[];
   replyTo?: string | null;
   attachments?: string[];
+  turn?: TeamMessage['turn'];
 }
 
 interface QueueItem {
@@ -101,9 +102,10 @@ export function teamState(teamId: string): TeamState {
   return { working: [...r.running], queued: [...new Set(r.queue.map((q) => q.agentId))] };
 }
 
-export function getThread(teamId: string, limit = 200): TeamState & { messages: TeamMessage[] } {
+export function getThread(teamId: string, limit = 200): TeamState & { messages: TeamMessage[]; sessions: Record<string, string> } {
   const c = loadChat(teamId);
-  return { messages: c.messages.slice(-limit), ...teamState(teamId) };
+  // (each agent's own session for this team: where a working agent's turn streams from)
+  return { messages: c.messages.slice(-limit), ...teamState(teamId), sessions: { ...c.sessions } };
 }
 
 function post(team: Team, msg: NewMessage): TeamMessage {
@@ -272,7 +274,9 @@ async function runTurn(team: Team, item: QueueItem) {
     ? `The team's reference files from the user (${attachmentNames(newTeamFiles)}) are attached at the end.\n\n`
     : team.files?.length ? `The team's files: ${team.files.join(', ')}\n\n` : '';
   const prompt = `${first ? `${briefing(team, agent)}\n\n` : ''}${filesNote}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\nDo your part now, then reply to the team.`;
-  emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'start' } });
+  // (where this turn starts in the agent's session: the team chat shows its work, live and afterwards)
+  const from = chats.get(agent.id, chatId)?.items.length ?? 0;
+  emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'start', chatId } });
   let text = '';
   let stopped = false;
   try {
@@ -291,13 +295,15 @@ async function runTurn(team: Team, item: QueueItem) {
   if (openProject().id !== pid) {
     // you switched projects while it worked: keep the reply in its own project, start nothing new there
     const back = loadChat(team.id, pid);
-    back.messages.push({ id: uid('m'), ts: Date.now(), from: agent.id, text: text || '(no answer)', mentions: [] });
+    const to = chats.get(agent.id, chatId)?.items.length ?? from;
+    back.messages.push({ id: uid('m'), ts: Date.now(), from: agent.id, text: text || '(no answer)', mentions: [], ...(to > from ? { turn: { chatId, from, to } } : {}) });
     back.seen[agent.id] = back.messages.length;
     saveChat(team.id, back, pid);
     return;
   }
   const mentions = parseMentions(team, text, agent.id);
-  const msg = post(team, { from: agent.id, text: text || '(no answer)', mentions });
+  const to = chats.get(agent.id, chatId)?.items.length ?? from;
+  const msg = post(team, { from: agent.id, text: text || '(no answer)', mentions, ...(to > from ? { turn: { chatId, from, to } } : {}) });
   const c2 = loadChat(team.id);
   c2.seen[agent.id] = c2.messages.length;
   saveChat(team.id, c2);

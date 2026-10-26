@@ -1,7 +1,8 @@
 // A team's group chat: everyone's messages, who is working, @mention suggestions, reply-to, stop.
 import { h, mount, state, GET, POST, attempt, md, ago, avatar, onEvent, confirmBox } from './core.ts';
 import { icon } from './icons.ts';
-import { attachTray, attachmentChips, restoreDraft } from './attach.ts';
+import { attachTray, restoreDraft } from './attach.ts';
+import { mentionPreviews } from './filepreview.ts';
 import type { Agent, RunEvent, Team, TeamMessage, TeamState } from '../shared/types.ts';
 
 /** What the server pushes as a 'team' event (ev.event). */
@@ -9,12 +10,14 @@ export type TeamEvent =
   | { kind: 'message'; message: TeamMessage }
   | ({ kind: 'state' } & TeamState)
   | { kind: 'routed'; to: string[]; why: string }
-  | { kind: 'turn'; agentId: string; state: 'start' | 'end' }
+  | { kind: 'turn'; agentId: string; state: 'start' | 'end'; chatId?: string }
   | { kind: 'cleared' };
 /** GET /api/teams/:id/chat */
 export interface TeamChatResponse extends TeamState {
   team: Team;
   messages: TeamMessage[];
+  /** each agent's own session for this team (agentId → chatId) */
+  sessions?: Record<string, string>;
 }
 /** What renderTeamChat() hands back. */
 export interface TeamChatApi {
@@ -33,6 +36,10 @@ interface TeamChatData {
   queued: string[];
   replyTo: TeamMessage | null;
   activity: Record<string, string>;
+  /** each agent's own session for this team (agentId → chatId): where its turn streams from */
+  sessions: Record<string, string>;
+  /** whose turn is going now, by the turn events (a state update can lag behind a turn's end) */
+  turning: Set<string>;
   alive: boolean;
 }
 interface MentionOption {
@@ -48,7 +55,7 @@ export function mergeSnapshot(snapshot: TeamMessage[], live: TeamMessage[], clea
 }
 
 export function renderTeamChat(container: HTMLElement, teamId: string, { height = 360, fill = false }: TeamChatOptions = {}): TeamChatApi {
-  const C: TeamChatData = { team: null, messages: [], working: [], queued: [], replyTo: null, activity: {}, alive: true };
+  const C: TeamChatData = { team: null, messages: [], working: [], queued: [], replyTo: null, activity: {}, sessions: {}, turning: new Set(), alive: true };
   // fill: grow with the window it sits in (the chat window); otherwise a fixed height
   const list = h('div.tc-list', fill ? {} : { style: { maxHeight: `${height}px` } });
   const status = h('div.tc-status');
@@ -63,6 +70,58 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   const offDrop = tray.dropZone(root, 'Drop files or folders for the team');
 
   const agent = (id: string) => state.data?.agents.find((a) => a.id === id);
+
+  // A working agent's turn, streamed in as it goes (its text and tool calls; web/chat/TurnView), and the
+  // work behind a finished reply, opened on demand. Kept across redraws (the same element comes back).
+  const loadTurns = () => import('./chat/mount.tsx');
+  const live = new Map<string, { el: HTMLElement; chatId: string; destroy?: () => void }>();
+  const work = new Map<string, { el: HTMLDetailsElement; destroy?: () => void }>();
+  const endLive = (agentId: string) => {
+    live.get(agentId)?.destroy?.();
+    live.delete(agentId);
+  };
+  const liveTurn = (agentId: string): HTMLElement | null => {
+    const chatId = C.sessions[agentId];
+    if (!chatId) return null;
+    let t = live.get(agentId);
+    if (t && t.chatId !== chatId) endLive(agentId), (t = undefined);
+    if (!t) {
+      const a = agent(agentId);
+      const body = h('div.tc-live-body');
+      const turn: { el: HTMLElement; chatId: string; destroy?: () => void } = { el: h('div.tc-msg.tc-live', h('div.tc-who', a ? avatar(a) : h('div.avatar', icon('bot', 14)), h('b', a?.name || 'Agent'), h('span.hint', 'working…')), body), chatId };
+      t = turn;
+      live.set(agentId, turn);
+      void loadTurns().then(({ mountTurn }) => {
+        if (live.get(agentId) === turn && C.alive) turn.destroy = mountTurn(body, { agentId, chatId, live: true }).destroy;
+      });
+    }
+    return t.el;
+  };
+  const workFor = (m: TeamMessage): HTMLDetailsElement | null => {
+    const turn = m.turn;
+    if (!turn || m.from === 'user' || m.from === 'system') return null;
+    let w = work.get(m.id);
+    if (!w) {
+      const body = h('div.tc-work-body');
+      const el = h('details.tc-work', h('summary', icon('wrench', 12), 'Show the work'), body);
+      const entry: { el: HTMLDetailsElement; destroy?: () => void } = { el };
+      el.addEventListener('toggle', () => {
+        if (!el.open || entry.destroy) return;
+        entry.destroy = () => {};
+        void loadTurns().then(({ mountTurn }) => {
+          if (C.alive) entry.destroy = mountTurn(body, { agentId: m.from, chatId: turn.chatId, from: turn.from, to: turn.to, empty: 'No steps were saved for this reply.' }).destroy;
+        });
+      });
+      w = entry;
+      work.set(m.id, w);
+    }
+    return w.el;
+  };
+  const dropTurns = () => {
+    for (const id of [...live.keys()]) endLive(id);
+    for (const w of work.values()) w.destroy?.();
+    work.clear();
+  };
   const members = () => (C.team?.members || []).map(agent).filter((a): a is Agent => Boolean(a));
 
   // highlight @Names in a message
@@ -114,12 +173,16 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
               ),
               parent ? h('div.tc-quote', `↪ ${parent.from === 'user' ? 'You' : agent(parent.from)?.name || ''}: ${String(parent.text).slice(0, 90)}`) : null,
               m.text ? renderText(m.text) : null,
-              attachmentChips(m.attachments),
+              mentionPreviews(m.text, m.attachments, { compact: true, key: `team:${m.id}` }),
+              workFor(m),
               m.mentions?.length && m.from !== 'user' ? h('div.tc-handoff', icon('send', 11), `handed to ${m.mentions.map((id) => agent(id)?.name).filter(Boolean).join(', ')}`) : null,
             );
           })
         : h('div.tc-empty', icon('message-square', 22), h('p', C.team?.lead ? `Write to the team. ${agent(C.team.lead)?.name} (lead) takes it and brings in the others.` : 'Write to the team. The best fit answers, or @mention someone.')),
+      // whose turn is going now, streaming in
+      [...C.turning].map(liveTurn),
     );
+    for (const id of [...live.keys()]) if (!C.turning.has(id)) endLive(id);
     if (near) list.scrollTop = list.scrollHeight;
     const busy = [...C.working, ...C.queued.filter((q) => !C.working.includes(q))];
     mount(
@@ -233,10 +296,23 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
         early.state ||= early.loading;
       }
       if (e.kind === 'cleared') {
+        // (the agents' sessions are gone with it)
         C.messages = [];
+        C.sessions = {};
+        C.working = [];
+        C.turning.clear();
+        dropTurns();
         early.cleared ||= early.loading;
       }
-      if (e.kind === 'turn' && e.state === 'end') delete C.activity[e.agentId];
+      if (e.kind === 'turn' && e.state === 'start') {
+        if (e.chatId) C.sessions[e.agentId] = e.chatId;
+        C.turning.add(e.agentId);
+      }
+      if (e.kind === 'turn' && e.state === 'end') {
+        delete C.activity[e.agentId];
+        C.turning.delete(e.agentId);
+        endLive(e.agentId);
+      }
       draw();
     }
     // what a working member is doing right now
@@ -253,7 +329,13 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     .then((r) => {
       C.team = r.team;
       C.messages = mergeSnapshot(r.messages, C.messages, early.cleared);
-      if (!early.state) Object.assign(C, { working: r.working, queued: r.queued });
+      // (cleared while it loaded: the snapshot's sessions and who was working are from before)
+      if (!early.cleared) {
+        C.sessions = { ...(r.sessions || {}), ...C.sessions };
+        // who was already working when this opened: their turns are going now
+        for (const id of r.working) C.turning.add(id);
+      }
+      if (!early.state && !early.cleared) Object.assign(C, { working: r.working, queued: r.queued });
       draw();
     })
     .catch(() => {})
@@ -270,6 +352,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     },
     destroy: () => {
       C.alive = false;
+      dropTurns();
       off();
       offDrop();
       // the tab closed: unsent attachments go too

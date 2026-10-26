@@ -1,5 +1,5 @@
 // Agents: your team, and the editor for one agent.
-import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, refreshSoon, avatar, engineBadge, navigate, seg, chipSet, field, select, toast, confirmBox, promptBox, onState, isRunning, copy, ago } from '../core.ts';
+import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, refreshSoon, avatar, engineBadge, navigate, seg, chipSet, field, select, toast, confirmBox, promptBox, onState, isRunning, copy, ago, toggleRow } from '../core.ts';
 import { skillPicker } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.ts';
 import type { Option } from '../core.ts';
@@ -348,6 +348,12 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
           a.alwaysAllow?.length
             ? h('div.mt', h('div.label', 'Always allowed'), h('div.row.mt', { style: { gap: '6px' } }, a.alwaysAllow.map((t) => h('span.pill', t))), h('button.btn.tiny.ghost.mt', { onclick: () => (set('alwaysAllow')([]), toast('Cleared; save to apply')) }, 'Clear'))
             : null,
+        ),
+        h(
+          'div.panel',
+          h('div.panel-head', h('h2', 'Answers')),
+          toggleRow(!!a.richAnswers, (on) => set('richAnswers')(on), 'Rich answers'),
+          h('p.hint.mt', 'In your own chats with this agent it answers with live components (cards, tables, charts, forms with buttons) instead of plain text. Good for research, comparisons, reports and plans. Off for coding agents and team chats: it adds about 13k tokens of instructions to every message, and smaller or local models often get it wrong. Team chats, routines and other agents always get plain text.'),
         ),
         h(
           'div.panel',

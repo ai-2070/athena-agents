@@ -13,6 +13,7 @@ import { liveActivity, runInfo, defaultModel } from './engines/index.ts';
 import { listApprovals } from './approvals.ts';
 import type { BrainVerdict } from './approvals.ts';
 import { think, brainModel, parseJSON } from './brain.ts';
+import type { ThinkPart } from './brain.ts';
 import { readJSON, writeJSON, run, dataPath } from './util.ts';
 import { describeAttachments, attachmentNames } from './uploads.ts';
 import { listRoutines, saveRoutine, deleteRoutine, getRoutine, startRoutine, routineTargets } from './routines.ts';
@@ -852,14 +853,24 @@ export async function prepareInstalls(actions: BrainAction[], userText: string, 
   }
 }
 
-/** project: the project the message was typed in. A message that waited while you switched projects is refused.
- *  attachments: files the user attached (paths in uploads/). */
-export async function ask(text: string, { project, attachments = [] }: { project?: string | null; attachments?: string[] } = {}): Promise<BrainAnswer> {
+/** What the Brain does while it answers, as it happens: its model's parts, and "restart" when it answers
+ *  again (after opening skills it asked for: the text so far is replaced). */
+export type BrainPart = ThinkPart | { kind: 'restart' };
+
+/** A message typed in another project than the one open now is refused (409), before anything is asked. */
+export function checkProject(project: string | null | undefined): void {
   const p = activeProject();
   if (project && project !== p.id) {
     const was = listProjects().find((x) => x.id === project);
     throw Object.assign(new Error(`You switched projects before the Brain got to this message, so it wasn't sent. Open "${was?.name || 'that project'}" and ask again.`), { status: 409 });
   }
+}
+
+/** project: the project the message was typed in. A message that waited while you switched projects is refused.
+ *  attachments: files the user attached (paths in uploads/). onPart: what it does as it happens (streamed). */
+export async function ask(text: string, { project, attachments = [], onPart }: { project?: string | null; attachments?: string[]; onPart?: (p: BrainPart) => void } = {}): Promise<BrainAnswer> {
+  checkProject(project);
+  const p = activeProject();
   const gen = generation(p.id);
   const switchesAtStart = projectSwitches();
   const bm = brainModel();
@@ -878,7 +889,7 @@ export async function ask(text: string, { project, attachments = [] }: { project
   const seenSkills = new Set([...ownSkillsShown(own).seen, ...named.seen]);
   const system = SYSTEM(p.name, canRead, own);
   const prompt = `SNAPSHOT\n${snap}${named.text}\n\n${catalog()}${convo}${earlierFiles}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}`;
-  const opts = { tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '', cwd: ensureBrain(p), timeout: 180000, maxTokens: 4000 };
+  const opts = { tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '', cwd: ensureBrain(p), timeout: 180000, maxTokens: 4000, onPart };
   let parsed = parseActions(await think(system, prompt, opts));
   // it asked to open skills: give it their text and let it answer again (once)
   const asked = parsed.actions.filter((a) => actionKind(a) === 'read_skill').map((a) => String(a.skill || a.id || a.name || ''));
@@ -888,6 +899,7 @@ export async function ask(text: string, { project, attachments = [] }: { project
     const missing = asked.filter((_ref, i) => !found[i]);
     for (const slug of opened.seen) seenSkills.add(slug);
     const again = `${prompt}\n\nYOUR FIRST ANSWER:\n${parsed.answer || '(none)'}${opened.text}${missing.length ? `\n\nNo skill named: ${missing.join(', ')}` : ''}\n\nNow give your full answer to the user (with any actions). Don't ask to read these skills again.`;
+    onPart?.({ kind: 'restart' });
     parsed = parseActions(await think(system, again, opts));
   }
   parsed.actions = parsed.actions.filter((a) => actionKind(a) !== 'read_skill');

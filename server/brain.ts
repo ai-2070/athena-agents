@@ -78,6 +78,8 @@ export interface ThinkOptions {
   cwd?: string;
   timeout?: number;
   maxTokens?: number;
+  /** what it does while it thinks, as it happens (see ThinkPart) */
+  onPart?: (part: ThinkPart) => void;
 }
 
 const GROUP_IDS = TOOL_GROUPS.map((g) => g.id);
@@ -96,27 +98,112 @@ export function brainModel(): BrainModel {
   return { provider: p, model: model || dflt, effort, fallback: p !== (b.provider || 'claude') };
 }
 
+/** What the Brain's model does while it thinks, as it happens (ThinkOptions.onPart): its text as it is
+ *  written, and the tools it uses (reading the project's files) with their results. */
+export type ThinkPart = { kind: 'text'; text: string } | { kind: 'tool'; id: string; name: string; args?: unknown } | { kind: 'tool_result'; id: string; text: string; isError?: boolean };
+
+/** One line of `claude -p --output-format stream-json` (the fields used here). */
+interface ClaudeLine {
+  type?: string;
+  parent_tool_use_id?: string | null;
+  event?: { type?: string; delta?: { type?: string; text?: string } };
+  message?: { content?: { type: string; id?: string; name?: string; input?: unknown; tool_use_id?: string; content?: unknown; is_error?: boolean; text?: string }[] };
+  is_error?: boolean;
+  result?: string;
+}
+/** One line of `codex exec --json`, for its steps. */
+interface CodexStep {
+  type?: string;
+  item?: { id?: string; type?: string; text?: string; command?: string; aggregated_output?: string | null; exit_code?: number | null; server?: string; tool?: string; arguments?: unknown; result?: unknown; error?: unknown };
+}
+
+const asText = (v: unknown): string => (typeof v === 'string' ? v : Array.isArray(v) ? v.map((c) => (c && typeof c === 'object' && 'text' in c ? String((c as { text: unknown }).text) : '')).join('\n') : v == null ? '' : JSON.stringify(v));
+
 // tools: read-only Claude Code tools (e.g. "Read,Glob,Grep") the Brain may use inside cwd.
 // Codex reads the folder in a read-only sandbox instead.
-export async function think(system: string, user: string, { tools = '', cwd, timeout = 90000, maxTokens = 2500 }: ThinkOptions = {}): Promise<string> {
+// onPart: the answer as it is written and the tools it uses, while it thinks (the Brain chat streams them).
+export async function think(system: string, user: string, { tools = '', cwd, timeout = 90000, maxTokens = 2500, onPart }: ThinkOptions = {}): Promise<string> {
   const key = getSecrets().openrouterKey;
   const bm = brainModel();
+  const part = (p: ThinkPart) => {
+    try {
+      onPart?.(p);
+    } catch {
+      /* a listener's problem is not the answer's */
+    }
+  };
   if (bm.provider === 'openrouter' && key) {
     const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json', 'X-Title': 'My Dashboard' },
-      body: JSON.stringify({ model: bm.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, ...(bm.effort ? { reasoning: { effort: bm.effort } } : {}) }),
+      body: JSON.stringify({ model: bm.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, ...(bm.effort ? { reasoning: { effort: bm.effort } } : {}), ...(onPart ? { stream: true } : {}) }),
       signal: AbortSignal.timeout(timeout),
     });
-    const j = (await r.json()) as OpenRouterChat;
-    if (!r.ok) throw new Error(j.error?.message || `OpenRouter said ${r.status}`);
-    // stopped at max_tokens: half an answer (half a JSON object) is no answer
-    if (j.choices?.[0]?.finish_reason === 'length') throw new Error('The answer was cut off: it ran past the length limit.');
-    return j.choices?.[0]?.message?.content || '';
+    if (!onPart || !r.ok || !r.body) {
+      const j = (await r.json()) as OpenRouterChat;
+      if (!r.ok) throw new Error(j.error?.message || `OpenRouter said ${r.status}`);
+      // stopped at max_tokens: half an answer (half a JSON object) is no answer
+      if (j.choices?.[0]?.finish_reason === 'length') throw new Error('The answer was cut off: it ran past the length limit.');
+      return j.choices?.[0]?.message?.content || '';
+    }
+    // streamed: the text as it comes
+    let text = '';
+    let buf = '';
+    const dec = new TextDecoder();
+    for await (const chunk of r.body as unknown as AsyncIterable<Uint8Array>) {
+      buf += dec.decode(chunk, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) !== -1) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line.startsWith('data:') || line === 'data: [DONE]') continue;
+        try {
+          const j = JSON.parse(line.slice(5)) as { error?: { message?: string }; choices?: { delta?: { content?: string }; finish_reason?: string | null }[] };
+          if (j.error) throw new Error(j.error.message || 'OpenRouter failed.');
+          // (streamed too: stopped at max_tokens is no answer)
+          if (j.choices?.[0]?.finish_reason === 'length') throw new Error('The answer was cut off: it ran past the length limit.');
+          const d = j.choices?.[0]?.delta?.content;
+          if (d) {
+            text += d;
+            part({ kind: 'text', text: d });
+          }
+        } catch (e) {
+          if (e instanceof SyntaxError) continue;
+          throw e;
+        }
+      }
+    }
+    return text;
   }
   if (bm.provider === 'codex') {
     const args = ['exec', '--json', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', ...(cwd ? ['-C', cwd] : []), ...(bm.model ? ['-m', bm.model] : []), ...(bm.effort ? ['-c', `model_reasoning_effort="${bm.effort}"`] : []), '-'];
-    const r = await run('codex', args, { input: `<instructions>\n${system}\n</instructions>\n\n${user}`, timeout, cwd });
+    let said = false;
+    const onLine = onPart
+      ? (line: string) => {
+          if (!line.trim().startsWith('{')) return;
+          let ev: CodexStep;
+          try {
+            ev = JSON.parse(line) as CodexStep;
+          } catch {
+            return;
+          }
+          const it = ev.item || {};
+          const done = ev.type === 'item.completed';
+          // (a tool starts once, on item.started; item.updated says it is still going)
+          const started = ev.type === 'item.started';
+          if (it.type === 'agent_message' && done && it.text) {
+            part({ kind: 'text', text: (said ? '\n\n' : '') + it.text });
+            said = true;
+          } else if (it.type === 'command_execution' && it.id) {
+            if (started) part({ kind: 'tool', id: it.id, name: 'Bash', args: { command: it.command } });
+            else if (done) part({ kind: 'tool_result', id: it.id, text: String(it.aggregated_output ?? '').slice(0, 20000), isError: it.exit_code != null && it.exit_code !== 0 });
+          } else if (it.type === 'mcp_tool_call' && it.id) {
+            if (started) part({ kind: 'tool', id: it.id, name: `${it.server}__${it.tool}`, args: it.arguments ?? {} });
+            else if (done) part({ kind: 'tool_result', id: it.id, text: asText(it.result ?? it.error).slice(0, 20000), isError: !!it.error });
+          }
+        }
+      : undefined;
+    const r = await run('codex', args, { input: `<instructions>\n${system}\n</instructions>\n\n${user}`, timeout, cwd, onLine });
     let answer = '';
     let err = '';
     for (const line of r.stdout.split('\n')) {
@@ -134,7 +221,18 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
     return answer;
   }
   if (bm.provider === 'hermes') {
-    const r = await run('hermes', ['chat', '--query-file', '-', '--format', 'stream-json', ...(bm.model ? ['-m', bm.model] : []), ...(bm.effort ? ['--reasoning', bm.effort] : [])], { input: `${system}\n\n---\n\n${user}`, timeout, cwd, env: { PYTHONIOENCODING: 'utf-8' } });
+    const onLine = onPart
+      ? (line: string) => {
+          if (!line.trim().startsWith('{')) return;
+          try {
+            const m = JSON.parse(line) as HermesLine;
+            if (m.type === 'text' && m.text) part({ kind: 'text', text: m.text });
+          } catch {
+            /* not JSON */
+          }
+        }
+      : undefined;
+    const r = await run('hermes', ['chat', '--query-file', '-', '--format', 'stream-json', ...(bm.model ? ['-m', bm.model] : []), ...(bm.effort ? ['--reasoning', bm.effort] : [])], { input: `${system}\n\n---\n\n${user}`, timeout, cwd, env: { PYTHONIOENCODING: 'utf-8' }, onLine });
     let text = '';
     let result: HermesLine | null = null;
     for (const line of r.stdout.split('\n')) {
@@ -154,15 +252,34 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
   if (!which('claude')) throw new Error('The Brain needs Claude Code, an OpenRouter key, Hermes or Codex.');
   const promptFile = tmpFile('brain-system.md');
   fs.writeFileSync(promptFile, system);
+  // streamed (onPart): stream-json, with the text as it is written and the files it reads
+  const format = onPart ? ['--output-format', 'stream-json', '--verbose', '--include-partial-messages'] : ['--output-format', 'json'];
+  let final: ClaudeLine | null = null;
+  const onLine = onPart
+    ? (line: string) => {
+        if (!line.trim().startsWith('{')) return;
+        let m: ClaudeLine;
+        try {
+          m = JSON.parse(line) as ClaudeLine;
+        } catch {
+          return;
+        }
+        if (m.parent_tool_use_id) return;
+        if (m.type === 'stream_event' && m.event?.type === 'content_block_delta' && m.event.delta?.type === 'text_delta' && m.event.delta.text) part({ kind: 'text', text: m.event.delta.text });
+        else if (m.type === 'assistant') for (const b of m.message?.content || []) b.type === 'tool_use' && b.id && part({ kind: 'tool', id: b.id, name: b.name || 'tool', args: b.input });
+        else if (m.type === 'user') for (const b of m.message?.content || []) b.type === 'tool_result' && b.tool_use_id && part({ kind: 'tool_result', id: b.tool_use_id, text: asText(b.content).slice(0, 20000), isError: !!b.is_error });
+        else if (m.type === 'result') final = m;
+      }
+    : undefined;
   const r = await run(
     'claude',
-    ['-p', '--model', bm.model, ...(bm.effort ? ['--effort', bm.effort] : []), '--output-format', 'json', '--no-session-persistence', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--tools', tools, ...(tools ? ['--allowedTools', ...tools.split(',')] : []), '--system-prompt-file', promptFile],
-    { input: user, timeout, cwd },
+    ['-p', '--model', bm.model, ...(bm.effort ? ['--effort', bm.effort] : []), ...format, '--no-session-persistence', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--tools', tools, ...(tools ? ['--allowedTools', ...tools.split(',')] : []), '--system-prompt-file', promptFile],
+    { input: user, timeout, cwd, onLine },
   );
   fs.rm(promptFile, { force: true }, () => {});
   let out: ClaudeResult;
   try {
-    out = JSON.parse(r.stdout) as ClaudeResult;
+    out = onPart ? ((final as ClaudeLine | null) ?? (JSON.parse(r.stdout) as ClaudeResult)) : (JSON.parse(r.stdout) as ClaudeResult);
   } catch {
     throw new Error(`Claude Code didn't answer (${(r.stderr || r.stdout).trim().slice(-300)})`);
   }

@@ -253,6 +253,8 @@ export interface RunOptions {
   env?: Record<string, string | undefined>;
   maxBytes?: number;
   signal?: AbortSignal;
+  /** Each line of its output as it comes (for programs that stream, e.g. JSON lines). */
+  onLine?: (line: string) => void;
 }
 
 /** code is null when the process was killed by a signal, -1 when it couldn't start. */
@@ -263,9 +265,45 @@ export interface RunResult {
 }
 
 // Run a command and collect its output.
-export function run(cmd: string, args: string[] = [], { timeout = 60000, input, cwd, env, maxBytes = 2_000_000, signal }: RunOptions = {}): Promise<RunResult> {
+export function run(cmd: string, args: string[] = [], { timeout = 60000, input, cwd, env, maxBytes = 2_000_000, signal, onLine }: RunOptions = {}): Promise<RunResult> {
   return new Promise<RunResult>((resolve) => {
     let out = '';
+    let partial = '';
+    // a line longer than maxBytes is dropped (up to its end), so the buffer never grows past it
+    let skipping = false;
+    const lines = (d: string, end = false) => {
+      if (!onLine) return;
+      partial += d;
+      let nl;
+      while ((nl = partial.indexOf('\n')) !== -1) {
+        const line = partial.slice(0, nl);
+        partial = partial.slice(nl + 1);
+        // (the end of one that grew too long, or a whole one that came too long at once)
+        if (skipping || line.length > maxBytes) {
+          skipping = false;
+          continue;
+        }
+        try {
+          onLine(line);
+        } catch {
+          /* a listener's problem is not the program's */
+        }
+      }
+      if (partial.length > maxBytes) {
+        partial = '';
+        skipping = true;
+      }
+      if (skipping && end) partial = '';
+      if (end && partial) {
+        const last = partial;
+        partial = '';
+        try {
+          onLine(last);
+        } catch {
+          /* as above */
+        }
+      }
+    };
     let err = '';
     let done = false;
     let child: ChildProcess;
@@ -291,6 +329,7 @@ export function run(cmd: string, args: string[] = [], { timeout = 60000, input, 
     child.stderr?.setEncoding('utf8');
     child.stdout?.on('data', (d: string) => {
       if (out.length < maxBytes) out += d;
+      lines(d);
     });
     child.stderr?.on('data', (d: string) => {
       if (err.length < maxBytes) err += d;
@@ -300,6 +339,7 @@ export function run(cmd: string, args: string[] = [], { timeout = 60000, input, 
       err += String(e.message || e);
     });
     child.on('close', (code: number | null) => {
+      lines('', true);
       done = true;
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
@@ -344,6 +384,27 @@ export function openWithShell(target: string) {
     child.on('error', () => {});
     child.unref();
   }
+}
+
+// Show a file or folder selected in Explorer / Finder (Linux: open the folder it is in).
+export function revealInShell(target: string) {
+  target = path.resolve(String(target));
+  if (/[\r\n]/.test(target)) throw new Error('Invalid path.');
+  let isDir = false;
+  try {
+    isDir = fs.statSync(target).isDirectory();
+  } catch {
+    /* gone: open what is left */
+  }
+  const [exe, args]: [string, string[]] = IS_WIN
+    ? // "/select," then the path as its own argument: Explorer opens the folder with it selected
+      ['explorer.exe', ['/select,', target]]
+    : process.platform === 'darwin'
+      ? ['open', ['-R', target]]
+      : ['xdg-open', [isDir ? target : path.dirname(target)]];
+  const child = spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
+  child.on('error', () => {});
+  child.unref();
 }
 
 export interface FetchJSONOptions extends RequestInit {
