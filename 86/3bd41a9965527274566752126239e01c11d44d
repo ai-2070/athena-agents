@@ -1,0 +1,19 @@
+public/app.css
+  s_280f012de0b84d::t_4bbf19e8e83bb4 16-17,194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "863bd41a9965527274566752126239e01c11d44d",
+  "prompts": {},
+  "sessions": {
+    "s_280f012de0b84d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f553f14f-f6a0-4ae3-8721-c11bbf98c834",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
