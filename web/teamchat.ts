@@ -65,7 +65,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   const sendBtn = h('button.btn.small', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 14));
   const stopBtn = h('button.btn.danger.small.hidden', { onclick: () => attempt(() => POST(`/teams/${teamId}/stop`)), title: 'Stop the whole team' }, icon('square', 13), 'Stop');
   const tray = attachTray();
-  const root = h(`div.tc${fill ? '.fill' : ''}`, list, status, replyChip, tray.el, h('div.tc-compose', tray.picker, h('div.tc-field', input, suggest), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all · drop files to attach'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat')));
+  const root = h(`div.tc${fill ? '.fill' : ''}`, list, status, replyChip, tray.el, h('div.tc-compose', tray.picker, h('div.tc-field', input, suggest), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all · drop or paste files to attach'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat')));
   mount(container, root);
   const offDrop = tray.dropZone(root, 'Drop files or folders for the team');
 
