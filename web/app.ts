@@ -1,6 +1,6 @@
 // App shell: navigation, routing, the "Needs you" drawer and live notifications.
 import { h, mount, clear, freshElement, state, onState, onEvent, refreshState, refreshSoon, connectEvents, toast, navigate, approvalCard, ago } from './core.ts';
-import * as home from './views/home.ts';
+import * as home from './views/home.tsx';
 import * as station from './views/station.ts';
 import * as artifactsView from './views/artifacts.tsx';
 import * as agents from './views/agents.ts';

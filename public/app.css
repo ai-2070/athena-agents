@@ -429,3 +429,17 @@ label.field > span:first-child, div.field > span:first-child { font: 500 11px/1.
 .term-launcher { overflow-y: auto; }
 .term-launcher-body { padding: 20px 18px; max-width: 760px; }
 .term-agent-pick { width: 300px; }
+
+/* Home / Overview (web/views/home.tsx): stats and agent cards are links or buttons */
+.stat-link { cursor: pointer; color: inherit; text-decoration: none; text-align: left; font: inherit; width: 100%; display: block; }
+.stat-link:hover { border-color: var(--accent-dim); }
+a.card.clickable { color: inherit; text-decoration: none; }
+.home-agents { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.home-specialty { -webkit-line-clamp: 2; }
+.home-prog-icon { width: 22px; text-align: center; }
+.home-kind { width: 16px; text-align: center; }
+.home-activity { font-size: 13.5px; }
+.home-ago { font-size: 11px; }
+.home-start { margin-bottom: 16px; border-color: var(--accent-dim); }
+.home-steps { list-style: none; padding: 0; margin: 0; }
+.home-pick { max-width: 300px; }

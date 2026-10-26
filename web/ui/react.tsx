@@ -1,6 +1,6 @@
 // What a React page needs from the rest of the app: a place to mount, the live app state, and icons.
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
-import type { DependencyList, ReactNode } from 'react';
+import type { CSSProperties, DependencyList, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { h, mount, onEvent, onState, state } from '../core.ts';
 import { icon } from '../icons.ts';
@@ -78,6 +78,15 @@ const read = () => state.data;
 
 /** The app's state (GET /api/state), redrawn whenever it refreshes. Null until the first load. */
 export const useAppState = (): AppState | null => useSyncExternalStore(subscribe, read);
+
+/** An agent's round badge: its emoji on its colour (the plain-DOM avatar()). */
+export function Avatar({ agent, lg = false }: { agent: { color?: string; emoji?: string }; lg?: boolean }) {
+  return (
+    <div className={`avatar${lg ? ' lg' : ''}`} style={{ '--agent-color': agent.color || 'var(--accent)' } as CSSProperties}>
+      {agent.emoji || '🤖'}
+    </div>
+  );
+}
 
 /** One of the app's icons (web/icons.ts). */
 export function Icon({ name, size = 16, className = '' }: { name: string; size?: number; className?: string }) {
