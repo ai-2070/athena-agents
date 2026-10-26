@@ -6,6 +6,7 @@ import { icon } from './icons.ts';
 import { renderTeamChat } from './teamchat.ts';
 import { renderAgentChat } from './agentchat.ts';
 import { uiZoom } from './look.ts';
+import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import type { TeamListing } from '../shared/types.ts';
 
 declare global {
@@ -106,7 +107,9 @@ function ensure() {
   });
   W.el = h('div.cw.hidden', head, W.bodyEl, ...edges);
   W.pill = h('button.cw-pill.hidden', { onclick: () => setMin(false), title: 'Open the chats' }, icon('message-square', 15), h('span.cw-pill-n'));
-  document.body.append(W.el, W.pill);
+  document.body.append(W.el);
+  // the pill sits next to "Ask the Brain" at the bottom
+  (document.querySelector('.bottom-bar') || document.body).append(W.pill);
   head.addEventListener('pointerdown', startDrag);
   head.addEventListener('dblclick', (e) => !(e.target as Element).closest('button') && setMax(!W.max));
   window.addEventListener('resize', () => place());
@@ -198,26 +201,57 @@ function startResize(e: PointerEvent, dir: string) {
   window.addEventListener('pointerup', up);
 }
 
+// Minimize: the window shrinks into its pill. Open again: it grows back out of the pill.
+let minimizing: Promise<void> | null = null;
 function setMin(v: boolean) {
+  const el = W.el!;
+  const pill = W.pill!;
+  const bar = document.querySelector('.bottom-bar');
+  if (bar && pill.parentElement !== bar) bar.append(pill);
+  if (v === W.min && !minimizing) return;
   W.min = v;
-  show();
   save();
+  if (v) {
+    // show the pill (invisible) to know where to shrink into
+    pill.classList.remove('hidden');
+    pill.style.opacity = '0';
+    const to = pill.getBoundingClientRect();
+    const done = (minimizing = flipTo(el, to, { duration: 320 }).then(() => {
+      if (minimizing !== done) return;
+      minimizing = null;
+      pill.style.opacity = '';
+      show(false);
+      slideIn(pill, { scale: 0.7, duration: 320 });
+    }));
+    return;
+  }
+  minimizing = null;
+  el.getAnimations().forEach((a) => a.cancel());
+  const from = pill.getBoundingClientRect();
+  show(false);
+  if (from.width) flipFrom(el, from, { duration: 420, fade: true });
 }
+// Maximize / restore: the window glides from its old size to the new one.
 function setMax(v: boolean) {
+  const el = W.el!;
+  const from = el.getBoundingClientRect();
   W.max = v;
   W.min = false;
   place();
-  show();
+  show(false);
   save();
+  if (from.width && !reducedMotion()) flipFrom(el, from, { duration: 380 });
 }
 
-function show() {
+function show(pop = true) {
   const any = W.tabs.length > 0;
   const el = W.el!;
+  const bar = document.querySelector('.bottom-bar');
+  if (bar && W.pill!.parentElement !== bar) bar.append(W.pill!);
   W.el!.classList.toggle('hidden', !any || W.min);
   W.pill!.classList.toggle('hidden', !any || !W.min);
   W.pill!.querySelector('.cw-pill-n')!.textContent = `${W.tabs.length} chat${W.tabs.length === 1 ? '' : 's'}`;
-  if (any && !W.min) {
+  if (any && !W.min && pop) {
     el.classList.remove('pop');
     void el.offsetWidth;
     el.classList.add('pop');

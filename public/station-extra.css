@@ -89,3 +89,15 @@
   opacity: 1; transform: translateY(-1px); background: color-mix(in srgb, var(--c) 18%, #0d100d);
   box-shadow: 0 0 0 1px var(--c), 0 0 16px color-mix(in srgb, var(--c) 55%, transparent);
 }
+
+/* Hovering a header tile or an AI engine: the agents that use it (and their teams) stay lit, the rest fades. */
+.st-labels > .st-chip, .st-labels > .st-branch, .st-labels > .st-brain-label, .st-labels > .st-bench { transition: opacity .2s ease, box-shadow .2s ease, border-color .2s ease; }
+.st-labels.focus > .st-chip:not(.hot), .st-labels.focus > .st-branch:not(.hot), .st-labels.focus > .st-brain-label:not(.hot), .st-labels.focus > .st-bench { opacity: 0.18; }
+.st-labels.focus > .st-chip.hot { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent); }
+.st-labels.focus > .st-branch.hot, .st-labels.focus > .st-brain-label.hot { box-shadow: 0 0 0 1px var(--accent), 0 0 22px color-mix(in srgb, var(--accent) 35%, transparent); }
+.st-engine:hover { background: color-mix(in srgb, var(--c) 18%, transparent); }
+/* hovering a tile or an engine: the rest of the row stays visible, just a little dimmer */
+.st-connected.focus.soft .st-int:not(.hot) { opacity: 0.62; filter: none; }
+
+/* Brain panel: Ask the Brain spans the panel */
+.st-ask-brain { width: 100%; justify-content: center; margin-top: 12px; }

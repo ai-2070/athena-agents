@@ -5,6 +5,7 @@ import { openBranchBuilder } from './builder.ts';
 import { icon, logo } from './icons.ts';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.ts';
 import { brainQueue, latestLoad } from './brainqueue.ts';
+import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import type { Child } from './core.ts';
 import type { AgentDraft, BranchDesign } from './builder.ts';
 import type { TeamEvent } from './teamchat.ts';
@@ -84,7 +85,7 @@ export function initDock(): void {
     h('div.dock-compose', D.input, h('button.btn', { onclick: send, title: 'Send (Enter)' }, icon('send', 15))),
   );
   D.launcher = launcher;
-  document.body.append(launcher, D.panel);
+  document.body.append(h('div.bottom-bar', launcher), D.panel);
   D.project = state.data?.project?.id || null;
   onState(drawTargets);
   onState(projectChanged);
@@ -155,14 +156,39 @@ export function openDock(target: string | null = null, text = ''): void {
   if (text) D.input!.value = text;
 }
 
+// Opening grows the chat out of the "Ask the Brain" button; closing folds it back into it.
+let closing: Promise<void> | null = null;
 function toggle(open: boolean) {
+  if (open === D.open && !closing) return;
   D.open = open;
-  D.panel!.classList.toggle('hidden', !open);
-  D.launcher!.classList.toggle('hidden', open);
+  const panel = D.panel!;
+  const launcher = D.launcher!;
   if (open) {
+    const from = launcher.getBoundingClientRect();
+    closing = null;
+    panel.getAnimations().forEach((a) => a.cancel());
+    panel.classList.remove('hidden');
+    launcher.classList.add('hidden');
     drawTargets();
+    if (from.width && !reducedMotion()) {
+      flipFrom(panel, from, { duration: 460, fade: true });
+      // the inside arrives a moment later, so the shape leads
+      for (const [i, part] of [...panel.children].entries()) slideIn(part, { y: 10, duration: 360 + i * 60 })?.effect?.updateTiming({ delay: 120 + i * 40, fill: 'backwards' });
+    }
     setTimeout(() => D.input!.focus(), 30);
+    return;
   }
+  // closing: show the button again (invisible) so we know where to fold into
+  launcher.classList.remove('hidden');
+  const to = launcher.getBoundingClientRect();
+  launcher.style.opacity = '0';
+  const done = (closing = flipTo(panel, to, { duration: 300 }).then(() => {
+    if (closing !== done) return;
+    closing = null;
+    panel.classList.add('hidden');
+    launcher.style.opacity = '';
+    slideIn(launcher, { scale: 0.92, duration: 260 });
+  }));
 }
 
 async function loadWorkflows() {
