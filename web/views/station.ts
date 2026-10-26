@@ -21,7 +21,7 @@ import { icon, logo, brandPath } from '../icons.ts';
 import { craftIcon, craftColor } from '../crafticons.ts';
 import { openProjectMenu, openNewProject } from '../projects.ts';
 import { modelChip, modelInfo } from '../models.ts';
-import { renderTeamChat } from '../teamchat.ts';
+import { renderTeamChat } from '../teamchat.tsx';
 import type { Child } from '../core.ts';
 import { teamSteps } from '../../shared/teams.ts';
 import type { ActivityEntry, Agent, AppState, Chat, ChatItem, ChatSummary, Project, ProviderUsage, RunEvent, Schedule, ServerEvent, Team, TeamAccess, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter } from '../../shared/types.ts';

@@ -10,7 +10,7 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { Tabs } from '@base-ui/react/tabs';
 import { state, onState, GET } from './core.ts';
-import { renderTeamChat } from './teamchat.ts';
+import { renderTeamChat } from './teamchat.tsx';
 import { renderAgentChat } from './agentchat.tsx';
 import { uiZoom } from './look.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';

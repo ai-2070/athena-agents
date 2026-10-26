@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergeSnapshot } from '../../web/teamchat.ts';
+import { mergeSnapshot } from '../../web/teamchat.tsx';
 import { isTeamSession } from '../../web/agentchat.tsx';
 import type { TeamMessage } from '../../shared/types.ts';
 

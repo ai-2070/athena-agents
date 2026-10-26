@@ -18,7 +18,7 @@ import type { AttachTray, PickedFile } from './attach.ts';
 import type { PasteBox } from './pastes.ts';
 import type { Child } from './core.ts';
 import type { AgentDraft, BranchDesign } from './builder.ts';
-import type { TeamEvent } from './teamchat.ts';
+import type { TeamEvent } from './teamchat.tsx';
 import type { ActiveRun, Agent, BrainAnswer, BrainDelegate, BrainDone, Chat, ChatItem, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
 import type { UIMessage } from 'ai';
 

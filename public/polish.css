@@ -675,6 +675,8 @@ a.att-chip.sent:hover { border-color: var(--accent-dim); color: var(--accent); }
 
 /* ---------- the OpenUI chat (web/chat): the React part sits inside the page's own layout ---------- */
 .chat-body, .ac-body { display: contents; }
+/* a plain-DOM piece inside a React view (DomNode), laid out as if it were there itself */
+.dom-contents { display: contents; }
 .oc-approval { max-width: 860px; margin-bottom: 10px; }
 .msg.assistant.rich { max-width: 860px; }
 .oc-rich { font-size: 14px; }
