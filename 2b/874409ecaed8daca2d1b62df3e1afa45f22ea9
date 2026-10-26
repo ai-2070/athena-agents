@@ -1,0 +1,33 @@
+web/chat/parts.tsx
+  s_aa9a7a7a250dde::t_ac8a636d60731c 97
+public/app.css
+  s_aa9a7a7a250dde::t_0f8beb5330d362 435-436
+web/app.ts
+  s_aa9a7a7a250dde::t_ac8a636d60731c 19,161-162,187-191
+web/questions.tsx
+  s_aa9a7a7a250dde::t_ac8a636d60731c 2,4-5,31-34,36-37,60,103,113-129
+docs/guide.md
+  s_aa9a7a7a250dde::t_4d07f95bf77e16 193
+README.md
+  s_aa9a7a7a250dde::t_4d07f95bf77e16 31
+tests/web/questions.test.tsx
+  s_aa9a7a7a250dde::t_4afcb3d700d98b 10,90-101,103-113
+  s_aa9a7a7a250dde::t_147ff1e29342c4 102
+  s_aa9a7a7a250dde::t_2cf5ff41fdab01 114-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2b874409ecaed8daca2d1b62df3e1afa45f22ea9",
+  "prompts": {},
+  "sessions": {
+    "s_aa9a7a7a250dde": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "45ce9a7e-3fb9-474e-acff-10080f9c33da",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
