@@ -135,6 +135,8 @@ The Brain starts with a **Self-improvement** skill. After substantial agent work
 
 The library also comes with the **storytold skills** ([hermes-pro/storytold-skills](https://github.com/hermes-pro/storytold-skills)), one per [storytold Crafting App](https://github.com/storytold): VectorCraft, PhotoCraft, LightCraft, EffectCraft, FilmCraft, DesignCraft, PdfCraft, WordCraft, GridCraft, DeckCraft, SoundCraft, CADCraft and FigCraft. Two more come with them: **storytold** picks the right app for a creative task, and **storytold-install** installs the apps and sets up their MCP servers. They aren't given to anyone until you assign them. Delete the ones you don't want; they stay deleted. **Download again** gets the latest version from GitHub.
 
+Two more sets come with it, for connecting agents to your accounts and apps: the **OOMOL skills** ([oomol-lab/oo-cli](https://github.com/oomol-lab/oo-cli)): **oo**, which reaches your connected accounts, OOMOL's hosted AI and Open Flow workflows, plus **oo-find-skills**, **oo-create-skill** and **oo-publish-skill**; and the **Composio skill** ([ComposioHQ/skills](https://github.com/ComposioHQ/skills)), **composio**, which uses more than 1,000 apps through the Composio command line tool. Both need their command line tool (`oo` or `composio`), which isn't part of the dashboard. They work the same way: not given to anyone until you assign them, and deleted ones stay deleted.
+
 Agents read a skill's extra files with `read_skill`. They can search long reference files instead of reading them whole, or read them in parts.
 
 ### MEMORY.md: what agents remember

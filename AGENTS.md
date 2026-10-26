@@ -41,7 +41,7 @@ CI (`.github/workflows/ci.yml`) runs typecheck, test and build on ubuntu and win
 | `web/` | Browser app. Mostly plain DOM via the `h()` helper in `web/core.ts`; agent chats are React (`web/chat/*.tsx`, Vercel AI SDK + OpenUI) |
 | `web/views/` | One module per page (`station.ts` is the 3D map, three.js) |
 | `public/` | `index.html` and CSS. `public/dist` is build output, never edit it |
-| `skills/` | Skill folders that come with the dashboard, copied unchanged from GitHub (`skills/storytold/README.md`); `ensureBuiltinSkills` adds them to the library |
+| `skills/` | Skill folders that come with the dashboard (`storytold`, `oomol`, `composio`), copied unchanged from GitHub: each folder's `README.md` says from where and which commit. `BUNDLED` in `server/skills.ts` lists them; `ensureBuiltinSkills` adds them to the library |
 | `tests/server`, `tests/web` | Vitest: server in Node, web in happy-dom |
 | `docs/internal/plans/` | Review notes and plans |
 
