@@ -124,13 +124,24 @@ const TOOLS: ToolDef[] = [
     name: 'read_skill',
     group: 'core',
     risk: 'none',
-    description: 'Open one of your skills (listed under "Your skills" in your instructions) and get its full instructions. Pass file to read one of the extra files that come with the skill.',
-    parameters: obj({ name: str('The skill id as listed (or its name)'), file: str('Optional: a file that belongs to the skill, e.g. reference.md') }, ['name']),
-    run: async ({ name, file }: { name: string; file?: string }) => {
+    description: 'Open one of your skills (listed under "Your skills" in your instructions) and get its full instructions. Pass file to read one of the extra files that come with the skill (long ones in parts, with from), or find to search the skill\'s files (like grep).',
+    parameters: obj(
+      {
+        name: str('The skill id as listed (or its name)'),
+        file: str('Optional: a file that belongs to the skill, e.g. references/commands.md'),
+        find: str("Optional: search for lines that match (words or a regular expression, any case), in file or else in all the skill's files. Use it for long reference files instead of reading them whole."),
+        from: { type: 'number', description: 'Optional: with file, the line to start reading from (for a file too long to read in one go)' },
+      },
+      ['name'],
+    ),
+    run: async ({ name, file, find, from }: { name: string; file?: string; find?: string; from?: number }) => {
       const s = skills.findSkill(name);
       if (!s) return { text: `There is no skill called "${name}". Your skills are listed in your instructions.`, isError: true };
-      if (file) return { text: `# ${s.name} / ${file}\n\n${skills.readSkillFile(s.slug, file)}` };
-      return { text: `# Skill: ${s.name}\n${s.description}\n\n${s.body}${s.files.length ? `\n\n---\nFiles with this skill (read with read_skill name="${s.slug}" file="..."): ${s.files.map((f) => f.path).join(', ')}` : ''}` };
+      if (find) return { text: `# ${s.name}: lines matching "${find}"\n\n${skills.searchSkill(s.slug, find, file)}` };
+      if (file) return { text: `# ${s.name} / ${file}\n\n${skills.readSkillFile(s.slug, file, from)}` };
+      // Hermes skills name their folder ${HERMES_SKILL_DIR}: point it at this one, so agents with a shell can use the files directly
+      const body = s.body.replaceAll('${HERMES_SKILL_DIR}', skills.skillDir(s.slug).split(path.sep).join('/'));
+      return { text: `# Skill: ${s.name}\n${s.description}\n\n${body}${s.files.length ? `\n\n---\nFiles with this skill (read with read_skill name="${s.slug}" file="...", or search them with find="..."): ${s.files.map((f) => f.path).join(', ')}` : ''}` };
     },
   },
   // ---------- chat history (every agent; what a compaction left out) ----------
