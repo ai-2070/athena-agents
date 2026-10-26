@@ -138,6 +138,38 @@ describe('auto-save into the project folder', () => {
     expect(JSON.parse(fs.readFileSync(dataPath('projects', p.id, 'chats', 'agent-1', 'c-ok.json'), 'utf8'))).toMatchObject({ id: 'c-ok', agentId: 'agent-1' });
   });
 
+  it.runIf(linksWork)("doesn't restore through a linked folder above the files (chats/, teamchats/ or .dashboard itself)", async () => {
+    const chat = (id: string) => JSON.stringify({ id, agentId: 'agent-1', title: 't', items: [], llm: [], sessionId: null, createdAt: 1, updatedAt: 1 });
+    // files somewhere else on the PC, laid out like a saved project
+    const elsewhere = path.join(os.homedir(), 'elsewhere-saved');
+    fs.mkdirSync(path.join(elsewhere, 'chats', 'agent-1'), { recursive: true });
+    fs.mkdirSync(path.join(elsewhere, 'teamchats'), { recursive: true });
+    fs.writeFileSync(path.join(elsewhere, 'chats', 'agent-1', 'c-out.json'), chat('c-out'));
+    fs.writeFileSync(path.join(elsewhere, 'teamchats', 'team-out.json'), '{"messages":[]}');
+    fs.writeFileSync(path.join(elsewhere, 'project.json'), JSON.stringify({ format: 1, app: 'my-dashboard', project: { name: 'Outside' }, agents: [{ id: 'agent-1', name: 'One' }], teams: [] }));
+    const project = JSON.stringify({ format: 1, app: 'my-dashboard', project: {}, agents: [{ id: 'agent-1', name: 'One' }], teams: [] });
+
+    // chats/ and teamchats/ are links
+    const dir = folder('linked-subfolders');
+    fs.mkdirSync(path.join(dir, '.dashboard'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.dashboard', 'project.json'), project);
+    fs.symlinkSync(path.join(elsewhere, 'chats'), path.join(dir, '.dashboard', 'chats'), 'dir');
+    fs.symlinkSync(path.join(elsewhere, 'teamchats'), path.join(dir, '.dashboard', 'teamchats'), 'dir');
+    const p = await createProject({ name: 'Linked subfolders', mode: 'existing', folder: dir });
+    expect(sync.restoreInto(p.id, dir)).toMatchObject({ agents: 1, chats: 0 });
+    expect(fs.existsSync(dataPath('projects', p.id, 'chats', 'agent-1', 'c-out.json'))).toBe(false);
+    expect(fs.existsSync(dataPath('projects', p.id, 'teamchats', 'team-out.json'))).toBe(false);
+
+    // .dashboard itself is a link: nothing is read from it
+    const dir2 = folder('linked-dashboard');
+    fs.mkdirSync(dir2, { recursive: true });
+    fs.symlinkSync(elsewhere, path.join(dir2, '.dashboard'), 'dir');
+    expect(sync.peek(dir2)).toBeNull();
+    const p2 = await createProject({ name: 'Linked dashboard', mode: 'existing', folder: dir2 });
+    expect(sync.restoreInto(p2.id, dir2)).toBeNull();
+    expect(fs.existsSync(dataPath('projects', p2.id, 'chats'))).toBe(false);
+  });
+
   it('never restores over a project that already has agents', async () => {
     const dir = folder('busy');
     const p = await createProject({ name: 'Busy', mode: 'new', folder: dir });

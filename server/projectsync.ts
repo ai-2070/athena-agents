@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { bus, listProjects, activeProject, log } from './store.ts';
-import { dataPath, ensureDir, exists, readJSON, writeJSON } from './util.ts';
+import { dataPath, ensureDir, exists, readJSON, writeJSON, realTarget } from './util.ts';
 import type { Agent, Chat, Team } from '../shared/types.ts';
 
 /** The last auto-save of a project (AppState.projectSaved). */
@@ -195,54 +195,67 @@ export function saveStatus(id: string = activeProject().id): SaveStatus | null {
   return saved.get(id) || null;
 }
 
+// Saved data is only read from inside <folder>/.dashboard itself. A link anywhere on the way (the
+// .dashboard folder, chats/, an agent's folder or a file) could point at files elsewhere on the PC, so
+// this gives the real location when it is inside, else null.
+function savedPath(folder: string, ...parts: string[]): string | null {
+  const base = realTarget(folder);
+  if (!base) return null;
+  const dash = path.join(base, DIR);
+  const real = realTarget(path.join(folder, DIR, ...parts));
+  return real && (real === dash || real.startsWith(dash + path.sep)) ? real : null;
+}
+
+function readSaved(folder: string): Partial<SavedProjectFile> | null {
+  const f = savedPath(folder, 'project.json');
+  const j = f && exists(f) ? readJSON<Partial<SavedProjectFile>>(f, null) : null;
+  return j && j.app === 'my-dashboard' ? j : null;
+}
+
 // What a folder holds, if it was saved by the dashboard.
 export function peek(folder: string): ProjectPeek | null {
-  const f = path.join(folder, DIR, 'project.json');
-  if (!exists(f)) return null;
-  const j = readJSON<Partial<SavedProjectFile>>(f, null);
-  if (!j || j.app !== 'my-dashboard') return null;
+  const j = readSaved(folder);
+  if (!j) return null;
   return { name: j.project?.name || '', description: j.project?.description || '', agents: (j.agents || []).length, teams: (j.teams || []).length, savedAt: j.savedAt || 0 };
 }
 
 // Load a saved copy into a project that has no agents yet (a folder you just opened).
 export function restoreInto(id: string, folder: string): RestoreResult | null {
-  const f = path.join(folder, DIR, 'project.json');
-  const j = exists(f) ? readJSON<Partial<SavedProjectFile>>(f, null) : null;
-  if (!j || j.app !== 'my-dashboard') return null;
+  const j = readSaved(folder);
+  if (!j) return null;
   if (jsonFiles(projectDir(id, 'agents')).length) return null; // never overwrite a project that has agents
   const safe = (x: { id?: unknown } | null | undefined) => typeof x?.id === 'string' && /^[\w.-]+$/.test(x.id);
   for (const a of (j.agents || []).filter(safe)) writeJSON(projectDir(id, 'agents', `${a.id}.json`), a);
   for (const t of (j.teams || []).filter(safe)) writeJSON(projectDir(id, 'workflows', `${t.id}.json`), t);
   if (j.layout) writeJSON(projectDir(id, 'layout.json'), j.layout);
   if (j.brainChat) writeJSON(projectDir(id, 'brain-chat.json'), j.brainChat);
-  const tc = path.join(folder, DIR, 'teamchats');
-  for (const n of jsonFiles(tc)) {
-    if (!fs.lstatSync(path.join(tc, n)).isFile()) continue; // no links out of the folder
+  for (const n of jsonFiles(savedPath(folder, 'teamchats') || '')) {
+    const src = savedPath(folder, 'teamchats', n);
+    if (!src || !fs.lstatSync(src).isFile()) continue;
     ensureDir(projectDir(id, 'teamchats'));
-    fs.copyFileSync(path.join(tc, n), projectDir(id, 'teamchats', n));
+    fs.copyFileSync(src, projectDir(id, 'teamchats', n));
   }
-  copyTree(path.join(folder, DIR, 'knowledge'), projectDir(id, 'knowledge'), KNOWLEDGE_CAP * 4);
-  const chatCount = restoreChats(path.join(folder, DIR, 'chats'), id, (j.agents || []).filter(safe).map((a) => a.id as string));
+  // (copyTree skips links below this folder: a linked file or folder isn't a plain file or folder)
+  const knowledge = savedPath(folder, 'knowledge');
+  if (knowledge) copyTree(knowledge, projectDir(id, 'knowledge'), KNOWLEDGE_CAP * 4);
+  const chatCount = restoreChats(folder, id, (j.agents || []).filter(safe).map((a) => a.id as string));
   log('project', `Loaded ${(j.agents || []).length} agents, ${(j.teams || []).length} teams and ${chatCount} chats from ${folder}`);
   return { agents: (j.agents || []).length, teams: (j.teams || []).length, chats: chatCount, project: j.project || {} };
 }
 
-// The saved chats of the restored agents. Each is checked to be a plain file and a chat, and is put
-// back under the agent and id it was saved as (whatever the file itself claims).
-function restoreChats(from: string, id: string, agentIds: string[]): number {
+// The saved chats of the restored agents. Each is checked to be a plain file inside the folder and a
+// chat, and is put back under the agent and id it was saved as (whatever the file itself claims).
+function restoreChats(folder: string, id: string, agentIds: string[]): number {
   let n = 0;
   for (const agentId of agentIds) {
     if (!/^[\w-]+$/.test(agentId)) continue;
-    const dir = path.join(from, agentId);
-    try {
-      if (!fs.lstatSync(dir).isDirectory()) continue; // no links out of the folder
-    } catch {
-      continue;
-    }
+    const dir = savedPath(folder, 'chats', agentId);
+    if (!dir) continue;
     for (const name of jsonFiles(dir)) {
       const chatId = name.slice(0, -'.json'.length);
-      if (!/^[\w-]+$/.test(chatId) || !fs.lstatSync(path.join(dir, name)).isFile()) continue;
-      const c = readJSON<Partial<Chat>>(path.join(dir, name), null);
+      const file = savedPath(folder, 'chats', agentId, name);
+      if (!/^[\w-]+$/.test(chatId) || !file || !fs.lstatSync(file).isFile()) continue;
+      const c = readJSON<Partial<Chat>>(file, null);
       if (!c || !Array.isArray(c.items)) continue;
       const { _deleted, ...chat } = c;
       writeJSON(projectDir(id, 'chats', agentId, name), { ...chat, id: chatId, agentId });
