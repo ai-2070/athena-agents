@@ -1,6 +1,7 @@
 <!doctype html>
 <!-- Shown by the desktop app while the dashboard's server starts, and when it can't.
-     The app puts {"title", "error", "log"} as JSON in the #hash (src-tauri/src/main.rs, show_error). -->
+     The app puts {"title", "error", "log"} as JSON in the #hash (src-tauri/src/main.rs, show_error),
+     or {"title", "text"} for a message while it works (installing an update: show_message). -->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -66,6 +67,12 @@
           info = location.hash.length > 1 ? JSON.parse(decodeURIComponent(location.hash.slice(1))) : null;
         } catch {
           info = null;
+        }
+        if (info && !info.error && info.title) {
+          document.getElementById('main').className = '';
+          document.getElementById('title').textContent = info.title;
+          document.getElementById('text').textContent = info.text || '';
+          return;
         }
         if (!info || !info.error) return;
         document.getElementById('main').className = 'error';
