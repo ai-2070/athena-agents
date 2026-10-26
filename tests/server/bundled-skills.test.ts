@@ -10,12 +10,14 @@ import { dataPath } from '../../server/util.ts';
 const agent = { id: 'a1', name: 'Tester' };
 
 describe('bundled skills', () => {
-  it('include the storytold, OOMOL, Composio and Orca skills', () => {
+  it('include the storytold, OOMOL, Composio, Orca and subagent skills', () => {
     const slugs = skills.bundledSkills().map((b) => b.slug);
-    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio', 'orca-cli', 'orchestration', 'computer-use', 'orca-linear', 'orca-jira', 'jira-tickets', 'orca-emulator', 'orca-emulator-android', 'orca-per-workspace-env']));
-    expect(slugs).toHaveLength(29);
+    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio', 'orca-cli', 'orchestration', 'computer-use', 'orca-linear', 'orca-jira', 'jira-tickets', 'orca-emulator', 'orca-emulator-android', 'orca-per-workspace-env', 'delegating-to-subagents', 'commissioning-a-reviewer', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']));
+    expect(slugs).toHaveLength(34);
     // only Orca's current name for its Linear skill, not the old one too
     expect(slugs).not.toContain('linear-tickets');
+    // only the subagent skills that fit any agent, not the ones for one repo or for oh-my-pi
+    for (const s of ['net-mesh-development', 'working-in-omp', 'agent-irc', 'gauntlet-loop', 'skill-self-improvement']) expect(slugs).not.toContain(s);
     // the library holds one skill per id, so no two bundles may share one
     expect(new Set(slugs).size).toBe(slugs.length);
   });
@@ -32,6 +34,8 @@ describe('bundled skills', () => {
     expect(origin.oo).toMatchObject({ repo: 'oomol-lab/oo-cli', path: 'contrib/skills/shared/oo' });
     expect(origin.composio).toMatchObject({ repo: 'ComposioHQ/skills', path: 'skills/composio' });
     expect(origin['orca-cli']).toMatchObject({ repo: 'stablyai/orca', path: 'skills/orca-cli' });
+    // its skills sit at the top of the repo, and its main branch is master
+    expect(origin['independent-review']).toMatchObject({ repo: 'ai-2070/subagent-skills', ref: 'master', path: 'independent-review' });
   });
 
   it("are added once, keep where they came from, and don't replace a skill of yours", () => {
@@ -52,6 +56,10 @@ describe('bundled skills', () => {
     expect(skills.getSkill('orchestration')?.origin).toMatchObject({ repo: 'stablyai/orca', path: 'skills/orchestration', url: 'https://github.com/stablyai/orca/tree/main/skills/orchestration' });
     // Orca writes its descriptions as folded YAML ("description: >-")
     expect(skills.getSkill('orchestration')?.description).toMatch(/^Coordinate supervised Orca workers: .* coordinate a DAG, and for terminal control/);
+    expect(skills.getSkill('reviewed-stage-delivery')?.files.map((f) => f.path)).toContain('references/ci-triage.md');
+    expect(skills.getSkill('reviewed-stage-delivery')?.origin).toMatchObject({ repo: 'ai-2070/subagent-skills', path: 'reviewed-stage-delivery', url: 'https://github.com/ai-2070/subagent-skills/tree/master/reviewed-stage-delivery' });
+    // these descriptions are double-quoted YAML holding single quotes and dashes
+    expect(skills.getSkill('independent-review')?.description).toMatch(/^Use when acting as the independent reviewer .* 'review this candidate', .*not code review of a PR for style\.$/);
     expect(skills.getSkill('cadcraft')?.name).toBe('My CAD notes');
     // nothing half-copied left behind
     expect(fs.readdirSync(dataPath('tmp')).filter((x) => x.startsWith('bundled-'))).toEqual([]);
