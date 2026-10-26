@@ -250,6 +250,56 @@ describe('the agent chat (AI SDK)', () => {
   });
 });
 
+describe('@ to pick another agent', () => {
+  const typeAt = async (box: HTMLTextAreaElement, text: string) => {
+    box.value = text;
+    box.setSelectionRange(text.length, text.length);
+    await act(async () => {
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+  const key = (box: HTMLTextAreaElement, k: string) => act(async () => void box.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })));
+
+  it('typing @ shows the other agents; arrows and Enter pick one, and nothing is sent', async () => {
+    state.data = {
+      runs: [],
+      approvals: [],
+      agents: [
+        { id: 'a1', name: 'Renderer', toolGroups: ['agents'] },
+        { id: 'a2', name: 'Trend Scout', emoji: '🔭', specialty: 'finds trends' },
+        { id: 'a3', name: 'Video Editor' },
+      ],
+    } as unknown as AppState;
+    const el = await open();
+    const box = el.querySelector('textarea')!;
+    await typeAt(box, 'ask @');
+    const opts = () => [...el.querySelectorAll('.mention-menu .tc-sopt')].map((b) => b.textContent);
+    expect(opts()).toEqual(['🔭@Trend Scoutfinds trends', '🤖@Video Editor']);
+    expect(el.querySelector('.mention-note')).toBeNull();
+    await typeAt(box, 'ask @ed');
+    expect(opts()).toEqual(['🤖@Video Editor']);
+    await typeAt(box, 'ask @');
+    await key(box, 'ArrowDown');
+    expect(el.querySelector('.mention-menu .tc-sopt.on')!.textContent).toBe('🤖@Video Editor');
+    await key(box, 'Enter');
+    expect(box.value).toBe('ask @Video Editor ');
+    expect(box.selectionStart).toBe(18);
+    expect(el.querySelector('.mention-menu')).toBeNull();
+    expect(requests.some((r) => r.url.endsWith('/stream') && r.method === 'POST')).toBe(false);
+  });
+
+  it('Escape closes it; an agent without Delegate says it needs it', async () => {
+    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Renderer', toolGroups: [] }, { id: 'a2', name: 'Trend Scout' }] } as unknown as AppState;
+    const el = await open('compact');
+    const box = el.querySelector('textarea')!;
+    await typeAt(box, '@tr');
+    expect(el.querySelector('.mention-note')!.textContent).toContain('Renderer needs Delegate');
+    await key(box, 'Escape');
+    expect(el.querySelector('.mention-menu')).toBeNull();
+    expect(box.value).toBe('@tr');
+  });
+});
+
 describe('Rich answers', () => {
   it('an answer in OpenUI Lang shows as live components, not as code', async () => {
     chat.items = [
