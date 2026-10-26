@@ -106,14 +106,16 @@ export function realTarget(p: string): string | null {
 }
 
 // The real location of p when it lies inside one of roots (links followed on both sides), else null.
-// Compared without case, as on Windows.
+// Case is ignored only on Windows. Elsewhere a folder may have a sibling that differs only in case
+// (Linux), and real paths already come back in the folder's own case where the disk ignores it (macOS).
 export function insideRoots(p: string, roots: string[]): string | null {
   const real = realTarget(p);
   if (!real) return null;
-  const low = real.toLowerCase();
+  const fold = (s: string) => (IS_WIN ? s.toLowerCase() : s);
+  const target = fold(real);
   for (const root of roots) {
-    const r = (realTarget(root) || path.resolve(root)).toLowerCase();
-    if (low === r || low.startsWith(r.endsWith(path.sep) ? r : r + path.sep)) return real;
+    const r = fold(realTarget(root) || path.resolve(root));
+    if (target === r || target.startsWith(r.endsWith(path.sep) ? r : r + path.sep)) return real;
   }
   return null;
 }

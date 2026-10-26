@@ -84,6 +84,24 @@ describe('realTarget() / insideRoots()', () => {
     expect(insideRoots(path.join(workspace, 'a', 'b.txt'), [workspace])).not.toBeNull();
   });
 
+  // only where the disk tells "work" and "Work" apart (Linux): there they are different folders
+  const caseSensitive = (() => {
+    if (process.platform === 'win32') return false;
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'case-'));
+    fs.writeFileSync(path.join(d, 'a'), '');
+    const sensitive = !fs.existsSync(path.join(d, 'A'));
+    fs.rmSync(d, { recursive: true, force: true });
+    return sensitive;
+  })();
+  it.runIf(caseSensitive)('do not treat a sibling folder that differs only in case as inside', () => {
+    const { base, workspace } = setup();
+    const sibling = path.join(base, 'WORKSPACE');
+    fs.mkdirSync(sibling);
+    fs.writeFileSync(path.join(sibling, 'secret.txt'), 'x');
+    expect(insideRoots(path.join(sibling, 'secret.txt'), [workspace])).toBeNull();
+    expect(insideRoots(path.join(sibling, 'new.txt'), [workspace])).toBeNull();
+  });
+
   it('do not treat a folder whose name only starts the same as inside', () => {
     const { base, workspace } = setup();
     fs.mkdirSync(path.join(base, 'workspace-2'));
