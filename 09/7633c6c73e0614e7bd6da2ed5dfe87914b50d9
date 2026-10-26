@@ -1,0 +1,39 @@
+skills/subagent-skills/README.md
+  s_af12a378520403::t_cbccea26c57aca 1-33
+skills/subagent-skills/reviewed-stage-delivery/references/ci-triage.md
+  s_af12a378520403::t_36d7231b729332 1-85
+skills/subagent-skills/independent-review/SKILL.md
+  s_af12a378520403::t_36d7231b729332 1-126
+server/skills.ts
+  s_af12a378520403::t_01ad328e7554c4 397
+skills/subagent-skills/delegating-to-subagents/SKILL.md
+  s_af12a378520403::t_36d7231b729332 1-133
+skills/subagent-skills/reviewed-stage-delivery/SKILL.md
+  s_af12a378520403::t_36d7231b729332 1-281
+AGENTS.md
+  s_af12a378520403::t_01ad328e7554c4 48
+skills/subagent-skills/witness-discipline/SKILL.md
+  s_af12a378520403::t_36d7231b729332 1-196
+skills/subagent-skills/commissioning-a-reviewer/SKILL.md
+  s_af12a378520403::t_36d7231b729332 1-136
+README.md
+  s_af12a378520403::t_01ad328e7554c4 161-162
+tests/server/bundled-skills.test.ts
+  s_af12a378520403::t_01ad328e7554c4 13,15-16,19-20,37-38,59-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "097633c6c73e0614e7bd6da2ed5dfe87914b50d9",
+  "prompts": {},
+  "sessions": {
+    "s_af12a378520403": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e3356405-e170-4d52-a599-3cefa7dadcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+server/engines/claude.ts
+  s_0d848ba6cc37e4::t_dbb7937a26b2e2 14,250-257
+tests/server/compaction.test.ts
+  s_0d848ba6cc37e4::t_0481708b59cee8 20-26,308-318,356-391
+  s_0d848ba6cc37e4::t_f2cb6ca251235c 392
+server/engines/index.ts
+  s_0d848ba6cc37e4::t_75e4d6d2303cef 18,320-328,341-343,345-346
+server/engines/cli.ts
+  s_0d848ba6cc37e4::t_294d5ee5f0eb36 79-82
+shared/types.ts
+  s_0d848ba6cc37e4::t_294d5ee5f0eb36 290-291
+server/engines/pi.ts
+  s_0d848ba6cc37e4::t_dbb7937a26b2e2 12,182-184,200-209
+server/compaction.ts
+  s_0d848ba6cc37e4::t_ae0ffec5b32f65 459
+  s_0d848ba6cc37e4::t_6e864b1c12729f 461-463
+tests/server/pi-engine.test.ts
+  s_0d848ba6cc37e4::t_0481708b59cee8 12,31,33,59-60,169-189
+  s_0d848ba6cc37e4::t_68671bb0af3a57 190-191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b39ba2d848934b2d724a1f549bf7e8b9a1d1d0ec",
+  "prompts": {},
+  "sessions": {
+    "s_0d848ba6cc37e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bd03328a-c96f-49fa-b893-9071482a8722",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

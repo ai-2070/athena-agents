@@ -1,0 +1,48 @@
+skills/orca/orca-emulator-android/SKILL.md
+  s_5fced629b2e8b4::t_0e838cda585376 1-47
+skills/orca/orca-per-workspace-env/SKILL.md
+  s_5fced629b2e8b4::t_0e838cda585376 1-46
+skills/orca/orchestration/SKILL.md
+  s_5fced629b2e8b4::t_0e838cda585376 1-66
+README.md
+  s_5fced629b2e8b4::t_ae18eaa625a80a 159-160
+skills/orca/orca-jira/SKILL.md
+  s_5fced629b2e8b4::t_0e838cda585376 1-45
+skills/orca/LICENSE
+  s_5fced629b2e8b4::t_0e838cda585376 1-21
+server/skills.ts
+  s_5fced629b2e8b4::t_ae18eaa625a80a 339
+skills/orca/jira-tickets/SKILL.md
+  s_5fced629b2e8b4::t_0e838cda585376 1-43
+skills/orca/README.md
+  s_5fced629b2e8b4::t_55047c472fd221 1-28
+skills/orca/orca-linear/SKILL.md
+  s_5fced629b2e8b4::t_0e838cda585376 1-45
+AGENTS.md
+  s_5fced629b2e8b4::t_ae18eaa625a80a 48
+skills/orca/orca-cli/SKILL.md
+  s_5fced629b2e8b4::t_0e838cda585376 1-47
+skills/orca/orca-emulator/SKILL.md
+  s_5fced629b2e8b4::t_0e838cda585376 1-50
+skills/orca/computer-use/SKILL.md
+  s_5fced629b2e8b4::t_0e838cda585376 1-46
+tests/server/bundled-skills.test.ts
+  s_5fced629b2e8b4::t_ae18eaa625a80a 13,15-18,34,52
+  s_5fced629b2e8b4::t_3314e431e2df44 53-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "65afc94f6781a5fa7f7a43656b4f0df716bd41f9",
+  "prompts": {},
+  "sessions": {
+    "s_5fced629b2e8b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04e6bfee-e193-4b94-a858-b2df3eca7fa2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

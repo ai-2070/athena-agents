@@ -1,0 +1,20 @@
+AGENTS.md
+  h_64425bc75e3f3d 4,101-102
+README.md
+  h_64425bc75e3f3d 7,29,31,33,37,40,43-44,47,65,69-73,75,77,81-86,88-89,91,95,97-99,101-104,106,110-113,115,119-122,124,126,128,131-133,137,140,143-144,147,155,165,167,171
+docs/guide.md
+  h_64425bc75e3f3d 1-205
+server/backup.ts
+  h_64425bc75e3f3d 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fbe93672e809907fbaee300ec804d5e74790bde8",
+  "prompts": {},
+  "humans": {
+    "h_64425bc75e3f3d": {
+      "author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

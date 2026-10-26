@@ -1,0 +1,40 @@
+docs/guide.md
+  s_fb0f3357f36a22::t_f6760fe9ee0313 14,124-132
+  s_fb0f3357f36a22::t_568958335ae960 133
+  s_fb0f3357f36a22::t_f8f1d3c31528aa 134
+tests/server/brain-mcp.test.ts
+  s_fb0f3357f36a22::t_e1078193b5b1a0 1-210
+shared/types.ts
+  s_fb0f3357f36a22::t_7b4fc306fe3c1d 689
+server/index.ts
+  s_fb0f3357f36a22::t_14611105177f14 635-636
+server/overseer.ts
+  s_fb0f3357f36a22::t_561a384f6b6948 520-616
+  s_fb0f3357f36a22::t_869b755ef6180c 9-10,53,101-114,260,269,292-301,328
+  s_fb0f3357f36a22::t_025a3ae64a8bd2 765-767,769,776,884,903-933,1013-1106
+  s_fb0f3357f36a22::t_65a79585b51de9 412,442-447,456,461,1463-1464,1467,1476
+README.md
+  s_fb0f3357f36a22::t_f6760fe9ee0313 63,82
+server/mcp.ts
+  s_fb0f3357f36a22::t_7419924ba682eb 178-216
+  s_fb0f3357f36a22::t_2cc8bbda00e143 9
+  s_fb0f3357f36a22::t_6ba0c398da3dff 147-149,151
+web/dock.ts
+  s_fb0f3357f36a22::t_7b4fc306fe3c1d 441,449
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "13025d2e0a53c7c0fb66a5e79c1428d5792b030e",
+  "prompts": {},
+  "sessions": {
+    "s_fb0f3357f36a22": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9895f663-df3b-4e98-a71d-839d3a934279",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
