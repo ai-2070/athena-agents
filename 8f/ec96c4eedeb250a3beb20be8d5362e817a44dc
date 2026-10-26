@@ -1,0 +1,29 @@
+server/backup.ts
+  s_d7de01d4c8f205::t_86814c85eb1179 11,122,124,146-147,182
+server/projectsync.ts
+  s_d7de01d4c8f205::t_86814c85eb1179 9,71,73
+tests/server/projectsync.test.ts
+  s_d7de01d4c8f205::t_eda82478b1c7f1 517
+  s_d7de01d4c8f205::t_447c5ee5919af1 508-516,518-524
+tests/server/backup.test.ts
+  s_d7de01d4c8f205::t_447c5ee5919af1 186-194,196-203
+  s_d7de01d4c8f205::t_eda82478b1c7f1 195
+server/util.ts
+  s_d7de01d4c8f205::t_86814c85eb1179 81-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8fec96c4eedeb250a3beb20be8d5362e817a44dc",
+  "prompts": {},
+  "sessions": {
+    "s_d7de01d4c8f205": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3448e488-4120-4310-ae07-584ad76fc736",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
