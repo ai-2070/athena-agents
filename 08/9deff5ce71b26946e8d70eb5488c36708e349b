@@ -1,0 +1,30 @@
+web/app.ts
+  s_3ee9638266ae65::t_fce50b03b09e1d 7
+web/ui/react.tsx
+  s_3ee9638266ae65::t_81be9a582a325d 16-20,23,26,28
+public/app.css
+  s_3ee9638266ae65::t_fce50b03b09e1d 446-454
+tests/web/chat-page.test.tsx
+  s_3ee9638266ae65::t_9ace6df592a901 1-85
+web/views/chat.tsx
+  s_3ee9638266ae65::t_5c7b866c1872f5 79-80,83-86,88
+  s_3ee9638266ae65::t_fce50b03b09e1d 188
+  s_3ee9638266ae65::t_8751fab466e3aa 1-76,87,89-187,189-198
+  s_3ee9638266ae65::t_2d6569941c06d5 77-78,81-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "089deff5ce71b26946e8d70eb5488c36708e349b",
+  "prompts": {},
+  "sessions": {
+    "s_3ee9638266ae65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "541a5902-77ed-4017-8f45-3e7605579b0f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
