@@ -242,3 +242,19 @@ Check cancellation after awaited work and before recording successful step or wo
 - No paid model calls were made.
 - Temporary probe data and probe-created project folders were removed.
 - No production source files were edited or fixes applied during the review.
+
+## Resolution
+
+All seven findings are fixed on branch `LZL0/code-review`, each with regression tests that fail on the code reviewed above.
+
+| # | Fix | Commit | Tests |
+|---|-----|--------|-------|
+| 1 | `store.withProject()` pins a run (and workflow runs) to the project it started in; MCP bridge routes run in the run's project | `b6f8986` | `tests/server/run-project.test.ts`, `tests/server/api.test.ts` (bridge) |
+| 2 | File tools and `/api/file` check the real path (links followed; dangling links refused) | `e97fb86` | `tests/server/file-tools.test.ts` |
+| 3 | "Ask first" maps to Claude's `default` permission mode, not `acceptEdits` | `60ebaef` | `tests/server/claude-args.test.ts` |
+| 4 | The dock binds Brain messages to their project; the server refuses a message for a project that isn't open (409) | `75536af` | `tests/web/brainqueue.test.ts`, `tests/server/brain-chat.test.ts` |
+| 5 | Agent chats (with `sessionId` / `llm`) are saved to `.dashboard/chats` and restored; chat changes trigger the auto-save | `c60ecb7` | `tests/server/projectsync.test.ts` |
+| 6 | Clearing the Brain chat bumps a generation; late answers neither restore history nor apply actions; the dock drops them | `75536af` | `tests/server/brain-chat.test.ts`, `tests/web/brainqueue.test.ts` |
+| 7 | Workflows recheck for a stop after each step and before finishing; `askAgent()` throws when stopped | `a018476` | `tests/server/workflow-stop.test.ts` |
+
+Not covered: Hermes reaches the dashboard tools through a globally registered bridge with no run id, so its tool calls still use the open project (unchanged; not part of finding 1's reproduction). Windows link behavior is still not exercised by the tests.
