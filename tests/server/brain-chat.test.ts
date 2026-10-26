@@ -1,7 +1,7 @@
 // The Brain chat: clearing it while an answer is on its way, and messages meant for another project.
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { activeProject, listProjects, saveProjects, workflows } from '../../server/store.ts';
+import { activeProject, listProjects, saveProjects, setActiveProject, workflows } from '../../server/store.ts';
 import { ask, clearHistory, history } from '../../server/overseer.ts';
 
 // the "model" answers only when the test says so
@@ -64,5 +64,25 @@ describe('the Brain chat', () => {
     const ok = ask('meant for here', { project: home.id });
     await answerNext('Sure.');
     expect((await ok).answer).toBe('Sure.');
+  });
+
+  it('changes nothing when you switched away and back while it thought', async () => {
+    const home = activeProject();
+    if (!listProjects().some((x) => x.id === 'away')) saveProjects([...listProjects(), { ...home, id: 'away', name: 'Away', brainPath: path.join(path.dirname(home.brainPath), 'away') }]);
+    const r = ask('build a team');
+    await until(() => pending.length > 0);
+    setActiveProject('away');
+    setActiveProject(home.id);
+    await answerNext('On it.\n```actions\n[{"do":"create_team","name":"Round trip team","members":[{"new":{"name":"Rounder"}}]}]\n```');
+    const out = await r;
+    expect(out.done).toEqual([expect.objectContaining({ kind: 'error', text: expect.stringContaining('switched projects') })]);
+    expect(workflows.list().some((w) => w.name === 'Round trip team')).toBe(false);
+    // re-opening the project you're already in is not a switch
+    setActiveProject(home.id);
+    const again = ask('build it now');
+    await until(() => pending.length > 0);
+    setActiveProject(home.id);
+    await answerNext('Done.\n```actions\n[{"do":"create_team","name":"Stayed team","members":[{"new":{"name":"Stayer"}}]}]\n```');
+    expect((await again).done.map((d) => d.kind)).toEqual(['hired', 'team']);
   });
 });

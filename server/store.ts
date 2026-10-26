@@ -145,9 +145,15 @@ export function openProject(): Project {
   return pinned.exit(activeProject);
 }
 
+// How many times another project was opened. Work that outlives a switch can tell it happened even
+// if you came back to its project since.
+let switches = 0;
+export const projectSwitches = (): number => switches;
+
 export function setActiveProject(id: string): Project {
   const p = listProjects().find((x) => x.id === id);
   if (!p) throw new Error('No such project.');
+  if (openProject().id !== id) switches++;
   const cur = readJSON<Partial<Settings>>(SETTINGS_FILE, {});
   writeJSON(SETTINGS_FILE, { ...cur, activeProject: id });
   emit('project', { id });
