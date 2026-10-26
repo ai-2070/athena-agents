@@ -7,8 +7,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { bus, listProjects, activeProject, log } from './store.ts';
 import { dataPath, ensureDir, exists, readJSON, writeJSON, realTarget } from './util.ts';
-import { VERSIONS_KEPT, keepVersion, withActor, canonical } from './versions.ts';
-import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, SKILL_BODY_MAX } from './skills.ts';
+import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir } from './versions.ts';
+import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, SKILL_BODY_MAX } from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
 import type { Version } from './versions.ts';
 import type { Agent, Chat, Routine, Team } from '../shared/types.ts';
@@ -334,6 +334,10 @@ function restoreVersions(folder: string, id: string): number {
 // Skills live in one library for every project, so a project folder carries the ones its project uses:
 // given to the project, a team or an agent, or mentioned in a routine.
 function skillsUsed(id: string): string[] {
+  return skillRefs(id).filter((slug) => getSkill(slug));
+}
+// Every skill the project names (whether or not it still exists).
+function skillRefs(id: string): string[] {
   const p = listProjects().find((x) => x.id === id);
   const slugs = [
     ...(p?.skills || []),
@@ -341,13 +345,32 @@ function skillsUsed(id: string): string[] {
     ...readAll<Team>(projectDir(id, 'workflows')).flatMap((t) => t.skills || []),
     ...readAll<Routine>(projectDir(id, 'routines')).flatMap((r) => (r.mentions || []).filter((m) => m.kind === 'skill').map((m) => m.id)),
   ];
-  return [...new Set(slugs)].filter((slug) => isSkillSlug(slug) && getSkill(slug));
+  return [...new Set(slugs)].filter((slug) => isSkillSlug(slug));
 }
 
-const skillItem = (slug: string) => (item: Record<string, unknown>): SkillVersionItem | null =>
-  typeof item.name === 'string' && typeof item.description === 'string' && typeof item.body === 'string'
-    ? { slug, name: item.name.slice(0, 80), description: item.description.slice(0, 1000), body: item.body.slice(0, SKILL_BODY_MAX) }
-    : null;
+// A skill changed (or several, or was deleted): every project that uses it, or has a copy of it in its
+// folder, saves again, not only the open one (skills are shared by all projects).
+export function projectsWithSkills(slugs: string[]): string[] {
+  return listProjects()
+    .filter((p) => {
+      const refs = skillRefs(p.id);
+      return slugs.some((slug) => refs.includes(slug) || exists(path.join(p.brainPath, DIR, 'skills', slug)));
+    })
+    .map((p) => p.id);
+}
+
+const skillItem = (slug: string) => (item: Record<string, unknown>): SkillVersionItem | null => {
+  if (typeof item.name !== 'string' || typeof item.description !== 'string' || typeof item.body !== 'string') return null;
+  const files = Array.isArray(item.files) ? item.files.filter((f): f is string => typeof f === 'string' && f.length < 300 && !f.split('/').includes('..')).slice(0, 1000) : undefined;
+  return {
+    slug,
+    name: item.name.slice(0, 80),
+    description: item.description.slice(0, 1000),
+    body: item.body.slice(0, SKILL_BODY_MAX),
+    ...(files ? { files } : {}),
+    ...(typeof item.filesHash === 'string' && /^[0-9a-f]{40}$/.test(item.filesHash) ? { filesHash: item.filesHash } : {}),
+  };
+};
 
 // Skills the library doesn't have yet are added (with their files and versions). One it has is never
 // changed: when the folder's copy is different, that copy is kept as one of its versions, to restore by hand.
@@ -361,10 +384,13 @@ function restoreSkills(folder: string, projectName: string): { added: string[]; 
     if (!src || !md || !exists(md) || !fs.lstatSync(md).isFile()) continue;
     const have = getSkill(slug);
     if (have) {
-      const theirs = skillFromText(fs.readFileSync(md, 'utf8').slice(0, SKILL_BODY_MAX * 2), slug);
-      const ours = { slug, name: have.name, description: have.description, body: have.body.trim() };
-      if (canonical(theirs) === canonical(ours)) continue;
-      withActor('you', () => keepVersion(skillVersionsDir(slug), theirs, ours), { force: true, note: `the copy saved in the project "${projectName}"` });
+      // the same when its SKILL.md and its extra files are (links in the folder's copy are skipped)
+      const theirs: SkillVersionItem = { ...skillFromText(fs.readFileSync(md, 'utf8').slice(0, SKILL_BODY_MAX * 2), slug), files: skillExtraFiles(src), filesHash: skillFilesHash(src) };
+      const ours: SkillVersionItem = { slug, name: have.name, description: have.description, body: have.body.trim(), files: skillExtraFiles(skillDir(slug)), filesHash: skillFilesHash(skillDir(slug)) };
+      if (canonical(theirs, ['files']) === canonical(ours, ['files'])) continue;
+      const v = withActor('you', () => keepVersion(skillVersionsDir(slug), theirs, ours), { force: true, note: `the copy saved in the project "${projectName}"` });
+      // its files go with it, so restoring it brings them
+      if (v && theirs.files?.length) copySkillFiles(src, versionFilesDir(skillVersionsDir(slug), v.id));
       kept.push(have.name);
       continue;
     }
@@ -374,7 +400,12 @@ function restoreSkills(folder: string, projectName: string): { added: string[]; 
       fs.rmSync(skillDir(slug), { recursive: true, force: true });
       continue;
     }
-    for (const v of savedVersions(folder, ['skill-versions'], slug, skillItem(slug))) writeJSON(path.join(skillVersionsDir(slug), `${v.id}.json`), v);
+    for (const v of savedVersions(folder, ['skill-versions'], slug, skillItem(slug))) {
+      writeJSON(path.join(skillVersionsDir(slug), `${v.id}.json`), v);
+      // and the files kept with it (a deleted version's)
+      const files = savedPath(folder, 'skill-versions', slug, `files-${v.id}`);
+      if (files && exists(files) && fs.lstatSync(files).isDirectory()) budget -= copyTree(files, versionFilesDir(skillVersionsDir(slug), v.id), budget);
+    }
     added.push(getSkill(slug)!.name);
   }
   if (added.length) log('skill', `Added ${added.length} skill${added.length === 1 ? '' : 's'} from the project folder: ${added.join(', ')}`);
@@ -408,7 +439,10 @@ const WATCH = new Set(['agents', 'workflows', 'routines', 'layout', 'team', 'kno
 export function startAutoSave() {
   bus.on('event', (ev) => {
     // an event that names its project (an agent chat) saves that one, even if another is open now
-    if (WATCH.has(ev.type)) saveSoon(typeof ev.project === 'string' ? ev.project : activeProject().id);
+    if (ev.type === 'skills') {
+      const slugs = [ev.slug, ...(Array.isArray(ev.installed) ? ev.installed : [])].filter((x): x is string => typeof x === 'string');
+      for (const id of new Set([activeProject().id, ...projectsWithSkills(slugs)])) saveSoon(id);
+    } else if (WATCH.has(ev.type)) saveSoon(typeof ev.project === 'string' ? ev.project : activeProject().id);
     else if (ev.type === 'project') saveSoon(activeProject().id, 500);
   });
   // and every 5 minutes, for anything that changed without an event (e.g. knowledge files)

@@ -181,6 +181,41 @@ describe('skills', () => {
     expect(team).toContain('prompt: Sum it up');
   });
 
+  it('a deleted skill comes back with all its files: hidden ones, and past the 200 agents see', () => {
+    const s = skills.saveSkill({ name: 'Many files', description: 'Use with many files.', body: 'Lots.' })!;
+    const dir = skills.skillDir(s.slug);
+    for (let i = 0; i < 205; i++) fs.writeFileSync(path.join(dir, `f${String(i).padStart(3, '0')}.txt`), `file ${i}`);
+    fs.mkdirSync(path.join(dir, 'deep', '.hidden'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'deep', '.hidden', 'x.md'), 'hidden one');
+    fs.writeFileSync(path.join(dir, '.env.example'), 'KEY=');
+    skills.deleteSkillEverywhere(s.slug);
+    undelete('skill', s.slug);
+    expect(fs.readFileSync(path.join(dir, 'f204.txt'), 'utf8')).toBe('file 204');
+    expect(fs.readFileSync(path.join(dir, 'deep', '.hidden', 'x.md'), 'utf8')).toBe('hidden one');
+    expect(fs.existsSync(path.join(dir, '.env.example'))).toBe(true);
+  });
+
+  it("restoring a version kept with its files puts back exactly those files, and that can be undone", () => {
+    const s = skills.saveSkill({ name: 'File swap', description: 'Use to swap.', body: 'Old.' })!;
+    const dir = skills.skillDir(s.slug);
+    fs.writeFileSync(path.join(dir, 'old.md'), 'old file');
+    skills.deleteSkillEverywhere(s.slug);
+    const deletedVersion = historyOf('skill', s.slug).versions[0].id;
+    // made again, with other files
+    later();
+    skills.saveSkill({ name: 'File swap', description: 'Use to swap.', body: 'New.' });
+    fs.writeFileSync(path.join(dir, 'new.md'), 'new file');
+    restoreVersion('skill', s.slug, deletedVersion);
+    expect(skills.getSkill(s.slug)?.body).toContain('Old.');
+    expect(skills.skillExtraFiles(dir)).toEqual(['old.md']);
+    // undo: the version from before the restore has the new file
+    const undo = historyOf('skill', s.slug).versions[0];
+    expect(undo.note).toMatch(/replaced by/);
+    restoreVersion('skill', s.slug, undo.id);
+    expect(skills.getSkill(s.slug)?.body).toContain('New.');
+    expect(skills.skillExtraFiles(dir)).toEqual(['new.md']);
+  });
+
   it('as text', () => {
     expect(asText('skill', { slug: 's', name: 'S', description: 'Use it.', body: 'Do it.' })).toBe('Name: S\nWhen to use it: Use it.\n\nDo it.');
     expect(asText('agent', { name: 'A', emoji: '🤖', engine: 'claude-code', systemPrompt: 'Be kind.' } as Agent)).toMatch(/^Name: 🤖 A\n[\s\S]*\n\nInstructions:\nBe kind\.$/);

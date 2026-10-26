@@ -8,7 +8,8 @@ import path from 'node:path';
 import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME } from './util.ts';
 import { activeProject, agents, workflows, listProjects, getSettings, saveSettings, log, emit } from './store.ts';
 import { updateProject } from './projects.ts';
-import { keepVersion } from './versions.ts';
+import crypto from 'node:crypto';
+import { keepVersion, versionFilesDir } from './versions.ts';
 import type { ClaudeSkill, Skill, SkillFile, SkillListing, SkillOrigin } from '../shared/types.ts';
 
 /** A skill as getSkill returns it (dir is cleared so it never reaches the browser). */
@@ -128,7 +129,10 @@ export interface SkillVersionItem {
   name: string;
   description: string;
   body: string;
+  /** the extra files it had, when they were kept with this version (in files-<version id>) */
   files?: string[];
+  /** a fingerprint of those files, so a version that differs only in its files still counts */
+  filesHash?: string;
 }
 // Versions of every skill: data/versions/skills/<slug>/ (outside the skill, so they outlive it)
 export const skillVersionsDir = (slug = ''): string => dataPath('versions', 'skills', slug);
@@ -156,35 +160,81 @@ export function uniqueSlug(name: string): string {
   return s;
 }
 
-// Its last version is kept, and its extra files go along with it, so it can be brought back.
+// ---------- a skill's extra files ----------
+// Every file in a skill's folder but its SKILL.md, hidden ones included (unlike the files agents see,
+// which skip them and stop at 200). Links are skipped: they could point anywhere.
+export function skillExtraFiles(dir: string): string[] {
+  const out: string[] = [];
+  const walk = (d: string, rel: string) => {
+    let list: fs.Dirent[] = [];
+    try {
+      list = fs.readdirSync(d, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of list) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) walk(path.join(d, e.name), r);
+      else if (e.isFile() && r !== 'SKILL.md') out.push(r);
+    }
+  };
+  walk(dir, '');
+  return out.sort();
+}
+/** Copy a skill's extra files from one folder to another (links skipped). Returns what was copied. */
+export function copySkillFiles(from: string, to: string): string[] {
+  const files = skillExtraFiles(from);
+  for (const rel of files) {
+    const dst = path.join(to, ...rel.split('/'));
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.copyFileSync(path.join(from, ...rel.split('/')), dst);
+  }
+  return files;
+}
+/** One fingerprint for all of a skill's extra files (names and contents; .source.json, where it was installed from, doesn't count). */
+export function skillFilesHash(dir: string): string {
+  const h = crypto.createHash('sha1');
+  for (const rel of skillExtraFiles(dir)) {
+    if (rel === '.source.json') continue;
+    h.update(rel).update('\0').update(fs.readFileSync(path.join(dir, ...rel.split('/')))).update('\0');
+  }
+  return h.digest('hex');
+}
+
+// Its last version is kept with all its extra files, so it can be brought back as it was.
 export function deleteSkill(slug: string) {
   if (!SAFE.test(String(slug))) throw new Error('No such skill.');
   const dir = path.join(LIB(), slug);
   const s = getSkill(slug);
   if (s) {
-    const v = keepVersion(skillVersionsDir(slug), { ...versionItem(s), files: s.files.map((f) => f.path) }, null, { deleted: true });
-    if (v && s.files.length) {
-      const keep = ensureDir(path.join(skillVersionsDir(slug), `files-${v.id}`));
-      for (const f of s.files) {
-        fs.mkdirSync(path.dirname(path.join(keep, f.path)), { recursive: true });
-        fs.copyFileSync(path.join(dir, f.path), path.join(keep, f.path));
-      }
-    }
+    const extra = skillExtraFiles(dir);
+    const v = keepVersion(skillVersionsDir(slug), { ...versionItem(s), files: extra, filesHash: skillFilesHash(dir) }, null, { deleted: true });
+    if (v && extra.length) copySkillFiles(dir, versionFilesDir(skillVersionsDir(slug), v.id));
   }
   fs.rmSync(dir, { recursive: true, force: true });
   emit('skills', { slug, removed: true });
 }
 
-// Put a kept version back (SKILL.md, and the extra files it had when it was deleted). The current one
-// is kept as a version first, so a restore can be undone too.
+// Put a kept version back. A version kept with its extra files (a deleted skill, or a project folder's
+// different copy) brings them back too, in place of the current ones. The current one is kept as a
+// version first (with its files, when they are about to be replaced), so a restore can be undone too.
 export function restoreSkill(item: SkillVersionItem, versionId: string): SkillDetail | null {
   if (!SAFE.test(String(item.slug))) throw new Error('No such skill.');
+  const vdir = skillVersionsDir(item.slug);
   const dir = ensureDir(path.join(LIB(), item.slug));
+  const kept = /^[\w-]+$/.test(versionId) ? versionFilesDir(vdir, versionId) : '';
+  const withFiles = Boolean(kept && exists(kept)) || Array.isArray(item.files);
   const now = getSkill(item.slug);
-  if (now) keepVersion(skillVersionsDir(item.slug), versionItem(now), item);
+  if (now) {
+    const current: SkillVersionItem = { ...versionItem(now), ...(withFiles ? { files: skillExtraFiles(dir), filesHash: skillFilesHash(dir) } : {}) };
+    const v = keepVersion(vdir, current, item);
+    if (v && withFiles && current.files?.length) copySkillFiles(dir, versionFilesDir(vdir, v.id));
+  }
   fs.writeFileSync(path.join(dir, 'SKILL.md'), compose({ name: item.name, description: item.description, body: item.body }));
-  const files = path.join(skillVersionsDir(item.slug), `files-${versionId}`);
-  if (/^[\w-]+$/.test(versionId) && exists(files)) fs.cpSync(files, dir, { recursive: true, force: false, errorOnExist: false });
+  if (withFiles) {
+    for (const rel of skillExtraFiles(dir)) fs.rmSync(path.join(dir, ...rel.split('/')), { force: true });
+    if (kept && exists(kept)) copySkillFiles(kept, dir);
+  }
   emit('skills', { slug: item.slug });
   return getSkill(item.slug);
 }

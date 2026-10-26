@@ -22,7 +22,7 @@ function kindOf(kind: VersionKind) {
       const s = getSkill(id);
       return s ? { slug: s.slug, name: s.name, description: s.description, body: s.body.trim() } : null;
     },
-    ignore: ['files'] as readonly string[],
+    ignore: ['files', 'filesHash'] as readonly string[],
     label: 'skill',
   };
 }

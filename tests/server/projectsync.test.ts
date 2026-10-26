@@ -308,6 +308,62 @@ describe('auto-save into the project folder', () => {
     expect(historyOf('skill', 'same-skill').versions).toHaveLength(0);
   });
 
+  it('a project copy that differs only in its files is kept as a version, with those files', async () => {
+    const skills = await import('../../server/skills.ts');
+    const { historyOf, restoreVersion } = await import('../../server/history.ts');
+    const dir = folder('skill-files-clash');
+    const d = path.join(dir, '.dashboard');
+    fs.mkdirSync(path.join(d, 'skills', 'files-clash'), { recursive: true });
+    fs.writeFileSync(path.join(d, 'project.json'), JSON.stringify({ format: 1, app: 'my-dashboard', project: { name: 'Files clash' }, agents: [{ id: 'agent-f', name: 'F' }], teams: [] }));
+    const ours = skills.saveSkill({ name: 'Files clash', description: 'Same text.', body: 'Same body.' })!;
+    fs.copyFileSync(path.join(skills.skillDir(ours.slug), 'SKILL.md'), path.join(d, 'skills', 'files-clash', 'SKILL.md'));
+    fs.writeFileSync(path.join(skills.skillDir(ours.slug), 'ref.md'), 'our reference');
+    fs.writeFileSync(path.join(d, 'skills', 'files-clash', 'ref.md'), 'their reference');
+    const p = await createProject({ name: 'Files clash', mode: 'existing', folder: dir });
+    expect(sync.restoreInto(p.id, dir)?.skills?.kept).toEqual(['Files clash']);
+    expect(fs.readFileSync(path.join(skills.skillDir(ours.slug), 'ref.md'), 'utf8')).toBe('our reference');
+    restoreVersion('skill', ours.slug, historyOf('skill', ours.slug).versions[0].id);
+    expect(fs.readFileSync(path.join(skills.skillDir(ours.slug), 'ref.md'), 'utf8')).toBe('their reference');
+  });
+
+  it("a synced skill's history keeps the files of its versions", async () => {
+    const skills = await import('../../server/skills.ts');
+    const { historyOf, restoreVersion, undelete } = await import('../../server/history.ts');
+    const dir = folder('skill-version-files');
+    const p = await createProject({ name: 'Version files', mode: 'new', folder: dir });
+    const s = skills.saveSkill({ name: 'Version files skill', description: 'Use v.', body: 'First.' })!;
+    fs.writeFileSync(path.join(skills.skillDir(s.slug), 'first.md'), 'first file');
+    newAgent({ name: 'Uses it', skills: [s.slug] });
+    skills.deleteSkillEverywhere(s.slug);
+    undelete('skill', s.slug);
+    // changed since: another file
+    fs.rmSync(path.join(skills.skillDir(s.slug), 'first.md'));
+    fs.writeFileSync(path.join(skills.skillDir(s.slug), 'second.md'), 'second file');
+    agents.save({ ...agents.list().find((x) => x.name === 'Uses it')!, skills: [s.slug] });
+    sync.saveProject(p.id);
+    // another PC
+    fs.rmSync(skills.skillDir(s.slug), { recursive: true });
+    fs.rmSync(skills.skillVersionsDir(s.slug), { recursive: true });
+    const other = await createProject({ name: 'Version files elsewhere', mode: 'new', folder: folder('version-files-elsewhere') });
+    setActiveProject(other.id);
+    removeProject(p.id);
+    const again = await createProject({ name: 'Version files again', mode: 'existing', folder: dir });
+    sync.restoreInto(again.id, dir);
+    const deleted = historyOf('skill', s.slug).versions.find((v) => v.deleted)!;
+    restoreVersion('skill', s.slug, deleted.id);
+    expect(skills.skillExtraFiles(skills.skillDir(s.slug))).toEqual(['first.md']);
+  });
+
+  it('a skill change saves every project that uses it, not only the open one', async () => {
+    const skills = await import('../../server/skills.ts');
+    const user = await createProject({ name: 'Uses shared', mode: 'new', folder: folder('uses-shared') });
+    const s = skills.saveSkill({ name: 'Shared everywhere', description: 'Use anywhere.', body: 'Shared.' })!;
+    newAgent({ name: 'Shared user', skills: [s.slug] });
+    const bystander = await createProject({ name: 'Bystander', mode: 'new', folder: folder('bystander') });
+    setActiveProject(bystander.id);
+    expect(sync.projectsWithSkills([s.slug])).toEqual([user.id]);
+  });
+
   it("doesn't add skills that aren't skills, or through links", async () => {
     const skills = await import('../../server/skills.ts');
     const dir = folder('crafted-skills');
