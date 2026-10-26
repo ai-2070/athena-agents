@@ -3,7 +3,7 @@ import { h, mount, clear, freshElement, state, onState, onEvent, refreshState, r
 import * as home from './views/home.tsx';
 import * as station from './views/station.ts';
 import * as artifactsView from './views/artifacts.tsx';
-import * as agents from './views/agents.ts';
+import * as agents from './views/agents.tsx';
 import * as chat from './views/chat.tsx';
 import * as library from './views/library.tsx';
 import * as workflows from './views/workflows.ts';

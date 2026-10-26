@@ -103,6 +103,24 @@ export function Field({ label, hint, children, group }: { label: ReactNode; hint
   );
 }
 
+/** Chips you turn on and off, any number at once (the plain-DOM chipSet()). */
+export function ChipSet<V extends string>({ options, value, onChange, label }: {
+  options: readonly Choice<V>[];
+  value: readonly V[];
+  onChange: (v: V[]) => void;
+  label: string;
+}) {
+  return (
+    <ToggleGroup multiple className="chips" aria-label={label} value={[...value]} onValueChange={(v) => onChange(v as V[])}>
+      {options.map((o) => (
+        <Toggle key={o.value} value={o.value} title={o.title} className={(s) => on(s.pressed, 'chip')}>
+          {o.label}
+        </Toggle>
+      ))}
+    </ToggleGroup>
+  );
+}
+
 /** Filter chips where one is picked at a time; the first choice is usually "All". */
 export function Chips<V extends string>({ options, value, onChange, label, className = '' }: {
   options: readonly Choice<V>[];

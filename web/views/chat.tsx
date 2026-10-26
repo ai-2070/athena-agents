@@ -2,14 +2,14 @@
 // (web/chat): streaming answers, tool calls you can open, images, file previews, COMPACTED marks.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GET, POST, PUT, DEL, attempt, navigate, ago, confirmBox, promptBox, ENGINE_LABEL } from '../core.ts';
-import { openTerminal } from './agents.ts';
+import { openTerminal } from './agents.tsx';
 import { memoryButton } from '../memory.ts';
 import { modelChip, modelInfo } from '../models.ts';
 import { kTokens } from '../../shared/compaction.ts';
 import { attachTray } from '../attach.ts';
 import { Avatar, DomNode, reactPage } from '../ui/react.tsx';
 import type { PageContext } from '../ui/react.tsx';
-import type { AgentDetail } from './agents.ts';
+import type { AgentDetail } from './agents.tsx';
 import type { ChatViewApi } from '../chat/ChatView.tsx';
 import type { Chat, ChatSummary } from '../../shared/types.ts';
 

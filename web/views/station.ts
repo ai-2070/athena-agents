@@ -4,7 +4,7 @@
 // which programs and services each step can reach. Agents not on any branch wait on the Bench.
 import * as THREE from 'three';
 import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, approvalCard, md, ago, toast, avatar, engineBadge, promptBox, confirmBox, refreshSoon, modal, chipSet, select as dropdown } from '../core.ts';
-import { openTerminal } from './agents.ts';
+import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.ts';
 import { openDock, attachToBrain } from '../dock.ts';
 import { filesFromDrop, filesFromPaste, hasFiles } from '../attach.ts';
