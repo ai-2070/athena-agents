@@ -1,0 +1,21 @@
+tests/server/bundled-skills.test.ts
+  s_1c7c5e2e47e8a0::t_d94601a0b154c3 13,15-16
+AGENTS.md
+  s_1c7c5e2e47e8a0::t_d94601a0b154c3 48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b922653a0bd7ded3b31dc1a46845a3113b56548c",
+  "prompts": {},
+  "sessions": {
+    "s_1c7c5e2e47e8a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71b6147b-0acf-4dd5-9036-e1204eb6d74e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
