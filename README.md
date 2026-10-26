@@ -65,7 +65,7 @@ Open **Settings → General & keys**. You only need to set up the engines you wa
 | **Hermes** | An installed Hermes setup with a profile to use. |
 | **OpenAI Codex** | The `codex` CLI and your ChatGPT login. Settings offers installation and sign-in; installation uses npm. |
 
-Choose **The Brain's model** in the same settings page. The Brain is the project-wide assistant: it answers questions, builds agents and teams, writes the project brief, manages skills and routines, and hands work to the right people.
+Choose **The Brain's model** in the same settings page. The Brain is the project-wide assistant: it answers questions, builds agents and teams, writes the project brief, manages skills and routines, switches agents' models, stops work, and hands work to the right people.
 
 Claude Code and Codex receive dashboard tools through an MCP bridge; API-model agents call them directly. For Hermes, open **Settings → MCP servers** and click **Give Hermes the dashboard tools**, then restart Hermes sessions.
 
@@ -87,7 +87,7 @@ Projects keep separate agents, teams and chats. Use the project name at the top 
 | Place | Use it for |
 |---|---|
 | **Station** | The live 3D view of the project. The Brain sits in the middle, with agents grouped into team pods. Click to open panels and chats; drag a team to move it or Shift+drag to rotate it. |
-| **Brain chat** | Project-wide questions, building teams, changing skills and routines, and handing off work. Available from every page. |
+| **Brain chat** | Project-wide questions, building teams, changing skills and routines, switching models, stopping work, and handing off work. Available from every page. |
 | **Agents** | Agent instructions, knowledge, MEMORY.md, model and effort, autonomy, tools, MCP servers, skills and workspace. Star models in the picker to keep them in Favorites. |
 | **Library** | Ready-made starters, The Agency specialists, Hermes profiles, Claude Code subagents and your saved presets. |
 | **Skills** | Reusable instructions, their assignments, earlier versions and recently deleted skills. |
@@ -131,6 +131,21 @@ Create a routine, write the instructions, and **@mention** the agents or teams t
 For example, with those agents and skills already created:
 
 > @Researcher finds the week's main product updates. @Content Team turns them into a short report using @Brand voice.
+
+### The Brain and your teams
+
+When the Brain hands work to a team, it writes in the team chat as **Brain**, so the work goes out even when no browser tab is open. Work for a single agent starts a new chat with that agent.
+
+- **Ask the Brain from a team chat.** Anyone in a team chat, an agent or you, can write **@Brain** to ask a question or say they're stuck. The Brain answers in the thread and may pass work to a teammate. An agent's request can't make it change agents, teams, skills, routines or settings: when the team needs something only you can give, such as an account, a teammate or a decision, the Brain tells you in Brain chat.
+- **The Brain follows up.** When the team goes quiet or the agent finishes, the Brain checks the result. If something is missing, it asks for it, twice at most. When the work is done, stuck or needs you, it says so in Brain chat. Turn this off with **The Brain follows up** under **Settings → The Brain's model**.
+
+### Models, effort and stopping work from Brain chat
+
+- **Switch models and effort.** "Put the video team on Opus at high effort" changes one agent, several agents or every agent on a team. The Brain checks model names against the provider's list before it changes anything.
+- **Look up models.** "Which Gemini models are on OpenRouter?" lists matching models with prices and context size. Ask "which model is each agent on?" to see every agent's model and effort.
+- **Stop work.** "Stop the Writer", "stop the video team" or "stop everything" stops an agent, a team, or everything running in the open project: teams, agents, routines and workflows.
+
+The Brain changes models or stops work only when you ask.
 
 ### Long chats
 

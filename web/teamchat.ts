@@ -1,4 +1,5 @@
 // A team's group chat: everyone's messages, who is working, @mention suggestions, reply-to, stop.
+// The Brain writes here too (from 'brain'): its briefs, follow-ups, and answers to @Brain.
 import { h, mount, state, GET, POST, attempt, md, ago, avatar, onEvent, confirmBox } from './core.ts';
 import { icon } from './icons.ts';
 import { attachTray, restoreDraft } from './attach.ts';
@@ -65,7 +66,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   const sendBtn = h('button.btn.small', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 14));
   const stopBtn = h('button.btn.danger.small.hidden', { onclick: () => attempt(() => POST(`/teams/${teamId}/stop`)), title: 'Stop the whole team' }, icon('square', 13), 'Stop');
   const tray = attachTray();
-  const root = h(`div.tc${fill ? '.fill' : ''}`, list, status, replyChip, tray.el, h('div.tc-compose', tray.picker, h('div.tc-field', input, suggest), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all · drop or paste files to attach'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat')));
+  const root = h(`div.tc${fill ? '.fill' : ''}`, list, status, replyChip, tray.el, h('div.tc-compose', tray.picker, h('div.tc-field', input, suggest), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all · @Brain asks the Brain · drop or paste files to attach'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat')));
   mount(container, root);
   const offDrop = tray.dropZone(root, 'Drop files or folders for the team');
 
@@ -128,7 +129,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   const renderText = (text: string) => {
     const el = md(text);
     el.className = 'tc-text';
-    const names = members().map((a) => a.name).concat(['everyone']).sort((a, b) => b.length - a.length);
+    const names = members().map((a) => a.name).concat(['everyone', 'Brain']).sort((a, b) => b.length - a.length);
     const re = new RegExp(`@(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
     const walk = (node: Node) => {
       for (const child of [...node.childNodes]) {
@@ -155,7 +156,8 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   // and the whole thread flickers. The list is put in order in place, so kept messages never leave it.
   const shown = new Map<string, { sig: string; el: HTMLElement; when?: HTMLElement; ts: number }>();
   const messageEl = (m: TeamMessage): HTMLElement => {
-    const a = m.from === 'user' || m.from === 'system' ? null : agent(m.from);
+    const brain = m.from === 'brain';
+    const a = m.from === 'user' || m.from === 'system' || brain ? null : agent(m.from);
     const parent = m.replyTo ? C.messages.find((x) => x.id === m.replyTo) : null;
     // what it is drawn from (not its "5m ago": that is updated in place)
     const sig = JSON.stringify([m.text, m.attachments, m.mentions, m.turn, parent?.text, a?.name, a?.emoji, a?.color, C.team?.lead === m.from, members().map((x) => x.name)]);
@@ -174,14 +176,14 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
       `div.tc-msg${m.from === 'user' ? '.me' : ''}`,
       h(
         'div.tc-who',
-        a ? avatar(a) : h('div.avatar.tc-you', icon('users', 14)),
-        h('b', a ? a.name : m.from === 'user' ? 'You' : 'Someone'),
+        a ? avatar(a) : brain ? h('div.avatar.brain-av', icon('brain', 14)) : h('div.avatar.tc-you', icon('users', 14)),
+        h('b', a ? a.name : brain ? 'Brain' : m.from === 'user' ? 'You' : 'Someone'),
         a && a.id === C.team?.lead ? h('span.tc-lead', '★ lead') : null,
         when,
         h('span.grow'),
         a ? h('button.tc-act', { title: `Reply to ${a.name}`, onclick: () => setReply(m) }, icon('message-circle', 13)) : null,
       ),
-      parent ? h('div.tc-quote', `↪ ${parent.from === 'user' ? 'You' : agent(parent.from)?.name || ''}: ${String(parent.text).slice(0, 90)}`) : null,
+      parent ? h('div.tc-quote', `↪ ${parent.from === 'user' ? 'You' : parent.from === 'brain' ? 'Brain' : agent(parent.from)?.name || ''}: ${String(parent.text).slice(0, 90)}`) : null,
       m.text ? renderText(m.text) : null,
       mentionPreviews(m.text, m.attachments, { compact: true, key: `team:${m.id}` }),
       workFor(m),
@@ -218,7 +220,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     const busy = [...C.working, ...C.queued.filter((q) => !C.working.includes(q))];
     mount(
       status,
-      C.working.map((id) => h('span.tc-typing', h('span.dot.busy'), `${agent(id)?.name || 'Agent'} is working${C.activity[id] ? ` · ${C.activity[id]}` : '…'}`)),
+      C.working.map((id) => h('span.tc-typing', h('span.dot.busy'), id === 'brain' ? 'The Brain is answering…' : `${agent(id)?.name || 'Agent'} is working${C.activity[id] ? ` · ${C.activity[id]}` : '…'}`)),
       C.queued.filter((q) => !C.working.includes(q)).map((id) => h('span.tc-typing.queued', icon('clock', 12), `${agent(id)?.name || 'Agent'} is next`)),
     );
     stopBtn.classList.toggle('hidden', !busy.length);
@@ -261,14 +263,14 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     const m = /(^|\s)@([\w .-]{0,30})$/.exec(before);
     if (!m) return null;
     const q = m[2].toLowerCase();
-    const opts: MentionOption[] = [...members().map((a) => ({ label: a.name, a })), { label: 'everyone' }].filter((o) => o.label.toLowerCase().startsWith(q) || o.label.toLowerCase().includes(q));
+    const opts: MentionOption[] = [...members().map((a) => ({ label: a.name, a })), { label: 'everyone' }, { label: 'Brain' }].filter((o) => o.label.toLowerCase().startsWith(q) || o.label.toLowerCase().includes(q));
     return { start: pos - m[2].length - 1, opts };
   };
   const drawSuggest = () => {
     const s = suggestions();
     if (!s || !s.opts.length) return suggest.classList.add('hidden');
     sIndex = Math.min(sIndex, s.opts.length - 1);
-    mount(suggest, s.opts.map((o, i) => h(`button.tc-sopt${i === sIndex ? '.on' : ''}`, { onmousedown: (e) => (e.preventDefault(), pickSuggest(o)) }, o.a ? avatar(o.a) : icon('users', 14), `@${o.label}`, o.a?.specialty ? h('span.hint', o.a.specialty) : null)));
+    mount(suggest, s.opts.map((o, i) => h(`button.tc-sopt${i === sIndex ? '.on' : ''}`, { onmousedown: (e) => (e.preventDefault(), pickSuggest(o)) }, o.a ? avatar(o.a) : icon(o.label === 'Brain' ? 'brain' : 'users', 14), `@${o.label}`, o.label === 'Brain' ? h('span.hint', 'ask the Brain') : null, o.a?.specialty ? h('span.hint', o.a.specialty) : null)));
     suggest.classList.remove('hidden');
   };
   const pickSuggest = (o: MentionOption) => {

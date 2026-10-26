@@ -195,6 +195,9 @@ export async function startRoutine(id: string, { trigger = 'manual', input = '' 
   return run;
 }
 
+/** The ids of routine runs going right now (every project's). */
+export const runningRoutineRuns = (): string[] => [...active.keys()];
+
 export function stopRoutineRun(runId: string): boolean {
   const ac = active.get(runId);
   ac?.abort();
