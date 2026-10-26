@@ -1,0 +1,36 @@
+web/attach.ts
+  s_b85e974e5c6db1::t_549666a508e7a9 123-127,130,132
+tests/web/pastes.test.ts
+  s_b85e974e5c6db1::t_7b09a14430b277 1-82,84-123
+  s_b85e974e5c6db1::t_f23572dbcb1490 83
+web/chat/ChatView.tsx
+  s_b85e974e5c6db1::t_f2a6680c0c0818 13,82-84,219,226,235,252,263,277-278,282,286,295,319,321,331,563,574
+web/teamchat.ts
+  s_b85e974e5c6db1::t_d2affc049481e9 269
+  s_b85e974e5c6db1::t_3f5c9ae2180bc5 473
+  s_b85e974e5c6db1::t_9ec5914781759f 5-6,75-78,366,372,378
+web/dock.ts
+  s_b85e974e5c6db1::t_1473c6757e4147 11,16,83-84,104-105,123,212-215,526,534
+README.md
+  s_b85e974e5c6db1::t_61b2d7f350ddf2 105-106
+web/pastes.ts
+  s_b85e974e5c6db1::t_693f268ab82c30 1-172
+public/polish.css
+  s_b85e974e5c6db1::t_1a5d676d28d12a 577-582
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0947acb316e1c6a3c75f140c98edf46c6ab6696c",
+  "prompts": {},
+  "sessions": {
+    "s_b85e974e5c6db1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e69949fc-9508-4de3-9c26-62d3d49a0c5c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
