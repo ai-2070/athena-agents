@@ -1,0 +1,66 @@
+web/agentchat.ts
+  s_438d1f6577d2a3::t_ce403512f24604 90-105
+  s_438d1f6577d2a3::t_500c652de581a4 3-5,71-74,77-81,89,140,142-143,155
+  s_438d1f6577d2a3::t_491700f0300894 106
+README.md
+  s_438d1f6577d2a3::t_115ddd8b2f36c1 78-99
+tests/server/compaction.test.ts
+  s_438d1f6577d2a3::t_8dc4faccd9f58a 1-152,155-374
+  s_438d1f6577d2a3::t_529b4aee939754 153-154
+server/engines/openai.ts
+  s_438d1f6577d2a3::t_e4e3724cf4e7c9 232-233,241,257,347
+  s_438d1f6577d2a3::t_5be9fabf4749ac 6,65-66,217,229-231,234-240,242-248,251-253,256,274-281,287,292,342-343
+server/tools.ts
+  s_438d1f6577d2a3::t_69aab3254c3747 129-144
+  s_438d1f6577d2a3::t_39e49506dd5e9a 6
+public/polish.css
+  s_438d1f6577d2a3::t_0c8ede86d2df9c 454-476
+server/engines/claude.ts
+  s_438d1f6577d2a3::t_5be9fabf4749ac 39-43,51-57,154-155,172-173,186-188,240-241
+web/compactmark.ts
+  s_438d1f6577d2a3::t_b37852b5c33453 1-41,43-79
+  s_438d1f6577d2a3::t_eaa0c7ad4e400e 42
+server/engines/index.ts
+  s_438d1f6577d2a3::t_055d8e40f97b27 13-14,35-36,39-40,45-46,130-131,206,256-263,270-282,285-293,295-308,393-445
+  s_438d1f6577d2a3::t_259fc0eb4ccb7b 446
+web/views/chat.ts
+  s_438d1f6577d2a3::t_eaa0c7ad4e400e 5-6,30-41,90-91,132,147,151-173,204-205,243,293-295,342-346
+shared/types.ts
+  s_438d1f6577d2a3::t_c3b17d212df088 196-235,246-249,273-274,348-355,361,384
+  s_438d1f6577d2a3::t_8f41c605d6a329 356-360
+  s_438d1f6577d2a3::t_d31128a46f342b 362
+server/store.ts
+  s_438d1f6577d2a3::t_8f41c605d6a329 45
+server/index.ts
+  s_438d1f6577d2a3::t_5be9fabf4749ac 300-302,311-313,317-323
+web/views/station.ts
+  s_438d1f6577d2a3::t_500c652de581a4 3388
+  s_438d1f6577d2a3::t_c1ee7874867f54 3556-3565
+web/views/settings.ts
+  s_438d1f6577d2a3::t_0c8ede86d2df9c 136-150,158-160
+  s_438d1f6577d2a3::t_ad7696a9585194 154-156
+  s_438d1f6577d2a3::t_115ddd8b2f36c1 151-152
+  s_438d1f6577d2a3::t_4523171d818339 153,157
+server/compaction.ts
+  s_438d1f6577d2a3::t_02705bf35aa807 97-98,125-126,153,156-175,298-300,307-311,316-322,324,327,333-334,340-351,364,376-377,384,390,393,432-433,439-440
+  s_438d1f6577d2a3::t_39e49506dd5e9a 2,7-8,15,76
+  s_438d1f6577d2a3::t_0ad0cb78fc92a4 1,3-6,9-14,16-75,77-96,99-124,127-152,154-155,176-297,301-306,312-315,323,325-326,328-332,335-339,352-363,365-375,378-383,385-389,391-392,394-431,434-438,441-502
+shared/compaction.ts
+  s_438d1f6577d2a3::t_39e49506dd5e9a 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f52279499955c68115eae2f534358d257c2d421",
+  "prompts": {},
+  "sessions": {
+    "s_438d1f6577d2a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a3e60d4-d433-413c-8c13-3a59a05169f5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
