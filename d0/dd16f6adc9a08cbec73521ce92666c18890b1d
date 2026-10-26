@@ -1,0 +1,22 @@
+docs/internal/plans/CODE_REVIEW_2026-10-26.md
+  s_86f670bdc2e031::t_7d3d43f2e61570 5,12-13,46,79,103,105,131-132,165,204,206
+  s_86f670bdc2e031::t_ba7acf4b659dde 261-268
+tests/server/claude-args.test.ts
+  s_86f670bdc2e031::t_7d3d43f2e61570 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d0dd16f6adc9a08cbec73521ce92666c18890b1d",
+  "prompts": {},
+  "sessions": {
+    "s_86f670bdc2e031": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6340fd4e-3c25-4ffa-aefd-cf1ac985cbb5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
