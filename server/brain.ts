@@ -261,3 +261,79 @@ export async function pickMember(text: string, members: (Agent | null | undefine
   const j = parseJSON<{ id?: string }>(await think(system, user));
   return list.some((a) => a.id === j.id) ? (j.id as string) : null;
 }
+
+// ---------- Skills from plain words ----------
+/** A skill the Brain wrote or changed from your words (not saved: you look it over first). */
+export interface SkillDraft {
+  name: string;
+  description: string;
+  body: string;
+  /** One sentence: what it wrote or changed */
+  note: string;
+}
+/** The skill as it is in the editor now (changes not saved yet included). */
+export interface SkillText {
+  name: string;
+  description: string;
+  body: string;
+}
+interface SkillAnswer {
+  name?: unknown;
+  description?: unknown;
+  body?: unknown;
+  note?: unknown;
+}
+export interface DraftSkillOptions {
+  /** Editing: the skill as it is now. Without it a new skill is written. */
+  current?: SkillText | null;
+  /** Its extra files (names only), so the instructions can point at them */
+  files?: string[];
+  /** Other skills in the library, so it doesn't write one that is already there */
+  others?: { slug: string; name: string; description: string }[];
+  attachments?: string[];
+  /** The model call (tests pass their own) */
+  ask?: (system: string, user: string) => Promise<string>;
+}
+
+const SKILL_NAME_MAX = 80;
+const SKILL_DESC_MAX = 1000;
+const SKILL_TEXT_MAX = 60000;
+const str = (v: unknown) => (typeof v === 'string' ? v : '');
+
+// Write a new skill from a description, or change one as asked (the whole skill comes back, every field).
+export async function draftSkill(request: string, { current = null, files = [], others = [], attachments = [], ask = (s, u) => think(s, u, { timeout: 180_000, maxTokens: 8000 }) }: DraftSkillOptions = {}): Promise<SkillDraft> {
+  const editing = !!current;
+  const library = others
+    .filter((o) => o.name !== current?.name)
+    .slice(0, 60)
+    .map((o) => `- ${o.name}: ${o.description.replace(/\s+/g, ' ').slice(0, 160)}`)
+    .join('\n');
+  const system = `You write skills for the user's AI agents. A skill is reusable know-how in Claude Code's SKILL.md format:
+- name: short, plain (2-5 words)
+- description: one or two sentences saying WHEN to use it. Agents decide from this line alone whether the skill fits a task, so name the kinds of work it covers.
+- body: the instructions in markdown: steps, rules, examples, what good output looks like, pitfalls.
+${editing ? 'Change the CURRENT skill the way the user asks. Keep everything they did not ask to change exactly as it is, word for word. Return the whole skill, every field in full, not only the parts that changed.' : "Write a new skill from the user's request."}
+Write the instructions for an AI agent, in the second person, concrete and specific, without filler. Don't invent facts about the user's business, products or numbers: where one is needed and not given, write a placeholder like [your product name].
+Never put secrets (API keys, passwords, tokens) in a skill: if the request includes one, leave it out and say so in "note".
+${library ? `Skills already in the library (don't write a copy of one; if the request is the same as one, say so in "note"):\n${library}\n` : ''}Answer with JSON only: {"name":"…","description":"…","body":"the instructions in markdown","note":"one sentence: what you wrote or changed"}`;
+  const cur = current ? `CURRENT skill:\nname: ${current.name}\ndescription: ${current.description}\n${files.length ? `extra files with it: ${files.slice(0, 40).join(', ')}\n` : ''}body:\n${current.body.trim() || '(empty)'}\n\n` : '';
+  const what = request.trim() || (editing ? 'Improve it using the attached files.' : 'Write a skill from the attached files: the way of working they show.');
+  const user = `${cur}${editing ? 'What to change' : 'The skill to write'}:\n${what}${filesFor(attachments)}`;
+  let j: SkillAnswer;
+  try {
+    j = parseJSON<SkillAnswer>(await ask(system, user));
+  } catch (e) {
+    if (/not JSON|JSON|Unexpected|position/i.test((e as Error).message)) throw new Error("The Brain's answer wasn't a skill. Try again, or say it differently.");
+    throw e;
+  }
+  // a field left out (or emptied) while editing stays as it was
+  const pick = (v: unknown, was: string | undefined, max: number) => (str(v).trim() ? str(v).trim() : (was ?? '').trim()).slice(0, max);
+  const draft: SkillDraft = {
+    name: pick(j.name, current?.name, SKILL_NAME_MAX),
+    description: pick(j.description, current?.description, SKILL_DESC_MAX).replace(/\s+/g, ' '),
+    body: pick(j.body, current?.body, SKILL_TEXT_MAX),
+    note: str(j.note).trim().slice(0, 300),
+  };
+  if (!draft.name || !draft.description || !draft.body) throw new Error("The Brain's answer was missing the skill's name, description or instructions. Try again.");
+  return draft;
+}

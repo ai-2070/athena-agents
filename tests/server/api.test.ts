@@ -133,6 +133,15 @@ describe('backups', () => {
   });
 });
 
+describe('skills from plain words', () => {
+  it('asks for words or files before calling the Brain', async () => {
+    const r = await req('/api/assist/skill', { method: 'POST', headers: json, body: JSON.stringify({ text: '   ' }) });
+    expect(r.status).toBe(400);
+    expect((await r.json()).error).toMatch(/Say what the skill should do/);
+    expect((await req('/api/assist/skill', { method: 'POST', body: JSON.stringify({ text: 'x' }) })).status).toBe(403); // needs x-dash
+  });
+});
+
 describe('local-only security', () => {
   it('rejects requests for another host name (DNS rebinding)', async () => {
     const r = await new Promise<number>((resolve) => {

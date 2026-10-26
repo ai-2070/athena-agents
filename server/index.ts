@@ -389,6 +389,25 @@ del('/api/skills/:slug', async ({ slug }) => {
   return { ok: true };
 });
 // The Brain's own skills (part of its instructions; Self-improvement also has it learn from finished work)
+// A skill written or changed from plain words: a draft for the editor, saved only when you press Save.
+// slug: the skill being edited (for its files); current: what the editor holds now (unsaved changes too).
+post<{ text?: unknown; slug?: unknown; current?: unknown; attachments?: unknown }>('/api/assist/skill', async (_p, body) => {
+  const text = String(body.text || '').trim().slice(0, 8000);
+  const attachments = uploads.cleanAttachments(body.attachments);
+  if (!text && !attachments.length) throw new HttpError(400, 'Say what the skill should do, or what to change.');
+  const c = (body.current && typeof body.current === 'object' ? body.current : null) as Record<string, unknown> | null;
+  const saved = typeof body.slug === 'string' ? skills.getSkill(body.slug) : null;
+  const field = (k: 'name' | 'description' | 'body', max: number) => (typeof c?.[k] === 'string' ? (c[k] as string) : saved?.[k] || '').slice(0, max);
+  const now = { name: field('name', 80), description: field('description', 1000), body: field('body', 60000) };
+  // nothing written yet (a new skill's empty editor): a new skill, not an edit of an empty one
+  const current = now.name.trim() || now.description.trim() || now.body.trim() ? now : null;
+  return brain.draftSkill(text, {
+    current,
+    files: saved?.files.map((f) => f.path) || [],
+    others: skills.listSkills().filter((s) => s.slug !== saved?.slug),
+    attachments,
+  });
+});
 get('/api/brain/skills', async () => ({ skills: skills.brainSkillSlugs() }));
 put<{ skills?: unknown }>('/api/brain/skills', async (_p, body) => ({ skills: skills.setBrainSkills(body?.skills) }));
 post<{ name: string }>('/api/skills/import', async (_p, body) => skills.importClaudeSkill(body.name));
