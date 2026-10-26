@@ -1,0 +1,31 @@
+server/brain.ts
+  s_fb22327ab443e7::t_56acfa505f1fc5 9,140
+server/promptcache.ts
+  s_fb22327ab443e7::t_56acfa505f1fc5 1-20
+tests/server/promptcache.test.ts
+  s_fb22327ab443e7::t_4aac02a43e3183 1,5,7,9-48,76-77
+  s_fb22327ab443e7::t_4611fba961a76a 2-4,6,8,49-75
+server/engines/claude.ts
+  s_fb22327ab443e7::t_916c7d72101176 49-50,255-256
+server/engines/openai.ts
+  s_fb22327ab443e7::t_916c7d72101176 76-77,304,340,385,442
+  s_fb22327ab443e7::t_56acfa505f1fc5 12
+server/engines/index.ts
+  s_fb22327ab443e7::t_916c7d72101176 47-48,183-185,197,326
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c4f44becee4a98f2929b54904a7a89436759a3eb",
+  "prompts": {},
+  "sessions": {
+    "s_fb22327ab443e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04f4af59-f1e1-456c-b9cf-4ca67253b60a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
