@@ -7,7 +7,7 @@ import { Autocomplete } from '@base-ui/react/autocomplete';
 import { GeneralTab } from './settings.tsx';
 import * as connections from './connections.ts';
 import { McpTab } from './mcp.tsx';
-import * as programs from './programs.ts';
+import { ProgramsTab } from './programs.tsx';
 import { LookTab } from './look.tsx';
 import { Tabs } from '../ui/controls.tsx';
 import { Icon, ViewHost, reactPage } from '../ui/react.tsx';
@@ -35,7 +35,7 @@ const TABS: Tab[] = [
   { id: 'general', label: 'General & keys', Page: GeneralTab },
   { id: 'connections', label: 'Connections', view: connections },
   { id: 'mcp', label: 'MCP servers', Page: McpTab },
-  { id: 'programs', label: 'Programs', view: programs },
+  { id: 'programs', label: 'Programs', Page: ProgramsTab },
   { id: 'look', label: 'Look', Page: LookTab },
 ];
 

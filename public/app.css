@@ -398,3 +398,12 @@ label.field > span:first-child, div.field > span:first-child { font: 500 11px/1.
 .mcp-summary { cursor: pointer; }
 .mcp-group { margin-bottom: 14px; }
 .mcp-tool { cursor: help; }
+
+/* Programs (web/views/programs.tsx) */
+.prog-head { margin-bottom: 14px; }
+.prog-head .lede { margin: 0; }
+.prog-search { max-width: 420px; margin-bottom: 12px; }
+.prog-apps { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.prog-app { padding: 10px 12px; flex-direction: row; align-items: center; }
+.prog-app-name { font-weight: 600; font-size: 14px; }
+.img-button { padding: 0; border: 0; background: none; cursor: zoom-in; }
