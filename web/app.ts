@@ -11,7 +11,7 @@ import * as programs from './views/programs.tsx';
 import * as mcp from './views/mcp.tsx';
 import * as connections from './views/connections.tsx';
 import * as outboxView from './views/outbox.tsx';
-import * as terminals from './views/terminals.ts';
+import * as terminals from './views/terminals.tsx';
 import * as setup from './views/setup.tsx';
 import * as skillsView from './views/skills.tsx';
 import * as routinesView from './views/routines.ts';
