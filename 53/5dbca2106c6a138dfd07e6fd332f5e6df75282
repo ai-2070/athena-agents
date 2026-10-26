@@ -1,0 +1,137 @@
+skills/composio/composio/SKILL.md
+  s_49a056ea742dfd::t_f29d070912506b 1-55
+skills/oomol/oo-create-skill/references/oo-powered.md
+  s_49a056ea742dfd::t_f29d070912506b 1-431
+skills/composio/composio/rules/triggers-subscribe.md
+  s_49a056ea742dfd::t_f29d070912506b 1-173
+skills/composio/LICENSE
+  s_49a056ea742dfd::t_f29d070912506b 1-21
+skills/composio/composio/rules/app-auth-configs.md
+  s_49a056ea742dfd::t_f29d070912506b 1-224
+skills/composio/composio/rules/tr-mcp-vs-native.md
+  s_49a056ea742dfd::t_f29d070912506b 1-248
+README.md
+  s_49a056ea742dfd::t_3aee148c8be37a 138-139
+skills/oomol/oo-publish-skill/agents/openai.yaml
+  s_49a056ea742dfd::t_f29d070912506b 1-5
+skills/oomol/oo-create-skill/references/skill-authoring.md
+  s_49a056ea742dfd::t_f29d070912506b 1-159
+AGENTS.md
+  s_49a056ea742dfd::t_cdc8372aef760d 44
+skills/oomol/oo-create-skill/agents/openai.yaml
+  s_49a056ea742dfd::t_f29d070912506b 1-5
+skills/composio/composio/rules/composio-cli.md
+  s_49a056ea742dfd::t_f29d070912506b 1-223
+skills/composio/composio/rules/tr-auth-connections.md
+  s_49a056ea742dfd::t_f29d070912506b 1-167
+skills/composio/composio/rules/tr-building-chat-ui.md
+  s_49a056ea742dfd::t_f29d070912506b 1-348
+skills/composio/composio/rules/tr-framework-mastra.md
+  s_49a056ea742dfd::t_f29d070912506b 1-185
+skills/oomol/oo/references/search-and-selection.md
+  s_49a056ea742dfd::t_f29d070912506b 1-335
+skills/composio/composio/rules/setup-api-keys.md
+  s_49a056ea742dfd::t_f29d070912506b 1-230
+skills/oomol/oo/references/auth-and-billing.md
+  s_49a056ea742dfd::t_f29d070912506b 1-104
+skills/oomol/oo/references/connector-execution.md
+  s_49a056ea742dfd::t_f29d070912506b 1-374
+skills/oomol/oo/references/file-transfer.md
+  s_49a056ea742dfd::t_f29d070912506b 1-137
+skills/oomol/README.md
+  s_49a056ea742dfd::t_395628843ef729 1-24
+skills/composio/composio/rules/app-fetch-tools.md
+  s_49a056ea742dfd::t_f29d070912506b 1-292
+skills/composio/composio/rules/app-toolkits.md
+  s_49a056ea742dfd::t_f29d070912506b 1-184
+skills/composio/composio/rules/tr-framework-ai-sdk.md
+  s_49a056ea742dfd::t_f29d070912506b 1-240
+skills/oomol/oo-find-skills/SKILL.md
+  s_49a056ea742dfd::t_f29d070912506b 1-217
+skills/composio/README.md
+  s_49a056ea742dfd::t_9861960f41e6fb 1-13,15-20
+  s_49a056ea742dfd::t_a0cd973deb2d50 14
+skills/composio/composio/rules/app-tool-versions.md
+  s_49a056ea742dfd::t_f29d070912506b 1-343
+skills/composio/composio/rules/app-user-context.md
+  s_49a056ea742dfd::t_f29d070912506b 1-222
+skills/composio/composio/rules/triggers-create.md
+  s_49a056ea742dfd::t_f29d070912506b 1-246
+skills/composio/composio/rules/tr-toolkit-query.md
+  s_49a056ea742dfd::t_f29d070912506b 1-135
+skills/composio/composio/rules/tr-auth-auto.md
+  s_49a056ea742dfd::t_f29d070912506b 1-110
+skills/composio/composio/rules/tr-session-basic.md
+  s_49a056ea742dfd::t_f29d070912506b 1-82
+skills/oomol/oo/SKILL.md
+  s_49a056ea742dfd::t_f29d070912506b 1-282
+skills/composio/composio/rules/building-with-composio.md
+  s_49a056ea742dfd::t_f29d070912506b 1-134
+skills/composio/composio/rules/_template.md
+  s_49a056ea742dfd::t_f29d070912506b 1-38
+skills/oomol/LICENSE
+  s_49a056ea742dfd::t_f29d070912506b 1-21
+skills/composio/composio/AGENTS.md
+  s_49a056ea742dfd::t_f29d070912506b 1-404
+skills/composio/composio/rules/app-execute-tools.md
+  s_49a056ea742dfd::t_f29d070912506b 1-202
+server/skills.ts
+  s_49a056ea742dfd::t_8da27e7208e9e1 333-339
+  s_49a056ea742dfd::t_507d8c893fdbfa 356-357
+skills/composio/composio/rules/triggers-webhook.md
+  s_49a056ea742dfd::t_f29d070912506b 1-227
+skills/oomol/oo-find-skills/agents/openai.yaml
+  s_49a056ea742dfd::t_f29d070912506b 1-5
+skills/oomol/oo-create-skill/references/existing-workflow.md
+  s_49a056ea742dfd::t_f29d070912506b 1-50
+skills/composio/composio/rules/app-custom-tools.md
+  s_49a056ea742dfd::t_f29d070912506b 1-220
+skills/oomol/oo-find-skills/references/oo-cli-contract.md
+  s_49a056ea742dfd::t_f29d070912506b 1-107
+skills/oomol/oo-publish-skill/SKILL.md
+  s_49a056ea742dfd::t_f29d070912506b 1-101
+skills/composio/composio/rules/app-connected-accounts.md
+  s_49a056ea742dfd::t_f29d070912506b 1-240
+tests/server/bundled-skills.test.ts
+  s_49a056ea742dfd::t_1ad25ce5527951 6
+  s_49a056ea742dfd::t_931652b96372bf 46-48
+  s_49a056ea742dfd::t_5f05215bee83a0 13,15-31
+skills/oomol/oo-create-skill/SKILL.md
+  s_49a056ea742dfd::t_f29d070912506b 1-73
+skills/composio/composio/rules/tr-session-config.md
+  s_49a056ea742dfd::t_f29d070912506b 1-172
+skills/composio/composio/rules/tr-framework-integration.md
+  s_49a056ea742dfd::t_f29d070912506b 1-818
+skills/oomol/oo/references/llm-client.md
+  s_49a056ea742dfd::t_f29d070912506b 1-63
+skills/composio/composio/rules/app-auth-popup-ui.md
+  s_49a056ea742dfd::t_f29d070912506b 1-144
+skills/oomol/oo/agents/openai.yaml
+  s_49a056ea742dfd::t_f29d070912506b 1-5
+skills/composio/composio/rules/tr-userid-best-practices.md
+  s_49a056ea742dfd::t_f29d070912506b 1-476
+skills/composio/composio/rules/tr-auth-manual.md
+  s_49a056ea742dfd::t_f29d070912506b 1-161
+skills/composio/composio/rules/triggers-manage.md
+  s_49a056ea742dfd::t_f29d070912506b 1-275
+skills/composio/composio/rules/app-modifiers.md
+  s_49a056ea742dfd::t_f29d070912506b 1-148
+skills/composio/composio/rules/tr-session-lifecycle.md
+  s_49a056ea742dfd::t_f29d070912506b 1-385
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "535dbca2106c6a138dfd07e6fd332f5e6df75282",
+  "prompts": {},
+  "sessions": {
+    "s_49a056ea742dfd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "775c40a2-1654-42bc-a49a-0f3c64c6a727",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
