@@ -20,7 +20,7 @@ jobs:
         # The app is mainly used on Windows; Linux is the quick sanity check.
         os: [ubuntu-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
