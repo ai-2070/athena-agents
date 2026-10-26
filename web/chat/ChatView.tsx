@@ -19,6 +19,7 @@ import { beforeTurn, toUIMessages, userParts } from './messages.ts';
 import { chatTransport } from './transport.ts';
 import { agentMentions, insertMention } from './mention.ts';
 import type { MentionAgent } from './mention.ts';
+import { agentRef } from '../../shared/agentref.ts';
 import type { ChatMessage } from './messages.ts';
 import type { AppState, Chat, ChatItem } from '../../shared/types.ts';
 
@@ -292,7 +293,8 @@ export function ChatView(p: ChatViewProps) {
   const pickMention = (a: MentionAgent) => {
     const box = input.current;
     if (!box || !mention) return;
-    const r = insertMention(box.value, mention.start, box.selectionStart, a.name);
+    // with the id when the name is shared, so ask_agent reaches this one
+    const r = insertMention(box.value, mention.start, box.selectionStart, agentRef(a, others));
     box.value = r.text;
     box.setSelectionRange(r.caret, r.caret);
     box.focus();

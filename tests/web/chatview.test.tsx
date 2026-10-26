@@ -288,6 +288,24 @@ describe('@ to pick another agent', () => {
     expect(requests.some((r) => r.url.endsWith('/stream') && r.method === 'POST')).toBe(false);
   });
 
+  it('a name two agents share goes in with its id, so the right one is asked', async () => {
+    state.data = {
+      runs: [],
+      approvals: [],
+      agents: [
+        { id: 'a1', name: 'Renderer', toolGroups: ['agents'] },
+        { id: 'a2', name: 'Editor', specialty: 'cuts' },
+        { id: 'a3', name: 'Editor', specialty: 'colour' },
+      ],
+    } as unknown as AppState;
+    const el = await open();
+    const box = el.querySelector('textarea')!;
+    await typeAt(box, '@ed');
+    await key(box, 'ArrowDown');
+    await key(box, 'Tab');
+    expect(box.value).toBe('@Editor [a3] ');
+  });
+
   it('Escape closes it; an agent without Delegate says it needs it', async () => {
     state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Renderer', toolGroups: [] }, { id: 'a2', name: 'Trend Scout' }] } as unknown as AppState;
     const el = await open('compact');

@@ -43,4 +43,16 @@ describe('insertMention()', () => {
     expect(insertMention('ask @tr about it', 4, 7, 'Trend Scout')).toEqual({ text: 'ask @Trend Scout about it', caret: 17 });
     expect(insertMention('@Tre', 0, 2, 'Trend Scout')).toEqual({ text: '@Trend Scout ', caret: 13 });
   });
+
+  it('keeps punctuation that follows, without a space before it', () => {
+    expect(insertMention('ask @t, then go', 4, 6, 'Trend Scout')).toEqual({ text: 'ask @Trend Scout, then go', caret: 16 });
+    expect(insertMention('hi @ed.', 3, 6, 'Editor')).toEqual({ text: 'hi @Editor.', caret: 10 });
+  });
+
+  it('with the caret partway through a name, takes the rest of it instead of leaving words behind', () => {
+    expect(insertMention('@Tre and Scout hi', 0, 4, 'Trend Scout')).toEqual({ text: '@Trend Scout and Scout hi', caret: 13 });
+    expect(insertMention('@Trend Scout hi', 0, 4, 'Trend Scout')).toEqual({ text: '@Trend Scout hi', caret: 13 });
+    expect(insertMention('ask @Trend Scout, now', 4, 13, 'Trend Scout')).toEqual({ text: 'ask @Trend Scout, now', caret: 16 });
+    expect(insertMention('@editorial', 0, 3, 'Editor')).toEqual({ text: '@Editor ', caret: 8 });
+  });
 });

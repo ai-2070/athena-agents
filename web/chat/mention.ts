@@ -33,9 +33,17 @@ export function agentMentions(text: string, caret: number, agents: readonly Ment
   return options.length ? { start: q.start, options } : null;
 }
 
-/** The text with "@name " in place of the "@…" from start to the caret, and where the caret goes. */
+/** The text with "@name " in place of the "@…" being typed (start is the "@"), and where the caret goes.
+ *  With the caret partway through, what follows it is taken too while it still spells the name, then
+ *  the rest of that word; punctuation and later words stay. */
 export function insertMention(text: string, start: number, caret: number, name: string): { text: string; caret: number } {
-  const after = text.slice(caret).replace(/^\S*/, '');
-  const put = `@${name}${/^\s/.test(after) ? '' : ' '}`;
-  return { text: text.slice(0, start) + put + after, caret: start + put.length + (/^\s/.test(after) ? 1 : 0) };
+  const typed = text.slice(start + 1, caret).toLowerCase();
+  const want = name.toLowerCase();
+  let rest = text.slice(caret);
+  let k = 0;
+  while (k < rest.length && want.startsWith(typed + rest.slice(0, k + 1).toLowerCase())) k++;
+  rest = rest.slice(k).replace(/^[\p{L}\p{M}\p{N}_]+/u, '');
+  // a space after the name, unless one or punctuation already follows
+  const put = `@${name}${/^[\s.,;:!?)\]}'"…]/u.test(rest) ? '' : ' '}`;
+  return { text: text.slice(0, start) + put + rest, caret: start + put.length + (/^\s/.test(rest) ? 1 : 0) };
 }
