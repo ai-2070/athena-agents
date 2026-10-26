@@ -1,0 +1,26 @@
+LICENSE-MIT
+  s_280f012de0b84d::t_4137314502d107 1-21
+README.md
+  s_280f012de0b84d::t_4137314502d107 288-295
+  s_280f012de0b84d::t_3673c50e2db6ff 298
+LICENSE-APACHE
+  s_280f012de0b84d::t_4137314502d107 1-177
+package.json
+  s_280f012de0b84d::t_4137314502d107 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2a98facb4231ae2732ebee1a6bed1dbe563fcfb3",
+  "prompts": {},
+  "sessions": {
+    "s_280f012de0b84d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f553f14f-f6a0-4ae3-8721-c11bbf98c834",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
