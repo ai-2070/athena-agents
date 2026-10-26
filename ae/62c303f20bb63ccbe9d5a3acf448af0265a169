@@ -1,0 +1,19 @@
+tests/server/api.test.ts
+  s_438d1f6577d2a3::t_e1a7224b945125 193-210
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ae62c303f20bb63ccbe9d5a3acf448af0265a169",
+  "prompts": {},
+  "sessions": {
+    "s_438d1f6577d2a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a3e60d4-d433-413c-8c13-3a59a05169f5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
