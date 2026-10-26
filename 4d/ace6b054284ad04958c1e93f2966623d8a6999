@@ -1,0 +1,32 @@
+tests/web/chatview.test.tsx
+  s_3ee9638266ae65::t_0fd05e813b270b 549-552
+  s_3ee9638266ae65::t_c18f194591362c 518-519
+web/chat/window.tsx
+  s_3ee9638266ae65::t_169e8844d41b70 37-39,45-46
+  s_3ee9638266ae65::t_2521a79bd609e7 9,52-62
+  s_3ee9638266ae65::t_3d04e8cc99c4cc 3-5,22-23,27-33,40-44,47,51
+web/chat/ChatView.tsx
+  s_3ee9638266ae65::t_c18f194591362c 411,419
+  s_3ee9638266ae65::t_169e8844d41b70 20,526
+  s_3ee9638266ae65::t_9ace6df592a901 5
+web/chat/estimate.ts
+  s_3ee9638266ae65::t_3d781f39aafa35 1-45
+tests/web/chat-estimate.test.ts
+  s_3ee9638266ae65::t_a4d9af499db465 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4dace6b054284ad04958c1e93f2966623d8a6999",
+  "prompts": {},
+  "sessions": {
+    "s_3ee9638266ae65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "541a5902-77ed-4017-8f45-3e7605579b0f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
