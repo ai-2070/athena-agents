@@ -11,7 +11,7 @@ import type { Agent, BrainSetting, Team, TeamAccess } from '../shared/types.ts';
 // ---------- what the models send back (JSON boundaries) ----------
 interface OpenRouterChat {
   error?: { message?: string };
-  choices?: { message?: { content?: string } }[];
+  choices?: { message?: { content?: string }; finish_reason?: string }[];
 }
 interface CodexLine {
   type?: string;
@@ -105,6 +105,8 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
     });
     const j = (await r.json()) as OpenRouterChat;
     if (!r.ok) throw new Error(j.error?.message || `OpenRouter said ${r.status}`);
+    // stopped at max_tokens: half an answer (half a JSON object) is no answer
+    if (j.choices?.[0]?.finish_reason === 'length') throw new Error('The answer was cut off: it ran past the length limit.');
     return j.choices?.[0]?.message?.content || '';
   }
   if (bm.provider === 'codex') {
@@ -260,4 +262,113 @@ export async function pickMember(text: string, members: (Agent | null | undefine
   const user = `Members:\n${list.map(agentLine).join('\n')}\n\nMessage:\n${text}`;
   const j = parseJSON<{ id?: string }>(await think(system, user));
   return list.some((a) => a.id === j.id) ? (j.id as string) : null;
+}
+
+// ---------- Skills from plain words ----------
+/** A skill the Brain wrote or changed from your words (not saved: you look it over first). */
+export interface SkillDraft {
+  name: string;
+  description: string;
+  body: string;
+  /** One sentence: what it wrote or changed */
+  note: string;
+}
+/** The skill as it is in the editor now (changes not saved yet included). */
+export interface SkillText {
+  name: string;
+  description: string;
+  body: string;
+}
+interface SkillAnswer {
+  name?: unknown;
+  description?: unknown;
+  body?: unknown;
+  note?: unknown;
+}
+export interface DraftSkillOptions {
+  /** Editing: the skill as it is now. Without it a new skill is written. */
+  current?: SkillText | null;
+  /** Its extra files (names only), so the instructions can point at them */
+  files?: string[];
+  /** Other skills in the library, so it doesn't write one that is already there */
+  others?: { slug: string; name: string; description: string }[];
+  attachments?: string[];
+  /** The model call (tests pass their own). maxTokens: room for the whole answer. */
+  ask?: (system: string, user: string, opts: { maxTokens: number }) => Promise<string>;
+}
+
+const SKILL_NAME_MAX = 80;
+const SKILL_DESC_MAX = 1000;
+const SKILL_TEXT_MAX = 60000;
+const str = (v: unknown) => (typeof v === 'string' ? v : '');
+
+/** Room for the answer: an edit sends the whole skill back, so a long skill needs more (about 3 characters a token). */
+export function skillAnswerBudget(current: SkillText | null): number {
+  const chars = current ? current.name.length + current.description.length + current.body.length : 0;
+  return Math.min(32000, Math.max(4000, Math.ceil(chars / 3) + 3000));
+}
+
+const words = (t: string) => new Set(t.toLowerCase().match(/[a-z0-9]{3,}/g) || []);
+/** The library for the prompt: the skills most like the request with what they're for, then every other one's name. */
+export function libraryForPrompt(others: { name: string; description: string }[], about: string, { detailed = 40, names = 400 } = {}): string {
+  if (!others.length) return '';
+  const want = words(about);
+  const scored = others.map((o, i) => {
+    const have = words(`${o.name} ${o.description}`);
+    let n = 0;
+    for (const w of want) if (have.has(w)) n++;
+    return { o, n, i };
+  });
+  scored.sort((a, b) => b.n - a.n || a.i - b.i);
+  const top = scored.slice(0, detailed).map(({ o }) => `- ${o.name}: ${o.description.replace(/\s+/g, ' ').slice(0, 160)}`);
+  const rest = scored.slice(detailed).map(({ o }) => o.name.slice(0, 60));
+  const more = rest.length > names ? ` …and ${rest.length - names} more` : '';
+  return `${top.join('\n')}${rest.length ? `\nAlso in the library (names only): ${rest.slice(0, names).join(', ')}${more}` : ''}`;
+}
+
+// Write a new skill from a description, or change one as asked (the whole skill comes back, every field).
+export async function draftSkill(request: string, { current = null, files = [], others = [], attachments = [], ask = (s, u, o) => think(s, u, { timeout: 180_000, maxTokens: o.maxTokens }) }: DraftSkillOptions = {}): Promise<SkillDraft> {
+  const editing = !!current;
+  const library = libraryForPrompt(
+    others.filter((o) => o.name !== current?.name),
+    `${request} ${current?.name || ''} ${current?.description || ''}`,
+  );
+  const system = `You write skills for the user's AI agents. A skill is reusable know-how in Claude Code's SKILL.md format:
+- name: short, plain (2-5 words)
+- description: one or two sentences saying WHEN to use it. Agents decide from this line alone whether the skill fits a task, so name the kinds of work it covers.
+- body: the instructions in markdown: steps, rules, examples, what good output looks like, pitfalls.
+${editing ? 'Change the CURRENT skill the way the user asks. Keep everything they did not ask to change exactly as it is, word for word. Return the whole skill, every field in full, not only the parts that changed.' : "Write a new skill from the user's request."}
+Write the instructions for an AI agent, in the second person, concrete and specific, without filler. Don't invent facts about the user's business, products or numbers: where one is needed and not given, write a placeholder like [your product name].
+Never put secrets (API keys, passwords, tokens) in a skill: if the request includes one, leave it out and say so in "note".
+${library ? `Skills already in the library, the most related first (don't write a copy of one; if the request is the same as one, say so in "note"):\n${library}\n` : ''}Answer with JSON only: {"name":"…","description":"…","body":"the instructions in markdown","note":"one sentence: what you wrote or changed"}`;
+  const cur = current ? `CURRENT skill:\nname: ${current.name}\ndescription: ${current.description}\n${files.length ? `extra files with it: ${files.slice(0, 40).join(', ')}\n` : ''}body:\n${current.body.trim() || '(empty)'}\n\n` : '';
+  const what = request.trim() || (editing ? 'Improve it using the attached files.' : 'Write a skill from the attached files: the way of working they show.');
+  const user = `${cur}${editing ? 'What to change' : 'The skill to write'}:\n${what}${filesFor(attachments)}`;
+  const CUT = "The Brain's answer was cut off before the end (the skill is long). Ask for a smaller change, or edit that part by hand.";
+  let raw: string;
+  try {
+    raw = await ask(system, user, { maxTokens: skillAnswerBudget(current) });
+  } catch (e) {
+    if (/cut off|length limit|max_tokens|maximum.*tokens/i.test((e as Error).message)) throw new Error(CUT);
+    throw e;
+  }
+  let j: SkillAnswer;
+  try {
+    j = parseJSON<SkillAnswer>(raw);
+  } catch {
+    // an object that starts but never ends ran out of room
+    const t = String(raw).trim();
+    if (t.includes('{') && !t.endsWith('}') && !/\}\s*`{3}$/.test(t)) throw new Error(CUT);
+    throw new Error("The Brain's answer wasn't a skill. Try again, or say it differently.");
+  }
+  // a field left out (or emptied) while editing stays as it was
+  const pick = (v: unknown, was: string | undefined, max: number) => (str(v).trim() ? str(v).trim() : (was ?? '').trim()).slice(0, max);
+  const draft: SkillDraft = {
+    name: pick(j.name, current?.name, SKILL_NAME_MAX),
+    description: pick(j.description, current?.description, SKILL_DESC_MAX).replace(/\s+/g, ' '),
+    body: pick(j.body, current?.body, SKILL_TEXT_MAX),
+    note: str(j.note).trim().slice(0, 300),
+  };
+  if (!draft.name || !draft.description || !draft.body) throw new Error("The Brain's answer was missing the skill's name, description or instructions. Try again.");
+  return draft;
 }

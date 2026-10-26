@@ -6,6 +6,7 @@ import { icon, logo } from '../icons.ts';
 import { uiZoom } from '../look.ts';
 import { skillPicker, loadSkills, forgetSkills } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.ts';
+import { attachTray } from '../attach.ts';
 import type { Agent, ClaudeSkill, Project, ServerEvent, Skill, SkillInstallResult, SkillListing, TeamListing } from '../../shared/types.ts';
 import type { Child, ModalHandle } from '../core.ts';
 
@@ -221,7 +222,81 @@ async function openEditor(slug: string | null = null) {
   const name = h('input', { value: s?.name || '', placeholder: 'e.g. Brand voice, Email to clients, YouTube thumbnail checklist' });
   const desc = h('textarea', { rows: 2, value: s?.description || '', placeholder: 'When should an agent use it? e.g. "Use when writing any post, email or reply for the NET brand."' });
   const body = h('textarea.code', { rows: 16, value: s?.body?.trim() || '', placeholder: '# How to do it\n\n1. …\n2. …\n\n## Rules\n- …\n\n## Example\n…' });
+
+  // Plain words: describe a new skill, or say what to change, and the Brain writes it into the fields
+  // below. Nothing is saved until Save (and saving keeps the version from before, in History).
+  const ask = h('textarea.skill-ask-input', {
+    rows: 2,
+    placeholder: slug
+      ? 'What should change? e.g. "Add a section on thumbnails", "Make the rules shorter", "Write it for LinkedIn instead of X"'
+      : 'Describe the skill in your own words. e.g. "How we write release notes: short bullets, user-facing changes first, no jargon, link the PR"',
+  });
+  const tray = attachTray();
+  const askStatus = h('span.hint.grow');
+  let before: { name: string; description: string; body: string } | null = null;
+  const undoBtn = h('button.btn.ghost.small.hidden', {
+    type: 'button',
+    title: 'Put back what the fields said before',
+    onclick: () => {
+      if (!before) return;
+      [name.value, desc.value, body.value] = [before.name, before.description, before.body];
+      before = null;
+      undoBtn.classList.add('hidden');
+      askStatus.textContent = 'Undone.';
+    },
+  }, icon('rotate-ccw', 13), 'Undo');
+  const fields = () => ({ name: name.value, description: desc.value, body: body.value });
+  let asking = false;
+  const runAsk = async () => {
+    if (asking) return;
+    const text = ask.value.trim();
+    if (!text && !tray.count()) return toast(slug ? 'Say what to change first.' : 'Describe the skill first.', 'warn');
+    asking = askBtn.disabled = true;
+    // the Brain answers with all three fields: typing in them meanwhile would be lost, so they wait (and so does Save)
+    const lock = (on: boolean) => {
+      for (const f of [name, desc, body]) f.readOnly = on;
+      saveBtn.disabled = on;
+      askBox.classList.toggle('busy', on);
+    };
+    lock(true);
+    try {
+      askStatus.textContent = tray.busy() ? 'Uploading files…' : '';
+      const attachments = await tray.ready();
+      if (!attachments) return void (askStatus.textContent = '');
+      askStatus.textContent = slug || name.value || body.value ? 'The Brain is changing the skill…' : 'The Brain is writing the skill…';
+      const now = fields();
+      const draft = await attempt(() => POST<{ name: string; description: string; body: string; note: string }>('/assist/skill', { text, slug: slug || undefined, current: now, attachments }));
+      if (!draft) return void (askStatus.textContent = '');
+      // (locked, so they match; if they somehow don't, what you typed wins)
+      const still = fields();
+      if (still.name !== now.name || still.description !== now.description || still.body !== now.body) return void (askStatus.textContent = 'You changed the skill meanwhile, so the answer was not used. Ask again.');
+      before = now;
+      [name.value, desc.value, body.value] = [draft.name, draft.description, draft.body];
+      undoBtn.classList.remove('hidden');
+      askStatus.textContent = `${draft.note || 'Done.'} Look it over, then ${slug ? 'Save' : 'Add skill'}.`;
+      ask.value = '';
+    } finally {
+      lock(false);
+      asking = askBtn.disabled = false;
+    }
+  };
+  const askBtn = h('button.btn.small', { type: 'button', onclick: () => void runAsk() }, icon('sparkles', 13), slug ? 'Change it' : 'Write it');
+  ask.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      void runAsk();
+    }
+  });
+  const askBox = h(
+    'div.skill-ask',
+    h('div.label', icon('sparkles', 13), slug ? ' Change it in plain words' : ' Write it in plain words'),
+    ask,
+    tray.el,
+    h('div.row', { style: { gap: '8px' } }, askBtn, tray.picker, undoBtn, askStatus),
+    h('p.hint', `${slug ? 'The Brain rewrites the fields below as you ask (what you typed there counts too).' : 'The Brain fills in the fields below.'} Drop examples or notes to learn from. Nothing is saved until you press ${slug ? 'Save' : 'Add skill'}. Ctrl+Enter sends.`),
+  );
   let m: ModalHandle;
+  const saveBtn: HTMLButtonElement = h('button.btn', { onclick: (e: MouseEvent) => save(e.currentTarget as HTMLButtonElement) }, slug ? 'Save' : 'Add skill');
   const save = async (btn: HTMLButtonElement) => {
     btn.disabled = true;
     const r = await attempt(() => (slug ? PUT(`/skills/${slug}`, { name: name.value, description: desc.value, body: body.value }) : POST('/skills', { name: name.value, description: desc.value, body: body.value })), slug ? 'Saved' : 'Skill added');
@@ -234,6 +309,7 @@ async function openEditor(slug: string | null = null) {
     title: slug ? `Edit skill · ${s?.name || slug}` : 'New skill',
     body: h(
       'div.col',
+      askBox,
       field('Name', name),
       field('When to use it', desc, 'Agents decide from this line whether the skill fits, so be specific.'),
       field('Instructions', body, 'Markdown. Steps, rules, examples, what good output looks like. The agent reads this when it uses the skill.'),
@@ -244,10 +320,13 @@ async function openEditor(slug: string | null = null) {
       slug ? historyButton('skill', slug, () => (m.close(), void reload(), void openEditor(slug))) : null,
       h('span.grow'),
       h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'),
-      h('button.btn', { onclick: (e) => save(e.currentTarget) }, slug ? 'Save' : 'Add skill'),
+      saveBtn,
     ],
+    // the files were only for the Brain to read: they go with the dialog
+    onClose: () => tray.discard(),
   });
-  setTimeout(() => (slug ? body : name).focus(), 40);
+  tray.dropZone(m.el.querySelector<HTMLElement>('.modal')!, 'Drop examples or notes for the Brain');
+  setTimeout(() => ask.focus(), 40);
 }
 
 // Install skills from a GitHub link: a repo, a folder or a SKILL.md.
