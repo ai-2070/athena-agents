@@ -16,6 +16,7 @@ import { teamMarkUrl, DEFAULT_TEAM_MARK } from '../teammark.ts';
 import { neighbours, stepIndex, floorDirection, shortName } from '../projectnav.ts';
 import { slideIn, slideOut } from '../motion.ts';
 import { icon, logo, brandPath } from '../icons.ts';
+import { appIconImage } from '../appicons.ts';
 import { openProjectMenu } from '../projects.ts';
 import { teamSteps } from '../../shared/teams.ts';
 import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, toolIntegration, stepLinks, connectorLook, setClaudeConnectors } from './stationdata.ts';
@@ -492,7 +493,7 @@ function describeTool(name: unknown, args: ToolArgs = {}): ToolDesc {
   const A = (app: string, action: string, detail: unknown = '', brand: string | null = null, color = '#c4ff3d'): ToolDesc => ({ app, action, detail: String(detail || '').replace(/\s+/g, ' ').slice(0, 60), brand, color });
   if (n === 'blender_run_python') return A('Blender', 'running a script', base(args.blend_file) || (args.code || '').split('\n').find((l) => l.trim() && !l.startsWith('import')) || '', 'blender', '#f5792a');
   if (n === 'blender_open') return A('Blender', 'opening', base(args.file), 'blender', '#f5792a');
-  if (n.startsWith('comfyui_')) return A('ComfyUI', n === 'comfyui_run' ? `rendering ${args.workflow || ''}` : n.replace('comfyui_', '').replace(/_/g, ' '), args.prompt || '', null, '#ffd36e');
+  if (n.startsWith('comfyui_')) return A('ComfyUI', n === 'comfyui_run' ? `rendering ${args.workflow || ''}` : n.replace('comfyui_', '').replace(/_/g, ' '), args.prompt || '', null, '#f2ff59');
   if (n === 'imagemagick') return A('ImageMagick', 'editing images', base((args.args || []).at(-1)), null, '#5fe3a0');
   if (n === 'handbrake_encode') return A('HandBrake', 'encoding', base(args.input), null, '#5fe3a0');
   if (n === 'ffmpeg') return A('FFmpeg', 'processing video', base((args.args || []).at(-1)), 'ffmpeg', '#5fe3a0');
@@ -639,6 +640,8 @@ function drawScreen(desk: Desk, tick = 0): void {
     ctx.arc(cx, cy, 54, -Math.PI / 2 + tick * 3, -Math.PI / 2 + tick * 3 + Math.PI * 1.4);
     ctx.stroke();
     const bp = isTool && act.brand ? brandPath(act.brand) : null;
+    // a program's own icon (ComfyUI); the monitor is drawn again once it has loaded
+    const pic = isTool && !bp ? appIconImage(act.app, () => drawScreen(desk, S?.clock.elapsedTime ?? tick)) : null;
     if (bp) {
       ctx.save();
       ctx.translate(cx - 30, cy - 30);
@@ -646,6 +649,8 @@ function drawScreen(desk: Desk, tick = 0): void {
       ctx.fillStyle = bp.hex;
       ctx.fill(new Path2D(bp.d));
       ctx.restore();
+    } else if (pic) {
+      ctx.drawImage(pic, cx - 30, cy - 30, 60, 60);
     } else {
       ctx.fillStyle = color;
       ctx.textAlign = 'center';

@@ -77,6 +77,14 @@ body.station-mode #nav-links a:hover .ico { color: var(--accent); }
 .st-int.off .craft-icon { filter: grayscale(1); }
 .st-badge .craft-icon { width: 14px; height: 14px; border-radius: 3px; }
 .st-badge.lg .craft-icon { width: 24px; height: 24px; border-radius: 5px; }
+/* Program icons (ComfyUI, public/app-icons) are one-colour marks on a clear background, so they sit like a logo */
+.app-icon { display: block; }
+.st-int .app-icon { width: 14px; height: 14px; }
+.st-int.off .app-icon { filter: grayscale(1) brightness(0.55); }
+.st-badge .app-icon { width: 11px; height: 11px; }
+.st-badge.lg .app-icon { width: 18px; height: 18px; }
+.home-prog-icon .app-icon, .avatar .app-icon { display: inline-block; vertical-align: middle; }
+h2.with-app-icon { display: flex; align-items: center; gap: 8px; }
 .st-menu-item { display: flex; align-items: center; gap: 10px; border-radius: 6px; }
 .st-menu-item .ico-svg { color: var(--dim); }
 .st-menu-item:hover .ico-svg { color: var(--accent); }
