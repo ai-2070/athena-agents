@@ -3,7 +3,7 @@
 // hands real work to the best agent or team.
 import fs from 'node:fs';
 import path from 'node:path';
-import { agents, workflows, activeProject, getSettings, outbox, activity, log, emit } from './store.ts';
+import { agents, workflows, activeProject, listProjects, getSettings, outbox, activity, log, emit } from './store.ts';
 import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from './library.ts';
 import { TOOL_GROUPS } from './tools.ts';
 import { listServers } from './mcp.ts';
@@ -222,8 +222,13 @@ function remember(msgs: BrainChatMessage[], pid?: string) {
   writeJSON(histFile(pid), { messages: msgs.slice(-HISTORY_KEEP) });
   emit('brain-chat');
 }
-export function clearHistory() {
-  remember([]);
+// Bumped each time a project's Brain chat is cleared, so an answer still on its way can tell
+// that its conversation is gone and doesn't write it back.
+const generations = new Map<string, number>();
+const generation = (pid: string) => generations.get(pid) || 0;
+export function clearHistory(pid = activeProject().id) {
+  generations.set(pid, generation(pid) + 1);
+  remember([], pid);
 }
 
 const GROUP_IDS = TOOL_GROUPS.map((g) => g.id);
@@ -449,8 +454,14 @@ export function applyActions(actions: BrainAction[], p: Project = activeProject(
   return { done, delegate };
 }
 
-export async function ask(text: string): Promise<BrainAnswer> {
+/** project: the project the message was typed in. A message that waited while you switched projects is refused. */
+export async function ask(text: string, { project }: { project?: string | null } = {}): Promise<BrainAnswer> {
   const p = activeProject();
+  if (project && project !== p.id) {
+    const was = listProjects().find((x) => x.id === project);
+    throw Object.assign(new Error(`You switched projects before the Brain got to this message, so it wasn't sent. Open "${was?.name || 'that project'}" and ask again.`), { status: 409 });
+  }
+  const gen = generation(p.id);
   const bm = brainModel();
   const canRead = bm.provider === 'claude' || bm.provider === 'codex';
   const snap = await snapshot({ fileBudget: canRead ? 6000 : 12000 });
@@ -463,12 +474,18 @@ export async function ask(text: string): Promise<BrainAnswer> {
     maxTokens: 4000,
   });
   const parsed = parseActions(out);
+  // you started a new conversation while it thought: this answer belongs to the old one, so change nothing and don't bring it back
+  if (generation(p.id) !== gen) {
+    const dropped: BrainDone = { kind: 'error', text: 'You started a new conversation while the Brain was thinking, so nothing was changed.' };
+    return { answer: parsed.answer, done: parsed.actions.length ? [dropped] : [], delegate: null, model: bm, project: p.name };
+  }
   // you switched projects while it thought: its actions were meant for the other project, so skip them
   const skipped: BrainDone = { kind: 'error', text: `You switched projects while the Brain was thinking, so nothing was changed. Open "${p.name}" and ask again.` };
   const { done, delegate } = activeProject().id !== p.id ? { done: parsed.actions.length ? [skipped] : [], delegate: null } : applyActions(parsed.actions, p);
   const r = { answer: parsed.answer, done, delegate };
   const now = Date.now();
-  remember([...past, { role: 'user', text, ts: now }, { role: 'brain', text: [r.answer, ...done.map((d) => `(${d.text})`), delegate ? `(handed to ${delegate.name}: ${delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n'), ts: Date.now() }], p.id);
+  // on top of the history as it is now (not as it was before thinking), so nothing saved meanwhile is lost
+  remember([...history(p.id), { role: 'user', text, ts: now }, { role: 'brain', text: [r.answer, ...done.map((d) => `(${d.text})`), delegate ? `(handed to ${delegate.name}: ${delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n'), ts: Date.now() }], p.id);
   return { ...r, model: bm, project: p.name };
 }
 

@@ -173,7 +173,7 @@ post<{ app?: string }>('/api/brain/open', async (_p, body) => {
 post<{ text?: unknown }>('/api/assist/route', async (_p, body) => brain.route(String(body.text || '')));
 get('/api/assist/model', async () => brain.brainModel());
 // The Brain as overseer: ask it anything about the project; it answers or hands the work on.
-post<{ text?: unknown }>('/api/brain/ask', async (_p, body) => overseer.ask(String(body.text || '').slice(0, 20000)));
+post<{ text?: unknown; project?: unknown }>('/api/brain/ask', async (_p, body) => overseer.ask(String(body.text || '').slice(0, 20000), { project: typeof body.project === 'string' ? body.project : null }));
 get('/api/brain/history', async () => overseer.history());
 post('/api/brain/clear', async () => (overseer.clearHistory(), { ok: true }));
 get('/api/brain/snapshot', async () => ({ text: await overseer.snapshot() }));

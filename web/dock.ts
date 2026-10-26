@@ -4,6 +4,7 @@ import { h, mount, clear, state, GET, POST, PUT, attempt, md, onEvent, onState, 
 import { openBranchBuilder } from './builder.ts';
 import { icon, logo } from './icons.ts';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.ts';
+import { brainQueue } from './brainqueue.ts';
 import type { Child } from './core.ts';
 import type { AgentDraft, BranchDesign } from './builder.ts';
 import type { TeamEvent } from './teamchat.ts';
@@ -52,11 +53,13 @@ interface Dock {
   input: HTMLTextAreaElement | null;
   sel: HTMLSelectElement | null;
   workflows: TeamListing[];
+  /** the project this chat shows */
+  project: string | null;
   panel?: HTMLDivElement;
   launcher?: HTMLButtonElement;
 }
 
-const D: Dock = { modelEl: null, open: false, target: 'auto', items: [], el: null, list: null, input: null, sel: null, workflows: [] };
+const D: Dock = { modelEl: null, open: false, target: 'auto', items: [], el: null, list: null, input: null, sel: null, workflows: [], project: null };
 
 export function initDock(): void {
   const launcher = h('button.dock-launcher', { onclick: () => toggle(true) }, icon('sparkles', 17), h('span', 'Ask the Brain…'), h('kbd', 'Ctrl K'));
@@ -82,7 +85,9 @@ export function initDock(): void {
   );
   D.launcher = launcher;
   document.body.append(launcher, D.panel);
+  D.project = state.data?.project?.id || null;
   onState(drawTargets);
+  onState(projectChanged);
   // Ctrl+K opens the chat from anywhere
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -119,8 +124,24 @@ async function loadHistory() {
 async function newConversation() {
   // keep the transcript if the Brain still remembers it
   if (!(await attempt(() => POST('/brain/clear')))) return;
+  brainAsks.reset(); // answers still on their way belong to the old conversation
   D.items = [];
   draw();
+}
+
+// Another project was opened: this chat was about the old one. Drop it (and anything still waiting
+// to be sent or answered there) and show the new project's Brain chat.
+function projectChanged(d: { project?: { id: string } | null }) {
+  const id = d.project?.id || null;
+  if (!id || id === D.project) return;
+  const first = D.project === null;
+  D.project = id;
+  if (first) return;
+  brainAsks.reset();
+  D.items = [];
+  draw();
+  loadHistory();
+  loadWorkflows();
 }
 
 export function openDock(target: string | null = null, text = ''): void {
@@ -275,8 +296,9 @@ function draftCard(it: DraftItem) {
 }
 
 // ---------- sending ----------
-// One Brain ask at a time: the server saves each turn on top of the history it read, so overlapping asks would drop one.
-let brainTurn: Promise<unknown> = Promise.resolve();
+// One Brain ask at a time, each tied to the project and conversation it was typed in (see brainqueue.ts).
+const brainAsks = brainQueue((text, project) => POST<BrainAnswer>('/brain/ask', { text, project }));
+const openProject = () => state.data?.project?.id || null;
 
 async function send() {
   const input = D.input!;
@@ -291,11 +313,13 @@ async function send() {
   if (t === 'new-branch') return newBranch(text);
   // The Brain: answers, changes the roster, or hands the work on
   const thinking = add({ kind: 'note', text: 'The Brain is looking at the project…', busy: true });
-  const ask = brainTurn.then(() => POST<BrainAnswer>('/brain/ask', { text }).catch((e: Error): Failed => ({ error: e.message })));
-  brainTurn = ask;
-  const r: Partial<BrainAnswer> & Failed = await ask;
-  D.items.splice(D.items.indexOf(thinking), 1);
-  if (r.error) return add({ kind: 'note', text: `The Brain couldn't answer: ${r.error}`, error: true });
+  const turn = await brainAsks.ask(text, D.project || openProject(), openProject);
+  const at = D.items.indexOf(thinking);
+  if (at !== -1) D.items.splice(at, 1);
+  // a new conversation or another project since: this answer is no longer wanted here
+  if (turn.kind === 'stale') return draw();
+  if (turn.kind === 'error') return add({ kind: 'note', text: `The Brain couldn't answer: ${turn.error}`, error: true });
+  const r = turn.answer;
   add({ kind: 'brain', answer: r.answer, done: r.done || [], delegate: r.delegate });
   if (r.done?.length) {
     refreshSoon(0);
