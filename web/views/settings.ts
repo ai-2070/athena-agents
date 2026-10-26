@@ -146,7 +146,7 @@ async function draw(): Promise<void> {
             h('p.hint', 'Instant keeps the original words, cut to fit: long messages are shortened, tool calls become one line and their results are left out (the agent can read any of them back). No model call, so it takes no time and costs nothing. Off: the Brain’s model writes a summary instead (slower, smaller).'),
             h(
               'div.grid-2.mt',
-              field('Messages kept in full', h('input', { type: 'number', min: 0, max: 1000, value: c.keepMessages, oninput: (e) => setP('compaction.keepMessages', Number(e.target.value)) }), 'The latest messages (yours and the agent’s, with their tool calls) that stay word for word. The rest is compacted.'),
+              field('Messages kept in full', h('input', { type: 'number', min: 0, max: 1000, value: c.keepMessages, oninput: (e) => setP('compaction.keepMessages', Number(e.target.value)) }), 'Up to this many of the latest messages (yours and the agent’s, with their tool calls) stay word for word, as far as the size budget allows. The rest is compacted.'),
               field('Compact at (% of the context window)', h('input', { type: 'number', min: 10, max: 95, value: c.thresholdPercent, oninput: (e) => setP('compaction.thresholdPercent', Number(e.target.value)) }), 'Compacts when the agent’s memory of a chat reaches this share of the model’s context window.'),
             ),
             h(

@@ -79,8 +79,9 @@ always wait for you.
 
 Long chats fill up the model's memory, so the dashboard compacts them (Settings > General > Chat
 memory). When an agent's memory of a chat reaches **50%** of the model's context window, the older
-messages become a short history the agent keeps reading, and the **latest 10 messages** (with their
-tool calls) stay in full. Both numbers are settings.
+messages become a short history the agent keeps reading, and up to the **latest 10 messages**
+(with their tool calls) stay in full, as far as the size budget allows (very long ones are trimmed
+to fit). Both numbers are settings.
 
 - **Instant compaction** (on by default, after
   [dsh-compaction-instant](https://github.com/TsFreddie/dsh-compaction-instant)): no model call. It
