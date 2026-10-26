@@ -27,7 +27,7 @@ jobs:
           bun-version: 1.4.4
 
       # Vitest runs on Node, even when started through `bun run`.
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
