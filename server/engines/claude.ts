@@ -12,6 +12,7 @@ import { effortFor } from '../../shared/effort.ts';
 import type { Agent, Chat, EngineStatus } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 import { SessionGone } from './cli.ts';
+import { splitContent } from '../toolimages.ts';
 
 /** The per-run files Claude Code reads (prepareFiles). */
 export interface ClaudeFiles {
@@ -193,8 +194,9 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
     } else if (msg.type === 'user') {
       for (const block of msg.message?.content || []) {
         if (block.type !== 'tool_result') continue;
-        const content = Array.isArray(block.content) ? (block.content as { type: string; text?: string }[]).map((c) => (c.type === 'text' ? c.text : `[${c.type}]`)).join('\n') : String(block.content ?? '');
-        onEvent({ kind: 'tool_result', id: block.tool_use_id, text: content, isError: !!block.is_error });
+        // (a picture it read, a screenshot: shown under the tool call)
+        const { text: content, images } = Array.isArray(block.content) ? splitContent(block.content) : { text: String(block.content ?? ''), images: [] };
+        onEvent({ kind: 'tool_result', id: block.tool_use_id, text: content, isError: !!block.is_error, ...(images.length ? { images } : {}) });
       }
     } else if (msg.type === 'result') {
       result = msg;

@@ -15,6 +15,7 @@ import * as codex from './codex.ts';
 import * as openclaw from './openclaw.ts';
 import { pi, omp } from './pi.ts';
 import * as compaction from '../compaction.ts';
+import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent } from '../../shared/types.ts';
@@ -267,6 +268,8 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       pushItem(chat, { type: 'tool', id: ev.id, name: ev.name, args: ev.args, result: null, status: 'running' });
       persist();
     } else if (ev.kind === 'tool_result') {
+      // its images as files next to the chat: the chat (and what's streamed) keeps only their links
+      if (ev.images?.length) ev.images = keepToolImages(agent.id, chat.id, ev.images);
       const it = [...chat.items].reverse().find((i): i is ChatItemOf<'tool'> => i.type === 'tool' && i.id === ev.id);
       if (it) Object.assign(it, { result: String(ev.text ?? '').slice(0, 30000), images: ev.images || [], isError: !!ev.isError, status: ev.isError ? 'error' : 'done' });
       persist();

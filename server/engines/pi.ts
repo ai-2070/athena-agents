@@ -10,6 +10,7 @@ import { internalToken } from '../store.ts';
 import { workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
 import { cliStatus, pipeLines, tail, SessionGone } from './cli.ts';
+import { splitContent } from '../toolimages.ts';
 import type { CliStatus } from './cli.ts';
 import type { Agent, RunEvent } from '../../shared/types.ts';
 import type { Engine, EngineRunArgs, EngineResult } from './index.ts';
@@ -59,6 +60,12 @@ export interface PiEvent {
   level?: string;
   aborted?: boolean;
   compactionResult?: unknown;
+}
+
+/** The images in a tool result ({ content: [{ type: 'image', data, mimeType }] }), as data: URIs. */
+export function toolImages(result: unknown): string[] {
+  const content = (result as { content?: unknown } | null)?.content;
+  return Array.isArray(content) ? splitContent(content).images : [];
 }
 
 /** The text in a tool result ({ content: [{ type: 'text', text }] }, or anything else). */
@@ -125,8 +132,11 @@ export function piReader(onEvent: (ev: RunEvent) => void, onSession: (id: string
     } else if (t === 'tool_execution_start' && ev.toolCallId) {
       streamed = '';
       onEvent({ kind: 'tool', id: ev.toolCallId, name: ev.toolName || 'tool', args: ev.args && typeof ev.args === 'object' ? ev.args : {} });
-    } else if (t === 'tool_execution_end' && ev.toolCallId) onEvent({ kind: 'tool_result', id: ev.toolCallId, text: toolText(ev.result).slice(0, 20000), isError: !!ev.isError });
-    else if (t === 'auto_retry_start') onEvent({ kind: 'status', text: `Trying again (${ev.attempt || 1}/${ev.maxAttempts || '?'})${ev.errorMessage ? `: ${ev.errorMessage.slice(0, 100)}` : ''}` });
+    } else if (t === 'tool_execution_end' && ev.toolCallId) {
+      // (a picture it read, a screenshot: shown under the tool call)
+      const images = toolImages(ev.result);
+      onEvent({ kind: 'tool_result', id: ev.toolCallId, text: toolText(ev.result).slice(0, 20000), isError: !!ev.isError, ...(images.length ? { images } : {}) });
+    } else if (t === 'auto_retry_start') onEvent({ kind: 'status', text: `Trying again (${ev.attempt || 1}/${ev.maxAttempts || '?'})${ev.errorMessage ? `: ${ev.errorMessage.slice(0, 100)}` : ''}` });
     else if (t === 'compaction_start' || t === 'auto_compaction_start') onEvent({ kind: 'status', text: 'Compacting its memory…' });
     else if ((t === 'compaction_end' || t === 'auto_compaction_end') && !ev.aborted) {
       const r = (ev as { result?: { tokensBefore?: number } }).result;

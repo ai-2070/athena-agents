@@ -364,6 +364,8 @@ export const chats = {
     } catch {
       /* gone */
     }
+    // the images its tool calls returned (see toolimages.ts)
+    fs.rmSync(projectData('tool-images', agentId, chatId), { recursive: true, force: true });
     emit('chats', { agentId, chatId, removed: true, project: activeProject().id });
   },
 };

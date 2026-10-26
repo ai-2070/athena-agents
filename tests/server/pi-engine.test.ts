@@ -124,6 +124,12 @@ describe('piReader', () => {
     r.line(ev({ type: 'compaction_end', reason: 'threshold', result: { summary: '…', tokensBefore: 150000 }, aborted: false, willRetry: false }));
     expect(events).toEqual([{ kind: 'compacted', trigger: 'auto', tokensBefore: 150000 }]);
   });
+  it('a tool that returns a picture (read on a PNG): the images go with its result', () => {
+    const events: RunEvent[] = [];
+    const r = piReader((e) => events.push(e), () => {});
+    r.line(ev({ type: 'tool_execution_end', toolCallId: 't1', toolName: 'read', result: { content: [{ type: 'text', text: 'Read image file [image/png]' }, { type: 'image', data: 'iVBORw0K', mimeType: 'image/png' }] }, isError: false }));
+    expect(events).toEqual([{ kind: 'tool_result', id: 't1', text: 'Read image file [image/png]\n[image]', isError: false, images: ['data:image/png;base64,iVBORw0K'] }]);
+  });
   it('tool results: text parts, images as a marker, anything else as JSON', () => {
     expect(toolText({ content: [{ type: 'text', text: 'a' }, { type: 'image', data: 'x' }] })).toBe('a\n[image]');
     expect(toolText('plain')).toBe('plain');
