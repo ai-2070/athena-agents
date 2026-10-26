@@ -1,0 +1,30 @@
+web/views/routines.tsx
+  s_3ee9638266ae65::t_4441a11d6b2f47 1-411
+tests/web/routines-view.test.ts
+  s_3ee9638266ae65::t_00580152e67e0a 24,37
+web/routinemention.ts
+  s_3ee9638266ae65::t_13575a85423ce0 1-72,82-86,88-134,136-164
+  s_3ee9638266ae65::t_abec324d5138bd 73-81,87,135
+public/app.css
+  s_3ee9638266ae65::t_00580152e67e0a 467-476
+web/app.ts
+  s_3ee9638266ae65::t_00580152e67e0a 17
+tests/web/routines-page.test.tsx
+  s_3ee9638266ae65::t_782dad9792db69 1-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3ae85138cb9ce09e86b9436f006493874e6785b0",
+  "prompts": {},
+  "sessions": {
+    "s_3ee9638266ae65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "541a5902-77ed-4017-8f45-3e7605579b0f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
