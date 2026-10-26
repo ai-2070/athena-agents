@@ -13,14 +13,19 @@ export function mountReact(el: HTMLElement, node: ReactNode): { unmount: () => v
   return { unmount: () => root.unmount() };
 }
 
+/** What the router hands a page: setTitle() changes the title at the top. */
+export interface PageContext {
+  setTitle: (title: string) => void;
+}
+
 /** A page module's render() and unmount() for a page drawn by React:
  *  export const { render, unmount } = reactPage((params) => <MyPage params={params} />); */
-export function reactPage(page: (params: string[]) => ReactNode): { render: (el: HTMLElement, params?: string[]) => void; unmount: () => void } {
+export function reactPage(page: (params: string[], view: PageContext) => ReactNode): { render: (el: HTMLElement, params?: string[], view?: PageContext) => void; unmount: () => void } {
   let mounted: { unmount: () => void } | null = null;
   return {
-    render(el, params = []) {
+    render(el, params = [], view = { setTitle: () => {} }) {
       mounted?.unmount();
-      mounted = mountReact(el, page(params));
+      mounted = mountReact(el, page(params, view));
     },
     unmount() {
       mounted?.unmount();
