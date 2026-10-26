@@ -220,6 +220,7 @@ async function streamCompletion({ provider, body, signal, onEvent }: { provider:
 
 const FILE_URL = 'dash-file:';
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGES = 6;
 const MIME: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
 
 // The attached images a vision model gets to see (a few, not too big).
@@ -232,18 +233,30 @@ function imageParts(attachments: string[]): UserPart[] {
         return false;
       }
     })
-    .slice(0, 6)
+    .slice(0, MAX_IMAGES)
     .map((p) => ({ type: 'image_url', image_url: { url: FILE_URL + p } }));
 }
 
 // What is sent: image files read as data URLs, or (vision off) a note in their place.
-export function expandImages(msgs: LlmMessage[], vision: boolean): LlmMessage[] {
+// Only the newest few images across the whole history go along, so image turns don't pile up in every request.
+export function expandImages(msgs: LlmMessage[], vision: boolean, maxImages = MAX_IMAGES): LlmMessage[] {
+  let left = maxImages;
+  const keep = new Set<UserPart>();
+  for (const m of [...msgs].reverse()) {
+    if (m.role !== 'user' || typeof m.content === 'string') continue;
+    for (const part of [...m.content].reverse()) {
+      if (part.type !== 'image_url' || left <= 0) continue;
+      keep.add(part);
+      left--;
+    }
+  }
   return msgs.map((m) => {
     if (m.role !== 'user' || typeof m.content === 'string') return m;
     const parts = m.content.map((part): UserPart => {
       if (part.type !== 'image_url' || !part.image_url.url.startsWith(FILE_URL)) return part;
       const file = part.image_url.url.slice(FILE_URL.length);
       if (!vision) return { type: 'text', text: `(image ${path.basename(file)} attached; this model can't see images)` };
+      if (!keep.has(part)) return { type: 'text', text: `(earlier image ${path.basename(file)}, not sent again: ${file})` };
       try {
         return { type: 'image_url', image_url: { url: `data:${MIME[path.extname(file).toLowerCase()] || 'image/png'};base64,${fs.readFileSync(file).toString('base64')}` } };
       } catch {

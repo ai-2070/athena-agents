@@ -461,7 +461,10 @@ export async function ask(text: string, attachments: string[] = []): Promise<Bra
   const convo = past.length ? `\n\nEARLIER IN THIS CHAT:\n${past.slice(-12).map((m) => `${m.role === 'user' ? 'User' : 'Brain'}: ${cut(m.text, 600)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`).join('\n')}` : '';
   // files the user attached: where they are (it can open them when it reads files), and the text of small ones
   const files = attachments.length ? `\n\n${describeAttachments(attachments, { inline: canRead ? 8000 : 24000 })}\n(When you delegate, the attached files go along with your brief: mention them in it.)` : '';
-  const out = await think(SYSTEM(p.name, canRead), `SNAPSHOT\n${snap}\n\n${catalog()}${convo}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}`, {
+  // files from earlier turns (the last few): where they are, and for a Brain that can't open files, their text
+  const earlier = [...new Set(past.slice(-12).filter((m) => m.role === 'user' && m.attachments?.length).slice(-3).flatMap((m) => m.attachments || []))];
+  const earlierFiles = earlier.length ? `\n\n${describeAttachments(earlier, { inline: canRead ? 0 : 8000, heading: 'Files the user attached earlier in this chat' })}` : '';
+  const out = await think(SYSTEM(p.name, canRead), `SNAPSHOT\n${snap}\n\n${catalog()}${convo}${earlierFiles}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}`, {
     tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '',
     cwd: ensureBrain(p),
     timeout: 180000,

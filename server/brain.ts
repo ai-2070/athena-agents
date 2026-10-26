@@ -218,7 +218,7 @@ ${TOOLS_TEXT}
 Available MCP servers: ${Object.keys(listServers()).join(', ') || '(none)'}
 Rules: posts and DMs always wait for the user's approval; never invent facts or numbers.
 Answer with JSON only: ${AGENT_SCHEMA}`;
-  return cleanAgent(parseJSON<AgentAnswer>(await think(system, `${text}${filesFor(attachments)}`)));
+  return cleanAgent(parseJSON<AgentAnswer>(await think(system, `${text || 'Design the agent from the attached files: what they are about is what it should be good at.'}${filesFor(attachments)}`)));
 }
 
 // ---------- New branch ----------

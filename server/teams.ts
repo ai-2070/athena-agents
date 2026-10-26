@@ -5,7 +5,7 @@ import { workflows as teamStore, agents, chats, emit, log, activeProject } from 
 import { readJSON, writeJSON, uid, dataPath } from './util.ts';
 import { askAgent, stopChildren, forgetChat } from './engines/index.ts';
 import { isStepList, teamSteps } from '../shared/teams.ts';
-import { describeAttachments, attachmentNames } from './uploads.ts';
+import { attachmentNames } from './uploads.ts';
 import type { Agent, Team, TeamMessage, TeamState } from '../shared/types.ts';
 
 const MAX_TURNS = 16; // agent turns per message you send
@@ -18,6 +18,7 @@ interface TeamChat {
   messages: TeamMessage[];
   sessions: Record<string, string>; // agentId -> chatId
   seen: Record<string, number>; // agentId -> messages.length when it last read
+  filesSent?: Record<string, string[]>; // agentId -> the team files it has been given
 }
 
 /** A message before post() gives it an id and a time. */
@@ -159,7 +160,8 @@ export async function postUserMessage(teamId: string, text: string | null | unde
     why = 'the lead';
   }
   if (!targets.length) {
-    const pick = route ? await route(text, team.members.map((id) => agents.get(id))).catch(() => null) : null;
+    // files only: route on their names
+    const pick = route ? await route(text || `(attached: ${attachmentNames(attachments)})`, team.members.map((id) => agents.get(id))).catch(() => null) : null;
     targets = [pick && team.members.includes(pick) ? pick : team.members[0]];
     why = pick ? 'best fit' : 'first member';
   }
@@ -226,7 +228,7 @@ How this chat works:
 - To hand work to a teammate, mention them exactly as @Name and say precisely what you need back. Only mention someone who needs to act now; each stage should have one owner.
 - Do your own part fully before handing off. Don't redo work a teammate owns.
 - Anything that needs the user's judgment: ask them in your reply, without mentioning a teammate.
-- Keep replies short: what you did, the result, and who acts next.${team.lead === agent.id ? '\n- You are the lead: break the request down, give each part to one owner, and when everyone is done post the combined result for the user.' : ''}${team.files?.length ? `\n\n${describeAttachments(team.files, { heading: "The team's files (reference material from the user)" })}` : ''}`;
+- Keep replies short: what you did, the result, and who acts next.${team.lead === agent.id ? '\n- You are the lead: break the request down, give each part to one owner, and when everyone is done post the combined result for the user.' : ''}`;
 }
 
 async function runTurn(team: Team, item: QueueItem) {
@@ -253,13 +255,18 @@ async function runTurn(team: Team, item: QueueItem) {
     digest = `${line}\n\n${digest}`;
   }
   const forYou = c.messages.filter((m) => item.msgIds.includes(m.id)).map(said).join('\n\n');
-  // what the user attached since this agent last read (the ones it hasn't seen yet)
-  const attachments = [...new Set([...fresh, ...c.messages.filter((m) => item.msgIds.includes(m.id))].flatMap((m) => m.attachments || []))];
+  // the team's files go to the engine once per agent (so models that can't open files get them too), new ones when added;
+  // plus what the user attached since this agent last read
+  const given = new Set(c.filesSent?.[agent.id] || []);
+  const newTeamFiles = (team.files || []).filter((f) => !given.has(f));
+  const attachments = [...new Set([...newTeamFiles, ...[...fresh, ...c.messages.filter((m) => item.msgIds.includes(m.id))].flatMap((m) => m.attachments || [])])];
   c.seen[agent.id] = c.messages.length;
+  c.filesSent = { ...c.filesSent, [agent.id]: team.files || [] };
   saveChat(team.id, c);
-  // the briefing (with the team's files) comes once; later turns get a short reminder of where they are
-  const filesNote = !first && team.files?.length ? `The team's files: ${team.files.join(', ')}\n\n` : '';
-  const prompt = `${first ? `${briefing(team, agent)}\n\n` : filesNote}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\nDo your part now, then reply to the team.`;
+  const filesNote = newTeamFiles.length
+    ? `The team's reference files from the user (${attachmentNames(newTeamFiles)}) are attached at the end.\n\n`
+    : team.files?.length ? `The team's files: ${team.files.join(', ')}\n\n` : '';
+  const prompt = `${first ? `${briefing(team, agent)}\n\n` : ''}${filesNote}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\nDo your part now, then reply to the team.`;
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'start' } });
   let text = '';
   try {
