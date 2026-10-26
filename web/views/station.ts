@@ -3,84 +3,28 @@
 // agents at desks, tools and checkpoints on pedestals. Beams pulse when work moves; dashed lines show
 // which programs and services each step can reach. Agents not on any branch wait on the Bench.
 import * as THREE from 'three';
-import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, approvalCard, md, ago, toast, avatar, engineBadge, promptBox, confirmBox, refreshSoon, modal, chipSet, select as dropdown } from '../core.ts';
+import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, ago, toast, promptBox, confirmBox, refreshSoon, modal } from '../core.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.ts';
 import { openDock, attachToBrain } from '../dock.tsx';
 import { filesFromDrop, filesFromPaste, hasFiles } from '../attach.ts';
 import { uiZoom } from '../look.ts';
 import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.tsx';
-import { skillPicker } from '../skillpick.ts';
-import { historyButton } from '../history.ts';
-import { logoUrl, modelUrl, projectMark, pickLogo, removeLogo, pickModel, removeModel } from '../projectlogo.ts';
+import { logoUrl, modelUrl, projectMark } from '../projectlogo.ts';
 import { loadModel } from '../modelviewer.ts';
-import { teamMarkUrl, pickTeamMark, EMOJI_CHOICES, DEFAULT_TEAM_MARK } from '../teammark.ts';
+import { teamMarkUrl, DEFAULT_TEAM_MARK } from '../teammark.ts';
 import { neighbours, stepIndex, floorDirection, shortName } from '../projectnav.ts';
 import { slideIn, slideOut } from '../motion.ts';
 import { icon, logo, brandPath } from '../icons.ts';
-import { craftIcon, craftColor } from '../crafticons.ts';
-import { openProjectMenu, openNewProject } from '../projects.ts';
-import { modelChip, modelInfo } from '../models.ts';
-import { renderTeamChat } from '../teamchat.tsx';
-import type { Child } from '../core.ts';
+import { openProjectMenu } from '../projects.ts';
 import { teamSteps } from '../../shared/teams.ts';
-import type { ActivityEntry, Agent, AppState, Chat, ChatItem, ChatSummary, Project, ProviderUsage, RunEvent, Schedule, ServerEvent, Team, TeamAccess, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter } from '../../shared/types.ts';
+import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, toolIntegration, stepLinks, connectorLook, setClaudeConnectors } from './stationdata.ts';
+import type { AvailableIntegration, Headbar, MapPick, Program, TeamView } from './stationdata.ts';
+import { mountStationPanel } from './stationpanel.tsx';
+import type { StationPanelApi } from './stationpanel.tsx';
+import type { ActivityEntry, Agent, AppState, Chat, Project, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter } from '../../shared/types.ts';
 
 // ---------- types ----------
-/** A connection a step can reach: a service, a program, an MCP server ('mcp:x') or a Claude account connector ('cc:x'). */
-interface Integration {
-  id: string;
-  label: string;
-  glyph: string;
-  color: string;
-  mcp?: boolean;
-}
-/** One entry of GET /api/programs. */
-interface Program {
-  id: string;
-  name: string;
-  category?: string;
-  icon?: string;
-  installed: boolean;
-  optional?: boolean;
-  exe: string | null;
-  shortcut: string | null;
-  version: string | null;
-  versions?: string[] | null;
-  cli: boolean;
-  running: boolean;
-  serviceUrl: string | null;
-  actions?: unknown;
-}
-/** An integration this project has: is it up, and the program behind it. */
-interface AvailableIntegration extends Integration {
-  live: boolean;
-  program?: Program;
-  missing?: boolean;
-}
-/** A connector on your Claude account (GET /api/headbar). */
-interface Connector {
-  id: string;
-  name: string;
-  status: 'connected' | 'needs-auth' | 'failed' | 'off';
-  detail: string;
-}
-/** GET /api/headbar: usage meters and Claude account connectors. */
-interface Headbar {
-  usage?: unknown;
-  usages: ProviderUsage[];
-  connectors: Connector[];
-}
-/** GET /api/brain: a look inside the Brain folder. */
-interface BrainInfo {
-  project: Project;
-  entries: { name: string; dir: boolean; path: string }[];
-  files: number;
-  sizeMB: number;
-  git: { branch: string; remote: string; url: string; last: string; changes: number } | null;
-  /** the description, or the first paragraph of PROJECT.md / README.md */
-  summary?: { text: string; from: 'description' | 'PROJECT.md' | 'README.md' | null };
-}
 /** A workflow run (GET /api/workflow-runs, /api/workflow-active and the 'workflow-run' event). */
 interface WorkflowRun {
   id: string;
@@ -94,9 +38,6 @@ interface WorkflowRun {
 interface StationLayout {
   bench?: { x: number; z: number } | null;
 }
-/** A team as the map draws it: members, and one agent step per member. */
-/** A team as the map draws it: steps are one per member; stepList keeps its saved steps. */
-type TeamView = TeamListing & { stepList?: TeamStep[] };
 
 /** What a tool call means, in words, for the monitor. */
 interface ToolDesc {
@@ -270,11 +211,6 @@ interface Label extends LabelSpec {
   world: THREE.Vector3;
 }
 type PickType = 'agent' | 'branch' | 'bench' | 'brain' | 'int';
-/** What a click on the map (or a label) points at. */
-type MapPick =
-  | { type: 'agent'; id: string; wf?: string; step?: number }
-  | { type: 'branch' | 'int'; id: string; wf?: undefined; step?: number }
-  | { type: 'bench' | 'brain'; id?: undefined; wf?: undefined; step?: undefined };
 /** A dashed wire from a header tile to a desk. */
 interface Link2d {
   intId: string;
@@ -427,8 +363,8 @@ interface StationState {
   clockEl?: HTMLSpanElement;
   usageEl?: HTMLDivElement;
   tileEls: Map<string, HTMLButtonElement>;
-  // the side panel
-  teamTab?: string;
+  // the side panel (React)
+  panelView?: { update: () => void; unmount: () => void };
   /** Files dragged over the map: 'map', or 'brain' when they are over the Brain (it glows). */
   fileDrag?: 'map' | 'brain' | null;
   dropHint?: HTMLDivElement | null;
@@ -480,133 +416,6 @@ export const station = true;
 export const title = () => 'Station';
 
 let S: StationState | null = null;
-const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a', '#4f7fa8', '#5a9a3a', '#a84a5a', '#2f8fa0'];
-const wfColor = (wf: Pick<Team, 'color'>, i: number): string => (/^#[0-9a-f]{6}$/i.test(wf.color || '') ? wf.color! : PALETTE[i % PALETTE.length]);
-
-// ---------- connections ----------
-const INTEGRATIONS: Integration[] = [
-  { id: 'claude', label: 'Claude Code', glyph: '✳', color: '#d97757' },
-  { id: 'hermes', label: 'Hermes', glyph: '☤', color: '#d8c25a' },
-  { id: 'codex', label: 'OpenAI Codex', glyph: '◎', color: '#e6e8e0' },
-  { id: 'reddit', label: 'Reddit', glyph: 'r/', color: '#ff4500' },
-  { id: 'openrouter', label: 'OpenRouter', glyph: '⇄', color: '#94a3b8' },
-  { id: 'lmstudio', label: 'LM Studio', glyph: 'LM', color: '#b48cff' },
-  { id: 'ollama', label: 'Ollama', glyph: 'OL', color: '#e6e8e0' },
-  { id: 'x', label: 'X', glyph: '𝕏', color: '#e6e8e0' },
-  { id: 'telegram', label: 'Telegram', glyph: '✈', color: '#4fb3f6' },
-  { id: 'discord', label: 'Discord', glyph: 'D', color: '#7d86ff' },
-  { id: 'comfyui', label: 'ComfyUI', glyph: '🧩', color: '#ffd36e' },
-  { id: 'blender', label: 'Blender', glyph: 'B', color: '#f5792a' },
-  { id: 'premiere', label: 'Premiere Pro', glyph: 'Pr', color: '#9a9aff' },
-  { id: 'photoshop', label: 'Photoshop', glyph: 'Ps', color: '#31a8ff' },
-  { id: 'aftereffects', label: 'After Effects', glyph: 'Ae', color: '#d291ff' },
-  { id: 'ffmpeg', label: 'FFmpeg', glyph: '▶', color: '#5fe3a0' },
-  { id: 'orca', label: 'Orca', glyph: '🐋', color: '#7ab8ff' },
-  { id: 'browser', label: 'Browser', glyph: '🌐', color: '#a9d3e2' },
-];
-const BRAND_OF: Record<string, string> = { codex: 'openai', reddit: 'reddit', claude: 'claude', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
-// A brand logo, or a Craft app's own icon (PhotoCraft…), for a connector or MCP server name.
-const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null => logo(name, size) || craftIcon(name, size);
-// The brand logo for an integration (or connector name), falling back to its glyph.
-function mark(id: string, size = 14): SVGSVGElement | HTMLImageElement | string {
-  const key = id.startsWith('mcp:') ? id.slice(4) : id.startsWith('cc:') ? id.slice(3) : BRAND_OF[id] || id;
-  return appLogo(key, size) || intInfo(id)?.glyph || String(key).slice(0, 2).toUpperCase();
-}
-const intInfo = (id: string): Integration | undefined => id.startsWith('cc:') ? { id, label: id.slice(3), glyph: connectorLook(id.slice(3)).glyph, color: connectorLook(id.slice(3)).color } : (id.startsWith('mcp:') ? { id, label: id.slice(4), glyph: '⌁', color: craftColor(id.slice(4)) || '#a9d3e2', mcp: true } : INTEGRATIONS.find((x) => x.id === id));
-
-function availableIntegrations(d: AppState, progs: Program[]): AvailableIntegration[] {
-  const P = (id: string) => progs.find((p) => p.id === id);
-  const avail: Record<string, boolean> = {
-    claude: d.engines['claude-code'].installed,
-    hermes: d.engines.hermes.installed,
-    codex: !!d.engines.codex?.installed,
-    reddit: (d.accounts.reddit || []).length > 0,
-    openrouter: d.secrets.openrouterKey.set,
-    lmstudio: !!P('lmstudio')?.installed,
-    ollama: !!P('ollama')?.installed,
-    x: d.accounts.x.length > 0,
-    telegram: d.accounts.telegram.configured,
-    discord: d.accounts.discord.configured,
-    browser: true,
-  };
-  for (const id of ['comfyui', 'blender', 'premiere', 'photoshop', 'aftereffects', 'ffmpeg', 'orca']) avail[id] = !!P(id)?.installed;
-  const list = INTEGRATIONS.filter((i) => avail[i.id]).map((i): AvailableIntegration => {
-    const p = P(i.id);
-    const live = p ? (p.cli ? true : !!p.running) : true;
-    return { ...i, live, program: p };
-  });
-  for (const m of d.mcpServers || []) list.push({ ...intInfo(`mcp:${m}`)!, live: true });
-  return list;
-}
-
-/** What agentLinks reads: an agent, or a team's extra access. */
-type LinkSource = Partial<Pick<Agent, 'engine' | 'claudeAuth' | 'provider' | 'toolGroups' | 'mcpServers'>>;
-function agentLinks(a: LinkSource | null | undefined): Set<string> {
-  const s = new Set<string>();
-  if (!a) return s;
-  if (a.engine === 'claude-code') s.add(a.claudeAuth === 'openrouter' ? 'openrouter' : 'claude');
-  if (a.engine === 'hermes') s.add('hermes');
-  if (a.engine === 'codex') s.add('codex');
-  if (a.engine === 'openai') s.add(a.provider === 'custom' ? 'openrouter' : a.provider!);
-  const g = new Set(a.toolGroups || []);
-  if (g.has('social')) ['x', 'reddit', 'telegram', 'discord'].forEach((x) => s.add(x));
-  if (g.has('comfyui')) s.add('comfyui');
-  if (g.has('blender')) s.add('blender');
-  if (g.has('adobe')) ['premiere', 'photoshop', 'aftereffects'].forEach((x) => s.add(x));
-  if (g.has('media')) s.add('ffmpeg');
-  if (g.has('orca')) s.add('orca');
-  if (g.has('browser')) s.add('browser');
-  for (const m of a.mcpServers || []) s.add(`mcp:${m}`);
-  if (a.engine === 'claude-code' && (a.claudeAuth || 'login') === 'login') for (const c of S?.headbar?.connectors || []) if (c.status === 'connected') s.add(`cc:${c.name}`);
-  return s;
-}
-
-function toolIntegration(name: unknown): string | null {
-  const n = String(name || '');
-  const map: [RegExp, string][] = [
-    [/^blender_/, 'blender'],
-    [/^comfyui_/, 'comfyui'],
-    [/^photoshop_/, 'photoshop'],
-    [/^aftereffects_/, 'aftereffects'],
-    [/^premiere_/, 'premiere'],
-    [/^ff(mpeg|probe)$/, 'ffmpeg'],
-    [/^(x_|social_)/, 'x'],
-    [/^telegram_/, 'telegram'],
-    [/^reddit_/, 'reddit'],
-    [/^discord_/, 'discord'],
-    [/^orca$/, 'orca'],
-    [/^hermes_ask$/, 'hermes'],
-    [/^(open_url|fetch_url|WebFetch|WebSearch)$/, 'browser'],
-  ];
-  for (const [re, id] of map) if (re.test(n)) return id;
-  const m = /^mcp__(.+?)__/.exec(n);
-  if (m && /^claude_ai_/.test(m[1])) {
-    const name = m[1].replace(/^claude_ai_/, '').replace(/_/g, ' ').toLowerCase();
-    const c = (S?.headbar?.connectors || []).find((x) => x.name.toLowerCase() === name);
-    if (c) return `cc:${c.name}`;
-  }
-  if (m) return `mcp:${m[1]}`;
-  const srv = (state.data?.mcpServers || []).find((s) => n.startsWith(`${s}__`));
-  if (srv) return `mcp:${srv}`;
-  if (/^(Bash|Read|Write|Edit|Glob|Grep|Task|ToolSearch)$/.test(n)) return 'claude';
-  return null;
-}
-
-// What a workflow step can reach.
-function stepLinks(step: TeamStep, agentsById: Map<string, Agent>, wf: TeamView | null = null): Set<string> {
-  if (step.type === 'agent') {
-    const links = agentLinks(agentsById.get(step.agentId!));
-    if (wf?.access) agentLinks({ toolGroups: wf.access.toolGroups, mcpServers: wf.access.mcpServers }).forEach((l) => links.add(l));
-    return links;
-  }
-  if (step.type === 'tool') {
-    const i = toolIntegration(step.tool);
-    return new Set<string>(i ? [i] : []);
-  }
-  if (step.type === 'x_post') return new Set(['x']);
-  if (step.type === 'notify' && step.telegram) return new Set(['telegram']);
-  return new Set<string>();
-}
 
 const STEP_LOOK: Record<string, { glyph: string; label: string; color: string }> = {
   tool: { glyph: '⚙', label: 'Tool', color: '#a9d3e2' },
@@ -933,6 +742,7 @@ export async function render(el: HTMLElement): Promise<void> {
   S.wireDots = wireDots;
   S.wires = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   wires.append(S.wires);
+  S.panelView = mountStationPanel(panel, panelApi);
   buildBrain();
   setupControls();
   S.ro = new ResizeObserver(resize);
@@ -1033,12 +843,14 @@ export function unmount(): void {
   endFloorOut();
   document.removeEventListener('pointerdown', S.onDocDown, true);
   document.removeEventListener('paste', S.onPaste);
+  S.panelView?.unmount();
   S.renderer.dispose();
   S.scene.traverse((o: Disposable) => {
     o.geometry?.dispose?.();
     if (o.material) ([] as THREE.Material[]).concat(o.material).forEach((m) => m.dispose?.());
   });
   S = null;
+  setClaudeConnectors([]);
 }
 
 function resize(): void {
@@ -3098,30 +2910,6 @@ function buildWires(): void {
   if (S.bench && S.benchNodes?.length) bundle(S.benchNodes, S.bench, 1.4);
 }
 
-// Brand-ish tiles for connectors on your Claude account (no logos bundled: letters in brand colors).
-function connectorLook(name: string): { glyph: string; color: string } {
-  const n = name.toLowerCase();
-  const map: [RegExp, string, string][] = [
-    [/gmail/, 'M', '#ea4335'],
-    [/calendar/, '31', '#4285f4'],
-    [/drive/, '▲', '#34a853'],
-    [/notion/, 'N', '#e6e8e0'],
-    [/higgsfield/, 'H', '#c4ff3d'],
-    [/claude docs|docs/, 'CD', '#d97757'],
-    [/slack/, '#', '#e01e5a'],
-    [/linear/, 'L', '#5e6ad2'],
-    [/atlassian|jira|confluence/, 'A', '#2684ff'],
-    [/intercom/, 'I', '#1f8ded'],
-    [/figma/, 'F', '#f24e1e'],
-    [/github/, 'GH', '#e6e8e0'],
-    [/stripe/, 'S', '#635bff'],
-    [/canva/, 'C', '#00c4cc'],
-  ];
-  for (const [re, glyph, color] of map) if (re.test(n)) return { glyph, color };
-  const craft = craftColor(name);
-  return { color: craft || '#a9d3e2', glyph: name.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '⌁' };
-}
-
 const USAGE_LOOK: Record<string, { brand?: string; glyph: string; color: string }> = { claude: { brand: 'claude', glyph: '✳', color: '#d97757' }, openrouter: { brand: 'openrouter', glyph: '◇', color: '#94a3b8' }, codex: { brand: 'openai', glyph: '◎', color: '#e6e8e0' } };
 function drawUsage(animate: boolean): void {
   const list = S?.headbar?.usages || [];
@@ -3155,6 +2943,7 @@ async function loadHeadbar(): Promise<void> {
   const hb = await GET<Headbar>('/headbar').catch(() => null);
   if (S && hb) {
     S.headbar = hb;
+    setClaudeConnectors(hb.connectors || []);
     drawHud();
     if (S.world) buildWires();
   }
@@ -3219,6 +3008,35 @@ function newBranch(): void {
 }
 
 // ---------- selection & panels ----------
+// The side panel (web/views/stationpanel.tsx) reads the map through this.
+const panelApi: StationPanelApi = {
+  selected: () => S?.selected || null,
+  teams: () => S?.workflows || [],
+  teamState: (id) => S?.teamState?.[id] || { working: [], queued: [] },
+  teamBusy: (id) => !!S?.active.has(id),
+  busyTeams: () => S?.active.size || 0,
+  programs: () => S?.progs || [],
+  teamLinks: (id) => S?.branches.get(id)?.links || new Set(),
+  now: (agentId, wfId) => (S ? nowText(agentId, wfId) : { st: 'idle', text: '' }),
+  connectors: () => S?.headbar?.connectors || [],
+  choose,
+  saveTeam: saveWorkflow,
+  reloadTeams: reloadWorkflows,
+  spinTeam: async (id) => {
+    spinBranch(id, Math.PI / 4);
+    await saveBranchPlace(id);
+  },
+  zoomToTeam: (id) => {
+    const b = S?.branches.get(id);
+    if (b) flyTo(b.group.position.clone(), 1.6);
+  },
+  newTeam: newBranch,
+};
+// what is picked may have changed: the panel draws it again
+function renderPanel(): void {
+  S?.panelView?.update();
+}
+
 function choose(p: MapPick | null): void {
   if (!S) return;
   S.selected = p;
@@ -3253,202 +3071,7 @@ function choose(p: MapPick | null): void {
   renderPanel();
 }
 
-function panelHead(...children: Child[]): HTMLDivElement {
-  return h('div.st-panel-head', ...children, h('button.icon-btn', { onclick: () => choose(null), 'aria-label': 'Close' }, '✕'));
-}
-
-function connectionList(ids: Set<string>): HTMLElement {
-  assertMounted(S);
-  const d = state.data!;
-  const avail = new Map(availableIntegrations(d, S.progs).map((i) => [i.id, i]));
-  if (!ids.size) return h('p.hint', 'No outside connections. It works from its instructions and knowledge.');
-  return h(
-    'div.st-conns',
-    [...ids].map((id) => {
-      const info = intInfo(id);
-      if (!info) return null;
-      const a = avail.get(id);
-      const st = !a ? 'not set up' : a.live ? 'ready' : 'not running';
-      return h('button.st-conn', { class: !a ? 'missing' : a.live ? 'ok' : 'off', onclick: () => choose({ type: 'int', id }) }, h('span.st-badge', { style: { '--c': info.color } }, mark(id, 12)), h('span.grow', info.label), h('span.st-conn-st', st));
-    }),
-  );
-}
-
-async function renderPanel(): Promise<void> {
-  const p = S?.selected;
-  const d = state.data;
-  if (!p || !d) return;
-  assertMounted(S);
-  if (p.type === 'agent') return renderAgentPanel(p.id, p.wf);
-  if (p.type === 'branch') return renderBranchPanel(p.id);
-  if (p.type === 'bench') {
-    const used = new Set(S.workflows.flatMap((w) => w.members || []));
-    const bench = d.agents.filter((a) => !used.has(a.id));
-    mount(
-      S.panel,
-      panelHead(h('div.grow', h('div.label', 'Bench'), h('div.st-panel-title', `${bench.length} agents not on a team`))),
-      h(
-        'div.st-panel-body',
-        h('p.hint', 'Agents not in a team yet. Drag one onto a team on the map, or open it and add it to a team.'),
-        h('div.list', bench.map((a) => h('div.list-item', { style: { cursor: 'pointer' }, onclick: () => choose({ type: 'agent', id: a.id }) }, avatar(a), h('div.grow', h('div.title', a.name), h('div.hint', a.specialty || ''))))),
-        h('div.row.mt', h('a.btn.ghost.small', { href: '#/library' }, 'Hire more'), h('button.btn.ghost.small', { onclick: async () => {
-          const a = await attempt(() => POST<Agent>('/agents', { name: 'New agent' }));
-          if (a) navigate(`#/agents/${a.id}/edit`);
-        } }, '+ New agent')),
-      ),
-    );
-    return;
-  }
-  if (p.type === 'brain') {
-    const proj: Partial<Project> = d.project || {};
-    const info = h('div', h('p.hint', 'Reading the Brain folder…'));
-    // what the project is about, and its logo (shown here, on the start screen, in the project menu and in the globe)
-    const aboutBox = h('div.st-about');
-    const drawAbout = (summary: { text: string; from: string | null } | null, editing = false) => {
-      const logoBox = h(
-        'div.st-about-logo',
-        { title: proj.logoAt ? 'Change the logo' : 'Add a logo', onclick: () => proj.id && pickLogo({ id: proj.id, name: proj.name || '' }).then((ok) => ok && S?.selected?.type === 'brain' && setTimeout(renderPanel, 300)) },
-        proj.logoAt ? projectMark(proj as Project, 64) : h('span.st-about-add', icon('image', 20), 'Logo'),
-      );
-      const text = summary?.text || '';
-      const editor = h('textarea', { rows: 4, value: proj.description || text, placeholder: 'What is this project? Who is it for, what should come out of it?' });
-      const save = async () => {
-        if (!proj.id) return;
-        const r = await attempt(() => PUT<Project>(`/projects/${proj.id}`, { description: editor.value }), 'Saved');
-        if (r) {
-          refreshSoon(0);
-          drawAbout({ text: editor.value.trim(), from: 'description' });
-        }
-      };
-      mount(
-        aboutBox,
-        h(
-          'div.st-about-top',
-          logoBox,
-          h(
-            'div.grow',
-            editing
-              ? h('div.col', editor, h('div.row', { style: { gap: '6px' } }, h('button.btn.small', { onclick: save }, 'Save'), h('button.btn.ghost.small', { onclick: () => drawAbout(summary) }, 'Cancel')))
-              : text
-                ? [h('p.st-about-text', text), summary?.from && summary.from !== 'description' ? h('div.hint', `from ${summary.from}`) : null]
-                : h('p.hint', 'No description yet. Say what the project is about, or ask the Brain to write PROJECT.md.'),
-          ),
-        ),
-        editing
-          ? null
-          : h(
-              'div.row.st-about-actions',
-              h('button.btn.ghost.tiny', { onclick: () => drawAbout(summary, true) }, icon('pencil', 12), text ? 'Edit description' : 'Add a description'),
-              h('button.btn.ghost.tiny', { title: 'Change the name of this project (its folder keeps its name)', onclick: async () => {
-                const name = (await promptBox('Rename project', { value: proj.name || '' }))?.trim();
-                if (!name || name === proj.name || !proj.id) return;
-                if (await attempt(() => PUT(`/projects/${encodeURIComponent(proj.id!)}`, { name }), `Renamed to ${name}`)) refreshSoon(0);
-              } }, icon('pencil', 12), 'Rename'),
-              h('button.btn.ghost.tiny', { onclick: () => proj.id && pickLogo({ id: proj.id, name: proj.name || '' }).then((ok) => ok && S?.selected?.type === 'brain' && setTimeout(renderPanel, 300)) }, icon('image', 12), proj.logoAt ? 'Change logo' : 'Add logo'),
-              proj.logoAt ? h('button.btn.ghost.tiny', { onclick: () => proj.id && removeLogo({ id: proj.id, name: proj.name || '' }).then(() => S?.selected?.type === 'brain' && setTimeout(renderPanel, 300)) }, 'Remove logo') : null,
-              h('button.btn.ghost.tiny', { title: 'A 3D model (.glb, .obj, .stl, .ply, .fbx) that replaces the logo inside the Brain', onclick: () => proj.id && pickModel({ id: proj.id, name: proj.name || '' }).then((ok) => ok && S?.selected?.type === 'brain' && setTimeout(renderPanel, 300)) }, icon('box', 12), proj.modelAt ? 'Change 3D model' : 'Add 3D model'),
-              proj.modelAt ? h('button.btn.ghost.tiny', { onclick: () => proj.id && removeModel({ id: proj.id, name: proj.name || '' }).then(() => S?.selected?.type === 'brain' && setTimeout(renderPanel, 300)) }, 'Remove 3D model') : null,
-            ),
-      );
-      if (editing) setTimeout(() => editor.focus(), 30);
-    };
-    drawAbout(proj.description ? { text: proj.description, from: 'description' } : null);
-    mount(
-      S.panel,
-      panelHead(
-        proj.logoAt ? h('span.st-proj-logo', projectMark(proj as Project, 34)) : h('span.st-badge.lg', { style: { '--c': '#c4ff3d' } }, icon('brain', 18)),
-        h('div.grow', h('div.label', 'Project Brain'), h('div.st-panel-title', proj.name || 'Project')),
-      ),
-      h(
-        'div.st-panel-body',
-        aboutBox,
-        h('div.st-mini-stats', h('div', h('b', String(d.agents.length)), 'agents'), h('div', h('b', String(S.workflows.length)), 'teams'), h('div', h('b', String(d.runs.length + S.active.size)), 'working')),
-        h('button.btn.small.st-ask-brain', { onclick: () => openDock() }, icon('sparkles', 14), 'Ask the Brain'),
-        h('div.label.mt-lg', 'Brain folder'),
-        h('div.hint.mono', { style: { overflowWrap: 'anywhere', marginTop: '6px' } }, proj.brainPath || ''),
-        h(
-          'div.row.mt',
-          { style: { gap: '6px' } },
-          h('button.btn.ghost.small', { onclick: () => attempt(() => POST('/brain/open', {})) }, icon('folder', 14), 'Open folder'),
-          h('button.btn.ghost.small', { onclick: () => attempt(() => POST('/brain/open', { app: 'vscode' })) }, icon('external-link', 14), 'VS Code'),
-          h('button.btn.ghost.small', {
-            onclick: async () => {
-              const name = await promptBox('New note in the Brain', { value: 'note.md' });
-              if (!name) return;
-              const content = await promptBox(name, { multiline: true, placeholder: 'Anything the agents should know about this project.' });
-              if (content == null) return;
-              await attempt(() => POST('/brain/note', { name, content }), 'Saved to notes/');
-              if (S?.selected?.type === 'brain') renderPanel();
-            },
-          }, icon('pen-line', 14), 'Add note'),
-        ),
-        info,
-        h('div.label.mt-lg', 'Teams'),
-        h(
-          'div.list',
-          S.workflows.map((wf, i) => h('div.list-item', { style: { cursor: 'pointer' }, onclick: () => choose({ type: 'branch', id: wf.id }) }, h('span.st-dot', { style: { '--c': wfColor(wf, i) } }), h('div.grow', h('div.title', wf.name), h('div.hint', wf.description || `${(wf.members || []).length} members`)), S!.active.has(wf.id) ? h('span.dot.busy') : null)),
-          !S.workflows.length ? h('p.empty', 'No teams yet.') : null,
-        ),
-        d.approvals.length ? [h('div.label.mt-lg', 'Needs you'), h('div.col', d.approvals.map(approvalCard))] : null,
-        h('div.row.mt-lg', h('button.btn.ghost.small', { onclick: newBranch }, icon('git-branch', 14), 'New team')),
-      ),
-    );
-    GET<BrainInfo>('/brain')
-      .then((bi) => {
-        if (S?.selected?.type !== 'brain') return;
-        if (!proj.description && bi.summary?.text) drawAbout(bi.summary);
-        mount(
-          info,
-          bi.git
-            ? h(
-                'div.st-conn.ok.mt',
-                logo('github', 16) || icon('git-branch', 16),
-                h('div.grow', h('div', bi.git.url ? h('a', { href: bi.git.url, target: '_blank' }, bi.git.url.replace('https://github.com/', '')) : 'Local git repo'), h('div.hint', `${bi.git.branch} · ${bi.git.last}${bi.git.changes ? ` · ${bi.git.changes} changed` : ''}`)),
-                h('button.btn.tiny.ghost', { onclick: () => attempt(() => POST<{ message: string }>('/brain/pull'), (r) => r.message) }, 'Pull'),
-              )
-            : null,
-          h('div.hint.mt', `${bi.files} files · ${bi.sizeMB} MB`),
-          h(
-            'div.st-files',
-            bi.entries.map((e) => h('div.st-file', icon(e.dir ? 'folder' : 'pen-line', 13), e.name)),
-          ),
-        );
-      })
-      .catch((e: Error) => mount(info, h('p.red.hint', e.message)));
-    return;
-  }
-  if (p.type === 'int') {
-    const it = availableIntegrations(d, S.progs).find((x) => x.id === p.id) || ({ ...intInfo(p.id), live: false, missing: true } as AvailableIntegration);
-    if (!it?.label) return choose(null);
-    // A team's own access reaches every member, so count those agents too (same rule as stepLinks).
-    const viaTeam = new Set(S.workflows.filter((w) => w.access && agentLinks({ toolGroups: w.access.toolGroups, mcpServers: w.access.mcpServers }).has(it.id)).flatMap((w) => w.members));
-    const agentsUsing = d.agents.filter((a) => agentLinks(a).has(it.id) || viaTeam.has(a.id));
-    const branchesUsing = S.workflows.filter((w) => S!.branches.get(w.id)?.links.has(it.id));
-    const prog = it.program;
-    mount(
-      S.panel,
-      panelHead(h('span.st-badge.lg', { style: { '--c': it.color } }, mark(it.id, 18)), h('div.grow', h('div.label', it.mcp ? 'MCP server' : prog ? 'Program' : 'Service'), h('div.st-panel-title', it.label))),
-      h(
-        'div.st-panel-body',
-        h('p', h('span', { class: `pill ${it.live ? 'ok' : it.missing ? 'bad' : ''}` }, it.missing ? 'not set up' : it.live ? (prog?.serviceUrl ? `running · ${prog.serviceUrl}` : prog && !prog.cli ? 'running' : 'ready') : 'installed, not running'), prog?.version ? h('span.hint', ` v${prog.version}`) : null),
-        h('div.label.mt', `Teams using it (${branchesUsing.length})`),
-        h('div.list', branchesUsing.map((w) => h('div.list-item', { style: { cursor: 'pointer' }, onclick: () => choose({ type: 'branch', id: w.id }) }, h('div.grow', w.name)))),
-        h('div.label.mt', `Agents with access (${agentsUsing.length})`),
-        h('div.list', agentsUsing.map((a) => h('div.list-item', { style: { cursor: 'pointer' }, onclick: () => choose({ type: 'agent', id: a.id }) }, avatar(a), h('div.grow', a.name)))),
-        h(
-          'div.row.mt',
-          prog && !prog.cli && (prog.exe || prog.shortcut) ? h('button.btn.small', { onclick: () => attempt(() => POST<{ message: string }>('/programs/launch', { program: prog.id }), (r) => r.message) }, 'Start') : null,
-          prog?.serviceUrl ? h('a.btn.ghost.small', { href: prog.serviceUrl, target: '_blank' }, 'Open') : null,
-          ['x', 'telegram', 'discord'].includes(it.id) ? h('a.btn.ghost.small', { href: '#/settings?tab=connections' }, 'Connections') : null,
-          it.mcp ? h('a.btn.ghost.small', { href: '#/settings?tab=mcp' }, 'Tools & MCP') : null,
-          ['openrouter', 'lmstudio', 'ollama'].includes(it.id) ? h('a.btn.ghost.small', { href: '#/settings' }, 'Settings') : null,
-        ),
-      ),
-    );
-  }
-}
-
-// Team panel: the goal, members and lead, what it can reach, its routine, and the team chat.
+// A team with these members (the lead goes if it left).
 function setMembers(wf: TeamView, members: string[]): void {
   wf.members = members;
   wf.steps = members.map((id) => ({ type: 'agent', agentId: id }));
@@ -3481,360 +3104,6 @@ function nowText(agentId: string, wfId?: string): { st: 'needs' | 'idle' | 'work
   if (!d.runs.some((r) => r.agentId === agentId)) return { st: 'idle', text: '' };
   if (act?.kind === 'tool') return { st: 'working', text: [act.app, act.action].filter(Boolean).join(' · ') + (act.detail ? `: ${act.detail}` : '') };
   return { st: 'working', text: 'Thinking…' };
-}
-
-function renderBranchPanel(id: string): void {
-  assertMounted(S);
-  const d = state.data!;
-  const wf0 = S.workflows.find((w) => w.id === id);
-  if (!wf0) return choose(null);
-  const wf = structuredClone(wf0);
-  const i = S.workflows.indexOf(wf0);
-  const c = wfColor(wf, i);
-  const byId = new Map(d.agents.map((a) => [a.id, a]));
-  if (!['members', 'setup'].includes(S.teamTab!)) S.teamTab = 'members';
-  const ts = S.teamState?.[id] || { working: [], queued: [] };
-  const members = wf.members.map((mid) => byId.get(mid)).filter(Boolean) as Agent[];
-  const nameOf = (mid: string) => (mid === 'brain' ? 'Brain' : byId.get(mid)?.name || 'Agent');
-  const statusLine = ts.working.length
-    ? h('span.st-team-live', h('span.dot.busy'), `${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} waiting` : ''}`)
-    : h('span.hint', members.length ? 'Quiet · waiting for a message' : 'No members yet');
-  const mention = (a: Agent) => openChat('team', id).mention?.(a.name);
-
-  // ---- Members tab ----
-  const membersTab = () => {
-    const others = d.agents.filter((a) => !wf.members.includes(a.id));
-    let addId = others[0]?.id || '';
-    return [
-      h('p.hint', 'Everyone sees the whole chat. Your messages go to the lead (★) first, or to whoever you @mention. Members hand work to each other with @Name.'),
-      h(
-        'div.st-members',
-        members.map((a) => {
-          const isLead = wf.lead === a.id;
-          const now = nowText(a.id, id);
-          const st = ts.working.includes(a.id) ? 'working' : ts.queued.includes(a.id) ? 'queued' : now.st;
-          return h(
-            `div.st-member.${st}`,
-            h('div.st-member-av', avatar(a), isLead ? h('span.st-member-star', { title: 'Team lead' }, '★') : null),
-            h(
-              'div.grow',
-              h('div.st-member-name', { onclick: () => choose({ type: 'agent', id: a.id, wf: id }) }, a.name, isLead ? h('span.tc-lead', 'lead') : null),
-              h('div.st-member-now', st === 'working' ? [h('span.dot.busy'), ' ', now.text || 'Working…'] : st === 'queued' ? 'Up next' : st === 'needs' ? [h('span.dot.warn'), ' Waiting for your OK'] : a.specialty || 'Ready'),
-              h('div.st-member-model', modelChip(a, { compact: true, onChange: () => renderBranchPanel(id) })),
-            ),
-            h(
-              'div.st-member-actions',
-              h('button', { title: `Write to ${a.name} in the team chat`, onclick: () => mention(a) }, '@'),
-              h('button', { title: isLead ? 'Remove as lead' : 'Make lead: your messages go to them first', class: isLead ? 'on' : '', onclick: () => saveWorkflow({ ...wf, lead: isLead ? null : a.id }) }, '★'),
-              h('button', { title: 'Take off this team (stays in the project)', onclick: () => (setMembers(wf, wf.members.filter((x) => x !== a.id)), saveWorkflow(wf)) }, '✕'),
-            ),
-          );
-        }),
-        !members.length ? h('p.empty', 'No agents yet. Add one below, hire from the Library, or ask the Brain.') : null,
-      ),
-      h('div.label.mt-lg', 'Add someone'),
-      others.length
-        ? h(
-            'div.row.nowrap.mt',
-            h('div.grow', dropdown(others.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` })), addId, (v) => (addId = v))),
-            h('button.btn.small', { onclick: () => addId && (setMembers(wf, [...wf.members, addId]), saveWorkflow(wf)) }, icon('user-plus', 14), 'Add'),
-          )
-        : h('p.hint', 'Every agent in this project is already on it.'),
-      h(
-        'div.row.mt',
-        { style: { gap: '6px', flexWrap: 'wrap' } },
-        h('button.btn.ghost.small', { onclick: () => navigate(`#/library?branch=${encodeURIComponent(id)}`) }, icon('store', 14), 'Hire from the Library'),
-        h('button.btn.ghost.small', { onclick: () => openDock('auto', `For the team "${wf.name}": add `) }, icon('brain', 14), 'Ask the Brain'),
-      ),
-      h('p.hint.mt', 'Tip: drag an agent onto this team on the map to add it (hold Ctrl to also keep it on its other team).'),
-    ];
-  };
-
-  // ---- Setup tab ----
-  const setupTab = () => {
-    const name = h('input', { value: wf.name });
-    const desc = h('textarea', { rows: 3, value: wf.description || '', placeholder: "The team's goal, e.g. grow our X account with daily posts" });
-    const color = h('input', { type: 'color', value: c, style: { width: '40px', height: '34px', padding: '2px', background: 'var(--panel)', border: '1px solid var(--line-2)' } });
-    const saveMeta = () => saveWorkflow({ ...wf, name: name.value.trim() || wf.name, description: desc.value.trim(), color: color.value });
-    name.addEventListener('change', saveMeta);
-    desc.addEventListener('change', saveMeta);
-    color.addEventListener('change', saveMeta);
-    let accessTimer: ReturnType<typeof setTimeout> | null = null;
-    const saveAccess = (patch: Partial<TeamAccess>) => {
-      wf.access = { toolGroups: wf.access?.toolGroups || [], mcpServers: wf.access?.mcpServers || [], ...patch };
-      clearTimeout(accessTimer ?? undefined);
-      accessTimer = setTimeout(() => saveWorkflow(wf), 500);
-    };
-    // the symbol in the middle of the team's pod: an emoji, or a picture or 3D model instead
-    const symbolPicker = () => {
-      const own = wf.markFile ? (wf.markFile.kind === 'image' ? 'picture' : '3D model') : null;
-      const setEmoji = async (e: string) => {
-        if (wf.markFile) await attempt(() => DEL(`/workflows/${id}/mark`));
-        await saveWorkflow({ ...wf, mark: e, markFile: null });
-        renderBranchPanel(id);
-      };
-      const custom = h('input', { placeholder: 'Type or paste an emoji', maxlength: 16, style: { width: '170px' } });
-      custom.addEventListener('change', () => custom.value.trim() && setEmoji(custom.value.trim()));
-      const current = wf.mark || DEFAULT_TEAM_MARK;
-      return h(
-        'div',
-        h('div.row', { style: { gap: '4px', flexWrap: 'wrap' } }, EMOJI_CHOICES.map((e) => h(`button.btn.ghost.small${!own && current === e ? '.on' : ''}`, { title: e, style: { fontSize: '17px', padding: '2px 8px' }, onclick: () => setEmoji(e) }, e))),
-        h(
-          'div.row.mt',
-          { style: { gap: '6px', flexWrap: 'wrap' } },
-          custom,
-          h('button.btn.ghost.small', { onclick: () => pickTeamMark({ id, name: wf.name }).then(async (ok) => {
-            if (!ok) return;
-            await reloadWorkflows();
-            renderBranchPanel(id);
-          }) }, icon('image', 14), 'Use a picture or 3D model…'),
-          own ? h('button.btn.ghost.small', { onclick: () => setEmoji(wf.mark || '') }, 'Back to the emoji') : null,
-        ),
-        own ? h('p.hint.mt', `Showing your ${own} (a .glb turns, a picture stays flat).`) : null,
-      );
-    };
-    wf.schedule ||= { type: 'none' };
-    const routineEl = h('div');
-    const drawRoutine = () => {
-      const sch = wf.schedule!;
-      const time = h('input', { type: 'time', value: sch.time || '09:00', style: { width: '110px' } });
-      const msg = h('input', { value: sch.input || '', placeholder: 'What the team should do each time' });
-      const save = () => {
-        wf.schedule = { ...sch, time: time.value, input: msg.value };
-        wf.enabled = wf.schedule.type !== 'none';
-        saveWorkflow(wf);
-      };
-      time.addEventListener('change', save);
-      msg.addEventListener('change', save);
-      mount(
-        routineEl,
-        h('div.row', { style: { gap: '8px' } }, h('div.seg', ['none', 'daily'].map((t) => h(`button${sch.type === t ? '.on' : ''}`, { onclick: () => ((wf.schedule = { ...sch, type: t }), (wf.enabled = t !== 'none'), saveWorkflow(wf), drawRoutine()) }, t === 'none' ? 'Off' : 'Every day'))), sch.type === 'daily' ? time : null),
-        sch.type === 'daily' ? h('div.mt', msg) : null,
-      );
-    };
-    drawRoutine();
-    return [
-      h('div.label', 'Name and goal'),
-      h('div.row.nowrap.mt', h('div.grow', name), color),
-      h('div.mt', desc),
-      h('p.hint', 'Every member reads the goal before it answers in the chat.'),
-      h('div.label.mt-lg', 'Team skills'),
-      h('p.hint', 'Every member gets these while it works for this team (on top of its own and the project\'s).'),
-      h('div.mt', skillPicker(wf.skills || [], (v) => saveWorkflow({ ...wf, skills: v }), { inherited: (d.project?.skills || []).map((slug) => ({ slug, from: 'project' })), empty: 'No team skills yet.' })),
-      h('div.label.mt-lg', 'Extra access while working for this team'),
-      h('p.hint', 'Members get these on top of their own tools.'),
-      h('div.mt', chipSet(d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description })), wf.access?.toolGroups || [], (v) => saveAccess({ toolGroups: v }))),
-      (d.mcpServers || []).length ? h('div.mt', chipSet(d.mcpServers, wf.access?.mcpServers || [], (v) => saveAccess({ mcpServers: v }))) : null,
-      h('div.label.mt-lg', 'Connections the team can reach'),
-      connectionList(S!.branches.get(id)?.links || new Set()),
-      h('div.label.mt-lg', 'Daily routine'),
-      h('p.hint', 'The team gets this message on its schedule, as if you wrote it in the chat.'),
-      routineEl,
-      h('div.label.mt-lg', 'Symbol on the map'),
-      h('p.hint', "Shown in the middle of the team's pod. An emoji, or a picture or 3D model of your own."),
-      symbolPicker(),
-      h('div.label.mt-lg', 'On the map'),
-      h('p.hint', 'Drag the team to move it anywhere. Shift+drag spins it.'),
-      h(
-        'div.row.mt',
-        { style: { gap: '6px', flexWrap: 'wrap' } },
-        h('button.btn.ghost.small', { onclick: async () => (spinBranch(id, Math.PI / 4), await saveBranchPlace(id)) }, icon('rotate-cw', 14), 'Spin 45°'),
-        wf.pos || wf.rot ? h('button.btn.ghost.small', { onclick: () => saveWorkflow({ ...wf, pos: null, rot: null, angle: null }) }, icon('rotate-ccw', 14), 'Put back next to the Brain') : null,
-        h('button.btn.ghost.small', { onclick: () => S!.branches.get(id) && flyTo(S!.branches.get(id)!.group.position.clone(), 1.6) }, icon('zoom-in', 14), 'Zoom to it'),
-      ),
-      h(
-        'div.row.mt-lg',
-        h('button.btn.ghost.small', { onclick: () => openBranchBuilder({ wf: S!.workflows.find((w) => w.id === id), onSaved: reloadWorkflows }) }, icon('workflow', 14), 'Open the team builder'),
-      ),
-      h('div.label.mt-lg', 'Copy it'),
-      h(
-        'div.row.mt',
-        { style: { gap: '6px', flexWrap: 'wrap' } },
-        h('button.btn.ghost.small', { title: 'A new team with the same members and settings', onclick: () => cloneTeam(wf0, false) }, icon('copy', 14), 'Clone team'),
-        h('button.btn.ghost.small', { title: 'A new team with copies of every member', onclick: () => cloneTeam(wf0, true) }, icon('copy', 14), 'Clone with its agents'),
-        h('button.btn.ghost.small', { title: 'Keep the team and its agents as a template for any project', onclick: () => presetTeam(wf0) }, icon('bookmark-plus', 14), 'Save as preset'),
-      ),
-      h(
-        'div.row.mt-lg',
-        { style: { gap: '6px' } },
-        historyButton('team', id, () => void reloadWorkflows().then(() => renderBranchPanel(id))),
-        h('button.btn.danger.tiny', {
-          onclick: async () => {
-            if (!(await confirmBox(`Delete the team "${wf.name}"? Its agents stay in the project, the team chat is removed.`, { ok: 'Delete', danger: true }))) return;
-            await attempt(() => DEL(`/workflows/${id}`));
-            choose(null);
-            reloadWorkflows();
-          },
-        }, 'Delete team'),
-      ),
-    ];
-  };
-
-  const tabBtn = (tid: string, label: string, n?: number) => h(`button${S!.teamTab === tid ? '.on' : ''}`, { onclick: () => ((S!.teamTab = tid), renderBranchPanel(id)) }, label, n != null ? h('span.st-tab-n', String(n)) : null);
-  const body = S.teamTab === 'setup' ? setupTab() : membersTab();
-  mount(
-    S.panel,
-    panelHead(
-      h('span.st-dot', { style: { '--c': c } }),
-      h('div.grow', h('div.label', 'Team · group chat'), h('div.st-panel-title', wf.name), h('div.st-team-status', statusLine)),
-    ),
-    h(
-      'div.st-panel-body',
-      wf.description ? h('p.st-team-goal', wf.description) : null,
-      // faces of everyone on the team: who's working pulses, the lead has a star
-      h(
-        'div.st-team-faces',
-        members.map((a) =>
-          h(
-            `button.st-face${ts.working.includes(a.id) ? '.working' : ''}`,
-            { title: `${a.name}${wf.lead === a.id ? ' · lead' : ''}${ts.working.includes(a.id) ? ' · working' : ''}`, onclick: () => mention(a) },
-            avatar(a),
-            wf.lead === a.id ? h('span.st-member-star', '★') : null,
-          ),
-        ),
-        h('button.st-face.add', { title: 'Add someone', onclick: () => ((S!.teamTab = 'members'), renderBranchPanel(id)) }, icon('user-plus', 15)),
-      ),
-      h('button.btn.small.st-open-chat', { onclick: () => openChat('team', id) }, icon('message-square', 14), 'Open the team chat'),
-      h('div.tabs.st-tabs', tabBtn('members', 'Members', members.length), tabBtn('setup', 'Setup')),
-      h('div.st-tab-body', body),
-    ),
-  );
-}
-
-// The agent's model, with its version, and how it signs in. Switch it with the chip.
-const AUTH_NAMES: Record<string, string> = { login: 'Claude login (subscription)', anthropic: 'Anthropic API key', openrouter: 'OpenRouter key' };
-function modelSection(a: Agent): HTMLDivElement {
-  const box = h('div.st-model');
-  const draw = () => {
-    const mi = modelInfo(a);
-    mount(
-      box,
-      h('div.label', 'Model'),
-      h('div.st-model-now', (mi.brand && logo(mi.brand, 22)) || icon('cpu', 22), h('div.grow', h('div.st-model-name', mi.name, mi.latest ? h('span.model-latest', 'always latest') : null), h('div.hint', mi.where))),
-      h('div.st-model-row', h('span.hint', 'Switch'), modelChip(a, { onChange: draw })),
-      a.engine === 'claude-code'
-        ? h(
-            'div.st-model-row',
-            h('span.hint', 'Sign in with'),
-            dropdown(Object.entries(AUTH_NAMES).map(([value, label]) => ({ value, label })), a.claudeAuth || 'login', async (v) => {
-              if (await attempt(() => PUT(`/agents/${a.id}`, { claudeAuth: v }), 'Saved')) {
-                a.claudeAuth = v;
-                refreshSoon(0);
-                draw();
-              }
-            }),
-          )
-        : null,
-      a.lastModel ? h('div.st-model-last', icon('circle-check', 13), 'Last run used ', h('b', a.lastModel), h('span.hint', ` · ${ago(a.lastModelAt)}`)) : h('div.hint', 'Not run yet. After the first run you see the exact model it used.'),
-    );
-  };
-  draw();
-  return box;
-}
-
-// Agent panel: who it is, which branches it's on, what it can reach, and a live mini chat.
-async function renderAgentPanel(id: string, wfId?: string): Promise<void> {
-  const d = state.data!;
-  const a = d.agents.find((x) => x.id === id);
-  if (!a) return choose(null);
-  // (a save that finished after you picked something else: that one's panel stays)
-  if (!S || S.selected?.type !== 'agent' || S.selected.id !== id) return;
-  const onBranches = S.workflows.filter((w) => (w.members || []).includes(id));
-  const others = S.workflows.filter((w) => !onBranches.includes(w));
-  let addTo = others[0]?.id || '';
-  const running = d.runs.find((r) => r.agentId === id);
-  const removeFrom = async (w: TeamView) => {
-    const copy = structuredClone(w);
-    setMembers(copy, copy.members.filter((x) => x !== id));
-    await saveWorkflow(copy);
-    toast(`Removed ${a.name} from ${w.name}`);
-    renderAgentPanel(id, wfId);
-  };
-  mount(
-    S.panel,
-    panelHead(avatar(a, true), h('div.grow', h('div.st-panel-title', a.name), h('div.hint', a.specialty || ''))),
-    h(
-      'div.st-panel-body',
-      (() => {
-        const now = nowText(id, wfId);
-        return h(
-          'div.st-agent-now',
-          { class: now.st },
-          now.st === 'working' ? h('span.dot.busy') : now.st === 'needs' ? h('span.dot.warn') : h('span.dot.on'),
-          h('span.grow', now.st === 'working' ? now.text : now.st === 'needs' ? 'Waiting for your OK (see below)' : 'Ready'),
-        );
-      })(),
-      modelSection(a),
-      h(
-        'div.row.mt',
-        { style: { gap: '6px' } },
-        h('button.btn.small', { onclick: () => openChat('agent', id) }, icon('message-square', 14), 'Chat'),
-        h('button.btn.ghost.small', { onclick: () => navigate(`#/agents/${id}`) }, 'Full page'),
-        a.engine !== 'openai' ? h('button.btn.ghost.small', { onclick: () => openTerminal(a) }, 'Terminal') : null,
-        h('button.btn.ghost.small', { onclick: () => navigate(`#/agents/${id}/edit`) }, 'Edit'),
-        h('button.btn.ghost.small', { title: 'Make a copy of this agent', onclick: () => cloneAgent(a) }, icon('copy', 13), 'Clone'),
-        h('button.btn.ghost.small', { title: 'Keep it as a template for any project', onclick: () => presetAgent(a) }, icon('bookmark-plus', 13), 'Preset'),
-      ),
-      h('div.label.mt-lg', 'Skills'),
-      h(
-        'div.mt',
-        skillPicker(
-          a.skills || [],
-          (v) => attempt(() => PUT(`/agents/${id}`, { skills: v })).then(() => refreshSoon(0)),
-          {
-            inherited: [
-              ...(d.project?.skills || []).map((slug) => ({ slug, from: 'project' })),
-              ...S.workflows.filter((w) => (w.members || []).includes(id)).flatMap((w) => (w.skills || []).map((slug) => ({ slug, from: w.name }))),
-            ],
-            empty: 'No skills yet.',
-          },
-        ),
-      ),
-      h('div.label.mt-lg', `Teams (${onBranches.length})`),
-      h(
-        'div.st-conns',
-        onBranches.map((w) =>
-          h(
-            'div.st-conn.ok',
-            h('span.st-dot', { style: { '--c': wfColor(w, S!.workflows.indexOf(w)) } }),
-            h('span.grow', { style: { cursor: 'pointer' }, onclick: () => choose({ type: 'branch', id: w.id }) }, w.name, h('span.hint', w.lead === id ? ' · ★ lead' : ' · member')),
-            h('button.btn.tiny.ghost', {
-              title: `Open ${w.name}'s chat with @${a.name}`,
-              onclick: () => openChat('team', w.id).mention?.(a.name),
-            }, 'Chat'),
-            w.lead !== id ? h('button.btn.tiny.ghost', { title: 'Make lead of this team', onclick: () => saveWorkflow({ ...structuredClone(w), lead: id }).then(() => renderAgentPanel(id, wfId)) }, '★') : null,
-            h('button.btn.tiny.ghost', { title: `Take ${a.name} off this team`, onclick: () => removeFrom(w) }, 'Remove'),
-          ),
-        ),
-        !onBranches.length ? h('p.hint', 'On the Bench: not in any team yet. Add it to one below, or drag it onto a team on the map.') : null,
-      ),
-      others.length
-        ? h(
-            'div.row.nowrap.mt',
-            h('div.grow', dropdown(others.map((w) => ({ value: w.id, label: w.name })), addTo, (v) => (addTo = v))),
-            h('button.btn.small', {
-              onclick: async () => {
-                const w = structuredClone(S!.workflows.find((x) => x.id === addTo));
-                if (!w) return;
-                setMembers(w, [...w.members, id]);
-                await saveWorkflow(w);
-                toast(`Added ${a.name} to ${w.name}`);
-                renderAgentPanel(id, addTo);
-              },
-            }, 'Add to team'),
-          )
-        : null,
-      h('div.label.mt-lg', 'Connections it can use'),
-      connectionList(agentLinks(a)),
-      a.engine === 'claude-code' && S.headbar?.connectors?.length
-        ? h('div.st-conns', h('div.hint', 'Plus the connectors on your Claude account:'), h('div.row', { style: { gap: '4px' } }, S.headbar.connectors.map((c) => {
-            const look = connectorLook(c.name);
-            return h('span.st-badge', { style: { '--c': c.status === 'connected' ? look.color : '#555850' }, title: `${c.name}: ${c.status === 'connected' ? 'connected' : 'needs sign-in'}` }, appLogo(c.name, 11) || look.glyph);
-          })))
-        : null,
-      d.approvals.filter((x) => x.agentId === id).map((x) => h('div.mt', approvalCard(x))),
-    ),
-  );
 }
 
 // ---------- live events ----------
