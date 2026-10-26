@@ -330,7 +330,13 @@ Say in one line what you recorded or changed and why, e.g. "Saved how Ana render
 
 // Whole skill folders that come with the dashboard: skills/<dir>/<slug>/ in this repo, copied from a
 // GitHub repo. Each keeps that repo as its origin, so "Download again" updates it like an installed one.
-const BUNDLED: { dir: string; repo: string; ref: string }[] = [{ dir: 'storytold', repo: 'hermes-pro/storytold-skills', ref: 'main' }];
+// `under` is the folder in that repo that holds the skill folders ('' = its top level): the origin's
+// path must be the skill's real path there, or "Download again" would add a second copy.
+const BUNDLED: { dir: string; repo: string; ref: string; under: string }[] = [
+  { dir: 'storytold', repo: 'hermes-pro/storytold-skills', ref: 'main', under: '' },
+  { dir: 'oomol', repo: 'oomol-lab/oo-cli', ref: 'main', under: 'contrib/skills/shared' },
+  { dir: 'composio', repo: 'ComposioHQ/skills', ref: 'main', under: 'skills' },
+];
 /** The folder in this repo that holds the bundled skill folders. */
 export const bundledSkillsRoot = (): string => path.join(ROOT, 'skills');
 
@@ -347,7 +353,8 @@ export function bundledSkills(): { slug: string; dir: string; origin: Omit<Skill
     }
     for (const e of list) {
       if (!e.isDirectory() || !SAFE.test(e.name) || !exists(path.join(base, e.name, 'SKILL.md'))) continue;
-      out.push({ slug: e.name, dir: path.join(base, e.name), origin: { url: `https://github.com/${b.repo}/tree/${b.ref}/${e.name}`, repo: b.repo, ref: b.ref, path: e.name } });
+      const at = b.under ? `${b.under}/${e.name}` : e.name;
+      out.push({ slug: e.name, dir: path.join(base, e.name), origin: { url: `https://github.com/${b.repo}/tree/${b.ref}/${at}`, repo: b.repo, ref: b.ref, path: at } });
     }
   }
   return out.sort((a, b) => a.slug.localeCompare(b.slug));

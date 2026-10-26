@@ -3,16 +3,32 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import * as skills from '../../server/skills.ts';
+import { parseGitHubUrl } from '../../server/skillinstall.ts';
 import { callTool } from '../../server/tools.ts';
 import { dataPath } from '../../server/util.ts';
 
 const agent = { id: 'a1', name: 'Tester' };
 
 describe('bundled skills', () => {
-  it('include the storytold skills, each with its files', () => {
+  it('include the storytold, OOMOL and Composio skills', () => {
     const slugs = skills.bundledSkills().map((b) => b.slug);
-    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft']));
-    expect(slugs).toHaveLength(15);
+    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio']));
+    expect(slugs).toHaveLength(20);
+    // the library holds one skill per id, so no two bundles may share one
+    expect(new Set(slugs).size).toBe(slugs.length);
+  });
+
+  it('remember their real folder in the repo, so Download again updates them', () => {
+    for (const b of skills.bundledSkills()) {
+      // what installing from that link works out (skillinstall.ts): the same repo, branch and folder
+      const link = parseGitHubUrl(b.origin.url);
+      expect(`${link.owner}/${link.repo}`).toBe(b.origin.repo);
+      expect(link.rest[0]).toBe(b.origin.ref);
+      expect(link.rest.slice(1).join('/')).toBe(b.origin.path);
+    }
+    const origin = Object.fromEntries(skills.bundledSkills().map((b) => [b.slug, b.origin]));
+    expect(origin.oo).toMatchObject({ repo: 'oomol-lab/oo-cli', path: 'contrib/skills/shared/oo' });
+    expect(origin.composio).toMatchObject({ repo: 'ComposioHQ/skills', path: 'skills/composio' });
   });
 
   it("are added once, keep where they came from, and don't replace a skill of yours", () => {
@@ -27,6 +43,9 @@ describe('bundled skills', () => {
     expect(v?.files.map((f) => f.path)).toContain('references/commands.md');
     expect(v?.origin).toMatchObject({ repo: 'hermes-pro/storytold-skills', path: 'vectorcraft', url: 'https://github.com/hermes-pro/storytold-skills/tree/main/vectorcraft' });
     expect(skills.getSkill('storytold-install')?.files.map((f) => f.path)).toContain('scripts/storytold_tools.py');
+    expect(skills.getSkill('oo')?.files.map((f) => f.path)).toContain('references/connector-execution.md');
+    expect(skills.getSkill('composio')?.files.map((f) => f.path)).toContain('rules/composio-cli.md');
+    expect(skills.getSkill('composio')?.origin).toMatchObject({ repo: 'ComposioHQ/skills', path: 'skills/composio', url: 'https://github.com/ComposioHQ/skills/tree/main/skills/composio' });
     expect(skills.getSkill('cadcraft')?.name).toBe('My CAD notes');
     // nothing half-copied left behind
     expect(fs.readdirSync(dataPath('tmp')).filter((x) => x.startsWith('bundled-'))).toEqual([]);
