@@ -8,6 +8,7 @@ import { claudeMcpConfig } from '../mcp.ts';
 import { workspaceOf } from '../tools.ts';
 import { knowledgeRoots } from '../knowledge.ts';
 import { uploadsRoot } from '../uploads.ts';
+import { effortFor } from '../../shared/effort.ts';
 import type { Agent, Chat, EngineStatus } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 
@@ -112,6 +113,8 @@ export function claudeArgs(agent: Agent, { promptFile, mcpFile, interactive = fa
   const args: string[] = [];
   if (!interactive) args.push('-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages');
   if (agent.model) args.push('--model', agent.model);
+  const effort = effortFor('claude-code', agent.effort);
+  if (effort) args.push('--effort', effort);
   args.push('--append-system-prompt-file', promptFile);
   args.push('--mcp-config', mcpFile);
   const mode = agent.autonomy || 'auto';

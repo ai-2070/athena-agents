@@ -1,5 +1,7 @@
 // Types shared by the server (server/) and the browser app (web/).
 // The server stores these as JSON files; the browser gets them from the API.
+import type { Effort } from './effort.ts';
+export type { Effort } from './effort.ts';
 
 export type EngineId = 'claude-code' | 'openai' | 'hermes' | 'codex';
 export type Autonomy = 'ask' | 'auto' | 'full';
@@ -34,6 +36,8 @@ export interface Agent {
   knowledge: { folders: string[] };
   workspace: string;
   temperature: number | '';
+  /** How hard the model thinks (see shared/effort.ts). '' or missing = the model's default. */
+  effort?: Effort | '';
   alwaysAllow: string[];
   skills: string[];
   source: AgentSource;
@@ -349,6 +353,15 @@ export interface ActivityEntry {
 export interface BrainSetting {
   provider: 'claude' | 'openrouter' | 'hermes' | 'codex';
   model: string;
+  /** How hard it thinks. '' or missing = the model's default. */
+  effort?: Effort | '';
+}
+
+/** A model you starred in the model picker. provider: for API models (OpenRouter or a server on this PC). */
+export interface FavoriteModel {
+  engine: EngineId;
+  model: string;
+  provider?: string;
 }
 
 /** Settings > Chat memory: compacting long chats so the agent never runs out of room. */
@@ -392,6 +405,8 @@ export interface Settings {
   maxToolSteps: number;
   costLimitUsdPerRun: number;
   compaction: CompactionSetting;
+  /** Models starred in the model picker: they get their own tab at the front. */
+  favoriteModels: FavoriteModel[];
   activeProject?: string;
 }
 

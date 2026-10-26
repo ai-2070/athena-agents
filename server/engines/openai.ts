@@ -8,6 +8,7 @@ import * as mcp from '../mcp.ts';
 import { PORT } from '../util.ts';
 import { checkpointSection, compactAt, compactionSettings, contextWindow, estimateTokens, isOverflowError } from '../compaction.ts';
 import type { FetchError } from '../util.ts';
+import { effortFor } from '../../shared/effort.ts';
 import type { Agent, EngineStatus, ProviderId, RunEvent } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 
@@ -75,7 +76,8 @@ interface Usage {
 
 /** One `data:` line of a streamed chat completion. */
 interface StreamChunk {
-  error?: { message?: string };
+  /** an error sent inside the stream (OpenRouter puts the HTTP status in code) */
+  error?: { message?: string; code?: number | string };
   usage?: Usage;
   choices?: {
     finish_reason?: string | null;
@@ -161,6 +163,9 @@ async function gatherTools(agent: Agent, onEvent: (ev: RunEvent) => void): Promi
   return { defs, route };
 }
 
+/** An error from the model server; midStream: part of the answer had come already. */
+type StreamError = FetchError & { midStream?: boolean };
+
 async function streamCompletion({ provider, body, signal, onEvent }: { provider: Provider; body: Record<string, unknown>; signal: AbortSignal; onEvent: (ev: RunEvent) => void }): Promise<Completion> {
   const res = await fetch(`${provider.base}/chat/completions`, { method: 'POST', headers: provider.headers, body: JSON.stringify(body), signal });
   if (!res.ok) {
@@ -199,7 +204,13 @@ async function streamCompletion({ provider, body, signal, onEvent }: { provider:
       } catch {
         continue;
       }
-      if (j.error) throw new Error(j.error.message || JSON.stringify(j.error));
+      if (j.error) {
+        const e: StreamError = new Error(j.error.message || JSON.stringify(j.error));
+        if (typeof j.error.code === 'number') e.status = j.error.code;
+        // after part of the answer was shown, asking again would show it twice
+        e.midStream = !!content || calls.length > 0;
+        throw e;
+      }
       if (j.usage) usage = j.usage;
       const ch = j.choices?.[0];
       if (!ch) continue;
@@ -283,6 +294,8 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
   let vision = true;
   onEvent({ kind: 'model', model });
   let { defs, route } = await gatherTools(agent, onEvent);
+  // how hard it thinks: OpenRouter takes reasoning.effort, other OpenAI-compatible servers reasoning_effort
+  let effort = effortFor('openai', agent.effort, provider.id);
   let cost = 0;
   let tokens = 0;
   let finalText = '';
@@ -319,6 +332,7 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
       ...(defs.length ? { tools: defs } : {}),
       ...(provider.id === 'openrouter' ? { usage: { include: true } } : { stream_options: { include_usage: true } }),
       ...(agent.temperature != null && agent.temperature !== '' ? { temperature: Number(agent.temperature) } : {}),
+      ...(effort ? (provider.id === 'openrouter' ? { reasoning: { effort } } : { reasoning_effort: effort }) : {}),
     };
     let r: Completion;
     try {
@@ -337,6 +351,14 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
       if (vision && hasImages(trimHistory(chat.llm as LlmMessage[], historyChars)) && [400, 404, 415, 422].includes(err.status ?? 0) && /image|vision|multimodal|modalit/i.test(err.message)) {
         onEvent({ kind: 'status', text: `${model} can't see images; sending it the file paths instead.` });
         vision = false;
+        step--;
+        continue;
+      }
+      // A server that doesn't take an effort level: ask again without one.
+      // (an error inside the stream may have no status)
+      if (effort && !(err as StreamError).midStream && (err.status == null || [400, 422].includes(err.status)) && /reasoning/i.test(err.message)) {
+        onEvent({ kind: 'status', text: `${model} doesn't take an effort level; using its default.` });
+        effort = '';
         step--;
         continue;
       }

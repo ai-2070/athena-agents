@@ -22,6 +22,7 @@ import * as comfy from './comfyui.ts';
 import * as mcp from './mcp.ts';
 import * as social from './social.ts';
 import * as library from './library.ts';
+import { isEffort } from '../shared/effort.ts';
 import * as kb from './knowledge.ts';
 import * as wfs from './workflows.ts';
 import * as terms from './terminals.ts';
@@ -268,8 +269,9 @@ get('/api/agents/:id', async ({ id }) => {
 });
 put<Partial<Agent>>('/api/agents/:id', async ({ id }, body) => {
   const a = need(agents.get(id));
-  const allowed: (keyof Agent)[] = ['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'autonomy', 'toolGroups', 'mcpServers', 'knowledge', 'workspace', 'temperature', 'pinned', 'alwaysAllow', 'skills'];
+  const allowed: (keyof Agent)[] = ['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'autonomy', 'toolGroups', 'mcpServers', 'knowledge', 'workspace', 'temperature', 'effort', 'pinned', 'alwaysAllow', 'skills'];
   for (const k of allowed) if (k in body) (a as Record<keyof Agent, unknown>)[k] = body[k];
+  if ('effort' in body) a.effort = isEffort(body.effort) ? body.effort : '';
   return agents.save(a);
 });
 del('/api/agents/:id', async ({ id }) => {
