@@ -6,7 +6,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { HOME, IS_WIN, BRIDGE_SCRIPT, PORT, dataPath, readJSON, writeJSON, which, exists } from './util.ts';
-import { emit, log, internalToken } from './store.ts';
+import { emit, log, internalToken, agents, workflows, listProjects, withProject } from './store.ts';
 
 /** One saved MCP server (data/mcp.json). */
 export interface McpServerConfig {
@@ -144,8 +144,11 @@ function saveAll(servers: McpServers) {
   emit('mcp');
 }
 
+/** A server's name as it is saved: letters, digits, _ and - only. */
+export const serverName = (name: unknown): string => String(name ?? '').trim().replace(/[^\w-]/g, '-');
+
 export function saveServer(name: string, cfg: McpServerInput): McpServerConfig {
-  const clean = String(name).trim().replace(/[^\w-]/g, '-');
+  const clean = serverName(name);
   if (!clean) throw new Error('Give the server a name.');
   if (clean === 'dashboard') throw new Error('"dashboard" is reserved for the built-in tools.');
   const servers = listServers();
@@ -170,6 +173,45 @@ export function removeServer(name: string) {
   delete servers[name];
   saveAll(servers);
   disconnect(name);
+}
+
+// Agents and teams name their servers, so a removed or renamed server changes on all of them, in every project.
+function renameOnEveryone(from: string, to: string | null) {
+  const swap = (list: string[] | undefined): string[] | null => (list || []).includes(from) ? [...new Set((list || []).map((x) => (x === from ? to : x)).filter((x): x is string => Boolean(x)))] : null;
+  for (const p of listProjects()) {
+    withProject(p, () => {
+      for (const a of agents.list()) {
+        const next = swap(a.mcpServers);
+        if (next) agents.save({ ...a, mcpServers: next });
+      }
+      for (const w of workflows.list()) {
+        const next = swap(w.access?.mcpServers);
+        if (next) workflows.save({ ...w, access: { toolGroups: w.access?.toolGroups || [], mcpServers: next } });
+      }
+    });
+  }
+}
+
+/** Remove a server and take it off every agent and team that had it. */
+export function removeServerEverywhere(name: string) {
+  removeServer(name);
+  renameOnEveryone(name, null);
+  log('mcp', `Removed MCP server "${name}"`);
+}
+
+/** Give a server a new name, on every agent and team that has it too. Returns the name it got. */
+export function renameServer(from: string, to: string): string {
+  const servers = listServers();
+  const cfg = servers[from];
+  if (!cfg) throw new Error(`No MCP server named "${from}".`);
+  const clean = serverName(to);
+  if (clean === from) return from;
+  if (servers[clean]) throw new Error(`There already is an MCP server named "${clean}".`);
+  saveServer(clean, cfg);
+  removeServer(from);
+  renameOnEveryone(from, clean);
+  log('mcp', `Renamed MCP server "${from}" to "${clean}"`);
+  return clean;
 }
 
 // Windows can't spawn npx/uvx .cmd shims directly; resolve or wrap them.

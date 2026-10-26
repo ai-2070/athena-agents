@@ -632,7 +632,8 @@ function sendFileSafely(res: http.ServerResponse, p: string, type = MIME[path.ex
 get('/api/mcp', async () => ({ servers: mcp.listServers(), presets: mcp.presetAvailability(), importable: mcp.importableServers(), bridge: mcp.bridgeServerConfig('') }));
 post<Parameters<typeof mcp.saveServer>[1] & { name: string }>('/api/mcp', async (_p, body) => mcp.saveServer(body.name, body));
 del('/api/mcp/:name', async ({ name }) => {
-  mcp.removeServer(name);
+  // (and off every agent and team that had it)
+  mcp.removeServerEverywhere(name);
   return { ok: true };
 });
 post('/api/mcp/:name/test', async ({ name }) => ({ tools: await mcp.testServer(name) }));
