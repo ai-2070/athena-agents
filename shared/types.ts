@@ -127,6 +127,8 @@ export interface Project {
   skills?: string[];
   createdAt: number;
   openedAt?: number;
+  /** When its logo (.dashboard/logo.*) last changed; null = no logo. Added by the server when it sends projects. */
+  logoAt?: number | null;
 }
 
 // ---------- chats ----------
