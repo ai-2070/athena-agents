@@ -308,13 +308,13 @@ function renderItem(it: DockItem): HTMLElement | null {
     const b = state.data?.settings?.brain || { model: 'haiku' };
     const body = md(it.answer || (it.done?.length ? '' : '(no answer)'));
     body.classList?.add('dock-answer');
-    const ico = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', error: 'triangle-alert', note: 'check' };
+    const ico = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', error: 'triangle-alert', note: 'check' };
     return h(
       'div.dock-msg.agent.brain',
       h('div.dock-who', h('div.avatar.brain-av', icon('brain', 14)), h('b', 'Brain'), h('span.dock-answer-model', modelInfo(brainAsAgent(b)).short)),
       body,
       it.done?.length
-        ? h('div.brain-done', it.done.map((d) => h(`div.brain-act${d.kind === 'error' ? '.err' : ''}`, icon(ico[d.kind] || 'check', 13), h('span', d.text), d.teamId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/station?team=${d.teamId}`) }, 'Show') : d.routineId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/routines/${d.routineId}`) }, 'Open') : null)))
+        ? h('div.brain-done', it.done.map((d) => h(`div.brain-act${d.kind === 'error' ? '.err' : ''}`, icon(ico[d.kind] || 'check', 13), h('span', d.text), d.teamId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/station?team=${d.teamId}`) }, 'Show') : d.routineId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/routines/${d.routineId}`) }, 'Open') : d.skillId ? h('button.btn.tiny.ghost', { onclick: () => navigate(`#/skills/${d.skillId}`) }, 'Open') : null)))
         : null,
       it.delegate ? h('div.brain-act.handoff', icon('send', 13), h('span', 'Handed to ', h('b', it.delegate.name))) : null,
     );
@@ -459,6 +459,11 @@ async function newBranch(text: string, attachments: string[] = []) {
 // ---------- live updates ----------
 function handleEvent(ev: ServerEvent) {
   if (ev.type === 'workflows') loadWorkflows();
+  // the Brain reviewed finished work by itself and recorded or improved a skill
+  if (ev.type === 'brain-learned' && ev.projectId === D.project) {
+    add({ kind: 'brain', answer: String(ev.answer || ''), done: (ev.done as BrainDone[]) || [] });
+    return;
+  }
   if (ev.type === 'run') {
     const it = D.items.find((x): x is AgentItem => x.kind === 'agent' && x.chatId === ev.chatId);
     if (!it) return;

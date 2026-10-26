@@ -5,9 +5,12 @@
 // and open a skill with the read_skill tool when it fits the task, on any engine.
 import fs from 'node:fs';
 import path from 'node:path';
-import { dataPath, ensureDir, exists, slugify, HOME } from './util.ts';
-import { activeProject, log } from './store.ts';
-import type { ClaudeSkill, Skill, SkillFile, SkillListing } from '../shared/types.ts';
+import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME } from './util.ts';
+import { activeProject, agents, workflows, listProjects, getSettings, saveSettings, withProject, log, emit } from './store.ts';
+import { updateProject } from './projects.ts';
+import crypto from 'node:crypto';
+import { keepVersion, versionFilesDir } from './versions.ts';
+import type { ClaudeSkill, Skill, SkillFile, SkillListing, SkillOrigin } from '../shared/types.ts';
 
 /** A skill as getSkill returns it (dir is cleared so it never reaches the browser). */
 export type SkillDetail = Skill & { dir?: undefined };
@@ -23,6 +26,8 @@ const SAFE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 export const skillsLibrary = (): string => LIB();
 /** A skill id that is safe to use as a folder name in the library. */
 export const isSkillSlug = (s: unknown): s is string => typeof s === 'string' && SAFE.test(s);
+/** Where a skill lives in the library. */
+export const skillDir = (slug: string): string => path.join(LIB(), slug);
 
 // "---\nname: x\ndescription: y\n---\nbody"
 function parse(text: string): { meta: Record<string, string>; body: string } {
@@ -80,7 +85,14 @@ function readDir(dir: string, source: Skill['source']): (Skill & { dir: string }
   if (!exists(file)) return null;
   const { meta, body } = parse(fs.readFileSync(file, 'utf8'));
   const slug = path.basename(dir);
-  return { slug, name: meta.name || slug, description: meta.description || '', body, source, dir, files: filesIn(dir), updatedAt: fs.statSync(file).mtimeMs };
+  const origin = readJSON<SkillOrigin | null>(path.join(dir, '.source.json'), null);
+  return { slug, name: meta.name || slug, description: meta.description || '', body, source, dir, files: filesIn(dir), updatedAt: fs.statSync(file).mtimeMs, ...(origin?.repo ? { origin } : {}) };
+}
+
+/** A SKILL.md's text as a skill's version (name, description, instructions). */
+export function skillFromText(text: string, slug: string): SkillVersionItem {
+  const { meta, body } = parse(text);
+  return { slug, name: (meta.name || slug).slice(0, 80), description: (meta.description || '').slice(0, 1000), body: body.trim().slice(0, SKILL_BODY_MAX) };
 }
 
 // Every skill in the library (with what it's used by is worked out on the page).
@@ -112,6 +124,23 @@ export function claudeSkills(): ClaudeSkill[] {
     .map(({ slug, name, description, files }) => ({ slug, name, description, files: files.length, inLibrary: have.has(slugify(slug)) }));
 }
 
+export const SKILL_BODY_MAX = 60000;
+
+/** A skill as its versions keep it (what SKILL.md says; extra files are kept only when it's deleted). */
+export interface SkillVersionItem {
+  slug: string;
+  name: string;
+  description: string;
+  body: string;
+  /** the extra files it had, when they were kept with this version (in files-<version id>) */
+  files?: string[];
+  /** a fingerprint of those files, so a version that differs only in its files still counts */
+  filesHash?: string;
+}
+// Versions of every skill: data/versions/skills/<slug>/ (outside the skill, so they outlive it)
+export const skillVersionsDir = (slug = ''): string => dataPath('versions', 'skills', slug);
+const versionItem = (s: Skill | SkillDetail): SkillVersionItem => ({ slug: s.slug, name: s.name, description: s.description, body: s.body.trim() });
+
 export function saveSkill({ slug, name, description, body }: { slug?: string; name?: string; description?: string; body?: string }): SkillDetail | null {
   name = String(name || '').trim().slice(0, 80);
   description = String(description || '').trim().slice(0, 1000);
@@ -119,20 +148,185 @@ export function saveSkill({ slug, name, description, body }: { slug?: string; na
   if (!description) throw new Error('Say in one or two sentences when the skill should be used: agents decide from this.');
   const id = slug && SAFE.test(slug) && exists(path.join(LIB(), slug)) ? slug : uniqueSlug(name);
   const dir = ensureDir(path.join(LIB(), id));
-  fs.writeFileSync(path.join(dir, 'SKILL.md'), compose({ name, description, body }));
+  const before = getSkill(id);
+  const text = String(body || '').slice(0, SKILL_BODY_MAX);
+  if (before) keepVersion(skillVersionsDir(id), versionItem(before), { slug: id, name, description, body: text.trim() });
+  fs.writeFileSync(path.join(dir, 'SKILL.md'), compose({ name, description, body: text }));
+  emit('skills', { slug: id });
   return getSkill(id);
 }
 
-function uniqueSlug(name: string): string {
+export function uniqueSlug(name: string): string {
   const base = slugify(name).slice(0, 50) || 'skill';
   let s = base;
   for (let i = 2; exists(path.join(LIB(), s)); i++) s = `${base}-${i}`;
   return s;
 }
 
+// ---------- a skill's extra files ----------
+// Every file in a skill's folder but its SKILL.md, hidden ones included (unlike the files agents see,
+// which skip them and stop at 200). Links are skipped: they could point anywhere.
+export function skillExtraFiles(dir: string): string[] {
+  const out: string[] = [];
+  const walk = (d: string, rel: string) => {
+    let list: fs.Dirent[] = [];
+    try {
+      list = fs.readdirSync(d, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of list) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) walk(path.join(d, e.name), r);
+      else if (e.isFile() && r !== 'SKILL.md') out.push(r);
+    }
+  };
+  walk(dir, '');
+  return out.sort();
+}
+/** Copy a skill's extra files from one folder to another (links skipped). Returns what was copied. */
+export function copySkillFiles(from: string, to: string): string[] {
+  const files = skillExtraFiles(from);
+  for (const rel of files) {
+    const dst = path.join(to, ...rel.split('/'));
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.copyFileSync(path.join(from, ...rel.split('/')), dst);
+  }
+  return files;
+}
+/** One fingerprint for all of a skill's extra files (names and contents; .source.json, where it was installed from, doesn't count). */
+export function skillFilesHash(dir: string): string {
+  const h = crypto.createHash('sha1');
+  for (const rel of skillExtraFiles(dir)) {
+    if (rel === '.source.json') continue;
+    h.update(rel).update('\0').update(fs.readFileSync(path.join(dir, ...rel.split('/')))).update('\0');
+  }
+  return h.digest('hex');
+}
+
+// Its last version is kept with all its extra files, so it can be brought back as it was.
 export function deleteSkill(slug: string) {
   if (!SAFE.test(String(slug))) throw new Error('No such skill.');
-  fs.rmSync(path.join(LIB(), slug), { recursive: true, force: true });
+  const dir = path.join(LIB(), slug);
+  const s = getSkill(slug);
+  if (s) {
+    const extra = skillExtraFiles(dir);
+    const v = keepVersion(skillVersionsDir(slug), { ...versionItem(s), files: extra, filesHash: skillFilesHash(dir) }, null, { deleted: true });
+    if (v && extra.length) copySkillFiles(dir, versionFilesDir(skillVersionsDir(slug), v.id));
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+  emit('skills', { slug, removed: true });
+}
+
+// Put a kept version back. A version kept with its extra files (a deleted skill, or a project folder's
+// different copy) brings them back too, in place of the current ones. The current one is kept as a
+// version first (with its files, when they are about to be replaced), so a restore can be undone too.
+export function restoreSkill(item: SkillVersionItem, versionId: string): SkillDetail | null {
+  if (!SAFE.test(String(item.slug))) throw new Error('No such skill.');
+  const vdir = skillVersionsDir(item.slug);
+  const dir = ensureDir(path.join(LIB(), item.slug));
+  const kept = /^[\w-]+$/.test(versionId) ? versionFilesDir(vdir, versionId) : '';
+  const withFiles = Boolean(kept && exists(kept)) || Array.isArray(item.files);
+  const now = getSkill(item.slug);
+  if (now) {
+    const current: SkillVersionItem = { ...versionItem(now), ...(withFiles ? { files: skillExtraFiles(dir), filesHash: skillFilesHash(dir) } : {}) };
+    const v = keepVersion(vdir, current, item);
+    if (v && withFiles && current.files?.length) copySkillFiles(dir, versionFilesDir(vdir, v.id));
+  }
+  fs.writeFileSync(path.join(dir, 'SKILL.md'), compose({ name: item.name, description: item.description, body: item.body }));
+  if (withFiles) {
+    for (const rel of skillExtraFiles(dir)) fs.rmSync(path.join(dir, ...rel.split('/')), { force: true });
+    if (kept && exists(kept)) copySkillFiles(kept, dir);
+  }
+  emit('skills', { slug: item.slug });
+  return getSkill(item.slug);
+}
+
+// Delete a skill and take it off every agent and team (in every project: skills are shared), every
+// project, and the Brain.
+export function deleteSkillEverywhere(slug: string) {
+  deleteSkill(slug);
+  for (const p of listProjects()) {
+    withProject(p, () => {
+      for (const a of agents.list()) if ((a.skills || []).includes(slug)) agents.save({ ...a, skills: a.skills.filter((x) => x !== slug) });
+      for (const w of workflows.list()) if ((w.skills || []).includes(slug)) workflows.save({ ...w, skills: w.skills!.filter((x) => x !== slug) });
+    });
+    if ((p.skills || []).includes(slug)) updateProject(p.id, { skills: p.skills!.filter((x) => x !== slug) });
+  }
+  const brain = brainSkillSlugs();
+  if (brain.includes(slug)) saveSettings({ brainSkills: brain.filter((x) => x !== slug) });
+}
+
+// ---------- the Brain's own skills ----------
+// Skills given to the Brain are part of its instructions in every turn (Settings: brainSkills).
+export const brainSkillSlugs = (): string[] => (Array.isArray(getSettings().brainSkills) ? getSettings().brainSkills : []);
+export const brainSkills = (): SkillDetail[] => brainSkillSlugs().map(getSkill).filter((s): s is SkillDetail => s !== null);
+export function setBrainSkills(slugs: unknown): string[] {
+  const list = [...new Set((Array.isArray(slugs) ? slugs : []).map(String).filter((x) => SAFE.test(x)))].slice(0, 30);
+  saveSettings({ brainSkills: list });
+  return list;
+}
+
+// ---------- skills that come with the dashboard ----------
+// Added to the library once. Deleting one keeps it deleted (data/skills/.builtin.json remembers).
+export const SELF_IMPROVEMENT = 'self-improvement';
+const BUILTIN: { slug: string; name: string; description: string; body: string }[] = [
+  {
+    slug: SELF_IMPROVEMENT,
+    name: 'Self-improvement',
+    description: 'Use after any substantial piece of work, and whenever the user explains how they want something done: record what worked as a skill, keep skills accurate, and spot work that should become a routine.',
+    body: `# Self-improvement
+
+You get better at this project over time by writing down what works. Skills are the project's memory of *how* things are done: step-by-step workflows, checklists, house rules and pitfalls. Agents read a skill before work that matches it, so a good skill makes the next run faster and better.
+
+## When to record a workflow
+Record one (create_skill) when:
+- an agent or team finished a non-trivial task (several steps or tool calls) and the way it got there would help next time;
+- someone found the fix for something that kept failing, or a trick that wasn't obvious;
+- the user explained how they want a kind of work done, corrected the output, or said "always…" / "never…";
+- the same kind of request has come up more than once.
+
+Don't record one-off facts (they belong in PROJECT.md), secrets (keys, passwords, tokens, personal data), guesses, or work that failed without a lesson. When nothing is worth keeping, record nothing.
+
+## Update before you create
+Look at the SKILLS list first. If a skill already covers this kind of work, improve it instead of adding a near-copy:
+- add a missing step, pitfall or example with "append";
+- rewrite it with "body" only when you have seen its whole text (open it with read_skill first);
+- sharpen a description that doesn't say clearly when to use it.
+When two skills overlap, merge them into one and tell the user; delete the leftover only if they agree.
+
+## How to write a skill
+- name: short, the kind of work ("Weekly newsletter", "Product render in Blender").
+- description: one or two sentences that say WHEN to use it. Agents decide from this line alone.
+- body, in markdown:
+  - ## When to use
+  - ## Steps: numbered and concrete (which tool, folder, settings, accounts)
+  - ## Pitfalls: what went wrong before and how it was fixed
+  - ## Done when: what good output looks like
+- General enough to reuse (no one-off dates or file names unless they are always the same), short enough to follow (about 60 lines at most).
+- Give it to whoever does that work (give_skill): the agent, the team, or the whole project when everyone needs it.
+
+## Routines
+When work repeats on a rhythm (every morning, each Friday, after each release), suggest a routine that mentions the skill it uses. Create the routine once the user agrees.
+
+## Tell the user
+Say in one line what you recorded or changed and why, e.g. "Saved how Ana renders product shots as the skill Product render and gave it to the Design team."`,
+  },
+];
+
+export function ensureBuiltinSkills() {
+  const marker = path.join(LIB(), '.builtin.json');
+  const added = readJSON<{ added: string[] }>(marker, { added: [] }).added;
+  const now = [...added];
+  for (const b of BUILTIN) {
+    if (added.includes(b.slug)) continue;
+    if (!exists(path.join(LIB(), b.slug))) {
+      fs.mkdirSync(path.join(LIB(), b.slug), { recursive: true });
+      fs.writeFileSync(path.join(LIB(), b.slug, 'SKILL.md'), compose(b));
+    }
+    now.push(b.slug);
+  }
+  if (now.length !== added.length) writeJSON(marker, { added: now });
 }
 
 // Copy one of your Claude Code skills (folder and files) into the library.

@@ -151,6 +151,6 @@ describe('the Brain and routines', () => {
     const { snapshot } = await import('../../server/overseer.ts');
     const snap = await snapshot({ fileBudget: 0 });
     expect(snap).toMatch(/ROUTINES \(\d+;[\s\S]*Morning post \| daily 07:30 Mon Wed \| agents: Scout \| teams: Post Crew \| skills: Brand voice \| last run: never run/);
-    expect(snap).toContain('- Brand voice: How we sound.');
+    expect(snap).toMatch(/- id=brand-voice[^|]* \| Brand voice: How we sound\. \| given to: /);
   });
 });

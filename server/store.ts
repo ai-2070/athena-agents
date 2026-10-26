@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { DATA, HOME, dataPath, ensureDir, readJSON, writeJSON, uid, listFiles, exists } from './util.ts';
+import { keepVersion } from './versions.ts';
 import type { ActivityEntry, Agent, Chat, ChatSummary, OutboxPost, Project, Routine, RoutineRun, SecretKey, SecretStatus, ServerEvent, Settings, Team } from '../shared/types.ts';
 
 ensureDir(DATA);
@@ -38,6 +39,8 @@ const DEFAULT_SETTINGS: Settings = {
   reddit: { clientId: '', username: '' },
   brain: { provider: 'claude', model: 'haiku' },
   brainApproves: true,
+  brainSkills: ['self-improvement'],
+  brainAnyGitHub: false,
   look: { scale: 100, accent: 'lime', motion: 'full' },
   telegram: { chatId: '' },
   maxToolSteps: 16,
@@ -187,6 +190,10 @@ export interface StoredItem {
 
 export interface Collection<T extends StoredItem> {
   readonly dir: string;
+  /** Where an item's old versions are kept (versioned collections only). */
+  versionsDir(id?: string): string | null;
+  /** Fields that don't count as a change (versioned collections only). */
+  readonly versionIgnore: readonly string[];
   list(): T[];
   get(id: string | null | undefined): T | null;
   /** Gives the item an id (if it has none) and timestamps, writes it and returns the same object. */
@@ -194,8 +201,12 @@ export interface Collection<T extends StoredItem> {
   remove(id: string): void;
 }
 
-export function collection<T extends StoredItem>(name: string, { global = false }: { global?: boolean } = {}): Collection<T> {
+// versioned: keep the version an item had before each change and before it's deleted (see versions.ts);
+// ignore: fields that change by themselves (timestamps, where it sits on the map) and aren't a new version.
+export function collection<T extends StoredItem>(name: string, { global = false, versioned = false, ignore = [] }: { global?: boolean; versioned?: boolean; ignore?: string[] } = {}): Collection<T> {
   const dirOf = () => ensureDir(global ? dataPath(name) : projectData(name));
+  const versionIgnore = ['updatedAt', 'createdAt', ...ignore];
+  const versionsDir = (id = '') => (versioned ? (global ? dataPath('versions', name, id) : projectData('versions', name, id)) : null);
   const file = (id: string) => path.join(dirOf(), `${id}.json`);
   // ids name files: no path separators
   const okId = (id: string | null | undefined): id is string => !!id && !/[\\/]/.test(id);
@@ -203,6 +214,8 @@ export function collection<T extends StoredItem>(name: string, { global = false 
     get dir() {
       return dirOf();
     },
+    versionsDir,
+    versionIgnore,
     list() {
       const dir = dirOf();
       return listFiles(dir, (n) => n.endsWith('.json'))
@@ -217,6 +230,10 @@ export function collection<T extends StoredItem>(name: string, { global = false 
       const it = item as Partial<StoredItem>;
       if (!it.id) it.id = uid();
       if (!okId(it.id)) throw Object.assign(new Error('Invalid id'), { status: 400 });
+      if (versioned) {
+        const before = readJSON<T>(file(it.id));
+        if (before) keepVersion(versionsDir(it.id)!, before, item as T, { ignore: versionIgnore });
+      }
       it.updatedAt = Date.now();
       it.createdAt ??= it.updatedAt;
       writeJSON(file(it.id), item);
@@ -225,6 +242,10 @@ export function collection<T extends StoredItem>(name: string, { global = false 
     },
     remove(id) {
       if (!okId(id)) return;
+      if (versioned) {
+        const before = readJSON<T>(file(id));
+        if (before) keepVersion(versionsDir(id)!, before, null, { deleted: true });
+      }
       try {
         fs.unlinkSync(file(id));
       } catch {
@@ -263,8 +284,9 @@ export interface WorkflowRun extends StoredItem {
   [k: string]: unknown;
 }
 
-export const agents = collection<Agent>('agents');
-export const workflows = collection<Team>('workflows');
+// (an agent's last model and pin, and a team's place on the map and last scheduled run, aren't versions)
+export const agents = collection<Agent>('agents', { versioned: true, ignore: ['lastModel', 'lastModelAt', 'pinned'] });
+export const workflows = collection<Team>('workflows', { versioned: true, ignore: ['pos', 'rot', 'angle', 'lastScheduledAt', 'state', 'last'] });
 export const runs = collection<WorkflowRun>('runs');
 export const routines = collection<Routine>('routines');
 export const routineRuns = collection<RoutineRun>('routine-runs');

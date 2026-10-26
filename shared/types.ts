@@ -383,6 +383,10 @@ export interface Settings {
   brain: BrainSetting;
   /** The Brain answers agents' and teams' permission requests, and only asks you about the risky or unclear ones. */
   brainApproves: boolean;
+  /** Skills the Brain itself follows (slugs). With "self-improvement" it also learns from finished work. */
+  brainSkills: string[];
+  /** The Brain may install skills from any GitHub link, not only from repos you named in the chat. */
+  brainAnyGitHub: boolean;
   look: LookSetting;
   telegram: { chatId: string };
   maxToolSteps: number;
@@ -487,6 +491,26 @@ export interface Skill {
   source: 'library' | 'claude';
   files: SkillFile[];
   updatedAt: number;
+  /** Where it was installed from (GitHub), if it was. */
+  origin?: SkillOrigin;
+}
+
+/** A skill installed from GitHub: where from (<skill>/.source.json). */
+export interface SkillOrigin {
+  url: string;
+  /** owner/repo */
+  repo: string;
+  ref: string;
+  /** the skill's folder in the repo ('' = the repo itself) */
+  path: string;
+  installedAt: number;
+}
+
+/** POST /api/skills/install: what installing from a GitHub link did. */
+export interface SkillInstallResult {
+  installed: { slug: string; name: string; updated: boolean; files: number }[];
+  /** skills found but not installed, and why */
+  skipped: string[];
 }
 
 export interface SkillListing extends Omit<Skill, 'body'> {
@@ -514,8 +538,45 @@ export interface PresetListing {
   savedAt: number;
 }
 
+// ---------- versions (skills, agents, teams) ----------
+export type VersionKind = 'skill' | 'agent' | 'team';
+/** One kept version, as GET /api/versions/:kind/:id lists it. */
+export interface VersionEntry {
+  id: string;
+  /** when it was replaced or deleted */
+  at: number;
+  /** who replaced it */
+  by: 'you' | 'brain';
+  deleted?: boolean;
+  note?: string;
+  /** what the next version (or the current one) changed in it */
+  changes: string[];
+}
+/** GET /api/versions/:kind/:id */
+export interface VersionHistory {
+  kind: VersionKind;
+  id: string;
+  name: string;
+  /** the current one as text, or null when it's deleted */
+  current: string | null;
+  versions: VersionEntry[];
+}
+/** GET /api/versions/:kind/:id/:vid: one version as text. */
+export interface VersionDetail extends VersionEntry {
+  name: string;
+  text: string;
+}
+/** GET /api/versions/:kind: what was deleted and can come back. */
+export interface DeletedItem {
+  kind: VersionKind;
+  id: string;
+  name: string;
+  at: number;
+  by: 'you' | 'brain';
+}
+
 // ---------- the Brain ----------
-export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; file?: string };
+export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string };
 export interface BrainDelegate {
   kind: 'agent' | 'branch';
   id: string;

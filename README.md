@@ -38,11 +38,11 @@ powershell -ExecutionPolicy Bypass -File install-shortcut.ps1 -Remove
 |---|---|
 | **Station** (start page) | The live 3D map. The Brain in the middle; each team is a round pod where its agents sit around a chat hub (the lead ★ faces the Brain). Drag a team anywhere, Shift+drag to spin it. Light shows handoffs between agents. Click a team or agent for its panel and its chat. The top bar shows connections, AI engines and your plan usage. |
 | **Chat window** | Floating, resizable, one tab per team group chat or agent. Opens when you click a team or agent. |
-| **Brain chat** (Space on the Station, or Ctrl+K / ⌘K anywhere) | Ask the Brain anything about the project, or for anything to be done: it answers, builds teams from the Library, writes PROJECT.md and hands work to the right agent or team. |
+| **Brain chat** (Space on the Station, or Ctrl+K / ⌘K anywhere) | Ask the Brain anything about the project, or for anything to be done: it answers, builds teams from the Library, writes PROJECT.md, makes and edits skills and routines, and hands work to the right agent or team. |
 | **Projects** | Pick or create at the start screen or top left. Each project has its own agents, teams and chats and a folder (new, existing, or a GitHub repo). Auto-saved into that folder. |
 | **Agents** | Each agent: instructions, knowledge, model (Claude Code, OpenRouter, Hermes or Codex), autonomy, tools, MCP servers, skills, workspace. |
 | **Library** | Starters, The Agency (270+ specialists), Hermes profiles, Claude Code subagents, and your saved presets. |
-| **Skills** | Reusable instructions (Claude Code's SKILL.md format). Give a skill to one agent, a team, or the whole project. Import your Claude Code skills. |
+| **Skills** | Reusable instructions (Claude Code's SKILL.md format). Give a skill to one agent, a team, the whole project, or the Brain itself. Import your Claude Code skills, or install them from a GitHub link (repo, folder or SKILL.md; installing again updates them). The Brain can make, edit, give, take back, re-assign, install and delete skills too. |
 | **Routines** | Work you want done again and again. Write it once and @mention who does it (one or more agents and teams) and the skills they use. Run it by hand or on a schedule; each run shows what every agent and team did. |
 | **Settings** | Keys and engines, connections (X, Reddit, Telegram, Discord, Outbox), MCP servers, programs, Look (UI scale, accent, motion). Searchable. |
 
@@ -50,6 +50,25 @@ powershell -ExecutionPolicy Bypass -File install-shortcut.ps1 -Remove
 project dialog, or the Brain on the map, or use the paperclip. They're saved in the project folder under
 `uploads/`, and the agent (or the Brain) is told where they are. Files added in the team builder stay with the
 team: every member is told about them.
+
+**Self-improvement**: the Brain comes with this skill. With it, after an agent finishes a sizeable job (5+ tool
+calls), the Brain reviews how it went. When it finds something worth keeping, it records the workflow as a skill,
+improves a skill that was missing a step, or gives a skill to whoever needs it, and says what it did in the Brain
+chat; when it doesn't, it changes nothing and says nothing. This review can only touch skills, and
+never the Brain's own skills. Take the skill away from the Brain (Skills page) to turn it off.
+
+**Skills from GitHub**: the Brain installs skills only from GitHub repos you named in the Brain chat yourself, so a
+link planted in a file, a page or an agent's answer can't get a skill installed. To allow any link, turn on Settings >
+The Brain's model > "Install skills from any GitHub link". Private repos work once you sign in with the GitHub CLI
+(`gh auth login`) or set `GITHUB_TOKEN`.
+
+**Versions**: every change to a skill, agent or team keeps the version from before it, and who made the change (you
+or the Brain); edits within a few minutes of each other count as one. **History** (skill editor, agent editor, team
+panel) compares any version with the current one and puts it back; restoring keeps the current version too, so it can
+be undone. **Recently deleted** (Skills page, Agents page) brings deleted ones back, skills with their extra files. The
+last 50 versions of each are kept, in `data/versions` (skills) and `data/projects/<id>/versions` (agents and teams).
+Agent and team versions are also saved into the project folder's `.dashboard`, so they come back when you open it.
+An agent's last model, a pin, and a team's place on the map don't count as changes.
 
 **Needs you** (top right) collects everything waiting on you: tool approvals, Claude Code
 permission requests and Outbox posts.
@@ -107,9 +126,11 @@ to fit). Both numbers are settings.
 
 Everything lives in `data/` (git-ignored): projects (agents, teams, chats, knowledge), skills,
 presets, settings, `secrets.json` (keys), `accounts.json` (tokens), the Outbox, the activity log.
-Keys and tokens never go to the browser. Each project's agents, teams and chats are also
-auto-saved into `<project folder>/.dashboard` (no keys), so opening that folder elsewhere brings
-them back.
+Keys and tokens never go to the browser. Each project's agents, teams, chats, the skills it uses (given to the
+project, a team or an agent, or mentioned in a routine, with their files) and their earlier versions are
+also auto-saved into `<project folder>/.dashboard` (no keys), so opening that folder elsewhere brings them back.
+Skills the library doesn't have are added; one it already has is never changed, and a different copy from the folder
+is kept as one of its versions.
 
 **Backups.** Project menu > **Back up this project** writes one `.dashbackup` file to
 `My Dashboard Backups` in your home folder (`C:\Users\<you>` on Windows, `~` on macOS and Linux).
