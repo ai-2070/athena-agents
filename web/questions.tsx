@@ -1,8 +1,8 @@
 // Questions agents asked you (ask_user): the card with the choices as buttons and a box for an answer in
-// your own words. Shown in the Outbox, and in the chat while the agent waits there.
+// your own words. Shown in the Outbox, in the Needs you drawer, and in the chat while the agent waits there.
 import { useState } from 'react';
-import { POST, DEL, attempt, ago, md } from './core.ts';
-import { DomNode } from './ui/react.tsx';
+import { POST, DEL, attempt, ago, md, refreshSoon } from './core.ts';
+import { DomNode, mountReact, useAppState } from './ui/react.tsx';
 import type { AgentQuestion } from '../shared/types.ts';
 
 const STATUS: Record<AgentQuestion['status'], [string, string]> = {
@@ -28,8 +28,13 @@ export function questionFor(list: readonly AgentQuestion[] | undefined, input: u
   return [...(list || [])].reverse().find((q) => q.status === 'waiting' && q.question === asked) || null;
 }
 
+/** Where a card is shown: the Outbox page, under the tool call in a chat, or in the Needs you drawer. */
+export type QuestionPlace = 'outbox' | 'chat' | 'drawer';
+const CARD: Record<QuestionPlace, string> = { outbox: 'panel question', chat: 'question in-chat', drawer: 'approval question' };
+
 /** One question: click a choice, or write an answer (or both: what you wrote goes along with the choice). */
-export function QuestionCard({ q, inChat = false, changed }: { q: AgentQuestion; inChat?: boolean; changed?: () => void }) {
+export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestion; place?: QuestionPlace; changed?: () => void }) {
+  const inChat = place === 'chat';
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const waiting = q.status === 'waiting';
@@ -52,7 +57,7 @@ export function QuestionCard({ q, inChat = false, changed }: { q: AgentQuestion;
   const [tone, label] = STATUS[q.status] || ['', q.status];
   const after = q.status === 'answered' ? deliveredText(q) : q.note || '';
   return (
-    <div className={`${inChat ? 'question in-chat' : 'panel question'}${waiting ? ' waiting' : ''}`} role="group" aria-label={`Question from ${who}`}>
+    <div className={`${CARD[place]}${waiting ? ' waiting' : ''}`} role="group" aria-label={`Question from ${who}`}>
       <div className="row">
         <span className={`pill${tone ? ` ${tone}` : ''}`}>{label}</span>
         {inChat ? <span className="hint">Also in your Outbox</span> : <b>{q.agentName || 'An agent'}</b>}
@@ -95,7 +100,7 @@ export function QuestionCard({ q, inChat = false, changed }: { q: AgentQuestion;
             </p>
           ) : null}
           {after ? <p className="hint">{after}</p> : null}
-          {inChat ? null : (
+          {place !== 'outbox' ? null : (
             <div className="row">
               <button className="btn tiny ghost" onClick={() => void remove()}>Remove</button>
             </div>
@@ -104,4 +109,21 @@ export function QuestionCard({ q, inChat = false, changed }: { q: AgentQuestion;
       )}
     </div>
   );
+}
+
+/** The questions waiting for you, as cards in the Needs you drawer (it follows the app state by itself). */
+function DrawerQuestions() {
+  const asked = useAppState()?.questions || [];
+  return (
+    <>
+      {asked.map((q) => (
+        <QuestionCard key={q.id} q={q} place="drawer" changed={() => refreshSoon(0)} />
+      ))}
+    </>
+  );
+}
+
+/** Draws the waiting questions into el (the drawer is plain DOM: it keeps el, so a half-typed answer stays). */
+export function mountDrawerQuestions(el: HTMLElement): { unmount: () => void } {
+  return mountReact(el, <DrawerQuestions />);
 }

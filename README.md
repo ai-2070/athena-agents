@@ -28,7 +28,7 @@ The dashboard runs at **http://localhost:4800**, with no dashboard account or lo
 - **Work with your files and programs.** Give agents a project folder, attach reference files, and connect tools for programs such as Blender, Maya, Houdini, Substance 3D, ComfyUI, ffmpeg, HandBrake, ImageMagick, OpenSCAD, PrusaSlicer and NVIDIA's texture tools, and let them pull free textures, HDRIs and models from Poly Haven and ambientCG. The Programs page also finds Adobe apps, free creative programs (GIMP, Krita, Inkscape, Audacity and more), video editors (DaVinci Resolve, CapCut, Kdenlive and more), CAD programs and slicers. Add more tools through MCP servers.
 - **Keep useful instructions.** Write skills in plain words, share them across agents and teams, and turn repeated work into routines you can run by hand or on a schedule.
 - **Review work before it goes out.** Handle permission requests in **Needs you**, answer agents' questions and review X and Reddit drafts in the **Outbox**, and find saved results in **Artifacts**.
-- **Agents ask you when they need you.** When an agent has to choose, needs something only you can give, or is stuck, its question goes to the **Outbox** with the choices as buttons and a box to answer in your own words. You can also answer right in its chat while it waits.
+- **Agents ask you when they need you.** When an agent has to choose, needs something only you can give, or is stuck, its question goes to the **Outbox** and the **Needs you** drawer, with the choices as buttons and a box to answer in your own words. You can also answer right in its chat while it waits.
 
 ## Screenshots
 

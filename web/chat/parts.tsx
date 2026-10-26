@@ -94,7 +94,7 @@ export function ToolCard({ part, variant, busy }: { part: DynamicToolUIPart; var
   const question = part.toolName === 'ask_user' && !done ? questionFor(asked, part.input) : null;
   return (
     <div className={`col oc-tool${small ? ' small' : ''}`} style={{ gap: '6px' }}>
-      {question ? <QuestionCard q={question} inChat /> : null}
+      {question ? <QuestionCard q={question} place="chat" /> : null}
       <details
         className={`tool${failed ? ' error' : ''}${small ? ' small' : ''}`}
         open={open}

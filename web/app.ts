@@ -16,6 +16,7 @@ import * as setup from './views/setup.tsx';
 import * as skillsView from './views/skills.tsx';
 import * as routinesView from './views/routines.tsx';
 import { initDock } from './dock.tsx';
+import { mountDrawerQuestions } from './questions.tsx';
 import { guardPageDrops } from './attach.ts';
 import { applyLook, applySavedLook } from './look.ts';
 
@@ -157,6 +158,8 @@ const drawer = document.getElementById('drawer')!;
 const drawerBody = document.getElementById('drawer-body')!;
 let seenApprovals = new Set<string>();
 let seenQuestions: Set<string> | null = null;
+// Questions are React cards (choices to click, a box to answer): one place kept across redraws, so typing isn't lost.
+let questionsHost: HTMLElement | null = null;
 // Cards are kept while their approval is unchanged, so a typed note or edit survives other refreshes.
 let drawnApprovals = '';
 let approvalCards = new Map<string, { key: string; el: HTMLElement }>();
@@ -181,14 +184,11 @@ function renderApprovals() {
   clear(drawerBody);
   const toOutbox = () => (navigate('#/outbox'), drawer.classList.add('hidden'));
   if (asked.length) {
-    drawerBody.append(
-      h(
-        'div.approval',
-        h('div.t', asked.length === 1 ? `${asked[0].agentName || 'An agent'} asks: ${asked[0].question}` : `${asked.length} questions from agents in the Outbox`),
-        asked.length === 1 && asked[0].choices.length ? h('div.hint', `Choices: ${asked[0].choices.join(' · ')}`) : null,
-        h('button.btn.small', { onclick: toOutbox }, asked.length === 1 ? 'Answer' : 'Answer them'),
-      ),
-    );
+    if (!questionsHost) {
+      questionsHost = h('div.drawer-questions');
+      mountDrawerQuestions(questionsHost);
+    }
+    drawerBody.append(questionsHost);
   }
   if (state.data?.outboxPending) {
     drawerBody.append(

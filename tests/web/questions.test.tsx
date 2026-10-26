@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DynamicToolUIPart } from 'ai';
 import { state } from '../../web/core.ts';
 import * as outbox from '../../web/views/outbox.tsx';
-import { QuestionCard, deliveredText, questionFor } from '../../web/questions.tsx';
+import { QuestionCard, deliveredText, mountDrawerQuestions, questionFor } from '../../web/questions.tsx';
 import { ToolCard } from '../../web/chat/parts.tsx';
 import type { AgentQuestion, AppState } from '../../shared/types.ts';
 
@@ -84,6 +84,33 @@ describe('a question card', () => {
     expect(el.textContent).toContain('Sent to Designer in the Brand chat.');
     expect(el.querySelector('textarea')).toBeNull();
     expect(deliveredText(question({ delivered: 'live' }))).toBe('Designer got it right away.');
+  });
+});
+
+describe('the Needs you drawer', () => {
+  it('shows each waiting question with its choices to click and a box to answer, and keeps what you typed', async () => {
+    let drawer: { unmount: () => void } | null = null;
+    await act(async () => void (drawer = mountDrawerQuestions(el)));
+    try {
+      const card = el.querySelector('.approval.question')!;
+      expect(card.textContent).toContain('Which style?');
+      expect(card.textContent).toContain('Designer');
+      await type(el.querySelector('textarea')!, 'bold please');
+      // the app state refreshes (another question arrives): the card and what you typed stay
+      await act(async () => {
+        state.data = { ...state.data!, questions: [list[0], question({ id: 'qn2', question: 'Which font?', choices: ['Serif', 'Sans'] })] };
+        for (const fn of state.listeners) fn(state.data);
+      });
+      expect(el.querySelectorAll('.approval.question')).toHaveLength(2);
+      expect(el.querySelector('textarea')!.value).toBe('bold please');
+      await act(async () => btn('Flat').click());
+      await settle();
+      expect(requests.find((r) => r.url === '/api/questions/qn1/answer')!.body).toEqual({ choice: 'Flat', text: 'bold please' });
+      // (no Remove there: answered ones live in the Outbox)
+      expect(btn('Remove')).toBeUndefined();
+    } finally {
+      act(() => drawer?.unmount());
+    }
   });
 });
 
