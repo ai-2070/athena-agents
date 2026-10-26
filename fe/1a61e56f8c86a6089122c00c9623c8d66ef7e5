@@ -1,0 +1,608 @@
+library/agency-agents/README.md
+  s_09ba4ce8597d76::t_cd35a3a7c5b046 1-17
+server/library.ts
+  s_09ba4ce8597d76::t_f86c93f4fd63c4 38-40,49
+  s_09ba4ce8597d76::t_ac1dcbdb64a474 56
+  s_09ba4ce8597d76::t_754ec091610abc 96
+  s_09ba4ce8597d76::t_a26e66c3200e70 1,5
+  s_09ba4ce8597d76::t_c51ecdc05bd4d2 42-44
+AGENTS.md
+  s_09ba4ce8597d76::t_ea511da21250b8 45
+web/views/library.ts
+  s_09ba4ce8597d76::t_ca58a2da4ff1b5 38
+README.md
+  s_09ba4ce8597d76::t_ebd82056104936 97
+server/overseer.ts
+  s_09ba4ce8597d76::t_08199fab6036fa 344
+.gitignore
+  s_09ba4ce8597d76::t_f13321c41a72cc 2
+tests/server/library.test.ts
+  s_09ba4ce8597d76::t_c1bbd7802c84b6 35-40
+  s_09ba4ce8597d76::t_cd6111454484b8 1-34,41-67
+library/agency-agents/LICENSE
+  s_09ba4ce8597d76::t_01ebff40d593a5 1-21
+library/agency-agents/academic/academic-anthropologist.md
+  s_09ba4ce8597d76::t_aa00617a06892c 1-125
+library/agency-agents/academic/academic-geographer.md
+  s_09ba4ce8597d76::t_16c359c0b71d7a 1-127
+library/agency-agents/academic/academic-historian.md
+  s_09ba4ce8597d76::t_834f0c58291e24 1-123
+library/agency-agents/academic/academic-narratologist.md
+  s_09ba4ce8597d76::t_b462cd44be5a53 1-118
+library/agency-agents/academic/academic-psychologist.md
+  s_09ba4ce8597d76::t_102b6a05759ce9 1-118
+library/agency-agents/academic/academic-statistician.md
+  s_09ba4ce8597d76::t_045fb95119486e 1-144
+library/agency-agents/design/design-brand-guardian.md
+  s_09ba4ce8597d76::t_467c156c67bb84 1-322
+library/agency-agents/design/design-image-prompt-engineer.md
+  s_09ba4ce8597d76::t_63efecf3a57463 1-236
+library/agency-agents/design/design-inclusive-visuals-specialist.md
+  s_09ba4ce8597d76::t_15b4aacef8c3fd 1-73
+library/agency-agents/design/design-persona-walkthrough.md
+  s_09ba4ce8597d76::t_db643fdd669481 1-272
+library/agency-agents/design/design-ui-designer.md
+  s_09ba4ce8597d76::t_2232b4472047c9 1-386
+library/agency-agents/design/design-ui-finish-gate-reviewer.md
+  s_09ba4ce8597d76::t_03db2628673657 1-217
+library/agency-agents/design/design-ux-architect.md
+  s_09ba4ce8597d76::t_4ccbc94bd0fcbe 1-482
+library/agency-agents/design/design-ux-researcher.md
+  s_09ba4ce8597d76::t_62368c183db606 1-329
+library/agency-agents/design/design-visual-storyteller.md
+  s_09ba4ce8597d76::t_12a2be53bdee8b 1-149
+library/agency-agents/design/design-whimsy-injector.md
+  s_09ba4ce8597d76::t_24e689df6c88e6 1-460
+library/agency-agents/divisions.json
+  s_09ba4ce8597d76::t_951b5c18b43d2d 1-23
+library/agency-agents/engineering/engineering-ai-data-remediation-engineer.md
+  s_09ba4ce8597d76::t_e521bb08020bb6 1-211
+library/agency-agents/engineering/engineering-ai-engineer.md
+  s_09ba4ce8597d76::t_54bcc048eefefc 1-146
+library/agency-agents/engineering/engineering-api-platform-engineer.md
+  s_09ba4ce8597d76::t_0a908c71dd7e75 1-181
+library/agency-agents/engineering/engineering-ats-validator-architect.md
+  s_09ba4ce8597d76::t_88f4221d4bd63f 1-383
+library/agency-agents/engineering/engineering-autonomous-optimization-architect.md
+  s_09ba4ce8597d76::t_21546f1ccf850d 1-121
+library/agency-agents/engineering/engineering-backend-architect.md
+  s_09ba4ce8597d76::t_86e55ba9cc35c7 1-249
+library/agency-agents/engineering/engineering-china-network-engineer.md
+  s_09ba4ce8597d76::t_462441a46673ea 1-252
+library/agency-agents/engineering/engineering-cms-developer.md
+  s_09ba4ce8597d76::t_96572c0c4c28f1 1-536
+library/agency-agents/engineering/engineering-code-reviewer.md
+  s_09ba4ce8597d76::t_ea343c4a15dbac 1-76
+library/agency-agents/engineering/engineering-codebase-onboarding-engineer.md
+  s_09ba4ce8597d76::t_8a2c3db3f60ce8 1-173
+library/agency-agents/engineering/engineering-data-engineer.md
+  s_09ba4ce8597d76::t_a3921f7f040ba2 1-321
+library/agency-agents/engineering/engineering-data-visualization-engineer.md
+  s_09ba4ce8597d76::t_8c53d6a31ec6f2 1-151
+library/agency-agents/engineering/engineering-database-optimizer.md
+  s_09ba4ce8597d76::t_227a7a6b8fe76d 1-188
+library/agency-agents/engineering/engineering-database-reliability-engineer.md
+  s_09ba4ce8597d76::t_08791643fbdd52 1-201
+library/agency-agents/engineering/engineering-desktop-app-engineer.md
+  s_09ba4ce8597d76::t_a048569bdfcab9 1-209
+library/agency-agents/engineering/engineering-developer-tooling-engineer.md
+  s_09ba4ce8597d76::t_d2870f28fc2795 1-153
+library/agency-agents/engineering/engineering-devops-automator.md
+  s_09ba4ce8597d76::t_09b6682896e302 1-385
+library/agency-agents/engineering/engineering-drupal-performance.md
+  s_09ba4ce8597d76::t_b3842897ff5bc1 1-347
+library/agency-agents/engineering/engineering-drupal-shopping-cart.md
+  s_09ba4ce8597d76::t_7d30ef93f3d4b4 1-360
+library/agency-agents/engineering/engineering-electrical-engineer.md
+  s_09ba4ce8597d76::t_f687cd75619dbe 1-575
+library/agency-agents/engineering/engineering-email-intelligence-engineer.md
+  s_09ba4ce8597d76::t_1d4c82ec08e6d0 1-390
+library/agency-agents/engineering/engineering-embedded-firmware-engineer.md
+  s_09ba4ce8597d76::t_0444141ebd4d9e 1-196
+library/agency-agents/engineering/engineering-feishu-integration-developer.md
+  s_09ba4ce8597d76::t_7a40b3d456c4dc 1-606
+library/agency-agents/engineering/engineering-filament-optimization-specialist.md
+  s_09ba4ce8597d76::t_54a6136febe54b 1-283
+library/agency-agents/engineering/engineering-finops-engineer.md
+  s_09ba4ce8597d76::t_11d65da5a4dbea 1-164
+library/agency-agents/engineering/engineering-frontend-developer.md
+  s_09ba4ce8597d76::t_24851e4003ea45 1-231
+library/agency-agents/engineering/engineering-gaussdb-expert.md
+  s_09ba4ce8597d76::t_5b806a16379d60 1-334
+library/agency-agents/engineering/engineering-git-workflow-master.md
+  s_09ba4ce8597d76::t_c60ec0aeb2b8ec 1-98
+library/agency-agents/engineering/engineering-i18n-engineer.md
+  s_09ba4ce8597d76::t_c8cbe94393bb6e 1-214
+library/agency-agents/engineering/engineering-identity-access-engineer.md
+  s_09ba4ce8597d76::t_8c18b0d37d2609 1-217
+library/agency-agents/engineering/engineering-incident-response-commander.md
+  s_09ba4ce8597d76::t_4b09a8135f07ab 1-444
+library/agency-agents/engineering/engineering-iot-fleet-engineer.md
+  s_09ba4ce8597d76::t_4261170594fb9e 1-148
+library/agency-agents/engineering/engineering-it-service-manager.md
+  s_09ba4ce8597d76::t_db77dff093de31 1-561
+library/agency-agents/engineering/engineering-knowledge-graph-engineer.md
+  s_09ba4ce8597d76::t_3891556e215245 1-372
+library/agency-agents/engineering/engineering-llm-post-training-engineer.md
+  s_09ba4ce8597d76::t_82115bfe118e04 1-166
+library/agency-agents/engineering/engineering-minimal-change-engineer.md
+  s_09ba4ce8597d76::t_d34f5c35705007 1-207
+library/agency-agents/engineering/engineering-mobile-app-builder.md
+  s_09ba4ce8597d76::t_1d39350337cfa5 1-493
+library/agency-agents/engineering/engineering-mobile-release-engineer.md
+  s_09ba4ce8597d76::t_62cf39926251ce 1-164
+library/agency-agents/engineering/engineering-multi-agent-systems-architect.md
+  s_09ba4ce8597d76::t_c56c127005922f 1-600
+library/agency-agents/engineering/engineering-network-engineer.md
+  s_09ba4ce8597d76::t_56698aac140f73 1-245
+library/agency-agents/engineering/engineering-orgscript-engineer.md
+  s_09ba4ce8597d76::t_a173df0f9d6fe6 1-113
+library/agency-agents/engineering/engineering-payments-billing-engineer.md
+  s_09ba4ce8597d76::t_03d8f42c261847 1-228
+library/agency-agents/engineering/engineering-pdf-engine-architect.md
+  s_09ba4ce8597d76::t_ec4d76cbd6fe17 1-696
+library/agency-agents/engineering/engineering-platform-engineer.md
+  s_09ba4ce8597d76::t_4b87b18c639961 1-270
+library/agency-agents/engineering/engineering-privacy-engineer.md
+  s_09ba4ce8597d76::t_c477b092cf4040 1-152
+library/agency-agents/engineering/engineering-prompt-engineer.md
+  s_09ba4ce8597d76::t_9666a434e2a97f 1-209
+library/agency-agents/engineering/engineering-rag-pipeline-engineer.md
+  s_09ba4ce8597d76::t_a18f4133d39619 1-450
+library/agency-agents/engineering/engineering-rapid-prototyper.md
+  s_09ba4ce8597d76::t_002a94509c241d 1-466
+library/agency-agents/engineering/engineering-realtime-collaboration-engineer.md
+  s_09ba4ce8597d76::t_4d481fe6b56cd1 1-200
+library/agency-agents/engineering/engineering-rust-refactoring-specialist.md
+  s_09ba4ce8597d76::t_f9f4c6814ff332 1-313
+library/agency-agents/engineering/engineering-search-relevance-engineer.md
+  s_09ba4ce8597d76::t_82c5883dfca3ba 1-237
+library/agency-agents/engineering/engineering-section-508-specialist.md
+  s_09ba4ce8597d76::t_742d587d97fa6c 1-339
+library/agency-agents/engineering/engineering-senior-developer.md
+  s_09ba4ce8597d76::t_fc4219aa934548 1-176
+library/agency-agents/engineering/engineering-servicenow-developer-mentor.md
+  s_09ba4ce8597d76::t_9ad21e86943931 1-180
+library/agency-agents/engineering/engineering-software-architect.md
+  s_09ba4ce8597d76::t_14b7f407c9794f 1-112
+library/agency-agents/engineering/engineering-solidity-smart-contract-engineer.md
+  s_09ba4ce8597d76::t_66a4a38bcd6d04 1-522
+library/agency-agents/engineering/engineering-sre.md
+  s_09ba4ce8597d76::t_e728b2149903fb 1-90
+library/agency-agents/engineering/engineering-technical-writer.md
+  s_09ba4ce8597d76::t_5927bd98ab3ee6 1-393
+library/agency-agents/engineering/engineering-universal-document-compiler.md
+  s_09ba4ce8597d76::t_c63a163b238a61 1-370
+library/agency-agents/engineering/engineering-uswds-developer.md
+  s_09ba4ce8597d76::t_3d539d57551083 1-340
+library/agency-agents/engineering/engineering-video-streaming-engineer.md
+  s_09ba4ce8597d76::t_c687315b725f57 1-151
+library/agency-agents/engineering/engineering-voice-ai-integration-engineer.md
+  s_09ba4ce8597d76::t_9fa1e3d1d9b605 1-584
+library/agency-agents/engineering/engineering-webassembly-engineer.md
+  s_09ba4ce8597d76::t_c099d397b5b316 1-153
+library/agency-agents/engineering/engineering-wechat-mini-program-developer.md
+  s_09ba4ce8597d76::t_425be45cce8973 1-356
+library/agency-agents/engineering/engineering-wordpress-performance.md
+  s_09ba4ce8597d76::t_bfb925fe054d22 1-346
+library/agency-agents/engineering/engineering-wordpress-shopping-cart.md
+  s_09ba4ce8597d76::t_93c1124f5e34da 1-346
+library/agency-agents/finance/finance-bookkeeper-controller.md
+  s_09ba4ce8597d76::t_7da84d5fb4d786 1-260
+library/agency-agents/finance/finance-financial-analyst.md
+  s_09ba4ce8597d76::t_102434f8811387 1-234
+library/agency-agents/finance/finance-fpa-analyst.md
+  s_09ba4ce8597d76::t_b5d32a92b7779c 1-263
+library/agency-agents/finance/finance-investment-researcher.md
+  s_09ba4ce8597d76::t_7324f467ef2d0f 1-272
+library/agency-agents/finance/finance-tax-strategist.md
+  s_09ba4ce8597d76::t_13498a3f7e4b16 1-239
+library/agency-agents/game-development/blender/blender-addon-engineer.md
+  s_09ba4ce8597d76::t_ec944efa1ebc1c 1-243
+library/agency-agents/game-development/economy-designer.md
+  s_09ba4ce8597d76::t_4b0c2d0e977543 1-156
+library/agency-agents/game-development/game-audio-engineer.md
+  s_09ba4ce8597d76::t_e2fdab03b3fc29 1-264
+library/agency-agents/game-development/game-designer.md
+  s_09ba4ce8597d76::t_9ca1d64f51b0ef 1-167
+library/agency-agents/game-development/godot/godot-gameplay-scripter.md
+  s_09ba4ce8597d76::t_3f6ea8f4912252 1-338
+library/agency-agents/game-development/godot/godot-multiplayer-engineer.md
+  s_09ba4ce8597d76::t_ff9c5d576d4ce8 1-301
+library/agency-agents/game-development/godot/godot-shader-developer.md
+  s_09ba4ce8597d76::t_67309219863454 1-267
+library/agency-agents/game-development/level-designer.md
+  s_09ba4ce8597d76::t_368e603a72141c 1-208
+library/agency-agents/game-development/narrative-designer.md
+  s_09ba4ce8597d76::t_86f5bf5914bcef 1-243
+library/agency-agents/game-development/roblox-studio/roblox-avatar-creator.md
+  s_09ba4ce8597d76::t_a43ba1287a84c2 1-297
+library/agency-agents/game-development/roblox-studio/roblox-experience-designer.md
+  s_09ba4ce8597d76::t_c118327fe66793 1-306
+library/agency-agents/game-development/roblox-studio/roblox-systems-scripter.md
+  s_09ba4ce8597d76::t_5218d754bcc4f4 1-332
+library/agency-agents/game-development/technical-artist.md
+  s_09ba4ce8597d76::t_7cbf5425338fcc 1-233
+library/agency-agents/game-development/unity/unity-architect.md
+  s_09ba4ce8597d76::t_580624dbe77750 1-271
+library/agency-agents/game-development/unity/unity-editor-tool-developer.md
+  s_09ba4ce8597d76::t_198eedf91f896d 1-310
+library/agency-agents/game-development/unity/unity-multiplayer-engineer.md
+  s_09ba4ce8597d76::t_3d6e6bf51fe49f 1-323
+library/agency-agents/game-development/unity/unity-shader-graph-artist.md
+  s_09ba4ce8597d76::t_c5bf87bde88847 1-269
+library/agency-agents/game-development/unreal-engine/unreal-multiplayer-architect.md
+  s_09ba4ce8597d76::t_c690fc48f5584f 1-364
+library/agency-agents/game-development/unreal-engine/unreal-systems-engineer.md
+  s_09ba4ce8597d76::t_e1db19bfb252a7 1-322
+library/agency-agents/game-development/unreal-engine/unreal-technical-artist.md
+  s_09ba4ce8597d76::t_ca3e5bf3f62257 1-256
+library/agency-agents/game-development/unreal-engine/unreal-world-builder.md
+  s_09ba4ce8597d76::t_375df17b8061a5 1-273
+library/agency-agents/gis/gis-3d-scene-developer.md
+  s_09ba4ce8597d76::t_31bfbd642ed226 1-111
+library/agency-agents/gis/gis-analyst.md
+  s_09ba4ce8597d76::t_485faab14c26b7 1-91
+library/agency-agents/gis/gis-bim-specialist.md
+  s_09ba4ce8597d76::t_20bddeb74cd5dd 1-108
+library/agency-agents/gis/gis-cartography-designer.md
+  s_09ba4ce8597d76::t_d6ce429b9141a1 1-150
+library/agency-agents/gis/gis-drone-reality-mapping.md
+  s_09ba4ce8597d76::t_a7781e11cedb76 1-120
+library/agency-agents/gis/gis-geoai-ml-engineer.md
+  s_09ba4ce8597d76::t_690641bb740af6 1-105
+library/agency-agents/gis/gis-geoprocessing-specialist.md
+  s_09ba4ce8597d76::t_a0498560f5fbe8 1-97
+library/agency-agents/gis/gis-qa-engineer.md
+  s_09ba4ce8597d76::t_0dec2095274e8a 1-133
+library/agency-agents/gis/gis-solution-engineer.md
+  s_09ba4ce8597d76::t_a18987ad6d2f8e 1-101
+library/agency-agents/gis/gis-spatial-data-engineer.md
+  s_09ba4ce8597d76::t_c5bcf58c75b5ab 1-97
+library/agency-agents/gis/gis-spatial-data-scientist.md
+  s_09ba4ce8597d76::t_180969d35dd63a 1-111
+library/agency-agents/gis/gis-technical-consultant.md
+  s_09ba4ce8597d76::t_7acea52ea74e07 1-86
+library/agency-agents/gis/gis-web-gis-developer.md
+  s_09ba4ce8597d76::t_c29f99e9517130 1-108
+library/agency-agents/healthcare/healthcare-clinical-evidence-agent.md
+  s_09ba4ce8597d76::t_0034a1c76478f2 1-231
+library/agency-agents/healthcare/healthcare-innovation-strategist.md
+  s_09ba4ce8597d76::t_8f518489b55f25 1-433
+library/agency-agents/healthcare/healthcare-sovereign-health-systems-agent.md
+  s_09ba4ce8597d76::t_12d3bd7b9916da 1-312
+library/agency-agents/marketing/marketing-aeo-foundations.md
+  s_09ba4ce8597d76::t_bbd97f264fd4fd 1-264
+library/agency-agents/marketing/marketing-agentic-search-optimizer.md
+  s_09ba4ce8597d76::t_37ce5111b8c95e 1-279
+library/agency-agents/marketing/marketing-ai-citation-strategist.md
+  s_09ba4ce8597d76::t_dcbcac0be65573 1-172
+library/agency-agents/marketing/marketing-app-store-optimizer.md
+  s_09ba4ce8597d76::t_85b8a91ce936b8 1-321
+library/agency-agents/marketing/marketing-baidu-seo-specialist.md
+  s_09ba4ce8597d76::t_d2e206378277b9 1-226
+library/agency-agents/marketing/marketing-bilibili-content-strategist.md
+  s_09ba4ce8597d76::t_33a65b3f5f51f7 1-199
+library/agency-agents/marketing/marketing-book-co-author.md
+  s_09ba4ce8597d76::t_5b9602387306f6 1-110
+library/agency-agents/marketing/marketing-carousel-growth-engine.md
+  s_09ba4ce8597d76::t_d09976a39b9c9f 1-204
+library/agency-agents/marketing/marketing-china-ecommerce-operator.md
+  s_09ba4ce8597d76::t_1ab49b3c3fe2b5 1-283
+library/agency-agents/marketing/marketing-china-market-localization-strategist.md
+  s_09ba4ce8597d76::t_cb9822f6342189 1-283
+library/agency-agents/marketing/marketing-content-creator.md
+  s_09ba4ce8597d76::t_a9a014c3ef988e 1-54
+library/agency-agents/marketing/marketing-cross-border-ecommerce.md
+  s_09ba4ce8597d76::t_f6b533551565ab 1-259
+library/agency-agents/marketing/marketing-developer-community-builder.md
+  s_09ba4ce8597d76::t_b852a6d0dceff6 1-285
+library/agency-agents/marketing/marketing-douyin-strategist.md
+  s_09ba4ce8597d76::t_2581f788bd04f6 1-149
+library/agency-agents/marketing/marketing-email-strategist.md
+  s_09ba4ce8597d76::t_28ab58163bc282 1-249
+library/agency-agents/marketing/marketing-global-podcast-strategist.md
+  s_09ba4ce8597d76::t_c5f6bb124a8d50 1-206
+library/agency-agents/marketing/marketing-growth-hacker.md
+  s_09ba4ce8597d76::t_3a0c32a0f08ea5 1-54
+library/agency-agents/marketing/marketing-instagram-curator.md
+  s_09ba4ce8597d76::t_205de3c1cab14f 1-113
+library/agency-agents/marketing/marketing-kuaishou-strategist.md
+  s_09ba4ce8597d76::t_0a78769cf03a4b 1-223
+library/agency-agents/marketing/marketing-linkedin-content-creator.md
+  s_09ba4ce8597d76::t_fd6c981780c91e 1-214
+library/agency-agents/marketing/marketing-livestream-commerce-coach.md
+  s_09ba4ce8597d76::t_11d18c11007ab8 1-305
+library/agency-agents/marketing/marketing-multi-platform-publisher.md
+  s_09ba4ce8597d76::t_caf605c46e6e69 1-217
+library/agency-agents/marketing/marketing-podcast-strategist.md
+  s_09ba4ce8597d76::t_20bfacd161ff25 1-277
+library/agency-agents/marketing/marketing-pr-communications-manager.md
+  s_09ba4ce8597d76::t_34a371234481fd 1-473
+library/agency-agents/marketing/marketing-private-domain-operator.md
+  s_09ba4ce8597d76::t_245bff7440423f 1-308
+library/agency-agents/marketing/marketing-reddit-community-builder.md
+  s_09ba4ce8597d76::t_958f0e7c179037 1-123
+library/agency-agents/marketing/marketing-seo-specialist.md
+  s_09ba4ce8597d76::t_a6c0faa1d3eee8 1-370
+library/agency-agents/marketing/marketing-short-video-editing-coach.md
+  s_09ba4ce8597d76::t_326f16eb78a35b 1-412
+library/agency-agents/marketing/marketing-social-media-strategist.md
+  s_09ba4ce8597d76::t_3f2489a37ba9b0 1-125
+library/agency-agents/marketing/marketing-tiktok-strategist.md
+  s_09ba4ce8597d76::t_2122457894a4c3 1-125
+library/agency-agents/marketing/marketing-twitter-engager.md
+  s_09ba4ce8597d76::t_982c10e86ff599 1-126
+library/agency-agents/marketing/marketing-video-optimization-specialist.md
+  s_09ba4ce8597d76::t_9f1e710dfcf707 1-119
+library/agency-agents/marketing/marketing-wechat-official-account.md
+  s_09ba4ce8597d76::t_910ef0d532f55c 1-145
+library/agency-agents/marketing/marketing-weibo-strategist.md
+  s_09ba4ce8597d76::t_554f6125b8c315 1-240
+library/agency-agents/marketing/marketing-x-twitter-intelligence-analyst.md
+  s_09ba4ce8597d76::t_25595dd942093b 1-161
+library/agency-agents/marketing/marketing-xiaohongshu-specialist.md
+  s_09ba4ce8597d76::t_920e6722d1306b 1-138
+library/agency-agents/marketing/marketing-zhihu-strategist.md
+  s_09ba4ce8597d76::t_371759e3ffdd3a 1-162
+library/agency-agents/paid-media/paid-media-auditor.md
+  s_09ba4ce8597d76::t_723ad0bba9b050 1-71
+library/agency-agents/paid-media/paid-media-creative-strategist.md
+  s_09ba4ce8597d76::t_85fbfb6210fe4f 1-71
+library/agency-agents/paid-media/paid-media-paid-social-strategist.md
+  s_09ba4ce8597d76::t_3b4c950748972b 1-71
+library/agency-agents/paid-media/paid-media-ppc-strategist.md
+  s_09ba4ce8597d76::t_be4c34bccf4d35 1-71
+library/agency-agents/paid-media/paid-media-programmatic-buyer.md
+  s_09ba4ce8597d76::t_84e20c0db11028 1-71
+library/agency-agents/paid-media/paid-media-search-query-analyst.md
+  s_09ba4ce8597d76::t_fcc7c18c58325e 1-71
+library/agency-agents/paid-media/paid-media-tracking-specialist.md
+  s_09ba4ce8597d76::t_852469be7ddcf0 1-71
+library/agency-agents/product/product-behavioral-nudge-engine.md
+  s_09ba4ce8597d76::t_bffb4b9f3eab90 1-83
+library/agency-agents/product/product-dx-engineer.md
+  s_09ba4ce8597d76::t_cb0ea5d9ff0342 1-332
+library/agency-agents/product/product-feedback-synthesizer.md
+  s_09ba4ce8597d76::t_b00ca7f7dbd2f7 1-119
+library/agency-agents/product/product-manager.md
+  s_09ba4ce8597d76::t_8c4bcc0a670be2 1-469
+library/agency-agents/product/product-sprint-prioritizer.md
+  s_09ba4ce8597d76::t_efc67ed1d3f1b3 1-154
+library/agency-agents/product/product-trend-researcher.md
+  s_09ba4ce8597d76::t_2ce2874082f73a 1-159
+library/agency-agents/project-management/project-management-experiment-tracker.md
+  s_09ba4ce8597d76::t_8d1441a1763325 1-198
+library/agency-agents/project-management/project-management-jira-workflow-steward.md
+  s_09ba4ce8597d76::t_5397b6d1a24b14 1-233
+library/agency-agents/project-management/project-management-meeting-notes-specialist.md
+  s_09ba4ce8597d76::t_c5abf5608bab51 1-95
+library/agency-agents/project-management/project-management-project-shepherd.md
+  s_09ba4ce8597d76::t_3b621944b4df59 1-194
+library/agency-agents/project-management/project-management-studio-operations.md
+  s_09ba4ce8597d76::t_5a6d9e47e3714b 1-200
+library/agency-agents/project-management/project-management-studio-producer.md
+  s_09ba4ce8597d76::t_5d85c841c7dea1 1-203
+library/agency-agents/project-management/project-manager-senior.md
+  s_09ba4ce8597d76::t_416de6b21e59b9 1-135
+library/agency-agents/research/research-synthesist.md
+  s_09ba4ce8597d76::t_979b697b0bf799 1-136
+library/agency-agents/sales/sales-account-strategist.md
+  s_09ba4ce8597d76::t_db2e932cbdc2b6 1-227
+library/agency-agents/sales/sales-coach.md
+  s_09ba4ce8597d76::t_33af2dd2230e06 1-271
+library/agency-agents/sales/sales-deal-strategist.md
+  s_09ba4ce8597d76::t_85d4d27bafeba1 1-180
+library/agency-agents/sales/sales-discovery-coach.md
+  s_09ba4ce8597d76::t_7751f8b344b478 1-225
+library/agency-agents/sales/sales-engineer.md
+  s_09ba4ce8597d76::t_44f735243e73f9 1-182
+library/agency-agents/sales/sales-offer-lead-gen-strategist.md
+  s_09ba4ce8597d76::t_a70e9861690bd9 1-257
+library/agency-agents/sales/sales-outbound-strategist.md
+  s_09ba4ce8597d76::t_2cb0fa4342fd28 1-201
+library/agency-agents/sales/sales-pipeline-analyst.md
+  s_09ba4ce8597d76::t_56f466b8c1720f 1-267
+library/agency-agents/sales/sales-proposal-strategist.md
+  s_09ba4ce8597d76::t_7077b7470c819d 1-217
+library/agency-agents/security/security-ai-generated-code-auditor.md
+  s_09ba4ce8597d76::t_3577f100b68b9d 1-207
+library/agency-agents/security/security-appsec-engineer.md
+  s_09ba4ce8597d76::t_6f7f70abf51b5c 1-536
+library/agency-agents/security/security-architect.md
+  s_09ba4ce8597d76::t_4b9a772360d624 1-307
+library/agency-agents/security/security-blockchain-security-auditor.md
+  s_09ba4ce8597d76::t_079593ece2d4e6 1-482
+library/agency-agents/security/security-cloud-security-architect.md
+  s_09ba4ce8597d76::t_9954291f981bed 1-576
+library/agency-agents/security/security-compliance-auditor.md
+  s_09ba4ce8597d76::t_54ada5d21bf74d 1-158
+library/agency-agents/security/security-incident-responder.md
+  s_09ba4ce8597d76::t_441463f2114e80 1-450
+library/agency-agents/security/security-penetration-tester.md
+  s_09ba4ce8597d76::t_86e656ed0bda81 1-399
+library/agency-agents/security/security-secrets-credential-engineer.md
+  s_09ba4ce8597d76::t_0305be3fd05d8c 1-189
+library/agency-agents/security/security-senior-secops.md
+  s_09ba4ce8597d76::t_60750886a9f3d0 1-760
+library/agency-agents/security/security-threat-detection-engineer.md
+  s_09ba4ce8597d76::t_a25806a5ea5065 1-553
+library/agency-agents/security/security-threat-intelligence-analyst.md
+  s_09ba4ce8597d76::t_087194f215ce12 1-661
+library/agency-agents/spatial-computing/macos-spatial-metal-engineer.md
+  s_09ba4ce8597d76::t_c285528af20177 1-337
+library/agency-agents/spatial-computing/terminal-integration-specialist.md
+  s_09ba4ce8597d76::t_d33ffb7cdb05dd 1-70
+library/agency-agents/spatial-computing/visionos-spatial-engineer.md
+  s_09ba4ce8597d76::t_73315f7928a62a 1-54
+library/agency-agents/spatial-computing/xr-cockpit-interaction-specialist.md
+  s_09ba4ce8597d76::t_31efdd03f6e7d7 1-32
+library/agency-agents/spatial-computing/xr-immersive-developer.md
+  s_09ba4ce8597d76::t_0c397c7aaa4a87 1-32
+library/agency-agents/spatial-computing/xr-interface-architect.md
+  s_09ba4ce8597d76::t_0f33a48deca7d4 1-32
+library/agency-agents/specialized/accounts-payable-agent.md
+  s_09ba4ce8597d76::t_1cdc7cf7d0e135 1-205
+library/agency-agents/specialized/agentic-identity-trust.md
+  s_09ba4ce8597d76::t_f5009f818fb3da 1-394
+library/agency-agents/specialized/agents-orchestrator.md
+  s_09ba4ce8597d76::t_6de94bc468ad92 1-367
+library/agency-agents/specialized/automation-governance-architect.md
+  s_09ba4ce8597d76::t_cec195e9e3be56 1-216
+library/agency-agents/specialized/business-strategist.md
+  s_09ba4ce8597d76::t_a5f0cd134a1665 1-488
+library/agency-agents/specialized/change-management-consultant.md
+  s_09ba4ce8597d76::t_ecab0bcd07afea 1-497
+library/agency-agents/specialized/chief-financial-officer.md
+  s_09ba4ce8597d76::t_11a85e0ea63a83 1-388
+library/agency-agents/specialized/corporate-training-designer.md
+  s_09ba4ce8597d76::t_e5530a4acb6545 1-192
+library/agency-agents/specialized/customer-service.md
+  s_09ba4ce8597d76::t_c5986c0f575a6f 1-398
+library/agency-agents/specialized/customer-success-manager.md
+  s_09ba4ce8597d76::t_bc6a3c24f93de8 1-460
+library/agency-agents/specialized/data-consolidation-agent.md
+  s_09ba4ce8597d76::t_408af2d08ff3be 1-60
+library/agency-agents/specialized/data-privacy-officer.md
+  s_09ba4ce8597d76::t_fa6fade3b5e5cd 1-412
+library/agency-agents/specialized/esg-sustainability-officer.md
+  s_09ba4ce8597d76::t_84f5cf3d42d932 1-396
+library/agency-agents/specialized/government-digital-presales-consultant.md
+  s_09ba4ce8597d76::t_aed3a310d42352 1-363
+library/agency-agents/specialized/grant-writer.md
+  s_09ba4ce8597d76::t_78ed12074d5243 1-511
+library/agency-agents/specialized/healthcare-aging-parent-care-companion.md
+  s_09ba4ce8597d76::t_8d6c4b98f6622c 1-414
+library/agency-agents/specialized/healthcare-customer-service.md
+  s_09ba4ce8597d76::t_68f3b1b5f26209 1-389
+library/agency-agents/specialized/healthcare-marketing-compliance.md
+  s_09ba4ce8597d76::t_de7852cfd294f2 1-395
+library/agency-agents/specialized/hospitality-guest-services.md
+  s_09ba4ce8597d76::t_ff74e10ce1f77b 1-603
+library/agency-agents/specialized/hr-onboarding.md
+  s_09ba4ce8597d76::t_38e9d3fd4eaaca 1-451
+library/agency-agents/specialized/identity-graph-operator.md
+  s_09ba4ce8597d76::t_e94d84ed142c1e 1-283
+library/agency-agents/specialized/language-translator.md
+  s_09ba4ce8597d76::t_f3983f8d725e57 1-264
+library/agency-agents/specialized/legal-billing-time-tracking.md
+  s_09ba4ce8597d76::t_19cff1b00eb3d1 1-569
+library/agency-agents/specialized/legal-client-intake.md
+  s_09ba4ce8597d76::t_acfbb640b06e4a 1-492
+library/agency-agents/specialized/legal-document-review.md
+  s_09ba4ce8597d76::t_7acff300ef0d5f 1-454
+library/agency-agents/specialized/loan-officer-assistant.md
+  s_09ba4ce8597d76::t_f0c18ccce1b68a 1-555
+library/agency-agents/specialized/lsp-index-engineer.md
+  s_09ba4ce8597d76::t_5b7dd87137112b 1-320
+library/agency-agents/specialized/ma-integration-manager.md
+  s_09ba4ce8597d76::t_12a65b4e86d553 1-427
+library/agency-agents/specialized/medical-billing-coding-specialist.md
+  s_09ba4ce8597d76::t_afe2196653b0cd 1-491
+library/agency-agents/specialized/operations-manager.md
+  s_09ba4ce8597d76::t_7984a32fb55b38 1-399
+library/agency-agents/specialized/organizational-psychologist.md
+  s_09ba4ce8597d76::t_dfb9a1f7a06809 1-391
+library/agency-agents/specialized/personal-growth-mentor.md
+  s_09ba4ce8597d76::t_766d3dcaa8bba8 1-159
+library/agency-agents/specialized/real-estate-buyer-seller.md
+  s_09ba4ce8597d76::t_3ea4c10e5622e1 1-596
+library/agency-agents/specialized/recruitment-specialist.md
+  s_09ba4ce8597d76::t_2c6a50dcb7f794 1-515
+library/agency-agents/specialized/report-distribution-agent.md
+  s_09ba4ce8597d76::t_733a98c19289c3 1-65
+library/agency-agents/specialized/resume-tailor.md
+  s_09ba4ce8597d76::t_1547618093ef30 1-230
+library/agency-agents/specialized/retail-customer-returns.md
+  s_09ba4ce8597d76::t_2d15450353ce06 1-566
+library/agency-agents/specialized/sales-data-extraction-agent.md
+  s_09ba4ce8597d76::t_455f7f6a14301e 1-67
+library/agency-agents/specialized/sales-outreach.md
+  s_09ba4ce8597d76::t_9f2ba90bd76a2a 1-425
+library/agency-agents/specialized/specialized-chief-of-staff.md
+  s_09ba4ce8597d76::t_017b9a5b1ba7ea 1-279
+library/agency-agents/specialized/specialized-civil-engineer.md
+  s_09ba4ce8597d76::t_62956072a7ca7c 1-356
+library/agency-agents/specialized/specialized-codebase-archaeologist.md
+  s_09ba4ce8597d76::t_6ffdfe101c2398 1-341
+library/agency-agents/specialized/specialized-cultural-intelligence-strategist.md
+  s_09ba4ce8597d76::t_e2e11a0bab4239 1-88
+library/agency-agents/specialized/specialized-developer-advocate.md
+  s_09ba4ce8597d76::t_a9b91df198057e 1-317
+library/agency-agents/specialized/specialized-document-generator.md
+  s_09ba4ce8597d76::t_2bbf6ab72bc67a 1-55
+library/agency-agents/specialized/specialized-fedramp-rmf-compliance.md
+  s_09ba4ce8597d76::t_d01745180f4108 1-378
+library/agency-agents/specialized/specialized-focus-music-architect.md
+  s_09ba4ce8597d76::t_4adf232caae693 1-175
+library/agency-agents/specialized/specialized-french-consulting-market.md
+  s_09ba4ce8597d76::t_47de92eccf9cdd 1-194
+library/agency-agents/specialized/specialized-korean-business-navigator.md
+  s_09ba4ce8597d76::t_2bd5a3916b745f 1-216
+library/agency-agents/specialized/specialized-master-plan-architect.md
+  s_09ba4ce8597d76::t_22b59ba6e1abca 1-157
+library/agency-agents/specialized/specialized-mcp-builder.md
+  s_09ba4ce8597d76::t_e2d23290313011 1-260
+library/agency-agents/specialized/specialized-model-qa.md
+  s_09ba4ce8597d76::t_4c4e15db577f28 1-528
+library/agency-agents/specialized/specialized-pricing-analyst.md
+  s_09ba4ce8597d76::t_43e8f49c60c176 1-243
+library/agency-agents/specialized/specialized-salesforce-architect.md
+  s_09ba4ce8597d76::t_297583a61e55ce 1-182
+library/agency-agents/specialized/specialized-strategy-duel-agent.md
+  s_09ba4ce8597d76::t_ad328ed6f758ed 1-130
+library/agency-agents/specialized/specialized-workflow-architect.md
+  s_09ba4ce8597d76::t_0b01fc53fad71d 1-597
+library/agency-agents/specialized/study-abroad-advisor.md
+  s_09ba4ce8597d76::t_79b58bd21f6dcc 1-282
+library/agency-agents/specialized/supply-chain-strategist.md
+  s_09ba4ce8597d76::t_2437fa0fb62eb9 1-591
+library/agency-agents/specialized/zk-steward.md
+  s_09ba4ce8597d76::t_170165a28c04cd 1-211
+library/agency-agents/support/support-analytics-reporter.md
+  s_09ba4ce8597d76::t_7bdee75bbbef00 1-387
+library/agency-agents/support/support-executive-summary-generator.md
+  s_09ba4ce8597d76::t_6e6d58bfd33ceb 1-212
+library/agency-agents/support/support-finance-tracker.md
+  s_09ba4ce8597d76::t_7a7d1263104833 1-460
+library/agency-agents/support/support-infrastructure-maintainer.md
+  s_09ba4ce8597d76::t_b46e7264388197 1-628
+library/agency-agents/support/support-legal-compliance-checker.md
+  s_09ba4ce8597d76::t_2ce3195b294114 1-591
+library/agency-agents/support/support-support-responder.md
+  s_09ba4ce8597d76::t_53506653eef616 1-607
+library/agency-agents/testing/testing-accessibility-auditor.md
+  s_09ba4ce8597d76::t_8f4f419456d5db 1-327
+library/agency-agents/testing/testing-api-tester.md
+  s_09ba4ce8597d76::t_91f7f584b751b1 1-318
+library/agency-agents/testing/testing-evidence-collector.md
+  s_09ba4ce8597d76::t_bbc4531923b859 1-210
+library/agency-agents/testing/testing-performance-benchmarker.md
+  s_09ba4ce8597d76::t_285611c3e80be7 1-283
+library/agency-agents/testing/testing-reality-checker.md
+  s_09ba4ce8597d76::t_6ab80e1e570f5b 1-249
+library/agency-agents/testing/testing-test-automation-engineer.md
+  s_09ba4ce8597d76::t_8d4fc8de3f1b92 1-196
+library/agency-agents/testing/testing-test-results-analyzer.md
+  s_09ba4ce8597d76::t_2d91b2b8409dd1 1-330
+library/agency-agents/testing/testing-tool-evaluator.md
+  s_09ba4ce8597d76::t_1d51c2dd5d5f4d 1-416
+library/agency-agents/testing/testing-workflow-optimizer.md
+  s_09ba4ce8597d76::t_dd57272baafa2d 1-463
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fe1a61e56f8c86a6089122c00c9623c8d66ef7e5",
+  "prompts": {},
+  "sessions": {
+    "s_09ba4ce8597d76": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "df16b026-95df-4ca0-b0d1-8e162d2aa766",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
