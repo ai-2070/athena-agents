@@ -29,7 +29,8 @@ The installed app carries three things:
 
 When it opens, the app:
 
-1. Picks a port: 4800 if free (X and Reddit apps are registered with it), else 4801–4809, else any.
+1. Picks a port: 14800 if free, else 14801–14809, else any. It stays away from 4800, the browser version's
+   port, so both can run at once, and keeps to one port so X and Reddit callback addresses keep working.
 2. Starts `bun resources/app/server/index.js --port <port> --no-open` with `DASH_DATA` set to the app's
    data folder (unless `DASH_DATA` is already set) and `DASH_DESKTOP=1`. Output goes to `server.log` in
    the app's log folder.

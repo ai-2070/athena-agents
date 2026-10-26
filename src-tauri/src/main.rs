@@ -23,8 +23,9 @@ use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, Webvie
 use tauri_plugin_opener::OpenerExt;
 
 const MAIN: &str = "main";
-/// The browser version uses 4800; X and Reddit apps are set up with that address, so try it first.
-const PREFERRED_PORTS: std::ops::Range<u16> = 4800..4810;
+/// Far from the browser version's 4800, so the app and a dev server can run side by side. Try the
+/// same port each time: X and Reddit sign-in only work at the callback address set up in their apps.
+const PREFERRED_PORTS: std::ops::Range<u16> = 14800..14810;
 const START_TIMEOUT: Duration = Duration::from_secs(90);
 const COULD_NOT_START: &str = "Blacksite could not start";
 
