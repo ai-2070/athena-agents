@@ -1,0 +1,72 @@
+tests/server/review.test.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 1-69
+server/approvals.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 3-5,28-34,39-40,45-54,60-63,67-91,98,109,111-114
+tests/server/logo.test.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 1-68
+web/core.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 389
+web/motion.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 1-80
+web/views/setup.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 49
+server/projects.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 124,165,231,246-344
+README.md
+  s_60f3e3abc949a7::t_26fabbbe8eb039 69,73-77
+  s_60f3e3abc949a7::t_ec87a124a3085c 78
+web/chatwin.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 9,110-112,204-205,207-211,214-232,234,236-237,241,243,246,249-250,254
+tests/server/approvals.test.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 1-86
+web/app.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 23,198,212
+web/projects.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 4,62,198
+server/store.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 39
+web/views/settings.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 2,105-115
+public/station-extra.css
+  s_60f3e3abc949a7::t_26fabbbe8eb039 92-103
+server/overseer.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 8,12,14-15,18,482-535
+  s_60f3e3abc949a7::t_826eabf091d748 536
+server/engines/index.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 55-56,75,150,193
+.github/workflows/ci.yml
+  s_60f3e3abc949a7::t_26fabbbe8eb039 23,30
+public/polish.css
+  s_60f3e3abc949a7::t_26fabbbe8eb039 37-38,81-83,85,90
+  s_60f3e3abc949a7::t_5886c47c4ed847 408-428
+server/brain.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 166
+shared/types.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 134-135,207-208,266-267
+web/dock.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 96,153-154,156,158-159,161-165,167-171,173,175-185
+  s_60f3e3abc949a7::t_5886c47c4ed847 7
+server/index.ts
+  s_60f3e3abc949a7::t_5886c47c4ed847 195-196
+  s_60f3e3abc949a7::t_26fabbbe8eb039 12,106,108,126-144
+web/views/station.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 14-15,76-77,158-159,276-281,288-295,342-344,377,399-402,1118-1152,1551-1555,1586-1589,1714-1749,1817-1824,1826-1833,1910-1911,1923,1925-1926,1942-1948,1958-1960,1964,2577,2629,2638-2643,2655-2661,2728-2736,2865-2872,2884-2887,2889-2890,2943-2986,2989-2992,2995,2997,3024,3030
+web/projectlogo.ts
+  s_60f3e3abc949a7::t_26fabbbe8eb039 1-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8e67d0b4bea3c5bd096721aa39b4d2f34916ac04",
+  "prompts": {},
+  "sessions": {
+    "s_60f3e3abc949a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f3bddc23-1447-47fb-bdbd-6782a63a28bf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
