@@ -169,7 +169,8 @@ describe('backups with earlier versions', () => {
     agents.save({ ...agents.get('agent-f')!, specialty: 'two' });
     const mine = listVersions(dir).filter((v) => v.id !== 'v-planted');
     expect(mine).toHaveLength(2);
-    expect(mine.every((v) => v.at <= Date.now())).toBe(true);
+    // (dated now: a few ms ahead at most, when versions are made faster than one a millisecond; never near the planted date)
+    expect(mine.every((v) => v.at <= Date.now() + 1000)).toBe(true);
   });
 
   it('cleans agent and team versions field by field, so History never breaks on odd data', async () => {
