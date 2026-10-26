@@ -1,0 +1,95 @@
+web/views/setup.ts
+  s_3683052d9339d5::t_711c55888007c1 48-50
+web/views/terminals.ts
+  s_3683052d9339d5::t_ca99751b7cf041 105-107
+server/compaction.ts
+  s_3683052d9339d5::t_6c2923bd76f7a2 80,111
+server/library.ts
+  s_3683052d9339d5::t_27358032fc56f8 135
+tests/web/models.test.ts
+  s_3683052d9339d5::t_ab15150495f46d 18-23
+server/util.ts
+  s_3683052d9339d5::t_aeab5185d6018c 207
+web/views/mcp.ts
+  s_3683052d9339d5::t_ca99751b7cf041 136,140,144
+web/models.ts
+  s_3683052d9339d5::t_03e1e0ec6a2c28 2-3,19,69-71,73-74,76-79,93-97,104,120,358-379
+  s_3683052d9339d5::t_711c55888007c1 75
+server/versions.ts
+  s_3683052d9339d5::t_27358032fc56f8 176
+tests/server/openclaw-engine.test.ts
+  s_3683052d9339d5::t_d8cab3d8ccc36e 1-114
+web/views/agents.ts
+  s_3683052d9339d5::t_98da6151d18e03 17-22,122,127,166,228-238,240-243
+  s_3683052d9339d5::t_d42ff5cbc94db6 239
+server/engines/cli.ts
+  s_3683052d9339d5::t_229bf1d23a940f 1-78
+README.md
+  s_3683052d9339d5::t_474acc559d41cb 12,67-69,73-75
+tests/server/effort.test.ts
+  s_3683052d9339d5::t_ab15150495f46d 20
+server/history.ts
+  s_3683052d9339d5::t_6ca4685384cb91 44
+  s_3683052d9339d5::t_27358032fc56f8 67,93
+server/index.ts
+  s_3683052d9339d5::t_6ca4685384cb91 19-20,293,530-531,536,640-641,643-653
+  s_3683052d9339d5::t_5d97a80a9c471a 21,642
+  s_3683052d9339d5::t_3a0b5ae8375905 654
+server/programs.ts
+  s_3683052d9339d5::t_687501941dcddc 127-129
+web/core.ts
+  s_3683052d9339d5::t_03e1e0ec6a2c28 371-372,374
+shared/effort.ts
+  s_3683052d9339d5::t_6c2923bd76f7a2 21
+public/polish.css
+  s_3683052d9339d5::t_03e1e0ec6a2c28 312
+web/views/station.ts
+  s_3683052d9339d5::t_576533b308212e 2625-2632
+server/engines/index.ts
+  s_3683052d9339d5::t_aeab5185d6018c 15-16,129,135-137,315,318,545-547
+tests/server/pi-engine.test.ts
+  s_3683052d9339d5::t_18139f01af4431 1-204
+shared/types.ts
+  s_3683052d9339d5::t_ce8ffdf213b46d 6,13,33-34,473-475
+server/engines/openclaw.ts
+  s_3683052d9339d5::t_900fb1ac8e690e 41-55
+  s_3683052d9339d5::t_b0c81d49b0337d 1-40,56-183
+server/engines/pi.ts
+  s_3683052d9339d5::t_298a851b94c640 1-7,10-133,137-172,175-188,191-269,283-288
+  s_3683052d9339d5::t_d7fe95b0ec277b 8,189-190
+  s_3683052d9339d5::t_56f0a57235adf6 134-136
+  s_3683052d9339d5::t_332b32b627ca34 270-282
+  s_3683052d9339d5::t_f9a063ba992bbe 9,173-174
+tests/server/brain-models.test.ts
+  s_3683052d9339d5::t_82007247ff844c 58-66
+server/terminals.ts
+  s_3683052d9339d5::t_687501941dcddc 11-12,70-77
+web/views/programs.ts
+  s_3683052d9339d5::t_ca99751b7cf041 63-65,156-157
+server/overseer.ts
+  s_3683052d9339d5::t_687501941dcddc 215,413-414
+web/app.ts
+  s_3683052d9339d5::t_ca99751b7cf041 112-115
+web/views/settings.ts
+  s_3683052d9339d5::t_711c55888007c1 74,228-239
+  s_3683052d9339d5::t_bc9ef99ac02bd8 240
+server/models.ts
+  s_3683052d9339d5::t_0a2555039442de 8-9,12,29-31,35-37,49,66,75,88,125-127,179,181,192,200,205
+  s_3683052d9339d5::t_4b994fa17209e8 104-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1d55020da94e70978ac9a96348248e7f9bb6f8f7",
+  "prompts": {},
+  "sessions": {
+    "s_3683052d9339d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c45c16ff-cd11-4995-b058-0fa09428e0fc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
