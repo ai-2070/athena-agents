@@ -1,0 +1,21 @@
+AGENTS.md
+  s_3ee9638266ae65::t_37643388ae237c 45
+docs/internal/plans/REMOTE_APP_PLAN.md
+  s_3ee9638266ae65::t_6f886f3330bd5d 113-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85ccbee5bc712c624fca31393930046d393b8603",
+  "prompts": {},
+  "sessions": {
+    "s_3ee9638266ae65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "541a5902-77ed-4017-8f45-3e7605579b0f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
