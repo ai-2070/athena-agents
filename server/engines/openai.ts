@@ -233,7 +233,6 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
   const historyChars = Math.max(400_000, window * 3);
   const toolTokens = estimateTokens(JSON.stringify(defs));
   let measured: { tokens: number; len: number } | null = null;
-  let context = 0;
   let overflowRetried = false;
   const used = (): number => {
     const llm = chat.llm as LlmMessage[];
@@ -281,6 +280,9 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
       }
       throw e;
     }
+    // how full the memory is now, if this answer says (one without usage keeps the last measurement,
+    // and the messages since then are estimated)
+    let context = 0;
     if (r.usage) {
       cost += Number(r.usage.cost || 0);
       tokens += Number(r.usage.total_tokens || 0);

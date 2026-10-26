@@ -40,8 +40,16 @@ const until = async (ok: () => boolean) => {
 
 // ---------- a fake API model ----------
 let server: http.Server;
-const requests: { messages: { role: string; content: string | null }[] }[] = [];
+const requests: { messages: { role: string; content: string | null; tool_calls?: unknown[] }[] }[] = [];
 let failNext = '';
+// what the fake model answers next (else a plain "answer")
+type Reply = { content?: string; call?: { id: string; name: string; args: Record<string, unknown> }; usage?: number };
+const replies: Reply[] = [];
+const sse = (r: Reply): string => {
+  const delta = r.call ? { tool_calls: [{ index: 0, id: r.call.id, function: { name: r.call.name, arguments: JSON.stringify(r.call.args) } }] } : { content: r.content ?? 'answer' };
+  const chunk = { choices: [{ delta, finish_reason: r.call ? 'tool_calls' : 'stop' }], ...(r.usage ? { usage: { total_tokens: r.usage } } : {}) };
+  return `data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`;
+};
 beforeAll(async () => {
   server = http.createServer((req, res) => {
     let body = '';
@@ -56,7 +64,7 @@ beforeAll(async () => {
         return;
       }
       res.writeHead(200, { 'content-type': 'text/event-stream' });
-      res.end(`data: ${JSON.stringify({ choices: [{ delta: { content: 'answer' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+      res.end(sse(replies.shift() || {}));
     });
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
@@ -66,6 +74,7 @@ afterAll(() => new Promise<void>((r) => server.close(() => r())));
 beforeEach(() => {
   saveSettings({ compaction: { auto: true, instant: true, thresholdPercent: 50, keepMessages: 4, windowTokens: 0 } });
   requests.length = 0;
+  replies.length = 0;
   cli.prompts.length = 0;
   cli.sessions.length = 0;
 });
@@ -355,6 +364,45 @@ describe('during runs', () => {
     const saved = chats.get(a.id, chat.id)!;
     expect(saved.items.filter((i) => i.type === 'compaction')).toHaveLength(1);
     expect(saved.items.at(-1)).toMatchObject({ type: 'assistant', text: 'answer' });
+  });
+
+  it('API model: compacts between tool steps when a step fills the memory, and the next request has the compacted history', async () => {
+    saveSettings({ compaction: { windowTokens: 20_000, keepMessages: 2 } });
+    const a = newAgent({ name: 'Stepper', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+    const chat = chats.create(a.id);
+    chat.items.push(...history(3));
+    chat.llm = llmOf(3);
+    chats.save(chat);
+    // the first step's tool call alone (its long text) pushes the memory past half the window
+    replies.push({ call: { id: 'big', name: 'notify_user', args: { text: words(12_000, 'n') } } }, { content: 'all done' });
+    await startRun(a, chat, 'go').promise;
+    expect(requests).toHaveLength(2);
+    expect(requests[0].messages[0].content).not.toContain('<compacted-history>');
+    const second = requests[1].messages;
+    expect(second[0].content).toContain('<compacted-history>');
+    // the turn being answered: its message, then the step that stayed (the tool call and its result)
+    expect(second.slice(1).map((m) => m.role)).toEqual(['user', 'assistant', 'tool']);
+    expect(second[1].content).toBe('go');
+    const saved = chats.get(a.id, chat.id)!;
+    const marks = saved.items.filter((i): i is CompactionItem => i.type === 'compaction');
+    expect(marks).toHaveLength(1);
+    expect(saved.items.indexOf(marks[0])).toBeGreaterThan(saved.items.findLastIndex((i) => i.type === 'user'));
+    expect(saved.items.at(-1)).toMatchObject({ type: 'assistant', text: 'all done' });
+  });
+
+  it('API model: an answer without usage does not hide the messages since the last one that had it', async () => {
+    saveSettings({ compaction: { windowTokens: 20_000, keepMessages: 2 } });
+    const a = newAgent({ name: 'Counter', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+    const chat = chats.create(a.id);
+    chat.items.push(...history(2, 100));
+    chat.llm = llmOf(2, 100);
+    chats.save(chat);
+    // step 1 says how full it is (tiny); step 2 says nothing but adds a lot: step 3 must compact first
+    replies.push({ call: { id: 's1', name: 'notify_user', args: { text: 'one' } }, usage: 500 }, { call: { id: 's2', name: 'notify_user', args: { text: words(12_000, 'n') } } }, { content: 'done' });
+    await startRun(a, chat, 'go').promise;
+    expect(requests).toHaveLength(3);
+    expect(requests[1].messages[0].content).not.toContain('<compacted-history>');
+    expect(requests[2].messages[0].content).toContain('<compacted-history>');
   });
 
   it('API model: when the model says it is too long, compacts once and asks again', async () => {
