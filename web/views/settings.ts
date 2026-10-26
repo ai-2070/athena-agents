@@ -19,6 +19,13 @@ export async function render(el: HTMLElement): Promise<void> {
   await draw();
 }
 
+// A switch with its text beside it: one label (the switch's own, named for screen readers), and the
+// text flips it too.
+function switchRow(text: string, on: boolean, onChange: (on: boolean) => void): HTMLDivElement {
+  const sw = toggle(on, onChange, { name: text });
+  return h('div.row.mt', sw, h('span', { style: { cursor: 'pointer' }, onclick: () => sw.querySelector('input')?.click() }, text));
+}
+
 async function draw(): Promise<void> {
   const { settings: s, secrets } = await GET<{ settings: Settings; secrets: SecretStatus }>('/settings');
   const st = state.data!;
@@ -102,26 +109,18 @@ async function draw(): Promise<void> {
           h('div.panel-head', h('h2', "The Brain's model")),
           h('p.hint', 'The Brain oversees the project: it answers about the project and its files, builds teams and agents, writes PROJECT.md and hands work out. It can run on Claude Code, OpenRouter, Hermes or Codex. Claude Code and Codex can also open files in the project folder.'),
           h('div.row.mt', field('Model', brainModelChip({ prefix: '', onChange: (b) => (s.brain = b) }))),
-          h(
-            'label.row.mt',
-            toggle(s.brainApproves !== false, async (on) => {
-              const saved = await attempt(() => PUT('/settings', { brainApproves: on }), on ? 'The Brain approves for you' : 'Every request comes to you');
-              // didn't save: redraw so the switch shows what is really set
-              if (saved) refreshSoon(0);
-              else await draw();
-            }),
-            h('span', 'The Brain approves'),
-          ),
+          switchRow('The Brain approves', s.brainApproves !== false, async (on) => {
+            const saved = await attempt(() => PUT('/settings', { brainApproves: on }), on ? 'The Brain approves for you' : 'Every request comes to you');
+            // didn't save: redraw so the switch shows what is really set
+            if (saved) refreshSoon(0);
+            else await draw();
+          }),
           h('p.hint', "When an agent or team asks permission, the Brain allows routine, on-task work by itself and only passes the risky or unclear requests (deleting, pushing, sending, secrets, anything outside the project) to Needs you. Workflow checkpoints and Outbox posts and DMs always wait for you."),
-          h(
-            'label.row.mt',
-            toggle(s.brainAnyGitHub === true, async (on) => {
-              const saved = await attempt(() => PUT('/settings', { brainAnyGitHub: on }), on ? 'The Brain may install skills from any GitHub link' : 'The Brain installs only from links you give');
-              if (saved) refreshSoon(0);
-              else await draw();
-            }),
-            h('span', 'Install skills from any GitHub link'),
-          ),
+          switchRow('Install skills from any GitHub link', s.brainAnyGitHub === true, async (on) => {
+            const saved = await attempt(() => PUT('/settings', { brainAnyGitHub: on }), on ? 'The Brain may install skills from any GitHub link' : 'The Brain installs only from links you give');
+            if (saved) refreshSoon(0);
+            else await draw();
+          }),
           h('p.hint', "Off: the Brain installs skills only from GitHub repos you named in the Brain chat yourself. On: also from links it finds in files, pages or agents' answers. Skills are instructions your agents follow, so only turn this on if you trust where those links come from."),
         ),
         h(

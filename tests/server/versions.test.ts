@@ -102,6 +102,15 @@ describe('agents and teams', () => {
     expect(historyOf('team', t.id).versions[0].changes).toEqual(['goal']);
   });
 
+  it("restoring a team keeps when its schedule last ran, so it doesn't run again right away", () => {
+    const t = workflows.save({ name: 'Scheduled team', description: 'Goal A', members: [], lead: null, steps: [], schedule: { type: 'interval', minutes: 60 } } as Partial<Team>);
+    workflows.save({ ...workflows.get(t.id)!, lastScheduledAt: 1000 } as Partial<Team>);
+    workflows.save({ ...workflows.get(t.id)!, description: 'Goal B' });
+    workflows.save({ ...workflows.get(t.id)!, lastScheduledAt: 999_999 } as Partial<Team>);
+    restoreVersion('team', t.id, historyOf('team', t.id).versions[0].id);
+    expect(workflows.get(t.id)).toMatchObject({ description: 'Goal A', lastScheduledAt: 999_999 });
+  });
+
   it('brings back a deleted agent and team', () => {
     const a = newAgent({ name: 'Gone soon' });
     const t = workflows.save({ name: 'Gone team', description: 'x', members: [a.id], lead: null, steps: [] } as Partial<Team>);

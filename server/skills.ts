@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME } from './util.ts';
-import { activeProject, agents, workflows, listProjects, getSettings, saveSettings, log, emit } from './store.ts';
+import { activeProject, agents, workflows, listProjects, getSettings, saveSettings, withProject, log, emit } from './store.ts';
 import { updateProject } from './projects.ts';
 import crypto from 'node:crypto';
 import { keepVersion, versionFilesDir } from './versions.ts';
@@ -239,12 +239,17 @@ export function restoreSkill(item: SkillVersionItem, versionId: string): SkillDe
   return getSkill(item.slug);
 }
 
-// Delete a skill and take it off every agent and team (in the open project), every project, and the Brain.
+// Delete a skill and take it off every agent and team (in every project: skills are shared), every
+// project, and the Brain.
 export function deleteSkillEverywhere(slug: string) {
   deleteSkill(slug);
-  for (const a of agents.list()) if ((a.skills || []).includes(slug)) agents.save({ ...a, skills: a.skills.filter((x) => x !== slug) });
-  for (const w of workflows.list()) if ((w.skills || []).includes(slug)) workflows.save({ ...w, skills: w.skills!.filter((x) => x !== slug) });
-  for (const p of listProjects()) if ((p.skills || []).includes(slug)) updateProject(p.id, { skills: p.skills!.filter((x) => x !== slug) });
+  for (const p of listProjects()) {
+    withProject(p, () => {
+      for (const a of agents.list()) if ((a.skills || []).includes(slug)) agents.save({ ...a, skills: a.skills.filter((x) => x !== slug) });
+      for (const w of workflows.list()) if ((w.skills || []).includes(slug)) workflows.save({ ...w, skills: w.skills!.filter((x) => x !== slug) });
+    });
+    if ((p.skills || []).includes(slug)) updateProject(p.id, { skills: p.skills!.filter((x) => x !== slug) });
+  }
   const brain = brainSkillSlugs();
   if (brain.includes(slug)) saveSettings({ brainSkills: brain.filter((x) => x !== slug) });
 }

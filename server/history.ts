@@ -181,7 +181,10 @@ export function restoreVersion(kind: VersionKind, id: string, vid: string): { na
       }
       if (kind === 'team') {
         const now = workflows.get(id);
-        const t = workflows.save({ ...(v.item as Team), id, pos: now ? now.pos : (v.item as Team).pos, rot: now ? now.rot : (v.item as Team).rot, angle: now ? now.angle : (v.item as Team).angle });
+        // (where it sits on the map and when its schedule last ran stay as they are now: an older
+        // lastScheduledAt would make an interval schedule run again right away)
+        const keep = now ? { pos: now.pos, rot: now.rot, angle: now.angle, lastScheduledAt: (now as Team & { lastScheduledAt?: number }).lastScheduledAt } : {};
+        const t = workflows.save({ ...(v.item as Team), id, ...keep });
         log('team', `${now ? 'Restored an earlier version of' : 'Brought back'} the team ${t.name}`);
         return { name: t.name };
       }

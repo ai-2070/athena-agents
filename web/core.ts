@@ -325,8 +325,10 @@ export function chipSet<V extends string>(options: OptionList<V>, selected: read
   return wrap;
 }
 
-export function toggle(checked: boolean | null | undefined, onChange: (checked: boolean) => void): HTMLLabelElement {
+// name: what it switches, for screen readers (when its visible text sits outside it)
+export function toggle(checked: boolean | null | undefined, onChange: (checked: boolean) => void, { name }: { name?: string } = {}): HTMLLabelElement {
   const input = h('input', { type: 'checkbox', checked });
+  if (name) input.setAttribute('aria-label', name);
   input.addEventListener('change', () => onChange(input.checked));
   return h('label.toggle', input, h('span'));
 }

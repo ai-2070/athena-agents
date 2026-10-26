@@ -6,7 +6,7 @@ import { parseGitHubUrl, installFromGitHub, reposIn } from '../../server/skillin
 import * as skills from '../../server/skills.ts';
 import { historyOf } from '../../server/history.ts';
 import { ask, clearHistory } from '../../server/overseer.ts';
-import { agents, saveSettings } from '../../server/store.ts';
+import { agents, saveSettings, activeProject, listProjects, saveProjects, setActiveProject, withProject } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
 
 // the "model" gives the answers queued here
@@ -19,6 +19,14 @@ vi.mock('../../server/brain.ts', async (orig) => ({
 
 // owner/repo -> ref -> path -> content
 const repos: Record<string, Record<string, Record<string, string>>> = {
+  'big/repo': {
+    main: {
+      'skills/one/SKILL.md': '---\nname: Big one\ndescription: Use one.\n---\n\nOne.',
+      'skills/two/SKILL.md': '---\nname: Big two\ndescription: Use two.\n---\n\nTwo.',
+      'skills/two/huge.bin': 'x',
+    },
+  },
+  'deep/repo': { 'a/b/c/d/e/f': { 'SKILL.md': '---\nname: Deep branch\ndescription: Use deep.\n---\n\nDeep.' } },
   'acme/skills': {
     main: {
       'README.md': 'repo readme',
@@ -34,6 +42,11 @@ const repos: Record<string, Record<string, Record<string, string>>> = {
   },
 };
 let calls: string[] = [];
+// repos whose whole tree GitHub cuts short, and file sizes GitHub reports bigger than they are
+const truncated = new Set(['big/repo']);
+const sizes: Record<string, number> = { 'skills/two/huge.bin': 3 * 1024 * 1024 };
+// a download that waits until the test lets it go
+let holdDownloads: Promise<void> | null = null;
 const fakeFetch = async (input: string | URL) => {
   const url = String(input);
   calls.push(url);
@@ -43,11 +56,19 @@ const fakeFetch = async (input: string | URL) => {
   if (m) return repos[`${m[1]}/${m[2]}`] ? ok({ default_branch: 'main' }) : notFound();
   m = /^https:\/\/api\.github\.com\/repos\/([^/]+)\/([^/]+)\/git\/trees\/([^?]+)\?recursive=1$/.exec(url);
   if (m) {
-    const files = repos[`${m[1]}/${m[2]}`]?.[decodeURIComponent(m[3])];
-    return files ? ok({ tree: Object.entries(files).map(([p, c]) => ({ path: p, type: 'blob', size: c.length })) }) : notFound();
+    const repo = `${m[1]}/${m[2]}`;
+    const [ref, sub] = decodeURIComponent(m[3]).split(':');
+    const files = repos[repo]?.[ref];
+    if (!files) return notFound();
+    // "ref:folder" is just that folder, with paths inside it, never cut short here
+    const entries = Object.entries(files)
+      .filter(([p]) => !sub || p.startsWith(`${sub}/`))
+      .map(([p, c]) => ({ path: sub ? p.slice(sub.length + 1) : p, type: 'blob', size: sizes[p] ?? c.length }));
+    return ok({ tree: entries, truncated: !sub && truncated.has(repo) });
   }
   m = /^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/(.+)$/.exec(url);
   if (m) {
+    if (holdDownloads) await holdDownloads;
     const rest = m[3].split('/').map(decodeURIComponent);
     for (const [ref, files] of Object.entries(repos[`${m[1]}/${m[2]}`] || {})) {
       const n = ref.split('/').length;
@@ -113,6 +134,8 @@ describe('installing', () => {
 
 describe('the Brain installs from GitHub', () => {
   it('installs from a link the user gave, and gives the skills to an agent', async () => {
+    // (installed once before, so this one updates them, whichever tests ran first)
+    await installFromGitHub('https://github.com/acme/skills/tree/main/skills/editor');
     const a = newAgent({ name: 'Gets skills' });
     clearHistory();
     answers.push(`Installing.\n\`\`\`actions\n[{"do":"install_skill","url":"https://github.com/acme/skills/tree/main/skills/editor","give":[{"to":"agent","id":"${a.id}"}]}]\n\`\`\``);
@@ -136,3 +159,53 @@ describe('the Brain installs from GitHub', () => {
     saveSettings({ brainAnyGitHub: false });
   });
 });
+
+describe('review fixes', () => {
+  it("reads just the linked folder when GitHub cuts the repo's tree short, and refuses the whole repo", async () => {
+    await expect(installFromGitHub('https://github.com/big/repo')).rejects.toThrow(/too big to read whole/);
+    const r = await installFromGitHub('https://github.com/big/repo/tree/main/skills/one');
+    expect(r.installed.map((x) => x.name)).toEqual(['Big one']);
+    expect(calls.some((u) => /git\/trees\/main%3Askills%2Fone/.test(u))).toBe(true);
+  });
+
+  it("doesn't install a skill with a file too big to download, and says why", async () => {
+    const r = await installFromGitHub('https://github.com/big/repo/tree/main/skills');
+    expect(r.installed.map((x) => x.name)).toEqual(['Big one']);
+    expect(r.skipped).toEqual([expect.stringMatching(/skills\/two: huge\.bin is over 2 MB/)]);
+    expect(skills.findSkill('Big two')).toBeNull();
+  });
+
+  it('finds a branch with any number of slashes', async () => {
+    const r = await installFromGitHub('https://github.com/deep/repo/tree/a/b/c/d/e/f');
+    expect(r.installed.map((x) => x.name)).toEqual(['Deep branch']);
+  });
+
+  it("installs nothing when you switch projects while it downloads, and says what did change", async () => {
+    repos['switch/repo'] = { main: { 'SKILL.md': '---\nname: Mid switch\ndescription: Use it.\n---\n\nSwitch.' } };
+    const home = activeProject();
+    if (!listProjects().some((x) => x.id === 'elsewhere-dl')) saveProjects([...listProjects(), { ...home, id: 'elsewhere-dl', name: 'Elsewhere', brainPath: path.join(path.dirname(home.brainPath), 'elsewhere-dl') }]);
+    clearHistory();
+    let release!: () => void;
+    holdDownloads = new Promise<void>((r) => (release = r));
+    answers.push('```actions\n[{"do":"install_skill","url":"https://github.com/switch/repo"}]\n```');
+    const turn = ask('install https://github.com/switch/repo');
+    await new Promise((r) => setTimeout(r, 30));
+    setActiveProject('elsewhere-dl');
+    release();
+    holdDownloads = null;
+    const r = await turn;
+    setActiveProject(home.id);
+    expect(skills.findSkill('Mid switch')).toBeNull();
+    expect(r.done).toEqual([expect.objectContaining({ kind: 'error', text: expect.stringContaining('switched projects') })]);
+  });
+
+  it('runs no install past the actions an answer may take', async () => {
+    repos['late/repo'] = { main: { 'SKILL.md': '---\nname: Too late\ndescription: Use it.\n---\n\nLate.' } };
+    clearHistory();
+    const filler = Array.from({ length: 12 }, () => '{"do":"hire","members":[]}').join(',');
+    answers.push(`\`\`\`actions\n[${filler},{"do":"install_skill","url":"https://github.com/late/repo"}]\n\`\`\``);
+    await ask('install https://github.com/late/repo');
+    expect(skills.findSkill('Too late')).toBeNull();
+  });
+});
+

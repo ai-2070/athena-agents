@@ -1,3 +1,5 @@
+import os from 'node:os';
+import path from 'node:path';
 // The Brain manages skills: makes, edits (whole text only once it has seen it), gives, takes back and
 // deletes them, and comes with the Self-improvement skill.
 import { describe, expect, it } from 'vitest';
@@ -6,6 +8,7 @@ import * as skills from '../../server/skills.ts';
 import { agents, workflows, activeProject, getSettings, saveSettings } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
 import { listVersions } from '../../server/versions.ts';
+import type { Team } from '../../shared/types.ts';
 
 const body = '## Steps\n1. Open the brief.\n2. Write the draft.';
 
@@ -131,6 +134,22 @@ describe('the Brain makes and edits skills', () => {
     expect(skills.getSkill('doomed')).toBeNull();
     expect(agents.get(a.id)?.skills).not.toContain('doomed');
     expect(getSettings().brainSkills).not.toContain('doomed');
+  });
+
+  it("deleting a skill takes it off agents and teams in every project, not only the open one", async () => {
+    const { createProject } = await import('../../server/projects.ts');
+    const { withProject, setActiveProject, listProjects } = await import('../../server/store.ts');
+    const home = activeProject();
+    skills.saveSkill({ name: 'Shared doomed', description: 'Use anywhere.', body });
+    const other = await createProject({ name: 'Other place', mode: 'new', folder: path.join(os.homedir(), 'projects', 'other-place') });
+    const far = withProject(other, () => newAgent({ name: 'Far away', skills: ['shared-doomed'] }));
+    const farTeam = withProject(other, () => workflows.save({ name: 'Far team', members: [], lead: null, steps: [], skills: ['shared-doomed'] } as Partial<Team>));
+    setActiveProject(home.id);
+    skills.deleteSkillEverywhere('shared-doomed');
+    withProject(listProjects().find((x) => x.id === other.id)!, () => {
+      expect(agents.get(far.id)?.skills).toEqual([]);
+      expect(workflows.get(farTeam.id)?.skills).toEqual([]);
+    });
   });
 
   it('the review of finished work may only touch skills', () => {

@@ -84,6 +84,9 @@ export interface BrainAction {
   give?: unknown;
 }
 
+// The most actions one answer can take, and GitHub installs among them.
+const ACTIONS_MAX = 12;
+const INSTALLS_MAX = 3;
 // install_skill downloads, so ask() runs it before the actions (prepareInstalls) and leaves its result
 // here for applyActions to report and hand out. (Only results made here count: the model can't fake one.)
 const installed = new WeakMap<BrainAction, SkillInstallResult | Error>();
@@ -579,7 +582,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
   const saveTeam = (wf: Partial<Team> & { members: string[] }): Team => workflows.save({ ...wf, steps: teamSteps({ steps: wf.steps || [], members: wf.members }) });
 
   // (a queue: install_skill adds the give_skill actions for what it installed)
-  const queue = actions.slice(0, 12);
+  const queue = actions.slice(0, ACTIONS_MAX);
   for (let i = 0; i < queue.length && i < 24; i++) {
     const act = queue[i];
     try {
@@ -828,9 +831,12 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
 // Run the install_skill actions (downloads) before the rest. Only from a repo the user named in this chat,
 // unless they allowed any link (Settings > The Brain's model): a link in a file or an agent's answer
 // could otherwise get a skill installed that agents would then follow.
-export async function prepareInstalls(actions: BrainAction[], userText: string): Promise<void> {
+// proceed: checked before each skill goes into the library (false: the turn is no longer wanted).
+export async function prepareInstalls(actions: BrainAction[], userText: string, { proceed = () => true }: { proceed?: () => boolean } = {}): Promise<void> {
   const mine = reposIn(userText);
-  for (const act of actions.filter((a) => actionKind(a) === 'install_skill').slice(0, 3)) {
+  const installs = actions.slice(0, ACTIONS_MAX).filter((a) => actionKind(a) === 'install_skill');
+  for (const act of installs.slice(INSTALLS_MAX)) installed.set(act, new Error(`at most ${INSTALLS_MAX} GitHub installs in one answer`));
+  for (const act of installs.slice(0, INSTALLS_MAX)) {
     try {
       const url = String(act.url || '').trim();
       if (!url) throw new Error('no GitHub link');
@@ -839,7 +845,7 @@ export async function prepareInstalls(actions: BrainAction[], userText: string):
       if (!mine.has(repo) && getSettings().brainAnyGitHub !== true) {
         throw new Error(`${link.owner}/${link.repo} isn't a repo you gave in this chat, so the Brain didn't install from it. Paste the link yourself, or allow any link in Settings > The Brain's model ("Install skills from any GitHub link").`);
       }
-      installed.set(act, await withActor('brain', () => installFromGitHub(url)));
+      installed.set(act, await withActor('brain', () => installFromGitHub(url, { proceed })));
     } catch (e) {
       installed.set(act, e as Error);
     }
@@ -893,9 +899,16 @@ export async function ask(text: string, { project, attachments = [] }: { project
   // you switched projects while it thought (even if you came back since: the chat dropped this turn), so skip its actions
   const skipped: BrainDone = { kind: 'error', text: `You switched projects while the Brain was thinking, so nothing was changed. Open "${p.name}" and ask again.` };
   const stale = () => projectSwitches() !== switchesAtStart || openProject().id !== p.id;
-  // GitHub installs first (they download), with the user's own words to check the links against
-  if (!stale() && parsed.actions.some((a) => actionKind(a) === 'install_skill')) await prepareInstalls(parsed.actions, [text, ...past.filter((m) => m.role === 'user').map((m) => m.text)].join('\n'));
-  const { done, delegate } = stale() ? { done: parsed.actions.length ? [skipped] : [], delegate: null } : applyActions(parsed.actions, p, { seenSkills });
+  // GitHub installs first (they download), with the user's own words to check the links against; a
+  // switch while one downloads stops it before it changes the library
+  if (!stale() && parsed.actions.slice(0, ACTIONS_MAX).some((a) => actionKind(a) === 'install_skill')) await prepareInstalls(parsed.actions, [text, ...past.filter((m) => m.role === 'user').map((m) => m.text)].join('\n'), { proceed: () => !stale() });
+  // (installs that did finish before a switch are still reported: they changed the library)
+  const finished: BrainDone[] = parsed.actions.flatMap((a) => {
+    const r = installed.get(a);
+    return r && !(r instanceof Error) ? r.installed.map((x): BrainDone => ({ kind: 'skill', text: `${x.updated ? 'Updated' : 'Installed'} the skill "${x.name}" from GitHub`, skillId: x.slug })) : [];
+  });
+  if (finished.length) skipped.text = `You switched projects while the Brain was thinking, so nothing else was changed. Open "${p.name}" and ask again.`;
+  const { done, delegate } = stale() ? { done: parsed.actions.length ? [skipped, ...finished] : [], delegate: null } : applyActions(parsed.actions, p, { seenSkills });
   // the work is handed on with the files
   if (delegate && attachments.length) delegate.attachments = attachments;
   const r = { answer: parsed.answer, done, delegate };

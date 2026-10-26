@@ -96,7 +96,8 @@ async function resolve(link: GitHubLink): Promise<{ ref: string; path: string; t
     if (!tree.ok || !tree.json) throw fail(`Couldn't read ${link.owner}/${link.repo} (GitHub said ${tree.status}).`);
     return { ref, path: '', tree: tree.json };
   }
-  for (let n = 1; n <= Math.min(5, link.rest.length - (link.kind === 'raw' ? 1 : 0)); n++) {
+  // (every split is tried: a branch name can have any number of slashes)
+  for (let n = 1; n <= link.rest.length - (link.kind === 'raw' ? 1 : 0); n++) {
     const ref = link.rest.slice(0, n).join('/');
     const tree = await api<Tree>(`${base}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
     if (tree.status === 403 || tree.status === 429) throw fail('GitHub is limiting requests right now. Try again later, or sign in with the GitHub CLI (gh auth login).', 429);
@@ -123,14 +124,28 @@ async function download(link: GitHubLink, ref: string, file: string): Promise<Bu
 }
 
 // ---------- install ----------
-/** Install (or update) every skill at or under a GitHub link. */
-export async function installFromGitHub(url: string): Promise<SkillInstallResult> {
+// A tree GitHub cut short (too many files) can't be trusted to hold every skill or file: read just the
+// linked folder instead, and give up if even that is cut short.
+async function wholeTree(link: GitHubLink, ref: string, at: string, tree: Tree): Promise<Tree> {
+  if (!tree.truncated) return tree;
+  if (!at) throw fail("That repo is too big to read whole: link straight to the skill's folder (or a folder of skills).");
+  const sub = await api<Tree>(`/repos/${link.owner}/${link.repo}/git/trees/${encodeURIComponent(`${ref}:${at}`)}?recursive=1`);
+  if (!sub.ok || !sub.json) throw fail(`Couldn't read ${at} in ${link.owner}/${link.repo} (GitHub said ${sub.status}).`);
+  if (sub.json.truncated) throw fail(`${at} is too big to read whole: link to one skill's folder.`);
+  return { tree: sub.json.tree.map((e) => ({ ...e, path: `${at}/${e.path}` })) };
+}
+
+/** Install (or update) every skill at or under a GitHub link.
+ *  proceed: asked just before each skill is put in the library; false leaves it out (e.g. you switched projects). */
+export async function installFromGitHub(url: string, { proceed = () => true }: { proceed?: () => boolean } = {}): Promise<SkillInstallResult> {
   const link = parseGitHubUrl(url);
-  const { ref, path: at, tree } = await resolve(link);
+  const resolved = await resolve(link);
+  const { ref, path: at } = resolved;
+  const tree = await wholeTree(link, ref, at, resolved.tree);
   const under = (p: string) => !at || p === at || p.startsWith(`${at}/`);
   const blobs = tree.tree.filter((e) => e.type === 'blob' && under(e.path));
   const roots = blobs.filter((e) => path.posix.basename(e.path) === 'SKILL.md').map((e) => path.posix.dirname(e.path).replace(/^\.$/, ''));
-  if (!roots.length) throw fail(tree.truncated ? 'That repo is too big to search: link straight to the skill\'s folder.' : `No SKILL.md at or under that link in ${link.owner}/${link.repo}.`, 404);
+  if (!roots.length) throw fail(`No SKILL.md at or under that link in ${link.owner}/${link.repo}.`, 404);
   if (roots.length > MAX_SKILLS) throw fail(`That link has ${roots.length} skills; link to a folder with at most ${MAX_SKILLS}, or to one skill.`);
 
   const result: SkillInstallResult = { installed: [], skipped: [] };
@@ -144,7 +159,9 @@ export async function installFromGitHub(url: string): Promise<SkillInstallResult
       let total = 0;
       for (const e of mine) {
         const rel = root ? e.path.slice(root.length + 1) : e.path;
-        if (!safeRel(rel) || (e.size ?? 0) > MAX_FILE) continue;
+        // hidden files and odd paths are left out; a file too big to download means the skill isn't whole, so it isn't installed
+        if (!safeRel(rel)) continue;
+        if ((e.size ?? 0) > MAX_FILE) throw new Error(`${rel} is over ${MAX_FILE / 1024 / 1024} MB`);
         total += e.size ?? 0;
         files.push({ rel, size: e.size ?? 0, path: e.path });
       }
@@ -166,6 +183,7 @@ export async function installFromGitHub(url: string): Promise<SkillInstallResult
         const same = listSkills().find((s) => s.origin && s.origin.repo.toLowerCase() === origin.repo.toLowerCase() && s.origin.path === origin.path);
         const slug = same ? same.slug : uniqueSlug(path.posix.basename(root) || md.name || link.repo);
         if (!isSkillSlug(slug)) throw new Error('no usable name');
+        if (!proceed()) throw new Error('not installed: you switched projects while it downloaded');
         const before = same ? getSkill(slug) : null;
         if (before) {
           const after = skillFromText(fs.readFileSync(path.join(tmp, 'SKILL.md'), 'utf8'), slug);
