@@ -42,6 +42,19 @@ describe('the Brain adds MCP servers', () => {
     expect(applyActions([{ do: 'add_mcp', preset: 'playwright' }]).done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('update_mcp') });
   });
 
+  it('tells the Brain which ready-made servers need a key, and adds one with the key the user gave', async () => {
+    const snap = await snapshot({ fileBudget: 0 });
+    expect(snap).toContain('brave-search (Web search (Brave); needs BRAVE_API_KEY)');
+    expect(snap).toContain('unity (Unity (live editor); setup: install the "MCP for Unity" package');
+    const r = applyActions([{ do: 'add_mcp', preset: 'brave-search', env: { BRAVE_API_KEY: 'BSA-test-123' } }], activeProject(), { userWords: 'add Brave search, my key is BSA-test-123' });
+    expect(r.done[0]).toMatchObject({ kind: 'mcp', text: expect.stringContaining('BRAVE_API_KEY') });
+    expect(mcp.listServers()['brave-search'].env).toEqual({ BRAVE_API_KEY: 'BSA-test-123' });
+    // a key the user never typed is refused
+    const fake = applyActions([{ do: 'add_mcp', preset: 'firecrawl', env: { FIRECRAWL_API_KEY: 'made-up-key' } }], activeProject(), { userWords: 'add firecrawl' });
+    expect(fake.done[0]).toMatchObject({ kind: 'error' });
+    expect(mcp.listServers().firecrawl).toBeUndefined();
+  });
+
   it('adds a custom server only from the command the user wrote', () => {
     const words = 'Please add the weather MCP server: npx -y @acme/weather-mcp --units=metric';
     const made = applyActions([{ do: 'add_mcp', name: 'weather', command: 'npx', args: ['-y', '@acme/weather-mcp', '--units=metric'] }], activeProject(), { userWords: words });

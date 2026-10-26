@@ -15,9 +15,11 @@ interface McpServerConfig {
 }
 /** A preset as GET /api/mcp lists it: whether its command is on this PC and whether it is added. */
 type McpPresetListing = { name: string; title: string; description: string; ready: boolean; installed: boolean } & (
-  | { type: 'stdio'; command: string; args: string[] }
+  | { type: 'stdio'; command: string; args: string[]; env?: Record<string, string> }
   | { type: 'http'; url: string; headers: Record<string, string>; command?: undefined }
 );
+/** A preset that ships a placeholder (YOUR_...) for a key you have to fill in. */
+const needsKey = (p: McpPresetListing) => [...Object.values(p.type === 'stdio' ? p.env || {} : p.headers)].some((v) => /YOUR_/.test(v));
 /** A server found in a Claude config that can be imported. */
 interface ImportableServer {
   source: string;
@@ -109,6 +111,7 @@ async function draw(): Promise<void> {
                 ? h('span.pill.ok', 'added')
                 : h('button.btn.small', { onclick: () => attempt(() => POST('/mcp-preset', { name: p.name }), `Added ${p.title}`).then(draw) }, 'Add'),
               !p.ready ? h('span.pill.warn', `needs ${p.command}`) : null,
+              !p.installed && needsKey(p) ? h('span.pill.info', { title: 'After adding, put your key in the settings of the added server below' }, 'needs your key') : null,
             ),
           ),
         ),

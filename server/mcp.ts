@@ -34,8 +34,8 @@ export interface McpServerInput {
   enabled?: boolean;
 }
 
-export type McpPreset = { name: string; title: string; description: string } & (
-  | { type: 'stdio'; command: string; args: string[] }
+export type McpPreset = { name: string; title: string; description: string; /** What to do outside the dashboard before it works (an editor plugin, a program), for the Brain to pass on. */ setup?: string } & (
+  | { type: 'stdio'; command: string; args: string[]; env?: Record<string, string> }
   | { type: 'http'; url: string; headers: Record<string, string> }
 );
 
@@ -134,7 +134,96 @@ export const PRESETS: McpPreset[] = [
     url: 'https://api.githubcopilot.com/mcp/',
     headers: { Authorization: 'Bearer YOUR_GITHUB_TOKEN' },
   },
+  // Docs and web search
+  {
+    name: 'context7',
+    title: 'Library docs (Context7)',
+    description: 'Up-to-date documentation and code examples for the libraries and frameworks you use, so agents stop guessing at old APIs. No key needed.',
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', '@upstash/context7-mcp'],
+  },
+  {
+    name: 'brave-search',
+    title: 'Web search (Brave)',
+    description: 'Search the web, news, images and videos. Needs a free Brave Search API key: add it as BRAVE_API_KEY after adding.',
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', '@brave/brave-search-mcp-server'],
+    env: { BRAVE_API_KEY: 'YOUR_API_KEY' },
+  },
+  {
+    name: 'firecrawl',
+    title: 'Web scraping (Firecrawl)',
+    description: 'Turn whole sites and pages into clean text, and crawl or search them. Needs a Firecrawl key: add it as FIRECRAWL_API_KEY after adding.',
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', 'firecrawl-mcp'],
+    env: { FIRECRAWL_API_KEY: 'YOUR_API_KEY' },
+  },
+  // Work tools
+  {
+    name: 'notion',
+    title: 'Notion',
+    description: 'Read and write your Notion pages and databases. Needs an integration token (notion.so/profile/integrations): add it as NOTION_TOKEN after adding, and share the pages with the integration.',
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', '@notionhq/notion-mcp-server'],
+    env: { NOTION_TOKEN: 'YOUR_NOTION_TOKEN' },
+  },
+  {
+    name: 'linear',
+    title: 'Linear (remote)',
+    description: 'Issues, projects and comments in Linear. Put a Linear API key in the Authorization header after adding.',
+    type: 'http',
+    url: 'https://mcp.linear.app/mcp',
+    headers: { Authorization: 'Bearer YOUR_LINEAR_API_KEY' },
+  },
+  // Games and audio
+  {
+    name: 'unity',
+    title: 'Unity (live editor)',
+    description: 'Control a running Unity editor: scenes, objects, assets, scripts. Needs the "MCP for Unity" package installed in your Unity project (Window > MCP for Unity) and its bridge started there.',
+    type: 'stdio',
+    command: 'uvx',
+    args: ['--from', 'mcpforunityserver', 'mcp-for-unity', '--transport', 'stdio'],
+    setup: 'install the "MCP for Unity" package in the Unity project (Window > MCP for Unity) and start its bridge there',
+  },
+  {
+    name: 'unreal',
+    title: 'Unreal Engine (live editor)',
+    description: 'Control a running Unreal Engine 5 editor (third-party, no plugin to compile). In Unreal turn on the Python Editor Script Plugin and Remote Execution, then restart the editor. Unreal 5.8 also has an experimental official MCP plugin.',
+    type: 'stdio',
+    command: 'uvx',
+    args: ['uemcp'],
+    setup: 'in Unreal Engine 5 turn on the Python Editor Script Plugin and Remote Execution, then restart the editor',
+  },
+  {
+    name: 'godot',
+    title: 'Godot',
+    description: 'Launch the Godot editor, run projects, read debug output and edit scenes. If Godot is not found on its own, add GODOT_PATH (the full path to the Godot program) after adding.',
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', '@coding-solo/godot-mcp'],
+    setup: 'Godot has to be installed; if it is not found on its own, set GODOT_PATH to the full path of the Godot program',
+  },
+  {
+    name: 'elevenlabs',
+    title: 'ElevenLabs voices and sound',
+    description: 'Text to speech, voice cloning, sound effects and audio transcription. Needs an ElevenLabs API key: add it as ELEVENLABS_API_KEY after adding. Generating audio uses your ElevenLabs credits.',
+    type: 'stdio',
+    command: 'uvx',
+    args: ['elevenlabs-mcp'],
+    env: { ELEVENLABS_API_KEY: 'YOUR_API_KEY' },
+  },
 ];
+
+/** What a ready-made server needs from the user before it works, in a few words ('' when nothing). */
+export function presetNeeds(p: McpPreset): string {
+  const keys = Object.entries(p.type === 'stdio' ? p.env || {} : p.headers).filter(([, v]) => /YOUR_/.test(v));
+  const need = keys.map(([k]) => (p.type === 'stdio' ? k : `a key in the ${k} header`));
+  return [need.length ? `needs ${need.join(' and ')}` : '', p.setup ? `setup: ${p.setup}` : ''].filter(Boolean).join('; ');
+}
 
 export function listServers(): McpServers {
   return readJSON<{ servers?: McpServers }>(FILE, { servers: {} }).servers || {};

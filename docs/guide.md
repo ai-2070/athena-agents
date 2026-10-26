@@ -126,7 +126,7 @@ The Brain changes models or stops work only when you ask.
 
 The Brain can set up MCP servers and decide who gets them, the same as **Settings → MCP servers**.
 
-- **Add one.** "Add the Playwright browser and give it to the Researcher." The Brain prefers the ready-made servers and the ones it finds in your Claude Code or Claude Desktop settings. For any other server, give it the exact command or link: "Add the weather server: `npx -y @acme/weather-mcp`".
+- **Add one.** "Add the Playwright browser and give it to the Researcher." The Brain prefers the ready-made servers and the ones it finds in your Claude Code or Claude Desktop settings. For any other server, give it the exact command or link: "Add the weather server: `npx -y @acme/weather-mcp`". Ready-made servers that need a key (Brave Search, Notion, Firecrawl, ElevenLabs, Linear) are added with the key you type in the chat: "Add Brave search, my key is …". The Brain asks for it if you leave it out, and tells you any setup step outside the dashboard (the Unity, Unreal and Godot ones need something installed in the editor).
 - **Change one.** Change its command, link, keys, description or name, or turn it off and on. A new name is updated on every agent and team that has the server.
 - **Give, take back, move.** Give a server to agents or teams, take it back, or move it from one to another. A team's servers are available to every member while they work for that team.
 - **Remove one.** "Remove the weather server" deletes it and takes it off every agent and team, in every project. The Brain removes a server only when you ask.
