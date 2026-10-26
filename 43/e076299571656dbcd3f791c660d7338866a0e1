@@ -1,0 +1,25 @@
+tests/web/brainqueue.test.ts
+  s_86f670bdc2e031::t_9557ee1293ebc2 3,46,50,55-56,64-93,103-114
+  s_86f670bdc2e031::t_240e74d9effeee 115
+web/dock.ts
+  s_86f670bdc2e031::t_6321abd89bd79b 7,117-118,120-121,123,132,312-313,323
+web/brainqueue.ts
+  s_86f670bdc2e031::t_6321abd89bd79b 9-10,22,40-52
+  s_86f670bdc2e031::t_96c96626e0d4ce 53-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "43e076299571656dbcd3f791c660d7338866a0e1",
+  "prompts": {},
+  "sessions": {
+    "s_86f670bdc2e031": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6340fd4e-3c25-4ffa-aefd-cf1ac985cbb5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
