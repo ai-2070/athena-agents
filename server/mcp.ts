@@ -5,7 +5,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
-import { HOME, IS_WIN, ROOT, PORT, dataPath, readJSON, writeJSON, which, exists } from './util.ts';
+import { HOME, IS_WIN, BRIDGE_SCRIPT, PORT, dataPath, readJSON, writeJSON, which, exists } from './util.ts';
 import { emit, log, internalToken } from './store.ts';
 
 /** One saved MCP server (data/mcp.json). */
@@ -293,7 +293,7 @@ export interface BridgeServerConfig {
 export function bridgeServerConfig(agentId: string | null | undefined, runId = ''): BridgeServerConfig {
   return {
     command: process.execPath,
-    args: [path.join(ROOT, 'server', 'mcp-bridge.ts')],
+    args: [BRIDGE_SCRIPT],
     env: { DASH_PORT: String(PORT), DASH_TOKEN: internalToken(), DASH_AGENT: agentId || '', ...(runId ? { DASH_RUN: runId } : {}) },
   };
 }
@@ -316,4 +316,4 @@ export function presetAvailability() {
   return PRESETS.map((p) => ({ ...p, ready: p.type === 'http' || !!which(p.command), installed: !!listServers()[p.name] }));
 }
 
-export const hasBridge = () => exists(path.join(ROOT, 'server', 'mcp-bridge.ts'));
+export const hasBridge = () => exists(BRIDGE_SCRIPT);

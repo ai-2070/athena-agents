@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // tests point this at a throwaway folder
 export const DATA = process.env.DASH_DATA ? path.resolve(process.env.DASH_DATA) : path.join(ROOT, 'data');
+// The MCP bridge that agents' CLIs start. The desktop app ships the server bundled, as .js.
+export const BRIDGE_SCRIPT = ((js) => (fs.existsSync(js) ? js : path.join(ROOT, 'server', 'mcp-bridge.ts')))(path.join(ROOT, 'server', 'mcp-bridge.js'));
 export const HOME = os.homedir();
 export const IS_WIN = process.platform === 'win32';
 export let PORT = Number(process.env.DASH_PORT || 4800);

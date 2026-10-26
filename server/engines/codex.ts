@@ -2,7 +2,7 @@
 // resuming the same Codex thread so the conversation continues. The dashboard tools come in as an MCP server.
 import fs from 'node:fs';
 import path from 'node:path';
-import { which, spawnCommand, killTree, run as runCmd, ROOT, PORT, dataPath, ensureDir } from '../util.ts';
+import { which, spawnCommand, killTree, run as runCmd, BRIDGE_SCRIPT, PORT, dataPath, ensureDir } from '../util.ts';
 import { internalToken } from '../store.ts';
 import { listServers } from '../mcp.ts';
 import { workspaceOf } from '../tools.ts';
@@ -90,7 +90,7 @@ export function codexArgs(agent: Agent, { runId = '', interactive = false, promp
   // the dashboard's own tools, plus the agent's MCP servers
   const bridge = { DASH_PORT: String(PORT), DASH_TOKEN: internalToken(), DASH_AGENT: agent.id, ...(runId ? { DASH_RUN: runId } : {}) };
   args.push('-c', `mcp_servers.dashboard.command=${tstr(process.execPath)}`);
-  args.push('-c', `mcp_servers.dashboard.args=[${tstr(path.join(ROOT, 'server', 'mcp-bridge.ts'))}]`);
+  args.push('-c', `mcp_servers.dashboard.args=[${tstr(BRIDGE_SCRIPT)}]`);
   args.push('-c', `mcp_servers.dashboard.env=${ttable(bridge)}`);
   args.push('-c', 'mcp_servers.dashboard.tool_timeout_sec=3600');
   const servers = listServers();
