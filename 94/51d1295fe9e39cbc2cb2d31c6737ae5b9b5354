@@ -1,0 +1,26 @@
+server/engines/index.ts
+  s_438d1f6577d2a3::t_d87a6ee834dd10 293,309,447
+tests/server/compaction.test.ts
+  s_438d1f6577d2a3::t_d87a6ee834dd10 9,181-200
+  s_438d1f6577d2a3::t_8986f6efb70ed3 201-202
+shared/types.ts
+  s_438d1f6577d2a3::t_d87a6ee834dd10 235-236
+server/compaction.ts
+  s_438d1f6577d2a3::t_d87a6ee834dd10 82-87,90-91,93,103,106-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9451d1295fe9e39cbc2cb2d31c6737ae5b9b5354",
+  "prompts": {},
+  "sessions": {
+    "s_438d1f6577d2a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a3e60d4-d433-413c-8c13-3a59a05169f5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
