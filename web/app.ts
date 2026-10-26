@@ -15,6 +15,7 @@ import * as setup from './views/setup.ts';
 import * as skillsView from './views/skills.ts';
 import * as routinesView from './views/routines.ts';
 import { initDock } from './dock.ts';
+import { guardPageDrops } from './attach.ts';
 import { applyLook, applySavedLook } from './look.ts';
 
 applySavedLook();
@@ -222,6 +223,8 @@ onEvent((ev) => {
 });
 
 window.addEventListener('hashchange', route);
+// files dropped where nothing takes them must not open in the tab (from the start, not once the state loads)
+guardPageDrops();
 await refreshState();
 if (state.data?.settings?.look) applyLook(state.data.settings.look);
 connectEvents();

@@ -2,6 +2,8 @@
 import { h, mount, clear, state, GET, POST, PUT, attempt, modal, chipSet, select, toast, refreshSoon, avatar } from './core.ts';
 import type { ModalHandle } from './core.ts';
 import { teamSteps } from '../shared/teams.ts';
+import { icon } from './icons.ts';
+import { attachTray, baseName, isFolderPath } from './attach.ts';
 import type { Agent, Team, TeamAccess, TeamStep } from '../shared/types.ts';
 
 /** An agent the Brain designed (POST /api/assist/agent), not created yet. */
@@ -20,19 +22,22 @@ export interface BranchBuilderOptions {
   wf?: Team | null;
   prefill?: Partial<BranchDesign> | null;
   describe?: string;
+  /** Files already uploaded (e.g. attached in the Brain chat) that the team starts with. */
+  files?: string[];
   onSaved?: (wf: Team) => unknown;
 }
 
 const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a', '#4f7fa8', '#5a9a3a', '#a84a5a', '#2f8fa0'];
 
 // wf: an existing team to edit. prefill: a design from the Brain ({ name, description, members, leadIndex, access }).
-export async function openBranchBuilder({ wf = null, prefill = null, describe = '', onSaved }: BranchBuilderOptions = {}): Promise<ModalHandle> {
+export async function openBranchBuilder({ wf = null, prefill = null, describe = '', files = [], onSaved }: BranchBuilderOptions = {}): Promise<ModalHandle> {
   const d = state.data!;
   const mcp = await GET<{ servers: Record<string, unknown> }>('/mcp').catch(() => ({ servers: {} as Record<string, unknown> }));
   // members: { agentId } for existing agents, { newAgent } for ones the Brain suggests hiring
   const fromTeam: BranchMember[] = (wf?.members || []).map((agentId) => ({ agentId }));
   // the lead is the member object itself, so removing or hiring others never loses it
-  const b: { name: string; description: string; members: BranchMember[]; lead: BranchMember | null; access: TeamAccess } = {
+  const b: { name: string; description: string; members: BranchMember[]; lead: BranchMember | null; access: TeamAccess; files: string[] } = {
+    files: [...new Set([...(wf?.files || []), ...files])],
     name: wf?.name || prefill?.name || '',
     description: wf?.description || prefill?.description || describe || '',
     members: fromTeam.length ? fromTeam : structuredClone(prefill?.members || []),
@@ -103,14 +108,49 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       h('p.hint.mt', 'While working for this team, every member gets these on top of its own tools.'),
     );
 
+  // the team's files: reference material every member is told about (briefs, brand guides, assets)
+  const tray = attachTray();
+  const keptEl = h('div.att-tray');
+  const drawKept = () => {
+    keptEl.classList.toggle('hidden', !b.files.length);
+    mount(
+      keptEl,
+      b.files.map((p) =>
+        h(
+          'span.att-chip.sent',
+          { title: p },
+          h('span.att-ico', icon(isFolderPath(p) ? 'folder' : 'file', 13)),
+          h('span.att-name', `${baseName(p)}${isFolderPath(p) ? '/' : ''}`),
+          h('button.att-x', { type: 'button', title: 'Take off the team (the file stays in uploads/)', onclick: () => ((b.files = b.files.filter((x) => x !== p)), drawKept()) }, icon('x', 12)),
+        ),
+      ),
+    );
+  };
+  const filesEl = h(
+    'div',
+    h('div.label', 'Files'),
+    h('div.col.mt', { style: { gap: '8px' } }, keptEl, tray.el, h('div.row', { style: { gap: '8px' } }, tray.picker, h('span.hint', 'Briefs, brand guides, assets: drop files or folders anywhere here. Auto-build reads them, and every member is told where they are.'))),
+  );
+  const allFiles = async () => {
+    const fresh = await tray.ready();
+    return fresh ? [...new Set([...b.files, ...fresh])] : null;
+  };
+
   const status = h('span.hint');
   const autoBtn = h('button.btn.small', {
     onclick: async () => {
       const text = [b.name, b.description].filter(Boolean).join(': ').trim();
-      if (!text) return toast("Describe the team's goal first.", 'warn');
+      if (!text && !tray.count() && !b.files.length) return toast("Describe the team's goal first.", 'warn');
       autoBtn.disabled = true;
+      status.textContent = tray.busy() ? 'Uploading files…' : 'The Brain is picking agents…';
+      const attachments = await allFiles();
+      if (!attachments) {
+        autoBtn.disabled = false;
+        status.textContent = '';
+        return;
+      }
       status.textContent = 'The Brain is picking agents…';
-      const design = await attempt(() => POST<BranchDesign>('/assist/branch', { text }));
+      const design = await attempt(() => POST<BranchDesign>('/assist/branch', { text, attachments }));
       autoBtn.disabled = false;
       status.textContent = '';
       if (!design) return;
@@ -130,6 +170,9 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
 
   let m: ModalHandle;
   let saving = false;
+  let savedOk = false;
+  // closed while saving: if nothing was saved yet, stop there (and the files go)
+  let closed = false;
   // one save at a time, or a double click hires everyone twice
   const saveBtn = h(
     'button.btn',
@@ -148,6 +191,9 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   );
   const save = async () => {
     if (!b.name.trim()) return toast('Give the team a name.', 'warn');
+    const teamFiles = await allFiles();
+    if (closed) return tray.discard();
+    if (!teamFiles) return;
     // hire the new agents the Brain suggested; each becomes a normal member right away, so a retry won't hire it again
     for (const mem of [...b.members]) {
       if (!mem.newAgent) continue;
@@ -163,11 +209,16 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
     const { stepList, ...rest } = (wf || {}) as Team & { stepList?: TeamStep[] };
     const own = stepList ?? rest.steps ?? [];
     const lead = b.lead?.agentId || null;
-    const body = { name: b.name.trim(), description: b.description.trim(), members: ids, steps: teamSteps({ steps: own, members: ids }), lead, access: b.access };
+    const body = { name: b.name.trim(), description: b.description.trim(), members: ids, steps: teamSteps({ steps: own, members: ids }), lead, access: b.access, files: teamFiles };
     const saved = wf
       ? await attempt(() => PUT<Team>(`/workflows/${wf.id}`, { ...rest, ...body }))
       : await attempt(() => POST<Team>('/workflows', { ...body, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], schedule: { type: 'none' }, enabled: false }));
-    if (!saved) return (refreshSoon(0), drawMembers());
+    if (!saved) {
+      // already closed: nothing will save these now
+      if (closed) tray.discard();
+      return (refreshSoon(0), drawMembers());
+    }
+    savedOk = true;
     refreshSoon(0);
     m.close();
     toast(wf ? 'Team saved' : `Team "${saved.name}" created`);
@@ -180,13 +231,22 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       'div.col.gap-lg',
       h('p.hint', 'A team is a group chat of agents. You write to the team, the lead (or the best fit) takes it, and they hand work to each other with @mentions.'),
       h('div.col', h('label.field', h('span', 'Name'), name), h('label.field', h('span', 'Goal'), desc), h('div.row', autoBtn, status)),
+      filesEl,
       h('div', h('div.label', 'Members'), h('div.mt', listEl), addRow),
       h('div', accessEl),
     ),
     foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), saveBtn],
+    // closed without saving: the files dropped here go too
+    // (a save already under way finishes, with its files; one still waiting for uploads stops)
+    onClose: () => {
+      closed = true;
+      if (!savedOk && !saving) tray.discard();
+    },
   });
+  tray.dropZone(m.el.querySelector<HTMLElement>('.modal')!, 'Drop files or folders for the team');
   drawMembers();
   drawAccess();
+  drawKept();
   setTimeout(() => (b.name ? desc : name).focus(), 30);
   return m;
 }

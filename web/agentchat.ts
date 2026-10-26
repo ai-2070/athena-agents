@@ -3,6 +3,7 @@
 import { h, mount, state, GET, POST, attempt, md, onEvent, onState, navigate, approvalCard } from './core.ts';
 import { icon } from './icons.ts';
 import { modelChip } from './models.ts';
+import { attachTray, attachmentChips, restoreDraft } from './attach.ts';
 import type { Chat, ChatItem, ChatSummary, RunEvent } from '../shared/types.ts';
 
 /** What renderAgentChat() hands back. */
@@ -31,6 +32,7 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
   const input = h('textarea.ac-input', { rows: 2, placeholder: `Message ${agent()?.name || 'the agent'}…  (Enter to send, Shift+Enter for a new line)` });
   const sendBtn = h('button.btn.small', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 14));
   const stopBtn = h('button.btn.danger.small.hidden', { onclick: () => stop() }, icon('square', 13), 'Stop');
+  const tray = attachTray();
   const chipBox = h('span.ac-model');
   const bar = h(
     'div.ac-bar',
@@ -39,7 +41,9 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
     h('button.btn.tiny.ghost', { title: 'Start a fresh conversation', onclick: () => fresh() }, icon('plus', 13), 'New chat'),
     h('button.btn.tiny.ghost', { title: 'Open the full chat page', onclick: () => navigate(C.chatId ? `#/agents/${agentId}/${C.chatId}` : `#/agents/${agentId}`) }, icon('maximize-2', 13), 'Full page'),
   );
-  mount(container, h('div.ac', bar, list, approvalsEl, statusEl, h('div.ac-compose', input, sendBtn, stopBtn)));
+  const root = h('div.ac', bar, list, approvalsEl, statusEl, tray.el, h('div.ac-compose', tray.picker, input, sendBtn, stopBtn));
+  mount(container, root);
+  const offDrop = tray.dropZone(root, `Drop files or folders for ${agent()?.name || 'the agent'}`);
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -71,7 +75,7 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
         list,
         items.length
           ? items.map((i) => {
-              if (i.type === 'user') return h('div.ac-msg.user', h('div.ac-text', i.text));
+              if (i.type === 'user') return h('div.ac-msg.user', i.text ? h('div.ac-text', i.text) : null, attachmentChips(i.attachments));
               if (i.type === 'assistant') {
                 const m = md(i.text || '');
                 m.className = 'ac-text';
@@ -116,19 +120,35 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
     list.scrollTop = list.scrollHeight;
   };
 
+  let sending = false;
   async function send() {
-    const text = input.value.trim();
     // busy: keep the text in the composer (the server would refuse it anyway)
-    if (!text || running()) return;
-    input.value = '';
-    if (!C.chatId) {
-      const c = await attempt(() => POST<Chat>(`/agents/${agentId}/chats`));
-      if (!c) return (input.value = text);
-      seq++;
-      C.chatId = c.id;
+    if ((!input.value.trim() && !tray.count()) || running() || sending) return;
+    sending = true;
+    try {
+      if (tray.busy()) C.status = 'Uploading files…';
+      draw();
+      const attachments = await tray.ready();
+      C.status = '';
+      draw();
+      if (!attachments) return;
+      // what is in the box now (more may have been typed while the files uploaded)
+      const text = input.value.trim();
+      if (!text && !attachments.length) return;
+      input.value = '';
+      const taken = tray.take();
+      const undo = () => (restoreDraft(input, text), tray.put(taken));
+      if (!C.chatId) {
+        const c = await attempt(() => POST<Chat>(`/agents/${agentId}/chats`));
+        if (!c) return undo();
+        seq++;
+        C.chatId = c.id;
+      }
+      const r = await attempt(() => POST(`/agents/${agentId}/chats/${C.chatId}/messages`, { text, attachments }));
+      if (!r) undo();
+    } finally {
+      sending = false;
     }
-    const r = await attempt(() => POST(`/agents/${agentId}/chats/${C.chatId}/messages`, { text }));
-    if (!r) input.value = text;
   }
   async function stop() {
     const r = running();
@@ -147,7 +167,7 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
     const items = C.items;
     if (e.kind === 'start') {
       const last = items[items.length - 1];
-      if (!(last?.type === 'user' && last.text === e.text)) items.push({ type: 'user', text: e.text });
+      if (!(last?.type === 'user' && last.text === e.text)) items.push({ type: 'user', text: e.text, attachments: e.attachments });
       C.stream = null;
       C.status = 'Thinking…';
     } else if (e.kind === 'text') {
@@ -180,6 +200,9 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
       C.alive = false;
       offEv?.();
       offState?.();
+      offDrop();
+      // the tab closed: unsent attachments go too
+      tray.discard();
     },
   };
 }

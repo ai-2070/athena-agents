@@ -14,6 +14,7 @@ import { listApprovals } from './approvals.ts';
 import type { BrainVerdict } from './approvals.ts';
 import { think, brainModel, parseJSON } from './brain.ts';
 import { readJSON, writeJSON, run, dataPath } from './util.ts';
+import { describeAttachments, attachmentNames } from './uploads.ts';
 import { listRoutines, saveRoutine, deleteRoutine, getRoutine, startRoutine, routineTargets } from './routines.ts';
 import { listSkills } from './skills.ts';
 import { cleanSchedule, scheduleText } from '../shared/routines.ts';
@@ -24,6 +25,7 @@ export interface BrainChatMessage {
   role: 'user' | 'brain';
   text: string;
   ts: number;
+  attachments?: string[];
 }
 
 /** A new agent the Brain invents in an action (any field may be missing). */
@@ -551,8 +553,9 @@ export function applyActions(actions: BrainAction[], p: Project = activeProject(
   return { done, delegate };
 }
 
-/** project: the project the message was typed in. A message that waited while you switched projects is refused. */
-export async function ask(text: string, { project }: { project?: string | null } = {}): Promise<BrainAnswer> {
+/** project: the project the message was typed in. A message that waited while you switched projects is refused.
+ *  attachments: files the user attached (paths in uploads/). */
+export async function ask(text: string, { project, attachments = [] }: { project?: string | null; attachments?: string[] } = {}): Promise<BrainAnswer> {
   const p = activeProject();
   if (project && project !== p.id) {
     const was = listProjects().find((x) => x.id === project);
@@ -564,8 +567,13 @@ export async function ask(text: string, { project }: { project?: string | null }
   const canRead = bm.provider === 'claude' || bm.provider === 'codex';
   const snap = await snapshot({ fileBudget: canRead ? 6000 : 12000 });
   const past = history(p.id);
-  const convo = past.length ? `\n\nEARLIER IN THIS CHAT:\n${past.slice(-12).map((m) => `${m.role === 'user' ? 'User' : 'Brain'}: ${cut(m.text, 600)}`).join('\n')}` : '';
-  const out = await think(SYSTEM(p.name, canRead), `SNAPSHOT\n${snap}\n\n${catalog()}${convo}\n\nUSER:\n${text}`, {
+  const convo = past.length ? `\n\nEARLIER IN THIS CHAT:\n${past.slice(-12).map((m) => `${m.role === 'user' ? 'User' : 'Brain'}: ${cut(m.text, 600)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`).join('\n')}` : '';
+  // files the user attached: where they are (it can open them when it reads files), and the text of small ones
+  const files = attachments.length ? `\n\n${describeAttachments(attachments, { inline: canRead ? 8000 : 24000 })}\n(When you delegate, the attached files go along with your brief: mention them in it.)` : '';
+  // files from earlier turns (the last few): where they are, and for a Brain that can't open files, their text
+  const earlier = [...new Set(past.slice(-12).filter((m) => m.role === 'user' && m.attachments?.length).slice(-3).flatMap((m) => m.attachments || []))];
+  const earlierFiles = earlier.length ? `\n\n${describeAttachments(earlier, { inline: canRead ? 0 : 8000, heading: 'Files the user attached earlier in this chat' })}` : '';
+  const out = await think(SYSTEM(p.name, canRead), `SNAPSHOT\n${snap}\n\n${catalog()}${convo}${earlierFiles}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}`, {
     tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '',
     cwd: ensureBrain(p),
     timeout: 180000,
@@ -580,10 +588,12 @@ export async function ask(text: string, { project }: { project?: string | null }
   // you switched projects while it thought (even if you came back since: the chat dropped this turn), so skip its actions
   const skipped: BrainDone = { kind: 'error', text: `You switched projects while the Brain was thinking, so nothing was changed. Open "${p.name}" and ask again.` };
   const { done, delegate } = projectSwitches() !== switchesAtStart || openProject().id !== p.id ? { done: parsed.actions.length ? [skipped] : [], delegate: null } : applyActions(parsed.actions, p);
+  // the work is handed on with the files
+  if (delegate && attachments.length) delegate.attachments = attachments;
   const r = { answer: parsed.answer, done, delegate };
   const now = Date.now();
   // on top of the history as it is now (not as it was before thinking), so nothing saved meanwhile is lost
-  remember([...history(p.id), { role: 'user', text, ts: now }, { role: 'brain', text: [r.answer, ...done.map((d) => `(${d.text})`), delegate ? `(handed to ${delegate.name}: ${delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n'), ts: Date.now() }], p.id);
+  remember([...history(p.id), { role: 'user', text, ts: now, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: [r.answer, ...done.map((d) => `(${d.text})`), delegate ? `(handed to ${delegate.name}: ${delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n'), ts: Date.now() }], p.id);
   return { ...r, model: bm, project: p.name };
 }
 
