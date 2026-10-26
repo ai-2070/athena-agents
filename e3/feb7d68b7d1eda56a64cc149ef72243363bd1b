@@ -1,0 +1,48 @@
+server/skills.ts
+  s_d7de01d4c8f205::t_c45e0ff000b102 140-153
+web/icons.ts
+  s_d7de01d4c8f205::t_c45e0ff000b102 8
+tests/web/backup.test.ts
+  s_d7de01d4c8f205::t_c45e0ff000b102 36-47
+server/versions.ts
+  s_d7de01d4c8f205::t_c45e0ff000b102 69-72,97-98,101-107,111-194
+tests/server/backup.test.ts
+  s_d7de01d4c8f205::t_026b00bf78554b 178-179
+tests/server/backup-versions.test.ts
+  s_d7de01d4c8f205::t_c45e0ff000b102 1-197
+web/backup.ts
+  s_d7de01d4c8f205::t_c45e0ff000b102 26-27,48-49,59,99,114,146
+scripts/brand-fallbacks.json
+  s_d7de01d4c8f205::t_c45e0ff000b102 1-32
+scripts/build-icons.ts
+  s_d7de01d4c8f205::t_c45e0ff000b102 58-60,65-66
+server/history.ts
+  s_d7de01d4c8f205::t_c45e0ff000b102 48-50,93,100,106-107,112,117,124
+server/projectsync.ts
+  s_d7de01d4c8f205::t_c45e0ff000b102 10-11,306-307,332,398
+  s_d7de01d4c8f205::t_026b00bf78554b 9,84
+server/backup.ts
+  s_d7de01d4c8f205::t_026b00bf78554b 12,314-315
+  s_d7de01d4c8f205::t_c45e0ff000b102 2-3,15-17,31-35,67-68,93-94,125-126,240,291-297,322,324,427,619-620,622,628-629,639-641,643-646,718,725-797
+  s_d7de01d4c8f205::t_d52fe601e1d411 798-799
+server/util.ts
+  s_d7de01d4c8f205::t_026b00bf78554b 81-90
+README.md
+  s_d7de01d4c8f205::t_c45e0ff000b102 138-141,145-147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e3feb7d68b7d1eda56a64cc149ef72243363bd1b",
+  "prompts": {},
+  "sessions": {
+    "s_d7de01d4c8f205": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3448e488-4120-4310-ae07-584ad76fc736",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
