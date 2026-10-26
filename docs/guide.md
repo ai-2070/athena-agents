@@ -1,4 +1,4 @@
-# My Dashboard: the detailed guide
+# Blacksite: the detailed guide
 
 The [README](../README.md) says what the dashboard is, how to install it, which engines and models it can use, and the everyday commands. This file explains how it behaves once it is running.
 

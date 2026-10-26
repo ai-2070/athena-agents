@@ -18,7 +18,7 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 /// Not right at start: the server and the page come first.
 const FIRST_CHECK: Duration = Duration::from_secs(30);
 const CHECK_EVERY: Duration = Duration::from_secs(6 * 60 * 60);
-const TITLE: &str = "My Dashboard";
+const TITLE: &str = "Blacksite";
 
 pub fn start(app: &AppHandle) {
     if let Some(why) = off_because() {
@@ -73,10 +73,10 @@ async fn check(app: &AppHandle, later: &mut Option<String>) -> Result<(), String
 fn ask(app: &AppHandle, update: &Update) -> bool {
     app.dialog()
         .message(format!(
-            "My Dashboard {} is ready to install. You have {}.\n\nInstalling it restarts the app. Agents that are working stop, and pick up again when you write to them.",
+            "Blacksite {} is ready to install. You have {}.\n\nInstalling it restarts the app. Agents that are working stop, and pick up again when you write to them.",
             update.version, update.current_version
         ))
-        .title("Update My Dashboard")
+        .title("Update Blacksite")
         .kind(MessageDialogKind::Info)
         .buttons(MessageDialogButtons::OkCancelCustom(
             "Install and restart".into(),
@@ -118,7 +118,7 @@ async fn install(app: &AppHandle, update: &Update) -> Result<(), String> {
             tell(
                 app,
                 "The update could not be downloaded",
-                &format!("{e}\n\nMy Dashboard will try again later."),
+                &format!("{e}\n\nBlacksite will try again later."),
             );
             return Err(format!("download failed: {e}"));
         }
@@ -126,7 +126,7 @@ async fn install(app: &AppHandle, update: &Update) -> Result<(), String> {
 
     // The server runs from the app's own folder, which the update replaces (and on Windows the
     // installer can't replace a bun.exe that is running): stop it first.
-    crate::show_message(app, "Installing the update…", "My Dashboard opens again in a moment.");
+    crate::show_message(app, "Installing the update…", "Blacksite opens again in a moment.");
     crate::stop_server(app);
     if let Err(e) = update.install(&bytes) {
         title(TITLE);
@@ -134,7 +134,7 @@ async fn install(app: &AppHandle, update: &Update) -> Result<(), String> {
         tell(
             app,
             "The update could not be installed",
-            &format!("{e}\n\nMy Dashboard keeps running the version you have."),
+            &format!("{e}\n\nBlacksite keeps running the version you have."),
         );
         return Err(format!("install failed: {e}"));
     }

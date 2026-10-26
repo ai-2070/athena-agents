@@ -2168,7 +2168,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "my-dashboard"
+name = "blacksite"
 version = "0.0.0"
 dependencies = [
  "serde_json",

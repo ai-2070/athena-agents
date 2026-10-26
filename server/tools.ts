@@ -237,7 +237,7 @@ const TOOLS: ToolDef[] = [
     parameters: obj({ url: str('http(s) URL'), max_chars: { type: 'number' } }, ['url']),
     run: async ({ url, max_chars = 20000 }: { url: string; max_chars?: number }) => {
       if (!/^https?:\/\//i.test(url)) throw new Error('Only http(s) URLs.');
-      const res = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) my-dashboard/0.1' }, signal: AbortSignal.timeout(30000), redirect: 'follow' });
+      const res = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) blacksite/0.1' }, signal: AbortSignal.timeout(30000), redirect: 'follow' });
       const type = res.headers.get('content-type') || '';
       let body = await res.text();
       if (/html/i.test(type)) body = htmlToText(body);

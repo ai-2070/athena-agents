@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "My Dashboard",
+  "productName": "Blacksite",
   "version": "../package.json",
   "identifier": "com.ai2070.mydashboard",
   "build": {

@@ -124,7 +124,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: my-dashboard-${{ matrix.target }}
+          name: blacksite-${{ matrix.target }}
           path: release/
           if-no-files-found: error
 

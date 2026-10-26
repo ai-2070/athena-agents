@@ -1,4 +1,4 @@
-// My Dashboard: a local, login-free command center for agents, tools, programs, MCP servers and social accounts.
+// Blacksite: a local, login-free command center for agents, tools, programs, MCP servers and social accounts.
 // Listens on 127.0.0.1 only. Run: node server/index.js [--port 4800] [--no-open]
 import http from 'node:http';
 import fs from 'node:fs';
@@ -705,7 +705,7 @@ del('/api/accounts/reddit/:id', async ({ id }) => {
   reddit.disconnectReddit(id);
   return social.listAccounts();
 });
-post<{ platform?: string }>('/api/social/test', async (_p, body) => ({ message: body.platform === 'discord' ? await social.sendDiscord('Test from My Dashboard ✅') : await social.sendTelegram('Test from My Dashboard ✅') }));
+post<{ platform?: string }>('/api/social/test', async (_p, body) => ({ message: body.platform === 'discord' ? await social.sendDiscord('Test from Blacksite ✅') : await social.sendTelegram('Test from Blacksite ✅') }));
 
 get('/api/artifacts', async () => artifactStore.list().sort((a, b) => b.createdAt! - a.createdAt!));
 del('/api/artifacts/:id', async ({ id }) => {
@@ -1113,7 +1113,7 @@ programs.startRunningWatch();
 
 server.on('error', (e: NodeJS.ErrnoException) => {
   if (e.code === 'EADDRINUSE') {
-    console.log(`My Dashboard is already running at http://localhost:${PORT}`);
+    console.log(`Blacksite is already running at http://localhost:${PORT}`);
     if (OPEN) openWithShell(`http://localhost:${PORT}`);
     process.exit(0);
   }
@@ -1123,7 +1123,7 @@ server.on('error', (e: NodeJS.ErrnoException) => {
 store.migrateGlobalOutbox();
 server.listen(PORT, '127.0.0.1', () => {
   const url = `http://localhost:${PORT}`;
-  console.log(`\n  My Dashboard is running at ${url}\n  Data folder: ${dataPath()}\n  Press Ctrl+C to stop.\n`);
+  console.log(`\n  Blacksite is running at ${url}\n  Data folder: ${dataPath()}\n  Press Ctrl+C to stop.\n`);
   log('system', 'Dashboard started');
   if (OPEN) void pageReady.then(() => openWithShell(url));
 });

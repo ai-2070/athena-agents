@@ -90,35 +90,36 @@ describe('server started by the desktop app', () => {
 
 describe('desktop updates (latest.json)', () => {
   it('names release files without spaces, and the macOS update after its CPU', () => {
-    expect(releaseName('My Dashboard_0.3.0_x64-setup.exe', 'x86_64-pc-windows-msvc', '0.3.0')).toBe('My.Dashboard_0.3.0_x64-setup.exe');
-    expect(releaseName('My Dashboard.app.tar.gz', 'aarch64-apple-darwin', '0.3.0')).toBe('My.Dashboard_0.3.0_aarch64.app.tar.gz');
-    expect(releaseName('My Dashboard.app.tar.gz', 'x86_64-apple-darwin', '0.3.0')).toBe('My.Dashboard_0.3.0_x64.app.tar.gz');
+    expect(releaseName('Blacksite_0.3.0_x64-setup.exe', 'x86_64-pc-windows-msvc', '0.3.0')).toBe('Blacksite_0.3.0_x64-setup.exe');
+    expect(releaseName('Some App_0.3.0_x64-setup.exe', 'x86_64-pc-windows-msvc', '0.3.0')).toBe('Some.App_0.3.0_x64-setup.exe');
+    expect(releaseName('Blacksite.app.tar.gz', 'aarch64-apple-darwin', '0.3.0')).toBe('Blacksite_0.3.0_aarch64.app.tar.gz');
+    expect(releaseName('Blacksite.app.tar.gz', 'x86_64-apple-darwin', '0.3.0')).toBe('Blacksite_0.3.0_x64.app.tar.gz');
   });
 
   it('maps signed files to the platform keys the updater looks for, by how the app was installed', () => {
     const win = updaterPart('x86_64-pc-windows-msvc', [
-      { file: 'My.Dashboard_0.3.0_x64-setup.exe', signature: 'sig-nsis\n' },
-      { file: 'My.Dashboard_0.3.0_x64_en-US.msi', signature: 'sig-msi' },
+      { file: 'Blacksite_0.3.0_x64-setup.exe', signature: 'sig-nsis\n' },
+      { file: 'Blacksite_0.3.0_x64_en-US.msi', signature: 'sig-msi' },
     ]);
     expect(win.platforms).toEqual({
-      'windows-x86_64-nsis': { file: 'My.Dashboard_0.3.0_x64-setup.exe', signature: 'sig-nsis' },
-      'windows-x86_64': { file: 'My.Dashboard_0.3.0_x64-setup.exe', signature: 'sig-nsis' },
-      'windows-x86_64-msi': { file: 'My.Dashboard_0.3.0_x64_en-US.msi', signature: 'sig-msi' },
+      'windows-x86_64-nsis': { file: 'Blacksite_0.3.0_x64-setup.exe', signature: 'sig-nsis' },
+      'windows-x86_64': { file: 'Blacksite_0.3.0_x64-setup.exe', signature: 'sig-nsis' },
+      'windows-x86_64-msi': { file: 'Blacksite_0.3.0_x64_en-US.msi', signature: 'sig-msi' },
     });
-    const mac = updaterPart('aarch64-apple-darwin', [{ file: 'My.Dashboard_0.3.0_aarch64.dmg' }, { file: 'My.Dashboard_0.3.0_aarch64.app.tar.gz', signature: 's' }]);
+    const mac = updaterPart('aarch64-apple-darwin', [{ file: 'Blacksite_0.3.0_aarch64.dmg' }, { file: 'Blacksite_0.3.0_aarch64.app.tar.gz', signature: 's' }]);
     expect(Object.keys(mac.platforms)).toEqual(['darwin-aarch64-app', 'darwin-aarch64']);
     // Linux: only the kind it was installed as (no plain linux-x86_64 an AppImage would answer for a .deb)
     const linux = updaterPart('x86_64-unknown-linux-gnu', [
-      { file: 'My.Dashboard_0.3.0_amd64.AppImage', signature: 'a' },
-      { file: 'My.Dashboard_0.3.0_amd64.deb' },
+      { file: 'Blacksite_0.3.0_amd64.AppImage', signature: 'a' },
+      { file: 'Blacksite_0.3.0_amd64.deb' },
     ]);
     expect(Object.keys(linux.platforms)).toEqual(['linux-x86_64-appimage']);
   });
 
   it('writes latest.json, and refuses a release a target has no signed update in', () => {
     const parts = [
-      updaterPart('aarch64-apple-darwin', [{ file: 'My.Dashboard_0.3.0_aarch64.app.tar.gz', signature: 'm' }]),
-      updaterPart('aarch64-pc-windows-msvc', [{ file: 'My.Dashboard_0.3.0_arm64-setup.exe', signature: 'w' }]),
+      updaterPart('aarch64-apple-darwin', [{ file: 'Blacksite_0.3.0_aarch64.app.tar.gz', signature: 'm' }]),
+      updaterPart('aarch64-pc-windows-msvc', [{ file: 'Blacksite_0.3.0_arm64-setup.exe', signature: 'w' }]),
     ];
     const latest = updaterManifest({ tag: 'v0.3.0', repo: 'ai-2070/ai-dashboard', parts, now: new Date('2026-10-26T12:00:00Z') });
     expect(latest).toEqual({
@@ -126,13 +127,13 @@ describe('desktop updates (latest.json)', () => {
       notes: 'https://github.com/ai-2070/ai-dashboard/releases/tag/v0.3.0',
       pub_date: '2026-10-26T12:00:00.000Z',
       platforms: {
-        'darwin-aarch64-app': { url: 'https://github.com/ai-2070/ai-dashboard/releases/download/v0.3.0/My.Dashboard_0.3.0_aarch64.app.tar.gz', signature: 'm' },
-        'darwin-aarch64': { url: 'https://github.com/ai-2070/ai-dashboard/releases/download/v0.3.0/My.Dashboard_0.3.0_aarch64.app.tar.gz', signature: 'm' },
-        'windows-aarch64-nsis': { url: 'https://github.com/ai-2070/ai-dashboard/releases/download/v0.3.0/My.Dashboard_0.3.0_arm64-setup.exe', signature: 'w' },
-        'windows-aarch64': { url: 'https://github.com/ai-2070/ai-dashboard/releases/download/v0.3.0/My.Dashboard_0.3.0_arm64-setup.exe', signature: 'w' },
+        'darwin-aarch64-app': { url: 'https://github.com/ai-2070/ai-dashboard/releases/download/v0.3.0/Blacksite_0.3.0_aarch64.app.tar.gz', signature: 'm' },
+        'darwin-aarch64': { url: 'https://github.com/ai-2070/ai-dashboard/releases/download/v0.3.0/Blacksite_0.3.0_aarch64.app.tar.gz', signature: 'm' },
+        'windows-aarch64-nsis': { url: 'https://github.com/ai-2070/ai-dashboard/releases/download/v0.3.0/Blacksite_0.3.0_arm64-setup.exe', signature: 'w' },
+        'windows-aarch64': { url: 'https://github.com/ai-2070/ai-dashboard/releases/download/v0.3.0/Blacksite_0.3.0_arm64-setup.exe', signature: 'w' },
       },
     });
-    const unsigned = updaterPart('x86_64-unknown-linux-gnu', [{ file: 'My.Dashboard_0.3.0_amd64.AppImage' }]);
+    const unsigned = updaterPart('x86_64-unknown-linux-gnu', [{ file: 'Blacksite_0.3.0_amd64.AppImage' }]);
     expect(() => updaterManifest({ tag: 'v0.3.0', repo: 'a/b', parts: [...parts, unsigned] })).toThrow('No signed updates for x86_64-unknown-linux-gnu');
     expect(() => updaterManifest({ tag: 'v0.3.0', repo: 'a/b', parts: [] })).toThrow('No signed updates');
     expect(() => updaterManifest({ tag: 'main', repo: 'a/b', parts })).toThrow('version tag');
