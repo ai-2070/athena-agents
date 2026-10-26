@@ -34,6 +34,7 @@ import * as overseer from './overseer.ts';
 import * as projectSync from './projectsync.ts';
 import * as skills from './skills.ts';
 import * as presets from './presets.ts';
+import * as uploads from './uploads.ts';
 import type { RestoreResult } from './projectsync.ts';
 import type { Agent, AppState, Project, ProviderUsage, SecretKey, Team } from '../shared/types.ts';
 
@@ -173,13 +174,18 @@ post<{ app?: string }>('/api/brain/open', async (_p, body) => {
 post<{ text?: unknown }>('/api/assist/route', async (_p, body) => brain.route(String(body.text || '')));
 get('/api/assist/model', async () => brain.brainModel());
 // The Brain as overseer: ask it anything about the project; it answers or hands the work on.
-post<{ text?: unknown }>('/api/brain/ask', async (_p, body) => overseer.ask(String(body.text || '').slice(0, 20000)));
+post<{ text?: unknown; attachments?: unknown }>('/api/brain/ask', async (_p, body) => {
+  const attachments = uploads.cleanAttachments(body.attachments);
+  const text = String(body.text || '').trim().slice(0, 20000);
+  if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
+  return overseer.ask(text, attachments);
+});
 get('/api/brain/history', async () => overseer.history());
 post('/api/brain/clear', async () => (overseer.clearHistory(), { ok: true }));
 get('/api/brain/snapshot', async () => ({ text: await overseer.snapshot() }));
 get('/api/brain/pulse', async () => overseer.pulse());
-post<{ text?: unknown }>('/api/assist/agent', async (_p, body) => brain.designAgent(String(body.text || '')));
-post<{ text?: unknown; allowNew?: unknown }>('/api/assist/branch', async (_p, body) => brain.designBranch(String(body.text || ''), { allowNew: body.allowNew !== false }));
+post<{ text?: unknown; attachments?: unknown }>('/api/assist/agent', async (_p, body) => brain.designAgent(String(body.text || ''), { attachments: uploads.cleanAttachments(body.attachments) }));
+post<{ text?: unknown; allowNew?: unknown; attachments?: unknown }>('/api/assist/branch', async (_p, body) => brain.designBranch(String(body.text || ''), { allowNew: body.allowNew !== false, attachments: uploads.cleanAttachments(body.attachments) }));
 get('/api/headbar', async () => {
   const eng = engines.engineStatus();
   const [usage, connectors, or] = await Promise.all([status.claudeUsage(), status.claudeConnectors().catch(() => []), status.openrouterUsage(store.getSecrets().openrouterKey)]);
@@ -280,12 +286,13 @@ put<{ title?: unknown; reset?: unknown }>('/api/agents/:id/chats/:cid', async ({
   }
   return chats.save(c);
 });
-post<{ text?: unknown }>('/api/agents/:id/chats/:cid/messages', async ({ id, cid }, body) => {
+post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/messages', async ({ id, cid }, body) => {
   const a = need(agents.get(id));
   const c = need(chats.get(id, cid));
   const text = String(body.text || '').trim();
-  if (!text) throw new HttpError(400, 'Type a message first.');
-  const { runId } = engines.startRun(a, c, text);
+  const attachments = uploads.cleanAttachments(body.attachments);
+  if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
+  const { runId } = engines.startRun(a, c, text, { attachments });
   return { runId };
 });
 post('/api/agents/:id/chats/:cid/stop', async ({ cid }) => {
@@ -388,6 +395,11 @@ get('/api/comfyui/describe', async (_p, _b, q) => comfy.describeWorkflow(q.workf
 post<{ workflow: string; prompt?: string; negative?: string; inputs?: Record<string, unknown> }>('/api/comfyui/run', async (_p, body) => comfy.runWorkflow({ workflow: body.workflow, prompt: body.prompt || undefined, negative: body.negative || undefined, inputs: body.inputs || {} }));
 post('/api/comfyui/start', async () => ({ message: await comfy.startComfy() }));
 post<{ name: string; json: unknown }>('/api/comfyui/workflows', async (_p, body) => ({ file: comfy.saveApiWorkflow(body.name, body.json) }));
+
+// ---------- attached files (saved in the Brain folder's uploads/) ----------
+// One folder per drop; then each file is sent raw to POST /api/uploads/<batch>?path=<relative path> (handled below the router).
+post('/api/uploads', async () => uploads.newBatch());
+del('/api/uploads', async (_p, _b, q) => ({ ok: uploads.removeUpload(q.path) }));
 
 // Files the browser may show: workspaces, outputs, knowledge, ComfyUI outputs, allowed folders.
 get('/api/file', async (_p, _b, q, res) => {
@@ -504,9 +516,11 @@ get('/api/workflows', async () =>
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((t) => ({ ...t, state: teams.teamState(t.id), last: teams.getThread(t.id, 1).messages[0] || null })),
 );
-post<Partial<Team>>('/api/workflows', async (_p, body) => workflows.save({ name: 'New workflow', steps: [], schedule: { type: 'none' }, enabled: false, ...body, id: undefined }));
+// a team's files: only uploads of this project
+const teamFiles = (body: Partial<Team>): Partial<Team> => ('files' in body ? { ...body, files: uploads.cleanAttachments(body.files) } : body);
+post<Partial<Team>>('/api/workflows', async (_p, body) => workflows.save({ name: 'New workflow', steps: [], schedule: { type: 'none' }, enabled: false, ...teamFiles(body), id: undefined }));
 get('/api/workflows/:id', async ({ id }) => need(teams.getTeam(id)));
-put<Partial<Team>>('/api/workflows/:id', async ({ id }, body) => workflows.save({ ...need(workflows.get(id)), ...body, id }));
+put<Partial<Team>>('/api/workflows/:id', async ({ id }, body) => workflows.save({ ...need(workflows.get(id)), ...teamFiles(body), id }));
 del('/api/workflows/:id', async ({ id }) => {
   const gone = workflows.get(id);
   if (!gone) return { ok: true };
@@ -520,7 +534,7 @@ post<{ input?: string }>('/api/workflows/:id/run', async ({ id }, body) =>
 );
 // ---------- team chats ----------
 get('/api/teams/:id/chat', async ({ id }) => ({ team: need(teams.getTeam(id)), ...teams.getThread(id) }));
-post<{ text?: string; replyTo?: string | null }>('/api/teams/:id/messages', async ({ id }, body) => teams.postUserMessage(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember }));
+post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/teams/:id/messages', async ({ id }, body) => teams.postUserMessage(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember, attachments: uploads.cleanAttachments(body.attachments) }));
 post('/api/teams/:id/stop', async ({ id }) => ({ ok: teams.stopTeam(need(teams.getTeam(id)).id) }));
 post('/api/teams/:id/clear', async ({ id }) => {
   teams.clearThread(need(teams.getTeam(id)).id);
@@ -717,6 +731,13 @@ const server = http.createServer(async (req, res) => {
         throw new HttpError(403, 'Missing x-dash header');
       }
       if (url.pathname === '/api/comfyui/view') return await comfy.proxyView(Object.fromEntries(url.searchParams), res);
+      // an attached file: the raw bytes, streamed to disk (the router only reads JSON bodies)
+      const upload = req.method === 'POST' && /^\/api\/uploads\/([\w-]+)$/.exec(url.pathname);
+      if (upload) {
+        const saved = await uploads.receive(req, upload[1], url.searchParams.get('path') || '');
+        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+        return res.end(JSON.stringify(saved));
+      }
       for (const r of routes) {
         if (r.method !== req.method) continue;
         const m = r.re.exec(url.pathname);

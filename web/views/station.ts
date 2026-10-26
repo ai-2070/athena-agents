@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, approvalCard, md, ago, toast, avatar, engineBadge, promptBox, confirmBox, refreshSoon, modal, chipSet, select as dropdown } from '../core.ts';
 import { openTerminal } from './agents.ts';
 import { openBranchBuilder } from '../builder.ts';
-import { openDock } from '../dock.ts';
+import { openDock, attachToBrain } from '../dock.ts';
+import { filesFromDrop, hasFiles } from '../attach.ts';
 import { uiZoom } from '../look.ts';
 import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.ts';
 import { skillPicker } from '../skillpick.ts';
@@ -394,6 +395,9 @@ interface StationState {
   // the side panel
   teamTab?: string;
   chatEl?: HTMLDivElement;
+  /** Files dragged over the map: 'map', or 'brain' when they are over the Brain (it glows). */
+  fileDrag?: 'map' | 'brain' | null;
+  dropHint?: HTMLDivElement | null;
   chatStatus?: HTMLDivElement;
   chatStream?: number | null;
 }
@@ -1141,7 +1145,7 @@ function rebuild(): void {
     id: 'brain',
     obj: S.brain.group,
     offset: new THREE.Vector3(0, 9.5, 0),
-    el: h('div.st-brain-label', { onclick: () => choose({ type: 'brain' }) }, icon('brain', 14), 'THE BRAIN', h('span.st-brain-n', `${d.project?.name || ''} · ${wfs.length} team${wfs.length === 1 ? '' : 's'} · ${d.agents.length} agent${d.agents.length === 1 ? '' : 's'}`)),
+    el: h('div.st-brain-label', { onclick: () => choose({ type: 'brain' }), title: 'Click for the project Brain · drop files here to give them to it', ondragenter: brainDragOver, ondragover: brainDragOver, ondrop: brainDrop }, icon('brain', 14), 'THE BRAIN', h('span.st-brain-n', `${d.project?.name || ''} · ${wfs.length} team${wfs.length === 1 ? '' : 's'} · ${d.agents.length} agent${d.agents.length === 1 ? '' : 's'}`)),
   });
   // A branch added or removed: make sure the whole station still fits.
   const shape = `${wfs.length}:${bench.length}`;
@@ -1699,6 +1703,14 @@ function loop(): void {
   b.beam.material.opacity = 0.1 + (busy ? 0.12 + pulse * 0.12 : 0.04);
   b.star.scale.setScalar(5 + pulse * (busy ? 3 : 0.8));
   b.light.intensity = 25 + pulse * (busy ? 40 : 8);
+  // files held over the Brain: it opens up to take them
+  if (S.fileDrag === 'brain') {
+    const grab = 0.5 + 0.5 * Math.sin(t * 7);
+    b.halo.material.opacity = 0.95;
+    b.halo.scale.setScalar(15 + grab * 2.5);
+    b.light.intensity = 90 + grab * 30;
+    b.cloud.rotation.y += dt * 1.6;
+  }
 
   for (const desk of S.desks) {
     if (desk.status === 'working') {
@@ -1879,6 +1891,19 @@ function setupControls(): void {
     const p = new THREE.Vector3();
     return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), p) ? p : null;
   };
+  // files dragged in from the desktop: only the Brain takes them
+  const onBrain = (e: DragEvent) => pick(e)?.type === 'brain';
+  elc.addEventListener('dragenter', (e) => mapDragOver(e, onBrain(e)));
+  elc.addEventListener('dragover', (e) => mapDragOver(e, onBrain(e)));
+  elc.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    if (onBrain(e)) brainDrop(e);
+    else setFileDrag(null);
+  });
+  S.root.addEventListener('dragleave', (e) => !S?.root.contains(e.relatedTarget as Node | null) && setFileDrag(null));
+  // dropped anywhere on the Station (a panel, the header): the hint goes
+  S.root.addEventListener('drop', () => setFileDrag(null), true);
   elc.addEventListener('contextmenu', (e) => e.preventDefault());
   elc.addEventListener('pointerleave', () => S && (S.hover = null));
   elc.addEventListener('pointerdown', (e) => {
@@ -1986,6 +2011,57 @@ function setupControls(): void {
     if (S?.menu && !S.menu.contains(e.target as Node)) closeMenu();
   };
   document.addEventListener('pointerdown', S.onDocDown, true);
+}
+
+// ---------- files dropped on the Brain ----------
+// While files are over the map: a hint says where to drop them, and the Brain glows when they are over it.
+function setFileDrag(mode: 'map' | 'brain' | null): void {
+  if (!S || S.fileDrag === mode) return;
+  S.fileDrag = mode;
+  S.labels.querySelector('.st-brain-label')?.classList.toggle('att-target', mode === 'brain');
+  if (!mode) {
+    S.dropHint?.remove();
+    S.dropHint = null;
+    return;
+  }
+  if (!S.dropHint) {
+    S.dropHint = h('div.st-drop-hint');
+    S.root.append(S.dropHint);
+  }
+  S.dropHint.classList.toggle('on', mode === 'brain');
+  mount(S.dropHint, icon(mode === 'brain' ? 'brain' : 'upload', 15), mode === 'brain' ? 'Let go to give these to the Brain' : 'Drop the files on the Brain');
+}
+
+function mapDragOver(e: DragEvent, overBrain: boolean): void {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  e.dataTransfer!.dropEffect = overBrain ? 'copy' : 'none';
+  setFileDrag(overBrain ? 'brain' : 'map');
+}
+
+function brainDragOver(e: DragEvent): void {
+  if (!hasFiles(e)) return;
+  e.stopPropagation();
+  mapDragOver(e, true);
+}
+
+// They upload into the Brain folder and the Brain chat opens with them attached, ready for what to do with them.
+function brainDrop(e: DragEvent): void {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  setFileDrag(null);
+  void filesFromDrop(e.dataTransfer!).then((picked) => {
+    if (!picked.length) return;
+    attachToBrain(picked);
+    pulseBrain();
+  });
+}
+
+// A quick burst of light from the Brain out to every team: it took something in.
+function pulseBrain(): void {
+  if (!S) return;
+  for (const id of S.branches.keys()) pulseAlong(id, 0, 1, 3);
 }
 
 // ---------- moving teams ----------

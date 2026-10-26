@@ -14,6 +14,7 @@ import * as settings from './views/settings.ts';
 import * as setup from './views/setup.ts';
 import * as skillsView from './views/skills.ts';
 import { initDock } from './dock.ts';
+import { guardPageDrops } from './attach.ts';
 import { applyLook, applySavedLook } from './look.ts';
 
 applySavedLook();
@@ -223,6 +224,8 @@ await refreshState();
 if (state.data?.settings?.look) applyLook(state.data.settings.look);
 connectEvents();
 initDock();
+// files dropped where nothing takes them must not open in the tab
+guardPageDrops();
 openLauncher();
 // Esc: whatever is open closes first (dialogs, menus, the Brain chat, Station panels handle it
 // themselves). With nothing open, Esc opens the big sidebar, and Esc again closes it.

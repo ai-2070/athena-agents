@@ -6,6 +6,7 @@ import { cancelForRun } from '../approvals.ts';
 import { knowledgeContext } from '../knowledge.ts';
 import { workspaceOf, toolsForAgent } from '../tools.ts';
 import { skillsPrompt } from '../skills.ts';
+import { withAttachments, attachmentNames } from '../uploads.ts';
 import * as openai from './openai.ts';
 import * as claude from './claude.ts';
 import * as hermes from './hermes.ts';
@@ -96,6 +97,7 @@ export interface AskAgentOptions {
   parentRunId?: string | null;
   signal?: AbortSignal | null;
   extra?: AskAgentExtra | null;
+  attachments?: string[];
 }
 
 const ENGINES = { 'claude-code': claude, openai, hermes, codex } satisfies { [K in EngineId]: Engine<EngineStatus[K]> };
@@ -191,12 +193,15 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     if (!chat._deleted) chats.save(chat);
   };
 
-  pushItem(chat, { type: 'user', text, from, attachments });
-  if (chat.title === 'New chat') chat.title = text.replace(/\s+/g, ' ').slice(0, 60);
+  // the chat shows what was written (with the files as chips); the agent also gets where the files are
+  pushItem(chat, { type: 'user', text, from, ...(attachments.length ? { attachments } : {}) });
+  if (chat.title === 'New chat') chat.title = (text || attachmentNames(attachments)).replace(/\s+/g, ' ').slice(0, 60) || 'New chat';
   persist();
   const send = (event: RunEvent) => emit('run', { runId, agentId: agent.id, chatId: chat.id, event });
-  send({ kind: 'start', text, from });
-  log('run', `${agent.name} started: ${text.slice(0, 120)}`, { agentId: agent.id, chatId: chat.id });
+  send({ kind: 'start', text, from, ...(attachments.length ? { attachments } : {}) });
+  log('run', `${agent.name} started: ${(text || attachmentNames(attachments)).slice(0, 120)}`, { agentId: agent.id, chatId: chat.id });
+  // API models can't open files without the Files tools: small text files go along in full
+  const prompt = withAttachments(text, attachments, { inline: agent.engine === 'openai' ? 24000 : 0 });
 
   let current: ChatItemOf<'assistant'> | null = null; // assistant item being streamed
   let lastSave = 0;
@@ -231,7 +236,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
 
   const promise = (async () => {
     try {
-      const result = await engine.run({ agent, chat, text, signal: controller.signal, onEvent, depth, runId, systemPrompt: buildSystemPrompt(agent), attachments });
+      const result = await engine.run({ agent, chat, text: prompt, signal: controller.signal, onEvent, depth, runId, systemPrompt: buildSystemPrompt(agent), attachments });
       if (controller.signal.aborted) throw new Error('Stopped.');
       if (result?.text && !chat.items.some((i, idx) => idx > chat.items.findLastIndex((x) => x.type === 'user') && i.type === 'assistant')) {
         pushItem(chat, { type: 'assistant', text: result.text });
@@ -297,13 +302,13 @@ export function forgetChat(chatId: string) {
 
 // Used by ask_agent and workflows: run to completion in a fresh chat, return the answer.
 // extra: tool groups / MCP servers added for this run only (a branch's access).
-export async function askAgent(agent: Agent, message: string, { depth = 1, from = null, title = null, chatId = null, parentRunId = null, signal = null, extra = null }: AskAgentOptions = {}): Promise<string> {
+export async function askAgent(agent: Agent, message: string, { depth = 1, from = null, title = null, chatId = null, parentRunId = null, signal = null, extra = null, attachments = [] }: AskAgentOptions = {}): Promise<string> {
   if (signal?.aborted) throw new Error('Stopped.');
   let fresh = agentStore.get(agent.id) || agent;
   // extra: what a team adds while the agent works for it (tools, MCP servers, skills)
   if (extra) fresh = { ...fresh, toolGroups: [...new Set([...(fresh.toolGroups || []), ...(extra.toolGroups || [])])], mcpServers: [...new Set([...(fresh.mcpServers || []), ...(extra.mcpServers || [])])], _teamSkills: extra.skills || [] };
   const chat = (chatId && chats.get(fresh.id, chatId)) || chats.create(fresh.id, title || (from ? `Asked by ${from}` : 'Task'));
-  const { runId, promise } = startRun(fresh, chat, message, { depth, from, parentRunId });
+  const { runId, promise } = startRun(fresh, chat, message, { depth, from, parentRunId, attachments });
   const onAbort = () => stopRun(runId);
   signal?.addEventListener('abort', onAbort);
   try {

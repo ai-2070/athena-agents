@@ -5,6 +5,7 @@ import { workflows as teamStore, agents, chats, emit, log, activeProject } from 
 import { readJSON, writeJSON, uid, dataPath } from './util.ts';
 import { askAgent, stopChildren, forgetChat } from './engines/index.ts';
 import { isStepList, teamSteps } from '../shared/teams.ts';
+import { describeAttachments, attachmentNames } from './uploads.ts';
 import type { Agent, Team, TeamMessage, TeamState } from '../shared/types.ts';
 
 const MAX_TURNS = 16; // agent turns per message you send
@@ -25,6 +26,7 @@ interface NewMessage {
   text: string;
   mentions?: string[];
   replyTo?: string | null;
+  attachments?: string[];
 }
 
 interface QueueItem {
@@ -135,14 +137,14 @@ export function parseMentions(team: Team, text: unknown, exclude: string | null 
 }
 
 // ---------- you write in the team chat ----------
-export async function postUserMessage(teamId: string, text: string | null | undefined, { replyTo = null, route = null }: { replyTo?: string | null; route?: RouteFn | null } = {}): Promise<TeamMessage> {
+export async function postUserMessage(teamId: string, text: string | null | undefined, { replyTo = null, route = null, attachments = [] }: { replyTo?: string | null; route?: RouteFn | null; attachments?: string[] } = {}): Promise<TeamMessage> {
   const team = getTeam(teamId);
   if (!team) throw new Error('No such team.');
   if (!team.members.length) throw new Error('This team has no agents yet. Add some first.');
   text = String(text || '').trim();
-  if (!text) throw new Error('Write something first.');
+  if (!text && !attachments.length) throw new Error('Write something first.');
   const mentions = parseMentions(team, text);
-  const msg = post(team, { from: 'user', text, mentions, replyTo });
+  const msg = post(team, { from: 'user', text, mentions, replyTo, ...(attachments.length ? { attachments } : {}) });
   const r = runtime(team.id);
   r.episode = { turns: 0, per: {} }; // a new message from you gives the team a fresh budget
   r.stopped = false;
@@ -163,7 +165,7 @@ export async function postUserMessage(teamId: string, text: string | null | unde
   }
   for (const id of targets) enqueue(team, id, msg.id, true);
   if (why) emit('team', { teamId: team.id, event: { kind: 'routed', to: targets, why } });
-  log('team', `You → ${team.name}: ${text.slice(0, 100)}`);
+  log('team', `You → ${team.name}: ${(text || attachmentNames(attachments)).slice(0, 100)}`);
   return msg;
 }
 
@@ -224,7 +226,7 @@ How this chat works:
 - To hand work to a teammate, mention them exactly as @Name and say precisely what you need back. Only mention someone who needs to act now; each stage should have one owner.
 - Do your own part fully before handing off. Don't redo work a teammate owns.
 - Anything that needs the user's judgment: ask them in your reply, without mentioning a teammate.
-- Keep replies short: what you did, the result, and who acts next.${team.lead === agent.id ? '\n- You are the lead: break the request down, give each part to one owner, and when everyone is done post the combined result for the user.' : ''}`;
+- Keep replies short: what you did, the result, and who acts next.${team.lead === agent.id ? '\n- You are the lead: break the request down, give each part to one owner, and when everyone is done post the combined result for the user.' : ''}${team.files?.length ? `\n\n${describeAttachments(team.files, { heading: "The team's files (reference material from the user)" })}` : ''}`;
 }
 
 async function runTurn(team: Team, item: QueueItem) {
@@ -242,20 +244,26 @@ async function runTurn(team: Team, item: QueueItem) {
   const first = c.seen[agent.id] == null;
   const fresh = c.messages.slice(c.seen[agent.id] || 0).filter((m) => m.from !== agent.id);
   const name = (id: string) => (id === 'user' ? 'You (the user)' : id === 'system' ? 'System' : `@${agents.get(id)?.name || 'someone'}`);
+  // files attached to a message: named in the line, their paths come at the end of the prompt
+  const said = (m: TeamMessage) => `${name(m.from)}: ${String(m.text).slice(0, 2500)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`;
   let digest = '';
   for (const m of fresh.slice().reverse()) {
-    const line = `${name(m.from)}: ${String(m.text).slice(0, 2500)}`;
+    const line = said(m);
     if (digest.length + line.length > CONTEXT_CHARS) break;
     digest = `${line}\n\n${digest}`;
   }
-  const forYou = c.messages.filter((m) => item.msgIds.includes(m.id)).map((m) => `${name(m.from)}: ${String(m.text).slice(0, 2500)}`).join('\n\n');
+  const forYou = c.messages.filter((m) => item.msgIds.includes(m.id)).map(said).join('\n\n');
+  // what the user attached since this agent last read (the ones it hasn't seen yet)
+  const attachments = [...new Set([...fresh, ...c.messages.filter((m) => item.msgIds.includes(m.id))].flatMap((m) => m.attachments || []))];
   c.seen[agent.id] = c.messages.length;
   saveChat(team.id, c);
-  const prompt = `${first ? `${briefing(team, agent)}\n\n` : ''}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\nDo your part now, then reply to the team.`;
+  // the briefing (with the team's files) comes once; later turns get a short reminder of where they are
+  const filesNote = !first && team.files?.length ? `The team's files: ${team.files.join(', ')}\n\n` : '';
+  const prompt = `${first ? `${briefing(team, agent)}\n\n` : filesNote}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\nDo your part now, then reply to the team.`;
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'start' } });
   let text = '';
   try {
-    text = await askAgent(agent, prompt, { depth: 1, from: `team ${team.name}`, chatId, parentRunId: `team:${team.id}`, extra: { ...(team.access || {}), skills: team.skills || [] } });
+    text = await askAgent(agent, prompt, { depth: 1, from: `team ${team.name}`, chatId, parentRunId: `team:${team.id}`, extra: { ...(team.access || {}), skills: team.skills || [] }, attachments });
   } catch (e) {
     text = `(I hit a problem: ${(e as Error).message})`;
   }

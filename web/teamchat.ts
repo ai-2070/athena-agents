@@ -1,6 +1,7 @@
 // A team's group chat: everyone's messages, who is working, @mention suggestions, reply-to, stop.
 import { h, mount, state, GET, POST, attempt, md, ago, avatar, onEvent, confirmBox } from './core.ts';
 import { icon } from './icons.ts';
+import { attachTray, attachmentChips } from './attach.ts';
 import type { Agent, RunEvent, Team, TeamMessage, TeamState } from '../shared/types.ts';
 
 /** What the server pushes as a 'team' event (ev.event). */
@@ -56,10 +57,10 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   const suggest = h('div.tc-suggest.hidden');
   const sendBtn = h('button.btn.small', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 14));
   const stopBtn = h('button.btn.danger.small.hidden', { onclick: () => attempt(() => POST(`/teams/${teamId}/stop`)), title: 'Stop the whole team' }, icon('square', 13), 'Stop');
-  mount(
-    container,
-    h(`div.tc${fill ? '.fill' : ''}`, list, status, replyChip, h('div.tc-compose', h('div.tc-field', input, suggest), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat'))),
-  );
+  const tray = attachTray();
+  const root = h(`div.tc${fill ? '.fill' : ''}`, list, status, replyChip, tray.el, h('div.tc-compose', tray.picker, h('div.tc-field', input, suggest), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all · drop files to attach'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat')));
+  mount(container, root);
+  const offDrop = tray.dropZone(root, 'Drop files or folders for the team');
 
   const agent = (id: string) => state.data?.agents.find((a) => a.id === id);
   const members = () => (C.team?.members || []).map(agent).filter((a): a is Agent => Boolean(a));
@@ -112,7 +113,8 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
                 a ? h('button.tc-act', { title: `Reply to ${a.name}`, onclick: () => setReply(m) }, icon('message-circle', 13)) : null,
               ),
               parent ? h('div.tc-quote', `↪ ${parent.from === 'user' ? 'You' : agent(parent.from)?.name || ''}: ${String(parent.text).slice(0, 90)}`) : null,
-              renderText(m.text),
+              m.text ? renderText(m.text) : null,
+              attachmentChips(m.attachments),
               m.mentions?.length && m.from !== 'user' ? h('div.tc-handoff', icon('send', 11), `handed to ${m.mentions.map((id) => agent(id)?.name).filter(Boolean).join(', ')}`) : null,
             );
           })
@@ -190,13 +192,26 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     e.stopPropagation();
   });
 
+  let sending = false;
   async function send() {
     const text = input.value.trim();
-    if (!text) return;
-    input.value = '';
-    const r = await attempt(() => POST<TeamMessage>(`/teams/${teamId}/messages`, { text, replyTo: C.replyTo?.id || null }));
-    if (!r) input.value = text;
-    else setReply(null);
+    if ((!text && !tray.count()) || sending) return;
+    sending = true;
+    try {
+      if (tray.busy()) mount(status, h('span.tc-typing', h('span.dot.busy'), 'Uploading files…'));
+      const attachments = await tray.ready();
+      draw();
+      if (!attachments) return;
+      input.value = '';
+      const taken = tray.take();
+      const r = await attempt(() => POST<TeamMessage>(`/teams/${teamId}/messages`, { text, replyTo: C.replyTo?.id || null, attachments }));
+      if (!r) {
+        input.value = text;
+        tray.put(taken);
+      } else setReply(null);
+    } finally {
+      sending = false;
+    }
   }
 
   async function clear() {
@@ -254,6 +269,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     destroy: () => {
       C.alive = false;
       off();
+      offDrop();
     },
   };
 }

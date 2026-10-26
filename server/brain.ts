@@ -5,6 +5,7 @@ import { agents, workflows, getSecrets, getSettings } from './store.ts';
 import { TOOL_GROUPS } from './tools.ts';
 import { listServers } from './mcp.ts';
 import { run, which, tmpFile } from './util.ts';
+import { describeAttachments } from './uploads.ts';
 import type { Agent, BrainSetting, Team, TeamAccess } from '../shared/types.ts';
 
 // ---------- what the models send back (JSON boundaries) ----------
@@ -207,19 +208,22 @@ function cleanAgent(j: AgentAnswer): AgentDraft {
 
 const AGENT_SCHEMA = `{"name":"short role name","emoji":"one emoji","specialty":"one line: what it is good at","instructions":"how it works: process, rules, what good output looks like (5-12 sentences, second person)","tools":["tool group ids"],"mcpServers":["names"]}`;
 
-export async function designAgent(text: string): Promise<AgentDraft> {
+// Files you attached: where they are, and the start of small text files (the design model can't open files).
+const filesFor = (attachments: string[] | undefined) => (attachments?.length ? `\n\n${describeAttachments(attachments, { inline: 12000 })}` : '');
+
+export async function designAgent(text: string, { attachments = [] }: { attachments?: string[] } = {}): Promise<AgentDraft> {
   const system = `You design one AI agent for the user's personal dashboard from their description.
 Available tool groups (use only these ids, only what the job needs):
 ${TOOLS_TEXT}
 Available MCP servers: ${Object.keys(listServers()).join(', ') || '(none)'}
 Rules: posts and DMs always wait for the user's approval; never invent facts or numbers.
 Answer with JSON only: ${AGENT_SCHEMA}`;
-  return cleanAgent(parseJSON<AgentAnswer>(await think(system, text)));
+  return cleanAgent(parseJSON<AgentAnswer>(await think(system, `${text}${filesFor(attachments)}`)));
 }
 
 // ---------- New branch ----------
 // A team is a group chat of agents: pick members (existing first) and a lead who coordinates.
-export async function designBranch(text: string, { allowNew = true }: { allowNew?: boolean } = {}): Promise<BranchDesign> {
+export async function designBranch(text: string, { allowNew = true, attachments = [] }: { allowNew?: boolean; attachments?: string[] } = {}): Promise<BranchDesign> {
   const all = agents.list();
   const byId = new Map(all.map((a) => [a.id, a]));
   const system = `You put together a team for the user's personal dashboard. A team is a group chat of 2-6 AI agents who share one goal: the user writes in the chat, a lead coordinates, and agents hand work to each other by @mentioning a teammate.
@@ -230,7 +234,7 @@ MCP servers: ${Object.keys(listServers()).join(', ') || '(none)'}
 Answer with JSON only:
 {"name":"short name","description":"one sentence: the team's shared goal","lead":"<existing agent id, or the 'name' of a new agent, or empty>","access":{"tools":["ids"],"mcpServers":["names"]},
  "members":[{"agentId":"<existing id>"} | {"newAgent":${AGENT_SCHEMA}}]}`;
-  const user = `Existing agents:\n${all.map(agentLine).join('\n') || '(none)'}\n\nWhat the team should do:\n${text}`;
+  const user = `Existing agents:\n${all.map(agentLine).join('\n') || '(none)'}\n\nWhat the team should do:\n${text || '(see the attached files)'}${filesFor(attachments)}`;
   const j = parseJSON<BranchAnswer>(await think(system, user));
   const members: BranchMember[] = [];
   for (const m of j.members || j.steps || []) {

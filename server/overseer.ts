@@ -13,6 +13,7 @@ import { liveActivity, defaultModel } from './engines/index.ts';
 import { listApprovals } from './approvals.ts';
 import { think, brainModel } from './brain.ts';
 import { readJSON, writeJSON, run, dataPath } from './util.ts';
+import { describeAttachments, attachmentNames } from './uploads.ts';
 import type { Agent, BrainAnswer, BrainDelegate, BrainDone, Project, Team } from '../shared/types.ts';
 
 /** One line of the Brain chat history (data/projects/<id>/brain-chat.json). */
@@ -20,6 +21,7 @@ export interface BrainChatMessage {
   role: 'user' | 'brain';
   text: string;
   ts: number;
+  attachments?: string[];
 }
 
 /** A new agent the Brain invents in an action (any field may be missing). */
@@ -449,14 +451,16 @@ export function applyActions(actions: BrainAction[], p: Project = activeProject(
   return { done, delegate };
 }
 
-export async function ask(text: string): Promise<BrainAnswer> {
+export async function ask(text: string, attachments: string[] = []): Promise<BrainAnswer> {
   const p = activeProject();
   const bm = brainModel();
   const canRead = bm.provider === 'claude' || bm.provider === 'codex';
   const snap = await snapshot({ fileBudget: canRead ? 6000 : 12000 });
   const past = history(p.id);
-  const convo = past.length ? `\n\nEARLIER IN THIS CHAT:\n${past.slice(-12).map((m) => `${m.role === 'user' ? 'User' : 'Brain'}: ${cut(m.text, 600)}`).join('\n')}` : '';
-  const out = await think(SYSTEM(p.name, canRead), `SNAPSHOT\n${snap}\n\n${catalog()}${convo}\n\nUSER:\n${text}`, {
+  const convo = past.length ? `\n\nEARLIER IN THIS CHAT:\n${past.slice(-12).map((m) => `${m.role === 'user' ? 'User' : 'Brain'}: ${cut(m.text, 600)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`).join('\n')}` : '';
+  // files the user attached: where they are (it can open them when it reads files), and the text of small ones
+  const files = attachments.length ? `\n\n${describeAttachments(attachments, { inline: canRead ? 8000 : 24000 })}\n(When you delegate, the attached files go along with your brief: mention them in it.)` : '';
+  const out = await think(SYSTEM(p.name, canRead), `SNAPSHOT\n${snap}\n\n${catalog()}${convo}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}`, {
     tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '',
     cwd: ensureBrain(p),
     timeout: 180000,
@@ -466,9 +470,11 @@ export async function ask(text: string): Promise<BrainAnswer> {
   // you switched projects while it thought: its actions were meant for the other project, so skip them
   const skipped: BrainDone = { kind: 'error', text: `You switched projects while the Brain was thinking, so nothing was changed. Open "${p.name}" and ask again.` };
   const { done, delegate } = activeProject().id !== p.id ? { done: parsed.actions.length ? [skipped] : [], delegate: null } : applyActions(parsed.actions, p);
+  // the work is handed on with the files
+  if (delegate && attachments.length) delegate.attachments = attachments;
   const r = { answer: parsed.answer, done, delegate };
   const now = Date.now();
-  remember([...past, { role: 'user', text, ts: now }, { role: 'brain', text: [r.answer, ...done.map((d) => `(${d.text})`), delegate ? `(handed to ${delegate.name}: ${delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n'), ts: Date.now() }], p.id);
+  remember([...past, { role: 'user', text, ts: now, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: [r.answer, ...done.map((d) => `(${d.text})`), delegate ? `(handed to ${delegate.name}: ${delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n'), ts: Date.now() }], p.id);
   return { ...r, model: bm, project: p.name };
 }
 

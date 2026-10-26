@@ -83,6 +83,8 @@ export interface Team {
   lead: string | null;
   access?: TeamAccess;
   skills?: string[];
+  /** Reference files the user gave the team (paths in the project's uploads/ folder). */
+  files?: string[];
   steps: TeamStep[];
   schedule?: Schedule;
   enabled?: boolean;
@@ -114,6 +116,8 @@ export interface TeamMessage {
   mentions: string[];
   replyTo?: string | null;
   handedTo?: string[];
+  /** Files and folders attached to the message (paths in the project's uploads/ folder). */
+  attachments?: string[];
   [k: string]: unknown;
 }
 
@@ -162,7 +166,7 @@ export interface ChatSummary {
 
 // ---------- runs and live events ----------
 export type RunEvent =
-  | { kind: 'start'; text: string; from?: string | null }
+  | { kind: 'start'; text: string; from?: string | null; attachments?: string[] }
   | { kind: 'text'; text: string }
   | { kind: 'tool'; id: string; name: string; args?: Record<string, unknown> }
   | { kind: 'tool_result'; id: string; text?: string; isError?: boolean; images?: string[] }
@@ -392,6 +396,17 @@ export interface BrainDelegate {
   id: string;
   name: string;
   message: string;
+  /** The files you attached for the Brain, handed on with the work. */
+  attachments?: string[];
+}
+
+/** One file or folder saved by POST /api/uploads/:batch. top: the file itself, or the dropped folder it is in. */
+export interface UploadedFile {
+  path: string;
+  top: string;
+  kind: 'file' | 'folder';
+  name: string;
+  size: number;
 }
 export interface BrainAnswer {
   answer: string;

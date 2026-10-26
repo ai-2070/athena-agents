@@ -4,6 +4,8 @@ import { h, mount, clear, state, GET, POST, PUT, attempt, md, onEvent, onState, 
 import { openBranchBuilder } from './builder.ts';
 import { icon, logo } from './icons.ts';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.ts';
+import { attachTray, attachmentChips } from './attach.ts';
+import type { AttachTray, PickedFile } from './attach.ts';
 import type { Child } from './core.ts';
 import type { AgentDraft, BranchDesign } from './builder.ts';
 import type { TeamEvent } from './teamchat.ts';
@@ -14,6 +16,7 @@ interface BrainHistoryEntry {
   role: 'user' | 'brain';
   text: string;
   ts: number;
+  attachments?: string[];
 }
 /** A workflow run as 'workflow-run' events and GET /api/workflow-runs carry it (old step-list teams). */
 interface WorkflowRun {
@@ -29,12 +32,12 @@ interface ToolChip {
   status: 'running' | 'done';
   isError?: boolean;
 }
-type UserItem = { id: string; kind: 'user'; text: string };
+type UserItem = { id: string; kind: 'user'; text: string; attachments?: string[] };
 type NoteItem = { id: string; kind: 'note'; text: Child; busy?: boolean; error?: boolean };
 type AgentItem = { id: string; kind: 'agent'; agentId: string; chatId: string; text: string; tools: ToolChip[]; images: string[]; reason: string; done: boolean; status?: string };
 type BranchItem = { id: string; kind: 'branch'; wfId: string; name: string; reason: string; since: number; messages: TeamMessage[]; working: string[]; runId?: string; steps?: unknown; error?: string | null; output?: string };
 type BrainItem = { id: string; kind: 'brain'; answer?: string; done: BrainDone[]; delegate?: BrainDelegate | null; old?: boolean };
-type DraftItem = { id: string; kind: 'agent-draft'; agent: AgentDraft; task: string };
+type DraftItem = { id: string; kind: 'agent-draft'; agent: AgentDraft; task: string; attachments: string[] };
 /** One message in the Brain chat. */
 type DockItem = UserItem | NoteItem | AgentItem | BranchItem | BrainItem | DraftItem;
 type NewItem = DockItem extends infer T ? (T extends DockItem ? Omit<T, 'id'> : never) : never;
@@ -54,14 +57,18 @@ interface Dock {
   workflows: TeamListing[];
   panel?: HTMLDivElement;
   launcher?: HTMLButtonElement;
+  /** Files waiting to go with the next message. */
+  tray?: AttachTray;
 }
 
 const D: Dock = { modelEl: null, open: false, target: 'auto', items: [], el: null, list: null, input: null, sel: null, workflows: [] };
+const PLACEHOLDER = 'What do you want done?';
 
 export function initDock(): void {
   const launcher = h('button.dock-launcher', { onclick: () => toggle(true) }, icon('sparkles', 17), h('span', 'Ask the Brain…'), h('kbd', 'Ctrl K'));
   D.list = h('div.dock-list');
-  D.input = h('textarea.dock-input', { rows: 2, placeholder: 'What do you want done?' });
+  D.input = h('textarea.dock-input', { rows: 2, placeholder: PLACEHOLDER });
+  D.tray = attachTray({ onChange: () => (D.input!.placeholder = D.tray?.count() ? 'What should be done with these files?' : PLACEHOLDER) });
   D.input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -78,8 +85,12 @@ export function initDock(): void {
     'div.dock.hidden',
     h('div.dock-head', h('b', icon('brain', 16), 'Brain chat'), h('span.grow'), h('span.dock-to', 'to'), D.sel, D.modelEl, h('button.icon-btn', { onclick: newConversation, title: 'New conversation (the Brain forgets this chat)', 'aria-label': 'New conversation' }, icon('rotate-ccw', 15)), h('button.icon-btn', { onclick: () => toggle(false), 'aria-label': 'Close' }, '✕')),
     D.list,
-    h('div.dock-compose', D.input, h('button.btn', { onclick: send, title: 'Send (Enter)' }, icon('send', 15))),
+    h('div.dock-tray-wrap', D.tray.el),
+    h('div.dock-compose', D.tray.picker, D.input, h('button.btn', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 15))),
   );
+  D.tray.dropZone(D.panel, 'Drop files or folders for the Brain');
+  // files dragged onto the launcher open the chat with them
+  launcher.addEventListener('dragenter', (e) => e.dataTransfer?.types.includes('Files') && toggle(true));
   D.launcher = launcher;
   document.body.append(launcher, D.panel);
   onState(drawTargets);
@@ -99,20 +110,29 @@ export function initDock(): void {
   draw();
 }
 
-// Ask the Brain from anywhere (e.g. right after creating a project).
-export function askBrain(text: string): void {
+// Ask the Brain from anywhere (e.g. right after creating a project), with files already uploaded.
+export function askBrain(text: string, attachments: string[] = []): void {
   D.target = 'auto';
   toggle(true);
   drawTargets();
   D.input!.value = text;
-  send();
+  send(attachments);
+}
+
+// Files dropped on the Brain on the map: open the Brain chat with them attached, ready for what to do.
+export function attachToBrain(picked: PickedFile[]): void {
+  D.target = 'auto';
+  toggle(true);
+  drawTargets();
+  D.tray!.add(picked);
+  setTimeout(() => D.input!.focus(), 40);
 }
 
 // The last few turns with the Brain, so the chat picks up where it left off.
 async function loadHistory() {
   const msgs = await GET<BrainHistoryEntry[]>('/brain/history').catch((): BrainHistoryEntry[] => []);
   if (D.items.length) return;
-  for (const m of msgs.slice(-6)) D.items.push(m.role === 'user' ? { id: `h${m.ts}u`, kind: 'user', text: m.text } : { id: `h${m.ts}b`, kind: 'brain', answer: m.text, done: [], old: true });
+  for (const m of msgs.slice(-6)) D.items.push(m.role === 'user' ? { id: `h${m.ts}u`, kind: 'user', text: m.text, attachments: m.attachments } : { id: `h${m.ts}b`, kind: 'brain', answer: m.text, done: [], old: true });
   draw();
 }
 
@@ -195,7 +215,7 @@ function draw() {
 }
 
 function renderItem(it: DockItem): HTMLElement | null {
-  if (it.kind === 'user') return h('div.dock-msg.user', it.text);
+  if (it.kind === 'user') return h('div.dock-msg.user', it.text || null, attachmentChips(it.attachments));
   if (it.kind === 'note') return h('div.dock-note', { class: it.error ? 'err' : '' }, it.busy ? h('span.dot.busy') : null, it.text);
   if (it.kind === 'agent') {
     const a = state.data?.agents.find((x) => x.id === it.agentId);
@@ -262,7 +282,7 @@ function draftCard(it: DraftItem) {
     becomeNote(`Created ${created.emoji || ''} ${created.name}.`);
     refreshSoon(0);
     draw();
-    if (thenRun) toAgent(created.id, it.task, 'new agent');
+    if (thenRun) toAgent(created.id, it.task, 'new agent', it.attachments);
   };
   return h(
     'div.dock-msg.agent.draft',
@@ -278,20 +298,40 @@ function draftCard(it: DraftItem) {
 // One Brain ask at a time: the server saves each turn on top of the history it read, so overlapping asks would drop one.
 let brainTurn: Promise<unknown> = Promise.resolve();
 
-async function send() {
+let sending = false;
+
+// given: files uploaded elsewhere (a new project), sent along with what's in the tray
+async function send(given: string[] = []) {
   const input = D.input!;
+  const tray = D.tray!;
   const text = input.value.trim();
-  if (!text) return;
+  if ((!text && !tray.count() && !given.length) || sending) return;
+  sending = true;
+  let attachments: string[] | null;
+  let uploading: NoteItem | null = null;
+  try {
+    if (tray.busy()) uploading = add({ kind: 'note', text: 'Uploading files…', busy: true });
+    attachments = await tray.ready();
+  } finally {
+    sending = false;
+    if (uploading) {
+      D.items.splice(D.items.indexOf(uploading), 1);
+      draw();
+    }
+  }
+  if (!attachments) return;
+  attachments = [...given, ...attachments];
   input.value = '';
-  add({ kind: 'user', text });
+  tray.take();
+  add({ kind: 'user', text, attachments });
   const t = D.target;
-  if (t.startsWith('a:')) return toAgent(t.slice(2), text);
-  if (t.startsWith('b:')) return toBranch(t.slice(2), text);
-  if (t === 'new-agent') return newAgent(text);
-  if (t === 'new-branch') return newBranch(text);
+  if (t.startsWith('a:')) return toAgent(t.slice(2), text, '', attachments);
+  if (t.startsWith('b:')) return toBranch(t.slice(2), text, '', attachments);
+  if (t === 'new-agent') return newAgent(text, attachments);
+  if (t === 'new-branch') return newBranch(text, attachments);
   // The Brain: answers, changes the roster, or hands the work on
   const thinking = add({ kind: 'note', text: 'The Brain is looking at the project…', busy: true });
-  const ask = brainTurn.then(() => POST<BrainAnswer>('/brain/ask', { text }).catch((e: Error): Failed => ({ error: e.message })));
+  const ask = brainTurn.then(() => POST<BrainAnswer>('/brain/ask', { text, attachments }).catch((e: Error): Failed => ({ error: e.message })));
   brainTurn = ask;
   const r: Partial<BrainAnswer> & Failed = await ask;
   D.items.splice(D.items.indexOf(thinking), 1);
@@ -301,15 +341,15 @@ async function send() {
     refreshSoon(0);
     loadWorkflows();
   }
-  if (r.delegate?.kind === 'agent') return toAgent(r.delegate.id, r.delegate.message || text, 'from the Brain');
-  if (r.delegate?.kind === 'branch') return toBranch(r.delegate.id, r.delegate.message || text, 'from the Brain');
+  if (r.delegate?.kind === 'agent') return toAgent(r.delegate.id, r.delegate.message || text, 'from the Brain', r.delegate.attachments);
+  if (r.delegate?.kind === 'branch') return toBranch(r.delegate.id, r.delegate.message || text, 'from the Brain', r.delegate.attachments);
 }
 
-async function toAgent(agentId: string, text: string, reason = '') {
+async function toAgent(agentId: string, text: string, reason = '', attachments: string[] = []) {
   const c = await attempt(() => POST<Chat>(`/agents/${agentId}/chats`));
   if (!c) return;
   const it = add({ kind: 'agent', agentId, chatId: c.id, text: '', tools: [], images: [], reason, done: false });
-  const r = await attempt(() => POST(`/agents/${agentId}/chats/${c.id}/messages`, { text }));
+  const r = await attempt(() => POST(`/agents/${agentId}/chats/${c.id}/messages`, { text, attachments }));
   if (!r) {
     it.done = true;
     it.text = '(could not start)';
@@ -317,32 +357,33 @@ async function toAgent(agentId: string, text: string, reason = '') {
   }
 }
 
-async function toBranch(wfId: string, text: string, reason = '') {
+async function toBranch(wfId: string, text: string, reason = '', attachments: string[] = []) {
   const wf = D.workflows.find((w) => w.id === wfId);
-  const msg = await attempt(() => POST<TeamMessage>(`/teams/${wfId}/messages`, { text }));
+  const msg = await attempt(() => POST<TeamMessage>(`/teams/${wfId}/messages`, { text, attachments }));
   if (!msg) return;
   add({ kind: 'branch', wfId, name: wf?.name || 'Team', reason, since: msg.ts, messages: [], working: [] });
 }
 
-async function newAgent(text: string) {
+async function newAgent(text: string, attachments: string[] = []) {
   const n = add({ kind: 'note', text: 'Designing an agent for this…', busy: true });
-  const a: Partial<AgentDraft> & Failed = await POST<AgentDraft>('/assist/agent', { text }).catch((e: Error) => ({ error: e.message }));
+  const a: Partial<AgentDraft> & Failed = await POST<AgentDraft>('/assist/agent', { text, attachments }).catch((e: Error) => ({ error: e.message }));
   D.items.splice(D.items.indexOf(n), 1);
   if (a.error) return add({ kind: 'note', text: `Couldn't design it: ${a.error}`, error: true });
-  add({ kind: 'agent-draft', agent: a as AgentDraft, task: text });
+  add({ kind: 'agent-draft', agent: a as AgentDraft, task: text, attachments });
 }
 
-async function newBranch(text: string) {
+async function newBranch(text: string, attachments: string[] = []) {
   const n = add({ kind: 'note', text: 'Building a team from your agents…', busy: true });
-  const design: Partial<BranchDesign> & Failed = await POST<BranchDesign>('/assist/branch', { text }).catch((e: Error) => ({ error: e.message }));
+  const design: Partial<BranchDesign> & Failed = await POST<BranchDesign>('/assist/branch', { text, attachments }).catch((e: Error) => ({ error: e.message }));
   D.items.splice(D.items.indexOf(n), 1);
   if (design.error) return add({ kind: 'note', text: `Couldn't build it: ${design.error}`, error: true });
   draw();
   openBranchBuilder({
     prefill: design,
+    files: attachments,
     onSaved: async (wf) => {
       await loadWorkflows();
-      D.items.push({ id: 'ran' + wf.id, kind: 'note', text: h('span', `Team "${wf.name}" is ready. `, h('button.btn.tiny', { onclick: () => toBranch(wf.id, text) }, 'Send it my message')) });
+      D.items.push({ id: 'ran' + wf.id, kind: 'note', text: h('span', `Team "${wf.name}" is ready. `, h('button.btn.tiny', { onclick: () => toBranch(wf.id, text, '', attachments) }, 'Send it my message')) });
       draw();
     },
   });

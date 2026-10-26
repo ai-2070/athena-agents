@@ -2,6 +2,8 @@
 import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, avatar, engineBadge, navigate, md, ago, lightbox, confirmBox, approvalCard, onState } from '../core.ts';
 import { openTerminal } from './agents.ts';
 import { modelChip, modelInfo } from '../models.ts';
+import { attachTray, attachmentChips } from '../attach.ts';
+import type { AttachTray } from '../attach.ts';
 import type { AgentDetail } from './agents.ts';
 import type { Chat, ChatItem, ChatSummary, RunEvent, ServerEvent } from '../../shared/types.ts';
 
@@ -16,6 +18,10 @@ interface ChatCtx {
   els: HTMLElement[];
   status: string;
   offState: (() => void) | null;
+  /** Files waiting to go with the next message (kept across redraws). */
+  tray: AttachTray;
+  offDrop: () => void;
+  sending?: boolean;
   // set by draw()
   messages: HTMLDivElement;
   statusEl: HTMLDivElement;
@@ -50,7 +56,8 @@ export async function render(el: HTMLElement, params: string[] = [], view?: { se
     return;
   }
   // draw() fills in the elements straight away
-  ctx = { el, agent, chat, chats, els: [], status: '', offState: null } as unknown as ChatCtx;
+  const tray = attachTray();
+  ctx = { el, agent, chat, chats, els: [], status: '', offState: null, tray, offDrop: tray.dropZone(el, `Drop files or folders for ${agent.name}`) } as unknown as ChatCtx;
   draw();
   ctx.offState = onState(() => {
     updateRunning();
@@ -60,6 +67,7 @@ export async function render(el: HTMLElement, params: string[] = [], view?: { se
 
 export function unmount(): void {
   ctx?.offState?.();
+  ctx?.offDrop();
   ctx = null;
 }
 
@@ -118,7 +126,7 @@ function draw(): void {
         ctx!.messages,
         ctx!.approvalsEl,
         ctx!.statusEl,
-        h('div.composer', h('div.composer-box', ctx!.input, ctx!.stopBtn, ctx!.sendBtn), h('div.row.between', { style: { maxWidth: '1000px', marginTop: '6px' } }, modelChip(agent, { onChange: () => reload() }), h('span.hint', 'Enter to send · Shift+Enter for a new line'))),
+        h('div.composer', ctx!.tray.el, h('div.composer-box', ctx!.tray.picker, ctx!.input, ctx!.stopBtn, ctx!.sendBtn), h('div.row.between', { style: { maxWidth: '1000px', marginTop: '6px' } }, modelChip(agent, { onChange: () => reload() }), h('span.hint', 'Enter to send · Shift+Enter for a new line'))),
       ),
     ),
   );
@@ -162,7 +170,7 @@ function suggestions(a: AgentDetail): string[] {
 
 function renderItem(item: ChatItem): HTMLElement {
   if (item.type === 'user')
-    return h('div.msg.user', item.from ? h('div.from', `from ${item.from}`) : null, item.text);
+    return h('div.msg.user', item.from ? h('div.from', `from ${item.from}`) : null, item.text, attachmentChips(item.attachments));
   if (item.type === 'assistant') {
     const el = md(item.text);
     el.className = 'msg assistant';
@@ -243,12 +251,27 @@ function drawApprovals(): void {
 }
 
 async function send(): Promise<void> {
-  const text = ctx!.input.value.trim();
-  if (!text || running()) return;
-  ctx!.input.value = '';
-  autosize();
-  const r = await attempt(() => POST(`/agents/${ctx!.agent.id}/chats/${ctx!.chat.id}/messages`, { text }));
-  if (!r) ctx!.input.value = text;
+  const c = ctx!;
+  const text = c.input.value.trim();
+  if ((!text && !c.tray.count()) || running() || c.sending) return;
+  c.sending = true;
+  try {
+    if (c.tray.busy()) setStatus('Uploading files…');
+    const attachments = await c.tray.ready();
+    if (ctx !== c) return;
+    if (!running()) setStatus('');
+    if (!attachments) return;
+    c.input.value = '';
+    autosize();
+    const taken = c.tray.take();
+    const r = await attempt(() => POST(`/agents/${c.agent.id}/chats/${c.chat.id}/messages`, { text, attachments }));
+    if (!r && ctx === c) {
+      c.input.value = text;
+      c.tray.put(taken);
+    }
+  } finally {
+    c.sending = false;
+  }
 }
 
 function stop(): void {
@@ -301,7 +324,7 @@ export function onEvent(ev: ServerEvent): void {
   if (e.kind === 'start') {
     const last = items[items.length - 1];
     if (!(last?.type === 'user' && last.text === e.text)) {
-      items.push({ type: 'user', text: e.text, from: e.from, ts: Date.now() });
+      items.push({ type: 'user', text: e.text, from: e.from, attachments: e.attachments, ts: Date.now() });
       placeItem(items.length - 1);
     }
     ctx.streaming = null;
