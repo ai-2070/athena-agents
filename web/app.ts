@@ -6,7 +6,7 @@ import * as artifactsView from './views/artifacts.tsx';
 import * as agents from './views/agents.tsx';
 import * as chat from './views/chat.tsx';
 import * as library from './views/library.tsx';
-import * as workflows from './views/workflows.ts';
+import * as workflows from './views/workflows.tsx';
 import * as programs from './views/programs.tsx';
 import * as mcp from './views/mcp.tsx';
 import * as connections from './views/connections.tsx';
