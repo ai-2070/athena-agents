@@ -11,6 +11,8 @@ import { filesFromDrop, hasFiles } from '../attach.ts';
 import { uiZoom } from '../look.ts';
 import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.ts';
 import { skillPicker } from '../skillpick.ts';
+import { logoUrl, projectMark, pickLogo, removeLogo } from '../projectlogo.ts';
+import { slideIn, slideOut } from '../motion.ts';
 import { icon, logo, brandPath } from '../icons.ts';
 import { openProjectMenu, openNewProject } from '../projects.ts';
 import { modelChip, modelInfo } from '../models.ts';
@@ -71,6 +73,8 @@ interface BrainInfo {
   files: number;
   sizeMB: number;
   git: { branch: string; remote: string; url: string; last: string; changes: number } | null;
+  /** the description, or the first paragraph of PROJECT.md / README.md */
+  summary?: { text: string; from: 'description' | 'PROJECT.md' | 'README.md' | null };
 }
 /** A workflow run (GET /api/workflow-runs, /api/workflow-active and the 'workflow-run' event). */
 interface WorkflowRun {
@@ -151,6 +155,8 @@ interface Desk {
   orb: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
   orbGlow: THREE.Sprite;
   ring: Ring;
+  /** lights up when you hover a tile or engine this agent uses */
+  focusRing: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
   status: DeskStatus;
   activity: string;
   act?: DeskAct | null;
@@ -267,13 +273,26 @@ type MapPick =
 /** A dashed wire from a header tile to a desk. */
 interface Link2d {
   intId: string;
-  node: MapNode;
+  /** a wire to one desk (detailed), or null for a team's / the Bench's combined wire */
+  node: MapNode | null;
+  /** combined wire: where it ends (the team's hub or the Bench) and the desks it stands for */
+  anchor?: THREE.Object3D;
+  lift?: number;
+  members?: MapNode[];
   flash: number;
 }
 /** A hovered team or agent: the connections it uses and the map nodes its wires run to. */
 interface Hover {
   links: Set<string>;
   nodes: Set<MapNode>;
+  /** from a header tile or an engine: the agents that use it (their desks and chips light up) */
+  agents?: Set<string>;
+  /** only the wires to these links stay lit (a tile lights its own wires, not all of each agent's) */
+  only?: boolean;
+  /** the Brain uses this engine */
+  brain?: boolean;
+  /** the colour to light desks with */
+  color?: string;
 }
 interface WireDot {
   link: Link2d;
@@ -320,6 +339,9 @@ interface Brain {
   beam: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshBasicMaterial>;
   star: THREE.Sprite;
   light: THREE.PointLight;
+  /** the project's logo, floating inside the globe */
+  logo: THREE.Sprite | null;
+  logoKey: string;
 }
 /** Everything the mounted Station holds. Null between mounts. */
 interface StationState {
@@ -352,6 +374,7 @@ interface StationState {
   chat: MiniChat | null;
   wires: SVGGElement | null;
   dots: WireDot[];
+  links2dAll?: Link2d[];
   links2d: Link2d[];
   // filled in by render(), buildBrain(), setupControls(), resize() and loadData()
   wireDots: SVGGElement;
@@ -373,6 +396,10 @@ interface StationState {
   headbar?: Headbar;
   /** What the pointer is over (a team or an agent): only its connections stay lit in the header. */
   hover?: Hover | null;
+  /** the hover the chips and team cards were last marked for */
+  hoverShown?: Hover | null;
+  /** the side panel is sliding out */
+  panelClosing?: Promise<void> | null;
   // the map
   benchCenter?: THREE.Vector3 | null;
   bench?: THREE.Group | null;
@@ -1088,7 +1115,41 @@ function buildBrain(): void {
   g.add(light);
   g.traverse((o) => (o.userData.pick = { type: 'brain' }));
   S.scene.add(g);
-  S.brain = { group: g, cloud, ico, halo, beam, star, light };
+  S.brain = { group: g, cloud, ico, halo, beam, star, light, logo: null, logoKey: '' };
+  setBrainLogo();
+}
+
+// Put the project's logo inside the globe (or take it out). It always faces you and gently floats,
+// while the globe and its particles turn around it. Cheap to call often: nothing happens unless it changed.
+function setBrainLogo(): void {
+  const b = S?.brain;
+  if (!b) return;
+  const url = logoUrl(state.data?.project) || '';
+  if (url === b.logoKey) return;
+  b.logoKey = url;
+  if (b.logo) {
+    b.group.remove(b.logo);
+    b.logo.material.map?.dispose();
+    b.logo.material.dispose();
+    b.logo = null;
+  }
+  if (!url) return;
+  new THREE.TextureLoader().load(url, (tex) => {
+    if (!S?.brain || S.brain.logoKey !== url) return tex.dispose();
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    const img = tex.image as { width: number; height: number };
+    const aspect = img.width && img.height ? img.width / img.height : 1;
+    const side = 3.1;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.96 }));
+    sp.scale.set(aspect >= 1 ? side : side * aspect, aspect >= 1 ? side / aspect : side, 1);
+    sp.position.y = 3.2;
+    sp.renderOrder = 5;
+    sp.userData.pick = { type: 'brain' };
+    sp.userData.base = sp.scale.clone();
+    S.brain.group.add(sp);
+    S.brain.logo = sp;
+  });
 }
 
 // ---------- layout ----------
@@ -1487,7 +1548,11 @@ function makeDesk(agent: Agent, colorHex: string, stepNo: string | number): Desk
   ring.rotation.x = Math.PI / 2;
   ring.position.y = 0.08;
   g.add(ring);
-  const desk: Desk = { group: g, agent, color: colorHex, stepNo: stepNo || '-', screen, screenGlow, person, orb, orbGlow, ring, status: 'idle', activity: '' };
+  const focusRing = new THREE.Mesh(new THREE.RingGeometry(1.55, 2.25, 48), new THREE.MeshBasicMaterial({ color: 0xc4ff3d, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+  focusRing.rotation.x = -Math.PI / 2;
+  focusRing.position.y = 0.06;
+  g.add(focusRing);
+  const desk: Desk = { group: g, agent, color: colorHex, stepNo: stepNo || '-', screen, screenGlow, person, orb, orbGlow, ring, focusRing, status: 'idle', activity: '' };
   drawScreen(desk);
   return desk;
 }
@@ -1518,8 +1583,10 @@ function pulseIntegration(intId: string, node: MapNode | null): void {
     void tile.offsetWidth;
     tile.classList.add('flash');
   }
-  for (const l of S.links2d || []) {
-    if (l.intId !== intId || (node && l.node !== node)) continue;
+  // light both the desk's own wire and its team's combined wire (whichever is showing runs the light)
+  for (const l of [...(S.links2d || []), ...(S.links2dAll || [])]) {
+    if (l.intId !== intId) continue;
+    if (node && (l.node ? l.node !== node : !l.members?.includes(node))) continue;
     l.flash = 1;
     for (let i = 0; i < 3; i++) S.dots.push({ link: l, t: -i * 0.12 });
   }
@@ -1644,6 +1711,42 @@ function hoverFor(p: MapPick | null): Hover | null {
   return null;
 }
 
+// A header tile (program, service, MCP server, Claude connector): the agents whose wires run to it.
+function hoverForLink(intId: string): Hover | null {
+  if (!S) return null;
+  const nodes = [...S.nodes, ...(S.benchNodes || [])].filter((n) => n.links.has(intId));
+  const agents = new Set(nodes.filter((n): n is AgentNode => n.kind === 'agent').map((n) => n.agentId));
+  return { links: new Set([intId]), nodes: new Set(nodes), agents, only: true, color: intInfo(intId)?.color };
+}
+
+// An AI engine (top right): the agents that run on it, with their wires to its tile.
+const ENGINE_TILES = ['claude', 'codex', 'hermes', 'openrouter', 'lmstudio', 'ollama'];
+function hoverForEngine(engine: string, brain: boolean, color: string): Hover | null {
+  if (!S) return null;
+  const ids = new Set((state.data?.agents || []).filter((a) => a.engine === engine).map((a) => a.id));
+  const nodes = [...S.nodes, ...(S.benchNodes || [])].filter((n): n is AgentNode => n.kind === 'agent' && ids.has(n.agentId));
+  const links = new Set<string>();
+  for (const n of nodes) for (const l of n.links) if (ENGINE_TILES.includes(l)) links.add(l);
+  return { links, nodes: new Set(nodes), agents: ids, only: true, brain, color };
+}
+
+// Mark what the hover lights: agent chips, team cards, the Brain; the rest fades (CSS does the look).
+function applyHover(): void {
+  if (!S || S.hoverShown === S.hover) return;
+  S.hoverShown = S.hover;
+  const f = S.hover;
+  const lit = f?.agents;
+  S.labels.classList.toggle('focus', !!lit);
+  const teamsLit = new Set<string>();
+  if (lit) for (const w of S.workflows) if ((w.members || []).some((id) => lit.has(id))) teamsLit.add(w.id);
+  for (const l of S.labelEls) {
+    const on = !!lit && ((l.kind === 'agent' && lit.has(l.id)) || (l.kind === 'branch' && teamsLit.has(l.id)) || (l.kind === 'brain' && !!f?.brain));
+    l.el.classList.toggle('hot', on);
+  }
+  const c = new THREE.Color(f?.color || '#c4ff3d');
+  for (const d of S.desks) d.focusRing.material.color.copy(c);
+}
+
 const v3 = new THREE.Vector3();
 const v3b = new THREE.Vector3();
 function placeLabels(): void {
@@ -1711,7 +1814,23 @@ function loop(): void {
     b.light.intensity = 90 + grab * 30;
     b.cloud.rotation.y += dt * 1.6;
   }
+  if (b.logo) {
+    // floats and breathes inside the globe; a little livelier while agents work
+    b.logo.position.y = 3.2 + Math.sin(t * 1.1) * 0.16;
+    const base = b.logo.userData.base as THREE.Vector3;
+    const k = 1 + Math.sin(t * (busy ? 3.2 : 1.6)) * (busy ? 0.05 : 0.025);
+    b.logo.scale.set(base.x * k, base.y * k, 1);
+    b.logo.material.rotation = Math.sin(t * 0.5) * 0.06;
+  }
 
+  // desks of the agents a hovered tile or engine lights (fade in and out)
+  const lit = S.hover?.agents;
+  for (const desk of S.desks) {
+    const want = lit?.has(desk.agent.id) ? 0.85 + 0.15 * Math.sin(t * 5) : 0;
+    const m = desk.focusRing.material;
+    m.opacity += (want - m.opacity) * Math.min(1, dt * 10);
+    desk.focusRing.visible = m.opacity > 0.01;
+  }
   for (const desk of S.desks) {
     if (desk.status === 'working') {
       desk.person.position.y = Math.abs(Math.sin(t * 6 + desk.agent.id.length)) * 0.06;
@@ -1788,7 +1907,8 @@ function drawWires(dt: number): void {
   assertMounted(S);
   const svg = S.wires;
   if (!svg) return;
-  const links = S.links2d || [];
+  // nothing hovered: the combined wires (one per team); hovering: every desk's own wire
+  const links = (S.hover ? S.links2d : S.links2dAll) || S.links2d || [];
   const rootBox = S.root.getBoundingClientRect();
   const bar = S.hudTop?.querySelector('.st-connected')?.getBoundingClientRect();
   while (svg.childNodes.length < links.length) {
@@ -1800,7 +1920,10 @@ function drawWires(dt: number): void {
   while (svg.childNodes.length > links.length) svg.lastChild!.remove();
   // a hovered team or agent: light only its tiles and wires
   const focus = S.hover;
+  applyHover();
   S.hudTop?.querySelector('.st-connected')?.classList.toggle('focus', !!focus);
+  // hovering a tile or an engine: the other tiles stay readable (only a light dim)
+  S.hudTop?.querySelector('.st-connected')?.classList.toggle('soft', !!focus?.only);
   S.tileEls?.forEach((el, id) => el.classList.toggle('hot', !!focus?.links.has(id)));
   const ends: (number[] | null)[] = [];
   links.forEach((l, i) => {
@@ -1816,8 +1939,13 @@ function drawWires(dt: number): void {
     }
     const x1 = r.left + r.width / 2 - rootBox.left;
     const y1 = r.bottom - rootBox.top + 2;
-    l.node.obj.getWorldPosition(v3);
-    v3.y += l.node.kind === 'agent' ? 2.3 : 1.3;
+    if (l.node) {
+      l.node.obj.getWorldPosition(v3);
+      v3.y += l.node.kind === 'agent' ? 2.3 : 1.3;
+    } else {
+      l.anchor!.getWorldPosition(v3);
+      v3.y += l.lift || 1.5;
+    }
     v3.project(S.camera);
     const x2 = (v3.x + 1) * 0.5 * S.w;
     const y2 = (1 - v3.y) * 0.5 * S.h;
@@ -1827,11 +1955,13 @@ function drawWires(dt: number): void {
     p.setAttribute('d', `M${c[0].toFixed(1)},${c[1].toFixed(1)} C${c[2].toFixed(1)},${c[3].toFixed(1)} ${c[4].toFixed(1)},${c[5].toFixed(1)} ${c[6].toFixed(1)},${c[7].toFixed(1)}`);
     if (l.flash > 0) l.flash = Math.max(0, l.flash - dt * 0.7);
     const info = intInfo(l.intId);
-    const mine = !!focus?.nodes.has(l.node);
+    const mine = !!l.node && !!focus?.nodes.has(l.node) && (!focus.only || focus.links.has(l.intId));
+    // a combined wire is a little thicker the more agents it stands for
+    const weight = l.members ? Math.min(1.6, (l.members.length - 1) * 0.3) : 0;
     const live = focus && !mine ? 0.03 : tile!.classList.contains('off') ? 0.12 : mine ? 0.7 : 0.32;
     p.setAttribute('stroke', info?.color || '#8f968a');
     p.setAttribute('stroke-opacity', String(live + l.flash * 0.6));
-    p.setAttribute('stroke-width', String((mine ? 1.5 : 1) + l.flash * 1.2));
+    p.setAttribute('stroke-width', String((mine ? 1.5 : 1) + weight + l.flash * 1.2));
   });
   // light running down a wire
   const dotsLayer = S.wireDots;
@@ -2444,6 +2574,7 @@ interface HudTile {
 function drawHud(): void {
   const d = state.data;
   if (!d || !S) return;
+  setBrainLogo();
   const ints = availableIntegrations(d, S.progs);
   const needs = d.approvals.length + d.outboxPending;
   if (!S.hudBuilt) {
@@ -2495,7 +2626,7 @@ function drawHud(): void {
   S.tileEls = new Map();
   mount(
     S.hudTop,
-    h('button.st-project', { title: 'Switch or create a project', onclick: (e) => openProjectMenu(e.currentTarget) }, h('span.st-mark', '◢'), h('span.st-project-name', d.project?.name || 'Project'), icon('chevron-down', 14)),
+    h('button.st-project', { title: 'Switch or create a project', onclick: (e) => openProjectMenu(e.currentTarget) }, d.project?.logoAt ? h('span.st-mark.logo', projectMark(d.project, 18)) : h('span.st-mark', '◢'), h('span.st-project-name', d.project?.name || 'Project'), icon('chevron-down', 14)),
     h(
       'div.st-connected',
       h('span.st-conn-label', h('span.dot.on'), 'CONNECTED TO'),
@@ -2504,7 +2635,12 @@ function drawHud(): void {
         .sort((a, b) => +b.on - +a.on || +!!a.missing - +!!b.missing)
         .map((t) => {
           const el = h(`button.st-int${t.on ? '' : '.off'}${t.missing ? '.missing' : ''}`, { style: { '--c': t.color }, title: t.title, onclick: t.onclick }, t.glyph);
-          if (t.int) S!.tileEls.set(t.int, el);
+          if (t.int) {
+            S!.tileEls.set(t.int, el);
+            const id = t.int;
+            el.addEventListener('pointerenter', () => S && (S.hover = hoverForLink(id)));
+            el.addEventListener('pointerleave', () => S && (S.hover = null));
+          }
           return el;
         }),
     ),
@@ -2516,7 +2652,13 @@ function drawHud(): void {
         engines.map((e) =>
           h(
             `button.st-engine${e.ready ? '' : '.off'}${e.busy ? '.busy' : ''}`,
-            { style: { '--c': e.color }, title: e.title, onclick: () => navigate(`#/settings?tab=general&find=${encodeURIComponent(e.find)}`) },
+            {
+              style: { '--c': e.color },
+              title: e.title,
+              onclick: () => navigate(`#/settings?tab=general&find=${encodeURIComponent(e.find)}`),
+              onpointerenter: () => S && (S.hover = hoverForEngine(e.id, brainP === e.brain, e.color)),
+              onpointerleave: () => S && (S.hover = null),
+            },
             e.glyph,
             e.n ? h('span.st-engine-n', String(e.n)) : null,
           ),
@@ -2583,6 +2725,15 @@ function buildWires(): void {
     }
     for (const id of node.links) S.links2d.push({ intId: id, node, flash: 0 });
   }
+  // combined: one wire per connection per team, and one to the Bench
+  S.links2dAll = [];
+  const bundle = (nodes: MapNode[], anchor: THREE.Object3D, lift: number) => {
+    const by = new Map<string, MapNode[]>();
+    for (const n of nodes) for (const id of n.links) by.set(id, [...(by.get(id) || []), n]);
+    for (const [intId, members] of by) S!.links2dAll!.push({ intId, node: null, anchor, lift, members, flash: 0 });
+  };
+  for (const [, b] of S.branches) bundle(b.nodes, b.group, 1.9);
+  if (S.bench && S.benchNodes?.length) bundle(S.benchNodes, S.bench, 1.4);
 }
 
 // Brand-ish tiles for connectors on your Claude account (no logos bundled: letters in brand colors).
@@ -2711,7 +2862,14 @@ function choose(p: MapPick | null): void {
   S.chat = null;
   for (const l of S.labelEls) l.el.classList.toggle('sel', !!p && l.kind === p.type && l.id === p.id && (!p.wf || !l.wf || l.wf === p.wf));
   if (!p) {
-    S.panel.classList.add('hidden');
+    // slide out, then hide (unless something was picked meanwhile)
+    if (!S.panel.classList.contains('hidden') && !S.panelClosing) {
+      const panel = S.panel;
+      S.panelClosing = slideOut(panel, { x: 40, duration: 230 }).then(() => {
+        if (S && !S.selected) panel.classList.add('hidden');
+        if (S) S.panelClosing = null;
+      });
+    }
     return;
   }
   if (p.type === 'branch') openChat('team', p.id, { focus: false });
@@ -2723,7 +2881,13 @@ function choose(p: MapPick | null): void {
     const b = S.branches.get(p.id);
     if (b) flyTo(b.group.position.clone(), Math.max(0.9, 1.9 - b.radius * 0.08));
   } else if (p.type === 'brain') flyTo(new THREE.Vector3(), 1);
+  // open: slide in from the right; already open (another team or agent): a small move, not a jump
+  const wasOpen = !S.panel.classList.contains('hidden') && !S.panelClosing;
+  S.panel.getAnimations().forEach((a) => a.cancel());
+  S.panelClosing = null;
   S.panel.classList.remove('hidden');
+  if (wasOpen) slideIn(S.panel, { x: 14, duration: 280 });
+  else slideIn(S.panel, { x: 44, duration: 420, blur: 4 });
   renderPanel();
 }
 
@@ -2776,13 +2940,61 @@ async function renderPanel(): Promise<void> {
   if (p.type === 'brain') {
     const proj: Partial<Project> = d.project || {};
     const info = h('div', h('p.hint', 'Reading the Brain folder…'));
+    // what the project is about, and its logo (shown here, on the start screen, in the project menu and in the globe)
+    const aboutBox = h('div.st-about');
+    const drawAbout = (summary: { text: string; from: string | null } | null, editing = false) => {
+      const logoBox = h(
+        'div.st-about-logo',
+        { title: proj.logoAt ? 'Change the logo' : 'Add a logo', onclick: () => proj.id && pickLogo({ id: proj.id, name: proj.name || '' }).then((ok) => ok && S?.selected?.type === 'brain' && setTimeout(renderPanel, 300)) },
+        proj.logoAt ? projectMark(proj as Project, 64) : h('span.st-about-add', icon('image', 20), 'Logo'),
+      );
+      const text = summary?.text || '';
+      const editor = h('textarea', { rows: 4, value: proj.description || text, placeholder: 'What is this project? Who is it for, what should come out of it?' });
+      const save = async () => {
+        if (!proj.id) return;
+        const r = await attempt(() => PUT<Project>(`/projects/${proj.id}`, { description: editor.value }), 'Saved');
+        if (r) {
+          refreshSoon(0);
+          drawAbout({ text: editor.value.trim(), from: 'description' });
+        }
+      };
+      mount(
+        aboutBox,
+        h(
+          'div.st-about-top',
+          logoBox,
+          h(
+            'div.grow',
+            editing
+              ? h('div.col', editor, h('div.row', { style: { gap: '6px' } }, h('button.btn.small', { onclick: save }, 'Save'), h('button.btn.ghost.small', { onclick: () => drawAbout(summary) }, 'Cancel')))
+              : text
+                ? [h('p.st-about-text', text), summary?.from && summary.from !== 'description' ? h('div.hint', `from ${summary.from}`) : null]
+                : h('p.hint', 'No description yet. Say what the project is about, or ask the Brain to write PROJECT.md.'),
+          ),
+        ),
+        editing
+          ? null
+          : h(
+              'div.row.st-about-actions',
+              h('button.btn.ghost.tiny', { onclick: () => drawAbout(summary, true) }, icon('pencil', 12), text ? 'Edit description' : 'Add a description'),
+              h('button.btn.ghost.tiny', { onclick: () => proj.id && pickLogo({ id: proj.id, name: proj.name || '' }).then((ok) => ok && S?.selected?.type === 'brain' && setTimeout(renderPanel, 300)) }, icon('image', 12), proj.logoAt ? 'Change logo' : 'Add logo'),
+              proj.logoAt ? h('button.btn.ghost.tiny', { onclick: () => proj.id && removeLogo({ id: proj.id, name: proj.name || '' }).then(() => S?.selected?.type === 'brain' && setTimeout(renderPanel, 300)) }, 'Remove logo') : null,
+            ),
+      );
+      if (editing) setTimeout(() => editor.focus(), 30);
+    };
+    drawAbout(proj.description ? { text: proj.description, from: 'description' } : null);
     mount(
       S.panel,
-      panelHead(h('span.st-badge.lg', { style: { '--c': '#c4ff3d' } }, icon('brain', 18)), h('div.grow', h('div.label', 'Project Brain'), h('div.st-panel-title', proj.name || 'Project'))),
+      panelHead(
+        proj.logoAt ? h('span.st-proj-logo', projectMark(proj as Project, 34)) : h('span.st-badge.lg', { style: { '--c': '#c4ff3d' } }, icon('brain', 18)),
+        h('div.grow', h('div.label', 'Project Brain'), h('div.st-panel-title', proj.name || 'Project')),
+      ),
       h(
         'div.st-panel-body',
+        aboutBox,
         h('div.st-mini-stats', h('div', h('b', String(d.agents.length)), 'agents'), h('div', h('b', String(S.workflows.length)), 'teams'), h('div', h('b', String(d.runs.length + S.active.size)), 'working')),
-        h('div.row.mt', h('button.btn.small', { onclick: () => openDock() }, icon('sparkles', 14), 'Ask the Brain'), h('button.btn.ghost.small', { onclick: newBranch }, icon('git-branch', 14), 'New team')),
+        h('button.btn.small.st-ask-brain', { onclick: () => openDock() }, icon('sparkles', 14), 'Ask the Brain'),
         h('div.label.mt-lg', 'Brain folder'),
         h('div.hint.mono', { style: { overflowWrap: 'anywhere', marginTop: '6px' } }, proj.brainPath || ''),
         h(
@@ -2809,12 +3021,13 @@ async function renderPanel(): Promise<void> {
           !S.workflows.length ? h('p.empty', 'No teams yet.') : null,
         ),
         d.approvals.length ? [h('div.label.mt-lg', 'Needs you'), h('div.col', d.approvals.map(approvalCard))] : null,
-        h('div.row.mt-lg', h('button.btn.ghost.tiny', { onclick: () => openNewProject() }, icon('plus', 13), 'New project')),
+        h('div.row.mt-lg', h('button.btn.ghost.small', { onclick: newBranch }, icon('git-branch', 14), 'New team')),
       ),
     );
     GET<BrainInfo>('/brain')
       .then((bi) => {
         if (S?.selected?.type !== 'brain') return;
+        if (!proj.description && bi.summary?.text) drawAbout(bi.summary);
         mount(
           info,
           bi.git

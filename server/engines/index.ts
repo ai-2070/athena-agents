@@ -52,6 +52,8 @@ export interface RunEntry {
   parentRunId: string | null;
   startedAt: number;
   agentName: string;
+  /** The project that was open when the run started. */
+  projectId: string;
 }
 
 /** What a running agent is doing right now (liveActivity()). */
@@ -70,6 +72,7 @@ export interface LiveActivity {
 export interface RunInfo {
   id: string;
   agentId: string;
+  projectId: string;
   chatId: string;
   depth: number;
   signal: AbortSignal;
@@ -144,7 +147,7 @@ export function liveActivity(): LiveActivity[] {
 
 export function runInfo(runId: string | null | undefined): RunInfo | null {
   const r = runId && active.get(runId);
-  return r ? { id: runId, agentId: r.agentId, chatId: r.chatId, depth: r.depth, signal: r.signal } : null;
+  return r ? { id: runId, agentId: r.agentId, projectId: r.projectId, chatId: r.chatId, depth: r.depth, signal: r.signal } : null;
 }
 
 // The chat object a running agent is writing to, so edits made meanwhile aren't overwritten.
@@ -187,7 +190,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   const runId = uid('r');
   const controller = new AbortController();
   const started = Date.now();
-  active.set(runId, { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, startedAt: started, agentName: agent.name });
+  active.set(runId, { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, startedAt: started, agentName: agent.name, projectId: activeProject().id });
   // Saving skips chats deleted while the run was going.
   const persist = () => {
     if (!chat._deleted) chats.save(chat);

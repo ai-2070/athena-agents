@@ -1,6 +1,7 @@
 // Project switcher and "New project" dialog.
 import { h, mount, state, GET, POST, attempt, modal, seg, field, toast, refreshSoon, ago } from './core.ts';
 import { icon } from './icons.ts';
+import { projectMark } from './projectlogo.ts';
 import { uiZoom } from './look.ts';
 import { askBrain } from './dock.ts';
 import { attachTray } from './attach.ts';
@@ -58,7 +59,7 @@ export function openProjectMenu(anchor: Element): void {
     { style: { position: 'fixed', left: `${r.left / uiZoom()}px`, top: `${r.bottom / uiZoom() + 6}px`, transform: 'none' } },
     h('div.st-menu-head', 'Projects'),
     (d.projects || []).map((p) =>
-      h(`button.st-menu-item${p.id === d.project.id ? '.on' : ''}`, { onclick: () => switchTo(p) }, p.id === d.project.id ? icon('check', 15) : icon(p.repo ? 'git-branch' : 'folder', 15), h('span.grow', p.name)),
+      h(`button.st-menu-item${p.id === d.project.id ? '.on' : ''}`, { onclick: () => switchTo(p) }, projectMark(p, 16), h('span.grow', p.name), p.id === d.project.id ? icon('check', 14) : null),
     ),
     h('div.st-menu-sep'),
     h('button.st-menu-item', { onclick: () => (close(), openLauncher({ force: true })) }, icon('folder-open', 15), 'All projects…'),
@@ -194,7 +195,7 @@ export async function openLauncher({ force = false }: { force?: boolean } = {}):
     h(
       `button.launch-card${p.id === o.active ? '.cur' : ''}`,
       { type: 'button', onclick: () => open(p) },
-      h('div.launch-ico', icon(p.repo ? 'git-branch' : 'folder-open', 20)),
+      h(`div.launch-ico${p.logoAt ? '.has-logo' : ''}`, projectMark(p, p.logoAt ? 40 : 20, p.repo ? 'git-branch' : 'folder-open')),
       h(
         'div.grow',
         h('div.launch-name', p.name, p.id === o.active ? h('span.pill.ok', 'last open') : null),

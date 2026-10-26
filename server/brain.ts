@@ -163,7 +163,7 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
   return out.result || '';
 }
 
-function parseJSON<T>(text: unknown): T {
+export function parseJSON<T>(text: unknown): T {
   const m = /\{[\s\S]*\}/.exec(String(text));
   if (!m) throw new Error('The answer was not JSON.');
   return JSON.parse(m[0]) as T;

@@ -131,6 +131,8 @@ export interface Project {
   skills?: string[];
   createdAt: number;
   openedAt?: number;
+  /** When its logo (.dashboard/logo.*) last changed; null = no logo. Added by the server when it sends projects. */
+  logoAt?: number | null;
 }
 
 // ---------- chats ----------
@@ -202,6 +204,8 @@ export interface Approval {
   data: Record<string, unknown>;
   editable: unknown;
   createdAt: number;
+  /** Why the Brain passed this on to you instead of allowing it (Settings > The Brain approves). */
+  brainNote?: string;
 }
 
 export interface OutboxPost {
@@ -259,6 +263,8 @@ export interface Settings {
   x: { clientId: string };
   reddit: { clientId: string; username: string };
   brain: BrainSetting;
+  /** The Brain answers agents' and teams' permission requests, and only asks you about the risky or unclear ones. */
+  brainApproves: boolean;
   look: LookSetting;
   telegram: { chatId: string };
   maxToolSteps: number;
