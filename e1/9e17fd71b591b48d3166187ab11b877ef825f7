@@ -1,0 +1,65 @@
+server/store.ts
+  s_504abbb765e6ca::t_53082fe14e8ee9 49
+server/library.ts
+  s_504abbb765e6ca::t_1126b382391c9d 141
+  s_504abbb765e6ca::t_2fd2de4e1d053a 8
+web/models.ts
+  s_504abbb765e6ca::t_d1bb3b35e4c447 2-3,7-8,18,20-21,26-29,46,89-120,126,131,137-138,150,152,159,164-165,171-172
+  s_504abbb765e6ca::t_fce7430ff3fdb1 181-182,192-196,198-231,233,240-270,274-280,341-344,346,349-350,355,357,359,365
+public/polish.css
+  s_504abbb765e6ca::t_1127e59069107d 300-315
+server/versions.ts
+  s_504abbb765e6ca::t_309377c7942636 9
+  s_504abbb765e6ca::t_2fd2de4e1d053a 163
+tests/server/effort.test.ts
+  s_504abbb765e6ca::t_92377689441bed 8-9
+  s_504abbb765e6ca::t_8c2f8ecca2a8f8 1-7,10-72
+scripts/build-icons.ts
+  s_504abbb765e6ca::t_26cbb569f2c6ff 19
+tests/server/api.test.ts
+  s_504abbb765e6ca::t_88d933cd3fffbd 324-389
+tests/web/groupD-pickers.test.ts
+  s_504abbb765e6ca::t_4ffb657d7c5839 52,63-155
+server/engines/hermes.ts
+  s_504abbb765e6ca::t_6b8724b44b268e 5,62-63
+server/engines/codex.ts
+  s_504abbb765e6ca::t_6b8724b44b268e 9,87-88
+shared/effort.ts
+  s_504abbb765e6ca::t_0a8d3bea80d1e7 1-31
+server/engines/claude.ts
+  s_504abbb765e6ca::t_6b8724b44b268e 11,116-117
+server/history.ts
+  s_504abbb765e6ca::t_1126b382391c9d 61,90
+README.md
+  s_504abbb765e6ca::t_b26839e63a591b 43
+web/views/agents.ts
+  s_504abbb765e6ca::t_7e9dcec59a44bc 7,191,215-221
+shared/types.ts
+  s_504abbb765e6ca::t_53082fe14e8ee9 3-4,39-40,356-364,408-409
+server/index.ts
+  s_504abbb765e6ca::t_2fd2de4e1d053a 25
+  s_504abbb765e6ca::t_1126b382391c9d 272,274
+server/engines/openai.ts
+  s_504abbb765e6ca::t_2aed4e9111fce1 11,287-288,325,347-350
+  s_504abbb765e6ca::t_150dcb548207e1 351-353
+web/icons.ts
+  s_504abbb765e6ca::t_26cbb569f2c6ff 7
+server/brain.ts
+  s_504abbb765e6ca::t_1126b382391c9d 9-10,60-61,94-96,108,118,137,159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e19e17fd71b591b48d3166187ab11b877ef825f7",
+  "prompts": {},
+  "sessions": {
+    "s_504abbb765e6ca": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "59e39b35-cf93-43e3-a91c-24520a49b639",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
