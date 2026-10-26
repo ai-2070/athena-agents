@@ -1,11 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { draftSkill } from '../../server/brain.ts';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { draftSkill, libraryForPrompt, skillAnswerBudget, think } from '../../server/brain.ts';
+import { saveSettings, setSecret } from '../../server/store.ts';
 
 // The model's part is played by a function that records what it was asked and answers with set text.
 function model(answer: unknown) {
-  const calls: { system: string; user: string }[] = [];
-  const ask = async (system: string, user: string) => {
-    calls.push({ system, user });
+  const calls: { system: string; user: string; maxTokens: number }[] = [];
+  const ask = async (system: string, user: string, { maxTokens }: { maxTokens: number }) => {
+    calls.push({ system, user, maxTokens });
     return typeof answer === 'string' ? answer : `Here it is:\n${JSON.stringify(answer)}`;
   };
   return { ask, calls };
@@ -43,7 +47,7 @@ describe('skills from plain words', () => {
 
   it('turns away an answer that is not a skill', async () => {
     await expect(draftSkill('x', { ask: model('Sorry, I cannot help with that.').ask })).rejects.toThrow(/wasn't a skill/);
-    await expect(draftSkill('x', { ask: model('{"name": "broken", ').ask })).rejects.toThrow(/wasn't a skill/);
+    await expect(draftSkill('x', { ask: model('{"name": "broken" "x"}').ask })).rejects.toThrow(/wasn't a skill/);
     // a new skill needs all three
     await expect(draftSkill('x', { ask: model({ name: 'Only a name' }).ask })).rejects.toThrow(/missing/);
   });
@@ -55,11 +59,64 @@ describe('skills from plain words', () => {
     expect(d.body).toHaveLength(60000);
   });
 
-  it('works from attached files alone', async () => {
+  it('works from attached files alone, and the model gets their names and text', async () => {
+    const dir = fs.mkdtempSync(path.join(os.homedir(), 'attached-'));
+    const notes = path.join(dir, 'how-we-ship.md');
+    fs.writeFileSync(notes, 'We ship on Thursdays and always tag the release.');
     const m = model({ ...current, note: '' });
-    await draftSkill('', { ask: m.ask });
+    await draftSkill('', { ask: m.ask, attachments: [notes] });
     expect(m.calls[0].user).toMatch(/Write a skill from the attached files/);
-    await draftSkill('', { current, ask: m.ask });
+    expect(m.calls[0].user).toContain(notes);
+    expect(m.calls[0].user).toContain('We ship on Thursdays and always tag the release.');
+    await draftSkill('', { current, ask: m.ask, attachments: [notes] });
     expect(m.calls[1].user).toMatch(/Improve it using the attached files/);
+    expect(m.calls[1].user).toContain('how-we-ship.md');
+  });
+
+  it('shows the model the skills most like the request, and every other one by name, however big the library', async () => {
+    const lib = Array.from({ length: 120 }, (_, i) => ({ slug: `s${i}`, name: `Skill ${String(i).padStart(3, '0')}`, description: `About topic ${i}` }));
+    lib.push({ slug: 'zz', name: 'Zz changelog', description: 'Use when writing release notes for a version.' });
+    const m = model({ name: 'Release notes', description: 'Use when writing release notes.', body: 'b' });
+    await draftSkill('how we write release notes', { ask: m.ask, others: lib });
+    const sys = m.calls[0].system;
+    // last alphabetically, but the closest match: first, with what it's for
+    expect(sys.indexOf('- Zz changelog: Use when writing release notes')).toBeGreaterThan(-1);
+    expect(sys.indexOf('- Zz changelog')).toBeLessThan(sys.indexOf('- Skill 000'));
+    for (const o of lib) expect(sys).toContain(o.name);
+    expect(libraryForPrompt(lib, 'x', { detailed: 5, names: 10 })).toMatch(/…and 106 more$/);
+  });
+
+  it('gives a long skill room to come back whole', async () => {
+    expect(skillAnswerBudget(null)).toBe(4000);
+    const long = { ...current, body: 'x'.repeat(60000) };
+    expect(skillAnswerBudget(long)).toBeGreaterThan(60000 / 3);
+    expect(skillAnswerBudget({ ...current, body: 'x'.repeat(500000) })).toBe(32000);
+    const m = model({ ...long, note: '' });
+    await draftSkill('tidy it', { current: long, ask: m.ask });
+    expect(m.calls[0].maxTokens).toBe(skillAnswerBudget(long));
+  });
+
+  it('says plainly when the answer was cut off', async () => {
+    await expect(draftSkill('x', { current, ask: model('{"name":"Release notes","description":"…","body":"# Steps\n1. List').ask })).rejects.toThrow(/cut off before the end/);
+    const stopped = async () => {
+      throw new Error('The answer was cut off: it ran past the length limit.');
+    };
+    await expect(draftSkill('x', { current, ask: stopped })).rejects.toThrow(/cut off before the end/);
+  });
+});
+
+describe('the Brain on OpenRouter', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it('treats an answer stopped at the length limit as cut off, not as an answer', async () => {
+    setSecret('openrouterKey', 'sk-or-test');
+    saveSettings({ brain: { provider: 'openrouter', model: 'some/model' } });
+    const sent: { max_tokens?: number }[] = [];
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      sent.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ choices: [{ message: { content: '{"name":"half' }, finish_reason: 'length' }] }), { status: 200 });
+    });
+    await expect(think('s', 'u', { maxTokens: 12345 })).rejects.toThrow(/cut off/);
+    expect(sent[0].max_tokens).toBe(12345);
+    await expect(draftSkill('x', { current: { name: 'a', description: 'b', body: 'c' } })).rejects.toThrow(/cut off before the end/);
   });
 });

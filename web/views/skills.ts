@@ -252,6 +252,13 @@ async function openEditor(slug: string | null = null) {
     const text = ask.value.trim();
     if (!text && !tray.count()) return toast(slug ? 'Say what to change first.' : 'Describe the skill first.', 'warn');
     asking = askBtn.disabled = true;
+    // the Brain answers with all three fields: typing in them meanwhile would be lost, so they wait (and so does Save)
+    const lock = (on: boolean) => {
+      for (const f of [name, desc, body]) f.readOnly = on;
+      saveBtn.disabled = on;
+      askBox.classList.toggle('busy', on);
+    };
+    lock(true);
     try {
       askStatus.textContent = tray.busy() ? 'Uploading files…' : '';
       const attachments = await tray.ready();
@@ -260,12 +267,16 @@ async function openEditor(slug: string | null = null) {
       const now = fields();
       const draft = await attempt(() => POST<{ name: string; description: string; body: string; note: string }>('/assist/skill', { text, slug: slug || undefined, current: now, attachments }));
       if (!draft) return void (askStatus.textContent = '');
+      // (locked, so they match; if they somehow don't, what you typed wins)
+      const still = fields();
+      if (still.name !== now.name || still.description !== now.description || still.body !== now.body) return void (askStatus.textContent = 'You changed the skill meanwhile, so the answer was not used. Ask again.');
       before = now;
       [name.value, desc.value, body.value] = [draft.name, draft.description, draft.body];
       undoBtn.classList.remove('hidden');
       askStatus.textContent = `${draft.note || 'Done.'} Look it over, then ${slug ? 'Save' : 'Add skill'}.`;
       ask.value = '';
     } finally {
+      lock(false);
       asking = askBtn.disabled = false;
     }
   };
@@ -285,6 +296,7 @@ async function openEditor(slug: string | null = null) {
     h('p.hint', `${slug ? 'The Brain rewrites the fields below as you ask (what you typed there counts too).' : 'The Brain fills in the fields below.'} Drop examples or notes to learn from. Nothing is saved until you press ${slug ? 'Save' : 'Add skill'}. Ctrl+Enter sends.`),
   );
   let m: ModalHandle;
+  const saveBtn: HTMLButtonElement = h('button.btn', { onclick: (e: MouseEvent) => save(e.currentTarget as HTMLButtonElement) }, slug ? 'Save' : 'Add skill');
   const save = async (btn: HTMLButtonElement) => {
     btn.disabled = true;
     const r = await attempt(() => (slug ? PUT(`/skills/${slug}`, { name: name.value, description: desc.value, body: body.value }) : POST('/skills', { name: name.value, description: desc.value, body: body.value })), slug ? 'Saved' : 'Skill added');
@@ -308,7 +320,7 @@ async function openEditor(slug: string | null = null) {
       slug ? historyButton('skill', slug, () => (m.close(), void reload(), void openEditor(slug))) : null,
       h('span.grow'),
       h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'),
-      h('button.btn', { onclick: (e) => save(e.currentTarget) }, slug ? 'Save' : 'Add skill'),
+      saveBtn,
     ],
     // the files were only for the Brain to read: they go with the dialog
     onClose: () => tray.discard(),
