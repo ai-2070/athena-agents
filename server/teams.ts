@@ -8,7 +8,8 @@ import { readJSON, writeJSON, uid, dataPath } from './util.ts';
 import { askAgent, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
 import { isStepList, teamSteps } from '../shared/teams.ts';
 import { attachmentNames } from './uploads.ts';
-import type { Agent, QueuedMessage, Team, TeamMessage, TeamState } from '../shared/types.ts';
+import type { Agent, LoopInfo, QueuedMessage, Team, TeamMessage, TeamState } from '../shared/types.ts';
+import type { LoopRequest } from '../shared/commands.ts';
 
 const MAX_TURNS = 16; // agent turns per message you send
 const MAX_PER_AGENT = 5; // turns per agent per message you send
@@ -58,6 +59,22 @@ interface Runtime {
   releasing?: boolean;
   /** @Brain messages waiting while the Brain answers another one */
   brainQueue?: TeamMessage[];
+  /** the turns going now, by agent; and the ones cut off by Stop or the turn limit (what /resume picks up) */
+  current?: Map<string, QueueItem>;
+  interrupted?: QueueItem[];
+  /** your /loop in this team */
+  loop?: TeamLoop | null;
+}
+
+interface TeamLoop extends LoopInfo {
+  /** the project it was started in */
+  project: string;
+  attachments: string[];
+  route: RouteFn | null;
+  due: boolean;
+  timer: ReturnType<typeof setTimeout> | null;
+  /** one of its messages went and the team hasn't gone quiet since */
+  posted: boolean;
 }
 
 /** Picks the member who should answer when nobody is named and there is no lead (brain.pickMember). */
@@ -125,7 +142,7 @@ function runtime(teamId: string): Runtime {
 
 export function teamState(teamId: string): TeamState {
   const r = runtime(teamId);
-  return { working: [...r.running], queued: [...new Set(r.queue.map((q) => q.agentId))], held: [...r.held] };
+  return { working: [...r.running], queued: [...new Set(r.queue.map((q) => q.agentId))], held: [...r.held], loop: loopInfo(r.loop), resumable: !!r.interrupted?.length };
 }
 
 export function getThread(teamId: string, limit = 200): TeamState & { messages: TeamMessage[]; sessions: Record<string, string> } {
@@ -196,6 +213,7 @@ async function postAndRoute(teamId: string, from: 'user' | typeof BRAIN, text: s
   const r = runtime(team.id);
   r.episode = { turns: 0, per: {} }; // a new message from you gives the team a fresh budget
   r.stopped = false;
+  r.interrupted = undefined; // (new work: what was cut off before is not picked up again)
   // you asked the Brain: it answers in the thread, and nobody else starts unless you named them
   const askBrain = from === 'user' && mentionsBrain(text);
   if (askBrain) void brainTurn(team, msg);
@@ -276,8 +294,9 @@ function settled(teamId: string, stopped = false) {
   } catch {
     /* the Brain's problem is not the team's */
   }
-  // your next /queue message goes now (the Brain's check of the work then waits for it)
+  // your next /queue message goes now (the Brain's check of the work then waits for it), then the loop's
   releaseHeld(teamId);
+  loopSettled(teamId);
 }
 
 // returning: this is a finished handoff coming back (the receiver's own reply won't bounce back again)
@@ -307,6 +326,8 @@ function pump(teamId: string) {
     // budget: stop runaway back-and-forth
     const per = r.episode.per[item.agentId] || 0;
     if (r.episode.turns >= MAX_TURNS || per >= MAX_PER_AGENT) {
+      // (/resume picks these up again, with a fresh budget)
+      r.interrupted = [item, ...r.queue];
       r.queue = [];
       post(team, { from: 'system', text: `Paused: the team took ${r.episode.turns} turns on this. Reply to keep going, or mention someone to continue.` });
       state(team);
@@ -315,9 +336,11 @@ function pump(teamId: string) {
     r.episode.turns++;
     r.episode.per[item.agentId] = per + 1;
     r.running.add(item.agentId);
+    (r.current ||= new Map()).set(item.agentId, item);
     state(team);
     runTurn(team, item).finally(() => {
       r.running.delete(item.agentId);
+      if (r.current?.get(item.agentId) === item) r.current.delete(item.agentId);
       state(team);
       pump(teamId);
       settled(teamId);
@@ -476,7 +499,116 @@ function releaseHeld(teamId: string) {
       r.releasing = false;
       state(team);
       releaseHeld(teamId);
+      fireLoop(teamId);
     });
+}
+
+// ---------- /resume, /resend ----------
+/** Start again the turns that Stop or the turn limit cut off (with a fresh budget). Returns how many. */
+export function resumeTeam(teamId: string): number {
+  const team = getTeam(teamId);
+  if (!team) throw new Error('No such team.');
+  const r = runtime(team.id);
+  const items = (r.interrupted || []).filter((q) => team.members.includes(q.agentId));
+  r.interrupted = undefined;
+  if (!items.length) return 0;
+  r.stopped = false;
+  r.episode = { turns: 0, per: {} };
+  for (const it of items) {
+    const existing = r.queue.find((q) => q.agentId === it.agentId);
+    if (existing) existing.msgIds = [...new Set([...existing.msgIds, ...it.msgIds])];
+    else r.queue.push({ ...it, msgIds: [...it.msgIds] });
+  }
+  const names = [...new Set(items.map((q) => agents.get(q.agentId)?.name).filter(Boolean))];
+  post(team, { from: 'system', text: `Resumed: ${names.join(', ')} pick${names.length === 1 ? 's' : ''} up where they left off.` });
+  log('team', `You resumed ${team.name}`);
+  state(team);
+  pump(team.id);
+  return items.length;
+}
+
+/** Your last message in the team chat (what /resend sends again). */
+export function lastUserMessage(teamId: string): TeamMessage | null {
+  return loadChat(teamId).messages.findLast((m) => m.from === 'user') || null;
+}
+
+/** A line from the dashboard in the thread (the agents see it too). */
+export function postSystem(teamId: string, text: string): void {
+  const team = getTeam(teamId);
+  if (team) post(team, { from: 'system', text });
+}
+
+// ---------- /loop: your message posted again and again ----------
+// A timed loop posts every so often (a due one waits until nobody is working); the other kind posts
+// again once the team has gone quiet after the last one. Held /queue messages go first.
+const loopInfo = (l: TeamLoop | null | undefined): LoopInfo | null => (l ? { text: l.text, every: l.every, times: l.times, done: l.done, next: l.next } : null);
+
+export function startTeamLoop(teamId: string, req: LoopRequest, { attachments = [], route = null }: { attachments?: string[]; route?: RouteFn | null } = {}): LoopInfo {
+  const team = getTeam(teamId);
+  if (!team) throw new Error('No such team.');
+  if (!team.members.length) throw new Error('This team has no agents yet. Add some first.');
+  stopTeamLoop(team.id, null);
+  const r = runtime(team.id);
+  r.loop = { ...req, done: 0, next: null, project: activeProject().id, attachments, route, due: true, timer: null, posted: false };
+  fireLoop(team.id);
+  state(team);
+  return loopInfo(r.loop)!;
+}
+
+/** End the team's loop. why: the line posted in the thread (null: none). */
+export function stopTeamLoop(teamId: string, why: string | null): boolean {
+  const r = runtime(teamId);
+  const l = r.loop;
+  if (!l) return false;
+  if (l.timer) clearTimeout(l.timer);
+  r.loop = null;
+  const team = getTeam(teamId);
+  if (team && why) post(team, { from: 'system', text: why });
+  if (team) state(team);
+  return true;
+}
+
+function fireLoop(teamId: string) {
+  const r = runtime(teamId);
+  const l = r.loop;
+  if (!l || !l.due || !idle(r) || r.held.length) return;
+  const team = getTeam(teamId);
+  // (another project is open now: its threads are the ones in view)
+  if (!team || l.project !== openProject().id) return void stopTeamLoop(teamId, null);
+  l.due = false;
+  l.done++;
+  l.posted = true;
+  l.next = null;
+  r.releasing = true;
+  postUserMessage(team.id, l.text, { route: l.route, attachments: l.attachments })
+    .catch((e: unknown) => stopTeamLoop(teamId, `Loop ended: ${e instanceof Error ? e.message : String(e)}`))
+    .finally(() => {
+      r.releasing = false;
+      state(team);
+    });
+  if (l.every != null && l.done < l.times) {
+    l.next = Date.now() + l.every;
+    l.timer = setTimeout(() => {
+      l.timer = null;
+      l.due = true;
+      fireLoop(teamId);
+    }, l.every);
+    l.timer.unref?.();
+  }
+  state(team);
+}
+
+// The team went quiet: the loop's last message is answered. Done, or the next one (now, or when due).
+function loopSettled(teamId: string) {
+  const r = runtime(teamId);
+  const l = r.loop;
+  if (!l) return;
+  if (l.posted) {
+    l.posted = false;
+    if (l.done >= l.times) return void stopTeamLoop(teamId, `Loop done: sent ${l.times} time${l.times > 1 ? 's' : ''}.`);
+    if (l.every == null) l.due = true;
+  }
+  fireLoop(teamId);
 }
 
 /** Take an agent off the turns it waits for in this project's teams (it was stopped, so it doesn't start
@@ -501,8 +633,12 @@ export function stopTeam(teamId: string) {
   const r = runtime(teamId);
   r.stopped = true;
   r.epoch++;
+  // what was going or waiting: /resume picks it up again
+  const cut = [...(r.current?.values() || []), ...r.queue];
+  if (cut.length) r.interrupted = cut;
   r.queue = [];
   r.held = [];
+  stopTeamLoop(teamId, null);
   stopChildren(`team:${teamId}`);
   r.brainQueue = [];
   if (team) post(team, { from: 'system', text: 'Stopped. Nothing new will start until you write again.' });
@@ -518,6 +654,8 @@ export function clearThread(teamId: string) {
   r.epoch++;
   r.queue = [];
   r.held = [];
+  r.interrupted = undefined;
+  stopTeamLoop(teamId, null);
   r.episode = { turns: 0, per: {} };
   stopChildren(`team:${teamId}`);
   const c = loadChat(teamId);

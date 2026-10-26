@@ -454,3 +454,31 @@ describe('effort and favorite models', () => {
     }
   });
 });
+
+describe('/ commands over the API', () => {
+  const send = async (p: string, body: unknown = {}, method = 'POST') => req(p, { method, headers: json, body: JSON.stringify(body) });
+
+  it('agent chats: /goal shows, /loop is checked, /resume and /resend say when there is nothing to do', async () => {
+    const a = await (await send('/api/agents', { name: 'Cmd agent' })).json();
+    const c = await (await send(`/api/agents/${a.id}/chats`)).json();
+    const base_ = `/api/agents/${a.id}/chats/${c.id}`;
+    expect(await (await send(`${base_}/goal`, { text: '' })).json()).toEqual({ goal: null });
+    const loop = await send(`${base_}/loop`, { text: '10s too fast' });
+    expect(loop.status).toBe(400);
+    expect((await loop.json()).error).toBe('Loop at most once a minute.');
+    expect((await send(`${base_}/resume`)).status).toBe(400);
+    expect((await send(`${base_}/resend`)).status).toBe(400);
+    const chat = await (await req(base_)).json();
+    expect(chat).toMatchObject({ queued: [], loop: null, goal: null });
+    expect(await (await req(`/api/agents/${a.id}/commands`)).json()).toEqual([]);
+    // like every change, commands need the dashboard's header
+    expect((await req(`${base_}/resume`, { method: 'POST' })).status).toBe(403);
+  });
+
+  it('the Brain chat: /resume with nothing stopped says so', async () => {
+    const r = await send('/api/brain/resume', {});
+    expect(r.status).toBe(400);
+    expect((await r.json()).error).toBe('Nothing to resume.');
+    expect(await (await send('/api/brain/stop', { chats: 'not a list' })).json()).toEqual({ stopped: [] });
+  });
+});

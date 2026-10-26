@@ -112,3 +112,83 @@ export function holdQueue<X>({ idle, send, onChange }: { idle: () => boolean; se
     check,
   };
 }
+
+// "/loop …" in the Brain chat: kept in the page like /queue. A timed loop sends every so often (a due one
+// waits until nothing in the chat is working); the other kind sends again once its last one is done.
+export interface LoopSpec {
+  text: string;
+  every: number | null;
+  times: number;
+}
+export interface LoopState {
+  text: string;
+  every: number | null;
+  times: number;
+  done: number;
+  next: number | null;
+}
+export interface ChatLoop<X> {
+  start(spec: LoopSpec, extra: X): void;
+  /** End it (true when one was going). */
+  stop(): boolean;
+  info(): LoopState | null;
+  /** Send the next one if it is due and the chat is idle (call it whenever something finished). */
+  check(): void;
+}
+
+/** send: sends one, resolving once it is on its way. onEnd: the loop finished all its sends. */
+export function chatLoop<X>({ idle, send, onChange, onEnd }: { idle: () => boolean; send: (text: string, extra: X) => Promise<unknown>; onChange: () => void; onEnd: (l: LoopState) => void }): ChatLoop<X> {
+  type Going = LoopState & { extra: X; due: boolean; sending: boolean; timer: ReturnType<typeof setTimeout> | null };
+  let l: Going | null = null;
+  const info = (): LoopState | null => (l ? { text: l.text, every: l.every, times: l.times, done: l.done, next: l.next } : null);
+  const stop = () => {
+    if (!l) return false;
+    if (l.timer) clearTimeout(l.timer);
+    l = null;
+    onChange();
+    return true;
+  };
+  const check = () => {
+    const me = l;
+    if (!me || !me.due || me.sending || !idle()) return;
+    me.due = false;
+    me.sending = true;
+    me.done++;
+    me.next = null;
+    if (me.every != null && me.done < me.times) {
+      const every = me.every;
+      me.next = Date.now() + every;
+      me.timer = setTimeout(() => {
+        me.timer = null;
+        me.due = true;
+        check();
+      }, every);
+    }
+    onChange();
+    void send(me.text, me.extra)
+      .catch(() => {})
+      .finally(() => {
+        me.sending = false;
+        if (l !== me) return;
+        if (me.done >= me.times) {
+          const last = info()!;
+          stop();
+          return onEnd(last);
+        }
+        if (me.every == null) me.due = true;
+        onChange();
+        check();
+      });
+  };
+  return {
+    start(spec, extra) {
+      stop();
+      l = { ...spec, done: 0, next: null, extra, due: true, sending: false, timer: null };
+      onChange();
+      check();
+    },
+    stop,
+    info,
+    check,
+  };
+}

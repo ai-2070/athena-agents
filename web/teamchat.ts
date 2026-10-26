@@ -5,7 +5,9 @@ import { icon } from './icons.ts';
 import { attachTray, restoreDraft } from './attach.ts';
 import { mentionPreviews } from './filepreview.ts';
 import { queuedText } from '../shared/queue.ts';
-import type { Agent, QueuedMessage, RunEvent, Team, TeamMessage, TeamState } from '../shared/types.ts';
+import { parseCommand } from '../shared/commands.ts';
+import { commandChips, slashMenu } from './chatcommands.ts';
+import type { Agent, BrainBrief, LoopInfo, QueuedMessage, RunEvent, Team, TeamMessage, TeamState } from '../shared/types.ts';
 
 /** What the server pushes as a 'team' event (ev.event). */
 export type TeamEvent =
@@ -20,6 +22,8 @@ export interface TeamChatResponse extends TeamState {
   messages: TeamMessage[];
   /** each agent's own session for this team (agentId → chatId) */
   sessions?: Record<string, string>;
+  /** your /goal for the team, while the Brain follows it */
+  goal?: BrainBrief | null;
 }
 /** What renderTeamChat() hands back. */
 export interface TeamChatApi {
@@ -38,6 +42,9 @@ interface TeamChatData {
   queued: string[];
   /** your /queue messages, posted when nobody is working (the server keeps them) */
   held: QueuedMessage[];
+  /** your /loop and /goal here */
+  loop: LoopInfo | null;
+  goal: BrainBrief | null;
   replyTo: TeamMessage | null;
   activity: Record<string, string>;
   /** each agent's own session for this team (agentId → chatId): where its turn streams from */
@@ -59,19 +66,21 @@ export function mergeSnapshot(snapshot: TeamMessage[], live: TeamMessage[], clea
 }
 
 export function renderTeamChat(container: HTMLElement, teamId: string, { height = 360, fill = false }: TeamChatOptions = {}): TeamChatApi {
-  const C: TeamChatData = { team: null, messages: [], working: [], queued: [], held: [], replyTo: null, activity: {}, sessions: {}, turning: new Set(), alive: true };
+  const C: TeamChatData = { team: null, messages: [], working: [], queued: [], held: [], loop: null, goal: null, replyTo: null, activity: {}, sessions: {}, turning: new Set(), alive: true };
   // fill: grow with the window it sits in (the chat window); otherwise a fixed height
   const list = h('div.tc-list', fill ? {} : { style: { maxHeight: `${height}px` } });
   const status = h('div.tc-status');
   const heldEl = h('div.queued-list.compact.hidden');
+  const chipsEl = h('div.cmd-chips.compact.hidden');
   const replyChip = h('div.tc-reply.hidden');
   const PLACEHOLDER = 'Message the team… type @ to mention someone';
   const input = h('textarea.tc-input', { rows: 2, placeholder: PLACEHOLDER });
   const suggest = h('div.tc-suggest.hidden');
+  const slash = slashMenu(input, 'team', { run: () => void send() });
   const sendBtn = h('button.btn.small', { onclick: () => send(), title: 'Send (Enter)' }, icon('send', 14));
   const stopBtn = h('button.btn.danger.small.hidden', { onclick: () => stop(), title: 'Stop the whole team' }, icon('square', 13), 'Stop');
   const tray = attachTray();
-  const root = h(`div.tc${fill ? '.fill' : ''}`, list, heldEl, status, replyChip, tray.el, h('div.tc-compose', tray.picker, h('div.tc-field', input, suggest), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all · @Brain asks the Brain · /queue to send when the team is done · drop or paste files to attach'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat')));
+  const root = h(`div.tc${fill ? '.fill' : ''}`, list, chipsEl, heldEl, status, replyChip, tray.el, h('div.tc-compose', tray.picker, h('div.tc-field', input, suggest, slash.el), sendBtn, stopBtn), h('div.tc-foot', h('span.hint', 'Enter to send · @Name gives it to one agent · @everyone for all · @Brain asks the Brain · / for commands · drop or paste files to attach'), h('button.btn.tiny.ghost', { onclick: clear }, 'Clear chat')));
   mount(container, root);
   const offDrop = tray.dropZone(root, 'Drop files or folders for the team');
 
@@ -231,6 +240,21 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     stopBtn.classList.toggle('hidden', !busy.length);
     input.placeholder = busy.length ? 'The team is working… /queue a message to send when it is done' : PLACEHOLDER;
     drawHeld();
+    drawChips();
+  };
+
+  // your /loop and /goal (× ends one)
+  let chipsSig = '';
+  const drawChips = () => {
+    const sig = JSON.stringify([C.loop, C.goal?.id, C.goal?.followUps]);
+    if (sig === chipsSig) return;
+    chipsSig = sig;
+    commandChips(chipsEl, {
+      loop: C.loop,
+      goal: C.goal,
+      onStopLoop: () => void attempt(() => DEL(`/teams/${teamId}/loop`)),
+      onClearGoal: () => void attempt(() => DEL(`/teams/${teamId}/goal`)).then((r) => r && ((C.goal = null), drawChips())),
+    });
   };
 
   // your /queue messages, in the order they will go (× takes one back)
@@ -326,8 +350,10 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
   input.addEventListener('input', () => {
     sIndex = 0;
     drawSuggest();
+    slash.update();
   });
   input.addEventListener('keydown', (e) => {
+    if (slash.key(e)) return void e.stopPropagation();
     const open = !suggest.classList.contains('hidden');
     const s = open ? suggestions() : null;
     if (open && s && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
@@ -349,8 +375,33 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
     e.stopPropagation();
   });
 
+  // /stop, /resume, /resend, /goal: done now (files in the tray stay for your next message)
+  async function command(name: string, rest: string, typed: string) {
+    input.value = '';
+    slash.update();
+    if (name === 'stop') return stop();
+    if (name === 'goal' && !rest) {
+      const r = await attempt(() => GET<TeamChatResponse>(`/teams/${teamId}/chat`));
+      return void (r && toast(r.goal ? `Goal: ${r.goal.goal || r.goal.text}` : 'No goal yet. Type /goal and what done looks like.'));
+    }
+    type Done = { goal?: BrainBrief | null; queued?: QueuedMessage };
+    const r = await attempt(() => POST<Done>(`/teams/${teamId}/${name}`, name === 'goal' ? { text: rest } : {}));
+    if (!r) return restoreDraft(input, typed);
+    if (name === 'goal') {
+      C.goal = r.goal || null;
+      drawChips();
+    }
+    const held = r.queued;
+    if (held && !C.held.some((q) => q.id === held.id)) {
+      C.held = [...C.held, held];
+      drawHeld();
+    }
+  }
+
   let sending = false;
   async function send() {
+    const now = parseCommand(input.value, 'team');
+    if (now && ['stop', 'resume', 'resend', 'goal'].includes(now.name)) return command(now.name, now.rest, input.value.trim());
     if ((!input.value.trim() && !tray.count()) || sending) return;
     sending = true;
     try {
@@ -360,11 +411,24 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
       if (!attachments) return;
       // what is in the box now (more may have been typed while the files uploaded)
       const typed = input.value.trim();
+      // "/loop [15m] [5x] …": posted again and again (with the files), or /loop off
+      const cmd = parseCommand(typed, 'team');
+      if (cmd?.name === 'loop') {
+        input.value = '';
+        slash.update();
+        const taken = tray.take();
+        const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`/teams/${teamId}/loop`, { text: cmd.rest, attachments }));
+        if (!r) return void (restoreDraft(input, typed), tray.put(taken));
+        C.loop = r.loop;
+        return drawChips();
+      }
+      if (cmd && cmd.name !== 'queue') return command(cmd.name, cmd.rest, typed);
       // "/queue …": posted once nobody is working (now, if nobody is)
       const queued = queuedText(typed);
       const text = queued ?? typed;
       if (!text && !attachments.length) return void (typed && toast('Write the message after /queue'));
       input.value = '';
+      slash.update();
       const taken = tray.take();
       const body = { text, replyTo: C.replyTo?.id || null, attachments };
       type Sent = { message?: TeamMessage; queued?: QueuedMessage };
@@ -398,7 +462,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
       const e = ev.event as TeamEvent;
       if (e.kind === 'message' && !C.messages.some((m) => m.id === e.message.id)) C.messages.push(e.message);
       if (e.kind === 'state') {
-        Object.assign(C, { working: e.working, queued: e.queued, held: e.held || [] });
+        Object.assign(C, { working: e.working, queued: e.queued, held: e.held || [], loop: e.loop || null });
         early.state ||= early.loading;
       }
       if (e.kind === 'cleared') {
@@ -407,6 +471,7 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
         C.sessions = {};
         C.working = [];
         C.held = [];
+        C.loop = null;
         C.turning.clear();
         dropTurns();
         early.cleared ||= early.loading;
@@ -421,6 +486,14 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
         endLive(e.agentId);
       }
       draw();
+    }
+    // your /goal: the Brain followed up, or it is reached, stuck or dropped
+    if (ev.type === 'brief') {
+      const b = ev.brief as BrainBrief;
+      if (b.kind !== 'team' || b.targetId !== teamId || !b.goal) return;
+      if (b.status === 'open') C.goal = b;
+      else if (C.goal?.id === b.id) C.goal = null;
+      drawChips();
     }
     // what a working member is doing right now
     if (ev.type === 'run' && C.working.includes(ev.agentId as string)) {
@@ -443,7 +516,8 @@ export function renderTeamChat(container: HTMLElement, teamId: string, { height 
         // who was already working when this opened: their turns are going now
         for (const id of r.working) C.turning.add(id);
       }
-      if (!early.state && !early.cleared) Object.assign(C, { working: r.working, queued: r.queued, held: r.held || [] });
+      if (!early.state && !early.cleared) Object.assign(C, { working: r.working, queued: r.queued, held: r.held || [], loop: r.loop || null });
+      C.goal ||= r.goal || null;
       draw();
     })
     .catch(() => {})
