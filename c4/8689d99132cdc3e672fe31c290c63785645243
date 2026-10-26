@@ -1,5 +1,7 @@
 tests/server/files.test.ts
   s_438d1f6577d2a3::t_d3d1c5460b8bea 1-85
+  s_438d1f6577d2a3::t_53c01d29a93fae 75
+  s_438d1f6577d2a3::t_a2ddae22300756 1-74,76-85
 public/polish.css
   s_438d1f6577d2a3::t_9de97aa9e75835 558-575
 web/filepreview.ts
@@ -13,6 +15,7 @@ web/dock.ts
 server/index.ts
   s_438d1f6577d2a3::t_d3d1c5460b8bea 41,61,488,501-504
   s_438d1f6577d2a3::t_5491f594b20402 505-507
+  s_438d1f6577d2a3::t_503c3a205cbb75 41,61,488,501-507
 web/teamchat.ts
   s_438d1f6577d2a3::t_0656d0a671c3af 4-5,118
 tests/web/filepreview.test.ts
@@ -20,12 +23,17 @@ tests/web/filepreview.test.ts
   s_438d1f6577d2a3::t_5e7cf6b0855223 41-43
 server/files.ts
   s_438d1f6577d2a3::t_d3d1c5460b8bea 1-55
+  s_438d1f6577d2a3::t_b8af286523d317 1-55
 server/util.ts
   s_438d1f6577d2a3::t_d3d1c5460b8bea 330-350
+  s_438d1f6577d2a3::t_0045964ba490a2 330-350
 web/mentions.ts
   s_438d1f6577d2a3::t_d3d1c5460b8bea 1-48
+  s_438d1f6577d2a3::t_2110a6de9c378c 9-10
+  s_438d1f6577d2a3::t_dd7f5e4046791c 1-8,11-48
 tests/web/mentions.test.ts
   s_438d1f6577d2a3::t_d3d1c5460b8bea 1-39
+  s_438d1f6577d2a3::t_a9961d5d7b9213 1-39
 ---
 {
   "schema_version": "authorship/3.0.0",
