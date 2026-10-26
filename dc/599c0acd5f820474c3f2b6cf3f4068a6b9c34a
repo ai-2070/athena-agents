@@ -1,0 +1,85 @@
+public/polish.css
+  s_d7145df1586b54::t_2489a0d30f20a3 262-282,476-498
+  s_d7145df1586b54::t_a4fb24775cd2b4 499
+shared/types.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 200-241,252-255,279-280,354-368,394
+server/compaction.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 1-524
+web/backup.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 1-149
+web/views/station.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 3467,3635-3644
+server/engines/openai.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 9,72-73,275,290-308,311-313,316-317,327-334,337,352-354,358,363,413-414,418
+tests/server/api.test.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 92-135,237-254
+server/engines/claude.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 40-44,52-58,163-164,181-182,195-197,249-250
+server/skills.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 25-28
+web/compactmark.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 1-79
+tests/server/backup.test.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 1-225
+scripts/build-icons.ts
+  s_d7145df1586b54::t_e15d26f7c4be98 19
+  s_d7145df1586b54::t_ed78428219497e 53-55
+package.json
+  s_d7145df1586b54::t_2489a0d30f20a3 40
+server/store.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 48
+server/tools.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 6,131-144
+  s_d7145df1586b54::t_b90d947ada24bb 145-146
+web/views/chat.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 5-6,36-47,100-101,142,157,161-183,214-215,253,313-315,369-373
+server/engines/index.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 14-15,36-37,40-41,46-47,132-134,176,209,262-269,276-288,291-299,301-315,400-455
+  s_d7145df1586b54::t_95b53fa431c32f 456
+shared/compaction.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 1-30
+tests/web/backup.test.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 1-35
+web/views/settings.ts
+  s_d7145df1586b54::t_80039b203046b5 117-126
+  s_d7145df1586b54::t_2489a0d30f20a3 2,105-115,148-172
+tests/web/core.test.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 2,51-66
+  s_d7145df1586b54::t_a14c9595e212f6 67-68
+web/icons.ts
+  s_d7145df1586b54::t_ed78428219497e 7
+server/backup.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 1-697
+README.md
+  s_d7145df1586b54::t_2489a0d30f20a3 102-124,135-145
+  s_d7145df1586b54::t_2a35e9636ecb36 146
+web/agentchat.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 3-5,75-78,81-85,93-110,157,159-160,175
+web/core.ts
+  s_d7145df1586b54::t_80039b203046b5 328
+  s_d7145df1586b54::t_2489a0d30f20a3 334-343
+tests/server/compaction.test.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 1-513
+server/index.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 42,75-76,81,84,88-89,179-205,341-343,353-355,359-365,741-742,747,752-791,794-798,868-879,947
+web/projects.ts
+  s_d7145df1586b54::t_2489a0d30f20a3 7-8,13,69-71,96,101-183,185-214,229-241,243,288-305,314,317-318,324-357,420
+bun.lock
+  s_d7145df1586b54::t_cd9795d32e5ec3 26,445
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dc599c0acd5f820474c3f2b6cf3f4068a6b9c34a",
+  "prompts": {},
+  "sessions": {
+    "s_d7145df1586b54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0d804681-b982-4507-9130-2735cb25a87a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
