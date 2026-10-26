@@ -75,6 +75,28 @@ come to you.
 Posts to X and Reddit always go to the Outbox unless you turn on auto-post for that account; DMs
 always wait for you.
 
+## Chat memory
+
+Long chats fill up the model's memory, so the dashboard compacts them (Settings > General > Chat
+memory). When an agent's memory of a chat reaches **50%** of the model's context window, the older
+messages become a short history the agent keeps reading, and the **latest 10 messages** (with their
+tool calls) stay in full. Both numbers are settings.
+
+- **Instant compaction** (on by default, after
+  [dsh-compaction-instant](https://github.com/TsFreddie/dsh-compaction-instant)): no model call. It
+  keeps the original words, cut to fit: long messages are shortened, a tool call becomes one line,
+  and tool results are left out. Every entry keeps its `[seq N]`, and the agent can read any of them
+  back in full with the `recall_history` tool. Off: the Brain's model writes a summary instead.
+- **Sized by the context window**: everything it keeps grows with the window, so a 1M-token model
+  keeps far more (about 150k tokens of compacted history and up to 250k tokens of recent messages)
+  than a 200k one. Set the window under Context window if your models have 1M and don't say so.
+- Every message stays in the chat for you. A **— COMPACTED —** mark shows where it happened; open it
+  to read what the agent remembers, and edit the latest one. Compact by hand with **Compact** in a
+  chat, or type `/compact` (`/compact summary` for a summary).
+- API-model agents compact between tool steps too, and once more if the model says the chat is too
+  long. Claude Code, Codex and Hermes start a fresh session from the compacted history. When Claude
+  Code compacts its own memory, that is marked too.
+
 ## Data
 
 Everything lives in `data/` (git-ignored): projects (agents, teams, chats, knowledge), skills,

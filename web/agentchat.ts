@@ -1,6 +1,8 @@
 // One agent's chat, for the floating chat window: its latest conversation, streaming replies,
 // tools it uses (with images), approvals it waits on, and a composer with Stop.
-import { h, mount, state, GET, POST, attempt, md, onEvent, onState, navigate, approvalCard } from './core.ts';
+import { h, mount, state, GET, POST, attempt, md, onEvent, onState, navigate, approvalCard, toast } from './core.ts';
+import { compactionMark } from './compactmark.ts';
+import { latestCompaction, memoryStart } from '../shared/compaction.ts';
 import { icon } from './icons.ts';
 import { modelChip } from './models.ts';
 import type { Chat, ChatItem, ChatSummary, RunEvent } from '../shared/types.ts';
@@ -66,33 +68,41 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
       frame = false;
       if (!C.alive) return;
       const near = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
-      const items = C.items.filter((i) => i.type !== 'meta').slice(-80);
+      const latest = latestCompaction(C.items);
+      const dimBefore = latest ? memoryStart(C.items) : -1;
+      const shown = C.items.map((it, at) => ({ it, at })).filter(({ it }) => it.type !== 'meta').slice(-80);
+      const dim = (el: HTMLElement, at: number) => (at < dimBefore && el.classList.add('compacted'), el);
       mount(
         list,
-        items.length
-          ? items.map((i) => {
-              if (i.type === 'user') return h('div.ac-msg.user', h('div.ac-text', i.text));
-              if (i.type === 'assistant') {
-                const m = md(i.text || '');
-                m.className = 'ac-text';
-                return h('div.ac-msg.agent', m);
-              }
-              if (i.type === 'tool')
-                return h(
-                  'div.ac-tool',
-                  { class: i.isError ? 'err' : i.status === 'running' ? 'run' : '' },
-                  i.status === 'running' ? h('span.dot.busy') : h('span', i.isError ? '✕' : '✓'),
-                  h('span', i.name),
-                  i.images?.length ? h('div.st-imgs', i.images.slice(0, 6).map((src) => h('img', { src }))) : null,
-                );
-              if (i.type === 'error') return h('div.ac-msg.err', i.text);
-              return null;
+        shown.length
+          ? shown.map(({ it: i, at }) => {
+              if (i.type === 'compaction') return compactionMark(i, { chatPath: C.chatId ? `/agents/${agentId}/chats/${C.chatId}` : undefined, latest: latest?.item.id === i.id, busy: !!running(), compact: true, onSaved: () => load(C.chatId) });
+              const el = item(i);
+              return el && dim(el, at);
             })
           : h('div.ac-empty', icon('message-circle', 22), h('p', `Say hi to ${agent()?.name || 'the agent'}.`), h('p.hint', agent()?.specialty || '')),
       );
       if (near) list.scrollTop = list.scrollHeight;
       statusEl.textContent = C.status;
     });
+  };
+  const item = (i: ChatItem): HTMLElement | null => {
+    if (i.type === 'user') return h('div.ac-msg.user', h('div.ac-text', i.text));
+    if (i.type === 'assistant') {
+      const m = md(i.text || '');
+      m.className = 'ac-text';
+      return h('div.ac-msg.agent', m);
+    }
+    if (i.type === 'tool')
+      return h(
+        'div.ac-tool',
+        { class: i.isError ? 'err' : i.status === 'running' ? 'run' : '' },
+        i.status === 'running' ? h('span.dot.busy') : h('span', i.isError ? '✕' : '✓'),
+        h('span', i.name),
+        i.images?.length ? h('div.st-imgs', i.images.slice(0, 6).map((src) => h('img', { src }))) : null,
+      );
+    if (i.type === 'error') return h('div.ac-msg.err', i.text);
+    return null;
   };
 
   // bumped by every load and by send() picking a chat, so a slow, older load can't overwrite a newer choice
@@ -127,8 +137,10 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
       seq++;
       C.chatId = c.id;
     }
-    const r = await attempt(() => POST(`/agents/${agentId}/chats/${C.chatId}/messages`, { text }));
+    const r = await attempt(() => POST<{ runId?: string; compacted?: boolean; message?: string }>(`/agents/${agentId}/chats/${C.chatId}/messages`, { text }));
     if (!r) input.value = text;
+    // (/compact answers here instead of starting a run)
+    else if (!r.runId) toast(r.compacted ? 'Compacted: the agent now remembers the older messages as a short history' : r.message || 'Nothing to compact yet');
   }
   async function stop() {
     const r = running();
@@ -140,6 +152,7 @@ export function renderAgentChat(container: HTMLElement, agentId: string): AgentC
   }
 
   const offEv = onEvent((ev) => {
+    if (C.alive && ev.type === 'compacted' && C.chatId && ev.chatId === C.chatId) return void load(C.chatId);
     if (!C.alive || ev.type !== 'run' || ev.agentId !== agentId) return;
     // only this conversation (team chats and handoffs run in other sessions)
     if (!C.chatId || ev.chatId !== C.chatId) return;

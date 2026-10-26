@@ -36,12 +36,23 @@ interface ClaudeStreamMsg {
   session_id?: string;
   parent_tool_use_id?: string | null;
   event?: { type?: string; message?: { id?: string }; delta?: { type?: string; text: string } };
-  message?: { id?: string; content?: ClaudeBlock[] };
+  message?: { id?: string; content?: ClaudeBlock[]; usage?: ClaudeUsage };
+  /** subtype "compact_boundary": Claude Code compacted its own memory */
+  compact_metadata?: { trigger?: string; pre_tokens?: number };
+  /** on the result: per model, with its context window */
+  modelUsage?: Record<string, { contextWindow?: number }>;
   result?: string;
   is_error?: boolean;
   total_cost_usd?: number;
   model?: string;
   mcp_servers?: { name: string; status?: string }[];
+}
+
+interface ClaudeUsage {
+  input_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+  output_tokens?: number;
 }
 
 let versionCache: string | null = null;
@@ -140,6 +151,8 @@ async function runClaude({ agent, chat, text, signal, onEvent, files }: Pick<Eng
   const streamed = new Set<string | undefined>();
   let currentMsg: string | null = null;
   let gotSession = false;
+  // how full Claude's memory was after its latest message (its own messages only, not sub-agents')
+  let context = 0;
 
   const handle = (msg: ClaudeStreamMsg) => {
     if (msg.session_id && !gotSession) {
@@ -156,6 +169,8 @@ async function runClaude({ agent, chat, text, signal, onEvent, files }: Pick<Eng
       }
     } else if (msg.type === 'assistant') {
       const m: NonNullable<ClaudeStreamMsg['message']> = msg.message || {};
+      const u = m.usage;
+      if (u) context = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.output_tokens || 0) || context;
       for (const block of m.content || []) {
         if (block.type === 'text' && !streamed.has(m.id)) onEvent({ kind: 'text', text: block.text });
         if (block.type === 'tool_use') onEvent({ kind: 'tool', id: block.id, name: prettyTool(block.name), args: block.input });
@@ -168,6 +183,9 @@ async function runClaude({ agent, chat, text, signal, onEvent, files }: Pick<Eng
       }
     } else if (msg.type === 'result') {
       result = msg;
+    } else if (msg.type === 'system' && msg.subtype === 'compact_boundary') {
+      context = 0;
+      onEvent({ kind: 'compacted', trigger: msg.compact_metadata?.trigger, tokensBefore: msg.compact_metadata?.pre_tokens });
     } else if (msg.type === 'system' && msg.subtype === 'init') {
       if (msg.model) onEvent({ kind: 'model', model: msg.model });
       const mine = new Set(['dashboard', ...(agent.mcpServers || [])]);
@@ -219,7 +237,8 @@ async function runClaude({ agent, chat, text, signal, onEvent, files }: Pick<Eng
     throw new Error(`Claude Code exited (${code}) without an answer.${stderr ? `\n${stderr.trim().slice(-1500)}` : ''}`);
   }
   if (result.is_error) throw new Error(result.result || `Claude Code reported an error (${result.subtype}).`);
-  return { text: result.result || '', cost: agent.claudeAuth && agent.claudeAuth !== 'login' ? result.total_cost_usd || 0 : 0 };
+  const window = Math.max(0, ...Object.values(result.modelUsage || {}).map((m) => Number(m?.contextWindow) || 0));
+  return { text: result.result || '', cost: agent.claudeAuth && agent.claudeAuth !== 'login' ? result.total_cost_usd || 0 : 0, ...(context ? { context } : {}), ...(window ? { window } : {}) };
 }
 
 function prettyTool(name: string): string {

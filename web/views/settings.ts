@@ -133,6 +133,31 @@ async function draw(): Promise<void> {
             field('Cost limit per message (USD)', h('input', { type: 'number', min: 0, step: '0.5', value: s.costLimitUsdPerRun, oninput: (e) => setP('costLimitUsdPerRun', Number(e.target.value)) }), 'OpenRouter runs stop past this. 0 = no limit.'),
           ),
         ),
+        (() => {
+          // Settings > Chat memory: compacting long chats (server/compaction.ts)
+          const c = s.compaction;
+          return h(
+            'div.panel#chat-memory',
+            h('div.panel-head', h('h2', 'Chat memory')),
+            h('p.hint', 'Long chats fill up the model’s memory. Compacting turns the older messages into a short history the agent keeps reading, and keeps the latest messages in full. Every message stays in the chat for you, marked “COMPACTED” where it happened; open the mark to read or edit what the agent remembers. You can also press Compact in a chat, or type /compact.'),
+            h('label.row.mt', toggle(c.auto, (on) => setP('compaction.auto', on)), h('span', 'Compact long chats automatically')),
+            h('label.row.mt', toggle(c.instant, (on) => setP('compaction.instant', on)), h('span', 'Instant compaction')),
+            h('p.hint', 'Instant keeps the original words, cut to fit: long messages are shortened, tool calls become one line and their results are left out (the agent can read any of them back). No model call, so it takes no time and costs nothing. Off: the Brain’s model writes a summary instead (slower, smaller).'),
+            h(
+              'div.grid-2.mt',
+              field('Messages kept in full', h('input', { type: 'number', min: 0, max: 1000, value: c.keepMessages, oninput: (e) => setP('compaction.keepMessages', Number(e.target.value)) }), 'The latest messages (yours and the agent’s, with their tool calls) that stay word for word. The rest is compacted.'),
+              field('Compact at (% of the context window)', h('input', { type: 'number', min: 10, max: 95, value: c.thresholdPercent, oninput: (e) => setP('compaction.thresholdPercent', Number(e.target.value)) }), 'Compacts when the agent’s memory of a chat reaches this share of the model’s context window.'),
+            ),
+            h(
+              'div.mt',
+              field(
+                'Context window (tokens)',
+                h('input', { type: 'number', min: 0, step: 1000, value: c.windowTokens || '', placeholder: 'auto', oninput: (e) => setP('compaction.windowTokens', Number(e.target.value) || 0) }),
+                'Leave empty to use what each engine or model says (Claude Code 200k, or 1M for a “[1m]” model). Set 1000000 if your models have a 1M-token window: everything the compaction keeps grows with the window.',
+              ),
+            ),
+          );
+        })(),
         h('div.row', h('button.btn', { onclick: save }, 'Save settings')),
       ),
       h(

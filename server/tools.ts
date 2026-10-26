@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { HOME, ROOT, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which, insideRoots } from './util.ts';
-import { agents as agentStore, getSettings, emit, log } from './store.ts';
+import { agents as agentStore, chats, getSettings, emit, log } from './store.ts';
 import { requestApproval } from './approvals.ts';
 import { discoverPrograms, launchProgram, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
@@ -124,6 +124,22 @@ const TOOLS: ToolDef[] = [
       if (!s) return { text: `There is no skill called "${name}". Your skills are listed in your instructions.`, isError: true };
       if (file) return { text: `# ${s.name} / ${file}\n\n${skills.readSkillFile(s.slug, file)}` };
       return { text: `# Skill: ${s.name}\n${s.description}\n\n${s.body}${s.files.length ? `\n\n---\nFiles with this skill (read with read_skill name="${s.slug}" file="..."): ${s.files.map((f) => f.path).join(', ')}` : ''}` };
+    },
+  },
+  // ---------- chat history (every agent; what a compaction left out) ----------
+  {
+    name: 'recall_history',
+    group: 'core',
+    risk: 'none',
+    description: 'Read earlier parts of this chat word for word. After a chat is compacted you see its older history as "[seq N]" entries with long messages cut and tool results left out: pass seq=N for one entry in full (a message, or a tool call with its whole result), from/to for a range (up to 40), or query to search the whole chat.',
+    parameters: obj({ seq: { type: 'number', description: 'One entry, by its seq' }, from: { type: 'number', description: 'First seq of a range' }, to: { type: 'number', description: 'Last seq of a range' }, query: str('Words to search for') }),
+    run: async (args, ctx) => {
+      const { runInfo, liveChat } = await import('./engines/index.ts');
+      const { recall } = await import('./compaction.ts');
+      const run = runInfo(ctx.runId);
+      const chat = run ? liveChat(run.chatId) || chats.get(run.agentId, run.chatId) : null;
+      if (!chat) return { text: 'recall_history only works inside a dashboard chat.', isError: true };
+      return recall(chat.items, args);
     },
   },
   // ---------- programs ----------
