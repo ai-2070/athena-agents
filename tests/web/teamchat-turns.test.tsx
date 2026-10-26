@@ -147,4 +147,31 @@ describe('team chat turns', () => {
     expect(el.querySelector('.tc-live')).toBeNull();
     expect(el.querySelector('.tc-work')).toBeNull();
   });
+
+  it('no flicker: messages are kept, never rebuilt or taken out, as events and streamed words come', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    for (let i = 0; i < 100 && el.querySelectorAll('.tc-msg:not(.tc-live)').length < 2; i++) await settle();
+    const list = el.querySelector('.tc-list')!;
+    const before = [...list.querySelectorAll(':scope > .tc-msg:not(.tc-live)')];
+    expect(before).toHaveLength(2);
+    // watch for any message leaving the list (that is what replays its entrance)
+    const removed: Node[] = [];
+    const watch = new MutationObserver((rs) => rs.forEach((r) => removed.push(...r.removedNodes)));
+    watch.observe(list, { childList: true });
+    // a working agent's words (each one used to redraw the whole thread), then a new message
+    for (const w of ['Rendering', ' the', ' thumbnail']) await act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'run', ts: 0, runId: 'r', agentId: 'maker', chatId: 'maker-chat', event: { kind: 'text', text: w } }) }));
+    await teamEvent({ kind: 'message', message: { id: 'm2', ts: 2, from: 'maker', text: 'Done, saved as thumb.png.', mentions: [] } });
+    await settle();
+    watch.disconnect();
+    const after = [...list.querySelectorAll(':scope > .tc-msg:not(.tc-live)')];
+    expect(after).toHaveLength(3);
+    // the same nodes, in place, and none taken out
+    expect(after.slice(0, 2)).toEqual(before);
+    expect(after[0]).toBe(before[0]);
+    expect(removed.filter((n) => before.includes(n as Element))).toEqual([]);
+    // the status line still says what the working agent does
+    expect(el.querySelector('.tc-status')!.textContent).toContain('Maker is working · writing');
+  });
 });
