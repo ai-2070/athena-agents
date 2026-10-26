@@ -13,6 +13,7 @@ import * as terminals from './views/terminals.ts';
 import * as settings from './views/settings.ts';
 import * as setup from './views/setup.ts';
 import * as skillsView from './views/skills.ts';
+import * as routinesView from './views/routines.ts';
 import { initDock } from './dock.ts';
 import { applyLook, applySavedLook } from './look.ts';
 
@@ -53,6 +54,7 @@ const NAV: NavLink[] = [
   { path: 'agents', label: 'Agents', ico: 'bot', view: agents },
   { path: 'library', label: 'Library', ico: 'library-big', view: library },
   { path: 'skills', label: 'Skills', ico: 'puzzle', view: skillsView },
+  { path: 'routines', label: 'Routines', ico: 'repeat', view: routinesView },
   { path: 'settings', label: 'Settings', ico: 'settings', view: setup, count: () => state.data?.outboxPending },
 ];
 const HIDDEN: Route[] = [

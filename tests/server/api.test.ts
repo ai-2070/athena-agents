@@ -59,6 +59,18 @@ describe('API', () => {
     expect(list.find((x: { id: string }) => x.id === t.id)).toMatchObject({ name: 'Crew', members: [a.id] });
   });
 
+  it('makes and edits a routine that mentions an agent and a team', async () => {
+    const r = await (await req('/api/routines', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Daily' }) })).json();
+    // nobody mentioned yet: running it is a clear 400, not a server fault
+    expect((await req(`/api/routines/${r.id}/run`, { method: 'POST', headers: json, body: '{}' })).status).toBe(400);
+    const saved = await (await req(`/api/routines/${r.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ text: 'Have @Tester and @Crew check in.' }) })).json();
+    expect(saved.mentions.map((m: { kind: string; name: string }) => `${m.kind}:${m.name}`)).toEqual(['agent:Tester', 'team:Crew']);
+    const list = await (await req('/api/routines')).json();
+    expect(list.find((x: { id: string }) => x.id === r.id)).toMatchObject({ name: 'Daily', lastRun: null });
+    expect((await req('/api/routines/nope')).status).toBe(404);
+    expect((await req(`/api/routines/${r.id}`, { method: 'DELETE', headers: json })).status).toBe(200);
+  });
+
   it('never sends secrets to the browser', async () => {
     await req('/api/secrets', { method: 'POST', headers: json, body: JSON.stringify({ key: 'openrouterKey', value: 'sk-or-v1-supersecretvalue9999' }) });
     const text = await (await req('/api/state')).text();

@@ -36,7 +36,8 @@ interface QueueItem {
 interface Runtime {
   queue: QueueItem[];
   running: Set<string>;
-  episode: { turns: number; per: Record<string, number> };
+  /** skills: what the message that started this episode adds (a routine's skills) */
+  episode: { turns: number; per: Record<string, number>; skills?: string[] };
   stopped?: boolean;
   epoch: number; // bumped by stop and clear: turns started before then are dropped
 }
@@ -135,7 +136,8 @@ export function parseMentions(team: Team, text: unknown, exclude: string | null 
 }
 
 // ---------- you write in the team chat ----------
-export async function postUserMessage(teamId: string, text: string | null | undefined, { replyTo = null, route = null }: { replyTo?: string | null; route?: RouteFn | null } = {}): Promise<TeamMessage> {
+// skills: given to every member for the work this message starts (a routine's skills)
+export async function postUserMessage(teamId: string, text: string | null | undefined, { replyTo = null, route = null, skills = [] }: { replyTo?: string | null; route?: RouteFn | null; skills?: string[] } = {}): Promise<TeamMessage> {
   const team = getTeam(teamId);
   if (!team) throw new Error('No such team.');
   if (!team.members.length) throw new Error('This team has no agents yet. Add some first.');
@@ -144,7 +146,7 @@ export async function postUserMessage(teamId: string, text: string | null | unde
   const mentions = parseMentions(team, text);
   const msg = post(team, { from: 'user', text, mentions, replyTo });
   const r = runtime(team.id);
-  r.episode = { turns: 0, per: {} }; // a new message from you gives the team a fresh budget
+  r.episode = { turns: 0, per: {}, skills }; // a new message from you gives the team a fresh budget
   r.stopped = false;
   let targets = mentions;
   let why = '';
@@ -232,6 +234,7 @@ async function runTurn(team: Team, item: QueueItem) {
   if (!agent) return;
   const pid = activeProject().id;
   const epoch = runtime(team.id).epoch;
+  const episodeSkills = runtime(team.id).episode.skills;
   const c = loadChat(team.id);
   // the agent's own memory of this team: one chat session per agent per team
   let chatId = c.sessions[agent.id];
@@ -255,7 +258,7 @@ async function runTurn(team: Team, item: QueueItem) {
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'start' } });
   let text = '';
   try {
-    text = await askAgent(agent, prompt, { depth: 1, from: `team ${team.name}`, chatId, parentRunId: `team:${team.id}`, extra: { ...(team.access || {}), skills: team.skills || [] } });
+    text = await askAgent(agent, prompt, { depth: 1, from: `team ${team.name}`, chatId, parentRunId: `team:${team.id}`, extra: { ...(team.access || {}), skills: [...new Set([...(team.skills || []), ...(episodeSkills || [])])] } });
   } catch (e) {
     text = `(I hit a problem: ${(e as Error).message})`;
   }

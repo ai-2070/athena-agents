@@ -1,4 +1,4 @@
-// Auto-save: every project keeps a copy of its agents, teams, layout, team chats, Brain chat and
+// Auto-save: every project keeps a copy of its agents, teams, routines, layout, team chats, Brain chat and
 // agent knowledge files inside its own folder (<project folder>/.dashboard). A few seconds after
 // any change it is saved again. Opening that folder as a project (here or on another PC) restores it.
 // Keys and tokens are never written there.
@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { bus, listProjects, activeProject, log } from './store.ts';
 import { dataPath, ensureDir, exists, readJSON, writeJSON } from './util.ts';
-import type { Agent, Team } from '../shared/types.ts';
+import type { Agent, Routine, Team } from '../shared/types.ts';
 
 /** The last auto-save of a project (AppState.projectSaved). */
 export interface SaveStatus {
@@ -24,6 +24,7 @@ export interface SavedProjectFile {
   project: { name?: string; description?: string; repo?: string; skills?: string[] };
   agents: Agent[];
   teams: Team[];
+  routines?: Routine[];
   layout: unknown;
   brainChat: unknown;
 }
@@ -152,6 +153,7 @@ export function saveProject(id: string): SaveStatus | null {
       project: { name: p.name, description: p.description || '', repo: p.repo || '', skills: p.skills || [] },
       agents,
       teams,
+      routines: readAll<Routine>(projectDir(id, 'routines')),
       layout: readJSON<unknown>(projectDir(id, 'layout.json'), {}),
       brainChat: readJSON<unknown>(projectDir(id, 'brain-chat.json'), { messages: [] }),
     });
@@ -209,6 +211,7 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   const safe = (x: { id?: unknown } | null | undefined) => typeof x?.id === 'string' && /^[\w.-]+$/.test(x.id);
   for (const a of (j.agents || []).filter(safe)) writeJSON(projectDir(id, 'agents', `${a.id}.json`), a);
   for (const t of (j.teams || []).filter(safe)) writeJSON(projectDir(id, 'workflows', `${t.id}.json`), t);
+  for (const r of (j.routines || []).filter(safe)) writeJSON(projectDir(id, 'routines', `${r.id}.json`), r);
   if (j.layout) writeJSON(projectDir(id, 'layout.json'), j.layout);
   if (j.brainChat) writeJSON(projectDir(id, 'brain-chat.json'), j.brainChat);
   const tc = path.join(folder, DIR, 'teamchats');
@@ -223,7 +226,7 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
 }
 
 // Save after anything in the project changes.
-const WATCH = new Set(['agents', 'workflows', 'layout', 'team', 'knowledge', 'brain-chat']);
+const WATCH = new Set(['agents', 'workflows', 'routines', 'layout', 'team', 'knowledge', 'brain-chat']);
 export function startAutoSave() {
   bus.on('event', (ev) => {
     if (WATCH.has(ev.type)) saveSoon(activeProject().id);
