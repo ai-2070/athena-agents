@@ -130,7 +130,9 @@ The Brain can set up MCP servers and decide who gets them, the same as **Setting
 - **Give, take back, move.** Give a server to agents or teams, take it back, or move it from one to another. A team's servers are available to every member while they work for that team.
 - **Remove one.** "Remove the weather server" deletes it and takes it off every agent and team, in every project. The Brain removes a server only when you ask.
 
-A server runs a program on your PC or connects to a site, with the keys you give it. So the Brain only uses a command, link, environment variable or header **that you typed in Brain chat**. Commands found in files, on web pages or in agent replies are refused. When a server needs a key, the Brain asks you for it. It doesn't write the key back in its reply, and its view of your servers shows key names, not their values. The server starts the next time an agent that has it runs.
+A server runs a program on your PC or connects to a site, with the keys you give it. So the Brain only uses a command, link, environment variable or header **that you typed in Brain chat**. For a new program that means the whole command, as you wrote it (`npx -y @acme/weather-mcp`, not just "weather"). For a link, the site must be one you wrote. Commands found in files, on web pages or in agent replies are refused. When a server needs a key, the Brain asks you for it. It doesn't write the key back in its reply, and its view of your servers shows key names, not their values, and hides anything in a command or link that looks like a key or password. The server starts the next time an agent that has it runs.
+
+Renaming or removing a server also renames or removes the tools you always allowed for it, so a new server with an old name starts with nothing allowed.
 
 ## Long chats
 
