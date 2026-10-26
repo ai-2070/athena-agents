@@ -4,7 +4,7 @@ import { h, mount, clear, state, GET, POST, PUT, attempt, md, onEvent, onState, 
 import { openBranchBuilder } from './builder.ts';
 import { icon, logo } from './icons.ts';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.ts';
-import { brainQueue } from './brainqueue.ts';
+import { brainQueue, latestLoad } from './brainqueue.ts';
 import type { Child } from './core.ts';
 import type { AgentDraft, BranchDesign } from './builder.ts';
 import type { TeamEvent } from './teamchat.ts';
@@ -114,9 +114,13 @@ export function askBrain(text: string): void {
 }
 
 // The last few turns with the Brain, so the chat picks up where it left off.
+// (only the newest load counts: one from a project you have since left must not fill this one's chat)
+const historyLoads = latestLoad();
 async function loadHistory() {
+  const current = historyLoads.start();
+  const project = D.project;
   const msgs = await GET<BrainHistoryEntry[]>('/brain/history').catch((): BrainHistoryEntry[] => []);
-  if (D.items.length) return;
+  if (!current() || project !== D.project || D.items.length) return;
   for (const m of msgs.slice(-6)) D.items.push(m.role === 'user' ? { id: `h${m.ts}u`, kind: 'user', text: m.text } : { id: `h${m.ts}b`, kind: 'brain', answer: m.text, done: [], old: true });
   draw();
 }
@@ -125,6 +129,7 @@ async function newConversation() {
   // keep the transcript if the Brain still remembers it
   if (!(await attempt(() => POST('/brain/clear')))) return;
   brainAsks.reset(); // answers still on their way belong to the old conversation
+  historyLoads.reset();
   D.items = [];
   draw();
 }
@@ -304,6 +309,8 @@ async function send() {
   const input = D.input!;
   const text = input.value.trim();
   if (!text) return;
+  // a Brain message belongs to a project: wait until the page knows which one is open
+  if (D.target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Send it again in a moment.');
   input.value = '';
   add({ kind: 'user', text });
   const t = D.target;
@@ -313,7 +320,7 @@ async function send() {
   if (t === 'new-branch') return newBranch(text);
   // The Brain: answers, changes the roster, or hands the work on
   const thinking = add({ kind: 'note', text: 'The Brain is looking at the project…', busy: true });
-  const turn = await brainAsks.ask(text, D.project || openProject(), openProject);
+  const turn = await brainAsks.ask(text, D.project || openProject(), () => D.project || openProject());
   const at = D.items.indexOf(thinking);
   if (at !== -1) D.items.splice(at, 1);
   // a new conversation or another project since: this answer is no longer wanted here

@@ -6,7 +6,8 @@
 export type BrainTurn<T> = { kind: 'answer'; answer: T } | { kind: 'error'; error: string } | { kind: 'stale' };
 
 export interface BrainQueue<T> {
-  /** Send text, typed in project (null when not known). currentProject says which project is open now. */
+  /** Send text, typed in project. currentProject says which project is open now. A message typed before
+   *  the project was known (null) goes stale as soon as one is: it was never meant for that project. */
   ask(text: string, project: string | null, currentProject: () => string | null): Promise<BrainTurn<T>>;
   /** Forget every waiting and pending message (new conversation, other project). */
   reset(): void;
@@ -18,7 +19,7 @@ export function brainQueue<T>(post: (text: string, project: string | null) => Pr
   return {
     ask(text, project, currentProject) {
       const mine = conversation;
-      const stale = () => mine !== conversation || (project != null && currentProject() !== project);
+      const stale = () => mine !== conversation || currentProject() !== project;
       const next = turn.then(async (): Promise<BrainTurn<T>> => {
         if (stale()) return { kind: 'stale' };
         try {
@@ -33,6 +34,21 @@ export function brainQueue<T>(post: (text: string, project: string | null) => Pr
     },
     reset() {
       conversation++;
+    },
+  };
+}
+
+// Of overlapping loads (e.g. the Brain chat history while you switch projects), only the newest may
+// fill the view: start() gives each load a check that stays true until a newer load starts or reset().
+export function latestLoad(): { start(): () => boolean; reset(): void } {
+  let n = 0;
+  return {
+    start() {
+      const mine = ++n;
+      return () => mine === n;
+    },
+    reset() {
+      n++;
     },
   };
 }
