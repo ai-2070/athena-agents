@@ -34,11 +34,12 @@ import * as overseer from './overseer.ts';
 import * as projectSync from './projectsync.ts';
 import * as skills from './skills.ts';
 import * as learning from './learning.ts';
+import * as history from './history.ts';
 import * as presets from './presets.ts';
 import * as uploads from './uploads.ts';
 import * as routinesMod from './routines.ts';
 import type { RestoreResult } from './projectsync.ts';
-import type { Agent, AppState, Project, ProviderUsage, Routine, SecretKey, Team } from '../shared/types.ts';
+import type { Agent, AppState, Project, ProviderUsage, Routine, SecretKey, Team, VersionKind } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
@@ -346,6 +347,17 @@ del('/api/skills/:slug', async ({ slug }) => {
 get('/api/brain/skills', async () => ({ skills: skills.brainSkillSlugs() }));
 put<{ skills?: unknown }>('/api/brain/skills', async (_p, body) => ({ skills: skills.setBrainSkills(body?.skills) }));
 post<{ name: string }>('/api/skills/import', async (_p, body) => skills.importClaudeSkill(body.name));
+
+// ---------- versions of skills, agents and teams ----------
+const versionKind = (k: string): VersionKind => {
+  if (!history.isVersionKind(k)) throw new HttpError(404, 'Versions are kept for skills, agents and teams.');
+  return k;
+};
+get('/api/versions/:kind', async ({ kind }) => history.deletedItems(versionKind(kind)));
+post('/api/versions/:kind/:id/undelete', async ({ kind, id }) => history.undelete(versionKind(kind), id));
+get('/api/versions/:kind/:id', async ({ kind, id }) => history.historyOf(versionKind(kind), id));
+get('/api/versions/:kind/:id/:vid', async ({ kind, id, vid }) => history.versionOf(versionKind(kind), id, vid));
+post('/api/versions/:kind/:id/:vid/restore', async ({ kind, id, vid }) => history.restoreVersion(versionKind(kind), id, vid));
 
 // ---------- presets & clones ----------
 get('/api/presets', async () => presets.listPresets());

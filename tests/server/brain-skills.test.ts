@@ -1,12 +1,11 @@
 // The Brain manages skills: makes, edits (whole text only once it has seen it), gives, takes back and
 // deletes them, and comes with the Self-improvement skill.
-import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { applyActions, skillTexts, skillsNamedIn } from '../../server/overseer.ts';
 import * as skills from '../../server/skills.ts';
 import { agents, workflows, activeProject, getSettings, saveSettings } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
-import { dataPath } from '../../server/util.ts';
+import { listVersions } from '../../server/versions.ts';
 
 const body = '## Steps\n1. Open the brief.\n2. Write the draft.';
 
@@ -38,9 +37,10 @@ describe('the Brain makes and edits skills', () => {
     const seen = applyActions([{ do: 'update_skill', skill: 'render-checklist', body: 'New steps.', description: 'Use before any render.' }], activeProject(), { seenSkills: new Set(['render-checklist']) });
     expect(seen.done[0]).toMatchObject({ kind: 'skill', text: expect.stringContaining('instructions') });
     expect(skills.getSkill('render-checklist')).toMatchObject({ body: expect.stringContaining('New steps.'), description: 'Use before any render.' });
-    const hist = fs.readdirSync(dataPath('skills', 'render-checklist', '.history'));
-    expect(hist.length).toBe(2);
-    // the history is not one of the skill's files
+    // the version from before the Brain's edits is kept (its edits close together count as one change)
+    const kept = listVersions<{ body: string }>(skills.skillVersionsDir('render-checklist'));
+    expect(kept).toHaveLength(1);
+    expect(kept[0]).toMatchObject({ by: 'brain', item: { body: 'Check the camera.' } });
     expect(skills.getSkill('render-checklist')?.files).toEqual([]);
   });
 

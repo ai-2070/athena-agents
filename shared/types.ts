@@ -453,6 +453,43 @@ export interface PresetListing {
   savedAt: number;
 }
 
+// ---------- versions (skills, agents, teams) ----------
+export type VersionKind = 'skill' | 'agent' | 'team';
+/** One kept version, as GET /api/versions/:kind/:id lists it. */
+export interface VersionEntry {
+  id: string;
+  /** when it was replaced or deleted */
+  at: number;
+  /** who replaced it */
+  by: 'you' | 'brain';
+  deleted?: boolean;
+  note?: string;
+  /** what the next version (or the current one) changed in it */
+  changes: string[];
+}
+/** GET /api/versions/:kind/:id */
+export interface VersionHistory {
+  kind: VersionKind;
+  id: string;
+  name: string;
+  /** the current one as text, or null when it's deleted */
+  current: string | null;
+  versions: VersionEntry[];
+}
+/** GET /api/versions/:kind/:id/:vid: one version as text. */
+export interface VersionDetail extends VersionEntry {
+  name: string;
+  text: string;
+}
+/** GET /api/versions/:kind: what was deleted and can come back. */
+export interface DeletedItem {
+  kind: VersionKind;
+  id: string;
+  name: string;
+  at: number;
+  by: 'you' | 'brain';
+}
+
 // ---------- the Brain ----------
 export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string };
 export interface BrainDelegate {

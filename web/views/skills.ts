@@ -5,6 +5,7 @@ import { h, mount, state, GET, POST, PUT, DEL, attempt, modal, field, toast, ref
 import { icon } from '../icons.ts';
 import { uiZoom } from '../look.ts';
 import { skillPicker, loadSkills, forgetSkills } from '../skillpick.ts';
+import { historyButton, deletedButton } from '../history.ts';
 import type { Agent, ClaudeSkill, Project, ServerEvent, Skill, SkillListing, TeamListing } from '../../shared/types.ts';
 import type { Child, ModalHandle } from '../core.ts';
 
@@ -107,6 +108,7 @@ function draw() {
       h(
         'div.row',
         { style: { gap: '8px' } },
+        deletedButton(['skill'], () => void reload()),
         toImport.length ? h('button.btn.ghost.small', { onclick: openImport }, icon('download', 14), `Import from Claude Code (${toImport.length})`) : null,
         h('button.btn.small', { onclick: () => openEditor() }, icon('plus', 14), 'New skill'),
       ),
@@ -210,9 +212,14 @@ async function openEditor(slug: string | null = null) {
       field('When to use it', desc, 'Agents decide from this line whether the skill fits, so be specific.'),
       field('Instructions', body, 'Markdown. Steps, rules, examples, what good output looks like. The agent reads this when it uses the skill.'),
       s?.files?.length ? h('div', h('div.label', `Files with this skill (${s.files.length})`), h('div.skill-files', s.files.map((f) => h('span.pill', f.path)))) : null,
-      s ? h('p.hint', `Saved as data/skills/${s.slug}/SKILL.md, in the same format Claude Code uses. When the Brain changes it, the old version is kept in data/skills/${s.slug}/.history.`) : null,
+      s ? h('p.hint', `Saved as data/skills/${s.slug}/SKILL.md, in the same format Claude Code uses. Every change keeps the version from before it (History).`) : null,
     ),
-    foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), h('button.btn', { onclick: (e) => save(e.currentTarget) }, slug ? 'Save' : 'Add skill')],
+    foot: [
+      slug ? historyButton('skill', slug, () => (m.close(), void reload(), void openEditor(slug))) : null,
+      h('span.grow'),
+      h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'),
+      h('button.btn', { onclick: (e) => save(e.currentTarget) }, slug ? 'Save' : 'Add skill'),
+    ],
   });
   setTimeout(() => (slug ? body : name).focus(), 40);
 }

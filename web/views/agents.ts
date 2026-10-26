@@ -1,6 +1,7 @@
 // Agents: your team, and the editor for one agent.
-import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, avatar, engineBadge, navigate, seg, chipSet, field, select, toast, confirmBox, promptBox, onState, isRunning, copy, ago } from '../core.ts';
+import { h, mount, clear, state, GET, POST, PUT, DEL, attempt, refreshSoon, avatar, engineBadge, navigate, seg, chipSet, field, select, toast, confirmBox, promptBox, onState, isRunning, copy, ago } from '../core.ts';
 import { skillPicker } from '../skillpick.ts';
+import { historyButton, deletedButton } from '../history.ts';
 import type { Option } from '../core.ts';
 import type { ModelListing } from '../models.ts';
 import type { Agent, Autonomy, EngineStatus, Team, Terminal } from '../../shared/types.ts';
@@ -85,7 +86,7 @@ function drawList(): void {
       'div.row.between',
       { style: { marginBottom: '16px' } },
       h('div', { style: { width: 'min(360px, 100%)' } }, search),
-      h('div.row', h('a.btn.ghost', { href: '#/library' }, 'Hire from library'), h('button.btn', { onclick: createAgent }, '+ New agent')),
+      h('div.row', deletedButton(['agent', 'team'], () => refreshSoon(0)), h('a.btn.ghost', { href: '#/library' }, 'Hire from library'), h('button.btn', { onclick: createAgent }, '+ New agent')),
     ),
     grid,
   );
@@ -373,6 +374,11 @@ async function renderEditor(el: HTMLElement, id: string): Promise<void> {
               const c = await attempt(() => POST<Agent>(`/agents/${id}/duplicate`), 'Duplicated');
               if (c) navigate(`#/agents/${c.id}/edit`);
             } }, 'Clone'),
+            historyButton('agent', id, () => {
+              // put back: show it as it is now (changes not saved yet are dropped)
+              dirty = false;
+              void renderEditor(el, id);
+            }),
             h('button.btn.ghost.small', { title: 'Keep it as a template you can create again in any project (Library > Your presets)', onclick: () => attempt(() => POST(`/presets/agent/${id}`), `Saved ${a.name} as a preset`) }, 'Save as preset'),
             h('button.btn.ghost.small', { title: 'Write it to ~/.claude/agents so any Claude Code session can use it', onclick: () => attempt(() => POST<{ file: string }>(`/agents/${id}/export-claude`), (r) => `Saved as ${r.file}`) }, 'Install in Claude Code'),
             h('button.btn.danger.small', { onclick: async () => {

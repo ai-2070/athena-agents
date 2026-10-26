@@ -8,6 +8,7 @@ import path from 'node:path';
 import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME } from './util.ts';
 import { activeProject, agents, workflows, listProjects, getSettings, saveSettings, log } from './store.ts';
 import { updateProject } from './projects.ts';
+import { keepVersion } from './versions.ts';
 import type { ClaudeSkill, Skill, SkillFile, SkillListing } from '../shared/types.ts';
 
 /** A skill as getSkill returns it (dir is cleared so it never reaches the browser). */
@@ -111,27 +112,30 @@ export function claudeSkills(): ClaudeSkill[] {
 
 export const SKILL_BODY_MAX = 60000;
 
-// keep: save the old SKILL.md in the skill's .history folder first (the Brain's edits can be undone by hand)
-export function saveSkill({ slug, name, description, body }: { slug?: string; name?: string; description?: string; body?: string }, { keep = false }: { keep?: boolean } = {}): SkillDetail | null {
+/** A skill as its versions keep it (what SKILL.md says; extra files are kept only when it's deleted). */
+export interface SkillVersionItem {
+  slug: string;
+  name: string;
+  description: string;
+  body: string;
+  files?: string[];
+}
+// Versions of every skill: data/versions/skills/<slug>/ (outside the skill, so they outlive it)
+export const skillVersionsDir = (slug = ''): string => dataPath('versions', 'skills', slug);
+const versionItem = (s: Skill | SkillDetail): SkillVersionItem => ({ slug: s.slug, name: s.name, description: s.description, body: s.body.trim() });
+
+export function saveSkill({ slug, name, description, body }: { slug?: string; name?: string; description?: string; body?: string }): SkillDetail | null {
   name = String(name || '').trim().slice(0, 80);
   description = String(description || '').trim().slice(0, 1000);
   if (!name) throw new Error('Give the skill a name.');
   if (!description) throw new Error('Say in one or two sentences when the skill should be used: agents decide from this.');
   const id = slug && SAFE.test(slug) && exists(path.join(LIB(), slug)) ? slug : uniqueSlug(name);
   const dir = ensureDir(path.join(LIB(), id));
-  const file = path.join(dir, 'SKILL.md');
-  if (keep && exists(file)) keepVersion(dir);
-  fs.writeFileSync(file, compose({ name, description, body: String(body || '').slice(0, SKILL_BODY_MAX) }));
+  const before = getSkill(id);
+  const text = String(body || '').slice(0, SKILL_BODY_MAX);
+  if (before) keepVersion(skillVersionsDir(id), versionItem(before), { slug: id, name, description, body: text.trim() });
+  fs.writeFileSync(path.join(dir, 'SKILL.md'), compose({ name, description, body: text }));
   return getSkill(id);
-}
-
-// The last few versions of a skill, in <skill>/.history (hidden: not one of the skill's files).
-const VERSIONS_KEPT = 20;
-function keepVersion(dir: string) {
-  const hist = ensureDir(path.join(dir, '.history'));
-  fs.copyFileSync(path.join(dir, 'SKILL.md'), path.join(hist, `SKILL-${new Date().toISOString().replace(/[:.]/g, '-')}.md`));
-  const old = fs.readdirSync(hist).filter((n) => /^SKILL-.*\.md$/.test(n)).sort();
-  for (const n of old.slice(0, Math.max(0, old.length - VERSIONS_KEPT))) fs.rmSync(path.join(hist, n), { force: true });
 }
 
 function uniqueSlug(name: string): string {
@@ -141,9 +145,35 @@ function uniqueSlug(name: string): string {
   return s;
 }
 
+// Its last version is kept, and its extra files go along with it, so it can be brought back.
 export function deleteSkill(slug: string) {
   if (!SAFE.test(String(slug))) throw new Error('No such skill.');
-  fs.rmSync(path.join(LIB(), slug), { recursive: true, force: true });
+  const dir = path.join(LIB(), slug);
+  const s = getSkill(slug);
+  if (s) {
+    const v = keepVersion(skillVersionsDir(slug), { ...versionItem(s), files: s.files.map((f) => f.path) }, null, { deleted: true });
+    if (v && s.files.length) {
+      const keep = ensureDir(path.join(skillVersionsDir(slug), `files-${v.id}`));
+      for (const f of s.files) {
+        fs.mkdirSync(path.dirname(path.join(keep, f.path)), { recursive: true });
+        fs.copyFileSync(path.join(dir, f.path), path.join(keep, f.path));
+      }
+    }
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// Put a kept version back (SKILL.md, and the extra files it had when it was deleted). The current one
+// is kept as a version first, so a restore can be undone too.
+export function restoreSkill(item: SkillVersionItem, versionId: string): SkillDetail | null {
+  if (!SAFE.test(String(item.slug))) throw new Error('No such skill.');
+  const dir = ensureDir(path.join(LIB(), item.slug));
+  const now = getSkill(item.slug);
+  if (now) keepVersion(skillVersionsDir(item.slug), versionItem(now), item);
+  fs.writeFileSync(path.join(dir, 'SKILL.md'), compose({ name: item.name, description: item.description, body: item.body }));
+  const files = path.join(skillVersionsDir(item.slug), `files-${versionId}`);
+  if (/^[\w-]+$/.test(versionId) && exists(files)) fs.cpSync(files, dir, { recursive: true, force: false, errorOnExist: false });
+  return getSkill(item.slug);
 }
 
 // Delete a skill and take it off every agent and team (in the open project), every project, and the Brain.

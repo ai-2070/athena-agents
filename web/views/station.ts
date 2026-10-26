@@ -11,6 +11,7 @@ import { filesFromDrop, hasFiles } from '../attach.ts';
 import { uiZoom } from '../look.ts';
 import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.ts';
 import { skillPicker } from '../skillpick.ts';
+import { historyButton } from '../history.ts';
 import { logoUrl, projectMark, pickLogo, removeLogo } from '../projectlogo.ts';
 import { slideIn, slideOut } from '../motion.ts';
 import { icon, logo, brandPath } from '../icons.ts';
@@ -3254,6 +3255,8 @@ function renderBranchPanel(id: string): void {
       ),
       h(
         'div.row.mt-lg',
+        { style: { gap: '6px' } },
+        historyButton('team', id, () => void reloadWorkflows().then(() => renderBranchPanel(id))),
         h('button.btn.danger.tiny', {
           onclick: async () => {
             if (!(await confirmBox(`Delete the team "${wf.name}"? Its agents stay in the project, the team chat is removed.`, { ok: 'Delete', danger: true }))) return;

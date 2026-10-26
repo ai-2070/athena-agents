@@ -18,6 +18,7 @@ import { describeAttachments, attachmentNames } from './uploads.ts';
 import { listRoutines, saveRoutine, deleteRoutine, getRoutine, startRoutine, routineTargets } from './routines.ts';
 import { listSkills, getSkill, findSkill, saveSkill, deleteSkillEverywhere, brainSkills, brainSkillSlugs, setBrainSkills } from './skills.ts';
 import type { SkillDetail } from './skills.ts';
+import { withActor, currentActor } from './versions.ts';
 import { cleanSchedule, scheduleText } from '../shared/routines.ts';
 import type { Agent, Approval, BrainAnswer, BrainDelegate, BrainDone, Project, Routine, Team } from '../shared/types.ts';
 
@@ -394,7 +395,16 @@ const cleanMcp = (t: unknown): string[] => (Array.isArray(t) ? (t as unknown[]) 
 // only: the action kinds allowed (the Brain's own review of finished work may only touch skills).
 // auto: nobody asked for this (the review of finished work, which reads what agents wrote): the Brain's
 // own skills are off limits, so nothing an agent wrote can change the Brain's instructions.
-export function applyActions(actions: BrainAction[], p: Project = activeProject(), { seenSkills = new Set<string>(), only = null, auto = false }: { seenSkills?: Set<string>; only?: readonly string[] | null; auto?: boolean } = {}): { done: BrainDone[]; delegate: BrainDelegate | null } {
+// (every change it makes is the Brain's in the versions of skills, agents and teams)
+export function applyActions(actions: BrainAction[], p: Project = activeProject(), opts: ApplyOptions = {}): { done: BrainDone[]; delegate: BrainDelegate | null } {
+  return currentActor() === 'brain' ? applyAsBrain(actions, p, opts) : withActor('brain', () => applyAsBrain(actions, p, opts));
+}
+interface ApplyOptions {
+  seenSkills?: Set<string>;
+  only?: readonly string[] | null;
+  auto?: boolean;
+}
+function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set<string>(), only = null, auto = false }: ApplyOptions): { done: BrainDone[]; delegate: BrainDelegate | null } {
   const done: BrainDone[] = [];
   let delegate: BrainDelegate | null = null;
   let lastTeam: string | null = null;
@@ -546,7 +556,7 @@ export function applyActions(actions: BrainAction[], p: Project = activeProject(
         const description = act.description ? String(act.description).trim() : old.description;
         if (description !== old.description) changed.push('description');
         if (!changed.length) throw new Error(`nothing to change in "${old.name}"`);
-        const sk = saveSkill({ slug: old.slug, name, description, body }, { keep: true })!;
+        const sk = saveSkill({ slug: old.slug, name, description, body })!;
         lastSkill = sk.slug;
         log('skill', `The Brain updated the skill "${sk.name}" (${changed.join(', ')})`);
         done.push({ kind: 'skill', text: `Updated the skill "${sk.name}": ${changed.join(', ')}`, skillId: sk.slug });

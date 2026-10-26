@@ -229,4 +229,24 @@ describe('agent runs and projects', () => {
       await new Promise<void>((r) => model.close(() => r()));
     }
   });
+
+  it('keeps versions of an agent, restores one, and brings back a deleted one', async () => {
+    const send = async (p: string, body: unknown, method = 'POST') => (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
+    const a = await send('/api/agents', { name: 'Api versions', systemPrompt: 'First.' });
+    await send(`/api/agents/${a.id}`, { systemPrompt: 'Second.' }, 'PUT');
+    const hist = await (await req(`/api/versions/agent/${a.id}`)).json();
+    expect(hist.versions).toHaveLength(1);
+    expect(hist.versions[0].changes).toEqual(['instructions']);
+    const v = await (await req(`/api/versions/agent/${a.id}/${hist.versions[0].id}`)).json();
+    expect(v.text).toContain('First.');
+    // changes need the custom header, like every other change
+    expect((await req(`/api/versions/agent/${a.id}/${v.id}/restore`, { method: 'POST' })).status).toBe(403);
+    await send(`/api/versions/agent/${a.id}/${v.id}/restore`, {});
+    expect((await (await req(`/api/agents/${a.id}`)).json()).systemPrompt).toBe('First.');
+    await req(`/api/agents/${a.id}`, { method: 'DELETE', headers: json });
+    expect((await (await req('/api/versions/agent')).json()).map((x: { id: string }) => x.id)).toContain(a.id);
+    await send(`/api/versions/agent/${a.id}/undelete`, {});
+    expect((await req(`/api/agents/${a.id}`)).ok).toBe(true);
+    expect((await req('/api/versions/routine')).status).toBe(404);
+  });
 });
