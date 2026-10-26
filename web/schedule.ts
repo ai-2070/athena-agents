@@ -4,6 +4,7 @@ import { scheduleText, DAY_NAMES as DAYS } from '../shared/routines.ts';
 import type { Schedule } from '../shared/types.ts';
 
 const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
+const MIN_MINUTES = 5;
 
 export { scheduleText };
 
@@ -17,7 +18,20 @@ export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean },
     mount(
       box,
       seg([{ value: 'none', label: 'Manual' }, { value: 'interval', label: 'Every…' }, { value: 'daily', label: 'Daily' }], s.type, (v) => ((s.type = v), mark(), draw())),
-      s.type === 'interval' ? field('Every (minutes)', h('input', { type: 'number', min: 5, value: s.minutes || 60, oninput: (e) => ((s.minutes = Number(e.target.value)), mark()) })) : null,
+      s.type === 'interval'
+        ? field(
+            'Every (minutes)',
+            h('input', {
+              type: 'number',
+              min: MIN_MINUTES,
+              value: s.minutes || 60,
+              // kept at the minimum the scheduler uses, so what you see is how often it runs
+              oninput: (e) => ((s.minutes = Math.max(MIN_MINUTES, Number(e.target.value) || 60)), mark()),
+              onchange: (e) => (e.target.value = String(s.minutes)),
+            }),
+            `At least ${MIN_MINUTES} minutes.`,
+          )
+        : null,
       s.type === 'daily'
         ? h(
             'div.col',

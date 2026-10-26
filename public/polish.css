@@ -403,7 +403,7 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .preset-card .avatar { color: #fff; }
 
 /* ---------- Routines ---------- */
-.rt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.rt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
 .rt-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); cursor: pointer; transition: border-color .18s, transform .18s; animation: rise-in .25s ease-out both; min-width: 0; }
 .rt-card:hover { border-color: var(--accent-dim); transform: translateY(-1px); }
 .rt-ms { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; min-width: 0; }

@@ -16,23 +16,33 @@ let teams: TeamListing[] = [];
 let editing: Routine | null = null;
 let runsEl: HTMLElement | null = null;
 let listTimer: ReturnType<typeof setTimeout> | undefined;
+// Bumped on every render and on leaving the page: a load that finishes after that draws nothing
+// (the view element is shared by every page, so being connected isn't enough).
+let generation = 0;
 
 export const title = (p: string[]) => (p[0] ? 'Routine' : 'Routines');
 
 export async function render(el: HTMLElement, p: string[]): Promise<void> {
+  const mine = ++generation;
   root = el;
   params = p;
   editing = null;
   runsEl = null;
   mount(el, h('p.dim', 'Loading routines…'));
   [teams] = await Promise.all([GET<TeamListing[]>('/workflows').catch((): TeamListing[] => []), loadSkills()]);
+  if (mine !== generation) return;
   if (p[0]) return renderEditor(p[0]);
   return renderList();
 }
 
 export function unmount(): void {
+  generation++;
+  root = undefined;
+  editing = null;
+  runsEl = null;
   closeMenu();
   clearTimeout(listTimer);
+  clearTimeout(runsTimer);
 }
 
 export function onEvent(ev: ServerEvent): void {
@@ -83,8 +93,9 @@ function mentionChips(list: readonly RoutineMention[]): Child {
 
 // ---------- the list ----------
 async function renderList() {
+  const mine = generation;
   const list = await GET<RoutineListing[]>('/routines');
-  if (!root?.isConnected || params[0]) return;
+  if (mine !== generation || !root?.isConnected || params[0]) return;
   mount(
     root,
     h('p.lede', 'A routine is work you want done again and again: a morning news check, a weekly report, a content plan. Write it once, @mention the agents and teams who do it and the skills they should use, then run it by hand or on a schedule.'),
@@ -141,8 +152,9 @@ function statusIcon(st: string): HTMLElement {
 
 // ---------- the editor ----------
 async function renderEditor(id: string) {
+  const mine = generation;
   const r = await GET<Routine>(`/routines/${id}`).catch(() => null);
-  if (!root?.isConnected || params[0] !== id) return;
+  if (mine !== generation || !root?.isConnected || params[0] !== id) return;
   if (!r) {
     mount(root, h('p', 'Routine not found. ', h('a', { href: '#/routines' }, 'Back to routines')));
     return;
@@ -265,6 +277,7 @@ function drawRuns() {
     const r = editing;
     if (!el?.isConnected || !r) return;
     const list = await GET<RoutineRun[]>(`/routine-runs?routineId=${encodeURIComponent(r.id)}`).catch((): RoutineRun[] => []);
+    if (runsEl !== el || !el.isConnected) return; // left the page meanwhile
     // keep open whichever run was open
     const open = new Set([...el.querySelectorAll<HTMLDetailsElement>('details[open]')].map((d) => d.dataset.id));
     mount(

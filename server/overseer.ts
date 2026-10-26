@@ -68,6 +68,9 @@ export interface BrainAction {
 const SKIP = new Set(['node_modules', '.git', '.next', 'dist', 'build', '.venv', '__pycache__', '.cache', '.claude']);
 const TEXT = /\.(md|txt|json|ya?ml|toml|csv|js|ts|py|html|css)$/i;
 const HISTORY_KEEP = 24;
+// How much of a routine's text the Brain sees. A longer routine's text can't be rewritten by the
+// Brain (it would lose the part it never saw); its name, schedule and so on still can.
+export const ROUTINE_TEXT_SHOWN = 4000;
 
 const ago = (ts: number | null | undefined) => {
   if (!ts) return '';
@@ -201,7 +204,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     const names = (kind: string) => r.mentions.filter((m) => m.kind === kind).map((m) => `${m.name}${m.missing ? ' (deleted)' : ''}`).join(', ') || '-';
     const sched = r.schedule && r.schedule.type !== 'none' ? `${scheduleText(r.schedule)}${r.enabled ? '' : ' (off)'}` : 'run by hand';
     const last = r.lastRun ? `${r.lastRun.status} ${ago(r.lastRun.createdAt)}` : 'never run';
-    return `- id=${r.id} | ${r.name} | ${sched} | agents: ${names('agent')} | teams: ${names('team')} | skills: ${names('skill')} | last run: ${last}\n  text: ${cut(r.text, 500) || '(empty)'}`;
+    return `- id=${r.id} | ${r.name} | ${sched} | agents: ${names('agent')} | teams: ${names('team')} | skills: ${names('skill')} | last run: ${last}\n  text: ${r.text.length > ROUTINE_TEXT_SHOWN ? `${r.text.slice(0, ROUTINE_TEXT_SHOWN)}… (${r.text.length - ROUTINE_TEXT_SHOWN} more characters not shown: too long to rewrite here, the user edits its text on the Routines page)` : r.text.trim() || '(empty)'}`;
   });
   const skillLines = listSkills().map((sk) => `- ${sk.name}: ${cut(sk.description, 120)}`);
 
@@ -498,7 +501,12 @@ export function applyActions(actions: BrainAction[], p: Project = activeProject(
         const changed: string[] = [];
         if (act.name) (patch.name = String(act.name).slice(0, 120)), changed.push('name');
         if (act.description !== undefined) (patch.description = String(act.description || '')), changed.push('description');
-        if (act.text) (patch.text = String(act.text)), changed.push('what to do');
+        if (act.text) {
+          // the Brain only saw the start of a long routine: rewriting it would drop the rest
+          if (old.text.length > ROUTINE_TEXT_SHOWN) throw new Error(`"${old.name}" is too long to rewrite here (the Brain sees only the start). Edit its text on the Routines page.`);
+          patch.text = String(act.text);
+          changed.push('what to do');
+        }
         if (act.schedule !== undefined) (patch.schedule = cleanSchedule(act.schedule)), changed.push('schedule');
         if (act.enabled !== undefined) (patch.enabled = act.enabled === true), changed.push(act.enabled === true ? 'schedule on' : 'schedule off');
         const r = getRoutine(saveRoutine(patch, old.id).id)!;

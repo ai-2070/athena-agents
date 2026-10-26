@@ -133,11 +133,12 @@ export function saveProject(id: string): SaveStatus | null {
     ensureDir(out);
     const agents = readAll<Agent>(projectDir(id, 'agents'));
     const teams = readAll<Team>(projectDir(id, 'workflows'));
+    const routines = readAll<Routine>(projectDir(id, 'routines'));
     const file = path.join(out, 'project.json');
     noLinks(out, file);
-    // Fewer agents or teams than last time: keep the old copy as a backup first (last 10 kept).
+    // Fewer agents, teams or routines than last time: keep the old copy as a backup first (last 10 kept).
     const prev = readJSON<Partial<SavedProjectFile>>(file, null);
-    if (prev && ((prev.agents || []).length > agents.length || (prev.teams || []).length > teams.length)) {
+    if (prev && ((prev.agents || []).length > agents.length || (prev.teams || []).length > teams.length || (prev.routines || []).length > routines.length)) {
       const bdir = path.join(out, 'backups');
       const bfile = path.join(bdir, `project-${new Date(prev.savedAt || Date.now()).toISOString().replace(/[:.]/g, '-')}.json`);
       noLinks(out, bfile);
@@ -153,7 +154,7 @@ export function saveProject(id: string): SaveStatus | null {
       project: { name: p.name, description: p.description || '', repo: p.repo || '', skills: p.skills || [] },
       agents,
       teams,
-      routines: readAll<Routine>(projectDir(id, 'routines')),
+      routines,
       layout: readJSON<unknown>(projectDir(id, 'layout.json'), {}),
       brainChat: readJSON<unknown>(projectDir(id, 'brain-chat.json'), { messages: [] }),
     });

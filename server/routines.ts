@@ -9,7 +9,7 @@ import { getTeam, listTeams, postUserMessage } from './teams.ts';
 import { getSkill, listSkills } from './skills.ts';
 import { pickMember } from './brain.ts';
 import { due } from './workflows.ts';
-import { findMentions, renameMentions } from '../shared/routines.ts';
+import { cleanSchedule, findMentions, renameMentions } from '../shared/routines.ts';
 import type { Agent, Routine, RoutineMention, RoutineRun, RoutineRunTarget, Team } from '../shared/types.ts';
 
 const MAX_TEXT = 20000;
@@ -36,20 +36,30 @@ function currentName(m: Pick<RoutineMention, 'kind' | 'id'>): string | null {
   return getSkill(m.id)?.name ?? null;
 }
 
-/** The routine with its text and mentions brought up to date: renamed agents, teams and skills are
- *  renamed in the text too; ones that were deleted stay listed with missing: true. */
-export function resolveRoutine(r: Routine): Routine {
-  const stored = r.mentions || [];
+const key = (m: Pick<RoutineMention, 'kind' | 'id'>) => `${m.kind}:${m.id}`;
+
+/** A routine's text and mentions as they read now. rename: @OldName becomes @NewName for an agent,
+ *  team or skill renamed since (off for text someone just wrote). Deleted ones stay listed while
+ *  their @name is still in the text, so the page can warn about them; missing says which. */
+function refresh(text: string, stored: readonly RoutineMention[], rename: boolean): { text: string; mentions: RoutineMention[] } {
   const names = new Map<string, string>();
   for (const m of stored) {
     const now = currentName(m);
-    if (now) names.set(`${m.kind}:${m.id}`, now);
+    if (now) names.set(key(m), now);
   }
-  const text = renameMentions(r.text || '', stored, names);
-  const mentions = findMentions(text, candidates());
-  const have = new Set(mentions.map((m) => `${m.kind}:${m.id}`));
-  const gone = stored.filter((m) => !names.has(`${m.kind}:${m.id}`) && !have.has(`${m.kind}:${m.id}`)).map((m) => ({ ...m, missing: true }));
-  return { ...r, text, mentions: [...mentions, ...gone] };
+  const out = rename ? renameMentions(text, stored, names) : text;
+  const found = findMentions(out, candidates());
+  const have = new Set(found.map(key));
+  const taken = new Set(found.map((m) => m.name.toLowerCase()));
+  const gone = stored
+    .filter((m) => !names.has(key(m)) && !have.has(key(m)) && !taken.has(m.name.toLowerCase()) && findMentions(out, [m]).length)
+    .map(({ kind, id, name }): RoutineMention => ({ kind, id, name, missing: true }));
+  return { text: out, mentions: [...found, ...gone] };
+}
+
+/** The routine with its text and mentions brought up to date (see refresh). */
+export function resolveRoutine(r: Routine): Routine {
+  return { ...r, ...refresh(r.text || '', r.mentions || [], true) };
 }
 
 export function getRoutine(id: string): Routine | null {
@@ -74,14 +84,17 @@ export function saveRoutine(patch: Partial<Routine>, id?: string): Routine {
   if (patch.name !== undefined) next.name = String(patch.name).trim().slice(0, 120);
   if (patch.description !== undefined) next.description = String(patch.description || '').trim().slice(0, 500);
   if (patch.text !== undefined) next.text = String(patch.text || '').slice(0, MAX_TEXT);
-  if (patch.schedule !== undefined) next.schedule = patch.schedule || { type: 'none' };
+  if (patch.schedule !== undefined) next.schedule = cleanSchedule(patch.schedule);
   if (patch.enabled !== undefined) next.enabled = !!patch.enabled;
   next.name ||= 'New routine';
   next.text ??= '';
-  // the mentions are always worked out from the text (by name, as it reads now)
-  next.mentions = findMentions(next.text, candidates());
+  // the mentions are worked out from the text. Text kept as it was is brought up to date first
+  // (renames), so saving only the name or schedule doesn't lose who the routine is for.
+  const fresh = refresh(next.text, old?.mentions || [], patch.text === undefined);
+  next.text = fresh.text;
+  next.mentions = fresh.mentions.map(({ kind, id, name }) => ({ kind, id, name })); // missing is worked out when read
   // turning a schedule on (or changing it) shouldn't fire at once for a time that already passed today
-  const schedChanged = patch.schedule !== undefined && JSON.stringify(patch.schedule) !== JSON.stringify(old?.schedule);
+  const schedChanged = patch.schedule !== undefined && JSON.stringify(next.schedule) !== JSON.stringify(old?.schedule);
   if (schedChanged || (next.enabled && !old?.enabled)) next.lastScheduledAt = Date.now();
   return routines.save(next);
 }

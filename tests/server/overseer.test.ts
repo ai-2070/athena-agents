@@ -127,6 +127,26 @@ describe('the Brain and routines', () => {
     expect(done[2].text).toMatch(/^run_routine: .*can't run/);
   });
 
+  it("won't rewrite the text of a routine too long for it to have seen in full", async () => {
+    const { ROUTINE_TEXT_SHOWN, snapshot } = await import('../../server/overseer.ts');
+    const { getRoutine } = await import('../../server/routines.ts');
+    const long = `@Scout ${'checks one more source. '.repeat(Math.ceil(ROUTINE_TEXT_SHOWN / 20))}THE END`;
+    const { done: made } = applyActions([{ do: 'create_routine', name: 'Long one', text: long }]);
+    const id = made[0].routineId!;
+    const snap = await snapshot({ fileBudget: 0 });
+    expect(snap).toContain('more characters not shown');
+    expect(snap).not.toContain('THE END');
+    const { done } = applyActions([{ do: 'update_routine', routine: id, text: '@Scout does less.', schedule: { type: 'daily', time: '10:00' } }]);
+    expect(done[0].kind).toBe('error');
+    expect(done[0].text).toMatch(/too long to rewrite here/);
+    expect(getRoutine(id)!.text).toBe(long);
+    // its other fields can still change
+    expect(applyActions([{ do: 'update_routine', routine: id, enabled: true }]).done[0].kind).toBe('routine');
+    // a short routine is shown whole
+    applyActions([{ do: 'create_routine', name: 'Short one', text: '@Scout says hi.\nThen waves.' }]);
+    expect(await snapshot({ fileBudget: 0 })).toContain('text: @Scout says hi.\nThen waves.');
+  });
+
   it('shows routines and skills in its snapshot', async () => {
     const { snapshot } = await import('../../server/overseer.ts');
     const snap = await snapshot({ fileBudget: 0 });

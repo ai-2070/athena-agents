@@ -60,11 +60,15 @@ describe('API', () => {
   });
 
   it('makes and edits a routine that mentions an agent and a team', async () => {
+    // its own agent and team, so this test runs on its own too
+    const post = async (p: string, body: unknown) => (await req(p, { method: 'POST', headers: json, body: JSON.stringify(body) })).json();
+    const a = await post('/api/agents', { name: 'Routine Tester' });
+    await post('/api/workflows', { name: 'Routine Crew', members: [a.id], lead: a.id });
     const r = await (await req('/api/routines', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Daily' }) })).json();
     // nobody mentioned yet: running it is a clear 400, not a server fault
     expect((await req(`/api/routines/${r.id}/run`, { method: 'POST', headers: json, body: '{}' })).status).toBe(400);
-    const saved = await (await req(`/api/routines/${r.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ text: 'Have @Tester and @Crew check in.' }) })).json();
-    expect(saved.mentions.map((m: { kind: string; name: string }) => `${m.kind}:${m.name}`)).toEqual(['agent:Tester', 'team:Crew']);
+    const saved = await (await req(`/api/routines/${r.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ text: 'Have @Routine Tester and @Routine Crew check in.' }) })).json();
+    expect(saved.mentions.map((m: { kind: string; name: string }) => `${m.kind}:${m.name}`)).toEqual(['agent:Routine Tester', 'team:Routine Crew']);
     const list = await (await req('/api/routines')).json();
     expect(list.find((x: { id: string }) => x.id === r.id)).toMatchObject({ name: 'Daily', lastRun: null });
     expect((await req('/api/routines/nope')).status).toBe(404);

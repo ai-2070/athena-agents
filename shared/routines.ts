@@ -2,8 +2,11 @@
 import type { RoutineMention, Schedule } from './types.ts';
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// A letter, mark, digit or _ in any script, so "@Café" doesn't match the start of "@Caféé".
+const WORD = '[\\p{L}\\p{M}\\p{N}_]';
 // @Name, not inside a word or right after another @, and not followed by more of a word
-const mentionRe = (name: string) => new RegExp(`(^|[^\\w@])@${esc(name)}(?![\\w])`, 'gi');
+const mentionRe = (name: string) => new RegExp(`(^|[^\\p{L}\\p{M}\\p{N}_@])@${esc(name)}(?!${WORD})`, 'giu');
+const wordOrAt = new RegExp(`${WORD}|@`, 'u');
 
 /** The candidates the text mentions, in the order they first appear. Longest names are matched first
  *  and taken out, so "@Trend Scout" doesn't also count as "@Trend". On a name clash the earlier
@@ -60,7 +63,7 @@ export function mentionQuery(text: string, caret: number): { start: number; quer
   const before = text.slice(0, caret);
   const at = before.lastIndexOf('@');
   if (at < 0) return null;
-  if (at > 0 && /[\w@]/.test(before[at - 1])) return null;
+  if (at > 0 && wordOrAt.test(before[at - 1])) return null;
   const query = before.slice(at + 1);
   if (query.length > 40 || /[\n@]/.test(query) || /\s\s/.test(query)) return null;
   return { start: at, query };
@@ -89,7 +92,9 @@ export function cleanSchedule(raw: unknown): Schedule {
     const days = (Array.isArray(r.days) ? r.days : [])
       .map((d) => (typeof d === 'number' ? d : DAY_NAMES.findIndex((n) => String(d).toLowerCase().startsWith(n.toLowerCase()))))
       .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
-    if (days.length && days.length < 7) out.days = [...new Set(days)].sort((a, b) => a - b);
+    // count each day once: seven "Mon"s are Mondays, not every day
+    const unique = [...new Set(days)].sort((a, b) => a - b);
+    if (unique.length && unique.length < 7) out.days = unique;
   }
   if (type !== 'none' && input) out.input = input;
   return out;

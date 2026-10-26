@@ -4,10 +4,10 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { agents, saveSettings, workflows } from '../../server/store.ts';
-import { getThread } from '../../server/teams.ts';
+import { getThread, postUserMessage } from '../../server/teams.ts';
 import { saveSkill } from '../../server/skills.ts';
 import { getRoutine, listRuns, routineTargets, saveRoutine, startRoutine } from '../../server/routines.ts';
-import { findMentions, mentionQuery, renameMentions } from '../../shared/routines.ts';
+import { cleanSchedule, findMentions, mentionQuery, renameMentions } from '../../shared/routines.ts';
 import type { RoutineMention, RoutineRun, Team } from '../../shared/types.ts';
 
 describe('findMentions()', () => {
@@ -28,6 +28,32 @@ describe('findMentions()', () => {
   it('gives a clash to the earlier candidate', () => {
     const clash: RoutineMention[] = [{ kind: 'agent', id: 'a', name: 'Writer' }, { kind: 'skill', id: 'w', name: 'Writer' }];
     expect(findMentions('@Writer', clash)).toEqual([{ kind: 'agent', id: 'a', name: 'Writer' }]);
+  });
+});
+
+describe('mentions in any script', () => {
+  const c: RoutineMention[] = [{ kind: 'agent', id: 'cafe', name: 'Café' }];
+  it("doesn't match a longer word that starts with a name", () => {
+    expect(findMentions('ask @Caféé', c)).toEqual([]);
+    expect(findMentions('ask @Café1', c)).toEqual([]);
+    expect(findMentions('ask @Café!', c).map((m) => m.id)).toEqual(['cafe']);
+    expect(findMentions('ask ü@Café', c)).toEqual([]);
+  });
+  it('knows a mention being typed after a non-English word is not one', () => {
+    expect(mentionQuery('größe@Ca', 8)).toBeNull();
+    expect(mentionQuery('größe @Ca', 9)).toEqual({ start: 6, query: 'Ca' });
+  });
+});
+
+describe('cleanSchedule()', () => {
+  it('counts each day once, so repeats of one day are not every day', () => {
+    expect(cleanSchedule({ type: 'daily', time: '8:05', days: ['Mon', 'Mon', 'Mon', 'Mon', 'Mon', 'Mon', 'Mon'] })).toEqual({ type: 'daily', time: '08:05', days: [1] });
+    expect(cleanSchedule({ type: 'daily', days: [0, 1, 2, 3, 4, 5, 6] })).toEqual({ type: 'daily', time: '09:00' });
+  });
+  it('keeps intervals at 5 minutes or more, and drops what it does not know', () => {
+    expect(cleanSchedule({ type: 'interval', minutes: 1, extra: 'x' })).toEqual({ type: 'interval', minutes: 5 });
+    expect(cleanSchedule({ type: 'interval', minutes: 0 })).toEqual({ type: 'interval', minutes: 60 });
+    expect(cleanSchedule({ type: 'weird' })).toEqual({ type: 'none' });
   });
 });
 
@@ -55,8 +81,9 @@ beforeAll(async () => {
     for await (const ch of req) body += ch;
     const j = JSON.parse(body) as { messages: { content: string }[] };
     asked.push({ system: j.messages[0].content, last: j.messages.at(-1)!.content });
+    const reply = j.messages[0].content.includes('You are Boss') && !/@Helper: Done/.test(j.messages.at(-1)!.content) ? '@Helper please do the work.' : 'Done.';
     res.writeHead(200, { 'content-type': 'text/event-stream' });
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Done.' } }] })}\n\n`);
+    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: reply } }] })}\n\n`);
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
     res.end();
   });
@@ -84,6 +111,25 @@ describe('a routine', () => {
       { kind: 'agent', id: scout.id, name: 'Lookout' },
       { kind: 'agent', id: temp.id, name: 'Temp', missing: true },
     ]);
+  });
+
+  it('keeps who it is for when only its name or schedule changes after a rename or delete', () => {
+    const lead = agent('Planner');
+    const gone = agent('Leaver');
+    const r = saveRoutine({ name: 'Plan', text: '@Planner plans, @Leaver checks.' });
+    agents.save({ ...lead, name: 'Chief' });
+    agents.remove(gone.id);
+    const saved = saveRoutine({ name: 'Plan 2', schedule: { type: 'interval', minutes: 2 } }, r.id);
+    expect(saved.text).toBe('@Chief plans, @Leaver checks.');
+    expect(saved.schedule).toEqual({ type: 'interval', minutes: 5 });
+    expect(saved.mentions).toEqual([
+      { kind: 'agent', id: lead.id, name: 'Chief' },
+      { kind: 'agent', id: gone.id, name: 'Leaver' },
+    ]);
+    // still shown as deleted when read, and gone from the list once the text no longer names it
+    expect(getRoutine(r.id)!.mentions[1]).toMatchObject({ name: 'Leaver', missing: true });
+    expect(routineTargets(getRoutine(r.id)!).agents.map((a) => a.id)).toEqual([lead.id]);
+    expect(saveRoutine({ text: '@Chief plans.' }, r.id).mentions.map((m) => m.name)).toEqual(['Chief']);
   });
 
   it('will not run without an agent or a team', async () => {
@@ -127,5 +173,33 @@ describe('a routine', () => {
       expect(a.last).toContain('Focus on AI.');
     }
     expect(forAnalyst.last).toContain('also went to: @Content Crew (team)');
+  });
+});
+
+describe("a routine's skills in a team", () => {
+  it('go with the handoff they started, even when another message comes in meanwhile, and not with the next one', async () => {
+    saveSkill({ name: 'Handoff guide', description: 'How to hand work on.', body: 'Be clear.' });
+    const boss = agent('Boss');
+    const helper = agent('Helper');
+    const team = workflows.save({ name: 'Duo', description: '', members: [boss.id, helper.id], lead: boss.id, steps: [] } as Partial<Team>);
+    const helperAsks = () => asked.filter((a) => a.system.includes('You are Helper'));
+    const quiet = () => {
+      const t = getThread(team.id);
+      return !t.working.length && !t.queued.length;
+    };
+    asked.length = 0;
+    await postUserMessage(team.id, 'Get it done.', { skills: ['handoff-guide'] });
+    // another message, without skills, while the Boss is still on the first one
+    await postUserMessage(team.id, '@Boss and keep me posted.');
+    await waitFor(() => helperAsks().length >= 1);
+    // the Boss had the skill, and so did the Helper it handed the routine's work to
+    expect(asked.find((a) => a.system.includes('You are Boss'))!.system).toContain('Handoff guide');
+    expect(helperAsks()[0].system).toContain('Handoff guide');
+    await waitFor(() => quiet() && getThread(team.id).messages.length >= 4);
+    // a plain message afterwards doesn't bring the routine's skill along
+    const before = helperAsks().length;
+    await postUserMessage(team.id, '@Helper one more thing.');
+    await waitFor(() => helperAsks().length > before);
+    expect(helperAsks().at(-1)!.system).not.toContain('Handoff guide');
   });
 });
