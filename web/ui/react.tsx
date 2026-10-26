@@ -1,16 +1,47 @@
 // What a React page needs from the rest of the app: a place to mount, the live app state, and icons.
-import { StrictMode, useMemo, useSyncExternalStore } from 'react';
-import type { ReactNode } from 'react';
+import { StrictMode, useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import type { DependencyList, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { onState, state } from '../core.ts';
+import { onEvent, onState, state } from '../core.ts';
 import { icon } from '../icons.ts';
-import type { AppState } from '../../shared/types.ts';
+import type { AppState, ServerEvent } from '../../shared/types.ts';
 
 /** Draws a React page into the router's page element. unmount() when you leave the page. */
 export function mountReact(el: HTMLElement, node: ReactNode): { unmount: () => void } {
   const root = createRoot(el);
   root.render(<StrictMode>{node}</StrictMode>);
   return { unmount: () => root.unmount() };
+}
+
+/** A page module's render() and unmount() for a page drawn by React:
+ *  export const { render, unmount } = reactPage((params) => <MyPage params={params} />); */
+export function reactPage(page: (params: string[]) => ReactNode): { render: (el: HTMLElement, params?: string[]) => void; unmount: () => void } {
+  let mounted: { unmount: () => void } | null = null;
+  return {
+    render(el, params = []) {
+      mounted?.unmount();
+      mounted = mountReact(el, page(params));
+    },
+    unmount() {
+      mounted?.unmount();
+      mounted = null;
+    },
+  };
+}
+
+/** Runs fn for live events from the server (only the latest fn, so it can read fresh state). */
+export function useServerEvents(fn: (ev: ServerEvent) => void): void {
+  const latest = useRef(fn);
+  latest.current = fn;
+  useEffect(() => onEvent((ev) => latest.current(ev)), []);
+}
+
+/** A plain-DOM piece (a file preview, markdown, the 3D viewer) inside a React page. make() runs again
+ *  only when deps change, so the piece keeps its own state between redraws. */
+export function DomNode({ make, deps, className }: { make: () => Node; deps: DependencyList; className?: string }) {
+  const node = useMemo(make, deps);
+  const ref = useCallback((el: HTMLElement | null) => void (el && el.replaceChildren(node)), [node]);
+  return <div ref={ref} className={className} />;
 }
 
 const subscribe = (fn: () => void) => onState(fn);

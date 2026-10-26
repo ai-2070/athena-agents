@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { h, GET, POST, PUT, DEL, attempt, navigate, md, modal, toast, refreshSoon, confirmBox } from '../core.ts';
 import { Chips, Segmented, Tabs } from '../ui/controls.tsx';
-import { Icon, mountReact, useAppState } from '../ui/react.tsx';
+import { Icon, reactPage, useAppState } from '../ui/react.tsx';
 import type { Agent, AppState, EngineId, PresetListing, Team } from '../../shared/types.ts';
 
 /** An agent of The Agency as GET /api/library lists it (server/library.ts AgencyAgent without file). */
@@ -420,16 +420,5 @@ export function resetLibrary(): void {
 }
 
 // ---------- the router's view ----------
-let page: { unmount: () => void } | null = null;
-
 export const title = () => 'Library';
-
-export function render(el: HTMLElement): void {
-  page?.unmount();
-  page = mountReact(el, <LibraryPage />);
-}
-
-export function unmount(): void {
-  page?.unmount();
-  page = null;
-}
+export const { render, unmount } = reactPage(() => <LibraryPage />);
