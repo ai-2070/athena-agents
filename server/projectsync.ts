@@ -1,11 +1,16 @@
 // Auto-save: every project keeps a copy of its agents, teams, routines, layout, team chats, Brain chat,
-// agent chats (with each chat's engine session) and agent knowledge files inside its own folder (<project folder>/.dashboard). A few seconds after
+// agent chats (with each chat's engine session), agent knowledge files, the skills it uses and the kept
+// versions of its agents, teams and those skills inside its own folder (<project folder>/.dashboard). A few seconds after
 // any change it is saved again. Opening that folder as a project (here or on another PC) restores it.
 // Keys and tokens are never written there.
 import fs from 'node:fs';
 import path from 'node:path';
 import { bus, listProjects, activeProject, log } from './store.ts';
 import { dataPath, ensureDir, exists, readJSON, writeJSON, realTarget } from './util.ts';
+import { VERSIONS_KEPT, keepVersion, withActor, canonical } from './versions.ts';
+import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, SKILL_BODY_MAX } from './skills.ts';
+import type { SkillVersionItem } from './skills.ts';
+import type { Version } from './versions.ts';
 import type { Agent, Chat, Routine, Team } from '../shared/types.ts';
 
 /** The last auto-save of a project (AppState.projectSaved). */
@@ -42,6 +47,10 @@ export interface RestoreResult {
   agents: number;
   teams: number;
   chats?: number;
+  /** kept versions of agents and teams (deleted ones included) */
+  versions?: number;
+  /** skills added to the library from the folder, and ones the library had already (by name) */
+  skills?: { added: string[]; kept: string[] };
   project: SavedProjectFile['project'];
 }
 
@@ -49,6 +58,10 @@ const FORMAT = 1;
 const DIR = '.dashboard';
 const KNOWLEDGE_CAP = 50 * 1024 * 1024; // don't copy more than 50 MB of knowledge files
 const CHATS_CAP = 200 * 1024 * 1024; // nor more than 200 MB of agent chats
+const VERSIONS_CAP = 50 * 1024 * 1024; // nor more than 50 MB of agent and team versions
+const SKILLS_CAP = 50 * 1024 * 1024; // nor more than 50 MB of skills (with their files and versions)
+// The versioned collections (data/projects/<id>/versions/<kind>/<item id>/<version id>.json)
+const VERSIONED = ['agents', 'workflows'] as const;
 const saved = new Map<string, SaveStatus>(); // projectId -> { at, error }
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -165,10 +178,22 @@ export function saveProject(id: string): SaveStatus | null {
     // agent chats: chats/<agent id>/<chat id>.json, the visible history plus the engine's memory (sessionId, llm)
     copyTree(projectDir(id, 'chats'), path.join(out, 'chats'), CHATS_CAP, { base: out, mirror: true });
     copyTree(projectDir(id, 'knowledge'), path.join(out, 'knowledge'), KNOWLEDGE_CAP, { base: out, mirror: true });
+    // the kept versions of agents and teams (and of deleted ones, so they can be brought back there too)
+    let left = VERSIONS_CAP;
+    for (const kind of VERSIONED) left -= copyTree(projectDir(id, 'versions', kind), path.join(out, 'versions', kind), left, { base: out, mirror: true });
+    if (exists(path.join(out, 'versions'))) prune(path.join(out, 'versions'), new Set(VERSIONED));
+    // the skills the project uses, with their files and versions (skills it stopped using are dropped)
+    const used = skillsUsed(id);
+    let skillBudget = SKILLS_CAP;
+    for (const slug of used) {
+      skillBudget -= copyTree(skillDir(slug), path.join(out, 'skills', slug), skillBudget, { base: out, mirror: true });
+      skillBudget -= copyTree(skillVersionsDir(slug), path.join(out, 'skill-versions', slug), skillBudget, { base: out, mirror: true });
+    }
+    for (const sub of ['skills', 'skill-versions']) if (exists(path.join(out, sub))) prune(path.join(out, sub), new Set(used));
     noLinks(out, path.join(out, 'README.txt'));
     fs.writeFileSync(
       path.join(out, 'README.txt'),
-      'My Dashboard keeps this project\'s agents, teams, chats and knowledge here (auto-saved).\nOpen this folder as a project in the dashboard ("Open a folder…") to load them again.\nNo keys or passwords are stored here.\n',
+      'My Dashboard keeps this project\'s agents, teams, chats, knowledge, the skills it uses and their earlier versions here (auto-saved).\nOpen this folder as a project in the dashboard ("Open a folder…") to load them again.\nNo keys or passwords are stored here.\n',
     );
     saved.set(id, { at: Date.now(), agents: agents.length, teams: teams.length });
     return saved.get(id) ?? null;
@@ -243,8 +268,117 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   const knowledge = savedPath(folder, 'knowledge');
   if (knowledge) copyTree(knowledge, projectDir(id, 'knowledge'), KNOWLEDGE_CAP * 4);
   const chatCount = restoreChats(folder, id, (j.agents || []).filter(safe).map((a) => a.id as string));
-  log('project', `Loaded ${(j.agents || []).length} agents, ${(j.teams || []).length} teams and ${chatCount} chats from ${folder}`);
-  return { agents: (j.agents || []).length, teams: (j.teams || []).length, chats: chatCount, project: j.project || {} };
+  const versionCount = restoreVersions(folder, id);
+  const skills = restoreSkills(folder, j.project?.name || path.basename(folder));
+  log('project', `Loaded ${(j.agents || []).length} agents, ${(j.teams || []).length} teams, ${chatCount} chats, ${skills.added.length} skills and ${versionCount} earlier versions from ${folder}`);
+  return { agents: (j.agents || []).length, teams: (j.teams || []).length, chats: chatCount, versions: versionCount, skills, project: j.project || {} };
+}
+
+// Versions saved in <folder>/.dashboard/<parts>/<item id>/: each checked to be a plain file inside the
+// folder and a version (item checked by `check`), put back under the item and id it was saved as
+// (whatever the file itself claims). Newest first, at most VERSIONS_KEPT.
+function savedVersions<T>(folder: string, parts: string[], itemId: string, check: (item: Record<string, unknown>) => T | null): Version<T>[] {
+  const dir = savedPath(folder, ...parts, itemId);
+  if (!dir) return [];
+  const out: Version<T>[] = [];
+  for (const name of jsonFiles(dir)) {
+    const vid = name.slice(0, -'.json'.length);
+    const file = savedPath(folder, ...parts, itemId, name);
+    if (!/^[\w-]+$/.test(vid) || !file || !fs.lstatSync(file).isFile()) continue;
+    const v = readJSON<Partial<Version<unknown>>>(file, null);
+    if (!v || typeof v.at !== 'number' || !Number.isFinite(v.at) || !v.item || typeof v.item !== 'object' || Array.isArray(v.item)) continue;
+    const item = check(v.item as Record<string, unknown>);
+    if (!item) continue;
+    out.push({
+      id: vid,
+      at: v.at,
+      by: v.by === 'brain' ? 'brain' : 'you',
+      ...(v.deleted === true ? { deleted: true } : {}),
+      ...(typeof v.note === 'string' ? { note: v.note.slice(0, 300) } : {}),
+      item,
+    });
+  }
+  return out.sort((a, b) => b.at - a.at).slice(0, VERSIONS_KEPT);
+}
+
+// Folder names in <folder>/.dashboard/<parts> that are real folders inside it.
+function savedDirs(folder: string, parts: string[], ok: (name: string) => boolean): string[] {
+  const root = savedPath(folder, ...parts);
+  if (!root) return [];
+  try {
+    return fs
+      .readdirSync(root, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && ok(e.name) && savedPath(folder, ...parts, e.name))
+      .map((e) => e.name);
+  } catch {
+    return [];
+  }
+}
+
+// The kept versions of agents and teams. Versions of agents and teams that were deleted come back too:
+// they show in Recently deleted.
+function restoreVersions(folder: string, id: string): number {
+  let n = 0;
+  for (const kind of VERSIONED) {
+    for (const itemId of savedDirs(folder, ['versions', kind], (x) => /^[\w.-]+$/.test(x) && !x.startsWith('.'))) {
+      for (const v of savedVersions(folder, ['versions', kind], itemId, (item) => ({ ...item, id: itemId }))) {
+        writeJSON(projectDir(id, 'versions', kind, itemId, `${v.id}.json`), v);
+        n++;
+      }
+    }
+  }
+  return n;
+}
+
+// ---------- skills ----------
+// Skills live in one library for every project, so a project folder carries the ones its project uses:
+// given to the project, a team or an agent, or mentioned in a routine.
+function skillsUsed(id: string): string[] {
+  const p = listProjects().find((x) => x.id === id);
+  const slugs = [
+    ...(p?.skills || []),
+    ...readAll<Agent>(projectDir(id, 'agents')).flatMap((a) => a.skills || []),
+    ...readAll<Team>(projectDir(id, 'workflows')).flatMap((t) => t.skills || []),
+    ...readAll<Routine>(projectDir(id, 'routines')).flatMap((r) => (r.mentions || []).filter((m) => m.kind === 'skill').map((m) => m.id)),
+  ];
+  return [...new Set(slugs)].filter((slug) => isSkillSlug(slug) && getSkill(slug));
+}
+
+const skillItem = (slug: string) => (item: Record<string, unknown>): SkillVersionItem | null =>
+  typeof item.name === 'string' && typeof item.description === 'string' && typeof item.body === 'string'
+    ? { slug, name: item.name.slice(0, 80), description: item.description.slice(0, 1000), body: item.body.slice(0, SKILL_BODY_MAX) }
+    : null;
+
+// Skills the library doesn't have yet are added (with their files and versions). One it has is never
+// changed: when the folder's copy is different, that copy is kept as one of its versions, to restore by hand.
+function restoreSkills(folder: string, projectName: string): { added: string[]; kept: string[] } {
+  const added: string[] = [];
+  const kept: string[] = [];
+  let budget = SKILLS_CAP * 4;
+  for (const slug of savedDirs(folder, ['skills'], isSkillSlug)) {
+    const src = savedPath(folder, 'skills', slug);
+    const md = savedPath(folder, 'skills', slug, 'SKILL.md');
+    if (!src || !md || !exists(md) || !fs.lstatSync(md).isFile()) continue;
+    const have = getSkill(slug);
+    if (have) {
+      const theirs = skillFromText(fs.readFileSync(md, 'utf8').slice(0, SKILL_BODY_MAX * 2), slug);
+      const ours = { slug, name: have.name, description: have.description, body: have.body.trim() };
+      if (canonical(theirs) === canonical(ours)) continue;
+      withActor('you', () => keepVersion(skillVersionsDir(slug), theirs, ours), { force: true, note: `the copy saved in the project "${projectName}"` });
+      kept.push(have.name);
+      continue;
+    }
+    // (copyTree skips links below the skill's folder)
+    budget -= copyTree(src, skillDir(slug), budget);
+    if (!getSkill(slug)) {
+      fs.rmSync(skillDir(slug), { recursive: true, force: true });
+      continue;
+    }
+    for (const v of savedVersions(folder, ['skill-versions'], slug, skillItem(slug))) writeJSON(path.join(skillVersionsDir(slug), `${v.id}.json`), v);
+    added.push(getSkill(slug)!.name);
+  }
+  if (added.length) log('skill', `Added ${added.length} skill${added.length === 1 ? '' : 's'} from the project folder: ${added.join(', ')}`);
+  return { added, kept };
 }
 
 // The saved chats of the restored agents. Each is checked to be a plain file inside the folder and a
@@ -270,7 +404,7 @@ function restoreChats(folder: string, id: string, agentIds: string[]): number {
 }
 
 // Save after anything in the project changes.
-const WATCH = new Set(['agents', 'workflows', 'routines', 'layout', 'team', 'knowledge', 'brain-chat', 'chats']);
+const WATCH = new Set(['agents', 'workflows', 'routines', 'layout', 'team', 'knowledge', 'brain-chat', 'chats', 'skills']);
 export function startAutoSave() {
   bus.on('event', (ev) => {
     // an event that names its project (an agent chat) saves that one, even if another is open now

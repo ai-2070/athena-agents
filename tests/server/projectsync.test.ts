@@ -190,6 +190,156 @@ describe('auto-save into the project folder', () => {
     expect(fs.existsSync(dataPath('projects', p2.id, 'chats'))).toBe(false);
   });
 
+  it('saves the versions of agents and teams, and brings them back with a deleted agent', async () => {
+    const { historyOf, deletedItems } = await import('../../server/history.ts');
+    const dir = folder('versions-trip');
+    const p = await createProject({ name: 'Versions trip', mode: 'new', folder: dir });
+    const a = newAgent({ name: 'Keeps history', systemPrompt: 'Old instructions.' });
+    agents.save({ ...agents.get(a.id)!, systemPrompt: 'New instructions.' });
+    const gone = newAgent({ name: 'Deleted one' });
+    agents.remove(gone.id);
+    const t = workflows.save({ name: 'Versioned team', description: 'First goal', members: [a.id], lead: null, steps: [] } as Partial<Team>);
+    workflows.save({ ...workflows.get(t.id)!, description: 'Second goal' });
+    sync.saveProject(p.id);
+    expect(fs.readdirSync(path.join(dir, '.dashboard', 'versions')).sort()).toEqual(['agents', 'workflows']);
+    expect(allText(path.join(dir, '.dashboard', 'versions'))).toContain('Old instructions.');
+
+    const other = await createProject({ name: 'Versions elsewhere', mode: 'new', folder: folder('versions-elsewhere') });
+    setActiveProject(other.id);
+    removeProject(p.id);
+    const again = await createProject({ name: 'Versions again', mode: 'existing', folder: dir });
+    expect(sync.restoreInto(again.id, dir)).toMatchObject({ agents: 1, teams: 1, versions: 3 });
+    setActiveProject(again.id);
+    const h = historyOf('agent', a.id);
+    expect(h.current).toContain('New instructions.');
+    expect(h.versions).toHaveLength(1);
+    expect(historyOf('team', t.id).versions[0].changes).toEqual(['goal']);
+    expect(deletedItems('agent').map((x) => x.name)).toEqual(['Deleted one']);
+  });
+
+  it("restores only versions that are plain files inside the folder, under the item they were saved for", async () => {
+    const dir = folder('crafted-versions');
+    const d = path.join(dir, '.dashboard');
+    const vdir = path.join(d, 'versions', 'agents', 'agent-1');
+    fs.mkdirSync(vdir, { recursive: true });
+    fs.mkdirSync(path.join(d, 'versions', 'routines', 'r-1'), { recursive: true });
+    fs.writeFileSync(path.join(d, 'project.json'), JSON.stringify({ format: 1, app: 'my-dashboard', project: {}, agents: [{ id: 'agent-1', name: 'One' }], teams: [] }));
+    // claims another agent: it's put back under agent-1
+    fs.writeFileSync(path.join(vdir, 'v-ok.json'), JSON.stringify({ id: 'v-other', at: 5, by: 'root', item: { id: 'someone-else', name: 'Old one' } }));
+    fs.writeFileSync(path.join(vdir, 'v-bad.json'), JSON.stringify({ at: 'soon', item: 'nope' }));
+    fs.writeFileSync(path.join(d, 'versions', 'routines', 'r-1', 'v-r.json'), JSON.stringify({ at: 1, by: 'you', item: { id: 'r-1' } }));
+    if (linksWork) {
+      const secret = path.join(os.homedir(), 'version-secret.json');
+      fs.writeFileSync(secret, JSON.stringify({ at: 9, by: 'you', item: { id: 'agent-1', name: 'From outside' } }));
+      fs.symlinkSync(secret, path.join(vdir, 'v-link.json'));
+    }
+    const p = await createProject({ name: 'Crafted versions', mode: 'existing', folder: dir });
+    expect(sync.restoreInto(p.id, dir)).toMatchObject({ versions: 1 });
+    const kept = dataPath('projects', p.id, 'versions', 'agents', 'agent-1');
+    expect(fs.readdirSync(kept)).toEqual(['v-ok.json']);
+    expect(JSON.parse(fs.readFileSync(path.join(kept, 'v-ok.json'), 'utf8'))).toEqual({ id: 'v-ok', at: 5, by: 'you', item: { id: 'agent-1', name: 'Old one' } });
+    expect(fs.existsSync(dataPath('projects', p.id, 'versions', 'routines'))).toBe(false);
+  });
+
+  it('carries the skills the project uses, with their files and versions, into a library that lacks them', async () => {
+    const skills = await import('../../server/skills.ts');
+    const { historyOf } = await import('../../server/history.ts');
+    const { saveRoutine } = await import('../../server/routines.ts');
+    const dir = folder('skills-trip');
+    const p = await createProject({ name: 'Skills trip', mode: 'new', folder: dir });
+    skills.saveSkill({ name: 'Trip agent skill', description: 'Use a.', body: 'Agent v1.' });
+    skills.saveSkill({ slug: 'trip-agent-skill', name: 'Trip agent skill', description: 'Use a.', body: 'Agent v2.' });
+    fs.writeFileSync(path.join(skills.skillDir('trip-agent-skill'), 'ref.md'), 'a reference');
+    skills.saveSkill({ name: 'Trip team skill', description: 'Use t.', body: 'Team.' });
+    skills.saveSkill({ name: 'Trip routine skill', description: 'Use r.', body: 'Routine.' });
+    skills.saveSkill({ name: 'Trip unused skill', description: 'Use u.', body: 'Unused.' });
+    const a = newAgent({ name: 'Skilled', skills: ['trip-agent-skill'] });
+    workflows.save({ name: 'Skilled team', members: [a.id], lead: null, steps: [], skills: ['trip-team-skill'] } as Partial<Team>);
+    saveRoutine({ name: 'Uses a skill', text: '@Skilled works with @Trip routine skill.' });
+    sync.saveProject(p.id);
+    const out = path.join(dir, '.dashboard');
+    expect(fs.readdirSync(path.join(out, 'skills')).sort()).toEqual(['trip-agent-skill', 'trip-routine-skill', 'trip-team-skill']);
+    expect(fs.readdirSync(path.join(out, 'skill-versions'))).toEqual(['trip-agent-skill']);
+
+    // another PC: the library doesn't have them
+    for (const slug of ['trip-agent-skill', 'trip-team-skill', 'trip-routine-skill']) {
+      fs.rmSync(skills.skillDir(slug), { recursive: true });
+      fs.rmSync(skills.skillVersionsDir(slug), { recursive: true, force: true });
+    }
+    const other = await createProject({ name: 'Skills elsewhere', mode: 'new', folder: folder('skills-elsewhere') });
+    setActiveProject(other.id);
+    removeProject(p.id);
+    const again = await createProject({ name: 'Skills again', mode: 'existing', folder: dir });
+    const r = sync.restoreInto(again.id, dir);
+    expect(r?.skills?.added.sort()).toEqual(['Trip agent skill', 'Trip routine skill', 'Trip team skill']);
+    expect(skills.getSkill('trip-agent-skill')?.body).toContain('Agent v2.');
+    expect(fs.readFileSync(path.join(skills.skillDir('trip-agent-skill'), 'ref.md'), 'utf8')).toBe('a reference');
+    const h = historyOf('skill', 'trip-agent-skill');
+    expect(h.versions).toHaveLength(1);
+    expect(h.versions[0].changes).toEqual(['instructions']);
+
+    // the project stops using a skill: the folder drops it
+    setActiveProject(again.id);
+    agents.save({ ...agents.get(a.id)!, skills: [] });
+    sync.saveProject(again.id);
+    expect(fs.readdirSync(path.join(out, 'skills')).sort()).toEqual(['trip-routine-skill', 'trip-team-skill']);
+    expect(fs.existsSync(path.join(out, 'skill-versions'))).toBe(true);
+    expect(fs.readdirSync(path.join(out, 'skill-versions'))).toEqual([]);
+  });
+
+  it("never changes a skill the library already has: a different copy becomes one of its versions", async () => {
+    const skills = await import('../../server/skills.ts');
+    const { historyOf, versionOf } = await import('../../server/history.ts');
+    const dir = folder('skill-clash');
+    const d = path.join(dir, '.dashboard');
+    fs.mkdirSync(path.join(d, 'skills', 'clash-skill'), { recursive: true });
+    fs.mkdirSync(path.join(d, 'skills', 'same-skill'), { recursive: true });
+    fs.writeFileSync(path.join(d, 'project.json'), JSON.stringify({ format: 1, app: 'my-dashboard', project: { name: 'Clash' }, agents: [{ id: 'agent-c', name: 'C', skills: ['clash-skill'] }], teams: [] }));
+    fs.writeFileSync(path.join(d, 'skills', 'clash-skill', 'SKILL.md'), '---\nname: Clash skill\ndescription: Theirs.\n---\n\nTheir steps.\n');
+    skills.saveSkill({ name: 'Clash skill', description: 'Ours.', body: 'Our steps.' });
+    const same = skills.saveSkill({ name: 'Same skill', description: 'Same.', body: 'Same steps.' })!;
+    fs.copyFileSync(path.join(skills.skillDir(same.slug), 'SKILL.md'), path.join(d, 'skills', 'same-skill', 'SKILL.md'));
+    const p = await createProject({ name: 'Clash', mode: 'existing', folder: dir });
+    expect(sync.restoreInto(p.id, dir)?.skills).toEqual({ added: [], kept: ['Clash skill'] });
+    expect(skills.getSkill('clash-skill')?.body).toContain('Our steps.');
+    const h = historyOf('skill', 'clash-skill');
+    expect(h.versions[0].note).toContain('Clash');
+    expect(versionOf('skill', 'clash-skill', h.versions[0].id).text).toContain('Their steps.');
+    expect(historyOf('skill', 'same-skill').versions).toHaveLength(0);
+  });
+
+  it("doesn't add skills that aren't skills, or through links", async () => {
+    const skills = await import('../../server/skills.ts');
+    const dir = folder('crafted-skills');
+    const d = path.join(dir, '.dashboard');
+    fs.mkdirSync(path.join(d, 'skills', 'no-skill-md'), { recursive: true });
+    fs.mkdirSync(path.join(d, 'skills', 'Bad Name'), { recursive: true });
+    fs.mkdirSync(path.join(d, 'skill-versions', 'crafted-ok'), { recursive: true });
+    fs.mkdirSync(path.join(d, 'skills', 'crafted-ok'), { recursive: true });
+    fs.writeFileSync(path.join(d, 'project.json'), JSON.stringify({ format: 1, app: 'my-dashboard', project: {}, agents: [{ id: 'agent-s', name: 'S' }], teams: [] }));
+    fs.writeFileSync(path.join(d, 'skills', 'no-skill-md', 'notes.md'), 'x');
+    fs.writeFileSync(path.join(d, 'skills', 'Bad Name', 'SKILL.md'), '---\nname: Bad\ndescription: x\n---\nx');
+    fs.writeFileSync(path.join(d, 'skills', 'crafted-ok', 'SKILL.md'), '---\nname: Crafted ok\ndescription: Fine.\n---\nFine.');
+    fs.writeFileSync(path.join(d, 'skill-versions', 'crafted-ok', 'v-good.json'), JSON.stringify({ at: 3, by: 'brain', item: { slug: 'other', name: 'Crafted ok', description: 'Old.', body: 'Older.' } }));
+    fs.writeFileSync(path.join(d, 'skill-versions', 'crafted-ok', 'v-bad.json'), JSON.stringify({ at: 4, by: 'you', item: { name: 7 } }));
+    if (linksWork) {
+      const outside = path.join(os.homedir(), 'outside-skill');
+      fs.mkdirSync(outside, { recursive: true });
+      fs.writeFileSync(path.join(outside, 'SKILL.md'), '---\nname: Linked\ndescription: x\n---\nx');
+      fs.symlinkSync(outside, path.join(d, 'skills', 'linked-skill'), 'dir');
+      fs.writeFileSync(path.join(os.homedir(), 'secret.txt'), 'secret');
+      fs.symlinkSync(path.join(os.homedir(), 'secret.txt'), path.join(d, 'skills', 'crafted-ok', 'secret.txt'));
+    }
+    const p = await createProject({ name: 'Crafted skills', mode: 'existing', folder: dir });
+    expect(sync.restoreInto(p.id, dir)?.skills?.added).toEqual(['Crafted ok']);
+    expect(skills.getSkill('no-skill-md')).toBeNull();
+    expect(skills.getSkill('linked-skill')).toBeNull();
+    expect(fs.existsSync(path.join(skills.skillDir('crafted-ok'), 'secret.txt'))).toBe(false);
+    const kept = fs.readdirSync(skills.skillVersionsDir('crafted-ok'));
+    expect(kept).toEqual(['v-good.json']);
+    expect(JSON.parse(fs.readFileSync(path.join(skills.skillVersionsDir('crafted-ok'), 'v-good.json'), 'utf8')).item).toEqual({ slug: 'crafted-ok', name: 'Crafted ok', description: 'Old.', body: 'Older.' });
+  });
+
   it('never restores over a project that already has agents', async () => {
     const dir = folder('busy');
     const p = await createProject({ name: 'Busy', mode: 'new', folder: dir });

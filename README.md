@@ -61,6 +61,7 @@ or the Brain); edits within a few minutes of each other count as one. **History*
 panel) compares any version with the current one and puts it back; restoring keeps the current version too, so it can
 be undone. **Recently deleted** (Skills page, Agents page) brings deleted ones back, skills with their extra files. The
 last 50 versions of each are kept, in `data/versions` (skills) and `data/projects/<id>/versions` (agents and teams).
+Agent and team versions are also saved into the project folder's `.dashboard`, so they come back when you open it.
 An agent's last model, a pin, and a team's place on the map don't count as changes.
 
 **Needs you** (top right) collects everything waiting on you: tool approvals, Claude Code
@@ -96,9 +97,11 @@ always wait for you.
 
 Everything lives in `data/` (git-ignored): projects (agents, teams, chats, knowledge), skills,
 presets, settings, `secrets.json` (keys), `accounts.json` (tokens), the Outbox, the activity log.
-Keys and tokens never go to the browser. Each project's agents, teams and chats are also
-auto-saved into `<project folder>/.dashboard` (no keys), so opening that folder elsewhere brings
-them back.
+Keys and tokens never go to the browser. Each project's agents, teams, chats, the skills it uses (given to the
+project, a team or an agent, or mentioned in a routine, with their files) and their earlier versions are
+also auto-saved into `<project folder>/.dashboard` (no keys), so opening that folder elsewhere brings them back.
+Skills the library doesn't have are added; one it already has is never changed, and a different copy from the folder
+is kept as one of its versions.
 
 ## Security
 

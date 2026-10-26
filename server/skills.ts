@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME } from './util.ts';
-import { activeProject, agents, workflows, listProjects, getSettings, saveSettings, log } from './store.ts';
+import { activeProject, agents, workflows, listProjects, getSettings, saveSettings, log, emit } from './store.ts';
 import { updateProject } from './projects.ts';
 import { keepVersion } from './versions.ts';
 import type { ClaudeSkill, Skill, SkillFile, SkillListing } from '../shared/types.ts';
@@ -21,6 +21,9 @@ export type AgentSkill = SkillDetail & { via: 'agent' | 'team' | 'project' };
 const LIB = () => ensureDir(dataPath('skills'));
 const CLAUDE_DIR = path.join(HOME, '.claude', 'skills');
 const SAFE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+export const isSkillSlug = (s: unknown): s is string => SAFE.test(String(s));
+/** Where a skill lives in the library. */
+export const skillDir = (slug: string): string => path.join(LIB(), slug);
 
 // "---\nname: x\ndescription: y\n---\nbody"
 function parse(text: string): { meta: Record<string, string>; body: string } {
@@ -81,6 +84,12 @@ function readDir(dir: string, source: Skill['source']): (Skill & { dir: string }
   return { slug, name: meta.name || slug, description: meta.description || '', body, source, dir, files: filesIn(dir), updatedAt: fs.statSync(file).mtimeMs };
 }
 
+/** A SKILL.md's text as a skill's version (name, description, instructions). */
+export function skillFromText(text: string, slug: string): SkillVersionItem {
+  const { meta, body } = parse(text);
+  return { slug, name: (meta.name || slug).slice(0, 80), description: (meta.description || '').slice(0, 1000), body: body.trim().slice(0, SKILL_BODY_MAX) };
+}
+
 // Every skill in the library (with what it's used by is worked out on the page).
 export function listSkills(): SkillSummary[] {
   const out: SkillSummary[] = [];
@@ -135,6 +144,7 @@ export function saveSkill({ slug, name, description, body }: { slug?: string; na
   const text = String(body || '').slice(0, SKILL_BODY_MAX);
   if (before) keepVersion(skillVersionsDir(id), versionItem(before), { slug: id, name, description, body: text.trim() });
   fs.writeFileSync(path.join(dir, 'SKILL.md'), compose({ name, description, body: text }));
+  emit('skills', { slug: id });
   return getSkill(id);
 }
 
@@ -161,6 +171,7 @@ export function deleteSkill(slug: string) {
     }
   }
   fs.rmSync(dir, { recursive: true, force: true });
+  emit('skills', { slug, removed: true });
 }
 
 // Put a kept version back (SKILL.md, and the extra files it had when it was deleted). The current one
@@ -173,6 +184,7 @@ export function restoreSkill(item: SkillVersionItem, versionId: string): SkillDe
   fs.writeFileSync(path.join(dir, 'SKILL.md'), compose({ name: item.name, description: item.description, body: item.body }));
   const files = path.join(skillVersionsDir(item.slug), `files-${versionId}`);
   if (/^[\w-]+$/.test(versionId) && exists(files)) fs.cpSync(files, dir, { recursive: true, force: false, errorOnExist: false });
+  emit('skills', { slug: item.slug });
   return getSkill(item.slug);
 }
 
