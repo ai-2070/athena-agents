@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { agents, workflows, setActiveProject, setSecret } from '../../server/store.ts';
+import { agents, chats, workflows, setActiveProject, setSecret, bus } from '../../server/store.ts';
 import { createProject, removeProject } from '../../server/projects.ts';
 import { newAgent } from '../../server/library.ts';
 import { dataPath } from '../../server/util.ts';
@@ -85,6 +85,109 @@ describe('auto-save into the project folder', () => {
     setActiveProject(again.id);
     expect(agents.list().map((x) => [x.name, x.skills])).toEqual([['Researcher', ['method']]]);
     expect(workflows.list()[0]).toMatchObject({ name: 'Research desk', members: [a.id], lead: a.id });
+  });
+
+  it("brings an agent's chats back too, with the engine's memory of them", async () => {
+    const dir = folder('chats-trip');
+    const p = await createProject({ name: 'Chats trip', mode: 'new', folder: dir });
+    const a = newAgent({ name: 'Talker' });
+    const c = chats.create(a.id, 'Planning');
+    c.items.push({ type: 'user', text: 'distinctive-user-message', ts: Date.now() });
+    c.sessionId = 'session-123';
+    c.llm = [{ role: 'user', content: 'distinctive-user-message' }];
+    chats.save(c);
+    sync.saveProject(p.id);
+    expect(fs.existsSync(path.join(dir, '.dashboard', 'chats', a.id, `${c.id}.json`))).toBe(true);
+    const other = await createProject({ name: 'Somewhere', mode: 'new', folder: folder('somewhere') });
+    setActiveProject(other.id);
+    removeProject(p.id);
+    const again = await createProject({ name: 'Chats trip again', mode: 'existing', folder: dir });
+    expect(sync.restoreInto(again.id, dir)).toMatchObject({ agents: 1, chats: 1 });
+    setActiveProject(again.id);
+    expect(chats.list(a.id).map((x) => x.title)).toEqual(['Planning']);
+    const back = chats.get(a.id, c.id)!;
+    expect(back.items.map((i) => (i.type === 'user' ? i.text : i.type))).toEqual(['distinctive-user-message']);
+    expect(back).toMatchObject({ id: c.id, agentId: a.id, sessionId: 'session-123', llm: [{ role: 'user', content: 'distinctive-user-message' }] });
+  });
+
+  it('drops agent chats that were deleted in the dashboard', async () => {
+    const p = await createProject({ name: 'Chat prune', mode: 'new', folder: folder('chat-prune') });
+    const a = newAgent({ name: 'Pruner' });
+    const keep = chats.create(a.id, 'Keep');
+    const gone = chats.create(a.id, 'Gone');
+    sync.saveProject(p.id);
+    chats.remove(a.id, gone.id);
+    sync.saveProject(p.id);
+    expect(fs.readdirSync(path.join(p.brainPath, '.dashboard', 'chats', a.id))).toEqual([`${keep.id}.json`]);
+  });
+
+  it('a chat change is announced with its project, so the auto-save saves the right one', async () => {
+    const p = await createProject({ name: 'Announce', mode: 'new', folder: folder('announce') });
+    const a = newAgent({ name: 'Announcer' });
+    const seen: unknown[] = [];
+    const on = (ev: { type: string; project?: unknown }) => ev.type === 'chats' && seen.push(ev.project);
+    bus.on('event', on);
+    try {
+      chats.create(a.id, 'Hello');
+    } finally {
+      bus.off('event', on);
+    }
+    expect(seen).toEqual([p.id]);
+  });
+
+  it("doesn't restore chats through links, or chats of agents it didn't restore", async () => {
+    const dir = folder('crafted-chats');
+    const d = path.join(dir, '.dashboard');
+    fs.mkdirSync(path.join(d, 'chats', 'agent-1'), { recursive: true });
+    fs.mkdirSync(path.join(d, 'chats', 'stranger'), { recursive: true });
+    fs.writeFileSync(path.join(d, 'project.json'), JSON.stringify({ format: 1, app: 'my-dashboard', project: {}, agents: [{ id: 'agent-1', name: 'One' }], teams: [] }));
+    const chat = (id: string, agentId: string) => JSON.stringify({ id, agentId, title: 't', items: [], llm: [], sessionId: null, createdAt: 1, updatedAt: 1 });
+    // claims another agent and id: it's put back where it was saved
+    fs.writeFileSync(path.join(d, 'chats', 'agent-1', 'c-ok.json'), chat('c-other', 'someone-else'));
+    fs.writeFileSync(path.join(d, 'chats', 'stranger', 'c-x.json'), chat('c-x', 'stranger'));
+    fs.writeFileSync(path.join(d, 'chats', 'agent-1', 'not-a-chat.json'), '{"hello":1}');
+    if (linksWork) {
+      const secret = path.join(os.homedir(), 'chat-secret.json');
+      fs.writeFileSync(secret, chat('c-secret', 'agent-1'));
+      fs.symlinkSync(secret, path.join(d, 'chats', 'agent-1', 'c-secret.json'));
+    }
+    const p = await createProject({ name: 'Crafted chats', mode: 'existing', folder: dir });
+    expect(sync.restoreInto(p.id, dir)).toMatchObject({ chats: 1 });
+    expect(fs.readdirSync(dataPath('projects', p.id, 'chats'))).toEqual(['agent-1']);
+    expect(fs.readdirSync(dataPath('projects', p.id, 'chats', 'agent-1'))).toEqual(['c-ok.json']);
+    expect(JSON.parse(fs.readFileSync(dataPath('projects', p.id, 'chats', 'agent-1', 'c-ok.json'), 'utf8'))).toMatchObject({ id: 'c-ok', agentId: 'agent-1' });
+  });
+
+  it.runIf(linksWork)("doesn't restore through a linked folder above the files (chats/, teamchats/ or .dashboard itself)", async () => {
+    const chat = (id: string) => JSON.stringify({ id, agentId: 'agent-1', title: 't', items: [], llm: [], sessionId: null, createdAt: 1, updatedAt: 1 });
+    // files somewhere else on the PC, laid out like a saved project
+    const elsewhere = path.join(os.homedir(), 'elsewhere-saved');
+    fs.mkdirSync(path.join(elsewhere, 'chats', 'agent-1'), { recursive: true });
+    fs.mkdirSync(path.join(elsewhere, 'teamchats'), { recursive: true });
+    fs.writeFileSync(path.join(elsewhere, 'chats', 'agent-1', 'c-out.json'), chat('c-out'));
+    fs.writeFileSync(path.join(elsewhere, 'teamchats', 'team-out.json'), '{"messages":[]}');
+    fs.writeFileSync(path.join(elsewhere, 'project.json'), JSON.stringify({ format: 1, app: 'my-dashboard', project: { name: 'Outside' }, agents: [{ id: 'agent-1', name: 'One' }], teams: [] }));
+    const project = JSON.stringify({ format: 1, app: 'my-dashboard', project: {}, agents: [{ id: 'agent-1', name: 'One' }], teams: [] });
+
+    // chats/ and teamchats/ are links
+    const dir = folder('linked-subfolders');
+    fs.mkdirSync(path.join(dir, '.dashboard'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.dashboard', 'project.json'), project);
+    fs.symlinkSync(path.join(elsewhere, 'chats'), path.join(dir, '.dashboard', 'chats'), 'dir');
+    fs.symlinkSync(path.join(elsewhere, 'teamchats'), path.join(dir, '.dashboard', 'teamchats'), 'dir');
+    const p = await createProject({ name: 'Linked subfolders', mode: 'existing', folder: dir });
+    expect(sync.restoreInto(p.id, dir)).toMatchObject({ agents: 1, chats: 0 });
+    expect(fs.existsSync(dataPath('projects', p.id, 'chats', 'agent-1', 'c-out.json'))).toBe(false);
+    expect(fs.existsSync(dataPath('projects', p.id, 'teamchats', 'team-out.json'))).toBe(false);
+
+    // .dashboard itself is a link: nothing is read from it
+    const dir2 = folder('linked-dashboard');
+    fs.mkdirSync(dir2, { recursive: true });
+    fs.symlinkSync(elsewhere, path.join(dir2, '.dashboard'), 'dir');
+    expect(sync.peek(dir2)).toBeNull();
+    const p2 = await createProject({ name: 'Linked dashboard', mode: 'existing', folder: dir2 });
+    expect(sync.restoreInto(p2.id, dir2)).toBeNull();
+    expect(fs.existsSync(dataPath('projects', p2.id, 'chats'))).toBe(false);
   });
 
   it('never restores over a project that already has agents', async () => {

@@ -2,7 +2,7 @@
 // Risk decides when you're asked first: autonomy "ask" checks low + high, "auto" checks high only, "full" never asks.
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, ROOT, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which } from './util.ts';
+import { HOME, ROOT, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which, insideRoots } from './util.ts';
 import { agents as agentStore, getSettings, emit, log } from './store.ts';
 import { requestApproval } from './approvals.ts';
 import { discoverPrograms, launchProgram, programExe, startMenuApps } from './programs.ts';
@@ -91,14 +91,16 @@ export function workspaceOf(agent: { workspace?: string }): string {
 // Reading: workspace, outputs, knowledge, allowed folders. Writing: not linked knowledge folders.
 function allowedRoots(agent: ToolAgent, write = false): string[] {
   const s = getSettings();
-  return [workspaceOf(agent), dataPath('outputs'), ...(write ? [] : kb.knowledgeRoots(agent)), ...(s.allowedFolders || [])].map((p) => path.resolve(p).toLowerCase());
+  return [workspaceOf(agent), dataPath('outputs'), ...(write ? [] : kb.knowledgeRoots(agent)), ...(s.allowedFolders || [])];
 }
 
-function resolveInside(agent: ToolAgent, p: string | undefined, { write = false } = {}) {
+// abs: the path as asked (for messages). real: where it really is, links followed; use it for the file
+// operation. ok only when the real location is inside an allowed folder, so a link in the workspace
+// can't reach the rest of the disk.
+function resolveInside(agent: ToolAgent, p: string | undefined, { write = false } = {}): { abs: string; real: string; ok: boolean } {
   const abs = path.resolve(workspaceOf(agent), String(p || '.'));
-  const low = abs.toLowerCase();
-  const ok = allowedRoots(agent, write).some((r) => low === r || low.startsWith(r + path.sep));
-  return { abs, ok, write };
+  const real = insideRoots(abs, allowedRoots(agent, write));
+  return { abs, real: real || abs, ok: !!real };
 }
 
 // Files that run code when opened.
@@ -527,9 +529,9 @@ const TOOLS: ToolDef[] = [
     description: 'List a folder (relative paths start in your workspace).',
     parameters: obj({ path: str('Folder (default: workspace)') }),
     run: async ({ path: p = '.' }: { path?: string }, ctx) => {
-      const { abs, ok } = resolveInside(ctx.agent, p);
+      const { abs, real, ok } = resolveInside(ctx.agent, p);
       if (!ok) throw new Error(`${abs} is outside the folders this agent may use. Add it in Settings > Allowed folders.`);
-      const items = fs.readdirSync(abs, { withFileTypes: true }).slice(0, 500);
+      const items = fs.readdirSync(real, { withFileTypes: true }).slice(0, 500);
       return { text: `${abs}\n${items.map((d) => `${d.isDirectory() ? '[dir] ' : ''}${d.name}`).join('\n')}` };
     },
   },
@@ -540,9 +542,9 @@ const TOOLS: ToolDef[] = [
     description: 'Read a text file (workspace, knowledge, outputs or allowed folders).',
     parameters: obj({ path: str('File path') }, ['path']),
     run: async ({ path: p }: { path: string }, ctx) => {
-      const { abs, ok } = resolveInside(ctx.agent, p);
+      const { abs, real, ok } = resolveInside(ctx.agent, p);
       if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
-      return { text: truncate(fs.readFileSync(abs, 'utf8'), 60000) };
+      return { text: truncate(fs.readFileSync(real, 'utf8'), 60000) };
     },
   },
   {
@@ -552,10 +554,10 @@ const TOOLS: ToolDef[] = [
     description: 'Create or overwrite a text file in your workspace or an allowed folder. Returns the full path.',
     parameters: obj({ path: str('File path (relative = workspace)'), content: str('File contents') }, ['path', 'content']),
     run: async ({ path: p, content }: { path: string; content: string }, ctx) => {
-      const { abs, ok } = resolveInside(ctx.agent, p, { write: true });
+      const { abs, real, ok } = resolveInside(ctx.agent, p, { write: true });
       if (!ok) throw new Error(`${abs} is outside the folders this agent may write to.`);
-      ensureDir(path.dirname(abs));
-      fs.writeFileSync(abs, content);
+      ensureDir(path.dirname(real));
+      fs.writeFileSync(real, content);
       return { text: `Wrote ${abs} (${Buffer.byteLength(content)} bytes)` };
     },
   },

@@ -3,7 +3,7 @@
 // hands real work to the best agent or team.
 import fs from 'node:fs';
 import path from 'node:path';
-import { agents, workflows, activeProject, getSettings, outbox, activity, log, emit } from './store.ts';
+import { agents, workflows, activeProject, openProject, projectSwitches, listProjects, getSettings, outbox, activity, log, emit } from './store.ts';
 import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from './library.ts';
 import { TOOL_GROUPS, workspaceOf } from './tools.ts';
 import { listServers } from './mcp.ts';
@@ -245,8 +245,13 @@ function remember(msgs: BrainChatMessage[], pid?: string) {
   writeJSON(histFile(pid), { messages: msgs.slice(-HISTORY_KEEP) });
   emit('brain-chat');
 }
-export function clearHistory() {
-  remember([]);
+// Bumped each time a project's Brain chat is cleared, so an answer still on its way can tell
+// that its conversation is gone and doesn't write it back.
+const generations = new Map<string, number>();
+const generation = (pid: string) => generations.get(pid) || 0;
+export function clearHistory(pid = activeProject().id) {
+  generations.set(pid, generation(pid) + 1);
+  remember([], pid);
 }
 
 const GROUP_IDS = TOOL_GROUPS.map((g) => g.id);
@@ -546,8 +551,15 @@ export function applyActions(actions: BrainAction[], p: Project = activeProject(
   return { done, delegate };
 }
 
-export async function ask(text: string): Promise<BrainAnswer> {
+/** project: the project the message was typed in. A message that waited while you switched projects is refused. */
+export async function ask(text: string, { project }: { project?: string | null } = {}): Promise<BrainAnswer> {
   const p = activeProject();
+  if (project && project !== p.id) {
+    const was = listProjects().find((x) => x.id === project);
+    throw Object.assign(new Error(`You switched projects before the Brain got to this message, so it wasn't sent. Open "${was?.name || 'that project'}" and ask again.`), { status: 409 });
+  }
+  const gen = generation(p.id);
+  const switchesAtStart = projectSwitches();
   const bm = brainModel();
   const canRead = bm.provider === 'claude' || bm.provider === 'codex';
   const snap = await snapshot({ fileBudget: canRead ? 6000 : 12000 });
@@ -560,12 +572,18 @@ export async function ask(text: string): Promise<BrainAnswer> {
     maxTokens: 4000,
   });
   const parsed = parseActions(out);
-  // you switched projects while it thought: its actions were meant for the other project, so skip them
+  // you started a new conversation while it thought: this answer belongs to the old one, so change nothing and don't bring it back
+  if (generation(p.id) !== gen) {
+    const dropped: BrainDone = { kind: 'error', text: 'You started a new conversation while the Brain was thinking, so nothing was changed.' };
+    return { answer: parsed.answer, done: parsed.actions.length ? [dropped] : [], delegate: null, model: bm, project: p.name };
+  }
+  // you switched projects while it thought (even if you came back since: the chat dropped this turn), so skip its actions
   const skipped: BrainDone = { kind: 'error', text: `You switched projects while the Brain was thinking, so nothing was changed. Open "${p.name}" and ask again.` };
-  const { done, delegate } = activeProject().id !== p.id ? { done: parsed.actions.length ? [skipped] : [], delegate: null } : applyActions(parsed.actions, p);
+  const { done, delegate } = projectSwitches() !== switchesAtStart || openProject().id !== p.id ? { done: parsed.actions.length ? [skipped] : [], delegate: null } : applyActions(parsed.actions, p);
   const r = { answer: parsed.answer, done, delegate };
   const now = Date.now();
-  remember([...past, { role: 'user', text, ts: now }, { role: 'brain', text: [r.answer, ...done.map((d) => `(${d.text})`), delegate ? `(handed to ${delegate.name}: ${delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n'), ts: Date.now() }], p.id);
+  // on top of the history as it is now (not as it was before thinking), so nothing saved meanwhile is lost
+  remember([...history(p.id), { role: 'user', text, ts: now }, { role: 'brain', text: [r.answer, ...done.map((d) => `(${d.text})`), delegate ? `(handed to ${delegate.name}: ${delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n'), ts: Date.now() }], p.id);
   return { ...r, model: bm, project: p.name };
 }
 
@@ -599,11 +617,13 @@ function fullRequest(item: Approval): string {
 }
 
 export async function reviewApproval(item: Approval): Promise<BrainVerdict> {
+  // (inside a run this is the run's own project: see withProject)
   const p = activeProject();
   const runId = String(item.data?.runId || '');
-  // You switched projects while it worked: its folders and teammates are no longer the ones open here.
+  // You switched projects while it worked: the agent works on in its own project, but that's not the one
+  // you're looking at, so you decide.
   const started = runId ? runInfo(runId) : null;
-  if (started && started.projectId !== p.id) return { approve: false, reason: 'you switched projects while this agent was working' };
+  if (started && started.projectId !== openProject().id) return { approve: false, reason: 'you switched projects while this agent was working' };
   const request = fullRequest(item);
   if (request.length > REVIEW_MAX) return { approve: false, reason: 'too long for the Brain to check in full' };
   const agent = item.agentId ? agents.get(item.agentId) : null;

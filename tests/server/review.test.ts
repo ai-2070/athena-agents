@@ -15,7 +15,7 @@ vi.mock('../../server/engines/index.ts', async (orig) => ({
 }));
 
 const { reviewApproval, REVIEW_MAX } = await import('../../server/overseer.ts');
-const { activeProject } = await import('../../server/store.ts');
+const { activeProject, withProject } = await import('../../server/store.ts');
 
 const request = (over: Partial<Approval> = {}): Approval => ({
   id: 'ap1', kind: 'tool', title: 'Coder wants to use write_file', detail: 'notes.md', agentId: 'a1', agentName: 'Coder',
@@ -65,5 +65,14 @@ describe('the Brain reviews a request', () => {
     expect(brain.prompts).toHaveLength(0);
     runs.projectId = activeProject().id;
     expect((await reviewApproval(request({ data: { runId: 'r1', args: {} } }))).approve).toBe(true);
+  });
+
+  it('leaves it to you when the request comes from a run still working in a project you left', async () => {
+    // the run is pinned to its own project, so compare with the one open in the dashboard
+    const left = { ...activeProject(), id: 'left-behind', name: 'Left behind' };
+    runs.projectId = left.id;
+    const v = await withProject(left, () => reviewApproval(request({ data: { runId: 'r1', args: {} } })));
+    expect(v.approve).toBe(false);
+    expect(brain.prompts).toHaveLength(0);
   });
 });

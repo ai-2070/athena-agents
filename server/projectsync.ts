@@ -1,12 +1,12 @@
-// Auto-save: every project keeps a copy of its agents, teams, routines, layout, team chats, Brain chat and
-// agent knowledge files inside its own folder (<project folder>/.dashboard). A few seconds after
+// Auto-save: every project keeps a copy of its agents, teams, routines, layout, team chats, Brain chat,
+// agent chats (with each chat's engine session) and agent knowledge files inside its own folder (<project folder>/.dashboard). A few seconds after
 // any change it is saved again. Opening that folder as a project (here or on another PC) restores it.
 // Keys and tokens are never written there.
 import fs from 'node:fs';
 import path from 'node:path';
 import { bus, listProjects, activeProject, log } from './store.ts';
-import { dataPath, ensureDir, exists, readJSON, writeJSON } from './util.ts';
-import type { Agent, Routine, Team } from '../shared/types.ts';
+import { dataPath, ensureDir, exists, readJSON, writeJSON, realTarget } from './util.ts';
+import type { Agent, Chat, Routine, Team } from '../shared/types.ts';
 
 /** The last auto-save of a project (AppState.projectSaved). */
 export interface SaveStatus {
@@ -41,12 +41,14 @@ export interface ProjectPeek {
 export interface RestoreResult {
   agents: number;
   teams: number;
+  chats?: number;
   project: SavedProjectFile['project'];
 }
 
 const FORMAT = 1;
 const DIR = '.dashboard';
 const KNOWLEDGE_CAP = 50 * 1024 * 1024; // don't copy more than 50 MB of knowledge files
+const CHATS_CAP = 200 * 1024 * 1024; // nor more than 200 MB of agent chats
 const saved = new Map<string, SaveStatus>(); // projectId -> { at, error }
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -160,6 +162,8 @@ export function saveProject(id: string): SaveStatus | null {
     });
     // team chat threads and the files you gave agents as knowledge (mirrored: what's deleted here goes there too)
     copyTree(projectDir(id, 'teamchats'), path.join(out, 'teamchats'), Infinity, { base: out, mirror: true });
+    // agent chats: chats/<agent id>/<chat id>.json, the visible history plus the engine's memory (sessionId, llm)
+    copyTree(projectDir(id, 'chats'), path.join(out, 'chats'), CHATS_CAP, { base: out, mirror: true });
     copyTree(projectDir(id, 'knowledge'), path.join(out, 'knowledge'), KNOWLEDGE_CAP, { base: out, mirror: true });
     noLinks(out, path.join(out, 'README.txt'));
     fs.writeFileSync(
@@ -194,20 +198,34 @@ export function saveStatus(id: string = activeProject().id): SaveStatus | null {
   return saved.get(id) || null;
 }
 
+// Saved data is only read from inside <folder>/.dashboard itself. A link anywhere on the way (the
+// .dashboard folder, chats/, an agent's folder or a file) could point at files elsewhere on the PC, so
+// this gives the real location when it is inside, else null.
+function savedPath(folder: string, ...parts: string[]): string | null {
+  const base = realTarget(folder);
+  if (!base) return null;
+  const dash = path.join(base, DIR);
+  const real = realTarget(path.join(folder, DIR, ...parts));
+  return real && (real === dash || real.startsWith(dash + path.sep)) ? real : null;
+}
+
+function readSaved(folder: string): Partial<SavedProjectFile> | null {
+  const f = savedPath(folder, 'project.json');
+  const j = f && exists(f) ? readJSON<Partial<SavedProjectFile>>(f, null) : null;
+  return j && j.app === 'my-dashboard' ? j : null;
+}
+
 // What a folder holds, if it was saved by the dashboard.
 export function peek(folder: string): ProjectPeek | null {
-  const f = path.join(folder, DIR, 'project.json');
-  if (!exists(f)) return null;
-  const j = readJSON<Partial<SavedProjectFile>>(f, null);
-  if (!j || j.app !== 'my-dashboard') return null;
+  const j = readSaved(folder);
+  if (!j) return null;
   return { name: j.project?.name || '', description: j.project?.description || '', agents: (j.agents || []).length, teams: (j.teams || []).length, savedAt: j.savedAt || 0 };
 }
 
 // Load a saved copy into a project that has no agents yet (a folder you just opened).
 export function restoreInto(id: string, folder: string): RestoreResult | null {
-  const f = path.join(folder, DIR, 'project.json');
-  const j = exists(f) ? readJSON<Partial<SavedProjectFile>>(f, null) : null;
-  if (!j || j.app !== 'my-dashboard') return null;
+  const j = readSaved(folder);
+  if (!j) return null;
   if (jsonFiles(projectDir(id, 'agents')).length) return null; // never overwrite a project that has agents
   const safe = (x: { id?: unknown } | null | undefined) => typeof x?.id === 'string' && /^[\w.-]+$/.test(x.id);
   for (const a of (j.agents || []).filter(safe)) writeJSON(projectDir(id, 'agents', `${a.id}.json`), a);
@@ -215,22 +233,48 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   for (const r of (j.routines || []).filter(safe)) writeJSON(projectDir(id, 'routines', `${r.id}.json`), r);
   if (j.layout) writeJSON(projectDir(id, 'layout.json'), j.layout);
   if (j.brainChat) writeJSON(projectDir(id, 'brain-chat.json'), j.brainChat);
-  const tc = path.join(folder, DIR, 'teamchats');
-  for (const n of jsonFiles(tc)) {
-    if (!fs.lstatSync(path.join(tc, n)).isFile()) continue; // no links out of the folder
+  for (const n of jsonFiles(savedPath(folder, 'teamchats') || '')) {
+    const src = savedPath(folder, 'teamchats', n);
+    if (!src || !fs.lstatSync(src).isFile()) continue;
     ensureDir(projectDir(id, 'teamchats'));
-    fs.copyFileSync(path.join(tc, n), projectDir(id, 'teamchats', n));
+    fs.copyFileSync(src, projectDir(id, 'teamchats', n));
   }
-  copyTree(path.join(folder, DIR, 'knowledge'), projectDir(id, 'knowledge'), KNOWLEDGE_CAP * 4);
-  log('project', `Loaded ${(j.agents || []).length} agents and ${(j.teams || []).length} teams from ${folder}`);
-  return { agents: (j.agents || []).length, teams: (j.teams || []).length, project: j.project || {} };
+  // (copyTree skips links below this folder: a linked file or folder isn't a plain file or folder)
+  const knowledge = savedPath(folder, 'knowledge');
+  if (knowledge) copyTree(knowledge, projectDir(id, 'knowledge'), KNOWLEDGE_CAP * 4);
+  const chatCount = restoreChats(folder, id, (j.agents || []).filter(safe).map((a) => a.id as string));
+  log('project', `Loaded ${(j.agents || []).length} agents, ${(j.teams || []).length} teams and ${chatCount} chats from ${folder}`);
+  return { agents: (j.agents || []).length, teams: (j.teams || []).length, chats: chatCount, project: j.project || {} };
+}
+
+// The saved chats of the restored agents. Each is checked to be a plain file inside the folder and a
+// chat, and is put back under the agent and id it was saved as (whatever the file itself claims).
+function restoreChats(folder: string, id: string, agentIds: string[]): number {
+  let n = 0;
+  for (const agentId of agentIds) {
+    if (!/^[\w-]+$/.test(agentId)) continue;
+    const dir = savedPath(folder, 'chats', agentId);
+    if (!dir) continue;
+    for (const name of jsonFiles(dir)) {
+      const chatId = name.slice(0, -'.json'.length);
+      const file = savedPath(folder, 'chats', agentId, name);
+      if (!/^[\w-]+$/.test(chatId) || !file || !fs.lstatSync(file).isFile()) continue;
+      const c = readJSON<Partial<Chat>>(file, null);
+      if (!c || !Array.isArray(c.items)) continue;
+      const { _deleted, ...chat } = c;
+      writeJSON(projectDir(id, 'chats', agentId, name), { ...chat, id: chatId, agentId });
+      n++;
+    }
+  }
+  return n;
 }
 
 // Save after anything in the project changes.
-const WATCH = new Set(['agents', 'workflows', 'routines', 'layout', 'team', 'knowledge', 'brain-chat']);
+const WATCH = new Set(['agents', 'workflows', 'routines', 'layout', 'team', 'knowledge', 'brain-chat', 'chats']);
 export function startAutoSave() {
   bus.on('event', (ev) => {
-    if (WATCH.has(ev.type)) saveSoon(activeProject().id);
+    // an event that names its project (an agent chat) saves that one, even if another is open now
+    if (WATCH.has(ev.type)) saveSoon(typeof ev.project === 'string' ? ev.project : activeProject().id);
     else if (ev.type === 'project') saveSoon(activeProject().id, 500);
   });
   // and every 5 minutes, for anything that changed without an event (e.g. knowledge files)

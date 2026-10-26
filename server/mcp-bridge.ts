@@ -72,7 +72,7 @@ const server = new Server({ name: 'dashboard', version: '0.1.0' }, { capabilitie
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   try {
-    const { tools } = await call<{ tools: BridgeTool[] }>(`/tools?agent=${encodeURIComponent(agent)}`);
+    const { tools } = await call<{ tools: BridgeTool[] }>(`/tools?agent=${encodeURIComponent(agent)}&run=${encodeURIComponent(runId)}`);
     return { tools: tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.parameters })) };
   } catch (e) {
     process.stderr.write(`dashboard bridge: could not list tools (${(e as Error).message}). Is the dashboard running on port ${port}?\n`);
