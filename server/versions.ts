@@ -94,12 +94,34 @@ export function keepVersion<T>(dir: string, before: T, after: T | null, { ignore
   if (!deleted && !ctx?.force && last && !last.deleted && last.by === by && Date.now() - last.at < COALESCE_MS) return null;
   const v: Version<T> = { id: uid('v'), at: stamp(last?.at), by, ...(deleted ? { deleted: true } : {}), ...(ctx?.note ? { note: ctx.note } : {}), item: before };
   writeJSON(path.join(ensureDir(dir), `${v.id}.json`), v);
-  const all = listVersions<T>(dir);
-  for (const old of all.slice(VERSIONS_KEPT)) {
+  pruneVersions(dir);
+  return v;
+}
+
+/** Keep only the newest VERSIONS_KEPT versions in dir (and the files kept with each). */
+export function pruneVersions(dir: string) {
+  for (const old of listVersions(dir).slice(VERSIONS_KEPT)) {
     fs.rmSync(path.join(dir, `${old.id}.json`), { force: true });
     fs.rmSync(versionFilesDir(dir, old.id), { recursive: true, force: true });
   }
-  return v;
+}
+
+/** A version read from somewhere else (a project folder, a backup), checked field by field, or null.
+ *  vid: the id it was saved under (whatever the version claims); check: the item, cleaned, or null. */
+export function checkVersion<T>(raw: unknown, vid: string, check: (item: Record<string, unknown>) => T | null): Version<T> | null {
+  if (!/^[\w-]+$/.test(vid) || !raw || typeof raw !== 'object') return null;
+  const v = raw as Partial<Version<unknown>>;
+  if (typeof v.at !== 'number' || !Number.isFinite(v.at) || !v.item || typeof v.item !== 'object' || Array.isArray(v.item)) return null;
+  const item = check(v.item as Record<string, unknown>);
+  if (!item) return null;
+  return {
+    id: vid,
+    at: v.at,
+    by: v.by === 'brain' ? 'brain' : 'you',
+    ...(v.deleted === true ? { deleted: true } : {}),
+    ...(typeof v.note === 'string' ? { note: v.note.slice(0, 300) } : {}),
+    item,
+  };
 }
 
 /** Items with versions whose newest version says they were deleted (and that aren't back): newest first. */
