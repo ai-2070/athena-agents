@@ -23,6 +23,8 @@ export interface DialogSpec {
   onClose?: () => void;
   /** What gets focus when it opens: by default its first text box, else the dialog itself. */
   focus?: () => HTMLElement | null | undefined;
+  /** React content instead of body and foot: it draws its own .modal-body and .modal-foot. */
+  content?: ReactNode;
 }
 
 export interface OpenDialog {
@@ -119,7 +121,7 @@ function DialogView({ entry, container, children }: { entry: Entry; container: H
   const body = useRef<HTMLDivElement | null>(null);
   const bodyRef = useCallback((el: HTMLDivElement | null) => ((body.current = el), bodyNodes(el)), [bodyNodes]);
   const popup = useRef<HTMLDivElement>(null);
-  const firstFocus = () => spec.focus?.() || body.current?.querySelector<HTMLElement>('input:not([type=checkbox]):not([type=radio]), textarea') || popup.current;
+  const firstFocus = () => spec.focus?.() || popup.current?.querySelector<HTMLElement>('.modal-body input:not([type=checkbox]):not([type=radio]):not([disabled]), .modal-body textarea') || popup.current;
   return (
     <Dialog.Root open={entry.open} onOpenChange={(open) => !open && closeEntry(entry)}>
       <Dialog.Portal container={container}>
@@ -131,8 +133,12 @@ function DialogView({ entry, container, children }: { entry: Entry; container: H
                 ✕
               </Dialog.Close>
             </div>
-            <div className="modal-body" ref={bodyRef} />
-            {spec.foot ? <div className="modal-foot" ref={foot} /> : null}
+            {spec.content ?? (
+              <>
+                <div className="modal-body" ref={bodyRef} />
+                {spec.foot ? <div className="modal-foot" ref={foot} /> : null}
+              </>
+            )}
             {children}
           </Dialog.Popup>
         </Dialog.Viewport>
@@ -150,6 +156,17 @@ export function openDialog(spec: DialogSpec): OpenDialog {
   if (!el) throw new Error('The dialog did not open.');
   return { close: () => closeEntry(entry), el };
 }
+
+/** A dialog with React content, for React pages. content gets close(); it draws <div className="modal-body">
+ *  and, if it has buttons, <div className="modal-foot">. It stacks with every other dialog. */
+export function openModal(title: string, content: (close: () => void) => ReactNode, { narrow = false, onClose }: { narrow?: boolean; onClose?: () => void } = {}): OpenDialog {
+  let handle: OpenDialog | null = null;
+  const close = () => handle?.close();
+  handle = openDialog({ title: [document.createTextNode(title)], body: [], foot: null, narrow, onClose, content: <ModalContent render={() => content(close)} /> });
+  return handle;
+}
+// (a component, so the content's hooks belong to it)
+const ModalContent = ({ render }: { render: () => ReactNode }) => <>{render()}</>;
 
 // ---------- toasts ----------
 interface ToastData {

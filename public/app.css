@@ -390,3 +390,11 @@ label.field > span:first-child, div.field > span:first-child { font: 500 11px/1.
 .art-search input { width: 100%; }
 .art-path { word-break: break-all; }
 .wrap-anywhere { overflow-wrap: anywhere; }
+
+/* MCP servers (web/views/mcp.tsx) */
+.mcp-server { border-bottom: 1px solid var(--line); padding: 10px 0; }
+.mcp-cmd { font-size: 11.5px; overflow-wrap: anywhere; }
+.mcp-tools { margin-top: 6px; font-size: 11px; }
+.mcp-summary { cursor: pointer; }
+.mcp-group { margin-bottom: 14px; }
+.mcp-tool { cursor: help; }

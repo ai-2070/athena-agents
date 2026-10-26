@@ -8,7 +8,7 @@ import * as chat from './views/chat.ts';
 import * as library from './views/library.tsx';
 import * as workflows from './views/workflows.ts';
 import * as programs from './views/programs.ts';
-import * as mcp from './views/mcp.ts';
+import * as mcp from './views/mcp.tsx';
 import * as connections from './views/connections.ts';
 import * as terminals from './views/terminals.ts';
 import * as setup from './views/setup.tsx';

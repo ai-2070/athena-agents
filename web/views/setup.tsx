@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Autocomplete } from '@base-ui/react/autocomplete';
 import { GeneralTab } from './settings.tsx';
 import * as connections from './connections.ts';
-import * as mcp from './mcp.ts';
+import { McpTab } from './mcp.tsx';
 import * as programs from './programs.ts';
 import { LookTab } from './look.tsx';
 import { Tabs } from '../ui/controls.tsx';
@@ -34,7 +34,7 @@ interface IndexEntry {
 const TABS: Tab[] = [
   { id: 'general', label: 'General & keys', Page: GeneralTab },
   { id: 'connections', label: 'Connections', view: connections },
-  { id: 'mcp', label: 'MCP servers', view: mcp },
+  { id: 'mcp', label: 'MCP servers', Page: McpTab },
   { id: 'programs', label: 'Programs', view: programs },
   { id: 'look', label: 'Look', Page: LookTab },
 ];
