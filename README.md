@@ -41,7 +41,7 @@ Each team is a pod with its agents at their desks. The Brain sits in the middle 
 
 ### Team chats where agents work together
 
-Everyone sees the whole conversation. Agents hand work to each other with @mentions, and the files they make show up in the chat: images, video, audio and 3D models you can turn with the mouse.
+Everyone sees the whole conversation. Agents hand work to each other with @mentions, and the files they make show up in the chat: images, video, audio and 3D models you can turn with the mouse. Teams talk to each other too: write **#Team Name** and the message goes to that team's chat, and its answer comes back once that team is done.
 
 ![A team chat with an audio player and a 3D model preview, next to the team's panel with its members and their models](docs/images/team-chat.png)
 
@@ -145,7 +145,7 @@ Projects keep separate agents, teams and chats. The project name at the top left
 | **Artifacts** | Written results, files and folders that agents have saved, each with a preview (images, video, audio, 3D models you can turn) and a search box. Chats show the same previews for files agents mention. |
 | **Settings** | Engines and keys, accounts and connections, MCP servers, programs, UI scale, accent colour and motion. |
 
-In any agent, team or Brain chat, **/** lists the commands (`/queue`, `/stop`, `/resume`, `/resend`, `/loop`, `/goal`, `/compact`) and **@** picks another agent. What each one does, and how files and long chats are handled: [Chats and files](docs/guide.md#chats-and-files).
+In any agent, team or Brain chat, **/** lists the commands (`/queue`, `/stop`, `/resume`, `/resend`, `/loop`, `/goal`, `/compact`), **@** picks another agent, and **#** in a team chat picks another team. What each one does, and how files and long chats are handled: [Chats and files](docs/guide.md#chats-and-files).
 
 ## Approvals and safety
 
