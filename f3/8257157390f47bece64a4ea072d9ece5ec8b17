@@ -1,0 +1,39 @@
+package.json
+  s_280f012de0b84d::t_c1292ccccf0da3 3
+server/tools.ts
+  s_280f012de0b84d::t_c1292ccccf0da3 240
+src-tauri/Cargo.toml
+  s_280f012de0b84d::t_c1292ccccf0da3 4
+scripts/desktop-release.ts
+  s_280f012de0b84d::t_c1292ccccf0da3 6
+server/reddit.ts
+  s_280f012de0b84d::t_c1292ccccf0da3 83
+docs/desktop.md
+  s_280f012de0b84d::t_c1292ccccf0da3 89
+docs/internal/releases/v0.1.0.md
+  s_280f012de0b84d::t_fc6a1c53c7222d 60-66
+  s_280f012de0b84d::t_b83dc7d52373f5 1-35,37-59,67-75
+  s_280f012de0b84d::t_c54034b53a815e 36
+.github/workflows/desktop.yml
+  s_280f012de0b84d::t_c1292ccccf0da3 4
+scripts/desktop-updates.ts
+  s_280f012de0b84d::t_c1292ccccf0da3 60
+src-tauri/Cargo.lock
+  s_280f012de0b84d::t_ad44f1034c90bb 2172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f38257157390f47bece64a4ea072d9ece5ec8b17",
+  "prompts": {},
+  "sessions": {
+    "s_280f012de0b84d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f553f14f-f6a0-4ae3-8721-c11bbf98c834",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
