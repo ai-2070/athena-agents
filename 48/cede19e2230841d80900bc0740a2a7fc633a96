@@ -1,0 +1,86 @@
+web/views/station.ts
+  s_60f3e3abc949a7::t_d76cfe4bf97efd 9-10,398-400,1148,1706-1713,1894-1904,2016-2065
+  s_60f3e3abc949a7::t_c8e6d368b66a29 1905-1906
+  s_60f3e3abc949a7::t_e565b4bb6fd83b 2066
+web/app.ts
+  s_60f3e3abc949a7::t_c8e6d368b66a29 17,227-228
+tests/server/uploads.test.ts
+  s_60f3e3abc949a7::t_d56dc2e46b4740 1-119
+web/builder.ts
+  s_60f3e3abc949a7::t_26b395db4a8cd4 5-6,25-26,33,39-40,111-138,143,145-151,153,192-193,209,227,235,238
+  s_60f3e3abc949a7::t_d29852e0c8581d 173,214,232-233
+shared/types.ts
+  s_60f3e3abc949a7::t_0f6f78850a63d6 169
+  s_60f3e3abc949a7::t_b7dd4e2734cf8d 86-87,119-120,399-409
+scripts/build-icons.ts
+  s_60f3e3abc949a7::t_ec1bfd341e29f0 19
+web/dock.ts
+  s_60f3e3abc949a7::t_39a5775f9ad6b7 7-8,19,35,40,60-61,65,70-71,88,91-93,113-114,119-128,135,218,285,301-304,306,308-316,321-323,325-326,328-331,334,344-345,348,352,360,362,367,369,372,375,377,383,386
+  s_60f3e3abc949a7::t_c090e8210d089e 89,317-320
+web/agentchat.ts
+  s_60f3e3abc949a7::t_cfd63c0e420b94 6,35,44-46,78,123,127-148,168,201
+web/attach.ts
+  s_60f3e3abc949a7::t_e131a29064587a 1-28,30,32-127,131-143,145-156,158-181,183-203,206-290,293-295,300-304,307-361,363-391
+  s_60f3e3abc949a7::t_cb0c324ceecc45 291-292,296-299,305-306
+  s_60f3e3abc949a7::t_d29852e0c8581d 204-205,362
+  s_60f3e3abc949a7::t_ccdb3eb7357073 29,31,128-130,144,157,182
+server/engines/openai.ts
+  s_60f3e3abc949a7::t_23d8a58925dd66 2-3,5,51-53,56-57,221-259,264-267,278,288-295
+public/polish.css
+  s_60f3e3abc949a7::t_e3a439a3ca76b1 404-434,436-442
+  s_60f3e3abc949a7::t_843c7446403d98 435
+web/teamchat.ts
+  s_60f3e3abc949a7::t_0762dcb8de3f4f 4,60-63,116-117,195,198-214,272
+web/views/chat.ts
+  s_60f3e3abc949a7::t_8f3259daccf560 5-6,21-24,59-60,70,129,173,254-274,327
+tests/server/api.test.ts
+  s_60f3e3abc949a7::t_c88ad25c04c630 129-177
+web/icons.ts
+  s_60f3e3abc949a7::t_ec1bfd341e29f0 7
+tests/web/attach.test.ts
+  s_60f3e3abc949a7::t_447b740c552bc7 1-69
+README.md
+  s_60f3e3abc949a7::t_843c7446403d98 48-52
+server/overseer.ts
+  s_60f3e3abc949a7::t_d177cdd5e6f046 16,24,454,460-463,473-474,477
+server/engines/claude.ts
+  s_60f3e3abc949a7::t_8df44021ebc2e6 118,122,128,130-133
+  s_60f3e3abc949a7::t_5b06db2416f948 10
+server/tools.ts
+  s_60f3e3abc949a7::t_a98a537819fbce 14
+  s_60f3e3abc949a7::t_5b06db2416f948 95-96
+server/index.ts
+  s_60f3e3abc949a7::t_571fb6d1bad732 37,177-182,187-188,289,293-295,399-403,519-521,523,537,734-740
+server/brain.ts
+  s_60f3e3abc949a7::t_8219163bbcc0e5 211-214,221,226,237
+  s_60f3e3abc949a7::t_d177cdd5e6f046 8
+web/projects.ts
+  s_60f3e3abc949a7::t_f54b24d4f47c52 6,81-82,160,165
+  s_60f3e3abc949a7::t_ce0ff0f8195e38 112-122,125,133,135
+server/teams.ts
+  s_60f3e3abc949a7::t_c1efe256157f02 8,29,140,145,147,168,229,247-248,251,255-257,266
+  s_60f3e3abc949a7::t_51fd73b73b49a7 260-262
+server/uploads.ts
+  s_60f3e3abc949a7::t_7b7f0088658144 37-42
+  s_60f3e3abc949a7::t_db557b17703722 1-11,13-36,43-101,104-112,114-120,122-208,210-251
+  s_60f3e3abc949a7::t_280db141b243e1 12
+  s_60f3e3abc949a7::t_aeefe25ef1be1d 102-103,113,121,209
+server/engines/index.ts
+  s_60f3e3abc949a7::t_0f6f78850a63d6 9,100,196-198,201-204,239,305,311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "48cede19e2230841d80900bc0740a2a7fc633a96",
+  "prompts": {},
+  "sessions": {
+    "s_60f3e3abc949a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f3bddc23-1447-47fb-bdbd-6782a63a28bf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
