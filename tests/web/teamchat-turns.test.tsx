@@ -223,17 +223,115 @@ describe('team chat turns', () => {
     // the server's state says it was posted: it leaves the list
     await teamEvent({ kind: 'state', working: ['lead'], queued: [], held: [] });
     await settle();
-    expect(el.querySelector('.queued-list')!.classList.contains('hidden')).toBe(true);
+    expect(el.querySelector('.queued-list')).toBeNull();
     await teamEvent({ kind: 'state', working: ['lead'], queued: [], held: [{ id: 'q2', text: 'and a logo', ts: 6 }] });
     await settle();
-    (el.querySelector('.queued-msg button') as HTMLButtonElement).click();
+    (el.querySelector(`.queued-msg button[aria-label="Don't send this"]`) as HTMLButtonElement).click();
     await settle();
     expect(requests).toContain('DELETE /api/teams/t1/queue/q2');
     expect(el.querySelector('.queued-msg')).toBeNull();
     // Stop: the held ones come back to the box
-    [...el.querySelectorAll('button')].find((b) => b.textContent === 'Stop')!.click();
+    (el.querySelector('button[aria-label="Stop"]') as HTMLButtonElement).click();
     await settle();
     expect(box.value).toBe('and a logo');
+  });
+
+  it('while the team works, an empty box shows Stop; something typed shows Send, and it goes as a steer', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    const box = el.querySelector('textarea')!;
+    const stopBtn = () => el.querySelector('button[aria-label="Stop"]');
+    const sendBtn = () => el.querySelector('button[aria-label="Send"]');
+    // (Maker is working)
+    expect(stopBtn()).not.toBeNull();
+    expect(sendBtn()).toBeNull();
+    box.value = 'use blue instead';
+    await act(async () => box.dispatchEvent(new Event('input')));
+    expect(stopBtn()).toBeNull();
+    expect(sendBtn()).not.toBeNull();
+    await act(async () => box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    await settle();
+    expect(bodies['/api/teams/t1/steer']).toEqual({ text: 'use blue instead', replyTo: null, attachments: [] });
+    expect(requests).not.toContain('POST /api/teams/t1/messages');
+    // sent: the box is empty again, so Stop is back
+    expect(stopBtn()).not.toBeNull();
+    // nobody working: Send even with an empty box, and a plain message
+    await teamEvent({ kind: 'state', working: [], queued: [], held: [] });
+    await settle();
+    expect(stopBtn()).toBeNull();
+    expect(sendBtn()).not.toBeNull();
+    box.value = 'thanks';
+    await act(async () => box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    await settle();
+    expect(requests).toContain('POST /api/teams/t1/messages');
+  });
+
+  it('queued messages: Up in an empty box changes the last one, Enter keeps it, Esc drops the change', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    await teamEvent({ kind: 'state', working: ['maker'], queued: [], held: [{ id: 'q1', text: 'first', ts: 1 }, { id: 'q2', text: 'second', ts: 2 }] });
+    await settle();
+    const box = el.querySelector('textarea')!;
+    const key = (t: Element, k: string, more: KeyboardEventInit = {}) => act(async () => t.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, ...more })));
+    // (not with words in the box: Up moves in them)
+    box.value = 'draft';
+    await key(box, 'ArrowUp');
+    expect(el.querySelector('.queued-edit')).toBeNull();
+    box.value = '';
+    await key(box, 'ArrowUp');
+    const edit = el.querySelector<HTMLTextAreaElement>('.queued-edit')!;
+    expect(edit.value).toBe('second');
+    expect(document.activeElement).toBe(edit);
+    edit.value = 'second, in blue';
+    await key(edit, 'Enter');
+    await settle();
+    expect(requests).toContain('PUT /api/teams/t1/queue/q2');
+    expect(bodies['/api/teams/t1/queue/q2']).toEqual({ text: 'second, in blue' });
+    expect(el.querySelector('.queued-edit')).toBeNull();
+    expect([...el.querySelectorAll('.queued-text')].map((n) => n.textContent)).toEqual(['first', 'second, in blue']);
+    expect(document.activeElement).toBe(box);
+    // Up again, then Up at the start goes on to the one above; Esc keeps it as it was
+    await key(box, 'ArrowUp');
+    const again = el.querySelector<HTMLTextAreaElement>('.queued-edit')!;
+    again.setSelectionRange(0, 0);
+    await key(again, 'ArrowUp');
+    const above = el.querySelector<HTMLTextAreaElement>('.queued-edit')!;
+    expect(above.value).toBe('first');
+    above.value = 'never mind';
+    await key(above, 'Escape');
+    await settle();
+    expect(requests.filter((r) => r.startsWith('PUT'))).toEqual(['PUT /api/teams/t1/queue/q2']);
+    expect(el.querySelector('.queued-text')!.textContent).toBe('first');
+  });
+
+  it('queued messages change order by dragging one, or with Alt+Up / Alt+Down', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    await teamEvent({ kind: 'state', working: ['maker'], queued: [], held: [{ id: 'q1', text: 'first', ts: 1 }, { id: 'q2', text: 'second', ts: 2 }, { id: 'q3', text: 'third', ts: 3 }] });
+    await settle();
+    const order = () => [...el.querySelectorAll('.queued-text')].map((n) => n.textContent);
+    const row = (id: string) => el.querySelector(`[data-qid="${id}"]`)!;
+    const drag = (type: string, target: Element, dataTransfer: DataTransfer) => act(async () => void target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer })));
+    // third dragged onto the top half of first: it goes above it
+    const dt = new DataTransfer();
+    await drag('dragstart', row('q3'), dt);
+    await drag('dragover', row('q1'), dt);
+    await drag('drop', row('q1'), dt);
+    await drag('dragend', row('q3'), dt);
+    await settle();
+    expect(order()).toEqual(['third', 'first', 'second']);
+    expect(bodies['/api/teams/t1/queue/order']).toEqual({ ids: ['q3', 'q1', 'q2'] });
+    // the keyboard: Alt+Down moves it one down
+    await act(async () => void row('q3').querySelector('.queued-text')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true })));
+    await settle();
+    expect(order()).toEqual(['first', 'third', 'second']);
+    expect(bodies['/api/teams/t1/queue/order']).toEqual({ ids: ['q1', 'q3', 'q2'] });
   });
 
   it('/ commands: the menu, /goal and /loop go to the server, the loop and goal show as chips', async () => {

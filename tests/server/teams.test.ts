@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { bus, chats, saveSettings, workflows } from '../../server/store.ts';
-import { MAX_CHATTER, getThread, parseMentions, postUserMessage, stopTeam } from '../../server/teams.ts';
+import { MAX_CHATTER, editQueuedTeam, getThread, orderQueuedTeam, parseMentions, postUserMessage, queueUserMessage, steerTeam, stopTeam, teamState } from '../../server/teams.ts';
 import type { ServerEvent, Team } from '../../shared/types.ts';
 
 // a fake OpenAI-compatible model: the Lead hands off to the Maker, the Maker reports back, the Lead wraps up
@@ -18,6 +18,15 @@ beforeAll(async () => {
     const system = j.messages[0].content;
     const last = j.messages.at(-1)!.content;
     let reply = 'Okay.';
+    // Slow works on and on (until it is stopped), except on a change of plan
+    if (system.includes('You are Slow') && !/Change of plan/.test(last)) {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Working on the long one' } }] })}
+
+`);
+      return;
+    }
+    if (system.includes('You are Slow')) reply = 'Switched to the short one.';
     if (system.includes('You are Lead')) reply = /@Maker: Done/.test(last) ? 'All done, the thumbnail is ready.' : 'Plan: @Maker please make the thumbnail.';
     else if (system.includes('You are Maker')) reply = 'Done, saved as thumb.png.';
     else if (system.includes('You are Ping')) reply = 'Your turn @Pong.';
@@ -140,5 +149,78 @@ describe("a reply's work", () => {
     } finally {
       bus.off('event', listen);
     }
+  });
+});
+
+describe('steering: a message while the team works', () => {
+  const until = async (done: () => boolean) => {
+    for (let i = 0; i < 200 && !done(); i++) await new Promise((r) => setTimeout(r, 25));
+  };
+
+  it('stops the turn going now, gives the message to whoever was working, and queued messages still wait', async () => {
+    const slow = agent('Slow');
+    const other = agent('Lead');
+    const team = workflows.save({ name: 'Steer', description: 'Change course', members: [other.id, slow.id], lead: other.id, steps: [] } as Partial<Team>);
+    await postUserMessage(team.id, '@Slow do the long job');
+    await until(() => teamState(team.id).working.includes(slow.id));
+    expect(teamState(team.id).working).toEqual([slow.id]);
+    const held = await queueUserMessage(team.id, 'then tidy up');
+    expect(held).toHaveProperty('queued');
+    const msg = await steerTeam(team.id, 'Change of plan: do the short one');
+    const who = (id: string) => (id === slow.id ? 'Slow' : id === other.id ? 'Lead' : id);
+    const said = () => getThread(team.id).messages.map((m) => `${who(m.from)}: ${m.text.trim()}`);
+    await until(() => said().length >= 6);
+    // in order: the stopped turn, your message (to Slow, not the lead), its answer, then the queued one
+    expect(said().slice(0, 5)).toEqual([
+      'user: @Slow do the long job',
+      'Slow: (stopped to take your new message)',
+      'user: Change of plan: do the short one',
+      'Slow: Switched to the short one.',
+      'user: then tidy up',
+    ]);
+    // (the queued one is an ordinary message: the lead takes it)
+    expect(getThread(team.id).messages[5].from).toBe(other.id);
+    expect(msg.text).toBe('Change of plan: do the short one');
+    expect(teamState(team.id).held).toEqual([]);
+  }, 15000);
+
+  it('with nobody working, a steer is an ordinary message', async () => {
+    const lead = agent('Lead');
+    const maker = agent('Maker');
+    const team = workflows.save({ name: 'Quiet', description: 'Idle', members: [lead.id, maker.id], lead: lead.id, steps: [] } as Partial<Team>);
+    await steerTeam(team.id, 'Make a thumbnail');
+    await until(() => getThread(team.id).messages.length >= 4);
+    expect(getThread(team.id).messages.map((m) => m.text.trim())).toEqual(['Make a thumbnail', 'Plan: @Maker please make the thumbnail.', 'Done, saved as thumb.png.', 'All done, the thumbnail is ready.']);
+  });
+
+  it('an empty steer stops nothing', async () => {
+    const slow = agent('Slow');
+    const team = workflows.save({ name: 'Empty', description: 'x', members: [slow.id], lead: slow.id, steps: [] } as Partial<Team>);
+    await postUserMessage(team.id, 'the long job');
+    await until(() => teamState(team.id).working.includes(slow.id));
+    await expect(steerTeam(team.id, '   ')).rejects.toThrow();
+    expect(teamState(team.id).working).toEqual([slow.id]);
+    stopTeam(team.id);
+  });
+});
+
+describe('queued messages: changed and put in order', () => {
+  it('changes the text of one, and the order they go in', async () => {
+    const slow = agent('Slow');
+    const team = workflows.save({ name: 'Held', description: 'x', members: [slow.id], lead: slow.id, steps: [] } as Partial<Team>);
+    await postUserMessage(team.id, 'the long job');
+    for (let i = 0; i < 200 && !teamState(team.id).working.length; i++) await new Promise((r) => setTimeout(r, 25));
+    const ids: string[] = [];
+    for (const t of ['one', 'two', 'three']) {
+      const r = await queueUserMessage(team.id, t);
+      if ('queued' in r) ids.push(r.queued.id);
+    }
+    expect(editQueuedTeam(team.id, ids[1], '  two, changed ')).toMatchObject({ id: ids[1], text: 'two, changed' });
+    expect(() => editQueuedTeam(team.id, ids[1], '  ')).toThrow();
+    expect(() => editQueuedTeam(team.id, 'nope', 'x')).toThrow(/already sent/);
+    // the ones it names go first, in that order; the rest keep theirs after them
+    expect(orderQueuedTeam(team.id, [ids[2], 'nope', ids[0]]).map((q) => q.text)).toEqual(['three', 'one', 'two, changed']);
+    expect(teamState(team.id).held?.map((q) => q.id)).toEqual([ids[2], ids[0], ids[1]]);
+    stopTeam(team.id);
   });
 });

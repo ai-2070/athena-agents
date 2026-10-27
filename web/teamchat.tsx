@@ -6,9 +6,10 @@
 // mention() change its text directly, as typing does.
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties } from 'react';
-import { state, GET, POST, DEL, attempt, md, ago, onEvent, confirmBox, toast } from './core.ts';
+import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, confirmBox, toast } from './core.ts';
 import { attachTray, COMPOSER_BTNS, COMPOSER_TEXT } from './attach.ts';
 import { pasteBox } from './pastes.ts';
+import { QueuedList } from './queuedlist.tsx';
 import { mentionPreviews } from './filepreview.ts';
 import { queuedText } from '../shared/queue.ts';
 import { parseCommand } from '../shared/commands.ts';
@@ -359,10 +360,21 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   const list = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const chips = useRef<HTMLDivElement>(null);
-  const tray = useMemo(() => attachTray(), []);
+  // something to send in the box (words or files): Send; nothing while the team works: Stop
+  const [filled, setFilled] = useState(false);
+  const refill = useRef(() => {});
+  const tray = useMemo(() => attachTray({ onChange: () => refill.current() }), []);
+  refill.current = () => setFilled(!!input.current?.value.trim() || tray.count() > 0);
   // long pasted text, folded into a chip until it is sent
   const pastes = useMemo(() => pasteBox(), []);
+  /** Put text back in the box (a failed send, what Stop brought back). */
+  const restore = (text: string) => {
+    pastes.restore(text);
+    refill.current();
+  };
   const sending = useRef(false);
+  // the queued message being changed (its id)
+  const [editing, setEditing] = useState<string | null>(null);
 
   const members = (C.team?.members || []).map(agentOf).filter((a): a is Agent => Boolean(a));
   const names = members.map((a) => a.name).join('\n');
@@ -408,11 +420,29 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     bump();
     void attempt(() => DEL(`/teams/${teamId}/queue/${q.id}`));
   };
+  /** A change to a queued message that couldn't be kept (it was sent meanwhile): into the box, if that is empty. */
+  const keepEdit = (text: string) => {
+    if (!text || input.current?.value.trim()) return;
+    restore(text);
+    toast('That message was already sent. Your change is in the box.');
+  };
+  const editQueued = async (q: QueuedMessage, text: string) => {
+    store.current.held = store.current.held.map((x) => (x.id === q.id ? { ...x, text } : x));
+    bump();
+    // (sent before the change got there: the new words come back to the box)
+    if (!(await attempt(() => PUT(`/teams/${teamId}/queue/${q.id}`, { text })))) keepEdit(text);
+  };
+  const orderQueued = (ids: string[]) => {
+    const by = new Map(store.current.held.map((q) => [q.id, q]));
+    store.current.held = ids.map((id) => by.get(id)).filter((q): q is QueuedMessage => !!q);
+    bump();
+    void attempt(() => POST(`/teams/${teamId}/queue/order`, { ids }));
+  };
   const stop = async () => {
     const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`/teams/${teamId}/stop`));
     // what you queued comes back to the box, so stopping never loses it
     const back = r?.unqueued || [];
-    if (back.length) pastes.restore(back.map((q) => q.text).filter(Boolean).join('\n\n'));
+    if (back.length) restore(back.map((q) => q.text).filter(Boolean).join('\n\n'));
     if (back.some((q) => q.attachments?.length)) toast('Your queued messages are back in the box. Attach their files again.');
   };
   const reply = useCallback((m: TeamMessage | null) => {
@@ -433,6 +463,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     input.current!.value = '';
     slashRef.current?.update();
     pastes.sync();
+    refill.current();
   };
 
   // /stop, /resume, /resend, /goal: done now (files in the tray stay for your next message)
@@ -440,14 +471,14 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     emptyBox();
     if (name === 'stop') return stop();
     // (said no, or it failed: the /clear stays in the box)
-    if (name === 'clear') return void ((await clear()) || pastes.restore(typed));
+    if (name === 'clear') return void ((await clear()) || restore(typed));
     if (name === 'goal' && !rest) {
       const r = await attempt(() => GET<TeamChatResponse>(`/teams/${teamId}/chat`));
       return void (r && toast(r.goal ? `Goal: ${r.goal.goal || r.goal.text}` : 'No goal yet. Type /goal and what done looks like.'));
     }
     type Done = { goal?: BrainBrief | null; queued?: QueuedMessage };
     const r = await attempt(() => POST<Done>(`/teams/${teamId}/${name}`, name === 'goal' ? { text: rest } : {}));
-    if (!r) return pastes.restore(typed);
+    if (!r) return restore(typed);
     if (name === 'goal') {
       store.current.goal = r.goal || null;
       bump();
@@ -475,22 +506,24 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
         emptyBox();
         const taken = tray.take();
         const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`/teams/${teamId}/loop`, { text: cmd.rest, attachments }));
-        if (!r) return void (pastes.restore(typed), tray.put(taken));
+        if (!r) return void (restore(typed), tray.put(taken));
         store.current.loop = r.loop;
         return bump();
       }
       if (cmd && cmd.name !== 'queue') return command(cmd.name, cmd.rest, typed);
-      // "/queue …": posted once nobody is working (now, if nobody is)
+      // "/queue …": posted once nobody is working (now, if nobody is). Anything else while the team works
+      // changes its course: whoever is working stops and takes it up now.
       const queued = queuedText(typed);
+      const steer = store.current.working.length > 0;
       const text = queued ?? typed;
       if (!text && !attachments.length) return void (typed && toast('Write the message after /queue'));
       emptyBox();
       const taken = tray.take();
       const body = { text, replyTo: replyRef.current?.id || null, attachments };
       type Sent = { message?: TeamMessage; queued?: QueuedMessage };
-      const r = await attempt((): Promise<Sent> => (queued != null ? POST<Sent>(`/teams/${teamId}/queue`, body) : POST<TeamMessage>(`/teams/${teamId}/messages`, body).then((message) => ({ message }))));
+      const r = await attempt((): Promise<Sent> => (queued != null ? POST<Sent>(`/teams/${teamId}/queue`, body) : POST<TeamMessage>(`/teams/${teamId}/${steer ? 'steer' : 'messages'}`, body).then((message) => ({ message }))));
       if (!r) {
-        pastes.restore(typed);
+        restore(typed);
         tray.put(taken);
         return;
       }
@@ -552,6 +585,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     const onInput = () => {
       setSuggest(find());
       menu.update();
+      refill.current();
     };
     const onKey = (e: KeyboardEvent) => {
       if (menu.key(e)) return void e.stopPropagation();
@@ -567,6 +601,13 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
         return;
       }
       if (e.key === 'Escape' && suggestRef.current) return e.preventDefault(), setSuggest(null);
+      // Up in an empty box: change the last queued message
+      const held = store.current.held;
+      if (e.key === 'ArrowUp' && !ta.value && held.length && !e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        return setEditing(held[held.length - 1].id);
+      }
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         void sendRef.current();
@@ -633,18 +674,18 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
         ))}
       </div>
       <div className="cmd-chips compact hidden" ref={chips} />
-      <div className={`queued-list compact${C.held.length ? '' : ' hidden'}`}>
-        {C.held.length ? <div className="queued-head">Sends when the team is done</div> : null}
-        {C.held.map((q) => (
-          <div key={q.id} className="queued-msg">
-            <Icon name="clock" size={12} />
-            <span className="queued-text">{q.text || `${q.attachments?.length || 0} file(s)`}</span>
-            <button className="tc-act" title="Don't send this" aria-label="Don't send this" onClick={() => unqueue(q)}>
-              <Icon name="x" size={12} />
-            </button>
-          </div>
-        ))}
-      </div>
+      <QueuedList
+        items={C.held}
+        head="Sends when the team is done"
+        compact
+        editing={editing}
+        onEditing={setEditing}
+        onSave={(q, text) => void editQueued(q, text)}
+        onRemove={unqueue}
+        onOrder={orderQueued}
+        onLeave={() => input.current?.focus()}
+        onLost={(_q, text) => keepEdit(text)}
+      />
       {/* who is working and who is next */}
       <div className="tc-status flex flex-col gap-0.75 min-h-0" aria-live="polite">
         {uploading ? (
@@ -686,7 +727,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       <DomNode className="dom-contents" make={() => pastes.el} deps={[pastes]} />
       <div className="flex gap-1.5 items-stretch relative">
         <div className="flex-1 min-w-0 relative">
-          <textarea className={`${COMPOSER_TEXT} text-[13.5px]`} ref={input} rows={2} aria-label="Message the team" placeholder={busy.length ? 'The team is working… /queue a message to send when it is done' : PLACEHOLDER} />          <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">
+          <textarea className={`${COMPOSER_TEXT} text-[13.5px]`} ref={input} rows={2} aria-label="Message the team" placeholder={busy.length ? 'The team is working… Write to change its course now, or /queue a message for when it is done' : PLACEHOLDER} />          <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">
             {suggest?.opts.map((o, i) => (
               <button
                 key={`${o.t ? '#' : '@'}${o.label}`}
@@ -710,16 +751,18 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
           </div>
           {slash ? <DomNode as="span" className="dom-contents" make={() => slash.el} deps={[slash]} /> : null}
         </div>
-        <button className={`btn danger small self-end ${busy.length ? '' : 'hidden'}`} title="Stop the whole team" onClick={() => void stop()}>
-          <Icon name="square" size={13} />
-          Stop
-        </button>
-        {/* the paperclip at the top of the box, Send at its bottom */}
+        {/* the paperclip at the top of the box, Send at its bottom (Stop there while the team works and the box is empty) */}
         <div className={COMPOSER_BTNS}>
           <DomNode as="span" className="dom-contents" make={() => tray.picker} deps={[tray]} />
-          <button className="btn" title="Send (Enter)" aria-label="Send" onClick={() => void send()}>
-            <Icon name="send" size={15} />
-          </button>
+          {busy.length && !filled ? (
+            <button className="btn danger" title="Stop the whole team" aria-label="Stop" onClick={() => void stop()}>
+              <Icon name="square" size={14} />
+            </button>
+          ) : (
+            <button className="btn" title={busy.length ? 'Send now: whoever is working stops and takes this up (Enter)' : 'Send (Enter)'} aria-label="Send" onClick={() => void send()}>
+              <Icon name="send" size={15} />
+            </button>
+          )}
         </div>
       </div>
     </div>

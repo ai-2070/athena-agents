@@ -984,6 +984,11 @@ post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/te
 // /queue: posted once nobody in the team is working (now, if nobody is)
 post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/teams/:id/queue', async ({ id }, body) => teams.queueUserMessage(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember, attachments: uploads.cleanAttachments(body.attachments) }));
 del('/api/teams/:id/queue/:qid', async ({ id, qid }) => ({ unqueued: teams.unqueueTeam(need(teams.getTeam(id)).id, qid) }));
+// a held message: its text changed, or the order they go in
+put<{ text?: unknown }>('/api/teams/:id/queue/:qid', async ({ id, qid }, body) => ({ queued: teams.editQueuedTeam(need(teams.getTeam(id)).id, qid, body.text) }));
+post<{ ids?: unknown }>('/api/teams/:id/queue/order', async ({ id }, body) => ({ held: teams.orderQueuedTeam(need(teams.getTeam(id)).id, body.ids) }));
+// a message while the team works: whoever is working stops and takes it up now
+post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/teams/:id/steer', async ({ id }, body) => teams.steerTeam(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember, attachments: uploads.cleanAttachments(body.attachments) }));
 post('/api/teams/:id/resend', async ({ id }) => commands.resendInTeam(id));
 post('/api/teams/:id/resume', async ({ id }) => commands.resumeInTeam(id));
 post<{ text?: unknown; attachments?: unknown }>('/api/teams/:id/loop', async ({ id }, body) => commands.loopInTeam(id, String(body.text ?? ''), uploads.cleanAttachments(body.attachments)));

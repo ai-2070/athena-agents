@@ -10,7 +10,7 @@
 import { BUILD_ORDER, DIORAMA } from './voxel/diorama.ts';
 import { workflows as teamStore, agents, chats, emit, log, activeProject, openProject } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath } from './util.ts';
-import { askAgent, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
+import { askAgent, stopChat, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
 import { isStepList, teamSteps, parseTeamRefs, teamFrom, fromTeam } from '../shared/teams.ts';
 import { attachmentNames } from './uploads.ts';
 import { soleHolder, servicesOf } from './services.ts';
@@ -76,6 +76,12 @@ interface Runtime {
   interrupted?: QueueItem[];
   /** your /loop in this team */
   loop?: TeamLoop | null;
+  /** each running turn, done once it has ended (a steer waits for the ones it stopped) */
+  ends?: Map<string, Promise<void>>;
+  /** a message sent while the team works is stopping the turns going now: nothing new starts meanwhile */
+  steering?: boolean;
+  /** the agents whose turns that message stopped */
+  steered?: Set<string>;
 }
 
 interface TeamLoop extends LoopInfo {
@@ -205,6 +211,8 @@ interface PostOptions {
   /** given to every member for the work this message starts (a routine's skills) */
   skills?: string[];
   attachments?: string[];
+  /** who takes it when it names nobody and replies to nobody (the agents a steer stopped) */
+  to?: string[];
 }
 
 export function postUserMessage(teamId: string, text: string | null | undefined, opts: PostOptions = {}): Promise<TeamMessage> {
@@ -217,7 +225,7 @@ export function postBrainMessage(teamId: string, text: string | null | undefined
 }
 
 // from: you, the Brain, or another team (`team:<id>`, with relay saying who there asked)
-async function postAndRoute(teamId: string, from: string, text: string | null | undefined, { replyTo = null, route = null, skills = [], attachments = [], relay }: PostOptions & { relay?: TeamRelay }): Promise<TeamMessage> {
+async function postAndRoute(teamId: string, from: string, text: string | null | undefined, { replyTo = null, route = null, skills = [], attachments = [], relay, to = [] }: PostOptions & { relay?: TeamRelay }): Promise<TeamMessage> {
   const team = getTeam(teamId);
   if (!team) throw new Error('No such team.');
   if (!team.members.length) throw new Error('This team has no agents yet. Add some first.');
@@ -245,6 +253,7 @@ async function postAndRoute(teamId: string, from: string, text: string | null | 
     const parent = loadChat(team.id).messages.find((m) => m.id === replyTo);
     if (parent && team.members.includes(parent.from)) targets = [parent.from];
   }
+  if (!targets.length) targets = to.filter((id) => team.members.includes(id));
   if (!targets.length && text) {
     // it needs a service only one member has (GitHub, Blender, posting on X…): that member
     const sole = soleHolder(text, team.members.map((id) => agents.get(id)).filter((a): a is Agent => Boolean(a)));
@@ -456,7 +465,7 @@ async function brainTurn(team: Team, msg: TeamMessage): Promise<void> {
 // Nobody works and nothing waits: the Brain may look at what the team did.
 function settled(teamId: string, stopped = false) {
   const r = runtime(teamId);
-  if (r.running.size || r.queue.length) return;
+  if (r.running.size || r.queue.length || r.steering) return;
   // teams that asked this one get its answer
   answerRelays(teamId, stopped || !!r.stopped);
   try {
@@ -487,7 +496,7 @@ function enqueue(team: Team, agentId: string, msgId: string, priority = false, r
 // Start a turn for every queued agent that isn't already working (one turn at a time per agent).
 function pump(teamId: string) {
   const r = runtime(teamId);
-  if (r.stopped) return;
+  if (r.stopped || r.steering) return;
   for (const item of [...r.queue]) {
     if (r.running.has(item.agentId)) continue;
     r.queue.splice(r.queue.indexOf(item), 1);
@@ -506,13 +515,15 @@ function pump(teamId: string) {
     r.running.add(item.agentId);
     (r.current ||= new Map()).set(item.agentId, item);
     state(team);
-    runTurn(team, item).finally(() => {
+    const end = runTurn(team, item).finally(() => {
       r.running.delete(item.agentId);
       if (r.current?.get(item.agentId) === item) r.current.delete(item.agentId);
+      if (r.ends?.get(item.agentId) === end) r.ends.delete(item.agentId);
       state(team);
       pump(teamId);
       settled(teamId);
     });
+    (r.ends ||= new Map()).set(item.agentId, end);
   }
 }
 
@@ -599,7 +610,9 @@ async function runTurn(team: Team, item: QueueItem) {
   } catch (e) {
     // you stopped this agent's turn: say so in the thread, and hand nothing on
     stopped = e instanceof RunStopped;
-    text = stopped ? '(stopped)' : `(I hit a problem: ${(e as Error).message})`;
+    // (stopped by a new message from you: it picks that up next, with what it did so far)
+    const steered = runtime(team.id).steered?.delete(agent.id);
+    text = stopped ? (steered ? '(stopped to take your new message)' : '(stopped)') : `(I hit a problem: ${(e as Error).message})`;
   }
   const r = runtime(team.id);
   if (r.stopped || r.epoch !== epoch) {
@@ -641,8 +654,45 @@ async function runTurn(team: Team, item: QueueItem) {
   }
 }
 
+// ---------- steering: your message while the team works ----------
+/** How long a steer waits for the turns it stopped to end before posting anyway. */
+const STEER_WAIT_MS = 10_000;
+
+/** A message sent while the team works changes its course: the turns going now stop, and whoever was
+ *  working picks it up next (with what they did so far in their session), unless it names someone.
+ *  Your /queue messages keep waiting. Nobody working: an ordinary message. */
+export async function steerTeam(teamId: string, text: string | null | undefined, opts: PostOptions = {}): Promise<TeamMessage> {
+  const team = getTeam(teamId);
+  if (!team) throw new Error('No such team.');
+  const r = runtime(team.id);
+  const working = [...r.running].filter((id) => team.members.includes(id));
+  // (checked before anything stops: an empty message mustn't cut the work off)
+  if (!working.length || r.steering || (!String(text || '').trim() && !opts.attachments?.length)) return postUserMessage(team.id, text, opts);
+  const sessions = loadChat(team.id).sessions;
+  const ends = working.map((id) => r.ends?.get(id)).filter((p): p is Promise<void> => !!p);
+  r.steering = true;
+  r.steered = new Set(working);
+  let wait: ReturnType<typeof setTimeout> | undefined;
+  try {
+    for (const id of working) if (sessions[id]) stopChat(sessions[id]);
+    // their "(stopped…)" replies land before your message, so the thread reads in order
+    await Promise.race([Promise.allSettled(ends), new Promise((done) => (wait = setTimeout(done, STEER_WAIT_MS)))]);
+  } finally {
+    clearTimeout(wait);
+    r.steering = false;
+    r.steered = undefined;
+  }
+  try {
+    return await postAndRoute(team.id, 'user', text, { ...opts, to: working });
+  } finally {
+    // (whatever waited while the turns ended goes on now)
+    pump(team.id);
+    settled(team.id);
+  }
+}
+
 // ---------- /queue: your messages that wait until the team is done ----------
-const idle = (r: Runtime) => !r.running.size && !r.queue.length && !r.releasing;
+const idle = (r: Runtime) => !r.running.size && !r.queue.length && !r.releasing && !r.steering;
 
 /** Post now if nobody is working, else once the whole team is done (one held message at a time). */
 export async function queueUserMessage(teamId: string, text: string | null | undefined, { replyTo = null, route = null, attachments = [] }: { replyTo?: string | null; route?: RouteFn | null; attachments?: string[] } = {}): Promise<{ message: TeamMessage } | { queued: QueuedMessage }> {
@@ -669,6 +719,32 @@ export function unqueueTeam(teamId: string, id?: string): QueuedMessage[] {
   const team = getTeam(teamId);
   if (taken.length && team) state(team);
   return taken;
+}
+
+/** Change the text of a held message (before it is posted). */
+export function editQueuedTeam(teamId: string, id: string, text: unknown): QueuedMessage {
+  const team = getTeam(teamId);
+  if (!team) throw new Error('No such team.');
+  const r = runtime(team.id);
+  const q = r.held.find((x) => x.id === id);
+  if (!q) throw new Error('That message was already sent.');
+  const next = String(text ?? '').trim();
+  if (!next && !q.attachments?.length) throw new Error('Write something, or take it off the list with ×.');
+  q.text = next;
+  state(team);
+  return q;
+}
+
+/** Put the held messages in this order (ids it doesn't name keep their place after the ones it does). */
+export function orderQueuedTeam(teamId: string, ids: unknown): QueuedMessage[] {
+  const team = getTeam(teamId);
+  if (!team) throw new Error('No such team.');
+  const r = runtime(team.id);
+  const want = Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : [];
+  const named = want.map((id) => r.held.find((q) => q.id === id)).filter((q): q is QueuedMessage => !!q);
+  r.held = [...new Set([...named, ...r.held])];
+  state(team);
+  return r.held;
 }
 
 // Nobody is working any more: post the next held message.
