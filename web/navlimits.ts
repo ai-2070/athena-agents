@@ -1,7 +1,7 @@
 // The sidebar's usage view, in place of the status list (the Status / Limits switch above it, or Settings > Look):
 // how much of your Claude and Codex plans is used, when each limit starts again, and Codex's free limit resets.
-import { h, GET, POST, PUT, state, confirmBox, toast } from './core.ts';
-import { DEFAULT_LOOK, applyLook, currentLook } from './look.ts';
+import { h, mount, GET, POST, PUT, state, confirmBox, toast } from './core.ts';
+import { DEFAULT_LOOK, applyLook, currentLook, uiZoom } from './look.ts';
 import { logo } from './icons.ts';
 import type { CodexResetResult, LimitWindow, ProviderLimits, SidebarPanel, UsageLimits } from '../shared/types.ts';
 
@@ -21,6 +21,7 @@ export function resetLimitsCache(): void {
   loading = false;
   failed = false;
   resetting = false;
+  hidePop();
 }
 
 export const sidebarPanel = (): SidebarPanel => state.data?.settings?.look?.sidebar || currentLook().sidebar || 'status';
@@ -130,21 +131,62 @@ async function useReset(redraw: () => void): Promise<void> {
   }
 }
 
-function resetsOf(redraw: () => void) {
-  const r = limits?.codex.resets;
-  if (!limits?.codex.ready || !r || !r.available) return [];
-  const next = r.credits[0];
-  return [
-    h(
-      'div',
-      { class: 'codex-resets mt-1 ml-3.5 flex flex-col gap-0.5 rounded-[6px] border border-line px-2 py-1.5' },
-      h('span', { class: 'font-sans text-[11px] font-semibold text-ink' }, `${r.available} rate-limit reset${r.available === 1 ? '' : 's'} available`),
-      next?.expiresAt ? h('span', { class: 'text-[10.5px] text-faint', title: `Runs out ${when(next.expiresAt)}` }, `Next expires in ${timeUntil(next.expiresAt)}`) : null,
-      h('button', { class: 'btn ghost tiny mt-1 self-start', disabled: resetting, onclick: () => void useReset(redraw) }, resetting ? 'Resetting…' : 'Reset now'),
-    ),
-  ];
+// Codex's free resets: a card beside the sidebar while you point at Codex (signed in, with resets to use).
+// It lives in <body>, so the sidebar redrawing under it (every state change) doesn't close it.
+let pop: HTMLElement | null = null;
+let anchor: HTMLElement | null = null;
+let hideTimer: ReturnType<typeof setTimeout> | undefined;
+const POP = 'codex-resets fixed z-[55] flex w-56 flex-col gap-0.5 rounded-box border border-line-2 bg-panel px-3 py-2.5 font-mono shadow-pop animate-[fade_0.15s_ease-out]';
+
+const hasResets = () => !!(limits?.codex.ready && limits.codex.resets?.available);
+
+function hidePop(): void {
+  clearTimeout(hideTimer);
+  document.removeEventListener('pointermove', watchPointer);
+  pop?.remove();
+  pop = null;
 }
 
+// closes the card once the pointer is off both Codex's rows and the card
+function watchPointer(e: PointerEvent): void {
+  const t = e.target instanceof Element ? e.target : null;
+  if (t?.closest('.codex-limits, .codex-resets')) clearTimeout(hideTimer);
+  else if (pop) {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(hidePop, 200);
+  }
+}
+
+function drawPop(redraw: () => void): void {
+  if (!pop || !anchor) return;
+  const r = limits?.codex.resets;
+  if (!hasResets() || !r || !anchor.isConnected) return hidePop();
+  const next = r.credits[0];
+  mount(
+    pop,
+    h('span', { class: 'font-sans text-[12px] font-semibold text-ink' }, `${r.available} rate-limit reset${r.available === 1 ? '' : 's'} available`),
+    next?.expiresAt ? h('span', { class: 'text-[11px] text-faint', title: `Runs out ${when(next.expiresAt)}` }, `Next expires in ${timeUntil(next.expiresAt)}`) : null,
+    h('button', { class: 'btn ghost tiny mt-1.5 self-start', disabled: resetting, onclick: () => void useReset(redraw) }, resetting ? 'Resetting…' : 'Reset now'),
+  );
+  // beside the sidebar, level with Codex, kept on screen (positions are in screen pixels, the page may be zoomed)
+  const z = uiZoom();
+  const a = anchor.getBoundingClientRect();
+  const side = anchor.closest('aside')?.getBoundingClientRect().right ?? a.right;
+  pop.style.left = `${(side + 8) / z}px`;
+  pop.style.top = `${Math.max(8, Math.min(a.top / z, window.innerHeight / z - pop.offsetHeight - 8))}px`;
+}
+
+function showPop(el: HTMLElement, redraw: () => void): void {
+  clearTimeout(hideTimer);
+  anchor = el;
+  if (!hasResets()) return;
+  if (!pop) {
+    pop = h('div', { class: POP, role: 'dialog', 'aria-label': 'Codex limit resets' });
+    document.body.append(pop);
+    document.addEventListener('pointermove', watchPointer);
+  }
+  drawPop(redraw);
+}
 /** The usage view's lines. redraw: draw the sidebar again (after a read or a reset). */
 export function navLimits(redraw: () => void): HTMLElement[] {
   load(redraw);
@@ -152,13 +194,22 @@ export function navLimits(redraw: () => void): HTMLElement[] {
   const cc: ProviderLimits = limits?.claude || { ready: !!state.data?.engines?.['claude-code']?.installed, windows: [] };
   const cx = limits?.codex || { ready: !!state.data?.engines?.codex?.loggedIn, windows: [], resets: null };
   const plan = (p: string | null | undefined) => (p ? p.replace(/lite$/i, ' lite').replace(/^./, (c) => c.toUpperCase()) : '');
+  const codex: HTMLElement = h(
+    'div',
+    { class: 'codex-limits flex flex-col', onmouseenter: () => showPop(codex, redraw), onfocusin: () => showPop(codex, redraw) },
+    head('Codex', 'openai', '#e6e8e0', cx, S('tab=general&find=OpenAI Codex'), cx.ready ? (cx.blocked ? 'limit reached' : plan(cx.plan)) : cx.why || ''),
+    windowsOf(cx),
+  );
+  // the sidebar was drawn again under an open card: keep it next to the new rows
+  if (pop) {
+    anchor = codex;
+    queueMicrotask(() => drawPop(redraw));
+  }
   return [
     head('Claude', 'claude', undefined, cc, S('tab=general&find=Claude Code'), cc.ready ? '' : cc.why || ''),
     ...windowsOf(cc),
     h('div', { class: 'h-1.5' }),
-    head('Codex', 'openai', '#e6e8e0', cx, S('tab=general&find=OpenAI Codex'), cx.ready ? (cx.blocked ? 'limit reached' : plan(cx.plan)) : cx.why || ''),
-    ...windowsOf(cx),
-    ...resetsOf(redraw),
+    codex,
   ];
 }
 

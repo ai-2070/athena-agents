@@ -12,6 +12,7 @@ const DAY = 24 * HOUR;
 let requests: { method: string; url: string; body: unknown }[];
 let limits: UsageLimits;
 let el: HTMLElement;
+const hoverCodex = () => el.querySelector('.codex-limits')!.dispatchEvent(new MouseEvent('mouseenter'));
 const draw = () => mount(el, panelSwitch(draw), sidebarPanel() === 'limits' ? navLimits(draw) : [document.createTextNode('status list')]);
 
 beforeEach(() => {
@@ -67,26 +68,51 @@ describe('sidebar usage limits', () => {
     expect(el.querySelectorAll('.limit-row')[1].querySelector('i')!.className).toContain('bg-red');
   });
 
-  it('shows Codex’s free resets and when the next one runs out', async () => {
+  it('shows Codex’s free resets beside the sidebar only while you point at Codex', async () => {
     draw();
     await tick(10);
-    const box = el.querySelector('.codex-resets')!;
+    expect(document.querySelector('.codex-resets')).toBeNull();
+    // pointing at Claude shows nothing
+    el.querySelector('.limit-row')!.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(document.querySelector('.codex-resets')).toBeNull();
+    hoverCodex();
+    const box = document.querySelector('.codex-resets')!;
+    expect(box.parentElement).toBe(document.body);
     expect(box.textContent).toContain('2 rate-limit resets available');
     expect(box.textContent).toContain('Next expires in 2d 13h');
     expect(box.querySelector('button')!.textContent).toBe('Reset now');
+    // the sidebar drawn again under it keeps it open
+    draw();
+    await tick();
+    expect(document.querySelector('.codex-resets')).not.toBeNull();
+    // and it goes once the pointer leaves Codex and the card
+    document.body.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
+    await tick(250);
+    expect(document.querySelector('.codex-resets')).toBeNull();
+  });
+
+  it('moving onto the card keeps it open', async () => {
+    draw();
+    await tick(10);
+    hoverCodex();
+    const box = document.querySelector('.codex-resets')!;
+    box.querySelector('button')!.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
+    await tick(250);
+    expect(document.querySelector('.codex-resets')).toBe(box);
   });
 
   it('Reset now asks first, then uses the reset that runs out first', async () => {
     draw();
     await tick(10);
-    el.querySelector<HTMLButtonElement>('.codex-resets button')!.click();
+    hoverCodex();
+    document.querySelector<HTMLButtonElement>('.codex-resets button')!.click();
     await tick();
     const ok = [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === 'Reset now')!;
     expect(document.querySelector('.modal')!.textContent).toContain('You have 2.');
     ok.click();
     await tick(10);
     expect(requests.at(-1)).toMatchObject({ method: 'POST', url: '/api/codex/reset', body: { creditId: 'soon' } });
-    expect(el.querySelector('.codex-resets')!.textContent).toContain('1 rate-limit reset available');
+    expect(document.querySelector('.codex-resets')!.textContent).toContain('1 rate-limit reset available');
     expect([...el.querySelectorAll('.limit-row')].at(-1)!.textContent).toContain('0%');
     expect(document.getElementById('toasts')!.textContent).toContain('Codex limits reset. 1 free reset left.');
   });
@@ -94,18 +120,26 @@ describe('sidebar usage limits', () => {
   it('Cancel uses nothing', async () => {
     draw();
     await tick(10);
-    el.querySelector<HTMLButtonElement>('.codex-resets button')!.click();
+    hoverCodex();
+    document.querySelector<HTMLButtonElement>('.codex-resets button')!.click();
     await tick();
     [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === 'Cancel')!.click();
     await tick(10);
     expect(requests.some((r) => r.url === '/api/codex/reset')).toBe(false);
   });
 
-  it('no resets box without resets, and says why a plan has no numbers', async () => {
-    limits.codex = { ready: false, why: 'not signed in', windows: [], resets: { available: 0, credits: [] } };
+  it('no card when Codex has no resets, or isn’t signed in, and says why a plan has no numbers', async () => {
+    limits.codex = { ...limits.codex, resets: { available: 0, credits: [] } };
     draw();
     await tick(10);
-    expect(el.querySelector('.codex-resets')).toBeNull();
+    hoverCodex();
+    expect(document.querySelector('.codex-resets')).toBeNull();
+    resetLimitsCache();
+    limits.codex = { ready: false, why: 'not signed in', windows: [], resets: { available: 2, credits: [] } };
+    draw();
+    await tick(10);
+    hoverCodex();
+    expect(document.querySelector('.codex-resets')).toBeNull();
     expect(el.textContent).toContain('not signed in');
   });
 
