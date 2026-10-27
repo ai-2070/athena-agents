@@ -141,7 +141,7 @@ describe('the Look tab', () => {
     expect(rose.classList.contains('on')).toBe(true);
     expect(puts).toEqual([]);
     await act(() => new Promise((r) => setTimeout(r, 400)));
-    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full' } }]);
+    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full', station: 'classic', worldQuality: 'medium' } }]);
   });
 
   it('a change made just before leaving the tab is still saved', async () => {
@@ -158,9 +158,26 @@ describe('the Look tab', () => {
     // (off to another page at once, before the save was due)
     act(() => settings.unmount());
     await settle();
-    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full' } }]);
+    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full', station: 'classic', worldQuality: 'medium' } }]);
     await act(() => new Promise((r) => setTimeout(r, 400)));
     expect(puts).toHaveLength(1);
+  });
+
+  it('the Station look switches to the voxel world, and only then offers its quality', async () => {
+    const puts: unknown[] = [];
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit = {}) => {
+      if (init.method === 'PUT') puts.push(JSON.parse(String(init.body)));
+      return new Response('{}');
+    });
+    location.hash = '#/settings?tab=look';
+    await act(async () => settings.render(el));
+    await settle();
+    const button = (text: string) => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text);
+    expect(button('High')).toBeUndefined();
+    await act(async () => button('Voxel world')!.click());
+    await act(async () => button('High')!.click());
+    await act(() => new Promise((r) => setTimeout(r, 400)));
+    expect(puts).toEqual([{ look: { scale: 100, accent: 'lime', motion: 'full', station: 'world', worldQuality: 'high' } }]);
   });
 
   it('has a UI scale slider screen readers read as a percentage, and preset sizes', async () => {

@@ -105,6 +105,40 @@ export function LookTab() {
             />
           </div>
         </div>
+        <div className="panel">
+          <div className="panel-head">
+            <h2>Station</h2>
+          </div>
+          <p className="hint">Voxel world lights the Station like the world your agents will build: a sky, a sun with soft shadows, glow around bright things and a miniature blur at the edges. Classic is the dark map.</p>
+          <div className="field mt-3.5">
+            <span>Look</span>
+            <Segmented
+              label="Station look"
+              options={[
+                { value: 'classic', label: 'Classic' },
+                { value: 'world', label: 'Voxel world' },
+              ]}
+              value={look.station}
+              onChange={(v) => set({ station: v })}
+            />
+          </div>
+          {look.station === 'world' ? (
+            <div className="field mt-3">
+              <span>Quality</span>
+              <Segmented
+                label="Voxel world quality"
+                options={[
+                  { value: 'low', label: 'Low' },
+                  { value: 'medium', label: 'Medium' },
+                  { value: 'high', label: 'High' },
+                ]}
+                value={look.worldQuality}
+                onChange={(v) => set({ worldQuality: v })}
+              />
+              <p className="hint mt-1.5">Low has no shadows or glow, for older computers. High adds softer creases and smoother edges.</p>
+            </div>
+          ) : null}
+        </div>
       </div>
       <div className="flex flex-col gap-2.5">
         <div className="panel">

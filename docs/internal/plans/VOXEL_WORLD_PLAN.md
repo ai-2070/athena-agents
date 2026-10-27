@@ -519,10 +519,40 @@ from Hanami", "Share this world", "Start from a copy".
 
 Each phase ends with `bun run check` and `bun run build` green and something visible on the map.
 
-**Phase 0: look spike (small, de-risks the rest).**
+**Phase 0: look spike (small, de-risks the rest).** *Done 2026-10-27.*
 Renderer upgrade behind the Look setting: tone mapping, sun shadows, hemisphere light, sky, fog, composer with
 AO, bloom and tilt-shift. A hard-coded test island from a handful of boxes and per-voxel jitter. Measure fps
 at 250k, 1M and 2M voxels on a Windows laptop and in the desktop app. Decide the limits in §3 from this.
+
+What was built: Settings › Look › Station (Classic, the default / Voxel world) and its quality (Low / Medium /
+High); `shared/voxel.ts` (chunks, run-length storage, per-voxel shades); `web/voxel/mesher.ts` (hidden faces
+skipped, corner AO, split into solid / glowing / see-through); `environment.ts` (seven times of day);
+`post.ts` (AO on High, glow, tilt-shift with vignette, tone mapping); `view.ts` (sky, fog, sun with shadows,
+sky light; the classic lights come back when it is off); `bench.ts` (the test island). From the browser
+console on the Station: `await __voxelBench({ radius: 90 })`, `__voxelEnv('dusk')`, `__voxelBench(null)`;
+or open `#/station?voxelbench=90`.
+
+Measured on an Apple M1 Max (Chrome, Metal), 1542×1000, frame cap off, fps:
+
+| Voxels (faces) | Low 1× | Medium 1× | High 1× | Medium 2× | High 2× |
+|---|---|---|---|---|---|
+| 0.29M (56k) | 536 | 340 | 137 | 165 | 44 → 177* |
+| 0.94M (157k) | 473 | 292 | 122 | 146 → 177* | 39 → 131* |
+| 3.4M (512k) | 375 | 196 | 88 | 113 → 123* | 31 → 103* |
+
+\* after capping the passes at 1.5× pixel density and dropping MSAA on sharp screens.
+
+What it says:
+- **Voxel count is not the limit**: 3.4M voxels still draw at 375 fps on Low. The finishing passes, paid per
+  pixel, are. So the passes run at a capped resolution (labels are HTML and stay sharp).
+- **Meshing on the main thread is too slow for big builds**: ~0.2 ms per 1,000 voxels (0.7 s for 3.4M), so
+  the worker in Phase 1 is needed, and edits must re-mesh only the 32³ regions they touch.
+- 32³ regions are a good size: 321 meshes for 3.4M voxels.
+- The crease pass (AO) had to be taught to skip sprites, glows and the map's invisible boxes, or they
+  darkened the ground like boards.
+- Limits in §3 stand (4M voxels per world, 250k per call). **Still to do**: measure on a mid-range Windows
+  laptop and in the desktop app (WebView2). A GPU 5-8× slower than the M1 Max should still hold 60 fps on
+  Medium at 1×; High may need auto step-down (Phase 2).
 
 **Phase 1: build with voxels.**
 Types, grid and RLE, op engine with shapes, `layers`, `text`, `heightmap`, `replace`, `erase`, `jitter`;

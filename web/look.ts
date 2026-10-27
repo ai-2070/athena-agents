@@ -18,7 +18,7 @@ export const ACCENTS: Accent[] = [
   { id: 'violet', label: 'Violet', c: '#b69cff', hover: '#cbb8ff', dim: '#6f5fa3', on: '#0c0814' },
   { id: 'mint', label: 'Mint', c: '#5fe3c0', hover: '#89ecd2', dim: '#3a8c77', on: '#04110d' },
 ];
-export const DEFAULT_LOOK: LookSetting = { scale: 100, accent: 'lime', motion: 'full' };
+export const DEFAULT_LOOK: LookSetting = { scale: 100, accent: 'lime', motion: 'full', station: 'classic', worldQuality: 'medium' };
 const KEY = 'dash-look';
 
 // With a UI scale, mouse and box positions are in screen pixels but CSS pixels are scaled:

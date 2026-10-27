@@ -8,7 +8,7 @@ import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.ts';
 import { openDock, attachToBrain } from '../dock.tsx';
 import { filesFromDrop, filesFromPaste, hasFiles } from '../attach.ts';
-import { uiZoom } from '../look.ts';
+import { uiZoom, DEFAULT_LOOK } from '../look.ts';
 import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.tsx';
 import { logoUrl, modelUrl, projectMark } from '../projectlogo.ts';
 import { loadModel } from '../modelviewer.ts';
@@ -25,7 +25,8 @@ import { mountStationPanel } from './stationpanel.tsx';
 import type { StationPanelApi } from './stationpanel.tsx';
 import { mountStationMenu } from './stationmenu.tsx';
 import type { MenuEntry, StationMenu } from './stationmenu.tsx';
-import type { ActivityEntry, Agent, AppState, Chat, Project, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter } from '../../shared/types.ts';
+import type { WorldView } from '../voxel/view.ts';
+import type { ActivityEntry, Agent, AppState, Chat, Project, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldQuality } from '../../shared/types.ts';
 
 // ---------- types ----------
 /** A workflow run (GET /api/workflow-runs, /api/workflow-active and the 'workflow-run' event). */
@@ -369,6 +370,14 @@ interface StationState {
   tileEls: Map<string, HTMLButtonElement>;
   // the side panel (React)
   panelView?: { update: () => void; unmount: () => void };
+  /** the classic map's lights and floor dots (hidden in the voxel look) */
+  classic: THREE.Object3D[];
+  /** the voxel look (web/voxel), while it is on */
+  view?: WorldView | null;
+  /** the quality the voxel look was set up with, or null for the classic map */
+  lookShown?: WorldQuality | null;
+  /** the voxel look kept on whatever the setting says (the test island is out) */
+  lookForced?: WorldQuality | null;
   /** Files dragged over the map: 'map', or 'brain' when they are over the Brain (it glows). */
   fileDrag?: 'map' | 'brain' | null;
   dropHint?: HTMLDivElement | null;
@@ -410,6 +419,10 @@ type StationWindow = Window & {
   __chatsRestored?: boolean;
   __teams?: TeamView[];
   __teamWorking?: Record<string, string[]>;
+  /** Phase 0 of the voxel world: a test island and how fast it draws (see voxelBench) */
+  __voxelBench?: (opts?: VoxelBenchOptions | null) => Promise<unknown>;
+  /** Phase 0: switch the voxel look's time of day ('station', 'golden', 'dusk'…) */
+  __voxelEnv?: (preset: string) => void;
 };
 
 /** S is set from render() until unmount(), and the map's helpers only run in between. Type-only: no check at runtime. */
@@ -719,19 +732,23 @@ export async function render(el: HTMLElement): Promise<void> {
   host.append(renderer.domElement);
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -600, 1200);
-  scene.add(new THREE.AmbientLight(0xbfc8ff, 0.55));
+  const ambient = new THREE.AmbientLight(0xbfc8ff, 0.55);
+  scene.add(ambient);
   const sun = new THREE.DirectionalLight(0xffffff, 1.1);
   sun.position.set(30, 60, 20);
   scene.add(sun);
   const rim = new THREE.DirectionalLight(0x7fb6ff, 0.35);
   rim.position.set(-40, 20, -30);
   scene.add(rim);
+  const classic: THREE.Object3D[] = [ambient, sun, rim];
   {
     const pts: number[] = [];
     for (let x = -150; x <= 150; x += 3) for (let z = -150; z <= 150; z += 3) pts.push(x, -0.01, z);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0x262b24, size: 2, sizeAttenuation: false })));
+    const dots = new THREE.Points(g, new THREE.PointsMaterial({ color: 0x262b24, size: 2, sizeAttenuation: false }));
+    scene.add(dots);
+    classic.push(dots);
   }
 
   S = {
@@ -765,6 +782,7 @@ export async function render(el: HTMLElement): Promise<void> {
     wires: null,
     dots: [],
     links2d: [],
+    classic,
   } as Partial<StationState> as StationState; // the rest is filled in below
   S.wireDots = wireDots;
   S.wires = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -784,8 +802,10 @@ export async function render(el: HTMLElement): Promise<void> {
   rebuild();
   drawHud();
   resetView(true);
+  void applyStationLook();
   S.offState = onState(() => {
     if (!S) return;
+    void applyStationLook();
     if (floorBusy) updateStatuses();
     else if (signature() !== S.signature) rebuild();
     else updateStatuses();
@@ -817,6 +837,11 @@ export async function render(el: HTMLElement): Promise<void> {
   }, 30000);
   loop();
   // read-only: where teams and desks are on screen (used by the automated UI checks)
+  (window as StationWindow).__voxelBench = voxelBench;
+  (window as StationWindow).__voxelEnv = (preset) => void import('../voxel/environment.ts').then(({ envPreset }) => S?.view?.setEnvironment(envPreset(preset)));
+  // #/station?voxelbench=90 shows the test island straight away
+  const bench = Number(new URLSearchParams(location.hash.split('?')[1] || '').get('voxelbench'));
+  if (bench > 0) void voxelBench({ radius: bench });
   (window as StationWindow).__stationDebug = () => {
     if (!S) return null;
     const at = (o: THREE.Object3D) => {
@@ -875,6 +900,8 @@ export function unmount(): void {
   document.removeEventListener('paste', S.onPaste);
   S.panelView?.unmount();
   S.menuView?.unmount();
+  S.view?.dispose();
+  S.view = null;
   S.renderer.dispose();
   S.scene.traverse((o: Disposable) => {
     o.geometry?.dispose?.();
@@ -892,6 +919,7 @@ function resize(): void {
   S.renderer.setSize(S.w, S.h, false);
   S.renderer.domElement.style.width = `${S.w}px`;
   S.renderer.domElement.style.height = `${S.h}px`;
+  S.view?.setSize(S.w, S.h);
   updateCamera();
 }
 
@@ -918,6 +946,61 @@ function signature(): string {
     d.agents.map((a) => [a.id, a.name, a.emoji, a.color, a.model, a.engine, [...agentLinks(a)].join('|')]),
     ints,
   ]);
+}
+
+// ---------- the voxel look (web/voxel, loaded the first time it is turned on) ----------
+/** Turns the voxel look on, off, or to another quality, to match Settings › Look. Cheap when nothing changed. */
+async function applyStationLook(): Promise<void> {
+  if (!S) return;
+  const look = { ...DEFAULT_LOOK, ...(state.data?.settings?.look || {}) };
+  const want = S.lookForced || (look.station === 'world' ? look.worldQuality : null);
+  if (want === S.lookShown) return;
+  S.lookShown = want;
+  S.view?.dispose();
+  S.view = null;
+  if (!want) return;
+  const { createWorldView } = await import('../voxel/view.ts');
+  if (!S || S.lookShown !== want) return;
+  S.view = createWorldView({ renderer: S.renderer, scene: S.scene, camera: S.camera, quality: want, classic: S.classic, w: S.w, h: S.h });
+  if (S.world) S.view.adopt(S.world, S.radius || 40);
+}
+
+interface VoxelBenchOptions {
+  /** island radius in voxels (60 ≈ 0.2M voxels, 90 ≈ 0.6M, 130 ≈ 1.7M) */
+  radius?: number;
+  voxelSize?: number;
+  /** voxels per side of one mesh */
+  region?: number;
+  quality?: WorldQuality;
+  env?: string;
+  seconds?: number;
+}
+
+// Phase 0: puts the test island on the map (in the voxel look, at the quality asked) and measures it.
+// null takes it away again. From the console: await __voxelBench({ radius: 90 }).
+async function voxelBench(opts: VoxelBenchOptions | null = {}): Promise<unknown> {
+  if (!S) return null;
+  if (!opts) {
+    S.view?.removeVolume('bench');
+    S.lookForced = null;
+    await applyStationLook();
+    return null;
+  }
+  const quality = opts.quality || S.lookShown || 'medium';
+  S.lookForced = quality;
+  await applyStationLook();
+  const [{ benchIsland, BENCH_PALETTE }, { envPreset }] = await Promise.all([import('../voxel/bench.ts'), import('../voxel/environment.ts')]);
+  if (!S?.view) return null;
+  const t0 = performance.now();
+  const vol = benchIsland(opts.radius ?? 90, opts.voxelSize ?? 0.25);
+  const genMs = Math.round(performance.now() - t0);
+  S.view.setEnvironment(envPreset(opts.env || 'golden'));
+  const stats = S.view.addVolume('bench', vol, BENCH_PALETTE, new THREE.Vector3(), opts.region ?? 32);
+  S.view.adopt(S.world || S.scene, Math.max(S.radius || 40, (opts.radius ?? 90) * (opts.voxelSize ?? 0.25) + 4));
+  const speed = await S.view.measure(opts.seconds ?? 5);
+  const out = { quality, ...stats, generateMs: genMs, ...speed, pixelRatio: S.renderer.getPixelRatio(), size: `${S.w}x${S.h}` };
+  console.info('voxel bench', out);
+  return out;
 }
 
 // ---------- the Brain ----------
@@ -1119,6 +1202,7 @@ function rebuild(): void {
   });
   if (bench.length) buildBench(bench);
   S.radius = maxR;
+  S.view?.adopt(world, maxR);
 
   // Wires from the header tiles down to every step that can use that connection (drawn in 2D, see drawWires).
   buildWires();
@@ -1896,7 +1980,8 @@ function loop(): void {
   }
   placeLabels();
   drawWires(dt);
-  S.renderer.render(S.scene, S.camera);
+  if (S.view) S.view.render();
+  else S.renderer.render(S.scene, S.camera);
 }
 
 // The dashed wires: header tile (top) to the desk or pedestal (in the map), as SVG curves.

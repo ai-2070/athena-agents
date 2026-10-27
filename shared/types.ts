@@ -518,7 +518,13 @@ export interface LookSetting {
   scale: number;
   accent: string;
   motion: 'full' | 'reduced';
+  /** The Station's look: the classic map, or the voxel world's light (sky, sun and shadows, glow). */
+  station: StationLook;
+  /** How much the voxel world draws: shadows, glow and the miniature blur cost graphics power. */
+  worldQuality: WorldQuality;
 }
+export type StationLook = 'classic' | 'world';
+export type WorldQuality = 'low' | 'medium' | 'high';
 
 export interface Settings {
   defaults: { engine: EngineId; claudeModel: string; openrouterModel: string; hermesProfile: string; autonomy: Autonomy };
@@ -854,4 +860,42 @@ export interface McpSuggestion {
   needs: string;
   /** the Programs page id of the program it drives, null for the basics */
   program: string | null;
+}
+
+// ---------- the voxel world (docs/internal/plans/VOXEL_WORLD_PLAN.md) ----------
+/** How a voxel material is drawn: solid ones block light and hide what is behind them, glass and water don't. */
+export type VoxelMaterialKind = 'solid' | 'glass' | 'water' | 'emissive' | 'metal' | 'leaf' | 'snow';
+
+/** One entry of a world's palette. A voxel's value v (1..255) is palette[v - 1]; 0 is empty. */
+export interface VoxelMaterial {
+  name: string;
+  /** #rrggbb */
+  color: string;
+  /** extra shades (#rrggbb) a voxel may take instead of color, picked per voxel */
+  ramp?: string[];
+  /** 0..0.3: how much each voxel's brightness varies */
+  jitter?: number;
+  kind: VoxelMaterialKind;
+  /** emissive: how bright it glows, 0..8 */
+  emissive?: number;
+  /** glass and water: 0..1 */
+  opacity?: number;
+  roughness?: number;
+}
+
+export type WorldEnvPreset = 'station' | 'day' | 'golden' | 'dusk' | 'night' | 'overcast' | 'snow';
+
+/** Sky, fog, sun and the finishing touches of a world's look. Colors are #rrggbb, angles in degrees. */
+export interface WorldEnvironment {
+  preset: WorldEnvPreset;
+  sky: { top: string; horizon: string; bottom: string };
+  /** density 0..1 (0: no fog) */
+  fog: { color: string; density: number };
+  sun: { color: string; intensity: number; azimuth: number; elevation: number };
+  ambient: { sky: string; ground: string; intensity: number };
+  /** 0..2 glow around bright things */
+  bloom: number;
+  /** 0..1 miniature blur at the top and bottom of the view */
+  tiltShift: number;
+  exposure: number;
 }
