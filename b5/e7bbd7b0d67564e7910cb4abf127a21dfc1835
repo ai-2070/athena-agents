@@ -1,0 +1,148 @@
+web/voxel/mesher.ts
+  s_136c51292e1494::t_037ffa1bfefa68 5,7,194-216,218
+  s_136c51292e1494::t_710f8a294c867a 217
+server/voxel/ops.ts
+  s_136c51292e1494::t_da93feeba7253b 5-6,262,366,437
+  s_136c51292e1494::t_065d3eb5100291 1-4,7-261,263-365,367-436,438-652
+web/voxel/view.ts
+  s_136c51292e1494::t_f52271217c383a 8
+  s_136c51292e1494::t_8aa92b858173e5 7,31-32,163-184,217,220,223,225-227,229
+server/voxel/materials.ts
+  s_136c51292e1494::t_5896060d13072d 1-42
+scripts/build-web.ts
+  s_136c51292e1494::t_f34994461e8389 18-19
+server/overseer.ts
+  s_136c51292e1494::t_0887fb2c094189 381,474,509-512,520
+  s_136c51292e1494::t_55c7ce2bd59077 36-41,127-133,387-395,1528-1548
+server/store.ts
+  s_136c51292e1494::t_635ca42b39120f 51
+server/voxel/worldmd.ts
+  s_136c51292e1494::t_8c707da2a94cb9 1-192
+tests/server/voxel-generators.test.ts
+  s_136c51292e1494::t_b1579716cb4701 1-44,46-51,59-118
+  s_136c51292e1494::t_644643f255c910 45,52-58
+web/views/station.ts
+  s_136c51292e1494::t_977f412cb87eaa 849,1017
+  s_136c51292e1494::t_ba920883aafcce 510-514
+  s_136c51292e1494::t_307aeff6a5e35f 29-30,378-379,911-912,969-970,974,978-990,2008,3348-3349
+server/voxel/generators/bridge.ts
+  s_136c51292e1494::t_167b19f3bbf7e9 1,4-44
+  s_136c51292e1494::t_d0a02df7b9f6f3 2-3
+server/voxel/noise.ts
+  s_136c51292e1494::t_da93feeba7253b 1-29
+server/voxel/generators/rock.ts
+  s_136c51292e1494::t_e05ba9f663cfc6 1-2,5-60,63-69
+  s_136c51292e1494::t_d0a02df7b9f6f3 3-4
+  s_136c51292e1494::t_2a68022fb44228 61-62
+server/projectsync.ts
+  s_136c51292e1494::t_d9b0694c8f9dbc 15-18,68,219,301,458-504,510-513
+server/index.ts
+  s_136c51292e1494::t_d823540f54f60a 38-42,566-607
+  s_136c51292e1494::t_cb461a60042341 64
+  s_136c51292e1494::t_5c37fac1c0c937 608
+server/voxel/generators/tree.ts
+  s_136c51292e1494::t_d0a02df7b9f6f3 4
+  s_136c51292e1494::t_fd461af918e675 112-113,115-120,127,129,133,135,154-155,157,160-167,188,213
+  s_136c51292e1494::t_b47805c8f9d8cd 1-3,5-111,114,121-126,128,130-132,134,136-153,156,158-159,168-187,189-212,214-224
+web/voxel/mesh.worker.ts
+  s_136c51292e1494::t_037ffa1bfefa68 1-22
+shared/worldenv.ts
+  s_136c51292e1494::t_977f412cb87eaa 2-87
+  s_136c51292e1494::t_f52271217c383a 1
+server/tools.ts
+  s_136c51292e1494::t_7f176a4ac26de0 27,104,929-930
+server/backup.ts
+  s_136c51292e1494::t_167e5c2305cf42 20-22,34,39-40,121-122,335-340,342-343,367-368,532,771-783
+  s_136c51292e1494::t_48cba205b31d4c 341
+server/engines/index.ts
+  s_136c51292e1494::t_d3746d24807135 9,204
+docs/guide.md
+  s_136c51292e1494::t_24c7ef44cac83e 102-112
+server/skills.ts
+  s_136c51292e1494::t_3254e18cef6e3b 330-369
+  s_136c51292e1494::t_d389642741a5ac 328-329
+server/voxel/generators/lantern.ts
+  s_136c51292e1494::t_28c10bd5c6658d 1,6,8-10,12,16-18,20-26,28
+  s_136c51292e1494::t_da93feeba7253b 4-5,7,11,19,29-30
+  s_136c51292e1494::t_7a2a964de73f90 13-15,27
+  s_136c51292e1494::t_d0a02df7b9f6f3 2-3
+server/voxel/font.ts
+  s_136c51292e1494::t_0b5ddeda0cec0f 1-63
+server/voxel/generators/params.ts
+  s_136c51292e1494::t_d0a02df7b9f6f3 1-14
+README.md
+  s_136c51292e1494::t_24c7ef44cac83e 43-46
+server/voxel/link.ts
+  s_136c51292e1494::t_d9b0694c8f9dbc 20-21
+  s_136c51292e1494::t_00bdad37ee3b19 1-19,22-132
+server/voxel/describe.ts
+  s_136c51292e1494::t_4669111b616fb0 3,6,8,93-94
+  s_136c51292e1494::t_49127c0afbdfb7 1-2,4-5,7,9-92,95-96
+tests/web/voxel-mesher.test.ts
+  s_136c51292e1494::t_2880d12876fdb4 2,6,134-147
+  s_136c51292e1494::t_977f412cb87eaa 4
+  s_136c51292e1494::t_ba9868516d427e 148-149
+web/voxel/worldlayer.ts
+  s_136c51292e1494::t_6c18b7dae7df68 105
+  s_136c51292e1494::t_4b9537038727e6 1-67,70-73,76,78-100,102-103,106-113,115-167
+  s_136c51292e1494::t_5798e417d0c8b9 68-69,74-75,77,101,104,114
+docs/internal/plans/VOXEL_WORLD_PLAN.md
+  s_136c51292e1494::t_98fb24d76cc62f 566-580
+AGENTS.md
+  s_136c51292e1494::t_24c7ef44cac83e 49-50
+server/voxel/generators/torii.ts
+  s_136c51292e1494::t_30e4030740d688 22,24-25,31,35,37-38,41
+  s_136c51292e1494::t_d0a02df7b9f6f3 3-4
+  s_136c51292e1494::t_e72c871daf6424 1-2,5-16,18-21,26-30,32-34,36,39-40,42,45-51
+  s_136c51292e1494::t_ab8dc9143d4cd9 17,23,43-44
+tests/server/voxel-tools.test.ts
+  s_136c51292e1494::t_9942ad6fe971da 1-79
+shared/types.ts
+  s_136c51292e1494::t_6c18b7dae7df68 948-949
+  s_136c51292e1494::t_e484b9cc12ceb8 985
+  s_136c51292e1494::t_635ca42b39120f 261-262,556-557,906-947,950-984,986-1013
+  s_136c51292e1494::t_55c7ce2bd59077 763
+server/voxel/tools.ts
+  s_136c51292e1494::t_78cc91a5a0405d 1-202
+server/voxel/store.ts
+  s_136c51292e1494::t_977f412cb87eaa 11,99-102
+  s_136c51292e1494::t_77610470363488 1-10,12-98,103-123
+server/voxel/generators/island.ts
+  s_136c51292e1494::t_fb4c6eb842cc85 1-4,7-49,56-63
+  s_136c51292e1494::t_d0a02df7b9f6f3 5-6
+  s_136c51292e1494::t_c35f05aa7d1301 50-55
+server/voxel/generators/cloud.ts
+  s_136c51292e1494::t_d772fa7a4cfa13 1,4-29
+  s_136c51292e1494::t_d0a02df7b9f6f3 2-3
+server/voxel/generators/index.ts
+  s_136c51292e1494::t_da93feeba7253b 1-3,7,11
+  s_136c51292e1494::t_f77f98596d2004 4-6,8-10,12
+tests/server/voxel-world.test.ts
+  s_136c51292e1494::t_48cba205b31d4c 226-230,233-258
+  s_136c51292e1494::t_fa53ed1b7246df 1-225
+  s_136c51292e1494::t_933a17e756edd9 231-232
+server/library.ts
+  s_136c51292e1494::t_3254e18cef6e3b 34,268-275
+  s_136c51292e1494::t_a1f85bd7b1480c 276
+server/voxel/build.ts
+  s_136c51292e1494::t_48b33c12f285c8 1-3,5-6,8-36,38-66,69-152,154-275,277-282,284-288,290-310
+  s_136c51292e1494::t_b36bf8ade954c8 4,7,37,283
+  s_136c51292e1494::t_5d9415d6b7ad66 67-68
+  s_136c51292e1494::t_6c18b7dae7df68 153,276,289
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b5e7bbd7b0d67564e7910cb4abf127a21dfc1835",
+  "prompts": {},
+  "sessions": {
+    "s_136c51292e1494": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12e98825-3deb-40d4-899a-410e97df98f4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
