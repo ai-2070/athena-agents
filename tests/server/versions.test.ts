@@ -268,6 +268,23 @@ describe('skills', () => {
     expect(skills.skillExtraFiles(dir)).toEqual(['new.md']);
   });
 
+  it('restoring the oldest version kept brings back its files too (keeping one more would prune it)', () => {
+    const s = skills.saveSkill({ name: 'Oldest one', description: 'Use it.', body: 'First.' })!;
+    const dir = skills.skillDir(s.slug);
+    fs.writeFileSync(path.join(dir, 'script.sh'), 'echo first');
+    skills.deleteSkillEverywhere(s.slug);
+    const oldest = historyOf('skill', s.slug).versions[0].id;
+    skills.saveSkill({ name: 'Oldest one', description: 'Use it.', body: 'Again 0.' });
+    for (let i = 1; i < VERSIONS_KEPT; i++) withActor('you', () => skills.saveSkill({ slug: s.slug, name: 'Oldest one', description: 'Use it.', body: `Again ${i}.` }));
+    const vdir = skills.skillVersionsDir(s.slug);
+    expect(listVersions(vdir)).toHaveLength(VERSIONS_KEPT);
+    expect(listVersions(vdir).at(-1)?.id).toBe(oldest);
+    restoreVersion('skill', s.slug, oldest);
+    expect(skills.getSkill(s.slug)?.body).toContain('First.');
+    expect(fs.readFileSync(path.join(dir, 'script.sh'), 'utf8')).toBe('echo first');
+    expect(listVersions(vdir)).toHaveLength(VERSIONS_KEPT);
+  });
+
   it('as text', () => {
     expect(asText('skill', { slug: 's', name: 'S', description: 'Use it.', body: 'Do it.' })).toBe('Name: S\nWhen to use it: Use it.\n\nDo it.');
     expect(asText('agent', { name: 'A', emoji: '🤖', engine: 'claude-code', systemPrompt: 'Be kind.' } as Agent)).toMatch(/^Name: 🤖 A\n[\s\S]*\n\nInstructions:\nBe kind\.$/);

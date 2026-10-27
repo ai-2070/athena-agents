@@ -202,8 +202,9 @@ export function exportToClaude(agent: Agent): string {
   const dir = ensureDir(path.join(HOME, '.claude', 'agents'));
   const slug = slugify(agent.name);
   const file = path.join(dir, `${slug}.md`);
-  const desc = (agent.description || agent.specialty || agent.name).replace(/\r?\n/g, ' ').replace(/"/g, "'");
-  fs.writeFileSync(file, `---\nname: ${slug}\ndescription: "${desc}"\n---\n\n${agent.systemPrompt || `You are ${agent.name}.`}\n`);
+  // a real YAML string: a backslash (a Windows path) or a quote must not break the frontmatter
+  const desc = JSON.stringify((agent.description || agent.specialty || agent.name).replace(/\s+/g, ' ').trim());
+  fs.writeFileSync(file, `---\nname: ${slug}\ndescription: ${desc}\n---\n\n${agent.systemPrompt || `You are ${agent.name}.`}\n`);
   log('library', `Installed ${agent.name} into Claude Code as subagent "${slug}"`, { agentId: agent.id });
   return file;
 }

@@ -65,3 +65,13 @@ describe('the bundled Agency library', () => {
     expect(() => library.hireFromAgency('no-such-specialist')).toThrow('not in the library');
   });
 });
+
+describe('Claude Code subagents', () => {
+  it('exports a description with backslashes and quotes as frontmatter that reads back the same', () => {
+    const description = 'Inspect C:\\src and say "done" \\';
+    const a = library.newAgent({ name: 'Path checker', description, systemPrompt: 'Check paths.' });
+    const text = fs.readFileSync(library.exportToClaude(a), 'utf8');
+    expect(text).toContain('description: "Inspect C:\\\\src and say \\"done\\" \\\\"\n');
+    expect(parseFrontmatter(text).meta).toMatchObject({ name: 'path-checker', description });
+  });
+});
