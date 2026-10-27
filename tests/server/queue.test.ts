@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { chats, saveSettings, workflows } from '../../server/store.ts';
-import { activeRuns, queueMessage, queuedMessages, stopChat, unqueue } from '../../server/engines/index.ts';
+import { activeRuns, editQueued, orderQueued, queueMessage, queuedMessages, steerChat, stopChat, unqueue } from '../../server/engines/index.ts';
 import { getThread, queueUserMessage, stopTeam, teamState, unqueueTeam } from '../../server/teams.ts';
 import { queuedText } from '../../shared/queue.ts';
 import type { Team } from '../../shared/types.ts';
@@ -171,5 +171,55 @@ describe('/queue in a team chat', () => {
   it('refuses an empty /queue', async () => {
     const t = team();
     await expect(queueUserMessage(t.id, '  ')).rejects.toThrow('Write the message after /queue.');
+  });
+});
+
+describe('steering an agent chat: a message while it works', () => {
+  it('stops the run going now and goes next; queued messages still wait and go after it', async () => {
+    const a = agent('Steered');
+    const c = chats.create(a.id);
+    queueMessage(a, c, 'the long job');
+    await until(() => waiting.length > 0);
+    // (the long job's request: stopped before it answers)
+    const cut = waiting.shift()!;
+    queueMessage(a, c, 'then tidy up');
+    expect(queuedMessages(c.id).map((q) => q.text)).toEqual(['then tidy up']);
+    await steerChat(a, c, 'change of plan');
+    expect(queuedMessages(c.id).map((q) => q.text)).toEqual(['then tidy up']);
+    expect(running(c.id)).toBe(true);
+    expect(chats.get(a.id, c.id)!.items.some((i) => i.type === 'error' && i.text === 'Stopped to take your new message.')).toBe(true);
+    expect(await release()).toContain('change of plan');
+    expect(await release()).toContain('then tidy up');
+    await until(() => !running(c.id));
+    expect(userTexts(a.id, c.id)).toEqual(['the long job', 'change of plan', 'then tidy up']);
+    cut.release();
+  });
+
+  it('with nothing going, it is an ordinary message', async () => {
+    const a = agent('Idle');
+    const c = chats.create(a.id);
+    await steerChat(a, c, 'hello');
+    expect(await release()).toContain('hello');
+    await until(() => !running(c.id));
+    expect(userTexts(a.id, c.id)).toEqual(['hello']);
+  });
+
+  it('a queued message can be changed, and the queue put in another order', async () => {
+    const a = agent('Reorder');
+    const c = chats.create(a.id);
+    queueMessage(a, c, 'working');
+    await until(() => waiting.length > 0);
+    const ids = ['one', 'two', 'three'].map((t) => {
+      const r = queueMessage(a, c, t);
+      return 'queued' in r ? r.queued.id : '';
+    });
+    expect(editQueued(c.id, ids[1], ' two, changed ')).toMatchObject({ text: 'two, changed' });
+    expect(() => editQueued(c.id, ids[1], '')).toThrow();
+    expect(() => editQueued(c.id, 'nope', 'x')).toThrow(/already sent/);
+    expect(orderQueued(c.id, [ids[2], ids[0]]).map((q) => q.text)).toEqual(['three', 'one', 'two, changed']);
+    unqueue(c.id);
+    stopChat(c.id);
+    await until(() => !running(c.id));
+    waiting.shift();
   });
 });

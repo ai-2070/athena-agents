@@ -8,8 +8,9 @@ import type { AppState } from '../../shared/types.ts';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const settle = () => act(() => new Promise((r) => setTimeout(r, 40)));
 
-// a Brain answer that stays on its way until the test ends it
+// a Brain answer that stays on its way until the test ends it (or the page stops reading it)
 let answering: ReadableStreamDefaultController<Uint8Array> | null = null;
+const calls: { url: string; body: Record<string, unknown> }[] = [];
 beforeAll(() => {
   document.body.append(Object.assign(document.createElement('div'), { id: 'toasts' }));
   // (no animations in happy-dom)
@@ -24,9 +25,19 @@ beforeAll(() => {
     project: { id: 'p1', name: 'P' },
     settings: { brain: { provider: 'claude', model: 'haiku' } },
   } as unknown as AppState;
-  vi.stubGlobal('fetch', async (url: string) => {
+  vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+    calls.push({ url, body: init.body ? JSON.parse(String(init.body)) : {} });
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
-    if (url === '/api/brain/stream') return new Response(new ReadableStream<Uint8Array>({ start: (c) => void (answering = c) }), { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } });
+    if (url === '/api/brain/stream')
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start: (c) => {
+            answering = c;
+            init.signal?.addEventListener('abort', () => c.error(new DOMException('The operation was aborted.', 'AbortError')));
+          },
+        }),
+        { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } },
+      );
     if (url === '/api/brain/history') return json([]);
     if (url === '/api/workflows') return json([{ id: 't1', name: 'Thumbs', members: ['a1'], lead: 'a1', steps: [] }]);
     return json({});
@@ -85,14 +96,58 @@ describe('the Brain chat', () => {
     input().value = '/queue then the newsletter';
     await enter();
     await settle();
-    const waiting = document.querySelector('.queued-list.dock-held')!;
-    expect(waiting.classList.contains('hidden')).toBe(false);
+    const waiting = document.querySelector('.dock-held .queued-list')!;
     expect(waiting.querySelector('.queued-head')!.textContent).toBe('Sends when everything above is done');
     expect(waiting.querySelector('.queued-text')!.textContent).toBe('then the newsletter');
     await act(async () => waiting.querySelector<HTMLButtonElement>('button[aria-label="Don\'t send this"]')!.click());
     await settle();
-    expect(waiting.classList.contains('hidden')).toBe(true);
+    expect(document.querySelector('.dock-held .queued-list')).toBeNull();
     // (the message you sent first stays at the top)
     expect(document.querySelector('.dock-msg.user')!.textContent).toBe('plan the week');
+  });
+
+  it('while the Brain answers, an empty box shows Stop; a message sent then cuts the answer off and is answered now', async () => {
+    // (the answer to "plan the week" is still on its way)
+    const button = (label: string) => document.querySelector(`.dock button[aria-label="${label}"]`);
+    expect(button('Stop')).not.toBeNull();
+    expect(button('Send')).toBeNull();
+    input().value = 'actually, just Monday';
+    await act(async () => void input().dispatchEvent(new Event('input', { bubbles: true })));
+    await settle();
+    expect(button('Stop')).toBeNull();
+    expect(button('Send')).not.toBeNull();
+    await enter();
+    const asked = () => calls.filter((c) => c.url === '/api/brain/stream');
+    for (let i = 0; i < 50 && asked().length < 2; i++) await settle();
+    // what the cut-off answer was for stays in the Brain's history; the new message is asked now
+    expect(calls.find((c) => c.url === '/api/brain/steer')!.body).toEqual({ text: 'plan the week', attachments: [] });
+    expect(asked().map((c) => c.body.text)).toEqual(['plan the week', 'actually, just Monday']);
+    expect(document.querySelector('.dock-list')!.textContent).toContain("Stopped the Brain's answer to take your new message.");
+    expect(button('Stop')).not.toBeNull();
+  });
+
+  it('queued messages in the Brain chat: Up changes the last one, Alt+Up moves one up', async () => {
+    // (the Brain is still answering, so these wait)
+    for (const t of ['/queue first', '/queue second']) {
+      input().value = t;
+      await enter();
+    }
+    await settle();
+    const texts = () => [...document.querySelectorAll('.dock-held .queued-text')].map((n) => n.textContent);
+    expect(texts()).toEqual(['first', 'second']);
+    input().value = '';
+    await act(async () => void input().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })));
+    await settle();
+    const edit = document.querySelector<HTMLTextAreaElement>('.dock-held .queued-edit')!;
+    expect(edit.value).toBe('second');
+    edit.value = 'second, changed';
+    await act(async () => void edit.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    await settle();
+    expect(texts()).toEqual(['first', 'second, changed']);
+    expect(document.activeElement).toBe(input());
+    const last = document.querySelectorAll<HTMLButtonElement>('.dock-held .queued-text')[1];
+    await act(async () => void last.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true })));
+    await settle();
+    expect(texts()).toEqual(['second, changed', 'first']);
   });
 });

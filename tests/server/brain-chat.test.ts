@@ -2,7 +2,7 @@
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { activeProject, listProjects, saveProjects, setActiveProject, workflows } from '../../server/store.ts';
-import { ask, clearHistory, history } from '../../server/overseer.ts';
+import { ask, clearHistory, history, steerAsks } from '../../server/overseer.ts';
 
 // the "model" answers only when the test says so
 const pending: ((text: string) => void)[] = [];
@@ -38,6 +38,21 @@ describe('the Brain chat', () => {
     expect(workflows.list().some((w) => w.name === 'Late team')).toBe(false);
     expect(r.delegate).toBeNull();
     expect(r.done).toEqual([expect.objectContaining({ kind: 'error' })]);
+  });
+
+  it('a new message while it answers: that answer changes nothing, and its question stays in the history', async () => {
+    const pid = activeProject().id;
+    clearHistory();
+    const cut = ask('make a design team');
+    await until(() => pending.length > 0);
+    steerAsks({ text: 'make a design team', attachments: [] });
+    // (the next answer sees the question it cut off)
+    expect(history(pid).map((m) => m.text)).toEqual(['make a design team', '(stopped before answering: the user sent a new message)']);
+    await answerNext('On it\n```actions\n[{"do":"create_team","name":"Cut team","members":[{"new":{"name":"Cut"}}]}]\n```');
+    const r = await cut;
+    expect(workflows.list().some((w) => w.name === 'Cut team')).toBe(false);
+    expect(r.done).toEqual([expect.objectContaining({ kind: 'error', text: expect.stringContaining('stopped') })]);
+    expect(history(pid)).toHaveLength(2);
   });
 
   it('two answers that overlap are both kept', async () => {

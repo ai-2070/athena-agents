@@ -37,6 +37,14 @@ function uiStream() {
       ctl.enqueue(enc.encode('data: [DONE]\n\n'));
       ctl.close();
     },
+    // the page stopped reading it (as a real response ends when its request is aborted)
+    abort: () => {
+      try {
+        ctl.error(new DOMException('The operation was aborted.', 'AbortError'));
+      } catch {
+        /* already done */
+      }
+    },
   };
 }
 
@@ -76,7 +84,11 @@ beforeEach(() => {
     requests.push({ method, url, body });
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (url === '/api/agents/a1/chats/c1' && method === 'GET') return json(chat);
-    if (url === '/api/agents/a1/chats/c1/stream' && method === 'POST') return (sendStream = uiStream()).response();
+    if (url === '/api/agents/a1/chats/c1/stream' && method === 'POST') {
+      const s = (sendStream = uiStream());
+      init.signal?.addEventListener('abort', () => s.abort());
+      return s.response();
+    }
     if (url === '/api/agents/a1/chats/c1/stream' && method === 'GET') return resumeStream ? resumeStream.response() : new Response(null, { status: 204 });
     if (url === '/api/agents/a1/chats/c1/compact') return json({ compacted: true, item: {} });
     if (url === '/api/agents/a1/chats/c1/stop') return json({ ok: true, unqueued: unqueuedOnStop });
@@ -144,7 +156,7 @@ describe('the agent chat (AI SDK)', () => {
     expect([...el.querySelectorAll('.tname')].map((n) => n.textContent)).toContain('ffmpeg');
     // (a tool is running: the status line says so)
     expect(el.querySelector('.status-line')!.textContent).toContain('Using ffmpeg…');
-    expect([...el.querySelectorAll('button')].some((b) => b.textContent === 'Stop')).toBe(true);
+    expect(el.querySelector('button[aria-label="Stop"]')).not.toBeNull();
     // the tool's result, opened: input and result
     await act(async () => s.push({ type: 'tool-output-available', toolCallId: 'v1', output: { text: 'clip.mp4 written', images: [] }, dynamic: true }));
     await settle();
@@ -257,7 +269,7 @@ describe('the agent chat (AI SDK)', () => {
     await wsEvent({ type: 'queue', agentId: 'a1', chatId: 'c1', queued: [{ id: 'q1', text: 'then write the tests', ts: 0 }] });
     expect(el.querySelector('.queued-msg')!.textContent).toContain('then write the tests');
     expect(el.querySelector('.queued-head')!.textContent).toBe('Sends when Renderer is done');
-    await act(async () => (el.querySelector('.queued-msg button') as HTMLButtonElement).click());
+    await act(async () => (el.querySelector(`.queued-msg button[aria-label="Don't send this"]`) as HTMLButtonElement).click());
     await settle();
     expect(requests.some((r) => r.method === 'DELETE' && r.url === '/api/agents/a1/chats/c1/queue/q1')).toBe(true);
     expect(el.querySelector('.queued-msg')).toBeNull();
@@ -299,12 +311,70 @@ describe('the agent chat (AI SDK)', () => {
     expect(requests.some((r) => r.url.endsWith('/queue'))).toBe(false);
   });
 
+  it('while it works, an empty box shows Stop; typing shows Send, and it goes as a steer', async () => {
+    const el = await open();
+    await type(el, 'make it red');
+    await settle();
+    const first = sendStream!;
+    await act(async () => first.push({ type: 'start', messageId: 'run-r1' }));
+    await settle();
+    const box = el.querySelector('textarea')!;
+    expect(el.querySelector('button[aria-label="Stop"]')).not.toBeNull();
+    expect(el.querySelector('button[aria-label="Send"]')).toBeNull();
+    box.value = 'no, blue';
+    await act(async () => box.dispatchEvent(new Event('input', { bubbles: true })));
+    expect(el.querySelector('button[aria-label="Stop"]')).toBeNull();
+    const send = el.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!;
+    expect(send.disabled).toBe(false);
+    await act(async () => send.click());
+    for (let i = 0; i < 20 && requests.filter((r) => r.method === 'POST' && r.url.endsWith('/stream')).length < 2; i++) await settle();
+    const posts = requests.filter((r) => r.method === 'POST' && r.url.endsWith('/stream'));
+    expect(posts.map((r) => r.body)).toEqual([
+      { text: 'make it red', attachments: [] },
+      { text: 'no, blue', attachments: [], steer: true },
+    ]);
+    // (Stop itself was never asked for: the server stops the run for the steer)
+    expect(requests.some((r) => r.url.endsWith('/stop'))).toBe(false);
+    expect(el.textContent).toContain('no, blue');
+  });
+
+  it('queued messages: Up in an empty box changes the last one; drag changes the order', async () => {
+    const el = await open();
+    await type(el, 'go');
+    await settle();
+    await wsEvent({ type: 'queue', agentId: 'a1', chatId: 'c1', queued: [{ id: 'q1', text: 'first', ts: 0 }, { id: 'q2', text: 'second', ts: 0 }] });
+    await settle();
+    const box = el.querySelector('textarea')!;
+    box.value = '';
+    await act(async () => box.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })));
+    const edit = el.querySelector<HTMLTextAreaElement>('.queued-edit')!;
+    expect(edit.value).toBe('second');
+    edit.value = 'second, shorter';
+    await act(async () => edit.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    await settle();
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/agents/a1/chats/c1/queue/q2', body: { text: 'second, shorter' } });
+    expect([...el.querySelectorAll('.queued-text')].map((n) => n.textContent)).toEqual(['first', 'second, shorter']);
+    // dragged onto the top half of the first: it goes first
+    const row = (id: string) => el.querySelector(`[data-qid="${id}"]`)!;
+    const dt = new DataTransfer();
+    const steps = [
+      ['dragstart', row('q2')],
+      ['dragover', row('q1')],
+      ['drop', row('q1')],
+      ['dragend', row('q2')],
+    ] as const;
+    for (const [kind, target] of steps) await act(async () => void target.dispatchEvent(new DragEvent(kind, { bubbles: true, cancelable: true, dataTransfer: dt })));
+    await settle();
+    expect([...el.querySelectorAll('.queued-text')].map((n) => n.textContent)).toEqual(['second, shorter', 'first']);
+    expect(requests.find((r) => r.url.endsWith('/queue/order'))!.body).toEqual({ ids: ['q2', 'q1'] });
+  });
+
   it('Stop puts what you queued back in the box', async () => {
     const el = await open();
     await type(el, 'go');
     await settle();
     unqueuedOnStop = [{ id: 'q1', text: 'later one', ts: 0 }, { id: 'q2', text: 'later two', ts: 0 }];
-    await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'Stop')!.click());
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Stop"]')!.click());
     await settle();
     expect(el.querySelector('textarea')!.value).toBe('later one\n\nlater two');
   });

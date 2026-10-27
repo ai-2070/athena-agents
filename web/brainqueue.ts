@@ -65,6 +65,10 @@ export interface Held<X> {
 export interface HoldQueue<X> {
   add(text: string, extra: X): Held<X>;
   remove(id: string): void;
+  /** Change one's text (false: it already went). */
+  edit(id: string, text: string): boolean;
+  /** Put them in this order (ids it doesn't name keep their place after the ones it does). */
+  order(ids: string[]): void;
   /** Forget them all (new conversation, other project); returns what was waiting. */
   clear(): Held<X>[];
   items(): Held<X>[];
@@ -100,6 +104,18 @@ export function holdQueue<X>({ idle, send, onChange }: { idle: () => boolean; se
     },
     remove(id) {
       items = items.filter((m) => m.id !== id);
+      onChange();
+    },
+    edit(id, text) {
+      const m = items.find((x) => x.id === id);
+      if (!m) return false;
+      items = items.map((x) => (x === m ? { ...x, text } : x));
+      onChange();
+      return true;
+    },
+    order(ids) {
+      const named = ids.map((id) => items.find((m) => m.id === id)).filter((m): m is Held<X> => !!m);
+      items = [...new Set([...named, ...items])];
       onChange();
     },
     clear() {

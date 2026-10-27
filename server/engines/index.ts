@@ -143,6 +143,10 @@ export const ENGINE_LIST: EngineInfo[] = [
 ];
 
 const active = new Map<string, RunEntry>(); // runId -> { abort, agentId, chatId, chat, depth, parentRunId }
+// each run, done once it has ended (its last steps included): a steer waits for the run it stopped
+const ends = new Map<string, Promise<void>>();
+// chats whose run a new message is stopping: their /queue messages and loop stay, and that message goes next
+const steering = new Set<string>();
 // chats being compacted outside a run (Compact button, /compact), by id: no run may start meanwhile,
 // and edits or a delete meanwhile go to this copy (see liveChat)
 const compacting = new Map<string, Chat>();
@@ -372,7 +376,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     } catch (e) {
       const stopped = controller.signal.aborted;
       failed = !stopped;
-      const msg = stopped ? 'Stopped.' : (e as Error).message || String(e);
+      const msg = stopped ? (steering.has(chat.id) ? 'Stopped to take your new message.' : 'Stopped.') : (e as Error).message || String(e);
       for (const it of chat.items) if (it.type === 'tool' && it.status === 'running') Object.assign(it, { status: 'error', isError: true, result: stopped ? '(stopped)' : '(did not finish)' });
       pushItem(chat, { type: 'error', text: msg });
       persist();
@@ -385,13 +389,17 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       cancelForRun(runId);
       emit('runs');
       const stopped = controller.signal.aborted;
+      // stopped for a new message from you: that message is next, and a /goal is checked after it instead
+      const steered = stopped && steering.has(chat.id);
       try {
-        runEndHook?.({ agentId: agent.id, chatId: chat.id, runId, answer, stopped, failed });
+        if (!steered) runEndHook?.({ agentId: agent.id, chatId: chat.id, runId, answer, stopped, failed });
       } catch {
         /* a listener's problem is not the run's */
       }
       // done: your next /queue message goes now, then the loop's next one (a stopped run takes them with it: you said stop)
-      if (stopped) {
+      if (steered) {
+        /* the steer starts the next run; the queue and the loop carry on after it */
+      } else if (stopped) {
         unqueue(chat.id);
         stopLoop(chat.id, 'Loop stopped.');
       } else {
@@ -401,8 +409,39 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       }
     }
   });
+  ends.set(
+    runId,
+    promise.then(
+      () => {},
+      () => {},
+    ).finally(() => ends.delete(runId)),
+  );
   emit('runs');
   return { runId, promise, signal: controller.signal };
+}
+
+// ---------- steering: a message while the chat works ----------
+/** How long a steer waits for the run it stopped to end before trying anyway. */
+const STEER_WAIT_MS = 10_000;
+
+/** A message sent while the chat works changes its course: the run going now stops (its /queue messages
+ *  and loop stay), and this message starts next, with what was done so far. Nothing going: sent as usual. */
+export async function steerChat(agent: Agent, chat: Chat, text: string, { attachments = [] }: { attachments?: string[] } = {}): Promise<{ runId: string; promise: Promise<string>; signal: AbortSignal }> {
+  const runs = [...active.entries()].filter(([, r]) => r.chatId === chat.id).map(([id]) => id);
+  if (runs.length && !steering.has(chat.id)) {
+    steering.add(chat.id);
+    let wait: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const done = runs.map((id) => ends.get(id));
+      for (const id of runs) stopRun(id);
+      await Promise.race([Promise.all(done), new Promise((r) => (wait = setTimeout(r, STEER_WAIT_MS)))]);
+    } finally {
+      clearTimeout(wait);
+      steering.delete(chat.id);
+    }
+  }
+  // (the stopped run saved its part: start from the chat as it is now)
+  return startRun(agent, liveChat(chat.id) || chats.get(agent.id, chat.id) || chat, text, { attachments });
 }
 
 // ---------- /queue: messages that wait for the chat to be free ----------
@@ -428,6 +467,29 @@ export function queueMessage(agent: Agent, chat: Chat, text: string, attachments
   // (free after all: the oldest goes now)
   sendQueued(chat.id);
   return { queued };
+}
+
+/** Change the text of a queued message before it goes. */
+export function editQueued(chatId: string, id: string, text: unknown): QueuedMessage {
+  const w = waiting.get(chatId);
+  const q = w?.items.find((x) => x.id === id);
+  if (!w || !q) throw new Error('That message was already sent.');
+  const next = String(text ?? '').trim();
+  if (!next && !q.attachments?.length) throw new Error('Write something, or take it off the list with ×.');
+  q.text = next;
+  emitQueue(w.agentId, chatId);
+  return q;
+}
+
+/** Put the queued messages in this order (ids it doesn't name keep their place after the ones it does). */
+export function orderQueued(chatId: string, ids: unknown): QueuedMessage[] {
+  const w = waiting.get(chatId);
+  if (!w) return [];
+  const want = Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : [];
+  const named = want.map((id) => w.items.find((q) => q.id === id)).filter((q): q is QueuedMessage => !!q);
+  w.items = [...new Set([...named, ...w.items])];
+  emitQueue(w.agentId, chatId);
+  return [...w.items];
 }
 
 /** Take back one queued message (id), or all of them. Returns what was taken. */

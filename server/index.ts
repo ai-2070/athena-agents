@@ -327,6 +327,8 @@ post<{ text?: unknown; project?: unknown; attachments?: unknown; goal?: unknown 
   await uistream.streamBrain(res, (onPart) => overseer.ask(text, { project, attachments, onPart, goal: body.goal === true }));
   return undefined;
 });
+// a new message while the Brain answers: that answer changes nothing, and what it was answering stays in its history
+post<{ text?: unknown; attachments?: unknown }>('/api/brain/steer', async (_p, body) => (overseer.steerAsks({ text: String(body.text || '').trim().slice(0, 20000), attachments: uploads.cleanAttachments(body.attachments) }), { ok: true }));
 // /stop and /resume in the Brain chat (with the agent chats and teams it shows working)
 post<commands.BrainWork>('/api/brain/stop', async (_p, body) => commands.stopBrain(body));
 post<commands.BrainWork>('/api/brain/resume', async (_p, body) => commands.resumeBrain(body));
@@ -486,6 +488,9 @@ post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/queu
   queueIn(need(agents.get(id)), need(chats.get(id, cid)), String(body.text || '').trim(), uploads.cleanAttachments(body.attachments)),
 );
 del('/api/agents/:id/chats/:cid/queue/:qid', async ({ cid, qid }) => ({ unqueued: engines.unqueue(cid, qid) }));
+// a queued message: its text changed, or the order they go in
+put<{ text?: unknown }>('/api/agents/:id/chats/:cid/queue/:qid', async ({ cid, qid }, body) => ({ queued: engines.editQueued(cid, qid, body.text) }));
+post<{ ids?: unknown }>('/api/agents/:id/chats/:cid/queue/order', async ({ cid }, body) => ({ queued: engines.orderQueued(cid, body.ids) }));
 // the other / commands (server/commands.ts)
 post('/api/agents/:id/chats/:cid/resend', async ({ id, cid }) => commands.resendInChat(id, cid));
 post('/api/agents/:id/chats/:cid/resume', async ({ id, cid }) => commands.resumeInChat(id, cid));
@@ -497,13 +502,14 @@ del('/api/agents/:id/chats/:cid/goal', async ({ id, cid }) => commands.goalInCha
 get('/api/agents/:id/commands', async ({ id }) => commands.harnessCommands(need(agents.get(id)).id));
 // The chat views (Vercel AI SDK useChat): send a message and stream its run as a UI message stream,
 // or pick up the run going in a chat (the turn so far, then the rest; 204 when nothing runs).
-post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, body, _q, res) => {
+// steer: sent while it works, it stops the run going now and goes next (its /queue messages still wait).
+post<{ text?: unknown; attachments?: unknown; steer?: unknown }>('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, body, _q, res) => {
   const a = need(agents.get(id));
   const c = need(chats.get(id, cid));
   const text = String(body.text || '').trim();
   const attachments = uploads.cleanAttachments(body.attachments);
   if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
-  const { runId } = engines.startRun(a, c, text, { attachments });
+  const { runId } = body.steer === true ? await engines.steerChat(a, c, text, { attachments }) : engines.startRun(a, c, text, { attachments });
   await uistream.streamRun(res, { chatId: c.id, runId });
   return undefined;
 });

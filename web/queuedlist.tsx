@@ -31,9 +31,11 @@ export interface QueuedListProps {
   onLeave?: () => void;
   /** the one being changed went (it was sent meanwhile): what you had typed, if it differs */
   onLost?: (q: QueuedMessage, text: string) => void;
+  /** a few words after one (who it goes to), or nothing */
+  hint?: (q: QueuedMessage) => string | null;
 }
 
-export function QueuedList({ items, head, compact = false, editing, onEditing, onSave, onRemove, onOrder, onLeave, onLost }: QueuedListProps) {
+export function QueuedList({ items, head, compact = false, editing, onEditing, onSave, onRemove, onOrder, onLeave, onLost, hint }: QueuedListProps) {
   const root = useRef<HTMLDivElement>(null);
   const dragId = useRef<string | null>(null);
   // (taken back with × while being changed: what was typed goes with it)
@@ -143,6 +145,7 @@ export function QueuedList({ items, head, compact = false, editing, onEditing, o
                 {q.text || `${q.attachments?.length || 0} file(s)`}
               </button>
             )}
+            {hint?.(q) ? <span className="hint">{hint(q)}</span> : null}
             <button type="button" className="tc-act" title="Don't send this" aria-label="Don't send this" onMouseDown={(e) => open && e.preventDefault()} onClick={() => ((removing.current = q.id), onRemove(q))}>
               <Icon name="x" size={12} />
             </button>

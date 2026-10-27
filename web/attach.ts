@@ -258,6 +258,8 @@ export interface AttachTray {
   /** Make an element take dropped and pasted files; returns a function that stops it. */
   dropZone: (el: HTMLElement, label?: string) => () => void;
   count: () => number;
+  /** Hear when files come or go (a chat box that has something to send); returns a function that stops it. */
+  listen: (fn: () => void) => () => void;
   busy: () => boolean;
   /** Paths once every upload is done, including files added meanwhile; null (with a message) if one failed.
    *  Failed ones are tried again on each call. Deferred trays upload now. */
@@ -313,6 +315,7 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
   fileIn.addEventListener('change', () => (add(filesFromInput(fileIn.files)), (fileIn.value = '')));
   dirIn.addEventListener('change', () => (add(filesFromInput(dirIn.files)), (dirIn.value = '')));
 
+  const listeners = new Set<() => void>();
   let frame = false;
   const draw = () => {
     if (frame) return;
@@ -323,6 +326,7 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
       mount(el, items.map(chip));
     });
     onChange?.();
+    for (const fn of listeners) fn();
   };
   const chip = (it: Item) => {
     const pct = it.bytes ? Math.min(100, Math.round((it.sent / it.bytes) * 100)) : 100;
@@ -449,6 +453,7 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
     add,
     dropZone,
     count: () => items.length,
+    listen: (fn) => (listeners.add(fn), () => void listeners.delete(fn)),
     busy: () => items.some((it) => it.state === 'uploading' || (!deferred && it.state === 'waiting')),
     ready,
     take: () => {

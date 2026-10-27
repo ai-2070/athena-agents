@@ -15,6 +15,7 @@ import { commandChips, slashMenu } from './chatcommands.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import { attachTray, COMPOSER_BTNS, COMPOSER_TEXT } from './attach.ts';
 import { pasteBox } from './pastes.ts';
+import { QueuedList } from './queuedlist.tsx';
 import { openMemory, BRAIN } from './memory.ts';
 import { mentionPreviews } from './filepreview.ts';
 import { brainKeyLabel, brainKeyTitle, brainShortcut } from './shortcuts.ts';
@@ -24,7 +25,7 @@ import type { AttachTray, PickedFile } from './attach.ts';
 import type { PasteBox } from './pastes.ts';
 import type { AgentDraft, BranchDesign } from './builder.ts';
 import type { TeamEvent } from './teamchat.tsx';
-import type { ActiveRun, Agent, AppState, BrainAnswer, BrainDelegate, BrainDone, Chat, ChatItem, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
+import type { ActiveRun, Agent, AppState, BrainAnswer, BrainDelegate, BrainDone, Chat, ChatItem, QueuedMessage, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
 import type { UIMessage } from 'ai';
 
 // A handed-off agent's turn, streamed in as it goes: the AI SDK pieces load when first needed.
@@ -671,6 +672,9 @@ function DockList({ settings }: { settings: AppState['settings'] | undefined }) 
   );
 }
 
+// whether the box had words in it when the chat was last drawn (typing redraws only when that changes)
+let drawnFilled = false;
+
 function DockView({ bar }: { bar: HTMLElement }) {
   useDock();
   const data = useAppState();
@@ -678,6 +682,8 @@ function DockView({ bar }: { bar: HTMLElement }) {
   const input = useRef<HTMLTextAreaElement>(null);
   const slashHost = useRef<HTMLSpanElement>(null);
   const chips = useRef<HTMLDivElement>(null);
+  // the queued message being changed (its id)
+  const [editing, setEditing] = useState<string | null>(null);
 
   // the box: the / menu, long pastes, Enter to send; files dropped anywhere on the chat
   useLayoutEffect(() => {
@@ -686,9 +692,19 @@ function DockView({ bar }: { bar: HTMLElement }) {
     const slash = slashMenu(box, 'brain', { run: () => void send() });
     slashHost.current!.replaceChildren(slash.el);
     const offPastes = D.pastes!.attach(box);
-    const onInput = () => slash.update();
+    const onInput = () => {
+      slash.update();
+      // (Send or Stop: drawn again only when the box goes from empty to not, or back)
+      if (!!box.value.trim() !== drawnFilled) draw();
+    };
     const onKey = (e: KeyboardEvent) => {
       if (slash.key(e)) return;
+      // Up in an empty box: change the last queued message
+      const waiting = held.items();
+      if (e.key === 'ArrowUp' && !box.value && waiting.length && !e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        return setEditing(waiting[waiting.length - 1].id);
+      }
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         void send();
@@ -714,7 +730,14 @@ function DockView({ bar }: { bar: HTMLElement }) {
   const agents = data?.agents || [];
   const teams = teamsToPick();
   const waiting = held.items();
-  const placeholder = D.tray?.count() ? 'What should be done with these files?' : dockIdle() ? PLACEHOLDER : 'Working… /queue a message to send when this is done';
+  const idle = dockIdle();
+  const placeholder = D.tray?.count() ? 'What should be done with these files?' : idle ? PLACEHOLDER : 'Working… Write to change course now, or /queue a message for when this is done';
+  // nothing to send while something works: Stop in Send's place
+  drawnFilled = !!D.input?.value.trim();
+  const stopInstead = !idle && !drawnFilled && !D.tray?.count();
+  // (the list works with queued messages: the files a held one carries, and whom it goes to)
+  const queuedItems: QueuedMessage[] = waiting.map((m) => ({ id: m.id, text: m.text, ts: 0, ...(m.extra.attachments.length ? { attachments: m.extra.attachments } : {}) }));
+  const targetOf = new Map(waiting.map((m) => [m.id, m.extra.target]));
   return (
     <>
       {createPortal(
@@ -784,19 +807,24 @@ function DockView({ bar }: { bar: HTMLElement }) {
         </div>
         <DockList settings={data?.settings} />
         <div className="cmd-chips compact pt-1.5 px-3.5 pb-0 max-sm:pt-1 max-sm:px-0 hidden" ref={chips} />
-        {/* your /queue messages, in the order they will go (× takes one back; dock-held is only a marker for tests) */}
-        <div className={`queued-list compact dock-held${waiting.length ? '' : ' hidden'}`}>
-          {waiting.length ? <div className="queued-head">Sends when everything above is done</div> : null}
-          {waiting.map((m) => (
-            <div key={m.id} className="queued-msg">
-              <Icon name="clock" size={12} />
-              <span className="queued-text">{m.text || `${m.extra.attachments.length} file(s)`}</span>
-              {m.extra.target === 'auto' ? null : <span className="hint">{`to ${targetName(m.extra.target)}`}</span>}
-              <button className="tc-act" title="Don't send this" aria-label="Don't send this" onClick={() => held.remove(m.id)}>
-                <Icon name="x" size={12} />
-              </button>
-            </div>
-          ))}
+        {/* your /queue messages, in the order they will go (click one to change it, drag to reorder, × takes one back) */}
+        <div className="px-3.5 dock-held empty:hidden">
+          <QueuedList
+            items={queuedItems}
+            head="Sends when everything above is done"
+            compact
+            editing={editing}
+            onEditing={setEditing}
+            onSave={(q, text) => void (held.edit(q.id, text) || keepEdit(text))}
+            onRemove={(q) => held.remove(q.id)}
+            onOrder={(ids) => held.order(ids)}
+            onLeave={() => input.current?.focus()}
+            onLost={(_q, text) => keepEdit(text)}
+            hint={(q) => {
+              const t = targetOf.get(q.id);
+              return t && t !== 'auto' ? `to ${targetName(t)}` : null;
+            }}
+          />
         </div>
         <div className="px-3.5 [&_.att-tray]:pt-2.5">
           <DomNode className="dom-contents" make={() => D.tray!.el} deps={[]} />
@@ -807,12 +835,18 @@ function DockView({ bar }: { bar: HTMLElement }) {
             <textarea className={`dock-input ${COMPOSER_TEXT}`} ref={input} rows={2} aria-label="Message the Brain" placeholder={placeholder} />
             <span className="dom-contents" ref={slashHost} />
           </div>
-          {/* the paperclip at the top of the box, Send at its bottom */}
+          {/* the paperclip at the top of the box, Send at its bottom (Stop there while something works and the box is empty) */}
           <div className={COMPOSER_BTNS}>
             <DomNode as="span" className="dom-contents" make={() => D.tray!.picker} deps={[]} />
-            <button className="btn" onClick={() => void send()} title="Send (Enter)" aria-label="Send">
-              <Icon name="send" size={15} />
-            </button>
+            {stopInstead ? (
+              <button className="btn danger" onClick={() => void brainStop()} title="Stop the Brain and the work it handed on" aria-label="Stop">
+                <Icon name="square" size={14} />
+              </button>
+            ) : (
+              <button className="btn" onClick={() => void send()} title={idle ? 'Send (Enter)' : 'Send now: the Brain stops the answer it is writing and takes this up (Enter)'} aria-label="Send">
+                <Icon name="send" size={15} />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -829,10 +863,12 @@ interface BrainAsk {
   onUpdate: (m: UIMessage) => void;
   /** your /goal: the Brain hands it on and follows up until it is met */
   goal?: boolean;
+  /** stop reading its answer (you sent a new message meanwhile) */
+  signal?: AbortSignal;
 }
-async function streamBrainAnswer(text: string, project: string | null, { attachments, onUpdate, goal }: BrainAsk): Promise<BrainAnswer> {
+async function streamBrainAnswer(text: string, project: string | null, { attachments, onUpdate, goal, signal }: BrainAsk): Promise<BrainAnswer> {
   const [{ readUIMessageStream }, { brainTransport }] = await Promise.all([import('ai'), import('./chat/transport.ts')]);
-  const stream = await brainTransport({ text, project, attachments, ...(goal ? { goal: true } : {}) }).sendMessages({ chatId: 'brain', messages: [], trigger: 'submit-message', messageId: undefined, abortSignal: undefined });
+  const stream = await brainTransport({ text, project, attachments, ...(goal ? { goal: true } : {}) }).sendMessages({ chatId: 'brain', messages: [], trigger: 'submit-message', messageId: undefined, abortSignal: signal });
   let answer: BrainAnswer | null = null;
   const errors: string[] = [];
   for await (const m of readUIMessageStream({ stream, onError: (e) => errors.push((e as Error).message || String(e)) })) {
@@ -861,7 +897,15 @@ let sending = false;
 const emptyBox = () => {
   D.input!.value = '';
   D.pastes!.sync();
+  draw();
 };
+/** A change to a queued message that couldn't be kept (it was sent meanwhile): into the box, if that is empty. */
+function keepEdit(text: string) {
+  if (!text || D.input?.value.trim()) return;
+  D.pastes!.restore(text);
+  draw();
+  toast('That message was already sent. Your change is in the box.');
+}
 
 // given: files uploaded elsewhere (a new project), sent along with what's in the tray
 async function send(given: string[] = []) {
@@ -919,7 +963,29 @@ async function send(given: string[] = []) {
   emptyBox();
   tray.take();
   if (queued != null) return void held.add(text, { attachments, target: D.target });
+  // to the Brain while it writes an answer: that answer stops, and this one is answered now
+  if (D.target === 'auto') await steerBrain();
   return track(() => dispatch(text, attachments, D.target));
+}
+
+// The answers the Brain is writing now, to cut off when you send a new message meanwhile.
+const answering = new Map<BrainItem, AbortController>();
+/** A new message to the Brain while it answers: that answer is dropped (it changes nothing, like /stop) and
+ *  the question it was answering stays in the Brain's history, so the new answer knows it. Your waiting
+ *  messages, the loop, and the agents and teams it handed work to carry on. */
+async function steerBrain() {
+  const live = D.items.filter((x): x is BrainItem => x.kind === 'brain' && !!x.live);
+  if (!live.length) return;
+  const cut = live.find((x) => x.ask)?.ask;
+  // (what is still on its way is no longer wanted)
+  brainAsks.reset();
+  for (const x of live) {
+    answering.get(x)?.abort();
+    answering.delete(x);
+    D.items.splice(D.items.indexOf(x), 1);
+  }
+  add({ kind: 'note', text: "Stopped the Brain's answer to take your new message." });
+  await attempt(() => POST('/brain/steer', cut && !cut.goal ? { text: cut.text, attachments: cut.attachments } : {}));
 }
 
 // ---------- /queue ----------
@@ -1017,15 +1083,19 @@ async function dispatch(text: string, attachments: string[], t: string, { goal =
   // The Brain: answers, changes the roster, or hands the work on
   // its answer streams into this message as it is written
   const live = add({ kind: 'brain', answer: '', done: [], live: true, steps: [], ask: sent }) as BrainItem;
+  const cutOff = new AbortController();
+  answering.set(live, cutOff);
   const turn = await brainAsks.ask(text, D.project || openProject(), () => D.project || openProject(), {
     goal,
     attachments,
+    signal: cutOff.signal,
     onUpdate: (m) => {
       if (!D.items.includes(live)) return;
       Object.assign(live, brainProgress(m));
       draw();
     },
   });
+  answering.delete(live);
   const drop = () => {
     const at = D.items.indexOf(live);
     if (at !== -1) D.items.splice(at, 1);
@@ -1097,7 +1167,8 @@ async function toBranch(wfId: string, text: string, reason = '', attachments: st
     if (!(await attempt(() => POST(`/teams/${wfId}/goal`, { text })))) D.items.splice(D.items.indexOf(it), 1);
     return draw();
   }
-  const msg = await attempt(() => POST<TeamMessage>(`/teams/${wfId}/messages`, { text, attachments }));
+  // (while the team works, it changes its course: whoever is working takes it up now)
+  const msg = await attempt(() => POST<TeamMessage>(`/teams/${wfId}/steer`, { text, attachments }));
   if (!msg) {
     D.items.splice(D.items.indexOf(it), 1);
     return draw();

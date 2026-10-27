@@ -8,7 +8,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { APICallError } from 'ai';
-import { GET, POST, DEL, attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
+import { GET, POST, PUT, DEL, attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
 import type { AttachTray } from '../attach.ts';
 import { COMPOSER_BTNS, COMPOSER_TEXT } from '../attach.ts';
 import { pasteBox } from '../pastes.ts';
@@ -27,6 +27,7 @@ import { queuedText } from '../../shared/queue.ts';
 import { parseCommand, slashSuggestions } from '../../shared/commands.ts';
 import type { SlashOption } from '../../shared/commands.ts';
 import { goalLine, loopLine } from '../chatcommands.ts';
+import { QueuedList } from '../queuedlist.tsx';
 import type { ChatMessage } from './messages.ts';
 import type { AppState, BrainBrief, Chat, ChatItem, LoopInfo, QueuedMessage } from '../../shared/types.ts';
 
@@ -88,6 +89,20 @@ export function ChatView(p: ChatViewProps) {
   // long pasted text, folded into a chip until it is sent
   const [pastes] = useState(pasteBox);
   useEffect(() => (input.current ? pastes.attach(input.current) : undefined), [pastes]);
+  // something to send in the box (words or files): Send; nothing while it works: Stop
+  const [filled, setFilled] = useState(false);
+  const refill = useCallback(() => setFilled(!!input.current?.value.trim() || (tray?.count() ?? 0) > 0), [tray]);
+  useEffect(() => tray?.listen(refill), [tray, refill]);
+  /** Put text back in the box (a failed send, what Stop brought back). */
+  const restore = useCallback(
+    (text: string) => {
+      pastes.restore(text);
+      refill();
+    },
+    [pastes, refill],
+  );
+  // the queued message being changed (its id)
+  const [editing, setEditing] = useState<string | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const near = useRef(true);
   // why the last send failed; refused: the server never took it (so the text goes back in the box)
@@ -145,9 +160,14 @@ export function ChatView(p: ChatViewProps) {
 
   // pick up a run going in this chat: the messages before its turn, then the turn streamed in
   const following = useRef(false);
+  // done once following (or sending) has wound up, the saved chat loaded again
+  const followDone = useRef<Promise<void> | null>(null);
+  const sendDone = useRef<Promise<void> | null>(null);
   const follow = useCallback(async () => {
     if (streamingRef.current || following.current || !chatIdRef.current) return;
     following.current = true;
+    let finished = () => {};
+    followDone.current = new Promise<void>((r) => (finished = r));
     try {
       setMessages((m) => beforeTurn(m));
       setStatusText('Working…');
@@ -157,6 +177,7 @@ export function ChatView(p: ChatViewProps) {
       setStatusText('');
       await reload(true);
       catchUp();
+      finished();
     }
   }, [resumeStream, reload, setMessages]);
   // a queued message started while a turn was streaming here: stream that one in too, once this
@@ -222,13 +243,31 @@ export function ChatView(p: ChatViewProps) {
   );
 
   const sending = useRef(false);
+  const steering = useRef(false);
   const send = useCallback(
     async (typed?: string) => {
       const box = input.current;
-      if (sending.current || busy) return;
+      if (steering.current) return;
+      if (compacting) return void toast('Wait for the compaction to finish.');
+      // while it works: this message changes its course (the run going now stops, this one goes next)
+      const steer = busy && typed == null;
+      if (sending.current && !steer) return;
       const draft = typed ?? box?.value.trim() ?? '';
       if (!draft && !tray?.count()) return;
+      if (steer) {
+        // (stop reading the turn going now; once that has wound up, this message takes its place)
+        steering.current = true;
+        try {
+          void stopStream();
+          await Promise.allSettled([sendDone.current, followDone.current]);
+        } finally {
+          steering.current = false;
+        }
+        if (sending.current) return;
+      }
       sending.current = true;
+      let finished = () => {};
+      sendDone.current = new Promise<void>((r) => (finished = r));
       let taken: ReturnType<AttachTray['take']> = [];
       try {
         if (tray?.busy()) setStatusText('Uploading files…');
@@ -244,6 +283,7 @@ export function ChatView(p: ChatViewProps) {
           box.value = '';
           box.style.height = '';
           pastes.sync();
+          refill();
         }
         // /compact, /compact instant, /compact summary (with no files attached)
         const cmd = attachments.length ? null : /^\/compact(?:\s+(instant|summary))?\s*$/i.exec(text);
@@ -252,7 +292,7 @@ export function ChatView(p: ChatViewProps) {
         if (!chatIdRef.current) {
           const made = await attempt(() => POST<Chat>(`/agents/${agent.id}/chats`));
           if (!made) {
-            if (typed == null && box) pastes.restore(text);
+            if (typed == null && box) restore(text);
             return;
           }
           chatIdRef.current = made.id;
@@ -263,13 +303,13 @@ export function ChatView(p: ChatViewProps) {
         near.current = true;
         failed.current = null;
         setStatusText('Thinking…');
-        await sendMessage({ role: 'user', parts: userParts(text, attachments), metadata: {} });
+        await sendMessage({ role: 'user', parts: userParts(text, attachments), metadata: {} }, steer ? { body: { steer: true } } : undefined);
         // (set by onError while it streamed)
         const fail = failed.current as { message: string; refused: boolean } | null;
         if (fail) {
           toast(fail.message, 'error');
           if (fail.refused) {
-            if (typed == null && box) pastes.restore(text);
+            if (typed == null && box) restore(text);
             tray?.put(taken);
           }
         }
@@ -278,9 +318,10 @@ export function ChatView(p: ChatViewProps) {
         setStatusText('');
         await reload(true);
         catchUp();
+        finished();
       }
     },
-    [busy, tray, pastes, sendMessage, compactNow, reload, agent.id],
+    [busy, compacting, tray, pastes, sendMessage, stopStream, compactNow, reload, refill, restore, agent.id],
   );
 
   // "/queue …" while the agent works: the server holds it and sends it when this turn is done
@@ -300,10 +341,11 @@ export function ChatView(p: ChatViewProps) {
       box.value = '';
       box.style.height = '';
       pastes.sync();
+      refill();
       const taken = tray?.take() || [];
       const r = await attempt(() => POST<{ runId?: string; queued?: QueuedMessage }>(`/agents/${agent.id}/chats/${id}/queue`, { text, attachments }));
       if (!r) {
-        pastes.restore(`/queue ${text}`);
+        restore(`/queue ${text}`);
         tray?.put(taken);
         return;
       }
@@ -312,7 +354,7 @@ export function ChatView(p: ChatViewProps) {
     } finally {
       queueing.current = false;
     }
-  }, [agent.id, tray, pastes]);
+  }, [agent.id, tray, pastes, refill, restore]);
   const unqueue = useCallback(
     (q: QueuedMessage) => {
       const id = chatIdRef.current;
@@ -322,6 +364,24 @@ export function ChatView(p: ChatViewProps) {
     },
     [agent.id],
   );
+  /** A change to a queued message that couldn't be kept (it was sent meanwhile): into the box, if that is empty. */
+  const keepEdit = (text: string) => {
+    if (!text || input.current?.value.trim()) return;
+    restore(text);
+    toast('That message was already sent. Your change is in the box.');
+  };
+  const editQueued = async (q: QueuedMessage, text: string) => {
+    const id = chatIdRef.current;
+    if (!id) return;
+    setQueued((list) => list.map((x) => (x.id === q.id ? { ...x, text } : x)));
+    if (!(await attempt(() => PUT(`/agents/${agent.id}/chats/${id}/queue/${q.id}`, { text })))) keepEdit(text);
+  };
+  const orderQueued = (ids: string[]) => {
+    const id = chatIdRef.current;
+    if (!id) return;
+    setQueued((list) => ids.map((x) => list.find((q) => q.id === x)).filter((q): q is QueuedMessage => !!q));
+    void attempt(() => POST(`/agents/${agent.id}/chats/${id}/queue/order`, { ids }));
+  };
   // the chat, made now if this is a new conversation (for a command that needs one)
   const ensureChat = async (): Promise<string | null> => {
     if (chatIdRef.current) return chatIdRef.current;
@@ -344,9 +404,10 @@ export function ChatView(p: ChatViewProps) {
       box.value = '';
       box.style.height = '';
       pastes.sync();
+      refill();
       setSlash(null);
     }
-    const back = () => void (fromBox && pastes.restore(typed));
+    const back = () => void (fromBox && restore(typed));
     if (name === 'stop') return void stop();
     const id = await ensureChat();
     if (!id) return back();
@@ -386,9 +447,9 @@ export function ChatView(p: ChatViewProps) {
     const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`/agents/${agent.id}/chats/${id}/stop`));
     // what you queued comes back to the box, so stopping never loses it
     const back = r?.unqueued || [];
-    if (back.length) pastes.restore(back.map((q) => q.text).filter(Boolean).join('\n\n'));
+    if (back.length) restore(back.map((q) => q.text).filter(Boolean).join('\n\n'));
     if (back.some((q) => q.attachments?.length)) toast('Your queued messages are back in the box. Attach their files again.');
-  }, [agent.id, stopStream, pastes]);
+  }, [agent.id, stopStream, restore]);
 
   if (p.apiRef)
     p.apiRef.current = {
@@ -399,6 +460,7 @@ export function ChatView(p: ChatViewProps) {
         if (!input.current) return;
         input.current.value = t;
         pastes.sync();
+        refill();
         input.current.focus();
       },
     };
@@ -542,9 +604,14 @@ export function ChatView(p: ChatViewProps) {
         ref={input}
         className={variant === 'mini' ? 'max-h-50 min-h-11.5 flex-1 resize-none' : `flex-1 ${COMPOSER_TEXT}`}
         rows={variant === 'mini' ? 1 : 2}
-        placeholder={busy ? `/queue a message to send when ${agent.name} is done` : compact ? `Message ${agent.name}…  (Enter to send, @ for another agent)` : `Message ${agent.name}…`}
+        placeholder={busy ? `${agent.name} is working… Write to change course now, or /queue a message for when it is done` : compact ? `Message ${agent.name}…  (Enter to send, @ for another agent)` : `Message ${agent.name}…`}
         onKeyDown={(e) => {
           if (onSlashKey(e) || onMentionKey(e)) return;
+          // Up in an empty box: change the last queued message
+          if (e.key === 'ArrowUp' && !e.currentTarget.value && queued.length && !e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            return setEditing(queued[queued.length - 1].id);
+          }
           if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             submit();
@@ -553,6 +620,7 @@ export function ChatView(p: ChatViewProps) {
         onInput={(e) => {
           lookForMention();
           lookForSlash();
+          refill();
           if (variant === 'mini') return;
           // grows with the text (its max height stops it, then it scrolls)
           const t = e.currentTarget;
@@ -612,17 +680,18 @@ export function ChatView(p: ChatViewProps) {
       ) : null}
     </div>
   );
+  // one button under the paperclip: Send, or Stop while it works and there is nothing to send
+  const working = streaming || serverRunning;
   const sendBtn =
-    busy && compact ? null : (
-      <button className={variant === 'mini' ? 'btn small' : 'btn'} onClick={() => void send()} disabled={busy} title="Send (Enter)" aria-label="Send">
+    working && !filled ? (
+      <button key="stop" className={variant === 'mini' ? 'btn danger small' : 'btn danger'} onClick={() => void stop()} title={`Stop ${agent.name}`} aria-label="Stop">
+        <Dom make={() => icon('square', variant === 'mini' ? 13 : 14)} deps={[]} />
+      </button>
+    ) : (
+      <button key="send" className={variant === 'mini' ? 'btn small' : 'btn'} onClick={() => void send()} disabled={compacting} title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
         <Dom make={() => icon('send', variant === 'mini' ? 14 : 15)} deps={[]} />
       </button>
     );
-  const stopBtn = busy ? (
-    <button className={compact ? 'btn danger small' : 'btn danger'} onClick={stop}>
-      {compact ? <Dom make={() => icon('square', 13)} deps={[]} /> : null}Stop
-    </button>
-  ) : null;
 
   // your /goal and /loop here (× ends one)
   const chips =
@@ -657,21 +726,21 @@ export function ChatView(p: ChatViewProps) {
       </div>
     ) : null;
 
-  // your /queue messages, in the order they will go (× takes one back)
-  const queuedList = queued.length ? (
-    <div className={compact ? 'queued-list compact' : 'queued-list'}>
-      <div className="queued-head">Sends when {agent.name} is done</div>
-      {queued.map((q) => (
-        <div key={q.id} className="queued-msg">
-          <Dom make={() => icon('clock', 12)} deps={[]} />
-          <span className="queued-text">{q.text || `${q.attachments?.length || 0} file(s)`}</span>
-          <button type="button" className="tc-act" title="Don't send this" aria-label="Don't send this" onClick={() => unqueue(q)}>
-            <Dom make={() => icon('x', 12)} deps={[]} />
-          </button>
-        </div>
-      ))}
-    </div>
-  ) : null;
+  // your /queue messages, in the order they will go (click one to change it, drag to reorder, × takes one back)
+  const queuedList = (
+    <QueuedList
+      items={queued}
+      head={`Sends when ${agent.name} is done`}
+      compact={compact}
+      editing={editing}
+      onEditing={setEditing}
+      onSave={(q, text) => void editQueued(q, text)}
+      onRemove={unqueue}
+      onOrder={orderQueued}
+      onLeave={() => input.current?.focus()}
+      onLost={(_q, text) => keepEdit(text)}
+    />
+  );
 
   return (
     <>
@@ -734,12 +803,10 @@ export function ChatView(p: ChatViewProps) {
               {composer}
               {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
               {sendBtn}
-              {stopBtn}
             </div>
           ) : (
             <div className="flex items-stretch gap-2">
               {composer}
-              {stopBtn ? <div className="flex flex-col justify-end">{stopBtn}</div> : null}
               {/* the paperclip at the top of the box, Send at its bottom */}
               <div className={COMPOSER_BTNS}>
                 {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : <span />}
@@ -756,7 +823,6 @@ export function ChatView(p: ChatViewProps) {
             <Dom make={() => pastes.el} deps={[pastes]} />
             <div className="flex items-stretch gap-2.5">
               {composer}
-              {stopBtn ? <div className="flex flex-col justify-end">{stopBtn}</div> : null}
               {/* the paperclip at the top of the box, Send at its bottom */}
               <div className={COMPOSER_BTNS}>
                 {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : <span />}

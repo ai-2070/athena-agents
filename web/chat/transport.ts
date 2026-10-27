@@ -31,7 +31,8 @@ export function chatTransport(agentId: string, chatId: () => string | null): Def
   return new DefaultChatTransport<ChatMessage>({
     api: apiUrl('/agents'),
     fetch: dashFetch,
-    prepareSendMessagesRequest: ({ messages }) => ({ api: streamUrl(agentId, chatId() || 'none'), body: readUser(messages[messages.length - 1]) }),
+    // (steer: sent while it works, it stops the run going now and goes next)
+    prepareSendMessagesRequest: ({ messages, body }) => ({ api: streamUrl(agentId, chatId() || 'none'), body: { ...readUser(messages[messages.length - 1]), ...(body?.steer === true ? { steer: true } : {}) } }),
     prepareReconnectToStreamRequest: () => ({ api: streamUrl(agentId, chatId() || 'none') }),
   });
 }

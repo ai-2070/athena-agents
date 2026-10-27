@@ -424,6 +424,14 @@ const stopCount = (pid: string) => stops.get(pid) || 0;
 export function stopAsks(pid = activeProject().id): void {
   stops.set(pid, stopCount(pid) + 1);
 }
+/** A new message while the Brain answers: the answer being written changes nothing (like /stop), and the
+ *  message it was answering stays in the chat's history, so the next answer knows what came before. */
+export function steerAsks(cut: { text: string; attachments: string[] } | null, pid = activeProject().id): void {
+  stopAsks(pid);
+  if (!cut || (!cut.text && !cut.attachments.length)) return;
+  const now = Date.now();
+  remember([...history(pid), { role: 'user', text: cut.text, ts: now, ...(cut.attachments.length ? { attachments: cut.attachments } : {}) }, { role: 'brain', text: '(stopped before answering: the user sent a new message)', ts: now + 1 }], pid);
+}
 export function clearHistory(pid = activeProject().id) {
   generations.set(pid, generation(pid) + 1);
   remember([], pid);
