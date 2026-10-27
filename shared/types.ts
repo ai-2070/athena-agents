@@ -518,7 +518,13 @@ export interface LookSetting {
   scale: number;
   accent: string;
   motion: 'full' | 'reduced';
+  /** The font chat messages are in (an id from CHAT_FONTS in shared/look.ts). */
+  chatFont: string;
+  /** How hard the Station's 3D map works: frame rate and sharpness (see STATION_QUALITY in shared/look.ts). */
+  station: StationQuality;
 }
+
+export type StationQuality = 'smooth' | 'balanced' | 'saver';
 
 export interface Settings {
   defaults: { engine: EngineId; claudeModel: string; openrouterModel: string; hermesProfile: string; autonomy: Autonomy };

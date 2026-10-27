@@ -240,6 +240,7 @@ The dashboard keeps the last **50 versions** per item and groups nearby edits. *
 - **The desktop app says it could not start:** it shows where the server's log is (`server.log`; the one before is `server.old.log`). Choose **Try again**, or check the log for the error.
 - **The page does not open:** visit http://localhost:4800 directly and check the server terminal for errors. Use the port you selected if you changed it.
 - **Browser changes are missing:** rebuild with `bun run build` and reload, or use `bun run dev` while editing. Direct server startup only builds when the bundle is missing.
+- **The fans spin up, the battery drains, or the Station stutters:** lower **Settings → Look → Station quality**. **Balanced** (the default) draws 60 frames a second while you move around the map, 30 when nothing moves, and fewer when the window is in the back. **Battery saver** draws at most 30, a little softer, and leaves desk screens still until you zoom in. Other pages don't draw the map at all. Many agents working at once mostly use memory: each Claude Code agent that is working runs its own program, a few hundred MB each.
 - **An agent cannot run:** check its selected engine in Settings, its login or API key, and whether a local model server is running. For missing Hermes dashboard tools, add the MCP bridge as described in [Giving engine CLIs the dashboard tools](#giving-engine-clis-the-dashboard-tools).
 
 ## Development

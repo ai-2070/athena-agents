@@ -131,7 +131,7 @@ describe('the Look tab', () => {
     location.hash = '#/settings?tab=look';
     await act(async () => settings.render(el));
     await settle();
-    const group = el.querySelector('[role="radiogroup"]')!;
+    const group = el.querySelector('[role="radiogroup"][aria-labelledby="look-accent"]')!;
     expect(group.getAttribute('aria-labelledby')).toBe('look-accent');
     const radios = [...group.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
     expect(radios.length).toBeGreaterThan(3);
@@ -141,7 +141,7 @@ describe('the Look tab', () => {
     expect(rose.classList.contains('on')).toBe(true);
     expect(puts).toEqual([]);
     await act(() => new Promise((r) => setTimeout(r, 400)));
-    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full' } }]);
+    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full', chatFont: 'serif', station: 'balanced' } }]);
   });
 
   it('a change made just before leaving the tab is still saved', async () => {
@@ -158,7 +158,7 @@ describe('the Look tab', () => {
     // (off to another page at once, before the save was due)
     act(() => settings.unmount());
     await settle();
-    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full' } }]);
+    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full', chatFont: 'serif', station: 'balanced' } }]);
     await act(() => new Promise((r) => setTimeout(r, 400)));
     expect(puts).toHaveLength(1);
   });
