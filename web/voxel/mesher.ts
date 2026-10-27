@@ -2,9 +2,9 @@
 // solid voxels around it (ambient occlusion: the soft creases of the voxel look), and faces are split by
 // how they are drawn: solid, glowing, or see-through (glass, water). Pure: no three.js, no DOM, so it
 // can run in a worker and in tests.
-import { CHUNK, cellIndex, chunkKey, materialShades, voxelShade } from '../../shared/voxel.ts';
+import { CHUNK, cellIndex, chunkKey, decodeChunk, materialShades, newVolume, parseChunkKey, voxelShade } from '../../shared/voxel.ts';
 import type { MaterialShades, Vec3i, Volume } from '../../shared/voxel.ts';
-import type { VoxelMaterial } from '../../shared/types.ts';
+import type { VoxelMaterial, VoxelObjectData } from '../../shared/types.ts';
 
 export type RenderClass = 'opaque' | 'emissive' | 'transparent';
 
@@ -189,5 +189,30 @@ export function meshRegion(vol: Volume, min: Vec3i, size: Vec3i, palette: VoxelM
           slot.f++;
         }
       }
+  return out;
+}
+
+/** A meshed piece of an object: one render class of one region of one of its grids. */
+export interface ObjectPart extends MeshPart {
+  cls: RenderClass;
+  voxelSize: number;
+  /** the region's corner, in voxels of voxelSize */
+  min: Vec3i;
+}
+
+/** Every part of a stored object (decoded here: the worker gets the stored text, not the voxels). */
+export function meshObject(data: VoxelObjectData, palette: VoxelMaterial[], region = 32): ObjectPart[] {
+  const out: ObjectPart[] = [];
+  for (const v of data.volumes || []) {
+    const vol = newVolume(v.voxelSize);
+    for (const [k, text] of Object.entries(v.chunks || {})) vol.chunks.set(k, decodeChunk(text));
+    const regions = new Set<string>();
+    for (const k of vol.chunks.keys()) regions.add(parseChunkKey(k).map((c) => Math.floor((c * CHUNK) / region)).join(','));
+    for (const key of regions) {
+      const min = key.split(',').map((n) => Number(n) * region) as Vec3i;
+      const parts = meshRegion(vol, min, [region, region, region], palette);
+      for (const [cls, p] of Object.entries(parts) as [RenderClass, MeshPart][]) out.push({ ...p, cls, voxelSize: v.voxelSize, min });
+    }
+  }
   return out;
 }

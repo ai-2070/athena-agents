@@ -1,8 +1,8 @@
-// Times of day for the voxel world: sky, fog, sun, sky light and the finishing touches, as data.
+// Times of day for the voxel world (used by the server for new worlds and by the page to light them): sky, fog, sun, sky light and the finishing touches, as data.
 // "station" is the default when a world has none set: night-dark like the classic map, so turning the
 // voxel look on doesn't change the mood, only the light.
 // The camera looks from azimuth 45°, so suns come from the side: shadows fall across the view, not away from it.
-import type { WorldEnvPreset, WorldEnvironment } from '../../shared/types.ts';
+import type { WorldEnvPreset, WorldEnvironment } from './types.ts';
 
 export const ENV_PRESETS: Record<WorldEnvPreset, WorldEnvironment> = {
   station: {
@@ -77,7 +77,7 @@ export const ENV_PRESETS: Record<WorldEnvPreset, WorldEnvironment> = {
   },
 };
 
-export const envPreset = (p: WorldEnvPreset | string): WorldEnvironment => structuredClone(ENV_PRESETS[p as WorldEnvPreset] || ENV_PRESETS.station);
+export const envPreset = (p: WorldEnvPreset | string): WorldEnvironment => JSON.parse(JSON.stringify(ENV_PRESETS[p as WorldEnvPreset] || ENV_PRESETS.station)) as WorldEnvironment;
 
 /** The sun's direction (towards the sun) from its azimuth and elevation in degrees. */
 export function sunDirection(azimuth: number, elevation: number): [number, number, number] {

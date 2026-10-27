@@ -6,6 +6,7 @@ import { cancelForRun } from '../approvals.ts';
 import { knowledgeContext } from '../knowledge.ts';
 import { memoryContext, memoryStamp, readMemory, hasMemory } from '../memory.ts';
 import { workspaceOf, toolsForAgent } from '../tools.ts';
+import { worldPrompt } from '../voxel/tools.ts';
 import { skillsPrompt } from '../skills.ts';
 import { accountsPrompt, teamWorkServers } from '../mcp.ts';
 import { withAttachments, attachmentNames } from '../uploads.ts';
@@ -200,6 +201,7 @@ export function buildSystemPrompt(agent: Agent): string {
     agent.systemPrompt || '',
     knowledgeContext(agent),
     memoryContext(agent),
+    worldPrompt(tools),
     skillsPrompt(agent),
     accountsPrompt(agent.mcpServers || []),
     `\n# Where you are

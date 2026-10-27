@@ -563,6 +563,21 @@ the map with anchors. Tools `world_info`, `world_build`, `world_object`, `world_
 action. Starter generators: `tree`, `rock`, `island`, `cloud`, `lantern`, `bridge`, `torii`. The Voxel
 building skill and the World Builder starter.
 
+*Phase 1 done 2026-10-27.* Built as planned, with these notes:
+- Worlds live in `data/worlds/<id>/` with a project link (`Project.world`); carry-over, copy on first build,
+  share / copy / new / back to carry-over, and the default world work on the server (`server/voxel/link.ts`).
+  The picker in the page is still Phase 4: for now the API (`/api/worlds`, `/api/project-world`,
+  `/api/worlds/default`) is all there is.
+- The build engine checks every step and puts everything back when one fails. Stock materials (34) can be
+  used by name. Generators take sizes in map units; a misspelled material is an error, not a quiet swap.
+- `jitter` as a step became the material's `jitter` field; `weather`, `snow_cover`, `overgrow` and `paint`
+  move to Phase 2 with the other finishing passes.
+- Undo history is per world (last 50 changes), and refuses to undo over someone else's later change.
+- Objects pinned to a team or agent that the project showing the world doesn't have are placed from the
+  middle of the map; recording `lastWorldPos` from the page is left for Phase 4.
+- Live test: agents' tool calls (through the same route as the MCP bridge) built an island, a grove, a
+  gate, lanterns, a bridge and a watchtower; the open Station showed each build within a second.
+
 **Phase 2: light and effects.**
 Material kinds (emissive, glass, water, leaf, snow), world lights with the light budget and emissive clusters,
 environment presets with blending, effects (petals, snow, rain, fireflies, embers, smoke, mist, foam, birds,

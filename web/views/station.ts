@@ -26,7 +26,8 @@ import type { StationPanelApi } from './stationpanel.tsx';
 import { mountStationMenu } from './stationmenu.tsx';
 import type { MenuEntry, StationMenu } from './stationmenu.tsx';
 import type { WorldView } from '../voxel/view.ts';
-import type { ActivityEntry, Agent, AppState, Chat, Project, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldQuality } from '../../shared/types.ts';
+import type { WorldLayer } from '../voxel/worldlayer.ts';
+import type { ActivityEntry, Agent, AppState, Chat, Project, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldAnchor, WorldQuality } from '../../shared/types.ts';
 
 // ---------- types ----------
 /** A workflow run (GET /api/workflow-runs, /api/workflow-active and the 'workflow-run' event). */
@@ -374,6 +375,8 @@ interface StationState {
   classic: THREE.Object3D[];
   /** the voxel look (web/voxel), while it is on */
   view?: WorldView | null;
+  /** the project's voxel world on the map, while the voxel look is on */
+  worldLayer?: WorldLayer | null;
   /** the quality the voxel look was set up with, or null for the classic map */
   lookShown?: WorldQuality | null;
   /** the voxel look kept on whatever the setting says (the test island is out) */
@@ -504,6 +507,11 @@ function describeTool(name: unknown, args: ToolArgs = {}): ToolDesc {
   };
   const base = (p: unknown) => String(p || '').split(/[\\/]/).pop();
   const A = (app: string, action: string, detail: unknown = '', brand: string | null = null, color = '#c4ff3d'): ToolDesc => ({ app, action, detail: String(detail || '').replace(/\s+/g, ' ').slice(0, 60), brand, color });
+  if (n === 'world_build') return A('World', 'building', args.object, null, '#f3b6cf');
+  if (n === 'world_object') return A('World', args.delete === true ? 'removing' : 'arranging', args.object, null, '#f3b6cf');
+  if (n === 'world_undo') return A('World', 'undoing a change', '', null, '#f3b6cf');
+  if (n === 'world_info') return A('World', 'looking around', args.map || '', null, '#f3b6cf');
+  if (n.startsWith('world_md_')) return A('World', n === 'world_md_read' ? 'reading WORLD.md' : 'writing WORLD.md', args.section || '', null, '#f3b6cf');
   if (n === 'blender_run_python') return A('Blender', 'running a script', base(args.blend_file) || (args.code || '').split('\n').find((l) => l.trim() && !l.startsWith('import')) || '', 'blender', '#f5792a');
   if (n === 'blender_open') return A('Blender', 'opening', base(args.file), 'blender', '#f5792a');
   if (n.startsWith('comfyui_')) return A('ComfyUI', n === 'comfyui_run' ? `rendering ${args.workflow || ''}` : n.replace('comfyui_', '').replace(/_/g, ' '), args.prompt || '', null, '#f2ff59');
@@ -838,7 +846,7 @@ export async function render(el: HTMLElement): Promise<void> {
   loop();
   // read-only: where teams and desks are on screen (used by the automated UI checks)
   (window as StationWindow).__voxelBench = voxelBench;
-  (window as StationWindow).__voxelEnv = (preset) => void import('../voxel/environment.ts').then(({ envPreset }) => S?.view?.setEnvironment(envPreset(preset)));
+  (window as StationWindow).__voxelEnv = (preset) => void import('../../shared/worldenv.ts').then(({ envPreset }) => S?.view?.setEnvironment(envPreset(preset)));
   // #/station?voxelbench=90 shows the test island straight away
   const bench = Number(new URLSearchParams(location.hash.split('?')[1] || '').get('voxelbench'));
   if (bench > 0) void voxelBench({ radius: bench });
@@ -900,6 +908,8 @@ export function unmount(): void {
   document.removeEventListener('paste', S.onPaste);
   S.panelView?.unmount();
   S.menuView?.unmount();
+  S.worldLayer?.dispose();
+  S.worldLayer = null;
   S.view?.dispose();
   S.view = null;
   S.renderer.dispose();
@@ -956,13 +966,28 @@ async function applyStationLook(): Promise<void> {
   const want = S.lookForced || (look.station === 'world' ? look.worldQuality : null);
   if (want === S.lookShown) return;
   S.lookShown = want;
+  S.worldLayer?.dispose();
+  S.worldLayer = null;
   S.view?.dispose();
   S.view = null;
   if (!want) return;
-  const { createWorldView } = await import('../voxel/view.ts');
+  const [{ createWorldView }, { createWorldLayer }] = await Promise.all([import('../voxel/view.ts'), import('../voxel/worldlayer.ts')]);
   if (!S || S.lookShown !== want) return;
   S.view = createWorldView({ renderer: S.renderer, scene: S.scene, camera: S.camera, quality: want, classic: S.classic, w: S.w, h: S.h });
   if (S.world) S.view.adopt(S.world, S.radius || 40);
+  S.worldLayer = createWorldLayer(S.view, anchorAt);
+}
+
+// Where a world object's anchor is on the map now: the middle, a team's platform, or an agent's desk.
+const anchorSpot = new THREE.Vector3();
+function anchorAt(a: WorldAnchor): THREE.Vector3 | null {
+  if (!S || a.to === 'world' || a.to === 'brain') return anchorSpot.set(0, 0, 0);
+  if (a.to === 'team') {
+    const b = S.branches.get(a.id);
+    return b ? anchorSpot.copy(b.group.position).setY(0) : null;
+  }
+  const desk = S.desks.find((d) => d.agent.id === a.id);
+  return desk ? desk.group.getWorldPosition(anchorSpot).setY(0) : null;
 }
 
 interface VoxelBenchOptions {
@@ -989,7 +1014,7 @@ async function voxelBench(opts: VoxelBenchOptions | null = {}): Promise<unknown>
   const quality = opts.quality || S.lookShown || 'medium';
   S.lookForced = quality;
   await applyStationLook();
-  const [{ benchIsland, BENCH_PALETTE }, { envPreset }] = await Promise.all([import('../voxel/bench.ts'), import('../voxel/environment.ts')]);
+  const [{ benchIsland, BENCH_PALETTE }, { envPreset }] = await Promise.all([import('../voxel/bench.ts'), import('../../shared/worldenv.ts')]);
   if (!S?.view) return null;
   const t0 = performance.now();
   const vol = benchIsland(opts.radius ?? 90, opts.voxelSize ?? 0.25);
@@ -1980,6 +2005,7 @@ function loop(): void {
   }
   placeLabels();
   drawWires(dt);
+  S.worldLayer?.update();
   if (S.view) S.view.render();
   else S.renderer.render(S.scene, S.camera);
 }
@@ -3319,6 +3345,8 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
   if (!S) return;
   const d = state.data;
   if (ev.type === 'workflows') return reloadWorkflows();
+  // the voxel world changed (a build, a move, WORLD.md, another project's world picked), or another project opened
+  if (ev.type === 'world' || ev.type === 'project') S.worldLayer?.refresh();
   // a program was opened or closed: light its tile and the desks that use it
   if (ev.type === 'programs') {
     GET<Program[]>('/programs')

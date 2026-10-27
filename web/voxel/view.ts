@@ -4,8 +4,8 @@
 // exactly as it was.
 import * as THREE from 'three';
 import { meshRegion } from './mesher.ts';
-import type { MeshPart, RenderClass } from './mesher.ts';
-import { envPreset, sunDirection } from './environment.ts';
+import type { MeshPart, ObjectPart, RenderClass } from './mesher.ts';
+import { envPreset, sunDirection } from '../../shared/worldenv.ts';
 import { createPost } from './post.ts';
 import type { Post } from './post.ts';
 import { CHUNK, countVoxels, parseChunkKey } from '../../shared/voxel.ts';
@@ -28,6 +28,8 @@ export interface WorldView {
   /** Shadows for the Station's own meshes, and the sun's shadow box and the fog fitted to the map's size. */
   adopt(world: THREE.Object3D, radius: number): void;
   addVolume(id: string, vol: Volume, palette: VoxelMaterial[], at: THREE.Vector3, region?: number): VolumeStats;
+  /** Meshed parts (from the mesher or its worker) as one group under `id`, replacing what was there. */
+  addParts(id: string, parts: ObjectPart[]): THREE.Group;
   removeVolume(id: string): void;
   /** Frames per second over the next few seconds (and the slowest frame, ms). */
   measure(seconds: number): Promise<{ fps: number; worstMs: number; frames: number }>;
@@ -158,6 +160,28 @@ export function createWorldView(o: WorldViewOptions): WorldView {
     g.traverse((n) => (n as THREE.Mesh).geometry?.dispose());
     volumes.delete(id);
   };
+  // meshed parts → one group of meshes (replacing what was there under that id)
+  const addParts = (id: string, parts: ObjectPart[]): THREE.Group => {
+    removeVolume(id);
+    const g = new THREE.Group();
+    for (const p of parts) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(p.positions, 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(p.normals, 3, true));
+      geo.setAttribute('color', new THREE.BufferAttribute(p.colors, 3, true));
+      geo.setIndex(new THREE.BufferAttribute(p.indices, 1));
+      geo.computeBoundingSphere();
+      const mesh = new THREE.Mesh(geo, mats[p.cls]);
+      mesh.position.set(p.min[0], p.min[1], p.min[2]).multiplyScalar(p.voxelSize);
+      mesh.scale.setScalar(p.voxelSize);
+      mesh.castShadow = p.cls !== 'transparent';
+      mesh.receiveShadow = p.cls !== 'emissive';
+      g.add(mesh);
+    }
+    voxels.add(g);
+    volumes.set(id, g);
+    return g;
+  };
 
   // frame timing for measure()
   let frames: number[] | null = null;
@@ -189,40 +213,20 @@ export function createWorldView(o: WorldViewOptions): WorldView {
       fit();
     },
     addVolume(id, vol, palette, at, region = 32) {
-      removeVolume(id);
       const started = performance.now();
-      const g = new THREE.Group();
-      g.position.copy(at);
+      const parts: ObjectPart[] = [];
       // the regions that hold any chunk
       const regions = new Set<string>();
-      for (const k of vol.chunks.keys()) {
-        const [cx, cy, cz] = parseChunkKey(k);
-        regions.add([cx, cy, cz].map((c) => Math.floor((c * CHUNK) / region)).join(','));
-      }
-      let faces = 0;
+      for (const k of vol.chunks.keys()) regions.add(parseChunkKey(k).map((c) => Math.floor((c * CHUNK) / region)).join(','));
       for (const key of regions) {
         const min = key.split(',').map((n) => Number(n) * region) as Vec3i;
-        const parts = meshRegion(vol, min, [region, region, region], palette);
-        for (const [cls, p] of Object.entries(parts) as [RenderClass, MeshPart][]) {
-          const geo = new THREE.BufferGeometry();
-          geo.setAttribute('position', new THREE.BufferAttribute(p.positions, 3));
-          geo.setAttribute('normal', new THREE.BufferAttribute(p.normals, 3, true));
-          geo.setAttribute('color', new THREE.BufferAttribute(p.colors, 3, true));
-          geo.setIndex(new THREE.BufferAttribute(p.indices, 1));
-          geo.computeBoundingSphere();
-          const mesh = new THREE.Mesh(geo, mats[cls]);
-          mesh.position.set(min[0], min[1], min[2]).multiplyScalar(vol.voxelSize);
-          mesh.scale.setScalar(vol.voxelSize);
-          mesh.castShadow = cls !== 'transparent';
-          mesh.receiveShadow = cls !== 'emissive';
-          g.add(mesh);
-          faces += p.faces;
-        }
+        for (const [cls, p] of Object.entries(meshRegion(vol, min, [region, region, region], palette)) as [RenderClass, MeshPart][]) parts.push({ ...p, cls, voxelSize: vol.voxelSize, min });
       }
-      voxels.add(g);
-      volumes.set(id, g);
-      return { voxels: countVoxels(vol), faces, meshes: g.children.length, ms: Math.round(performance.now() - started) };
+      const g = addParts(id, parts);
+      g.position.copy(at);
+      return { voxels: countVoxels(vol), faces: parts.reduce((n, p) => n + p.faces, 0), meshes: g.children.length, ms: Math.round(performance.now() - started) };
     },
+    addParts,
     removeVolume,
     async measure(seconds) {
       // a second to settle first: the first frames compile shaders

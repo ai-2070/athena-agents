@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { AO_LEVELS, meshRegion } from '../../web/voxel/mesher.ts';
+import { AO_LEVELS, meshObject, meshRegion } from '../../web/voxel/mesher.ts';
 import type { MeshPart } from '../../web/voxel/mesher.ts';
-import { ENV_PRESETS, envPreset, sunDirection } from '../../web/voxel/environment.ts';
+import { ENV_PRESETS, envPreset, sunDirection } from '../../shared/worldenv.ts';
 import { benchIsland, BENCH_PALETTE } from '../../web/voxel/bench.ts';
-import { countVoxels, newVolume, setVoxel } from '../../shared/voxel.ts';
+import { chunkKey, countVoxels, encodeChunk, newVolume, setVoxel } from '../../shared/voxel.ts';
 import type { VoxelMaterial } from '../../shared/types.ts';
 
 const PALETTE: VoxelMaterial[] = [
@@ -129,5 +129,21 @@ describe('voxel look presets and the test island', () => {
     expect(r.opaque!.faces).toBeGreaterThan(1000);
     expect(r.emissive!.faces).toBeGreaterThan(0);
     expect(r.transparent!.faces).toBeGreaterThan(0);
+  });
+});
+
+describe('meshObject', () => {
+  it('meshes every grid of a stored object at its own voxel size', () => {
+    const a = newVolume(0.25);
+    setVoxel(a, 0, 0, 0, 1);
+    const b = newVolume(0.1);
+    setVoxel(b, 40, 0, 0, 3);
+    const enc = (v: ReturnType<typeof newVolume>) => Object.fromEntries([...v.chunks].map(([k, c]) => [k, encodeChunk(c)]));
+    const parts = meshObject({ volumes: [{ id: 'a', voxelSize: 0.25, chunks: enc(a) }, { id: 'b', voxelSize: 0.1, chunks: enc(b) }] }, PALETTE);
+    expect(parts.map((p) => [p.cls, p.voxelSize, p.min, p.faces])).toEqual([
+      ['opaque', 0.25, [0, 0, 0], 6],
+      ['emissive', 0.1, [32, 0, 0], 6],
+    ]);
+    expect(chunkKey(2, 0, 0)).toBe('2,0,0');
   });
 });

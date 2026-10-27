@@ -327,6 +327,48 @@ When work repeats on a rhythm (every morning, each Friday, after each release), 
 Say in one line what you recorded or changed and why, e.g. "Saved how Ana renders product shots as the skill Product render and gave it to the Design team."`,
   },
   {
+    slug: 'voxel-building',
+    name: 'Voxel building',
+    description: 'Use before building anything in the voxel world (world_build, or the Brain\'s build action): how the build steps and generators work, scale, palette and light, and how to keep WORLD.md in step.',
+    body: `# Voxel building
+
+The Station can be a voxel world that the agents build around themselves: places, props, and (later) the agents themselves as voxel characters. Good builds look hand-made and belong together. This is how.
+
+## Before you build
+1. Read WORLD.md (it is in your instructions; world_md_read for all of it). Build in its theme, palette and mood. If it is still the template, ask the user (ask_user) what the world should be, or fill it in from what they told you.
+2. world_info: what is there, who built it, the team platforms, your plot and what to keep clear (the Brain's middle, the platforms' desks).
+3. Plan the build as a few calls: ground, then big shapes, then details, then finishing touches. Each call either works whole or changes nothing.
+
+## Scale
+- Map units: a desk is 2.6 wide, a person 1.7 tall, a team platform 6-9 in radius. The Brain sits at the middle.
+- Voxel size is per object and can change mid-build with {"voxel_size": …}: terrain 0.5, buildings and trees 0.25 (the world default), small props 0.125, characters and fine detail 0.08-0.1. One object can mix sizes.
+- Shape steps count in voxels of the current size. Generators take sizes in map units, so a tree is the same size at any voxel size, just finer.
+- One call can change 250,000 voxels; a world holds 4,000,000. Big flat areas at a small voxel size use them up fast: use a bigger size for the ground.
+
+## Where
+- Anchor builds to what they belong to: "team:<id>" for your team's place (it moves when the platform is dragged), "brain" for things around the Brain, "world" for the landscape.
+- Your plot is the ring just outside your team's platform. Don't build over the desks; under the platform (y < 0) is fine, e.g. an island the platform floats on.
+- y = 0 is the floor. Islands put their top at y = -1 so things stand on y = 0.
+
+## Making it look good
+- Generators do the heavy lifting: island (with a pond), tree (cherry, maple, oak, pine, bamboo, bonsai, dead), rock, cloud, lantern, bridge, torii. Use them, then add details with shapes and layers.
+- Every voxel gets its own shade of its material (ramp and jitter): define your own materials with 3-5 close shades in "ramp" and jitter 0.05-0.12. Flat single colours look plastic.
+- Contrast: warm lights against cool shadows, one strong accent colour (red lacquer, gold, neon) against calmer surroundings.
+- Light: materials of kind "emissive" glow and light up what is around them (lanterns, windows, signs, neon). A few small bright ones beat many big ones.
+- Water and glass are see-through (kind "water", "glass"). Leaves can have holes ("leaf" kind, blobs with holes).
+- Small things sell a place: lanterns along a path, fallen petals, stones by the water, a sign with {"text": …}.
+- Weather the result: {"replace": {"from": "stone", "to": "moss", "chance": 0.2}} on the lower parts, dark stone at the bottom of cliffs.
+- Symmetric things (gates, buildings, faces): {"mirror": "x"} and build one half.
+- Detailed small things (a sign, a face, a window): {"layers": …} with a key, one layer per height, bottom first.
+
+## After you build
+- Read the answer: it says how big the object is and where. Adjust with world_object (move, turn, scale) rather than rebuilding.
+- Made a mistake? world_undo puts it back.
+- Update WORLD.md: the place under "Places" (what it is, where, who built it, what it means), the character under "Characters", and one dated line under "Story so far" (world_md_section with append).
+- Changing what someone else built asks the user first. Prefer adding next to it, or ask its builder.
+`,
+  },
+  {
     slug: 'orca-agents',
     name: 'Start agents in Orca',
     description: 'Use when the user wants Claude Code, Codex, pi, oh-my-pi or OpenClaw started in Orca, or in its own worktree or tab while Orca is installed: checks that Orca is installed, then starts the agent there with a task brief.',

@@ -35,6 +35,11 @@ import { openGoal } from './briefs.ts';
 import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
+import * as worldLink from './voxel/link.ts';
+import * as worldBuild from './voxel/build.ts';
+import * as worldStore from './voxel/store.ts';
+import * as worldMd from './voxel/worldmd.ts';
+import { envPreset } from '../shared/worldenv.ts';
 import * as terms from './terminals.ts';
 import * as status from './status.ts';
 import * as brain from './brain.ts';
@@ -56,7 +61,7 @@ import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import type { RestoreResult } from './projectsync.ts';
-import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, VersionKind } from '../shared/types.ts';
+import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, VersionKind, WorldBuilder } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
@@ -557,6 +562,49 @@ put<{ text?: unknown } | null>('/api/memory/:owner', async ({ owner }, body) => 
   if (m.updatedAt !== Math.round(before)) log('memory', `You edited ${memory.memoryTitle(owner)}`, owner === memory.BRAIN ? {} : { agentId: owner });
   return m;
 });
+
+// ---------- the voxel world (server/voxel, docs/internal/plans/VOXEL_WORLD_PLAN.md) ----------
+const you: WorldBuilder = { kind: 'user', name: 'You' };
+const projectName = (id?: string) => (id ? store.listProjects().find((p) => p.id === id)?.name : undefined);
+get('/api/world', async () => {
+  const s = worldLink.shownWorld();
+  return { ...s, fromProjectName: projectName(s.fromProject) };
+});
+get('/api/worlds/:wid/objects/:oid', async ({ wid, oid }) => {
+  const data = worldStore.readObject(wid, oid);
+  if (!data) throw new HttpError(404, 'No such object.');
+  return data;
+});
+put<Record<string, unknown> | null>('/api/world/objects/:oid', async ({ oid }, body) => worldBuild.changeObject({ ...(body || {}), delete: false, duplicate: false, object: oid, by: you }).object);
+del('/api/world/objects/:oid', async ({ oid }) => (worldBuild.changeObject({ object: oid, delete: true, by: you }), { ok: true }));
+post<{ anyone?: unknown } | null>('/api/world/undo', async (_p, body) => worldBuild.undo(you, { anyone: body?.anyone !== false }));
+get('/api/world/md', async () => {
+  const w = worldLink.shownWorld().world;
+  if (!w) throw new HttpError(404, 'No world yet.');
+  return worldMd.worldMdInfo(w.id);
+});
+put<{ text?: unknown } | null>('/api/world/md', async (_p, body) => {
+  if (typeof body?.text !== 'string') throw new HttpError(400, 'Send the whole WORLD.md as text.');
+  // (a carried-over world becomes this project's own first: you are changing it)
+  const w = worldLink.worldForBuild();
+  const m = worldMd.writeWorldMd(w.id, body.text);
+  log('world', 'You edited WORLD.md');
+  return m;
+});
+put<{ preset?: unknown } | null>('/api/world/environment', async (_p, body) => {
+  const w = worldLink.worldForBuild();
+  w.environment = envPreset(String(body?.preset || 'station'));
+  return worldStore.saveWorld(w, { environment: true });
+});
+get('/api/worlds', async () => worldLink.listWorldsFor());
+put<{ worldId?: unknown; mode?: unknown } | null>('/api/project-world', async (_p, body) => {
+  const mode = String(body?.mode || '');
+  if (!['share', 'copy', 'new', 'auto'].includes(mode)) throw new HttpError(400, 'mode is share, copy, new or auto.');
+  return worldLink.chooseWorld(store.activeProject().id, mode as worldLink.WorldChoice, typeof body?.worldId === 'string' ? body.worldId : null);
+});
+put<{ worldId?: unknown } | null>('/api/worlds/default', async (_p, body) => (worldLink.setDefaultWorld(typeof body?.worldId === 'string' && body.worldId ? body.worldId : null), { ok: true }));
+put<{ name?: unknown } | null>('/api/worlds/:wid', async ({ wid }, body) => worldLink.renameWorld(wid, body?.name));
+del('/api/worlds/:wid', async ({ wid }) => (worldLink.deleteUnusedWorld(wid), { ok: true }));
 
 // ---------- versions of skills, agents, teams and MEMORY.md files ----------
 const versionKind = (k: string): VersionKind => {

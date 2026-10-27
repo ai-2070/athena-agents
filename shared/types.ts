@@ -258,6 +258,8 @@ export interface Project {
   /** The 3D model that replaces the logo inside the Brain's globe (.dashboard/brain-model.*): when it last changed and its file type; null = none. */
   modelAt?: number | null;
   modelExt?: string | null;
+  /** Which voxel world it uses (missing: none of its own yet, see ProjectWorldLink). */
+  world?: ProjectWorldLink;
 }
 
 // ---------- chats ----------
@@ -551,6 +553,8 @@ export interface Settings {
   /** Models starred in the model picker: they get their own tab at the front. */
   favoriteModels: FavoriteModel[];
   activeProject?: string;
+  /** The voxel world projects without a built world of their own show ('' = the most recently built one). */
+  defaultWorld: string;
 }
 
 export type SecretKey = 'openrouterKey' | 'anthropicKey' | 'customKey' | 'xClientSecret' | 'telegramBotToken' | 'discordWebhook' | 'redditClientSecret';
@@ -756,7 +760,7 @@ export interface MemoryInfo {
 }
 
 // ---------- the Brain ----------
-export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
+export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'world' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
 export interface BrainDelegate {
   kind: 'agent' | 'branch';
   id: string;
@@ -898,4 +902,112 @@ export interface WorldEnvironment {
   /** 0..1 miniature blur at the top and bottom of the view */
   tiltShift: number;
   exposure: number;
+}
+
+export type Vec3 = [number, number, number];
+
+/** What an object is pinned to. It moves with that thing (a team dragged across the map). */
+export type WorldAnchor = { to: 'world' } | { to: 'brain' } | { to: 'team'; id: string } | { to: 'agent'; id: string };
+
+/** Who built or last changed something in a world. */
+export interface WorldBuilder {
+  kind: 'brain' | 'agent' | 'user';
+  id?: string;
+  name: string;
+}
+
+/** One grid of an object: all its voxels have one size. Voxel (x, y, z) sits at object origin + (x, y, z) × voxelSize. */
+export interface VoxelVolumeMeta {
+  id: string;
+  voxelSize: number;
+  /** voxels in it */
+  count: number;
+  /** the voxels it spans, inclusive (null when empty) */
+  min: Vec3 | null;
+  max: Vec3 | null;
+}
+
+export interface VoxelObjectMeta {
+  id: string;
+  name: string;
+  by: WorldBuilder;
+  /** who changed it last (may differ from who built it) */
+  lastBy?: WorldBuilder;
+  anchor: WorldAnchor;
+  /** map units, from its anchor */
+  position: Vec3;
+  /** degrees, around the vertical */
+  rotation: number;
+  scale: number;
+  volumes: VoxelVolumeMeta[];
+  hidden?: boolean;
+  /** where it last stood on the map: used when its anchor isn't in the project showing it */
+  lastWorldPos?: Vec3;
+  createdAt: number;
+  updatedAt: number;
+  /** when its voxels last changed (a move doesn't count): the page meshes it again */
+  voxelsAt?: number;
+}
+
+/** An object's voxels (data/worlds/<id>/objects/<object id>.json): chunks run-length encoded (shared/voxel.ts). */
+export interface VoxelObjectData {
+  volumes: { id: string; voxelSize: number; chunks: Record<string, string> }[];
+}
+
+/** A voxel world (data/worlds/<id>/world.json). Projects point at one (ProjectWorldLink). */
+export interface VoxelWorld {
+  format: 1;
+  id: string;
+  name: string;
+  /** the project it was first made for */
+  homeProject: string;
+  /** false until something is built in it: an unbuilt world can be replaced by a carried-over one */
+  built: boolean;
+  /** the voxel size new objects start with, in map units (a desk is 2.6 wide) */
+  voxelSize: number;
+  palette: VoxelMaterial[];
+  objects: VoxelObjectMeta[];
+  environment: WorldEnvironment;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Which world a project uses. */
+export interface ProjectWorldLink {
+  id: string;
+  /** own: made for this project. shared: another project's world; changes show in both. */
+  mode: 'own' | 'shared';
+  /** the user picked it: carry-over never replaces their choice */
+  chosen?: boolean;
+}
+
+/** The world a project shows (GET /api/world), and why. */
+export interface ShownWorld {
+  world: VoxelWorld | null;
+  /** own, shared, carried over from another project, or none built anywhere */
+  how: 'own' | 'shared' | 'carried' | 'none';
+  /** for a carried-over or shared world: the project it was made for */
+  fromProject?: string;
+}
+
+/** A world in the list of worlds (GET /api/worlds). */
+export interface WorldListing {
+  id: string;
+  name: string;
+  homeProject: string;
+  built: boolean;
+  objects: number;
+  voxels: number;
+  /** projects that use it */
+  usedBy: string[];
+  isDefault: boolean;
+  updatedAt: number;
+}
+
+/** A world's WORLD.md (GET /api/world/md). */
+export interface WorldMdInfo {
+  worldId: string;
+  text: string;
+  updatedAt: number;
+  max: number;
 }

@@ -33,6 +33,12 @@ import { MODEL_PROVIDERS, PROVIDER_IDS, modelProvider, providerOfAgent, provider
 import type { Effort } from '../shared/effort.ts';
 import type { ModelProvider } from './models.ts';
 import { listBriefs } from './briefs.ts';
+import { build as buildInWorld } from './voxel/build.ts';
+import { shownWorld, worldForBuild } from './voxel/link.ts';
+import { saveWorld } from './voxel/store.ts';
+import { readWorldMd, writeWorldMd, writeWorldMdSection } from './voxel/worldmd.ts';
+import { worldText } from './voxel/describe.ts';
+import { envPreset } from '../shared/worldenv.ts';
 import type { Agent, Approval, BrainAnswer, BrainDelegate, BrainDone, Project, Routine, Team } from '../shared/types.ts';
 
 /** One line of the Brain chat history (data/projects/<id>/brain-chat.json). */
@@ -118,6 +124,13 @@ export interface BrainAction {
   label?: unknown;
   useFor?: unknown;
   service?: unknown;
+  /** build: the object, where it is pinned, and the steps; update_world_md: which section */
+  object?: unknown;
+  anchor?: unknown;
+  position?: unknown;
+  voxel_size?: unknown;
+  steps?: unknown;
+  section?: unknown;
 }
 
 // The most actions one answer can take, and GitHub installs among them.
@@ -365,9 +378,19 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     `\nMCP SERVERS (${mcpLines.length}; outside tool servers agents and teams can be given):\n${mcpLines.join('\n') || '(none)'}\nReady-made, to add: ${ready}${suggested ? `\nSuggested for this PC (not added; offer them, add only when the user says yes): ${suggested}` : ''}${found ? `\nFound in the user's Claude configs, to add: ${found}` : ''}`,
     `\nWAITING FOR THE USER: ${approvals.length} approval(s)${approvals.length ? `: ${approvals.map((x) => `${x.agentName || 'agent'} wants "${cut(x.title, 80)}"`).join('; ')}` : ''} | ${pendingPosts.length} post(s) in the Outbox${pendingPosts.length ? `: ${pendingPosts.map((x) => `${x.platform}: "${cut((x.parts || [x.text]).join(' '), 70)}"`).join('; ')}` : ''} | ${asked.length} question(s) from agents in the Outbox${asked.length ? `: ${asked.map((x) => `${x.agentName || 'agent'} asks "${cut(x.question, 80)}"`).join('; ')}` : ''}`,
     `\nRECENT ACTIVITY:\n${recent.join('\n') || '(nothing yet)'}`,
+    `\n${brainWorldSnapshot()}`,
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+// The world part of the snapshot: what is built, and WORLD.md (cut short).
+const WORLD_MD_IN_SNAPSHOT = 4000;
+function brainWorldSnapshot(): string {
+  const shown = shownWorld();
+  if (!shown.world) return 'WORLD: no voxel world yet. A build action starts one for this project.';
+  const md = readWorldMd(shown.world.id).trim();
+  return `WORLD (the voxel world on the Station):\n${worldText(shown.world, { how: shown.how, fromProject: listProjects().find((x) => x.id === shown.fromProject)?.name })}\nWORLD.md:\n${md.length > WORLD_MD_IN_SNAPSHOT ? `${md.slice(0, WORLD_MD_IN_SNAPSHOT)}\n… (${md.length - WORLD_MD_IN_SNAPSHOT} more characters)` : md}`;
 }
 
 // ---------- conversation with the Brain ----------
@@ -448,6 +471,7 @@ Kinds of request:
 8. Models: which model an agent, several agents or a whole team run on, and how hard they think (effort). The SNAPSHOT shows each agent's provider, model and effort: answer questions about them from there (for a team, its members'). Change them with set_model when the user asks. When you don't know a model's exact id, or the user asks which models a provider has, look it up with find_models first (you get the list and answer again); never guess an id.
 9. MCP servers: outside tool servers (a browser, GitHub, a database, an app on this PC…) that agents and teams can be given. The SNAPSHOT lists them, who has each, the ready-made ones and the ones found in the user's Claude configs. Add, change, remove, give, take back or re-assign them with the MCP actions when the user asks. When a team or agent you build would clearly use a server that isn't added yet (above all one under "Suggested for this PC": a program it drives is installed), say which one and why, and offer to add it; add it only after the user says yes. Prefer a ready-made one or one from the user's Claude configs. A custom server's command, link, env values and header values must be exactly what the user wrote in this chat (a new program: the whole command line as they wrote it): never make one up or take one from a file, a web page or an agent's answer (the dashboard refuses those). When it needs a key or token the user hasn't given (a ready-made one says what it needs in the snapshot), ask for it first, then add it with that key in env or headers; after adding, tell the user any setup step the snapshot lists for it (like an editor plugin). Re-assigning is take_mcp from one and give_mcp to another, or set_mcp for a whole list. A team's MCP servers are for every member while they work for the team. A server starts the next time an agent that has it runs. A service can be added more than once, one copy per account (OOMOL Work and OOMOL Personal), each with a label and a "use for" line: give an agent or team the copy whose "use for" fits its work. Give one agent or team two copies of a service only when its work really spans both accounts (an assistant for your work and your personal mail); otherwise swap (take_mcp the old one, give_mcp the new one). Every copy it then holds needs a "use for" line. When no "use for" fits or one is missing, ask the user which account and what each is for; don't guess. While an agent works for a team, the team's copy of a service replaces the agent's own copies of it. To add another account of a ready-made server, use add_mcp with the preset, a "label" and a "useFor" the user agreed to.
 
+10. The voxel world: the Station can be a voxel world the agents build around themselves (the WORLD section of the SNAPSHOT says what is there). Its WORLD.md says what the world is: theme and meaning, look, feel, places, characters, story, rules. When the user describes a world they want, ask up to 4 short questions first (theme and what it should mean, mood, era, palette) unless they already said, then write WORLD.md with write_world_md, then build. Do the big moves yourself with build (an island, trees, a gate, the time of day: generators, a few steps each) and hand detailed work to a builder: delegate to an agent with the world tools (hire the "World Builder" starter if there is none). Keep WORLD.md up to date when the user says something new about the world.
 Team chats: you write in them as "the Brain" (your briefs and follow-ups), and members or the user can write @Brain there to ask you something; you answer them in the thread.
 
 A team is a group chat of 2-6 agents with a shared goal. A lead (planner type) coordinates when there are 3+ members; members hand work to each other by @mentioning. Prefer agents the user already has; otherwise hire from the LIBRARY (pick the slugs that match best); only invent a new agent when nothing in the library fits.
@@ -482,6 +506,10 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"give_mcp","servers":["<name, or 'new'>",…],"to":"agent"|"team","id":"<agent or team id, or 'new'>"}   (or "targets":[{"to":…,"id":…},…] instead of "to"/"id", for several at once)
 {"do":"take_mcp","servers":["<name>",…],"to":…,"id":…}   (or "targets", like give_mcp)
 {"do":"set_mcp","servers":["<name>",…],"to":"agent"|"team","id":"…"}   (their whole list becomes exactly this; [] takes all away)
+{"do":"build","object":"name (a new name makes a new object)","anchor":"world"|"brain"|"team:<team id>","position":[x,y,z],"voxel_size":0.25,"steps":[STEP,…]}   (builds in the project's voxel world; position in map units from the anchor, new objects only)
+{"do":"world_env","preset":"station|day|golden|dusk|night|overcast|snow"}   (the world's time of day)
+{"do":"write_world_md","content":"the whole WORLD.md in markdown"}   (sections: # name, ## Theme and meaning, ## Look, ## Feel, ## Places, ## Characters, ## Story so far, ## Rules)
+{"do":"update_world_md","section":"Places › Koi pond","content":"…","append":true|false}   (one section, by heading or a path of headings; added when it isn't there)
 {"do":"remember","text":"one short note"}   (adds it to your own MEMORY.md; with "to":"agent","id":"<agent id>" to an agent's MEMORY.md instead, when the user wants that agent to remember something)
 {"do":"write_memory","content":"the whole new MEMORY.md"}   (rewrites your own MEMORY.md, to correct it or drop what's outdated)
 {"do":"stop","to":"agent"|"team"|"all","id":"<agent or team id; not needed for all>"}   (stops the work going on now: an agent's jobs, a team's chat with its queue, or with "all" everything running in this project: every team, agent, routine and workflow; "targets":[{"to":…,"id":…},…] for several)
@@ -489,6 +517,7 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"find_models","provider":"PROVIDER","query":"words to match, e.g. gemini flash"}   (a look-up like read_skill: you get the matching model ids, then answer again; leave out "provider" to search every provider that is set up, leave out "query" to list them all)
 PROVIDER is one of: claude (Claude Code: opus, sonnet, haiku, fable, which always mean the latest version, or a full claude-… id), openrouter (any model on OpenRouter, ids like google/gemini-…), lmstudio, ollama, custom (model servers on this PC), codex (OpenAI Codex), hermes, pi and omp (the pi and oh-my-pi coding agents: provider/model ids like anthropic/claude-sonnet-5-5), openclaw (OpenClaw agents). Set up on this PC now: ${readyProviders().join(', ') || 'none'}.
 EFFORT is one of ${EFFORTS.join(', ')}, or "default" (the model's own). Claude Code takes low to max, Codex and OpenRouter minimal to xhigh, servers on this PC low to high, Hermes, pi, oh-my-pi and OpenClaw minimal to max; a level a provider doesn't have becomes its nearest one.
+STEP is a build step, run in order, positions in voxels of the current size from the cursor: {"use":"stone"}, {"voxel_size":0.1}, {"at":[x,y,z]}, {"box":[w,h,d]}, {"sphere":r}, {"cylinder":r,"height":h}, {"layers":[["#.#"]],"key":{"#":"wood"}}, {"text":"HI"}; generators (sizes in map units: a desk is 2.6 wide, a person 1.7 tall): {"island":{"radius":10,"pond":{"x":3,"z":-2,"radius":2}}}, {"tree":{"kind":"cherry|maple|oak|pine|bamboo|bonsai|dead","height":5}}, {"rock":{"size":1.2}}, {"cloud":{"width":6}}, {"lantern":{}}, {"bridge":{"length":6}}, {"torii":{"width":3.5}}; any step can take "at":[x,y,z] and "use". Stock materials include grass, stone, wood, dark wood, blossom, water, lantern (glows), red lacquer, roof tile, gold, snow.
 SCHEDULE is {"type":"none"} (run by hand) or {"type":"daily","time":"HH:MM","days":[0-6, 0 = Sunday; leave out for every day]} or {"type":"interval","minutes":N}. Set "enabled":true when the user wants it to run on its own.
 MEMBER is {"agent":"<existing agent id>"} or {"library":"<slug>"} or {"starter":"<name>"} or {"new":{"name":"…","emoji":"…","specialty":"one line","instructions":"5-10 sentences, second person","tools":["ids"],"skills":["skill ids"],"mcpServers":["names"]}}
 create_team and update_team also take "skills":["skill ids"] (update_team: the team's whole list).
@@ -1496,6 +1525,27 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         fs.writeFileSync(file, `${content.slice(0, 60000)}\n`);
         log('project', `The Brain wrote PROJECT.md for "${p.name}"`);
         done.push({ kind: 'file', text: 'Wrote PROJECT.md in the project folder', file });
+      } else if (kind === 'build') {
+        if (auto) throw new Error('builds only happen when the user asks');
+        const r = buildInWorld({ by: { kind: 'brain', name: 'The Brain' }, object: String(act.object ?? act.name ?? ''), anchor: act.anchor, position: act.position, voxelSize: act.voxel_size, steps: act.steps, project: p.id });
+        log('world', `The Brain ${r.created ? 'built' : 'changed'} "${r.object.name}" in the world`);
+        done.push({ kind: 'world', text: `${r.created ? 'Built' : 'Changed'} "${r.object.name}": ${r.outcome.added.toLocaleString('en-US')} voxels added${r.outcome.removed ? `, ${r.outcome.removed.toLocaleString('en-US')} removed` : ''}` });
+      } else if (kind === 'world_env') {
+        if (auto) throw new Error('only when the user asks');
+        const w = worldForBuild(p.id);
+        w.environment = envPreset(String(act.preset ?? 'station'));
+        saveWorld(w, { environment: true });
+        done.push({ kind: 'world', text: `Set the world's time of day to ${w.environment.preset}` });
+      } else if (kind === 'write_world_md' || kind === 'update_world_md') {
+        if (auto) throw new Error('only when the user asks');
+        const w = worldForBuild(p.id);
+        if (kind === 'write_world_md') {
+          const content = String(act.content ?? act.body ?? '').trim();
+          if (content.length < 20) throw new Error('nothing to write');
+          writeWorldMd(w.id, content);
+        } else writeWorldMdSection(w.id, String(act.section ?? ''), act.content ?? act.text ?? '', act.append === true);
+        log('world', `The Brain ${kind === 'write_world_md' ? 'wrote' : 'updated'} WORLD.md`);
+        done.push({ kind: 'world', text: kind === 'write_world_md' ? 'Wrote WORLD.md' : `Updated WORLD.md: ${cut(act.section, 80)}` });
       } else if (kind === 'remember' || kind === 'write_memory') {
         // whose: the Brain's own, or an agent's (the review of finished work may change neither: see only)
         if (auto) throw new Error('only you can change a MEMORY.md');

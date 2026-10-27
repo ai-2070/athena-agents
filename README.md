@@ -40,6 +40,10 @@ Each team is a pod with its agents at their desks. The Brain sits in the middle 
 
 ![The Station, a live 3D map with three teams, the Brain, and the programs connected to the agents](docs/images/station.png)
 
+### A voxel world your agents build
+
+Turn on **Settings › Look › Station › Voxel world** and the Station gets a sky, a sun with soft shadows and glowing lights. Ask the Brain for a world (*"make the Station a floating cherry garden at dusk"*) and it writes a **WORLD.md** with the world's theme, look and characters, then builds: islands, trees, gates, bridges, lanterns. Agents with the **Voxel world** tools build too, near their own team, and keep WORLD.md up to date. Every build can be undone, and changing what someone else built asks you first.
+
 ### Team chats where agents work together
 
 Everyone sees the whole conversation. Agents hand work to each other with @mentions, and the files they make show up in the chat: images, video, audio and 3D models you can turn with the mouse. Teams talk to each other too: write **#Team Name** and the message goes to that team's chat, and its answer comes back once that team is done.

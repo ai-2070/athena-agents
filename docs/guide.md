@@ -99,6 +99,17 @@ Every agent, and the Brain, keeps a **MEMORY.md** for each project: short notes 
 
 A chat's **Clear memory** button is different: it starts that chat fresh and leaves MEMORY.md alone. Don't keep keys or passwords in a memory.
 
+## The voxel world
+
+The Station can be a voxel world the Brain and your agents build around themselves. The classic dark map stays the default: turn the world on in **Settings › Look › Station** (Voxel world) and pick a quality (Low for older computers; High adds softer creases).
+
+- **Ask the Brain for one.** Describe the world you want. The Brain asks a few questions (theme, mood, era, colours), writes **WORLD.md**, builds the big pieces itself and hands the details to a builder. The **World Builder** starter (Library) comes ready with the **Voxel world** tools and the **Voxel building** skill; you can give the tools to any agent in its editor.
+- **WORLD.md** says what the world is: its theme and meaning, look, feel, places, characters, story and rules. Every builder reads it before building and updates it as they go. You can edit it too. Earlier versions are kept.
+- **Agents build near their team.** Builds pinned to a team move with it when you drag its platform. One build call changes at most 250,000 voxels; a world holds up to 4 million.
+- **Voxel size** is per object and can change in the middle of a build: coarse for ground, fine for small props and characters.
+- **Undo.** An agent can undo its own last change (`world_undo`). Changing or deleting what someone else built asks you first (unless the agent's autonomy is Full).
+- **One world per project, and it carries over.** A project with nothing built yet shows the world you marked as the default, or else the most recently built one. Its first build gives it its own copy, so the other project's world stays as it was. The world goes into the project's folder (`.dashboard/world/`) and into backups; a restored backup or a clone gets its own copy.
+
 ## Routines: work worth repeating
 
 Create a routine, write the instructions, and **@mention** the agents or teams that should do the work and the skills they should use. Run it when needed or set a schedule. Each run records what its agents and teams did.

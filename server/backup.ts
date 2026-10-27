@@ -17,7 +17,9 @@ import { checkVersion, listVersions, pruneVersions, versionFilesDir, cleanAgentV
 import type { Version } from './versions.ts';
 import { cleanMemoryVersion, isMemoryOwner, putMemory } from './memory.ts';
 import type { Preset } from './presets.ts';
-import type { Agent, Chat, Project, Routine, Team } from '../shared/types.ts';
+import { getWorld, newWorld, worldDir } from './voxel/store.ts';
+import { setLink } from './voxel/link.ts';
+import type { Agent, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
 
 export const BACKUP_EXT = '.dashbackup';
 const MAGIC = 'MY-DASHBOARD-BACKUP';
@@ -29,11 +31,13 @@ export const BACKUP_MAX = UNPACKED_MAX;
 
 // How much of each kind is packed at most (the same limits as the auto-save into the project folder).
 // A file that doesn't fit any more is left out and counted (BackupSummary.omitted). Keep docs/guide.md in step.
-const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024 };
+const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024, world: 300 * 1024 * 1024 };
 // A kept version in a backup: <kind>/<item id>/<version id>.json, and a skill version's files under
 // skills/<slug>/files-<version id>/. Agents and teams are the project's; skills are the library's
 // (deleted ones too, so Recently deleted comes back).
 const VERSION_FILE = /^(agents|teams|memory|skills)\/[^/]+\/[\w-]+\.json$/;
+// A file of the voxel world in a backup: its meta, WORLD.md, an object's voxels or a WORLD.md version
+const WORLD_FILE = /^(world\.json|WORLD\.md|objects\/[\w-]+\.json|versions\/world-md\/[\w-]+\.json)$/;
 // A MEMORY.md in a backup: <agent id or "brain">/MEMORY.md
 const MEMORY_PATH = /^([^/]+)\/MEMORY\.md$/;
 // Files from the project folder that go in: the brief and the notes, not the whole folder (it can be a big repo)
@@ -114,6 +118,8 @@ export interface BackupData {
   /** Kept versions (see VERSION_FILE). Older backups: empty. */
   versions: PackedFile[];
   presets: Preset[];
+  /** The voxel world the project uses (WORLD_FILE paths). Older backups: null. */
+  world: { name: string; files: PackedFile[] } | null;
   /** Files left out because their kind's size limit was reached (see CAP) */
   omitted: number;
 }
@@ -326,6 +332,15 @@ export function packProject(p: Project): BackupData {
   const knowledge = packTree(projectDir(id, 'knowledge'), knowledgeBudget);
   const memoryBudget = budget(CAP.memory);
   const memory = packTree(projectDir(id, 'memory'), memoryBudget).filter((f) => MEMORY_PATH.test(f.path));
+  // the voxel world (not its undo history)
+  const worldBudget = budget(CAP.world);
+  const w = p.world ? getWorld(p.world.id) : null;
+  const world = w
+    ? {
+        name: w.name,
+        files: packTree(worldDir(w.id), worldBudget).filter((f) => WORLD_FILE.test(f.path)),
+      }
+    : null;
   const presets = jsonFiles(dataPath('presets'))
     .map((n) => readJSON<Preset>(dataPath('presets', n)))
     .filter((x): x is Preset => !!x && PRESET_RE.test(String(x.id)));
@@ -349,7 +364,8 @@ export function packProject(p: Project): BackupData {
     skills,
     versions,
     presets,
-    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted,
+    world,
+    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted + worldBudget.omitted,
   };
 }
 
@@ -513,6 +529,7 @@ export function decodeBackup(buf: Buffer): BackupData {
       .filter((s) => s.files.some((f) => f.path === 'SKILL.md')),
     versions: files(b.versions),
     presets: arr<Preset>(b.presets).filter((p) => p && typeof p === 'object' && PRESET_RE.test(String(p.id)) && (p.kind === 'agent' || p.kind === 'team')),
+    world: b.world && typeof b.world === 'object' && Array.isArray(b.world.files) ? { name: String(b.world.name || 'World').slice(0, 80), files: files(b.world.files).filter((f) => WORLD_FILE.test(f.path)) } : null,
     omitted: Number(b.omitted) || 0,
   };
 }
@@ -751,6 +768,19 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   const knowledgeFiles = b.knowledge.filter((f) => writePacked(kRoot, f)).length;
   // MEMORY.md files go back under the agent (or the Brain) they were saved for
   const memories = b.memory.filter((f) => putMemory(id, MEMORY_PATH.exec(f.path)![1], Buffer.from(f.data, 'base64').toString('utf8'))).length;
+  // the voxel world: always a new world of this project's own (a clone mustn't build in the original's)
+  if (b.world?.files.some((f) => f.path === 'world.json')) {
+    const fresh = newWorld(id, b.world.name);
+    for (const f of b.world.files) if (f.path !== 'world.json') writePacked(worldDir(fresh.id), f);
+    let saved: Partial<VoxelWorld> = {};
+    try {
+      saved = JSON.parse(Buffer.from(b.world.files.find((f) => f.path === 'world.json')!.data, 'base64').toString('utf8')) as Partial<VoxelWorld>;
+    } catch {
+      /* the voxels came back; the world starts plain */
+    }
+    writeJSON(worldDir(fresh.id, 'world.json'), { ...fresh, ...saved, format: 1, id: fresh.id, homeProject: id, name: fresh.name });
+    setLink(id, { id: fresh.id, mode: 'own' });
+  }
   // the brief and notes: only into a file that isn't there yet (the folder may be one you have)
   const brainFiles = b.brain.filter((f) => {
     if (!BRAIN_FILES.includes(f.path) && !BRAIN_DIRS.some((d) => f.path.startsWith(`${d}/`))) return false;
