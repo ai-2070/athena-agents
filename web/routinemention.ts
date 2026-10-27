@@ -94,7 +94,8 @@ function openMenu(ta: HTMLTextAreaElement, start: number, query: string, kind: R
   // names that start with what you typed first, then names that contain it
   const items = [...all.filter((c) => c.name.toLowerCase().startsWith(q)), ...all.filter((c) => q && !c.name.toLowerCase().startsWith(q) && `${c.name} ${c.sub}`.toLowerCase().includes(q))].slice(0, 30);
   if (!items.length && q.includes(' ')) return closeMenu(); // typing on past a name: not a mention
-  const el = menu?.ta === ta ? menu.el : h('div.st-menu.skp-menu.rt-menu');
+  // (sized as the skill picker's menu, skp-menu)
+  const el = menu?.ta === ta ? menu.el : h('div.st-menu.skp-menu.rt-menu', { class: 'static w-[300px] max-w-[300px]' });
   if (!el.isConnected) document.body.append(el);
   // keep the menu's own scroll and clicks from moving focus out of the text
   el.onmousedown = (e) => e.preventDefault();
@@ -107,10 +108,11 @@ function openMenu(ta: HTMLTextAreaElement, start: number, query: string, kind: R
     h('div.st-menu-head', kind ? `Mention ${KIND_LABEL[kind].slice(0, -1).toLowerCase()}` : 'Mention'),
     h(
       'div.model-list',
+      { class: 'max-h-[280px]' },
       groups.length
         ? groups.map((g) => [
-            groups.length > 1 || !kind ? h('div.rt-menu-group', KIND_LABEL[g.k]) : null,
-            g.list.map((c) => h('button.st-menu-item.rt-menu-item', { type: 'button', onclick: () => pick(c) }, c.lead, h('span.grow', c.name, c.sub ? h('span.model-sub', c.sub.slice(0, 90)) : null))),
+            groups.length > 1 || !kind ? h('div', { class: 'px-2.5 pt-2 pb-0.75 font-mono text-[10px] leading-[normal] font-semibold tracking-[0.14em] text-faint uppercase' }, KIND_LABEL[g.k]) : null,
+            g.list.map((c) => h('button.st-menu-item.rt-menu-item', { class: '[&.active]:bg-panel-2 [&.active]:text-accent [&.active_.ico-svg]:text-accent', type: 'button', onclick: () => pick(c) }, c.lead, h('span', { class: 'min-w-0 flex-1' }, c.name, c.sub ? h('span.model-sub', c.sub.slice(0, 90)) : null))),
           ])
         : h('div.hint', { style: { padding: '8px 10px' } }, kind ? `No ${KIND_LABEL[kind].toLowerCase()} match.` : 'Nothing matches. Agents, teams and skills show here.'),
     ),

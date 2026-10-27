@@ -104,7 +104,7 @@ export function Windowed<T extends { id: string }>({ items, scroller, atEnd, gap
   // messages drawn before: drawn again (scrolled back to), they don't play their arrival animation
   const [seen] = useState(() => new Set<string>());
   return (
-    <div className="msg-window" style={{ height: v.getTotalSize() }}>
+    <div className="msg-window relative w-full shrink-0" style={{ height: v.getTotalSize() }}>
       {v.getVirtualItems().map((row) => {
         const item = items[row.index];
         if (!item) return null;
@@ -122,7 +122,7 @@ function Row({ id, index, start, seen, measure, children }: { id: string; index:
   const [again] = useState(() => seen.has(id));
   useEffect(() => void seen.add(id), [seen, id]);
   return (
-    <div ref={measure} data-index={index} className={`msg-row${again ? ' again' : ''}`} style={{ transform: `translateY(${start}px)` }}>
+    <div ref={measure} data-index={index} className={again ? 'msg-row again absolute top-0 left-0 flex w-full flex-col gap-3.5 in-[.ac-list]:gap-2' : 'msg-row absolute top-0 left-0 flex w-full flex-col gap-3.5 in-[.ac-list]:gap-2'} style={{ transform: `translateY(${start}px)` }}>
       {children}
     </div>
   );

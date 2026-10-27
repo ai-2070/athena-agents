@@ -536,10 +536,10 @@ export function ChatView(p: ChatViewProps) {
   const generic = !statusText || /^(Thinking|Working)…$/.test(statusText);
   const statusLine = (approvals.length && busy ? `Waiting for you: ${approvals[0].title}` : '') || (generic && doing) || statusText || (busy ? 'Working…' : '');
   const composer = (
-    <div className="mention-field">
+    <div className="relative flex min-w-0 flex-1">
       <textarea
         ref={input}
-        className={compact ? 'ac-input' : undefined}
+        className={compact ? 'max-h-50 min-h-11.5 flex-1 resize-none' : 'flex-1'}
         rows={variant === 'mini' ? 1 : 2}
         placeholder={busy ? `/queue a message to send when ${agent.name} is done` : compact ? `Message ${agent.name}…  (Enter to send, @ for another agent)` : `Message ${agent.name}…`}
         onKeyDown={(e) => {
@@ -571,15 +571,15 @@ export function ChatView(p: ChatViewProps) {
               type="button"
               role="option"
               aria-selected={i === slash.active}
-              className={`tc-sopt${i === slash.active ? ' on' : ''}`}
+              className={i === slash.active ? 'tc-sopt on items-baseline' : 'tc-sopt items-baseline'}
               onMouseDown={(e) => {
                 e.preventDefault();
                 pickSlash(o);
               }}
             >
-              <b className="slash-name">/{o.name}</b>
-              {o.args ? <span className="slash-args">{o.args}</span> : null}
-              <span className="hint">{o.harness ? `${o.about || 'Claude Code command'} · Claude Code` : o.about}</span>
+              <b className="slash-name flex-none font-mono text-[12.5px] leading-[normal] font-semibold text-accent">/{o.name}</b>
+              {o.args ? <span className="flex-none font-mono text-[11.5px] leading-[normal] text-faint">{o.args}</span> : null}
+              <span className="hint min-w-0">{o.harness ? `${o.about || 'Claude Code command'} · Claude Code` : o.about}</span>
             </button>
           ))}
         </div>
@@ -592,20 +592,20 @@ export function ChatView(p: ChatViewProps) {
               type="button"
               role="option"
               aria-selected={i === mention.active}
-              className={`tc-sopt${i === mention.active ? ' on' : ''}`}
+              className={i === mention.active ? 'tc-sopt on' : 'tc-sopt'}
               onMouseDown={(e) => {
                 e.preventDefault();
                 pickMention(a);
               }}
             >
-              <span className="avatar" style={{ '--agent-color': a.color || 'var(--accent)' } as CSSProperties}>
+              <span className="avatar" style={{ '--agent-color': a.color || 'var(--color-accent)' } as CSSProperties}>
                 {a.emoji || '🤖'}
               </span>
               @{a.name}
               {a.specialty ? <span className="hint">{a.specialty}</span> : null}
             </button>
           ))}
-          {canDelegate ? null : <div className="hint mention-note">To pass work on, {agent.name} needs Delegate turned on in its tools.</div>}
+          {canDelegate ? null : <div className="hint mention-note mt-1 border-t border-line px-2 pt-1.5 pb-1 text-[12px]">To pass work on, {agent.name} needs Delegate turned on in its tools.</div>}
         </div>
       ) : null}
     </div>
@@ -625,11 +625,11 @@ export function ChatView(p: ChatViewProps) {
   // your /goal and /loop here (× ends one)
   const chips =
     goal || loop ? (
-      <div className={`cmd-chips${compact ? ' compact' : ''}`}>
+      <div className={compact ? 'cmd-chips compact' : 'cmd-chips'}>
         {goal ? (
           <div className="cmd-chip goal">
             <Dom make={() => icon('target', 13)} deps={[]} />
-            <span className="cmd-chip-text">
+            <span className="min-w-0 flex-1 truncate">
               <b>Goal: </b>
               {goal.goal || goal.text}
             </span>
@@ -642,7 +642,7 @@ export function ChatView(p: ChatViewProps) {
         {loop ? (
           <div className="cmd-chip loop">
             <Dom make={() => icon('repeat', 13)} deps={[]} />
-            <span className="cmd-chip-text">
+            <span className="min-w-0 flex-1 truncate">
               <b>Loop: </b>
               {loop.text}
             </span>
@@ -657,7 +657,7 @@ export function ChatView(p: ChatViewProps) {
 
   // your /queue messages, in the order they will go (× takes one back)
   const queuedList = queued.length ? (
-    <div className={`queued-list${compact ? ' compact' : ''}`}>
+    <div className={compact ? 'queued-list compact' : 'queued-list'}>
       <div className="queued-head">Sends when {agent.name} is done</div>
       {queued.map((q) => (
         <div key={q.id} className="queued-msg">
@@ -673,18 +673,18 @@ export function ChatView(p: ChatViewProps) {
 
   return (
     <>
-      <div ref={list} className={variant === 'mini' ? 'oc-mini-list' : compact ? 'ac-list' : 'messages'} onScroll={onScroll}>
+      <div ref={list} className={variant === 'mini' ? 'oc-mini-list flex min-h-0 min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto py-1' : compact ? 'ac-list flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-0.5 py-1' : 'messages'} onScroll={onScroll}>
         {empty ? (
           variant === 'mini' ? (
             <p className="empty">No messages yet.</p>
           ) : compact ? (
-            <div className="ac-empty">
+            <div className="m-auto text-center text-dim">
               <Dom make={() => icon('message-circle', 22)} deps={[]} />
-              <p>Say hi to {agent.name}.</p>
-              <p className="hint">{agent.specialty || ''}</p>
+              <p className="mt-1.5 mb-0">Say hi to {agent.name}.</p>
+              <p className="hint mt-1.5 mb-0">{agent.specialty || ''}</p>
             </div>
           ) : (
-            <div className="empty-chat" style={{ margin: 'auto', textAlign: 'center', maxWidth: '560px', color: 'var(--dim)' }}>
+            <div className="empty-chat" style={{ margin: 'auto', textAlign: 'center', maxWidth: '560px', color: 'var(--color-dim)' }}>
               <div style={{ fontSize: '40px' }}>{agent.emoji || '🤖'}</div>
               <p>
                 Ask {agent.name} anything{agent.specialty ? `. Good at: ${agent.specialty}` : ''}.
@@ -703,15 +703,15 @@ export function ChatView(p: ChatViewProps) {
         )}
       </div>
       {variant === 'mini' ? null : (
-        <div className={compact ? 'ac-approvals' : undefined} style={compact ? undefined : { padding: '0 28px' }}>
+        <div className={compact ? 'empty:hidden' : undefined} style={compact ? undefined : { padding: '0 28px' }}>
           {approvals.map((a) => (
-            <Dom key={a.id} className={compact ? undefined : 'oc-approval'} make={() => approvalCard(a)} deps={[a.id]} />
+            <Dom key={a.id} className={compact ? undefined : 'mb-2.5 max-w-[860px]'} make={() => approvalCard(a)} deps={[a.id]} />
           ))}
         </div>
       )}
       {chips}
       {queuedList}
-      <div className={compact ? 'ac-status' : 'status-line'}>
+      <div className={compact ? 'min-h-4 font-mono text-[11.5px] leading-[normal] text-amber' : 'status-line flex min-h-5.5 items-center gap-2 px-7 pt-1 font-mono text-[11.5px] leading-[normal] text-amber max-md:px-4'}>
         {statusLine ? (
           compact ? (
             statusLine
@@ -727,7 +727,7 @@ export function ChatView(p: ChatViewProps) {
         <>
           {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
           <Dom make={() => pastes.el} deps={[pastes]} />
-          <div className="ac-compose">
+          <div className="flex items-end gap-2">
             {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
             {composer}
             {sendBtn}
@@ -738,13 +738,13 @@ export function ChatView(p: ChatViewProps) {
         <div className="composer">
           {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
           <Dom make={() => pastes.el} deps={[pastes]} />
-          <div className="composer-box">
+          <div className="flex max-w-[1000px] items-end gap-2.5">
             {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
             {composer}
             {stopBtn}
             {sendBtn}
           </div>
-          <div className="row between" style={{ maxWidth: '1000px', marginTop: '6px' }}>
+          <div className="flex flex-wrap items-center justify-between gap-2.5" style={{ maxWidth: '1000px', marginTop: '6px' }}>
             {p.footer ? <Dom make={() => p.footer!} deps={[p.footer]} /> : <span />}
             <span className="hint">Enter to send · Shift+Enter for a new line · @ to bring in another agent · / for commands</span>
           </div>

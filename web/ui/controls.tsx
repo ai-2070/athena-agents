@@ -12,6 +12,10 @@ export interface Choice<V extends string> {
   title?: string;
 }
 
+// The tab row's layout. :where() takes away its weight, so whatever a page passes in rowClassName
+// (its own gap or alignment, say) wins over it.
+const TAB_ROW = '[:where(&)]:flex [:where(&)]:flex-wrap [:where(&)]:items-center [:where(&)]:justify-between [:where(&)]:gap-2.5';
+
 const on = (yes: boolean, base = '') => [base, yes ? 'on' : ''].filter(Boolean).join(' ') || undefined;
 
 /** A row of tabs and the panel of the open one. Arrow keys move between tabs. */
@@ -29,7 +33,7 @@ export function Tabs<V extends string>({ tabs, value, onChange, aside, children,
 }) {
   return (
     <BaseTabs.Root value={value} onValueChange={(v) => onChange(v as V)}>
-      <div className={`row between ${rowClassName}`.trim()}>
+      <div className={`${TAB_ROW} ${rowClassName}`.trim()}>
         <BaseTabs.List className="tabs" aria-label={label}>
           {tabs.map((t) => (
             <BaseTabs.Tab key={t.value} value={t.value} title={t.title} className={(s) => on(s.active)}>
@@ -74,11 +78,11 @@ export function Switch({ checked, onChange, children, className = '', disabled }
   disabled?: boolean;
 }) {
   return (
-    <label className={`row switch-row ${className}`.trim()}>
+    <label className={`switch-row flex flex-wrap items-center gap-2.5 ${className}`.trim()}>
       <BaseSwitch.Root className="switch" checked={checked} onCheckedChange={(on) => onChange(on)} disabled={disabled}>
         <BaseSwitch.Thumb className="switch-thumb" />
       </BaseSwitch.Root>
-      <span className="toggle-text">{children}</span>
+      <span className="toggle-text cursor-pointer">{children}</span>
     </label>
   );
 }

@@ -68,7 +68,7 @@ export function McpTab() {
     [],
   );
   useEffect(() => void reload(), [reload]);
-  if (failed) return <div className="panel"><p className="red">Something went wrong: {failed}</p></div>;
+  if (failed) return <div className="panel"><p className="text-red">Something went wrong: {failed}</p></div>;
   if (!data || !tools) return null;
 
   const servers = Object.entries(data.servers);
@@ -95,7 +95,7 @@ export function McpTab() {
         ) : (
           <p className="empty">None yet. Add a preset below.</p>
         )}
-        <p className="hint mt">Give an agent a server in its Edit page &gt; Tools &gt; MCP servers. Claude Code agents also get the connectors on your Claude account (Gmail, Notion, Drive, Calendar, Higgsfield…) when they are signed in.</p>
+        <p className="hint mt-3.5">Give an agent a server in its Edit page &gt; Tools &gt; MCP servers. Claude Code agents also get the connectors on your Claude account (Gmail, Notion, Drive, Calendar, Higgsfield…) when they are signed in.</p>
       </div>
 
       <div className="panel">
@@ -107,7 +107,7 @@ export function McpTab() {
             <div key={p.name} className="card">
               <div className="card-title">{p.title}</div>
               <div className="card-sub">{p.description}</div>
-              <div className="hint mono mcp-cmd">{p.type === 'stdio' ? `${p.command} ${p.args.join(' ')}` : p.url}</div>
+              <div className="hint font-mono text-[11.5px] wrap-anywhere">{p.type === 'stdio' ? `${p.command} ${p.args.join(' ')}` : p.url}</div>
               <div className="card-foot">
                 {p.installed ? <span className="pill ok">added</span> : <button className="btn small" onClick={() => void attempt(() => POST('/mcp-preset', { name: p.name }), `Added ${p.title}`).then(reload)}>Add</button>}
                 {!p.ready ? <span className="pill warn">{`needs ${p.command}`}</span> : null}
@@ -125,8 +125,8 @@ export function McpTab() {
           </div>
           <div className="list">
             {data.importable.map((s) => (
-              <div key={`${s.source}:${s.name}`} className="list-item">
-                <div className="grow">
+              <div key={`${s.source}:${s.name}`} className="list-row">
+                <div className="min-w-0 flex-1">
                   <div className="title">{s.name}</div>
                   <div className="hint">{`${s.source} · ${s.type === 'stdio' ? `${s.command} ${s.args.join(' ')}` : s.url}`}</div>
                 </div>
@@ -142,13 +142,13 @@ export function McpTab() {
           <h2>Share the dashboard tools</h2>
         </div>
         <p>Claude Code and Codex agents here get the dashboard tools automatically. Hermes, pi, oh-my-pi and other MCP apps can have them too: ComfyUI, Blender, Adobe, programs, X drafts, your other agents.</p>
-        <div className="row">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button className="btn small" onClick={() => void attempt(() => POST('/hermes/add-bridge'), 'Hermes now has the dashboard tools (restart Hermes sessions to see them)')}>Give Hermes the dashboard tools</button>
           <button className="btn small" onClick={() => void attempt(() => POST<{ message: string }>('/pi/add-bridge'), (r) => r.message)}>Give pi and oh-my-pi the dashboard tools</button>
           <button className="btn ghost small" onClick={() => copy(bridgeJson)}>Copy MCP config for other apps</button>
         </div>
-        <details className="mt">
-          <summary className="label mcp-summary">Show config</summary>
+        <details className="mt-3.5">
+          <summary className="label cursor-pointer">Show config</summary>
           <pre>{bridgeJson}</pre>
           <p className="hint">Paste into Claude Desktop, Cursor, or any MCP client. They act as "External MCP client": everything except shell, and they ask you first. The dashboard must be running.</p>
         </details>
@@ -160,25 +160,25 @@ export function McpTab() {
           <h2>{`Built-in tools (${tools.tools.length})`}</h2>
         </div>
         {tools.groups.map((g) => (
-          <div key={g.id} className="mcp-group">
-            <div className="row">
+          <div key={g.id} className="mb-3.5">
+            <div className="flex flex-wrap items-center gap-2.5">
               <b>{g.label}</b>
               <span className="hint">{g.description}</span>
             </div>
-            <div className="chips mt">
+            <div className="chips mt-3.5">
               {tools.tools
                 .filter((t) => t.group === g.id)
                 .map((t) => (
-                  <span key={t.name} className="chip mcp-tool" title={t.description}>
+                  <span key={t.name} className="chip mcp-tool cursor-help" title={t.description}>
                     {t.name}
-                    {t.risk === 'high' ? <span className="amber"> ●</span> : t.risk === 'low' ? <span className="faint"> ●</span> : t.risk === 'varies' ? <span className="faint"> ◐</span> : null}
+                    {t.risk === 'high' ? <span className="text-amber"> ●</span> : t.risk === 'low' ? <span className="text-faint"> ●</span> : t.risk === 'varies' ? <span className="text-faint"> ◐</span> : null}
                   </span>
                 ))}
             </div>
           </div>
         ))}
         <p className="hint">
-          <span className="amber">●</span> asks you unless the agent is on Full · <span className="faint">●</span> asks only agents on "Ask first" · <span className="faint">◐</span> depends on what it is asked to do · none: never asks
+          <span className="text-amber">●</span> asks you unless the agent is on Full · <span className="text-faint">●</span> asks only agents on "Ask first" · <span className="text-faint">◐</span> depends on what it is asked to do · none: never asks
         </p>
       </div>
     </>
@@ -197,11 +197,11 @@ function ServerRow({ name, cfg, onEdit, reload }: { name: string; cfg: McpServer
     if (await confirmBox(`Remove ${name}?`, { ok: 'Remove', danger: true })) await attempt(() => DEL(`/mcp/${encodeURIComponent(name)}`)).then(reload);
   };
   return (
-    <div className="mcp-server">
-      <div className="row">
-        <div className="grow">
+    <div className="mcp-server border-b border-line py-2.5">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="min-w-0 flex-1">
           <div className="title">{name}</div>
-          <div className="hint mono mcp-cmd">{cfg.type === 'stdio' ? `${cfg.command} ${(cfg.args || []).join(' ')}` : cfg.url}</div>
+          <div className="hint font-mono text-[11.5px] wrap-anywhere">{cfg.type === 'stdio' ? `${cfg.command} ${(cfg.args || []).join(' ')}` : cfg.url}</div>
           {cfg.description ? <div className="hint">{cfg.description}</div> : null}
         </div>
         <button className="btn tiny ghost" disabled={test === 'running'} onClick={() => void run()}>Test</button>
@@ -210,11 +210,11 @@ function ServerRow({ name, cfg, onEdit, reload }: { name: string; cfg: McpServer
       </div>
       <div aria-live="polite">
         {test === 'running' ? <p className="hint">Starting it and listing tools… (first run of npx/uvx servers can take a minute)</p> : null}
-        {test === 'failed' ? <p className="red hint">It did not start. Check the command, and that npx/uvx works in a terminal.</p> : null}
+        {test === 'failed' ? <p className="hint">It did not start. Check the command, and that npx/uvx works in a terminal.</p> : null}
         {Array.isArray(test) ? (
-          <div className="mt">
+          <div className="mt-3.5">
             <span className="pill ok">{`${test.length} tools`}</span>
-            <div className="hint mono mcp-tools">{test.join(' · ')}</div>
+            <div className="hint mcp-tools mt-1.5 font-mono text-[11px]">{test.join(' · ')}</div>
           </div>
         ) : null}
       </div>
@@ -241,7 +241,7 @@ function ServerForm({ name = '', cfg = BLANK, close, saved }: { name?: string; c
   return (
     <>
       <div className="modal-body">
-        <div className="col">
+        <div className="flex flex-col gap-2.5">
           <Field label="Name">
             <input value={newName} placeholder="e.g. playwright" disabled={!!name} onChange={(e) => setNewName(e.target.value)} />
           </Field>
@@ -254,7 +254,7 @@ function ServerForm({ name = '', cfg = BLANK, close, saved }: { name?: string; c
             value={c.type === 'http' ? 'http' : 'stdio'}
             onChange={(v) => setC({ ...c, type: v })}
           />
-          <div className="col">
+          <div className="flex flex-col gap-2.5">
             {c.type === 'stdio' ? (
               <>
                 <Field label="Command">

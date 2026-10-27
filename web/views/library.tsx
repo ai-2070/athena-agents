@@ -112,8 +112,8 @@ function LibraryPage() {
     return () => void (live = false);
   }, []);
 
-  if (failed) return <div className="panel"><p className="red">Something went wrong: {failed}</p></div>;
-  if (!lib || !data) return <p className="dim">Loading library…</p>;
+  if (failed) return <div className="panel"><p className="text-red">Something went wrong: {failed}</p></div>;
+  if (!lib || !data) return <p className="text-dim">Loading library…</p>;
 
   const pick = (t: Tab) => setTab((lastTab = t));
   const tabs = [
@@ -125,7 +125,7 @@ function LibraryPage() {
   ];
   const runsOn =
     tab === 'agency' || tab === 'starters' ? (
-      <div className="row">
+      <div className="flex flex-wrap items-center gap-2.5">
         <span className="label">Runs on</span>
         <Segmented label="Runs on" options={data.engineList.map((e) => ({ value: e.id, label: e.label }))} value={engine} onChange={setEngine} />
       </div>
@@ -136,14 +136,14 @@ function LibraryPage() {
     <>
       <p className="lede">Hire a specialist and it joins your team with its instructions already written. You can change anything afterwards.</p>
       {branchParam() ? (
-        <div className="panel lib-branch">
-          <div className="row between">
+        <div className="panel mb-3.5 border-accent-dim">
+          <div className="flex flex-wrap items-center gap-2.5 justify-between">
             <span>Hiring into a Station team: new hires are added as its next step.</span>
             <a className="btn ghost small" href="#/station">Back to Station</a>
           </div>
         </div>
       ) : null}
-      <Tabs label="Library" tabs={tabs} value={tab} onChange={pick} aside={runsOn} rowClassName="lib-tabs" panelClassName="lib-panel">
+      <Tabs label="Library" tabs={tabs} value={tab} onChange={pick} aside={runsOn} rowClassName="mb-1.5 [&_.tabs]:mb-0 [&_.tabs]:border-b-0" panelClassName="border-t border-line pt-4.5">
         {tab === 'starters' ? <Starters lib={lib} overrides={ov} /> : null}
         {tab === 'agency' ? <Agency lib={lib} overrides={ov} /> : null}
         {tab === 'hermes' ? <Hermes lib={lib} data={data} /> : null}
@@ -179,9 +179,9 @@ function HireFoot({ onHire, children }: { onHire: () => Promise<Agent | undefine
   );
 }
 
-function Card({ top, sub, foot, className = '' }: { top: ReactNode; sub?: ReactNode; foot: ReactNode; className?: string }) {
+function Card({ top, sub, foot }: { top: ReactNode; sub?: ReactNode; foot: ReactNode }) {
   return (
-    <div className={`card ${className}`.trim()}>
+    <div className="card">
       <div className="card-top">{top}</div>
       {sub}
       {foot}
@@ -198,7 +198,7 @@ function Starters({ lib, overrides: ov }: { lib: LibraryIndex; overrides: () => 
           top={
             <>
               <div className="avatar lg">{s.emoji}</div>
-              <div className="grow">
+              <div className="flex-1 min-w-0">
                 <div className="card-title">{s.name}</div>
                 <div className="card-sub">{s.specialty}</div>
               </div>
@@ -219,7 +219,7 @@ function Agency({ lib, overrides: ov }: { lib: LibraryIndex; overrides: () => Ov
   const list = lib.agency.agents.filter((a) => (!division || a.division === division) && (!q || `${a.name} ${a.description} ${a.vibe}`.toLowerCase().includes(q)));
   return (
     <>
-      <div className="lib-search">
+      <div className="max-w-140">
         <input
           autoFocus
           aria-label="Search the specialists"
@@ -231,12 +231,12 @@ function Agency({ lib, overrides: ov }: { lib: LibraryIndex; overrides: () => Ov
       {/* (a toggle's value can't be empty, so All is 'all') */}
       <Chips
         label="Division"
-        className="mt"
+        className="mt-3.5"
         options={[{ value: 'all', label: 'All' }, ...divisions.map(([value, label]) => ({ value, label }))]}
         value={division || 'all'}
         onChange={(d) => setDivision((lastDivision = d === 'all' ? '' : d))}
       />
-      <div className="mt">
+      <div className="mt-3.5">
         <div className="cards">
           {list.slice(0, SHOWN).map((a) => {
             const doHire = () => hire({ source: 'agency', slug: a.slug, overrides: ov() }, a.name);
@@ -245,10 +245,10 @@ function Agency({ lib, overrides: ov }: { lib: LibraryIndex; overrides: () => Ov
                 key={a.slug}
                 top={
                   <>
-                    <div className="avatar" style={{ '--agent-color': a.color || 'var(--accent)' } as CSSProperties}>{a.emoji}</div>
-                    <div className="grow">
+                    <div className="avatar" style={{ '--agent-color': a.color || 'var(--color-accent)' } as CSSProperties}>{a.emoji}</div>
+                    <div className="flex-1 min-w-0">
                       <div className="card-title">{a.name}</div>
-                      <div className="label lib-division">{a.divisionLabel}</div>
+                      <div className="label mt-0.5">{a.divisionLabel}</div>
                     </div>
                   </>
                 }
@@ -279,7 +279,7 @@ function Hermes({ lib, data }: { lib: LibraryIndex; data: AppState }) {
   const have = new Set(data.agents.filter((a) => a.engine === 'hermes').map((a) => a.hermesProfile || 'default'));
   return (
     <>
-      <p className="hint lib-intro">Each Hermes profile keeps its own memory, skills and tools. Add one to chat with it here, use it in workflows, or let other agents ask it for help.</p>
+      <p className="hint mb-3.5">Each Hermes profile keeps its own memory, skills and tools. Add one to chat with it here, use it in workflows, or let other agents ask it for help.</p>
       <div className="cards">
         {lib.hermes.map((p) => (
           <Card
@@ -287,7 +287,7 @@ function Hermes({ lib, data }: { lib: LibraryIndex; data: AppState }) {
             top={
               <>
                 <div className="avatar">☤</div>
-                <div className="grow">
+                <div className="flex-1 min-w-0">
                   <div className="card-title">{p.name}</div>
                   <div className="card-sub">{`${p.model} · gateway ${p.gateway}${p.isDefault ? ' · default' : ''}`}</div>
                 </div>
@@ -310,7 +310,7 @@ function Hermes({ lib, data }: { lib: LibraryIndex; data: AppState }) {
 function Claude({ lib }: { lib: LibraryIndex }) {
   return (
     <>
-      <p className="hint lib-intro">Subagents saved in ~/.claude/agents. Import one as a dashboard agent, or go the other way with "Install in Claude Code" on any agent.</p>
+      <p className="hint mb-3.5">Subagents saved in ~/.claude/agents. Import one as a dashboard agent, or go the other way with "Install in Claude Code" on any agent.</p>
       {lib.claude.length ? (
         <div className="cards">
           {lib.claude.map((s) => (
@@ -319,7 +319,7 @@ function Claude({ lib }: { lib: LibraryIndex }) {
               top={
                 <>
                   <div className="avatar">✳️</div>
-                  <div className="grow">
+                  <div className="flex-1 min-w-0">
                     <div className="card-title">{s.name}</div>
                     <div className="card-sub">{s.description}</div>
                   </div>
@@ -355,15 +355,14 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
   const card = (p: PresetListing) => (
     <Card
       key={p.id}
-      className="preset-card"
       top={
         <>
           {p.kind === 'team' ? (
-            <div className="avatar" style={{ background: p.color || '#7350c8' }}><Icon name="users" size={18} /></div>
+            <div className="avatar text-white" style={{ background: p.color || '#7350c8' }}><Icon name="users" size={18} /></div>
           ) : (
-            <div className="avatar">{p.emoji || '🤖'}</div>
+            <div className="avatar text-white">{p.emoji || '🤖'}</div>
           )}
-          <div className="grow">
+          <div className="flex-1 min-w-0">
             <div className="card-title">{p.name}</div>
             <div className="hint">{p.kind === 'team' ? `Team · ${p.members!.length} agents${p.lead ? ` · ★ ${p.lead}` : ''}` : 'Agent'}</div>
           </div>
@@ -372,7 +371,7 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
       sub={
         <>
           {p.description ? <div className="card-sub">{p.description}</div> : null}
-          {p.kind === 'team' ? <div className="preset-members">{p.members!.map((m) => <span key={m.name} className="pill">{`${m.emoji || ''} ${m.name}`}</span>)}</div> : null}
+          {p.kind === 'team' ? <div className="flex flex-wrap gap-1.25 my-1">{p.members!.map((m) => <span key={m.name} className="pill">{`${m.emoji || ''} ${m.name}`}</span>)}</div> : null}
           {p.skills?.length ? <div className="hint">{`${p.skills.length} skill${p.skills.length === 1 ? '' : 's'}`}</div> : null}
         </>
       }
@@ -382,7 +381,7 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
             <Icon name="plus" size={13} />
             {p.kind === 'team' ? 'Create this team' : 'Create this agent'}
           </button>
-          <span className="grow" />
+          <span className="flex-1 min-w-0" />
           <button className="btn ghost tiny danger" title="Delete preset" aria-label={`Delete the preset ${p.name}`} onClick={() => void del(p)}>
             <Icon name="trash-2" size={13} />
           </button>
@@ -394,7 +393,7 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
   const agentsP = presets.filter((p) => p.kind === 'agent');
   return (
     <>
-      <p className="hint lib-intro">Save any agent or team as a preset (its panel on the Station, or right-click it). Presets work in every project: each use makes fresh copies here.</p>
+      <p className="hint mb-3.5">Save any agent or team as a preset (its panel on the Station, or right-click it). Presets work in every project: each use makes fresh copies here.</p>
       {!presets.length ? <p className="empty">No presets yet.</p> : null}
       {teamsP.length ? (
         <>
@@ -404,7 +403,7 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
       ) : null}
       {agentsP.length ? (
         <>
-          <h2 className="section mt-lg">{`Agents (${agentsP.length})`}</h2>
+          <h2 className="section">{`Agents (${agentsP.length})`}</h2>
           <div className="cards">{agentsP.map(card)}</div>
         </>
       ) : null}

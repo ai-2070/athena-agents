@@ -171,6 +171,8 @@ export const freshElement = <E extends Element>(el: E): E => {
 
 export function md(text: unknown): HTMLDivElement {
   const div = document.createElement('div');
+  // md: the browser's usual look for headings, lists and quotes (web/styles/components.css)
+  div.className = 'md';
   // agent output is untrusted: sanitize, and if the sanitizer can't run here, show plain text instead
   if (!DOMPurify.isSupported) {
     div.textContent = String(text || '');
@@ -255,7 +257,7 @@ export function promptBox(title: Child, { label = '', value = '', multiline = fa
 }
 
 export function lightbox(src: string): void {
-  modal({ title: 'Image', body: h('div.lightbox', h('img', { src }), h('p.mt', h('a', { href: src, target: '_blank' }, 'Open full size'))) });
+  modal({ title: 'Image', body: h('div.lightbox', h('img', { src }), h('p', { class: 'mt-3.5' }, h('a', { href: src, target: '_blank' }, 'Open full size'))) });
 }
 
 // ---------- small widgets ----------
@@ -310,7 +312,8 @@ export function toggleRow(checked: boolean | null | undefined, onChange: (checke
   const t = toggle(checked, onChange);
   const input = t.querySelector('input')!;
   input.id = `toggle-${++toggleIds}`;
-  return h(`div.row${cls}`, t, h('label.toggle-text', { for: input.id }, text));
+  // (cls is in h() notation: '.a.b')
+  return h('div', { class: `flex flex-wrap items-center gap-2.5 ${cls.split('.').join(' ')}` }, t, h('label.toggle-text', { class: 'cursor-pointer', for: input.id }, text));
 }
 
 export function field(label: Child, control: Child, hint?: Child): HTMLLabelElement {
@@ -348,7 +351,7 @@ export function engineBadge(agent: Pick<Agent, 'engine'> & Partial<Pick<Agent, '
 }
 
 export function avatar(agent: Partial<Pick<Agent, 'color' | 'emoji'>>, lg = false): HTMLDivElement {
-  return h(`div.avatar${lg ? '.lg' : ''}`, { style: { '--agent-color': agent.color || 'var(--accent)' } }, agent.emoji || '🤖');
+  return h(`div.avatar${lg ? '.lg' : ''}`, { style: { '--agent-color': agent.color || 'var(--color-accent)' } }, agent.emoji || '🤖');
 }
 
 export function isRunning(agentId: string): boolean {
@@ -371,9 +374,10 @@ export function approvalCard(a: Approval): HTMLDivElement {
     a.brainNote ? h('div.hint', `The Brain passed this to you: ${a.brainNote}`) : null,
     a.detail && !editor ? h('pre', a.detail) : null,
     editor ? h('div', h('div.hint', 'You can edit this before it continues:'), editor) : null,
-    h('div.mt', note),
+    h('div', { class: 'mt-3.5' }, note),
     h(
-      'div.row.mt',
+      'div',
+      { class: 'mt-3.5 flex flex-wrap items-center gap-2.5' },
       h('button.btn.small', { onclick: () => decide(true) }, editor ? 'Approve' : 'Allow'),
       a.kind !== 'workflow' ? h('button.btn.ghost.small', { onclick: () => decide(true, true), title: 'Allow this tool for this agent from now on' }, 'Always allow') : null,
       h('button.btn.danger.small', { onclick: () => decide(false) }, editor ? 'Stop' : 'Deny'),

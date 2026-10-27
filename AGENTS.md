@@ -17,7 +17,7 @@ bun run dev          # rebuild the page and restart the server on every change
 bun run typecheck    # tsc for server/ and web/ (two separate tsconfigs)
 bun run test         # Vitest, server + web projects
 bun run check        # typecheck + test: run this before you call a change done
-bun run build        # bundle web/ into public/dist
+bun run build        # bundle web/ (and its Tailwind CSS) into public/dist
 bun run icons        # regenerate web/icons.ts after adding names in scripts/build-icons.ts
 bun server/index.ts --port 4900 --no-open   # a second instance that won't open a browser
 bun scripts/try-agent.ts <agentId> "message" [--port 4800] [--approve]
@@ -46,7 +46,8 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 | `web/ui/` | Base UI (`@base-ui/react`) pieces. `overlays.tsx` draws every dialog and toast: `modal()`, `confirmBox()`, `promptBox()` and `toast()` in `web/core.ts` call it with plain DOM. `react.tsx` mounts a React page (`mountReact`, `useAppState`, `Icon`); `controls.tsx` has `Tabs`, `Segmented` and `Chips` in the app's own classes |
 | `web/client/` | The page's only way to the server: addresses (`apiUrl`, `fileUrl`, `serverUrl`), requests (`api`, uploads) and sockets. A test fails if other code writes `/api/`, `fetch(` or `new WebSocket(` |
 | `web/views/` | One module per page (`station.ts` is the 3D map, three.js) |
-| `public/` | `index.html` and CSS. `public/dist` is build output, never edit it |
+| `web/styles/` | Tailwind CSS 4. `app.css` is the entry (theme tokens, layers, keyframes), `base.css` styles bare elements, `components.css` has the pieces used everywhere (`btn`, `card`, `pill`, `modal`, `md` for Markdown…). The build writes `public/dist/app.css` |
+| `public/` | `index.html`. `public/dist` is build output, never edit it |
 | `skills/` | Skill folders that come with the dashboard (`storytold`, `oomol`, `composio`, `orca`, `subagent-skills`), copied unchanged from GitHub: each folder's `README.md` says from where and which commit. `BUNDLED` in `server/skills.ts` lists them; `ensureBuiltinSkills` adds them to the library. Skills the dashboard writes itself (Self-improvement, Start agents in Orca) are in `BUILTIN` there instead |
 | `library/agency-agents/` | The Agency's agent files (the Library's specialists), copied unchanged from GitHub: its `README.md` says from where and which commit. `server/library.ts` reads the folder directly |
 | `tests/server`, `tests/web` | Vitest: server in Node, web in happy-dom |
@@ -66,6 +67,11 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 - New data shapes go in `shared/types.ts`. New server state goes through `store.ts` helpers
   (`collection`, `readJSON`/`writeJSON`, `dataPath`/`projectData`), not ad-hoc `fs` writes.
 - Tell open tabs about changes with `emit(type, payload)` from `store.ts`.
+- Style with Tailwind utilities in the markup, using the theme's tokens (`text-dim`, `bg-panel-2`,
+  `rounded-box`, `max-md:`), not new CSS. Reuse the pieces in `web/styles/components.css`; add to it only
+  for something used in several places or that utilities can't reach. Write class names whole (Tailwind
+  reads the source; never `` `bg-${x}` ``), and in plain DOM put them in attrs: `h('div', { class: 'flex gap-2' })`.
+  Classes that code or tests look up stay as markers. `docs/internal/plans/tailwind.md` has the details.
 - Comments are short and in plain words; explain why, not what. Match the existing style.
 - The desktop app runs the server bundled into one file. Server imports must bundle with `Bun.build`
   (native modules go in `external` and get copied, like node-pty), and files read relative to `ROOT` must be

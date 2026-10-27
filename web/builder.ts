@@ -27,6 +27,9 @@ export interface BranchBuilderOptions {
   onSaved?: (wf: Team) => unknown;
 }
 
+// a member's ★ (lead) and ✕ buttons
+const STEP_BTN = 'size-5.5 p-0 border cursor-pointer text-[11px] hover:enabled:text-accent hover:enabled:border-accent disabled:opacity-30 disabled:cursor-default';
+
 const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a', '#4f7fa8', '#5a9a3a', '#a84a5a', '#2f8fa0'];
 
 // wf: an existing team to edit. prefill: a design from the Brain ({ name, description, members, leadIndex, access }).
@@ -54,7 +57,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   name.addEventListener('input', () => (b.name = name.value));
   desc.addEventListener('input', () => (b.description = desc.value));
 
-  const listEl = h('div.bb-steps');
+  const listEl = h('div', { class: 'flex flex-col gap-1.5' });
   const drawMembers = () => {
     const agents = byId();
     clear(listEl);
@@ -63,17 +66,20 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       const isLead = b.lead === m;
       listEl.append(
         h(
-          'div.bb-step',
+          'div',
+          { class: 'flex items-center gap-2.5 py-2 px-2.5 border border-line bg-bg rounded-box [&_.avatar]:size-8.5 [&_.avatar]:text-[17px]' },
           a ? avatar(a) : h('div.avatar', m.newAgent?.emoji || '🤖'),
           h(
-            'div.grow',
-            h('div.row', { style: { gap: '6px' } }, h('b', a ? a.name : m.newAgent?.name || 'Agent'), m.newAgent ? h('span.pill.ok', 'new agent') : null, isLead ? h('span.tc-lead', '★ lead') : null),
+            'div',
+            { class: 'flex-1 min-w-0' },
+            h('div', { class: 'flex flex-wrap items-center gap-1.5' }, h('b', a ? a.name : m.newAgent?.name || 'Agent'), m.newAgent ? h('span.pill.ok', 'new agent') : null, isLead ? h('span.tc-lead', '★ lead') : null),
             h('div.hint', a ? a.specialty || '' : m.newAgent?.specialty || ''),
           ),
           h(
-            'div.st-step-actions',
-            h('button', { class: isLead ? 'on' : '', title: isLead ? 'Remove as lead' : 'Make lead: your messages go to them first', onclick: () => ((b.lead = isLead ? null : m), drawMembers()) }, '★'),
-            h('button', { title: 'Remove', onclick: () => (b.members.splice(j, 1), isLead && (b.lead = null), drawMembers()) }, '✕'),
+            'div',
+            { class: 'flex gap-0.5 flex-none' },
+            h('button', { class: `${STEP_BTN} ${isLead ? 'text-amber border-amber' : 'text-dim border-line-2'}`, title: isLead ? 'Remove as lead' : 'Make lead: your messages go to them first', onclick: () => ((b.lead = isLead ? null : m), drawMembers()) }, '★'),
+            h('button', { class: `${STEP_BTN} text-dim border-line-2`, title: 'Remove', onclick: () => (b.members.splice(j, 1), isLead && (b.lead = null), drawMembers()) }, '✕'),
           ),
         ),
       );
@@ -83,7 +89,8 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
 
   let addId = d.agents[0]?.id || '';
   const addRow = h(
-    'div.row.mt',
+    'div',
+    { class: 'flex flex-wrap items-center gap-2.5 mt-3.5' },
     d.agents.length
       ? [
           h('div', { style: { width: '260px' } }, select(d.agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` })), addId, (v) => (addId = v))),
@@ -103,9 +110,9 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
     mount(
       accessEl,
       h('div.label', 'Programs & tools'),
-      h('div.mt', chipSet(state.data!.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description })), b.access.toolGroups, (v) => (b.access.toolGroups = v))),
-      Object.keys(mcp.servers).length ? [h('div.label.mt', 'MCP servers'), h('div.mt', chipSet(Object.keys(mcp.servers), b.access.mcpServers, (v) => (b.access.mcpServers = v)))] : null,
-      h('p.hint.mt', 'While working for this team, every member gets these on top of its own tools.'),
+      h('div', { class: 'mt-3.5' }, chipSet(state.data!.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description })), b.access.toolGroups, (v) => (b.access.toolGroups = v))),
+      Object.keys(mcp.servers).length ? [h('div.label', { class: 'mt-3.5' }, 'MCP servers'), h('div', { class: 'mt-3.5' }, chipSet(Object.keys(mcp.servers), b.access.mcpServers, (v) => (b.access.mcpServers = v)))] : null,
+      h('p.hint', { class: 'mt-3.5' }, 'While working for this team, every member gets these on top of its own tools.'),
     );
 
   // the team's files: reference material every member is told about (briefs, brand guides, assets)
@@ -129,7 +136,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   const filesEl = h(
     'div',
     h('div.label', 'Files'),
-    h('div.col.mt', { style: { gap: '8px' } }, keptEl, tray.el, h('div.row', { style: { gap: '8px' } }, tray.picker, h('span.hint', 'Briefs, brand guides, assets: drop or paste files or folders anywhere here. Auto-build reads them, and every member is told where they are.'))),
+    h('div', { class: 'flex flex-col gap-2 mt-3.5' }, keptEl, tray.el, h('div', { class: 'flex flex-wrap items-center gap-2' }, tray.picker, h('span.hint', 'Briefs, brand guides, assets: drop or paste files or folders anywhere here. Auto-build reads them, and every member is told where they are.'))),
   );
   const allFiles = async () => {
     const fresh = await tray.ready();
@@ -228,11 +235,12 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   m = modal({
     title: wf ? `Edit ${wf.name}` : 'New team',
     body: h(
-      'div.col.gap-lg',
+      'div',
+      { class: 'flex flex-col gap-4.5' },
       h('p.hint', 'A team is a group chat of agents. You write to the team, the lead (or the best fit) takes it, and they hand work to each other with @mentions.'),
-      h('div.col', h('label.field', h('span', 'Name'), name), h('label.field', h('span', 'Goal'), desc), h('div.row', autoBtn, status)),
+      h('div', { class: 'flex flex-col gap-2.5' }, h('label.field', h('span', 'Name'), name), h('label.field', h('span', 'Goal'), desc), h('div', { class: 'flex flex-wrap items-center gap-2.5' }, autoBtn, status)),
       filesEl,
-      h('div', h('div.label', 'Members'), h('div.mt', listEl), addRow),
+      h('div', h('div.label', 'Members'), h('div', { class: 'mt-3.5' }, listEl), addRow),
       h('div', accessEl),
     ),
     foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), saveBtn],

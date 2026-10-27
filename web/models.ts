@@ -101,13 +101,17 @@ export function modelInfo(a: ModelTarget): ModelInfo {
   return { name: c ? `Claude ${c.family} ${c.version}` : id, short: c ? `${c.family} ${c.version}` : id, latest: false, brand: /claude|anthropic/.test(m) ? 'claude' : /llama|ollama/.test(m) ? 'ollama' : where === 'OpenRouter' ? 'openrouter' : null, where };
 }
 
-const chipIcon = (mi: ModelInfo, engine: string): SVGSVGElement | HTMLSpanElement => (mi.brand && logo(mi.brand, 13)) || (GLYPH[engine] ? h('span.model-glyph', GLYPH[engine]) : icon('cpu', 13));
+// the model chip; model-chip stays as a marker (the Brain chat and the Station panel style it from outside)
+const CHIP = 'inline-flex items-center gap-1.5 py-1 px-2.25 border border-line-2 rounded-full bg-[rgba(7,8,7,0.6)] text-ink font-sans text-[12px] font-semibold leading-[normal] cursor-pointer [transition:border-color_0.18s,background-color_0.18s] hover:border-accent-dim hover:bg-accent/7 [&_.ico-svg]:text-dim';
+// the search box over a list (the skill picker has one too)
+export const SEARCH = 'model-search mt-1 mb-1.5 px-2.25 py-1.75 text-[13px]';
+const chipIcon = (mi: ModelInfo, engine: string): SVGSVGElement | HTMLSpanElement => (mi.brand && logo(mi.brand, 13)) || (GLYPH[engine] ? h('span', { class: 'text-[13px] leading-[13px]' }, GLYPH[engine]) : icon('cpu', 13));
 
 /** The effort a target runs at, as its engine takes it ('' = the model's default). */
 export const effortOf = (a: ModelTarget): Effort | '' => effortFor(a.engine, a.effort, a.provider);
 const effortTag = (a: ModelTarget) => {
   const e = effortOf(a);
-  return e ? h('span.model-effort-tag', { title: `Effort: ${EFFORT_NAMES[e]}` }, EFFORT_NAMES[e]) : null;
+  return e ? h('span', { class: 'font-sans text-[10px] font-semibold leading-[15px] text-accent border border-accent-dim rounded-full px-1.5', title: `Effort: ${EFFORT_NAMES[e]}` }, EFFORT_NAMES[e]) : null;
 };
 /** "Claude Opus 5.5" or "Claude Opus 5.5 (high effort)" */
 const withEffort = (a: ModelTarget) => {
@@ -137,7 +141,7 @@ export async function toggleFavorite(m: ModelChoice): Promise<boolean> {
 
 // A chip showing an agent's model; click it to switch (model or what it runs on).
 export function modelChip(agent: Agent, { onChange, compact = false }: { onChange?: (agent: Agent) => void; compact?: boolean } = {}): HTMLButtonElement {
-  const chip = h('button.model-chip', { type: 'button', title: 'Switch model' });
+  const chip = h('button.model-chip', { class: CHIP, type: 'button', title: 'Switch model' });
   const draw = () => {
     const mi = modelInfo(agent);
     mount(chip, chipIcon(mi, agent.engine), h('span', mi.short), effortTag(agent), mi.latest && !compact ? h('span.model-latest', 'latest') : null, icon('chevron-down', 12));
@@ -170,7 +174,7 @@ export function brainAsAgent(b: { provider?: string; model?: string; effort?: Ef
   return { engine: BRAIN_ENGINE[p] || 'claude-code', model: b?.model ?? 'haiku', provider: 'openrouter', effort: b?.effort || '' };
 }
 export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: (brain: BrainSetting) => void; prefix?: string } = {}): HTMLButtonElement {
-  const chip = h('button.model-chip', { type: 'button', title: "The Brain's model: answers about the project, builds teams and agents, hands out work" });
+  const chip = h('button.model-chip', { class: CHIP, type: 'button', title: "The Brain's model: answers about the project, builds teams and agents, hands out work" });
   const draw = () => {
     const a = brainAsAgent();
     const mi = modelInfo(a);
@@ -217,11 +221,11 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   let tab: EngineId | 'fav' = favs().length ? 'fav' : TABS.some((t) => t.engine === cur.engine) ? cur.engine : 'claude-code';
   // the engine the effort row is for: on Favorites, the one in use
   const tabEngine = (): EngineId => (tab === 'fav' ? cur.engine : tab);
-  const body = h('div.model-body');
-  const effortBox = h('div.model-effort');
+  const body = h('div.model-body', { class: 'max-h-95 overflow-y-auto' });
+  const effortBox = h('div', { class: 'px-1.5 pb-2 border-b border-line mb-1' });
   const pick = (choice: ModelChoice) => (close(), apply({ ...choice, effort: effortFor(choice.engine, effort, choice.provider) }));
   const star = (choice: ModelChoice) => {
-    const btn = h('button.model-fav', { type: 'button' });
+    const btn = h('button.model-fav', { class: 'flex-none grid place-items-center size-7 mr-0.5 rounded-[6px] text-faint cursor-pointer opacity-0 [transition:opacity_.15s,color_.15s,background_.15s] group-hover:opacity-100 focus-visible:opacity-100 hover:text-accent hover:bg-panel-2 [&.on]:opacity-100 [&.on]:text-accent [&.on_.ico-svg]:fill-current [@media(hover:none)]:opacity-100', type: 'button' });
     const draw = (on: boolean) => {
       btn.classList.toggle('on', on);
       btn.title = on ? 'Remove from favorites' : 'Add to favorites';
@@ -248,16 +252,17 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   const row = (label: string, sub: string | null, active: boolean, choice: ModelChoice, brand: string | null = null) =>
     h(
       'div.model-row',
-      h(`button.st-menu-item${active ? '.on' : ''}`, { type: 'button', onclick: () => pick(choice) }, active ? icon('check', 15) : (brand && logo(brand, 14)) || icon('cpu', 15), h('span.grow', label, sub ? h('span.model-sub', sub) : null)),
+      { class: 'group flex items-center gap-0.5' },
+      h(`button.st-menu-item${active ? '.on' : ''}`, { class: 'flex-1 min-w-0', type: 'button', onclick: () => pick(choice) }, active ? icon('check', 15) : (brand && logo(brand, 14)) || icon('cpu', 15), h('span', { class: 'flex-1 min-w-0' }, label, sub ? h('span.model-sub', sub) : null)),
       star(choice),
     );
   const free = (placeholder: string, toChoice: (model: string) => ModelChoice) => {
-    const input = h('input.model-search', { placeholder });
+    const input = h('input', { class: SEARCH, placeholder });
     input.addEventListener('keydown', (e) => e.key === 'Enter' && input.value.trim() && pick(toChoice(input.value.trim())));
     return input;
   };
   const missing = (text: string, settingsFind: string) =>
-    h('div.model-missing', icon('triangle-alert', 14), h('span.grow', text), h('button.btn.tiny', { onclick: () => (close(), navigate(`#/settings?tab=general&find=${encodeURIComponent(settingsFind)}`)) }, 'Set up'));
+    h('div', { class: 'flex items-center gap-2 mx-1.5 mb-1.5 px-2.25 py-1.75 rounded-[8px] text-[12px] text-amber bg-amber/10' }, icon('triangle-alert', 14), h('span', { class: 'flex-1 min-w-0' }, text), h('button.btn.tiny', { onclick: () => (close(), navigate(`#/settings?tab=general&find=${encodeURIComponent(settingsFind)}`)) }, 'Set up'));
   const same = (engine: EngineId, model: string) => cur.engine === engine && String(cur.model || '') === model;
 
   // Effort: the levels the tab's engine takes, and the model's own default.
@@ -271,6 +276,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
       h(
         `button.model-effort-level${shown === value ? '.on' : ''}`,
         {
+          class: 'flex-1 min-w-0 py-1.25 px-0.5 border border-line rounded-ctl text-dim font-sans text-[11px] font-medium leading-[normal] cursor-pointer whitespace-nowrap [transition:border-color_.15s,color_.15s,background_.15s] hover:text-ink hover:border-line-2 [&.on]:border-accent [&.on]:text-ink [&.on]:bg-accent/10',
           type: 'button',
           title: value ? `${EFFORT_NAMES[value]} effort` : "The model's own default",
           'aria-pressed': String(shown === value),
@@ -292,8 +298,8 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
       );
     mount(
       effortBox,
-      h('div.model-effort-head', icon('gauge', 13), h('span', 'Effort'), h('span.model-effort-note', live ? 'how hard it thinks' : 'for the model you pick here')),
-      h('div.model-effort-levels', { role: 'group', 'aria-label': 'Effort' }, level(''), effortLevels(engine, provider).map(level)),
+      h('div', { class: 'flex items-center gap-1.5 px-1 pb-1.25 font-sans text-[11px] font-semibold leading-[normal] text-dim' }, icon('gauge', 13), h('span', 'Effort'), h('span', { class: 'ml-auto font-normal text-faint' }, live ? 'how hard it thinks' : 'for the model you pick here')),
+      h('div', { class: 'flex gap-0.75', role: 'group', 'aria-label': 'Effort' }, level(''), effortLevels(engine, provider).map(level)),
     );
   };
 
@@ -315,7 +321,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
     } else if (tab === 'openai') {
       const hasKey = !!state.data?.secrets?.openrouterKey?.set;
       if (!hasKey) items.push(missing('Add your OpenRouter key first.', 'OpenRouter key'));
-      const search = h('input.model-search', { placeholder: 'Search 300+ models (gpt, gemini, llama, deepseek…)' });
+      const search = h('input', { class: SEARCH, placeholder: 'Search 300+ models (gpt, gemini, llama, deepseek…)' });
       const list = h('div.model-list');
       let all: ModelListing[] = [];
       const fill = () => {
@@ -360,7 +366,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
       const t = CLI_TABS[engine]!;
       const st: Partial<{ installed: boolean }> = (eng as Partial<Record<string, { installed: boolean }>>)[engine] || {};
       if (eng[engine] && !st.installed) items.push(missing(`${t.name} is not installed on this PC.`, t.find));
-      const search = h('input.model-search', { placeholder: 'Search its models, or type a provider/model id and press Enter' });
+      const search = h('input', { class: SEARCH, placeholder: 'Search its models, or type a provider/model id and press Enter' });
       const list = h('div.model-list', h('div.model-sub', { style: { padding: '4px 10px' } }, 'Looking for models…'));
       let all: ModelListing[] = [];
       const fill = () => {
@@ -388,7 +394,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
     mount(body, items);
   };
 
-  const tabs = h('div.model-tabs');
+  const tabs = h('div', { class: 'grid grid-cols-[repeat(auto-fill,minmax(66px,1fr))] gap-1 pt-1 px-1.5 pb-2' });
   const drawTabs = (): HTMLDivElement => {
     const shown: ModelTab[] = favs().length ? [{ engine: 'fav', label: 'Favorites', brand: null }, ...TABS] : TABS;
     return mount(
@@ -396,8 +402,13 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
       shown.map((t) =>
         h(
           `button.model-tab${tab === t.engine ? '.on' : ''}${cur.engine === t.engine ? '.cur' : ''}`,
-          { type: 'button', title: cur.engine === t.engine ? `${t.label} (in use)` : t.label, onclick: (e) => (e.stopPropagation(), (tab = t.engine), drawTabs(), drawEffort(), drawBody()) },
-          t.engine === 'fav' ? icon('star', 13) : (t.brand && logo(t.brand, 13)) || h('span.model-glyph', t.glyph || '•'),
+          {
+            class: "flex flex-col items-center gap-0.75 py-1.75 px-0.5 border border-line rounded-[8px] text-dim font-sans text-[10.5px] font-medium leading-[normal] cursor-pointer [transition:border-color_.15s,color_.15s,background_.15s] hover:text-ink [&.on]:border-accent [&.on]:text-ink [&.on]:bg-accent/10 [&.cur]:after:content-[''] [&.cur]:after:size-1.25 [&.cur]:after:rounded-full [&.cur]:after:bg-accent",
+            type: 'button',
+            title: cur.engine === t.engine ? `${t.label} (in use)` : t.label,
+            onclick: (e: MouseEvent) => (e.stopPropagation(), (tab = t.engine), drawTabs(), drawEffort(), drawBody()),
+          },
+          t.engine === 'fav' ? icon('star', 13) : (t.brand && logo(t.brand, 13)) || h('span', { class: 'text-[13px] leading-[13px]' }, t.glyph || '•'),
           h('span', t.label),
         ),
       ),

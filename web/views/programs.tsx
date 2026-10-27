@@ -130,8 +130,8 @@ export function ProgramsTab() {
     }).catch(() => {});
   });
 
-  if (failed) return <div className="panel"><p className="red">Something went wrong: {failed}</p></div>;
-  if (!progs) return <p className="dim">Looking around this PC…</p>;
+  if (failed) return <div className="panel"><p className="text-red">Something went wrong: {failed}</p></div>;
+  if (!progs) return <p className="text-dim">Looking around this PC…</p>;
 
   const start = async (p: ProgramInfo) => {
     const r = await attempt(() => POST<{ message: string }>('/programs/launch', { program: p.id }), (x) => x.message);
@@ -140,8 +140,8 @@ export function ProgramsTab() {
   };
   return (
     <>
-      <div className="row between prog-head">
-        <p className="lede">{`Found ${progs.filter((p) => p.installed).length} programs. Agents can use the ones with tools; you can start any of them from here.`}</p>
+      <div className="mb-3.5 flex flex-wrap items-center gap-2.5 justify-between">
+        <p className="lede m-0">{`Found ${progs.filter((p) => p.installed).length} programs. Agents can use the ones with tools; you can start any of them from here.`}</p>
         <button className="btn ghost small" onClick={() => void load(true)}>Scan again</button>
       </div>
       {comfy ? <ComfyPanel comfy={comfy} rescan={() => void load(true)} /> : null}
@@ -149,7 +149,7 @@ export function ProgramsTab() {
         const list = progs.filter((p) => p.category === cat && p.installed);
         if (!list.length) return null;
         return (
-          <div key={cat} className="mt-lg">
+          <div key={cat} className="mt-7">
             <h2 className="section">{label}</h2>
             <div className="cards">
               {list.map((p) => {
@@ -158,7 +158,7 @@ export function ProgramsTab() {
                   <div key={p.id} className="card" data-prog={p.id}>
                     <div className="card-top">
                       <div className="avatar">{p.icon}</div>
-                      <div className="grow">
+                      <div className="min-w-0 flex-1">
                         <div className="card-title">{p.name}</div>
                         <div className="hint prog-state">{progState(p, isStarting)}</div>
                       </div>
@@ -179,13 +179,13 @@ export function ProgramsTab() {
           </div>
         );
       })}
-      <div className="mt-lg">
+      <div className="mt-7">
         <h2 className="section">Not found</h2>
         <p className="hint">
           {progs.filter((p) => !p.installed).map((p) => p.name).join(', ') || 'Everything in the catalog was found.'} Set custom paths in Settings.
         </p>
       </div>
-      <div className="mt-lg">
+      <div className="mt-7">
         <h2 className="section">All apps (Start Menu)</h2>
         <AllApps />
       </div>
@@ -202,14 +202,14 @@ function AllApps() {
   const shown = apps.filter((a) => !ql || a.name.toLowerCase().includes(ql) || a.folder.toLowerCase().includes(ql)).slice(0, 120);
   return (
     <>
-      <div className="prog-search">
+      <div className="mb-3 max-w-[420px]">
         <input placeholder={`Search ${apps.length} apps`} aria-label="Search the Start Menu apps" value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
-      <div className="cards prog-apps">
+      <div className="cards prog-apps grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
         {shown.map((a) => (
-          <div key={a.shortcut || a.name} className="card prog-app">
-            <div className="grow">
-              <div className="prog-app-name">{a.name}</div>
+          <div key={a.shortcut || a.name} className="card flex-row items-center px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <div className="prog-app-name text-[14px] font-semibold">{a.name}</div>
               {a.folder ? <div className="hint">{a.folder}</div> : null}
             </div>
             <button className="btn tiny ghost" onClick={() => void attempt(() => POST<{ message: string }>('/programs/launch', { program: a.name }), (r) => r.message)}>Start</button>
@@ -251,8 +251,8 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
         </div>
       </div>
       {comfy.workflows.length ? (
-        <div className="col">
-          <div className="grid-2">
+        <div className="flex flex-col gap-2.5">
+          <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
             <Field label="Workflow">
               <select value={workflow} onChange={(e) => setWorkflow(e.target.value)}>
                 {comfy.workflows.map((w) => (
@@ -263,11 +263,11 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
             <div />
           </div>
           <textarea rows={2} aria-label="Prompt" placeholder="Prompt (replaces the positive prompt in the workflow)" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-          <div className="row">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button className="btn" disabled={running} onClick={() => void run()}>{running ? 'Running…' : 'Run'}</button>
             <span className="hint">{st.running ? 'Images appear below. Agents with the ComfyUI tools can do the same.' : 'Start ComfyUI first.'}</span>
           </div>
-          <div className="tool-images mt">
+          <div className="tool-images">
             {images.map((url) => (
               <button key={url} type="button" className="img-button" aria-label="Show the image big" onClick={() => lightbox(url)}>
                 <img src={url} alt="" />

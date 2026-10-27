@@ -58,17 +58,17 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
   const after = q.status === 'answered' ? deliveredText(q) : q.note || '';
   return (
     <div className={`${CARD[place]}${waiting ? ' waiting' : ''}`} role="group" aria-label={`Question from ${who}`}>
-      <div className="row">
+      <div className="flex flex-wrap items-center gap-2.5">
         <span className={`pill${tone ? ` ${tone}` : ''}`}>{label}</span>
         {inChat ? <span className="hint">Also in your Outbox</span> : <b>{q.agentName || 'An agent'}</b>}
         {inChat ? null : <span className="hint">{`${q.teamName ? `team ${q.teamName} · ` : ''}${ago(q.createdAt)}`}</span>}
       </div>
-      <p className="question-text">{q.question}</p>
-      {q.detail ? <DomNode className="question-detail hint" make={() => md(q.detail)} deps={[q.detail]} /> : null}
+      <p className="text-[15px] font-semibold whitespace-pre-wrap">{q.question}</p>
+      {q.detail ? <DomNode className="hint [&>:first-child>:first-child]:mt-0 [&>:first-child>:last-child]:mb-0" make={() => md(q.detail)} deps={[q.detail]} /> : null}
       {waiting ? (
         <>
           {q.choices.length ? (
-            <div className="row question-choices">
+            <div className="flex flex-wrap items-center gap-2">
               {q.choices.map((c) => (
                 <button key={c} className="btn small" disabled={busy} title={text.trim() ? 'Send this choice, with what you wrote' : 'Send this answer'} onClick={() => void answer(c)}>
                   {c}
@@ -85,23 +85,23 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && (e.ctrlKey || e.metaKey) && text.trim() && void answer()}
           />
-          <div className="row">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button className="btn ghost small" disabled={busy || !text.trim()} title="Send what you wrote (Ctrl+Enter)" onClick={() => void answer()}>Send answer</button>
-            <span className="grow" />
+            <span className="min-w-0 flex-1" />
             <button className="btn ghost tiny" disabled={busy} title={`Close it without answering: ${who} hears you passed`} onClick={() => void dismiss()}>Dismiss</button>
           </div>
         </>
       ) : (
         <>
           {q.status === 'answered' ? (
-            <p className="mt">
+            <p>
               <span className="hint">You answered: </span>
               {[q.choice, q.reply].filter(Boolean).join(' · ')}
             </p>
           ) : null}
           {after ? <p className="hint">{after}</p> : null}
           {place !== 'outbox' ? null : (
-            <div className="row">
+            <div className="flex flex-wrap items-center gap-2.5">
               <button className="btn tiny ghost" onClick={() => void remove()}>Remove</button>
             </div>
           )}

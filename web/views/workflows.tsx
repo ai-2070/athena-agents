@@ -76,11 +76,11 @@ export function moveStep<T>(steps: readonly T[], i: number, by: -1 | 1): T[] {
 }
 
 function Status({ st }: { st: string }) {
-  if (st === 'done') return <span className="accent" aria-label="done">✓</span>;
-  if (st === 'failed') return <span className="red" aria-label="failed">✕</span>;
+  if (st === 'done') return <span className="text-accent" aria-label="done">✓</span>;
+  if (st === 'failed') return <span className="text-red" aria-label="failed">✕</span>;
   if (st === 'running') return <span className="dot busy" aria-label="running" />;
-  if (st === 'needs-you') return <span className="amber" aria-label="needs you">!</span>;
-  return <span className="faint">·</span>;
+  if (st === 'needs-you') return <span className="text-amber" aria-label="needs you">!</span>;
+  return <span className="text-faint">·</span>;
 }
 
 // ---------- the list ----------
@@ -106,7 +106,7 @@ function WorkflowsList() {
   return (
     <>
       <p className="lede">A workflow is a list of steps that run in order. Each step gets the result of the one before it, so a researcher can hand findings to a writer, then you approve, then it posts.</p>
-      <div className="row between wf-head">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3.5">
         <h2 className="section">Your workflows</h2>
         <button className="btn" onClick={() => void create()}>+ New workflow</button>
       </div>
@@ -126,7 +126,7 @@ function WorkflowsList() {
       ) : (
         <div className="empty box">No workflows yet. Start from a template below.</div>
       )}
-      <h2 className="section mt-lg">Templates</h2>
+      <h2 className="section">Templates</h2>
       <div className="cards">
         {data.templates.map((t) => {
           const missing = t.needs.filter((n) => !d.agents.some((a) => a.name.toLowerCase() === n.toLowerCase()));
@@ -197,16 +197,16 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
 
   return (
     <>
-      <div className="row between wf-edit-head">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 mb-4">
         <a className="btn ghost small" href="#/workflows">← Workflows</a>
-        <div className="row">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button className="btn" disabled={!dirty} onClick={() => void save()}>Save</button>
         </div>
       </div>
-      <div className="two-col">
-        <div className="col gap-lg">
+      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
+        <div className="flex flex-col gap-4.5">
           <div className="panel">
-            <div className="grid-2">
+            <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
               <Field label="Name">
                 <input value={name} onChange={(e) => (setName(e.target.value), setDirty(true))} />
               </Field>
@@ -219,48 +219,48 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
             <div className="panel-head">
               <h2>Steps</h2>
             </div>
-            <ol className="wf-steps">
+            <ol>
               {steps.map((s, i) => (
                 <li key={s.id || i}>
-                  {i ? <div className="step-arrow" aria-hidden="true">↓</div> : null}
-                  <div className="step">
-                    <div className="row between">
-                      <div className="row">
-                        <span className="step-num">{`STEP ${i + 1}`}</span>
+                  {i ? <div className="text-center text-faint text-[14px] leading-none py-1" aria-hidden="true">↓</div> : null}
+                  <div className="step border border-line bg-bg p-3.5 relative">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span className="font-mono text-[11px] leading-[normal] font-bold text-accent tracking-[0.14em]">{`STEP ${i + 1}`}</span>
                         <select aria-label={`Step ${i + 1}: what it does`} value={s.type} onChange={(e) => setStep(i, { type: e.target.value })}>
                           {STEP_TYPES.map((t) => (
                             <option key={t.value} value={t.value}>{t.label}</option>
                           ))}
                         </select>
-                        <input className="wf-label" aria-label={`Step ${i + 1}: label`} value={s.label || ''} placeholder="Label (optional)" onChange={(e) => setStep(i, { label: e.target.value })} />
+                        <input className="wf-label w-55" aria-label={`Step ${i + 1}: label`} value={s.label || ''} placeholder="Label (optional)" onChange={(e) => setStep(i, { label: e.target.value })} />
                       </div>
-                      <div className="row wf-step-buttons">
+                      <div className="flex flex-wrap items-center gap-1">
                         <button className="icon-btn" title="Move up" aria-label={`Move step ${i + 1} up`} disabled={i === 0} onClick={() => change(moveStep(steps, i, -1))}>↑</button>
                         <button className="icon-btn" title="Move down" aria-label={`Move step ${i + 1} down`} disabled={i === steps.length - 1} onClick={() => change(moveStep(steps, i, 1))}>↓</button>
                         <button className="icon-btn" title="Remove" aria-label={`Remove step ${i + 1}`} onClick={() => change(steps.filter((_, j) => j !== i))}>✕</button>
                       </div>
                     </div>
-                    <div className="col mt">
+                    <div className="flex flex-col gap-2.5 mt-3.5">
                       <StepFields s={s} set={(patch) => setStep(i, patch)} tools={tools} d={d} />
                     </div>
                   </div>
                 </li>
               ))}
             </ol>
-            <div className="row mt">
+            <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
               {STEP_TYPES.map((t) => (
                 <button key={t.value} className="btn ghost small" onClick={() => change([...steps, { id: Math.random().toString(36).slice(2), type: t.value, prompt: '{{prev}}' }])}>{`+ ${t.label}`}</button>
               ))}
             </div>
           </div>
         </div>
-        <div className="col gap-lg">
+        <div className="flex flex-col gap-4.5">
           <div className="panel">
             <div className="panel-head">
               <h2>Run it</h2>
             </div>
             <textarea rows={2} aria-label="Input for this run" placeholder="Input for this run ({{input}})" value={input} onChange={(e) => setInput(e.target.value)} />
-            <div className="row mt">
+            <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
               <button className="btn" onClick={() => void run()}>Run now</button>
             </div>
           </div>
@@ -276,7 +276,7 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
             </div>
             <Runs id={id} version={runsVersion} />
           </div>
-          <div className="row">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button className="btn danger small" onClick={() => void del()}>Delete workflow</button>
           </div>
         </div>
@@ -364,11 +364,11 @@ function Runs({ id, version }: { id: string; version: number }) {
   if (!runs) return null;
   if (!runs.length) return <p className="empty">No runs yet.</p>;
   return (
-    <div className="col">
+    <div className="flex flex-col gap-2.5">
       {runs.slice(0, 15).map((r, i) => (
         <details key={r.id} open={i === 0}>
-          <summary className="wf-run-head">
-            <span className="row wf-run-sum">
+          <summary className="cursor-pointer py-1.5">
+            <span className="inline-flex flex-wrap items-center gap-2.5">
               <Status st={r.status} />
               <b>{r.status}</b>
               <span className="hint">{`${ago(r.createdAt)} · ${r.trigger}`}</span>
@@ -379,7 +379,7 @@ function Runs({ id, version }: { id: string; version: number }) {
           </summary>
           {r.input ? <div className="hint">{`Input: ${r.input}`}</div> : null}
           {r.steps.map((s, j) => (
-            <div key={s.id || j} className="run-step">
+            <div key={s.id || j} className="grid grid-cols-[22px_1fr] gap-2.5 py-2 border-b border-line last:border-b-0 [&_pre]:max-h-50">
               <Status st={s.status} />
               <div>
                 <div>
@@ -399,7 +399,7 @@ function Runs({ id, version }: { id: string; version: number }) {
               </div>
             </div>
           ))}
-          {r.error ? <p className="red">{r.error}</p> : null}
+          {r.error ? <p className="text-red">{r.error}</p> : null}
         </details>
       ))}
     </div>

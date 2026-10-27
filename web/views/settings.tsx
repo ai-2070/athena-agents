@@ -72,13 +72,13 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
   const setC = (k: 'auto' | 'engineOwn' | 'instant', on: boolean) => (setCompaction({ ...compaction, [k]: on }), setP(`compaction.${k}`, on));
 
   return (
-    <div className="two-col">
-      <div className="col gap-lg">
+    <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
+      <div className="flex flex-col gap-4.5">
         <div className="panel">
           <div className="panel-head">
             <h2>AI keys</h2>
           </div>
-          <div className="col gap-lg">
+          <div className="flex flex-col gap-4.5">
             <Engines data={data} reload={reload} />
             <SecretField k="openrouterKey" secrets={secrets} reload={reload} label="OpenRouter key" placeholder="sk-or-…" hint={<span>One key for hundreds of models (Claude, GPT, Gemini, Llama, DeepSeek…). Get it at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Also usable by Claude Code agents.</span>} />
             <SecretField k="anthropicKey" secrets={secrets} reload={reload} label="Anthropic API key (optional)" placeholder="sk-ant-…" hint={'For Claude Code agents set to "Anthropic API key" instead of your subscription.'} />
@@ -90,12 +90,12 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
             <h2>The Brain's model</h2>
           </div>
           <p className="hint">The Brain oversees the project: it answers about the project and its files, builds teams and agents, writes PROJECT.md and hands work out. It can run on Claude Code, OpenRouter, Hermes or Codex. Claude Code and Codex can also open files in the project folder.</p>
-          <div className="row mt">
+          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
             <Field label="Model" group="brain-model-label">
               <DomNode make={() => brainModelChip({ prefix: '', onChange: (b) => (s.brain = b) })} deps={[]} />
             </Field>
           </div>
-          <div className="row mt">
+          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
             <DomNode make={() => memoryButton(BRAIN, 'The Brain')} deps={[]} />
             <span className="hint">What the Brain remembers across its conversations in this project. Read or change it any time.</span>
           </div>
@@ -117,11 +117,11 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
           <div className="panel-head">
             <h2>Defaults for new agents</h2>
           </div>
-          <div className="col">
+          <div className="flex flex-col gap-2.5">
             <Field label="Brain" group="default-engine-label">
               <Segmented label="Brain" options={data.engineList.map((e) => ({ value: e.id, label: e.label }))} value={engine} onChange={(v) => (setEngine(v), setP('defaults.engine', v))} />
             </Field>
-            <div className="grid-2">
+            <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
               <Field label="Claude Code model">
                 <input defaultValue={s.defaults.claudeModel} onChange={(e) => setP('defaults.claudeModel', e.target.value)} />
               </Field>
@@ -148,7 +148,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
           <div className="panel-head">
             <h2>Limits</h2>
           </div>
-          <div className="grid-2">
+          <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
             <Field label="Max tool steps per message" hint="API-model agents stop after this many tool rounds.">
               <input type="number" min={1} max={100} defaultValue={s.maxToolSteps} onChange={(e) => setP('maxToolSteps', Number(e.target.value))} />
             </Field>
@@ -164,12 +164,12 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
             <h2>Chat memory</h2>
           </div>
           <p className="hint">Long chats fill up the model’s memory. Compacting turns the older messages into a short history the agent keeps reading, and keeps the latest messages in full. Every message stays in the chat for you, marked “COMPACTED” where it happened; open the mark to read or edit what the agent remembers. You can also press Compact in a chat, or type /compact.</p>
-          <Switch className="mt" checked={compaction.auto} onChange={(on) => setC('auto', on)}>Compact long chats automatically</Switch>
-          <Switch className="mt" checked={compaction.engineOwn !== false} onChange={(on) => setC('engineOwn', on)}>Let Claude Code, Codex, Hermes, pi, oh-my-pi and OpenClaw compact on their own</Switch>
+          <Switch className="mt-3.5" checked={compaction.auto} onChange={(on) => setC('auto', on)}>Compact long chats automatically</Switch>
+          <Switch className="mt-3.5" checked={compaction.engineOwn !== false} onChange={(on) => setC('engineOwn', on)}>Let Claude Code, Codex, Hermes, pi, oh-my-pi and OpenClaw compact on their own</Switch>
           <p className="hint">They compact their own sessions when nearly full, keeping their prompt cache and what they know about their tools. The dashboard then compacts their chats only when you ask (Compact, /compact), or when one says the chat is too long. Off: the dashboard compacts them too, at the share below, and starts a new session from its compacted history. API-model agents are always compacted here.</p>
-          <Switch className="mt" checked={compaction.instant} onChange={(on) => setC('instant', on)}>Instant compaction</Switch>
+          <Switch className="mt-3.5" checked={compaction.instant} onChange={(on) => setC('instant', on)}>Instant compaction</Switch>
           <p className="hint">Instant keeps the original words, cut to fit: long messages are shortened, tool calls become one line and their results are left out (the agent can read any of them back). No model call, so it takes no time and costs nothing. Off: the Brain’s model writes a summary instead (slower, smaller).</p>
-          <div className="grid-2 mt">
+          <div className="mt-3.5 grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
             <Field label="Messages kept in full" hint="Up to this many of the latest messages (yours and the agent’s, with their tool calls) stay word for word, as far as the size budget allows. The rest is compacted.">
               <input type="number" min={0} max={1000} defaultValue={s.compaction.keepMessages} onChange={(e) => setP('compaction.keepMessages', Number(e.target.value))} />
             </Field>
@@ -177,23 +177,23 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
               <input type="number" min={10} max={95} defaultValue={s.compaction.thresholdPercent} onChange={(e) => setP('compaction.thresholdPercent', Number(e.target.value))} />
             </Field>
           </div>
-          <div className="mt">
+          <div className="mt-3.5">
             <Field label="Context window (tokens)" hint="Leave empty to use what each engine or model says (Claude Code 200k, or 1M for a “[1m]” model). Set 1000000 if your models have a 1M-token window: everything the compaction keeps grows with the window.">
               <input type="number" min={0} step={1000} defaultValue={s.compaction.windowTokens || ''} placeholder="auto" onChange={(e) => setP('compaction.windowTokens', Number(e.target.value) || 0)} />
             </Field>
           </div>
         </div>
-        <div className="row">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button className="btn" onClick={() => void save()}>Save settings</button>
         </div>
       </div>
 
-      <div className="col gap-lg">
+      <div className="flex flex-col gap-4.5">
         <div className="panel">
           <div className="panel-head">
             <h2>Local and custom models</h2>
           </div>
-          <div className="col">
+          <div className="flex flex-col gap-2.5">
             <Field label="LM Studio server" hint="In LM Studio: Developer > Start server.">
               <input className="code" defaultValue={s.providers.lmstudio.baseUrl} onChange={(e) => setP('providers.lmstudio.baseUrl', e.target.value)} />
             </Field>
@@ -210,7 +210,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
           <div className="panel-head">
             <h2>Programs</h2>
           </div>
-          <div className="col">
+          <div className="flex flex-col gap-2.5">
             <Field label="ComfyUI address">
               <input className="code" defaultValue={s.comfyui.url} placeholder="auto (tries :8188 and :8000)" onChange={(e) => setP('comfyui.url', e.target.value.trim())} />
             </Field>
@@ -239,13 +239,13 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
           </div>
           <div className="kv">
             <span>Address</span>
-            <span className="mono">{`http://localhost:${data.port}`}</span>
+            <span className="font-mono">{`http://localhost:${data.port}`}</span>
             <span>Login</span>
             <span>None. Only this PC can open it (it listens on 127.0.0.1).</span>
             <span>Data</span>
-            <span className="mono wrap-anywhere">{data.dataDir}</span>
+            <span className="font-mono wrap-anywhere">{data.dataDir}</span>
           </div>
-          <p className="hint mt">Keys and account tokens are stored in that data folder on this PC and never sent to the browser.</p>
+          <p className="hint mt-3.5">Keys and account tokens are stored in that data folder on this PC and never sent to the browser.</p>
         </div>
       </div>
     </div>
@@ -262,7 +262,7 @@ function SavedSwitch({ field, initial, on, off, reload, children }: { field: key
     else await reload();
   };
   return (
-    <Switch className="mt" checked={value} onChange={(v) => void change(v)}>
+    <Switch className="mt-3.5" checked={value} onChange={(v) => void change(v)}>
       {children}
     </Switch>
   );
@@ -290,7 +290,8 @@ function SecretField({ k, secrets, reload, label, placeholder, hint }: { k: Secr
       <Field label={label} hint={hint}>
         <input type="password" autoComplete="off" value={value} placeholder={saved.set ? `saved (${saved.hint}) · type to replace` : placeholder} onChange={(e) => setValue(e.target.value)} />
       </Field>
-      <div className="row mt">
+      {/* row: the mark tests find the Save button by */}
+      <div className="row mt-3.5 flex flex-wrap items-center gap-2.5">
         <button className="btn small" onClick={() => void store()}>Save</button>
         {saved.set ? <button className="btn ghost small" onClick={() => void remove()}>Remove</button> : null}
         {k === 'openrouterKey' && saved.set ? <button className="btn ghost small" onClick={() => void test()}>Test</button> : null}

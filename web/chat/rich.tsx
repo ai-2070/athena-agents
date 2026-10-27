@@ -20,24 +20,24 @@ function linkStyles(): void {
 
 // The dashboard's look, as OpenUI theme tokens (its colors come from the page's own variables).
 const dark = createTheme({
-  background: 'var(--bg)',
-  foreground: 'var(--panel)',
-  popoverBackground: 'var(--panel-2)',
-  textNeutralPrimary: 'var(--ink)',
-  textNeutralSecondary: 'var(--dim)',
-  textNeutralTertiary: 'var(--faint)',
-  textAccentPrimary: 'var(--accent)',
-  textNeutralLink: 'var(--accent)',
-  interactiveAccentDefault: 'var(--accent)',
-  interactiveAccentHover: 'var(--accent-hover)',
-  interactiveAccentPressed: 'var(--accent-dim)',
-  borderDefault: 'var(--line)',
-  borderInteractive: 'var(--line-2)',
-  borderAccent: 'var(--accent)',
+  background: 'var(--color-bg)',
+  foreground: 'var(--color-panel)',
+  popoverBackground: 'var(--color-panel-2)',
+  textNeutralPrimary: 'var(--color-ink)',
+  textNeutralSecondary: 'var(--color-dim)',
+  textNeutralTertiary: 'var(--color-faint)',
+  textAccentPrimary: 'var(--color-accent)',
+  textNeutralLink: 'var(--color-accent)',
+  interactiveAccentDefault: 'var(--color-accent)',
+  interactiveAccentHover: 'var(--color-accent-hover)',
+  interactiveAccentPressed: 'var(--color-accent-dim)',
+  borderDefault: 'var(--color-line)',
+  borderInteractive: 'var(--color-line-2)',
+  borderAccent: 'var(--color-accent)',
   fontBody: 'inherit',
   fontHeading: 'inherit',
   fontLabel: 'inherit',
-  fontCode: 'var(--mono)',
+  fontCode: 'var(--font-mono)',
 });
 
 /** What an action on a rich answer sends back to the agent (as your next message). */
@@ -63,7 +63,7 @@ export default function RichAnswer({ code, streaming, onSend }: { code: string; 
   );
   return (
     <ThemeProvider mode="dark" darkTheme={dark} cssSelector=".oc-rich">
-      <div className="oc-rich">
+      <div className="oc-rich text-[14px]">
         <Renderer response={code} library={openuiChatLibrary} isStreaming={streaming} onAction={onAction} />
       </div>
     </ThemeProvider>

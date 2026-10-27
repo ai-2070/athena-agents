@@ -5,6 +5,9 @@ import { icon } from './icons.ts';
 import { historyButton } from './history.ts';
 import type { MemoryInfo } from '../shared/types.ts';
 
+// an amber note above the editor (the same as the backup warnings in backup.ts)
+const WARN = 'm-0 flex items-start gap-1.5 rounded-[8px] border border-[color-mix(in_srgb,var(--color-amber)_30%,var(--color-line))] bg-amber/10 px-2.5 py-2 text-[13px] text-amber';
+
 /** The Brain's memory goes by this owner (an agent's by its id). */
 export const BRAIN = 'brain';
 
@@ -28,7 +31,8 @@ export function memoryEditor(owner: string, { rows = 12 }: { rows?: number } = {
   let gone = false;
   const project = state.data?.project?.id ?? null;
 
-  const area = h('textarea.code.memory-text', {
+  const area = h('textarea.code', {
+    class: 'min-h-40 w-full resize-y leading-[1.55]',
     rows,
     spellcheck: false,
     placeholder: brain
@@ -42,8 +46,8 @@ export function memoryEditor(owner: string, { rows = 12 }: { rows?: number } = {
       }
     },
   });
-  const status = h('div.hint.memory-status');
-  const note = h('div.memory-note');
+  const status = h('div.hint.memory-status', { class: '[&.warn]:text-amber' });
+  const note = h('div', { class: 'empty:hidden' });
   const saveBtn = h('button.btn.small', { type: 'button', onclick: () => save() }, 'Save');
   const undoBtn = h('button.btn.ghost.small', { type: 'button', onclick: () => ((area.value = base), draw()) }, 'Undo changes');
   const dirty = () => !!loaded && area.value !== base;
@@ -62,9 +66,9 @@ export function memoryEditor(owner: string, { rows = 12 }: { rows?: number } = {
     mount(
       note,
       gone
-        ? h('p.backup-warn', icon('triangle-alert', 14), ' You opened another project. This MEMORY.md belongs to the one before, so it can’t be saved here.')
+        ? h('p', { class: WARN }, icon('triangle-alert', 14, 'mt-0.5 flex-none'), ' You opened another project. This MEMORY.md belongs to the one before, so it can’t be saved here.')
         : changedElsewhere
-          ? h('p.backup-warn', icon('triangle-alert', 14), ` ${brain ? 'The Brain' : 'The agent'} changed it while you were editing. Save keeps your text; `, h('button.btn.tiny.ghost', { type: 'button', onclick: () => load(true) }, 'Show its version'), ' drops your changes.')
+          ? h('p', { class: WARN }, icon('triangle-alert', 14, 'mt-0.5 flex-none'), ` ${brain ? 'The Brain' : 'The agent'} changed it while you were editing. Save keeps your text; `, h('button.btn.tiny.ghost', { type: 'button', onclick: () => load(true) }, 'Show its version'), ' drops your changes.')
           : null,
     );
   };
@@ -106,7 +110,8 @@ export function memoryEditor(owner: string, { rows = 12 }: { rows?: number } = {
   };
 
   const el = h(
-    'div.col.memory-editor',
+    'div',
+    { class: 'flex flex-col gap-2.5' },
     h(
       'p.hint',
       brain
@@ -115,7 +120,7 @@ export function memoryEditor(owner: string, { rows = 12 }: { rows?: number } = {
     ),
     note,
     area,
-    h('div.row.between', status, h('div.row', { style: { gap: '6px' } }, historyButton('memory', owner, () => load(true)), undoBtn, saveBtn)),
+    h('div', { class: 'flex flex-wrap items-center justify-between gap-2.5' }, status, h('div', { class: 'flex flex-wrap items-center gap-1.5' }, historyButton('memory', owner, () => load(true)), undoBtn, saveBtn)),
   );
 
   // live: the agent (or the Brain) wrote to it, or another tab did
@@ -148,7 +153,7 @@ export function openMemory(owner: string, name = owner === BRAIN ? 'The Brain' :
     m.close();
   };
   m = modal({ title: h('span', icon('file-text', 16), ` ${name} · MEMORY.md`), body: ed.el, foot: [h('button.btn.ghost', { onclick: close }, 'Close')] });
-  m.el.classList.add('memory-win');
+  m.el.classList.add('[&_.modal]:w-[min(760px,100%)]');
   setTimeout(() => ed.el.querySelector('textarea')?.focus(), 30);
 }
 

@@ -16,6 +16,20 @@ import type { CompactionItem } from '../../shared/types.ts';
 
 const RichAnswer = lazy(() => import('./rich.tsx'));
 
+// A message's look in the floating window (compact) and the Station panel / team turns (mini); the chat
+// page's messages are the shared msg pieces. A message drawn again (scrolled back to) doesn't rise in again.
+const AC = 'max-w-[88%] rounded-[12px] px-3 py-2.25 text-[14px] leading-[1.5] animate-[rise-in_0.2s_ease-out] in-[.again]:animate-none';
+const AC_AGENT = `${AC} self-start border border-line bg-panel`;
+const AC_USER = `${AC} self-end border border-[color-mix(in_srgb,var(--color-accent)_25%,var(--color-line))] bg-[color-mix(in_srgb,var(--color-accent)_14%,var(--color-panel-2))] whitespace-pre-wrap`;
+const AC_ERR = `${AC} self-stretch border border-[color-mix(in_srgb,var(--color-red)_40%,var(--color-line))] text-red`;
+// (Markdown: no space above the first block or below the last)
+const AC_TEXT = '[&>:first-child]:mt-0 [&>:last-child]:mb-0';
+const ST = 'st-msg text-[13.5px] leading-[1.5] wrap-anywhere';
+const ST_ASSISTANT = `${ST} assistant [&_p]:mb-1.5 [&_pre]:max-h-45`;
+const ST_USER = `${ST} user self-end max-w-[90%] border border-line-2 bg-panel-2 px-2.5 py-1.5 whitespace-pre-wrap`;
+const ST_ERR = `${ST} text-red`;
+const ST_CMP = 'st-msg cmp self-stretch border-t border-dashed border-accent/35 pt-1 text-center font-mono text-[10.5px] leading-[normal] tracking-[0.08em] text-accent-dim wrap-anywhere';
+
 export type Variant = 'full' | 'compact' | 'mini';
 
 /** A piece of the page built with plain DOM (approval cards, the COMPACTED mark, file previews…). */
@@ -35,7 +49,7 @@ export const Dom = memo(
 export const Markdown = memo(function Markdown({ text, className }: { text: string; className: string }) {
   // (md() is marked + DOMPurify, as everywhere in the dashboard)
   const html = useMemo(() => md(text).innerHTML, [text]);
-  return <div className={className} dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div className={`md ${className}`} dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
 export function Previews({ paths, small }: { paths: readonly string[]; small?: boolean }) {
@@ -81,7 +95,7 @@ export function ToolCard({ part, variant, busy }: { part: DynamicToolUIPart; var
   const out = part.state === 'output-available' ? readOutput(part.output) : null;
   const images = out?.images || [];
   const running = !done && busy;
-  const mark = running ? <span className="dot busy" /> : failed ? <span className="red">✕</span> : done ? <span className="accent">✓</span> : <span className="faint">·</span>;
+  const mark = running ? <span className="dot busy" /> : failed ? <span className="text-red">✕</span> : done ? <span className="text-accent">✓</span> : <span className="text-faint">·</span>;
   let input = '';
   try {
     input = typeof part.input === 'string' ? part.input : JSON.stringify(part.input ?? {}, null, 2);
@@ -93,7 +107,7 @@ export function ToolCard({ part, variant, busy }: { part: DynamicToolUIPart; var
   const asked = useAppState()?.questions;
   const question = part.toolName === 'ask_user' && !done ? questionFor(asked, part.input) : null;
   return (
-    <div className={`col oc-tool${small ? ' small' : ''}`} style={{ gap: '6px' }}>
+    <div className={small ? 'flex flex-col gap-1' : 'flex flex-col gap-1.5'}>
       {question ? <QuestionCard q={question} place="chat" /> : null}
       <details
         className={`tool${failed ? ' error' : ''}${small ? ' small' : ''}`}
@@ -124,7 +138,7 @@ export function ToolCard({ part, variant, busy }: { part: DynamicToolUIPart; var
         </div>
       </details>
       {images.length ? (
-        <div className={small ? 'st-imgs' : 'tool-images'}>
+        <div className={small ? 'flex w-full gap-1 [&_img]:size-20 [&_img]:border [&_img]:border-line-2 [&_img]:object-cover' : 'tool-images'}>
           {images.slice(0, small ? 6 : 24).map((src, i) => (
             <ZoomImg key={src} src={src} label={`${part.toolName} image ${i + 1}`} />
           ))}
@@ -142,17 +156,17 @@ function TextPart({ text, variant, streaming, dim, onSend }: { text: string; var
   return (
     <>
       {rich ? (
-        <div className={`${variant === 'compact' ? 'ac-msg agent' : variant === 'mini' ? 'st-msg assistant' : 'msg assistant'} rich${cls}`}>
+        <div className={`${variant === 'compact' ? AC_AGENT : variant === 'mini' ? ST_ASSISTANT : 'msg assistant'} rich${cls}`}>
           <Suspense fallback={<pre className="hint">{text}</pre>}>
             <RichAnswer code={text} streaming={streaming} onSend={onSend} />
           </Suspense>
         </div>
       ) : variant === 'compact' ? (
-        <div className={`ac-msg agent${cls}`}>
-          <Markdown text={text} className="ac-text" />
+        <div className={`${AC_AGENT}${cls}`}>
+          <Markdown text={text} className={AC_TEXT} />
         </div>
       ) : variant === 'mini' ? (
-        <Markdown text={text.length > 4000 ? `${text.slice(0, 4000)}…` : text} className={`st-msg assistant${cls}`} />
+        <Markdown text={text.length > 4000 ? `${text.slice(0, 4000)}…` : text} className={`${ST_ASSISTANT}${cls}`} />
       ) : (
         <Markdown text={text} className={`msg assistant${streaming ? ' cursor' : ''}${cls}`} />
       )}
@@ -182,12 +196,12 @@ export function MessageView({ m, variant, busy, streaming, dim, onSend, chatPath
   if (m.role === 'user') {
     const { text, attachments } = readUser(m);
     const paths = [...attachments, ...findFileMentions(text)];
-    const cls = variant === 'compact' ? 'ac-msg user' : variant === 'mini' ? 'st-msg user' : 'msg user';
+    const cls = variant === 'compact' ? AC_USER : variant === 'mini' ? ST_USER : 'msg user';
     return (
       <>
         <div className={`${cls}${dim ? ' compacted' : ''}`}>
           {m.metadata?.from && variant === 'full' ? <div className="from">from {m.metadata.from}</div> : null}
-          {text ? variant === 'compact' ? <div className="ac-text">{text}</div> : text : null}
+          {text ? variant === 'compact' ? <div>{text}</div> : text : null}
         </div>
         {paths.length ? <Previews paths={paths} small={variant !== 'full'} /> : null}
       </>
@@ -202,10 +216,10 @@ export function MessageView({ m, variant, busy, streaming, dim, onSend, chatPath
         if (p.type === 'dynamic-tool') return <ToolCard key={key} part={p} variant={variant} busy={busy} />;
         if (p.type === 'data-compaction') {
           const it = p.data as CompactionItem;
-          if (variant === 'mini') return <div key={key} className="st-msg cmp" title="The agent’s memory of the messages above was compacted. Open the full chat to see or edit it.">— COMPACTED —</div>;
+          if (variant === 'mini') return <div key={key} className={ST_CMP} title="The agent’s memory of the messages above was compacted. Open the full chat to see or edit it.">— COMPACTED —</div>;
           return <Dom key={key} make={() => compactionMark(it, { chatPath, latest: latestCompaction === it.id, busy, compact: variant === 'compact', onSaved: onCompactionSaved })} deps={[it.id, it.text, latestCompaction, busy, chatPath]} />;
         }
-        if (p.type === 'data-error') return <div key={key} className={variant === 'full' ? 'msg error' : variant === 'compact' ? 'ac-msg err' : 'st-msg err'}>{(p.data as { text: string }).text}</div>;
+        if (p.type === 'data-error') return <div key={key} className={variant === 'full' ? 'msg error' : variant === 'compact' ? AC_ERR : ST_ERR}>{(p.data as { text: string }).text}</div>;
         if (p.type === 'data-meta') return variant === 'full' ? <div key={key} className="msg meta">{(p.data as { text: string }).text}</div> : null;
         return null;
       })}

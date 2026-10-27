@@ -40,13 +40,13 @@ function ArtifactsPage() {
   };
   return (
     <>
-      <div className="row art-search">
-        <div className="grow">
-          <input type="search" placeholder="Search by name, note, team, who made it, file name…" aria-label="Search artifacts" value={query} onChange={(e) => setQuery((lastQuery = e.target.value))} />
+      <div className="art-search flex flex-wrap items-center gap-3 mb-3.5">
+        <div className="flex-1 min-w-0">
+          <input type="search" className="w-full" placeholder="Search by name, note, team, who made it, file name…" aria-label="Search artifacts" value={query} onChange={(e) => setQuery((lastQuery = e.target.value))} />
         </div>
         <span className="hint">{query.trim() ? `${list.length} of ${total}` : total ? `${total}` : ''}</span>
       </div>
-      <div className="col">
+      <div className="flex flex-col gap-2.5">
         {all === null ? null : list.length ? (
           list.map((a) => <ArtifactCard key={a.id} a={a} onRemove={() => void remove(a)} />)
         ) : (
@@ -62,29 +62,29 @@ function ArtifactCard({ a, onRemove }: { a: Artifact; onRemove: () => void }) {
   const who = [a.agentName ? `by ${a.agentName}` : '', a.teamName ? `team ${a.teamName}` : ''].filter(Boolean).join(' · ');
   return (
     <div className="panel">
-      <div className="row">
+      <div className="flex flex-wrap items-center gap-2.5">
         <Icon name={kindIcon} />
         <b>{a.title}</b>
         <span className="pill">{a.kind}</span>
-        <span className="grow" />
+        <span className="flex-1 min-w-0" />
         <span className="hint" title={when(a.createdAt)}>{`done ${when(a.createdAt)}`}</span>
       </div>
-      {who ? <div className="hint mt">{who}</div> : null}
-      {a.note ? <p className="hint mt">{a.note}</p> : null}
-      {a.path ? <div className="hint mono mt art-path">{a.path}</div> : null}
+      {who ? <div className="hint mt-3.5">{who}</div> : null}
+      {a.note ? <p className="hint mt-3.5">{a.note}</p> : null}
+      {a.path ? <div className="hint font-mono mt-3.5 break-all">{a.path}</div> : null}
       {/* the same preview the chats show: image, video, audio, a 3D model you can turn, or a card for other files and folders */}
-      {a.path ? <DomNode className="mt" make={() => filePreviews([a.path!])} deps={[a.path]} /> : null}
+      {a.path ? <DomNode className="mt-3.5" make={() => filePreviews([a.path!])} deps={[a.path]} /> : null}
       {a.kind === 'text' && a.text ? (
-        <details className="mt">
+        <details className="mt-3.5">
           <summary>Show the result</summary>
           <DomNode make={() => md(a.text!)} deps={[a.text]} />
         </details>
       ) : null}
-      <div className="row mt">
+      <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
         {a.kind === 'file' && a.path ? <a className="btn ghost small" href={fileUrl(a.path)} target="_blank" rel="noopener">Open</a> : null}
         {a.path ? <button className="btn ghost small" onClick={() => copy(a.path!)}>Copy path</button> : null}
         {a.text ? <button className="btn ghost small" onClick={() => copy(a.text!)}>Copy text</button> : null}
-        <span className="grow" />
+        <span className="flex-1 min-w-0" />
         <button className="btn danger small" onClick={onRemove}>Remove</button>
       </div>
     </div>

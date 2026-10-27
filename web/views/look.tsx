@@ -12,6 +12,8 @@ import type { LookSetting } from '../../shared/types.ts';
 
 const SCALES = [80, 90, 100, 110, 125, 150];
 const SAVE_AFTER = 350;
+// an accent colour to pick, in its own colour (--sw); on: the picked one
+const SWATCH = 'flex cursor-pointer items-center gap-2.25 rounded-box border border-line bg-none px-3 py-2.5 text-ink transition-[border-color,background] duration-150 ease-[ease] hover:border-(--sw) [&.on]:border-(--sw) [&.on]:bg-[color-mix(in_srgb,var(--sw)_12%,transparent)]';
 
 export function LookTab() {
   const [look, setLook] = useState<LookSetting>(() => ({ ...DEFAULT_LOOK, ...(state.data?.settings?.look || {}) }));
@@ -44,17 +46,17 @@ export function LookTab() {
   const scale = dragging ?? look.scale;
 
   return (
-    <div className="two-col">
-      <div className="col">
+    <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
+      <div className="flex flex-col gap-2.5">
         <div className="panel">
           <div className="panel-head">
             <h2>UI scale</h2>
           </div>
           <p className="hint">Makes everything bigger or smaller: text, buttons, panels and the Station. Your browser zoom (Ctrl + / Ctrl −) still works on top of this.</p>
-          <div className="look-scale mt">
+          <div className="mt-3.5 flex items-center gap-3">
             <span className="hint" aria-hidden="true">A</span>
             <Slider.Root
-              className="look-slider"
+              className="flex-1"
               min={70}
               max={160}
               step={5}
@@ -67,17 +69,17 @@ export function LookTab() {
               }}
               onValueCommitted={(v) => set({ scale: Array.isArray(v) ? v[0] : v })}
             >
-              <Slider.Control className="look-control">
-                <Slider.Track className="look-track">
-                  <Slider.Indicator className="look-fill" />
-                  <Slider.Thumb className="look-thumb" aria-label="UI scale" />
+              <Slider.Control className="flex h-5.5 cursor-pointer touch-none items-center">
+                <Slider.Track className="relative h-1 flex-1 rounded-[2px] bg-line-2">
+                  <Slider.Indicator className="rounded-[2px] bg-accent" />
+                  <Slider.Thumb className="size-4 rounded-full bg-accent shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_25%,transparent)] has-focus-visible:outline has-focus-visible:outline-offset-3 has-focus-visible:outline-accent" aria-label="UI scale" />
                 </Slider.Track>
               </Slider.Control>
             </Slider.Root>
-            <span className="look-big" aria-hidden="true">A</span>
-            <b className="look-pct">{`${scale}%`}</b>
+            <span className="text-[20px] text-dim" aria-hidden="true">A</span>
+            <b className="look-pct min-w-13 text-right font-mono text-[15px] leading-[normal] font-semibold text-accent">{`${scale}%`}</b>
           </div>
-          <div className="row mt look-presets">
+          <div className="look-presets mt-3.5 flex flex-wrap items-center gap-1.5">
             {SCALES.map((v) => (
               <button key={v} className={`btn tiny${look.scale === v ? '' : ' ghost'}`} aria-pressed={look.scale === v} onClick={() => set({ scale: v })}>
                 {v === 100 ? '100% (default)' : `${v}%`}
@@ -90,7 +92,7 @@ export function LookTab() {
             <h2>Animations</h2>
           </div>
           <p className="hint">Panels sliding in, glows and pulses. Reduced keeps the Station moving but turns off most interface motion.</p>
-          <div className="mt field">
+          <div className="field mt-3.5">
             <span id="look-motion">Motion</span>
             <Segmented
               label="Motion"
@@ -104,24 +106,24 @@ export function LookTab() {
           </div>
         </div>
       </div>
-      <div className="col">
+      <div className="flex flex-col gap-2.5">
         <div className="panel">
           <div className="panel-head">
             <h2 id="look-accent">Accent colour</h2>
           </div>
           <p className="hint">The highlight colour for buttons, active tabs, the status dots and focus rings.</p>
-          <RadioGroup className="look-swatches mt" aria-labelledby="look-accent" value={look.accent} onValueChange={(v) => set({ accent: v as LookSetting['accent'] })}>
+          <RadioGroup className="mt-3.5 grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2" aria-labelledby="look-accent" value={look.accent} onValueChange={(v) => set({ accent: v as LookSetting['accent'] })}>
             {ACCENTS.map((a) => (
               <Radio.Root
                 key={a.id}
                 value={a.id}
                 nativeButton
                 render={<button type="button" />}
-                className={(s) => `look-swatch${s.checked ? ' on' : ''}`}
+                className={(s) => (s.checked ? `${SWATCH} on` : SWATCH)}
                 style={{ '--sw': a.c } as CSSProperties}
                 title={a.label}
               >
-                <span className="look-dot" aria-hidden="true" />
+                <span className="size-4 rounded-full bg-(--sw) shadow-[0_0_10px_var(--sw)]" aria-hidden="true" />
                 <span>{a.label}</span>
               </Radio.Root>
             ))}
@@ -131,7 +133,7 @@ export function LookTab() {
           <div className="panel-head">
             <h2>Preview</h2>
           </div>
-          <div className="row look-preview">
+          <div className="flex flex-wrap items-center gap-2">
             <button className="btn small">Button</button>
             <button className="btn ghost small">Ghost</button>
             <span className="pill ok">ready</span>
@@ -139,7 +141,7 @@ export function LookTab() {
               <span className="dot on" /> running
             </span>
           </div>
-          <div className="row mt">
+          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
             <button className="btn ghost small" onClick={() => set({ ...DEFAULT_LOOK })}>Reset to default</button>
           </div>
         </div>

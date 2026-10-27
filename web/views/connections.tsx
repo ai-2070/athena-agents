@@ -104,8 +104,9 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
   const test = (platform: string) => void attempt(() => POST<{ message: string }>('/social/test', { platform }), (r) => r.message);
 
   return (
-    <div className="two-col">
-      <div className="col gap-lg">
+    <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
+      {/* col gap-lg: the mark tests find the right column by */}
+      <div className="col gap-lg flex flex-col gap-4.5">
         <div className="panel">
           <div className="panel-head">
             <h2>𝕏 X accounts</h2>
@@ -120,7 +121,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
           ) : (
             <p className="hint">{accounts.xAppConfigured ? 'No account connected yet. Click Connect, sign in to X, and approve.' : 'First set up your X app on the right (one time).'}</p>
           )}
-          <p className="hint mt">Agents with the Social tools draft posts into the Outbox; you approve each one. X bills API use per request on your developer account.</p>
+          <p className="hint mt-3.5">Agents with the Social tools draft posts into the Outbox; you approve each one. X bills API use per request on your developer account.</p>
         </div>
 
         <div className="panel">
@@ -131,9 +132,9 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
           {(accounts.reddit || []).length ? (
             <div className="list">
               {accounts.reddit.map((a) => (
-                <div key={a.id} className="list-item">
-                  {a.icon ? <img className="conn-reddit-icon" src={a.icon} width={32} height={32} alt="" /> : <div className="avatar">r/</div>}
-                  <div className="grow">
+                <div key={a.id} className="list-row">
+                  {a.icon ? <img className="h-8 rounded-full" src={a.icon} width={32} height={32} alt="" /> : <div className="avatar">r/</div>}
+                  <div className="min-w-0 flex-1">
                     <div className="title">{`u/${a.username}`}</div>
                     <div className="hint">{`connected ${ago(a.connectedAt)}`}</div>
                   </div>
@@ -150,7 +151,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
           ) : (
             <p className="hint">{accounts.redditAppConfigured ? 'No account connected yet. Click Connect, sign in to Reddit and allow access.' : 'First set up your Reddit app on the right (one time).'}</p>
           )}
-          <p className="hint mt">Agents read subreddits and search freely. Posts and comments they write wait in the Outbox for you.</p>
+          <p className="hint mt-3.5">Agents read subreddits and search freely. Posts and comments they write wait in the Outbox for you.</p>
         </div>
 
         <div className="panel">
@@ -158,7 +159,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
             <h2>Telegram</h2>
           </div>
           <p className="hint">Agents and workflows can message you, e.g. when a long task is done.</p>
-          <div className="grid-2 mt">
+          <div className="mt-3.5 grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
             <Field label="Bot token">
               <input type="password" autoComplete="off" placeholder={saved(secrets.telegramBotToken, 'Bot token from @BotFather')} onChange={(e) => (tg.current.token = e.target.value)} />
             </Field>
@@ -166,7 +167,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
               <input className="code" defaultValue={settings.telegram.chatId} placeholder="Your chat ID (message @userinfobot to get it)" onChange={(e) => (tg.current.chatId = e.target.value)} />
             </Field>
           </div>
-          <div className="row mt">
+          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
             <button className="btn small" onClick={() => void saveTelegram()}>Save</button>
             <button className="btn ghost small" onClick={() => test('telegram')}>Send test</button>
           </div>
@@ -179,7 +180,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
           <Field label="Channel webhook URL" hint="Channel settings > Integrations > Webhooks > New webhook > Copy URL.">
             <input type="password" autoComplete="off" placeholder={saved(secrets.discordWebhook, 'https://discord.com/api/webhooks/…')} onChange={(e) => (dc.current = e.target.value)} />
           </Field>
-          <div className="row mt">
+          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
             <button className="btn small" onClick={() => void saveDiscord()}>Save</button>
             <button className="btn ghost small" onClick={() => test('discord')}>Send test</button>
           </div>
@@ -193,13 +194,13 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
         </div>
       </div>
 
-      <div className="col gap-lg">
+      <div className="col gap-lg flex flex-col gap-4.5">
         <div className="panel">
           <div className="panel-head">
             <h2>Your X app (one-time setup)</h2>
             {accounts.xAppConfigured ? <span className="pill ok">ready</span> : <span className="pill warn">not set</span>}
           </div>
-          <ol className="conn-steps">
+          <ol className="conn-steps mb-3.5 list-decimal pl-4.5 text-[14px] text-dim">
             <li>
               Open <a href="https://developer.x.com/en/portal/dashboard" target="_blank" rel="noopener">developer.x.com</a> and create a Project and App (or use an existing one).
             </li>
@@ -213,7 +214,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
               Website URL can be anything (e.g. your site). Save, then copy the OAuth 2.0 <b>Client ID</b> here.
             </li>
           </ol>
-          <div className="col">
+          <div className="flex flex-col gap-2.5">
             <Field label="Client ID">
               <input className="code" defaultValue={settings.x.clientId} placeholder="Client ID from your X app" onChange={(e) => (x.current.clientId = e.target.value)} />
             </Field>
@@ -221,10 +222,10 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
               <input type="password" autoComplete="off" placeholder={saved(secrets.xClientSecret, 'Client Secret (only for confidential apps)')} onChange={(e) => (x.current.secret = e.target.value)} />
             </Field>
           </div>
-          <div className="row mt">
+          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
             <button className="btn small" onClick={() => void saveX()}>Save</button>
           </div>
-          <p className="hint mt">{`Open the dashboard at the same address you registered (${location.host}). localhost and 127.0.0.1 count as different addresses for X.`}</p>
+          <p className="hint mt-3.5">{`Open the dashboard at the same address you registered (${location.host}). localhost and 127.0.0.1 count as different addresses for X.`}</p>
         </div>
 
         <div className="panel">
@@ -232,7 +233,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
             <h2>Your Reddit app (one-time setup)</h2>
             {accounts.redditAppConfigured ? <span className="pill ok">ready</span> : <span className="pill warn">not set</span>}
           </div>
-          <ol className="conn-steps">
+          <ol className="conn-steps mb-3.5 list-decimal pl-4.5 text-[14px] text-dim">
             <li>
               Open <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener">reddit.com/prefs/apps</a> and click <b>create another app</b>.
             </li>
@@ -246,7 +247,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
               Create it, then copy the <b>Client ID</b> (under the app name) and the <b>secret</b> here.
             </li>
           </ol>
-          <div className="col">
+          <div className="flex flex-col gap-2.5">
             <Field label="Client ID">
               <input className="code" defaultValue={settings.reddit?.clientId || ''} placeholder="Client ID (under the app name)" onChange={(e) => (rd.current.clientId = e.target.value)} />
             </Field>
@@ -257,7 +258,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
               <input defaultValue={settings.reddit?.username || ''} placeholder="Your Reddit username (Reddit asks apps to say who runs them)" onChange={(e) => (rd.current.username = e.target.value)} />
             </Field>
           </div>
-          <div className="row mt">
+          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
             <button className="btn small" onClick={() => void saveReddit()}>Save</button>
           </div>
         </div>
@@ -304,8 +305,8 @@ function XAccount({ a, reload }: { a: Accounts['x'][number]; reload: () => Promi
   if (posts === 'loading') shown = <p className="hint">Loading…</p>;
   else if (posts)
     shown = posts.map((p) => (
-      <div key={p.id} className="list-item">
-        <div className="grow conn-post">
+      <div key={p.id} className="list-row">
+        <div className="min-w-0 flex-1 text-[13.5px]">
           {p.text}
           <div className="hint">{`♥ ${p.metrics?.like_count ?? 0} · ↻ ${p.metrics?.retweet_count ?? 0} · 💬 ${p.metrics?.reply_count ?? 0} · ${ago(Date.parse(p.createdAt))}`}</div>
         </div>
@@ -313,16 +314,16 @@ function XAccount({ a, reload }: { a: Accounts['x'][number]; reload: () => Promi
       </div>
     ));
   return (
-    <div className="conn-account">
-      <div className="row">
-        {a.avatar ? <img className="conn-avatar" src={a.avatar} width={36} height={36} alt="" /> : <div className="avatar">𝕏</div>}
-        <div className="grow">
+    <div className="conn-account border-b border-line py-2.5">
+      <div className="flex flex-wrap items-center gap-2.5">
+        {a.avatar ? <img className="h-9 border border-line-2" src={a.avatar} width={36} height={36} alt="" /> : <div className="avatar">𝕏</div>}
+        <div className="min-w-0 flex-1">
           <div className="title">{`@${a.username}`}</div>
           <div className="hint">{`${a.name} · connected ${ago(a.connectedAt)}`}</div>
         </div>
         <AutoPost initial={a.autopost} title="Publish agent posts right away, without the Outbox" ask={`Let agents publish to @${a.username} without asking you? Posts will go out immediately.`} save={(v) => POST(`/accounts/x/${a.id}`, { autopost: v })} />
       </div>
-      <div className="row mt">
+      <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
         <button className="btn tiny ghost" onClick={() => void recent()}>Recent posts</button>
         <a className="btn tiny ghost" href={serverUrl('/oauth/x/start')}>Reconnect</a>
         <button className="btn tiny danger" onClick={() => void disconnect(`@${a.username}`, `/accounts/x/${a.id}`, reload)}>Disconnect</button>

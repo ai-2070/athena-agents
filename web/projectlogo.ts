@@ -14,7 +14,8 @@ export function logoUrl(p: ProjectRef | null | undefined): string | null {
 /** The logo, or the project's folder / GitHub icon when it has none. */
 export function projectMark(p: ProjectRef | null | undefined, size = 16, fallback: string | null = null): HTMLElement | SVGSVGElement {
   const url = logoUrl(p);
-  if (url) return h('img.proj-logo', { src: url, alt: '', width: size, height: size, style: { width: `${size}px`, height: `${size}px` } });
+  // (proj-logo: the places that show it can round it differently, [&_.proj-logo]:…)
+  if (url) return h('img.proj-logo', { class: 'inline-block flex-none rounded-[5px] object-contain align-middle', src: url, alt: '', width: size, height: size, style: { width: `${size}px`, height: `${size}px` } });
   return icon(fallback || (p?.repo ? 'git-branch' : 'folder'), size);
 }
 

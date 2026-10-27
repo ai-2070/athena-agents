@@ -88,12 +88,12 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
       setChatId(c.id);
     }
   };
-  const chip = agent ? <DomNode as="span" className="ac-model" make={() => modelChip(agent, { compact: true })} deps={[agent.id, agent.model, agent.engine, agent.provider]} /> : <span className="ac-model" />;
+  const chip = agent ? <DomNode as="span" make={() => modelChip(agent, { compact: true })} deps={[agent.id, agent.model, agent.engine, agent.provider]} /> : <span />;
   return (
-    <div className="ac" ref={root}>
-      <div className="ac-bar">
+    <div className="flex flex-col gap-2 h-full" ref={root}>
+      <div className="flex items-center gap-1.5">
         {chip}
-        <span className="grow" />
+        <span className="flex-1 min-w-0" />
         <button className="btn tiny ghost" title="Start a fresh conversation" onClick={() => void fresh()}>
           <Icon name="plus" size={13} />
           New chat
@@ -104,7 +104,7 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
           Full page
         </a>
       </div>
-      <div className="ac-body">
+      <div className="contents">
         {agent && pick ? (
           <Suspense fallback={null}>
             <ChatView

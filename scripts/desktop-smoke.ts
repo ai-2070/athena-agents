@@ -71,7 +71,7 @@ try {
   if (!page.includes('dist/app.js')) fail('the page does not load the app bundle');
   console.log('smoke: page ok');
 
-  for (const p of ['/dist/app.js', '/vendor/xterm.css']) {
+  for (const p of ['/dist/app.js', '/dist/app.css', '/vendor/xterm.css']) {
     const r = await fetch(base + p);
     if (!r.ok) fail(`${p} answered ${r.status}`);
   }
