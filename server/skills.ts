@@ -365,7 +365,10 @@ A busy scene (a street in front of a stock exchange, the Nile with temples and b
 - **Vehicles and boats**: boxes for the body, mirrored ({"mirror": "x"}) for symmetry, glass windows, glowing headlights.
 - Every voxel gets its own shade of its material (ramp and jitter): define materials with 3-5 close shades in "ramp" and jitter 0.05-0.12. Flat single colours look plastic.
 - Contrast: warm lights against cool shadows, one strong accent colour (red lacquer, gold, neon) against calmer surroundings.
-- Light: materials of kind "emissive" glow and light up what is around them (lanterns, windows, signs, headlights, neon). Many small lights make a scene alive at dusk.
+- Light: materials of kind "emissive" glow and light up what is around them (lanterns, windows, signs, headlights, neon), placed copies too. Many small lights make a scene alive at dusk. world_light adds what voxels can't: warm light spilling from a doorway, a spotlight on a statue, a fire's flicker.
+- The look of the whole world: world_environment sets the time of day (golden hour and dusk flatter voxels most), the sun's angle, fog, weather (snow, rain, petals, leaves, dust) and wind. Long low sun and a few warm lights against a cool sky is the classic diorama look.
+- Life in the air: world_effect adds particles in an area: petals under cherry trees, fireflies over water at night, smoke from chimneys, steam from grates, embers by a fire, mist on a river, birds over a tower. A few well-placed effects beat many.
+- Finishing passes after the shapes: {"snow_cover": {}} puts snow on every ledge the sky can see (window sills, roofs, railings); {"overgrow": {"chance": 0.2, "hang": 3}} adds moss tufts and vines; {"weather": {"amount": 0.3}} wears surfaces, more near the ground. Run them on a box ("in") to keep them where they belong.
 - Water and glass are see-through (kind "water", "glass"). Leaves can have holes.
 - Small things sell a place: lamps along the street, people in groups, stalls with awnings, planters, signs with {"text": …}, boats on the river.
 - Weather the result: {"replace": {"from": "stone", "to": "moss", "chance": 0.2}} on lower parts, darker stone at the bottom.

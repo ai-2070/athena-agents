@@ -6,6 +6,7 @@ import { loadGrids } from './ops.ts';
 import { readObject, readPrefab, worldVoxels } from './store.ts';
 import { shownWorld } from './link.ts';
 import { anchorText, boxText, findObject, findPrefab, placedCopies, recentChanges, WORLD_LIMITS } from './build.ts';
+import { sceneText } from './scene.ts';
 import type { VoxelWorld } from '../../shared/types.ts';
 
 /** A team platform's radius on the map (web/views/station.ts podRadius). */
@@ -46,6 +47,7 @@ export function worldText(w: VoxelWorld, { how, fromProject, agentId }: { how: s
     '',
     objects.length ? `Objects:\n${objects.join('\n')}` : 'No objects yet.',
     prefabs.length ? `\nPrefabs (place copies with {"place": "<name>"}; world_prefab "list" says where each is used):\n${prefabs.join('\n')}` : '\nNo prefabs yet: make the small things you need many of (people, trees, lamps…) as prefabs, then place them.',
+    `\n${sceneText(w)}`,
     changes.length ? `\nRecent changes:\n${changes.join('\n')}` : '',
   ]
     .filter((x) => x !== '')

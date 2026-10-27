@@ -3,17 +3,24 @@
 // reloads what changed when the server says the world changed.
 // Prefab copies placed in an object are drawn as instances: each prefab variant (mirrored, materials
 // swapped) is meshed once and repeated on the GPU, so a crowd of hundreds costs a few draw calls.
+// It also tells the view where light comes from (spots of glowing voxels in objects and in every copy, and
+// the lights builders put up) and which effects to show where.
 import * as THREE from 'three';
 import { GET } from '../client/http.ts';
 import { serverUrl } from '../client/connection.ts';
 import { meshObject } from './mesher.ts';
 import type { ObjectPart, RenderClass } from './mesher.ts';
 import { partGeometry, partMatrix } from './view.ts';
+import { glowStrength, reachOf } from './lights.ts';
+import type { LightCandidate } from './lights.ts';
+import { castsShadow, takesShadow } from './materials.ts';
+import { LIGHT_STRIDE } from './mesher.ts';
+import type { EffectSpec } from './effects.ts';
 import type { WorldView } from './view.ts';
 import { expandInstances, mirrorData, reachablePrefabs, swapPalette } from './instances.ts';
 import type { FlatCopy, Variant } from './instances.ts';
 import { envPreset } from '../../shared/worldenv.ts';
-import type { ShownWorld, VoxelMaterial, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, WorldAnchor } from '../../shared/types.ts';
+import type { ShownWorld, VoxelMaterial, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, WorldAnchor, WorldEffect, WorldLight } from '../../shared/types.ts';
 
 /** Where an anchor is on the map now (null: not in this project, e.g. another project's team). */
 export type AnchorAt = (a: WorldAnchor) => THREE.Vector3 | null;
@@ -71,8 +78,29 @@ function meshInWorker(data: VoxelObjectData, palette: VoxelMaterial[]): Promise<
 
 /** A prefab variant, meshed: its parts as shared geometry, and how many objects use it now. */
 interface PrefabMesh {
-  parts: { geo: THREE.BufferGeometry; cls: RenderClass; local: THREE.Matrix4 }[];
+  parts: { geo: THREE.BufferGeometry; cls: RenderClass; local: THREE.Matrix4; lights?: Float32Array; voxelSize: number }[];
   users: number;
+}
+
+/** A spot of glowing voxels, in its object's own space. */
+interface GlowSpot {
+  x: number;
+  y: number;
+  z: number;
+  r: number;
+  g: number;
+  b: number;
+  strength: number;
+}
+
+/** Glow spots of meshed parts, through a matrix (the part's place, and a copy's). */
+function glowSpots(lights: Float32Array | undefined, voxelSize: number, m: THREE.Matrix4, out: GlowSpot[], v = new THREE.Vector3()): void {
+  if (!lights) return;
+  for (let i = 0; i + LIGHT_STRIDE <= lights.length; i += LIGHT_STRIDE) {
+    v.set(lights[i], lights[i + 1], lights[i + 2]).applyMatrix4(m);
+    // colour from sRGB to linear light
+    out.push({ x: v.x, y: v.y, z: v.z, r: lights[i + 3] ** 2.2, g: lights[i + 4] ** 2.2, b: lights[i + 5] ** 2.2, strength: glowStrength(lights[i + 6], voxelSize) });
+  }
 }
 
 /** An object on the map. */
@@ -86,6 +114,9 @@ interface Placed {
   copiesKey: string;
   copies: THREE.InstancedMesh[];
   meshKeys: string[];
+  /** glowing spots of its own voxels and of its copies */
+  glow: GlowSpot[];
+  copyGlow: GlowSpot[];
 }
 
 const stampOf = (p: VoxelPrefabMeta) => p.voxelsAt ?? p.updatedAt;
@@ -104,6 +135,62 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
   let again = false;
   let worldId = '';
   const groupId = (m: VoxelObjectMeta) => `world:${worldId}:${m.id}`;
+
+  // ---------- light and effects ----------
+  let lights: WorldLight[] = [];
+  let lightVersion = 0;
+  const lightsChanged = () => view.setLights(candidates, ++lightVersion);
+  const tmp = new THREE.Vector3();
+  const tmpM = new THREE.Matrix4();
+  /** Where something placed like a light or an effect is: its object's frame, or its anchor's. Null: not here. */
+  const frameOf = (x: { anchor: WorldAnchor; object?: string }, out: THREE.Matrix4): THREE.Matrix4 | null => {
+    if (x.object) {
+      const p = placed.get(x.object);
+      if (!p) return null;
+      p.group.updateWorldMatrix(true, false);
+      return out.copy(p.group.matrixWorld);
+    }
+    const a = anchorAt(x.anchor);
+    return a ? out.makeTranslation(a.x, a.y, a.z) : null;
+  };
+  function candidates(): LightCandidate[] {
+    const out: LightCandidate[] = [];
+    let seed = 0;
+    for (const p of placed.values()) {
+      p.group.updateWorldMatrix(true, false);
+      const m = p.group.matrixWorld;
+      for (const list of [p.glow, p.copyGlow])
+        for (const g of list) {
+          tmp.set(g.x, g.y, g.z).applyMatrix4(m);
+          out.push({ x: tmp.x, y: tmp.y, z: tmp.z, r: g.r, g: g.g, b: g.b, strength: g.strength, range: reachOf(g.strength), flicker: 0, seed: seed++ });
+        }
+    }
+    const c = new THREE.Color();
+    for (const l of lights) {
+      const f = frameOf(l, tmpM);
+      if (!f) continue;
+      tmp.set(...l.position).applyMatrix4(f);
+      c.set(l.color);
+      const cand: LightCandidate = { x: tmp.x, y: tmp.y, z: tmp.z, r: c.r, g: c.g, b: c.b, strength: Math.max(0, Math.min(10, l.intensity)), range: l.range > 0 ? l.range : reachOf(l.intensity), flicker: l.flicker || 0, seed: seed++ };
+      if (l.kind === 'spot') {
+        const t = l.target ? new THREE.Vector3(...l.target).applyMatrix4(f) : new THREE.Vector3(tmp.x, tmp.y - 1, tmp.z);
+        cand.spot = { x: t.x, y: t.y, z: t.z, angle: l.angle || 30 };
+      }
+      out.push(cand);
+    }
+    return out;
+  }
+  let effectList: WorldEffect[] = [];
+  const effectMatrix = new THREE.Matrix4();
+  const setEffects = (list: WorldEffect[]) => {
+    effectList = list;
+    const specs: EffectSpec[] = list.map((e) => ({ key: `${e.id}:${JSON.stringify([e.kind, e.size, e.amount, e.colors, e.wind])}`, kind: e.kind, box: { w: Math.max(0.5, e.size[0]), h: Math.max(0.5, e.size[1]), d: Math.max(0.5, e.size[2]) }, amount: e.amount, colors: e.colors, wind: e.wind }));
+    view.setEffects(specs, (key) => {
+      const e = effectList.find((x) => key.startsWith(`${x.id}:`));
+      const f = e ? frameOf(e, effectMatrix) : null;
+      return e && f ? f.multiply(tmpM.makeTranslation(...e.position)) : null;
+    });
+  };
 
   const freeUnused = () => {
     for (const [k, pm] of prefabMeshes) {
@@ -125,6 +212,7 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
     p.copies = [];
     p.meshKeys = [];
     p.copiesKey = '';
+    p.copyGlow = [];
   };
   const dropObject = (p: Placed) => {
     // (copies first: removeVolume disposes the geometry of what is left in the group)
@@ -155,6 +243,9 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
       envKey = ek;
       view.setEnvironment(env);
     }
+    lights = w?.lights || [];
+    setEffects(w?.effects || []);
+    lightsChanged();
     if (!w) return;
     const wid = w.id;
     const prefabs = new Map((w.prefabs || []).map((p) => [p.id, p]));
@@ -202,7 +293,7 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
       // (another object meshed the same variant meanwhile)
       const raced = prefabMeshes.get(key);
       if (raced) return raced;
-      const pm: PrefabMesh = { parts: parts.map((p) => ({ geo: partGeometry(p), cls: p.cls, local: partMatrix(p) })), users: 0 };
+      const pm: PrefabMesh = { parts: parts.map((p) => ({ geo: partGeometry(p), cls: p.cls, local: partMatrix(p), lights: p.lights, voxelSize: p.voxelSize })), users: 0 };
       prefabMeshes.set(key, pm);
       return pm;
     };
@@ -233,16 +324,20 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
         p.meshKeys.push(k);
         for (const part of pm.parts) {
           const mesh = new THREE.InstancedMesh(part.geo, view.material(part.cls), copies.length);
-          copies.forEach((c, i) => mesh.setMatrixAt(i, m.multiplyMatrices(c.matrix, part.local)));
+          copies.forEach((c, i) => {
+            mesh.setMatrixAt(i, m.multiplyMatrices(c.matrix, part.local));
+            glowSpots(part.lights, part.voxelSize * c.matrix.getMaxScaleOnAxis(), m, p.copyGlow);
+          });
           mesh.instanceMatrix.needsUpdate = true;
           mesh.computeBoundingSphere();
-          mesh.castShadow = part.cls !== 'transparent';
-          mesh.receiveShadow = part.cls !== 'emissive';
+          mesh.castShadow = castsShadow(part.cls);
+          mesh.receiveShadow = takesShadow(part.cls);
           p.group.add(mesh);
           p.copies.push(mesh);
         }
       }
       p.copiesKey = copiesKeyOf(p.data);
+      lightsChanged();
     };
 
     for (const o of want.values()) {
@@ -263,8 +358,12 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
       if (stale()) return;
       // (its old copies come off before addParts replaces the group and disposes what's in it)
       if (p) dropCopies(p);
-      const np: Placed = { meta: o, palette, group: view.addParts(groupId(o), parts), data, copiesKey: '', copies: [], meshKeys: [] };
+      const glow: GlowSpot[] = [];
+      const pm = new THREE.Matrix4();
+      for (const part of parts) glowSpots(part.lights, part.voxelSize, partMatrix(part, pm), glow);
+      const np: Placed = { meta: o, palette, group: view.addParts(groupId(o), parts), data, copiesKey: '', copies: [], meshKeys: [], glow, copyGlow: [] };
       placed.set(o.id, np);
+      lightsChanged();
       if (data.instances?.length) await drawCopies(np);
       if (stale()) return;
     }
@@ -321,6 +420,8 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
       alive = false;
       if (timer) clearTimeout(timer);
       dropAll();
+      view.setLights(() => [], ++lightVersion);
+      view.setEffects([], () => null);
     },
   };
 }

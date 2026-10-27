@@ -381,6 +381,8 @@ interface StationState {
   lookShown?: WorldQuality | null;
   /** the voxel look kept on whatever the setting says (the test island is out) */
   lookForced?: WorldQuality | null;
+  /** the best quality this computer kept up with on this visit (it steps down when frames stay slow) */
+  lookCap?: WorldQuality | null;
   /** Files dragged over the map: 'map', or 'brain' when they are over the Brain (it glows). */
   fileDrag?: 'map' | 'brain' | null;
   dropHint?: HTMLDivElement | null;
@@ -963,7 +965,9 @@ function signature(): string {
 async function applyStationLook(): Promise<void> {
   if (!S) return;
   const look = { ...DEFAULT_LOOK, ...(state.data?.settings?.look || {}) };
-  const want = S.lookForced || (look.station === 'world' ? look.worldQuality : null);
+  const order: WorldQuality[] = ['low', 'medium', 'high'];
+  const capped = (q: WorldQuality) => (S?.lookCap && order.indexOf(q) > order.indexOf(S.lookCap) ? S.lookCap : q);
+  const want = S.lookForced || (look.station === 'world' ? capped(look.worldQuality) : null);
   if (want === S.lookShown) return;
   S.lookShown = want;
   S.worldLayer?.dispose();
@@ -973,9 +977,19 @@ async function applyStationLook(): Promise<void> {
   if (!want) return;
   const [{ createWorldView }, { createWorldLayer }] = await Promise.all([import('../voxel/view.ts'), import('../voxel/worldlayer.ts')]);
   if (!S || S.lookShown !== want) return;
-  S.view = createWorldView({ renderer: S.renderer, scene: S.scene, camera: S.camera, quality: want, classic: S.classic, w: S.w, h: S.h });
+  S.view = createWorldView({ renderer: S.renderer, scene: S.scene, camera: S.camera, quality: want, classic: S.classic, w: S.w, h: S.h, onSlow: S.lookForced ? undefined : () => void stepLookDown(want) });
   if (S.world) S.view.adopt(S.world, S.radius || 40);
   S.worldLayer = createWorldLayer(S.view, anchorAt);
+}
+
+// Frames stayed slow: one quality level down for this visit (Settings keep what you chose).
+async function stepLookDown(from: WorldQuality): Promise<void> {
+  const { lowerQuality } = await import('../voxel/quality.ts');
+  const next = lowerQuality(from);
+  if (!S || !next || S.lookShown !== from) return;
+  S.lookCap = next;
+  toast(`The Station was slow here, so the voxel world now draws at ${next === 'low' ? 'Low' : 'Medium'} quality. You can change it in Settings › Look.`);
+  await applyStationLook();
 }
 
 // Where a world object's anchor is on the map now: the middle, a team's platform, or an agent's desk.

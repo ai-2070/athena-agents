@@ -39,7 +39,7 @@ import * as worldLink from './voxel/link.ts';
 import * as worldBuild from './voxel/build.ts';
 import * as worldStore from './voxel/store.ts';
 import * as worldMd from './voxel/worldmd.ts';
-import { envPreset } from '../shared/worldenv.ts';
+import * as worldScene from './voxel/scene.ts';
 import * as terms from './terminals.ts';
 import * as status from './status.ts';
 import * as brain from './brain.ts';
@@ -596,11 +596,7 @@ put<{ text?: unknown } | null>('/api/world/md', async (_p, body) => {
   log('world', 'You edited WORLD.md');
   return m;
 });
-put<{ preset?: unknown } | null>('/api/world/environment', async (_p, body) => {
-  const w = worldLink.worldForBuild();
-  w.environment = envPreset(String(body?.preset || 'station'));
-  return worldStore.saveWorld(w, { environment: true });
-});
+put<Record<string, unknown> | null>('/api/world/environment', async (_p, body) => worldScene.setEnvironment({ by: you, fields: body || {} }).world);
 get('/api/worlds', async () => worldLink.listWorldsFor());
 put<{ worldId?: unknown; mode?: unknown } | null>('/api/project-world', async (_p, body) => {
   const mode = String(body?.mode || '');

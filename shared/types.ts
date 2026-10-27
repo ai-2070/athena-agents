@@ -889,6 +889,48 @@ export interface VoxelMaterial {
 
 export type WorldEnvPreset = 'station' | 'day' | 'golden' | 'dusk' | 'night' | 'overcast' | 'snow';
 
+/** Where a light or an effect is: pinned like an object (anchor), or to an object (it moves and turns with it). */
+interface WorldPlaced {
+  id: string;
+  name: string;
+  by: WorldBuilder;
+  anchor: WorldAnchor;
+  /** an object's id: then position is from that object's origin, and it turns with it */
+  object?: string;
+  /** map units */
+  position: Vec3;
+}
+
+/** A light a builder put up. */
+export interface WorldLight extends WorldPlaced {
+  kind: 'point' | 'spot';
+  color: string;
+  /** 0..10: 1 is a lantern, 4 a street lamp, 10 a floodlight */
+  intensity: number;
+  /** how far it reaches, map units */
+  range: number;
+  /** spot: the point it shines at (same frame as position) and the cone's angle in degrees */
+  target?: Vec3;
+  angle?: number;
+  /** 0..1: how much it flickers (a flame, a failing neon) */
+  flicker?: number;
+}
+
+export type WorldEffectKind = 'petals' | 'leaves' | 'snow' | 'rain' | 'fireflies' | 'embers' | 'sparks' | 'smoke' | 'steam' | 'mist' | 'dust' | 'birds';
+
+/** Particles in an area. */
+export interface WorldEffect extends WorldPlaced {
+  kind: WorldEffectKind;
+  /** the area's size around position (w, h, d map units); position is its bottom centre */
+  size: Vec3;
+  /** 0..1: how many */
+  amount: number;
+  /** colours to pick from (#rrggbb); each kind has its own when left out */
+  colors?: string[];
+  /** which way and how hard it blows (map units a second) */
+  wind?: Vec3;
+}
+
 /** Sky, fog, sun and the finishing touches of a world's look. Colors are #rrggbb, angles in degrees. */
 export interface WorldEnvironment {
   preset: WorldEnvPreset;
@@ -902,6 +944,10 @@ export interface WorldEnvironment {
   /** 0..1 miniature blur at the top and bottom of the view */
   tiltShift: number;
   exposure: number;
+  /** weather over the whole map (besides effects in areas) */
+  weather?: 'none' | 'snow' | 'rain' | 'petals' | 'leaves' | 'dust';
+  /** wind for leaves, petals, snow and the sway of leaves (map units a second) */
+  wind?: Vec3;
 }
 
 export type Vec3 = [number, number, number];
@@ -1011,6 +1057,10 @@ export interface VoxelWorld {
   objects: VoxelObjectMeta[];
   /** the prefabs its builders made */
   prefabs: VoxelPrefabMeta[];
+  /** lights builders put up (glowing voxels light their surroundings by themselves too) */
+  lights: WorldLight[];
+  /** particles: falling petals, snow, fireflies, smoke… */
+  effects: WorldEffect[];
   environment: WorldEnvironment;
   createdAt: number;
   updatedAt: number;

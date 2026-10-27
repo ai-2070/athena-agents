@@ -8,7 +8,7 @@ import { BuildError, loadGrids, runBuild, saveGrids, VOXEL_SIZE_MAX, VOXEL_SIZE_
 import type { BuildOutcome, Grid } from './ops.ts';
 import { readObject, readPrefab, saveWorld, worldDir, writeObject, writePrefab, worldVoxels } from './store.ts';
 import { worldForBuild } from './link.ts';
-import type { PrefabInstance, Vec3, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, VoxelVolumeMeta, VoxelWorld, WorldAnchor, WorldBuilder } from '../../shared/types.ts';
+import type { PrefabInstance, Vec3, WorldEffect, WorldEnvironment, WorldLight, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, VoxelVolumeMeta, VoxelWorld, WorldAnchor, WorldBuilder } from '../../shared/types.ts';
 
 export const WORLD_LIMITS = { voxels: 4_000_000, objects: 300, prefabs: 300, copies: 20_000, prefabSide: 128, prefabVoxels: 200_000, nesting: 4 };
 const HISTORY_KEPT = 50;
@@ -56,8 +56,8 @@ export interface HistoryEntry {
   at: number;
   by: WorldBuilder;
   what: string;
-  /** an object (the default) or a prefab */
-  kind?: 'object' | 'prefab';
+  /** an object (the default), a prefab, a light, an effect or the environment */
+  kind?: 'object' | 'prefab' | 'light' | 'effect' | 'environment';
   objectId: string;
   /** the object or prefab before (null: it was new) */
   metaBefore: VoxelObjectMeta | VoxelPrefabMeta | null;
@@ -67,6 +67,8 @@ export interface HistoryEntry {
   instancesBefore?: PrefabInstance[];
   /** the whole thing, when it was deleted */
   dataBefore?: VoxelObjectData | null;
+  /** a light, effect or environment as it was (null: the light or effect was new) */
+  sceneBefore?: WorldLight | WorldEffect | WorldEnvironment | null;
 }
 
 const historyDir = (worldId: string) => worldDir(worldId, 'history');
@@ -355,6 +357,18 @@ export function undo(by: WorldBuilder, { project, anyone = false }: { project?: 
   if (!mine) return { world: w, text: 'Nothing to undo.' };
   const later = all.filter((h) => h.at > mine.at && h.objectId === mine.objectId && builderKey(h.by) !== builderKey(mine.by));
   if (later.length) throw bad(`${later[0].by.name} changed that after you (${later[0].what}). Ask them, or change it again yourself.`, 409);
+  if (mine.kind === 'light' || mine.kind === 'effect' || mine.kind === 'environment') {
+    if (mine.kind === 'environment') w.environment = (mine.sceneBefore as WorldEnvironment) || w.environment;
+    else {
+      const list: { id: string }[] = mine.kind === 'light' ? w.lights : w.effects;
+      const i = list.findIndex((x) => x.id === mine.objectId);
+      if (i >= 0) list.splice(i, 1);
+      if (mine.sceneBefore) list.push(mine.sceneBefore as WorldLight & WorldEffect);
+    }
+    fs.rmSync(worldDir(w.id, 'history', `${mine.id}.json`), { force: true });
+    saveWorld(w, { [mine.kind === 'environment' ? 'environment' : `${mine.kind}s`]: true, undone: true, by: by.name });
+    return { world: w, text: `Undid: ${mine.by.name} ${mine.what}.` };
+  }
   const isPrefab = mine.kind === 'prefab';
   const list: { id: string }[] = isPrefab ? w.prefabs : w.objects;
   const read = (id: string) => (isPrefab ? readPrefab(w.id, id) : readObject(w.id, id));

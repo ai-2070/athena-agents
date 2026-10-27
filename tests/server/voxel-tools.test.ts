@@ -21,10 +21,10 @@ const kenji = newAgent({ name: 'Kenji', toolGroups: ['world'], autonomy: 'auto' 
 describe('world tools', () => {
   it('come with the "world" tool group, with honest risks', () => {
     const names = toolDefs(mira).map((t) => t.name);
-    expect(names).toEqual(expect.arrayContaining(['world_info', 'world_build', 'world_object', 'world_undo', 'world_md_read', 'world_md_section', 'world_md_write']));
+    expect(names).toEqual(expect.arrayContaining(['world_info', 'world_build', 'world_object', 'world_undo', 'world_prefab', 'world_light', 'world_effect', 'world_environment', 'world_md_read', 'world_md_section', 'world_md_write']));
     expect(toolDefs(newAgent({ name: 'Plain', toolGroups: [] })).some((t) => t.name.startsWith('world_'))).toBe(false);
     const risk = Object.fromEntries(allTools().map((t) => [t.name, t.risk]));
-    expect(risk).toMatchObject({ world_info: 'none', world_build: 'low', world_object: 'varies', world_md_read: 'none' });
+    expect(risk).toMatchObject({ world_info: 'none', world_build: 'low', world_object: 'varies', world_prefab: 'varies', world_light: 'varies', world_effect: 'varies', world_environment: 'low', world_md_read: 'none' });
     // the step language, prefabs and placing are in the build tool's description; nothing ready-made
     const build = toolDefs(mira).find((t) => t.name === 'world_build')!;
     expect(build.description).toMatch(/"voxel_size": 0.1/);

@@ -37,6 +37,8 @@ function clean(w: Partial<VoxelWorld>, id: string): VoxelWorld {
     palette: Array.isArray(w.palette) ? w.palette : [],
     objects: Array.isArray(w.objects) ? w.objects : [],
     prefabs: Array.isArray(w.prefabs) ? w.prefabs : [],
+    lights: Array.isArray(w.lights) ? w.lights : [],
+    effects: Array.isArray(w.effects) ? w.effects : [],
     environment: w.environment && typeof w.environment === 'object' ? { ...envPreset(w.environment.preset || 'station'), ...w.environment } : envPreset('station'),
     createdAt: w.createdAt || now,
     updatedAt: w.updatedAt || now,

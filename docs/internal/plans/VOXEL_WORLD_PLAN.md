@@ -655,6 +655,22 @@ environment presets with blending, effects (petals, snow, rain, fireflies, ember
 clouds), `snow_cover`, `overgrow`, `weather`. Tools `world_light`, `world_effect`, `world_environment` and
 their Brain actions. Quality levels.
 
+*Phase 2 done 2026-10-27.* Notes:
+- Glowing voxels light their surroundings: the page finds glow spots in objects and in every placed copy, adds
+  the builders' lights, and gives a fixed pool of lights (4 / 8 / 8 points by quality, plus spots) to the
+  strongest ones near the view. Lamps make pools of light on the street; headlights shine.
+- Draw classes: solid, glowing (strength per voxel), glass, water (moving ripples), metal, leaf (sways with the
+  wind; shadows stay still). Per-material opacity for glass and water is not used yet (0.38 and 0.72).
+- Particles: petals, leaves, snow, dust (tiny tumbling cubes), rain (streaks), fireflies, embers, sparks
+  (glowing points), smoke, steam, mist (soft puffs), birds (a flock). Capped by quality, a quarter with reduced
+  motion. Weather over the whole map follows the camera.
+- Time of day eases over 2.5 s. When frames stay slow the Station steps down one quality level for the visit.
+- Server: `world_light`, `world_effect`, `world_environment` (a preset, then any part), the Brain's actions,
+  `snow_cover`, `overgrow`, `weather` steps, undo for all of it. Limits: 32 lights, 24 effects.
+- Measured (M1 Max, street scene with lights and effects): Medium 119 fps (71 at Retina), High 52.
+- Live test: a Nile scene (river, pyramids, temple, obelisk; palms, feluccas, villagers and torches placed as
+  copies; golden hour, birds, mist, a temple light) built entirely by tool calls.
+
 **Phase 3: skins.**
 `character` with its rig and animations, `desk`, `orb`, `platform`; default skins; `world_skin` and the
 Brain's `skin` action; the desk monitor on voxel desks; platforms rebuilt when members change.

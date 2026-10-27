@@ -1,12 +1,18 @@
 // Voxels → triangles. Faces between two solid voxels are skipped, each face corner is darkened by the
 // solid voxels around it (ambient occlusion: the soft creases of the voxel look), and faces are split by
-// how they are drawn: solid, glowing, or see-through (glass, water). Pure: no three.js, no DOM, so it
-// can run in a worker and in tests.
+// how they are drawn: solid, glowing, glass, water, leaves (they sway) or metal. Glowing voxels also carry
+// how bright they glow, and are gathered into a few spots that light up what is around them. Pure: no
+// three.js, no DOM, so it can run in a worker and in tests.
 import { CHUNK, cellIndex, chunkKey, decodeChunk, materialShades, newVolume, parseChunkKey, voxelShade } from '../../shared/voxel.ts';
 import type { MaterialShades, Vec3i, Volume } from '../../shared/voxel.ts';
 import type { VoxelMaterial, VoxelObjectData } from '../../shared/types.ts';
 
-export type RenderClass = 'opaque' | 'emissive' | 'transparent';
+export type RenderClass = 'opaque' | 'emissive' | 'transparent' | 'water' | 'leaf' | 'metal';
+export const RENDER_CLASSES: RenderClass[] = ['opaque', 'emissive', 'transparent', 'water', 'leaf', 'metal'];
+/** Classes that let light (and what is behind them) through. */
+export const SEE_THROUGH: ReadonlySet<RenderClass> = new Set(['transparent', 'water']);
+/** Floats per glow spot in MeshPart.lights: x, y, z (voxels from the region's corner), r, g, b (0..1), power. */
+export const LIGHT_STRIDE = 7;
 
 /** One render class of a meshed region. Positions are in voxels from the region's corner (0..size). */
 export interface MeshPart {
@@ -16,6 +22,10 @@ export interface MeshPart {
   colors: Uint8Array;
   indices: Uint32Array;
   faces: number;
+  /** emissive parts: how bright each vertex glows (0..255 = emissive 0..8) */
+  glow?: Uint8Array;
+  /** emissive parts: spots of glowing voxels that light their surroundings (LIGHT_STRIDE floats each) */
+  lights?: Float32Array;
 }
 export type MeshResult = Partial<Record<RenderClass, MeshPart>>;
 
@@ -76,13 +86,16 @@ interface Mat {
   shades: MaterialShades;
 }
 const FALLBACK: VoxelMaterial = { name: 'unknown', color: '#8a8a8a', kind: 'solid' };
-const classOf = (m: VoxelMaterial): RenderClass => (m.kind === 'emissive' ? 'emissive' : m.kind === 'glass' || m.kind === 'water' ? 'transparent' : 'opaque');
+const CLASS_OF: Record<VoxelMaterial['kind'], RenderClass> = { solid: 'opaque', snow: 'opaque', emissive: 'emissive', glass: 'transparent', water: 'water', leaf: 'leaf', metal: 'metal' };
+const classOf = (m: VoxelMaterial): RenderClass => CLASS_OF[m.kind] || 'opaque';
+/** How bright a glowing material is when it doesn't say (0..8). */
+export const DEFAULT_EMISSIVE = 3;
 
 /**
  * Meshes the voxels of `vol` in the box from `min` with `size` voxels on each side.
  * palette[v - 1] is the material of value v. seed changes every voxel's shade.
  */
-export function meshRegion(vol: Volume, min: Vec3i, size: Vec3i, palette: VoxelMaterial[], seed = 0): MeshResult {
+export function meshRegion(vol: Volume, min: Vec3i, size: Vec3i, palette: VoxelMaterial[], seed = 0, lightCell = 8): MeshResult {
   const [sx, sy, sz] = size;
   if (sx > MAX_REGION || sy > MAX_REGION || sz > MAX_REGION) throw new Error(`A region can be at most ${MAX_REGION} voxels on a side`);
   // the region with a one-voxel border from its neighbours, so faces and corners at the edge are right
@@ -113,10 +126,14 @@ export function meshRegion(vol: Volume, min: Vec3i, size: Vec3i, palette: VoxelM
       }
 
   const mats: (Mat | null)[] = [null];
+  const glowOf = new Uint8Array(256);
   for (let v = 1; v < 256; v++) {
     const m = palette[v - 1] || FALLBACK;
-    mats.push({ cls: classOf(m), blocks: classOf(m) !== 'transparent', shades: materialShades(m) });
+    mats.push({ cls: classOf(m), blocks: !SEE_THROUGH.has(classOf(m)), shades: materialShades(m) });
+    glowOf[v] = Math.round((Math.max(0, Math.min(8, m.emissive ?? DEFAULT_EMISSIVE)) / 8) * 255);
   }
+  // glowing voxels gathered by cell: summed position, colour and power, for the light spots
+  const spots = new Map<number, number[]>();
   const blocks = (x: number, y: number, z: number) => {
     const v = grid[at(x, y, z)];
     return v ? mats[v]!.blocks : false;
@@ -130,7 +147,7 @@ export function meshRegion(vol: Volume, min: Vec3i, size: Vec3i, palette: VoxelM
   };
 
   // count first, so each class gets arrays of the right size
-  const count: Record<RenderClass, number> = { opaque: 0, emissive: 0, transparent: 0 };
+  const count: Record<RenderClass, number> = { opaque: 0, emissive: 0, transparent: 0, water: 0, leaf: 0, metal: 0 };
   for (let y = 0; y < sy; y++)
     for (let z = 0; z < sz; z++)
       for (let x = 0; x < sx; x++) {
@@ -141,10 +158,10 @@ export function meshRegion(vol: Volume, min: Vec3i, size: Vec3i, palette: VoxelM
 
   const out: MeshResult = {};
   const fill: Partial<Record<RenderClass, { p: MeshPart; f: number }>> = {};
-  for (const cls of ['opaque', 'emissive', 'transparent'] as RenderClass[]) {
+  for (const cls of RENDER_CLASSES) {
     const n = count[cls];
     if (!n) continue;
-    const p: MeshPart = { positions: new Uint8Array(n * 12), normals: new Int8Array(n * 12), colors: new Uint8Array(n * 12), indices: new Uint32Array(n * 6), faces: n };
+    const p: MeshPart = { positions: new Uint8Array(n * 12), normals: new Int8Array(n * 12), colors: new Uint8Array(n * 12), indices: new Uint32Array(n * 6), faces: n, ...(cls === 'emissive' ? { glow: new Uint8Array(n * 4) } : {}) };
     out[cls] = p;
     fill[cls] = { p, f: 0 };
   }
@@ -163,6 +180,23 @@ export function meshRegion(vol: Volume, min: Vec3i, size: Vec3i, palette: VoxelM
           const slot = fill[m.cls]!;
           const { p } = slot;
           const vi = slot.f * 4;
+          if (p.glow) {
+            p.glow.fill(glowOf[v], vi, vi + 4);
+            // each shown face adds to its cell's spot, weighted by how bright it glows
+            const w = glowOf[v] / 255;
+            if (w > 0) {
+              const key = Math.floor(x / lightCell) + 64 * (Math.floor(y / lightCell) + 64 * Math.floor(z / lightCell));
+              const sp = spots.get(key) || [0, 0, 0, 0, 0, 0, 0];
+              sp[0] += (x + 0.5 + f.n[0] * 0.5) * w;
+              sp[1] += (y + 0.5 + f.n[1] * 0.5) * w;
+              sp[2] += (z + 0.5 + f.n[2] * 0.5) * w;
+              sp[3] += (rgb[0] / 255) * w;
+              sp[4] += (rgb[1] / 255) * w;
+              sp[5] += (rgb[2] / 255) * w;
+              sp[6] += w;
+              spots.set(key, sp);
+            }
+          }
           for (let k = 0; k < 4; k++) {
             const c = f.corners[k];
             const s1 = blocks(x + c.s1[0], y + c.s1[1], z + c.s1[2]) ? 1 : 0;
@@ -189,6 +223,16 @@ export function meshRegion(vol: Volume, min: Vec3i, size: Vec3i, palette: VoxelM
           slot.f++;
         }
       }
+  if (out.emissive && spots.size) {
+    const lights = new Float32Array(spots.size * LIGHT_STRIDE);
+    let i = 0;
+    for (const sp of spots.values()) {
+      const w = sp[6];
+      lights.set([sp[0] / w, sp[1] / w, sp[2] / w, sp[3] / w, sp[4] / w, sp[5] / w, w * 8], i);
+      i += LIGHT_STRIDE;
+    }
+    out.emissive.lights = lights;
+  }
   return out;
 }
 
@@ -210,7 +254,8 @@ export function meshObject(data: VoxelObjectData, palette: VoxelMaterial[], regi
     for (const k of vol.chunks.keys()) regions.add(parseChunkKey(k).map((c) => Math.floor((c * CHUNK) / region)).join(','));
     for (const key of regions) {
       const min = key.split(',').map((n) => Number(n) * region) as Vec3i;
-      const parts = meshRegion(vol, min, [region, region, region], palette);
+      // glow spots about 2 map units apart, whatever the voxel size
+      const parts = meshRegion(vol, min, [region, region, region], palette, 0, Math.max(2, Math.round(2 / v.voxelSize)));
       for (const [cls, p] of Object.entries(parts) as [RenderClass, MeshPart][]) out.push({ ...p, cls, voxelSize: v.voxelSize, min });
     }
   }

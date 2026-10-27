@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AO_LEVELS, meshObject, meshRegion } from '../../web/voxel/mesher.ts';
+import { AO_LEVELS, LIGHT_STRIDE, meshObject, meshRegion } from '../../web/voxel/mesher.ts';
 import type { MeshPart } from '../../web/voxel/mesher.ts';
 import { ENV_PRESETS, envPreset, sunDirection } from '../../shared/worldenv.ts';
 import { benchIsland, BENCH_PALETTE } from '../../web/voxel/bench.ts';
@@ -78,16 +78,40 @@ describe('meshRegion', () => {
     expect(Math.max(...tops)).toBe(128);
   });
 
-  it('splits solid, glowing and see-through voxels, and shows solid faces behind water', () => {
+  it('splits solid, glowing and water voxels, and shows solid faces behind water', () => {
     const r = mesh([[2, 2, 2, S], [3, 2, 2, W], [5, 5, 5, L]]);
     expect(r.emissive!.faces).toBe(6);
-    expect(r.transparent!.faces).toBe(5);
+    expect(r.water!.faces).toBe(5);
     expect(r.opaque!.faces).toBe(6);
   });
 
   it('water next to water has no face between, water next to glass does', () => {
-    expect(mesh([[2, 2, 2, W], [3, 2, 2, W]]).transparent!.faces).toBe(10);
-    expect(mesh([[2, 2, 2, W], [3, 2, 2, G]]).transparent!.faces).toBe(12);
+    expect(mesh([[2, 2, 2, W], [3, 2, 2, W]]).water!.faces).toBe(10);
+    const r = mesh([[2, 2, 2, W], [3, 2, 2, G]]);
+    expect(r.water!.faces + r.transparent!.faces).toBe(12);
+  });
+
+  it('leaves and metal get their own parts; glowing voxels carry how bright they glow, and light spots', () => {
+    const pal: VoxelMaterial[] = [...PALETTE, { name: 'leaves', color: '#3f7f34', kind: 'leaf' }, { name: 'iron', color: '#4a4d52', kind: 'metal' }, { name: 'neon', color: '#ff0000', kind: 'emissive', emissive: 8 }];
+    const v = newVolume();
+    setVoxel(v, 0, 0, 0, 5);
+    setVoxel(v, 2, 0, 0, 6);
+    setVoxel(v, 4, 0, 0, 3);
+    setVoxel(v, 20, 0, 0, 7);
+    const r = meshRegion(v, [0, 0, 0], [32, 32, 32], pal);
+    expect(r.leaf!.faces).toBe(6);
+    expect(r.metal!.faces).toBe(6);
+    const e = r.emissive!;
+    expect(e.glow!.length).toBe(e.faces * 4);
+    // the lamp has no level: the default 3 of 8; the neon is 8 of 8
+    expect(new Set(e.glow)).toEqual(new Set([Math.round((3 / 8) * 255), 255]));
+    // two spots, far apart: each near its voxel's middle, red for the neon
+    expect(e.lights!.length).toBe(2 * LIGHT_STRIDE);
+    const spots = [0, 1].map((k) => [...e.lights!.slice(k * LIGHT_STRIDE, (k + 1) * LIGHT_STRIDE)]);
+    const neon = spots.find((sp) => sp[0] > 10)!;
+    expect(neon[0]).toBeCloseTo(20.5, 1);
+    expect(neon[3]).toBeCloseTo(1, 2);
+    expect(neon[4]).toBeCloseTo(0, 2);
   });
 
   it('reads neighbours outside the region, across chunks', () => {
@@ -128,7 +152,7 @@ describe('voxel look presets and the test island', () => {
     const r = meshRegion(a, [-32, -32, -32], [64, 64, 64], BENCH_PALETTE);
     expect(r.opaque!.faces).toBeGreaterThan(1000);
     expect(r.emissive!.faces).toBeGreaterThan(0);
-    expect(r.transparent!.faces).toBeGreaterThan(0);
+    expect(r.water!.faces).toBeGreaterThan(0);
   });
 });
 

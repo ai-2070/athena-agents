@@ -3,7 +3,7 @@
 // (copy, shift, rotate, flip), and prefabs the agents made themselves, stamped into the voxels or placed as copies.
 // Positions are whole voxels of the current voxel size, from the cursor.
 // A call either works as a whole or changes nothing: a step that fails puts back everything it changed.
-import { CHUNK, CHUNK_CELLS, cellIndex, chunkKey, decodeChunk, encodeChunk, hash3, newVolume } from '../../shared/voxel.ts';
+import { CHUNK, CHUNK_CELLS, cellIndex, chunkKey, decodeChunk, encodeChunk, hash3, hexRgb, newVolume, volumeBounds } from '../../shared/voxel.ts';
 import { rng, valueNoise } from './noise.ts';
 import type { Volume } from '../../shared/voxel.ts';
 import { stockMaterial } from './materials.ts';
@@ -121,7 +121,7 @@ const size3 = (v: unknown, what: string): V3 => {
 };
 
 // (placing first: a "place" step may also say "mirror", which alone is a state step)
-const SHAPE_VERBS = ['place', 'unplace', 'stamp', 'box', 'sphere', 'ellipsoid', 'blob', 'cylinder', 'cone', 'pyramid', 'torus', 'revolve', 'extrude', 'path', 'line', 'stairs', 'arch', 'set', 'layers', 'text', 'heightmap', 'replace', 'copy', 'shift', 'rotate', 'flip', 'clear', 'scatter'];
+const SHAPE_VERBS = ['place', 'unplace', 'stamp', 'box', 'sphere', 'ellipsoid', 'blob', 'cylinder', 'cone', 'pyramid', 'torus', 'revolve', 'extrude', 'path', 'line', 'stairs', 'arch', 'set', 'layers', 'text', 'heightmap', 'replace', 'copy', 'shift', 'rotate', 'flip', 'snow_cover', 'overgrow', 'weather', 'clear', 'scatter'];
 const STATE_VERBS = ['voxel_size', 'material', 'use', 'seed', 'at', 'move', 'mirror'];
 export const VERBS = [...SHAPE_VERBS, ...STATE_VERBS];
 
@@ -564,6 +564,94 @@ export function runBuild(input: BuildInput): BuildOutcome {
           [x, z] = turnQuarter(x, z, w, d, q);
           setAbs(o[0] + x, o[1] + y, o[2] + z, v, keep);
         }
+        break;
+      }
+      // ---------- finishing passes ----------
+      case 'snow_cover':
+      case 'overgrow':
+      case 'weather': {
+        const opts = (step[verb] && typeof step[verb] === 'object' ? step[verb] : {}) as Record<string, unknown>;
+        // the voxels to look at: a box from the spot ("in": [w, h, d]), or everything at this voxel size
+        const box = step.in !== undefined ? size3(step.in, 'in') : null;
+        const inBox = (x: number, y: number, z: number) => !box || (x >= o[0] && y >= o[1] && z >= o[2] && x < o[0] + box[0] && y < o[1] + box[1] && z < o[2] + box[2]);
+        const cells: V3[] = [];
+        for (const [k, c] of grid.vol.chunks) {
+          const [cx, cy, cz] = k.split(',').map(Number);
+          for (let i = 0; i < c.length; i++) {
+            if (!c[i]) continue;
+            const x = cx * CHUNK + (i % CHUNK);
+            const y = cy * CHUNK + Math.floor(i / (CHUNK * CHUNK));
+            const z = cz * CHUNK + (Math.floor(i / CHUNK) % CHUNK);
+            if (inBox(x, y, z)) cells.push([x, y, z]);
+          }
+        }
+        const kindOf = (v: number) => palette[v - 1]?.kind;
+        const chance = num(opts.chance ?? opts.amount, 'chance', { min: 0, max: 1, def: verb === 'snow_cover' ? 0.9 : verb === 'overgrow' ? 0.25 : 0.3 });
+        const roll = (x: number, y: number, z: number, salt: number) => hash3(x, y, z, seed + salt) < chance;
+        // what to write is worked out first, so new snow or moss isn't covered again
+        const writes: [number, number, number, number][] = [];
+        if (verb === 'snow_cover') {
+          const snow = step.use !== undefined ? matIndex(step.use) : matIndex('snow');
+          const depth = int(opts.depth, 'depth', { min: 1, max: 8, def: 1 });
+          const sheltered = opts.sheltered === true;
+          for (const [x, y, z] of cells) {
+            const v = getAbs(x, y, z);
+            if (v === snow || kindOf(v) === 'water' || getAbs(x, y + 1, z) || !roll(x, y, z, 21)) continue;
+            // only where the sky can see it (a ledge under an overhang stays bare), unless "sheltered"
+            let open = true;
+            for (let k = 2; k <= 48 && open && !sheltered; k++) if (getAbs(x, y + k, z)) open = false;
+            if (!open) continue;
+            for (let k = 1; k <= depth && !getAbs(x, y + k, z); k++) writes.push([x, y + k, z, snow]);
+          }
+        } else if (verb === 'overgrow') {
+          const moss = step.use !== undefined ? matIndex(step.use) : matIndex('moss');
+          const hang = int(opts.hang, 'hang', { min: 0, max: 32, def: 3 });
+          for (const [x, y, z] of cells) {
+            const v = getAbs(x, y, z);
+            if (v === moss || kindOf(v) === 'water' || kindOf(v) === 'emissive') continue;
+            // tufts on top
+            if (!getAbs(x, y + 1, z) && roll(x, y, z, 31)) writes.push([x, y + 1, z, moss]);
+            // vines hanging down a wall from its top edge
+            if (!hang || getAbs(x, y + 1, z)) continue;
+            for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+              if (getAbs(x + dx, y, z + dz) || hash3(x + dx, y, z + dz, seed + 37) >= chance * 0.6) continue;
+              const len = 1 + Math.floor(hash3(x, y, z + dz, seed + 41) * hang);
+              for (let k = 0; k < len && !getAbs(x + dx, y - k, z + dz) && getAbs(x, y - k, z); k++) writes.push([x + dx, y - k, z + dz, moss]);
+            }
+          }
+        } else {
+          // worn: a darker copy of each material, more of it near the bottom
+          const dark = num(opts.dark, 'dark', { min: 0.02, max: 0.6, def: 0.18 });
+          const b = volumeBounds(grid.vol);
+          const lo = b ? b.min[1] : 0;
+          const span = b ? Math.max(1, b.max[1] - b.min[1]) : 1;
+          const worn = new Map<number, number>();
+          const wornOf = (v: number) => {
+            if (!worn.has(v)) {
+              const m = palette[v - 1];
+              if (!m || m.kind === 'emissive' || m.kind === 'water' || m.kind === 'glass' || m.name.endsWith(' worn')) worn.set(v, v);
+              else {
+                const shade = (hex: string) => '#' + hexRgb(hex).map((c) => Math.round(c * (1 - dark)).toString(16).padStart(2, '0')).join('');
+                const name = `${m.name} worn`;
+                const at = palette.findIndex((x) => x.name === name);
+                if (at >= 0) worn.set(v, at + 1);
+                else {
+                  if (palette.length >= LIMITS.palette) throw new BuildError(`the palette is full (${LIMITS.palette} materials)`);
+                  palette.push({ ...m, name, color: shade(m.color), ...(m.ramp ? { ramp: m.ramp.map(shade) } : {}) });
+                  newMaterials.push(name);
+                  worn.set(v, palette.length);
+                }
+              }
+            }
+            return worn.get(v)!;
+          };
+          for (const [x, y, z] of cells) {
+            const v = getAbs(x, y, z);
+            const low = 1 - ((y - lo) / span) * 0.7;
+            if (hash3(x, y, z, seed + 51) < chance * low) writes.push([x, y, z, wornOf(v)]);
+          }
+        }
+        for (const [x, y, z, v] of writes) setAbs(x, y, z, v);
         break;
       }
       // ---------- prefabs ----------

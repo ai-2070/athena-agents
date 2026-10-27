@@ -35,10 +35,9 @@ import type { ModelProvider } from './models.ts';
 import { listBriefs } from './briefs.ts';
 import { build as buildInWorld } from './voxel/build.ts';
 import { shownWorld, worldForBuild } from './voxel/link.ts';
-import { saveWorld } from './voxel/store.ts';
 import { readWorldMd, writeWorldMd, writeWorldMdSection } from './voxel/worldmd.ts';
 import { worldText } from './voxel/describe.ts';
-import { envPreset } from '../shared/worldenv.ts';
+import { setEffect, setEnvironment, setLight } from './voxel/scene.ts';
 import type { Agent, Approval, BrainAnswer, BrainDelegate, BrainDone, Project, Routine, Team } from '../shared/types.ts';
 
 /** One line of the Brain chat history (data/projects/<id>/brain-chat.json). */
@@ -131,6 +130,8 @@ export interface BrainAction {
   voxel_size?: unknown;
   steps?: unknown;
   section?: unknown;
+  /** build: a prefab to build instead of an object */
+  prefab?: unknown;
 }
 
 // The most actions one answer can take, and GitHub installs among them.
@@ -384,6 +385,8 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     .join('\n');
 }
 
+const BRAIN_BUILDER = { kind: 'brain', name: 'The Brain' } as const;
+
 // The world part of the snapshot: what is built, and WORLD.md (cut short).
 const WORLD_MD_IN_SNAPSHOT = 4000;
 function brainWorldSnapshot(): string {
@@ -507,7 +510,9 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"take_mcp","servers":["<name>",…],"to":…,"id":…}   (or "targets", like give_mcp)
 {"do":"set_mcp","servers":["<name>",…],"to":"agent"|"team","id":"…"}   (their whole list becomes exactly this; [] takes all away)
 {"do":"build","object":"name (a new name makes a new object)","anchor":"world"|"brain"|"team:<team id>","position":[x,y,z],"voxel_size":0.25,"steps":[STEP,…]}   (builds in the project's voxel world; position in map units from the anchor, new objects only; "prefab":"name" instead of "object" builds a prefab, with "description")
-{"do":"world_env","preset":"station|day|golden|dusk|night|overcast|snow"}   (the world's time of day)
+{"do":"world_env","preset":"station|day|golden|dusk|night|overcast|snow","sun":{"elevation":8},"fog":{"density":0.4},"weather":"none|snow|rain|petals|leaves|dust","wind":[1,0,0.5]}   (the world's time of day, sky, sun, fog, weather and wind; only what changes)
+{"do":"world_light","op":"add|change|remove","light":"name (change, remove)","name":"…","kind":"point|spot","color":"#ffb860","intensity":0-10,"range":12,"anchor":"world","object":"object name","position":[x,y,z],"flicker":0.3}   (glowing voxels light their surroundings by themselves; add lights for doorways, spotlights, fires)
+{"do":"world_effect","op":"add|change|remove","effect":"name (change, remove)","kind":"petals|leaves|snow|rain|fireflies|embers|sparks|smoke|steam|mist|dust|birds","size":[w,h,d],"amount":0.5,"position":[x,y,z],"object":"object name"}   (particles in an area)
 {"do":"write_world_md","content":"the whole WORLD.md in markdown"}   (sections: # name, ## Theme and meaning, ## Look, ## Feel, ## Places, ## Characters, ## Story so far, ## Rules)
 {"do":"update_world_md","section":"Places › Koi pond","content":"…","append":true|false}   (one section, by heading or a path of headings; added when it isn't there)
 {"do":"remember","text":"one short note"}   (adds it to your own MEMORY.md; with "to":"agent","id":"<agent id>" to an agent's MEMORY.md instead, when the user wants that agent to remember something)
@@ -1527,15 +1532,21 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         done.push({ kind: 'file', text: 'Wrote PROJECT.md in the project folder', file });
       } else if (kind === 'build') {
         if (auto) throw new Error('builds only happen when the user asks');
-        const r = buildInWorld({ by: { kind: 'brain', name: 'The Brain' }, object: String(act.object ?? act.name ?? ''), anchor: act.anchor, position: act.position, voxelSize: act.voxel_size, steps: act.steps, project: p.id });
+        const r = buildInWorld({ by: BRAIN_BUILDER, prefab: act.prefab === undefined ? undefined : String(act.prefab), description: act.description, object: String(act.object ?? act.name ?? ''), anchor: act.anchor, position: act.position, voxelSize: act.voxel_size, steps: act.steps, project: p.id });
         log('world', `The Brain ${r.created ? 'built' : 'changed'} "${r.object.name}" in the world`);
         done.push({ kind: 'world', text: `${r.created ? 'Built' : 'Changed'} "${r.object.name}": ${r.outcome.added.toLocaleString('en-US')} voxels added${r.outcome.removed ? `, ${r.outcome.removed.toLocaleString('en-US')} removed` : ''}` });
       } else if (kind === 'world_env') {
         if (auto) throw new Error('only when the user asks');
-        const w = worldForBuild(p.id);
-        w.environment = envPreset(String(act.preset ?? 'station'));
-        saveWorld(w, { environment: true });
-        done.push({ kind: 'world', text: `Set the world's time of day to ${w.environment.preset}` });
+        const { do: _d, action: _a, ...fields } = act as BrainAction & Record<string, unknown>;
+        const r = setEnvironment({ by: BRAIN_BUILDER, fields, project: p.id });
+        done.push({ kind: 'world', text: `Set the world's look: ${r.world.environment.preset}${r.world.environment.weather && r.world.environment.weather !== 'none' ? `, ${r.world.environment.weather}` : ''}` });
+      } else if (kind === 'world_light' || kind === 'world_effect') {
+        if (auto) throw new Error('only when the user asks');
+        const { do: _d, action: _a, light, effect, op, ...fields } = act as BrainAction & Record<string, unknown>;
+        const what = String(op || 'add') as 'add' | 'change' | 'remove';
+        if (!['add', 'change', 'remove'].includes(what)) throw new Error('"op" is add, change or remove');
+        const text = kind === 'world_light' ? setLight({ by: BRAIN_BUILDER, action: what, light: light as string | undefined, fields, project: p.id }).text : setEffect({ by: BRAIN_BUILDER, action: what, effect: effect as string | undefined, fields, project: p.id }).text;
+        done.push({ kind: 'world', text: text.split(':')[0] });
       } else if (kind === 'write_world_md' || kind === 'update_world_md') {
         if (auto) throw new Error('only when the user asks');
         const w = worldForBuild(p.id);

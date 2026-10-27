@@ -4,6 +4,7 @@ import { log } from '../store.ts';
 import { withActor } from '../versions.ts';
 import { VERBS, BuildError } from './ops.ts';
 import { build, changeObject, findObject, findPrefab, ownsObject, undo } from './build.ts';
+import { setEffect, setEnvironment, setLight, EFFECT_KINDS } from './scene.ts';
 import { changePrefab, deletePrefab, importPrefab, libraryList, prefabList, publishPrefab, savePrefabFrom } from './prefabs.ts';
 import { shownWorld } from './link.ts';
 import { worldInfo } from './describe.ts';
@@ -29,6 +30,7 @@ Shapes (each may take "at": offset from the cursor, "use": material, "erase": tr
 {"box": [w, h, d]} (from its corner; "frame": true for edges only), {"sphere": r}, {"ellipsoid": [rx, ry, rz]}, {"blob": [rx, ry, rz], "rough": 0.3, "holes": 0.2} (organic: crowns, bushes, clouds, rocks), {"cylinder": r, "height": h, "axis": "y"}, {"cone": r, "height": h, "down": false}, {"pyramid": [w, d], "height": h}, {"torus": R, "tube": r}, {"line": [x, y, z], "thickness": 1} (to that point), {"stairs": {"steps": n, "width": w, "dir": "+x", "rise": 1, "run": 1}}, {"arch": {"width": w, "height": h, "thickness": 1, "depth": 1, "axis": "x"}}, {"set": [[x, y, z], …]}, {"layers": [["row", …] (bottom layer first; each row runs along x, rows along z)], "key": {"#": "stone", "o": "lantern"}} ("." is empty), {"text": "DINER", "facing": "+z", "scale": 1, "depth": 1}, {"heightmap": {"rows": ["0123", …]} or {"size": [w, d], "height": 6, "cell": 12}, "top": "grass"}, {"replace": {"from": "stone", "to": "moss", "chance": 0.3}, "in": [w, h, d]}, {"clear": true} (everything at this voxel size), {"scatter": {"count": 20, "area": [w, d], "step": {…any step…}}}.
 Shape tools: {"revolve": [[radius, height], …], "sides": 0} (a profile turned around the vertical: columns, domes, vases, trunks, minarets; "sides": 4 for square, 8 for octagonal), {"extrude": {"points": [[x, z], …]} or {"rows": ["##..", …]}, "height": h, "wall": 1} (an outline raised: floor plans, walls, plazas, fields; "wall" for hollow walls that thick), {"path": [[x, z] or [x, y, z], …], "width": w, "height": 1} (a brush swept along points: roads, rivers, canals, walls).
 Region tools (a box of w×h×d voxels): {"copy": [w, h, d], "from": [x, y, z], "at": [x, y, z], "turn": 90, "mirror": "x"}, {"shift": [w, h, d], "from": […], "at": […]} (move it), {"rotate": [w, h, d], "at": […], "turn": 90} (in place), {"flip": [w, h, d], "at": […], "axis": "x"}.
+Finishing (on everything at this voxel size, or "in": [w, h, d] from the spot): {"snow_cover": {"depth": 1, "chance": 0.9}} (snow on every ledge the sky can see), {"overgrow": {"chance": 0.25, "hang": 3}, "use": "moss"} (tufts on top, vines down walls), {"weather": {"amount": 0.3}} (wear and dirt, more near the ground).
 Prefabs (small models made once and used many times; see world_prefab):
 {"place": "Palm tree", "at": [x, y, z], "turn": 30} places one copy (any angle; "tilt"/"roll" 0/90/180/270, "scale", "mirror": true, "swap": {"shirt": "cloth red"} to recolour a material in that copy). Many at once: "scatter": {"area": [w, d], "count": 60, "spacing": 6}, or "along": [[x, z], …] with "every": 12, "sides": 2, "offset": 4, "face": "along"|"across", or "grid": {"rows": 3, "cols": 5, "gap": [6, 8]}. "place" can be a list of prefabs to pick from, "turn": "random" or [min, max], "scale": [min, max], "mirror": "random", "swap": a list to pick from. Many copies stand on what is built below them ("on": "surface"); a single one stands exactly at "at" unless "on": "surface". "avoid": "solid" skips spots inside something built.
 {"unplace": "Palm tree" (or a list, or "all"), "in": [w, h, d]} takes copies away. {"stamp": "Window", "at": [x, y, z], "turn": 90, "swap": {…}} bakes a prefab into this object's voxels (quarter turns), for parts of a building.
@@ -185,6 +187,95 @@ export function worldTools(gate: Gate): ToolDef[] {
             default:
               return { text: 'action is "list", "save", "change", "delete", "publish", "library" or "import".', isError: true };
           }
+        } catch (e) {
+          return failed(e);
+        }
+      },
+    },
+    {
+      name: 'world_light',
+      group: 'world',
+      risk: ({ action }: { action?: string }) => (action === 'remove' ? 'high' : 'low'),
+      description: 'Put up, change or take away a light in the voxel world. Glowing voxels (materials of kind "emissive": lanterns, windows, signs, headlights) already light what is around them; add a light for what voxels can\'t do: a warm light spilling out of a doorway, a spotlight on a statue, a fire\'s flicker, moonlight on water. A world has at most 32.',
+      parameters: obj(
+        {
+          action: str('"add", "change" or "remove"'),
+          light: str('change, remove: the light (name or id)'),
+          name: str('A name, e.g. "Temple doorway"'),
+          kind: str('"point" (shines all around) or "spot" (a cone towards target)'),
+          color: str('#rrggbb, e.g. #ffb860 for warm lamplight'),
+          intensity: { type: 'number', description: '0-10: 1 a lantern, 4 a street lamp, 10 a floodlight' },
+          range: { type: 'number', description: 'How far it reaches, map units' },
+          anchor: str('"world", "brain", "team:<id>" or "agent:<id>"'),
+          object: str('Pin it to an object (name or id): position is then from that object, and it moves with it'),
+          position: { type: 'array', items: { type: 'number' }, description: '[x, y, z] map units' },
+          target: { type: 'array', items: { type: 'number' }, description: 'spot: the point it shines at' },
+          angle: { type: 'number', description: 'spot: the cone, degrees' },
+          flicker: { type: 'number', description: '0-1: flames and old neon flicker' },
+        },
+        ['action'],
+      ),
+      run: async (args, ctx) => {
+        const { action, light, ...fields } = args as Record<string, unknown> & { action?: string; light?: string };
+        if (action !== 'add' && action !== 'change' && action !== 'remove') return { text: 'action is "add", "change" or "remove".', isError: true };
+        try {
+          return { text: setLight({ by: builderOf(ctx), action, light, fields }).text };
+        } catch (e) {
+          return failed(e);
+        }
+      },
+    },
+    {
+      name: 'world_effect',
+      group: 'world',
+      risk: ({ action }: { action?: string }) => (action === 'remove' ? 'high' : 'low'),
+      description: `Add, change or take away particles in an area of the voxel world: ${EFFECT_KINDS.join(', ')}. Petals under blossoming trees, fireflies over a pond at night, smoke from a chimney, steam from a street grate, embers from a fire, mist on the river, birds circling a tower. For weather over the whole map use world_environment instead. A world has at most 24.`,
+      parameters: obj(
+        {
+          action: str('"add", "change" or "remove"'),
+          effect: str('change, remove: the effect (name or id)'),
+          kind: str(EFFECT_KINDS.join(', ')),
+          name: str('A name, e.g. "Chimney smoke"'),
+          size: { type: 'array', items: { type: 'number' }, description: 'The area [w, h, d] in map units, around position (its bottom centre)' },
+          amount: { type: 'number', description: '0-1: how many' },
+          colors: { type: 'array', items: { type: 'string' }, description: 'Colours to pick from (#rrggbb); each kind has its own when left out' },
+          wind: { type: 'array', items: { type: 'number' }, description: '[x, y, z] which way it drifts, map units a second' },
+          anchor: str('"world", "brain", "team:<id>" or "agent:<id>"'),
+          object: str('Pin it to an object (name or id): it moves with it'),
+          position: { type: 'array', items: { type: 'number' }, description: '[x, y, z] map units: the bottom centre of the area' },
+        },
+        ['action'],
+      ),
+      run: async (args, ctx) => {
+        const { action, effect, ...fields } = args as Record<string, unknown> & { action?: string; effect?: string };
+        if (action !== 'add' && action !== 'change' && action !== 'remove') return { text: 'action is "add", "change" or "remove".', isError: true };
+        try {
+          return { text: setEffect({ by: builderOf(ctx), action, effect, fields }).text };
+        } catch (e) {
+          return failed(e);
+        }
+      },
+    },
+    {
+      name: 'world_environment',
+      group: 'world',
+      risk: 'low',
+      description: 'The voxel world\'s time of day, sky, sun, fog, weather and wind. Start from a preset (station, day, golden, dusk, night, overcast, snow) and change any part: {"preset": "dusk", "sun": {"elevation": 8}, "fog": {"density": 0.4}, "weather": "snow", "wind": [1, 0, 0.5]}. It eases from the old look to the new one. Match WORLD.md: a golden desert, a snowy city at dusk, a night market.',
+      parameters: obj({
+        preset: str('station, day, golden, dusk, night, overcast or snow'),
+        sky: { type: 'object', description: '{"top", "horizon", "bottom"}: colours #rrggbb' },
+        sun: { type: 'object', description: '{"color", "intensity" 0-8, "azimuth" degrees, "elevation" 2-90 degrees}' },
+        fog: { type: 'object', description: '{"color", "density" 0-1}' },
+        ambient: { type: 'object', description: '{"sky", "ground" colours, "intensity" 0-4}: the light from the sky and from the ground' },
+        bloom: { type: 'number', description: '0-2: glow around bright things' },
+        tiltShift: { type: 'number', description: '0-1: the miniature blur at the top and bottom' },
+        exposure: { type: 'number', description: '0.3-3' },
+        weather: str('none, snow, rain, petals, leaves or dust (over the whole map)'),
+        wind: { type: 'array', items: { type: 'number' }, description: '[x, y, z] map units a second: drifts snow and petals, sways leaves' },
+      }),
+      run: async (args, ctx) => {
+        try {
+          return { text: setEnvironment({ by: builderOf(ctx), fields: args as Record<string, unknown> }).text };
         } catch (e) {
           return failed(e);
         }
