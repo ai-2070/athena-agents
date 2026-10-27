@@ -1,0 +1,85 @@
+shared/look.ts
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 1-42
+docs/internal/plans/tailwind.md
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 29
+package.json
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 56-57,60
+server/store.ts
+  s_6659d3aa7b8da4::t_55f180e065e5b4 45
+  s_6659d3aa7b8da4::t_562cf7ad7bcca9 66-71
+tests/web/look.test.tsx
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 1-122
+tests/web/navlimits.test.ts
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 1-156
+tests/web/settings-page.test.tsx
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 134
+  s_6659d3aa7b8da4::t_55f180e065e5b4 144,161
+  s_6659d3aa7b8da4::t_f47dd42c93f8b1 180
+web/look.ts
+  s_6659d3aa7b8da4::t_55f180e065e5b4 24
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 1,4-6,25-27,36,46-49
+server/index.ts
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 50,352-372
+  s_6659d3aa7b8da4::t_55f180e065e5b4 70
+  s_6659d3aa7b8da4::t_6bb55edca87295 373
+web/navlimits.ts
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 1-222
+tests/server/store.test.ts
+  s_6659d3aa7b8da4::t_94291dc11f066a 19,23-27
+  s_6659d3aa7b8da4::t_ccd62e0b817df3 3,20-22
+tests/server/styles.test.ts
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 9,81-86
+  s_6659d3aa7b8da4::t_f0594523531753 87-88
+shared/types.ts
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 523-528,537-539,838-869
+  s_6659d3aa7b8da4::t_55f180e065e5b4 530
+  s_6659d3aa7b8da4::t_daaaa6d4f6a0e2 870
+web/views/station.ts
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 6,219-220,349-361,445,762,766-767,828-830,889-901,1698-1774,1777-1801,1805-1808,1817,1819,1821,1826-1829,1835,1840,1851-1963,1967,1975,2034,2181-2183,2195-2200,2207-2209,2213-2229,2283-2289,2295-2296,2302,2308,2313,2358-2359,2361,2363,2372-2511,2518-2529,2531-2533,2544,2547,2575-2577,2585,2587-2594,3395,3404-3405,3930
+  s_6659d3aa7b8da4::t_5dfc3a3076ac53 12,1008,1964-1966,3471
+  s_6659d3aa7b8da4::t_f47dd42c93f8b1 1775-1776
+  s_6659d3aa7b8da4::t_252276dd9cfaed 1968
+web/app.ts
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 22,112-113,283-284,286
+tests/web/world-panel.test.tsx
+  s_6659d3aa7b8da4::t_f47dd42c93f8b1 53
+docs/internal/plans/VOXEL_WORLD_PLAN.md
+  s_6659d3aa7b8da4::t_f31f0fa2fb3b4e 578
+docs/guide.md
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 197-202,266
+  s_6659d3aa7b8da4::t_d813922cc2dee0 104
+scripts/build-fonts.ts
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 15-18
+web/views/look.tsx
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 1,8,17-18,182-214,227-229
+  s_6659d3aa7b8da4::t_55f180e065e5b4 112-126,137-138,141
+server/engines/codex.ts
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 6,56-57,63-73,78-84,128-129
+AGENTS.md
+  s_6659d3aa7b8da4::t_d813922cc2dee0 50
+tests/server/codex-limits.test.ts
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 1-120
+server/codexlimits.ts
+  s_6659d3aa7b8da4::t_c5df4fe32a8768 1-158
+README.md
+  s_6659d3aa7b8da4::t_d813922cc2dee0 45
+  s_6659d3aa7b8da4::t_103ec520024b35 153
+bun.lock
+  s_6659d3aa7b8da4::t_1692ca8e77dd4e 11-12,15,108-111,116-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "82b9d4ae3cf57934c9b875695a95c6d314c47d9f",
+  "prompts": {},
+  "sessions": {
+    "s_6659d3aa7b8da4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c160d8b-ec0a-4037-a03a-d69be8543431",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
