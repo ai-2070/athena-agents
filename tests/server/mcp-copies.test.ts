@@ -47,9 +47,22 @@ describe('adding another account of a ready-made server', () => {
   it('gives a second account of a browser sign-in service its own login', () => {
     expect(mcp.addPreset('sentry').server.env.MCP_REMOTE_CONFIG_DIR).toBeUndefined();
     const dir = mcp.addPreset('sentry', { label: 'Client' }).server.env.MCP_REMOTE_CONFIG_DIR;
-    expect(dir).toMatch(/[\\/]\.mcp-auth[\\/]dashboard-sentry-client$/);
+    expect(dir).toMatch(/[\\/]\.mcp-auth[\\/]dashboard-sentry-client-[0-9a-f]{8}$/);
     // a key-based service has nothing to keep apart
     expect(mcp.listServers()['oomol-client-a'].env.MCP_REMOTE_CONFIG_DIR).toBeUndefined();
+  });
+
+  it('a renamed copy keeps its login, and a new copy given its old name gets one of its own', () => {
+    const first = mcp.addPreset('sentry', { label: 'Work' }).server.env.MCP_REMOTE_CONFIG_DIR;
+    expect(mcp.renameServer('sentry-work', 'sentry-archived')).toBe('sentry-archived');
+    expect(mcp.listServers()['sentry-archived'].env.MCP_REMOTE_CONFIG_DIR).toBe(first);
+    const again = mcp.addPreset('sentry', { label: 'Work' });
+    expect(again.name).toBe('sentry-work');
+    expect(again.server.env.MCP_REMOTE_CONFIG_DIR).toMatch(/dashboard-sentry-work-[0-9a-f]{8}$/);
+    expect(again.server.env.MCP_REMOTE_CONFIG_DIR).not.toBe(first);
+    // a copy made before keeps the folder it signed in with
+    const old = { args: ['-y', 'mcp-remote', 'https://mcp.sentry.dev/mcp'], env: { MCP_REMOTE_CONFIG_DIR: '/home/x/.mcp-auth/dashboard-sentry-old' } };
+    expect(mcp.withOwnLogin('sentry-old', old)).toBe(old);
   });
 
   it('lists every copy on the ready-made one, and stops suggesting it', () => {

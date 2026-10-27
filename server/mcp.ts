@@ -1,6 +1,7 @@
 // MCP servers: the dashboard connects to them for API-model agents and hands them to Claude Code agents.
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -115,10 +116,12 @@ export const signsInByBrowser = (p: McpPreset): boolean => !!remoteUrl(p);
 
 /** Another account of a service that signs in through the browser keeps its own login. mcp-remote keeps one
  *  login per link, so a second account would quietly be the first. Its folder sits next to mcp-remote's own
- *  (~/.mcp-auth), not in the data folder, so the tokens stay out of backups. */
+ *  (~/.mcp-auth), not in the data folder, so the tokens stay out of backups. The folder gets a random part
+ *  of its own: a copy keeps it when renamed, so a new copy given the old name must not land in it. (A copy
+ *  that has a folder already keeps it, so it stays signed in.) */
 export function withOwnLogin<T extends { args?: string[] | string; env?: Record<string, string> }>(name: string, cfg: T): T {
   if (!Array.isArray(cfg.args) || !cfg.args.includes('mcp-remote') || cfg.env?.MCP_REMOTE_CONFIG_DIR) return cfg;
-  return { ...cfg, env: { ...cfg.env, MCP_REMOTE_CONFIG_DIR: path.join(HOME, '.mcp-auth', `dashboard-${serverName(name)}`) } };
+  return { ...cfg, env: { ...cfg.env, MCP_REMOTE_CONFIG_DIR: path.join(HOME, '.mcp-auth', `dashboard-${serverName(name)}-${crypto.randomBytes(4).toString('hex')}`) } };
 }
 
 export const PRESETS: McpPreset[] = [

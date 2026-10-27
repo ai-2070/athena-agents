@@ -368,7 +368,7 @@ describe('the Brain and several accounts of one service', () => {
     expect(mcp.listServers()['linear-client']).toMatchObject({ kind: 'linear', label: 'Client', useFor: "the client's issues", args: ['-y', 'mcp-remote', 'https://mcp.linear.app/mcp'] });
     // each account signs in on its own: the first keeps mcp-remote's usual login, the second gets its own folder
     expect(mcp.listServers().linear.env.MCP_REMOTE_CONFIG_DIR).toBeUndefined();
-    expect(mcp.listServers()['linear-client'].env.MCP_REMOTE_CONFIG_DIR).toMatch(/[\\/]\.mcp-auth[\\/]dashboard-linear-client$/);
+    expect(mcp.listServers()['linear-client'].env.MCP_REMOTE_CONFIG_DIR).toMatch(/[\\/]\.mcp-auth[\\/]dashboard-linear-client-[0-9a-f]{8}$/);
   });
 
   it('gives one agent two accounts only when each says what it is for, and finds them by label', () => {
