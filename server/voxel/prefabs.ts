@@ -12,12 +12,13 @@ import { newVolume } from '../../shared/voxel.ts';
 import { readObject, readPrefab, saveWorld, writeObject, writePrefab, worldVoxels } from './store.ts';
 import { changeWorld, shownWorld } from './link.ts';
 import { skinUses } from './characters.ts';
-import { WORLD_LIMITS, cleanPivot, findObject, findPrefab, pivotOf as pivotFrom, placedCopies, remember, volumesMeta } from './build.ts';
+import { WORLD_LIMITS, cleanPivot, findObject, findPrefab, pivotOf as pivotFrom, placedCopies, prefabSize, remember, volumesMeta } from './build.ts';
 import type { PrefabInstance, Vec3, VoxelMaterial, VoxelObjectData, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
 
 const bad = (msg: string, status = 400) => Object.assign(new Error(msg), { status });
 const fmt = (n: number) => n.toLocaleString('en-US');
 const count = (p: { volumes: { count: number }[] }) => p.volumes.reduce((n, v) => n + v.count, 0);
+const copiesText = (n: number) => `${fmt(n)} ${n === 1 ? 'copy' : 'copies'}`;
 
 function pivotOf(p: VoxelPrefabMeta): void {
   Object.assign(p, pivotFrom(p.volumes, p.pivotAt));
@@ -53,7 +54,8 @@ export function prefabList(w: VoxelWorld): string {
       const u = uses.get(p.id);
       const parts = (readPrefab(w.id, p.id)?.instances || []).map((i) => i.name).filter(Boolean);
       const clips = Object.keys(p.animations || {});
-      return `- "${p.name}" (id ${p.id}) by ${p.by.name}: ${p.description || 'no description'}${p.tags.length ? ` [${p.tags.join(', ')}]` : ''} | ${p.size.join('×')} map units, ${fmt(count(p))} voxels at voxel size ${[...new Set(p.volumes.map((v) => v.voxelSize))].join(' and ') || '-'}, pivot ${p.pivotAt && !Array.isArray(p.pivotAt) ? p.pivotAt : p.pivotAt ? p.pivotAt.join(', ') : 'bottom'}${p.instances ? `, ${p.instances} copies of other prefabs inside` : ''}${parts.length ? `, parts: ${parts.join(', ')}` : ''}${clips.length ? `, animations: ${clips.join(', ')}` : ''} | ${u ? `${u.copies} copies in ${u.in.join(', ')}` : 'not placed yet'}`;
+      const worn = skinUses(w, p.id);
+      return `- "${p.name}" (id ${p.id}) by ${p.by.name}: ${p.description || 'no description'}${p.tags.length ? ` [${p.tags.join(', ')}]` : ''} | ${prefabSize(w, p)} map units, ${fmt(count(p))} voxels at voxel size ${[...new Set(p.volumes.map((v) => v.voxelSize))].join(' and ') || '-'}, pivot ${p.pivotAt && !Array.isArray(p.pivotAt) ? p.pivotAt : p.pivotAt ? p.pivotAt.join(', ') : 'bottom'}${p.instances ? `, ${copiesText(p.instances)} of other prefabs inside` : ''}${parts.length ? `, parts: ${parts.join(', ')}` : ''}${clips.length ? `, animations: ${clips.join(', ')}` : ''} | ${[u ? `${copiesText(u.copies)} in ${u.in.join(', ')}` : '', worn.length ? `worn as ${worn.join(', ')}` : ''].filter(Boolean).join('; ') || 'not placed yet'}`;
     })
     .join('\n');
 }
@@ -142,7 +144,7 @@ function savePrefabFromIn(w: VoxelWorld, req: SaveFrom): { prefab: VoxelPrefabMe
     note = ` That part of "${o.name}" is now a copy of it.`;
   } else remember(w.id, { by: req.by, kind: 'prefab', what: `made the prefab ${name}`, objectId: meta.id, metaBefore: null });
   saveWorld(w, { prefabs: [meta.id], objects: req.replace ? [o.id] : [], by: req.by.name });
-  return { prefab: meta, text: `Made the prefab "${name}" from "${o.name}": ${fmt(count(meta))} voxels${instances.length ? ` and ${instances.length} copies of other prefabs` : ''}, ${meta.size.join('×')} map units.${note} Place copies with {"place": "${name}"}.` };
+  return { prefab: meta, text: `Made the prefab "${name}" from "${o.name}": ${fmt(count(meta))} voxels${instances.length ? ` and ${instances.length} copies of other prefabs` : ''}, ${prefabSize(w, meta)} map units.${note} Place copies with {"place": "${name}"}.` };
 }
 
 // ---------- changing one ----------

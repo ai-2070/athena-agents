@@ -132,6 +132,8 @@ export interface BuildRequest {
   /** the voxel size the steps start with (default: the world's) */
   voxelSize?: unknown;
   steps: unknown;
+  /** "map": the steps' positions and sizes are in map units (default: voxels of the current voxel size) */
+  units?: unknown;
   seed?: unknown;
   /** the project whose world it is (default: the active one) */
   project?: string;
@@ -169,13 +171,53 @@ export function objectBox(o: { volumes: VoxelVolumeMeta[] }): { min: Vec3; max: 
   }
   return min && max ? { min, max } : null;
 }
-const r1 = (n: number) => Math.round(n * 10) / 10;
-export const boxText = (o: { volumes: VoxelVolumeMeta[] }): string => {
-  const b = objectBox(o);
+// two decimals: at the fine voxel sizes (0.1, 0.125) one would round 0.25 up to 0.3
+const r1 = (n: number) => Math.round(n * 100) / 100;
+export const boxText = (o: { volumes: VoxelVolumeMeta[] }, box?: { min: Vec3; max: Vec3 } | null): string => {
+  const b = box === undefined ? objectBox(o) : box;
   if (!b) return 'empty';
   const s = b.max.map((n, i) => r1(n - b.min[i]));
   return `${s[0]}×${s[1]}×${s[2]} map units (x ${r1(b.min[0])}..${r1(b.max[0])}, y ${r1(b.min[1])}..${r1(b.max[1])}, z ${r1(b.min[2])}..${r1(b.max[2])} from its position)`;
 };
+
+/**
+ * A prefab's box in map units from its voxels' origin, with the copies of other prefabs inside it (a
+ * character made only of parts has no voxels of its own). A copy stands as the page draws it:
+ * T(p) · Ry(turn) · Rx(tilt) · Rz(roll) · S(scale, mirrored in x) · T(-pivot) (web/voxel/instances.ts).
+ */
+export function prefabBox(w: VoxelWorld, id: string, depth = 0): { min: Vec3; max: Vec3 } | null {
+  const p = w.prefabs.find((x) => x.id === id);
+  if (!p) return null;
+  let box = objectBox(p);
+  if (!p.instances || depth >= WORLD_LIMITS.nesting) return box;
+  const DEG = Math.PI / 180;
+  for (const i of readPrefab(w.id, id)?.instances || []) {
+    const child = w.prefabs.find((x) => x.id === i.prefab);
+    const cb = child ? prefabBox(w, child.id, depth + 1) : null;
+    if (!child || !cb) continue;
+    const s = i.scale ?? 1;
+    const [ct, st] = [Math.cos((i.turn || 0) * DEG), Math.sin((i.turn || 0) * DEG)];
+    const [cx, sx] = [Math.cos((i.tilt || 0) * DEG), Math.sin((i.tilt || 0) * DEG)];
+    const [cz, sz] = [Math.cos((i.roll || 0) * DEG), Math.sin((i.roll || 0) * DEG)];
+    for (const x0 of [cb.min[0], cb.max[0]])
+      for (const y0 of [cb.min[1], cb.max[1]])
+        for (const z0 of [cb.min[2], cb.max[2]]) {
+          let [x, y, z] = [(x0 - child.pivot[0]) * s * (i.mirror ? -1 : 1), (y0 - child.pivot[1]) * s, (z0 - child.pivot[2]) * s];
+          [x, y] = [cz * x - sz * y, sz * x + cz * y];
+          [y, z] = [cx * y - sx * z, sx * y + cx * z];
+          [x, z] = [ct * x + st * z, -st * x + ct * z];
+          const v: Vec3 = [x + i.p[0], y + i.p[1], z + i.p[2]];
+          box = box ? { min: box.min.map((n, a) => Math.min(n, v[a])) as Vec3, max: box.max.map((n, a) => Math.max(n, v[a])) as Vec3 } : { min: [...v] as Vec3, max: [...v] as Vec3 };
+        }
+  }
+  return box;
+}
+
+/** A prefab's size in map units, copies inside it included (for messages). */
+export function prefabSize(w: VoxelWorld, p: VoxelPrefabMeta): string {
+  const b = prefabBox(w, p.id);
+  return b ? b.max.map((n, a) => r1(n - b.min[a])).join('×') : '0×0×0';
+}
 
 /** Does prefab `id` hold `target` (directly or deeper)? And how deep do copies nest inside `id`? */
 function nesting(w: VoxelWorld, id: string, target: string | null, seen = new Set<string>()): { holds: boolean; depth: number } {
@@ -236,7 +278,9 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
   const data = kind === 'prefab' ? readPrefab(w.id, t.id) : readObject(w.id, t.id);
   const grids = loadGrids(data);
   const palette = [...w.palette];
+  if (req.units !== undefined && req.units !== 'map' && req.units !== 'voxels') throw bad('units is "map" or "voxels"');
   const outcome = runBuild({
+    units: req.units === 'map' ? 'map' : 'voxels',
     grids,
     palette,
     voxelSize,
@@ -283,9 +327,12 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
     const p = t as VoxelPrefabMeta;
     if (req.pivot !== undefined) p.pivotAt = cleanPivot(req.pivot);
     Object.assign(p, pivotOf(volumes, p.pivotAt));
+    if (created) w.prefabs.push(p);
+    // (copies placed inside count too: a character made of parts has no voxels of its own)
+    const full = prefabBox(w, p.id);
+    if (full) p.size = full.max.map((n, a) => Math.round((n - full.min[a]) * 1000) / 1000) as Vec3;
     if (req.description !== undefined) p.description = String(req.description).slice(0, 300);
     if (Array.isArray(req.tags)) p.tags = [...new Set(req.tags.map((x) => String(x).trim().toLowerCase()).filter(Boolean))].slice(0, 12);
-    if (created) w.prefabs.push(p);
   } else if (created) w.objects.push(t as VoxelObjectMeta);
   w.palette = palette;
   w.built = true;
@@ -294,10 +341,12 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
   saveWorld(w, { [kind === 'prefab' ? 'prefabs' : 'objects']: [t.id], by: req.by.name, builder: req.by, added: outcome.added, placed: outcome.placed });
 
   const sizes = volumes.map((v) => `${v.voxelSize}: ${fmt(v.count)}`).join(', ');
-  const where = kind === 'prefab' ? `Its bottom centre stands where it is placed; it is ${(t as VoxelPrefabMeta).size.join('×')} map units. Place copies with {"place": "${t.name}"}, or bake it into an object with {"stamp": "${t.name}"}.` : `at ${(t as VoxelObjectMeta).position.join(', ')} from ${anchorText((t as VoxelObjectMeta).anchor)}`;
+  const pv = (t as VoxelPrefabMeta).pivotAt;
+  const stands = !pv || pv === 'bottom' ? 'Its bottom centre stands' : pv === 'top' ? 'It hangs from its top centre' : pv === 'center' ? 'Its middle is' : `Its pivot (${pv.join(', ')}) is`;
+  const where = kind === 'prefab' ? `${stands} where it is placed, and turns around it; it is ${prefabSize(w, t as VoxelPrefabMeta)} map units${outcome.instances.length ? ' with the copies inside it' : ''}. Place copies with {"place": "${t.name}"}, or bake it into an object with {"stamp": "${t.name}"}.` : `at ${(t as VoxelObjectMeta).position.join(', ')} from ${anchorText((t as VoxelObjectMeta).anchor)}`;
   const text = [
-    `${created ? 'Built' : 'Changed'} ${kind === 'prefab' ? 'the prefab' : ''} "${t.name}" in the world "${w.name}": ${fmt(outcome.added)} voxels added, ${fmt(outcome.removed)} removed, ${fmt(outcome.painted)} repainted${instancesChanged ? `; ${fmt(outcome.placed)} copies placed, ${fmt(outcome.unplaced)} taken away` : ''}.`.replace('Built  "', 'Built "').replace('Changed  "', 'Changed "'),
-    `It now has ${fmt(count(volumes))} voxels (by voxel size: ${sizes || 'none'})${outcome.instances.length ? ` and ${fmt(outcome.instances.length)} placed copies` : ''}, ${boxText({ volumes })}. ${where}`,
+    `${created ? 'Built' : 'Changed'} ${kind === 'prefab' ? 'the prefab' : ''} "${t.name}" in the world "${w.name}": ${fmt(outcome.added)} voxels added, ${fmt(outcome.removed)} removed, ${fmt(outcome.painted)} repainted${instancesChanged ? `; ${fmt(outcome.placed)} ${outcome.placed === 1 ? 'copy' : 'copies'} placed, ${fmt(outcome.unplaced)} taken away` : ''}.`.replace('Built  "', 'Built "').replace('Changed  "', 'Changed "'),
+    `It now has ${fmt(count(volumes))} voxels (by voxel size: ${sizes || 'none'})${outcome.instances.length ? ` and ${fmt(outcome.instances.length)} placed ${outcome.instances.length === 1 ? 'copy' : 'copies'}` : ''}, ${kind === 'prefab' && !count(volumes) && outcome.instances.length ? 'all of it in those copies' : boxText({ volumes })}. ${where}`,
     outcome.newMaterials.length ? `Added to the palette: ${outcome.newMaterials.join(', ')}.` : '',
     ...outcome.notes,
     `The world has ${fmt(total)} of ${fmt(WORLD_LIMITS.voxels)} voxels${kind === 'object' ? ` and ${fmt(placedCopies(w))} of ${fmt(WORLD_LIMITS.copies)} placed copies` : ''}.`,

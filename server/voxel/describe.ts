@@ -7,7 +7,7 @@ import { getVoxel } from '../../shared/voxel.ts';
 import { loadGrids } from './ops.ts';
 import { readObject, readPrefab, worldVoxels } from './store.ts';
 import { shownWorld } from './link.ts';
-import { anchorText, boxText, findObject, findPrefab, placedCopies, recentChanges, WORLD_LIMITS } from './build.ts';
+import { anchorText, boxText, findObject, findPrefab, placedCopies, prefabSize, recentChanges, WORLD_LIMITS } from './build.ts';
 import { sceneText } from './scene.ts';
 import { skinsText } from './characters.ts';
 import type { VoxelWorld } from '../../shared/types.ts';
@@ -52,7 +52,7 @@ function layoutText(agentId?: string): string {
 
 export function worldText(w: VoxelWorld, { how, fromProject, agentId }: { how: string; fromProject?: string; agentId?: string }): string {
   const objects = w.objects.map((o) => `- "${o.name}" (id ${o.id}) by ${o.by.name}${o.lastBy && o.lastBy.name !== o.by.name ? `, last changed by ${o.lastBy.name}` : ''} ${ago(o.updatedAt)}: ${o.volumes.reduce((n, v) => n + v.count, 0).toLocaleString('en-US')} voxels at voxel size ${[...new Set(o.volumes.map((v) => v.voxelSize))].join(' and ') || '-'}, ${boxText(o)}, at ${o.position.join(', ')} from ${anchorText(o.anchor)}${o.rotation ? `, turned ${o.rotation}°` : ''}${o.scale !== 1 ? `, scale ${o.scale}` : ''}${o.instances ? `, ${o.instances} prefab copies placed in it` : ''}${o.hidden ? ' (hidden)' : ''}`);
-  const prefabs = w.prefabs.map((p) => `- "${p.name}" by ${p.by.name}: ${p.description || 'no description'} | ${p.size.join('×')} map units, ${p.volumes.reduce((n, v) => n + v.count, 0).toLocaleString('en-US')} voxels`);
+  const prefabs = w.prefabs.map((p) => `- "${p.name}" by ${p.by.name}: ${p.description || 'no description'} | ${prefabSize(w, p)} map units, ${p.volumes.reduce((n, v) => n + v.count, 0).toLocaleString('en-US')} voxels${p.instances ? ` and ${p.instances} ${p.instances === 1 ? 'copy' : 'copies'} of other prefabs` : ''}`);
   const changes = recentChanges(w.id, 6).map((c) => `- ${ago(c.at)}: ${c.by} ${c.what}`);
   return [
     `World "${w.name}" (${how === 'carried' ? `carried over from another project${fromProject ? ` (${fromProject})` : ''}: your first build makes this project its own copy` : how === 'shared' ? 'shared with another project: changes show there too' : "this project's own"}).`,

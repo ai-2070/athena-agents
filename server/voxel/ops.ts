@@ -1,7 +1,7 @@
 // The build language: a list of plain JSON steps run in order on one object or prefab (VOXEL_WORLD_PLAN.md §4, §4b).
 // Nothing is run as code and nothing is built in: shapes, shape tools (revolve, extrude, path, blob), region tools
 // (copy, shift, rotate, flip), and prefabs the agents made themselves, stamped into the voxels or placed as copies.
-// Positions are whole voxels of the current voxel size, from the cursor.
+// Positions are whole voxels of the current voxel size, from the cursor (map units with "units": "map": inVoxels).
 // A call either works as a whole or changes nothing: a step that fails puts back everything it changed.
 import { CHUNK, CHUNK_CELLS, cellIndex, chunkKey, decodeChunk, encodeChunk, hash3, hexRgb, newVolume, volumeBounds } from '../../shared/voxel.ts';
 import { rng, valueNoise } from './noise.ts';
@@ -125,6 +125,69 @@ const SHAPE_VERBS = ['place', 'unplace', 'stamp', 'box', 'sphere', 'ellipsoid', 
 const STATE_VERBS = ['voxel_size', 'material', 'use', 'seed', 'at', 'move', 'mirror'];
 export const VERBS = [...SHAPE_VERBS, ...STATE_VERBS];
 
+// ---------- map units ----------
+// A step (or a whole call) with "units": "map" gives its positions and sizes in map units, the numbers
+// world_info and plans use; here they become voxels of the current voxel size before the step runs.
+// Character drawings stay in voxels: layers, heightmap rows, extrude rows and text's letter scale.
+type Conv = 'pos' | 'size' | 'len';
+const STEP_LENGTHS: Record<string, Record<string, Conv | Record<string, Conv>>> = {
+  box: { box: 'size' },
+  sphere: { sphere: 'len' },
+  ellipsoid: { ellipsoid: 'len' },
+  blob: { blob: 'len' },
+  cylinder: { cylinder: 'len', height: 'size' },
+  cone: { cone: 'len', height: 'size' },
+  pyramid: { pyramid: 'size', height: 'size' },
+  torus: { torus: 'len', tube: 'len' },
+  revolve: { revolve: 'pos' },
+  extrude: { extrude: { points: 'pos', height: 'size', wall: 'size' }, height: 'size' },
+  path: { path: 'pos', width: 'size', height: 'size' },
+  line: { line: 'pos', thickness: 'size' },
+  stairs: { stairs: { width: 'size', rise: 'size', run: 'size' } },
+  arch: { arch: { width: 'size', height: 'size', thickness: 'size', depth: 'size' } },
+  set: { set: 'pos' },
+  text: { depth: 'size' },
+  heightmap: { heightmap: { size: 'size', height: 'size', cell: 'size' } },
+  copy: { copy: 'size', from: 'pos' },
+  shift: { shift: 'size', from: 'pos' },
+  rotate: { rotate: 'size' },
+  flip: { flip: 'size' },
+  snow_cover: { snow_cover: { depth: 'size' } },
+  overgrow: { overgrow: { hang: 'size' } },
+  scatter: { scatter: { area: 'size' } },
+  // (copies stand exactly where asked: their spots aren't rounded to whole voxels)
+  place: { scatter: { area: 'size', spacing: 'len' }, along: 'len', every: 'len', offset: 'len', grid: { gap: 'len' } },
+};
+
+/** A step in map units, in voxels of `size` (state steps keep "units": "map": the cursor is in map units). */
+export function inVoxels(step: Step, size: number): Step {
+  const verb = verbOf(step);
+  if (verb === 'at' || verb === 'move') return { ...step, units: 'map' };
+  const conv = (v: unknown, how: Conv): unknown => {
+    if (typeof v === 'number') return how === 'pos' ? Math.round(v / size) : how === 'size' ? Math.max(v > 0 ? 1 : 0, Math.round(v / size)) : v / size;
+    if (Array.isArray(v)) return v.map((x) => conv(x, how));
+    return v;
+  };
+  const out: Step = { ...step };
+  delete out.units;
+  if (step.at !== undefined) out.at = conv(step.at, verb === 'place' ? 'len' : 'pos');
+  if (verb === 'place') out.exact = true;
+  if (step.in !== undefined) out.in = conv(step.in, 'size');
+  for (const [field, how] of Object.entries(STEP_LENGTHS[verb] || {})) {
+    if (out[field] === undefined) continue;
+    if (typeof how === 'string') out[field] = conv(out[field], how);
+    else if (out[field] && typeof out[field] === 'object' && !Array.isArray(out[field])) {
+      const inner = { ...(out[field] as Record<string, unknown>) };
+      for (const [k, h] of Object.entries(how)) if (inner[k] !== undefined) inner[k] = conv(inner[k], h);
+      out[field] = inner;
+    }
+  }
+  // the step a scatter repeats is in map units too (it is turned into voxels when it runs)
+  const sc = out.scatter as Record<string, unknown> | undefined;
+  if (verb === 'scatter' && sc?.step && typeof sc.step === 'object' && !Array.isArray(sc.step)) out.scatter = { ...sc, step: { ...(sc.step as Step), units: 'map' } };
+  return out;
+}
+
 function verbOf(step: Step): string {
   for (const v of SHAPE_VERBS) if (v in step) return v;
   for (const v of STATE_VERBS) if (v in step) return v;
@@ -176,6 +239,8 @@ export interface BuildInput {
   loadPrefab?: (id: string) => { grids: Grid[]; instances: PrefabInstance[] } | null;
   /** why a prefab can't be placed here (a prefab inside itself), or null */
   cantPlace?: (id: string) => string | null;
+  /** "map": every step's positions and sizes are in map units (else voxels, unless a step says "units": "map") */
+  units?: 'voxels' | 'map';
 }
 
 /** A prefab as a build sees it. */
@@ -380,7 +445,8 @@ export function runBuild(input: BuildInput): BuildOutcome {
   const solidAt = (x: number, y: number, z: number): boolean => grids.some((g) => getAbs(Math.floor(x / g.voxelSize), Math.floor(y / g.voxelSize), Math.floor(z / g.voxelSize), g) > 0);
 
   // ---------- the steps ----------
-  const run = (step: Step, depth: number) => {
+  const run = (given: Step, depth: number) => {
+    const step = input.units === 'map' || given.units === 'map' ? inVoxels(given, grid.voxelSize) : given;
     const verb = verbOf(step);
     // state
     if (!SHAPE_VERBS.includes(verb)) {
@@ -706,6 +772,10 @@ export function runBuild(input: BuildInput): BuildOutcome {
         const scaleOf = () => (Array.isArray(step.scale) ? num(step.scale[0], 'scale', { min: 0.1, max: 10 }) + random() * (num(step.scale[1], 'scale', { min: 0.1, max: 10 }) - num(step.scale[0], 'scale', { min: 0.1, max: 10 })) : num(step.scale, 'scale', { min: 0.1, max: 10, def: 1 }));
         // where: one spot, scattered in an area, along a path, or in a grid ([x, y, z] voxels, and the way it faces)
         const spots: { at: V3; facing: number }[] = [];
+        // in map units a copy stands exactly where asked; in voxels, in the middle of the spot's voxel
+        const exact = step.exact === true;
+        const at0 = step.at === undefined ? ([0, 0, 0] as V3) : vec(step.at, 'at');
+        const po: V3 = exact ? [cursor[0] / grid.voxelSize + at0[0], cursor[1] / grid.voxelSize + at0[1], cursor[2] / grid.voxelSize + at0[2]] : o;
         const many = step.scatter !== undefined || step.along !== undefined || step.grid !== undefined;
         if (step.scatter !== undefined) {
           const sc = (step.scatter && typeof step.scatter === 'object' ? step.scatter : {}) as Record<string, unknown>;
@@ -713,7 +783,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
           const [w, d] = Array.isArray(sc.area) ? [int(sc.area[0], 'scatter.area', { min: 1, max: 1024 }), int(sc.area[1], 'scatter.area', { min: 1, max: 1024 })] : [16, 16];
           const gap = num(sc.spacing, 'scatter.spacing', { min: 0, max: 256, def: 0 });
           for (let tries = 0; spots.length < count && tries < count * 30; tries++) {
-            const at: V3 = [o[0] + Math.floor(random() * w), o[1], o[2] + Math.floor(random() * d)];
+            const at: V3 = [po[0] + (exact ? random() * w : Math.floor(random() * w)), po[1], po[2] + (exact ? random() * d : Math.floor(random() * d))];
             if (gap && spots.some((s) => Math.hypot(s.at[0] - at[0], s.at[2] - at[2]) < gap)) continue;
             spots.push({ at, facing: 0 });
           }
@@ -737,7 +807,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
                 // left of the way the path goes is (uz, -ux)… seen from above with +z towards you; offset moves the copy sideways
                 const nx = -uz * side;
                 const nz = ux * side;
-                const at: V3 = [o[0] + ax + ux * t + nx * offset, o[1] + ay + ((by - ay) * t) / len, o[2] + az + uz * t + nz * offset];
+                const at: V3 = [po[0] + ax + ux * t + nx * offset, po[1] + ay + ((by - ay) * t) / len, po[2] + az + uz * t + nz * offset];
                 const facing = face === 'along' ? (Math.atan2(ux, uz) * 180) / Math.PI : face === 'across' ? (Math.atan2(-nx, -nz) * 180) / Math.PI : 0;
                 spots.push({ at, facing });
               }
@@ -750,8 +820,8 @@ export function runBuild(input: BuildInput): BuildOutcome {
           const rows = int(g.rows, 'grid.rows', { min: 1, max: 200 });
           const cols = int(g.cols, 'grid.cols', { min: 1, max: 200 });
           const [gx, gz] = Array.isArray(g.gap) ? [num(g.gap[0], 'grid.gap', { min: 0.5, max: 512 }), num(g.gap[1], 'grid.gap', { min: 0.5, max: 512 })] : [8, 8];
-          for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) spots.push({ at: [o[0] + c * gx, o[1], o[2] + r * gz], facing: 0 });
-        } else spots.push({ at: [...o] as V3, facing: 0 });
+          for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) spots.push({ at: [po[0] + c * gx, po[1], po[2] + r * gz], facing: 0 });
+        } else spots.push({ at: [...po] as V3, facing: 0 });
         if (spots.length > LIMITS.placedPerCall) throw new BuildError(`one call may place at most ${LIMITS.placedPerCall} copies`);
         // a part's name in a character ("left arm"): only for one copy at a time
         const partName = step.name === undefined ? '' : String(step.name).trim().toLowerCase().slice(0, 40);
@@ -763,8 +833,8 @@ export function runBuild(input: BuildInput): BuildOutcome {
         const size = grid.voxelSize;
         for (const s of spots) {
           // the middle of the spot's voxel
-          const x = (s.at[0] + 0.5) * size;
-          const z = (s.at[2] + 0.5) * size;
+          const x = (s.at[0] + (exact ? 0 : 0.5)) * size;
+          const z = (s.at[2] + (exact ? 0 : 0.5)) * size;
           let y = s.at[1] * size;
           if (onSurface) {
             const top = surfaceAt(x, z, y + (many ? 32 : 0));

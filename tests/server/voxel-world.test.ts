@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { runBuild, BuildError, LIMITS } from '../../server/voxel/ops.ts';
+import { runBuild, BuildError, LIMITS, saveGrids } from '../../server/voxel/ops.ts';
 import type { Grid } from '../../server/voxel/ops.ts';
 import { countVoxels, getVoxel } from '../../shared/voxel.ts';
 import { build, changeObject, undo } from '../../server/voxel/build.ts';
@@ -111,6 +111,46 @@ function addProject(id: string) {
   saveProjects([...listProjects().filter((p) => p.id !== id), { id, name: `Project ${id}`, brainPath: dir, repo: '', createdAt: Date.now() }]);
 }
 
+describe('steps in map units', () => {
+  // the same steps by hand in voxels, and in map units: the same voxels
+  const voxels = (steps: unknown[], units: 'map' | 'voxels', size = 0.25) => {
+    const grids: Grid[] = [];
+    let k = 0;
+    runBuild({ grids, palette: [], voxelSize: size, steps, newId: () => `m${++k}`, units });
+    return JSON.stringify(saveGrids(grids));
+  };
+  it.each([
+    ['box', [{ use: 'stone' }, { box: [1, 0.5, 2], at: [0.5, 0, -1] }], [{ use: 'stone' }, { box: [4, 2, 8], at: [2, 0, -4] }]],
+    ['cylinder and cone', [{ use: 'stone' }, { cylinder: 1, height: 2 }, { cone: 0.75, height: 1, at: [0, 2, 0] }], [{ use: 'stone' }, { cylinder: 4, height: 8 }, { cone: 3, height: 4, at: [0, 8, 0] }]],
+    ['path', [{ use: 'cobble' }, { path: [[0, 0], [5, 0], [5, 3]], width: 1, height: 0.25 }], [{ use: 'cobble' }, { path: [[0, 0], [20, 0], [20, 12]], width: 4, height: 1 }]],
+    ['revolve', [{ use: 'stone' }, { revolve: [[0.75, 0], [0.5, 0.5], [0.5, 3]] }], [{ use: 'stone' }, { revolve: [[3, 0], [2, 2], [2, 12]] }]],
+    ['extrude walls', [{ use: 'brick' }, { extrude: { points: [[0, 0], [3, 0], [3, 2], [0, 2]] }, height: 1, wall: 0.25 }], [{ use: 'brick' }, { extrude: { points: [[0, 0], [12, 0], [12, 8], [0, 8]] }, height: 4, wall: 1 }]],
+    ['cursor and erase', [{ use: 'wood' }, { at: [1, 0, 1] }, { box: [1, 1, 1] }, { box: [0.5, 0.5, 0.5], erase: true }], [{ use: 'wood' }, { at: [4, 0, 4] }, { box: [4, 4, 4] }, { box: [2, 2, 2], erase: true }]],
+    ['stairs and arch', [{ use: 'stone' }, { stairs: { steps: 3, width: 1, rise: 0.25, run: 0.5 } }, { arch: { width: 2, height: 2, thickness: 0.25, depth: 0.5 }, at: [3, 0, 0] }], [{ use: 'stone' }, { stairs: { steps: 3, width: 4, rise: 1, run: 2 } }, { arch: { width: 8, height: 8, thickness: 1, depth: 2 }, at: [12, 0, 0] }]],
+  ])('%s', (_name, map, vox) => {
+    expect(voxels(map, 'map')).toBe(voxels(vox, 'voxels'));
+  });
+
+  it('follows a change of voxel size in the middle of the call; drawings stay in voxels', () => {
+    const map = [{ use: 'stone' }, { box: [1, 1, 1] }, { voxel_size: 0.5 }, { box: [1, 1, 1], at: [2, 0, 0] }, { layers: [['##']], key: { '#': 'stone' }, at: [0, 2, 0] }];
+    const vox = [{ use: 'stone' }, { box: [4, 4, 4] }, { voxel_size: 0.5 }, { box: [2, 2, 2], at: [4, 0, 0] }, { layers: [['##']], key: { '#': 'stone' }, at: [0, 4, 0] }];
+    expect(voxels(map, 'map')).toBe(voxels(vox, 'voxels'));
+  });
+
+  it('one step can say "units": "map" on its own, and a scatter repeats a step in map units', () => {
+    expect(voxels([{ use: 'stone' }, { box: [1, 1, 1], units: 'map' }], 'voxels')).toBe(voxels([{ use: 'stone' }, { box: [4, 4, 4] }], 'voxels'));
+    const scattered = [{ seed: 3 }, { use: 'leaves' }, { scatter: { count: 5, area: [4, 4], step: { box: [0.5, 0.5, 0.5] } } }];
+    const byHand = [{ seed: 3 }, { use: 'leaves' }, { scatter: { count: 5, area: [16, 16], step: { box: [2, 2, 2] } } }];
+    expect(voxels(scattered, 'map')).toBe(voxels(byHand, 'voxels'));
+    expect(voxels([{ seed: 3 }, { use: 'leaves' }, { scatter: { count: 5, area: [4, 4], step: { box: [0.5, 0.5, 0.5] } }, units: 'map' }], 'voxels')).toBe(voxels(byHand, 'voxels'));
+  });
+
+  it('a small size still makes at least one voxel', () => {
+    expect(voxels([{ use: 'stone' }, { box: [0.1, 0.1, 0.1] }], 'map')).toBe(voxels([{ use: 'stone' }, { box: [1, 1, 1] }], 'voxels'));
+  });
+
+});
+
 describe('worlds and projects', () => {
   it('a project has no world until its first build', () => {
     const pid = listProjects()[0].id;
@@ -186,6 +226,13 @@ describe('worlds and projects', () => {
 });
 
 describe('changing and undoing', () => {
+  it('world_build takes "units": "map", and says sizes in map units back', () => {
+    const r = build({ by: me, object: 'Map-unit hut', units: 'map', steps: [{ use: 'wood' }, { box: [4, 3, 6] }] });
+    expect(r.text).toMatch(/4×3×6 map units/);
+    expect(() => build({ by: me, object: 'Odd', units: 'feet', steps: [{ use: 'wood' }, { box: [1, 1, 1] }] })).toThrow(/units is "map" or "voxels"/);
+    changeObject({ by: me, object: 'Map-unit hut', delete: true });
+  });
+
   it('undo takes a new object away, and puts changed voxels back', () => {
     build({ by: me, object: 'Shed', steps: [{ box: [2, 2, 2], use: 'wood' }] });
     build({ by: me, object: 'Shed', steps: [{ box: [2, 1, 2], use: 'brick' }] });
