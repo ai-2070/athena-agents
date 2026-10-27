@@ -110,7 +110,8 @@ export function codexArgs(agent: Agent, { runId = '', interactive = false, promp
   // autonomy → Codex sandbox
   const mode = agent.autonomy || 'auto';
   if (mode === 'full') args.push('--dangerously-bypass-approvals-and-sandbox');
-  else if (mode === 'auto') args.push('-s', 'workspace-write', ...(interactive ? [] : ['--approve-for-me']));
+  // --approve-for-me already means the workspace-write sandbox, and Codex refuses it alongside -s
+  else if (mode === 'auto') args.push(...(interactive ? ['-s', 'workspace-write'] : ['--approve-for-me']));
   else args.push('-s', 'read-only');
   return args;
 }
