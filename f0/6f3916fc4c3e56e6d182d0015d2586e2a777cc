@@ -1,0 +1,550 @@
+skills/hermes/optional-skills/creative/comfyui/tests/test_check_deps.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-68
+skills/hermes/skills/research/grounded-citations/scripts/sources.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-677
+skills/hermes/skills/creative/manim-video/references/paper-explainer.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-255
+skills/hermes/optional-skills/creative/comfyui/tests/test_common.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-443
+skills/hermes/optional-skills/creative/concept-diagrams/examples/automated-password-reset-flow.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-276
+skills/hermes/skills/creative/manim-video/references/animations.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-282
+skills/hermes/optional-skills/creative/sketch/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-224
+skills/hermes/skills/creative/p5js/references/typography.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-302
+server/skills.ts
+  s_7e08d2f6257df5::t_40efa65389b77d 470-472,478,480-498
+  s_7e08d2f6257df5::t_a06d9577c4cf2d 515-516,518
+skills/hermes/README.md
+  s_7e08d2f6257df5::t_6f4aa2277d9b22 1-44
+skills/hermes/optional-skills/creative/comfyui/tests/test_cloud_integration.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-95
+skills/hermes/skills/creative/manim-video/references/equations.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-216
+skills/hermes/optional-skills/finance/comps-analysis/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-662
+skills/hermes/skills/productivity/pdf/LICENSE
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-21
+skills/hermes/skills/productivity/xlsx/scripts/xlsx_create.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-259
+skills/hermes/skills/software-development/requesting-code-review/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-285
+skills/hermes/optional-skills/creative/hyperframes/scripts/setup.sh
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-135
+skills/hermes/skills/productivity/powerpoint/scripts/pptx_read.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-131
+skills/hermes/skills/software-development/github/templates/pr-body-bugfix.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-35
+skills/hermes/optional-skills/creative/concept-diagrams/examples/commercial-aircraft-structure.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-209
+skills/hermes/skills/media/youtube-content/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-96
+skills/hermes/optional-skills/creative/concept-diagrams/examples/autonomous-llm-research-agent-flow.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-240
+skills/hermes/skills/productivity/pdf/scripts/pdf_read.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-153
+skills/hermes/optional-skills/creative/hyperframes/references/gsap.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-136
+skills/hermes/skills/productivity/docx/scripts/docx_validate.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-156
+skills/hermes/skills/creative/manim-video/references/camera-and-3d.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-135
+skills/hermes/skills/productivity/pdf/references/forms.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-99
+skills/hermes/skills/software-development/dogfood/templates/dogfood-report-template.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-86
+docs/guide.md
+  s_7e08d2f6257df5::t_0517927195cf32 92-93
+  s_7e08d2f6257df5::t_5772767b76e61e 96
+skills/hermes/optional-skills/creative/comfyui/references/official-cli.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-255
+skills/hermes/skills/productivity/docx/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-196
+skills/hermes/optional-skills/finance/dcf-model/scripts/validate_dcf.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-291
+skills/hermes/optional-skills/finance/stocks/scripts/stocks_client.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-750
+skills/hermes/optional-skills/creative/comfyui/scripts/run_workflow.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-796
+skills/hermes/optional-skills/finance/stocks/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-95
+skills/hermes/optional-skills/research/duckduckgo-search/scripts/duckduckgo.sh
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-28
+skills/hermes/skills/productivity/powerpoint/scripts/pptx_from_template.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-88
+skills/hermes/optional-skills/software-development/ast-grep/install.ps1
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-235
+skills/hermes/optional-skills/creative/comfyui/workflows/wan_video_t2v.json
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-69
+skills/hermes/skills/creative/design-md/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-220
+skills/hermes/skills/productivity/weekly-review-planning/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-81
+skills/hermes/skills/productivity/pdf/scripts/pdf_create.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-130
+skills/hermes/optional-skills/creative/comfyui/references/rest-api.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-312
+skills/hermes/optional-skills/social-media/reddit-reading/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-128
+skills/hermes/skills/email/himalaya/references/message-composition.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-199
+skills/hermes/skills/productivity/pdf/scripts/pdf_secure.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-71
+skills/hermes/optional-skills/creative/concept-diagrams/examples/sn2-reaction-mechanism.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-247
+skills/hermes/optional-skills/creative/concept-diagrams/references/dashboard-patterns.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-43
+skills/hermes/optional-skills/creative/comfyui/workflows/sd15_txt2img.json
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-49
+skills/hermes/optional-skills/creative/concept-diagrams/references/physical-shape-cookbook.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-42
+skills/hermes/optional-skills/creative/hyperframes/references/troubleshooting.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-160
+skills/hermes/optional-skills/creative/comfyui/workflows/sdxl_txt2img.json
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-49
+skills/hermes/optional-skills/finance/excel-author/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-244
+skills/hermes/skills/creative/manim-video/references/troubleshooting.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-135
+skills/hermes/skills/software-development/github/templates/pr-body-feature.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-33
+skills/hermes/optional-skills/creative/comfyui/tests/pytest.ini
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-5
+skills/hermes/skills/creative/p5js/scripts/setup.sh
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-87
+skills/hermes/optional-skills/creative/comfyui/scripts/run_batch.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-243
+skills/hermes/optional-skills/software-development/ast-grep/tests/smoke.ps1
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-123
+skills/hermes/skills/productivity/powerpoint/scripts/pptx_create.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-214
+skills/hermes/optional-skills/creative/hyperframes/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-208
+skills/hermes/optional-skills/creative/comfyui/scripts/hardware_check.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-497
+skills/hermes/skills/research/grounded-citations/references/citation-formats.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-65
+skills/hermes/skills/research/arxiv/scripts/search_arxiv.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-114
+skills/hermes/skills/creative/p5js/scripts/render.sh
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-108
+skills/hermes/skills/productivity/xlsx/scripts/xlsx_to_csv.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-69
+skills/hermes/optional-skills/finance/dcf-model/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-1270
+skills/hermes/optional-skills/creative/concept-diagrams/examples/hospital-emergency-department-flow.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-165
+skills/hermes/optional-skills/software-development/ast-grep/LICENSE
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-21
+skills/hermes/skills/creative/p5js/references/color-systems.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-352
+skills/hermes/skills/productivity/pdf/scripts/pdf_fill_form.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-97
+skills/hermes/skills/creative/manim-video/README.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-23
+skills/hermes/optional-skills/finance/merger-model/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-144
+skills/hermes/optional-skills/creative/pixel-art/scripts/pixel_art_video.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-345
+skills/hermes/optional-skills/creative/concept-diagrams/examples/wind-turbine-structure.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-338
+skills/hermes/skills/software-development/github/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-56
+skills/hermes/skills/creative/p5js/README.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-64
+skills/hermes/skills/productivity/pdf/scripts/pdf_form_layout.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-168
+skills/hermes/skills/software-development/github/templates/bug-report.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-35
+skills/hermes/skills/creative/p5js/references/interaction.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-398
+skills/hermes/skills/productivity/xlsx/scripts/xlsx_restructure.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-337
+skills/hermes/optional-skills/creative/comfyui/tests/conftest.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-64
+skills/hermes/skills/productivity/docx/scripts/docx_create.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-177
+skills/hermes/optional-skills/creative/concept-diagrams/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-362
+skills/hermes/skills/productivity/meeting-action-items/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-87
+skills/hermes/optional-skills/software-development/ast-grep/references/yaml-rules.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-509
+skills/hermes/optional-skills/creative/pixel-art/scripts/pixel_art.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-162
+skills/hermes/skills/creative/design-md/templates/starter.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-99
+skills/hermes/skills/productivity/pdf/scripts/extract_marker.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-88
+skills/hermes/skills/software-development/github/references/review-output-template.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-74
+skills/hermes/skills/productivity/pdf/scripts/pdf_meta.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-115
+skills/hermes/skills/software-development/github/references/issue-to-pr.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-64
+skills/hermes/optional-skills/mcp/fastmcp/templates/database_server.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-77
+skills/hermes/optional-skills/creative/comfyui/scripts/comfyui_setup.sh
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-288
+skills/hermes/optional-skills/creative/comfyui/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-612
+skills/hermes/optional-skills/creative/concept-diagrams/examples/apartment-floor-plan-conversion.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-244
+skills/hermes/optional-skills/finance/3-statement-model/references/formatting.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-118
+skills/hermes/optional-skills/creative/excalidraw/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-199
+skills/hermes/optional-skills/software-development/grill-me/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-117
+skills/hermes/optional-skills/creative/pixel-art/references/palettes.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-49
+skills/hermes/skills/productivity/xlsx/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-196
+skills/hermes/optional-skills/creative/comfyui/scripts/check_deps.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-437
+skills/hermes/skills/software-development/dogfood/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-171
+skills/hermes/skills/software-development/systematic-debugging/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-411
+skills/hermes/skills/creative/architecture-diagram/templates/template.html
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-319
+skills/hermes/skills/productivity/powerpoint/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-220
+skills/hermes/optional-skills/creative/concept-diagrams/examples/smartphone-layer-anatomy.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-154
+skills/hermes/optional-skills/creative/concept-diagrams/examples/feature-film-production-pipeline.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-172
+skills/hermes/skills/software-development/dogfood/references/issue-taxonomy.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-109
+skills/hermes/skills/software-development/github/references/pr-workflow.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-354
+skills/hermes/optional-skills/creative/comfyui/workflows/animatediff_video.json
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-64
+skills/hermes/skills/productivity/powerpoint/LICENSE
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-21
+skills/hermes/skills/productivity/powerpoint/scripts/pptx_render.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-93
+skills/hermes/skills/software-development/spike/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-197
+skills/hermes/optional-skills/creative/comfyui/references/template-integrity.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-243
+skills/hermes/optional-skills/software-development/ast-grep/references/recipes.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-402
+skills/hermes/skills/productivity/pdf/scripts/pdf_page_image.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-99
+skills/hermes/skills/creative/manim-video/references/production-quality.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-190
+skills/hermes/optional-skills/creative/excalidraw/references/colors.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-44
+skills/hermes/optional-skills/creative/concept-diagrams/templates/template.html
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-174
+skills/hermes/optional-skills/creative/hyperframes/references/composition.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-129
+skills/hermes/optional-skills/software-development/ast-grep/scripts/ast_grep_helper.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-764
+skills/hermes/skills/creative/manim-video/references/scene-planning.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-118
+skills/hermes/skills/media/youtube-content/references/output-formats.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-56
+skills/hermes/skills/productivity/pdf/scripts/pdf_stamp.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-143
+skills/hermes/skills/productivity/powerpoint/tests/test_powerpoint_skill.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-475
+skills/hermes/skills/research/grounded-citations/scripts/_hermes_home.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-23
+skills/hermes/skills/creative/manim-video/references/decorations.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-202
+skills/hermes/skills/creative/humanizer/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-647
+skills/hermes/skills/productivity/docx/scripts/docx_comments.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-289
+skills/hermes/optional-skills/finance/3-statement-model/references/formulas.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-292
+skills/hermes/optional-skills/creative/concept-diagrams/examples/smart-city-infrastructure.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-173
+skills/hermes/skills/creative/manim-video/references/rendering.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-185
+skills/hermes/skills/research/llm-wiki/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-507
+skills/hermes/optional-skills/mcp/fastmcp/templates/file_processor.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-55
+skills/hermes/optional-skills/creative/comfyui/scripts/_common.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-835
+skills/hermes/optional-skills/data-science/jupyter-notebook/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-178
+skills/hermes/skills/creative/p5js/references/troubleshooting.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-532
+skills/hermes/optional-skills/creative/pixel-art/scripts/palettes.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-167
+skills/hermes/optional-skills/software-development/ast-grep/install.sh
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-286
+skills/hermes/skills/productivity/xlsx/references/restructuring.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-71
+skills/hermes/optional-skills/creative/comfyui/tests/test_run_workflow.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-210
+skills/hermes/optional-skills/creative/comfyui/scripts/health_check.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-223
+skills/hermes/skills/creative/p5js/references/core-api.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-410
+skills/hermes/skills/productivity/pdf/scripts/pdf_make_form.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-145
+skills/hermes/optional-skills/creative/pixel-art/ATTRIBUTION.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-54
+skills/hermes/optional-skills/social-media/reddit-reading/scripts/reddit.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-311
+skills/hermes/skills/productivity/powerpoint/scripts/pptx_edit.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-436
+skills/hermes/skills/email/himalaya/references/configuration.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-227
+skills/hermes/skills/creative/manim-video/references/updaters-and-trackers.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-260
+skills/hermes/optional-skills/mcp/mcporter/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-123
+skills/hermes/skills/productivity/pdf/scripts/extract_pymupdf.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-101
+skills/hermes/skills/creative/architecture-diagram/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-148
+skills/hermes/optional-skills/finance/lbo-model/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-291
+skills/hermes/skills/productivity/pdf/scripts/pdf_split.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-84
+skills/hermes/skills/research/grounded-citations/references/grounding-rationale.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-64
+server/tools.ts
+  s_7e08d2f6257df5::t_9353b82622ea31 160-166
+skills/hermes/optional-skills/mcp/fastmcp/templates/api_wrapper.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-54
+skills/hermes/optional-skills/creative/concept-diagrams/examples/ml-benchmark-grouped-bar-chart.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-114
+skills/hermes/optional-skills/creative/concept-diagrams/examples/electricity-grid-flow.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-182
+skills/hermes/skills/software-development/github/references/code-review.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-468
+skills/hermes/skills/creative/p5js/scripts/serve.sh
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-28
+skills/hermes/skills/software-development/github/references/auth.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-303
+skills/hermes/optional-skills/software-development/ast-grep/references/install.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-166
+skills/hermes/skills/productivity/document-to-action-items/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-81
+skills/hermes/optional-skills/creative/excalidraw/references/examples.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-141
+skills/hermes/skills/creative/manim-video/references/visual-design.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-124
+skills/hermes/skills/productivity/docx/tests/test_docx_skill.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-525
+skills/hermes/skills/software-development/github/references/github-api-cheatsheet.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-161
+skills/hermes/skills/software-development/github/templates/feature-request.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-31
+skills/hermes/optional-skills/research/rss-feeds/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-96
+skills/hermes/skills/creative/p5js/scripts/export-frames.js
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-179
+skills/hermes/skills/software-development/github/references/ci-troubleshooting.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-183
+skills/hermes/optional-skills/creative/comfyui/references/workflow-format.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-226
+skills/hermes/optional-skills/creative/comfyui/workflows/sdxl_img2img.json
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-54
+skills/hermes/skills/creative/p5js/references/visual-effects.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-895
+skills/hermes/skills/productivity/pdf/scripts/pdf_merge.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-50
+skills/hermes/LICENSE
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-21
+skills/hermes/optional-skills/software-development/ast-grep/references/patterns.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-147
+skills/hermes/optional-skills/finance/3-statement-model/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-433
+skills/hermes/optional-skills/creative/comfyui/workflows/README.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-86
+skills/hermes/optional-skills/creative/comfyui/scripts/extract_schema.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-315
+skills/hermes/optional-skills/software-development/ast-grep/references/cli.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-231
+skills/hermes/skills/productivity/xlsx/scripts/csv_to_xlsx.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-104
+skills/hermes/optional-skills/mcp/fastmcp/references/fastmcp-cli.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-110
+skills/hermes/skills/productivity/docx/references/revisions-and-comments.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-88
+AGENTS.md
+  s_7e08d2f6257df5::t_fdedb4bcceed34 53
+skills/hermes/skills/software-development/github/references/conventional-commits.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-71
+skills/hermes/optional-skills/software-development/rest-graphql-debug/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-515
+skills/hermes/optional-skills/creative/comfyui/workflows/flux_dev_txt2img.json
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-78
+skills/hermes/optional-skills/creative/concept-diagrams/references/infrastructure-patterns.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-144
+skills/hermes/optional-skills/research/rss-feeds/scripts/feed.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-246
+skills/hermes/optional-skills/software-development/ast-grep/references/pitfalls.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-303
+skills/hermes/skills/creative/p5js/references/webgl-and-3d.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-423
+tests/server/bundled-skills.test.ts
+  s_7e08d2f6257df5::t_7f2eba40a58456 148-160
+  s_7e08d2f6257df5::t_9dea3ae16a20cf 13,16-20,42-44,73-75
+skills/hermes/skills/productivity/xlsx/tests/test_xlsx_skill.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-542
+skills/hermes/skills/email/himalaya/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-304
+skills/hermes/skills/creative/manim-video/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-275
+skills/hermes/skills/software-development/test-driven-development/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-362
+skills/hermes/optional-skills/creative/concept-diagrams/examples/place-order-uml-sequence.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-325
+skills/hermes/skills/productivity/docx/scripts/docx_revisions.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-146
+skills/hermes/optional-skills/creative/hyperframes/references/features.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-289
+skills/hermes/optional-skills/creative/pixel-art/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-220
+skills/hermes/optional-skills/productivity/decision-questionnaire/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-115
+skills/hermes/optional-skills/mcp/fastmcp/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-300
+skills/hermes/skills/creative/manim-video/references/animation-design-thinking.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-161
+skills/hermes/skills/research/arxiv/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-282
+skills/hermes/optional-skills/finance/3-statement-model/references/sec-filings.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-125
+skills/hermes/optional-skills/devops/docker-management/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-282
+skills/hermes/optional-skills/finance/excel-author/scripts/recalc.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-88
+skills/hermes/optional-skills/creative/comfyui/scripts/fetch_logs.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-157
+skills/hermes/optional-skills/creative/comfyui/workflows/upscale_4x.json
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-27
+skills/hermes/optional-skills/finance/dcf-model/requirements.txt
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-7
+skills/hermes/skills/creative/p5js/templates/viewer.html
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-395
+skills/hermes/skills/productivity/docx/LICENSE
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-21
+skills/hermes/skills/productivity/docx/scripts/docx_template.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-70
+skills/hermes/skills/productivity/pdf/scripts/pdf_watermark.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-51
+skills/hermes/skills/productivity/pdf/tests/test_pdf_skill.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-415
+skills/hermes/optional-skills/creative/excalidraw/scripts/upload.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-133
+skills/hermes/skills/creative/p5js/references/shapes-and-geometry.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-300
+skills/hermes/skills/productivity/docx/scripts/docx_edit.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-250
+skills/hermes/skills/productivity/maps/scripts/maps_client.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-1297
+skills/hermes/skills/creative/p5js/references/animation.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-439
+skills/hermes/optional-skills/research/duckduckgo-search/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-238
+skills/hermes/optional-skills/creative/concept-diagrams/examples/banana-journey-tree-to-smoothie.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-161
+skills/hermes/optional-skills/creative/comfyui/scripts/auto_fix_deps.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-227
+skills/hermes/skills/creative/manim-video/references/graphs-and-data.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-163
+skills/hermes/skills/creative/manim-video/references/mobjects.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-333
+skills/hermes/skills/media/youtube-content/scripts/fetch_transcript.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-124
+skills/hermes/skills/software-development/github/references/repo-management.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-503
+skills/hermes/skills/productivity/pdf/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-125
+skills/hermes/optional-skills/creative/comfyui/tests/README.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-52
+skills/hermes/optional-skills/mcp/fastmcp/scripts/scaffold_fastmcp.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-56
+skills/hermes/skills/productivity/xlsx/scripts/xlsx_edit.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-263
+skills/hermes/skills/creative/p5js/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-558
+skills/hermes/optional-skills/communication/one-three-one-rule/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-97
+skills/hermes/optional-skills/software-development/ast-grep/references/sgconfig.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-248
+skills/hermes/optional-skills/software-development/ast-grep/tests/smoke.sh
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-212
+skills/hermes/skills/email/email-inbox-triage/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-97
+skills/hermes/skills/creative/p5js/references/export-pipeline.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-566
+skills/hermes/skills/productivity/maps/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-195
+skills/hermes/skills/productivity/pdf/references/ocr-extraction.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-165
+skills/hermes/optional-skills/creative/hyperframes/references/website-to-video.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-145
+skills/hermes/skills/software-development/github/references/issues.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-357
+skills/hermes/skills/software-development/github/scripts/git-credential-token.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-65
+skills/hermes/skills/productivity/docx/scripts/docx_read.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-149
+skills/hermes/skills/productivity/docx/scripts/docx_common.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-92
+skills/hermes/optional-skills/software-development/ast-grep/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-288
+skills/hermes/skills/productivity/pdf/scripts/_raster.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-76
+skills/hermes/skills/note-taking/obsidian/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-68
+skills/hermes/skills/productivity/xlsx/LICENSE
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-21
+skills/hermes/optional-skills/creative/comfyui/tests/test_extract_schema.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-183
+skills/hermes/skills/software-development/github/scripts/gh-env.sh
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-66
+skills/hermes/skills/research/grounded-citations/SKILL.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-257
+skills/hermes/skills/creative/humanizer/LICENSE
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-21
+skills/hermes/skills/productivity/xlsx/scripts/xlsx_read.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-160
+skills/hermes/skills/productivity/xlsx/scripts/xlsx_recalc.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-111
+skills/hermes/optional-skills/creative/comfyui/workflows/sdxl_inpaint.json
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-59
+skills/hermes/optional-skills/creative/excalidraw/references/dark-mode.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-68
+skills/hermes/optional-skills/creative/hyperframes/references/cli.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-185
+skills/hermes/skills/productivity/pdf/references/nano-pdf-editing.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-40
+skills/hermes/optional-skills/finance/dcf-model/TROUBLESHOOTING.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-40
+skills/hermes/optional-skills/creative/concept-diagrams/examples/cpu-ooo-microarchitecture.md
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-236
+skills/hermes/skills/creative/manim-video/scripts/setup.sh
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-14
+skills/hermes/optional-skills/creative/comfyui/scripts/ws_monitor.py
+  s_7e08d2f6257df5::t_7812adbf2bdc71 1-267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f06f3916fc4c3e56e6d182d0015d2586e2a777cc",
+  "prompts": {},
+  "sessions": {
+    "s_7e08d2f6257df5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12d9b4a3-0e6a-45fa-a174-5f25ee2365f3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
