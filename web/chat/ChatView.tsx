@@ -10,6 +10,7 @@ import { useChat } from '@ai-sdk/react';
 import { APICallError } from 'ai';
 import { GET, POST, DEL, attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
 import type { AttachTray } from '../attach.ts';
+import { COMPOSER_BTNS, COMPOSER_TEXT } from '../attach.ts';
 import { pasteBox } from '../pastes.ts';
 import { icon } from '../icons.ts';
 import { latestCompaction, memoryStart } from '../../shared/compaction.ts';
@@ -539,7 +540,7 @@ export function ChatView(p: ChatViewProps) {
     <div className="relative flex min-w-0 flex-1">
       <textarea
         ref={input}
-        className={compact ? 'max-h-50 min-h-11.5 flex-1 resize-none' : 'flex-1'}
+        className={variant === 'mini' ? 'max-h-50 min-h-11.5 flex-1 resize-none' : `flex-1 ${COMPOSER_TEXT}`}
         rows={variant === 'mini' ? 1 : 2}
         placeholder={busy ? `/queue a message to send when ${agent.name} is done` : compact ? `Message ${agent.name}…  (Enter to send, @ for another agent)` : `Message ${agent.name}…`}
         onKeyDown={(e) => {
@@ -552,10 +553,11 @@ export function ChatView(p: ChatViewProps) {
         onInput={(e) => {
           lookForMention();
           lookForSlash();
-          if (compact) return;
+          if (variant === 'mini') return;
+          // grows with the text (its max height stops it, then it scrolls)
           const t = e.currentTarget;
           t.style.height = 'auto';
-          t.style.height = `${Math.min(260, t.scrollHeight + 2)}px`;
+          t.style.height = `${t.scrollHeight + 2}px`;
         }}
         onClick={lookForMention}
         onKeyUp={(e) => {
@@ -612,8 +614,8 @@ export function ChatView(p: ChatViewProps) {
   );
   const sendBtn =
     busy && compact ? null : (
-      <button className={compact ? 'btn small' : 'btn'} onClick={() => void send()} disabled={busy} title="Send (Enter)">
-        {compact ? <Dom make={() => icon('send', 14)} deps={[]} /> : 'Send'}
+      <button className={variant === 'mini' ? 'btn small' : 'btn'} onClick={() => void send()} disabled={busy} title="Send (Enter)" aria-label="Send">
+        <Dom make={() => icon('send', variant === 'mini' ? 14 : 15)} deps={[]} />
       </button>
     );
   const stopBtn = busy ? (
@@ -727,26 +729,45 @@ export function ChatView(p: ChatViewProps) {
         <>
           {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
           <Dom make={() => pastes.el} deps={[pastes]} />
-          <div className="flex items-end gap-2">
-            {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
-            {composer}
-            {sendBtn}
-            {stopBtn}
-          </div>
+          {variant === 'mini' ? (
+            <div className="flex items-end gap-2">
+              {composer}
+              {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
+              {sendBtn}
+              {stopBtn}
+            </div>
+          ) : (
+            <div className="flex items-stretch gap-2">
+              {composer}
+              {stopBtn ? <div className="flex flex-col justify-end">{stopBtn}</div> : null}
+              {/* the paperclip at the top of the box, Send at its bottom */}
+              <div className={COMPOSER_BTNS}>
+                {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : <span />}
+                {sendBtn}
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <div className="composer">
-          {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
-          <Dom make={() => pastes.el} deps={[pastes]} />
-          <div className="flex max-w-[1000px] items-end gap-2.5">
-            {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
-            {composer}
-            {stopBtn}
-            {sendBtn}
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2.5" style={{ maxWidth: '1000px', marginTop: '6px' }}>
-            {p.footer ? <Dom make={() => p.footer!} deps={[p.footer]} /> : <span />}
-            <span className="hint">Enter to send · Shift+Enter for a new line · @ to bring in another agent · / for commands</span>
+          {/* files, the box and its buttons, and the model: one column in the middle of the page */}
+          <div className="mx-auto max-w-[1000px]">
+            {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
+            <Dom make={() => pastes.el} deps={[pastes]} />
+            <div className="flex items-stretch gap-2.5">
+              {composer}
+              {stopBtn ? <div className="flex flex-col justify-end">{stopBtn}</div> : null}
+              {/* the paperclip at the top of the box, Send at its bottom */}
+              <div className={COMPOSER_BTNS}>
+                {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : <span />}
+                {sendBtn}
+              </div>
+            </div>
+            {p.footer ? (
+              <div className="mt-1.5">
+                <Dom make={() => p.footer!} deps={[p.footer]} />
+              </div>
+            ) : null}
           </div>
         </div>
       )}

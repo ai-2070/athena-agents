@@ -207,14 +207,14 @@ describe('the agent chat (AI SDK)', () => {
     });
     await type(el, '/compact');
     await settle();
-    const sendBtn = [...el.querySelectorAll('button')].find((b) => b.textContent === 'Send')!;
+    const sendBtn = el.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!;
     expect(sendBtn.disabled).toBe(true);
     await type(el, 'are you there?');
     await settle();
     expect(requests.some((r) => r.url.endsWith('/stream') && r.method === 'POST')).toBe(false);
     await act(async () => finish());
     await settle();
-    expect([...el.querySelectorAll('button')].find((b) => b.textContent === 'Send')!.disabled).toBe(false);
+    expect(el.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.disabled).toBe(false);
   });
 
   it('/compact compacts instead of sending', async () => {

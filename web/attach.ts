@@ -273,6 +273,12 @@ export interface AttachTray {
 // deferred: hold the files and upload only when ready() is called (a new project: its folder doesn't exist yet).
 // the menu under the paperclip: Files…, A folder…
 const MENU_ITEM = 'flex cursor-pointer items-center gap-2 rounded-ctl px-2.5 py-1.75 text-left text-[13px] whitespace-nowrap text-ink hover:bg-panel-2 hover:text-accent';
+/** A chat box's buttons right of the text: the paperclip at the top, Send at the bottom, both the same
+ *  square, and the paperclip's menu opening leftward so it stays on screen. */
+export const COMPOSER_BTNS = 'flex flex-none flex-col justify-between gap-1.5 [&_.btn]:size-8.5 [&_.btn]:px-0 [&_.att-menu]:right-0 [&_.att-menu]:left-auto';
+/** Its text box: never shorter than the two buttons, and growing upward with what you type to about a
+ *  fifth of the window before it scrolls. */
+export const COMPOSER_TEXT = 'block field-sizing-content min-h-[74px] max-h-[max(160px,20vh)] resize-none';
 // a place that takes dropped files, while files are dragged over it
 const OVER = 'outline-2 outline-dashed outline-accent -outline-offset-3'.split(' ');
 
@@ -281,7 +287,8 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
   const el = h('div.att-tray.hidden');
   const fileIn = h('input', { type: 'file', multiple: true, hidden: true });
   const dirIn = h('input', { type: 'file', multiple: true, hidden: true, webkitdirectory: true });
-  const menu = h('div.hidden', { class: 'absolute bottom-[calc(100%+6px)] left-0 z-60 flex min-w-[150px] flex-col rounded-box border border-line-2 bg-glass-strong p-1.25 shadow-pop animate-fade-fast' });
+  // (att-menu: a box with the paperclip on its right opens it leftward)
+  const menu = h('div.hidden', { class: 'att-menu absolute bottom-[calc(100%+6px)] left-0 z-60 flex min-w-[150px] flex-col rounded-box border border-line-2 bg-glass-strong p-1.25 shadow-pop animate-fade-fast' });
   const closeMenu = () => {
     menu.classList.add('hidden');
     document.removeEventListener('pointerdown', outside, true);
