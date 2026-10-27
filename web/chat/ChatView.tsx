@@ -124,16 +124,19 @@ export function ChatView(p: ChatViewProps) {
   // one id for this view's useChat, even when its first message makes the chat
   const [viewId] = useState(() => p.chatId || `new-${agent.id}-${Math.random().toString(36).slice(2, 8)}`);
 
-  const transport = useMemo(() => chatTransport(agent.id, () => chatIdRef.current), [agent.id]);
+  // the server answered the last send (so it has the message): a failure after that is the run's, not the send's
+  const accepted = useRef(false);
+  const transport = useMemo(() => chatTransport(agent.id, () => chatIdRef.current, () => (accepted.current = true)), [agent.id]);
   const { messages, setMessages, sendMessage, status, stop: stopStream, resumeStream } = useChat<ChatMessage>({
     id: viewId,
     transport,
     onData: (part) => {
       if (part.type === 'data-status') setStatusText((part.data as { text: string }).text);
     },
-    // a refusal (busy, a bad request) comes as the AI SDK's APICallError; a run that failed, as an
-    // error in its stream (the message was sent and is in the chat)
-    onError: (e) => (failed.current = { message: e.message || 'Could not send.', refused: APICallError.isInstance(e) }),
+    // a refusal (busy, a bad request) comes as the AI SDK's APICallError, and a send that never reached
+    // the server (no connection) fails before any answer; a run that failed, as an error in its stream
+    // (the message was sent and is in the chat)
+    onError: (e) => (failed.current = { message: e.message || 'Could not send.', refused: APICallError.isInstance(e) || !accepted.current }),
   });
   const streaming = status === 'submitted' || status === 'streaming';
   const streamingRef = useRef(streaming);
@@ -304,9 +307,11 @@ export function ChatView(p: ChatViewProps) {
           setChatId(made.id);
           onChat.current?.(made);
         }
-        taken = tray?.take() || [];
+        // (a button in an answer sends no files: the ones staged stay for the next message)
+        taken = typed != null ? [] : tray?.take() || [];
         near.current = true;
         failed.current = null;
+        accepted.current = false;
         setStatusText('Thinking…');
         await sendMessage({ role: 'user', parts: userParts(text, attachments), metadata: {} }, steer ? { body: { steer: true } } : undefined);
         // (set by onError while it streamed)
@@ -440,7 +445,8 @@ export function ChatView(p: ChatViewProps) {
     const cmd = box ? parseCommand(pastes.text(), 'agent') : null;
     if (cmd && cmd.name !== 'queue' && cmd.name !== 'compact') return void command(cmd.name, cmd.rest);
     if (cmd?.name === 'compact' && busy) return void toast('Compact it when it is done (or /stop it first).');
-    if (box && queuedText(box.value) != null && (busy || sending.current)) return void queueNext();
+    // (from the text with pastes put back: a long paste shows as a chip in the box)
+    if (box && queuedText(pastes.text()) != null && (busy || sending.current)) return void queueNext();
     void send();
   };
 
@@ -692,7 +698,7 @@ export function ChatView(p: ChatViewProps) {
         <Dom make={() => icon('square', variant === 'mini' ? 13 : 14)} deps={[]} />
       </button>
     ) : (
-      <button key="send" className={variant === 'mini' ? 'btn small' : 'btn'} onClick={() => void send()} disabled={compacting} title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
+      <button key="send" className={variant === 'mini' ? 'btn small' : 'btn'} onClick={submit} disabled={compacting} title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
         <Dom make={() => icon('send', variant === 'mini' ? 14 : 15)} deps={[]} />
       </button>
     );

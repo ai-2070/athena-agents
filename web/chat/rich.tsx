@@ -44,7 +44,10 @@ const dark = createTheme({
 export function actionMessage(event: ActionEvent): string | null {
   if (event.type !== BuiltinActionType.ContinueConversation) return null;
   const form = event.formState && Object.keys(event.formState).length ? `\n\n(form: ${JSON.stringify(event.formState)})` : '';
-  return `${event.humanFriendlyMessage || 'Continue'}${form}`;
+  // (what the button carries: buttons with the same label tell apart by it)
+  const context = event.params?.context;
+  const about = context === undefined || context === null || context === '' ? '' : `\n\n(context: ${typeof context === 'string' ? context : JSON.stringify(context)})`;
+  return `${event.humanFriendlyMessage || 'Continue'}${form}${about}`;
 }
 
 export default function RichAnswer({ code, streaming, onSend }: { code: string; streaming: boolean; onSend: (text: string) => void }) {
