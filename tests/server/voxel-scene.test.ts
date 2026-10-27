@@ -86,6 +86,12 @@ describe('lights, effects and the environment', () => {
     expect(worldInfo()).toMatch(/light "Doorway"/);
   });
 
+  it("world_info tells builders they may set the time of day; the Brain's view doesn't name the tool", async () => {
+    expect(worldInfo()).toMatch(/Change the time of day \(station, day, golden, dusk, night, overcast, snow\), sun, sky, fog, weather or wind with world_environment; you don't need to ask\./);
+    const { worldText } = await import('../../server/voxel/describe.ts');
+    expect(worldText(shownWorld().world!, { how: 'own' })).not.toMatch(/world_environment/);
+  });
+
   it('environment: a preset, then any part of it, eased by the page, and undone', () => {
     const r = setEnvironment({ by: me, fields: { preset: 'dusk', sun: { elevation: 6 }, weather: 'snow', wind: [1, 0, 0.5] } });
     expect(r.world.environment).toMatchObject({ preset: 'dusk', weather: 'snow', wind: [1, 0, 0.5] });

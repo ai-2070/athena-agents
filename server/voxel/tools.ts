@@ -8,6 +8,7 @@ import { setEffect, setEnvironment, setLight, EFFECT_KINDS } from './scene.ts';
 import { playAnimation, setAnimation, setSkin, skinTarget } from './characters.ts';
 import { activeProject, getSettings, saveSettings, workflows } from '../store.ts';
 import { requestApproval } from '../approvals.ts';
+import { DIORAMA, DIORAMA_SHORT } from './diorama.ts';
 import { requestLook } from './look.ts';
 import { exportFiles, importVox, writeFiles, writePicture } from './exchange.ts';
 import { objectMap } from './describe.ts';
@@ -108,7 +109,7 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_build',
       group: 'world',
       risk: 'low',
-      description: `Build in the voxel world: run build steps on an object (made if there is no object by that name yet), or with "prefab" on a prefab: a small model (a palm tree, a person, a taxi, a lamp) you make once and then place many times with {"place": …}. Everything in the world is built by you and the other builders: nothing comes ready-made. Read WORLD.md and world_info first and build in the world's style; anchor things to your team ("team:<id>") so they move with its platform. A call can change up to 250,000 voxels and place 2,000 copies, and either works whole or changes nothing. Changing another builder's object or prefab asks the user first.\n${STEPS_HELP}`,
+      description: `Build in the voxel world, ${DIORAMA_SHORT}: run build steps on an object (made if there is no object by that name yet), or with "prefab" on a prefab: a small model (a palm tree, a person, a taxi, a lamp) you make once and then place many times with {"place": …}. Everything in the world is built by you and the other builders: nothing comes ready-made. Read WORLD.md and world_info first and build in the world's style; anchor things to your team ("team:<id>") so they move with its platform. A call can change up to 250,000 voxels and place 2,000 copies, and either works whole or changes nothing. Changing another builder's object or prefab asks the user first.\n${STEPS_HELP}`,
       parameters: obj(
         {
           object: str('The object to build or add to, by name (a new name makes a new object), e.g. "Koi pond". Leave out when building a prefab.'),
@@ -616,7 +617,7 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
 export function worldPrompt(toolNames: string[]): string {
   if (!toolNames.includes('world_build')) return '';
   const shown = shownWorld();
-  if (!shown.world) return '\n# The voxel world\nThere is no world yet. Your first world_build starts this project\'s world; then fill in its WORLD.md (world_md_section) with what it is.';
+  if (!shown.world) return `\n# The voxel world\n${DIORAMA}\nThere is no world yet. Your first world_build starts this project's world; then fill in its WORLD.md (world_md_section) with what it is.`;
   return worldMdContext(shown.world.id, shown.world.name);
 }
 

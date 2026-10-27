@@ -2,6 +2,7 @@
 // builds by different agents on different days feel like one place. Kept with the world
 // (data/worlds/<id>/WORLD.md); every change keeps the version before it (versions.ts).
 // Builders read it before building and update one section at a time; a whole rewrite needs a fresh read.
+import { DIORAMA } from './diorama.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -185,6 +186,7 @@ export function worldMdContext(worldId: string, worldName: string): string {
   const text = readWorldMd(worldId).trim();
   const cut = text.length > WORLD_MD_SHOWN;
   return `\n# The voxel world: ${worldName}
+${DIORAMA}
 WORLD.md says what this world is. Read it before you build, build in its style, and keep it up to date: after you build a place or dress a character, update its section with world_md_section and add one line to "Story so far".
 <world-md>
 ${cut ? `${text.slice(0, WORLD_MD_SHOWN)}\n… (${(text.length - WORLD_MD_SHOWN).toLocaleString('en-US')} more characters: read it all with world_md_read)` : text}

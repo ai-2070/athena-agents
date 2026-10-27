@@ -186,8 +186,10 @@ function setEnvironmentIn(w: VoxelWorld, req: { by: WorldBuilder; fields: Record
 export const envText = (e: WorldEnvironment): string =>
   `${e.preset} (sun ${e.sun.color} at ${e.sun.elevation}° up, sky ${e.sky.top} to ${e.sky.horizon}, fog ${e.fog.density}, bloom ${e.bloom}, tilt-shift ${e.tiltShift})${e.weather && e.weather !== 'none' ? `, weather: ${e.weather}` : ''}${e.wind ? `, wind ${e.wind.join(', ')}` : ''}`;
 
-export function sceneText(w: VoxelWorld): string {
+/** builder: for world_info, so a builder knows which tools change the look (the Brain has actions instead). */
+export function sceneText(w: VoxelWorld, { builder = false }: { builder?: boolean } = {}): string {
   const lights = w.lights.map((l) => `- light "${l.name}" by ${l.by.name}: ${l.kind}, ${l.color}, intensity ${l.intensity}, range ${l.range}, ${where(w, l)}${l.flicker ? `, flicker ${l.flicker}` : ''}`);
   const effects = w.effects.map((e) => `- effect "${e.name}" by ${e.by.name}: ${e.kind}, amount ${e.amount}, ${e.size.join('×')} map units ${where(w, e)}`);
-  return [`Look: ${envText(w.environment)}.`, lights.length ? `Lights (${lights.length} of ${SCENE_LIMITS.lights}; glowing voxels light things by themselves too):\n${lights.join('\n')}` : 'No lights put up (glowing voxels light their surroundings by themselves).', effects.length ? `Effects (${effects.length} of ${SCENE_LIMITS.effects}):\n${effects.join('\n')}` : 'No effects.'].join('\n');
+  const tools = builder ? ` Change the time of day (${Object.keys(ENV_PRESETS).join(', ')}), sun, sky, fog, weather or wind with world_environment; you don't need to ask.` : '';
+  return [`Look: ${envText(w.environment)}.${tools}`, lights.length ? `Lights (${lights.length} of ${SCENE_LIMITS.lights}; glowing voxels light things by themselves too):\n${lights.join('\n')}` : 'No lights put up (glowing voxels light their surroundings by themselves).', effects.length ? `Effects (${effects.length} of ${SCENE_LIMITS.effects}):\n${effects.join('\n')}` : 'No effects.'].join('\n');
 }

@@ -101,7 +101,7 @@ A chat's **Clear memory** button is different: it starts that chat fresh and lea
 
 ## The voxel world
 
-The Station can be a voxel world the Brain and your agents build around themselves. The classic dark map stays the default: turn the world on in **Settings › Look › Station look** (Voxel world) and pick a quality (Low for older computers; High adds softer creases).
+The Station can be a voxel world the Brain and your agents build around themselves: a diorama, a miniature scene you look at, not a game level anyone walks through (agents are told so, so nobody plans routes or playtests). The classic dark map stays the default: turn the world on in **Settings › Look › Station look** (Voxel world) and pick a quality (Low for older computers; High adds softer creases).
 
 - **Ask the Brain for one.** Describe the world you want. The Brain asks a few questions (theme, mood, era, colours), writes **WORLD.md**, builds the big pieces itself and hands the details to a builder. The **World Builder** starter (Library) comes ready with the **Voxel world** tools and the **Voxel building** skill; you can give the tools to any agent in its editor.
 - **WORLD.md** says what the world is: its theme and meaning, look, feel, places, characters, story and rules. Every builder reads it before building and updates it as they go. You can edit it too. Earlier versions are kept.

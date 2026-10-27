@@ -3,6 +3,7 @@
 // project. A skill can be given three ways: to one agent, to a team (every member, while working for
 // that team) or to the whole project (every agent in it). Agents see the list in their instructions
 // and open a skill with the read_skill tool when it fits the task, on any engine.
+import { DIORAMA } from './voxel/diorama.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME, ROOT } from './util.ts';
@@ -338,6 +339,9 @@ The Station can be a voxel world that the agents build around themselves. Nothin
 1. Read WORLD.md (it is in your instructions; world_md_read for all of it). Build in its theme, palette and mood. If it is still the template, ask the user (ask_user) what the world should be, or fill it in from what they told you.
 2. world_info: what is there, who built it, the prefabs that exist, the team platforms, your plot and what to keep clear (the Brain's middle, the platforms' desks).
 3. Plan the scene: the ground, a few big pieces, and the small things there will be many of.
+
+## A diorama, not a level
+${DIORAMA}
 
 ## Big pieces and small things
 A busy scene (a street in front of a stock exchange, the Nile with temples and boats) is a few big builds and hundreds of repeated small things.

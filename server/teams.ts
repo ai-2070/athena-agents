@@ -7,6 +7,7 @@
 // the thread when the team goes quiet (see irc.ts).
 // Teams talk to each other like IRC channels: a message that names #Other Team goes to that team's chat
 // too, and once that team is done, its last reply comes back here to whoever asked.
+import { DIORAMA } from './voxel/diorama.ts';
 import { workflows as teamStore, agents, chats, emit, log, activeProject, openProject } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath } from './util.ts';
 import { askAgent, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
@@ -515,7 +516,7 @@ function pump(teamId: string) {
   }
 }
 
-function briefing(team: Team, agent: Agent): string {
+export function briefing(team: Team, agent: Agent): string {
   const roster = team.members
     .map((id) => agents.get(id))
     .filter((a): a is Agent => Boolean(a))
@@ -532,9 +533,11 @@ Talking to other teams:
 - To ask another team for something that is their work, write #Team Name in your reply (exactly as above) and say precisely what you need back. Your message goes to their chat, and their answer comes back here to you once they are done.
 - A message from another team (#Name asks your team) is a request: handle it like one from the user. When your team is done, its last reply goes back to them by itself.`
     : '';
+  // a team that builds in the voxel world: everyone on it (not only the builders) knows what that world is
+  const builds = team.members.some((id) => agents.get(id)?.toolGroups?.includes('world'));
   return `You are in the team chat "${team.name}".${team.description ? `\nTeam goal: ${team.description}` : ''}
 Team members:
-${roster}${teamsNote}
+${roster}${teamsNote}${builds ? `\n\nThis team builds in the voxel world. ${DIORAMA}` : ''}
 
 How this chat works:
 - Everyone sees the whole thread. Your reply is posted to the team as a message from you.
