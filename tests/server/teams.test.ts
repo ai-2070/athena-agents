@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { bus, chats, saveSettings, workflows } from '../../server/store.ts';
-import { getThread, parseMentions, postUserMessage } from '../../server/teams.ts';
+import { MAX_CHATTER, getThread, parseMentions, postUserMessage, stopTeam } from '../../server/teams.ts';
 import type { ServerEvent, Team } from '../../shared/types.ts';
 
 // a fake OpenAI-compatible model: the Lead hands off to the Maker, the Maker reports back, the Lead wraps up
@@ -20,6 +20,11 @@ beforeAll(async () => {
     let reply = 'Okay.';
     if (system.includes('You are Lead')) reply = /@Maker: Done/.test(last) ? 'All done, the thumbnail is ready.' : 'Plan: @Maker please make the thumbnail.';
     else if (system.includes('You are Maker')) reply = 'Done, saved as thumb.png.';
+    else if (system.includes('You are Ping')) reply = 'Your turn @Pong.';
+    else if (system.includes('You are Pong')) reply = 'Back to you @Ping.';
+    // long replies: a draft each turn is work, even without tools
+    else if (system.includes('You are Writer')) reply = `Next draft:\n${'A line of the story. '.repeat(40)}\n@Editor your turn.`;
+    else if (system.includes('You are Editor')) reply = `Notes:\n${'A note on the draft. '.repeat(40)}\n@Writer your turn.`;
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: reply } }] })}\n\n`);
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
@@ -64,6 +69,37 @@ describe('a team chat', () => {
     ]);
     expect(thread.messages[1].mentions).toEqual([maker.id]);
   });
+});
+
+describe('how long a team keeps going', () => {
+  const rally = async (a: string, b: string) => {
+    const one = agent(a);
+    const two = agent(b);
+    const team = workflows.save({ name: `${a} and ${b}`, description: 'Keep going', members: [one.id, two.id], lead: one.id, steps: [] } as Partial<Team>);
+    await postUserMessage(team.id, 'Start');
+    const replies = () => getThread(team.id).messages.filter((m) => m.from === one.id || m.from === two.id).length;
+    const paused = () => getThread(team.id).messages.some((m) => m.from === 'system' && m.text.startsWith('Paused'));
+    return { team, replies, paused };
+  };
+  const until = async (done: () => boolean) => {
+    for (let i = 0; i < 400 && !done(); i++) await new Promise((r) => setTimeout(r, 25));
+  };
+
+  it('keeps going past any turn count while the agents do work', async () => {
+    const { team, replies, paused } = await rally('Writer', 'Editor');
+    await until(() => replies() >= 40 || paused());
+    expect(paused()).toBe(false);
+    expect(replies()).toBeGreaterThanOrEqual(40);
+    stopTeam(team.id);
+  }, 30000);
+
+  it('pauses agents that only hand it back and forth', async () => {
+    const { team, replies, paused } = await rally('Ping', 'Pong');
+    await until(paused);
+    expect(paused()).toBe(true);
+    expect(replies()).toBe(MAX_CHATTER);
+    stopTeam(team.id);
+  }, 30000);
 });
 
 describe("a reply's work", () => {
