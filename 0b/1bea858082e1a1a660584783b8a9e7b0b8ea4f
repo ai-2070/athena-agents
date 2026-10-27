@@ -1,0 +1,34 @@
+server/index.ts
+  s_4f53eccb4f7bb2::t_77e3efe8002e54 837-846,848
+server/tools.ts
+  s_4f53eccb4f7bb2::t_3a65d76c460af1 15
+  s_4f53eccb4f7bb2::t_69d3b2f282def5 289-290,294
+server/agentfetch.ts
+  s_4f53eccb4f7bb2::t_8f4cf1191718e8 1-82
+tests/server/mcp-secrets.test.ts
+  s_4f53eccb4f7bb2::t_9b420eb3fa0cde 1-28
+tests/server/agentfetch.test.ts
+  s_4f53eccb4f7bb2::t_2f658d4375e0ef 1-60
+server/mcp.ts
+  s_4f53eccb4f7bb2::t_e17e6dcfaf5d4b 674,679-680
+  s_4f53eccb4f7bb2::t_9a0df856d1ef84 646-647,649-651
+  s_4f53eccb4f7bb2::t_9e611602bb16c4 626-645,648,652-665
+web/views/mcp.tsx
+  s_4f53eccb4f7bb2::t_9a1203ed4d4cf7 207-208,213,342,351
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0b1bea858082e1a1a660584783b8a9e7b0b8ea4f",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
