@@ -259,7 +259,8 @@ export function build(req: BuildRequest): BuildReport {
   w.palette = palette;
   w.built = true;
   remember(w.id, { by: req.by, kind, what: `${created ? 'built' : 'changed'} ${kind === 'prefab' ? 'the prefab ' : ''}${t.name}`, objectId: t.id, metaBefore, chunks: outcome.before, ...(instancesChanged ? { instancesBefore: data?.instances || [] } : {}) });
-  saveWorld(w, { [kind === 'prefab' ? 'prefabs' : 'objects']: [t.id], by: req.by.name });
+  // (builder and the counts: the page plays the build where it happened, with a beam from the builder's desk)
+  saveWorld(w, { [kind === 'prefab' ? 'prefabs' : 'objects']: [t.id], by: req.by.name, builder: req.by, added: outcome.added, placed: outcome.placed });
 
   const sizes = volumes.map((v) => `${v.voxelSize}: ${fmt(v.count)}`).join(', ');
   const where = kind === 'prefab' ? `Its bottom centre stands where it is placed; it is ${(t as VoxelPrefabMeta).size.join('×')} map units. Place copies with {"place": "${t.name}"}, or bake it into an object with {"stamp": "${t.name}"}.` : `at ${(t as VoxelObjectMeta).position.join(', ')} from ${anchorText((t as VoxelObjectMeta).anchor)}`;

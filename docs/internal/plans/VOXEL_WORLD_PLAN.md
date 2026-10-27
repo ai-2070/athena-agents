@@ -698,6 +698,19 @@ editor and history, objects, look) and right-click menu, the world picker on the
 `facade`, `car`, `wheel`, `waterfall`, `river`), prefabs (save an object and reuse it across worlds, global
 like presets).
 
+*Phase 4 done 2026-10-27.* Notes:
+- `world_look`: the server asks open Station pages ('world-look' event); a page in the voxel look showing that
+  world renders an offscreen picture (overview, the Brain, a team, an agent, an object, or a prefab alone, any
+  angle and zoom) and posts it back; the agent gets the image (Claude Code and Codex see it through the MCP
+  bridge). No page open: words at once (a map from above for objects and prefabs).
+- Live builds rise into place with a puff of cubes and an arc of light from the builder's desk (or the Brain).
+- Glowing voxels in skins light their surroundings too.
+- The World panel (globe button, voxel look only): WORLD.md (edit, history, restore), Built (objects by builder,
+  hide, delete, prefabs and their uses, recent changes, undo the last change), Look (time of day, weather,
+  glow, blur, lights, effects, who is off the map), World (which world and why, rename, share, copy, new,
+  default, back to carry-over, delete unused). The project menu's "Voxel world…" opens the picker in any look.
+- Not done: undo of a chosen change (only the last), lastWorldPos, prefab library browsing in the page.
+
 **Phase 5: extras.**
 MagicaVoxel `.vox` import (from allowed folders) and export (and glTF export as an Artifact), a "screenshot
 the world" button that saves a picture to Artifacts. (No building by hand: agents only.)

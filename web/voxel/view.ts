@@ -8,6 +8,7 @@ import { meshRegion } from './mesher.ts';
 import type { MeshPart, ObjectPart, RenderClass } from './mesher.ts';
 import { envPreset, sunDirection } from '../../shared/worldenv.ts';
 import { createPost } from './post.ts';
+import { fitCamera, renderSnapshot, snapCamera } from './snapshot.ts';
 import type { Post } from './post.ts';
 import { createVoxelMaterials, castsShadow, takesShadow } from './materials.ts';
 import type { VoxelUniforms } from './materials.ts';
@@ -49,9 +50,23 @@ export interface WorldView {
   /** The effects to show, and where each is each frame. */
   setEffects(specs: EffectSpec[], place: EffectPlace): void;
   removeVolume(id: string): void;
+  /** A picture for world_look (a JPEG data: URL) of what is in `box`; `only` is drawn alone (a prefab), in the world's light. */
+  snapshot(o: SnapshotRequest): string;
   /** Frames per second over the next few seconds (and the slowest frame, ms). */
   measure(seconds: number): Promise<{ fps: number; worstMs: number; frames: number }>;
   dispose(): void;
+}
+
+export interface SnapshotRequest {
+  box: THREE.Box3;
+  /** degrees (default 45 / 35, the Station's angle) */
+  azimuth?: number;
+  elevation?: number;
+  /** 1 fits the box */
+  zoom?: number;
+  width: number;
+  height: number;
+  only?: THREE.Object3D;
 }
 
 export interface WorldViewOptions {
@@ -334,6 +349,28 @@ export function createWorldView(o: WorldViewOptions): WorldView {
       applyEffects();
     },
     removeVolume,
+    snapshot(s) {
+      const w = Math.max(64, Math.min(2048, Math.round(s.width) || 1024));
+      const h = Math.max(64, Math.min(2048, Math.round(s.height) || 640));
+      const f = fitCamera(s.box, s.azimuth ?? 45, s.elevation ?? 35, s.zoom ?? 1, w / h);
+      // drawn alone: everything else (but the lights) off for this one picture
+      const off: THREE.Object3D[] = [];
+      if (s.only) {
+        for (const c of scene.children) if (c.visible && !(c as THREE.Light).isLight) (c.visible = false), off.push(c);
+        scene.add(s.only);
+      }
+      // the glowing things near what it shows light it, not the ones near your view
+      pool.assign(lightSource(), f.target, Math.max(f.halfWidth, f.halfHeight));
+      pool.tick(clock.elapsedTime);
+      try {
+        return renderSnapshot(renderer, scene, snapCamera(f), w, h, shown.bloom);
+      } finally {
+        for (const c of off) c.visible = true;
+        if (s.only) scene.remove(s.only);
+        // (your view's lights again on the next frame)
+        picked.version = -2;
+      }
+    },
     async measure(seconds) {
       // a second to settle first: the first frames compile shaders
       await new Promise((r) => setTimeout(r, 1000));

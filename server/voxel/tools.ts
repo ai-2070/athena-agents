@@ -6,13 +6,17 @@ import { VERBS, BuildError } from './ops.ts';
 import { build, changeObject, findObject, findPrefab, ownsObject, undo } from './build.ts';
 import { setEffect, setEnvironment, setLight, EFFECT_KINDS } from './scene.ts';
 import { playAnimation, setAnimation, setSkin, skinTarget } from './characters.ts';
-import { workflows } from '../store.ts';
+import { activeProject, workflows } from '../store.ts';
+import { requestLook } from './look.ts';
+import { objectMap } from './describe.ts';
 import { changePrefab, deletePrefab, importPrefab, libraryList, prefabList, publishPrefab, savePrefabFrom } from './prefabs.ts';
 import { shownWorld } from './link.ts';
 import { worldInfo } from './describe.ts';
 import { readWorldMd, worldMdStamp, writeWorldMd, writeWorldMdSection, worldMdContext } from './worldmd.ts';
 import type { JSONSchema, Risk, ToolArgs, ToolContext, ToolDef, ToolResult, ToolRunInfo, ToolAgent } from '../tools.ts';
-import type { WorldBuilder } from '../../shared/types.ts';
+import type { WorldBuilder, WorldLookView } from '../../shared/types.ts';
+
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 type Gate = (agent: ToolAgent, name: string, risk: Risk, args: ToolArgs, ctx?: ToolRunInfo, detail?: string | null) => Promise<ToolResult | null>;
 
@@ -284,6 +288,51 @@ export function worldTools(gate: Gate): ToolDef[] {
         } catch (e) {
           return failed(e);
         }
+      },
+    },
+    {
+      name: 'world_look',
+      group: 'world',
+      risk: 'none',
+      description: 'See the voxel world: a picture of the whole of it, or of one thing (the Brain, a team, an agent, an object, or a prefab on its own), from the Station\'s angle or another. Look after you build and fix what looks wrong: proportions, colours that clash, things floating or sunk, gaps, too dark or too bright. The picture is made by an open Station page; when none is open you get a top-down map in words instead.',
+      parameters: obj({
+        target: str('"overview" (default), "brain", "team", "agent", "object" or "prefab"'),
+        name: str('The team, agent, object or prefab (name or id)'),
+        azimuth: { type: 'number', description: 'Degrees around (the Station looks from 45)' },
+        elevation: { type: 'number', description: 'Degrees up (the Station looks from 35; 90 is straight down)' },
+        zoom: { type: 'number', description: '1 fits the target (default); 2 is twice as close' },
+      }),
+      run: async (args, ctx) => {
+        const a = args as { target?: string; name?: string; azimuth?: unknown; elevation?: unknown; zoom?: unknown };
+        const shown = shownWorld();
+        const w = shown.world;
+        if (!w) return { text: 'There is no world yet: build something first.' };
+        const target = (a.target || 'overview') as WorldLookView['target'];
+        if (!['overview', 'brain', 'team', 'agent', 'object', 'prefab'].includes(target)) return { text: 'target is overview, brain, team, agent, object or prefab.', isError: true };
+        let id: string | undefined;
+        let label = target === 'overview' ? 'the whole world' : target === 'brain' ? 'the Brain' : '';
+        try {
+          if (target === 'team' || target === 'agent') {
+            const t = skinTarget(target, a.name || (target === 'agent' ? ctx.agent.id : ''));
+            id = t.id;
+            label = t.name;
+          } else if (target === 'object' || target === 'prefab') {
+            const o = target === 'object' ? findObject(w, a.name) : findPrefab(w, a.name);
+            if (!o) return { text: `There's no ${target} "${a.name || ''}". world_info lists them.`, isError: true };
+            id = o.id;
+            label = `${target === 'prefab' ? 'the prefab' : ''} "${o.name}"`.trim();
+          }
+        } catch (e) {
+          return failed(e);
+        }
+        const n = (v: unknown, min: number, max: number) => (v === undefined || !Number.isFinite(Number(v)) ? undefined : Math.max(min, Math.min(max, Number(v))));
+        const view: WorldLookView = { target, ...(id ? { id } : {}), azimuth: n(a.azimuth, -720, 720), elevation: n(a.elevation, 5, 90), zoom: n(a.zoom, 0.2, 8), width: 1024, height: 640 };
+        ctx.progress?.(`Looking at ${label}…`);
+        const r = await requestLook(w.id, activeProject().id, view);
+        if (r.image) return { text: `${cap(label)} in "${w.name}" (${w.environment.preset}${view.azimuth !== undefined ? `, from ${view.azimuth}°` : ''}).`, images: [r.image] };
+        // no picture: the next best thing
+        const words = target === 'object' || target === 'prefab' ? objectMap(w, id!) : 'Ask the user to open the Station with Settings › Look › Station on "Voxel world" to get pictures.';
+        return { text: `No picture: no open Station in the voxel look answered. ${target === 'object' || target === 'prefab' ? 'Here is a map from above instead.\n' : ''}${words}` };
       },
     },
     {

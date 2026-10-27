@@ -9,7 +9,9 @@ import { applyPose, buildRig, partTree } from './rig.ts';
 import type { PartNode, Rig, RigLookup } from './rig.ts';
 import type { Variant } from './instances.ts';
 import { castsShadow, takesShadow } from './materials.ts';
+import { LIGHT_STRIDE } from './mesher.ts';
 import type { RenderClass } from './mesher.ts';
+import { glowStrength } from './lights.ts';
 import type { WorldView } from './view.ts';
 import type { AgentSkin, BrainSkin, TeamSkin, Vec3, VoxelPrefabMeta, VoxelWorld } from '../../shared/types.ts';
 
@@ -58,7 +60,7 @@ export interface SkinHost {
 /** A prefab variant, meshed and shared (counted: release it when done). */
 export interface SharedMesh {
   key: string;
-  parts: { geo: THREE.BufferGeometry; cls: RenderClass; local: THREE.Matrix4 }[];
+  parts: { geo: THREE.BufferGeometry; cls: RenderClass; local: THREE.Matrix4; lights?: Float32Array; voxelSize?: number }[];
 }
 
 /** What skins need from the world layer: the world, its prefabs' voxels, meshes of them. */
@@ -68,6 +70,19 @@ export interface SkinContext {
   lookup: RigLookup;
   mesh(prefab: string, variant: Variant): Promise<SharedMesh | null>;
   release(key: string): void;
+  /** a skin was put on or taken off (its glowing voxels light things now, or no longer) */
+  changed?(): void;
+}
+
+/** A glowing spot of a skin, in world space (see lights.ts). */
+export interface SkinGlow {
+  x: number;
+  y: number;
+  z: number;
+  r: number;
+  g: number;
+  b: number;
+  strength: number;
 }
 
 /** Which classic parts a skin hides, and what it draws instead (pure, tested). */
@@ -132,6 +147,8 @@ interface Dressed {
   hidden: [THREE.Object3D, boolean][];
   label: [SkinHost['setLabel'] extends (...a: infer A) => void ? A : never] | null;
   meshKeys: string[];
+  /** meshes with glowing voxels, and where in them (LIGHT_STRIDE numbers a spot) */
+  glow: { mesh: THREE.Mesh; lights: Float32Array }[];
   /** a character */
   rig?: Rig;
   animator?: Animator;
@@ -217,7 +234,7 @@ export class SkinLayer {
       const anchor = x.anchorOf();
       if (!anchor) continue;
       const fp = fingerprintOf(key, x);
-      const d: Dressed = { fingerprint: fp, anchor, local: localMatrix(x.skin), root: new THREE.Group(), hidden: [], label: null, meshKeys: [] };
+      const d: Dressed = { fingerprint: fp, anchor, local: localMatrix(x.skin), root: new THREE.Group(), hidden: [], label: null, meshKeys: [], glow: [] };
       d.root.matrixAutoUpdate = false;
       this.dressed.set(key, d);
       // take the classic models off
@@ -253,6 +270,7 @@ export class SkinLayer {
         }
       }
       this.view.addObject(d.root);
+      this.ctx.changed?.();
     }
   }
 
@@ -280,6 +298,7 @@ export class SkinLayer {
           mesh.matrix.copy(p.local);
           mesh.castShadow = castsShadow(p.cls);
           mesh.receiveShadow = takesShadow(p.cls);
+          if (p.lights?.length) d.glow.push({ mesh, lights: p.lights });
           return mesh;
         }),
       );
@@ -296,6 +315,46 @@ export class SkinLayer {
     for (const [o, was] of d.hidden) o.visible = was;
     for (const [kind, id, hidden] of d.label || []) this.host.setLabel(kind, id, hidden);
     for (const k of d.meshKeys) this.ctx.release(k);
+    if (d.glow.length) this.ctx.changed?.();
+  }
+
+  /** Glowing spots of every skin, where they are now (for the light pool). */
+  glow(out: SkinGlow[]): void {
+    const v = new THREE.Vector3();
+    for (const d of this.dressed.values())
+      for (const g of d.glow) {
+        if (!visibleUp(g.mesh)) continue;
+        g.mesh.updateWorldMatrix(true, false);
+        const m = g.mesh.matrixWorld;
+        // the size a voxel has on the map (its part's voxel size, times the skin's scale)
+        const size = m.getMaxScaleOnAxis();
+        for (let i = 0; i + LIGHT_STRIDE <= g.lights.length; i += LIGHT_STRIDE) {
+          v.set(g.lights[i], g.lights[i + 1], g.lights[i + 2]).applyMatrix4(m);
+          out.push({ x: v.x, y: v.y, z: v.z, r: g.lights[i + 3] ** 2.2, g: g.lights[i + 4] ** 2.2, b: g.lights[i + 5] ** 2.2, strength: glowStrength(g.lights[i + 6], size) });
+        }
+      }
+  }
+
+  /** Adds to `box` where the skins of the Brain, a team or an agent are now. */
+  boundsOf(kind: 'brain' | 'team' | 'agent', id: string, box: THREE.Box3): void {
+    for (const [key, d] of this.dressed) {
+      const hit = kind === 'brain' ? key === 'brain' : kind === 'team' ? key === `team:${id}` : d.agentId === id || key.startsWith(`agent:${id}`);
+      if (!hit) continue;
+      d.root.updateWorldMatrix(true, true);
+      box.expandByObject(d.root);
+    }
+  }
+
+  /** A prefab on its own (for a picture of it): a model, and how to give its meshes back. */
+  async standalone(prefab: string): Promise<{ group: THREE.Group; release: () => void } | null> {
+    await this.ctx.loadPrefabs([prefab]);
+    const d: Dressed = { fingerprint: '', anchor: new THREE.Object3D(), local: new THREE.Matrix4(), root: new THREE.Group(), hidden: [], label: null, meshKeys: [], glow: [] };
+    const model = await this.model(prefab, d);
+    if (!model) {
+      for (const k of d.meshKeys) this.ctx.release(k);
+      return null;
+    }
+    return { group: model.group, release: () => d.meshKeys.forEach((k) => this.ctx.release(k)) };
   }
 
   /** Plays a clip once (or `times` times) on an agent's character, then back to its state's clip. */
@@ -340,4 +399,10 @@ function hashText(s: string): string {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
   return (h >>> 0).toString(36);
+}
+
+/** Shown on the map: it and everything it sits in are visible. */
+function visibleUp(o: THREE.Object3D | null): boolean {
+  for (let n = o; n; n = n.parent) if (!n.visible) return false;
+  return true;
 }

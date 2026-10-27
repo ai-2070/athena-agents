@@ -6,7 +6,7 @@
 // It also tells the view where light comes from (spots of glowing voxels in objects and in every copy, and
 // the lights builders put up) and which effects to show where.
 import * as THREE from 'three';
-import { GET } from '../client/http.ts';
+import { GET, POST } from '../client/http.ts';
 import { serverUrl } from '../client/connection.ts';
 import { meshObject } from './mesher.ts';
 import type { ObjectPart, RenderClass } from './mesher.ts';
@@ -19,10 +19,11 @@ import type { EffectSpec } from './effects.ts';
 import type { WorldView } from './view.ts';
 import { expandInstances, mirrorData, reachablePrefabs, swapPalette, variantKey } from './instances.ts';
 import { SkinLayer } from './skins.ts';
-import type { SkinHost } from './skins.ts';
+import type { SkinGlow, SkinHost } from './skins.ts';
+import { BuildFx } from './buildfx.ts';
 import type { FlatCopy, Variant } from './instances.ts';
 import { envPreset } from '../../shared/worldenv.ts';
-import type { ShownWorld, VoxelMaterial, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, VoxelWorld, WorldAnchor, WorldEffect, WorldLight } from '../../shared/types.ts';
+import type { ShownWorld, VoxelMaterial, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, VoxelWorld, WorldAnchor, WorldBuilder, WorldEffect, WorldLight, WorldLookView } from '../../shared/types.ts';
 
 /** Where an anchor is on the map now (null: not in this project, e.g. another project's team). */
 export type AnchorAt = (a: WorldAnchor) => THREE.Vector3 | null;
@@ -30,8 +31,10 @@ export type AnchorAt = (a: WorldAnchor) => THREE.Vector3 | null;
 export interface WorldLayer {
   /** what GET /api/world said last */
   readonly shown: ShownWorld | null;
-  /** load again what changed (debounced) */
-  refresh(): void;
+  /** load again what changed (debounced); a build event also plays the build where it happened */
+  refresh(ev?: WorldEventInfo): void;
+  /** a 'world-look' request: a picture for world_look, posted back when this tab shows that world */
+  look(req: WorldLookRequest): Promise<boolean>;
   /** follow anchors (each frame) */
   update(): void;
   /** how far the world reaches from the middle (map units), for fitting the view */
@@ -40,6 +43,11 @@ export interface WorldLayer {
   play(agentId: string, clip: string, times?: number): boolean;
   dispose(): void;
 }
+
+/** A 'world' event: a build carries { world, objects, builder, added, placed } (server/voxel/build.ts). */
+export type WorldEventInfo = Record<string, unknown>;
+/** A 'world-look' event: { request, world, view }. */
+export type WorldLookRequest = Record<string, unknown>;
 
 /** Answers from GET /api/world. */
 type ShownWithName = ShownWorld & { fromProjectName?: string };
@@ -201,8 +209,19 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
           const pm = prefabMeshes.get(key);
           if (pm) pm.users--;
         },
+        changed: () => lightsChanged(),
       })
     : null;
+
+  // ---------- builds, as they happen ----------
+  const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fx = new BuildFx(reduced);
+  view.addObject(fx.group);
+  /** builds the server told us about, waiting for their meshes: object id → who built it */
+  const pendingBuilds = new Map<string, WorldBuilder | null>();
+  /** objects whose build plays on the next frame (once their place on the map is known) */
+  const playBuilds: { id: string; by: WorldBuilder | null }[] = [];
+
 
   // ---------- light and effects ----------
   let lights: WorldLight[] = [];
@@ -221,9 +240,14 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
     const a = anchorAt(x.anchor);
     return a ? out.makeTranslation(a.x, a.y, a.z) : null;
   };
+  const skinGlow: SkinGlow[] = [];
   function candidates(): LightCandidate[] {
     const out: LightCandidate[] = [];
     let seed = 0;
+    // glowing voxels of skins (a crystal agent, a brazier hub) light things too
+    skinGlow.length = 0;
+    skins?.glow(skinGlow);
+    for (const g of skinGlow) out.push({ x: g.x, y: g.y, z: g.z, r: g.r, g: g.g, b: g.b, strength: g.strength, range: reachOf(g.strength), flicker: 0, seed: seed++ });
     for (const p of placed.values()) {
       p.group.updateWorldMatrix(true, false);
       const m = p.group.matrixWorld;
@@ -401,13 +425,65 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
       for (const part of parts) glowSpots(part.lights, part.voxelSize, partMatrix(part, pm), glow);
       const np: Placed = { meta: o, palette, group: view.addParts(groupId(o), parts), data, copiesKey: '', copies: [], meshKeys: [], glow, copyGlow: [] };
       placed.set(o.id, np);
+      // a new object from a live build grows from its first frame on the map
+      if (!p && pendingBuilds.has(o.id)) fx.grow(np.group, performance.now());
       lightsChanged();
       if (data.instances?.length) await drawCopies(np);
       if (stale()) return;
     }
     await skins?.sync();
     freeUnused();
+    // the builds this load drew: played on the next frame, where they stand
+    for (const [id, by] of pendingBuilds) {
+      if (!placed.has(id)) continue;
+      playBuilds.push({ id, by });
+      pendingBuilds.delete(id);
+    }
   }
+
+  /** Where a builder is on the map: its desk (an agent) or the Brain; null when it isn't here (you, another project's agent). */
+  const builderAt = (by: WorldBuilder | null, out: THREE.Vector3): THREE.Vector3 | null => {
+    if (!by || !host) return null;
+    if (by.kind === 'brain') {
+      const b = host.brain();
+      return b ? b.anchor.getWorldPosition(out).add(tmp.set(0, 5, 0)) : null;
+    }
+    if (by.kind === 'agent' && by.id) {
+      const a = host.agents().find((x) => x.agentId === by.id);
+      return a ? a.anchor.getWorldPosition(out).add(tmp.set(0, 2.2, 0)) : null;
+    }
+    return null;
+  };
+  const fxFrom = new THREE.Vector3();
+  const fxTo = new THREE.Vector3();
+  const fxBox = new THREE.Box3();
+
+  // ---------- pictures for world_look ----------
+  const lookBox = (v: WorldLookView, box: THREE.Box3): THREE.Box3 => {
+    box.makeEmpty();
+    const add = (o: THREE.Object3D | null | undefined) => {
+      if (!o) return;
+      o.updateWorldMatrix(true, true);
+      box.expandByObject(o);
+    };
+    if (v.target === 'object' && v.id) add(placed.get(v.id)?.group);
+    else if (v.target === 'brain') {
+      add(host?.brain()?.anchor);
+      skins?.boundsOf('brain', 'brain', box);
+    } else if (v.target === 'team' && v.id) {
+      add(host?.team(v.id)?.anchor);
+      skins?.boundsOf('team', v.id, box);
+    } else if (v.target === 'agent' && v.id) {
+      for (const a of host?.agents() || []) if (a.agentId === v.id) add(a.anchor);
+      skins?.boundsOf('agent', v.id, box);
+    } else {
+      // the whole world, and the Station on it
+      for (const p of placed.values()) add(p.group);
+      add(host?.brain()?.anchor);
+      for (const a of host?.agents() || []) add(a.anchor);
+    }
+    return box;
+  };
 
   const run = () => {
     if (loading) {
@@ -433,11 +509,41 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
     get shown() {
       return shown;
     },
-    refresh() {
+    refresh(ev) {
+      // a build in the world shown: remember it, so it plays once its meshes are in
+      if (ev && ev.world === worldId && Array.isArray(ev.objects)) {
+        const by = ev.builder && typeof ev.builder === 'object' ? (ev.builder as WorldBuilder) : null;
+        const changed = Number(ev.added) > 0 || Number(ev.placed) > 0;
+        if (changed) for (const id of ev.objects) if (typeof id === 'string') pendingBuilds.set(id, by);
+      }
       if (timer) clearTimeout(timer);
       timer = setTimeout(run, 120);
     },
+    async look(req) {
+      const v = req.view as WorldLookView | undefined;
+      if (typeof req.request !== 'string' || !v || typeof v !== 'object' || !worldId || req.world !== worldId) return false;
+      let only: { group: THREE.Group; release: () => void } | null = null;
+      try {
+        const box = new THREE.Box3();
+        if (v.target === 'prefab' && v.id) {
+          only = (await skins?.standalone(v.id)) || null;
+          if (!only) return false;
+          only.group.updateWorldMatrix(true, true);
+          box.setFromObject(only.group);
+        } else lookBox(v, box);
+        if (box.isEmpty()) return false;
+        const image = view.snapshot({ box, azimuth: v.azimuth, elevation: v.elevation, zoom: v.zoom, width: v.width || 1024, height: v.height || 640, only: only?.group });
+        await POST(`/world/snapshot/${encodeURIComponent(req.request)}`, { image });
+        return true;
+      } catch {
+        return false;
+      } finally {
+        only?.release();
+        freeUnused();
+      }
+    },
     update() {
+      const now = performance.now();
       for (const p of placed.values()) {
         const m = p.meta;
         // pinned to something this project doesn't have: where it last stood, or from the middle
@@ -445,8 +551,23 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
         p.group.position.set(base.x + m.position[0], base.y + m.position[1], base.z + m.position[2]);
         p.group.rotation.y = (m.rotation * Math.PI) / 180;
         p.group.scale.setScalar(m.scale || 1);
+        // a new object grows up out of the ground
+        p.group.scale.y *= fx.heightOf(p.group, now);
       }
       skins?.update();
+      // builds that just came in: an arc from the builder to what it built, a puff there
+      while (playBuilds.length) {
+        const b = playBuilds.shift()!;
+        const p = placed.get(b.id);
+        if (!p) continue;
+        p.group.updateWorldMatrix(true, true);
+        fxBox.setFromObject(p.group);
+        if (fxBox.isEmpty()) continue;
+        fxBox.getCenter(fxTo);
+        fxTo.y = fxBox.max.y;
+        fx.built(builderAt(b.by, fxFrom), fxTo, b.by?.kind === 'brain' ? '#ffd36e' : '#c4ff3d', now);
+      }
+      fx.update(now);
     },
     radius() {
       let r = 0;
@@ -463,6 +584,8 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
       alive = false;
       if (timer) clearTimeout(timer);
       skins?.dispose();
+      view.removeObject(fx.group);
+      fx.dispose();
       dropAll();
       view.setLights(() => [], ++lightVersion);
       view.setEffects([], () => null);

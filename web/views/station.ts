@@ -3019,6 +3019,8 @@ function drawHud(): void {
     S.zoomEl = h(
       'div',
       { class: 'absolute right-4 bottom-4 flex flex-col gap-1.5 pointer-events-auto group-has-[.st-panel:not(.hidden)]/root:right-101.5' },
+      // the World panel (voxel look only: shown or hidden on each drawHud)
+      h('button.st-world-btn', { class: `${ZOOM_BTN} mb-1.5`, hidden: true, title: 'World: WORLD.md, what is built, the look, which world', 'aria-label': 'World', onclick: () => choose(S?.selected?.type === 'world' ? null : { type: 'world' }) }, icon('globe', 17)),
       h('button', { class: ZOOM_BTN, title: 'Zoom in (+)', onclick: () => zoomAt(1.3) }, icon('zoom-in', 17)),
       h('button', { class: ZOOM_BTN, title: 'Zoom out (−)', onclick: () => zoomAt(0.77) }, icon('zoom-out', 17)),
       h('button', { class: ZOOM_BTN, title: 'Whole station (0)', onclick: () => resetView() }, icon('house', 17)),
@@ -3028,6 +3030,11 @@ function drawHud(): void {
     S.statsEl = h('div', { class: 'absolute top-14.5 right-4.5 pointer-events-auto group-has-[.st-panel:not(.hidden)]/root:hidden' });
     S.hud.append(S.hudTop, S.statsEl, S.feedEl, S.zoomEl, S.emptyEl);
   }
+  // the World button only in the voxel look (the panel closes when the look goes classic)
+  const worldLook = d.settings?.look?.station === 'world';
+  const worldBtn = S.zoomEl.querySelector<HTMLButtonElement>('.st-world-btn');
+  if (worldBtn) worldBtn.hidden = !worldLook;
+  if (!worldLook && S.selected?.type === 'world') choose(null);
   // Everything that could be connected: lit when it works, grey when it doesn't (yet).
   const tiles: HudTile[] = [];
   for (const c of S.headbar?.connectors || []) {
@@ -3417,7 +3424,9 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
   const d = state.data;
   if (ev.type === 'workflows') return reloadWorkflows();
   // the voxel world changed (a build, a move, WORLD.md, another project's world picked), or another project opened
-  if (ev.type === 'world' || ev.type === 'project') S.worldLayer?.refresh();
+  if (ev.type === 'world' || ev.type === 'project') S.worldLayer?.refresh(ev.type === 'world' ? ev : undefined);
+  // a builder asked for a picture of the world (world_look): this tab answers if it shows that world
+  if (ev.type === 'world-look') void S.worldLayer?.look(ev);
   // a builder plays an animation on an agent's character
   if (ev.type === 'world-anim' && typeof ev.agent === 'string' && typeof ev.clip === 'string') S.worldLayer?.play(ev.agent, ev.clip, typeof ev.times === 'number' ? ev.times : 1);
   // a program was opened or closed: light its tile and the desks that use it

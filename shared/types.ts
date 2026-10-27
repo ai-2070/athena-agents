@@ -1179,3 +1179,18 @@ export interface WorldSkins {
   /** by agent id */
   agents: Record<string, AgentSkin>;
 }
+
+/** What a world_look picture shows (the 'world-look' event the Station answers). */
+export interface WorldLookView {
+  /** the whole world, or one thing in it */
+  target: 'overview' | 'brain' | 'team' | 'agent' | 'object' | 'prefab';
+  /** the team's, agent's, object's or prefab's id */
+  id?: string;
+  /** degrees; the Station's own view is azimuth 45, elevation 35 */
+  azimuth?: number;
+  elevation?: number;
+  /** 1 fits the target; 2 is twice as close */
+  zoom?: number;
+  width: number;
+  height: number;
+}

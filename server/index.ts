@@ -40,6 +40,10 @@ import * as worldBuild from './voxel/build.ts';
 import * as worldStore from './voxel/store.ts';
 import * as worldMd from './voxel/worldmd.ts';
 import * as worldScene from './voxel/scene.ts';
+import * as worldLook from './voxel/look.ts';
+import * as worldPrefabs from './voxel/prefabs.ts';
+import * as worldCharacters from './voxel/characters.ts';
+import { listVersions, getVersion, withActor } from './versions.ts';
 import * as terms from './terminals.ts';
 import * as status from './status.ts';
 import * as brain from './brain.ts';
@@ -597,6 +601,46 @@ put<{ text?: unknown } | null>('/api/world/md', async (_p, body) => {
   return m;
 });
 put<Record<string, unknown> | null>('/api/world/environment', async (_p, body) => worldScene.setEnvironment({ by: you, fields: body || {} }).world);
+// a picture an open Station made for world_look
+post<{ image?: unknown; error?: unknown } | null>('/api/world/snapshot/:request', async ({ request }, body) => ({ ok: worldLook.deliverLook(request, body || {}) }));
+// WORLD.md's earlier versions
+const shownWorldId = () => {
+  const w = worldLink.shownWorld().world;
+  if (!w) throw new HttpError(404, 'No world yet.');
+  return w.id;
+};
+get('/api/world/md/versions', async () => listVersions<{ text: string }>(worldMd.worldMdVersionsDir(shownWorldId())).map((v) => ({ id: v.id, at: v.at, by: v.by, note: v.note, chars: v.item.text.length })));
+get('/api/world/md/versions/:vid', async ({ vid }) => {
+  const v = getVersion<{ text: string }>(worldMd.worldMdVersionsDir(shownWorldId()), vid);
+  if (!v) throw new HttpError(404, 'No such version.');
+  return v;
+});
+post('/api/world/md/versions/:vid/restore', async ({ vid }) => {
+  const v = getVersion<{ text: string }>(worldMd.worldMdVersionsDir(shownWorldId()), vid);
+  if (!v) throw new HttpError(404, 'No such version.');
+  const m = withActor('you', () => worldMd.writeWorldMd(worldLink.worldForBuild().id, v.item.text), { note: `restored the version from ${new Date(v.at).toLocaleString()}`, force: true });
+  log('world', 'You restored an earlier WORLD.md');
+  return m;
+});
+get('/api/world/changes', async () => worldBuild.recentChanges(shownWorldId(), 50));
+get('/api/world/prefabs', async () => {
+  const w = worldLink.shownWorld().world;
+  if (!w) return [];
+  const uses = worldPrefabs.prefabUses(w);
+  return w.prefabs.map((p) => ({ ...p, uses: uses.get(p.id) || null }));
+});
+put<Record<string, unknown> | null>('/api/world/prefabs/:pid', async ({ pid }, body) => worldPrefabs.changePrefab({ by: you, prefab: pid, name: body?.name, description: body?.description, tags: body?.tags }).prefab);
+del('/api/world/prefabs/:pid', async ({ pid }) => ({ text: worldPrefabs.deletePrefab({ by: you, prefab: pid }) }));
+put<Record<string, unknown> | null>('/api/world/lights/:lid', async ({ lid }, body) => worldScene.setLight({ by: you, action: 'change', light: lid, fields: body || {} }).light);
+del('/api/world/lights/:lid', async ({ lid }) => (worldScene.setLight({ by: you, action: 'remove', light: lid }), { ok: true }));
+put<Record<string, unknown> | null>('/api/world/effects/:eid', async ({ eid }, body) => worldScene.setEffect({ by: you, action: 'change', effect: eid, fields: body || {} }).effect);
+del('/api/world/effects/:eid', async ({ eid }) => (worldScene.setEffect({ by: you, action: 'remove', effect: eid }), { ok: true }));
+// how the Brain, a team or an agent looks (e.g. put a hidden agent back on the map)
+put<{ to?: unknown; id?: unknown; fields?: unknown } | null>('/api/world/skins', async (_p, body) => {
+  const to = String(body?.to || '');
+  if (to !== 'agent' && to !== 'team' && to !== 'brain') throw new HttpError(400, 'to is agent, team or brain.');
+  return worldCharacters.setSkin({ by: you, to, id: typeof body?.id === 'string' ? body.id : undefined, fields: body?.fields && typeof body.fields === 'object' ? (body.fields as Record<string, unknown>) : {} }).world.skins;
+});
 get('/api/worlds', async () => worldLink.listWorldsFor());
 put<{ worldId?: unknown; mode?: unknown } | null>('/api/project-world', async (_p, body) => {
   const mode = String(body?.mode || '');
@@ -1191,6 +1235,8 @@ const server = http.createServer(async (req, res) => {
 // ---------- websockets: live events + terminals ----------
 const wss = new WebSocketServer({ noServer: true });
 const eventClients = new Set<WebSocket>();
+// world_look answers in words at once when no page is open to draw a picture
+worldLook.setOpenPages(() => [...eventClients].filter((ws) => ws.readyState === 1).length);
 server.on('upgrade', (req, socket, head) => {
   const origin = req.headers.origin || '';
   const okOrigin = [...ALLOWED_HOSTS].some((h) => origin === `http://${h}`);
