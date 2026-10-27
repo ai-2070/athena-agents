@@ -12,7 +12,7 @@ import { startHandoff, awaitHandoff, listHandoffs, DEFAULT_WAIT_S, MAX_WAIT_S } 
 /** Hermes' own MCP tool timeout is 300 s: await_agent answers it well within that. */
 const HERMES_WAIT_S = 240;
 import { requestApproval } from './approvals.ts';
-import { discoverPrograms, launchProgram, programExe, startMenuApps } from './programs.ts';
+import { knownPrograms, launchProgram, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as social from './social.ts';
 import * as reddit from './reddit.ts';
@@ -222,7 +222,8 @@ const TOOLS: ToolDef[] = [
     description: 'List the programs and local AI services found on this PC, whether each is running, and what it can do. Pass all=true to also list every Start Menu app.',
     parameters: obj({ all: { type: 'boolean', description: 'Include every Start Menu shortcut' } }),
     run: async ({ all }: { all?: boolean }) => {
-      const progs = await discoverPrograms(true);
+      // what the hourly background scan found: an agent never waits for a scan
+      const progs = knownPrograms();
       const lines = progs
         .filter((p) => p.installed)
         .map((p) => `- ${p.name} [${p.id}]${p.version ? ` v${p.version}` : ''}${p.running ? ' (running' + (p.serviceUrl ? ` at ${p.serviceUrl}` : '') + ')' : ''}`);

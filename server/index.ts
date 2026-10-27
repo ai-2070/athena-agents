@@ -1183,6 +1183,7 @@ irc.startIrc();
 routinesMod.markInterruptedRoutines();
 routinesMod.startRoutineScheduler();
 projectSync.startAutoSave();
+programs.startProgramScan();
 programs.startRunningWatch();
 
 server.on('error', (e: NodeJS.ErrnoException) => {

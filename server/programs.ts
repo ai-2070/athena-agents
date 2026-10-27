@@ -545,8 +545,37 @@ async function runningExes(): Promise<Set<string>> {
 }
 
 let cache: { at: number; list: Program[] } = { at: 0, list: [] };
+// Finding the programs on this PC (process lists, service checks, folders) is slow, so it runs in the
+// background: once when the server starts, then at most once an hour. Nothing that thinks or works (the
+// Brain, agents' tools) waits for it; they read what the last scan found.
+const SCAN_EVERY = 60 * 60_000;
+let scanning: Promise<Program[]> | null = null;
+const scanNow = (): Promise<Program[]> => (scanning ??= scanPrograms().finally(() => (scanning = null)));
+const scanIfOld = () => {
+  if (!scanning && Date.now() - cache.at >= SCAN_EVERY) scanNow().catch(() => {});
+};
+
+/** What the last scan found, right away (an hour-old list starts the next scan in the background). */
+export function knownPrograms(): Program[] {
+  scanIfOld();
+  return cache.list;
+}
+
+/** For the page: the same list, but it waits for the very first scan; force (Rescan on the Programs page) scans now. */
 export async function discoverPrograms(force = false): Promise<Program[]> {
-  if (!force && Date.now() - cache.at < 20_000) return cache.list;
+  if (force) return scanNow();
+  if (!cache.at) return scanNow();
+  scanIfOld();
+  return cache.list;
+}
+
+/** The first scan at start, then one an hour. */
+export function startProgramScan() {
+  scanNow().catch(() => {});
+  setInterval(scanIfOld, SCAN_EVERY).unref?.();
+}
+
+async function scanPrograms(): Promise<Program[]> {
   const procs = await runningExes();
   const list = await Promise.all(
     CATALOG.map(async (p): Promise<Program> => {
@@ -586,7 +615,7 @@ export async function discoverPrograms(force = false): Promise<Program[]> {
 let lastRunning: string | null = null;
 const isRunning = (p: Program, procs: Set<string>): boolean => !!(p.serviceUrl || (p.exe && procs.has(path.basename(p.exe).toLowerCase())));
 export async function refreshRunning() {
-  if (!cache.list.length) await discoverPrograms();
+  if (!cache.list.length) return;
   const procs = await runningExes();
   // services (ComfyUI, LM Studio, Ollama...) are asked again, so starting or stopping one shows up
   await Promise.all(
@@ -610,8 +639,10 @@ function checkSoon() {
   for (const ms of [1500, 4000, 8000, 15000]) setTimeout(() => refreshRunning().catch(() => {}), ms);
 }
 
-export async function getProgram(id: string): Promise<Program | null> {
-  return (await discoverPrograms()).find((p) => p.id === id) || null;
+/** Where a local service (ComfyUI, LM Studio…) answers right now: asks it, without a scan. */
+export async function serviceUrl(id: string): Promise<string | null> {
+  const service = CATALOG.find((c) => c.id === id)?.service;
+  return service ? service().catch(() => null) : null;
 }
 
 // Launch a known program, a Start Menu entry, or anything on PATH. Optionally open a file/URL with it.
@@ -619,7 +650,7 @@ export async function getProgram(id: string): Promise<Program | null> {
 export async function launchProgram(nameOrId: unknown, { file = null, args = [] }: { file?: string | null; args?: unknown } = {}): Promise<string> {
   const key = String(nameOrId || '').trim();
   if (!key) throw new Error('Which program? Give its name.');
-  const progs = await discoverPrograms();
+  const progs = knownPrograms();
   const lower = key.toLowerCase();
   const known = progs.find((p) => p.id === lower || p.name.toLowerCase() === lower) || progs.find((p) => p.name.toLowerCase().includes(lower));
   const extra: string[] = [...(file ? [file] : []), ...(Array.isArray(args) ? (args as string[]) : [])];
