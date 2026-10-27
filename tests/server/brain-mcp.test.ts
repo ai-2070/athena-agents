@@ -365,7 +365,10 @@ describe('the Brain and several accounts of one service', () => {
     const r = applyActions([{ do: 'add_mcp', preset: 'linear', label: 'Client', useFor: "the client's issues" }]);
     expect(r.done[0]).toMatchObject({ kind: 'mcp', text: expect.stringContaining('Added the MCP server "linear-client" (Linear: Client)') });
     expect(r.done[1]).toEqual({ kind: 'note', text: '"linear" has no "use for" line yet: ask the user what that account is for and set it with update_mcp' });
-    expect(mcp.listServers()['linear-client']).toMatchObject({ kind: 'linear', label: 'Client', useFor: "the client's issues", url: 'https://mcp.linear.app/mcp' });
+    expect(mcp.listServers()['linear-client']).toMatchObject({ kind: 'linear', label: 'Client', useFor: "the client's issues", args: ['-y', 'mcp-remote', 'https://mcp.linear.app/mcp'] });
+    // each account signs in on its own: the first keeps mcp-remote's usual login, the second gets its own folder
+    expect(mcp.listServers().linear.env.MCP_REMOTE_CONFIG_DIR).toBeUndefined();
+    expect(mcp.listServers()['linear-client'].env.MCP_REMOTE_CONFIG_DIR).toMatch(/[\\/]\.mcp-auth[\\/]dashboard-linear-client$/);
   });
 
   it('gives one agent two accounts only when each says what it is for, and finds them by label', () => {

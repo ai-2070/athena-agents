@@ -157,9 +157,13 @@ const TOOLS: ToolDef[] = [
       if (!s) return { text: `There is no skill called "${name}". Your skills are listed in your instructions.`, isError: true };
       if (find) return { text: `# ${s.name}: lines matching "${find}"\n\n${skills.searchSkill(s.slug, find, file)}` };
       if (file) return { text: `# ${s.name} / ${file}\n\n${skills.readSkillFile(s.slug, file, from)}` };
-      // Hermes skills name their folder ${HERMES_SKILL_DIR}: point it at this one, so agents with a shell can use the files directly
-      const body = s.body.replaceAll('${HERMES_SKILL_DIR}', skills.skillDir(s.slug).split(path.sep).join('/'));
-      return { text: `# Skill: ${s.name}\n${s.description}\n\n${body}${s.files.length ? `\n\n---\nFiles with this skill (read with read_skill name="${s.slug}" file="...", or search them with find="..."): ${s.files.map((f) => f.path).join(', ')}` : ''}` };
+      // Hermes skills name their folder ${HERMES_SKILL_DIR}, or write out where Hermes keeps it
+      // (~/.hermes/skills/<category>/<id>): point both at this one, so agents with a shell can use the files directly
+      const dir = skills.skillDir(s.slug).split(path.sep).join('/');
+      const inHermes = new RegExp(`(?:~|\\$HOME|\\$\\{HOME\\})/\\.hermes/skills/(?:[\\w.-]+/)*?${s.slug.replaceAll('.', '\\.')}(?![\\w.-])`, 'g');
+      const body = s.body.replaceAll('${HERMES_SKILL_DIR}', dir).replace(inHermes, dir);
+      const files = s.files.length ? `\n\n---\nFiles with this skill, in its folder ${dir} (read with read_skill name="${s.slug}" file="...", or search them with find="..."; with a shell, run its scripts from that folder): ${s.files.map((f) => f.path).join(', ')}` : '';
+      return { text: `# Skill: ${s.name}\n${s.description}\n\n${body}${files}` };
     },
   },
   // ---------- chat history (every agent; what a compaction left out) ----------

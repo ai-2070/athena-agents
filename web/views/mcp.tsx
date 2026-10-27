@@ -73,6 +73,7 @@ export function McpTab() {
   const [data, setData] = useState<McpData | null>(null);
   const [tools, setTools] = useState<Tools | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const [find, setFind] = useState('');
   const reload = useCallback(
     () =>
       Promise.all([GET<McpData>('/mcp'), GET<Tools>('/tools')])
@@ -93,6 +94,8 @@ export function McpTab() {
   const services = [...new Map([...data.presets.map((p) => [p.name, serviceOf(p)] as const), ...Object.values(info).map((i) => [i.kind, i.service] as const)]).entries()];
   const edit = (name?: string, cfg?: McpServerConfig) =>
     openModal(name ? `Edit ${info[name]?.title || name}` : 'Add MCP server', (close) => <ServerForm name={name} cfg={cfg} kind={name ? info[name]?.kind : undefined} services={services} close={close} saved={() => (void reload(), refreshSoon())} />);
+  const words = find.trim().toLowerCase();
+  const shown = words ? data.presets.filter((p) => `${p.name} ${p.title} ${p.description}`.toLowerCase().includes(words)) : data.presets;
   const addAnother = (p: McpPresetListing) =>
     openModal(`Add another ${serviceOf(p)} account`, (close) => <CopyForm preset={p} servers={data.servers} close={close} saved={() => (void reload(), refreshSoon())} />);
 
@@ -146,9 +149,13 @@ export function McpTab() {
       <div className="panel">
         <div className="panel-head">
           <h2>Presets</h2>
+          <div className="actions">
+            <input className="w-55" type="search" placeholder="Search presets…" aria-label="Search presets" value={find} onChange={(e) => setFind(e.target.value)} />
+          </div>
         </div>
+        {!shown.length ? <p className="empty">{`No preset matches "${find.trim()}".`}</p> : null}
         <div className="cards">
-          {data.presets.map((p) => (
+          {shown.map((p) => (
             <div key={p.name} className="card">
               <div className="card-title">{p.title}</div>
               <div className="card-sub">{p.description}</div>

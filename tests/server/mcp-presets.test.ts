@@ -1,6 +1,7 @@
 // The MCP presets people add with one click: each one has to be a complete, installable entry.
 import { describe, expect, it } from 'vitest';
-import { PRESETS, presetNeeds, serverName } from '../../server/mcp.ts';
+import { PRESETS, kindOf, presetNeeds, remoteUrl, serverName, signsInByBrowser } from '../../server/mcp.ts';
+import type { McpServerConfig } from '../../server/mcp.ts';
 
 describe('MCP presets', () => {
   it('have unique names that are safe as saved names', () => {
@@ -69,7 +70,41 @@ describe('MCP presets', () => {
     const by = (name: string) => PRESETS.find((p) => p.name === name)!;
     expect(presetNeeds(by('playwright'))).toBe('');
     expect(presetNeeds(by('brave-search'))).toBe('needs BRAVE_API_KEY');
-    expect(presetNeeds(by('linear'))).toBe('needs a key in the Authorization header');
+    expect(presetNeeds(by('linear'))).toBe('setup: sign in to Linear in the browser window that opens the first time it runs');
     expect(presetNeeds(by('unity'))).toMatch(/^setup: install the "MCP for Unity" package/);
+  });
+
+  it('include services that sign in through the browser: nothing to paste, and the setup says whose sign-in opens', () => {
+    const by = (name: string) => PRESETS.find((p) => p.name === name)!;
+    for (const n of ['notion', 'linear', 'atlassian', 'gitlab', 'sentry', 'vercel', 'cloudflare', 'supabase', 'huggingface', 'airtable', 'miro', 'dropbox']) {
+      const p = by(n);
+      expect(signsInByBrowser(p), n).toBe(true);
+      expect(remoteUrl(p), n).toMatch(/^https:\/\//);
+      expect(p.type === 'stdio' && p.args.slice(0, 2), n).toEqual(['-y', 'mcp-remote']);
+      expect(presetNeeds(p), n).toMatch(/^setup: sign in to .+ in the browser window that opens the first time it runs$/);
+      expect(p.description, n).toContain('a browser window opens to sign in');
+    }
+    // Notion no longer asks for an integration token
+    expect(JSON.stringify(by('notion'))).not.toContain('YOUR_');
+    // Cloudflare stays in its small two-tool mode: the full list is thousands of tools
+    expect(remoteUrl(by('cloudflare'))).toBe('https://mcp.cloudflare.com/mcp');
+  });
+
+  it('include hosted docs, search and travel servers that need no key', () => {
+    const by = (name: string) => PRESETS.find((p) => p.name === name)!;
+    for (const n of ['deepwiki', 'microsoft-learn', 'aws-knowledge', 'twilio-docs', 'wolfram', 'kiwi', 'trivago']) {
+      const p = by(n);
+      expect(p.type, n).toBe('http');
+      expect(presetNeeds(p), n).toBe('');
+      expect(p.description, n).toMatch(/No key needed\.$/);
+      expect(signsInByBrowser(p), n).toBe(false);
+    }
+  });
+
+  it('count a hosted link added straight as the browser sign-in preset it is', () => {
+    const cfg = (o: Partial<McpServerConfig>): McpServerConfig => ({ type: 'http', command: '', args: [], env: {}, url: '', headers: {}, description: '', enabled: true, ...o });
+    expect(kindOf('my-notion', cfg({ url: 'https://mcp.notion.com/mcp' }))).toBe('notion');
+    expect(kindOf('work-sentry', cfg({ type: 'stdio', command: 'npx', args: ['-y', 'mcp-remote', 'https://mcp.sentry.dev/mcp'] }))).toBe('sentry');
+    expect(kindOf('other', cfg({ url: 'https://example.com/mcp' }))).toBe('other');
   });
 });

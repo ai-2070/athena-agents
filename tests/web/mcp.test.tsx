@@ -99,6 +99,22 @@ describe('the MCP servers tab', () => {
     expect([...el.querySelectorAll('.mcp-tool')].map((t) => t.textContent)).toEqual(['read_file', 'shell ●']);
   });
 
+  it('finds a preset by its name or what it does', async () => {
+    const preset = (name: string, title: string, description: string) => ({ name, title, description, ready: true, installed: false, type: 'http', url: `https://${name}.example.com/mcp`, headers: {} });
+    mcpMore = { presets: [preset('sentry', 'Sentry', 'Errors and stack traces.'), preset('kiwi', 'Flights (Kiwi.com)', 'Search flights.')] };
+    await open();
+    const titles = () => [...el.querySelectorAll('.card-title')].map((t) => t.textContent);
+    expect(titles()).toEqual(['Sentry', 'Flights (Kiwi.com)']);
+    const find = el.querySelector<HTMLInputElement>('input[aria-label="Search presets"]')!;
+    await type(find, 'STACK');
+    expect(titles()).toEqual(['Sentry']);
+    await type(find, 'kiwi');
+    expect(titles()).toEqual(['Flights (Kiwi.com)']);
+    await type(find, 'nothing like it');
+    expect(titles()).toEqual([]);
+    expect(el.textContent).toContain('No preset matches "nothing like it".');
+  });
+
   it('tests a server and shows its tools', async () => {
     await open();
     await act(async () => btn(el, 'Test').click());

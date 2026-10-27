@@ -8,7 +8,7 @@ import { waitingQuestions } from './questions.ts';
 import { agents, workflows, activeProject, openProject, projectSwitches, listProjects, getSettings, saveSettings, outbox, activity, log, emit, routineRuns, runs as workflowRuns } from './store.ts';
 import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from './library.ts';
 import { TOOL_GROUPS, workspaceOf } from './tools.ts';
-import { listServers, PRESETS, presetNeeds, suggestPresets, importableServers, saveServer, serverName, renameServer, removeServerEverywhere, kindOf, serviceTitle, copyTitle, copiesByKind, copiesWithoutUseFor, serversForPrompt, resolveKind, addedKinds, placeNew } from './mcp.ts';
+import { listServers, PRESETS, presetNeeds, signsInByBrowser, withOwnLogin, suggestPresets, importableServers, saveServer, serverName, renameServer, removeServerEverywhere, kindOf, serviceTitle, copyTitle, copiesByKind, copiesWithoutUseFor, serversForPrompt, resolveKind, addedKinds, placeNew } from './mcp.ts';
 import { knownPrograms } from './programs.ts';
 import type { McpServerConfig } from './mcp.ts';
 import { ensureBrain, brainInfo, updateProject } from './projects.ts';
@@ -348,7 +348,13 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     return [`- ${serviceTitle(kindOf(name, s))}: ${group.length} accounts${first.description ? ` | ${cut(first.description, 140)}` : ''}`, ...group.map((n) => mcpLine(n, servers[n], true))];
   });
   const added = addedKinds(servers);
-  const ready = PRESETS.map((x) => `${x.name} (${x.title}${added.has(x.name) ? ', added' : ''}${presetNeeds(x) ? `; ${presetNeeds(x)}` : ''})`).join(', ');
+  const ready = PRESETS.filter((x) => !signsInByBrowser(x))
+    .map((x) => `${x.name} (${x.title}${added.has(x.name) ? ', added' : ''}${presetNeeds(x) ? `; ${presetNeeds(x)}` : ''})`)
+    .join(', ');
+  // the many that only sign in through the browser, kept short: their setup line is the same for each
+  const byBrowser = PRESETS.filter(signsInByBrowser)
+    .map((x) => `${x.name} (${x.title}${added.has(x.name) ? ', added' : ''})`)
+    .join(', ');
   const found = importableServers().filter((x) => !servers[serverName(x.name)]).slice(0, 40).map((x) => `${x.name} (source "${x.source}")`).join(', ');
   // ready-made ones that fit this PC (a program it drives is installed, or a basic one): offered, never added unasked
   const suggested = suggestPresets(knownPrograms(), servers)
@@ -382,7 +388,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     `\nWORK YOU HANDED OUT (newest last; you check on open ones when they finish):\n${briefLines.join('\n') || '(none)'}`,
     `\nROUTINES (${routineLines.length}; saved instructions run by hand or on a schedule):\n${routineLines.join('\n') || '(none)'}`,
     `\nSKILLS (${skillLines.length}; the project's recorded know-how and workflows; mention one in a routine as @Name):\n${skillLines.slice(0, 120).join('\n') || '(none)'}`,
-    `\nMCP SERVERS (${mcpLines.length}; outside tool servers agents and teams can be given):\n${mcpLines.join('\n') || '(none)'}\nReady-made, to add: ${ready}${suggested ? `\nSuggested for this PC (not added; offer them, add only when the user says yes): ${suggested}` : ''}${found ? `\nFound in the user's Claude configs, to add: ${found}` : ''}`,
+    `\nMCP SERVERS (${mcpLines.length}; outside tool servers agents and teams can be given):\n${mcpLines.join('\n') || '(none)'}\nReady-made, to add: ${ready}\nReady-made that sign in through the browser the first time they run (no key to paste), to add: ${byBrowser}${suggested ? `\nSuggested for this PC (not added; offer them, add only when the user says yes): ${suggested}` : ''}${found ? `\nFound in the user's Claude configs, to add: ${found}` : ''}`,
     `\nWAITING FOR THE USER: ${approvals.length} approval(s)${approvals.length ? `: ${approvals.map((x) => `${x.agentName || 'agent'} wants "${cut(x.title, 80)}"`).join('; ')}` : ''} | ${pendingPosts.length} post(s) in the Outbox${pendingPosts.length ? `: ${pendingPosts.map((x) => `${x.platform}: "${cut((x.parts || [x.text]).join(' '), 70)}"`).join('; ')}` : ''} | ${asked.length} question(s) from agents in the Outbox${asked.length ? `: ${asked.map((x) => `${x.agentName || 'agent'} asks "${cut(x.question, 80)}"`).join('; ')}` : ''}`,
     `\nRECENT ACTIVITY:\n${recent.join('\n') || '(nothing yet)'}`,
     `\n${brainWorldSnapshot()}`,
@@ -1292,7 +1298,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         if (others.length) next.kind = kindNow;
         checkStarts(name, next);
         fromUser(next, base);
-        saveServer(name, next);
+        saveServer(name, others.length ? withOwnLogin(name, next) : next);
         lastServer = name;
         const keys = [...Object.keys(next.env), ...Object.keys(next.headers)];
         log('mcp', `The Brain added the MCP server "${name}"`);

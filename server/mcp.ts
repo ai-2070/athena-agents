@@ -93,6 +93,34 @@ interface ClaudeJson {
 
 const FILE = dataPath('mcp.json');
 
+// A service's own hosted server that needs no key at all.
+const open = (name: string, title: string, url: string, description: string): McpPreset => ({ name, title, description: `${description} No key needed.`, type: 'http', url, headers: {} });
+
+// A service's own hosted server that signs in through the browser (OAuth). mcp-remote does the sign-in the
+// first time it runs and keeps the login, so there is nothing to paste. `service` is whose sign-in page opens.
+const signIn = (name: string, title: string, service: string, url: string, description: string): McpPreset => ({
+  name,
+  title,
+  description: `${description} The first time it runs, a browser window opens to sign in to ${service}.`,
+  type: 'stdio',
+  command: 'npx',
+  args: ['-y', 'mcp-remote', url],
+  setup: `sign in to ${service} in the browser window that opens the first time it runs`,
+});
+
+/** The hosted server's link of a ready-made server that runs through mcp-remote ('' for others). */
+export const remoteUrl = (p: McpPreset): string => (p.type === 'stdio' && p.args.includes('mcp-remote') ? p.args[p.args.indexOf('mcp-remote') + 1] || '' : '');
+/** A ready-made server that signs in through the browser the first time it runs: no key to paste. */
+export const signsInByBrowser = (p: McpPreset): boolean => !!remoteUrl(p);
+
+/** Another account of a service that signs in through the browser keeps its own login. mcp-remote keeps one
+ *  login per link, so a second account would quietly be the first. Its folder sits next to mcp-remote's own
+ *  (~/.mcp-auth), not in the data folder, so the tokens stay out of backups. */
+export function withOwnLogin<T extends { args?: string[] | string; env?: Record<string, string> }>(name: string, cfg: T): T {
+  if (!Array.isArray(cfg.args) || !cfg.args.includes('mcp-remote') || cfg.env?.MCP_REMOTE_CONFIG_DIR) return cfg;
+  return { ...cfg, env: { ...cfg.env, MCP_REMOTE_CONFIG_DIR: path.join(HOME, '.mcp-auth', `dashboard-${serverName(name)}`) } };
+}
+
 export const PRESETS: McpPreset[] = [
   {
     name: 'playwright',
@@ -181,24 +209,30 @@ export const PRESETS: McpPreset[] = [
     args: ['-y', 'firecrawl-mcp'],
     env: { FIRECRAWL_API_KEY: 'YOUR_API_KEY' },
   },
+  open('deepwiki', 'Ask about any GitHub repo (DeepWiki)', 'https://mcp.deepwiki.com/mcp', 'Ask questions about any public GitHub repo and read its write-up (Devin\'s DeepWiki).'),
+  open('microsoft-learn', 'Microsoft docs', 'https://learn.microsoft.com/api/mcp', 'Official Microsoft, Azure, .NET and Windows docs and code samples (Microsoft\'s own server).'),
+  open('aws-knowledge', 'AWS docs', 'https://knowledge-mcp.global.api.aws', 'Official AWS docs, API references and best practices (Amazon\'s own server).'),
+  open('twilio-docs', 'Twilio docs', 'https://mcp.twilio.com/docs', 'Search Twilio\'s developer docs (Twilio\'s own server, read-only).'),
+  open('wolfram', 'Wolfram|Alpha', 'https://agenttools.wolfram.com/mcp', 'Exact math, unit conversions, and facts about science, places and data from Wolfram|Alpha (Wolfram\'s own server).'),
+  // Travel
+  open('kiwi', 'Flights (Kiwi.com)', 'https://mcp.kiwi.com', 'Search flights and get booking links (Kiwi.com\'s own server). Booking and paying happen on kiwi.com, never in the chat.'),
+  open('trivago', 'Hotels (trivago)', 'https://mcp.trivago.com/mcp', 'Compare hotel prices by city and dates (trivago\'s own server). Booking happens on the linked sites.'),
   // Work tools
-  {
-    name: 'notion',
-    title: 'Notion',
-    description: 'Read and write your Notion pages and databases. Needs an integration token (notion.so/profile/integrations): add it as NOTION_TOKEN after adding, and share the pages with the integration.',
-    type: 'stdio',
-    command: 'npx',
-    args: ['-y', '@notionhq/notion-mcp-server'],
-    env: { NOTION_TOKEN: 'YOUR_NOTION_TOKEN' },
-  },
-  {
-    name: 'linear',
-    title: 'Linear (remote)',
-    description: 'Issues, projects and comments in Linear. Put a Linear API key in the Authorization header after adding.',
-    type: 'http',
-    url: 'https://mcp.linear.app/mcp',
-    headers: { Authorization: 'Bearer YOUR_LINEAR_API_KEY' },
-  },
+  signIn('notion', 'Notion', 'Notion', 'https://mcp.notion.com/mcp', 'Read and write your Notion pages and databases (Notion\'s own server).'),
+  signIn('linear', 'Linear', 'Linear', 'https://mcp.linear.app/mcp', 'Find, create and update Linear issues, projects and comments (Linear\'s own server).'),
+  signIn('atlassian', 'Jira and Confluence', 'Atlassian', 'https://mcp.atlassian.com/v1/mcp/authv2', 'Jira issues and Confluence pages (Atlassian\'s own server).'),
+  signIn('clickup', 'ClickUp', 'ClickUp', 'https://mcp.clickup.com/mcp', 'Tasks, docs and spaces in ClickUp (ClickUp\'s own server).'),
+  signIn('monday', 'monday.com', 'monday.com', 'https://mcp.monday.com/mcp', 'Boards, items, docs and workflows in monday.com (monday.com\'s own server).'),
+  signIn('todoist', 'Todoist', 'Todoist', 'https://ai.todoist.net/mcp', 'Your Todoist tasks and projects (Todoist\'s own server).'),
+  signIn('airtable', 'Airtable', 'Airtable', 'https://mcp.airtable.com/mcp', 'Bases, tables and records in your Airtable (Airtable\'s own server).'),
+  signIn('craft', 'Craft', 'Craft', 'https://mcp.craft.do/my/mcp', 'Your Craft documents, tasks and notes (Craft\'s own server).'),
+  signIn('miro', 'Miro', 'Miro', 'https://mcp.miro.com/', 'Read and edit Miro boards, diagrams and frames (Miro\'s own server).'),
+  signIn('dropbox', 'Dropbox', 'Dropbox', 'https://mcp.dropbox.com/mcp', 'Search, read and manage your Dropbox files (Dropbox\'s own server).'),
+  signIn('calendly', 'Calendly', 'Calendly', 'https://mcp.calendly.com', 'Scheduling links, booked events and invitees in Calendly (Calendly\'s own server).'),
+  signIn('fireflies', 'Fireflies (meeting notes)', 'Fireflies', 'https://api.fireflies.ai/mcp', 'Meeting transcripts, summaries and action items from Fireflies (Fireflies\' own server).'),
+  signIn('gamma', 'Gamma', 'Gamma', 'https://mcp.gamma.app/mcp', 'Make and edit presentations, documents and web pages with Gamma\'s AI (Gamma\'s own server).'),
+  signIn('intercom', 'Intercom', 'Intercom', 'https://mcp.intercom.com/mcp', 'Customer conversations, tickets and contacts in Intercom (Intercom\'s own server).'),
+  signIn('strava', 'Strava', 'Strava', 'https://mcp.strava.com/mcp', 'Your Strava activities, fitness trends and training load (Strava\'s own server, read-only). Needs a Strava subscription.'),
   {
     name: 'oomol',
     title: 'OOMOL (remote)',
@@ -216,6 +250,38 @@ export const PRESETS: McpPreset[] = [
     headers: { 'x-api-key': 'YOUR_COMPOSIO_API_KEY' },
     host: 'composio.dev',
   },
+  // Building and running software
+  signIn('gitlab', 'GitLab', 'GitLab', 'https://gitlab.com/api/v4/mcp', 'Issues, merge requests, pipelines and code on gitlab.com (GitLab\'s own server).'),
+  signIn('sentry', 'Sentry', 'Sentry', 'https://mcp.sentry.dev/mcp', 'Errors, stack traces and issues from Sentry (Sentry\'s own server).'),
+  signIn('vercel', 'Vercel', 'Vercel', 'https://mcp.vercel.com', 'Your Vercel projects, deployments and logs (Vercel\'s own server).'),
+  signIn('netlify', 'Netlify', 'Netlify', 'https://netlify-mcp.netlify.app/mcp', 'Your Netlify sites, deploys and settings (Netlify\'s own server).'),
+  signIn('cloudflare', 'Cloudflare', 'Cloudflare', 'https://mcp.cloudflare.com/mcp', 'The whole Cloudflare API: DNS, Workers, R2, KV, D1, Pages and more (Cloudflare\'s own server). When you sign in you pick which account and permissions the agent gets.'),
+  signIn('railway', 'Railway', 'Railway', 'https://mcp.railway.com', 'Your Railway projects, services, deployments and environments (Railway\'s own server).'),
+  signIn('supabase', 'Supabase', 'Supabase', 'https://mcp.supabase.com/mcp', 'Databases, sign-in and storage of your Supabase projects (Supabase\'s own server).'),
+  signIn('neon', 'Neon (Postgres)', 'Neon', 'https://mcp.neon.tech/mcp', 'Neon Postgres databases: projects, branches and SQL (Neon\'s own server).'),
+  signIn('prisma-postgres', 'Prisma Postgres', 'Prisma', 'https://mcp.prisma.io/mcp', 'Make and manage Prisma Postgres databases (Prisma\'s own server).'),
+  signIn('motherduck', 'MotherDuck (DuckDB)', 'MotherDuck', 'https://api.motherduck.com/mcp', 'Ask your MotherDuck DuckDB warehouses with SQL (MotherDuck\'s own server).'),
+  signIn('circleci', 'CircleCI', 'CircleCI', 'https://mcp.circleci.com/v1/mcp', 'Find out why a CircleCI build failed, read its logs and run it again (CircleCI\'s own server).'),
+  signIn('buildkite', 'Buildkite', 'Buildkite', 'https://mcp.buildkite.com/mcp', 'Buildkite pipelines, builds and test results (Buildkite\'s own server).'),
+  signIn('postman', 'Postman', 'Postman', 'https://mcp.postman.com/minimal', 'Your Postman workspaces, collections, environments and APIs (Postman\'s own server).'),
+  signIn('semgrep', 'Semgrep (code security)', 'Semgrep', 'https://mcp.semgrep.ai/mcp', 'Scan code for security problems with Semgrep (Semgrep\'s own server).'),
+  signIn('datadog', 'Datadog', 'Datadog', 'https://mcp.datadoghq.com/api/unstable/mcp-server/mcp', 'Logs, monitors, dashboards and incidents from Datadog (Datadog\'s own server).'),
+  signIn('grafana', 'Grafana Cloud', 'Grafana', 'https://mcp.grafana.com/mcp', 'Metrics, logs, dashboards and alerts from Grafana Cloud (Grafana\'s own server). Needs a Grafana Cloud stack, not a self-hosted Grafana: you give its address when you sign in.'),
+  signIn('betterstack', 'Better Stack', 'Better Stack', 'https://mcp.betterstack.com', 'Logs, uptime monitors, incidents and status pages in Better Stack (Better Stack\'s own server). It has a lot of tools (about 100).'),
+  signIn('globalping', 'Globalping (network tests)', 'Globalping', 'https://mcp.globalping.dev/mcp', 'Ping, traceroute, DNS and website checks from probes around the world (Globalping\'s own server).'),
+  signIn('huggingface', 'Hugging Face', 'Hugging Face', 'https://huggingface.co/mcp', 'Models, datasets, Spaces and papers on the Hugging Face Hub (Hugging Face\'s own server).'),
+  signIn('comfy-cloud', 'Comfy Cloud', 'Comfy', 'https://cloud.comfy.org/mcp', 'Make images, video, audio and 3D with ComfyUI workflows on Comfy Cloud (Comfy\'s own server). Making things uses your Comfy credits.'),
+  signIn('cloudinary', 'Cloudinary', 'Cloudinary', 'https://asset-management.mcp.cloudinary.com/mcp', 'Upload, find and transform images and videos in Cloudinary (Cloudinary\'s own server).'),
+  signIn('webflow', 'Webflow', 'Webflow', 'https://mcp.webflow.com/mcp', 'Your Webflow sites, pages and CMS collections (Webflow\'s own server).'),
+  signIn('wordpress-com', 'WordPress.com', 'WordPress.com', 'https://public-api.wordpress.com/wpcom/v2/mcp/v1', 'Posts, pages, drafts, comments and stats of your WordPress.com sites (WordPress.com\'s own server).'),
+  // Data, sales and marketing
+  signIn('amplitude', 'Amplitude', 'Amplitude', 'https://mcp.amplitude.com/mcp', 'Amplitude charts, dashboards, experiments and feature flags (Amplitude\'s own server). Accounts in the EU: change the link to https://mcp.eu.amplitude.com/mcp after adding.'),
+  signIn('mixpanel', 'Mixpanel', 'Mixpanel', 'https://mcp.mixpanel.com/mcp', 'Mixpanel events, funnels, retention and dashboards (Mixpanel\'s own server).'),
+  signIn('algolia', 'Algolia', 'Algolia', 'https://mcp.algolia.com/mcp', 'Algolia search indices, analytics and settings (Algolia\'s own server, read-only).'),
+  signIn('twelve-data', 'Market data (Twelve Data)', 'Twelve Data', 'https://mcp.twelvedata.com/mcp', 'Stock, currency and crypto prices and history from Twelve Data (Twelve Data\'s own server).'),
+  signIn('attio', 'Attio', 'Attio', 'https://mcp.attio.com/mcp', 'Records, lists and notes in your Attio CRM (Attio\'s own server).'),
+  signIn('close', 'Close (CRM)', 'Close', 'https://mcp.close.com/mcp', 'Leads, opportunities, calls and emails in Close (Close\'s own server).'),
+  signIn('klaviyo', 'Klaviyo', 'Klaviyo', 'https://mcp.klaviyo.com/mcp?core-tools-only=true&disable-tools-with-user-generated-content=true', 'Klaviyo campaigns, flows, segments and reports (Klaviyo\'s own server). Needs an Owner, Admin or Manager role. Only the core tools are on, and tools that read what customers wrote are off.'),
   // Games and audio
   {
     name: 'unity',
@@ -533,8 +599,11 @@ const onHost = (url: string, host: string): boolean => {
   }
 };
 // The same server, whatever name it was saved under (an import, or one added by hand).
+// A browser sign-in one also matches its hosted link added straight (an app that does the sign-in itself).
 const sameServer = (p: McpPreset, s: McpServerConfig): boolean =>
-  p.type === 'http' ? s.url === p.url || (!!p.host && onHost(s.url || '', p.host)) : s.command === p.command && (s.args || []).join(' ') === p.args.join(' ');
+  p.type === 'http'
+    ? s.url === p.url || (!!p.host && onHost(s.url || '', p.host))
+    : (s.command === p.command && (s.args || []).join(' ') === p.args.join(' ')) || (!!remoteUrl(p) && !!s.url && s.url === remoteUrl(p));
 
 /** The ready-made servers worth adding on this PC that aren't added yet, each with why. */
 export function suggestPresets(programs: readonly FoundProgram[], servers: McpServers = listServers()): McpSuggestion[] {
@@ -748,7 +817,8 @@ export function addPreset(preset: string, { label = '', useFor = '' }: { label?:
   const { name, others } = placeNew(pr.name, { label: clean }, servers);
   if (others.length && !clean) throw new Error(`${serviceTitle(pr.name)} is added already. Give this one a label (like "Work" or "Personal") to add another account.`);
   if (servers[name]) throw new Error(`There already is an MCP server named "${name}".`);
-  const server = saveServer(name, { ...pr, description: pr.description, kind: pr.name, label: clean, useFor });
+  const cfg: McpServerInput = { ...pr, description: pr.description, kind: pr.name, label: clean, useFor };
+  const server = saveServer(name, others.length ? withOwnLogin(name, cfg) : cfg);
   return { name, server };
 }
 

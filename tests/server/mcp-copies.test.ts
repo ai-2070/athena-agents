@@ -44,6 +44,14 @@ describe('adding another account of a ready-made server', () => {
     expect(mcp.addPreset('oomol', { label: '工作' }).name).toBe('oomol-2');
   });
 
+  it('gives a second account of a browser sign-in service its own login', () => {
+    expect(mcp.addPreset('sentry').server.env.MCP_REMOTE_CONFIG_DIR).toBeUndefined();
+    const dir = mcp.addPreset('sentry', { label: 'Client' }).server.env.MCP_REMOTE_CONFIG_DIR;
+    expect(dir).toMatch(/[\\/]\.mcp-auth[\\/]dashboard-sentry-client$/);
+    // a key-based service has nothing to keep apart
+    expect(mcp.listServers()['oomol-client-a'].env.MCP_REMOTE_CONFIG_DIR).toBeUndefined();
+  });
+
   it('lists every copy on the ready-made one, and stops suggesting it', () => {
     const p = mcp.presetAvailability().find((x) => x.name === 'oomol')!;
     expect(p.installed).toBe(true);
