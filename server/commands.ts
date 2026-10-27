@@ -252,7 +252,7 @@ const names = (dir: string): fs.Dirent[] => {
 export function harnessCommands(agentId: string): HarnessCommand[] {
   const agent = agents.get(agentId);
   if (!agent || agent.engine !== 'claude-code') return [];
-  const ours = new Set(COMMANDS.map((c) => c.name));
+  const ours = new Set(COMMANDS.filter((c) => c.in.includes('agent')).map((c) => c.name));
   const out = new Map<string, HarnessCommand>();
   for (const root of [path.join(HOME, '.claude'), path.join(workspaceOf(agent), '.claude')]) {
     for (const e of names(path.join(root, 'commands')))

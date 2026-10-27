@@ -64,7 +64,7 @@ describe('reading commands', () => {
   });
 
   it('suggests commands while you type "/", ours first, then the harness ones', () => {
-    expect(slashSuggestions('/', 'team').map((c) => c.name)).toEqual(['queue', 'stop', 'resume', 'resend', 'loop', 'goal']);
+    expect(slashSuggestions('/', 'team').map((c) => c.name)).toEqual(['queue', 'stop', 'resume', 'resend', 'loop', 'goal', 'clear']);
     expect(slashSuggestions('/re', 'agent').map((c) => c.name)).toEqual(['resume', 'resend']);
     expect(slashSuggestions('/c', 'agent', [{ name: 'commit', about: 'Make a commit' }]).map((c) => [c.name, !!c.harness])).toEqual([['compact', false], ['commit', true]]);
     expect(slashSuggestions('/stop', 'agent')).toEqual([]);

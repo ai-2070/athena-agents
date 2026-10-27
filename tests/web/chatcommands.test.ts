@@ -19,7 +19,7 @@ describe('slashMenu()', () => {
   it('shows the commands while you type "/", narrowing as you go', () => {
     const m = setup();
     m.type('/');
-    expect(m.shown()).toEqual(['/queue', '/stop', '/resume', '/resend', '/loop', '/goal']);
+    expect(m.shown()).toEqual(['/queue', '/stop', '/resume', '/resend', '/loop', '/goal', '/clear']);
     expect(m.menu.el.classList.contains('hidden')).toBe(false);
     m.type('/re');
     expect(m.shown()).toEqual(['/resume', '/resend']);
