@@ -409,3 +409,42 @@ describe('the Brain and several accounts of one service', () => {
     expect(workflows.get(team.id)?.access?.mcpServers).toEqual(['composio-support']);
   });
 });
+
+describe('the Brain adds another account by the same rule as the page', () => {
+  const OOMOL = 'https://connector.oomol.com/v1/mcp';
+
+  it('a name of its own does not skip the label and "use for"', () => {
+    applyActions([{ do: 'add_mcp', preset: 'oomol' }]);
+    const r = applyActions([{ do: 'add_mcp', preset: 'oomol', name: 'oomol2' }]);
+    expect(r.done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('OOMOL is added already ("oomol")') });
+    expect(mcp.listServers().oomol2).toBeUndefined();
+    const ok = applyActions([{ do: 'add_mcp', preset: 'oomol', name: 'oomol2', label: 'Side', useFor: 'side projects' }]);
+    expect(ok.done[0].kind).toBe('mcp');
+    expect(mcp.listServers().oomol2).toMatchObject({ kind: 'oomol', label: 'Side', useFor: 'side projects' });
+  });
+
+  it('an import or a custom server that is the same as one there is another account of it', () => {
+    const file = path.join(os.homedir(), '.claude.json');
+    fs.writeFileSync(file, JSON.stringify({ mcpServers: { 'my-oomol': { type: 'http', url: OOMOL } } }));
+    const imported = applyActions([{ do: 'add_mcp', import: 'my-oomol' }]);
+    expect(imported.done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('OOMOL is added already') });
+    const custom = applyActions([{ do: 'add_mcp', name: 'oomol-x', url: OOMOL }], activeProject(), { userWords: `add ${OOMOL}` });
+    expect(custom.done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('OOMOL is added already') });
+    const ok = applyActions([{ do: 'add_mcp', import: 'my-oomol', label: 'Lab', useFor: 'experiments' }]);
+    expect(ok.done[0]).toMatchObject({ kind: 'mcp', text: expect.stringContaining('Added the MCP server "oomol-lab" (OOMOL: Lab)') });
+    expect(mcp.listServers()['oomol-lab']).toMatchObject({ kind: 'oomol', url: OOMOL });
+    fs.rmSync(file);
+  });
+
+  it('names a service in any case, and "service": "" makes a server its own again', () => {
+    const words = 'add https://crm.example.com/mcp and https://eu.crm.example.com/mcp';
+    applyActions([{ do: 'add_mcp', name: 'MyCrm', url: 'https://crm.example.com/mcp' }], activeProject(), { userWords: words });
+    const r = applyActions([{ do: 'add_mcp', name: 'crm-eu', url: 'https://eu.crm.example.com/mcp', service: 'mycrm', label: 'EU', useFor: 'European customers' }], activeProject(), { userWords: words });
+    expect(r.done[0].kind).toBe('mcp');
+    expect(mcp.listServers()['crm-eu'].kind).toBe('MyCrm');
+    expect(mcp.copiesByKind().get('MyCrm')).toEqual(['MyCrm', 'crm-eu']);
+    const u = applyActions([{ do: 'update_mcp', server: 'crm-eu', service: '' }]);
+    expect(u.done[0]).toMatchObject({ kind: 'mcp', text: 'Changed the MCP server "crm-eu": its own service' });
+    expect(mcp.copiesByKind().has('MyCrm')).toBe(false);
+  });
+});

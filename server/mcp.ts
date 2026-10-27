@@ -538,10 +538,10 @@ const sameServer = (p: McpPreset, s: McpServerConfig): boolean =>
 
 /** The ready-made servers worth adding on this PC that aren't added yet, each with why. */
 export function suggestPresets(programs: readonly FoundProgram[], servers: McpServers = listServers()): McpSuggestion[] {
-  const added = (p: McpPreset) => Object.entries(servers).some(([n, s]) => kindOf(n, s) === p.name);
+  const added = addedKinds(servers);
   const out: McpSuggestion[] = [];
   for (const p of PRESETS) {
-    if (added(p)) continue;
+    if (added.has(p.name)) continue;
     const prog = PRESET_PROGRAMS[p.name] ? programs.find((x) => x.id === PRESET_PROGRAMS[p.name] && x.installed && !cantDrive(p.name, x)) : undefined;
     const reason = prog ? `${prog.name} is installed` : BASIC_PRESETS.includes(p.name) ? 'useful to most agents, no key or setup' : '';
     if (reason) out.push({ name: p.name, title: p.title, description: p.description, reason, needs: presetNeeds(p), program: prog?.id || null });
@@ -567,10 +567,10 @@ export function saveServer(name: string, cfg: McpServerInput): McpServerConfig {
   if (!clean) throw new Error('Give the server a name.');
   if (clean === 'dashboard') throw new Error('"dashboard" is reserved for the built-in tools.');
   const servers = listServers();
-  const label = String(cfg.label ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
-  const useFor = String(cfg.useFor ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
-  const kind = serverName(cfg.kind).toLowerCase();
-  servers[clean] = {
+  const label = cleanLabel(String(cfg.label ?? ''));
+  const useFor = cleanUseFor(String(cfg.useFor ?? ''));
+  const kind = resolveKind(cfg.kind, servers);
+  const next: McpServerConfig = {
     type: cfg.type || (cfg.url ? 'http' : 'stdio'),
     command: cfg.command || '',
     args: Array.isArray(cfg.args) ? cfg.args : String(cfg.args || '').split(/\s+/).filter(Boolean),
@@ -580,9 +580,12 @@ export function saveServer(name: string, cfg: McpServerInput): McpServerConfig {
     description: cfg.description || '',
     enabled: cfg.enabled !== false,
     ...(label ? { label } : {}),
-    ...(kind && kind !== clean ? { kind } : {}),
     ...(useFor ? { useFor } : {}),
   };
+  // The service is kept unless it is the server's own name and the server would be that anyway. So "Its own
+  // service" sticks for a server that would otherwise be worked out as a ready-made one.
+  if (kind && !(kind === clean && kindOf(clean, next) === clean)) next.kind = kind;
+  servers[clean] = next;
   saveAll(servers);
   disconnect(clean);
   log('mcp', `Saved MCP server "${clean}"`);
@@ -602,6 +605,23 @@ export function kindOf(name: string, cfg: McpServerConfig | undefined): string {
   if (cfg?.kind) return cfg.kind;
   const p = PRESETS.find((x) => x.name === name) || (cfg ? PRESETS.find((x) => sameServer(x, cfg)) : undefined);
   return p?.name || name;
+}
+
+/** The service each server is, worked out once. */
+export function kindsOf(servers: McpServers = listServers()): Map<string, string> {
+  return new Map(Object.entries(servers).map(([n, s]) => [n, kindOf(n, s)]));
+}
+
+/** The services that are added (as any server, under any name). */
+export const addedKinds = (servers: McpServers = listServers()): Set<string> => new Set(kindsOf(servers).values());
+
+/** A service as someone named it ("OOMOL", "MyMail") -> the service as saved: a ready-made one's name, or the
+ *  service of a server there, whatever the case; else the name as given. '' for none. */
+export function resolveKind(ref: unknown, servers: McpServers = listServers()): string {
+  const k = serverName(ref);
+  if (!k) return '';
+  const known = [...PRESETS.map((p) => p.name), ...kindsOf(servers).values()];
+  return known.find((x) => x === k) || known.find((x) => x.toLowerCase() === k.toLowerCase()) || k;
 }
 
 /** A service's name for people: the ready-made server's title without "(remote)" and the like. */
@@ -647,9 +667,14 @@ export function teamWorkServers(own: readonly string[], team: readonly string[],
 /** What an agent is told about the accounts among its MCP servers: which is which and when to use each ('' when none has a label or a "use for"). */
 export function accountsPrompt(names: readonly string[], servers: McpServers = listServers()): string {
   const held = [...new Set(names)].filter((n) => servers[n] && servers[n].enabled !== false);
-  const lines = held.filter((n) => servers[n].label || servers[n].useFor).map((n) => `- ${copyTitle(n, servers[n])} (the MCP server "${n}": its tools have "${n}" in their names)${servers[n].useFor ? `. Use it for: ${servers[n].useFor}` : ''}`);
+  // every copy of a service held more than once is listed, the ones without a label or "use for" too
+  const copies = new Set([...copiesByKind(servers, held).values()].flat());
+  const title = (n: string) => (servers[n].label || !copies.has(n) ? copyTitle(n, servers[n]) : `${serviceTitle(kindOf(n, servers[n]))} (no label)`);
+  const lines = held
+    .filter((n) => servers[n].label || servers[n].useFor || copies.has(n))
+    .map((n) => `- ${title(n)} (the MCP server "${n}": its tools have "${n}" in their names)${servers[n].useFor ? `. Use it for: ${servers[n].useFor}` : copies.has(n) ? '. Nobody said what it is for: ask before you use it' : ''}`);
   if (!lines.length) return '';
-  const several = copiesByKind(servers, held).size > 0;
+  const several = copies.size > 0;
   return [
     '\n# Accounts',
     several
@@ -659,16 +684,22 @@ export function accountsPrompt(names: readonly string[], servers: McpServers = l
   ].join('\n');
 }
 
-/** The account a tool call goes through, for an approval: "OOMOL: Work" for mcp__oomol-work__send or oomol-work__send.
- *  '' for a built-in tool, or a server whose service was added only once and has no label. */
+/** The account a server is, for an approval or a tool's description: "OOMOL: Work".
+ *  '' for a server whose service was added only once and has no label. */
+export function accountOf(server: string, servers: McpServers = listServers()): string {
+  const s = servers[server];
+  if (!s) return '';
+  return s.label || copiesByKind(servers).has(kindOf(server, s)) ? copyTitle(server, s) : '';
+}
+
+/** The account a Claude Code tool goes through (mcp__<server>__<tool>), for an approval. '' for its own tools. */
 export function accountOfTool(tool: string, servers: McpServers = listServers()): string {
-  if (!tool.includes('__')) return '';
+  if (!tool.startsWith('mcp__')) return '';
+  // the longest server name that fits: "mcp__a-b__x" is a-b's x
   const name = Object.keys(servers)
-    .filter((n) => tool.startsWith(`mcp__${n}__`) || tool.startsWith(`${n}__`))
+    .filter((n) => tool.startsWith(`mcp__${n}__`))
     .sort((a, b) => b.length - a.length)[0];
-  if (!name) return '';
-  const s = servers[name];
-  return s.label || copiesByKind(servers).has(kindOf(name, s)) ? copyTitle(name, s) : '';
+  return name ? accountOf(name, servers) : '';
 }
 
 /** The servers for a prompt: "oomol-work (OOMOL: Work; use for: …)" for a copy of a service, the bare name otherwise. */
@@ -686,11 +717,26 @@ function freeName(base: string, servers: McpServers): string {
   return n;
 }
 
+// A copy's name stays short: its tools are named <server>__<tool>, and a tool name can't be longer than 64.
+const COPY_NAME_MAX = 32;
+
 /** The name another copy of a service gets: "<service>-<label>", or with a number when that is taken. */
 export function copyName(kind: string, label: string, servers: McpServers = listServers()): string {
-  const slug = serverName(label).toLowerCase().replace(/[-_]+/g, '-').replace(/^-|-$/g, '');
+  const room = Math.max(0, COPY_NAME_MAX - kind.length - 1);
+  const slug = serverName(label).toLowerCase().replace(/[-_]+/g, '-').replace(/^-+/, '').slice(0, room).replace(/-+$/, '');
   return freeName(slug ? `${kind}-${slug}` : kind, servers);
 }
+
+/** Where a new server of a service goes, for the page and the Brain alike: the servers of that service already
+ *  there (when there are some, the new one is another account and needs a label), and the name it gets: the one
+ *  asked for, else "<service>-<label>" next to other accounts, else its own. */
+export function placeNew(kind: string, { name = '', base = kind, label = '' }: { name?: string; base?: string; label?: string }, servers: McpServers = listServers()): { name: string; others: string[] } {
+  const others = kind ? [...kindsOf(servers)].filter(([, k]) => k === kind).map(([n]) => n) : [];
+  return { name: serverName(name) || (others.length ? copyName(kind, label, servers) : serverName(base)), others };
+}
+
+const cleanLabel = (s: string): string => s.replace(/\s+/g, ' ').trim().slice(0, 60);
+const cleanUseFor = (s: string): string => s.replace(/\s+/g, ' ').trim().slice(0, 300);
 
 /** Add a ready-made server. When the service is added already this is another copy (another account): it needs
  *  a label, and is saved as "<preset>-<label>". Returns the name it got. */
@@ -698,19 +744,34 @@ export function addPreset(preset: string, { label = '', useFor = '' }: { label?:
   const pr = PRESETS.find((x) => x.name === preset);
   if (!pr) throw new Error('Unknown preset');
   const servers = listServers();
-  const clean = label.replace(/\s+/g, ' ').trim();
-  const added = Object.entries(servers).some(([n, s]) => kindOf(n, s) === pr.name);
-  if (added && !clean) throw new Error(`${serviceTitle(pr.name)} is added already. Give this one a label (like "Work" or "Personal") to add another account.`);
-  const name = servers[pr.name] ? copyName(pr.name, clean, servers) : pr.name;
+  const clean = cleanLabel(label);
+  const { name, others } = placeNew(pr.name, { label: clean }, servers);
+  if (others.length && !clean) throw new Error(`${serviceTitle(pr.name)} is added already. Give this one a label (like "Work" or "Personal") to add another account.`);
+  if (servers[name]) throw new Error(`There already is an MCP server named "${name}".`);
   const server = saveServer(name, { ...pr, description: pr.description, kind: pr.name, label: clean, useFor });
   return { name, server };
 }
 
-/** Change only a server's label and "use for" (undefined leaves one as it is). */
+/** Change only a server's label and "use for" (undefined leaves one as it is). Its connection stays open:
+ *  neither changes how it starts. */
 export function describeCopy(name: string, { label, useFor }: { label?: string; useFor?: string }): McpServerConfig {
-  const was = listServers()[name];
+  const servers = listServers();
+  const was = servers[name];
   if (!was) throw new Error(`No MCP server named "${name}".`);
-  return saveServer(name, { ...was, ...(label !== undefined ? { label } : {}), ...(useFor !== undefined ? { useFor } : {}) });
+  const next: McpServerConfig = { ...was };
+  if (label !== undefined) {
+    if (cleanLabel(label)) next.label = cleanLabel(label);
+    else delete next.label;
+  }
+  if (useFor !== undefined) {
+    if (cleanUseFor(useFor)) next.useFor = cleanUseFor(useFor);
+    else delete next.useFor;
+  }
+  if ((next.label || '') === (was.label || '') && (next.useFor || '') === (was.useFor || '')) return was;
+  servers[name] = next;
+  saveAll(servers);
+  log('mcp', `Changed the label or "use for" of MCP server "${name}"`);
+  return next;
 }
 
 // An always-allowed tool of a server, after the server is renamed (or null when it is removed). Claude Code
@@ -763,8 +824,20 @@ export function renameServer(from: string, to: string, cfg?: McpServerInput): st
     return from;
   }
   if (servers[clean]) throw new Error(`There already is an MCP server named "${clean}".`);
-  saveServer(clean, cfg || was);
+  // The service it is goes with it: worked out from the old name it would be lost (a first GitHub with its own
+  // arguments). A server that is its own service (one added by hand) takes its new name along, and so do the
+  // other accounts of it.
+  const had = kindOf(from, was);
+  const asked = cfg?.kind ? resolveKind(cfg.kind, servers) : '';
+  const own = asked ? asked === from : had === from && !PRESETS.some((p) => p.name === from);
+  saveServer(clean, { ...(cfg || was), kind: own ? clean : asked || had });
   removeServer(from);
+  if (own) {
+    const now = listServers();
+    const moved = Object.keys(now).filter((n) => now[n].kind === from);
+    for (const n of moved) now[n] = { ...now[n], kind: clean };
+    if (moved.length) saveAll(now);
+  }
   renameOnEveryone(from, clean);
   log('mcp', `Renamed MCP server "${from}" to "${clean}"`);
   return clean;
@@ -929,11 +1002,11 @@ export function claudeMcpConfig(agentId: string | null | undefined, serverNames:
   return { mcpServers };
 }
 
-export function presetAvailability() {
-  const servers = listServers();
+export function presetAvailability(servers: McpServers = listServers()) {
+  const kinds = [...kindsOf(servers)];
   return PRESETS.map((p) => {
-    const copies = Object.entries(servers).filter(([n, s]) => kindOf(n, s) === p.name).map(([n]) => n);
-    return { ...p, ready: p.type === 'http' || !!which(p.command), installed: copies.length > 0, copies };
+    const copies = kinds.filter(([, k]) => k === p.name).map(([n]) => n);
+    return { ...p, service: serviceTitle(p.name), ready: p.type === 'http' || !!which(p.command), installed: copies.length > 0, copies };
   });
 }
 

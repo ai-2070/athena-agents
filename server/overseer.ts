@@ -7,7 +7,7 @@ import { waitingQuestions } from './questions.ts';
 import { agents, workflows, activeProject, openProject, projectSwitches, listProjects, getSettings, outbox, activity, log, emit, routineRuns, runs as workflowRuns } from './store.ts';
 import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from './library.ts';
 import { TOOL_GROUPS, workspaceOf } from './tools.ts';
-import { listServers, PRESETS, presetNeeds, suggestPresets, importableServers, saveServer, serverName, renameServer, removeServerEverywhere, kindOf, serviceTitle, copyTitle, copiesByKind, copiesWithoutUseFor, copyName, serversForPrompt } from './mcp.ts';
+import { listServers, PRESETS, presetNeeds, suggestPresets, importableServers, saveServer, serverName, renameServer, removeServerEverywhere, kindOf, serviceTitle, copyTitle, copiesByKind, copiesWithoutUseFor, serversForPrompt, resolveKind, addedKinds, placeNew } from './mcp.ts';
 import { knownPrograms } from './programs.ts';
 import type { McpServerConfig } from './mcp.ts';
 import { ensureBrain, brainInfo, updateProject } from './projects.ts';
@@ -327,7 +327,8 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     const first = servers[group[0]];
     return [`- ${serviceTitle(kindOf(name, s))}: ${group.length} accounts${first.description ? ` | ${cut(first.description, 140)}` : ''}`, ...group.map((n) => mcpLine(n, servers[n], true))];
   });
-  const ready = PRESETS.map((x) => `${x.name} (${x.title}${Object.entries(servers).some(([n, s]) => kindOf(n, s) === x.name) ? ', added' : ''}${presetNeeds(x) ? `; ${presetNeeds(x)}` : ''})`).join(', ');
+  const added = addedKinds(servers);
+  const ready = PRESETS.map((x) => `${x.name} (${x.title}${added.has(x.name) ? ', added' : ''}${presetNeeds(x) ? `; ${presetNeeds(x)}` : ''})`).join(', ');
   const found = importableServers().filter((x) => !servers[serverName(x.name)]).slice(0, 40).map((x) => `${x.name} (source "${x.source}")`).join(', ');
   // ready-made ones that fit this PC (a program it drives is installed, or a basic one): offered, never added unasked
   const suggested = suggestPresets(knownPrograms(), servers)
@@ -476,7 +477,7 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"read_skill","skill":"<skill id>"}   (alone in its block, or with other look-ups: you get the skill's whole text, then answer again)
 {"do":"delete_skill","skill":"<skill id>"}
 {"do":"add_mcp","preset":"<ready-made name>"}  or  {"do":"add_mcp","import":"<name>","source":"<source, as in the snapshot>"}  or  {"do":"add_mcp","name":"…","description":"one line","command":"the program","args":["…"],"env":{"KEY":"value"}}  or  {"do":"add_mcp","name":"…","description":"…","url":"https://…","headers":{"Authorization":"Bearer …"}}   (a ready-made or imported one also takes "name", "env" and "headers"; another account of a service that is added already needs "label":"Work" and "useFor":"when to pick it")
-{"do":"update_mcp","server":"<name, or 'new'>","rename":"…","description":"…","label":"…","useFor":"…","service":"<the service it is another account of>","command":"…","args":["the whole list"],"url":"…","env":{"KEY":"value","OLD_KEY":null},"headers":{…},"enabled":true|false}   (only the fields that change; in env and headers only the keys given change, null removes one)
+{"do":"update_mcp","server":"<name, or 'new'>","rename":"…","description":"…","label":"…","useFor":"…","service":"<the service it is another account of, or \"\" for its own>","command":"…","args":["the whole list"],"url":"…","env":{"KEY":"value","OLD_KEY":null},"headers":{…},"enabled":true|false}   (only the fields that change; in env and headers only the keys given change, null removes one)
 {"do":"remove_mcp","server":"<name>"}   (deletes it and takes it off every agent and team)
 {"do":"give_mcp","servers":["<name, or 'new'>",…],"to":"agent"|"team","id":"<agent or team id, or 'new'>"}   (or "targets":[{"to":…,"id":…},…] instead of "to"/"id", for several at once)
 {"do":"take_mcp","servers":["<name>",…],"to":…,"id":…}   (or "targets", like give_mcp)
@@ -755,7 +756,7 @@ export function mcpConfigFrom(act: BrainAction, base: McpServerConfig): McpServe
     description: act.description !== undefined ? String(act.description ?? '').slice(0, 300) : base.description || '',
     enabled: act.enabled !== undefined ? act.enabled !== false : base.enabled !== false,
     label: act.label !== undefined ? String(act.label ?? '').trim().slice(0, 60) : base.label || '',
-    kind: act.service !== undefined ? serverName(act.service).toLowerCase() : base.kind || '',
+    kind: act.service !== undefined ? resolveKind(act.service) : base.kind || '',
     useFor: act.useFor !== undefined ? String(act.useFor ?? '').trim().slice(0, 300) : base.useFor || '',
   };
 }
@@ -1215,15 +1216,19 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
           from = `, from ${it.source}`;
         }
         const before = listServers();
-        // another account of a service that is added already: a copy, with a label and a "use for"
-        const kindNow = base.kind || (act.service ? serverName(act.service).toLowerCase() : '');
-        const others = kindNow ? Object.keys(before).filter((n) => kindOf(n, before[n]) === kindNow) : [];
-        const label = String(act.label ?? '').trim();
-        if (others.length && !act.name && (!label || !String(act.useFor ?? '').trim())) throw new Error(`${serviceTitle(kindNow)} is added already (${others.map((n) => `"${n}"`).join(', ')}): to add another account give "label" and "useFor" (ask the user what this account is for), or change the one there with update_mcp`);
-        const name = others.length && !act.name ? copyName(kindNow, label, before) : serverName(act.name || act.preset || act.import);
+        const next = mcpConfigFrom(act, base);
+        const asked = serverName(act.name);
+        if (asked && asked in before) throw new Error(`there already is an MCP server "${asked}": change it with update_mcp`);
+        // The service it is: a ready-made one, the one it says, or worked out (an import or a custom server
+        // can be the same as one there). When that service is added already, this is another account of it,
+        // named or not: it needs a label and a "use for" (the same rule as "Add another" on the page).
+        const fallback = serverName(act.preset || act.import);
+        const kindNow = kindOf(asked || fallback, next);
+        const { name, others } = placeNew(kindNow, { name: asked, base: fallback, label: next.label }, before);
+        if (others.length && (!next.label || !next.useFor)) throw new Error(`${serviceTitle(kindNow)} is added already (${others.map((n) => `"${n}"`).join(', ')}): to add another account give "label" and "useFor" (ask the user what this account is for), or change the one there with update_mcp`);
         if (!name) throw new Error('the server needs a name');
         if (name in before) throw new Error(`there already is an MCP server "${name}": change it with update_mcp`);
-        const next = mcpConfigFrom(act, base);
+        if (others.length) next.kind = kindNow;
         checkStarts(name, next);
         fromUser(next, base);
         saveServer(name, next);
@@ -1240,6 +1245,8 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         if (!name) throw new Error(`no MCP server "${String(act.server ?? act.id ?? act.name ?? '')}"`);
         const old = listServers()[name];
         const next = mcpConfigFrom(act, old);
+        // "service": "" (or its own name): its own service, even when it looks like a ready-made one
+        if (act.service !== undefined && !next.kind) next.kind = name;
         checkStarts(name, next);
         fromUser(next, old);
         const changed: string[] = [];
@@ -1252,7 +1259,9 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         if (next.description !== (old.description || '')) changed.push('description');
         if ((next.label || '') !== (old.label || '')) changed.push(next.label ? `label "${next.label}"` : 'label removed');
         if ((next.useFor || '') !== (old.useFor || '')) changed.push('use for');
-        if ((next.kind || '') !== (old.kind || '')) changed.push(next.kind ? `another account of ${serviceTitle(next.kind)}` : 'its own service');
+        const kindWas = kindOf(name, old);
+        const kindNow = kindOf(name, next);
+        if (kindNow !== kindWas) changed.push(kindNow === name ? 'its own service' : `another account of ${serviceTitle(kindNow)}`);
         if (next.enabled !== (old.enabled !== false)) changed.push(next.enabled ? 'turned on' : 'turned off');
         const rename = act.rename ? serverName(act.rename) : '';
         if (!changed.length && (!rename || rename === name)) throw new Error(`nothing to change in "${name}"`);

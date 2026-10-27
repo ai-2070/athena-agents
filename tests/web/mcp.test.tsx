@@ -159,7 +159,7 @@ describe('openModal()', () => {
 
 describe('several accounts of one service', () => {
   const OOMOL = 'https://connector.oomol.com/v1/mcp';
-  const oomolPreset = { name: 'oomol', title: 'OOMOL (remote)', description: 'Your OOMOL apps', ready: true, type: 'http', url: OOMOL, headers: { Authorization: 'Bearer YOUR_MCP_API_KEY' } };
+  const oomolPreset = { name: 'oomol', title: 'OOMOL (remote)', service: 'OOMOL', description: 'Your OOMOL apps', ready: true, type: 'http', url: OOMOL, headers: { Authorization: 'Bearer YOUR_MCP_API_KEY' } };
   const info = (name: string, title: string, label: string, useFor: string, copies: number) => ({ title, label, kind: 'oomol', service: 'OOMOL', useFor, copies });
 
   it('adds another account from an added preset, with labels and what each is for', async () => {
@@ -181,6 +181,52 @@ describe('several accounts of one service', () => {
     await act(async () => btn(modal, 'Add').click());
     await settle();
     expect(requests.find((r) => r.url === '/api/mcp-preset')!.body).toEqual({ name: 'oomol', label: 'Work', useFor: 'acme.com mail', others: { oomol: { label: 'Personal', useFor: 'my own mail' } } });
+  });
+
+  it('sends only the accounts already there whose label or "use for" changed', async () => {
+    servers = {
+      oomol: { type: 'http', command: '', args: [], env: {}, url: OOMOL, headers: {}, label: 'Personal', useFor: 'my own mail' },
+      'oomol-work': { type: 'http', command: '', args: [], env: {}, url: OOMOL, headers: {}, label: 'Work', kind: 'oomol', useFor: 'acme.com mail' },
+    };
+    // (an older server sends no "service": the title stands in)
+    const { service: _, ...older } = oomolPreset;
+    mcpMore = { presets: [{ ...older, installed: true, copies: ['oomol', 'oomol-work'] }] };
+    await open();
+    await act(async () => btn(el, 'Add another').click());
+    expect(document.querySelector('#modal-root .modal h2')!.textContent).toBe('Add another OOMOL (remote) account');
+    const modal = document.querySelector('#modal-root')!;
+    const [newLabel, , workLabel] = [...modal.querySelectorAll<HTMLInputElement>('input')];
+    await type(newLabel, 'Lab');
+    await type(workLabel, 'Acme');
+    await act(async () => btn(modal, 'Add').click());
+    await settle();
+    expect(requests.find((r) => r.url === '/api/mcp-preset')!.body).toEqual({ name: 'oomol', label: 'Lab', useFor: '', others: { 'oomol-work': { label: 'Acme', useFor: 'acme.com mail' } } });
+  });
+
+  it('"Its own service" is sent as its own name, so it stays apart from the ready-made one it looks like', async () => {
+    servers = { 'my-oomol': { type: 'http', command: '', args: [], env: {}, url: OOMOL, headers: {} } };
+    mcpMore = { presets: [{ ...oomolPreset, installed: true, copies: ['my-oomol'] }], info: { 'my-oomol': info('my-oomol', 'my-oomol', '', '', 1) } };
+    await open();
+    await act(async () => btn(el.querySelector('.mcp-server') as HTMLElement, 'Edit').click());
+    const select = document.querySelector<HTMLSelectElement>('#modal-root select')!;
+    expect(select.value).toBe('oomol');
+    await act(async () => {
+      select.value = '';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
+    await settle();
+    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({ name: 'my-oomol', kind: 'my-oomol' });
+  });
+
+  it('a new server left alone has its service worked out by the server', async () => {
+    await open();
+    await act(async () => btn(el, '+ Add server').click());
+    await type(field('Name'), 'fresh');
+    await type(field('Command'), 'uvx');
+    await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
+    await settle();
+    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({ name: 'fresh', kind: '' });
   });
 
   it('shows each account by its label, with what it is for or that it says nothing yet', async () => {

@@ -127,10 +127,14 @@ const agentFor = (id: string | null | undefined): Agent | ExternalAgent => (id ?
 get('/api/about', async (_p, _b, q) => aboutInfo({ withStars: q.stars === '1' }));
 
 // ---------- state ----------
+// the MCP servers' names and each one's label, service and "use for" (mcp.json read once)
+const mcpState = () => {
+  const servers = mcp.listServers();
+  return { mcpServers: Object.keys(servers), mcpInfo: mcp.serverInfo(servers) };
+};
 get('/api/state', async (): Promise<AppState> => ({
   agents: agents.list().sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || a.name.localeCompare(b.name)),
-  mcpServers: Object.keys(mcp.listServers()),
-  mcpInfo: mcp.serverInfo(),
+  ...mcpState(),
   project: projects.withLogo(store.activeProject()),
   projectSaved: projectSync.saveStatus(),
   projects: store.listProjects().map(projects.withLogo),
@@ -681,7 +685,10 @@ function sendFileSafely(res: http.ServerResponse, p: string, type = MIME[path.ex
 }
 
 // ---------- MCP ----------
-get('/api/mcp', async () => ({ servers: mcp.listServers(), info: mcp.serverInfo(), presets: mcp.presetAvailability(), suggested: mcp.suggestPresets(await programs.discoverPrograms()), importable: mcp.importableServers(), bridge: mcp.bridgeServerConfig('') }));
+get('/api/mcp', async () => {
+  const servers = mcp.listServers();
+  return { servers, info: mcp.serverInfo(servers), presets: mcp.presetAvailability(servers), suggested: mcp.suggestPresets(await programs.discoverPrograms(), servers), importable: mcp.importableServers(), bridge: mcp.bridgeServerConfig('') };
+});
 post<Parameters<typeof mcp.saveServer>[1] & { name: string }>('/api/mcp', async (_p, body) => mcp.saveServer(body.name, body));
 del('/api/mcp/:name', async ({ name }) => {
   // (and off every agent and team that had it)
@@ -693,7 +700,9 @@ post('/api/mcp/:name/test', async ({ name }) => ({ tools: await mcp.testServer(n
 post<{ name?: string; label?: string; useFor?: string; others?: Record<string, { label?: string; useFor?: string }> }>('/api/mcp-preset', async (_p, body) => {
   const pr = need(mcp.PRESETS.find((x) => x.name === body.name), 'Unknown preset');
   const made = mcp.addPreset(pr.name, { label: body.label, useFor: body.useFor });
-  for (const [name, notes] of Object.entries(body.others || {})) if (name !== made.name && mcp.listServers()[name]) mcp.describeCopy(name, { label: notes?.label, useFor: notes?.useFor });
+  // (only label and "use for" change: the copies' connections stay open, and an unchanged one isn't saved)
+  const servers = mcp.listServers();
+  for (const [name, notes] of Object.entries(body.others || {})) if (name !== made.name && servers[name]) mcp.describeCopy(name, { label: notes?.label, useFor: notes?.useFor });
   return made;
 });
 post<{ name?: string; source?: string }>('/api/mcp-import', async (_p, body) => {

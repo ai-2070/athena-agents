@@ -27,7 +27,7 @@ interface McpServerConfig {
   useFor?: string;
 }
 /** A preset as GET /api/mcp lists it: whether its command is on this PC and whether it is added (and as which servers). */
-type McpPresetListing = { name: string; title: string; description: string; ready: boolean; installed: boolean; copies?: string[] } & (
+type McpPresetListing = { name: string; title: string; description: string; ready: boolean; installed: boolean; copies?: string[]; /** the service for people: "OOMOL" */ service?: string } & (
   | { type: 'stdio'; command: string; args: string[]; env?: Record<string, string> }
   | { type: 'http'; url: string; headers: Record<string, string>; command?: undefined }
 );
@@ -90,11 +90,11 @@ export function McpTab() {
   const bridgeJson = JSON.stringify({ mcpServers: { dashboard: data.bridge } }, null, 2);
   const info = data.info || {};
   // the services a server can be another account of: the ready-made ones and the ones added by hand
-  const services = [...new Map([...data.presets.map((p) => [p.name, shortTitle(p.title)] as const), ...Object.values(info).map((i) => [i.kind, i.service] as const)]).entries()];
+  const services = [...new Map([...data.presets.map((p) => [p.name, serviceOf(p)] as const), ...Object.values(info).map((i) => [i.kind, i.service] as const)]).entries()];
   const edit = (name?: string, cfg?: McpServerConfig) =>
     openModal(name ? `Edit ${info[name]?.title || name}` : 'Add MCP server', (close) => <ServerForm name={name} cfg={cfg} kind={name ? info[name]?.kind : undefined} services={services} close={close} saved={() => (void reload(), refreshSoon())} />);
   const addAnother = (p: McpPresetListing) =>
-    openModal(`Add another ${shortTitle(p.title)} account`, (close) => <CopyForm preset={p} servers={data.servers} close={close} saved={() => (void reload(), refreshSoon())} />);
+    openModal(`Add another ${serviceOf(p)} account`, (close) => <CopyForm preset={p} servers={data.servers} close={close} saved={() => (void reload(), refreshSoon())} />);
 
   return (
     <>
@@ -237,8 +237,8 @@ export function McpTab() {
   );
 }
 
-/** A ready-made server's title without "(remote)" and the like: "OOMOL". */
-const shortTitle = (t: string) => t.replace(/\s*\((remote|live|live editor)\)$/i, '');
+/** A ready-made server's service for people ("OOMOL"), as the server names it (an older one doesn't: its title). */
+const serviceOf = (p: McpPresetListing) => p.service || p.title;
 
 function ServerRow({ name, cfg, info, onEdit, reload }: { name: string; cfg: McpServerConfig; info?: McpServerInfo; onEdit: () => void; reload: () => Promise<unknown> }) {
   // the last test: running, its tools, or that it did not start
@@ -288,13 +288,19 @@ const BLANK: McpServerConfig = { type: 'stdio', command: 'npx', args: [], env: {
 function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved }: { name?: string; cfg?: McpServerConfig; kind?: string; services?: (readonly [string, string])[]; close: () => void; saved: () => void }) {
   const [newName, setNewName] = useState(name);
   // the service it is, as the server worked it out ('' = its own)
-  const [c, setC] = useState<McpServerConfig>(() => ({ ...structuredClone(cfg), kind: cfg.kind || (kind && kind !== name ? kind : '') }));
+  const [c, setC] = useState<McpServerConfig>(() => {
+    const k = cfg.kind || kind;
+    return { ...structuredClone(cfg), kind: k && k !== name ? k : '' };
+  });
+  // "Its own service" picked: saved as its own name, so a server that looks like a ready-made one stays apart.
+  // A new server left alone has its service worked out.
+  const [ownPicked, setOwnPicked] = useState(!!name);
   // the text boxes as typed (turned into lists and maps when saved)
   const [args, setArgs] = useState((cfg.args || []).join(' '));
   const [env, setEnv] = useState(Object.entries(cfg.env || {}).map(([k, v]) => `${k}=${v}`).join('\n'));
   const [headers, setHeaders] = useState(Object.entries(cfg.headers || {}).map(([k, v]) => `${k}: ${v}`).join('\n'));
   const save = async () => {
-    const body = { name: newName, ...c, args: args.split(/\s+/).filter(Boolean), env: parseKv(env), headers: parseHeaders(headers) };
+    const body = { name: newName, ...c, kind: c.kind || (ownPicked ? newName : ''), args: args.split(/\s+/).filter(Boolean), env: parseKv(env), headers: parseHeaders(headers) };
     if (await attempt(() => POST('/mcp', body), 'Saved')) {
       close();
       saved();
@@ -343,7 +349,7 @@ function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved 
               <input value={c.description || ''} onChange={(e) => setC({ ...c, description: e.target.value })} />
             </Field>
             <Field label="Same service as" hint="Pick one when this is another account of a service you already have (a second OOMOL or Gmail), so agents and the Brain treat them as accounts of one service.">
-              <select value={c.kind || ''} onChange={(e) => setC({ ...c, kind: e.target.value })}>
+              <select value={c.kind || ''} onChange={(e) => (setOwnPicked(true), setC({ ...c, kind: e.target.value }))}>
                 <option value="">Its own service</option>
                 {services
                   .filter(([k]) => k !== (name || newName))
@@ -386,7 +392,9 @@ function CopyForm({ preset, servers, close, saved }: { preset: McpPresetListing;
   const [mine, setMine] = useState({ label: '', useFor: '' });
   const [others, setOthers] = useState<Record<string, { label: string; useFor: string }>>(() => Object.fromEntries(copies.map((n) => [n, { label: servers[n].label || '', useFor: servers[n].useFor || '' }])));
   const save = async () => {
-    const r = await attempt(() => POST<{ name: string }>('/mcp-preset', { name: preset.name, ...mine, others }), (r) => `Added ${r.name}${needsKey(preset) ? '. Put its own key in it: Edit it above.' : ''}`);
+    // only the ones whose label or "use for" changed
+    const changed = Object.fromEntries(Object.entries(others).filter(([n, v]) => v.label !== (servers[n].label || '') || v.useFor !== (servers[n].useFor || '')));
+    const r = await attempt(() => POST<{ name: string }>('/mcp-preset', { name: preset.name, ...mine, others: changed }), (r) => `Added ${r.name}${needsKey(preset) ? '. Put its own key in it: Edit it above.' : ''}`);
     if (r) {
       close();
       saved();
@@ -396,7 +404,7 @@ function CopyForm({ preset, servers, close, saved }: { preset: McpPresetListing;
     <>
       <div className="modal-body">
         <div className="flex flex-col gap-2.5">
-          <p className="hint">{`A second ${shortTitle(preset.title)} with its own keys, for another account. Give each one a label and say what it is for: an agent or team can have one account or several, and picks by these lines.`}</p>
+          <p className="hint">{`A second ${serviceOf(preset)} with its own keys, for another account. Give each one a label and say what it is for: an agent or team can have one account or several, and picks by these lines.`}</p>
           <div className="label">The new one</div>
           <CopyFields label={mine.label} useFor={mine.useFor} onChange={(v) => setMine({ ...mine, ...v })} />
           {copies.map((n) => (
