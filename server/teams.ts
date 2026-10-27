@@ -7,7 +7,7 @@
 // the thread when the team goes quiet (see irc.ts).
 // Teams talk to each other like IRC channels: a message that names #Other Team goes to that team's chat
 // too, and once that team is done, its last reply comes back here to whoever asked.
-import { DIORAMA } from './voxel/diorama.ts';
+import { BUILD_ORDER, DIORAMA } from './voxel/diorama.ts';
 import { workflows as teamStore, agents, chats, emit, log, activeProject, openProject } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath } from './util.ts';
 import { askAgent, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
@@ -537,7 +537,7 @@ Talking to other teams:
   const builds = team.members.some((id) => agents.get(id)?.toolGroups?.includes('world'));
   return `You are in the team chat "${team.name}".${team.description ? `\nTeam goal: ${team.description}` : ''}
 Team members:
-${roster}${teamsNote}${builds ? `\n\nThis team builds in the voxel world. ${DIORAMA}` : ''}
+${roster}${teamsNote}${builds ? `\n\nThis team builds in the voxel world. ${DIORAMA}\n${BUILD_ORDER} Plan and hand out the work in that order.` : ''}
 
 How this chat works:
 - Everyone sees the whole thread. Your reply is posted to the team as a message from you.

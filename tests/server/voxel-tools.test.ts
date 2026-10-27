@@ -96,14 +96,16 @@ describe('a diorama, not a level', () => {
   it('builders, world_info and every member of a team with a builder hear it; other teams do not', async () => {
     const { workflows, agents } = await import('../../server/store.ts');
     const { briefing } = await import('../../server/teams.ts');
-    const { DIORAMA } = await import('../../server/voxel/diorama.ts');
+    const { BUILD_ORDER, DIORAMA } = await import('../../server/voxel/diorama.ts');
     expect(buildSystemPrompt(mira)).toContain(DIORAMA);
+    expect(buildSystemPrompt(mira)).toContain(BUILD_ORDER);
+    expect(BUILD_ORDER).toMatch(/first the shape of the terrain .* then the buildings .* then the props/);
     expect(toolDefs(mira).find((t) => t.name === 'world_build')!.description).toMatch(/a diorama to look at \(nobody walks through it or plays it/);
     expect((await callTool(mira, 'world_info', {})).text).toMatch(/The world is a diorama to look at/);
     const designer = agents.save(newAgent({ name: 'Level Designer', toolGroups: ['files'] }));
     const builder = agents.save(mira);
     const team = workflows.save({ name: 'World team', members: [designer.id, builder.id], steps: [], schedule: { type: 'none' }, enabled: false } as unknown as Parameters<typeof workflows.save>[0]);
-    expect(briefing(team, designer)).toContain(`This team builds in the voxel world. ${DIORAMA}`);
+    expect(briefing(team, designer)).toContain(`This team builds in the voxel world. ${DIORAMA}\n${BUILD_ORDER} Plan and hand out the work in that order.`);
     const plain = workflows.save({ name: 'Writers', members: [designer.id], steps: [], schedule: { type: 'none' }, enabled: false } as unknown as Parameters<typeof workflows.save>[0]);
     expect(briefing(plain, designer)).not.toMatch(/diorama/);
   });

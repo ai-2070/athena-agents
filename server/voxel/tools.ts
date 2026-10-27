@@ -8,7 +8,7 @@ import { setEffect, setEnvironment, setLight, EFFECT_KINDS } from './scene.ts';
 import { playAnimation, setAnimation, setSkin, skinTarget } from './characters.ts';
 import { activeProject, getSettings, saveSettings, workflows } from '../store.ts';
 import { requestApproval } from '../approvals.ts';
-import { DIORAMA, DIORAMA_SHORT } from './diorama.ts';
+import { BUILD_ORDER, DIORAMA, DIORAMA_SHORT } from './diorama.ts';
 import { requestLook } from './look.ts';
 import { exportFiles, importVox, writeFiles, writePicture } from './exchange.ts';
 import { objectMap } from './describe.ts';
@@ -617,7 +617,7 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
 export function worldPrompt(toolNames: string[]): string {
   if (!toolNames.includes('world_build')) return '';
   const shown = shownWorld();
-  if (!shown.world) return `\n# The voxel world\n${DIORAMA}\nThere is no world yet. Your first world_build starts this project's world; then fill in its WORLD.md (world_md_section) with what it is.`;
+  if (!shown.world) return `\n# The voxel world\n${DIORAMA}\n${BUILD_ORDER}\nThere is no world yet. Your first world_build starts this project's world; then fill in its WORLD.md (world_md_section) with what it is.`;
   return worldMdContext(shown.world.id, shown.world.name);
 }
 
