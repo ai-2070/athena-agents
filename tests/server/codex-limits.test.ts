@@ -1,6 +1,12 @@
 // Codex usage limits and free limit resets, as `codex app-server` reports them (account/rateLimits/read).
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseCodexLimits, windowLabel } from '../../server/codexlimits.ts';
+import { checkedStatus, status } from '../../server/engines/codex.ts';
+import { clearWhichCache } from '../../server/util.ts';
+import { bus } from '../../server/store.ts';
 
 const now = Date.UTC(2026, 9, 27, 12);
 const sec = (ms: number) => Math.round(ms / 1000);
@@ -82,5 +88,33 @@ describe('parseCodexLimits', () => {
     expect(parseCodexLimits(answer({ ordinaryUsageAllowed: false }), now).blocked).toBe(true);
     expect(parseCodexLimits(null, now)).toEqual({ plan: null, windows: [], resets: null, blocked: false });
     expect(parseCodexLimits({ rateLimits: { primary: { usedPercent: '50' } } }, now).windows).toEqual([]);
+  });
+});
+
+describe('the Codex login check', () => {
+  it('right after a start, waits for the check instead of saying "not signed in"', async () => {
+    // a stand-in codex that is signed in and takes a moment to say so
+    const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'dash-codex-'));
+    fs.writeFileSync(path.join(bin, 'codex'), '#!/bin/sh\nif [ "$1" = "--version" ]; then echo "codex-cli 9.9.9"; else sleep 0.3; echo "Logged in using ChatGPT"; fi\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(bin, 'codex.cmd'), '@echo off\r\nif "%1"=="--version" (echo codex-cli 9.9.9) else (echo Logged in using ChatGPT)\r\n');
+    const oldPath = process.env.PATH;
+    process.env.PATH = `${bin}${path.delimiter}${oldPath}`;
+    clearWhichCache();
+    const events: string[] = [];
+    const listen = (e: { type: string }) => events.push(e.type);
+    bus.on('event', listen);
+    try {
+      // what the status list sees at first: still checking
+      expect(status().loggedIn).toBe(false);
+      const s = await checkedStatus();
+      expect(s).toMatchObject({ installed: true, loggedIn: true, version: '9.9.9' });
+      // and open pages are told, so they ask for the state again
+      expect(events).toContain('engines');
+    } finally {
+      bus.off('event', listen);
+      process.env.PATH = oldPath;
+      clearWhichCache();
+      fs.rmSync(bin, { recursive: true, force: true });
+    }
   });
 });

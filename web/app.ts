@@ -283,7 +283,7 @@ onState(() => {
 // the usage limits count down, and are read again now and then while they're shown
 setInterval(() => sidebarPanel() === 'limits' && !document.hidden && renderNav(), 20_000);
 
-const STATE_EVENTS = new Set(['agents', 'approvals', 'outbox', 'questions', 'runs', 'settings', 'accounts', 'terminals', 'mcp', 'project', 'project-logo', 'projects']);
+const STATE_EVENTS = new Set(['agents', 'approvals', 'outbox', 'questions', 'runs', 'settings', 'accounts', 'terminals', 'mcp', 'project', 'project-logo', 'projects', 'engines']);
 onEvent((ev) => {
   if (STATE_EVENTS.has(ev.type)) refreshSoon();
   if (ev.type === 'toast') toast(ev.text as string);

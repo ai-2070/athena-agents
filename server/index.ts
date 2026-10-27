@@ -343,7 +343,8 @@ get('/api/headbar', async () => {
 async function usageLimits(cx: codexLimits.CodexLimits | null = null): Promise<UsageLimits> {
   const eng = engines.engineStatus();
   const cc = eng['claude-code'];
-  const ox = eng.codex;
+  // (waits for the login check, so a fresh start doesn't say "not signed in" first)
+  const ox = await codexEngine.checkedStatus();
   const why = (e: { installed: boolean; loggedIn: boolean }) => (!e.installed ? 'not installed' : !e.loggedIn ? 'not signed in' : undefined);
   const [usage, codex] = await Promise.all([cc.installed ? status.claudeUsage() : null, cx || (ox?.installed && ox.loggedIn ? codexLimits.codexLimits() : null)]);
   const claudeWindows = [usage?.session && { label: '5h', ...usage.session }, usage?.week && { label: 'Week', ...usage.week }].filter((w) => !!w);
