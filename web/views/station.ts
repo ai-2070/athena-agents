@@ -2645,6 +2645,8 @@ function projectWrapParts(): HTMLElement[] {
   );
   // the key and the faint name take the button's width and never set it (width 0, then stretched to the button)
   const row = (...kids: HTMLElement[]) => h('div', { class: 'flex items-center gap-1.5 w-0 min-w-full box-border' }, ...kids);
+  // the arrow rows make the bar tall enough on their own; a lone button gets its padding back
+  S?.hudTop?.classList.toggle('py-3.5', list.length <= 1);
   return list.length > 1 ? [row(key(-1, !!above), ghost(above, 'above')), button, row(key(1, !!below), ghost(below, 'below'))] : [button];
 }
 
@@ -2829,7 +2831,7 @@ function drawHud(): void {
   const needs = d.approvals.length + d.outboxPending + (d.questions?.length || 0);
   if (!S.hudBuilt) {
     S.hudBuilt = true;
-    S.hudTop = h('div', { class: 'absolute top-0 left-0 right-0 flex items-center gap-3.5 px-4.5 py-3.5 bg-[linear-gradient(#070807_40%,transparent)] pointer-events-auto' });
+    S.hudTop = h('div', { class: 'absolute top-0 left-0 right-0 flex items-center gap-3.5 px-4.5 bg-[linear-gradient(#070807_40%,transparent)] pointer-events-auto' });
     S.feedEl = h('div', { class: 'absolute left-4 bottom-4 w-[min(380px,40vw)] font-mono text-[11.5px] leading-[1.45] font-normal pointer-events-auto' });
     // moves left of the side panel while it is open
     S.zoomEl = h(
