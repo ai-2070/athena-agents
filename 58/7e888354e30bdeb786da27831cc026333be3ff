@@ -1,0 +1,53 @@
+web/chat/ChatView.tsx
+  s_8f44ad5acaacd6::t_ccdeeaab8ce761 11,30,92-105,163-165,169-170,180,246,250-254,257-267,269-270,286,295,306,312,321,324,344,348,357,367-384,407,410,450,452,463,607,610-614,623,683-684,686-691,729-743
+tests/web/dock.test.tsx
+  s_8f44ad5acaacd6::t_2fcdae22223b0a 99,104
+  s_8f44ad5acaacd6::t_31ff65bb3ff20f 11,13,28-29,31-40,108-152
+server/overseer.ts
+  s_8f44ad5acaacd6::t_d2eeaf9952e7b2 427-434
+tests/server/queue.test.ts
+  s_8f44ad5acaacd6::t_99abe7f2777330 7,176-224
+  s_8f44ad5acaacd6::t_829f181b10d408 225
+web/queuedlist.tsx
+  s_8f44ad5acaacd6::t_531921031a1fa8 34-35,38,148
+server/engines/index.ts
+  s_8f44ad5acaacd6::t_3a50a77ffb19ee 146-149,379,392-393,395,400-402,412-418,423-446,472-493
+  s_8f44ad5acaacd6::t_b8112ca563a93f 494
+web/attach.ts
+  s_8f44ad5acaacd6::t_531921031a1fa8 261-262,318,329,456
+tests/server/brain-chat.test.ts
+  s_8f44ad5acaacd6::t_0a7e27aa973025 51
+  s_8f44ad5acaacd6::t_aa7043c8c3f495 5,43-50,52-55
+  s_8f44ad5acaacd6::t_f7f30969fd5ec2 56-57
+web/dock.tsx
+  s_8f44ad5acaacd6::t_00245ba674b794 18,28,685-686,695-696,699,702-707,733-735,738-740,810-827,838,841-849,866-867,869,871,900,902-908,966-967,971-990,1086-1087,1091,1098,1170-1171
+  s_8f44ad5acaacd6::t_791d4e8a30c0f5 675-677
+  s_8f44ad5acaacd6::t_70b00e9f98aa5f 736-737
+  s_8f44ad5acaacd6::t_ba92ffb430b6af 697-698
+server/index.ts
+  s_8f44ad5acaacd6::t_d2eeaf9952e7b2 330-331,491-493,505-506,512
+web/chat/transport.ts
+  s_8f44ad5acaacd6::t_531921031a1fa8 34-35
+web/brainqueue.ts
+  s_8f44ad5acaacd6::t_531921031a1fa8 68-71,109-120
+tests/web/chatview.test.tsx
+  s_8f44ad5acaacd6::t_2fcdae22223b0a 40-47,87-91,159,272,314-371,377
+docs/guide.md
+  s_8f44ad5acaacd6::t_71e66e512ba3c7 55-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "587e888354e30bdeb786da27831cc026333be3ff",
+  "prompts": {},
+  "sessions": {
+    "s_8f44ad5acaacd6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9445bd6a-fe21-4048-a072-990de602c49b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
