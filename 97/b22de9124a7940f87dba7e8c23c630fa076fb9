@@ -1,0 +1,27 @@
+docs/guide.md
+  s_0d9737a7fb568c::t_ba1ce8b7f2d599 134
+  s_0d9737a7fb568c::t_4c6ef0810c5c66 133
+tests/server/teams.test.ts
+  s_0d9737a7fb568c::t_4fd92d1be30154 23-24,81,99,101-102
+  s_0d9737a7fb568c::t_a3a29b6dc3f5f1 7,25-27,74-80,82-98,100
+  s_0d9737a7fb568c::t_3795cc332dd3c2 103-104
+server/teams.ts
+  s_0d9737a7fb568c::t_eb281c2147cbaf 150,152,228,704,849
+  s_0d9737a7fb568c::t_a3a29b6dc3f5f1 19-22,62,495-496,500,619-620
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "97b22de9124a7940f87dba7e8c23c630fa076fb9",
+  "prompts": {},
+  "sessions": {
+    "s_0d9737a7fb568c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc3b4a69-1e76-4847-ae5f-3e43b8bad055",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
