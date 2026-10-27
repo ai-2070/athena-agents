@@ -1,0 +1,39 @@
+server/util.ts
+  s_4f53eccb4f7bb2::t_6bcc550c5fcdbd 493-494
+  s_4f53eccb4f7bb2::t_92fb8c58965c02 497
+  s_4f53eccb4f7bb2::t_e66b8c5a4d164c 475-476,478-492,495-496,498-499,506
+  s_4f53eccb4f7bb2::t_178679a9d5c6e0 477
+tests/server/skills.test.ts
+  s_4f53eccb4f7bb2::t_343a172395bb18 37-57
+tests/server/library.test.ts
+  s_4f53eccb4f7bb2::t_cb7d54a65305b4 68-77
+server/versions.ts
+  s_4f53eccb4f7bb2::t_babf0609408e5b 119
+  s_4f53eccb4f7bb2::t_690ee1c8c2e70c 97-99
+server/library.ts
+  s_4f53eccb4f7bb2::t_087ffe16e29a74 205-207
+server/skills.ts
+  s_4f53eccb4f7bb2::t_5d9261a1398b64 13
+  s_4f53eccb4f7bb2::t_11ed660f0c29a1 9
+  s_4f53eccb4f7bb2::t_af0d6e66305a45 247-249,257
+  s_4f53eccb4f7bb2::t_49351d23b8be2d 42,47-48,52,54
+tests/server/versions.test.ts
+  s_4f53eccb4f7bb2::t_48769b1c8dd53c 278
+  s_4f53eccb4f7bb2::t_642d9d4f0930e8 271-277,279-287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7ce36db38a2506488df39b40cb2c4b0a016110bd",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
