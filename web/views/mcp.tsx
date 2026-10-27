@@ -7,7 +7,7 @@ import { reactPage } from '../ui/react.tsx';
 import type { McpSuggestion, ToolGroup } from '../../shared/types.ts';
 
 // why a server is suggested ("on this PC" gets the accent and a dot); mcp-why stays for the tests
-const WHY = 'mcp-why font-mono text-[11px] leading-[1.4] font-medium text-dim';
+const WHY = 'mcp-why font-mono text-[11px] leading-[1.4] font-medium';
 
 /** One saved MCP server (server/mcp.ts McpServerConfig). */
 interface McpServerConfig {
@@ -116,7 +116,7 @@ export function McpTab() {
               <div key={sg.name} className="list-row mcp-suggest">
                 <div className="min-w-0 flex-1">
                   <div className="title flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                    {sg.title} <span className={sg.program ? `${WHY} on text-accent before:mr-1.5 before:inline-block before:size-1.5 before:rounded-full before:bg-current before:align-[1px] before:content-['']` : WHY}>{sg.reason}</span>
+                    {sg.title} <span className={sg.program ? `${WHY} on text-accent before:mr-1.5 before:inline-block before:size-1.5 before:rounded-full before:bg-current before:align-[1px] before:content-['']` : `${WHY} text-dim`}>{sg.reason}</span>
                   </div>
                   <div className="hint mt-0.5">{sg.description}</div>
                   {sg.needs ? <div className="hint mt-0.5 text-amber">{sg.needs.replace(/^needs /, 'Needs ').replace(/; setup: /, '. Then: ').replace(/^setup: /, 'First: ')}</div> : null}
