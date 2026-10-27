@@ -1,0 +1,50 @@
+docs/guide.md
+  s_7e08d2f6257df5::t_1ec75dd6499755 157
+tests/server/mcp-presets.test.ts
+  s_7e08d2f6257df5::t_cb9fa5e0bed89f 99
+  s_7e08d2f6257df5::t_7e1ff5a39ccf1a 3-4,73,76-81,83-98,100-109
+  s_7e08d2f6257df5::t_a75c4ad561b455 82
+tests/server/brain-mcp.test.ts
+  s_7e08d2f6257df5::t_b11ed77886db80 368-371
+tests/web/mcp.test.tsx
+  s_7e08d2f6257df5::t_0a8d808286ee53 102-117
+web/views/mcp.tsx
+  s_7e08d2f6257df5::t_1552689a763e73 76
+  s_7e08d2f6257df5::t_35e94d3c0c8adb 152,154,156,158
+  s_7e08d2f6257df5::t_96b1faa0deb83f 153
+  s_7e08d2f6257df5::t_4294abe1803286 97-98
+server/mcp.ts
+  s_7e08d2f6257df5::t_8080a261fdd922 820
+  s_7e08d2f6257df5::t_9a28a0fc85e7c2 253-284
+  s_7e08d2f6257df5::t_28207bcd54b0ad 212-219,221-235
+  s_7e08d2f6257df5::t_0223c3f7bf80f5 821
+  s_7e08d2f6257df5::t_682ad5c6aa819e 96-115
+  s_7e08d2f6257df5::t_2a2b05640beb0e 602,604-606
+  s_7e08d2f6257df5::t_c0e02be284ad3b 116-123
+server/overseer.ts
+  s_7e08d2f6257df5::t_4bbb6e85604919 391
+  s_7e08d2f6257df5::t_295039536c8cb9 1301
+  s_7e08d2f6257df5::t_73c74aa66cc398 351-357
+  s_7e08d2f6257df5::t_029aa887d60cb5 11
+README.md
+  s_7e08d2f6257df5::t_d4a66201788d2d 61
+  s_7e08d2f6257df5::t_129b7d9586549b 63-66
+tests/server/mcp-copies.test.ts
+  s_7e08d2f6257df5::t_cc6024838dd88c 47-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c8d591830276b0d4ae3becd8f6264818abd9570a",
+  "prompts": {},
+  "sessions": {
+    "s_7e08d2f6257df5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12d9b4a3-0e6a-45fa-a174-5f25ee2365f3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
