@@ -1,6 +1,7 @@
 // Bundles the browser app (web/*.ts) into public/dist with Bun. Pass --watch to rebuild on change.
 import fs from 'node:fs';
 import path from 'node:path';
+import { buildCss } from './build-css.ts';
 
 const root = path.resolve(import.meta.dirname, '..');
 const outdir = path.join(root, 'public', 'dist');
@@ -30,8 +31,17 @@ async function build(): Promise<boolean> {
     fs.rmSync(tmpdir, { recursive: true, force: true });
     return false;
   }
-  // OpenUI's stylesheet for the chats (web/chat), linked when a chat first opens
-  fs.copyFileSync(path.join(root, 'node_modules', '@openuidev', 'react-ui', 'dist', 'styles', 'index.css'), path.join(tmpdir, 'openui.css'));
+  try {
+    fs.writeFileSync(path.join(tmpdir, 'app.css'), await buildCss({ minify: !watch }));
+  } catch (e) {
+    console.error('css:', e instanceof Error ? e.message : e);
+    fs.rmSync(tmpdir, { recursive: true, force: true });
+    return false;
+  }
+  // OpenUI's stylesheet for the chats (web/chat), linked when a chat first opens. In its own layer
+  // (placed in web/styles/app.css): above Tailwind's reset, below the page's own styles.
+  const openui = fs.readFileSync(path.join(root, 'node_modules', '@openuidev', 'react-ui', 'dist', 'styles', 'index.css'), 'utf8');
+  fs.writeFileSync(path.join(tmpdir, 'openui.css'), `@layer openui {\n${openui}\n}\n`);
   // (outputs read their size from the files, so take it before the move)
   const size = result.outputs.reduce((n, o) => n + o.size, 0);
   fs.rmSync(outdir, { recursive: true, force: true });

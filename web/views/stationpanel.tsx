@@ -91,9 +91,27 @@ function Panel({ api, subscribe, version }: { api: StationPanelApi; subscribe: (
   return null;
 }
 
+// (st-panel-title stays as a mark the tests look for)
+const TITLE = 'st-panel-title font-sans text-[16px] leading-[1.25] font-bold';
+const BODY = 'min-h-0 flex-1 overflow-y-auto px-4 pt-3.5 pb-4.5';
+// a row in the connection and team lists (st-conn stays as a mark the tests look for)
+const CONN =
+  'st-conn flex w-full cursor-pointer items-center gap-2.5 rounded-box border border-line bg-bg px-2 py-1.5 text-left text-[13px] text-ink [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] hover:border-line-2';
+const CONNS = 'mt-2 flex flex-col gap-1';
+// the Brain's three numbers
+const STAT = 'flex flex-col gap-0.75 rounded-box border border-line p-2 font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.1em] text-dim uppercase';
+const STAT_N = 'font-sans text-[20px] leading-[normal] font-bold tracking-normal text-ink';
+// a round face on the team panel (its border colour is added where it's used)
+const FACE =
+  'relative grid size-9 cursor-pointer place-items-center rounded-full border bg-bg p-0 [transition:transform_0.15s,border-color_0.15s] hover:[transform:translateY(-2px)] hover:border-accent [&_.avatar]:size-8 [&_.avatar]:rounded-full [&_.avatar]:text-[16px]';
+// the @, ★ and ✕ buttons on a member (the lead's ★ stays gold, even on hover)
+const MEMBER_ACT = 'size-6.5 cursor-pointer rounded-[6px] border border-line font-mono text-[12px] leading-[normal] font-semibold text-dim hover:border-line-2 hover:text-ink';
+const MEMBER_ACT_ON = 'size-6.5 cursor-pointer rounded-[6px] border border-[#ffcc5566] font-mono text-[12px] leading-[normal] font-semibold text-[#ffcc55]';
+const LEAD_STAR = 'absolute -top-1.25 -right-1 text-[12px] text-[#ffcc55] [text-shadow:0_0_6px_rgba(255,204,85,0.7)]';
+
 function PanelHead({ api, children }: { api: StationPanelApi; children: ReactNode }) {
   return (
-    <div className="st-panel-head">
+    <div className="flex items-center gap-3 border-b border-line px-4 py-3.5">
       {children}
       <button className="icon-btn" onClick={() => api.choose(null)} aria-label="Close">
         ✕
@@ -114,18 +132,20 @@ function ConnectionList({ api, d, ids }: { api: StationPanelApi; d: AppState; id
   if (!ids.size) return <p className="hint">No outside connections. It works from its instructions and knowledge.</p>;
   const avail = new Map(availableIntegrations(d, api.programs()).map((i) => [i.id, i]));
   return (
-    <div className="st-conns">
+    <div className={CONNS}>
       {[...ids].map((id) => {
         const info = intInfo(id);
         if (!info) return null;
         const a = avail.get(id);
         return (
-          <button key={id} className={`st-conn ${!a ? 'missing' : a.live ? 'ok' : 'off'}`} onClick={() => api.choose({ type: 'int', id })}>
+          <button key={id} className={CONN} onClick={() => api.choose({ type: 'int', id })}>
             <span className="st-badge" style={badgeStyle(info.color)}>
               <Mark id={id} size={12} />
             </span>
-            <span className="grow">{info.label}</span>
-            <span className="st-conn-st">{!a ? 'not set up' : a.live ? 'ready' : 'not running'}</span>
+            <span className="grow min-w-0 flex-1">{info.label}</span>
+            <span className={`font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.1em] uppercase ${!a ? 'text-red' : a.live ? 'text-accent' : 'text-amber'}`}>
+              {!a ? 'not set up' : a.live ? 'ready' : 'not running'}
+            </span>
           </button>
         );
       })}
@@ -137,8 +157,7 @@ function ConnectionList({ api, d, ids }: { api: StationPanelApi; d: AppState; id
 function Pick({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
     <div
-      className="list-item"
-      style={{ cursor: 'pointer' }}
+      className="list-row cursor-pointer"
       role="button"
       tabIndex={0}
       onClick={onClick}
@@ -153,7 +172,7 @@ function Approvals({ list }: { list: AppState['approvals'] }) {
   return (
     <>
       {list.map((x) => (
-        <DomNode key={x.id} className="mt" make={() => approvalCard(x)} deps={[JSON.stringify(x)]} />
+        <DomNode key={x.id} className="mt-3.5" make={() => approvalCard(x)} deps={[JSON.stringify(x)]} />
       ))}
     </>
   );
@@ -180,25 +199,25 @@ function BenchPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
   return (
     <>
       <PanelHead api={api}>
-        <div className="grow">
+        <div className="min-w-0 flex-1">
           <div className="label">Bench</div>
-          <div className="st-panel-title">{`${bench.length} agents not on a team`}</div>
+          <div className={TITLE}>{`${bench.length} agents not on a team`}</div>
         </div>
       </PanelHead>
-      <div className="st-panel-body">
+      <div className={BODY}>
         <p className="hint">Agents not in a team yet. Drag one onto a team on the map, or open it and add it to a team.</p>
         <div className="list">
           {bench.map((a) => (
             <Pick key={a.id} onClick={() => api.choose({ type: 'agent', id: a.id })}>
               <Avatar agent={a} />
-              <div className="grow">
+              <div className="min-w-0 flex-1">
                 <div className="title">{a.name}</div>
                 <div className="hint">{a.specialty || ''}</div>
               </div>
             </Pick>
           ))}
         </div>
-        <div className="row mt">
+        <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
           <a className="btn ghost small" href="#/library">
             Hire more
           </a>
@@ -237,39 +256,37 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
     <>
       <PanelHead api={api}>
         {proj.logoAt ? (
-          <DomNode as="span" className="st-proj-logo" make={() => projectMark(proj as Project, 34)} deps={[proj.id, proj.logoAt]} />
+          <DomNode as="span" className="grid size-10.5 flex-none place-items-center rounded-box bg-ink/5" make={() => projectMark(proj as Project, 34)} deps={[proj.id, proj.logoAt]} />
         ) : (
           <span className="st-badge lg" style={badgeStyle('#c4ff3d')}>
             <Icon name="brain" size={18} />
           </span>
         )}
-        <div className="grow">
+        <div className="min-w-0 flex-1">
           <div className="label">Project Brain</div>
-          <div className="st-panel-title">{proj.name || 'Project'}</div>
+          <div className={TITLE}>{proj.name || 'Project'}</div>
         </div>
       </PanelHead>
-      <div className="st-panel-body">
+      <div className={BODY}>
         <About proj={proj} summary={proj.description ? { text: proj.description, from: 'description' } : info?.summary?.text ? info.summary : null} />
-        <div className="st-mini-stats">
-          <div>
-            <b>{d.agents.length}</b>agents
+        <div className="grid grid-cols-[repeat(3,1fr)] gap-1.5">
+          <div className={STAT}>
+            <b className={STAT_N}>{d.agents.length}</b>agents
           </div>
-          <div>
-            <b>{teams.length}</b>teams
+          <div className={STAT}>
+            <b className={STAT_N}>{teams.length}</b>teams
           </div>
-          <div>
-            <b>{d.runs.length + api.busyTeams()}</b>working
+          <div className={STAT}>
+            <b className={STAT_N}>{d.runs.length + api.busyTeams()}</b>working
           </div>
         </div>
-        <button className="btn small st-ask-brain" onClick={() => openDock()}>
+        <button className="btn small mt-3 w-full justify-center" onClick={() => openDock()}>
           <Icon name="sparkles" size={14} />
           Ask the Brain
         </button>
-        <div className="label mt-lg">Brain folder</div>
-        <div className="hint mono" style={{ overflowWrap: 'anywhere', marginTop: '6px' }}>
-          {proj.brainPath || ''}
-        </div>
-        <div className="row mt" style={{ gap: '6px' }}>
+        <div className="label mt-7">Brain folder</div>
+        <div className="hint mt-1.5 font-mono wrap-anywhere">{proj.brainPath || ''}</div>
+        <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
           <button className="btn ghost small" onClick={() => void attempt(() => POST('/brain/open', {}))}>
             <Icon name="folder" size={14} />
             Open folder
@@ -285,15 +302,15 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
         </div>
         <div>
           {error ? (
-            <p className="red hint">{error}</p>
+            <p className="hint">{error}</p>
           ) : !info ? (
             <p className="hint">Reading the Brain folder…</p>
           ) : (
             <>
               {info.git ? (
-                <div className="st-conn ok mt">
+                <div className={`${CONN} mt-3.5`}>
                   <DomNode as="span" className="dom-contents" make={() => logo('github', 16) || icon('git-branch', 16)} deps={[]} />
-                  <div className="grow">
+                  <div className="min-w-0 flex-1">
                     <div>
                       {info.git.url ? (
                         <a href={info.git.url} target="_blank" rel="noreferrer">
@@ -310,11 +327,11 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
                   </button>
                 </div>
               ) : null}
-              <div className="hint mt">{`${info.files} files · ${info.sizeMB} MB`}</div>
-              <div className="st-files">
+              <div className="hint mt-3.5">{`${info.files} files · ${info.sizeMB} MB`}</div>
+              <div className="mt-2 grid grid-cols-[1fr_1fr] gap-x-2.5 gap-y-0.5">
                 {info.entries.map((e) => (
-                  <div key={e.path || e.name} className="st-file">
-                    <Icon name={e.dir ? 'folder' : 'pen-line'} size={13} />
+                  <div key={e.path || e.name} className="st-file flex items-center gap-1.5 overflow-hidden py-0.5 text-[12.5px] text-ellipsis whitespace-nowrap text-dim">
+                    <Icon name={e.dir ? 'folder' : 'pen-line'} size={13} className="text-faint" />
                     {e.name}
                   </div>
                 ))}
@@ -322,12 +339,12 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
             </>
           )}
         </div>
-        <div className="label mt-lg">Teams</div>
+        <div className="label mt-7">Teams</div>
         <div className="list">
           {teams.map((wf, i) => (
             <Pick key={wf.id} onClick={() => api.choose({ type: 'branch', id: wf.id })}>
               <span className="st-dot" style={badgeStyle(wfColor(wf, i))} />
-              <div className="grow">
+              <div className="min-w-0 flex-1">
                 <div className="title">{wf.name}</div>
                 <div className="hint">{wf.description || `${(wf.members || []).length} members`}</div>
               </div>
@@ -338,15 +355,15 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
         </div>
         {d.approvals.length ? (
           <>
-            <div className="label mt-lg">Needs you</div>
-            <div className="col">
+            <div className="label mt-7">Needs you</div>
+            <div className="flex flex-col gap-2.5">
               {d.approvals.map((x) => (
                 <DomNode key={x.id} make={() => approvalCard(x)} deps={[JSON.stringify(x)]} />
               ))}
             </div>
           </>
         ) : null}
-        <div className="row mt-lg">
+        <div className="mt-7 flex flex-wrap items-center gap-2.5">
           <button className="btn ghost small" onClick={api.newTeam}>
             <Icon name="git-branch" size={14} />
             New team
@@ -380,23 +397,28 @@ function About({ proj, summary }: { proj: Partial<Project>; summary: { text: str
     if (await attempt(() => PUT(`/projects/${encodeURIComponent(proj.id!)}`, { name }), `Renamed to ${name}`)) refreshSoon(0);
   };
   return (
-    <div className="st-about">
-      <div className="st-about-top">
-        <button type="button" className="st-about-logo" title={proj.logoAt ? 'Change the logo' : 'Add a logo'} onClick={() => ref && void pickLogo(ref)}>
+    <div className="mb-3.5 rounded-[12px] border border-line bg-bg p-3">
+      <div className="flex items-start gap-3">
+        <button
+          type="button"
+          className="grid size-18 flex-none cursor-pointer place-items-center rounded-[12px] border border-line bg-ink/4 [transition:border-color_0.15s,transform_0.15s] hover:[transform:translateY(-1px)] hover:border-accent"
+          title={proj.logoAt ? 'Change the logo' : 'Add a logo'}
+          onClick={() => ref && void pickLogo(ref)}
+        >
           {proj.logoAt ? (
             <DomNode as="span" className="dom-contents" make={() => projectMark(proj as Project, 64)} deps={[proj.id, proj.logoAt]} />
           ) : (
-            <span className="st-about-add">
+            <span className="flex flex-col items-center gap-1 text-[11px] text-dim">
               <Icon name="image" size={20} />
               Logo
             </span>
           )}
         </button>
-        <div className="grow">
+        <div className="min-w-0 flex-1">
           {editing ? (
-            <div className="col">
-              <textarea rows={4} autoFocus aria-label="What this project is about" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="What is this project? Who is it for, what should come out of it?" />
-              <div className="row" style={{ gap: '6px' }}>
+            <div className="flex flex-col gap-2.5">
+              <textarea className="w-full" rows={4} autoFocus aria-label="What this project is about" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="What is this project? Who is it for, what should come out of it?" />
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button className="btn small" onClick={() => void save()}>
                   Save
                 </button>
@@ -407,7 +429,7 @@ function About({ proj, summary }: { proj: Partial<Project>; summary: { text: str
             </div>
           ) : text ? (
             <>
-              <p className="st-about-text">{text}</p>
+              <p className="st-about-text m-0 line-clamp-6 text-[13.5px] leading-[1.5] text-ink">{text}</p>
               {summary?.from && summary.from !== 'description' ? <div className="hint">{`from ${summary.from}`}</div> : null}
             </>
           ) : (
@@ -416,7 +438,7 @@ function About({ proj, summary }: { proj: Partial<Project>; summary: { text: str
         </div>
       </div>
       {editing ? null : (
-        <div className="row st-about-actions">
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
           <button className="btn ghost tiny" onClick={edit}>
             <Icon name="pencil" size={12} />
             {text ? 'Edit description' : 'Add a description'}
@@ -470,34 +492,34 @@ function ConnectionPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id
         <span className="st-badge lg" style={badgeStyle(it.color)}>
           <Mark id={it.id} size={18} />
         </span>
-        <div className="grow">
+        <div className="min-w-0 flex-1">
           <div className="label">{it.mcp ? 'MCP server' : prog ? 'Program' : 'Service'}</div>
-          <div className="st-panel-title">{it.label}</div>
+          <div className={TITLE}>{it.label}</div>
         </div>
       </PanelHead>
-      <div className="st-panel-body">
+      <div className={BODY}>
         <p>
           <span className={`pill ${it.live ? 'ok' : it.missing ? 'bad' : ''}`}>{status}</span>
           {prog?.version ? <span className="hint">{` v${prog.version}`}</span> : null}
         </p>
-        <div className="label mt">{`Teams using it (${teamsUsing.length})`}</div>
+        <div className="label mt-3.5">{`Teams using it (${teamsUsing.length})`}</div>
         <div className="list">
           {teamsUsing.map((w) => (
             <Pick key={w.id} onClick={() => api.choose({ type: 'branch', id: w.id })}>
-              <div className="grow">{w.name}</div>
+              <div className="grow min-w-0 flex-1">{w.name}</div>
             </Pick>
           ))}
         </div>
-        <div className="label mt">{`Agents with access (${agentsUsing.length})`}</div>
+        <div className="label mt-3.5">{`Agents with access (${agentsUsing.length})`}</div>
         <div className="list">
           {agentsUsing.map((a) => (
             <Pick key={a.id} onClick={() => api.choose({ type: 'agent', id: a.id })}>
               <Avatar agent={a} />
-              <div className="grow">{a.name}</div>
+              <div className="grow min-w-0 flex-1">{a.name}</div>
             </Pick>
           ))}
         </div>
-        <div className="row mt">
+        <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
           {prog && !prog.cli && (prog.exe || prog.shortcut) ? (
             <button className="btn small" onClick={() => void attempt(() => POST<{ message: string }>('/programs/launch', { program: prog.id }), (r) => r.message)}>
               Start
@@ -563,12 +585,12 @@ function TeamPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id: stri
     <>
       <PanelHead api={api}>
         <span className="st-dot" style={badgeStyle(c)} />
-        <div className="grow">
+        <div className="min-w-0 flex-1">
           <div className="label">Team · group chat</div>
-          <div className="st-panel-title">{wf.name}</div>
-          <div className="st-team-status">
+          <div className={TITLE}>{wf.name}</div>
+          <div className="st-team-status mt-0.75 text-[12px]">
             {ts.working.length ? (
-              <span className="st-team-live">
+              <span className="inline-flex items-center gap-1.5 text-[12px] text-accent">
                 <span className="dot busy" />
                 {`${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} waiting` : ''}`}
               </span>
@@ -578,28 +600,33 @@ function TeamPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id: stri
           </div>
         </div>
       </PanelHead>
-      <div className="st-panel-body">
-        {wf.description ? <p className="st-team-goal">{wf.description}</p> : null}
+      <div className={BODY}>
+        {wf.description ? <p className="st-team-goal mb-2.5 text-[13px] leading-[1.45] text-dim">{wf.description}</p> : null}
         {/* faces of everyone on the team: who's working pulses, the lead has a star */}
-        <div className="st-team-faces">
+        <div className="mb-3 flex flex-wrap gap-1.5">
           {members.map((a) => (
-            <button key={a.id} className={`st-face${ts.working.includes(a.id) ? ' working' : ''}`} title={`${a.name}${wf.lead === a.id ? ' · lead' : ''}${ts.working.includes(a.id) ? ' · working' : ''}`} onClick={() => mention(a)}>
+            <button
+              key={a.id}
+              className={`${FACE} ${ts.working.includes(a.id) ? 'animate-[st-face-pulse_1.4s_ease-in-out_infinite] border-accent shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]' : 'border-line'}`}
+              title={`${a.name}${wf.lead === a.id ? ' · lead' : ''}${ts.working.includes(a.id) ? ' · working' : ''}`}
+              onClick={() => mention(a)}
+            >
               <Avatar agent={a} />
-              {wf.lead === a.id ? <span className="st-member-star">★</span> : null}
+              {wf.lead === a.id ? <span className={LEAD_STAR}>★</span> : null}
             </button>
           ))}
-          <button className="st-face add" title="Add someone" aria-label="Add someone" onClick={() => setTab('members')}>
+          <button className={`${FACE} border-dashed border-line text-dim`} title="Add someone" aria-label="Add someone" onClick={() => setTab('members')}>
             <Icon name="user-plus" size={15} />
           </button>
         </div>
-        <button className="btn small st-open-chat" onClick={() => openChat('team', id)}>
+        <button className="btn small mb-3 w-full justify-center" onClick={() => openChat('team', id)}>
           <Icon name="message-square" size={14} />
           Open the team chat
         </button>
         <Tabs
           label="Team"
-          rowClassName="st-tabs"
-          panelClassName="st-tab-body"
+          rowClassName="mb-3! [&_button]:px-3 [&_button]:py-2"
+          panelClassName="animate-[rise-in_0.2s_ease-out]"
           value={tab}
           onChange={setTab}
           tabs={[
@@ -607,7 +634,7 @@ function TeamPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id: stri
               value: 'members',
               label: (
                 <>
-                  Members<span className="st-tab-n">{members.length}</span>
+                  Members<span className="ml-1.5 rounded-[8px] bg-panel-2 px-1.25 text-[10px] text-dim">{members.length}</span>
                 </>
               ),
             },
@@ -629,27 +656,30 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
   return (
     <>
       <p className="hint">Everyone sees the whole chat. Your messages go to the lead (★) first, or to whoever you @mention. Members hand work to each other with @Name.</p>
-      <div className="st-members">
+      <div className="mt-2.5 flex flex-col gap-1.5">
         {members.map((a) => {
           const isLead = wf.lead === a.id;
           const now = api.now(a.id, id);
           const st = ts.working.includes(a.id) ? 'working' : ts.queued.includes(a.id) ? 'queued' : now.st;
           return (
-            <div key={a.id} className={`st-member ${st}`}>
-              <div className="st-member-av">
+            <div
+              key={a.id}
+              className={`st-member ${st} flex items-start gap-2.5 rounded-box border bg-bg px-2.5 py-2.25 [transition:border-color_0.2s] ${st === 'working' ? 'border-[color-mix(in_srgb,var(--color-accent)_45%,var(--color-line))]' : st === 'queued' ? 'border-[color-mix(in_srgb,var(--color-amber)_40%,var(--color-line))]' : 'border-line'}`}
+            >
+              <div className="relative flex-none [&_.avatar]:size-8.5 [&_.avatar]:text-[17px]">
                 <Avatar agent={a} />
                 {isLead ? (
-                  <span className="st-member-star" title="Team lead">
+                  <span className={LEAD_STAR} title="Team lead">
                     ★
                   </span>
                 ) : null}
               </div>
-              <div className="grow">
-                <div className="st-member-name" role="button" tabIndex={0} onClick={() => api.choose({ type: 'agent', id: a.id, wf: id })} onKeyDown={(e) => e.key === 'Enter' && api.choose({ type: 'agent', id: a.id, wf: id })}>
+              <div className="min-w-0 flex-1">
+                <div className="st-member-name flex cursor-pointer items-center gap-1.5 text-[13.5px] font-semibold hover:text-accent" role="button" tabIndex={0} onClick={() => api.choose({ type: 'agent', id: a.id, wf: id })} onKeyDown={(e) => e.key === 'Enter' && api.choose({ type: 'agent', id: a.id, wf: id })}>
                   {a.name}
                   {isLead ? <span className="tc-lead">lead</span> : null}
                 </div>
-                <div className="st-member-now">
+                <div className={`st-member-now mt-0.5 flex items-center gap-1 overflow-hidden text-[12px] text-ellipsis whitespace-nowrap ${st === 'working' ? 'text-accent' : 'text-dim'}`}>
                   {st === 'working' ? (
                     <>
                       <span className="dot busy" /> {now.text || 'Working…'}
@@ -664,16 +694,21 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
                     a.specialty || 'Ready'
                   )}
                 </div>
-                <DomNode className="st-member-model" make={() => modelChip(a, { compact: true })} deps={[a]} />
+                <DomNode className="mt-1.5" make={() => modelChip(a, { compact: true })} deps={[a]} />
               </div>
-              <div className="st-member-actions">
-                <button title={`Write to ${a.name} in the team chat`} aria-label={`Write to ${a.name} in the team chat`} onClick={() => mention(a)}>
+              <div className="flex gap-1">
+                <button className={MEMBER_ACT} title={`Write to ${a.name} in the team chat`} aria-label={`Write to ${a.name} in the team chat`} onClick={() => mention(a)}>
                   @
                 </button>
-                <button title={isLead ? 'Remove as lead' : 'Make lead: your messages go to them first'} aria-label={isLead ? `Remove ${a.name} as lead` : `Make ${a.name} lead`} className={isLead ? 'on' : ''} onClick={() => void api.saveTeam({ ...wf, lead: isLead ? null : a.id })}>
+                <button
+                  title={isLead ? 'Remove as lead' : 'Make lead: your messages go to them first'}
+                  aria-label={isLead ? `Remove ${a.name} as lead` : `Make ${a.name} lead`}
+                  className={isLead ? MEMBER_ACT_ON : MEMBER_ACT}
+                  onClick={() => void api.saveTeam({ ...wf, lead: isLead ? null : a.id })}
+                >
                   ★
                 </button>
-                <button title="Take off this team (stays in the project)" aria-label={`Take ${a.name} off this team`} onClick={() => void api.saveTeam(withMembers(wf, wf.members.filter((x) => x !== a.id)))}>
+                <button className={MEMBER_ACT} title="Take off this team (stays in the project)" aria-label={`Take ${a.name} off this team`} onClick={() => void api.saveTeam(withMembers(wf, wf.members.filter((x) => x !== a.id)))}>
                   ✕
                 </button>
               </div>
@@ -682,10 +717,10 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
         })}
         {!members.length ? <p className="empty">No agents yet. Add one below, hire from the Library, or ask the Brain.</p> : null}
       </div>
-      <div className="label mt-lg">Add someone</div>
+      <div className="label mt-7">Add someone</div>
       {others.length ? (
-        <div className="row nowrap mt">
-          <div className="grow">
+        <div className="mt-3.5 flex items-center gap-2.5">
+          <div className="min-w-0 flex-1">
             <select aria-label="Agent to add" value={addId} onChange={(e) => setPick(e.target.value)}>
               {others.map((a) => (
                 <option key={a.id} value={a.id}>{`${a.emoji || ''} ${a.name}`}</option>
@@ -700,7 +735,7 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
       ) : (
         <p className="hint">Every agent in this project is already on it.</p>
       )}
-      <div className="row mt" style={{ gap: '6px', flexWrap: 'wrap' }}>
+      <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
         <button className="btn ghost small" onClick={() => navigate(`#/library?branch=${encodeURIComponent(id)}`)}>
           <Icon name="store" size={14} />
           Hire from the Library
@@ -710,7 +745,7 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
           Ask the Brain
         </button>
       </div>
-      <p className="hint mt">Tip: drag an agent onto this team on the map to add it (hold Ctrl to also keep it on its other team).</p>
+      <p className="hint mt-3.5">Tip: drag an agent onto this team on the map to add it (hold Ctrl to also keep it on its other team).</p>
     </>
   );
 }
@@ -749,8 +784,8 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
   return (
     <>
       <div className="label">Name and goal</div>
-      <div className="row nowrap mt">
-        <div className="grow">
+      <div className="mt-3.5 flex items-center gap-2.5">
+        <div className="min-w-0 flex-1">
           <input key={`n:${wf.name}`} aria-label="Team name" defaultValue={wf.name} ref={committed<HTMLInputElement>((el) => void api.saveTeam({ ...latest.current, name: el.value.trim() || latest.current.name }))} />
         </div>
         <input
@@ -758,11 +793,11 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
           type="color"
           aria-label="Team colour"
           defaultValue={color}
-          style={{ width: '40px', height: '34px', padding: '2px', background: 'var(--panel)', border: '1px solid var(--line-2)' }}
+          className="h-8.5 w-10 border border-line-2 bg-panel p-0.5"
           ref={committed<HTMLInputElement>((el) => void api.saveTeam({ ...latest.current, color: el.value }))}
         />
       </div>
-      <div className="mt">
+      <div className="mt-3.5">
         <textarea
           key={`d:${wf.description || ''}`}
           rows={3}
@@ -773,28 +808,28 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
         />
       </div>
       <p className="hint">Every member reads the goal before it answers in the chat.</p>
-      <div className="label mt-lg">Team skills</div>
+      <div className="label mt-7">Team skills</div>
       <p className="hint">Every member gets these while it works for this team (on top of its own and the project's).</p>
       <DomNode
-        className="mt"
+        className="mt-3.5"
         make={() => skillPicker(wf.skills || [], (v) => void api.saveTeam({ ...latest.current, skills: v }), { inherited: (d.project?.skills || []).map((slug) => ({ slug, from: 'project' })), empty: 'No team skills yet.' })}
         deps={[id, (wf.skills || []).join('|'), (d.project?.skills || []).join('|')]}
       />
-      <div className="label mt-lg">Extra access while working for this team</div>
+      <div className="label mt-7">Extra access while working for this team</div>
       <p className="hint">Members get these on top of their own tools.</p>
-      <div className="mt">
+      <div className="mt-3.5">
         <ChipSet label="Extra tools" options={d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description }))} value={access.toolGroups} onChange={(v) => saveAccess({ toolGroups: v })} />
       </div>
       {(d.mcpServers || []).length ? (
-        <div className="mt">
+        <div className="mt-3.5">
           <ChipSet label="Extra MCP servers" options={d.mcpServers.map((m) => ({ value: m, label: m }))} value={access.mcpServers} onChange={(v) => saveAccess({ mcpServers: v })} />
         </div>
       ) : null}
-      <div className="label mt-lg">Connections the team can reach</div>
+      <div className="label mt-7">Connections the team can reach</div>
       <ConnectionList api={api} d={d} ids={api.teamLinks(id)} />
-      <div className="label mt-lg">Daily routine</div>
+      <div className="label mt-7">Daily routine</div>
       <p className="hint">The team gets this message on its schedule, as if you wrote it in the chat.</p>
-      <div className="row" style={{ gap: '8px' }}>
+      <div className="flex flex-wrap items-center gap-2">
         <Segmented
           label="Daily routine"
           options={[
@@ -804,19 +839,19 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
           value={sch.type === 'daily' ? 'daily' : 'none'}
           onChange={(t) => saveSchedule({ type: t })}
         />
-        {sch.type === 'daily' ? <input key={`t:${sch.time}`} type="time" aria-label="Time" defaultValue={sch.time || '09:00'} style={{ width: '110px' }} ref={committed<HTMLInputElement>((el) => saveSchedule({ time: el.value }))} /> : null}
+        {sch.type === 'daily' ? <input key={`t:${sch.time}`} type="time" aria-label="Time" defaultValue={sch.time || '09:00'} className="w-27.5" ref={committed<HTMLInputElement>((el) => saveSchedule({ time: el.value }))} /> : null}
       </div>
       {sch.type === 'daily' ? (
-        <div className="mt">
+        <div className="mt-3.5">
           <input key={`m:${sch.input || ''}`} aria-label="What the team should do each time" defaultValue={sch.input || ''} placeholder="What the team should do each time" ref={committed<HTMLInputElement>((el) => saveSchedule({ input: el.value }))} />
         </div>
       ) : null}
-      <div className="label mt-lg">Symbol on the map</div>
+      <div className="label mt-7">Symbol on the map</div>
       <p className="hint">Shown in the middle of the team's pod. An emoji, or a picture or 3D model of your own.</p>
       <SymbolPicker api={api} wf={wf} />
-      <div className="label mt-lg">On the map</div>
+      <div className="label mt-7">On the map</div>
       <p className="hint">Drag the team to move it anywhere. Shift+drag spins it.</p>
-      <div className="row mt" style={{ gap: '6px', flexWrap: 'wrap' }}>
+      <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
         <button className="btn ghost small" onClick={() => void api.spinTeam(id)}>
           <Icon name="rotate-cw" size={14} />
           Spin 45°
@@ -832,14 +867,14 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
           Zoom to it
         </button>
       </div>
-      <div className="row mt-lg">
+      <div className="mt-7 flex flex-wrap items-center gap-2.5">
         <button className="btn ghost small" onClick={() => openBranchBuilder({ wf, onSaved: () => void api.reloadTeams() })}>
           <Icon name="workflow" size={14} />
           Open the team builder
         </button>
       </div>
-      <div className="label mt-lg">Copy it</div>
-      <div className="row mt" style={{ gap: '6px', flexWrap: 'wrap' }}>
+      <div className="label mt-7">Copy it</div>
+      <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
         <button className="btn ghost small" title="A new team with the same members and settings" onClick={() => void cloneTeam(false)}>
           <Icon name="copy" size={14} />
           Clone team
@@ -853,7 +888,7 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
           Save as preset
         </button>
       </div>
-      <div className="row mt-lg" style={{ gap: '6px' }}>
+      <div className="mt-7 flex flex-wrap items-center gap-1.5">
         <DomNode as="span" className="dom-contents" make={() => historyButton('team', id, () => void api.reloadTeams())} deps={[id]} />
         <button className="btn danger tiny" onClick={() => void remove()}>
           Delete team
@@ -873,15 +908,15 @@ function SymbolPicker({ api, wf }: { api: StationPanelApi; wf: TeamView }) {
   const current = wf.mark || DEFAULT_TEAM_MARK;
   return (
     <div>
-      <div className="row" style={{ gap: '4px', flexWrap: 'wrap' }}>
+      <div className="flex flex-wrap items-center gap-1">
         {EMOJI_CHOICES.map((e) => (
-          <button key={e} className={`btn ghost small${!own && current === e ? ' on' : ''}`} title={e} aria-pressed={!own && current === e} style={{ fontSize: '17px', padding: '2px 8px' }} onClick={() => void setEmoji(e)}>
+          <button key={e} className="btn ghost small px-2 py-0.5 text-[17px]" title={e} aria-pressed={!own && current === e} onClick={() => void setEmoji(e)}>
             {e}
           </button>
         ))}
       </div>
-      <div className="row mt" style={{ gap: '6px', flexWrap: 'wrap' }}>
-        <input aria-label="Your own emoji" placeholder="Type or paste an emoji" maxLength={16} style={{ width: '170px' }} ref={committed<HTMLInputElement>((el) => el.value.trim() && void setEmoji(el.value.trim()))} />
+      <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
+        <input aria-label="Your own emoji" placeholder="Type or paste an emoji" maxLength={16} className="w-42.5" ref={committed<HTMLInputElement>((el) => el.value.trim() && void setEmoji(el.value.trim()))} />
         <button className="btn ghost small" onClick={() => void pickTeamMark({ id: wf.id, name: wf.name }).then((ok) => void (ok && api.reloadTeams()))}>
           <Icon name="image" size={14} />
           Use a picture or 3D model…
@@ -892,7 +927,7 @@ function SymbolPicker({ api, wf }: { api: StationPanelApi; wf: TeamView }) {
           </button>
         ) : null}
       </div>
-      {own ? <p className="hint mt">{`Showing your ${own} (a .glb turns, a picture stays flat).`}</p> : null}
+      {own ? <p className="hint mt-3.5">{`Showing your ${own} (a .glb turns, a picture stays flat).`}</p> : null}
     </div>
   );
 }
@@ -912,26 +947,26 @@ function ModelSection({ a }: { a: Agent }) {
     }
   };
   return (
-    <div className="st-model">
+    <div className="mt-3.5 flex flex-col gap-2 rounded-box border border-line bg-[rgba(7,8,7,0.5)] p-3">
       <div className="label">Model</div>
-      <div className="st-model-now">
+      <div className="flex items-center gap-3">
         <DomNode as="span" className="dom-contents" make={() => (mi.brand && logo(mi.brand, 22)) || icon('cpu', 22)} deps={[mi.brand]} />
-        <div className="grow">
-          <div className="st-model-name">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center font-sans text-[17px] leading-[1.25] font-bold">
             {mi.name}
             {mi.latest ? <span className="model-latest">always latest</span> : null}
           </div>
           <div className="hint">{mi.where}</div>
         </div>
       </div>
-      <div className="st-model-row">
+      <div className="grid grid-cols-[90px_1fr] items-center gap-2 [&_.model-chip]:[justify-self:start]">
         <span className="hint">Switch</span>
         <DomNode as="span" className="dom-contents" make={() => modelChip(a, { onChange: () => redraw((n) => n + 1) })} deps={[a]} />
       </div>
       {a.engine === 'claude-code' ? (
-        <div className="st-model-row">
+        <div className="grid grid-cols-[90px_1fr] items-center gap-2">
           <span className="hint">Sign in with</span>
-          <select aria-label="Sign in with" value={a.claudeAuth || 'login'} onChange={(e) => void setAuth(e.target.value)}>
+          <select className="py-1.5 text-[13px]" aria-label="Sign in with" value={a.claudeAuth || 'login'} onChange={(e) => void setAuth(e.target.value)}>
             {Object.entries(AUTH_NAMES).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -941,9 +976,9 @@ function ModelSection({ a }: { a: Agent }) {
         </div>
       ) : null}
       {a.lastModel ? (
-        <div className="st-model-last">
-          <Icon name="circle-check" size={13} />
-          Last run used <b>{a.lastModel}</b>
+        <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-dim">
+          <Icon name="circle-check" size={13} className="text-accent" />
+          Last run used <b className="font-mono text-[12px] leading-[normal] font-semibold text-ink">{a.lastModel}</b>
           <span className="hint">{` · ${ago(a.lastModelAt)}`}</span>
         </div>
       ) : (
@@ -984,18 +1019,20 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
     <>
       <PanelHead api={api}>
         <Avatar agent={a} lg />
-        <div className="grow">
-          <div className="st-panel-title">{a.name}</div>
+        <div className="min-w-0 flex-1">
+          <div className={TITLE}>{a.name}</div>
           <div className="hint">{a.specialty || ''}</div>
         </div>
       </PanelHead>
-      <div className="st-panel-body">
-        <div className={`st-agent-now ${now.st}`}>
+      <div className={BODY}>
+        <div
+          className={`st-agent-now flex items-center gap-2 rounded-box border bg-bg px-2.5 py-2 text-[12.5px] ${now.st === 'working' ? 'border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-line))] text-accent' : now.st === 'needs' ? 'border-[color-mix(in_srgb,var(--color-amber)_40%,var(--color-line))] text-amber' : 'border-line text-dim'}`}
+        >
           <span className={`dot ${now.st === 'working' ? 'busy' : now.st === 'needs' ? 'warn' : 'on'}`} />
-          <span className="grow">{now.st === 'working' ? now.text : now.st === 'needs' ? 'Waiting for your OK (see below)' : 'Ready'}</span>
+          <span className="min-w-0 flex-1">{now.st === 'working' ? now.text : now.st === 'needs' ? 'Waiting for your OK (see below)' : 'Ready'}</span>
         </div>
         <ModelSection a={a} />
-        <div className="row mt" style={{ gap: '6px' }}>
+        <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
           <button className="btn small" onClick={() => openChat('agent', id)}>
             <Icon name="message-square" size={14} />
             Chat
@@ -1020,9 +1057,9 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
             Preset
           </button>
         </div>
-        <div className="label mt-lg">Skills</div>
+        <div className="label mt-7">Skills</div>
         <DomNode
-          className="mt"
+          className="mt-3.5"
           make={() =>
             skillPicker(a.skills || [], (v) => void attempt(() => PUT(`/agents/${id}`, { skills: v })).then(() => refreshSoon(0)), {
               inherited: [...(d.project?.skills || []).map((slug) => ({ slug, from: 'project' })), ...onTeams.flatMap((w) => (w.skills || []).map((slug) => ({ slug, from: w.name })))],
@@ -1031,12 +1068,12 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
           }
           deps={[id, (a.skills || []).join('|'), (d.project?.skills || []).join('|'), onTeams.map((w) => `${w.name}:${(w.skills || []).join(',')}`).join('|')]}
         />
-        <div className="label mt-lg">{`Teams (${onTeams.length})`}</div>
-        <div className="st-conns">
+        <div className="label mt-7">{`Teams (${onTeams.length})`}</div>
+        <div className={CONNS}>
           {onTeams.map((w) => (
-            <div key={w.id} className="st-conn ok">
+            <div key={w.id} className={`${CONN} ok`}>
               <span className="st-dot" style={badgeStyle(wfColor(w, teams.indexOf(w)))} />
-              <span className="grow" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => api.choose({ type: 'branch', id: w.id })} onKeyDown={(e) => e.key === 'Enter' && api.choose({ type: 'branch', id: w.id })}>
+              <span className="grow min-w-0 flex-1 cursor-pointer" role="button" tabIndex={0} onClick={() => api.choose({ type: 'branch', id: w.id })} onKeyDown={(e) => e.key === 'Enter' && api.choose({ type: 'branch', id: w.id })}>
                 {w.name}
                 <span className="hint">{w.lead === id ? ' · ★ lead' : ' · member'}</span>
               </span>
@@ -1056,8 +1093,8 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
           {!onTeams.length ? <p className="hint">On the Bench: not in any team yet. Add it to one below, or drag it onto a team on the map.</p> : null}
         </div>
         {others.length ? (
-          <div className="row nowrap mt">
-            <div className="grow">
+          <div className="mt-3.5 flex items-center gap-2.5">
+            <div className="min-w-0 flex-1">
               <select aria-label="Team to add it to" value={addTo} onChange={(e) => setPick(e.target.value)}>
                 {others.map((w) => (
                   <option key={w.id} value={w.id}>
@@ -1071,12 +1108,12 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
             </button>
           </div>
         ) : null}
-        <div className="label mt-lg">Connections it can use</div>
+        <div className="label mt-7">Connections it can use</div>
         <ConnectionList api={api} d={d} ids={agentLinks(a)} />
         {connectors.length ? (
-          <div className="st-conns">
+          <div className={CONNS}>
             <div className="hint">Plus the connectors on your Claude account:</div>
-            <div className="row" style={{ gap: '4px' }}>
+            <div className="flex flex-wrap items-center gap-1">
               {connectors.map((c) => {
                 const look = connectorLook(c.name);
                 return (

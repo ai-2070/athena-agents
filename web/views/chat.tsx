@@ -56,7 +56,7 @@ function ChatPage({ agentId, chatId, view }: { agentId: string; chatId?: string;
   if (!loaded) return null;
   if (loaded.kind === 'gone')
     return (
-      <div className="chat-gone">
+      <div className="p-7">
         <p>That agent no longer exists. </p>
         <a href="#/agents">Back to agents</a>
       </div>
@@ -130,21 +130,21 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
   const info = modelInfo(agent);
   const how = memory ? (memory.own ? `${ENGINE_LABEL[agent.engine] || 'Its engine'} compacts it by itself when it is nearly full` : memory.auto ? `Compacts by itself at ${kTokens(memory.compactAt)}` : 'Automatic compaction is off') : '';
   return (
-    <div className="chat-layout" ref={page}>
-      <div className="chat-side">
-        <div className="chat-agent">
-          <div className="row nowrap">
+    <div className="grid h-[calc(100vh-61px)] grid-cols-[270px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1" ref={page}>
+      <div className="flex min-h-0 flex-col border-r border-line bg-panel max-md:max-h-60 max-md:border-r-0 max-md:border-b">
+        <div className="border-b border-line p-4">
+          <div className="flex items-center gap-2.5">
             <Avatar agent={agent} lg />
-            <div className="grow">
-              <div className="name">{agent.name}</div>
-              <div className="hint chat-specialty">{agent.specialty || ''}</div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[16px] leading-[1.25] font-bold">{agent.name}</div>
+              <div className="hint mt-0.5">{agent.specialty || ''}</div>
             </div>
           </div>
-          <div className="row mt chat-buttons">
+          <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
             <span className="pill">{info.name}</span>
             <span className="pill">{info.where}</span>
           </div>
-          <div className="row mt chat-buttons">
+          <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
             <button className="btn small" onClick={() => void newChat()}>+ New chat</button>
             <a className="btn ghost small" href={`#/agents/${agent.id}/edit`}>Edit</a>
             <DomNode as="span" make={() => memoryButton(agent.id, agent.name)} deps={[agent.id]} />
@@ -152,28 +152,28 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
               <button className="btn ghost small" title="Open this agent in a live terminal" onClick={() => void openTerminal(agent)}>Terminal</button>
             ) : null}
           </div>
-          <details className="mt">
-            <summary className="label chat-tools-summary">{`${tools.length} tools`}</summary>
-            <div className="hint mono chat-tools">{tools.join(' · ')}</div>
+          <details className="mt-3.5">
+            <summary className="label cursor-pointer">{`${tools.length} tools`}</summary>
+            <div className="hint chat-tools mt-1.5 font-mono text-[11px] leading-[1.7]">{tools.join(' · ')}</div>
           </details>
         </div>
-        <nav className="chat-list" aria-label="Chats">
+        <nav className="flex-1 overflow-y-auto py-1.5" aria-label="Chats">
           {chats.map((c) => (
-            <a key={c.id} className={c.id === chat.id ? 'on' : undefined} aria-current={c.id === chat.id ? 'page' : undefined} href={`#/agents/${agent.id}/${c.id}`}>
-              <span className="t">{c.title || 'Chat'}</span>
-              <span className="w">{`${ago(c.updatedAt)} · ${c.count} items`}</span>
+            <a key={c.id} className={c.id === chat.id ? 'on block border-l-2 border-accent bg-panel-2 px-4 py-2.25 text-[13.5px] text-ink' : 'block border-l-2 border-transparent px-4 py-2.25 text-[13.5px] text-dim hover:bg-panel-2 hover:text-ink'} aria-current={c.id === chat.id ? 'page' : undefined} href={`#/agents/${agent.id}/${c.id}`}>
+              <span className="t block truncate">{c.title || 'Chat'}</span>
+              <span className="font-mono text-[10.5px] leading-[normal] text-faint">{`${ago(c.updatedAt)} · ${c.count} items`}</span>
             </a>
           ))}
         </nav>
       </div>
-      <div className="chat-main">
-        <div className="row between chat-head">
-          <div className="grow">
-            <span className="mono dim chat-title">{chat.title || 'Chat'}</span>
+      <div className="flex min-h-0 min-w-0 flex-col">
+        <div className="chat-head flex flex-wrap items-center justify-between gap-2.5 border-b border-line px-7 py-2.5">
+          <div className="min-w-0 flex-1">
+            <span className="chat-title font-mono text-[12px] text-dim">{chat.title || 'Chat'}</span>
           </div>
-          <div className="row chat-buttons">
+          <div className="flex flex-wrap items-center gap-1.5">
             {memory ? (
-              <span className={`pill mem${memory.tokens >= memory.compactAt * 0.8 ? ' warn' : ''}`} title={`About ${kTokens(memory.tokens)} of ${kTokens(memory.window)} tokens. ${how} (Settings > Chat memory).`}>
+              <span className={memory.tokens >= memory.compactAt * 0.8 ? 'pill mem warn' : 'pill mem'} title={`About ${kTokens(memory.tokens)} of ${kTokens(memory.window)} tokens. ${how} (Settings > Chat memory).`}>
                 {`Memory ${memory.percent}%`}
               </span>
             ) : null}
@@ -183,7 +183,7 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
             <button className="btn tiny danger" onClick={() => void removeChat()}>Delete</button>
           </div>
         </div>
-        <div className="chat-body">
+        <div className="chat-body contents">
           <Suspense fallback={null}>
             <ChatView agent={{ id: agent.id, name: agent.name, emoji: agent.emoji, specialty: agent.specialty, tools: agent.tools }} chatId={chat.id} tray={tray} footer={footer} onChat={onChat} apiRef={api} />
           </Suspense>

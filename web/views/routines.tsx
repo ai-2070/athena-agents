@@ -17,7 +17,7 @@ import type { AppState, Routine, RoutineListing, RoutineMention, RoutineMentionK
 /** Agents, teams and skills a routine can mention. Agents first: on a name clash they win (the server does the same). */
 export function candidates(d: Pick<AppState, 'agents'>, teams: readonly TeamListing[]): Candidate[] {
   return [
-    ...d.agents.map((a): Candidate => ({ kind: 'agent', id: a.id, name: a.name, lead: h('span.rt-emoji', a.emoji || '🤖'), sub: a.specialty || a.description || '', color: a.color })),
+    ...d.agents.map((a): Candidate => ({ kind: 'agent', id: a.id, name: a.name, lead: h('span', { class: 'w-3.5 text-center flex-none' }, a.emoji || '🤖'), sub: a.specialty || a.description || '', color: a.color })),
     ...teams.map((t): Candidate => ({ kind: 'team', id: t.id, name: t.name, lead: icon('users', 14), sub: `${t.members.length} member${t.members.length === 1 ? '' : 's'}${t.description ? ` · ${t.description}` : ''}`, color: t.color })),
     ...skillsCache().map((s): Candidate => ({ kind: 'skill', id: s.slug, name: s.name, lead: icon('puzzle', 14), sub: s.description })),
   ];
@@ -36,12 +36,27 @@ function useTeams(): TeamListing[] | null {
   return teams;
 }
 
+// a mention as a chip: a team in its own color (--c), a skill in the accent, crossed out once it's gone
+const CHIP = 'inline-flex items-center gap-1.25 py-0.5 px-2.25 rounded-full border border-line-2 text-[12px] whitespace-nowrap max-w-full overflow-hidden text-ellipsis [&_.ico-svg]:flex-none';
+const CHIP_KIND: Record<RoutineMentionKind, string> = {
+  agent: '[&_.ico-svg]:text-dim',
+  team: '[&_.ico-svg]:text-dim border-[color-mix(in_srgb,var(--c,#7350c8)_55%,var(--color-line))]',
+  skill: '[&_.ico-svg]:text-accent border-[color-mix(in_srgb,var(--color-accent)_35%,var(--color-line))]',
+};
+const CHIP_BG: Record<RoutineMentionKind, string> = {
+  agent: '',
+  team: 'bg-[color-mix(in_srgb,var(--c,#7350c8)_14%,transparent)]',
+  skill: 'bg-accent/9',
+};
+const CHIPS = 'flex flex-wrap gap-1.25 items-center min-w-0';
+
 function MentionChip({ m, teams, extra }: { m: RoutineMention; teams: readonly TeamListing[]; extra?: ReactNode }) {
   const d = state.data;
   const a = m.kind === 'agent' ? d?.agents.find((x) => x.id === m.id) : null;
   const t = m.kind === 'team' ? teams.find((x) => x.id === m.id) : null;
+  const look = m.missing ? 'border-dashed text-faint bg-transparent line-through' : `text-ink ${CHIP_BG[m.kind]}`;
   return (
-    <span className={`rt-m ${m.kind}${m.missing ? ' missing' : ''}`} style={t?.color ? ({ '--c': t.color } as CSSProperties) : undefined} title={m.missing ? `${m.name} no longer exists` : KIND_LABEL[m.kind].slice(0, -1)}>
+    <span className={`${CHIP} ${CHIP_KIND[m.kind]} ${look}`} style={t?.color ? ({ '--c': t.color } as CSSProperties) : undefined} title={m.missing ? `${m.name} no longer exists` : KIND_LABEL[m.kind].slice(0, -1)}>
       {m.kind === 'agent' ? <span>{a?.emoji || '🤖'}</span> : <Icon name={m.kind === 'team' ? 'users' : 'puzzle'} size={11} />}
       {m.name}
       {extra}
@@ -50,11 +65,11 @@ function MentionChip({ m, teams, extra }: { m: RoutineMention; teams: readonly T
 }
 
 function StatusIcon({ status }: { status: string }) {
-  if (status === 'done' || status === 'sent') return <span className="accent" aria-label="done">✓</span>;
-  if (status === 'failed') return <span className="red" aria-label="failed">✕</span>;
+  if (status === 'done' || status === 'sent') return <span className="text-accent" aria-label="done">✓</span>;
+  if (status === 'failed') return <span className="text-red" aria-label="failed">✕</span>;
   if (status === 'running') return <span className="dot busy" aria-label="running" />;
-  if (status === 'stopped') return <span className="amber" aria-label="stopped">■</span>;
-  return <span className="faint">·</span>;
+  if (status === 'stopped') return <span className="text-amber" aria-label="stopped">■</span>;
+  return <span className="text-faint">·</span>;
 }
 
 // ---------- the list ----------
@@ -69,27 +84,27 @@ function RoutinesList() {
   const reload = useCallback(() => GET<RoutineListing[]>('/routines').then(setList).catch(() => {}), []);
   useEffect(() => void reload(), [reload]);
   useServerEvents((ev) => (ev.type === 'routines' || ev.type === 'routine-run') && void reload());
-  if (!teams || !list) return <p className="dim">Loading routines…</p>;
+  if (!teams || !list) return <p className="text-dim">Loading routines…</p>;
   return (
     <>
       <p className="lede">A routine is work you want done again and again: a morning news check, a weekly report, a content plan. Write it once, @mention the agents and teams who do it and the skills they should use, then run it by hand or on a schedule.</p>
-      <div className="row between rt-head">
-        <h2 className="section">{`Your routines${list.length ? ` (${list.length})` : ''}`}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3.5">
+        <h2 className="section m-0">{`Your routines${list.length ? ` (${list.length})` : ''}`}</h2>
         <button className="btn small" onClick={() => void create()}>
           <Icon name="plus" size={14} />
           New routine
         </button>
       </div>
       {list.length ? (
-        <div className="rt-grid">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-3">
           {list.map((r) => (
             <RoutineCard key={r.id} r={r} teams={teams} />
           ))}
         </div>
       ) : (
         <div className="empty box">
-          <p className="rt-empty-title">No routines yet.</p>
-          <p className="hint rt-empty-example">Example: "Every morning, @Researcher finds the 3 biggest AI stories, then @Content Team turns them into a post using @Brand voice."</p>
+          <p className="mb-3">No routines yet.</p>
+          <p className="hint mx-auto mb-3.5 max-w-130">Example: "Every morning, @Researcher finds the 3 biggest AI stories, then @Content Team turns them into a post using @Brand voice."</p>
           <button className="btn small" onClick={() => void create()}>
             <Icon name="plus" size={14} />
             Write your first routine
@@ -99,6 +114,8 @@ function RoutinesList() {
     </>
   );
 }
+
+const DESC = 'm-0 text-dim text-[13px] leading-[1.45] line-clamp-3';
 
 function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) {
   const [running, setRunning] = useState(false);
@@ -110,17 +127,17 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
     setRunning(false);
   };
   return (
-    <div className="rt-card">
-      <div className="skill-top">
+    <div className="flex flex-col gap-2.5 p-3.5 border border-line rounded-[12px] bg-panel cursor-pointer transition-[border-color,transform] duration-180 ease-[ease] animate-[rise-in_.25s_ease-out_both] min-w-0 hover:border-accent-dim hover:[transform:translateY(-1px)]">
+      <div className="flex gap-3 items-center">
         <div className="skill-ico"><Icon name="repeat" size={18} /></div>
-        <div className="grow">
-          <a className="skill-name rt-card-link" href={`#/routines/${r.id}`}>{r.name}</a>
+        <div className="flex-1 min-w-0">
+          <a className="skill-name font-semibold text-[15px] text-inherit hover:text-accent" href={`#/routines/${r.id}`}>{r.name}</a>
           <div className="hint">{sched ? (r.enabled ? scheduleText(r.schedule) : `${scheduleText(r.schedule)} · off`) : 'run by hand'}</div>
         </div>
       </div>
-      {r.description || r.text ? <p className="skill-desc">{r.description || r.text}</p> : <p className="skill-desc faint">Nothing written yet.</p>}
+      {r.description || r.text ? <p className={DESC}>{r.description || r.text}</p> : <p className={DESC}>Nothing written yet.</p>}
       {r.mentions.length ? (
-        <div className="rt-ms">
+        <div className={CHIPS}>
           {r.mentions.map((m) => (
             <MentionChip key={`${m.kind}:${m.id}`} m={m} teams={teams} />
           ))}
@@ -128,12 +145,12 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
       ) : (
         <span className="hint">Nobody mentioned yet</span>
       )}
-      <div className="skill-foot">
+      <div className="flex items-center gap-1.5 mt-auto">
         <button className="btn small" disabled={running} onClick={() => void run()}>
           <Icon name="play" size={13} />
           Run
         </button>
-        <span className="grow" />
+        <span className="flex-1 min-w-0" />
         {last ? (
           <span className="hint">
             <StatusIcon status={last.status} />
@@ -164,7 +181,7 @@ function RoutineEditor({ id }: { id: string }) {
         Routine not found. <a href="#/routines">Back to routines</a>
       </p>
     );
-  if (!loaded || !teams) return <p className="dim">Loading routines…</p>;
+  if (!loaded || !teams) return <p className="text-dim">Loading routines…</p>;
   return <EditorForm first={loaded} teams={teams} />;
 }
 
@@ -210,17 +227,17 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
       .filter((m) => m.kind === 'agent')
       .map((m) => {
         const t = viaTeam(m.id);
-        return <MentionChip key={`a:${m.id}`} m={m} teams={teams} extra={t ? <span className="rt-via">{`in ${t.name}`}</span> : null} />;
+        return <MentionChip key={`a:${m.id}`} m={m} teams={teams} extra={t ? <span className="font-mono text-[10.5px] leading-[normal] font-normal text-faint">{`in ${t.name}`}</span> : null} />;
       }),
   ];
   const skills = found.filter((m) => m.kind === 'skill').map((m) => <MentionChip key={`s:${m.id}`} m={m} teams={teams} />);
   const whoRow = (label: string, ico: string, items: ReactNode[], empty: string) => (
-    <div className="rt-who-row">
-      <div className="rt-who-label">
+    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2.5 items-center max-sm:grid-cols-1 max-sm:gap-1.5">
+      <div className="inline-flex items-center gap-1.5 font-mono text-[10.5px] leading-[normal] font-semibold tracking-[0.12em] uppercase text-dim">
         <Icon name={ico} size={13} />
         {label}
       </div>
-      <div className="rt-ms">{items.length ? items : <span className="hint">{empty}</span>}</div>
+      <div className={CHIPS}>{items.length ? items : <span className="hint">{empty}</span>}</div>
     </div>
   );
   const insert = (kind: RoutineMentionKind, label: string, ico: string) => (
@@ -232,16 +249,16 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
 
   return (
     <>
-      <div className="row between rt-edit-head">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 mb-4">
         <a className="btn ghost small" href="#/routines">← Routines</a>
-        <div className="row">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button className="btn" disabled={!dirty || saving} onClick={() => void save()}>Save</button>
         </div>
       </div>
-      <div className="two-col">
-        <div className="col gap-lg">
+      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
+        <div className="flex flex-col gap-4.5">
           <div className="panel">
-            <div className="grid-2">
+            <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
               <Field label="Name">
                 <input value={name} onChange={(e) => (setName(e.target.value), setDirty(true))} />
               </Field>
@@ -261,7 +278,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             </div>
             <textarea
               ref={ta}
-              className="rt-text"
+              className="min-h-45 leading-[1.55]"
               rows={9}
               aria-label="What to do"
               value={text}
@@ -271,11 +288,11 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             <p className="hint">
               Type <b>@</b> to mention an agent, a team or a skill. Mentioned agents and teams each get the routine (an agent in a mentioned team gets it in that team chat); mentioned skills are given to all of them for it.
             </p>
-            <div className="rt-who">
+            <div className="rt-who flex flex-col gap-2.5 mt-3.5 pt-3.5 border-t border-line">
               {whoRow('Who does it', 'users', doers, 'Mention at least one agent or team.')}
               {whoRow('Skills', 'puzzle', skills, 'None. Mention a skill to have them follow it.')}
               {gone.length ? (
-                <p className="hint amber">
+                <p className="hint">
                   <Icon name="triangle-alert" size={12} />
                   {` ${gone.map((m) => `@${m.name}`).join(', ')} ${gone.length === 1 ? 'was' : 'were'} deleted, so ${gone.length === 1 ? 'it is' : 'they are'} left out.`}
                 </p>
@@ -283,7 +300,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             </div>
           </div>
         </div>
-        <div className="col gap-lg">
+        <div className="flex flex-col gap-4.5">
           <RunIt id={id} beforeRun={async () => !dirty || (await save())} />
           <div className="panel">
             <div className="panel-head">
@@ -297,7 +314,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             </div>
             <Runs id={id} />
           </div>
-          <div className="row">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button className="btn danger small" onClick={() => void del()}>Delete routine</button>
           </div>
         </div>
@@ -322,7 +339,7 @@ function RunIt({ id, beforeRun }: { id: string; beforeRun: () => Promise<boolean
         <h2>Run it</h2>
       </div>
       <textarea rows={2} aria-label="Extra for this run" placeholder="Optional: anything extra for this run" value={input} onChange={(e) => setInput(e.target.value)} />
-      <div className="row mt">
+      <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
         <button className="btn" disabled={busy} onClick={() => void run()}>
           <Icon name="play" size={14} />
           Run now
@@ -348,7 +365,7 @@ function Runs({ id }: { id: string }) {
   if (!runs.length) return <p className="empty">No runs yet.</p>;
   const isOpen = (run: RoutineRun, i: number) => (open ? open.has(run.id) : i === 0);
   return (
-    <div className="col">
+    <div className="flex flex-col gap-2.5">
       {runs.slice(0, 15).map((run, i) => (
         <details
           key={run.id}
@@ -362,7 +379,7 @@ function Runs({ id }: { id: string }) {
             setOpen(next);
           }}
         >
-          <summary className="rt-run-head">
+          <summary className="flex items-center gap-2 cursor-pointer py-1.5 flex-wrap">
             <StatusIcon status={run.status} />
             <b>{run.status}</b>
             <span className="hint">{`${ago(run.createdAt)} · ${run.trigger}`}</span>
@@ -382,13 +399,13 @@ function Runs({ id }: { id: string }) {
 
 function TargetRow({ t }: { t: RoutineRunTarget }) {
   return (
-    <div className="run-step">
+    <div className="grid grid-cols-[22px_1fr] gap-2.5 py-2 border-b border-line last:border-b-0 [&_pre]:max-h-50">
       <StatusIcon status={t.status} />
       <div>
-        <div className="row rt-target">
+        <div className="flex flex-wrap items-center gap-2">
           <b>{t.name}</b>
           <span className="hint">{t.kind === 'team' ? `team · ${t.status}` : t.status}</span>
-          <span className="grow" />
+          <span className="flex-1 min-w-0" />
           {t.kind === 'team' ? (
             <button className="btn ghost tiny" onClick={() => openChat('team', t.id)}>
               <Icon name="message-square" size={12} />

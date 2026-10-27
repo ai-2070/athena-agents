@@ -148,7 +148,7 @@ describe('the Station panel', () => {
     expect(el.querySelector('.st-about-text')!.textContent).toBe('A product launch.');
     expect([...el.querySelectorAll('.st-file')].map((f) => f.textContent!.trim())).toEqual(['PROJECT.md', 'notes']);
     expect([...el.querySelectorAll('.list .title')].map((t) => t.textContent)).toEqual(['Thumbs', 'Posts']);
-    await act(async () => el.querySelector<HTMLElement>('.list .list-item')!.click());
+    await act(async () => el.querySelector<HTMLElement>('.list .list-row')!.click());
     expect(chosen.at(-1)).toEqual({ type: 'branch', id: 't1' });
   });
 

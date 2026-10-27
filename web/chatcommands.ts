@@ -28,10 +28,10 @@ export function slashMenu(input: HTMLTextAreaElement, kind: ChatKind, { run }: {
       options.map((o, i) =>
         h(
           `button.tc-sopt${i === active ? '.on' : ''}`,
-          { type: 'button', role: 'option', 'aria-selected': String(i === active), onmousedown: (e: MouseEvent) => (e.preventDefault(), pick(o)) },
-          h('b.slash-name', `/${o.name}`),
-          o.args ? h('span.slash-args', o.args) : null,
-          h('span.hint', o.about),
+          { class: 'items-baseline', type: 'button', role: 'option', 'aria-selected': String(i === active), onmousedown: (e: MouseEvent) => (e.preventDefault(), pick(o)) },
+          h('b.slash-name', { class: 'flex-none font-mono text-[12.5px] leading-[normal] font-semibold text-accent' }, `/${o.name}`),
+          o.args ? h('span', { class: 'flex-none font-mono text-[11.5px] leading-[normal] text-faint' }, o.args) : null,
+          h('span.hint', { class: 'min-w-0' }, o.about),
         ),
       ),
     );
@@ -81,14 +81,16 @@ export function goalLine(g: BrainBrief, max = GOAL_FOLLOW_UPS): string {
   return g.followUps ? `${g.followUps} of ${max} follow-ups` : 'the Brain checks the work after each turn';
 }
 
+const CHIP_TEXT = 'min-w-0 flex-1 truncate';
+
 /** The loop and goal chips (x ends one). Empty when there is neither. */
 export function commandChips(el: HTMLElement, { loop, goal, onStopLoop, onClearGoal }: { loop: LoopInfo | null; goal: BrainBrief | null; onStopLoop: () => void; onClearGoal: () => void }): void {
   el.classList.toggle('hidden', !loop && !goal);
   mount(
     el,
     goal
-      ? h('div.cmd-chip.goal', icon('target', 13), h('span.cmd-chip-text', h('b', 'Goal: '), goal.goal || goal.text), h('span.hint', goalLine(goal)), h('button.tc-act', { title: 'Drop this goal', 'aria-label': 'Drop this goal', onclick: onClearGoal }, icon('x', 12)))
+      ? h('div.cmd-chip.goal', icon('target', 13), h('span', { class: CHIP_TEXT }, h('b', 'Goal: '), goal.goal || goal.text), h('span.hint', goalLine(goal)), h('button.tc-act', { title: 'Drop this goal', 'aria-label': 'Drop this goal', onclick: onClearGoal }, icon('x', 12)))
       : null,
-    loop ? h('div.cmd-chip.loop', icon('repeat', 13), h('span.cmd-chip-text', h('b', 'Loop: '), loop.text), h('span.hint', loopLine(loop)), h('button.tc-act', { title: 'Stop the loop', 'aria-label': 'Stop the loop', onclick: onStopLoop }, icon('x', 12))) : null,
+    loop ? h('div.cmd-chip.loop', icon('repeat', 13), h('span', { class: CHIP_TEXT }, h('b', 'Loop: '), loop.text), h('span.hint', loopLine(loop)), h('button.tc-act', { title: 'Stop the loop', 'aria-label': 'Stop the loop', onclick: onStopLoop }, icon('x', 12))) : null,
   );
 }

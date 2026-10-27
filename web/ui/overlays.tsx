@@ -186,7 +186,7 @@ function Toasts({ container }: { container: HTMLElement | null }) {
   const { toasts: list } = Toast.useToastManager<ToastData>();
   return (
     <Toast.Portal container={container}>
-      <Toast.Viewport className="toast-stack">
+      <Toast.Viewport className="flex flex-col gap-2 outline-none">
         {/* oldest first, newest at the bottom of the stack, as before */}
         {[...list].reverse().map((t) => (
           <Toast.Root key={t.id} toast={t} className={`toast${t.type && t.type !== 'info' ? ` ${t.type}` : ''}`}>

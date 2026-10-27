@@ -31,10 +31,10 @@ export function applyLook(look: Partial<LookSetting> = {}): LookSetting {
   const scale = Math.max(70, Math.min(160, Number(l.scale) || 100));
   root.style.zoom = scale === 100 ? '' : String(scale / 100);
   const a = ACCENTS.find((x) => x.id === l.accent) || ACCENTS[0];
-  root.style.setProperty('--accent', a.c);
-  root.style.setProperty('--accent-hover', a.hover);
-  root.style.setProperty('--accent-dim', a.dim);
-  root.style.setProperty('--on-accent', a.on);
+  root.style.setProperty('--color-accent', a.c);
+  root.style.setProperty('--color-accent-hover', a.hover);
+  root.style.setProperty('--color-accent-dim', a.dim);
+  root.style.setProperty('--color-on-accent', a.on);
   root.classList.toggle('reduce-motion', l.motion === 'reduced');
   try {
     localStorage.setItem(KEY, JSON.stringify(l));

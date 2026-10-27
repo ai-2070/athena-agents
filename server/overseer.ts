@@ -8,7 +8,7 @@ import { agents, workflows, activeProject, openProject, projectSwitches, listPro
 import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from './library.ts';
 import { TOOL_GROUPS, workspaceOf } from './tools.ts';
 import { listServers, PRESETS, presetNeeds, suggestPresets, importableServers, saveServer, serverName, renameServer, removeServerEverywhere } from './mcp.ts';
-import { discoverPrograms } from './programs.ts';
+import { knownPrograms } from './programs.ts';
 import type { McpServerConfig } from './mcp.ts';
 import { ensureBrain, brainInfo, updateProject } from './projects.ts';
 import { listTeams, teamState, getThread, getTeam, teamSteps, stopTeam, dropQueuedTurns } from './teams.ts';
@@ -316,7 +316,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
   const ready = PRESETS.map((x) => `${x.name} (${x.title}${servers[x.name] ? ', added' : ''}${presetNeeds(x) ? `; ${presetNeeds(x)}` : ''})`).join(', ');
   const found = importableServers().filter((x) => !servers[serverName(x.name)]).slice(0, 40).map((x) => `${x.name} (source "${x.source}")`).join(', ');
   // ready-made ones that fit this PC (a program it drives is installed, or a basic one): offered, never added unasked
-  const suggested = suggestPresets(await discoverPrograms().catch(() => []), servers)
+  const suggested = suggestPresets(knownPrograms(), servers)
     .map((x) => `${x.name} (${x.reason}${x.needs ? `; ${x.needs}` : ''})`)
     .join(', ');
 

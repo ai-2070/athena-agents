@@ -73,16 +73,16 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
   const setC = (k: 'auto' | 'engineOwn' | 'instant', on: boolean) => (setCompaction({ ...compaction, [k]: on }), setP(`compaction.${k}`, on));
 
   return (
-    <div className="two-col">
-      <div className="col gap-lg">
+    <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
+      <div className="flex flex-col gap-4.5">
         <div className="panel">
           <div className="panel-head">
             <h2>AI keys</h2>
           </div>
-          <h3 className="ai-group">Engines on this PC</h3>
+          <h3 className={`${AI_GROUP} mt-1`}>Engines on this PC</h3>
           <Engines data={data} reload={reload} />
-          <h3 className="ai-group">API keys</h3>
-          <div className="ai-list">
+          <h3 className={`${AI_GROUP} mt-5.5`}>API keys</h3>
+          <div className={AI_LIST}>
             <SecretField k="openrouterKey" mark={<Mark brand="openrouter" />} secrets={secrets} reload={reload} label="OpenRouter key" placeholder="sk-or-…" hint={<span>One key for hundreds of models (Claude, GPT, Gemini, Llama, DeepSeek…). Get it at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Also usable by Claude Code agents.</span>} />
             <SecretField k="anthropicKey" mark={<Mark brand="anthropic" />} optional secrets={secrets} reload={reload} label="Anthropic API key" placeholder="sk-ant-…" hint={'For Claude Code agents set to "Anthropic API key" instead of your subscription.'} />
           </div>
@@ -93,12 +93,12 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
             <h2>The Brain's model</h2>
           </div>
           <p className="hint">The Brain oversees the project: it answers about the project and its files, builds teams and agents, writes PROJECT.md and hands work out. It can run on Claude Code, OpenRouter, Hermes or Codex. Claude Code and Codex can also open files in the project folder.</p>
-          <div className="row mt">
+          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
             <Field label="Model" group="brain-model-label">
               <DomNode make={() => brainModelChip({ prefix: '', onChange: (b) => (s.brain = b) })} deps={[]} />
             </Field>
           </div>
-          <div className="row mt">
+          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
             <DomNode make={() => memoryButton(BRAIN, 'The Brain')} deps={[]} />
             <span className="hint">What the Brain remembers across its conversations in this project. Read or change it any time.</span>
           </div>
@@ -120,11 +120,11 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
           <div className="panel-head">
             <h2>Defaults for new agents</h2>
           </div>
-          <div className="col">
+          <div className="flex flex-col gap-2.5">
             <Field label="Brain" group="default-engine-label">
               <Segmented label="Brain" options={data.engineList.map((e) => ({ value: e.id, label: e.label }))} value={engine} onChange={(v) => (setEngine(v), setP('defaults.engine', v))} />
             </Field>
-            <div className="grid-2">
+            <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
               <Field label="Claude Code model">
                 <input defaultValue={s.defaults.claudeModel} onChange={(e) => setP('defaults.claudeModel', e.target.value)} />
               </Field>
@@ -151,7 +151,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
           <div className="panel-head">
             <h2>Limits</h2>
           </div>
-          <div className="grid-2">
+          <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
             <Field label="Max tool steps per message" hint="API-model agents stop after this many tool rounds.">
               <input type="number" min={1} max={100} defaultValue={s.maxToolSteps} onChange={(e) => setP('maxToolSteps', Number(e.target.value))} />
             </Field>
@@ -167,12 +167,12 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
             <h2>Chat memory</h2>
           </div>
           <p className="hint">Long chats fill up the model’s memory. Compacting turns the older messages into a short history the agent keeps reading, and keeps the latest messages in full. Every message stays in the chat for you, marked “COMPACTED” where it happened; open the mark to read or edit what the agent remembers. You can also press Compact in a chat, or type /compact.</p>
-          <Switch className="mt" checked={compaction.auto} onChange={(on) => setC('auto', on)}>Compact long chats automatically</Switch>
-          <Switch className="mt" checked={compaction.engineOwn !== false} onChange={(on) => setC('engineOwn', on)}>Let Claude Code, Codex, Hermes, pi, oh-my-pi and OpenClaw compact on their own</Switch>
+          <Switch className="mt-3.5" checked={compaction.auto} onChange={(on) => setC('auto', on)}>Compact long chats automatically</Switch>
+          <Switch className="mt-3.5" checked={compaction.engineOwn !== false} onChange={(on) => setC('engineOwn', on)}>Let Claude Code, Codex, Hermes, pi, oh-my-pi and OpenClaw compact on their own</Switch>
           <p className="hint">They compact their own sessions when nearly full, keeping their prompt cache and what they know about their tools. The dashboard then compacts their chats only when you ask (Compact, /compact), or when one says the chat is too long. Off: the dashboard compacts them too, at the share below, and starts a new session from its compacted history. API-model agents are always compacted here.</p>
-          <Switch className="mt" checked={compaction.instant} onChange={(on) => setC('instant', on)}>Instant compaction</Switch>
+          <Switch className="mt-3.5" checked={compaction.instant} onChange={(on) => setC('instant', on)}>Instant compaction</Switch>
           <p className="hint">Instant keeps the original words, cut to fit: long messages are shortened, tool calls become one line and their results are left out (the agent can read any of them back). No model call, so it takes no time and costs nothing. Off: the Brain’s model writes a summary instead (slower, smaller).</p>
-          <div className="grid-2 mt">
+          <div className="mt-3.5 grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
             <Field label="Messages kept in full" hint="Up to this many of the latest messages (yours and the agent’s, with their tool calls) stay word for word, as far as the size budget allows. The rest is compacted.">
               <input type="number" min={0} max={1000} defaultValue={s.compaction.keepMessages} onChange={(e) => setP('compaction.keepMessages', Number(e.target.value))} />
             </Field>
@@ -180,23 +180,23 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
               <input type="number" min={10} max={95} defaultValue={s.compaction.thresholdPercent} onChange={(e) => setP('compaction.thresholdPercent', Number(e.target.value))} />
             </Field>
           </div>
-          <div className="mt">
+          <div className="mt-3.5">
             <Field label="Context window (tokens)" hint="Leave empty to use what each engine or model says (Claude Code 200k, or 1M for a “[1m]” model). Set 1000000 if your models have a 1M-token window: everything the compaction keeps grows with the window.">
               <input type="number" min={0} step={1000} defaultValue={s.compaction.windowTokens || ''} placeholder="auto" onChange={(e) => setP('compaction.windowTokens', Number(e.target.value) || 0)} />
             </Field>
           </div>
         </div>
-        <div className="row">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button className="btn" onClick={() => void save()}>Save settings</button>
         </div>
       </div>
 
-      <div className="col gap-lg">
+      <div className="flex flex-col gap-4.5">
         <div className="panel">
           <div className="panel-head">
             <h2>Local and custom models</h2>
           </div>
-          <div className="col">
+          <div className="flex flex-col gap-2.5">
             <Field label="LM Studio server" hint="In LM Studio: Developer > Start server.">
               <input className="code" defaultValue={s.providers.lmstudio.baseUrl} onChange={(e) => setP('providers.lmstudio.baseUrl', e.target.value)} />
             </Field>
@@ -213,7 +213,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
           <div className="panel-head">
             <h2>Programs</h2>
           </div>
-          <div className="col">
+          <div className="flex flex-col gap-2.5">
             <Field label="ComfyUI address">
               <input className="code" defaultValue={s.comfyui.url} placeholder="auto (tries :8188 and :8000)" onChange={(e) => setP('comfyui.url', e.target.value.trim())} />
             </Field>
@@ -251,7 +251,7 @@ function SavedSwitch({ field, initial, on, off, reload, children }: { field: key
     else await reload();
   };
   return (
-    <Switch className="mt" checked={value} onChange={(v) => void change(v)}>
+    <Switch className="mt-3.5" checked={value} onChange={(v) => void change(v)}>
       {children}
     </Switch>
   );
@@ -261,23 +261,33 @@ function SavedSwitch({ field, initial, on, off, reload, children }: { field: key
 function Mark({ brand, glyph }: { brand?: string; glyph?: string }) {
   // near-black brand colours (Anthropic, OpenAI) would vanish on the dark tile: those draw in the text colour
   const color = brand && DARK_BRANDS.has(brand) ? '#e6e8e0' : null;
-  return <DomNode as="span" className="ai-mark" make={() => (brand && logo(brand, 18, color)) || document.createTextNode(glyph || '•')} deps={[brand, glyph]} />;
+  return <DomNode as="span" className="ai-mark grid size-8 place-items-center rounded-ctl border border-line bg-panel-2 font-sans text-[16px] leading-none font-semibold text-ink [&_svg]:size-[17px]" make={() => (brand && logo(brand, 18, color)) || document.createTextNode(glyph || '•')} deps={[brand, glyph]} />;
 }
 const DARK_BRANDS = new Set(['anthropic', 'openai']);
+
+// AI keys: one row per engine or key (ai-row, ai-name, ai-mark, ai-key and ai-list stay for the tests)
+const AI_GROUP = 'mb-1.5 font-mono text-[11px] leading-[1.3] font-medium tracking-[0.16em] text-dim uppercase';
+const AI_LIST = 'ai-list flex flex-col border-t border-line [&>.ai-row:last-child]:border-b-0 [&>.ai-row:last-child]:pb-0.5';
+const AI_ROW = 'ai-row grid grid-cols-[32px_minmax(0,1fr)_auto] items-start gap-x-3.5 border-b border-line py-3 [&.flash-find]:rounded-ctl max-[561px]:grid-cols-[32px_minmax(0,1fr)] max-[561px]:gap-y-2';
+const AI_MAIN = 'flex min-w-0 flex-col gap-1.5';
+const AI_HEAD = 'flex min-h-8 flex-wrap items-center gap-2';
+const AI_NAME = 'ai-name font-sans text-[14.5px] leading-[1.3] font-semibold text-ink';
+const AI_NOTE = 'text-[12.5px] leading-normal text-dim [&_a]:text-accent [&_a]:underline-offset-2';
+export const AI_VERSION = 'font-mono text-[12px] leading-[1.3] font-normal text-dim tabular-nums';
 
 /** One engine or key: its mark, name and status, a line about it, and what you can do on the right. */
 function AiRow({ mark, name, status, note, children }: { mark: ReactNode; name: ReactNode; status?: ReactNode; note?: ReactNode; children?: ReactNode }) {
   return (
-    <div className="ai-row">
+    <div className={AI_ROW}>
       {mark}
-      <div className="ai-main">
-        <div className="ai-head">
-          <span className="ai-name">{name}</span>
+      <div className={AI_MAIN}>
+        <div className={AI_HEAD}>
+          <span className={AI_NAME}>{name}</span>
           {status}
         </div>
-        {note ? <div className="ai-note">{note}</div> : null}
+        {note ? <div className={AI_NOTE}>{note}</div> : null}
       </div>
-      {children ? <div className="ai-actions">{children}</div> : null}
+      {children ? <div className="flex min-h-8 items-center gap-1.5 max-[561px]:col-start-2 max-[561px]:min-h-0">{children}</div> : null}
     </div>
   );
 }
@@ -286,7 +296,7 @@ function AiRow({ mark, name, status, note, children }: { mark: ReactNode; name: 
 const Found = ({ label = 'found', version }: { label?: string; version?: string | null }) => (
   <>
     <span className="pill ok">{label}</span>
-    {version ? <span className="ai-version">{shortVersion(version)}</span> : null}
+    {version ? <span className={AI_VERSION}>{shortVersion(version)}</span> : null}
   </>
 );
 /** "2.1.311 (Claude Code)" → "2.1.311": the row already says which program it is. */
@@ -296,8 +306,8 @@ const shortVersion = (v: string): string => v.replace(/\s*\([^)]*\)\s*$/, '');
 function InstallCmd({ cmd }: { cmd: string }) {
   const copy = () => void navigator.clipboard.writeText(cmd).then(() => toast('Copied'), () => toast('Copy it by hand: the clipboard is blocked', 'warn'));
   return (
-    <span className="ai-cmd">
-      <code>{cmd}</code>
+    <span className="ai-cmd mr-1 inline-flex max-w-full items-center gap-1.5 align-middle">
+      <code className="min-w-0 overflow-x-auto rounded-[5px] border border-line bg-bg px-2 py-0.75 font-mono text-[12px] leading-normal whitespace-nowrap text-ink">{cmd}</code>
       <button type="button" className="btn ghost tiny" onClick={copy} aria-label={`Copy ${cmd}`}>
         Copy
       </button>
@@ -325,30 +335,30 @@ function SecretField({ k, secrets, reload, label, placeholder, hint, mark, optio
   const test = () =>
     attempt(() => POST<OpenRouterKeyInfo>('/settings/test-openrouter'), (r) => `Key works${r.label ? ` (${r.label})` : ''}${r.limit_remaining != null ? ` · $${Number(r.limit_remaining).toFixed(2)} left` : r.usage != null ? ` · $${Number(r.usage).toFixed(2)} used` : ''}`);
   return (
-    <div className={`ai-row ai-key${mark ? '' : ' plain'}`}>
+    <div className={mark ? `${AI_ROW} ai-key` : 'ai-row ai-key grid grid-cols-[minmax(0,1fr)] items-start gap-x-3.5 [&.flash-find]:rounded-ctl max-[561px]:gap-y-2'}>
       {mark}
-      <div className="ai-main">
-        <div className="ai-head">
-          <label className="ai-name" htmlFor={id}>{label}</label>
+      <div className={AI_MAIN}>
+        <div className={mark ? AI_HEAD : 'flex flex-wrap items-center gap-2'}>
+          <label className={mark ? AI_NAME : 'ai-name font-mono text-[11px] leading-[1.3] font-medium tracking-[0.16em] text-dim uppercase'} htmlFor={id}>{label}</label>
           {saved.set ? <Found label="saved" version={saved.hint} /> : <span className="pill">{optional ? 'optional' : 'not set'}</span>}
         </div>
-        <div className="ai-keyline">
-          <input id={id} type="password" autoComplete="off" value={value} placeholder={saved.set ? 'Paste a new key to replace it' : placeholder} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void store()} />
-          <button className="btn small" disabled={!value.trim()} onClick={() => void store()}>
+        <div className="flex items-stretch gap-1.5 max-[561px]:flex-wrap">
+          <input className="min-w-0 flex-1 max-[561px]:basis-full" id={id} type="password" autoComplete="off" value={value} placeholder={saved.set ? 'Paste a new key to replace it' : placeholder} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void store()} />
+          <button className="btn small h-auto min-h-8.5" disabled={!value.trim()} onClick={() => void store()}>
             Save
           </button>
           {k === 'openrouterKey' && saved.set ? (
-            <button className="btn ghost small" onClick={() => void test()}>
+            <button className="btn ghost small h-auto min-h-8.5" onClick={() => void test()}>
               Test
             </button>
           ) : null}
           {saved.set ? (
-            <button className="btn ghost small" onClick={() => void remove()}>
+            <button className="btn ghost small h-auto min-h-8.5" onClick={() => void remove()}>
               Remove
             </button>
           ) : null}
         </div>
-        {hint ? <div className="ai-note">{hint}</div> : null}
+        {hint ? <div className={AI_NOTE}>{hint}</div> : null}
       </div>
     </div>
   );
@@ -379,12 +389,12 @@ function Engines({ data, reload }: { data: AppState; reload: () => Promise<unkno
   const recheck = () =>
     attempt(() => POST<EngineStatus['codex']>('/codex/refresh'), (r) => (r.loggedIn ? 'Codex is signed in' : r.installed ? 'Installed, not signed in yet' : 'Not installed')).then(() => (refreshSoon(0), later(300)));
   return (
-    <div className="ai-list">
+    <div className={AI_LIST}>
       <AiRow mark={<Mark brand="claude" />} name="Claude Code" status={cc.installed ? <Found version={cc.version} /> : <span className="pill bad">not installed</span>} note={cc.installed ? 'Agents on "My Claude login" use your Claude subscription. Nothing to paste.' : 'Install Claude Code to run agents on your Claude subscription.'} />
       <AiRow
         mark={<Mark brand="openai" />}
         name="OpenAI Codex"
-        status={!cx.installed ? <span className="pill">not installed</span> : cx.loggedIn ? <Found label="signed in" version={cx.version} /> : <><span className="pill warn">not signed in</span>{cx.version ? <span className="ai-version">{cx.version}</span> : null}</>}
+        status={!cx.installed ? <span className="pill">not installed</span> : cx.loggedIn ? <Found label="signed in" version={cx.version} /> : <><span className="pill warn">not signed in</span>{cx.version ? <span className={AI_VERSION}>{cx.version}</span> : null}</>}
         note={!cx.installed ? 'Installs the official CLI with npm (npm install -g @openai/codex). Then sign in with your ChatGPT account.' : cx.loggedIn ? 'Agents set to Codex use your ChatGPT login.' : 'Sign in opens a terminal running "codex login": follow the link, then press Recheck.'}
       >
         {!cx.installed ? (

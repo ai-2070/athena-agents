@@ -271,18 +271,23 @@ export interface AttachTray {
 }
 
 // deferred: hold the files and upload only when ready() is called (a new project: its folder doesn't exist yet).
+// the menu under the paperclip: Files…, A folder…
+const MENU_ITEM = 'flex cursor-pointer items-center gap-2 rounded-ctl px-2.5 py-1.75 text-left text-[13px] whitespace-nowrap text-ink hover:bg-panel-2 hover:text-accent';
+// a place that takes dropped files, while files are dragged over it
+const OVER = 'outline-2 outline-dashed outline-accent -outline-offset-3'.split(' ');
+
 export function attachTray({ deferred = false, onChange }: { deferred?: boolean; onChange?: () => void } = {}): AttachTray {
   let items: Item[] = [];
   const el = h('div.att-tray.hidden');
   const fileIn = h('input', { type: 'file', multiple: true, hidden: true });
   const dirIn = h('input', { type: 'file', multiple: true, hidden: true, webkitdirectory: true });
-  const menu = h('div.att-menu.hidden');
+  const menu = h('div.hidden', { class: 'absolute bottom-[calc(100%+6px)] left-0 z-60 flex min-w-[150px] flex-col rounded-box border border-line-2 bg-glass-strong p-1.25 shadow-pop animate-fade-fast' });
   const closeMenu = () => {
     menu.classList.add('hidden');
     document.removeEventListener('pointerdown', outside, true);
   };
   const outside = (e: PointerEvent) => !picker.contains(e.target as Node) && closeMenu();
-  const btn = h('button.btn.ghost.small.att-btn', {
+  const btn = h('button.btn.ghost.small', {
     type: 'button',
     title: 'Attach files or a folder (or drop or paste them here)',
     'aria-label': 'Attach files',
@@ -294,10 +299,10 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
   }, icon('paperclip', 15));
   mount(
     menu,
-    h('button.att-menu-item', { type: 'button', onclick: () => (closeMenu(), fileIn.click()) }, icon('file', 14), 'Files…'),
-    h('button.att-menu-item', { type: 'button', onclick: () => (closeMenu(), dirIn.click()) }, icon('folder-up', 14), 'A folder…'),
+    h('button', { class: MENU_ITEM, type: 'button', onclick: () => (closeMenu(), fileIn.click()) }, icon('file', 14), 'Files…'),
+    h('button', { class: MENU_ITEM, type: 'button', onclick: () => (closeMenu(), dirIn.click()) }, icon('folder-up', 14), 'A folder…'),
   );
-  const picker = h('span.att-picker', btn, menu, fileIn, dirIn);
+  const picker = h('span', { class: 'relative inline-flex flex-none' }, btn, menu, fileIn, dirIn);
   fileIn.addEventListener('change', () => (add(filesFromInput(fileIn.files)), (fileIn.value = '')));
   dirIn.addEventListener('change', () => (add(filesFromInput(dirIn.files)), (dirIn.value = '')));
 
@@ -318,10 +323,10 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
     return h(
       `div.att-chip.${it.state}`,
       { title: it.state === 'error' ? it.error || '' : it.path || it.name },
-      it.preview ? h('img.att-thumb', { src: it.preview, alt: '' }) : h('span.att-ico', icon(it.kind === 'folder' ? 'folder' : 'file', 14)),
+      it.preview ? h('img', { class: 'size-5.5 flex-none rounded-[4px] object-cover', src: it.preview, alt: '' }) : h('span.att-ico', icon(it.kind === 'folder' ? 'folder' : 'file', 14)),
       h('span.att-name', it.name),
-      h('span.att-meta', meta),
-      it.state === 'uploading' ? h('span.att-bar', { style: { '--p': String(pct / 100) } }) : null,
+      h('span', { class: `max-w-[140px] truncate font-mono text-[10.5px] leading-[normal] ${it.state === 'error' ? 'text-red' : it.state === 'uploading' ? 'text-accent' : 'text-faint'}` }, meta),
+      it.state === 'uploading' ? h('span', { class: 'absolute bottom-0 left-0 h-0.5 w-full origin-left bg-accent [transform:scaleX(var(--p,0))] transition-transform duration-150 ease-linear', style: { '--p': String(pct / 100) } }) : null,
       h('button.att-x', { type: 'button', title: 'Remove', 'aria-label': `Remove ${it.name}`, onclick: () => remove(it) }, icon('x', 12)),
     );
   };
@@ -376,13 +381,13 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
     // the overlay needs a positioned zone; put back what was there once it goes
     let oldPosition: string | null = null;
     const show = (on: boolean) => {
-      zone.classList.toggle('att-over', on);
+      for (const c of OVER) zone.classList.toggle(c, on);
       if (on && !overlay) {
         if (getComputedStyle(zone).position === 'static') {
           oldPosition = zone.style.position;
           zone.style.position = 'relative';
         }
-        overlay = h('div.att-drop', icon('upload', 22), h('span', label));
+        overlay = h('div', { class: 'pointer-events-none absolute inset-0.75 z-50 flex animate-[fade_0.12s_ease-out] flex-col items-center justify-center gap-2 rounded-box bg-bg/93 p-3 text-center font-mono text-[12px] leading-[normal] font-semibold tracking-[0.08em] text-accent uppercase backdrop-blur-[3px]' }, icon('upload', 22), h('span', label));
         zone.append(overlay);
       } else if (!on && overlay) {
         overlay.remove();
@@ -469,12 +474,13 @@ export function restoreDraft(input: HTMLTextAreaElement, text: string): void {
 export function attachmentChips(paths: readonly string[] | undefined | null): HTMLDivElement | null {
   if (!paths?.length) return null;
   return h(
-    'div.att-sent',
+    'div',
+    { class: 'mt-1.5 flex flex-wrap gap-1.5 whitespace-normal first:mt-0' },
     paths.map((p) => {
       const name = baseName(p);
       const url = fileUrl(p);
       if (isFolderPath(p)) return h('span.att-chip.sent', { title: p }, h('span.att-ico', icon('folder', 13)), h('span.att-name', `${name}/`));
-      if (IMAGE.test(p)) return h('a.att-img', { href: url, target: '_blank', rel: 'noopener', title: p }, h('img', { src: url, alt: name, loading: 'lazy' }));
+      if (IMAGE.test(p)) return h('a.att-img', { class: 'group block leading-[0]', href: url, target: '_blank', rel: 'noopener', title: p }, h('img', { class: 'h-18 w-24 rounded-[8px] border border-line-2 object-cover group-hover:border-accent-dim', src: url, alt: name, loading: 'lazy' }));
       return h('a.att-chip.sent', { href: url, target: '_blank', rel: 'noopener', title: p }, h('span.att-ico', icon('file', 13)), h('span.att-name', name));
     }),
   );

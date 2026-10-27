@@ -105,12 +105,13 @@ export function focusText(root: ParentNode, text: string | null, tries = 14): vo
     return;
   }
   // the nearest row (an engine or key in AI keys) before the whole panel
-  const box = el.closest<HTMLElement>('.ai-row, .panel, .list-item, .card') || el;
+  const box = el.closest<HTMLElement>('.ai-row, .panel, .list-row, .card') || el;
   box.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  box.classList.remove('flash-find');
+  // flash-find stays as the mark tests look for; the utility next to it is the flash
+  box.classList.remove('flash-find', 'animate-[flash-find_2.1s_ease-out]');
   void box.offsetWidth;
-  box.classList.add('flash-find');
-  setTimeout(() => box.classList.remove('flash-find'), 2200);
+  box.classList.add('flash-find', 'animate-[flash-find_2.1s_ease-out]');
+  setTimeout(() => box.classList.remove('flash-find', 'animate-[flash-find_2.1s_ease-out]'), 2200);
 }
 
 /** The settings that match every word typed, best first (at most 9). */
@@ -132,6 +133,9 @@ export function searchSettings(query: string): IndexEntry[] {
 const tabLabel = (id: TabId) => TABS.find((t) => t.id === id)?.label || id;
 /** What the list offers: matching settings, or (none matching) finding the text on this tab. */
 type Hit = IndexEntry | { here: string };
+
+// settings-search-hit: tests look for it. on: the highlighted one
+const HIT = 'settings-search-hit flex w-full cursor-pointer items-center gap-2.5 rounded-[8px] border-0 bg-none px-2.5 py-2 text-left text-ink hover:bg-accent/14 [&.on]:bg-accent/14';
 
 function SettingsSearch({ onChoose }: { onChoose: (hit: Hit) => void }) {
   const [text, setText] = useState('');
@@ -161,28 +165,33 @@ function SettingsSearch({ onChoose }: { onChoose: (hit: Hit) => void }) {
       itemToStringValue={(hit: Hit) => ('here' in hit ? hit.here : hit.label)}
       autoHighlight
     >
-      <div className="settings-search" ref={anchor}>
+      {/* the frame lights up on focus (focus-within), so the box inside it needs no outline of its own */}
+      <div
+        className="relative mb-1.5 flex w-[min(300px,40vw)] items-center gap-2 rounded-box border border-line bg-panel/70 px-2.5 text-dim transition-[border-color,box-shadow] duration-200 ease-[ease] focus-within:border-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)] max-[761px]:w-auto"
+        ref={anchor}
+      >
         <Icon name="search" size={15} />
-        <Autocomplete.Input ref={input} className="settings-search-input" type="search" placeholder="Search settings…" aria-label="Search settings" />
+        <Autocomplete.Input ref={input} className="min-w-0 flex-1 rounded-ctl border-0 bg-transparent px-0 py-2 text-inherit shadow-none focus-visible:outline-none" type="search" placeholder="Search settings…" aria-label="Search settings" />
       </div>
       <Autocomplete.Portal>
-        <Autocomplete.Positioner anchor={anchor} align="end" sideOffset={6} className="settings-search-positioner">
-          <Autocomplete.Popup className="settings-search-pop">
+        {/* placed by its positioner, so no position of its own */}
+        <Autocomplete.Positioner anchor={anchor} align="end" sideOffset={6} className="z-60 outline-none">
+          <Autocomplete.Popup className="w-[max(var(--anchor-width),320px)] max-w-(--available-width) rounded-[12px] border border-line bg-panel p-1.5 shadow-[0_18px_50px_rgb(0_0_0/0.45)] outline-none empty:hidden has-[>[role=listbox]:empty]:hidden">
             <Autocomplete.List>
               {(hit: Hit) => (
                 <Autocomplete.Item
                   key={'here' in hit ? '?here' : `${hit.tab}:${hit.find}`}
                   value={hit}
-                  className={(s) => `settings-search-hit${s.highlighted ? ' on' : ''}`}
+                  className={(s) => (s.highlighted ? `${HIT} on` : HIT)}
                   onClick={() => choose(hit)}
                 >
                   <Icon name="search" size={14} />
                   {'here' in hit ? (
-                    <span className="grow">{`Find "${hit.here}" on this tab`}</span>
+                    <span className="min-w-0 flex-1">{`Find "${hit.here}" on this tab`}</span>
                   ) : (
                     <>
-                      <span className="grow">{hit.label}</span>
-                      <span className="hint">{tabLabel(hit.tab)}</span>
+                      <span className="min-w-0 flex-1">{hit.label}</span>
+                      <span className="hint text-[11.5px]">{tabLabel(hit.tab)}</span>
                     </>
                   )}
                 </Autocomplete.Item>
@@ -245,7 +254,7 @@ function SettingsPage() {
       tabs={TABS.map((t) => ({ value: t.id, label: t.label }))}
       value={tab}
       onChange={(t) => go(t)}
-      rowClassName="settings-top"
+      rowClassName="mb-4.5 flex flex-wrap items-end gap-3.5 border-b border-line max-[761px]:flex-col max-[761px]:items-stretch [&>.tabs]:-mb-px [&>.tabs]:min-w-0 [&>.tabs]:flex-1 [&>.tabs]:border-b-0"
       aside={<SettingsSearch onChoose={choose} />}
     >
       <TabBody key={`${tab}:${drawn}`} tab={TABS.find((t) => t.id === tab)!} hostRef={(el) => void (panel.current = el)} />

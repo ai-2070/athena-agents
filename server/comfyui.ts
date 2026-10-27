@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { getProgram, comfyWorkflowDirs, launchProgram } from './programs.ts';
+import { serviceUrl, comfyWorkflowDirs, launchProgram } from './programs.ts';
 import { fetchJSON, readJSON, listFiles, dataPath, ensureDir } from './util.ts';
 import type { FetchError } from './util.ts';
 import type { ServerResponse } from 'node:http';
@@ -96,8 +96,7 @@ export interface ComfyQueueStatus {
 const API_DIR = ensureDir(dataPath('comfy-workflows'));
 
 export async function comfyUrl(): Promise<string | null> {
-  const p = await getProgram('comfyui');
-  return p?.serviceUrl || null;
+  return serviceUrl('comfyui');
 }
 
 async function requireUrl(): Promise<string> {

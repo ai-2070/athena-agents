@@ -34,13 +34,17 @@ export function diffLines(a: string, b: string): DiffLine[] {
   return out;
 }
 
+// a version's text, in a box of its own
+const TEXT_BOX = 'm-0 max-h-[58vh] overflow-auto rounded-ctl border border-line bg-bg px-3.5 py-3 font-mono text-[12.5px] leading-[1.55] font-normal whitespace-pre-wrap wrap-anywhere';
+const LINE = { kept: '-mx-1.5 px-1.5 text-dim', del: '-mx-1.5 bg-red/12 px-1.5 text-red', add: '-mx-1.5 bg-accent/10 px-1.5 text-accent' };
+
 function diffView(older: string, newer: string): HTMLElement {
   const lines = diffLines(older, newer);
-  if (!lines.some((l) => l.op !== ' ')) return h('div.ver-text', h('p.hint', 'Same as the current one.'), h('pre', older));
+  if (!lines.some((l) => l.op !== ' ')) return h('div', h('p.hint', 'Same as the current one.'), h('pre', { class: TEXT_BOX }, older));
   return h(
-    'div.ver-text',
-    h('p.hint', h('span.ver-line.del', '- only in this version'), '   ', h('span.ver-line.add', '+ added since')),
-    h('pre.ver-diff', lines.map((l) => h(`div.ver-line${l.op === '-' ? '.del' : l.op === '+' ? '.add' : ''}`, `${l.op} ${l.text}`))),
+    'div',
+    h('p.hint', h('span', { class: LINE.del }, '- only in this version'), '   ', h('span', { class: LINE.add }, '+ added since')),
+    h('pre', { class: TEXT_BOX }, lines.map((l) => h('div', { class: l.op === '-' ? LINE.del : l.op === '+' ? LINE.add : LINE.kept }, `${l.op} ${l.text}`))),
   );
 }
 
@@ -52,8 +56,8 @@ export async function openHistory(kind: VersionKind, id: string, { onRestored }:
   let m: ModalHandle;
   let picked: VersionDetail | null = null;
   let compare = true;
-  const listEl = h('div.ver-list');
-  const view = h('div.ver-view');
+  const listEl = h('div', { class: 'flex max-h-[62vh] flex-col gap-1 overflow-auto pr-1 max-[761px]:max-h-[30vh]' });
+  const view = h('div', { class: 'flex min-w-0 flex-col gap-2.5' });
 
   const pick = async (vid: string) => {
     const d = await attempt(() => GET<VersionDetail>(`/versions/${kind}/${encodeURIComponent(id)}/${vid}`));
@@ -70,7 +74,18 @@ export async function openHistory(kind: VersionKind, id: string, { onRestored }:
     onRestored?.();
   };
 
-  const row = (on: boolean, title: Child, sub: Child, onclick?: () => void) => h(`button.ver-row${on ? '.on' : ''}`, { onclick, disabled: !onclick }, h('div.ver-row-title', title), h('div.hint', sub));
+  // a version in the list; the picked one is lit
+  const row = (on: boolean, title: Child, sub: Child, onclick?: () => void) =>
+    h(
+      'button',
+      {
+        class: `block w-full cursor-pointer rounded-ctl border px-2.75 py-2.25 text-left text-ink enabled:hover:border-[color-mix(in_srgb,var(--color-accent)_35%,var(--color-line))] disabled:cursor-default ${on ? 'border-accent bg-accent/8' : 'border-line bg-transparent'}`,
+        onclick,
+        disabled: !onclick,
+      },
+      h('div', { class: 'flex items-center gap-2 font-semibold' }, title),
+      h('div.hint', { class: 'mt-0.5 wrap-anywhere' }, sub),
+    );
 
   const draw = () => {
     mount(
@@ -80,25 +95,26 @@ export async function openHistory(kind: VersionKind, id: string, { onRestored }:
         ? hist.versions.map((v) =>
             row(
               picked?.id === v.id,
-              h('span', ago(v.at), h('span.ver-by', v.by === 'brain' ? icon('brain', 11) : v.by === 'agent' ? icon('bot', 11) : null, byName(v.by))),
+              h('span', ago(v.at), h('span', { class: 'inline-flex items-center gap-0.75 text-[11.5px] font-normal text-dim' }, v.by === 'brain' ? icon('brain', 11) : v.by === 'agent' ? icon('bot', 11) : null, byName(v.by))),
               v.deleted ? 'its last version, before it was deleted' : v.changes.length ? `then changed: ${v.changes.join(', ')}` : v.note || 'then saved',
               () => pick(v.id),
             ),
           )
-        : h('p.hint.ver-empty', 'No earlier versions yet. Each change keeps the version from before it.'),
+        : h('p.hint', { class: 'px-0.5 py-2' }, 'No earlier versions yet. Each change keeps the version from before it.'),
     );
     if (!picked) {
-      mount(view, hist.current === null ? h('p.hint', 'Pick a version to see it and bring it back.') : h('pre.ver-plain', hist.current));
+      mount(view, hist.current === null ? h('p.hint', 'Pick a version to see it and bring it back.') : h('pre', { class: TEXT_BOX }, hist.current));
     } else {
       const older = picked.text;
       mount(
         view,
         h(
-          'div.ver-view-head',
-          h('div.grow', h('b', `Version from ${when(picked.at)}`), h('div.hint', `Replaced by ${byName(picked.by)}${picked.deleted ? ' (deleted)' : ''}${picked.note ? ` · ${picked.note}` : ''}`)),
-          hist.current !== null ? h('label.row.small', h('input', { type: 'checkbox', checked: compare, onchange: (e: Event) => ((compare = (e.target as HTMLInputElement).checked), draw()) }), h('span', 'Compare with current')) : null,
+          'div',
+          { class: 'flex flex-wrap items-center gap-3' },
+          h('div', { class: 'min-w-0 flex-1' }, h('b', `Version from ${when(picked.at)}`), h('div.hint', `Replaced by ${byName(picked.by)}${picked.deleted ? ' (deleted)' : ''}${picked.note ? ` · ${picked.note}` : ''}`)),
+          hist.current !== null ? h('label', { class: 'flex flex-wrap items-center gap-2.5' }, h('input', { type: 'checkbox', checked: compare, onchange: (e: Event) => ((compare = (e.target as HTMLInputElement).checked), draw()) }), h('span', 'Compare with current')) : null,
         ),
-        compare && hist.current !== null ? diffView(older, hist.current) : h('pre.ver-plain', older),
+        compare && hist.current !== null ? diffView(older, hist.current) : h('pre', { class: TEXT_BOX }, older),
       );
     }
     restoreBtn.disabled = !picked;
@@ -108,8 +124,8 @@ export async function openHistory(kind: VersionKind, id: string, { onRestored }:
   const restoreBtn = h('button.btn', { onclick: restore, disabled: true }, 'Restore this version');
   m = modal({
     title: `History · ${hist.name}`,
-    body: h('div.ver', listEl, view),
-    foot: [h('span.hint.grow', `${hist.versions.length} earlier version${hist.versions.length === 1 ? '' : 's'} kept`), h('button.btn.ghost', { onclick: () => m.close() }, 'Close'), restoreBtn],
+    body: h('div', { class: 'grid min-h-[360px] grid-cols-[minmax(200px,260px)_1fr] gap-3.5 max-[761px]:grid-cols-[1fr]' }, listEl, view),
+    foot: [h('span.hint', { class: 'min-w-0 flex-1' }, `${hist.versions.length} earlier version${hist.versions.length === 1 ? '' : 's'} kept`), h('button.btn.ghost', { onclick: () => m.close() }, 'Close'), restoreBtn],
   });
   m.el.classList.add('wide');
   draw();
@@ -134,18 +150,18 @@ export async function openDeleted(kinds: VersionKind[], { onRestored }: { onRest
       box,
       failed.length
         ? h(
-            'div.list-item',
+            'div.list-row',
             icon('triangle-alert', 14),
-            h('div.grow', h('div.title', `Couldn't load the deleted ${failed.map((f) => `${KIND_NAME[f.kind]}s`).join(' and ')}`), h('div.hint', failed.map((f) => f.error).join('; '))),
+            h('div', { class: 'min-w-0 flex-1' }, h('div.title', `Couldn't load the deleted ${failed.map((f) => `${KIND_NAME[f.kind]}s`).join(' and ')}`), h('div.hint', failed.map((f) => f.error).join('; '))),
             h('button.btn.ghost.small', { onclick: () => load() }, icon('rotate-cw', 13), 'Retry'),
           )
         : null,
       items.length
         ? items.map((it) =>
             h(
-              'div.list-item',
+              'div.list-row',
               h('div.skill-ico', icon(it.kind === 'skill' ? 'puzzle' : it.kind === 'team' ? 'users' : 'bot', 16)),
-              h('div.grow', h('div.title', it.name), h('div.hint', `${KIND_NAME[it.kind]} · deleted ${ago(it.at)} by ${byName(it.by)}`)),
+              h('div', { class: 'min-w-0 flex-1' }, h('div.title', it.name), h('div.hint', `${KIND_NAME[it.kind]} · deleted ${ago(it.at)} by ${byName(it.by)}`)),
               h('button.btn.ghost.small', { onclick: () => openHistory(it.kind, it.id, { onRestored: () => (load(), onRestored?.()) }) }, icon('history', 13), 'History'),
               h('button.btn.small', {
                 onclick: async (e: MouseEvent) => {
@@ -167,7 +183,7 @@ export async function openDeleted(kinds: VersionKind[], { onRestored }: { onRest
   };
   m = modal({
     title: 'Recently deleted',
-    body: h('div.col', h('p.hint', kinds.includes('skill') ? 'Deleted skills come back with their extra files. Bring one back and give it to whoever should have it again.' : 'An agent comes back without its teams (add it back to them); a team comes back with the members that still exist.'), box),
+    body: h('div', { class: 'flex flex-col gap-2.5' }, h('p.hint', kinds.includes('skill') ? 'Deleted skills come back with their extra files. Bring one back and give it to whoever should have it again.' : 'An agent comes back without its teams (add it back to them); a team comes back with the members that still exist.'), box),
     foot: [h('button.btn', { onclick: () => m.close() }, 'Done')],
   });
   await load();

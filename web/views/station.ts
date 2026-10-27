@@ -698,13 +698,16 @@ function drawScreen(desk: Desk, tick = 0): void {
 
 // ---------- mount ----------
 export async function render(el: HTMLElement): Promise<void> {
-  const root = h('div.st-root');
-  const host = h('div.st-canvas');
-  const labels = h('div.st-labels');
-  const hud = h('div.st-hud');
-  const panel = h('aside.st-panel.hidden');
+  const root = h('div.st-root', { class: 'group/root relative h-screen overflow-hidden bg-[#070807] select-none' });
+  const host = h('div', { class: 'absolute inset-0 block [&_canvas]:absolute [&_canvas]:inset-0 [&_canvas]:block' });
+  // the labels are moved every frame by script (transform): their classes only change with their state
+  const labels = h('div', { class: 'group/labels absolute inset-0 pointer-events-none overflow-hidden *:absolute *:left-0 *:top-0 *:pointer-events-auto *:will-change-transform' });
+  const hud = h('div', { class: 'absolute inset-0 pointer-events-none' });
+  const panel = h('aside.st-panel.hidden', {
+    class: 'absolute top-16 right-3.5 bottom-3.5 w-95 max-w-[calc(100%-28px)] z-5 flex flex-col bg-glass backdrop-blur-[16px] backdrop-saturate-140 border border-line-2 rounded-box shadow-pop select-text max-md:top-auto max-md:left-0 max-md:right-0 max-md:bottom-0 max-md:h-[60vh] max-md:w-auto max-md:max-w-none',
+  });
   const wires = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  wires.classList.add('st-wires');
+  wires.setAttribute('class', 'st-wires absolute inset-0 w-full h-full pointer-events-none overflow-visible');
   const wireDots = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   wires.append(wireDots);
   root.append(host, wires, labels, hud, panel);
@@ -1125,7 +1128,7 @@ function rebuild(): void {
     id: 'brain',
     obj: S.brain.group,
     offset: new THREE.Vector3(0, 9.5, 0),
-    el: h('div.st-brain-label', { onclick: () => choose({ type: 'brain' }), title: 'Click for the project Brain · drop files here (or paste them on the Station) to give them to it', ondragenter: brainDragOver, ondragover: brainDragOver, ondrop: brainDrop }, icon('brain', 14), 'THE BRAIN', h('span.st-brain-n', `${d.project?.name || ''} · ${wfs.length} team${wfs.length === 1 ? '' : 's'} · ${d.agents.length} agent${d.agents.length === 1 ? '' : 's'}`)),
+    el: h('div.st-brain-label', { class: BRAIN_LABEL, onclick: () => choose({ type: 'brain' }), title: 'Click for the project Brain · drop files here (or paste them on the Station) to give them to it', ondragenter: brainDragOver, ondragover: brainDragOver, ondrop: brainDrop }, icon('brain', 14), 'THE BRAIN', h('span', { class: 'text-dim font-normal tracking-[0.06em]' }, `${d.project?.name || ''} · ${wfs.length} team${wfs.length === 1 ? '' : 's'} · ${d.agents.length} agent${d.agents.length === 1 ? '' : 's'}`)),
   });
   // A branch added or removed: make sure the whole station still fits.
   const shape = `${wfs.length}:${bench.length}`;
@@ -1190,6 +1193,23 @@ function loadTeamMark(wf: TeamView, hub: THREE.Group, mark: THREE.Sprite): void 
       /* the emoji stays */
     });
 }
+
+// ---------- label looks ----------
+// The map labels move every frame (inline transform), so only their colors animate. The script marks their
+// state with classes (sel, hot, live, needs, att-target) and data-status; the parent marks focus and data-zoom.
+const CHIP =
+  'group/chip flex items-center gap-1.25 py-0.75 px-1.75 whitespace-nowrap cursor-pointer bg-[rgba(10,12,10,0.88)] border border-line-2 rounded-ctl font-mono text-[9.5px] leading-[normal] font-semibold tracking-[0.08em] uppercase text-ink transition-[opacity,box-shadow,border-color] duration-200 ease-[ease] hover:border-accent hover:text-accent [&.sel]:border-accent [&.sel]:text-accent [&:is([data-status=running],[data-status=needs-you],[data-status=working])]:border-accent-dim group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent group-[.focus]/labels:[&.hot]:shadow-[0_0_0_1px_var(--color-accent),0_0_18px_color-mix(in_srgb,var(--color-accent)_45%,transparent)]';
+const CHIP_DOT =
+  'size-1.5 rounded-full bg-faint group-data-[status=working]/chip:bg-accent group-data-[status=running]/chip:bg-accent group-data-[status=working]/chip:shadow-[0_0_6px_var(--color-accent)] group-data-[status=running]/chip:shadow-[0_0_6px_var(--color-accent)] group-data-[status=needs]/chip:bg-red group-data-[status=needs-you]/chip:bg-red group-data-[status=needs]/chip:animate-[pulse_0.8s_infinite] group-data-[status=needs-you]/chip:animate-[pulse_0.8s_infinite]';
+// the model shows only when zoomed in
+const CHIP_MODEL = "[display:none] ml-0.5 text-faint font-medium normal-case tracking-[0.02em] group-data-[zoom=near]/labels:inline group-data-[zoom=near]/labels:before:content-['·_']";
+const CARD =
+  'py-2.75 px-3.25 cursor-pointer shadow-[0_10px_30px_rgba(0,0,0,0.45)] bg-glass backdrop-blur-[16px] backdrop-saturate-140 border border-[color-mix(in_srgb,var(--c,#555850)_45%,var(--color-line))] rounded-box transition-[opacity,box-shadow,border-color] duration-200 ease-[ease]';
+const BRANCH = `group/card w-53.5 ${CARD} hover:border-(--c) [&.sel]:border-(--c) [&.live]:shadow-[0_0_0_1px_var(--color-accent-dim),0_0_24px_rgba(196,255,61,0.18)] [&.needs]:shadow-[0_0_0_1px_var(--color-amber),0_0_24px_rgba(240,176,74,0.25)] [&:hover]:shadow-[0_0_0_1px_var(--c),0_14px_34px_rgba(0,0,0,0.5)] group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:shadow-[0_0_0_1px_var(--color-accent),0_0_22px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]`;
+const BENCH = `[--c:#555850] w-50 ${CARD} group-[.focus]/labels:opacity-18`;
+const BRANCH_NAME = 'flex items-center gap-1.75 font-mono text-[10.5px] leading-[normal] font-bold tracking-[0.16em] text-ink';
+const BRAIN_LABEL =
+  'flex items-center gap-2 py-1.5 px-2.75 cursor-pointer whitespace-nowrap bg-glass backdrop-blur-[16px] backdrop-saturate-140 border border-accent-dim rounded-box font-mono text-[10.5px] leading-[normal] font-bold tracking-[0.2em] transition-[opacity,box-shadow,border-color] duration-200 ease-[ease] [&.att-target]:border-accent [&.att-target]:text-accent [&.att-target]:shadow-[0_0_0_1px_var(--color-accent),0_0_30px_color-mix(in_srgb,var(--color-accent)_40%,transparent)] group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:shadow-[0_0_0_1px_var(--color-accent),0_0_22px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]';
 
 function buildBranch(wf: TeamView, i: number, ang: number, agentsById: Map<string, Agent>, dist: number): number {
   assertMounted(S);
@@ -1299,7 +1319,7 @@ function buildBranch(wf: TeamView, i: number, ang: number, agentsById: Map<strin
       wf: wf.id,
       obj: desk.group,
       offset: new THREE.Vector3(0, 3.3, 0),
-      el: h('div.st-chip', { onclick: () => choose({ type: 'agent', id: agent.id, wf: wf.id }), title: `${agent.name} · ${agent.model || agent.engine}${isLead ? ' · team lead' : ''}` }, h('span.st-chip-dot'), isLead ? h('span.st-chip-lead', { title: 'Team lead' }, '★') : null, h('span.st-chip-name', agent.name), h('span.st-chip-model', shortModel(agent))),
+      el: h('div', { class: CHIP, onclick: () => choose({ type: 'agent', id: agent.id, wf: wf.id }), title: `${agent.name} · ${agent.model || agent.engine}${isLead ? ' · team lead' : ''}` }, h('span', { class: CHIP_DOT }), isLead ? h('span', { class: 'text-amber', title: 'Team lead' }, '★') : null, h('span', { class: 'max-w-42.5 truncate inline-block align-bottom' }, agent.name), h('span', { class: CHIP_MODEL }, shortModel(agent))),
     });
   });
   // the conversation gently circles the hub
@@ -1314,7 +1334,7 @@ function buildBranch(wf: TeamView, i: number, ang: number, agentsById: Map<strin
   const fitBox = new THREE.Mesh(new THREE.BoxGeometry(14, 0.1, 8), new THREE.MeshBasicMaterial({ visible: false }));
   fitBox.position.copy(away).addScaledVector(away.clone().normalize(), 7);
   pod.add(fitBox);
-  const card = h('div.st-branch', { style: { '--c': wfColor(wf, i) }, onclick: () => choose({ type: 'branch', id: wf.id }) });
+  const card = h('div', { class: BRANCH, style: { '--c': wfColor(wf, i) }, onclick: () => choose({ type: 'branch', id: wf.id }) });
   // pinned by its edge, so it grows away from the pod instead of over it
   addLabel({ kind: 'branch', id: wf.id, obj: anchor, from: pod, offset: new THREE.Vector3(0, 0.5, 0), el: card });
 
@@ -1412,7 +1432,7 @@ function buildBench(agents: Agent[]): void {
     bench.add(desk.group);
     S!.desks.push(desk);
     S!.benchNodes.push({ kind: 'agent', obj: desk.group, links: agentLinks(ag), desk, agentId: ag.id, wfId: null, index: -1 });
-    addLabel({ kind: 'agent', id: ag.id, obj: desk.group, offset: new THREE.Vector3(0, 3.2, 0), el: h('div.st-chip', { onclick: () => choose({ type: 'agent', id: ag.id }), title: `${ag.name} · ${ag.model || ag.engine}` }, h('span.st-chip-dot'), ag.name, h('span.st-chip-model', shortModel(ag))) });
+    addLabel({ kind: 'agent', id: ag.id, obj: desk.group, offset: new THREE.Vector3(0, 3.2, 0), el: h('div', { class: CHIP, onclick: () => choose({ type: 'agent', id: ag.id }), title: `${ag.name} · ${ag.model || ag.engine}` }, h('span', { class: CHIP_DOT }), ag.name, h('span', { class: CHIP_MODEL }, shortModel(ag))) });
   });
   const anchor = new THREE.Object3D();
   anchor.position.copy(dir).multiplyScalar(rows * 1.6 + 3.2);
@@ -1424,7 +1444,7 @@ function buildBench(agents: Agent[]): void {
     id: 'bench',
     obj: anchor,
     offset: new THREE.Vector3(0, 0, 0),
-    el: h('div.st-bench', { onclick: () => choose({ type: 'bench' }), title: 'Drag the Bench platform to move it' }, h('div.st-branch-name', icon('move', 12), 'BENCH'), h('div.hint', `${agents.length} agent${agents.length === 1 ? '' : 's'} not on a team yet`)),
+    el: h('div', { class: BENCH, onclick: () => choose({ type: 'bench' }), title: 'Drag the Bench platform to move it' }, h('div', { class: BRANCH_NAME }, icon('move', 12), 'BENCH'), h('div.hint', `${agents.length} agent${agents.length === 1 ? '' : 's'} not on a team yet`)),
   });
 }
 
@@ -1628,15 +1648,22 @@ function drawBranchCard(wfId: string): void {
   b.card.classList.toggle('needs', false);
   mount(
     b.card,
-    h('div.st-branch-name', h('span.st-dot'), wf.name.toUpperCase()),
-    h('div.st-branch-big', h('b', String(wf.members.length)), h('span', wf.members.length === 1 ? 'AGENT' : 'AGENTS'), lead ? h('span.st-branch-steps', `★ ${lead}`) : null),
-    wf.description ? h('div.st-branch-desc', wf.description) : null,
-    b.links.size ? h('div.st-dept-icons', [...b.links].slice(0, 7).map(badge)) : null,
-    last ? h('div.st-branch-last', h('b', nameOf(last.from) || 'Team'), ' ', String(last.text).replace(/\s+/g, ' ').slice(0, 90), h('span.hint', ` · ${ago(last.ts)}`)) : null,
+    h('div', { class: BRANCH_NAME }, h('span.st-dot'), wf.name.toUpperCase()),
     h(
-      'div.st-branch-foot',
+      'div',
+      { class: 'flex items-baseline gap-1.5 mt-1.5 mb-0.5' },
+      h('b', { class: 'font-sans text-[28px] leading-none font-bold' }, String(wf.members.length)),
+      h('span', { class: 'font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.16em] text-dim' }, wf.members.length === 1 ? 'AGENT' : 'AGENTS'),
+      lead ? h('span', { class: 'ml-auto font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.06em] normal-case text-dim' }, `★ ${lead}`) : null,
+    ),
+    wf.description ? h('div', { class: 'text-[12px] leading-[1.4] text-dim mt-1 mb-1.5 line-clamp-2 group-data-[zoom=far]/labels:hidden' }, wf.description) : null,
+    b.links.size ? h('div', { class: 'flex gap-1 flex-wrap my-1.5' }, [...b.links].slice(0, 7).map(badge)) : null,
+    last ? h('div', { class: 'text-[11.5px] text-dim leading-[1.4] mt-1 mb-0.5 line-clamp-2' }, h('b', { class: 'text-ink font-semibold' }, nameOf(last.from) || 'Team'), ' ', String(last.text).replace(/\s+/g, ' ').slice(0, 90), h('span.hint', ` · ${ago(last.ts)}`)) : null,
+    h(
+      'div',
+      { class: 'mt-1.75 font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.1em] text-dim uppercase' },
       ts.working.length
-        ? h('span.live', `● ${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} next` : ''}`)
+        ? h('span', { class: 'text-accent group-[.needs]/card:text-amber' }, `● ${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} next` : ''}`)
         : h('span', wf.enabled && wf.schedule?.type !== 'none' ? `⏱ ${scheduleText(wf.schedule)}` : last ? 'quiet' : 'say hi to the team'),
     ),
   );
@@ -2162,7 +2189,9 @@ function setFileDrag(mode: 'map' | 'brain' | null): void {
     return;
   }
   if (!S.dropHint) {
-    S.dropHint = h('div.st-drop-hint');
+    S.dropHint = h('div', {
+      class: 'absolute left-1/2 bottom-21 [transform:translateX(-50%)] z-30 flex items-center gap-2 py-2.25 px-3.5 pointer-events-none bg-glass-strong border border-line-2 rounded-[999px] text-dim font-mono text-[11px] leading-[normal] font-semibold tracking-[0.08em] uppercase animate-[fade_0.15s_ease-out] [&.on]:text-accent [&.on]:border-accent',
+    });
     S.root.append(S.dropHint);
   }
   S.dropHint.classList.toggle('on', mode === 'brain');
@@ -2248,7 +2277,7 @@ function startAgentDrag(p: MapPick, copy = false): boolean {
   const marker = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.09, 8, 48), new THREE.MeshBasicMaterial({ color: 0xc4ff3d, transparent: true, opacity: 0 }));
   marker.rotation.x = Math.PI / 2;
   S.world!.add(marker);
-  const hint = h('div.st-drag-hint');
+  const hint = h('div', { class: 'absolute left-0 top-0 z-20 pointer-events-none py-1.25 px-2.25 whitespace-nowrap bg-[rgba(13,16,13,0.95)] border border-accent-dim font-mono text-[11px] leading-[normal] font-semibold text-accent' });
   S.root.append(hint);
   desk.group.traverse((o) => (o.userData.dragging = true));
   S.agentDrag = { desk, home: desk.group.position.clone(), marker, hint, target: null, copy };
@@ -2582,23 +2611,47 @@ function projectWrapParts(): HTMLElement[] {
   const idx = floorPick ? floorPick.idx : open;
   const shown = (floorPick && list[idx]) || d.project;
   const { above, below } = neighbours(list, idx);
-  const ghost = (p: { name: string } | null, where: string) => h(`span.st-project-ghost.${where}`, { 'aria-hidden': 'true' }, p ? shortName(p.name) : '');
+  const ghost = (p: { name: string } | null, where: string) =>
+    h(`span.st-project-ghost.${where}`, { class: 'flex-1 min-w-0 h-3 pl-0 truncate font-mono text-[9.5px] leading-[normal] font-semibold tracking-[0.12em] uppercase text-dim opacity-40 transition-opacity duration-200 ease-[ease] pointer-events-none group-hover/proj:opacity-65', 'aria-hidden': 'true' }, p ? shortName(p.name) : '');
   // the arrow keys, drawn as small keys: they show what the keyboard does, and can be clicked too
   const key = (dir: 1 | -1, enabled: boolean) => {
-    const k = h(`button.st-floor-key.${dir < 0 ? 'up' : 'down'}`, { type: 'button', title: dir < 0 ? 'The project above (Up arrow)' : 'The project below (Down arrow)', 'aria-label': dir < 0 ? 'Previous project' : 'Next project', onclick: () => stepFloor(dir) }, icon(dir < 0 ? 'arrow-up' : 'arrow-down', 10));
+    const k = h(`button.st-floor-key.${dir < 0 ? 'up' : 'down'}`, {
+      class: 'flex-none grid place-items-center w-4 h-3.75 p-0 border border-line-2 border-b-2 rounded-[4px] bg-transparent text-dim cursor-pointer opacity-55 transition-[opacity,color,border-color] duration-150 ease-[ease] hover:not-disabled:opacity-100 hover:not-disabled:text-accent hover:not-disabled:border-accent-dim disabled:opacity-18 disabled:cursor-default',
+      type: 'button',
+      title: dir < 0 ? 'The project above (Up arrow)' : 'The project below (Down arrow)',
+      'aria-label': dir < 0 ? 'Previous project' : 'Next project',
+      onclick: () => stepFloor(dir),
+    }, icon(dir < 0 ? 'arrow-up' : 'arrow-down', 10));
     k.disabled = !enabled;
     return k;
   };
   const name = shown?.name || 'Project';
   const button = h(
     `button.st-project${floorPick ? '.pending' : ''}`,
-    { title: `${name} · Switch or create a project (the Up and Down keys move between them)`, onclick: (e) => openProjectMenu(e.currentTarget) },
-    shown?.logoAt ? h('span.st-mark.logo', projectMark(shown as Project, 18)) : h('span.st-mark', '◢'),
+    {
+      class: 'flex items-center gap-2.25 py-1.75 pr-2.75 pl-2.25 flex-none max-w-65 bg-glass border border-line-2 rounded-ctl text-ink cursor-pointer font-mono text-[13px] leading-[normal] font-bold tracking-[0.1em] uppercase hover:border-accent-dim [&.pending]:border-accent-dim [&.pending_.st-project-name]:text-accent [&_.ico-svg]:text-dim',
+      title: `${name} · Switch or create a project (the Up and Down keys move between them)`,
+      onclick: (e) => openProjectMenu(e.currentTarget),
+    },
+    projectMarkEl(shown),
     // every project's name sits (unseen) in the same spot, so the button is as wide as the longest one: switching never moves what is next to it
-    h('span.st-project-namebox', h('span.st-project-name', shortName(name)), ...list.map((p) => h('span.st-project-sizer', { 'aria-hidden': 'true' }, shortName(p.name)))),
+    h(
+      'span',
+      { class: 'inline-grid min-w-0 overflow-hidden *:[grid-area:1/1] *:min-w-0' },
+      h('span.st-project-name', { class: 'truncate' }, shortName(name)),
+      ...list.map((p) => h('span', { class: 'invisible h-0 overflow-hidden whitespace-nowrap pointer-events-none', 'aria-hidden': 'true' }, shortName(p.name))),
+    ),
     icon('chevron-down', 14),
   );
-  return list.length > 1 ? [h('div.st-floor-row.above', key(-1, !!above), ghost(above, 'above')), button, h('div.st-floor-row.below', key(1, !!below), ghost(below, 'below'))] : [button];
+  // the key and the faint name take the button's width and never set it (width 0, then stretched to the button)
+  const row = (...kids: HTMLElement[]) => h('div', { class: 'flex items-center gap-1.5 w-0 min-w-full box-border' }, ...kids);
+  return list.length > 1 ? [row(key(-1, !!above), ghost(above, 'above')), button, row(key(1, !!below), ghost(below, 'below'))] : [button];
+}
+
+/** The project's logo, or the Station mark, at the start of the project button. */
+function projectMarkEl(p: Project | null | undefined): HTMLSpanElement {
+  const cls = 'inline-grid place-items-center w-4.5 flex-none text-accent';
+  return p?.logoAt ? h('span.st-mark', { class: cls }, projectMark(p, 18)) : h('span.st-mark', { class: cls }, '◢');
 }
 
 /** The text in the middle of the roll: one element changes its words by sliding the old ones out and the new ones in from the other side. */
@@ -2653,7 +2706,7 @@ function paintFloorPick(dir: 1 | -1 | 0 = 0): void {
   button.title = `${shown?.name || 'Project'} · Switch or create a project (the Up and Down keys move between them)`;
   // the logo changes with the project (no roll: it is small)
   const mark = button.querySelector('.st-mark');
-  mark?.replaceWith(shown?.logoAt ? h('span.st-mark.logo', projectMark(shown as Project, 18)) : h('span.st-mark', '◢'));
+  mark?.replaceWith(projectMarkEl(shown));
 }
 
 /** An arrow key: move to the project above (-1) or below (1); it opens a moment after the last press. It stops at the ends. */
@@ -2738,6 +2791,18 @@ function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
 }
 
 // ---------- HUD ----------
+// buttons that press in and lift on hover
+const TRANSITION = '[transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s]';
+const CONN_LABEL = 'inline-flex items-center gap-1.5 mr-1 whitespace-nowrap font-mono text-[10px] leading-[normal] font-medium tracking-[0.2em] text-dim';
+// a header tile; off and missing are marked by class, hot and the row's focus / soft by the script
+const INT_TILE = `grid place-items-center flex-none size-6 p-0 cursor-pointer rounded-ctl border border-[color-mix(in_srgb,var(--c)_55%,transparent)] bg-[color-mix(in_srgb,var(--c)_10%,#0d100d)] text-(--c) font-sans text-[10px] leading-[normal] font-bold shadow-[0_0_12px_color-mix(in_srgb,var(--c)_25%,transparent)] ${TRANSITION} [&_.logo-svg]:size-3.5 [&_.craft-icon]:size-5 active:[transform:scale(0.96)] [&:hover]:[transform:translateY(-1px)] [&.off]:bg-transparent [&.off]:text-faint [&.off]:border-line-2 [&.off]:shadow-none [&.off_.logo-svg_path]:fill-[#5d6359] [&.off_.craft-icon]:grayscale [&_.app-icon]:size-3.5 [&.off_.app-icon]:[filter:grayscale(1)_brightness(0.55)] [&.missing]:border-dashed [&.flash]:animate-[st-flash_1.2s_ease-out] group-[.focus]/conn:[&:not(.hot)]:opacity-15 group-[.focus]/conn:[&:not(.hot)]:grayscale group-[.focus]/conn:[&:not(.hot)]:shadow-none group-[.focus.soft]/conn:[&:not(.hot)]:opacity-62 group-[.focus.soft]/conn:[&:not(.hot)]:[filter:none] group-[.focus]/conn:[&.hot]:[transform:translateY(-1px)] group-[.focus]/conn:[&.hot]:bg-[color-mix(in_srgb,var(--c)_18%,#0d100d)] group-[.focus]/conn:[&.hot]:shadow-[0_0_0_1px_var(--c),0_0_16px_color-mix(in_srgb,var(--c)_55%,transparent)]`;
+const ENGINE =
+  'group/eng relative grid place-items-center size-6 p-0 border-0 bg-transparent rounded-[6px] cursor-pointer text-(--c) font-sans text-[14px] leading-[normal] font-bold text-shadow-[0_0_10px_var(--c)] [transition:transform_0.15s,opacity_0.2s,filter_0.2s] hover:[transform:translateY(-1px)] hover:bg-[color-mix(in_srgb,var(--c)_18%,transparent)] [&.off]:text-[#5b5e57] [&.off]:text-shadow-none [&.off]:grayscale [&.off]:opacity-55 [&.off]:hover:opacity-90 [&.busy]:animate-[st-engine-pulse_1.4s_ease-in-out_infinite] [&_.app-icon]:size-4 [&_.app-icon]:[filter:drop-shadow(0_0_6px_var(--c))]';
+const STAT = 'flex items-baseline gap-1.5 px-2.5 py-1.5 border bg-glass backdrop-blur-[16px] backdrop-saturate-140 rounded-ctl font-mono text-[10px] leading-[normal] font-medium tracking-[0.14em] uppercase text-dim';
+const STAT_N = 'font-sans text-[15px] leading-[normal] font-bold tracking-normal';
+const ZOOM_BTN = `grid place-items-center size-9.5 rounded-full border border-line-2 bg-[rgba(13,16,13,0.9)] text-ink text-[17px] cursor-pointer ${TRANSITION} hover:border-accent hover:text-accent`;
+const FEED_ITEM = 'flex gap-2 py-0.75 whitespace-nowrap overflow-hidden text-ellipsis text-shadow-[0_1px_4px_#000]';
+
 function badge(id: string): HTMLSpanElement | null {
   const it = intInfo(id);
   if (!it) return null;
@@ -2764,16 +2829,19 @@ function drawHud(): void {
   const needs = d.approvals.length + d.outboxPending + (d.questions?.length || 0);
   if (!S.hudBuilt) {
     S.hudBuilt = true;
-    S.hudTop = h('div.st-top');
-    S.feedEl = h('div.st-feed');
+    S.hudTop = h('div', { class: 'absolute top-0 left-0 right-0 flex items-center gap-3.5 px-4.5 py-3.5 bg-[linear-gradient(#070807_40%,transparent)] pointer-events-auto' });
+    S.feedEl = h('div', { class: 'absolute left-4 bottom-4 w-[min(380px,40vw)] font-mono text-[11.5px] leading-[1.45] font-normal pointer-events-auto' });
+    // moves left of the side panel while it is open
     S.zoomEl = h(
-      'div.st-zoom',
-      h('button', { title: 'Zoom in (+)', onclick: () => zoomAt(1.3) }, icon('zoom-in', 17)),
-      h('button', { title: 'Zoom out (−)', onclick: () => zoomAt(0.77) }, icon('zoom-out', 17)),
-      h('button', { title: 'Whole station (0)', onclick: () => resetView() }, icon('house', 17)),
+      'div',
+      { class: 'absolute right-4 bottom-4 flex flex-col gap-1.5 pointer-events-auto group-has-[.st-panel:not(.hidden)]/root:right-101.5' },
+      h('button', { class: ZOOM_BTN, title: 'Zoom in (+)', onclick: () => zoomAt(1.3) }, icon('zoom-in', 17)),
+      h('button', { class: ZOOM_BTN, title: 'Zoom out (−)', onclick: () => zoomAt(0.77) }, icon('zoom-out', 17)),
+      h('button', { class: ZOOM_BTN, title: 'Whole station (0)', onclick: () => resetView() }, icon('house', 17)),
     );
-    S.emptyEl = h('div.st-empty-wrap');
-    S.statsEl = h('div.st-stats-row');
+    // the empty-state note sits at the side, not over the map
+    S.emptyEl = h('div', { class: 'absolute left-4.5 top-18.5 pointer-events-none' });
+    S.statsEl = h('div', { class: 'absolute top-14.5 right-4.5 pointer-events-auto group-has-[.st-panel:not(.hidden)]/root:hidden' });
     S.hud.append(S.hudTop, S.statsEl, S.feedEl, S.zoomEl, S.emptyEl);
   }
   // Everything that could be connected: lit when it works, grey when it doesn't (yet).
@@ -2822,19 +2890,20 @@ function drawHud(): void {
     const who = [users.length ? `${users.length} agent${users.length === 1 ? '' : 's'}` : '', brainP === e.brain ? 'the Brain' : ''].filter(Boolean).join(' + ');
     return { ...e, uses, n: users.length + (brainP === e.brain ? 1 : 0), busy, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${e.ready ? '' : ' (click to set up)'}` };
   });
-  S.clockEl ||= h('span.st-clock');
+  S.clockEl ||= h('span', { class: 'min-w-23 text-right font-mono text-[17px] leading-[normal] font-medium tracking-[0.02em] text-ink' });
   S.tileEls = new Map();
   mount(
     S.hudTop,
-    h('div.st-project-wrap', ...projectWrapParts()),
+    h('div.st-project-wrap', { class: 'group/proj flex flex-col items-stretch gap-0.75 flex-none' }, ...projectWrapParts()),
     h(
       'div.st-connected',
-      h('span.st-conn-label', h('span.dot.on'), 'CONNECTED TO'),
+      { class: 'group/conn flex items-center gap-1 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' },
+      h('span', { class: CONN_LABEL }, h('span.dot.on'), 'CONNECTED TO'),
       tiles
         .filter((t) => !seen.has(t.title.split(' · ')[0].toLowerCase()) && seen.add(t.title.split(' · ')[0].toLowerCase()))
         .sort((a, b) => +b.on - +a.on || +!!a.missing - +!!b.missing)
         .map((t) => {
-          const el = h(`button.st-int${t.on ? '' : '.off'}${t.missing ? '.missing' : ''}`, { style: { '--c': t.color }, title: t.title, onclick: t.onclick }, t.glyph);
+          const el = h(`button${t.on ? '' : '.off'}${t.missing ? '.missing' : ''}`, { class: INT_TILE, style: { '--c': t.color }, title: t.title, onclick: t.onclick }, t.glyph);
           if (t.int) {
             S!.tileEls.set(t.int, el);
             const id = t.int;
@@ -2845,14 +2914,17 @@ function drawHud(): void {
         }),
     ),
     h(
-      'div.st-right',
+      'div',
+      { class: 'flex items-center gap-4 flex-none' },
       h(
-        'div.st-headless',
-        h('span.st-conn-label', h(`span.dot${engines.some((e) => e.busy) ? '.busy' : '.on'}`), 'AI ENGINES'),
+        'div',
+        { class: 'flex items-center gap-1.5' },
+        h('span', { class: `${CONN_LABEL} max-[1501px]:hidden` }, h(`span.dot${engines.some((e) => e.busy) ? '.busy' : '.on'}`), 'AI ENGINES'),
         engines.map((e) =>
           h(
-            `button.st-engine${e.ready ? '' : '.off'}${e.busy ? '.busy' : ''}`,
+            `button${e.ready ? '' : '.off'}${e.busy ? '.busy' : ''}`,
             {
+              class: ENGINE,
               style: { '--c': e.color },
               title: e.title,
               onclick: () => navigate(`#/settings?tab=general&find=${encodeURIComponent(e.find)}`),
@@ -2860,11 +2932,11 @@ function drawHud(): void {
               onpointerleave: () => S && (S.hover = null),
             },
             e.glyph,
-            e.n ? h('span.st-engine-n', String(e.n)) : null,
+            e.n ? h('span', { class: 'absolute -right-1.25 -bottom-1 min-w-3.25 h-3.25 px-0.75 rounded-[7px] bg-[#141713] border border-[color-mix(in_srgb,var(--c)_55%,#333)] text-ink font-mono text-[8.5px] leading-[11px] font-semibold text-shadow-none group-[.off]/eng:border-[#444] group-[.off]/eng:text-[#888]' }, String(e.n)) : null,
           ),
         ),
       ),
-      S.headbar?.usages?.length ? (S.usageEl ||= h('div.st-usage')) : null,
+      S.headbar?.usages?.length ? (S.usageEl ||= h('div', { class: 'flex items-center overflow-hidden max-[1201px]:hidden' })) : null,
       S.clockEl,
     ),
   );
@@ -2874,28 +2946,39 @@ function drawHud(): void {
   mount(
     S.statsEl,
     h(
-      'div.st-stats',
-      d.runs.length || S.active.size ? h('div.st-stat.live', h('b', String(d.runs.length + S.active.size)), 'working') : null,
-      needs ? h('button.st-stat.hot', { onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', String(needs)), 'needs you') : null,
-      d.agents.length ? h('button.st-btn', { onclick: newBranch }, icon('git-branch', 14), 'team') : null,
+      'div',
+      { class: 'ml-auto flex items-center gap-1.5' },
+      // on small screens only the buttons stay
+      d.runs.length || S.active.size ? h('div', { class: `${STAT} border-line-2 max-md:hidden` }, h('b', { class: `${STAT_N} text-accent` }, String(d.runs.length + S.active.size)), 'working') : null,
+      needs ? h('button', { class: `${STAT} border-amber cursor-pointer`, onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: `${STAT_N} text-amber` }, String(needs)), 'needs you') : null,
+      d.agents.length
+        ? h('button', { class: 'inline-flex items-center gap-1.5 px-3 py-2 border-0 rounded-ctl bg-accent text-on-accent cursor-pointer font-mono text-[10.5px] leading-[normal] font-bold tracking-[0.14em] uppercase hover:bg-accent-hover active:[transform:scale(0.96)]', onclick: newBranch }, icon('git-branch', 14), 'team')
+        : null,
     ),
   );
 }
 
 // What to do first, when there is nothing on the map yet.
+const EMPTY = 'pointer-events-auto w-80 py-4 px-4.5 bg-glass backdrop-blur-[16px] backdrop-saturate-140 border border-accent-dim rounded-box shadow-[0_20px_60px_rgba(0,0,0,0.55)] animate-[in-up_0.45s_var(--ease-soft)]';
+const EMPTY_TITLE = 'font-sans text-[15px] leading-[1.3] font-bold mb-1.5';
+const EMPTY_P = 'text-dim text-[13px] mb-3';
+const EMPTY_BTN = 'h-7.5 px-2.75 text-[10.5px]';
 function drawEmpty(d: AppState): void {
   if (!S?.emptyEl) return;
   let card: HTMLDivElement | null = null;
   if (!d.agents.length)
     card = h(
-      'div.st-empty',
-      h('div.st-empty-title', 'Your station is empty'),
-      h('p', 'Tell the Brain what you need, e.g. "make me a social media team", and it builds the team from the library. Or hire and create agents yourself.'),
+      'div',
+      { class: EMPTY },
+      h('div', { class: EMPTY_TITLE }, 'Your station is empty'),
+      h('p', { class: EMPTY_P }, 'Tell the Brain what you need, e.g. "make me a social media team", and it builds the team from the library. Or hire and create agents yourself.'),
       h(
-        'div.row',
-        h('button.btn', { onclick: () => openDock('auto', 'Make me a team for ') }, 'Ask the Brain'),
-        h('a.btn.ghost', { href: '#/library' }, 'Library'),
+        'div',
+        { class: 'flex flex-wrap items-center gap-2.5' },
+        h('button.btn', { class: EMPTY_BTN, onclick: () => openDock('auto', 'Make me a team for ') }, 'Ask the Brain'),
+        h('a.btn.ghost', { class: EMPTY_BTN, href: '#/library' }, 'Library'),
         h('button.btn.ghost', {
+          class: EMPTY_BTN,
           onclick: async () => {
             const a = await attempt(() => POST<Agent>('/agents', { name: 'New agent' }));
             if (a) navigate(`#/agents/${a.id}/edit`);
@@ -2905,10 +2988,11 @@ function drawEmpty(d: AppState): void {
     );
   else if (!S.workflows.length)
     card = h(
-      'div.st-empty',
-      h('div.st-empty-title', `${d.agents.length} agent${d.agents.length === 1 ? '' : 's'} ready`),
-      h('p', 'Ask any of them something in the Brain chat, or group them into a team: a workflow where each one hands its result to the next.'),
-      h('div.row', h('button.btn', { onclick: newBranch }, '+ New team'), h('button.btn.ghost', { onclick: () => openDock() }, 'Open Brain chat')),
+      'div',
+      { class: EMPTY },
+      h('div', { class: EMPTY_TITLE }, `${d.agents.length} agent${d.agents.length === 1 ? '' : 's'} ready`),
+      h('p', { class: EMPTY_P }, 'Ask any of them something in the Brain chat, or group them into a team: a workflow where each one hands its result to the next.'),
+      h('div', { class: 'flex flex-wrap items-center gap-2.5' }, h('button.btn', { class: EMPTY_BTN, onclick: newBranch }, '+ New team'), h('button.btn.ghost', { class: EMPTY_BTN, onclick: () => openDock() }, 'Open Brain chat')),
     );
   mount(S.emptyEl, card);
 }
@@ -2944,19 +3028,30 @@ function drawUsage(animate: boolean): void {
   const look = USAGE_LOOK[u.id] || { glyph: '•', color: '#aaa' };
   const meter = (m: UsageMeter) =>
     h(
-      'div.st-meter',
-      { title: m.resetsAt ? `resets ${new Date(m.resetsAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}` : m.text || '' },
+      'div',
+      {
+        class: 'flex items-center gap-1.75 font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.16em] text-dim',
+        title: m.resetsAt ? `resets ${new Date(m.resetsAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}` : m.text || '',
+      },
       h('span', m.label),
-      m.percent != null ? h('div.st-meter-bar', h('i', { style: { width: `${m.percent}%`, background: m.percent >= 80 ? 'var(--amber)' : 'var(--accent)' } })) : null,
-      h('b', m.percent != null ? `${m.percent}%` : m.text || '–'),
+      m.percent != null ? h('div', { class: 'relative w-11.5 h-1 bg-line-2' }, h('i', { class: 'absolute left-0 top-0 bottom-0', style: { width: `${m.percent}%`, background: m.percent >= 80 ? 'var(--color-amber)' : 'var(--color-accent)' } })) : null,
+      h('b', { class: 'min-w-7.5 font-sans text-[12px] leading-[normal] font-bold tracking-normal text-ink' }, m.percent != null ? `${m.percent}%` : m.text || '–'),
     );
   mount(
     S.usageEl,
     h(
-      `div.st-meters${animate ? '.st-usage-in' : ''}`,
-      h('span.st-usage-who', { style: { '--c': look.color }, title: `${u.name} usage${list.length > 1 ? ' · switches every 6 s' : ''}` }, (look.brand && logo(look.brand, 14)) || look.glyph),
+      'div',
+      // slides in when it switches to the next provider
+      { class: animate ? 'flex items-center gap-3.5 animate-[st-usage-in_0.55s_cubic-bezier(0.2,0.8,0.2,1)_both]' : 'flex items-center gap-3.5' },
+      h('span', { class: 'w-5.5 grid place-items-center text-(--c) text-shadow-[0_0_10px_var(--c)] font-sans text-[14px] leading-[normal] font-bold', style: { '--c': look.color }, title: `${u.name} usage${list.length > 1 ? ' · switches every 6 s' : ''}` }, (look.brand && logo(look.brand, 14)) || look.glyph),
       u.meters.map(meter),
-      list.length > 1 ? h('span.st-usage-dots', list.map((_, i) => h(`i${i === (S!.usageIdx || 0) % list.length ? '.on' : ''}`))) : null,
+      list.length > 1
+        ? h(
+            'span',
+            { class: 'flex flex-col gap-0.75' },
+            list.map((_, i) => h('i', { class: i === (S!.usageIdx || 0) % list.length ? 'size-1 rounded-full transition-[background] duration-300 ease-[ease] bg-accent' : 'size-1 rounded-full transition-[background] duration-300 ease-[ease] bg-[#3a3d37]' })),
+          )
+        : null,
     ),
   );
 }
@@ -2987,8 +3082,8 @@ function drawFeed(): void {
   S.feedEl.classList.toggle('hidden', !S.feed.length);
   mount(
     S.feedEl,
-    h('div.st-feed-head', h('span.dot.busy'), 'LIVE'),
-    S.feed.map((f, i) => h('div.st-feed-item', { style: { opacity: String(1 - i * 0.12) }, class: f.kind === 'error' ? 'err' : '' }, h('span.st-feed-time', ago(f.ts)), f.text)),
+    h('div', { class: 'flex items-center gap-1.5 mb-1.5 text-amber tracking-[0.2em] text-[10px]' }, h('span.dot.busy'), 'LIVE'),
+    S.feed.map((f, i) => h('div', { style: { opacity: String(1 - i * 0.12) }, class: f.kind === 'error' ? `${FEED_ITEM} text-red` : `${FEED_ITEM} text-ink` }, h('span', { class: 'flex-none w-13.5 text-faint' }, ago(f.ts)), f.text)),
   );
 }
 

@@ -109,6 +109,23 @@ interface Dock {
 const D: Dock = { open: false, shown: false, launcherHidden: false, launcherFaded: false, target: 'auto', items: [], input: null, workflows: [], project: null, panel: null, launcher: null };
 const PLACEHOLDER = 'What do you want done?';
 
+// ---------- looks (dock-msg, user and brain stay: tests look them up) ----------
+const MSG = 'dock-msg rounded-box animate-[rise-in_0.22s_var(--ease-soft)] py-2.5 px-3 border text-[14px] leading-[1.55] wrap-anywhere';
+const MSG_AGENT = `${MSG} border-line bg-[rgba(7,8,7,0.55)]`;
+const MSG_DRAFT = `${MSG} border-accent-dim bg-[rgba(7,8,7,0.55)]`;
+const MSG_USER = `${MSG} user self-end max-w-[85%] whitespace-pre-wrap border-[color-mix(in_srgb,var(--color-accent)_28%,var(--color-line))] bg-[color-mix(in_srgb,var(--color-accent)_9%,#111611)]`;
+/** who wrote it: the avatar, the name, a hint (smaller in a team's thread) */
+const WHO = 'flex items-center gap-2 mb-2 [&_.avatar]:size-6.5 [&_.avatar]:text-[14px]';
+const WHO_SMALL = 'flex items-center gap-2 mb-2 [&_.avatar]:size-5.5 [&_.avatar]:text-[12px]';
+const NOTE = 'animate-[rise-in_0.22s_var(--ease-soft)] flex flex-wrap items-center gap-2 text-[13px] text-dim';
+const NOTE_ERR = 'animate-[rise-in_0.22s_var(--ease-soft)] flex flex-wrap items-center gap-2 text-[13px] text-red';
+/** an answer in Markdown */
+const ANSWER = '[&_p]:mx-0 [&_p]:mt-0 [&_p]:mb-1.5 [&_pre]:max-h-[220px]';
+const BRAIN_AV = 'avatar bg-accent/16 text-accent';
+const ACT = 'flex items-center gap-2 py-1.5 px-2.25 rounded-[8px] text-[12.5px] border animate-[rise-in_.22s_ease-out_both]';
+const ACT_OK = `${ACT} bg-accent/8 border-[color-mix(in_srgb,var(--color-accent)_22%,var(--color-line))]`;
+const ACT_ERR = `${ACT} bg-amber/10 border-[color-mix(in_srgb,var(--color-amber)_35%,var(--color-line))]`;
+
 // ---------- drawing ----------
 // React reads the module's state; notify() draws it again now, draw() at most once a frame.
 let version = 0;
@@ -137,7 +154,7 @@ export function initDock(): void {
   D.tray = attachTray({ onChange: draw });
   D.pastes = pasteBox();
   // the bottom bar holds the "Ask the Brain" button (and the minimized chats, web/chatwin.tsx)
-  const bar = h('div.bottom-bar');
+  const bar = h('div.bottom-bar', { class: 'fixed z-45 left-1/2 bottom-4.5 [transform:translateX(-50%)] flex items-center gap-2.5 pointer-events-none *:pointer-events-auto' });
   const host = h('div.dom-contents');
   document.body.append(bar, host);
   D.project = state.data?.project?.id || null;
@@ -305,7 +322,7 @@ function modelNode(t: string, agents: readonly Agent[]): Node | null {
   if (t.startsWith('b:')) {
     const wf = D.workflows.find((w) => w.id === t.slice(2));
     const lead = wf?.lead ? agents.find((x) => x.id === wf.lead) : null;
-    return lead ? h('span.dock-model-note', { title: 'The team lead answers first' }, '★ ', modelChip(lead, { compact: true })) : h('span.dock-model-note.hint', 'each agent its own model');
+    return lead ? h('span', { class: 'inline-flex items-center gap-1 text-[11px]', title: 'The team lead answers first' }, '★ ', modelChip(lead, { compact: true })) : h('span.hint', { class: 'inline-flex items-center gap-1 text-[11px]' }, 'each agent its own model');
   }
   // The Brain itself (and New agent / New team): the Brain's own model
   return brainModelChip();
@@ -345,7 +362,7 @@ function StepCard({ st }: { st: BrainStep }) {
   return (
     <details className={`tool small${st.state === 'error' ? ' error' : ''}`}>
       <summary>
-        {st.state === 'running' ? <span className="dot busy" /> : st.state === 'error' ? <span className="red">✕</span> : <span className="accent">✓</span>}
+        {st.state === 'running' ? <span className="dot busy" /> : st.state === 'error' ? <span className="text-red">✕</span> : <span className="text-accent">✓</span>}
         <span className="tname">{st.name}</span>
         <span className="targ">{brief}</span>
       </summary>
@@ -380,9 +397,9 @@ function DoneAction({ d }: { d: BrainDone }) {
             ? { label: 'Open', go: () => openMemory(d.memory!, d.memory === BRAIN ? 'The Brain' : agentOf(d.memory!)?.name) }
             : null;
   return (
-    <div className={`brain-act${d.kind === 'error' ? ' err' : ''}`}>
+    <div className={d.kind === 'error' ? ACT_ERR : ACT_OK}>
       <Icon name={DONE_ICONS[d.kind] || 'check'} size={13} />
-      <span>{d.text}</span>
+      <span className="flex-1">{d.text}</span>
       {open ? (
         <button className="btn tiny ghost" onClick={open.go}>
           {open.label}
@@ -395,16 +412,16 @@ function DoneAction({ d }: { d: BrainDone }) {
 function BrainMessage({ it, settings }: { it: BrainItem; settings: AppState['settings'] | undefined }) {
   const b = settings?.brain || { model: 'haiku' };
   return (
-    <div className="dock-msg agent brain">
-      <div className="dock-who">
-        <div className="avatar brain-av">
+    <div className={`${MSG_AGENT} brain`}>
+      <div className={WHO}>
+        <div className={BRAIN_AV}>
           <Icon name="brain" size={14} />
         </div>
         <b>Brain</b>
-        <span className="dock-answer-model">{modelInfo(brainAsAgent(b)).short}</span>
+        <span className="text-[10.5px] text-faint font-mono">{modelInfo(brainAsAgent(b)).short}</span>
       </div>
       {it.steps?.length ? (
-        <div className="dock-steps">
+        <div className="flex flex-col gap-1 my-1 font-mono text-[12.5px] leading-[normal] font-normal text-dim">
           {it.steps.map((st) => (
             <StepCard key={st.id} st={st} />
           ))}
@@ -412,25 +429,25 @@ function BrainMessage({ it, settings }: { it: BrainItem; settings: AppState['set
       ) : null}
       {/* (still streaming: what it has written so far; nothing yet: it is looking at the project) */}
       {it.live && !it.answer ? (
-        <div className="dock-note dock-answer">
+        <div className={NOTE}>
           <span className="dot busy" />
           The Brain is looking at the project…
         </div>
       ) : (
-        <Markdown text={it.answer || (it.done?.length ? '' : '(no answer)')} className={`dock-answer${it.live ? ' cursor' : ''}`} />
+        <Markdown text={it.answer || (it.done?.length ? '' : '(no answer)')} className={it.live ? `${ANSWER} cursor` : ANSWER} />
       )}
       {it.answer && !it.live ? <Previews text={it.answer} id={it.id} /> : null}
       {it.done?.length ? (
-        <div className="brain-done">
+        <div className="flex flex-col gap-1 mt-2">
           {it.done.map((d, i) => (
             <DoneAction key={i} d={d} />
           ))}
         </div>
       ) : null}
       {it.delegate ? (
-        <div className="brain-act handoff">
+        <div className={`${ACT_OK} mt-1.5`}>
           <Icon name="send" size={13} />
-          <span>
+          <span className="flex-1">
             Handed to <b>{it.delegate.name}</b>
           </span>
         </div>
@@ -442,31 +459,31 @@ function BrainMessage({ it, settings }: { it: BrainItem; settings: AppState['set
 function AgentMessage({ it }: { it: AgentItem }) {
   const a = agentOf(it.agentId);
   return (
-    <div className="dock-msg agent">
-      <div className="dock-who">
+    <div className={MSG_AGENT}>
+      <div className={WHO}>
         {a ? <Avatar agent={a} /> : null}
         <b>{a?.name || 'Agent'}</b>
-        {a ? <span className="dock-answer-model">{modelInfo(a).short}</span> : null}
+        {a ? <span className="text-[10.5px] text-faint font-mono">{modelInfo(a).short}</span> : null}
         {it.reason ? <span className="hint">{it.reason}</span> : null}
-        <span className="grow" />
+        <span className="flex-1 min-w-0" />
         <button className="btn tiny ghost" onClick={() => navigate(`#/agents/${it.agentId}/${it.chatId}`)}>
           Open chat
         </button>
       </div>
       {/* its turn, streamed in: text as written, tool calls you can open (and file previews) */}
       {it.started ? (
-        <div className="dock-turn">
+        <div className="flex flex-col gap-1.5 min-w-0">
           <Suspense fallback={null}>
             <TurnView agentId={it.agentId} chatId={it.chatId} live />
           </Suspense>
         </div>
       ) : it.text ? (
-        <Markdown text={it.text} className="dock-answer" />
+        <Markdown text={it.text} className={ANSWER} />
       ) : (
-        <div className="hint dock-answer">{it.done ? '(no answer)' : 'Working…'}</div>
+        <div className="hint">{it.done ? '(no answer)' : 'Working…'}</div>
       )}
       {!it.done ? (
-        <div className="dock-note">
+        <div className={NOTE}>
           <span className="dot busy" />
           {it.status || 'Working…'}
         </div>
@@ -480,19 +497,19 @@ function TeamThreadMessage({ m }: { m: TeamMessage }) {
   // (the Brain follows up in the thread too)
   const brain = m.from === 'brain';
   return (
-    <div className="dock-team-msg">
-      <div className="dock-who">
+    <div className="border-t border-line pt-2 mt-2">
+      <div className={WHO_SMALL}>
         {a ? (
           <Avatar agent={a} />
         ) : brain ? (
-          <div className="avatar brain-av">
+          <div className={BRAIN_AV}>
             <Icon name="brain" size={14} />
           </div>
         ) : null}
         <b>{a?.name || (brain ? 'Brain' : 'Team')}</b>
         {m.mentions?.length ? <span className="hint">{`→ ${m.mentions.map((id) => agentOf(id)?.name).filter(Boolean).join(', ')}`}</span> : null}
       </div>
-      <Markdown text={String(m.text).slice(0, 3000)} className="dock-answer" />
+      <Markdown text={String(m.text).slice(0, 3000)} className={ANSWER} />
       <Previews text={m.text} attachments={m.attachments} id={m.id} />
     </div>
   );
@@ -501,14 +518,14 @@ function TeamThreadMessage({ m }: { m: TeamMessage }) {
 function TeamMessageView({ it }: { it: BranchItem }) {
   const nameOf = (id: string) => (id === 'brain' ? 'Brain' : agentOf(id)?.name);
   return (
-    <div className="dock-msg agent">
-      <div className="dock-who">
+    <div className={MSG_AGENT}>
+      <div className={WHO}>
         <div className="avatar">
           <Icon name="users" size={14} />
         </div>
         <b>{it.name}</b>
         {it.reason ? <span className="hint">{it.reason}</span> : null}
-        <span className="grow" />
+        <span className="flex-1 min-w-0" />
         <button className="btn tiny ghost" onClick={() => navigate('#/station')}>
           Open team
         </button>
@@ -517,12 +534,12 @@ function TeamMessageView({ it }: { it: BranchItem }) {
         <TeamThreadMessage key={m.id} m={m} />
       ))}
       {it.working?.length ? (
-        <div className="dock-note">
+        <div className={NOTE}>
           <span className="dot busy" />
           {`${it.working.map((id) => nameOf(id) || 'Agent').join(', ')} working…`}
         </div>
       ) : !it.messages?.length ? (
-        <div className="dock-note">
+        <div className={NOTE}>
           <span className="dot busy" />
           Sent to the team…
         </div>
@@ -550,26 +567,24 @@ function DraftCard({ it }: { it: DraftItem }) {
     if (thenRun) void toAgent(created.id, it.task, 'new agent', it.attachments);
   };
   return (
-    <div className="dock-msg agent draft">
-      <div className="dock-who">
+    <div className={MSG_DRAFT}>
+      <div className={WHO}>
         <div className="avatar">{a.emoji}</div>
         <b>New agent</b>
         <span className="hint">designed from your message</span>
       </div>
-      <div className="col" style={{ gap: '6px' }}>
+      <div className="flex flex-col gap-1.5">
         <input aria-label="Name" value={name} onChange={(e) => setName((a.name = e.target.value))} />
         <input aria-label="What it does" value={spec} onChange={(e) => setSpec((a.specialty = e.target.value))} />
       </div>
-      <div className="mt">
+      <div className="mt-3.5">
         <ChipSet label="Tools" options={(state.data?.toolGroups || []).map((g) => ({ value: g.id, label: g.label, title: g.description }))} value={groups} onChange={(v) => setGroups((a.toolGroups = v))} />
       </div>
-      <details className="mt">
-        <summary className="hint" style={{ cursor: 'pointer' }}>
-          Instructions
-        </summary>
+      <details className="mt-3.5">
+        <summary className="hint cursor-pointer">Instructions</summary>
         <pre>{a.systemPrompt}</pre>
       </details>
-      <div className="row mt">
+      <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
         <button className="btn small" onClick={() => void create(true)}>
           Create &amp; do it
         </button>
@@ -587,14 +602,14 @@ function DraftCard({ it }: { it: DraftItem }) {
 function Item({ it, settings }: { it: DockItem; settings: AppState['settings'] | undefined }) {
   if (it.kind === 'user')
     return (
-      <div className="col" style={{ gap: '6px' }}>
-        <div className="dock-msg user">{it.text || null}</div>
+      <div className="flex flex-col gap-1.5">
+        <div className={MSG_USER}>{it.text || null}</div>
         <Previews text={it.text} attachments={it.attachments} id={it.id} />
       </div>
     );
   if (it.kind === 'note')
     return (
-      <div className={`dock-note${it.error ? ' err' : ''}`}>
+      <div className={it.error ? NOTE_ERR : NOTE}>
         {it.busy ? <span className="dot busy" /> : null}
         {it.text}
         {it.action ? (
@@ -636,7 +651,7 @@ function DockList({ settings }: { settings: AppState['settings'] | undefined }) 
   }, []);
   return (
     <div
-      className="dock-list"
+      className="dock-list flex-1 min-h-0 overflow-y-auto p-3.5 flex flex-col gap-2.5"
       ref={list}
       onScroll={(e) => {
         const el = e.currentTarget;
@@ -646,8 +661,8 @@ function DockList({ settings }: { settings: AppState['settings'] | undefined }) 
       {D.items.length ? (
         D.items.map((it) => <Item key={it.id} it={it} settings={settings} />)
       ) : (
-        <div className="dock-empty">
-          <Icon name="sparkles" size={26} />
+        <div className="m-auto text-center text-dim max-w-[380px]">
+          <Icon name="sparkles" size={26} className="text-accent mb-2" />
           <p>Ask the Brain anything about the project, or for anything to be done.</p>
           <p className="hint">It sees every agent and team and what they are doing. It answers questions itself, builds teams from the library ("make me a social media team"), and hands work to the right agent or team.</p>
         </div>
@@ -705,7 +720,7 @@ function DockView({ bar }: { bar: HTMLElement }) {
       {createPortal(
         <button
           ref={(el) => void (D.launcher = el)}
-          className={`dock-launcher${D.launcherHidden ? ' hidden' : ''}`}
+          className={`dock-launcher relative flex items-center gap-2.5 py-2.75 pr-4.5 pl-3.5 cursor-pointer bg-glass backdrop-blur-[16px] border border-accent-dim rounded-full text-ink font-sans text-[14px] font-medium leading-[normal] shadow-[0_10px_30px_rgba(0,0,0,0.45),0_0_24px_rgba(196,255,61,0.12)] [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] hover:[transform:translateY(-2px)] hover:border-accent hover:shadow-[0_14px_34px_rgba(0,0,0,0.5),0_0_30px_rgba(196,255,61,0.22)] in-[.in-chat]:hidden ${D.launcherHidden ? ' hidden' : ''}`}
           style={D.launcherFaded ? { opacity: 0 } : undefined}
           title={brainKeyTitle()}
           onClick={() => toggle(true)}
@@ -714,20 +729,23 @@ function DockView({ bar }: { bar: HTMLElement }) {
         >
           <Icon name="sparkles" size={17} />
           <span>Ask the Brain…</span>
-          <kbd>{brainKeyLabel(station)}</kbd>
+          <kbd className="font-mono text-[10px] font-medium leading-[normal] text-faint border border-line-2 rounded-[4px] px-1.25 py-px">{brainKeyLabel(station)}</kbd>
         </button>,
         bar,
       )}
-      <div className={`dock${D.shown ? '' : ' hidden'}`} ref={(el) => void (D.panel = el)}>
-        <div className="dock-head">
-          <b>
-            <Icon name="brain" size={16} />
+      <div
+        className={`dock fixed z-46 left-1/2 bottom-4 -translate-x-1/2 w-[min(680px,calc(100vw-32px))] h-[min(70vh,640px)] flex flex-col border border-line-2 overflow-hidden rounded-box bg-glass backdrop-blur-[16px] backdrop-saturate-140 shadow-pop ${D.shown ? '' : ' hidden'}`}
+        ref={(el) => void (D.panel = el)}
+      >
+        <div className="flex items-center gap-2.5 py-3 px-3.5 border-b border-line">
+          <b className="flex items-center gap-2 text-[14px]">
+            <Icon name="brain" size={16} className="text-accent" />
             Brain chat
           </b>
-          <span className="grow" />
-          <span className="dock-to">to</span>
+          <span className="flex-1 min-w-0" />
+          <span className="font-mono text-[10px] font-medium leading-[normal] tracking-[0.14em] uppercase text-faint">to</span>
           <select
-            className="dock-target"
+            className="dock-target w-[230px] py-1.5 pr-7 pl-2.5 text-[13px]"
             aria-label="Send to"
             value={D.target}
             onChange={(e) => {
@@ -753,7 +771,7 @@ function DockView({ bar }: { bar: HTMLElement }) {
               </optgroup>
             ) : null}
           </select>
-          <DomNode className="dock-model" make={() => modelNode(D.target, agents)} deps={[D.target, data, D.workflows]} />
+          <DomNode className="dock-model inline-flex items-center [&_.model-chip]:text-[11px]" make={() => modelNode(D.target, agents)} deps={[D.target, data, D.workflows]} />
           <button className="icon-btn" onClick={() => openMemory(BRAIN)} title="The Brain's MEMORY.md: what it remembers across conversations" aria-label="The Brain's MEMORY.md">
             <Icon name="file-text" size={15} />
           </button>
@@ -765,8 +783,8 @@ function DockView({ bar }: { bar: HTMLElement }) {
           </button>
         </div>
         <DockList settings={data?.settings} />
-        <div className="cmd-chips compact dock-held hidden" ref={chips} />
-        {/* your /queue messages, in the order they will go (× takes one back) */}
+        <div className="cmd-chips compact pt-1.5 px-3.5 pb-0 max-sm:pt-1 max-sm:px-0 hidden" ref={chips} />
+        {/* your /queue messages, in the order they will go (× takes one back; dock-held is only a marker for tests) */}
         <div className={`queued-list compact dock-held${waiting.length ? '' : ' hidden'}`}>
           {waiting.length ? <div className="queued-head">Sends when everything above is done</div> : null}
           {waiting.map((m) => (
@@ -780,14 +798,14 @@ function DockView({ bar }: { bar: HTMLElement }) {
             </div>
           ))}
         </div>
-        <div className="dock-tray-wrap">
+        <div className="px-3.5 [&_.att-tray]:pt-2.5">
           <DomNode className="dom-contents" make={() => D.tray!.el} deps={[]} />
           <DomNode className="dom-contents" make={() => D.pastes!.el} deps={[]} />
         </div>
-        <div className="dock-compose">
+        <div className="flex gap-2 py-3 px-3.5 border-t border-line items-end">
           <DomNode as="span" className="dom-contents" make={() => D.tray!.picker} deps={[]} />
-          <div className="dock-field">
-            <textarea className="dock-input" ref={input} rows={2} aria-label="Message the Brain" placeholder={placeholder} />
+          <div className="flex-1 min-w-0 relative">
+            <textarea className="dock-input min-h-[46px] max-h-[160px] resize-none" ref={input} rows={2} aria-label="Message the Brain" placeholder={placeholder} />
             <span className="dom-contents" ref={slashHost} />
           </div>
           <button className="btn" onClick={() => void send()} title="Send (Enter)" aria-label="Send">

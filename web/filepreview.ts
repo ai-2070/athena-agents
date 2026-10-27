@@ -67,44 +67,54 @@ export function zoomable<E extends HTMLElement>(el: E, src: string, name: string
 }
 
 export function revealButton(path: string): HTMLButtonElement {
-  return h('button.btn.tiny.ghost.fp-reveal', { type: 'button', title: path, onclick: () => attempt(() => POST('/files/reveal', { path })) }, icon('folder-open', 13), revealLabel());
+  return h('button.btn.tiny.ghost.fp-reveal', { class: 'flex-none gap-1.25', type: 'button', title: path, onclick: () => attempt(() => POST('/files/reveal', { path })) }, icon('folder-open', 13), revealLabel());
 }
 
-function card(f: Extract<FileInfo, { ok: true }>): HTMLElement {
+// compact: the floating window, the Station panel, team turns (full width, shorter)
+function card(f: Extract<FileInfo, { ok: true }>, compact: boolean): HTMLElement {
   const url = fileUrl(f.path);
+  const media = `block w-full bg-black object-contain ${compact ? 'max-h-50' : 'max-h-80'}`;
+  const fileBox = `flex items-center gap-2.5 text-ink ${compact ? 'px-3 py-2.5' : 'px-3.5 py-4'}`;
   const preview =
     f.kind === 'image'
-      ? zoomable(h('img.fp-media', { src: url, alt: f.name, loading: 'lazy' }), url, f.name)
+      ? zoomable(h('img', { class: `${media} cursor-zoom-in`, src: url, alt: f.name, loading: 'lazy' }), url, f.name)
       : f.kind === 'video'
-        ? h('video.fp-media', { src: url, controls: true, preload: 'metadata', playsinline: true })
+        ? h('video', { class: media, src: url, controls: true, preload: 'metadata', playsinline: true })
         : f.kind === 'audio'
-          ? h('audio.fp-audio', { src: url, controls: true, preload: 'metadata' })
+          ? h('audio', { class: 'mx-2.5 mt-3 mb-2 block w-[calc(100%-20px)]', src: url, controls: true, preload: 'metadata' })
           : f.kind === 'model'
             ? modelViewer(url, f.name, f.size)
             : h(
               f.kind === 'folder' ? 'div.fp-file' : 'a.fp-file',
-              f.kind === 'folder' ? {} : { href: url, target: '_blank', rel: 'noopener', title: `Download ${f.name}` },
+              f.kind === 'folder' ? { class: fileBox } : { class: `${fileBox} hover:text-accent`, href: url, target: '_blank', rel: 'noopener', title: `Download ${f.name}` },
               icon(f.kind === 'folder' ? 'folder' : 'file-text', 22),
-              h('span.fp-file-name', f.kind === 'folder' ? `${f.name}/` : f.name),
+              h('span', { class: 'min-w-0 truncate text-[13.5px]' }, f.kind === 'folder' ? `${f.name}/` : f.name),
             );
   return h(
     `div.fp-card.fp-kind-${f.kind}`,
-    { title: f.path },
+    { class: compact ? 'flex w-full flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2 [&_.fp-model]:max-h-60' : 'flex w-[min(380px,100%)] flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2', title: f.path },
     preview,
-    h('div.fp-bar', h('span.fp-name', f.name), f.kind !== 'folder' && f.size ? h('span.fp-size', size(f.size)) : null, h('span.grow'), revealButton(f.path)),
+    h(
+      'div.fp-bar',
+      { class: 'flex min-w-0 items-center gap-2 border-t border-line py-1.5 pr-2 pl-3 font-mono text-[11.5px] leading-[normal] text-dim' },
+      h('span.fp-name', { class: 'min-w-0 truncate' }, f.name),
+      f.kind !== 'folder' && f.size ? h('span.fp-size', { class: 'whitespace-nowrap text-faint' }, size(f.size)) : null,
+      h('span', { class: 'min-w-0 flex-1' }),
+      revealButton(f.path),
+    ),
   );
 }
 
 /** Previews for these paths. Returns its box right away (empty and hidden until the files are looked
  *  up; it stays hidden when none of them may be shown). */
 export function filePreviews(paths: readonly string[], { compact = false }: { compact?: boolean } = {}): HTMLDivElement {
-  const box = h(`div.fp-list.hidden${compact ? '.compact' : ''}`);
+  const box = h('div.hidden', { class: compact ? 'flex w-full max-w-[860px] flex-wrap gap-1.5' : 'flex w-full max-w-[860px] flex-wrap gap-2.5' });
   const list = [...new Set(paths)].filter(Boolean);
   if (!list.length) return box;
   lookupFiles(list).then((infos) => {
     const ok = infos.filter((i): i is Extract<FileInfo, { ok: true }> => i.ok);
     if (!ok.length) return;
-    mount(box, ok.map(card));
+    mount(box, ok.map((f) => card(f, compact)));
     box.classList.remove('hidden');
   });
   return box;

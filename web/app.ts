@@ -74,6 +74,25 @@ const HIDDEN: Route[] = [
   { path: 'terminals', label: 'Terminals', view: terminals },
 ];
 
+// The page's box: padded, or flush to the edges (view.flush). Every page fades or rises in.
+const VIEW_PADDED = 'min-w-0 px-7 pt-6.5 pb-15 *:animate-rise-in max-md:px-4 max-md:pt-4.5 max-md:pb-12.5';
+const VIEW_FLUSH = 'min-w-0 *:animate-[fade_0.35s_ease-out]';
+
+// The sidebar's links. On the Station (body.station-mode) the bar folds to its icons: on a wide screen it is
+// clipped to the icon strip and its text fades in when it opens (body.nav-wide); on a narrow one a hovered
+// icon shows its name beside it.
+const NAV_LINK =
+  'group flex items-center gap-3 border-l-2 px-5 py-2.25 font-mono text-[12px] leading-[1.2] font-medium tracking-[0.14em] uppercase [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] in-[.station-mode]:relative max-md:in-[.station-mode]:justify-center max-md:in-[.station-mode]:px-0 max-md:in-[.station-mode]:py-3 max-md:in-[.station-mode.nav-wide]:justify-start max-md:in-[.station-mode.nav-wide]:px-5 max-md:in-[.station-mode.nav-wide]:py-2.75 md:in-[.station-mode]:justify-start md:in-[.station-mode]:py-3 md:in-[.station-mode]:pr-0 md:in-[.station-mode]:pl-4.75';
+const NAV_LINK_OFF = 'border-l-transparent text-dim hover:bg-panel-2 hover:text-ink';
+const NAV_LINK_ON = 'border-l-accent bg-panel-2 text-accent in-[.station-mode]:bg-accent/7 in-[.station-mode]:shadow-[inset_2px_0_0_var(--color-accent)]';
+const NAV_ICO = 'grid w-5 place-items-center text-center text-[14px] tracking-[0] in-[.station-mode]:text-[15px] in-[.station-mode]:group-hover:text-accent';
+const NAV_TXT =
+  'in-[.station-mode]:[display:none] in-[.station-mode]:group-hover:absolute in-[.station-mode]:group-hover:left-[58px] in-[.station-mode]:group-hover:z-90 in-[.station-mode]:group-hover:block in-[.station-mode]:group-hover:border in-[.station-mode]:group-hover:border-line-2 in-[.station-mode]:group-hover:bg-panel-2 in-[.station-mode]:group-hover:px-2.5 in-[.station-mode]:group-hover:py-1.5 in-[.station-mode]:group-hover:whitespace-nowrap in-[.station-mode]:group-hover:text-ink in-[.station-mode.nav-wide]:inline in-[.station-mode.nav-wide]:group-hover:static in-[.station-mode.nav-wide]:group-hover:border-0 in-[.station-mode.nav-wide]:group-hover:bg-transparent in-[.station-mode.nav-wide]:group-hover:p-0 in-[.station-mode.nav-wide]:group-hover:text-inherit md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode]:group-hover:static md:in-[.station-mode]:group-hover:border-0 md:in-[.station-mode]:group-hover:bg-transparent md:in-[.station-mode]:group-hover:p-0 md:in-[.station-mode]:group-hover:text-inherit md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
+const NAV_COUNT =
+  'ml-auto in-[.station-mode]:[display:none] in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
+// a line of the status list at the bottom left
+const NS_LINE = '-mx-1.5 flex items-center gap-1.75 rounded-[6px] px-1.5 py-0.75 text-[11.5px] text-dim no-underline [transition:background_0.15s,color_0.15s] hover:bg-accent/12 hover:text-ink';
+
 let viewEl = document.getElementById('view')!;
 const titleEl = document.getElementById('page-title')!;
 let current: { view: View; params: string[] } | null = null;
@@ -84,7 +103,7 @@ function renderNav() {
     document.getElementById('nav-links')!,
     NAV.map((n) => {
       const c = n.count?.();
-      return h(`a${route === n.path ? '.active' : ''}`, { href: `#/${n.path}`, onclick: () => document.body.classList.remove('nav-open') }, h('span.ico', icon(n.ico, 18)), h('span.txt', n.label), c ? h('span.badge.count', String(c)) : null);
+      return h('a', { class: `${NAV_LINK} ${route === n.path ? NAV_LINK_ON : NAV_LINK_OFF}`, href: `#/${n.path}`, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: NAV_ICO }, icon(n.ico, 18)), h('span', { class: NAV_TXT }, n.label), c ? h('span.badge', { class: NAV_COUNT }, String(c)) : null);
     }),
   );
   const d = state.data;
@@ -102,10 +121,12 @@ function renderNav() {
 let about: AboutInfo | null = null;
 let aboutAsked = false;
 // Bottom of the sidebar: the version (opens Settings > About) and a link to star Blacksite on GitHub.
+const NAV_VER = 'flex min-w-0 items-baseline gap-1.5 -ml-1.5 rounded-[6px] px-1.5 py-0.75 font-sans text-[11.5px] leading-[1.3] font-semibold text-dim [transition:background_0.15s,color_0.15s] hover:bg-accent/12 hover:text-ink';
+const NAV_STAR = 'inline-flex h-5.5 flex-none items-center gap-1.25 rounded-ctl border border-line-2 px-2 font-mono text-[10px] leading-none font-medium tracking-[0.08em] uppercase text-ink [transition:border-color_0.15s,color_0.15s] hover:border-accent hover:text-accent [&_svg]:flex-none';
 function navAbout() {
   return [
-    h('a.nav-ver', { href: '#/settings?tab=about', title: 'About Blacksite', onclick: () => document.body.classList.remove('nav-open') }, h('span', REPO.name), about ? h('span.nav-ver-n', `v${about.version}`) : null),
-    h('a.nav-star', { href: REPO.url, target: '_blank', rel: 'noopener', title: `${REPO.slug} on GitHub: star it there` }, logo('github', 12, '#e6e8e0'), h('span', 'Star')),
+    h('a', { class: NAV_VER, href: '#/settings?tab=about', title: 'About Blacksite', onclick: () => document.body.classList.remove('nav-open') }, h('span', REPO.name), about ? h('span', { class: 'font-mono text-[10.5px] leading-[1.3] font-normal text-faint tabular-nums' }, `v${about.version}`) : null),
+    h('a', { class: NAV_STAR, href: REPO.url, target: '_blank', rel: 'noopener', title: `${REPO.slug} on GitHub: star it there` }, logo('github', 12, '#e6e8e0'), h('span', 'Star')),
   ];
 }
 
@@ -115,7 +136,7 @@ function navStatus(d: AppState) {
   const S = (q: string) => `#/settings?${q}`;
   const ver = (v: string | null | undefined) => (v ? String(v).split(/\s/)[0] : '');
   const line = (dot: string, label: string, value: string, href: string, title?: string) =>
-    h('a.ns', { href, title: title || label, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: `dot ${dot}` }), h('span.ns-txt', label), value ? h('span.ns-val', value) : null);
+    h('a', { class: NS_LINE, href, title: title || label, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: `dot ${dot}` }), h('span', { class: 'min-w-0 flex-1 truncate' }, label), value ? h('span', { class: 'text-[10.5px] whitespace-nowrap text-faint' }, value) : null);
   const cc: Partial<EngineStatus['claude-code']> = e['claude-code'] || {};
   const cx: Partial<EngineStatus['codex']> = e.codex || {};
   const acc: Partial<AppState['accounts']> = d.accounts || {};
@@ -142,7 +163,8 @@ function navStatus(d: AppState) {
   ];
   const sv = d.projectSaved;
   const savedLine = sv ? (sv.error ? `not saved: ${sv.error}` : `auto-saved ${ago(sv.at)}`) : 'auto-save on';
-  return [...lines, h('a.ns.ns-foot', { href: S('tab=about&find=This PC'), title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}` }, h('span.ns-txt.faint', `${d.project?.name || 'Project'} · ${savedLine}`)), h('a.ns.ns-foot', { href: S('tab=about&find=This PC'), title: 'Address' }, h('span.ns-txt.faint', `localhost:${d.port} · no login`))];
+  const foot = 'min-w-0 flex-1 truncate text-faint';
+  return [...lines, h('a', { class: NS_LINE, href: S('tab=about&find=This PC'), title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}` }, h('span', { class: foot }, `${d.project?.name || 'Project'} · ${savedLine}`)), h('a', { class: NS_LINE, href: S('tab=about&find=This PC'), title: 'Address' }, h('span', { class: foot }, `localhost:${d.port} · no login`))];
 }
 
 async function route() {
@@ -156,7 +178,7 @@ async function route() {
   const here = (current = { view, params });
   // Each page gets its own element: one still loading when you leave draws into the old one, unseen.
   const el = (viewEl = freshElement(viewEl));
-  el.className = view.flush ? 'flush' : '';
+  el.className = view.flush ? VIEW_FLUSH : VIEW_PADDED;
   document.body.classList.toggle('station-mode', !!view.station);
   document.body.classList.remove('nav-wide');
   // a full chat page has its own message box
@@ -167,7 +189,7 @@ async function route() {
     await view.render(el, params, { setTitle: (t) => current === here && (titleEl.textContent = t) });
   } catch (e) {
     console.error(e);
-    if (current === here) mount(el, h('div.panel', h('p.red', `Something went wrong: ${(e as Error).message}`)));
+    if (current === here) mount(el, h('div.panel', h('p', { class: 'text-red' }, `Something went wrong: ${(e as Error).message}`)));
   }
 }
 
@@ -203,7 +225,7 @@ function renderApprovals() {
   const toOutbox = () => (navigate('#/outbox'), drawer.classList.add('hidden'));
   if (asked.length) {
     if (!questionsHost) {
-      questionsHost = h('div.drawer-questions');
+      questionsHost = h('div', { class: 'flex flex-col gap-3' });
       mountDrawerQuestions(questionsHost);
     }
     drawerBody.append(questionsHost);
@@ -241,7 +263,7 @@ function renderRunning() {
 
 document.getElementById('needs-btn')!.onclick = () => drawer.classList.toggle('hidden');
 // project switcher in the top bar (pages other than the Station)
-const projBtn = h('button.btn.ghost.small.topbar-project', { onclick: (e) => openProjectMenu(e.currentTarget) });
+const projBtn = h('button.btn.ghost.small', { class: 'gap-1.5 [&_.proj-logo]:mr-0.5', onclick: (e) => openProjectMenu(e.currentTarget) });
 document.querySelector('.top-actions')!.prepend(projBtn);
 onState((d) => mount(projBtn, projectMark(d.project, 15), d.project?.name || 'Project', icon('chevron-down', 13)));
 document.getElementById('drawer-close')!.onclick = () => drawer.classList.add('hidden');
@@ -297,6 +319,7 @@ window.addEventListener('keydown', (e) => {
 {
   const edge = document.createElement('div');
   edge.id = 'nav-edge';
+  edge.className = 'md:hidden';
   edge.title = 'Menu';
   document.body.append(edge);
   const nav = document.getElementById('nav')!;

@@ -245,7 +245,7 @@ function activate(key: string, focus = true) {
 function makeTab(kind: ChatKind, id: string): ChatTab {
   const key = `${kind}:${id}`;
   const body = document.createElement('div');
-  body.className = 'cw-pane hidden';
+  body.className = 'cw-pane absolute inset-0 flex flex-col pt-2.5 px-3 pb-3 *:flex-1 *:min-h-0 hidden';
   host!.body.current!.append(body);
   const api: ChatTabApi = kind === 'team' ? renderTeamChat(body, id, { fill: true }) : renderAgentChat(body, id);
   const t: ChatTab = { key, kind, id, body, api };
@@ -270,7 +270,20 @@ function closeAll() {
 }
 
 // ---------- the window ----------
-const GRIPS = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
+// The resize grips sit just outside the rounded edge, so they can be grabbed.
+const GRIPS: Record<string, string> = {
+  n: 'absolute z-2 left-2.5 right-2.5 h-1.5 cursor-ns-resize -top-0.75',
+  s: 'absolute z-2 left-2.5 right-2.5 h-1.5 cursor-ns-resize -bottom-0.75',
+  e: 'absolute z-2 top-2.5 bottom-2.5 w-1.5 cursor-ew-resize -right-0.75',
+  w: 'absolute z-2 top-2.5 bottom-2.5 w-1.5 cursor-ew-resize -left-0.75',
+  ne: 'absolute z-2 size-3.5 -top-1 -right-1 cursor-nesw-resize',
+  nw: 'absolute z-2 size-3.5 -top-1 -left-1 cursor-nwse-resize',
+  // (with the corner lines)
+  se: "absolute z-2 size-4.5 -bottom-1.5 -right-1.5 cursor-nwse-resize after:content-[''] after:absolute after:right-2.25 after:bottom-2.25 after:size-2.5 after:bg-[linear-gradient(135deg,transparent_0_48%,var(--color-line-2)_48%_58%,transparent_58%_70%,var(--color-line-2)_70%_80%,transparent_80%)]",
+  sw: 'absolute z-2 size-3.5 -bottom-1 -left-1 cursor-nesw-resize',
+};
+const TAB = 'group/tab flex items-center gap-1.75 pt-1.75 pr-2 pb-2 pl-2.25 max-w-[200px] cursor-pointer flex-none border border-b-0 rounded-t-[9px] text-[12.5px] [transition:background_.15s,color_.15s]';
+const BTN = 'size-7 rounded-ctl text-dim cursor-pointer grid place-items-center text-[14px] flex-none mb-1.5 hover:bg-panel-2 hover:text-ink';
 
 function ChatWindow({ refs }: { refs: NonNullable<typeof host> }) {
   useSyncExternalStore(subscribe, snapshot);
@@ -290,18 +303,37 @@ function ChatWindow({ refs }: { refs: NonNullable<typeof host> }) {
   // the pill sits next to "Ask the Brain" at the bottom
   const bar = document.querySelector('.bottom-bar') || document.body;
   const pill = (
-    <button ref={pillRef} className={`cw-pill${any && (W.min || shrinking) ? '' : ' hidden'}`} style={shrinking ? { opacity: 0 } : undefined} onClick={() => setMin(false)} title="Open the chats">
+    <button
+      ref={pillRef}
+      // (in the bottom bar, next to Ask the Brain, it sits in line there)
+      className={`cw-pill fixed z-44 right-[84px] bottom-[22px] flex items-center gap-2 py-2.25 px-3.5 border border-line-2 rounded-full bg-panel text-ink cursor-pointer font-sans text-[12.5px] font-medium leading-[normal] shadow-[0_10px_30px_rgba(0,0,0,.45)] animate-[cw-pop_.25s_ease-out] hover:border-accent in-[.bottom-bar]:relative in-[.bottom-bar]:right-auto in-[.bottom-bar]:bottom-auto in-[.bottom-bar]:z-auto in-[.bottom-bar]:py-2.75 in-[.bottom-bar]:px-4 in-[.bottom-bar]:animate-none in-[.bottom-bar]:hover:[transform:translateY(-2px)] ${any && (W.min || shrinking) ? '' : ' hidden'}`}
+      style={shrinking ? { opacity: 0 } : undefined}
+      onClick={() => setMin(false)}
+      title="Open the chats"
+    >
       <Icon name="message-square" size={15} />
-      <span className="cw-pill-n">{`${W.tabs.length} chat${W.tabs.length === 1 ? '' : 's'}`}</span>
+      <span>{`${W.tabs.length} chat${W.tabs.length === 1 ? '' : 's'}`}</span>
     </button>
   );
   return (
     <>
-      <div ref={winRef} className={`cw${!any || (W.min && !shrinking) ? ' hidden' : ''}${W.max ? ' max' : ''}`} style={W.rect ? placement() : undefined} role="dialog" aria-label="Chats" aria-modal="false">
-        <div className="cw-head" onPointerDown={startDrag} onDoubleClick={(e) => !(e.target as Element).closest('button') && setMax(!W.max)}>
+      <div
+        ref={winRef}
+        // pop and moving are set by script (pop(), track())
+        className={`cw group/cw fixed z-44 flex flex-col bg-[color-mix(in_srgb,var(--color-panel)_94%,transparent)] backdrop-blur-[14px] border border-line-2 shadow-[0_24px_80px_rgba(0,0,0,.55),0_0_0_1px_rgba(255,255,255,.02)_inset] overflow-visible [&.pop]:animate-[cw-pop_.28s_cubic-bezier(.2,.9,.25,1.05)] [&.moving]:select-none [&.moving]:transition-none ${W.max ? 'rounded-[12px]' : 'rounded-[14px]'}${!any || (W.min && !shrinking) ? ' hidden' : ''}`}
+        style={W.rect ? placement() : undefined}
+        role="dialog"
+        aria-label="Chats"
+        aria-modal="false"
+      >
+        <div
+          className={`flex items-center gap-2 pt-1.5 pr-2 pb-0 pl-3 border-b border-line cursor-grab group-[.moving]/cw:cursor-grabbing text-dim min-h-[42px] ${W.max ? 'rounded-t-[12px]' : 'rounded-t-[14px]'}`}
+          onPointerDown={startDrag}
+          onDoubleClick={(e) => !(e.target as Element).closest('button') && setMax(!W.max)}
+        >
           <Icon name="message-square" size={15} />
           <Tabs.Root value={W.active} onValueChange={(v) => activate(String(v))}>
-            <Tabs.List className="cw-tabs" aria-label="Open chats">
+            <Tabs.List className="flex gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden self-end min-w-0" aria-label="Open chats">
               {W.tabs.map((t) => {
                 let label = '';
                 let lead = null;
@@ -310,7 +342,7 @@ function ChatWindow({ refs }: { refs: NonNullable<typeof host> }) {
                   const w = teams.find((x) => x.id === t.id);
                   label = w?.name || 'Team';
                   lead = (
-                    <span className="cw-tab-dot" style={{ '--c': w?.color || '#7350c8' } as CSSProperties}>
+                    <span className="size-5 rounded-[6px] grid place-items-center bg-[color-mix(in_srgb,var(--c)_30%,#111)] text-white" style={{ '--c': w?.color || '#7350c8' } as CSSProperties}>
                       <Icon name="users" size={11} />
                     </span>
                   );
@@ -321,14 +353,23 @@ function ChatWindow({ refs }: { refs: NonNullable<typeof host> }) {
                   lead = a ? <Avatar agent={a} /> : null;
                   busy = busyAgents.has(t.id);
                 }
+                const on = t.key === W.active;
+                // cw-tab: startDrag() leaves the tabs alone by it
                 return (
-                  <div key={t.key} className={`cw-tab${t.key === W.active ? ' on' : ''}${busy ? ' busy' : ''}`} title={label} onAuxClick={(e) => e.button === 1 && closeTab(t.key)}>
-                    <Tabs.Tab value={t.key} className="cw-tab-main">
+                  <div
+                    key={t.key}
+                    className={`cw-tab ${TAB} [&_.avatar]:size-5 [&_.avatar]:text-[11px] ${on ? 'text-ink bg-bg border-line -mb-px' : 'border-transparent text-dim hover:text-ink hover:bg-ink/4'}`}
+                    title={label}
+                    onAuxClick={(e) => e.button === 1 && closeTab(t.key)}
+                  >
+                    <Tabs.Tab value={t.key} className="flex items-center gap-1.75 min-w-0 cursor-pointer">
                       {lead}
-                      <span className="cw-tab-name">{label}</span>
+                      <span className="truncate">{label}</span>
                       {busy ? <span className="dot busy" aria-label="working" /> : null}
                     </Tabs.Tab>
-                    <button className="cw-tab-x" title="Close" aria-label={`Close ${label}`} onClick={() => closeTab(t.key)}>
+                    <button
+                      className={`text-faint cursor-pointer px-0.5 text-[11px] [transition:opacity_.15s] hover:text-ink ${on ? 'opacity-100' : 'opacity-0 group-hover/tab:opacity-100'}`}
+                      title="Close" aria-label={`Close ${label}`} onClick={() => closeTab(t.key)}>
                       ✕
                     </button>
                   </div>
@@ -336,21 +377,21 @@ function ChatWindow({ refs }: { refs: NonNullable<typeof host> }) {
               })}
             </Tabs.List>
           </Tabs.Root>
-          <span className="grow" />
-          <button className="cw-btn" title="Minimize" aria-label="Minimize the chats" onClick={() => setMin(true)}>
+          <span className="flex-1 min-w-0" />
+          <button className={BTN} title="Minimize" aria-label="Minimize the chats" onClick={() => setMin(true)}>
             –
           </button>
-          <button className="cw-btn" title="Maximize / restore" aria-label={W.max ? 'Restore the chats' : 'Maximize the chats'} onClick={() => setMax(!W.max)}>
+          <button className={BTN} title="Maximize / restore" aria-label={W.max ? 'Restore the chats' : 'Maximize the chats'} onClick={() => setMax(!W.max)}>
             <Icon name="maximize-2" size={13} />
           </button>
-          <button className="cw-btn" title="Close all chats" aria-label="Close all chats" onClick={closeAll}>
+          <button className={BTN} title="Close all chats" aria-label="Close all chats" onClick={closeAll}>
             ✕
           </button>
         </div>
         {/* the conversations' own elements go in here (made outside React) */}
-        <div className="cw-body" ref={bodyRef} />
-        {GRIPS.map((dir) => (
-          <div key={dir} className={`cw-grip ${dir}`} aria-hidden="true" onPointerDown={(e) => startResize(e, dir)} />
+        <div className={`flex-1 min-h-0 relative bg-bg overflow-hidden ${W.max ? 'rounded-b-[12px]' : 'rounded-b-[14px]'}`} ref={bodyRef} />
+        {Object.entries(GRIPS).map(([dir, cls]) => (
+          <div key={dir} className={W.max ? `${cls} hidden` : cls} aria-hidden="true" onPointerDown={(e) => startResize(e, dir)} />
         ))}
       </div>
       {createPortal(pill, bar)}

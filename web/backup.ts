@@ -113,12 +113,13 @@ export async function backupProject(p: Pick<Project, 'id' | 'name'>): Promise<vo
     title: 'Backup saved',
     narrow: true,
     body: h(
-      'div.col',
+      'div',
+      { class: 'flex flex-col gap-2.5' },
       h('p', `${p.name}: ${summaryLine(r.summary)}, in one file (${fileSize(r.size)}). No keys or passwords are in it.`),
       r.summary.omitted
-        ? h('p.backup-warn', icon('triangle-alert', 14), ` ${r.summary.omitted} file${r.summary.omitted === 1 ? ' was' : 's were'} too big to fit and left out (limits: chats 200 MB, knowledge 50 MB, MEMORY.md files 20 MB, skills 50 MB, earlier versions 50 MB, PROJECT.md and notes 20 MB).`)
+        ? h('p', { class: 'm-0 flex items-start gap-1.5 rounded-[8px] border border-[color-mix(in_srgb,var(--color-amber)_30%,var(--color-line))] bg-amber/10 px-2.5 py-2 text-[13px] text-amber' }, icon('triangle-alert', 14, 'mt-0.5 flex-none'), ` ${r.summary.omitted} file${r.summary.omitted === 1 ? ' was' : 's were'} too big to fit and left out (limits: chats 200 MB, knowledge 50 MB, MEMORY.md files 20 MB, skills 50 MB, earlier versions 50 MB, PROJECT.md and notes 20 MB).`)
         : null,
-      h('div.backup-path', h('code', r.file), h('button.icon-btn', { title: 'Copy the path', 'aria-label': 'Copy the path', onclick: () => copy(r.file) }, icon('copy', 14))),
+      h('div', { class: 'flex items-center gap-2 rounded-[8px] border border-line bg-panel-2 px-2.5 py-2' }, h('code', { class: 'min-w-0 flex-1 font-mono text-[12px] leading-[normal] font-normal wrap-anywhere text-ink' }, r.file), h('button.icon-btn', { title: 'Copy the path', 'aria-label': 'Copy the path', onclick: () => copy(r.file) }, icon('copy', 14))),
       h('p.hint', 'To bring it back, here or on another PC: New project > From backup, and drop this file in.'),
     ),
     foot: [h('button.btn.ghost', { onclick: () => void attempt(() => POST('/backups/open')) }, icon('folder-open', 15), ' Show in folder'), h('button.btn', { onclick: () => m.close() }, 'Done')],

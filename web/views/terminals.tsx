@@ -31,6 +31,12 @@ export function pickTerminal(asked: string | undefined, list: readonly Pick<Term
   return list[0]?.id || null;
 }
 
+// a tab; the open one is lighter, with a line in the accent on top
+const TAB = 'flex items-center gap-2 py-2.25 px-3.5 border-r border-line cursor-pointer font-mono text-[12px] leading-[normal] font-normal whitespace-nowrap text-dim';
+const TAB_ON = 'flex items-center gap-2 py-2.25 px-3.5 border-r border-line cursor-pointer font-mono text-[12px] leading-[normal] font-normal whitespace-nowrap text-ink bg-bg shadow-[inset_0_2px_0_var(--color-accent)]';
+/** Where a terminal (or the launcher) sits, under the tabs. */
+const HOST = 'flex-1 min-h-0 py-2 px-2.5 bg-[#070807]';
+
 function TerminalsPage({ asked }: { asked?: string }) {
   const data = useAppState();
   const [first, setFirst] = useState<TerminalInfo[] | null>(null);
@@ -44,21 +50,21 @@ function TerminalsPage({ asked }: { asked?: string }) {
     if (current === id) navigate('#/terminals');
   };
   return (
-    <div className="term-layout">
-      <nav className="term-tabs" aria-label="Terminals">
+    <div className="flex flex-col h-[calc(100vh-61px)]">
+      <nav className="flex gap-0 border-b border-line bg-panel overflow-x-auto flex-none" aria-label="Terminals">
         {list.map((t) => (
-          <div key={t.id} className={`tt${t.id === current ? ' on' : ''}`}>
-            <a href={`#/terminals/${t.id}`} aria-current={t.id === current ? 'page' : undefined}>
+          <div key={t.id} className={t.id === current ? TAB_ON : TAB}>
+            <a className="flex items-center gap-2 text-inherit" href={`#/terminals/${t.id}`} aria-current={t.id === current ? 'page' : undefined}>
               <span className={`dot${t.exited ? '' : ' on'}`} />
               {t.title}
             </a>
-            <button className="x" title="Close" aria-label={`Close ${t.title}`} onClick={() => void close(t.id)}>
+            <button className="text-faint cursor-pointer px-0.5 hover:text-red" title="Close" aria-label={`Close ${t.title}`} onClick={() => void close(t.id)}>
               ✕
             </button>
           </div>
         ))}
-        <div className={`tt${!current ? ' on' : ''}`}>
-          <a href="#/terminals/new" aria-current={!current ? 'page' : undefined}>+ New</a>
+        <div className={!current ? TAB_ON : TAB}>
+          <a className="flex items-center gap-2 text-inherit" href="#/terminals/new" aria-current={!current ? 'page' : undefined}>+ New</a>
         </div>
       </nav>
       {current ? <XTerm key={current} id={current} /> : <Launcher />}
@@ -73,14 +79,14 @@ function Launcher() {
   if (!data) return null;
   const e = data.engines;
   const card = (title: string, about: string, body: OpenTerminal) => (
-    <button key={title} type="button" className="card clickable term-card" onClick={() => void open(body)}>
+    <button key={title} type="button" className="card clickable term-card text-left [font:inherit] text-inherit w-full" onClick={() => void open(body)}>
       <div className="card-title">{title}</div>
       <div className="card-sub">{about}</div>
     </button>
   );
   return (
-    <div className="term-host term-launcher">
-      <div className="term-launcher-body">
+    <div className={`${HOST} overflow-y-auto`}>
+      <div className="py-5 px-4.5 max-w-190">
         <p className="lede">Open a real terminal right here. Everything keeps running when you switch pages; come back any time.</p>
         <div className="cards">
           {card('PowerShell', 'A normal shell in your user folder.', { kind: 'shell' })}
@@ -92,13 +98,13 @@ function Launcher() {
           {card('Orca', 'Orca CLI: status, worktrees, agent sessions.', { kind: 'command', command: 'orca', args: ['status'], title: 'Orca' })}
         </div>
         {agents.length ? (
-          <div className="panel mt-lg">
+          <div className="panel mt-7">
             <div className="panel-head">
               <h2>Open an agent in a terminal</h2>
             </div>
             <p className="hint">Runs the agent interactively with its instructions, model, tools and MCP servers. Great for long hands-on sessions.</p>
-            <div className="row mt">
-              <div className="term-agent-pick">
+            <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
+              <div className="w-75">
                 <select aria-label="Agent" value={agentId} onChange={(ev) => setAgentId(ev.target.value)}>
                   {agents.map((a) => (
                     <option key={a.id} value={a.id}>{`${a.emoji || ''} ${a.name}`}</option>
@@ -150,7 +156,7 @@ function XTerm({ id }: { id: string }) {
       term.dispose();
     };
   }, [id]);
-  return <div className="term-host" ref={host} />;
+  return <div className={`${HOST} [&_.xterm]:h-full`} ref={host} />;
 }
 
 export const flush = true;

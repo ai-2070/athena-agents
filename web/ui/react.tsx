@@ -66,7 +66,7 @@ export function ViewHost({ view, params = [], hostRef }: { view: PlainView; para
     box.current!.append(el);
     let live = true;
     Promise.resolve(view.render(el, key ? key.split('/') : [])).catch((e: unknown) => {
-      if (live) mount(el, h('div.panel', h('p.red', `Something went wrong: ${e instanceof Error ? e.message : String(e)}`)));
+      if (live) mount(el, h('div.panel', h('p', { class: 'text-red' }, `Something went wrong: ${e instanceof Error ? e.message : String(e)}`)));
     });
     return () => {
       live = false;
@@ -87,7 +87,7 @@ export const useAppState = (): AppState | null => useSyncExternalStore(subscribe
 /** An agent's round badge: its emoji on its colour (the plain-DOM avatar()). */
 export function Avatar({ agent, lg = false }: { agent: { color?: string; emoji?: string }; lg?: boolean }) {
   return (
-    <div className={`avatar${lg ? ' lg' : ''}`} style={{ '--agent-color': agent.color || 'var(--accent)' } as CSSProperties}>
+    <div className={`avatar${lg ? ' lg' : ''}`} style={{ '--agent-color': agent.color || 'var(--color-accent)' } as CSSProperties}>
       {agent.emoji || '🤖'}
     </div>
   );

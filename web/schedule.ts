@@ -11,7 +11,7 @@ export { scheduleText };
 /** Edits item.schedule and item.enabled in place; onChange runs after every edit. */
 export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean }, onChange: () => void, { inputLabel = 'Input for scheduled runs' }: { inputLabel?: string } = {}): HTMLDivElement {
   item.schedule ||= { type: 'none' };
-  const box = h('div.col');
+  const box = h('div', { class: 'flex flex-col gap-2.5' });
   const draw = () => {
     const s = item.schedule!;
     const mark = () => onChange();
@@ -34,7 +34,8 @@ export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean },
         : null,
       s.type === 'daily'
         ? h(
-            'div.col',
+            'div',
+            { class: 'flex flex-col gap-2.5' },
             field('Time', h('input', { type: 'time', value: s.time || '09:00', oninput: (e) => ((s.time = e.target.value), mark()) })),
             h(
               'div.chips',
@@ -54,7 +55,7 @@ export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean },
           )
         : null,
       s.type !== 'none' ? field(inputLabel, h('input', { value: s.input || '', oninput: (e) => ((s.input = e.target.value), mark()) })) : null,
-      s.type !== 'none' ? h('label.row', toggle(!!item.enabled, (v) => ((item.enabled = v), mark())), h('span', 'Schedule on (runs while the dashboard is open)')) : null,
+      s.type !== 'none' ? h('label', { class: 'flex flex-wrap items-center gap-2.5' }, toggle(!!item.enabled, (v) => ((item.enabled = v), mark())), h('span', 'Schedule on (runs while the dashboard is open)')) : null,
     );
   };
   draw();
