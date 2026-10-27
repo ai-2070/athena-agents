@@ -14,10 +14,14 @@ let server: http.Server;
 let base = '';
 // what the next request streams: the items already there (a replay)
 let replayItems: ChatItem[] = [];
+// ?later: the run isn't known yet (a message waiting for the run before it to end); the test says which it is
+let startLater: ((runId: string | null) => void) | null = null;
 beforeAll(async () => {
   server = http.createServer((req, res) => {
-    const runId = new URL(req.url!, 'http://x').searchParams.get('run') || 'r1';
-    void streamRun(res, { chatId: 'c1', runId, items: replayItems, keepAliveMs: 20 });
+    const url = new URL(req.url!, 'http://x');
+    const runId = url.searchParams.get('run') || 'r1';
+    const later = url.searchParams.has('later') ? new Promise<string | null>((r) => (startLater = r)) : null;
+    void streamRun(res, { chatId: 'c1', runId: later ?? runId, items: replayItems, keepAliveMs: 20, waiting: 'Waiting for it to stop…' });
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -96,6 +100,30 @@ describe('streamRun()', () => {
   });
 });
 
+describe('streamRun() for a run that starts later', () => {
+  it('says it is waiting, then streams that run once it starts (nothing from before)', async () => {
+    replayItems = [];
+    const { last, data } = await read('r20&later', async () => {
+      run({ kind: 'text', text: 'NOT MINE: the run before it' }, 'r19');
+      startLater!('r20');
+      await tick(10);
+      run({ kind: 'text', text: 'On the new plan.' }, 'r20');
+      run({ kind: 'done', text: '' }, 'r20');
+    });
+    const parts = last.parts.filter((p) => p.type !== 'step-start');
+    expect(parts).toEqual([expect.objectContaining({ type: 'text', text: 'On the new plan.' })]);
+    expect(data).toEqual([expect.objectContaining({ type: 'data-status', data: { text: 'Waiting for it to stop…' } })]);
+  });
+
+  it('ends, with nothing in it, when that run never starts (it was taken back)', async () => {
+    replayItems = [];
+    const { last } = await read('r21&later', async () => {
+      startLater!(null);
+    });
+    expect(last.parts.filter((p) => p.type !== 'step-start')).toEqual([]);
+  });
+});
+
 describe('streamRun() when the run fails', () => {
   it("ends with the AI SDK's error (so the chat can say so); being stopped is no error", async () => {
     replayItems = [];
@@ -118,7 +146,7 @@ describe('streamRun() when the run fails', () => {
       for await (const _m of readUIMessageStream({ stream: s2, onError: (e) => errors2.push(String(e)) }));
     })();
     await tick(30);
-    run({ kind: 'error', text: 'Stopped.' }, 'r10');
+    run({ kind: 'error', text: 'Stopped to take your new message.' }, 'r10');
     await r2;
     expect(errors2).toEqual([]);
   });

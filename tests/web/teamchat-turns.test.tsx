@@ -69,6 +69,12 @@ beforeEach(() => {
     // (a fresh stream for each ask, as the server does: React's dev mode mounts twice and asks again)
     if (url === '/api/agents/maker/chats/maker-chat/stream') return (live = uiStream()).response();
     if (url === '/api/teams/t1/queue') return json({ queued: { id: 'q1', text: 'then the banner', ts: 5 } });
+    // a queued message changed: "gone" was posted meanwhile, "boom" can't be saved
+    if (init.method === 'PUT' && url.startsWith('/api/teams/t1/queue/')) {
+      const text = String((bodies[url] as { text?: unknown } | undefined)?.text);
+      if (text === 'boom') return new Response(JSON.stringify({ error: 'Could not save it.' }), { status: 500 });
+      return json({ queued: text === 'gone' ? null : { id: url.split('/').pop(), text, ts: 1 } });
+    }
     if (url === '/api/teams/t1/stop') return json({ ok: true, unqueued: [{ id: 'q2', text: 'and a logo', ts: 6 }] });
     if (url === '/api/agents/lead/chats/lead-chat') return json({ id: 'lead-chat', agentId: 'lead', items: SESSION } as Partial<Chat>);
     return json({});
@@ -306,6 +312,31 @@ describe('team chat turns', () => {
     await settle();
     expect(requests.filter((r) => r.startsWith('PUT'))).toEqual(['PUT /api/teams/t1/queue/q2']);
     expect(el.querySelector('.queued-text')!.textContent).toBe('first');
+  });
+
+  it('a change to a queued message that fails goes back; one already posted comes to the box', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    await teamEvent({ kind: 'state', working: ['maker'], queued: [], held: [{ id: 'q1', text: 'first', ts: 1 }, { id: 'q2', text: 'second', ts: 2 }] });
+    await settle();
+    const box = el.querySelector('textarea')!;
+    const key = (t: Element, k: string) => act(async () => t.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })));
+    const texts = () => [...el.querySelectorAll('.queued-text')].map((n) => n.textContent);
+    // not saved: it shows what will go after all
+    await key(box, 'ArrowUp');
+    el.querySelector<HTMLTextAreaElement>('.queued-edit')!.value = 'boom';
+    await key(el.querySelector('.queued-edit')!, 'Enter');
+    await settle();
+    expect(texts()).toEqual(['first', 'second']);
+    expect(box.value).toBe('');
+    // posted before the change got there: the new words come to the box
+    await key(box, 'ArrowUp');
+    el.querySelector<HTMLTextAreaElement>('.queued-edit')!.value = 'gone';
+    await key(el.querySelector('.queued-edit')!, 'Enter');
+    await settle();
+    expect(box.value).toBe('gone');
   });
 
   it('queued messages change order by dragging one, or with Alt+Up / Alt+Down', async () => {

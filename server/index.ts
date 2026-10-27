@@ -328,7 +328,7 @@ post<{ text?: unknown; project?: unknown; attachments?: unknown; goal?: unknown 
   return undefined;
 });
 // a new message while the Brain answers: that answer changes nothing, and what it was answering stays in its history
-post<{ text?: unknown; attachments?: unknown }>('/api/brain/steer', async (_p, body) => (overseer.steerAsks({ text: String(body.text || '').trim().slice(0, 20000), attachments: uploads.cleanAttachments(body.attachments) }), { ok: true }));
+post('/api/brain/steer', async () => (overseer.steerAsks(), { ok: true }));
 // /stop and /resume in the Brain chat (with the agent chats and teams it shows working)
 post<commands.BrainWork>('/api/brain/stop', async (_p, body) => commands.stopBrain(body));
 post<commands.BrainWork>('/api/brain/resume', async (_p, body) => commands.resumeBrain(body));
@@ -489,6 +489,7 @@ post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/queu
 );
 del('/api/agents/:id/chats/:cid/queue/:qid', async ({ cid, qid }) => ({ unqueued: engines.unqueue(cid, qid) }));
 // a queued message: its text changed, or the order they go in
+// (queued: null when it already went)
 put<{ text?: unknown }>('/api/agents/:id/chats/:cid/queue/:qid', async ({ cid, qid }, body) => ({ queued: engines.editQueued(cid, qid, body.text) }));
 post<{ ids?: unknown }>('/api/agents/:id/chats/:cid/queue/order', async ({ cid }, body) => ({ queued: engines.orderQueued(cid, body.ids) }));
 // the other / commands (server/commands.ts)
@@ -510,7 +511,7 @@ post<{ text?: unknown; attachments?: unknown; steer?: unknown }>('/api/agents/:i
   const attachments = uploads.cleanAttachments(body.attachments);
   if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
   const { runId } = body.steer === true ? await engines.steerChat(a, c, text, { attachments }) : engines.startRun(a, c, text, { attachments });
-  await uistream.streamRun(res, { chatId: c.id, runId });
+  await uistream.streamRun(res, { chatId: c.id, runId, waiting: `Waiting for ${a.name} to stop…` });
   return undefined;
 });
 get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {
@@ -991,6 +992,7 @@ post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/te
 post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/teams/:id/queue', async ({ id }, body) => teams.queueUserMessage(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember, attachments: uploads.cleanAttachments(body.attachments) }));
 del('/api/teams/:id/queue/:qid', async ({ id, qid }) => ({ unqueued: teams.unqueueTeam(need(teams.getTeam(id)).id, qid) }));
 // a held message: its text changed, or the order they go in
+// (queued: null when it already went)
 put<{ text?: unknown }>('/api/teams/:id/queue/:qid', async ({ id, qid }, body) => ({ queued: teams.editQueuedTeam(need(teams.getTeam(id)).id, qid, body.text) }));
 post<{ ids?: unknown }>('/api/teams/:id/queue/order', async ({ id }, body) => ({ held: teams.orderQueuedTeam(need(teams.getTeam(id)).id, body.ids) }));
 // a message while the team works: whoever is working stops and takes it up now

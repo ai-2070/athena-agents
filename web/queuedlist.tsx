@@ -11,6 +11,14 @@ const DRAG_TYPE = 'application/x-queued-message';
 const DROP_ABOVE = 'relative before:absolute before:-top-0.5 before:right-2 before:left-2 before:h-0.5 before:rounded-[1px] before:bg-accent';
 const DROP_BELOW = 'relative after:absolute after:right-2 after:-bottom-0.5 after:left-2 after:h-0.5 after:rounded-[1px] after:bg-accent';
 
+/** A change to a queued message that couldn't be kept (it was sent meanwhile): into the message box
+ *  (restore puts it there), if that is empty. */
+export function keepLostEdit(text: string, box: HTMLTextAreaElement | null | undefined, restore: (text: string) => void): void {
+  if (!text || box?.value.trim()) return;
+  restore(text);
+  toast('That message was already sent. Your change is in the box.');
+}
+
 /** Where editing goes when one message is done: nowhere (clicked away), the one above or below, or back to the message box. */
 type Then = 'stay' | 'prev' | 'next' | 'leave';
 

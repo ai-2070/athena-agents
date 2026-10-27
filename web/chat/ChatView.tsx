@@ -27,7 +27,7 @@ import { queuedText } from '../../shared/queue.ts';
 import { parseCommand, slashSuggestions } from '../../shared/commands.ts';
 import type { SlashOption } from '../../shared/commands.ts';
 import { goalLine, loopLine } from '../chatcommands.ts';
-import { QueuedList } from '../queuedlist.tsx';
+import { QueuedList, keepLostEdit } from '../queuedlist.tsx';
 import type { ChatMessage } from './messages.ts';
 import type { AppState, BrainBrief, Chat, ChatItem, LoopInfo, QueuedMessage } from '../../shared/types.ts';
 
@@ -141,6 +141,8 @@ export function ChatView(p: ChatViewProps) {
 
   const serverRunning = !!chatId && !!app?.runs.some((r) => r.chatId === chatId);
   const busy = streaming || serverRunning || compacting;
+  // it works for a team or another agent here: they wait on its answer, so a message can't change its course
+  const helping = !!chatId && !!app?.runs.some((r) => r.chatId === chatId && (r.depth ?? 0) > 0);
   const approvals = (app?.approvals || []).filter((a) => a.agentId === agent.id);
 
   // the saved chat, shown as it is. after: a stream just ended (its flag may not have caught up yet)
@@ -249,8 +251,11 @@ export function ChatView(p: ChatViewProps) {
       const box = input.current;
       if (steering.current) return;
       if (compacting) return void toast('Wait for the compaction to finish.');
+      // (a button in an earlier answer: not while it works)
+      if (busy && typed != null) return void toast(`${agent.name} is working. Wait for it, or write a message to change its course.`);
+      if (busy && helping) return void toast(`${agent.name} is working for a team or another agent here. /queue your message for when it is done.`);
       // while it works: this message changes its course (the run going now stops, this one goes next)
-      const steer = busy && typed == null;
+      const steer = busy;
       if (sending.current && !steer) return;
       const draft = typed ?? box?.value.trim() ?? '';
       if (!draft && !tray?.count()) return;
@@ -321,7 +326,7 @@ export function ChatView(p: ChatViewProps) {
         finished();
       }
     },
-    [busy, compacting, tray, pastes, sendMessage, stopStream, compactNow, reload, refill, restore, agent.id],
+    [busy, helping, compacting, tray, pastes, sendMessage, stopStream, compactNow, reload, refill, restore, agent.id, agent.name],
   );
 
   // "/queue …" while the agent works: the server holds it and sends it when this turn is done
@@ -364,17 +369,16 @@ export function ChatView(p: ChatViewProps) {
     },
     [agent.id],
   );
-  /** A change to a queued message that couldn't be kept (it was sent meanwhile): into the box, if that is empty. */
-  const keepEdit = (text: string) => {
-    if (!text || input.current?.value.trim()) return;
-    restore(text);
-    toast('That message was already sent. Your change is in the box.');
-  };
+  const keepEdit = (text: string) => keepLostEdit(text, input.current, restore);
   const editQueued = async (q: QueuedMessage, text: string) => {
     const id = chatIdRef.current;
     if (!id) return;
-    setQueued((list) => list.map((x) => (x.id === q.id ? { ...x, text } : x)));
-    if (!(await attempt(() => PUT(`/agents/${agent.id}/chats/${id}/queue/${q.id}`, { text })))) keepEdit(text);
+    const put = (t: string) => setQueued((list) => list.map((x) => (x.id === q.id ? { ...x, text: t } : x)));
+    put(text);
+    const r = await attempt(() => PUT<{ queued: QueuedMessage | null }>(`/agents/${agent.id}/chats/${id}/queue/${q.id}`, { text }));
+    // not saved: it shows what will go after all; already sent: the change comes to the box
+    if (!r) put(q.text);
+    else if (r.queued === null) keepEdit(text);
   };
   const orderQueued = (ids: string[]) => {
     const id = chatIdRef.current;
@@ -604,7 +608,7 @@ export function ChatView(p: ChatViewProps) {
         ref={input}
         className={variant === 'mini' ? 'max-h-50 min-h-11.5 flex-1 resize-none' : `flex-1 ${COMPOSER_TEXT}`}
         rows={variant === 'mini' ? 1 : 2}
-        placeholder={busy ? `${agent.name} is working… Write to change course now, or /queue a message for when it is done` : compact ? `Message ${agent.name}…  (Enter to send, @ for another agent)` : `Message ${agent.name}…`}
+        placeholder={helping ? `${agent.name} is working for a team or another agent… /queue a message for when it is done` : busy ? `${agent.name} is working… Write to change course now, or /queue a message for when it is done` : compact ? `Message ${agent.name}…  (Enter to send, @ for another agent)` : `Message ${agent.name}…`}
         onKeyDown={(e) => {
           if (onSlashKey(e) || onMentionKey(e)) return;
           // Up in an empty box: change the last queued message

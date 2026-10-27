@@ -3,6 +3,8 @@
 // in: if you switch projects or start a new conversation before it is sent, it isn't sent; if that
 // happens while it is being answered, the answer is dropped.
 
+import { reorderQueued } from '../shared/queue.ts';
+
 export type BrainTurn<T> = { kind: 'answer'; answer: T } | { kind: 'error'; error: string } | { kind: 'stale' };
 
 export interface BrainQueue<T, X = undefined> {
@@ -114,8 +116,7 @@ export function holdQueue<X>({ idle, send, onChange }: { idle: () => boolean; se
       return true;
     },
     order(ids) {
-      const named = ids.map((id) => items.find((m) => m.id === id)).filter((m): m is Held<X> => !!m);
-      items = [...new Set([...named, ...items])];
+      items = reorderQueued(items, ids);
       onChange();
     },
     clear() {

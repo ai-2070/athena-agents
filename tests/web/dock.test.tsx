@@ -1,12 +1,23 @@
 // The Brain chat (React): opening from the button, who a message goes to, and /queue while it works.
 import { act } from 'react';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { state } from '../../web/core.ts';
+import { connectEvents, state } from '../../web/core.ts';
 import { initDock } from '../../web/dock.tsx';
 import type { AppState } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const settle = () => act(() => new Promise((r) => setTimeout(r, 40)));
+// the server's events, sent by the test
+class FakeSocket {
+  static last: FakeSocket | null = null;
+  onmessage: ((m: { data: string }) => void) | null = null;
+  onclose: (() => void) | null = null;
+  onopen: (() => void) | null = null;
+  constructor() {
+    FakeSocket.last = this;
+  }
+}
+const serverEvent = (ev: object) => act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ ts: 0, ...ev }) }));
 
 // a Brain answer that stays on its way until the test ends it (or the page stops reading it)
 let answering: ReadableStreamDefaultController<Uint8Array> | null = null;
@@ -42,6 +53,8 @@ beforeAll(() => {
     if (url === '/api/workflows') return json([{ id: 't1', name: 'Thumbs', members: ['a1'], lead: 'a1', steps: [] }]);
     return json({});
   });
+  vi.stubGlobal('WebSocket', FakeSocket);
+  connectEvents();
   initDock();
 });
 afterAll(() => vi.unstubAllGlobals());
@@ -119,11 +132,23 @@ describe('the Brain chat', () => {
     await enter();
     const asked = () => calls.filter((c) => c.url === '/api/brain/stream');
     for (let i = 0; i < 50 && asked().length < 2; i++) await settle();
-    // what the cut-off answer was for stays in the Brain's history; the new message is asked now
-    expect(calls.find((c) => c.url === '/api/brain/steer')!.body).toEqual({ text: 'plan the week', attachments: [] });
+    // the server cuts off the answer it is writing (and keeps its question); the new message is asked now
+    expect(calls.find((c) => c.url === '/api/brain/steer')!.body).toEqual({});
     expect(asked().map((c) => c.body.text)).toEqual(['plan the week', 'actually, just Monday']);
     expect(document.querySelector('.dock-list')!.textContent).toContain("Stopped the Brain's answer to take your new message.");
     expect(button('Stop')).not.toBeNull();
+  });
+
+  it('an answer cut off too late to stop still shows, with what it did', async () => {
+    const before = document.querySelectorAll('.dock-msg').length;
+    await serverEvent({ type: 'brain-late', projectId: 'p1', goal: false, answer: { answer: 'Made the launch team.', done: [{ kind: 'team', text: 'Created the team "Launch"' }], delegate: null, model: { provider: 'claude', model: 'haiku' }, project: 'P' } });
+    await settle();
+    expect(document.querySelector('.dock-list')!.textContent).toContain('Made the launch team.');
+    expect(document.querySelectorAll('.dock-msg').length).toBeGreaterThan(before);
+    // (another project's: not here)
+    await serverEvent({ type: 'brain-late', projectId: 'p2', goal: false, answer: { answer: 'Not for this project.', done: [], delegate: null, model: { provider: 'claude', model: 'haiku' }, project: 'Q' } });
+    await settle();
+    expect(document.querySelector('.dock-list')!.textContent).not.toContain('Not for this project.');
   });
 
   it('queued messages in the Brain chat: Up changes the last one, Alt+Up moves one up', async () => {

@@ -1,8 +1,9 @@
 // The Brain chat: clearing it while an answer is on its way, and messages meant for another project.
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { activeProject, listProjects, saveProjects, setActiveProject, workflows } from '../../server/store.ts';
+import { activeProject, bus, listProjects, saveProjects, setActiveProject, workflows } from '../../server/store.ts';
 import { ask, clearHistory, history, steerAsks } from '../../server/overseer.ts';
+import type { ServerEvent } from '../../shared/types.ts';
 
 // the "model" answers only when the test says so
 const pending: ((text: string) => void)[] = [];
@@ -11,6 +12,20 @@ vi.mock('../../server/brain.ts', async (orig) => ({
   brainModel: () => ({ provider: 'openrouter', model: 'mock', fallback: false }),
   think: () => new Promise<string>((resolve) => pending.push(resolve)),
 }));
+// handing work on waits while the test holds it (an answer past the point where it could be stopped)
+const briefs: (() => void)[] = [];
+let holdBriefs = false;
+vi.mock('../../server/irc.ts', async (orig) => {
+  const real = await orig<typeof import('../../server/irc.ts')>();
+  return {
+    ...real,
+    sendBrief: async (...args: Parameters<typeof real.sendBrief>) => {
+      // (held, then not handed on: no agent starts working in the test)
+      if (holdBriefs) return new Promise<void>((r) => briefs.push(r));
+      return real.sendBrief(...args);
+    },
+  };
+});
 const until = async (ok: () => boolean) => {
   for (let i = 0; i < 200 && !ok(); i++) await new Promise((r) => setTimeout(r, 10));
   if (!ok()) throw new Error('timed out');
@@ -45,14 +60,51 @@ describe('the Brain chat', () => {
     clearHistory();
     const cut = ask('make a design team');
     await until(() => pending.length > 0);
-    steerAsks({ text: 'make a design team', attachments: [] });
-    // (the next answer sees the question it cut off)
-    expect(history(pid).map((m) => m.text)).toEqual(['make a design team', '(stopped before answering: the user sent a new message)']);
+    steerAsks();
     await answerNext('On it\n```actions\n[{"do":"create_team","name":"Cut team","members":[{"new":{"name":"Cut"}}]}]\n```');
     const r = await cut;
     expect(workflows.list().some((w) => w.name === 'Cut team')).toBe(false);
     expect(r.done).toEqual([expect.objectContaining({ kind: 'error', text: expect.stringContaining('stopped') })]);
-    expect(history(pid)).toHaveLength(2);
+    // (the next answer sees the question it cut off)
+    expect(history(pid).map((m) => m.text)).toEqual(['make a design team', '(stopped before answering: the user sent a new message)']);
+  });
+
+  it('a new message after the answer was too far along to stop: what it did stands, once, and the chat hears it', async () => {
+    const pid = activeProject().id;
+    clearHistory();
+    const late: ServerEvent[] = [];
+    const hear = (e: ServerEvent) => void (e.type === 'brain-late' && late.push(e));
+    bus.on('event', hear);
+    holdBriefs = true;
+    try {
+      const going = ask('build the launch team');
+      await answerNext('Done\n```actions\n[{"do":"create_team","name":"Launch crew","members":[{"new":{"name":"Launcher"}}]},{"do":"delegate","to":"team","id":"new","message":"Plan the launch."}]\n```');
+      // (handing the work on: past the point where it could be stopped)
+      await until(() => briefs.length > 0);
+      steerAsks();
+      briefs.shift()!();
+      const r = await going;
+      expect(workflows.list().some((w) => w.name === 'Launch crew')).toBe(true);
+      expect(r.delegate).toMatchObject({ kind: 'branch', name: 'Launch crew' });
+      // its question once, with its own answer (no "stopped before answering" next to it)
+      expect(history(pid).map((m) => m.role)).toEqual(['user', 'brain']);
+      expect(history(pid)[1].text).toContain('Done');
+      expect(late).toEqual([expect.objectContaining({ projectId: pid, answer: expect.objectContaining({ delegate: expect.objectContaining({ name: 'Launch crew' }) }) })]);
+    } finally {
+      holdBriefs = false;
+      bus.off('event', hear);
+    }
+  });
+
+  it('a /goal it was answering is not kept as a stopped question', async () => {
+    const pid = activeProject().id;
+    clearHistory();
+    const cut = ask('ship it', { goal: true });
+    await until(() => pending.length > 0);
+    steerAsks();
+    await answerNext('On it');
+    await cut;
+    expect(history(pid)).toEqual([]);
   });
 
   it('two answers that overlap are both kept', async () => {

@@ -184,6 +184,21 @@ describe('steering: a message while the team works', () => {
     expect(teamState(team.id).held).toEqual([]);
   }, 15000);
 
+  it('two messages sent quickly while it works are posted in the order sent', async () => {
+    const slow = agent('Slow');
+    const other = agent('Lead');
+    const team = workflows.save({ name: 'Twice', description: 'x', members: [other.id, slow.id], lead: other.id, steps: [] } as Partial<Team>);
+    await postUserMessage(team.id, '@Slow do the long job');
+    await until(() => teamState(team.id).working.includes(slow.id));
+    const [a, b] = await Promise.all([steerTeam(team.id, 'Change of plan: the short one'), steerTeam(team.id, 'and make it blue')]);
+    const yours = getThread(team.id).messages.filter((m) => m.from === 'user');
+    expect(yours.map((m) => m.text)).toEqual(['@Slow do the long job', 'Change of plan: the short one', 'and make it blue']);
+    expect(a.ts).toBeLessThanOrEqual(b.ts);
+    // the stopped turn says why
+    expect(getThread(team.id).messages.some((m) => m.from === slow.id && m.text === '(stopped to take your new message)')).toBe(true);
+    stopTeam(team.id);
+  }, 15000);
+
   it('with nobody working, a steer is an ordinary message', async () => {
     const lead = agent('Lead');
     const maker = agent('Maker');
@@ -217,7 +232,8 @@ describe('queued messages: changed and put in order', () => {
     }
     expect(editQueuedTeam(team.id, ids[1], '  two, changed ')).toMatchObject({ id: ids[1], text: 'two, changed' });
     expect(() => editQueuedTeam(team.id, ids[1], '  ')).toThrow();
-    expect(() => editQueuedTeam(team.id, 'nope', 'x')).toThrow(/already sent/);
+    // (already posted: nothing to change, and not an error)
+    expect(editQueuedTeam(team.id, 'nope', 'x')).toBeNull();
     // the ones it names go first, in that order; the rest keep theirs after them
     expect(orderQueuedTeam(team.id, [ids[2], 'nope', ids[0]]).map((q) => q.text)).toEqual(['three', 'one', 'two, changed']);
     expect(teamState(team.id).held?.map((q) => q.id)).toEqual([ids[2], ids[0], ids[1]]);

@@ -9,7 +9,7 @@ import type { CSSProperties } from 'react';
 import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, confirmBox, toast } from './core.ts';
 import { attachTray, COMPOSER_BTNS, COMPOSER_TEXT } from './attach.ts';
 import { pasteBox } from './pastes.ts';
-import { QueuedList } from './queuedlist.tsx';
+import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { mentionPreviews } from './filepreview.ts';
 import { queuedText } from '../shared/queue.ts';
 import { parseCommand } from '../shared/commands.ts';
@@ -420,17 +420,17 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     bump();
     void attempt(() => DEL(`/teams/${teamId}/queue/${q.id}`));
   };
-  /** A change to a queued message that couldn't be kept (it was sent meanwhile): into the box, if that is empty. */
-  const keepEdit = (text: string) => {
-    if (!text || input.current?.value.trim()) return;
-    restore(text);
-    toast('That message was already sent. Your change is in the box.');
-  };
+  const keepEdit = (text: string) => keepLostEdit(text, input.current, restore);
   const editQueued = async (q: QueuedMessage, text: string) => {
-    store.current.held = store.current.held.map((x) => (x.id === q.id ? { ...x, text } : x));
-    bump();
-    // (sent before the change got there: the new words come back to the box)
-    if (!(await attempt(() => PUT(`/teams/${teamId}/queue/${q.id}`, { text })))) keepEdit(text);
+    const put = (t: string) => {
+      store.current.held = store.current.held.map((x) => (x.id === q.id ? { ...x, text: t } : x));
+      bump();
+    };
+    put(text);
+    const r = await attempt(() => PUT<{ queued: QueuedMessage | null }>(`/teams/${teamId}/queue/${q.id}`, { text }));
+    // not saved: it shows what will go after all; sent before the change got there: the new words come back to the box
+    if (!r) put(q.text);
+    else if (r.queued === null) keepEdit(text);
   };
   const orderQueued = (ids: string[]) => {
     const by = new Map(store.current.held.map((q) => [q.id, q]));

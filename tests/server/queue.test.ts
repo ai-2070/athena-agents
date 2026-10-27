@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { chats, saveSettings, workflows } from '../../server/store.ts';
-import { activeRuns, editQueued, orderQueued, queueMessage, queuedMessages, steerChat, stopChat, unqueue } from '../../server/engines/index.ts';
+import { activeRuns, askAgent, editQueued, loopOf, orderQueued, queueMessage, queuedMessages, startLoop, steerChat, stopChat, unqueue } from '../../server/engines/index.ts';
 import { getThread, queueUserMessage, stopTeam, teamState, unqueueTeam } from '../../server/teams.ts';
 import { queuedText } from '../../shared/queue.ts';
 import type { Team } from '../../shared/types.ts';
@@ -195,6 +195,73 @@ describe('steering an agent chat: a message while it works', () => {
     cut.release();
   });
 
+  it('a run slow to stop: the message goes first in the queue, and nothing queued or looping is lost', async () => {
+    const a = agent('Slow stop');
+    const c = chats.create(a.id);
+    queueMessage(a, c, 'the long job');
+    await until(() => waiting.length > 0);
+    const cut = waiting.shift()!;
+    queueMessage(a, c, 'then tidy up');
+    // (gives up waiting at once, as if the run took too long to end)
+    const { runId } = await steerChat(a, c, 'change of plan', { waitMs: 0 });
+    expect(typeof runId).not.toBe('string');
+    // the stopped run ended by itself later: your message went first, the queued one still waits
+    const started = await runId;
+    expect(typeof started).toBe('string');
+    expect(chats.get(a.id, c.id)!.items.some((i) => i.type === 'error' && i.text === 'Stopped to take your new message.')).toBe(true);
+    expect(await release()).toContain('change of plan');
+    expect(await release()).toContain('then tidy up');
+    await until(() => !running(c.id));
+    expect(userTexts(a.id, c.id)).toEqual(['the long job', 'change of plan', 'then tidy up']);
+    cut.release();
+  });
+
+  it('a /loop carries on after a message that changed its course', async () => {
+    const a = agent('Looper');
+    const c = chats.create(a.id);
+    startLoop(a, c, { text: 'improve the tests', every: null, times: 2 });
+    await until(() => waiting.length > 0);
+    const cut = waiting.shift()!;
+    await steerChat(a, c, 'focus on the parser');
+    expect(await release()).toContain('focus on the parser');
+    // (the cut turn counts as the first: the second goes once your message is answered)
+    expect(await release()).toContain('improve the tests');
+    await until(() => !running(c.id) && !loopOf(c.id));
+    expect(userTexts(a.id, c.id)).toEqual(['improve the tests', 'focus on the parser', 'improve the tests']);
+    expect(chats.get(a.id, c.id)!.items.some((i) => i.type === 'meta' && i.text.startsWith('Loop done'))).toBe(true);
+    cut.release();
+  });
+
+  it('two messages sent quickly while it works both go, in the order sent', async () => {
+    const a = agent('Twice');
+    const c = chats.create(a.id);
+    queueMessage(a, c, 'the long job');
+    await until(() => waiting.length > 0);
+    const cut = waiting.shift()!;
+    const first = steerChat(a, c, 'no, red');
+    const second = steerChat(a, c, 'and bigger');
+    await expect(first).resolves.toHaveProperty('runId');
+    await expect(second).resolves.toHaveProperty('runId');
+    // (the first one's turn was stopped by the second, maybe before it asked the model)
+    await until(() => waiting.some((w) => w.last.includes('and bigger')));
+    for (const w of waiting.splice(0)) w.release();
+    await until(() => !running(c.id));
+    expect(userTexts(a.id, c.id)).toEqual(['the long job', 'no, red', 'and bigger']);
+    cut.release();
+  });
+
+  it('not while it works for a team or another agent: they wait on its answer', async () => {
+    const a = agent('Helper');
+    const c = chats.create(a.id);
+    const job = askAgent(a, 'a job for the team', { chatId: c.id, depth: 1 }).catch(() => '');
+    await until(() => waiting.length > 0);
+    await expect(steerChat(a, c, 'something else')).rejects.toMatchObject({ status: 409 });
+    expect(running(c.id)).toBe(true);
+    await release();
+    await job;
+    expect(userTexts(a.id, c.id)).toEqual(['a job for the team']);
+  });
+
   it('with nothing going, it is an ordinary message', async () => {
     const a = agent('Idle');
     const c = chats.create(a.id);
@@ -215,7 +282,8 @@ describe('steering an agent chat: a message while it works', () => {
     });
     expect(editQueued(c.id, ids[1], ' two, changed ')).toMatchObject({ text: 'two, changed' });
     expect(() => editQueued(c.id, ids[1], '')).toThrow();
-    expect(() => editQueued(c.id, 'nope', 'x')).toThrow(/already sent/);
+    // (already sent: nothing to change, and not an error)
+    expect(editQueued(c.id, 'nope', 'x')).toBeNull();
     expect(orderQueued(c.id, [ids[2], ids[0]]).map((q) => q.text)).toEqual(['three', 'one', 'two, changed']);
     unqueue(c.id);
     stopChat(c.id);

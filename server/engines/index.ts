@@ -1,7 +1,7 @@
 // Runs agents. One run = one user message answered by an agent (with any tool calls in between).
 // Engines stream events; this file turns them into chat history and live updates for the browser.
 import { agents as agentStore, chats, emit, log, getSettings, activeProject, withProject } from '../store.ts';
-import { uid, HOME } from '../util.ts';
+import { uid, HOME, settledWithin } from '../util.ts';
 import { cancelForRun } from '../approvals.ts';
 import { knowledgeContext } from '../knowledge.ts';
 import { memoryContext, memoryStamp, readMemory, hasMemory } from '../memory.ts';
@@ -22,6 +22,7 @@ import { SessionGone } from './cli.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent } from '../../shared/types.ts';
 import type { LoopRequest } from '../../shared/commands.ts';
+import { queuedEdit, reorderQueued } from '../../shared/queue.ts';
 
 /** A run was stopped (by its caller or directly, e.g. its Stop button) before it answered. */
 export class RunStopped extends Error {
@@ -81,6 +82,8 @@ export interface RunEntry {
   project: Project;
   /** (its id) */
   projectId: string;
+  /** stopped for a new message from you: its /queue messages and loop stay */
+  steered?: boolean;
 }
 
 /** What a running agent is doing right now (liveActivity()). */
@@ -145,14 +148,14 @@ export const ENGINE_LIST: EngineInfo[] = [
 const active = new Map<string, RunEntry>(); // runId -> { abort, agentId, chatId, chat, depth, parentRunId }
 // each run, done once it has ended (its last steps included): a steer waits for the run it stopped
 const ends = new Map<string, Promise<void>>();
-// chats whose run a new message is stopping: their /queue messages and loop stay, and that message goes next
+// chats where a new message waits for the run it stopped to end: it goes next, so nothing else starts meanwhile
 const steering = new Set<string>();
 // chats being compacted outside a run (Compact button, /compact), by id: no run may start meanwhile,
 // and edits or a delete meanwhile go to this copy (see liveChat)
 const compacting = new Map<string, Chat>();
 
 export function activeRuns(): ActiveRun[] {
-  return [...active.entries()].map(([id, r]) => ({ id, agentId: r.agentId, chatId: r.chatId, startedAt: r.startedAt, agentName: r.agentName, parentRunId: r.parentRunId || null }));
+  return [...active.entries()].map(([id, r]) => ({ id, agentId: r.agentId, chatId: r.chatId, startedAt: r.startedAt, agentName: r.agentName, parentRunId: r.parentRunId || null, depth: r.depth }));
 }
 
 // What the current turn of a chat is about: its message, latest tool and latest text.
@@ -238,7 +241,8 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   const started = Date.now();
   const project = activeProject();
   const inProject = <T>(fn: () => T): T => withProject(project, fn);
-  active.set(runId, { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, startedAt: started, agentName: agent.name, project, projectId: project.id });
+  const entry: RunEntry = { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, startedAt: started, agentName: agent.name, project, projectId: project.id };
+  active.set(runId, entry);
   // Saving skips chats deleted while the run was going.
   const persist = () =>
     inProject(() => {
@@ -376,7 +380,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     } catch (e) {
       const stopped = controller.signal.aborted;
       failed = !stopped;
-      const msg = stopped ? (steering.has(chat.id) ? 'Stopped to take your new message.' : 'Stopped.') : (e as Error).message || String(e);
+      const msg = stopped ? (entry.steered ? 'Stopped to take your new message.' : 'Stopped.') : (e as Error).message || String(e);
       for (const it of chat.items) if (it.type === 'tool' && it.status === 'running') Object.assign(it, { status: 'error', isError: true, result: stopped ? '(stopped)' : '(did not finish)' });
       pushItem(chat, { type: 'error', text: msg });
       persist();
@@ -390,7 +394,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       emit('runs');
       const stopped = controller.signal.aborted;
       // stopped for a new message from you: that message is next, and a /goal is checked after it instead
-      const steered = stopped && steering.has(chat.id);
+      const steered = stopped && !!entry.steered;
       try {
         if (!steered) runEndHook?.({ agentId: agent.id, chatId: chat.id, runId, answer, stopped, failed });
       } catch {
@@ -398,14 +402,16 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       }
       // done: your next /queue message goes now, then the loop's next one (a stopped run takes them with it: you said stop)
       if (steered) {
-        /* the steer starts the next run; the queue and the loop carry on after it */
+        // the queue and the loop carry on after your new message (a loop turn it cut counts as done)
+        loopRunEnded(chat.id, runId, false);
+        // (it waits for this run to end and goes now; one that gave up waiting is first in the queue)
+        if (!steering.has(chat.id)) carryOn(chat.id);
       } else if (stopped) {
         unqueue(chat.id);
         stopLoop(chat.id, 'Loop stopped.');
       } else {
         loopRunEnded(chat.id, runId, failed);
-        sendQueued(chat.id);
-        fireLoop(chat.id);
+        carryOn(chat.id);
       }
     }
   });
@@ -421,33 +427,71 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
 }
 
 // ---------- steering: a message while the chat works ----------
-/** How long a steer waits for the run it stopped to end before trying anyway. */
+/** How long a steer waits for the run it stopped to end. Longer than that, it goes first in the queue instead. */
 const STEER_WAIT_MS = 10_000;
+// the steers in each chat, one after the other (a second one waits for the first to start its run)
+const steers = new Map<string, Promise<unknown>>();
+
+/** What a steer started: its run, or (the run it stopped is slow to end) the run it will be once that
+ *  ends; null if it was taken back first (/stop). */
+export interface Steered {
+  runId: string | Promise<string | null>;
+}
 
 /** A message sent while the chat works changes its course: the run going now stops (its /queue messages
- *  and loop stay), and this message starts next, with what was done so far. Nothing going: sent as usual. */
-export async function steerChat(agent: Agent, chat: Chat, text: string, { attachments = [] }: { attachments?: string[] } = {}): Promise<{ runId: string; promise: Promise<string>; signal: AbortSignal }> {
-  const runs = [...active.entries()].filter(([, r]) => r.chatId === chat.id).map(([id]) => id);
-  if (runs.length && !steering.has(chat.id)) {
-    steering.add(chat.id);
-    let wait: ReturnType<typeof setTimeout> | undefined;
-    try {
-      const done = runs.map((id) => ends.get(id));
-      for (const id of runs) stopRun(id);
-      await Promise.race([Promise.all(done), new Promise((r) => (wait = setTimeout(r, STEER_WAIT_MS)))]);
-    } finally {
-      clearTimeout(wait);
-      steering.delete(chat.id);
+ *  and loop stay), and this message starts next, with what was done so far. Nothing going: sent as usual.
+ *  Not while it works for a team or another agent: they wait on that answer. */
+export function steerChat(agent: Agent, chat: Chat, text: string, { attachments = [], waitMs = STEER_WAIT_MS }: { attachments?: string[]; waitMs?: number } = {}): Promise<Steered> {
+  const mine = (steers.get(chat.id) || Promise.resolve()).then(() => steerNow(agent, chat, text, attachments, waitMs));
+  const tail = mine.then(
+    () => {},
+    () => {},
+  );
+  steers.set(chat.id, tail);
+  void tail.then(() => steers.get(chat.id) === tail && steers.delete(chat.id));
+  return mine;
+}
+
+async function steerNow(agent: Agent, chat: Chat, text: string, attachments: string[], waitMs: number): Promise<Steered> {
+  const runs = [...active.entries()].filter(([, r]) => r.chatId === chat.id);
+  if (runs.some(([, r]) => r.depth > 0)) throw httpError(409, `${agent.name} is working for a team or another agent in this chat. Stop it there, or /queue your message for when it is done.`);
+  if (!runs.length) return { runId: startRun(agent, chat, text, { attachments }).runId };
+  steering.add(chat.id);
+  let ended: boolean;
+  try {
+    for (const [id, r] of runs) {
+      r.steered = true;
+      stopRun(id);
     }
+    ended = await settledWithin(
+      runs.map(([id]) => ends.get(id)),
+      waitMs,
+    );
+  } finally {
+    steering.delete(chat.id);
   }
-  // (the stopped run saved its part: start from the chat as it is now)
-  return startRun(agent, liveChat(chat.id) || chats.get(agent.id, chat.id) || chat, text, { attachments });
+  // still ending: this message goes first, the moment it has
+  if (!ended) return { runId: queueFirst(agent, chat, text, attachments) };
+  try {
+    // (the stopped run saved its part: start from the chat as it is now)
+    return { runId: startRun(agent, liveChat(chat.id) || chats.get(agent.id, chat.id) || chat, text, { attachments }).runId };
+  } catch (e) {
+    // (refused after all: what waited behind it goes on)
+    carryOn(chat.id);
+    throw e;
+  }
 }
 
 // ---------- /queue: messages that wait for the chat to be free ----------
 // Kept in memory by chat. Each goes as its own message, in order, when the run before it ends.
 const waiting = new Map<string, { agentId: string; project: Project; items: QueuedMessage[] }>();
-const chatBusy = (chatId: string) => [...active.values()].some((r) => r.chatId === chatId) || compacting.has(chatId);
+// queued messages someone waits on: told the run each one started, or null if it never will
+const starts = new Map<string, (runId: string | null) => void>();
+const told = (id: string, runId: string | null) => {
+  starts.get(id)?.(runId);
+  starts.delete(id);
+};
+const chatBusy = (chatId: string) => [...active.values()].some((r) => r.chatId === chatId) || compacting.has(chatId) || steering.has(chatId);
 /** Something is going in this chat: a run, or a compaction. */
 export const isChatBusy = chatBusy;
 const emitQueue = (agentId: string, chatId: string) => emit('queue', { agentId, chatId, queued: queuedMessages(chatId) });
@@ -469,14 +513,27 @@ export function queueMessage(agent: Agent, chat: Chat, text: string, attachments
   return { queued };
 }
 
-/** Change the text of a queued message before it goes. */
-export function editQueued(chatId: string, id: string, text: unknown): QueuedMessage {
+/** A steer whose stopped run is slow to end: first in the queue (after earlier ones like it), so it goes
+ *  the moment that run has. Resolves with the run it starts, or null if it never does. */
+function queueFirst(agent: Agent, chat: Chat, text: string, attachments: string[]): Promise<string | null> {
+  const w = waiting.get(chat.id) || { agentId: agent.id, project: activeProject(), items: [] };
+  const q: QueuedMessage = { id: uid('q'), text, ...(attachments.length ? { attachments } : {}), ts: Date.now() };
+  const at = w.items.findIndex((x) => !starts.has(x.id));
+  w.items.splice(at === -1 ? w.items.length : at, 0, q);
+  waiting.set(chat.id, w);
+  const started = new Promise<string | null>((resolve) => starts.set(q.id, resolve));
+  emitQueue(agent.id, chat.id);
+  // (it ended meanwhile after all)
+  carryOn(chat.id);
+  return started;
+}
+
+/** Change the text of a queued message before it goes. null: it already went. */
+export function editQueued(chatId: string, id: string, text: unknown): QueuedMessage | null {
   const w = waiting.get(chatId);
   const q = w?.items.find((x) => x.id === id);
-  if (!w || !q) throw new Error('That message was already sent.');
-  const next = String(text ?? '').trim();
-  if (!next && !q.attachments?.length) throw new Error('Write something, or take it off the list with ×.');
-  q.text = next;
+  if (!w || !q) return null;
+  q.text = queuedEdit(text, !!q.attachments?.length);
   emitQueue(w.agentId, chatId);
   return q;
 }
@@ -485,9 +542,7 @@ export function editQueued(chatId: string, id: string, text: unknown): QueuedMes
 export function orderQueued(chatId: string, ids: unknown): QueuedMessage[] {
   const w = waiting.get(chatId);
   if (!w) return [];
-  const want = Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : [];
-  const named = want.map((id) => w.items.find((q) => q.id === id)).filter((q): q is QueuedMessage => !!q);
-  w.items = [...new Set([...named, ...w.items])];
+  w.items = reorderQueued(w.items, ids);
   emitQueue(w.agentId, chatId);
   return [...w.items];
 }
@@ -499,8 +554,15 @@ export function unqueue(chatId: string, id?: string): QueuedMessage[] {
   const taken = id ? w.items.filter((q) => q.id === id) : w.items;
   w.items = id ? w.items.filter((q) => q.id !== id) : [];
   if (!w.items.length) waiting.delete(chatId);
+  for (const q of taken) told(q.id, null);
   if (taken.length) emitQueue(w.agentId, chatId);
   return taken;
+}
+
+/** The chat is free: your next /queue message goes now, else the loop's next one. */
+function carryOn(chatId: string) {
+  sendQueued(chatId);
+  fireLoop(chatId);
 }
 
 function sendQueued(chatId: string) {
@@ -512,10 +574,14 @@ function sendQueued(chatId: string) {
   withProject(w.project, () => {
     const agent = agentStore.get(w.agentId);
     const chat = chats.get(w.agentId, chatId);
-    if (!agent || !chat) return void waiting.delete(chatId);
+    if (!agent || !chat) {
+      for (const q of [next, ...w.items]) told(q.id, null);
+      return void waiting.delete(chatId);
+    }
     try {
-      startRun(agent, chat, next.text, { attachments: next.attachments || [], from: next.from || null });
+      told(next.id, startRun(agent, chat, next.text, { attachments: next.attachments || [], from: next.from || null }).runId);
     } catch (e) {
+      told(next.id, null);
       log('error', `${agent.name}: a queued message couldn't be sent: ${(e as Error).message}`, { agentId: agent.id, chatId });
     }
   });

@@ -424,13 +424,21 @@ const stopCount = (pid: string) => stops.get(pid) || 0;
 export function stopAsks(pid = activeProject().id): void {
   stops.set(pid, stopCount(pid) + 1);
 }
+// the answers being written now, by project (a new message meanwhile cuts them off)
+interface Asking {
+  goal: boolean;
+  /** cut off by a new message */
+  steered: boolean;
+  /** past the point where it could still be stopped: what it does, it does */
+  past: boolean;
+}
+const asking = new Map<string, Set<Asking>>();
 /** A new message while the Brain answers: the answer being written changes nothing (like /stop), and the
- *  message it was answering stays in the chat's history, so the next answer knows what came before. */
-export function steerAsks(cut: { text: string; attachments: string[] } | null, pid = activeProject().id): void {
+ *  message it was answering stays in the chat's history, so the next answer knows what came before. One
+ *  too far along to stop finishes, and its answer comes to the chat by itself (brain-late). */
+export function steerAsks(pid = activeProject().id): void {
+  for (const a of asking.get(pid) || []) a.steered = true;
   stopAsks(pid);
-  if (!cut || (!cut.text && !cut.attachments.length)) return;
-  const now = Date.now();
-  remember([...history(pid), { role: 'user', text: cut.text, ts: now, ...(cut.attachments.length ? { attachments: cut.attachments } : {}) }, { role: 'brain', text: '(stopped before answering: the user sent a new message)', ts: now + 1 }], pid);
 }
 export function clearHistory(pid = activeProject().id) {
   generations.set(pid, generation(pid) + 1);
@@ -1729,8 +1737,25 @@ export function checkProject(project: string | null | undefined): void {
 /** project: the project the message was typed in. A message that waited while you switched projects is refused.
  *  attachments: files the user attached (paths in uploads/). onPart: what it does as it happens (streamed). */
 // goal: your /goal: the Brain hands it on and follows up until it is met (see irc.ts)
-export async function ask(text: string, { project, attachments = [], onPart, goal = false }: { project?: string | null; attachments?: string[]; onPart?: (p: BrainPart) => void; goal?: boolean } = {}): Promise<BrainAnswer> {
-  checkProject(project);
+export async function ask(text: string, opts: { project?: string | null; attachments?: string[]; onPart?: (p: BrainPart) => void; goal?: boolean } = {}): Promise<BrainAnswer> {
+  checkProject(opts.project);
+  const pid = activeProject().id;
+  const me: Asking = { goal: !!opts.goal, steered: false, past: false };
+  const live = asking.get(pid) || new Set<Asking>();
+  live.add(me);
+  asking.set(pid, live);
+  try {
+    const r = await answerNow(text, opts, me);
+    // cut off by a new message, too late to stop: the chat stopped reading it, so it hears it this way
+    if (me.steered && me.past) emit('brain-late', { projectId: pid, answer: r, goal: me.goal });
+    return r;
+  } finally {
+    live.delete(me);
+    if (!live.size && asking.get(pid) === live) asking.delete(pid);
+  }
+}
+
+async function answerNow(text: string, { attachments = [], onPart, goal = false }: { attachments?: string[]; onPart?: (p: BrainPart) => void; goal?: boolean }, me: Asking): Promise<BrainAnswer> {
   const p = activeProject();
   const gen = generation(p.id);
   const stopsAtStart = stopCount(p.id);
@@ -1770,6 +1795,11 @@ export async function ask(text: string, { project, attachments = [], onPart, goa
   parsed.actions = parsed.actions.filter((a) => actionKind(a) !== 'read_skill' && actionKind(a) !== 'find_models');
   // you stopped it while it thought: change nothing, keep nothing
   if (stopCount(p.id) !== stopsAtStart) {
+    // (cut off by a new message: its question stays, so the next answer knows what came before)
+    if (me.steered && !me.goal && generation(p.id) === gen) {
+      const at = Date.now();
+      remember([...history(p.id), { role: 'user', text, ts: at, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: '(stopped before answering: the user sent a new message)', ts: at + 1 }], p.id);
+    }
     const dropped: BrainDone = { kind: 'error', text: 'You stopped the Brain, so nothing was changed.' };
     return { answer: parsed.answer, done: [dropped], delegate: null, model: bm, project: p.name };
   }
@@ -1778,6 +1808,7 @@ export async function ask(text: string, { project, attachments = [], onPart, goa
     const dropped: BrainDone = { kind: 'error', text: 'You started a new conversation while the Brain was thinking, so nothing was changed.' };
     return { answer: parsed.answer, done: parsed.actions.length ? [dropped] : [], delegate: null, model: bm, project: p.name };
   }
+  me.past = true;
   // you switched projects while it thought (even if you came back since: the chat dropped this turn), so skip its actions
   const skipped: BrainDone = { kind: 'error', text: `You switched projects while the Brain was thinking, so nothing was changed. Open "${p.name}" and ask again.` };
   const stale = () => projectSwitches() !== switchesAtStart || openProject().id !== p.id;

@@ -93,6 +93,11 @@ beforeEach(() => {
     if (url === '/api/agents/a1/chats/c1/compact') return json({ compacted: true, item: {} });
     if (url === '/api/agents/a1/chats/c1/stop') return json({ ok: true, unqueued: unqueuedOnStop });
     if (url === '/api/agents/a1/commands') return json([{ name: 'review', about: 'Review the changes' }]);
+    // a queued message changed: "gone" was sent meanwhile, "boom" can't be saved
+    if (method === 'PUT' && url.startsWith('/api/agents/a1/chats/c1/queue/')) {
+      if (body.text === 'boom') return new Response(JSON.stringify({ error: 'Could not save it.' }), { status: 500 });
+      return json({ queued: body.text === 'gone' ? null : { id: url.split('/').pop(), text: body.text, ts: 0 } });
+    }
     if (url === '/api/files/info') return json((body.paths as string[]).map((p) => ({ path: p, ok: p === '/w/render.png', kind: 'image', name: 'render.png', size: 10, modified: 0 })));
     return json({});
   });
@@ -367,6 +372,44 @@ describe('the agent chat (AI SDK)', () => {
     await settle();
     expect([...el.querySelectorAll('.queued-text')].map((n) => n.textContent)).toEqual(['second, shorter', 'first']);
     expect(requests.find((r) => r.url.endsWith('/queue/order'))!.body).toEqual({ ids: ['q2', 'q1'] });
+  });
+
+  it('while it works for a team or another agent, a message is not sent to change its course', async () => {
+    state.data = { runs: [{ id: 'r1', agentId: 'a1', chatId: 'c1', startedAt: 0, agentName: 'Renderer', parentRunId: 'team:t1', depth: 1 }], approvals: [], agents: [] } as unknown as AppState;
+    const el = await open();
+    await act(async () => {
+      for (const fn of state.listeners) fn(state.data!);
+    });
+    await settle();
+    expect(el.querySelector('textarea')!.placeholder).toContain('for a team or another agent');
+    await type(el, 'something else');
+    await settle();
+    expect(requests.some((r) => r.method === 'POST' && r.url.endsWith('/stream'))).toBe(false);
+    expect(document.getElementById('toasts')!.textContent).toContain('/queue');
+    // (what you typed stays in the box)
+    expect(el.querySelector('textarea')!.value).toBe('something else');
+  });
+
+  it('a change to a queued message that fails goes back; one already sent comes to the box', async () => {
+    const el = await open();
+    await type(el, 'go');
+    await settle();
+    await wsEvent({ type: 'queue', agentId: 'a1', chatId: 'c1', queued: [{ id: 'q1', text: 'first', ts: 0 }] });
+    await settle();
+    const box = el.querySelector('textarea')!;
+    const change = async (text: string) => {
+      box.value = '';
+      await act(async () => box.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })));
+      const edit = el.querySelector<HTMLTextAreaElement>('.queued-edit')!;
+      edit.value = text;
+      await act(async () => edit.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+      await settle();
+    };
+    await change('boom');
+    expect([...el.querySelectorAll('.queued-text')].map((n) => n.textContent)).toEqual(['first']);
+    expect(box.value).toBe('');
+    await change('gone');
+    expect(box.value).toBe('gone');
   });
 
   it('Stop puts what you queued back in the box', async () => {

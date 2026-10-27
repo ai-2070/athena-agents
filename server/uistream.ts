@@ -87,16 +87,22 @@ export class TurnChunks {
 
 export interface StreamRunOptions {
   chatId: string;
-  /** Only this run's events (else any run in the chat). */
-  runId: string;
+  /** Only this run's events. Or the run once it starts (a message waiting for the run before it to end);
+   *  null: it never will, and the stream just ends. */
+  runId: string | Promise<string | null>;
+  /** What it says while that run hasn't started yet. */
+  waiting?: string;
   /** The turn so far, shown first (a view opening while it runs). */
   items?: readonly ChatItem[];
   /** How often a keep-alive comment goes out while a tool runs (ms). */
   keepAliveMs?: number;
 }
 
+// a run you stopped (or stopped for your new message) didn't fail
+const STOPPED = new Set(['Stopped.', 'Stopped to take your new message.']);
+
 /** Streams the run into the response until it ends (or the browser goes away). */
-export function streamRun(res: http.ServerResponse, { chatId, runId, items = [], keepAliveMs = 15_000 }: StreamRunOptions): Promise<void> {
+export function streamRun(res: http.ServerResponse, { chatId, runId, items = [], keepAliveMs = 15_000, waiting = 'Waiting…' }: StreamRunOptions): Promise<void> {
   res.writeHead(200, { ...UI_MESSAGE_STREAM_HEADERS, 'cache-control': 'no-store' });
   const write = (chunk: UIMessageChunk) => res.write(`data: ${JSON.stringify(chunk)}\n\n`);
   const w = new TurnChunks(write);
@@ -114,20 +120,30 @@ export function streamRun(res: http.ServerResponse, { chatId, runId, items = [],
       }
       resolve();
     };
+    // (not known yet while it waits: nothing is ours until it is)
+    let id = typeof runId === 'string' ? runId : null;
     const listen = (ev: ServerEvent) => {
-      if (ev.type !== 'run' || ev.chatId !== chatId || ev.runId !== runId) return;
+      if (ev.type !== 'run' || ev.chatId !== chatId || id == null || ev.runId !== id) return;
       const e = ev.event as RunEvent;
       // a run that failed ends the stream with the AI SDK's error (useChat's onError); "Stopped." is you
-      if (e.kind === 'error' && e.text && e.text !== 'Stopped.') write({ type: 'error', errorText: e.text });
+      if (e.kind === 'error' && e.text && !STOPPED.has(e.text)) write({ type: 'error', errorText: e.text });
       if (e.kind === 'done' || e.kind === 'error') end();
       else w.event(e);
     };
     // (the replay and the listening start in the same moment, so nothing is missed or seen twice)
-    w.start(`run-${runId}`);
+    w.start(`run-${id ?? `next-${Date.now()}`}`);
     w.replay(items);
     bus.on('event', listen);
     const alive = setInterval(() => res.write(': keep-alive\n\n'), keepAliveMs);
     res.on('close', () => end(false));
+    if (typeof runId !== 'string') {
+      w.status(waiting);
+      // (its first events come later: a run streams only once its engine answers)
+      void runId.then(
+        (started) => (started ? void (id = started) : end()),
+        () => end(),
+      );
+    }
   });
 }
 

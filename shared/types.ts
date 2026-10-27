@@ -370,6 +370,8 @@ export interface ActiveRun {
   startedAt: number;
   agentName: string;
   parentRunId: string | null;
+  /** above 0: it works for a team or another agent, which waits on its answer */
+  depth?: number;
 }
 
 /** Everything the server pushes over the /ws socket. Extra fields depend on the type. */

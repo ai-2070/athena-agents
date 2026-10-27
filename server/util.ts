@@ -482,3 +482,14 @@ export function parseFrontmatter(text: string): { meta: Record<string, string>; 
   }
   return { meta, body: text.slice(m[0].length) };
 }
+
+/** Waits for all of these to settle, but no longer than ms. True if they all did in time. */
+export async function settledWithin(promises: readonly (Promise<unknown> | undefined)[], ms: number): Promise<boolean> {
+  if (ms <= 0) return false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([Promise.allSettled(promises).then(() => true), new Promise<boolean>((done) => (timer = setTimeout(() => done(false), ms)))]);
+  } finally {
+    clearTimeout(timer);
+  }
+}

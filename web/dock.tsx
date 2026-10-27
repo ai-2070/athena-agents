@@ -15,7 +15,7 @@ import { commandChips, slashMenu } from './chatcommands.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import { attachTray, COMPOSER_BTNS, COMPOSER_TEXT } from './attach.ts';
 import { pasteBox } from './pastes.ts';
-import { QueuedList } from './queuedlist.tsx';
+import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { openMemory, BRAIN } from './memory.ts';
 import { mentionPreviews } from './filepreview.ts';
 import { brainKeyLabel, brainKeyTitle, brainShortcut } from './shortcuts.ts';
@@ -899,12 +899,11 @@ const emptyBox = () => {
   D.pastes!.sync();
   draw();
 };
-/** A change to a queued message that couldn't be kept (it was sent meanwhile): into the box, if that is empty. */
 function keepEdit(text: string) {
-  if (!text || D.input?.value.trim()) return;
-  D.pastes!.restore(text);
-  draw();
-  toast('That message was already sent. Your change is in the box.');
+  keepLostEdit(text, D.input, (t) => {
+    D.pastes!.restore(t);
+    draw();
+  });
 }
 
 // given: files uploaded elsewhere (a new project), sent along with what's in the tray
@@ -972,11 +971,11 @@ async function send(given: string[] = []) {
 const answering = new Map<BrainItem, AbortController>();
 /** A new message to the Brain while it answers: that answer is dropped (it changes nothing, like /stop) and
  *  the question it was answering stays in the Brain's history, so the new answer knows it. Your waiting
- *  messages, the loop, and the agents and teams it handed work to carry on. */
+ *  messages, the loop, and the agents and teams it handed work to carry on. (One too far along to stop
+ *  still comes, by itself: brain-late.) */
 async function steerBrain() {
   const live = D.items.filter((x): x is BrainItem => x.kind === 'brain' && !!x.live);
   if (!live.length) return;
-  const cut = live.find((x) => x.ask)?.ask;
   // (what is still on its way is no longer wanted)
   brainAsks.reset();
   for (const x of live) {
@@ -985,7 +984,7 @@ async function steerBrain() {
     D.items.splice(D.items.indexOf(x), 1);
   }
   add({ kind: 'note', text: "Stopped the Brain's answer to take your new message." });
-  await attempt(() => POST('/brain/steer', cut && !cut.goal ? { text: cut.text, attachments: cut.attachments } : {}));
+  await attempt(() => POST('/brain/steer'));
 }
 
 // ---------- /queue ----------
@@ -1103,7 +1102,11 @@ async function dispatch(text: string, attachments: string[], t: string, { goal =
   // a new conversation or another project since: this answer is no longer wanted here
   if (turn.kind === 'stale') return drop(), draw();
   if (turn.kind === 'error') return drop(), add({ kind: 'note', text: `The Brain couldn't answer: ${turn.error}`, error: true });
-  const r = turn.answer;
+  showAnswer(live, turn.answer, goal);
+}
+
+/** The Brain's answer in its message, and the agent or team it handed the work to, followed here. */
+function showAnswer(live: BrainItem, r: BrainAnswer, goal: boolean) {
   if (!D.items.includes(live)) D.items.push(live);
   Object.assign(live, { answer: r.answer, done: r.done || [], delegate: r.delegate, live: false });
   draw();
@@ -1210,6 +1213,11 @@ function handleEvent(ev: ServerEvent) {
   // handed out (brain-note: done, stuck, or a team needs you)
   if ((ev.type === 'brain-learned' || ev.type === 'brain-note') && ev.projectId === D.project) {
     add({ kind: 'brain', answer: String(ev.answer || ''), done: (ev.done as BrainDone[]) || [] });
+    return;
+  }
+  // an answer your new message cut off, but too far along to stop: what it did shows, and the work it handed on is followed
+  if (ev.type === 'brain-late' && ev.projectId === D.project && ev.answer && typeof ev.answer === 'object') {
+    showAnswer(add({ kind: 'brain', answer: '', done: [], steps: [] }) as BrainItem, ev.answer as BrainAnswer, ev.goal === true);
     return;
   }
   if (ev.type === 'run') {
