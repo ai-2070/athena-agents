@@ -6,13 +6,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { bus, listProjects, activeProject, log } from './store.ts';
-import { dataPath, ensureDir, exists, isPlainDir, readJSON, readPlain, writeJSON, realTarget } from './util.ts';
+import { dataPath, ensureDir, exists, isPlainDir, readJSON, readPlain, writeJSON, realTarget, uid } from './util.ts';
 import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir, checkVersion, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
 import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, skillVersionItem, SKILL_BODY_MAX } from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
 import { cleanMemoryVersion, isMemoryOwner, putMemory, MEMORY_FILE, MEMORY_MAX } from './memory.ts';
 import type { Version } from './versions.ts';
-import type { Agent, Chat, Routine, Team } from '../shared/types.ts';
+import { getWorld, worldDir, WORLD_ID } from './voxel/store.ts';
+import { setLink, usedBy } from './voxel/link.ts';
+import { WORLD_MD_MAX } from './voxel/worldmd.ts';
+import type { Agent, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
 
 /** The last auto-save of a project (AppState.projectSaved). */
 export interface SaveStatus {
@@ -62,6 +65,7 @@ const CHATS_CAP = 200 * 1024 * 1024; // nor more than 200 MB of agent chats
 const VERSIONS_CAP = 50 * 1024 * 1024; // nor more than 50 MB of agent and team versions
 const SKILLS_CAP = 50 * 1024 * 1024; // nor more than 50 MB of skills (with their files and versions)
 const MEMORY_CAP = 20 * 1024 * 1024; // nor more than 20 MB of MEMORY.md files
+const WORLD_CAP = 300 * 1024 * 1024; // nor more than 300 MB of voxel world
 // The versioned collections (data/projects/<id>/versions/<kind>/<item id>/<version id>.json)
 const VERSIONED = ['agents', 'workflows', 'memory'] as const;
 const saved = new Map<string, SaveStatus>(); // projectId -> { at, error }
@@ -212,6 +216,7 @@ export function saveProject(id: string): SaveStatus | null {
       skillBudget -= copyTree(skillVersionsDir(slug), path.join(out, 'skill-versions', slug), skillBudget, { base: out, mirror: true });
     }
     for (const sub of ['skills', 'skill-versions']) if (exists(path.join(out, sub))) prune(path.join(out, sub), new Set(used));
+    saveWorldCopy(p, out);
     noLinks(out, path.join(out, 'README.txt'));
     fs.writeFileSync(
       path.join(out, 'README.txt'),
@@ -293,6 +298,7 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   const chatCount = restoreChats(folder, id, (j.agents || []).filter(safe).map((a) => a.id as string));
   const versionCount = restoreVersions(folder, id);
   const skills = restoreSkills(folder, j.project?.name || path.basename(folder));
+  restoreWorld(folder, id);
   log('project', `Loaded ${(j.agents || []).length} agents, ${(j.teams || []).length} teams, ${chatCount} chats, ${skills.added.length} skills and ${versionCount} earlier versions from ${folder}`);
   return { agents: (j.agents || []).length, teams: (j.teams || []).length, chats: chatCount, versions: versionCount, skills, project: j.project || {} };
 }
@@ -449,12 +455,76 @@ function restoreChats(folder: string, id: string, agentIds: string[]): number {
   return n;
 }
 
+// ---------- the voxel world ----------
+// <folder>/.dashboard/world/: the world the project uses (its voxels, WORLD.md and its versions; the undo
+// history stays in the data folder), and link.json saying how the project uses it.
+const WORLD_PARTS = ['world.json', 'WORLD.md', 'objects', 'prefabs', 'versions', 'link.json'];
+function saveWorldCopy(p: Project, out: string): void {
+  const dst = path.join(out, 'world');
+  const w = p.world ? getWorld(p.world.id) : null;
+  noLinks(out, dst);
+  if (!w || !p.world) {
+    fs.rmSync(dst, { recursive: true, force: true });
+    return;
+  }
+  ensureDir(dst);
+  let left = WORLD_CAP;
+  for (const sub of ['objects', 'prefabs', path.join('versions', 'world-md')]) left -= copyTree(worldDir(w.id, sub), path.join(dst, sub), left, { base: out, mirror: true });
+  for (const f of ['world.json', 'WORLD.md']) {
+    const src = worldDir(w.id, f);
+    const to = path.join(dst, f);
+    noLinks(out, to);
+    if (fs.existsSync(src) && fs.lstatSync(src).isFile()) fs.copyFileSync(src, to);
+    else fs.rmSync(to, { force: true });
+  }
+  noLinks(out, path.join(dst, 'link.json'));
+  writeJSON(path.join(dst, 'link.json'), { id: w.id, mode: p.world.mode, name: w.name });
+  prune(dst, new Set(WORLD_PARTS));
+}
+
+/** The world saved in a folder: linked again when this PC has it, else made again from the files. */
+function restoreWorld(folder: string, id: string): boolean {
+  const file = savedPath(folder, 'world', 'world.json');
+  const saved = file ? readPlain<Partial<VoxelWorld> | null>(file, null) : null;
+  if (!saved || typeof saved.id !== 'string' || !WORLD_ID.test(saved.id)) return false;
+  const fromFiles = (wid: string) => {
+    for (const sub of ['objects', 'prefabs']) {
+      const from = savedPath(folder, 'world', sub);
+      if (from) copyTree(from, worldDir(wid, sub), WORLD_CAP * 2);
+    }
+    const versions = savedPath(folder, 'world', 'versions', 'world-md');
+    if (versions) copyTree(versions, worldDir(wid, 'versions', 'world-md'), WORLD_CAP);
+    const md = savedPath(folder, 'world', 'WORLD.md');
+    if (md && fs.lstatSync(md).isFile() && fs.statSync(md).size <= WORLD_MD_MAX * 2) fs.copyFileSync(md, worldDir(wid, 'WORLD.md'));
+    writeJSON(worldDir(wid, 'world.json'), { ...saved, id: wid, homeProject: id });
+  };
+  const linkFile = savedPath(folder, 'world', 'link.json');
+  const wasShared = (linkFile ? readPlain<{ mode?: unknown } | null>(linkFile, null) : null)?.mode === 'shared';
+  const wid = saved.id;
+  if (!getWorld(wid)) {
+    fromFiles(wid);
+    setLink(id, { id: wid, mode: 'own' });
+  } else if (!usedBy(wid).some((x) => x !== id)) setLink(id, { id: wid, mode: 'own' });
+  else if (wasShared) setLink(id, { id: wid, mode: 'shared' });
+  else {
+    // another project here builds in that world, and this one had it as its own (the same folder opened
+    // twice, or a copy of it): it gets its own world from the files, so the two don't build in each other's
+    const fresh = uid('w');
+    fromFiles(fresh);
+    setLink(id, { id: fresh, mode: 'own' });
+  }
+  return true;
+}
+
 // Save after anything in the project changes.
 const WATCH = new Set(['agents', 'workflows', 'routines', 'layout', 'team', 'knowledge', 'memory', 'brain-chat', 'chats', 'skills']);
 export function startAutoSave() {
   bus.on('event', (ev) => {
     // an event that names its project (an agent chat) saves that one, even if another is open now
-    if (ev.type === 'skills') {
+    if ((ev.type === 'world' || ev.type === 'world-md') && typeof ev.world === 'string') {
+      // a world can be shared: every project using it saves
+      for (const id of new Set([activeProject().id, ...usedBy(ev.world)])) saveSoon(id);
+    } else if (ev.type === 'skills') {
       const slugs = [ev.slug, ...(Array.isArray(ev.installed) ? ev.installed : [])].filter((x): x is string => typeof x === 'string');
       for (const id of new Set([activeProject().id, ...projectsWithSkills(slugs)])) saveSoon(id);
     } else if (WATCH.has(ev.type)) saveSoon(typeof ev.project === 'string' ? ev.project : activeProject().id);

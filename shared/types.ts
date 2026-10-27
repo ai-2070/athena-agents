@@ -258,6 +258,8 @@ export interface Project {
   /** The 3D model that replaces the logo inside the Brain's globe (.dashboard/brain-model.*): when it last changed and its file type; null = none. */
   modelAt?: number | null;
   modelExt?: string | null;
+  /** Which voxel world it uses (missing: none of its own yet, see ProjectWorldLink). */
+  world?: ProjectWorldLink;
 }
 
 // ---------- chats ----------
@@ -524,7 +526,13 @@ export interface LookSetting {
   station: StationQuality;
   /** What the bottom of the sidebar shows: what's set up, or how much of your Claude and Codex plans is used. */
   sidebar: SidebarPanel;
+  /** The Station's look: the classic map, or the voxel world's light (sky, sun and shadows, glow). */
+  stationLook: StationLook;
+  /** How much the voxel world draws: shadows, glow and the miniature blur cost graphics power. */
+  worldQuality: WorldQuality;
 }
+export type StationLook = 'classic' | 'world';
+export type WorldQuality = 'low' | 'medium' | 'high';
 
 export type StationQuality = 'smooth' | 'balanced' | 'saver';
 export type SidebarPanel = 'status' | 'limits';
@@ -554,6 +562,8 @@ export interface Settings {
   /** Models starred in the model picker: they get their own tab at the front. */
   favoriteModels: FavoriteModel[];
   activeProject?: string;
+  /** The voxel world projects without a built world of their own show ('' = the most recently built one). */
+  defaultWorld: string;
 }
 
 export type SecretKey = 'openrouterKey' | 'anthropicKey' | 'customKey' | 'xClientSecret' | 'telegramBotToken' | 'discordWebhook' | 'redditClientSecret';
@@ -759,7 +769,7 @@ export interface MemoryInfo {
 }
 
 // ---------- the Brain ----------
-export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
+export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'world' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
 export interface BrainDelegate {
   kind: 'agent' | 'branch';
   id: string;
@@ -896,4 +906,333 @@ export interface McpSuggestion {
   needs: string;
   /** the Programs page id of the program it drives, null for the basics */
   program: string | null;
+}
+
+// ---------- the voxel world (docs/internal/plans/VOXEL_WORLD_PLAN.md) ----------
+/** How a voxel material is drawn: solid ones block light and hide what is behind them, glass and water don't. */
+export type VoxelMaterialKind = 'solid' | 'glass' | 'water' | 'emissive' | 'metal' | 'leaf' | 'snow';
+
+/** One entry of a world's palette. A voxel's value v (1..255) is palette[v - 1]; 0 is empty. */
+export interface VoxelMaterial {
+  name: string;
+  /** #rrggbb */
+  color: string;
+  /** extra shades (#rrggbb) a voxel may take instead of color, picked per voxel */
+  ramp?: string[];
+  /** 0..0.3: how much each voxel's brightness varies */
+  jitter?: number;
+  kind: VoxelMaterialKind;
+  /** emissive: how bright it glows, 0..8 */
+  emissive?: number;
+  /** glass and water: 0..1 */
+  opacity?: number;
+  roughness?: number;
+}
+
+export type WorldEnvPreset = 'station' | 'day' | 'golden' | 'dusk' | 'night' | 'overcast' | 'snow';
+
+/** Where a light or an effect is: pinned like an object (anchor), or to an object (it moves and turns with it). */
+interface WorldPlaced {
+  id: string;
+  name: string;
+  by: WorldBuilder;
+  anchor: WorldAnchor;
+  /** an object's id: then position is from that object's origin, and it turns with it */
+  object?: string;
+  /** map units */
+  position: Vec3;
+}
+
+/** A light a builder put up. */
+export interface WorldLight extends WorldPlaced {
+  kind: 'point' | 'spot';
+  color: string;
+  /** 0..10: 1 is a lantern, 4 a street lamp, 10 a floodlight */
+  intensity: number;
+  /** how far it reaches, map units */
+  range: number;
+  /** spot: the point it shines at (same frame as position) and the cone's angle in degrees */
+  target?: Vec3;
+  angle?: number;
+  /** 0..1: how much it flickers (a flame, a failing neon) */
+  flicker?: number;
+}
+
+export type WorldEffectKind = 'petals' | 'leaves' | 'snow' | 'rain' | 'fireflies' | 'embers' | 'sparks' | 'smoke' | 'steam' | 'mist' | 'dust' | 'birds';
+
+/** Particles in an area. */
+export interface WorldEffect extends WorldPlaced {
+  kind: WorldEffectKind;
+  /** the area's size around position (w, h, d map units); position is its bottom centre */
+  size: Vec3;
+  /** 0..1: how many */
+  amount: number;
+  /** colours to pick from (#rrggbb); each kind has its own when left out */
+  colors?: string[];
+  /** which way and how hard it blows (map units a second) */
+  wind?: Vec3;
+}
+
+/** Sky, fog, sun and the finishing touches of a world's look. Colors are #rrggbb, angles in degrees. */
+export interface WorldEnvironment {
+  preset: WorldEnvPreset;
+  sky: { top: string; horizon: string; bottom: string };
+  /** density 0..1 (0: no fog) */
+  fog: { color: string; density: number };
+  sun: { color: string; intensity: number; azimuth: number; elevation: number };
+  ambient: { sky: string; ground: string; intensity: number };
+  /** 0..2 glow around bright things */
+  bloom: number;
+  /** 0..1 miniature blur at the top and bottom of the view */
+  tiltShift: number;
+  exposure: number;
+  /** weather over the whole map (besides effects in areas) */
+  weather?: 'none' | 'snow' | 'rain' | 'petals' | 'leaves' | 'dust';
+  /** wind for leaves, petals, snow and the sway of leaves (map units a second) */
+  wind?: Vec3;
+}
+
+export type Vec3 = [number, number, number];
+
+/** What an object is pinned to. It moves with that thing (a team dragged across the map). */
+export type WorldAnchor = { to: 'world' } | { to: 'brain' } | { to: 'team'; id: string } | { to: 'agent'; id: string };
+
+/** Who built or last changed something in a world. */
+export interface WorldBuilder {
+  kind: 'brain' | 'agent' | 'user';
+  id?: string;
+  name: string;
+}
+
+/** One grid of an object: all its voxels have one size. Voxel (x, y, z) sits at object origin + (x, y, z) × voxelSize. */
+export interface VoxelVolumeMeta {
+  id: string;
+  voxelSize: number;
+  /** voxels in it */
+  count: number;
+  /** the voxels it spans, inclusive (null when empty) */
+  min: Vec3 | null;
+  max: Vec3 | null;
+}
+
+export interface VoxelObjectMeta {
+  id: string;
+  name: string;
+  by: WorldBuilder;
+  /** who changed it last (may differ from who built it) */
+  lastBy?: WorldBuilder;
+  anchor: WorldAnchor;
+  /** map units, from its anchor */
+  position: Vec3;
+  /** degrees, around the vertical */
+  rotation: number;
+  scale: number;
+  volumes: VoxelVolumeMeta[];
+  hidden?: boolean;
+  /** where it last stood on the map: used when its anchor isn't in the project showing it */
+  lastWorldPos?: Vec3;
+  createdAt: number;
+  updatedAt: number;
+  /** when its voxels last changed (a move doesn't count): the page meshes it again */
+  voxelsAt?: number;
+  /** how many prefab copies are placed in it */
+  instances?: number;
+}
+
+/** A prefab copy placed in an object (or in another prefab). Not voxels: the page repeats the prefab's mesh. */
+export interface PrefabInstance {
+  /** the prefab's id */
+  prefab: string;
+  /** where its pivot (bottom centre) stands, in map units from the object's origin */
+  p: Vec3;
+  /** degrees around the vertical, any angle */
+  turn?: number;
+  /** quarter turns around x (tilt) and z (roll): 0, 90, 180 or 270 */
+  tilt?: number;
+  roll?: number;
+  scale?: number;
+  /** mirrored left to right (across its own x) */
+  mirror?: boolean;
+  /** materials swapped in this copy: { "shirt": "cloth red" } */
+  swap?: Record<string, string>;
+  /** a part's name inside a character ("left arm"): animations move it by this name */
+  name?: string;
+}
+
+/** One moment of a part in an animation. Turns are degrees around the part's own pivot (x, y, z); moves are map units. */
+export interface AnimKey {
+  /** when, from 0 (start) to 1 (end of the clip) */
+  t: number;
+  turn?: Vec3;
+  move?: Vec3;
+  scale?: number;
+  /** how it gets here from the key before */
+  ease?: 'linear' | 'smooth' | 'step' | 'bounce';
+}
+
+/** An animation a builder designed for a character prefab: keys per part ("self" moves the whole character). */
+export interface AnimationClip {
+  /** seconds */
+  duration: number;
+  loop: boolean;
+  tracks: Record<string, AnimKey[]>;
+}
+
+/** An object's or a prefab's voxels (…/objects/<id>.json, …/prefabs/<id>.json): chunks run-length encoded
+ *  (shared/voxel.ts), and the prefab copies placed in it. */
+export interface VoxelObjectData {
+  volumes: { id: string; voxelSize: number; chunks: Record<string, string> }[];
+  instances?: PrefabInstance[];
+}
+
+/** A small model an agent made to place many times (a palm, a person, a taxi). Its voxels use the world's palette. */
+export interface VoxelPrefabMeta {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  by: WorldBuilder;
+  lastBy?: WorldBuilder;
+  volumes: VoxelVolumeMeta[];
+  /** prefab copies placed inside it */
+  instances?: number;
+  /** map units from its voxels' origin to the point that stands on the spot it is placed at (bottom centre,
+   *  unless the builder chose another: a top pivot for an arm that hangs from a shoulder) */
+  pivot: Vec3;
+  /** the pivot the builder chose; missing = bottom centre */
+  pivotAt?: 'bottom' | 'top' | 'center' | Vec3;
+  /** animations its builder designed (for characters made of named parts) */
+  animations?: Record<string, AnimationClip>;
+  /** how big it is, map units */
+  size: Vec3;
+  createdAt: number;
+  updatedAt: number;
+  voxelsAt?: number;
+}
+
+/** A voxel world (data/worlds/<id>/world.json). Projects point at one (ProjectWorldLink). */
+export interface VoxelWorld {
+  format: 1;
+  id: string;
+  name: string;
+  /** the project it was first made for */
+  homeProject: string;
+  /** false until something is built in it: an unbuilt world can be replaced by a carried-over one */
+  built: boolean;
+  /** the voxel size new objects start with, in map units (a desk is 2.6 wide) */
+  voxelSize: number;
+  palette: VoxelMaterial[];
+  objects: VoxelObjectMeta[];
+  /** the prefabs its builders made */
+  prefabs: VoxelPrefabMeta[];
+  /** lights builders put up (glowing voxels light their surroundings by themselves too) */
+  lights: WorldLight[];
+  /** particles: falling petals, snow, fireflies, smoke… */
+  effects: WorldEffect[];
+  /** how the Brain, the team platforms and the agents look in this world (voxel look only) */
+  skins: WorldSkins;
+  environment: WorldEnvironment;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Which world a project uses. */
+export interface ProjectWorldLink {
+  id: string;
+  /** own: made for this project. shared: another project's world; changes show in both. */
+  mode: 'own' | 'shared';
+  /** the user picked it: carry-over never replaces their choice */
+  chosen?: boolean;
+}
+
+/** The world a project shows (GET /api/world), and why. */
+export interface ShownWorld {
+  world: VoxelWorld | null;
+  /** own, shared, carried over from another project, or none built anywhere */
+  how: 'own' | 'shared' | 'carried' | 'none';
+  /** for a carried-over or shared world: the project it was made for */
+  fromProject?: string;
+}
+
+/** A world in the list of worlds (GET /api/worlds). */
+export interface WorldListing {
+  id: string;
+  name: string;
+  homeProject: string;
+  built: boolean;
+  objects: number;
+  voxels: number;
+  /** projects that use it */
+  usedBy: string[];
+  isDefault: boolean;
+  updatedAt: number;
+}
+
+/** A world's WORLD.md (GET /api/world/md). */
+export interface WorldMdInfo {
+  worldId: string;
+  text: string;
+  updatedAt: number;
+  max: number;
+}
+
+/** The fields every skin has: where its model sits from the classic one, turned and scaled. */
+interface SkinPlacement {
+  /** map units from where the classic model stands */
+  offset?: Vec3;
+  /** degrees around the vertical */
+  turn?: number;
+  scale?: number;
+  /** take it off the map (the Station still works: click its name, or use the side panel) */
+  hidden?: boolean;
+  /** false: no name label on the map either */
+  label?: boolean;
+  /** who dressed it last */
+  by?: WorldBuilder;
+}
+
+/** An agent in the voxel world: its character, its desk, and which animation plays when. */
+export interface AgentSkin extends SkinPlacement {
+  /** a prefab (id) made of named parts; it takes the classic person's place */
+  character?: string;
+  /** a prefab (id) that takes the classic desk's place (the monitor's screen stays) */
+  desk?: string;
+  /** the character's animation for each state (default: clips named idle, working, needs) */
+  states?: { idle?: string; working?: string; needs?: string };
+}
+
+/** A team's platform and the hub in its middle. */
+export interface TeamSkin extends SkinPlacement {
+  platform?: string;
+  hub?: string;
+}
+
+/** The Brain: a shell around (or instead of) the globe. */
+export interface BrainSkin extends SkinPlacement {
+  shell?: string;
+  /** keep the particle globe, the beam and the halo (default true) */
+  globe?: boolean;
+}
+
+export interface WorldSkins {
+  brain?: BrainSkin;
+  /** by team id */
+  teams: Record<string, TeamSkin>;
+  /** by agent id */
+  agents: Record<string, AgentSkin>;
+}
+
+/** What a world_look picture shows (the 'world-look' event the Station answers). */
+export interface WorldLookView {
+  /** the whole world, or one thing in it */
+  target: 'overview' | 'brain' | 'team' | 'agent' | 'object' | 'prefab';
+  /** the team's, agent's, object's or prefab's id */
+  id?: string;
+  /** degrees; the Station's own view is azimuth 45, elevation 35 */
+  azimuth?: number;
+  elevation?: number;
+  /** 1 fits the target; 2 is twice as close */
+  zoom?: number;
+  width: number;
+  height: number;
 }

@@ -58,7 +58,7 @@ export type TeamView = TeamListing & { stepList?: TeamStep[] };
 export type MapPick =
   | { type: 'agent'; id: string; wf?: string; step?: number }
   | { type: 'branch' | 'int'; id: string; wf?: undefined; step?: number }
-  | { type: 'bench' | 'brain'; id?: undefined; wf?: undefined; step?: undefined };
+  | { type: 'bench' | 'brain' | 'world'; id?: undefined; wf?: undefined; step?: undefined };
 
 export const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a', '#4f7fa8', '#5a9a3a', '#a84a5a', '#2f8fa0'];
 export const wfColor = (wf: Pick<Team, 'color'>, i: number): string => (/^#[0-9a-f]{6}$/i.test(wf.color || '') ? wf.color! : PALETTE[i % PALETTE.length]);

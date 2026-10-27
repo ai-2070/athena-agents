@@ -214,6 +214,7 @@ export function openProjectMenu(anchor: Element): void {
     h('button.st-menu-item', { onclick: () => (close(), openLauncher({ force: true })) }, icon('folder-open', 15), 'All projects…'),
     h('button.st-menu-item', { onclick: () => (close(), openNewProject()) }, icon('plus', 15), 'New project'),
     h('button.st-menu-item', { onclick: () => (close(), void cloneProject(d.project)) }, icon('copy', 15), 'Clone this project…'),
+    h('button.st-menu-item', { onclick: () => (close(), void import('./views/worldpanel.tsx').then((m) => m.openWorldPicker())) }, icon('globe', 15), 'Voxel world…'),
     h('div.st-menu-sep'),
     h('button.st-menu-item', { onclick: () => (close(), backupProject(d.project)) }, icon('archive', 15), 'Back up this project'),
     h('button.st-menu-item', { onclick: () => (close(), openNewProject({ mode: 'backup' })) }, icon('upload', 15), 'Restore a backup…'),

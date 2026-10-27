@@ -1,6 +1,6 @@
 // Backups: one file with everything in a project (agents, teams, routines, layout, chats, knowledge
-// files, MEMORY.md files, logo, PROJECT.md and notes, and the kept versions of its agents, teams and memories) plus every skill in
-// the library with its versions, and every saved preset. Written
+// files, MEMORY.md files, logo, PROJECT.md and notes, its voxel world, and the kept versions of its agents, teams and memories) plus every skill in
+// the library with its versions, every saved preset and the prefab library. Written
 // to <home>/Blacksite Backups on Windows, macOS and Linux. Drop one into "New project > From
 // backup" to get it all back as a new project, here or on another PC. Keys and tokens are never in it.
 //
@@ -17,7 +17,11 @@ import { checkVersion, listVersions, pruneVersions, versionFilesDir, cleanAgentV
 import type { Version } from './versions.ts';
 import { cleanMemoryVersion, isMemoryOwner, putMemory } from './memory.ts';
 import type { Preset } from './presets.ts';
-import type { Agent, Chat, Project, Routine, Team } from '../shared/types.ts';
+import { getWorld, newWorld, worldDir } from './voxel/store.ts';
+import { setLink } from './voxel/link.ts';
+import { libraryEntries, putLibraryEntry } from './voxel/prefabs.ts';
+import type { LibraryPrefab } from './voxel/prefabs.ts';
+import type { Agent, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
 
 export const BACKUP_EXT = '.dashbackup';
 const MAGIC = 'MY-DASHBOARD-BACKUP';
@@ -29,11 +33,15 @@ export const BACKUP_MAX = UNPACKED_MAX;
 
 // How much of each kind is packed at most (the same limits as the auto-save into the project folder).
 // A file that doesn't fit any more is left out and counted (BackupSummary.omitted). Keep docs/guide.md in step.
-const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024 };
+const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024, world: 300 * 1024 * 1024, library: 100 * 1024 * 1024 };
 // A kept version in a backup: <kind>/<item id>/<version id>.json, and a skill version's files under
 // skills/<slug>/files-<version id>/. Agents and teams are the project's; skills are the library's
 // (deleted ones too, so Recently deleted comes back).
 const VERSION_FILE = /^(agents|teams|memory|skills)\/[^/]+\/[\w-]+\.json$/;
+// A file of the voxel world in a backup: its meta, WORLD.md, an object's voxels or a WORLD.md version
+const WORLD_FILE = /^(world\.json|WORLD\.md|(objects|prefabs)\/[\w-]+\.json|versions\/world-md\/[\w-]+\.json)$/;
+// the folders those are in
+const WORLD_DIR = /^(objects|prefabs|versions|versions\/world-md)$/;
 // A MEMORY.md in a backup: <agent id or "brain">/MEMORY.md
 const MEMORY_PATH = /^([^/]+)\/MEMORY\.md$/;
 // Files from the project folder that go in: the brief and the notes, not the whole folder (it can be a big repo)
@@ -80,6 +88,8 @@ export interface BackupSummary {
   chats: number;
   skills: number;
   presets: number;
+  /** prefabs in the prefab library, shared by every project (older backups: missing) */
+  libraryPrefabs?: number;
   knowledgeFiles: number;
   /** MEMORY.md files of agents and the Brain (older backups: missing) */
   memories?: number;
@@ -114,6 +124,10 @@ export interface BackupData {
   /** Kept versions (see VERSION_FILE). Older backups: empty. */
   versions: PackedFile[];
   presets: Preset[];
+  /** The voxel world the project uses (WORLD_FILE paths). Older backups: null. */
+  world: { name: string; files: PackedFile[] } | null;
+  /** The prefab library (every project's), like the presets. Older backups: empty. */
+  prefabLibrary: LibraryPrefab[];
   /** Files left out because their kind's size limit was reached (see CAP) */
   omitted: number;
 }
@@ -145,6 +159,8 @@ export interface BackupRestoreResult {
   /** skills added to the library; already there and the same; already there but different, so added under a new id */
   skills: { added: number; same: number; renamed: { from: string; to: string }[] };
   presets: { added: number; same: number };
+  /** prefab library entries added; already there */
+  libraryPrefabs: { added: number; same: number };
   /** kept versions brought back (agents, teams and skills) */
   versions: number;
   /** routines and teams that ran on a schedule: paused, so a copy doesn't run them twice */
@@ -177,7 +193,8 @@ interface Budget {
 }
 const budget = (left: number): Budget => ({ left, omitted: 0 });
 
-function packTree(dir: string, budget: Budget, prefix = ''): PackedFile[] {
+/** `keep`: which files and folders (paths from `dir`) go in; the rest isn't read or counted. */
+function packTree(dir: string, budget: Budget, prefix = '', keep?: (rel: string, isDir: boolean) => boolean): PackedFile[] {
   const out: PackedFile[] = [];
   // a linked folder is left out like a linked file (below the top, readdir's entries already say so)
   if (!isPlainDir(dir)) return out;
@@ -191,6 +208,7 @@ function packTree(dir: string, budget: Budget, prefix = ''): PackedFile[] {
     for (const e of list) {
       const r = rel ? `${rel}/${e.name}` : e.name;
       const full = path.join(d, e.name);
+      if (keep && !keep(r, e.isDirectory())) continue;
       if (e.isDirectory()) walk(full, r);
       else if (e.isFile()) {
         let size = 0;
@@ -259,6 +277,7 @@ function summarize(b: BackupData): BackupSummary {
     chats: b.chats.length,
     skills: b.skills.length,
     presets: b.presets.length,
+    libraryPrefabs: b.prefabLibrary.length,
     knowledgeFiles: b.knowledge.length,
     memories: b.memory.length,
     versions: b.versions.filter((f) => VERSION_FILE.test(f.path)).length,
@@ -326,6 +345,26 @@ export function packProject(p: Project): BackupData {
   const knowledge = packTree(projectDir(id, 'knowledge'), knowledgeBudget);
   const memoryBudget = budget(CAP.memory);
   const memory = packTree(projectDir(id, 'memory'), memoryBudget).filter((f) => MEMORY_PATH.test(f.path));
+  // the voxel world (not its undo history)
+  const worldBudget = budget(CAP.world);
+  const w = p.world ? getWorld(p.world.id) : null;
+  // world.json and WORLD.md first, so big voxels can't crowd them out; the undo history isn't read at all
+  const top = (r: string) => r === 'world.json' || r === 'WORLD.md';
+  const world = w
+    ? {
+        name: w.name,
+        files: [...packTree(worldDir(w.id), worldBudget, '', (r, dir) => !dir && top(r)), ...packTree(worldDir(w.id), worldBudget, '', (r, dir) => (dir ? WORLD_DIR.test(r) : WORLD_FILE.test(r) && !top(r)))],
+      }
+    : null;
+  // the prefab library: shared by every project, so every backup carries it (like the presets), up to its cap
+  let libraryLeft = CAP.library;
+  let libraryOmitted = 0;
+  const prefabLibrary = libraryEntries().filter((e) => {
+    const size = JSON.stringify(e).length;
+    if (size > libraryLeft) return (libraryOmitted++, false);
+    libraryLeft -= size;
+    return true;
+  });
   const presets = jsonFiles(dataPath('presets'))
     .map((n) => readJSON<Preset>(dataPath('presets', n)))
     .filter((x): x is Preset => !!x && PRESET_RE.test(String(x.id)));
@@ -349,7 +388,9 @@ export function packProject(p: Project): BackupData {
     skills,
     versions,
     presets,
-    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted,
+    world,
+    prefabLibrary,
+    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted + worldBudget.omitted + libraryOmitted,
   };
 }
 
@@ -513,6 +554,8 @@ export function decodeBackup(buf: Buffer): BackupData {
       .filter((s) => s.files.some((f) => f.path === 'SKILL.md')),
     versions: files(b.versions),
     presets: arr<Preset>(b.presets).filter((p) => p && typeof p === 'object' && PRESET_RE.test(String(p.id)) && (p.kind === 'agent' || p.kind === 'team')),
+    prefabLibrary: arr<LibraryPrefab>(b.prefabLibrary).filter((e) => e && typeof e === 'object'),
+    world: b.world && typeof b.world === 'object' && Array.isArray(b.world.files) ? { name: String(b.world.name || 'World').slice(0, 80), files: files(b.world.files).filter((f) => WORLD_FILE.test(f.path)) } : null,
     omitted: Number(b.omitted) || 0,
   };
 }
@@ -751,6 +794,19 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   const knowledgeFiles = b.knowledge.filter((f) => writePacked(kRoot, f)).length;
   // MEMORY.md files go back under the agent (or the Brain) they were saved for
   const memories = b.memory.filter((f) => putMemory(id, MEMORY_PATH.exec(f.path)![1], Buffer.from(f.data, 'base64').toString('utf8'))).length;
+  // the voxel world: always a new world of this project's own (a clone mustn't build in the original's)
+  if (b.world?.files.some((f) => f.path === 'world.json')) {
+    const fresh = newWorld(id, b.world.name);
+    for (const f of b.world.files) if (f.path !== 'world.json') writePacked(worldDir(fresh.id), f);
+    let saved: Partial<VoxelWorld> = {};
+    try {
+      saved = JSON.parse(Buffer.from(b.world.files.find((f) => f.path === 'world.json')!.data, 'base64').toString('utf8')) as Partial<VoxelWorld>;
+    } catch {
+      /* the voxels came back; the world starts plain */
+    }
+    writeJSON(worldDir(fresh.id, 'world.json'), { ...fresh, ...saved, format: 1, id: fresh.id, homeProject: id, name: fresh.name });
+    setLink(id, { id: fresh.id, mode: 'own' });
+  }
   // the brief and notes: only into a file that isn't there yet (the folder may be one you have)
   const brainFiles = b.brain.filter((f) => {
     if (!BRAIN_FILES.includes(f.path) && !BRAIN_DIRS.some((d) => f.path.startsWith(`${d}/`))) return false;
@@ -787,6 +843,15 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
     presetsAdded++;
   }
 
+  // the prefab library: added when not there yet (by id), like the presets
+  let libraryAdded = 0;
+  let librarySame = 0;
+  for (const e of b.prefabLibrary) {
+    const r = putLibraryEntry(e);
+    if (r === 'added') libraryAdded++;
+    else if (r === 'same') librarySame++;
+  }
+
   let project = created;
   const projSkills = known(swap(b.project.skills));
   if (projSkills.length) project = updateProject(id, { skills: projSkills });
@@ -805,6 +870,7 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
       brainFiles,
       skills: { added: skills.added, same: skills.same, renamed: skills.renamed },
       presets: { added: presetsAdded, same: presetsSame },
+      libraryPrefabs: { added: libraryAdded, same: librarySame },
       versions,
       paused,
       logo,

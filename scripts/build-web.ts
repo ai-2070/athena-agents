@@ -15,7 +15,8 @@ async function build(): Promise<boolean> {
   const started = performance.now();
   fs.rmSync(tmpdir, { recursive: true, force: true });
   const result = await Bun.build({
-    entrypoints: [path.join(root, 'web', 'app.ts')],
+    // (the voxel mesher's worker is loaded by URL: public/dist/voxel/mesh.worker.js)
+    entrypoints: [path.join(root, 'web', 'app.ts'), path.join(root, 'web', 'voxel', 'mesh.worker.ts')],
     outdir: tmpdir,
     target: 'browser',
     format: 'esm',

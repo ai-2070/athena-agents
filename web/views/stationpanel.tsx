@@ -18,6 +18,7 @@ import { modelChip, modelInfo } from '../models.ts';
 import { Avatar, DomNode, Icon, useAppState } from '../ui/react.tsx';
 import { ChipSet, Segmented, Tabs } from '../ui/controls.tsx';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
+import { WorldPanel } from './worldpanel.tsx';
 import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, connectorLook } from './stationdata.ts';
 import type { AvailableIntegration, Connector, MapPick, Program, TeamView } from './stationdata.ts';
 import type { Agent, AppState, Project, Team, TeamAccess, TeamState } from '../../shared/types.ts';
@@ -89,6 +90,7 @@ function Panel({ api, subscribe, version }: { api: StationPanelApi; subscribe: (
   if (p.type === 'bench') return <BenchPanel api={api} d={d} />;
   if (p.type === 'brain') return <BrainPanel key={d.project?.id || ''} api={api} d={d} />;
   if (p.type === 'int') return <ConnectionPanel key={`c:${p.id}`} api={api} d={d} id={p.id} />;
+  if (p.type === 'world') return <WorldPanel onClose={() => api.choose(null)} teamName={(id) => api.teams().find((t) => t.id === id)?.name} />;
   return null;
 }
 

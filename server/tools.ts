@@ -24,6 +24,7 @@ import { ensureBrain } from './projects.ts';
 import { uploadsRoot } from './uploads.ts';
 import * as skills from './skills.ts';
 import { findAgent } from '../shared/agentref.ts';
+import * as voxel from './voxel/tools.ts';
 import type { Agent, ToolGroup } from '../shared/types.ts';
 
 /** none: never asks. low: asks when autonomy is "ask". high: asks unless autonomy is "full". */
@@ -100,6 +101,7 @@ export const TOOL_GROUPS: ToolGroup[] = [
   { id: 'agents', label: 'Delegate', description: 'Ask other agents and Hermes profiles for help.' },
   { id: 'files', label: 'Files', description: 'Read and write files in its workspace and folders you allow.' },
   { id: 'orca', label: 'Orca', description: 'Run Orca CLI commands (worktrees, terminals, its browser).' },
+  { id: 'world', label: 'Voxel world', description: 'Build the voxel world around the Station (places, props, prefabs to place many times) and keep its WORLD.md up to date.' },
   { id: 'shell', label: 'Shell', description: 'Run any PowerShell command. Powerful: you are asked each time unless autonomy is Full.' },
 ];
 
@@ -924,6 +926,8 @@ const TOOLS: ToolDef[] = [
       return { text: `Saved MEMORY.md (${m.text.length} characters).` };
     },
   },
+  // ---------- the voxel world (server/voxel/tools.ts) ----------
+  ...voxel.worldTools(gate, { readable: readablePath, writableDir }),
   // ---------- files ----------
   {
     name: 'list_files',

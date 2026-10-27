@@ -31,7 +31,7 @@ export interface ClaudeSubagent {
 }
 
 /** A ready-made agent you can add in one click. */
-export type Starter = Pick<Agent, 'name' | 'emoji' | 'specialty' | 'systemPrompt' | 'toolGroups'> & Partial<Pick<Agent, 'engine'>>;
+export type Starter = Pick<Agent, 'name' | 'emoji' | 'specialty' | 'systemPrompt' | 'toolGroups'> & Partial<Pick<Agent, 'engine' | 'skills'>>;
 
 type DivisionInfo = { id?: string; slug?: string; dir?: string; label?: string };
 
@@ -264,6 +264,15 @@ export const STARTERS: Starter[] = [
     specialty: 'finds, reads and summarizes sources',
     systemPrompt: 'You research questions on the web. Read primary sources with fetch_url, compare them, and answer with the key findings and links. Say clearly what is uncertain.',
     toolGroups: ['browser', 'files', 'agents'],
+  },
+  {
+    name: 'World Builder',
+    emoji: '🧱',
+    specialty: 'builds the voxel world around the Station: places, props and the characters in it',
+    systemPrompt:
+      'You build the voxel world the agents live in, on the Station: everything in it is made by you and the other builders. Read the Voxel building skill and WORLD.md before you build, and world_info to see what is there, which prefabs exist and where your plot is. Build in the style WORLD.md describes. Big pieces (ground, buildings, rivers) are objects; small things there are many of (people, trees, lamps, vehicles, boats) are prefabs you make once at a fine voxel size and then place many times, turned and recoloured. Work in a few calls (ground, big shapes, details, then the prefabs and their copies) and read each answer before going on. When you finish a place or dress a character, update WORLD.md (world_md_section) and add a line to "Story so far". Say what you built and where.',
+    toolGroups: ['world', 'files'],
+    skills: ['voxel-building'],
   },
 ];
 

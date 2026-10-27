@@ -25,7 +25,7 @@ import * as programs from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as mcp from './mcp.ts';
 import * as social from './social.ts';
-import { removeArtifact } from './artifacts.ts';
+import { addArtifact, removeArtifact } from './artifacts.ts';
 import * as teamMarks from './teammark.ts';
 import * as library from './library.ts';
 import { isEffort } from '../shared/effort.ts';
@@ -35,6 +35,16 @@ import { openGoal } from './briefs.ts';
 import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
+import * as worldLink from './voxel/link.ts';
+import * as worldBuild from './voxel/build.ts';
+import * as worldStore from './voxel/store.ts';
+import * as worldMd from './voxel/worldmd.ts';
+import * as worldScene from './voxel/scene.ts';
+import * as worldLook from './voxel/look.ts';
+import * as worldExchange from './voxel/exchange.ts';
+import * as worldPrefabs from './voxel/prefabs.ts';
+import * as worldCharacters from './voxel/characters.ts';
+import { listVersions, getVersion, withActor } from './versions.ts';
 import * as terms from './terminals.ts';
 import * as status from './status.ts';
 import * as codexLimits from './codexlimits.ts';
@@ -57,7 +67,7 @@ import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import type { RestoreResult } from './projectsync.ts';
-import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind } from '../shared/types.ts';
+import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
@@ -580,6 +590,111 @@ put<{ text?: unknown } | null>('/api/memory/:owner', async ({ owner }, body) => 
   if (m.updatedAt !== Math.round(before)) log('memory', `You edited ${memory.memoryTitle(owner)}`, owner === memory.BRAIN ? {} : { agentId: owner });
   return m;
 });
+
+// ---------- the voxel world (server/voxel, docs/internal/plans/VOXEL_WORLD_PLAN.md) ----------
+const you: WorldBuilder = { kind: 'user', name: 'You' };
+const projectName = (id?: string) => (id ? store.listProjects().find((p) => p.id === id)?.name : undefined);
+get('/api/world', async () => {
+  const s = worldLink.shownWorld();
+  return { ...s, fromProjectName: projectName(s.fromProject) };
+});
+get('/api/worlds/:wid/objects/:oid', async ({ wid, oid }) => {
+  const data = worldStore.readObject(wid, oid);
+  if (!data) throw new HttpError(404, 'No such object.');
+  return data;
+});
+get('/api/worlds/:wid/prefabs/:pid', async ({ wid, pid }) => {
+  const data = worldStore.readPrefab(wid, pid);
+  if (!data) throw new HttpError(404, 'No such prefab.');
+  return data;
+});
+put<Record<string, unknown> | null>('/api/world/objects/:oid', async ({ oid }, body) => worldBuild.changeObject({ ...(body || {}), delete: false, duplicate: false, object: oid, by: you }).object);
+del('/api/world/objects/:oid', async ({ oid }) => (worldBuild.changeObject({ object: oid, delete: true, by: you }), { ok: true }));
+post<{ anyone?: unknown } | null>('/api/world/undo', async (_p, body) => worldBuild.undo(you, { anyone: body?.anyone !== false }));
+get('/api/world/md', async () => {
+  const w = worldLink.shownWorld().world;
+  if (!w) throw new HttpError(404, 'No world yet.');
+  return worldMd.worldMdInfo(w.id);
+});
+put<{ text?: unknown } | null>('/api/world/md', async (_p, body) => {
+  if (typeof body?.text !== 'string') throw new HttpError(400, 'Send the whole WORLD.md as text.');
+  // (a carried-over world becomes this project's own first: you are changing it)
+  const w = worldLink.worldForBuild();
+  const m = worldMd.writeWorldMd(w.id, body.text);
+  log('world', 'You edited WORLD.md');
+  return m;
+});
+put<Record<string, unknown> | null>('/api/world/environment', async (_p, body) => worldScene.setEnvironment({ by: you, fields: body || {} }).world);
+// a picture an open Station made for world_look
+post<{ image?: unknown; error?: unknown } | null>('/api/world/snapshot/:request', async ({ request }, body) => ({ ok: worldLook.deliverLook(request, body || {}) }));
+// WORLD.md's earlier versions
+const shownWorldId = () => {
+  const w = worldLink.shownWorld().world;
+  if (!w) throw new HttpError(404, 'No world yet.');
+  return w.id;
+};
+get('/api/world/md/versions', async () => listVersions<{ text: string }>(worldMd.worldMdVersionsDir(shownWorldId())).map((v) => ({ id: v.id, at: v.at, by: v.by, note: v.note, chars: v.item.text.length })));
+get('/api/world/md/versions/:vid', async ({ vid }) => {
+  const v = getVersion<{ text: string }>(worldMd.worldMdVersionsDir(shownWorldId()), vid);
+  if (!v) throw new HttpError(404, 'No such version.');
+  return v;
+});
+post('/api/world/md/versions/:vid/restore', async ({ vid }) => {
+  const v = getVersion<{ text: string }>(worldMd.worldMdVersionsDir(shownWorldId()), vid);
+  if (!v) throw new HttpError(404, 'No such version.');
+  const m = withActor('you', () => worldMd.writeWorldMd(worldLink.worldForBuild().id, v.item.text), { note: `restored the version from ${new Date(v.at).toLocaleString()}`, force: true });
+  log('world', 'You restored an earlier WORLD.md');
+  return m;
+});
+get('/api/world/changes', async () => worldBuild.recentChanges(shownWorldId(), 50));
+get('/api/world/prefabs', async () => {
+  const w = worldLink.shownWorld().world;
+  if (!w) return [];
+  const uses = worldPrefabs.prefabUses(w);
+  return w.prefabs.map((p) => ({ ...p, uses: uses.get(p.id) || null }));
+});
+put<Record<string, unknown> | null>('/api/world/prefabs/:pid', async ({ pid }, body) => worldPrefabs.changePrefab({ by: you, prefab: pid, name: body?.name, description: body?.description, tags: body?.tags }).prefab);
+del('/api/world/prefabs/:pid', async ({ pid }) => ({ text: worldPrefabs.deletePrefab({ by: you, prefab: pid }) }));
+put<Record<string, unknown> | null>('/api/world/lights/:lid', async ({ lid }, body) => worldScene.setLight({ by: you, action: 'change', light: lid, fields: body || {} }).light);
+del('/api/world/lights/:lid', async ({ lid }) => (worldScene.setLight({ by: you, action: 'remove', light: lid }), { ok: true }));
+put<Record<string, unknown> | null>('/api/world/effects/:eid', async ({ eid }, body) => worldScene.setEffect({ by: you, action: 'change', effect: eid, fields: body || {} }).effect);
+del('/api/world/effects/:eid', async ({ eid }) => (worldScene.setEffect({ by: you, action: 'remove', effect: eid }), { ok: true }));
+// files out of the world (to Artifacts and the project folder's exports/), and pictures from the page
+const exportsDir = () => path.join(projects.ensureBrain(), 'exports');
+post<{ what?: unknown; id?: unknown; format?: unknown } | null>('/api/world/export', async (_p, body) => {
+  const w = worldLink.shownWorld().world;
+  if (!w) throw new HttpError(404, 'No world yet.');
+  const what = String(body?.what || '');
+  if (what !== 'object' && what !== 'prefab' && what !== 'world') throw new HttpError(400, 'what is object, prefab or world.');
+  const out = worldExchange.exportFiles(w, what, typeof body?.id === 'string' ? body.id : undefined, body?.format === 'vox' ? 'vox' : 'glb');
+  const paths = worldExchange.writeFiles(exportsDir(), out.files);
+  const made = paths.map((p) => addArtifact({ title: out.files.length > 1 ? `${out.title}: ${path.basename(p)}` : out.title, path: p, note: out.note || 'Made from the voxel world', by: 'You' }));
+  return { paths, artifacts: made.map((a) => a.id), note: out.note };
+});
+post<{ image?: unknown; name?: unknown } | null>('/api/world/picture', async (_p, body) => {
+  const w = worldLink.shownWorld().world;
+  const file = worldExchange.writePicture(exportsDir(), String(body?.name || w?.name || 'world'), String(body?.image || ''));
+  const a = addArtifact({ title: `${w?.name || 'The world'}: a picture`, path: file, note: 'A picture of the voxel world', by: 'You' });
+  return { path: file, artifact: a.id };
+});
+get('/api/prefab-library', async (_p, _b, q) => worldPrefabs.libraryItems(String(q.q || '')));
+post<{ name?: unknown; as?: unknown } | null>('/api/world/prefabs/import', async (_p, body) => worldPrefabs.importPrefab({ by: you, name: String(body?.name || ''), as: body?.as }).prefab);
+post('/api/world/prefabs/:pid/publish', async ({ pid }) => ({ text: worldPrefabs.publishPrefab({ by: you, prefab: pid }) }));
+// how the Brain, a team or an agent looks (e.g. put a hidden agent back on the map)
+put<{ to?: unknown; id?: unknown; fields?: unknown } | null>('/api/world/skins', async (_p, body) => {
+  const to = String(body?.to || '');
+  if (to !== 'agent' && to !== 'team' && to !== 'brain') throw new HttpError(400, 'to is agent, team or brain.');
+  return worldCharacters.setSkin({ by: you, to, id: typeof body?.id === 'string' ? body.id : undefined, fields: body?.fields && typeof body.fields === 'object' ? (body.fields as Record<string, unknown>) : {} }).world.skins;
+});
+get('/api/worlds', async () => worldLink.listWorldsFor());
+put<{ worldId?: unknown; mode?: unknown } | null>('/api/project-world', async (_p, body) => {
+  const mode = String(body?.mode || '');
+  if (!['share', 'copy', 'new', 'auto'].includes(mode)) throw new HttpError(400, 'mode is share, copy, new or auto.');
+  return worldLink.chooseWorld(store.activeProject().id, mode as worldLink.WorldChoice, typeof body?.worldId === 'string' ? body.worldId : null);
+});
+put<{ worldId?: unknown } | null>('/api/worlds/default', async (_p, body) => (worldLink.setDefaultWorld(typeof body?.worldId === 'string' && body.worldId ? body.worldId : null), { ok: true }));
+put<{ name?: unknown } | null>('/api/worlds/:wid', async ({ wid }, body) => worldLink.renameWorld(wid, body?.name));
+del('/api/worlds/:wid', async ({ wid }) => (worldLink.deleteUnusedWorld(wid), { ok: true }));
 
 // ---------- versions of skills, agents, teams and MEMORY.md files ----------
 const versionKind = (k: string): VersionKind => {
@@ -1165,6 +1280,8 @@ const server = http.createServer(async (req, res) => {
 // ---------- websockets: live events + terminals ----------
 const wss = new WebSocketServer({ noServer: true });
 const eventClients = new Set<WebSocket>();
+// world_look answers in words at once when no page is open to draw a picture
+worldLook.setOpenPages(() => [...eventClients].filter((ws) => ws.readyState === 1).length);
 server.on('upgrade', (req, socket, head) => {
   const origin = req.headers.origin || '';
   const okOrigin = [...ALLOWED_HOSTS].some((h) => origin === `http://${h}`);
