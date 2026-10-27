@@ -8,7 +8,7 @@ The initial nine findings were runtime-reproduced. Probes used temporary `DASH_D
 
 P1 findings expose credentials, bypass file access limits, or can delete or overwrite files outside the intended project. P2 findings affect project isolation, tool access, or conversation and restore correctness.
 
-The review ran in two passes. The first covered every application subsystem once; the second re-reviewed the whole project independently, discarding anything the first pass had already found. Findings 1–29 come from the first pass (plus the browser and probe work done alongside it); findings 30–77 are what survived the second pass. Four findings were reproduced in an isolated browser, seventeen through isolated runtime probes, and the rest are established from source with the verification limits stated inline. Nothing under `server/`, `web/`, `shared/`, `scripts/` or `src-tauri/` was changed.
+The review ran in two passes. The first covered every application subsystem once; the second re-reviewed the whole project independently, discarding anything the first pass had already found. Findings 1–29 come from the first pass (plus the browser and probe work done alongside it), 30–77 survived the second pass, and 78–88 are valid issues the lanes reported that the first consolidation had dropped. Four findings were reproduced in an isolated browser and twenty-two through isolated runtime probes — including four converted during the theme follow-up below — and the rest are established from source with the verification limits stated inline. Nothing under `server/`, `web/`, `shared/`, `scripts/` or `src-tauri/` was changed.
 
 ## 1. [P1] Browser-only agents can read unrelated MCP credentials and the internal bridge token
 
@@ -688,4 +688,106 @@ The dominant theme of both passes: work that outlives an `await` re-reads the *c
 
 **Known false lead.** `read`'s `compact: true` element snapshot returned an empty element list for a populated menu, while the same elements were present through `tab.observe()`; the browser results above use the reliable path.
 
-**Residual uncertainty.** Findings 40–42 depend on file symlinks, which non-administrator Windows refused in this environment; their read/write paths are unambiguous in source but the link creation itself is unexercised. Findings 51, 56–59, 52 and 58 (renderer behaviour), 75–77 (desktop runtime), 73 (`bun run dev` chunk reload) and all macOS/Linux legs are source-established only. Impact was not measured for the resource-limiting cases (14, 48); those probes were deliberately bounded.
+## Theme follow-up
+
+Four themes carried most of the risk in both passes: asynchronous project pinning, link-following filesystem writes, voxel graph budgets, and desktop lifecycle. A follow-up pass re-examined each one, converted four claims into runtime evidence, falsified one adjacent claim, and recovered eleven valid findings that first-pass lanes had reported but this report had not yet carried (they were dropped in the first consolidation).
+
+**Converted to runtime evidence** (isolated fixtures, dummy data, no real accounts or models):
+
+- **Finding 43's mechanism.** `describeAttachments([outsideFile], { inline: 24000 })` returned text containing the outside file's contents — the disclosure does not depend on the importing project at all, only on a path reaching the call.
+- **Finding 44's mechanism.** `gate({ autonomy: 'auto' }, 'some_server__send_email', 'low', {}, {})` returned `null` (proceed, no approval). Any MCP tool an API-model agent can reach is therefore unapproved under the default autonomy.
+- **Finding 69.** Writing a preset whose embedded agent carried an explicit `id` into the preset library, then calling `usePreset`, **replaced the existing agent in place**: the agent count stayed at 1 and the victim's name and instructions became the preset's. An imported preset can therefore overwrite an unrelated project's agent.
+- **Finding 71.** `trimHistory([{ role: 'user', content: 'a'.repeat(410_000) }], 400_000)` returned `[]`, while the same call with a short message kept it. The newest user message is silently dropped when it alone exceeds the budget.
+- **Finding 48, measured on a bounded graph.** Branching 6, 12 and 24 at three wrapper levels produced 216/1 728/13 824 instance evaluations, **4/13/54 ms**, and **43/157/601 real file reads**. Only four distinct prefab files exist in that world, so the traversal is not memoized across instances and its cost grows super-linearly in the branch factor. The world limits allow branching up to 2 000 with four nesting levels, and no traversal or expansion budget is applied — the accepted worst case is 2 000³ ≈ 8×10⁹ instance evaluations synchronously in the server, plus the same graph expanded into voxels by the browser (`expandInstances`) and GLB export. The large case was **not** run; only the measured curve is reported.
+
+**Claim checked and rejected** (worth recording so it is not re-investigated): `walk()` only recurses on `e.isDirectory()`, and Node reports a directory junction as `isSymbolicLink: true, isDirectory: false`. A junction placed inside an assigned knowledge folder is therefore neither descended nor listed; only a **file** symlink matters there, which is what findings 40 and 42 describe. The same holds for the junction-based upload case in finding 3, whose sink is the trust decision itself rather than directory traversal.
+
+## 78. [P1] X image attachments use dashboard-wide roots, not the calling agent's
+
+**Location:** [server/social.ts:338–353](../../../server/social.ts#L338-L353), [server/tools.ts:725–726](../../../server/tools.ts#L725-L726), [server/files.ts:12–21](../../../server/files.ts#L12-L21)
+
+`x_draft_post` validates its `images` argument with `checkImages()`, which accepts anything `viewable()` allows — the browser-preview roots, which include the Brain folder and **every agent's workspace**, not the calling agent's readable roots. An agent with Social but not Files (or with Files limited to its own workspace) can attach another agent's image, and with X auto-post enabled the upload happens immediately. **Source-established.**
+
+**Recommended change:** Authorize agent-originated attachments against the caller's readable roots before saving or uploading; keep the wide roots for user-driven attachment operations.
+
+## 79. [P2] A GitHub skill update can discard extra files with no restorable version
+
+**Location:** [server/skillinstall.ts:187–193](../../../server/skillinstall.ts#L187-L193), [server/versions.ts:98–100](../../../server/versions.ts#L98-L100)
+
+Before replacing a skill folder, the updater keeps only name, description and body. It neither fingerprints nor snapshots the extra files. If only those changed, `keepVersion()` sees an identical item and stores no version; if the instructions changed too, restoring that version brings the old instructions back with the new files. **Source-established.**
+
+**Recommended change:** Include extra-file hashes in the comparison and preserve their contents with the retained version, using the existing full-file restoration path.
+
+## 80. [P2] Claude subagent export emits invalid YAML for a backslash
+
+**Location:** [server/library.ts:201–209](../../../server/library.ts#L201-L209)
+
+`description` is stripped of newlines and double quotes but inserted into a double-quoted YAML scalar with backslashes intact. A Windows path such as `Inspect C:\src` produces `\s`, which is not a valid YAML escape, and a trailing backslash escapes the closing quote. Export reports success while producing frontmatter Claude Code cannot parse. **Source-established.**
+
+**Recommended change:** Serialize the scalar (for example with `JSON.stringify`) instead of hand-replacing quotes.
+
+## 81. [P2] A truncated API completion is reported as a finished answer
+
+**Location:** [server/engines/openai.ts:232,401–405](../../../server/engines/openai.ts#L232-L405)
+
+`streamCompletion()` captures `finish_reason`, but `run()` never inspects it. A response ending with `finish_reason: "length"` is stored and announced as complete, and `/resume` refuses to continue because the turn looks finished. If the truncated response contains a tool call with partial JSON, the argument parse falls back to `{}` and the tool is invoked with empty arguments. **Source-established.**
+
+**Recommended change:** Treat unsuccessful finish reasons as an incomplete turn before accepting the answer or executing tool calls.
+
+## 82. [P2] Clear memory does not stop an in-flight response from repopulating it
+
+**Location:** [server/engines/openai.ts:401–402,443–444](../../../server/engines/openai.ts#L401-L444), [server/index.ts:456–467](../../../server/index.ts#L456-L467)
+
+Clear memory is allowed while a run is active and replaces the live chat's `llm` array. The request already in flight keeps streaming; its assistant message (and any tool steps) are then appended to the freshly cleared array, so the next message still carries content produced from the conversation the user just discarded. **Source-established.**
+
+**Recommended change:** Make the reset a generation boundary: defer clearing to the end of the active run, or tag responses with a generation and drop those from a superseded one.
+
+## 83. [P2] The terminals page keeps a stale selection snapshot
+
+**Location:** [web/views/terminals.tsx:29–32,45–50,75](../../../web/views/terminals.tsx#L29-L50)
+
+Once the first terminal list has loaded, selection is resolved from that captured array rather than the live list that renders the tabs. Closing the selected terminal at `#/terminals` does not change the hash and so does not remount the page; the deleted id stays selected and the dead terminal remains mounted instead of falling back to the launcher. **Source-established.**
+
+**Recommended change:** Reconcile the selection against the live list once available, using the captured value only as a first-load fallback.
+
+## 84. [P2] The WORLD.md editor is not bound to the world it edits
+
+**Location:** [web/views/worldpanel.tsx:156,180–185](../../../web/views/worldpanel.tsx#L156-L185)
+
+Changing the selected world reloads the panel's data but keeps the retained draft, while Save writes to whichever world is current. Editing A's WORLD.md and then switching worlds through the project-menu picker saves A's text over B's document. **Source-established.**
+
+**Recommended change:** Key the draft to the world it was loaded from and reset or reject it when that identity changes.
+
+## 85. [P2] Intentional frame limiting is counted as slowness
+
+**Location:** [web/voxel/view.ts:304–305](../../../web/voxel/view.ts#L304-L305), [web/voxel/quality.ts:29–45](../../../web/voxel/quality.ts#L29-L45), [web/views/station.ts:2207–2211](../../../web/views/station.ts#L2207-L2211)
+
+The slow-frame watcher measures wall-clock time between rendered frames, including time the Station deliberately skipped for an unfocused or stationary map (30 FPS balanced, 15 FPS away). A fast machine can therefore be downgraded — and the per-visit cap prevents recovery when the user returns. **Source-established.**
+
+**Recommended change:** Suspend degradation while frames are intentionally throttled, or measure rendering capacity rather than cadence.
+
+## 86. [P2] Publishing a prefab drops its pivot and animations
+
+**Location:** [server/voxel/prefabs.ts:305,335–336](../../../server/voxel/prefabs.ts#L305-L336)
+
+`LibraryPrefab` has no pivot or animation fields, so publishing keeps the voxels and descriptive metadata only; importing builds fresh metadata with the default bottom pivot. A hanging part loses the point it stands and turns on, and its animations are gone. **Source-established.**
+
+**Recommended change:** Carry pivot settings and animation clips through the library format, publication and import.
+
+## 87. [P2] Saving a part as a replacement prefab can exceed the nesting depth
+
+**Location:** [server/voxel/prefabs.ts:124–137](../../../server/voxel/prefabs.ts#L124-L137), [web/voxel/instances.ts:60–62](../../../web/voxel/instances.ts#L60-L62)
+
+`savePrefabFrom(... replace: true)` wraps the selected instances in a new prefab without validating the resulting depth, then replaces the originals with a copy of that wrapper — adding a level. The renderer stops expanding after four levels, so a previously visible object can become invisible while the save reports success. **Source-established.**
+
+**Recommended change:** Validate the resulting prefab graph and depth before writing either file, using the same limit ordinary placement enforces.
+
+## 88. [P2] Stop does not cancel an in-flight MCP operation
+
+**Location:** [server/mcp.ts:982–985](../../../server/mcp.ts#L982-L985), [server/engines/openai.ts:424–439](../../../server/engines/openai.ts#L424-L439)
+
+The API engine has the run signal but does not pass it into `mcp.callTool()`; it merely races the operation against a rejected promise. The losing call keeps running, and if it was waiting inside a reconnect it proceeds to `client.callTool()` after the dashboard has already reported the run stopped — a new external action starting after Stop. **Source-established.**
+
+**Recommended change:** Propagate the signal through connection waiting and the tool request, re-check it immediately before dispatch, and distinguish cancellation from rollback of an action that already committed.
+
+**Residual uncertainty.** Findings 40–42 depend on file symlinks, which non-administrator Windows refused in this environment; their read/write paths are unambiguous in source but the link creation itself is unexercised. Findings 51, 56–59, 52 and 58 (renderer behaviour), 75–77 (desktop runtime), 73 (`bun run dev` chunk reload) and all macOS/Linux legs are source-established only. Impact was not measured at the permitted worst case for the resource-limiting findings (14, 48); both probes were deliberately bounded and only their scaling is reported. The follow-up pass tested the four themes again and additionally recorded one plausible claim that it could not reproduce (see the rejected claim above).
