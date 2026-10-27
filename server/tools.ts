@@ -585,7 +585,8 @@ const TOOLS: ToolDef[] = [
     run: async ({ source, id, folder, resolution, format }: { source: AssetSource; id: string; folder: string; resolution?: string; format?: string }, ctx) => {
       if (source !== 'polyhaven' && source !== 'ambientcg') throw new Error('source must be polyhaven or ambientcg.');
       if (!/^[\w-]+$/.test(String(id))) throw new Error('That is not an asset id.');
-      const dir = path.join(writableDir(ctx, folder), id);
+      // (the asset's own folder too: one already there could be a link out of the allowed folders)
+      const dir = writableDir(ctx, path.join(String(folder || '.'), id));
       ctx.progress?.(`Downloading ${id}…`);
       const files = await assetLib.downloadAsset(source, id, dir, { resolution, format, signal: ctx.signal });
       return { text: `Saved ${files.length} file${files.length === 1 ? '' : 's'} in ${dir}:\n${files.join('\n')}\nLicence: CC0 (free for any use, no credit needed). ${source === 'polyhaven' ? 'Powered by Poly Haven (polyhaven.com).' : 'From ambientCG (ambientcg.com).'}` };

@@ -81,9 +81,26 @@ function filesIn(dir: string): SkillFile[] {
   return out.slice(0, 200);
 }
 
+const plainFile = (f: string): boolean => {
+  try {
+    return fs.lstatSync(f).isFile();
+  } catch {
+    return false;
+  }
+};
+
+// Write a library skill's SKILL.md: a link there is taken away first, so the write never lands on the file it points at.
+function writeSkillMd(dir: string, text: string) {
+  const file = path.join(dir, 'SKILL.md');
+  if (fs.lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink()) fs.rmSync(file, { force: true });
+  fs.writeFileSync(file, text);
+}
+
 function readDir(dir: string, source: Skill['source']): (Skill & { dir: string }) | null {
   const file = path.join(dir, 'SKILL.md');
   if (!exists(file)) return null;
+  // a library skill's SKILL.md that is a link could show (and later write over) any file on the PC
+  if (source === 'library' && !plainFile(file)) return null;
   const { meta, body } = parse(fs.readFileSync(file, 'utf8'));
   const slug = path.basename(dir);
   const origin = readJSON<SkillOrigin | null>(path.join(dir, '.source.json'), null);
@@ -166,7 +183,7 @@ export function saveSkill({ slug, name, description, body }: { slug?: string; na
   const before = getSkill(id);
   const text = String(body || '').slice(0, SKILL_BODY_MAX);
   if (before) keepVersion(skillVersionsDir(id), versionItem(before), { slug: id, name, description, body: text.trim() });
-  fs.writeFileSync(path.join(dir, 'SKILL.md'), compose({ name, description, body: text }));
+  writeSkillMd(dir, compose({ name, description, body: text }));
   emit('skills', { slug: id });
   return getSkill(id);
 }
@@ -248,7 +265,7 @@ export function restoreSkill(item: SkillVersionItem, versionId: string): SkillDe
     const v = keepVersion(vdir, current, item);
     if (v && withFiles && current.files?.length) copySkillFiles(dir, versionFilesDir(vdir, v.id));
   }
-  fs.writeFileSync(path.join(dir, 'SKILL.md'), compose({ name: item.name, description: item.description, body: item.body }));
+  writeSkillMd(dir, compose({ name: item.name, description: item.description, body: item.body }));
   if (withFiles) {
     for (const rel of skillExtraFiles(dir)) fs.rmSync(path.join(dir, ...rel.split('/')), { force: true });
     if (kept && exists(kept)) copySkillFiles(kept, dir);
@@ -566,8 +583,19 @@ export function ensureBuiltinSkills() {
 export function importClaudeSkill(name: string): SkillDetail | null {
   const src = path.join(CLAUDE_DIR, path.basename(String(name)));
   if (!exists(path.join(src, 'SKILL.md'))) throw new Error('That skill was not found in ~/.claude/skills.');
+  // copied file by file, leaving links out (a linked SKILL.md or file could point anywhere on the PC),
+  // into a fresh folder first so a failed copy leaves no half skill
+  if (!plainFile(path.join(src, 'SKILL.md'))) throw new Error("That skill's SKILL.md is a link, not a plain file, so it can't be imported.");
   const id = uniqueSlug(path.basename(src));
-  fs.cpSync(src, path.join(LIB(), id), { recursive: true });
+  const tmp = ensureDir(dataPath('tmp', `claude-skill-${id}-${Date.now()}`));
+  try {
+    fs.copyFileSync(path.join(src, 'SKILL.md'), path.join(tmp, 'SKILL.md'));
+    copySkillFiles(src, tmp);
+    fs.renameSync(tmp, path.join(LIB(), id));
+  } catch (e) {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    throw e;
+  }
   log('skill', `Imported the skill "${getSkill(id)?.name || id}" from Claude Code`);
   return getSkill(id);
 }

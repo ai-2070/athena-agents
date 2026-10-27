@@ -8,7 +8,8 @@ import { describe, expect, it } from 'vitest';
 import { pickPolyhavenFiles, pickAmbientcgDownload } from '../../server/assets.ts';
 import type { PhFiles } from '../../server/assets.ts';
 import { extractZip, readZip, safeEntryName } from '../../server/unzip.ts';
-import { allTools } from '../../server/tools.ts';
+import { allTools, callTool } from '../../server/tools.ts';
+import type { ToolAgent } from '../../server/tools.ts';
 
 // A zip with stored or deflated entries, built by hand like any zip program would.
 function makeZip(entries: { name: string; data: string; deflate?: boolean }[]): Buffer {
@@ -73,6 +74,20 @@ describe('unzip', () => {
     expect(fs.readFileSync(path.join(dir, 'ok', 'inside.txt'), 'utf8')).toBe('y');
   });
 
+  // (junctions need no admin rights on Windows; elsewhere 'junction' makes a plain folder link)
+  it("doesn't write through a folder link already in the target folder", () => {
+    const base = fs.mkdtempSync(path.join(os.homedir(), 'unzip-link-'));
+    const outside = path.join(base, 'outside');
+    const dir = path.join(base, 'asset');
+    fs.mkdirSync(outside);
+    fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(outside, 'color.jpg'), 'outside sentinel');
+    fs.symlinkSync(outside, path.join(dir, 'maps'), 'junction');
+    const written = extractZip(makeZip([{ name: 'maps/color.jpg', data: 'outside changed by zip' }, { name: 'ok.jpg', data: 'fine' }]), dir);
+    expect(written).toEqual(['ok.jpg']);
+    expect(fs.readFileSync(path.join(outside, 'color.jpg'), 'utf8')).toBe('outside sentinel');
+  });
+
   it('refuses something that is not a zip', () => {
     expect(() => readZip(Buffer.from('hello, not a zip at all'))).toThrow(/Not a zip/);
   });
@@ -120,5 +135,19 @@ describe('asset tools', () => {
     const risk = (n: string) => allTools().find((t) => t.name === n)?.risk;
     expect(risk('asset_search')).toBe('none');
     expect(risk('asset_download')).toBe('low');
+  });
+
+  it("won't download into an asset folder that links out of the allowed folders", async () => {
+    const base = fs.mkdtempSync(path.join(os.homedir(), 'asset-link-'));
+    const workspace = path.join(base, 'workspace');
+    const outside = path.join(base, 'outside');
+    fs.mkdirSync(workspace);
+    fs.mkdirSync(outside);
+    fs.symlinkSync(outside, path.join(workspace, 'wood'), 'junction');
+    const agent: ToolAgent = { id: 'asset-agent', name: 'Assets', toolGroups: ['assets'], autonomy: 'auto', workspace, knowledge: { folders: [] } };
+    const r = await callTool(agent, 'asset_download', { source: 'polyhaven', id: 'wood', folder: '.' });
+    expect(r.isError).toBe(true);
+    expect(r.text).toMatch(/outside the folders/);
+    expect(fs.readdirSync(outside)).toEqual([]);
   });
 });
