@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { which, spawnCommand, killTree, run as runCmd, BRIDGE_SCRIPT, PORT, dataPath, ensureDir } from '../util.ts';
-import { internalToken } from '../store.ts';
+import { internalToken, emit } from '../store.ts';
 import { listServers } from '../mcp.ts';
 import { workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
@@ -53,19 +53,34 @@ interface CodexEvent {
   item?: CodexItem;
 }
 
-let statusCache: { at: number; value: CodexStatus } = { at: 0, value: { installed: false, loggedIn: false, version: null } };
+// checking: the `codex login status` under way (until it ends, value is the last answer, or "not signed in" at first)
+let statusCache: { at: number; value: CodexStatus; checking: Promise<void> | null } = { at: 0, value: { installed: false, loggedIn: false, version: null }, checking: null };
 export function status(): CodexStatus & { path: string | null } {
   const exe = which('codex');
   if (Date.now() - statusCache.at > 60_000) {
     statusCache.at = Date.now();
     if (exe) {
-      Promise.all([runCmd('codex', ['--version'], { timeout: 20000 }), runCmd('codex', ['login', 'status'], { timeout: 20000 })]).then(([v, l]) => {
-        const out = `${l.stdout}\n${l.stderr}`;
-        statusCache.value = { installed: true, version: v.stdout.trim().replace(/^codex-cli\s*/, ''), loggedIn: /logged in/i.test(out) && !/not logged in/i.test(out), how: out.trim().split('\n')[0] };
-      });
+      const checking = Promise.all([runCmd('codex', ['--version'], { timeout: 20000 }), runCmd('codex', ['login', 'status'], { timeout: 20000 })])
+        .then(([v, l]) => {
+          const out = `${l.stdout}\n${l.stderr}`;
+          const was = statusCache.value;
+          statusCache.value = { installed: true, version: v.stdout.trim().replace(/^codex-cli\s*/, ''), loggedIn: /logged in/i.test(out) && !/not logged in/i.test(out), how: out.trim().split('\n')[0] };
+          // open pages ask for the state again, so they don't keep showing "sign in" from before the check
+          if (was.loggedIn !== statusCache.value.loggedIn || was.version !== statusCache.value.version) emit('engines');
+        })
+        .catch(() => {})
+        .finally(() => statusCache.checking === checking && (statusCache.checking = null));
+      statusCache.checking = checking;
     } else statusCache.value = { installed: false, loggedIn: false, version: null };
   }
   return { ...statusCache.value, installed: !!exe, path: exe };
+}
+/** status(), once a check that is under way has finished: right after the server starts, status() alone
+ *  still says "not signed in" for a second or two. */
+export async function checkedStatus(): Promise<CodexStatus & { path: string | null }> {
+  status();
+  if (statusCache.checking) await statusCache.checking;
+  return status();
 }
 export const refreshStatus = () => (statusCache.at = 0);
 

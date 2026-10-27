@@ -37,6 +37,7 @@ import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
 import * as terms from './terminals.ts';
 import * as status from './status.ts';
+import * as codexLimits from './codexlimits.ts';
 import * as brain from './brain.ts';
 import * as irc from './irc.ts';
 import * as projects from './projects.ts';
@@ -56,7 +57,7 @@ import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import type { RestoreResult } from './projectsync.ts';
-import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, VersionKind } from '../shared/types.ts';
+import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
@@ -337,6 +338,28 @@ get('/api/headbar', async () => {
     cx && { id: 'codex', name: 'OpenAI Codex', meters: [cx.session && { label: 'SESSION', ...cx.session }, cx.week && { label: 'WEEK', ...cx.week }].filter(Boolean) },
   ] as (ProviderUsage | false | null | undefined)[]).filter((x): x is ProviderUsage => Boolean(x && x.meters.length));
   return { usage, usages, connectors };
+});
+// The sidebar's usage view: your Claude and Codex plan limits, and Codex's free limit resets.
+async function usageLimits(cx: codexLimits.CodexLimits | null = null): Promise<UsageLimits> {
+  const eng = engines.engineStatus();
+  const cc = eng['claude-code'];
+  // (waits for the login check, so a fresh start doesn't say "not signed in" first)
+  const ox = await codexEngine.checkedStatus();
+  const why = (e: { installed: boolean; loggedIn: boolean }) => (!e.installed ? 'not installed' : !e.loggedIn ? 'not signed in' : undefined);
+  const [usage, codex] = await Promise.all([cc.installed ? status.claudeUsage() : null, cx || (ox?.installed && ox.loggedIn ? codexLimits.codexLimits() : null)]);
+  const claudeWindows = [usage?.session && { label: '5h', ...usage.session }, usage?.week && { label: 'Week', ...usage.week }].filter((w) => !!w);
+  return {
+    // signed in through an API key or not at all, Claude Code has no plan limits to show
+    claude: { ready: cc.installed && (cc.loggedIn || !!usage), why: why(cc), windows: claudeWindows },
+    codex: { ready: !!(ox?.installed && ox.loggedIn), why: ox ? why(ox) : 'not installed', plan: codex?.plan ?? null, windows: codex?.windows || [], blocked: codex?.blocked, resets: codex?.resets ?? null },
+  };
+}
+get('/api/usage-limits', async () => usageLimits());
+// Uses one free Codex limit reset (the one that runs out first unless one is named). You click for it.
+post<{ creditId?: unknown }>('/api/codex/reset', async (_p, body) => {
+  const r = await codexLimits.useCodexReset(typeof body.creditId === 'string' ? body.creditId : null);
+  log('codex', r.outcome === 'reset' ? 'Used a free Codex limit reset' : `Codex limit reset not used (${r.outcome})`);
+  return { outcome: r.outcome, limits: await usageLimits(r.limits) };
 });
 
 // ---------- agents ----------

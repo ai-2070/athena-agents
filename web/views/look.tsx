@@ -158,6 +158,28 @@ export function LookTab() {
         </div>
         <div className="panel">
           <div className="panel-head">
+            <h2>Sidebar</h2>
+          </div>
+          <p className="hint">What the bottom of the menu shows: what’s set up, or how much of your Claude and Codex plans you’ve used, with Codex’s free limit resets. The Status / Limits switch there does the same.</p>
+          <div className="field mt-3.5">
+            <span id="look-sidebar">Shows</span>
+            <Segmented
+              label="Sidebar shows"
+              options={[
+                { value: 'status', label: 'Status' },
+                { value: 'limits', label: 'Usage limits' },
+              ]}
+              value={look.sidebar}
+              onChange={(v) => {
+                // the menu reads it from here, so it switches now rather than after the save
+                if (state.data?.settings) state.data.settings.look = { ...state.data.settings.look, sidebar: v };
+                set({ sidebar: v });
+              }}
+            />
+          </div>
+        </div>
+        <div className="panel">
+          <div className="panel-head">
             <h2>Preview</h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">

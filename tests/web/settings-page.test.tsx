@@ -141,7 +141,7 @@ describe('the Look tab', () => {
     expect(rose.classList.contains('on')).toBe(true);
     expect(puts).toEqual([]);
     await act(() => new Promise((r) => setTimeout(r, 400)));
-    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full', chatFont: 'serif', station: 'balanced' } }]);
+    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full', chatFont: 'serif', station: 'balanced', sidebar: 'status' } }]);
   });
 
   it('a change made just before leaving the tab is still saved', async () => {
@@ -158,7 +158,7 @@ describe('the Look tab', () => {
     // (off to another page at once, before the save was due)
     act(() => settings.unmount());
     await settle();
-    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full', chatFont: 'serif', station: 'balanced' } }]);
+    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full', chatFont: 'serif', station: 'balanced', sidebar: 'status' } }]);
     await act(() => new Promise((r) => setTimeout(r, 400)));
     expect(puts).toHaveLength(1);
   });
