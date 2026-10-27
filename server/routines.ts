@@ -158,7 +158,8 @@ export async function startRoutine(id: string, { trigger = 'manual', input = '' 
     const message = routineMessage(r, { skills, input, others: targets.filter((x) => x !== t).map(label) });
     try {
       if (t.kind === 'team') {
-        await postUserMessage(t.id, message, { route: pickMember, skills });
+        // (Stop reaches it while it still picks who answers: then nobody starts on it)
+        await postUserMessage(t.id, message, { route: pickMember, skills, signal: ac.signal });
         t.status = 'sent';
         t.output = 'Posted in the team chat.';
       } else {
