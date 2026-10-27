@@ -485,3 +485,115 @@ undoText: Undid: Builder A changed Rock.
 ### Recommended change
 
 Record and restore per-material before-images with conflict checks for later edits to the same material. Do not overwrite unrelated later palette changes with an entire stale palette snapshot.
+
+## 19. [P1] Project switching leaves an old agent editor able to overwrite the clone
+
+**Location:** [web/views/agents.tsx:280–288](../../../web/views/agents.tsx#L280-L288)
+
+**Problem:** The load effect and retained editor form depend on route ID/version, not project identity. The top-bar project selector changes the active project without remounting this page. Saving A's retained form consequently updates B's matching agent ID, including its workspace, instructions and permissions.
+
+**Browser-reproduced:** Open A's editor, change its name without saving, select cloned project B through the actual top-bar menu, and click Save. The visible project became `UI COPY`, but the form retained `Unsaved A edit`. B's agent API then returned that name and A's absolute `My workspace/agent-work` path instead of B's correctly rebased `ui-copy/agent-work` path. A screenshot confirmed the mismatched project/editor surface. Only isolated fixture data was changed.
+
+**Recommended change:** Remount/invalidate project-scoped editors on project switches and bind mutation requests to the project that owns the form. Apply the same lifecycle rule to routine and workflow editors.
+
+## 20. [P2] Editing MCP metadata corrupts argument boundaries
+
+**Location:** [web/views/mcp.tsx:306–310](../../../web/views/mcp.tsx#L306-L310)
+
+**Problem:** The form joins an argument array with spaces and splits it on whitespace on every Save. Existing arguments containing spaces are irreversibly split even when Arguments was never edited.
+
+**Browser-reproduced:** A disabled fixture server initially had `args: ["C:/MCP Servers/server.js"]`. Open its real Edit dialog, change only Description, then save. The server API returned `args: ["C:/MCP", "Servers/server.js"]`. No MCP process was launched.
+
+**Recommended change:** Use a lossless argument editor/serialization, or retain the original array when Arguments was not changed. Quoting alone does not work with the current whitespace split.
+
+## 21. [P2] The Brain model picker offers unsupported engines and silently selects Claude
+
+**Location:** [web/models.ts:193–203](../../../web/models.ts#L193-L203), [225–228](../../../web/models.ts#L225-L228)
+
+**Problem:** `local: false` removes local API choices but leaves pi, oh-my-pi and OpenClaw tabs/favorites. Those engines are absent from `BRAIN_PROVIDER`; choosing them falls back to `provider: "claude"` while retaining their selected model string.
+
+**Browser-reproduced:** Open Settings, The Brain's model, select the pi tab, then `pi's default model`. The real settings API returned `{provider:"claude", model:"", effort:""}`. The UI announced Claude Sonnet rather than pi. No model was invoked.
+
+**Recommended change:** Filter tabs and favorites to the Brain's supported engines and reject unsupported choices instead of silently translating them.
+
+## 22. [P2] Clicking Send bypasses slash-command dispatch
+
+**Location:** [web/chat/ChatView.tsx:695](../../../web/chat/ChatView.tsx#L695)
+
+**Problem:** Enter invokes `submit()`, but Send invokes `send()` directly. Dashboard commands become ordinary model messages; a busy `/queue` message can steer and stop the existing turn instead of queuing.
+
+**Browser-reproduced with network effects blocked:** Type `/goal finish the isolated review fixture` in the actual full-chat composer. Clicking Send attempted POST `/stream` with the literal `/goal ...` text. Pressing Enter with identical input attempted POST `/goal` with only the goal text. Both requests were intercepted and answered locally before any model operation.
+
+**Recommended change:** Route the composer Send button through `submit()`. Keep explicit Rich-answer continuation sends separate.
+
+## 23. [P1] Trailing whitespace bypasses interpreter approval
+
+**Location:** [server/tools.ts:248](../../../server/tools.ts#L248), [server/programs.ts:651–674](../../../server/programs.ts#L651-L674)
+
+**Problem:** Risk classification checks the untrimmed program name; execution trims it. An absolute `node.exe ` target with trailing whitespace avoids the interpreter regex and is classified low-risk, then runs as Node with its file argument.
+
+**Runtime-reproduced:** An Auto-autonomy Programs-only fixture agent called `launch_program` with the resolved Node path plus a trailing space and a `.txt` script. The inert script wrote only a temporary sentinel. Result: `Started node.exe.`, sentinel `inert controlled script executed`, and `pendingApprovals: 0`.
+
+**Recommended change:** Normalize and resolve the executable once, then classify and execute that same target. Do not independently interpret the input on the approval and execution paths.
+
+## 24. [P1] Note writes follow escaping project links
+
+**Location:** [server/projects.ts:178–181](../../../server/projects.ts#L178-L181)
+
+**Problem:** Sanitizing the note filename does not constrain its canonical destination. A project-supplied `notes` junction redirects `addNote()` outside the Brain folder; a final-file symlink presents the same source-level risk.
+
+**Runtime-reproduced:** Junction the isolated project's `notes` directory to an outside fixture containing `precious.md`, then call the production note function. Its outside contents became `overwritten by note`.
+
+**Recommended change:** Validate directory ancestry and the final destination against the canonical Brain root before opening the file. Reject escaping links.
+
+## 25. [P1] Asset extraction follows links already present at the destination
+
+**Location:** [server/unzip.ts:73–75](../../../server/unzip.ts#L73-L75)
+
+**Related consumers:** [server/tools.ts:585–588](../../../server/tools.ts#L585-L588), [server/assets.ts:178–190](../../../server/assets.ts#L178-L190)
+
+**Problem:** ZIP entry-name checks reject lexical traversal and archive-supplied symlinks, but not links already in the destination. Asset downloads also append the asset ID after authorizing only its parent directory. Normal entries can therefore overwrite outside files through a destination junction.
+
+**Runtime-reproduced without network:** Extract a valid stored ZIP containing only `maps/color.jpg` into a temporary asset directory whose `maps` is an outside junction. The outside sentinel became `outside changed by zip`. The analogous direct-download destination path is source-established, not separately network-exercised.
+
+**Recommended change:** Authorize the appended asset directory and every actual write destination against the original roots, including existing directory and final-file links.
+
+## 26. [P2] Lookalike-domain links grant GitHub installation authorization
+
+**Location:** [server/skillinstall.ts:209–211](../../../server/skillinstall.ts#L209-L211)
+
+**Problem:** `reposIn()` searches for a hostname substring rather than validating URL hosts. Under the default user-link-only policy, text containing `https://notgithub.com/attacker/skills` grants authorization to the real GitHub repository `attacker/skills`. The installer validates the proposed URL, but the authorization source is already wrong.
+
+**Runtime-reproduced at the authorization parser:** `reposIn("Inspect https://notgithub.com/attacker/skills")` returned `["attacker/skills"]`. No installation, live model, or external request was executed; the subsequent permission comparison is source-established.
+
+**Recommended change:** Extract URL candidates and validate their complete hostnames using the existing approved GitHub URL rules before granting repository authorization.
+
+## 27. [P2] Legacy team presets lose all members
+
+**Location:** [server/presets.ts:72–74](../../../server/presets.ts#L72-L74)
+
+**Problem:** Legacy step-list teams derive membership through `teams.normalize()`. Saving a preset reads the raw workflow record and uses its absent `members` field, saving no agents and no lead.
+
+**Runtime-reproduced:** Save a supported legacy team with two agent steps but no explicit members. `getTeam()` reported two members; `saveTeamPreset()` recorded zero.
+
+**Recommended change:** Use the normalized team getter when collecting preset members and resolving the lead, as the existing clone path does.
+
+## 28. [P2] Backup restore overwrites a user-edited BRAIN.md
+
+**Location:** [server/backup.ts:960–963](../../../server/backup.ts#L960-L963)
+
+**Problem:** A file under 600 characters containing the generated template's identifying sentence is treated as newly generated and disposable. An existing user-edited template meets that heuristic even though the restore did not create it.
+
+**Runtime-reproduced:** Restore into an unregistered existing directory whose BRAIN.md contained the template sentence and `User edited sentinel.`. The operation replaced the entire file with `Backup BRAIN content`, despite the restore contract preserving existing files.
+
+**Recommended change:** Track whether this particular restore created BRAIN.md and allow replacement only in that case. Do not infer file ownership from content and length.
+
+## 29. [P2] Invalid replacement skill names clear valid assignments
+
+**Location:** [server/overseer.ts:1441–1455](../../../server/overseer.ts#L1441-L1455)
+
+**Problem:** `set_skills` records unresolved names as errors but still replaces the holder's list with the resolved subset. An entirely invalid list therefore clears all current skills while reporting an error.
+
+**Runtime-reproduced:** Give an agent one valid skill, then apply `set_skills` with `does-not-exist-fixture`. The dispatcher returned both `no skill` and a successful removal message; the saved agent had `skills: []`.
+
+**Recommended change:** Refuse replacement when any name is unresolved, before changing any holder. Keep an explicitly empty list valid for intentional clearing, matching the all-or-nothing MCP replacement convention.
