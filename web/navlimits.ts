@@ -3,6 +3,7 @@
 import { h, mount, GET, POST, PUT, state, confirmBox, toast } from './core.ts';
 import { DEFAULT_LOOK, applyLook, currentLook, uiZoom } from './look.ts';
 import { logo } from './icons.ts';
+import { EASE, flipFrom, reducedMotion, slideOut } from './motion.ts';
 import type { CodexResetResult, LimitWindow, ProviderLimits, SidebarPanel, UsageLimits } from '../shared/types.ts';
 
 // what the server last said; read again when it's a minute old and the view is drawn
@@ -26,13 +27,35 @@ export function resetLimitsCache(): void {
 
 export const sidebarPanel = (): SidebarPanel => state.data?.settings?.look?.sidebar || currentLook().sidebar || 'status';
 
+// Switching Status / Limits: the old lines slide out toward where they sit (Status on the left, Limits on the
+// right), the new ones slide in from the other side one after another, and the line under the tab glides over.
+// Only on a switch: the sidebar is drawn again often, and that must not replay it.
+let switching = false;
+const lines = (host: Element | null): HTMLElement[] => (host ? ([...host.children].slice(1) as HTMLElement[]) : []);
+
 /** Switches what the sidebar shows, here and in Settings > Look. */
 export function setSidebarPanel(p: SidebarPanel, redraw: () => void): void {
-  const look = { ...DEFAULT_LOOK, ...currentLook(), ...(state.data?.settings?.look || {}), sidebar: p };
-  if (state.data?.settings) state.data.settings.look = look;
-  applyLook(look);
-  redraw();
-  void PUT('/settings', { look: { sidebar: p } }).catch((e: unknown) => toast((e as Error).message, 'error'));
+  if (switching) return;
+  const host = document.getElementById('nav-status');
+  const dir = p === 'limits' ? 1 : -1;
+  const mark = host?.querySelector('.sidebar-panel-mark')?.getBoundingClientRect();
+  const swap = () => {
+    switching = false;
+    const look = { ...DEFAULT_LOOK, ...currentLook(), ...(state.data?.settings?.look || {}), sidebar: p };
+    if (state.data?.settings) state.data.settings.look = look;
+    applyLook(look);
+    redraw();
+    void PUT('/settings', { look: { sidebar: p } }).catch((e: unknown) => toast((e as Error).message, 'error'));
+    if (reducedMotion() || typeof document.body.animate !== 'function') return;
+    const now = host?.querySelector<HTMLElement>('.sidebar-panel-mark');
+    if (now && mark?.width) flipFrom(now, mark, { duration: 260 });
+    lines(host).forEach((el, i) => el.animate([{ opacity: 0, transform: `translateX(${dir * 12}px)` }, { opacity: 1, transform: 'none' }], { duration: 260, delay: Math.min(i, 10) * 22, easing: EASE, fill: 'backwards' }));
+  };
+  const old = lines(host);
+  if (!old.length || reducedMotion() || typeof old[0].animate !== 'function') return swap();
+  switching = true;
+  // (swaps on time even if an animation never reports back)
+  void Promise.race([Promise.all(old.map((el) => slideOut(el, { x: -dir * 8, duration: 110 }))), new Promise((r) => setTimeout(r, 160))]).then(swap);
 }
 
 /** "2d 13h", "4h 10m", "12m" until the given time (ms). */
@@ -217,6 +240,12 @@ export function navLimits(redraw: () => void): HTMLElement[] {
 export function panelSwitch(redraw: () => void): HTMLElement {
   const now = sidebarPanel();
   const tab = (p: SidebarPanel, label: string, title: string) =>
-    h('button', { type: 'button', class: `sidebar-panel-tab cursor-pointer border-0 bg-transparent p-0 font-mono text-[9.5px] tracking-[0.14em] uppercase ${now === p ? 'on text-accent' : 'text-faint hover:text-ink'}`, title, 'aria-pressed': String(now === p), onclick: () => now !== p && setSidebarPanel(p, redraw) }, label);
+    h(
+      'button',
+      { type: 'button', class: `sidebar-panel-tab relative cursor-pointer border-0 bg-transparent p-0 font-mono text-[9.5px] tracking-[0.14em] uppercase transition-colors duration-200 ${now === p ? 'on text-accent' : 'text-faint hover:text-ink'}`, title, 'aria-pressed': String(now === p), onclick: () => now !== p && setSidebarPanel(p, redraw) },
+      label,
+      // the line under the tab that's on (it glides to the other tab on a switch)
+      now === p ? h('span.sidebar-panel-mark', { class: 'pointer-events-none absolute -bottom-1 left-0 h-px w-full bg-accent', 'aria-hidden': 'true' }) : null,
+    );
   return h('div', { class: 'mb-1 flex items-center gap-3' }, tab('status', 'Status', "What's set up"), tab('limits', 'Limits', 'How much of your Claude and Codex plans is used'));
 }

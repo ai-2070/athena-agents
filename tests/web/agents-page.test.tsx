@@ -85,6 +85,51 @@ describe('the agents list', () => {
   });
 });
 
+describe('the overview: kinds of agents and their models', () => {
+  const lib = (id: string, name: string, division: string, extra: Partial<Agent> = {}) => ({ ...base, id, name, specialty: '', engine: 'claude-code', autonomy: 'auto', source: { type: 'agency', division }, ...extra }) as unknown as Agent;
+  const cardNames = () => [...el.querySelectorAll('.card-title')].map((t) => t.textContent);
+  beforeEach(() => {
+    state.data!.agents = [writer, coder, lib('a3', 'Seller', 'sales'), lib('a4', 'Seller 2', 'sales', { model: 'opus' }), lib('a5', 'Mapper', 'gis')];
+  });
+
+  it('counts the agents, by category and by model, and a click shows only those (again: all)', async () => {
+    await open();
+    expect(el.querySelector('.agents-total')!.textContent).toBe('5');
+    const legend = [...el.querySelectorAll<HTMLButtonElement>('.agents-cat-legend button')];
+    expect(legend.map((b) => b.textContent)).toEqual(['Sales2', 'Your own2', 'GIS1']); // (the same count: by name)
+    expect(el.querySelectorAll('.agents-cat-bar button')).toHaveLength(3);
+    await act(async () => legend[0].click());
+    expect(cardNames()).toEqual(['Seller', 'Seller 2']);
+    expect(el.querySelector('.agents-pick')!.textContent).toContain('Sales');
+    // a click on it again, or on the chip, shows every agent
+    await act(async () => el.querySelector<HTMLButtonElement>('.agents-pick')!.click());
+    expect(cardNames()).toHaveLength(5);
+    // the models: Sonnet (the default too), Opus, and the API model without its provider part
+    const models = [...el.querySelectorAll<HTMLButtonElement>('.agents-models button')];
+    expect(models.map((b) => b.getAttribute('aria-label'))).toEqual(['Sonnet on Claude Code: 3 of 5 agents', 'Opus on Claude Code: 1 of 5 agents', 'Sonnet on API model: 1 of 5 agents']);
+    await act(async () => models[1].click());
+    expect(cardNames()).toEqual(['Seller 2']);
+    await act(async () => models[1].click());
+    expect(cardNames()).toHaveLength(5);
+  });
+
+  it("an engine tile on the Station links to that engine's agents", async () => {
+    location.hash = '#/agents?uses=openrouter';
+    await open();
+    expect(cardNames()).toEqual(['Coder']);
+    expect(el.querySelector('.agents-pick')!.textContent).toContain('On OpenRouter');
+    await act(async () => el.querySelector<HTMLButtonElement>('.agents-pick')!.click());
+    expect(cardNames()).toHaveLength(5);
+    expect(location.hash).toBe('#/agents');
+  });
+
+  it('has no overview with only one agent', async () => {
+    state.data!.agents = [writer];
+    await open();
+    expect(el.querySelector('.agents-overview')).toBeNull();
+  });
+});
+
 describe('the agent editor', () => {
   it('enables Save once something changes, and saves the agent', async () => {
     await open(['a1', 'edit']);

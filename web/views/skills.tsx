@@ -73,24 +73,6 @@ function SkillsPage({ open }: { open?: string }) {
   return (
     <>
       <p className="lede">Skills are instructions for a kind of work: how you want an email written, your brand voice, a video edit checklist, a research method. Give them to one agent, to a team, or to the whole project. Agents open a skill when the task matches it.</p>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-2.5 mt-3.5">
-        {(
-          [
-            ['folder-open', 'Project', 'Every agent in the project'],
-            ['users', 'Team', 'Every member, while it works for the team'],
-            ['bot', 'Agent', 'That agent, everywhere'],
-            ['brain', 'The Brain', 'Follows it in every turn'],
-          ] as const
-        ).map(([ico, name, hint]) => (
-          <div key={name} className="flex items-center gap-3 py-3 px-3.5 border border-line rounded-[12px] bg-panel">
-            <div className="size-9 flex-none grid place-items-center rounded-box text-accent bg-accent/10"><Icon name={ico} size={18} /></div>
-            <div>
-              <b>{name}</b>
-              <div className="hint">{hint}</div>
-            </div>
-          </div>
-        ))}
-      </div>
       <div className="panel mt-3.5">
         <div className="panel-head">
           <h2><Icon name="folder-open" />{` Project skills · ${proj?.name || ''}`}</h2>

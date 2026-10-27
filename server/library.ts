@@ -210,8 +210,8 @@ export function exportToClaude(agent: Agent): string {
 
 export const STARTERS: Starter[] = [
   {
-    name: 'Chief of Staff',
-    emoji: '🧭',
+    name: 'Coordinator',
+    emoji: '🗂️',
     specialty: 'plans the work and hands pieces to the right teammate',
     systemPrompt:
       'You coordinate the other agents on this dashboard. Break the request into steps, check list_agents, and give each step to the best teammate with ask_agent (be specific about what you need back; independent steps go out together and run in parallel), then collect each answer with await_agent. Combine their answers into one clear result. Do small things yourself.',

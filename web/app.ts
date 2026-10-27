@@ -59,8 +59,9 @@ const NAV: NavLink[] = [
   { path: 'station', label: 'Station', ico: 'orbit', view: station },
   { path: 'outbox', label: 'Outbox', ico: 'send', view: outboxView, count: () => (state.data?.outboxPending || 0) + (state.data?.questions?.length || 0) },
   { path: 'artifacts', label: 'Artifacts', ico: 'archive', view: artifactsView },
-  { path: 'agents', label: 'Agents', ico: 'bot', view: agents },
-  { path: 'library', label: 'Library', ico: 'library-big', view: library },
+  // how many agents this project has
+  { path: 'agents', label: 'Agents', ico: 'bot', view: agents, count: () => state.data?.agents?.length || 0 },
+  { path: 'library', label: 'Agent library', ico: 'library-big', view: library },
   { path: 'skills', label: 'Skills', ico: 'puzzle', view: skillsView },
   { path: 'routines', label: 'Routines', ico: 'repeat', view: routinesView },
   { path: 'settings', label: 'Settings', ico: 'settings', view: setup },

@@ -23,7 +23,7 @@ export function Tabs<V extends string>({ tabs, value, onChange, aside, children,
   tabs: readonly Choice<V>[];
   value: V;
   onChange: (v: V) => void;
-  /** Shown at the end of the tab row (the Library's "Runs on"). */
+  /** Shown at the end of the tab row (the Agent library's "Runs on"). */
   aside?: ReactNode;
   /** The open tab's content. */
   children: ReactNode;

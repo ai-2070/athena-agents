@@ -10,6 +10,8 @@ import { Avatar, DomNode, reactPage, useAppState } from '../ui/react.tsx';
 import type { ModelListing } from '../models.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
+import { ENGINE_NAMES, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
+import type { Slice } from '../agentstats.ts';
 import type { Agent, AppState, Autonomy, EngineStatus, McpServerInfo, Team, Terminal } from '../../shared/types.ts';
 
 /** GET /api/agents/:id: the agent plus its knowledge files and resolved workspace. */
@@ -49,29 +51,173 @@ export function engineLabel(a: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'prov
   return `${label}${extra}`;
 }
 
+// ---------- the overview ----------
+/** A category or model picked in the overview, or an engine tile clicked on the Station: the list shows only its agents. */
+interface ChartPick {
+  kind: 'category' | 'model' | 'engine';
+  slice: Slice;
+}
+const MICRO = 'font-mono text-[10.5px] leading-none tracking-[0.14em] uppercase text-faint';
+
+/** What kinds of agents the project has (one bar, a segment per category) and which models they run on. */
+function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppState; pick: ChartPick | null; setPick: (p: ChartPick | null) => void }) {
+  const [hot, setHot] = useState<string | null>(null);
+  const total = agents.length;
+  const cats = categorySlices(agents);
+  const models = modelSlices(agents, d.settings.defaults);
+  // the model bars are measured against the biggest one
+  const topModel = Math.max(1, ...models.map((m) => m.count));
+  const kinds = new Set(agents.map((a) => agentCategory(a).id)).size;
+  const working = agents.filter((a) => isRunning(a.id)).length;
+  const pct = (n: number) => `${Math.round((n / total) * 100)}%`;
+  const toggle = (kind: ChartPick['kind'], slice: Slice) => setPick(pick?.kind === kind && pick.slice.id === slice.id ? null : { kind, slice });
+  const picked = (kind: ChartPick['kind'], s: Slice) => pick?.kind === kind && pick.slice.id === s.id;
+  // a segment is dimmed while another one is pointed at or picked
+  const catFocus = hot || (pick?.kind === 'category' ? pick.slice.id : null);
+  const shown = cats.find((s) => s.id === hot);
+  const before = shown ? cats.slice(0, cats.indexOf(shown)).reduce((n, s) => n + s.count, 0) : 0;
+  return (
+    <section className="agents-overview panel mb-4" aria-label="Your agents at a glance">
+      <div className="grid grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-x-10 gap-y-7 max-lg:grid-cols-1">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+            <div className="flex items-baseline gap-2.5">
+              <b className="agents-total font-mono text-[34px] leading-none font-semibold tracking-[-0.02em] text-ink">{total}</b>
+              <span className={MICRO}>agents</span>
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-1.5 font-mono text-[11px] leading-none tracking-[0.08em] uppercase text-dim">
+              <span>
+                <b className={working ? 'text-accent' : 'text-ink'}>{working}</b> working now
+              </span>
+              <span>
+                <b className="text-ink">{kinds}</b> {kinds === 1 ? 'category' : 'categories'}
+              </span>
+              <span>
+                <b className="text-ink">{new Set(agents.map((a) => agentModel(a, d.settings.defaults).id)).size}</b> models
+              </span>
+            </div>
+          </div>
+          <div className={`${MICRO} mt-6 mb-2.5`}>By category</div>
+          <div className="relative">
+            <div className="agents-cat-bar flex h-4 gap-0.5" onMouseLeave={() => setHot(null)}>
+              {cats.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={`h-full min-w-1 cursor-pointer transition-[opacity,filter] duration-150 first:rounded-l-[4px] last:rounded-r-[4px] hover:brightness-125 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${catFocus && catFocus !== s.id ? 'opacity-30' : ''}`}
+                  style={{ flexGrow: s.count, flexBasis: 0, background: s.color }}
+                  aria-label={`${s.label}: ${s.count} of ${total} agents`}
+                  aria-pressed={picked('category', s)}
+                  onMouseEnter={() => setHot(s.id)}
+                  onFocus={() => setHot(s.id)}
+                  onBlur={() => setHot(null)}
+                  onClick={() => toggle('category', s)}
+                />
+              ))}
+            </div>
+            {shown ? (
+              <div className="pointer-events-none absolute bottom-full z-10 mb-2.5 -translate-x-1/2 rounded-ctl border border-line-2 bg-panel-2 px-2.5 py-1.75 text-[12.5px] leading-[1.4] whitespace-nowrap shadow-pop" style={{ left: `${((before + shown.count / 2) / total) * 100}%` }} role="tooltip">
+                <b className="text-ink">{shown.label}</b>
+                <span className="font-mono text-dim">{`  ${shown.count} · ${pct(shown.count)}`}</span>
+                {shown.rest ? <div className="max-w-70 whitespace-normal text-dim">{shown.rest.map((r) => `${r.label} ${r.count}`).join(', ')}</div> : null}
+              </div>
+            ) : null}
+          </div>
+          <ul className="agents-cat-legend mt-4 flex flex-wrap gap-x-5 gap-y-2.5">
+            {cats.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-ctl text-[13px] leading-none text-ink transition-opacity duration-150 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-accent ${catFocus && catFocus !== s.id ? 'opacity-45' : ''} ${picked('category', s) ? 'underline decoration-accent decoration-2 underline-offset-5' : ''}`}
+                  aria-pressed={picked('category', s)}
+                  onMouseEnter={() => setHot(s.id)}
+                  onMouseLeave={() => setHot(null)}
+                  onClick={() => toggle('category', s)}
+                >
+                  <span className="size-2.5 flex-none rounded-[3px]" style={{ background: s.color }} aria-hidden="true" />
+                  {s.label}
+                  <span className="font-mono text-[11.5px] text-dim">{s.count}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="min-w-0">
+          <div className={`${MICRO} mb-2.5`}>By model</div>
+          <ul className="agents-models flex flex-col gap-0.5">
+            {models.map((m) => (
+              <li key={m.id}>
+                <button
+                  type="button"
+                  className={`group grid w-full cursor-pointer grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_1.75rem] items-center gap-3 rounded-ctl px-1.5 py-1.5 text-left transition-[background,opacity] duration-150 hover:bg-panel-2 focus-visible:outline-2 focus-visible:outline-accent ${pick?.kind === 'model' && !picked('model', m) ? 'opacity-45' : ''} ${picked('model', m) ? 'bg-panel-2' : ''}`}
+                  title={m.rest ? m.rest.map((r) => `${r.label} (${r.sub}) ${r.count}`).join('\n') : `${m.label} · ${m.sub}`}
+                  aria-label={`${m.label}${m.sub ? ` on ${m.sub}` : ''}: ${m.count} of ${total} agents`}
+                  aria-pressed={picked('model', m)}
+                  onClick={() => toggle('model', m)}
+                >
+                  <span className="min-w-0 truncate text-[13px] leading-[1.3]">
+                    <span className="text-ink">{m.label}</span>
+                    <span className="ml-1.5 text-[11px] text-faint">{m.rest ? `${m.rest.length} more` : m.sub}</span>
+                  </span>
+                  <span className="h-2 overflow-hidden rounded-[4px] bg-line" aria-hidden="true">
+                    <span className="block h-full rounded-[4px] bg-accent-dim transition-colors duration-150 group-hover:bg-accent" style={{ width: `${(m.count / topModel) * 100}%` }} />
+                  </span>
+                  <span className="text-right font-mono text-[12px] text-dim">{m.count}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ---------- the list ----------
 // kept while you move around the app, as before
 let lastFilter = '';
+let lastPick: ChartPick | null = null;
+/** #/agents?uses=claude-code (from an engine tile on the Station): that engine's agents. */
+function engineFromLink(): ChartPick | null {
+  const key = new URLSearchParams(location.hash.split('?')[1] || '').get('uses');
+  return key && ENGINE_NAMES[key] ? { kind: 'engine', slice: { id: key, label: ENGINE_NAMES[key], count: 0 } } : null;
+}
 
 function AgentsList() {
   const d = useAppState();
   const [filter, setFilter] = useState(lastFilter);
+  const [pick, setPickState] = useState(() => (lastPick = engineFromLink() || lastPick));
+  const setPick = (p: ChartPick | null) => {
+    setPickState((lastPick = p));
+    // (the link's ?uses= goes with it, so a reload shows what you picked)
+    if (location.hash.includes('?')) history.replaceState(null, '', '#/agents');
+  };
   if (!d) return null;
   const q = filter.toLowerCase();
-  const shown = d.agents.filter((a) => !q || `${a.name} ${a.specialty} ${a.description}`.toLowerCase().includes(q));
+  const inPick = (a: Agent) => !pick || inSlice(pick.slice, pick.kind === 'category' ? agentCategory(a).id : pick.kind === 'engine' ? engineKey(a) : agentModel(a, d.settings.defaults).id);
+  const shown = d.agents.filter((a) => (!q || `${a.name} ${a.specialty} ${a.description}`.toLowerCase().includes(q)) && inPick(a));
   const create = async () => {
     const a = await attempt(() => POST<Agent>('/agents', { name: 'New agent' }));
     if (a) navigate(`#/agents/${a.id}/edit`);
   };
   return (
     <>
+      {d.agents.length > 1 ? <AgentsOverview agents={d.agents} d={d} pick={pick} setPick={setPick} /> : null}
       <div className="flex flex-wrap items-center gap-2.5 justify-between mb-4">
-        <div className="w-[min(360px,100%)]">
-          <input placeholder="Search agents" aria-label="Search agents" value={filter} onChange={(e) => setFilter((lastFilter = e.target.value))} />
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="w-[min(360px,100%)]">
+            <input placeholder="Search agents" aria-label="Search agents" value={filter} onChange={(e) => setFilter((lastFilter = e.target.value))} />
+          </div>
+          {pick ? (
+            <button type="button" className="agents-pick btn ghost small" onClick={() => setPick(null)} title="Show every agent">
+              {pick.kind === 'model' ? `Model: ${pick.slice.label}` : pick.kind === 'engine' ? `On ${pick.slice.label}` : pick.slice.label}
+              <span aria-hidden="true">✕</span>
+            </button>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <DomNode as="span" make={() => deletedButton(['agent', 'team'], () => refreshSoon(0))} deps={[]} />
-          <a className="btn ghost" href="#/library">Hire from library</a>
+          <a className="btn ghost" href="#/library">Hire from Agent library</a>
           <button className="btn" onClick={() => void create()}>+ New agent</button>
         </div>
       </div>
@@ -104,7 +250,7 @@ function AgentsList() {
             </div>
           </div>
         ))}
-        {!shown.length ? <div className="empty box">{d.agents.length ? 'No agent matches.' : 'No agents yet. Create one, or hire from the Library.'}</div> : null}
+        {!shown.length ? <div className="empty box">{d.agents.length ? 'No agent matches.' : 'No agents yet. Create one, or hire from the Agent library.'}</div> : null}
       </div>
     </>
   );
@@ -331,7 +477,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
               <button className="btn ghost small" onClick={() => void clone()}>Clone</button>
               {/* put back: show it as it is now (changes not saved yet are dropped) */}
               <DomNode as="span" make={() => historyButton('agent', id, () => (setDirty(false), reload()))} deps={[id]} />
-              <button className="btn ghost small" title="Keep it as a template you can create again in any project (Library > Your presets)" onClick={() => void attempt(() => POST(`/presets/agent/${id}`), `Saved ${a.name} as a preset`)}>Save as preset</button>
+              <button className="btn ghost small" title="Keep it as a template you can create again in any project (Agent library > Your presets)" onClick={() => void attempt(() => POST(`/presets/agent/${id}`), `Saved ${a.name} as a preset`)}>Save as preset</button>
               <button className="btn ghost small" title="Write it to ~/.claude/agents so any Claude Code session can use it" onClick={() => void attempt(() => POST<{ file: string }>(`/agents/${id}/export-claude`), (r) => `Saved as ${r.file}`)}>Install in Claude Code</button>
               <button className="btn danger small" onClick={() => void del()}>Delete</button>
             </div>

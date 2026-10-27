@@ -75,15 +75,15 @@ describe('Library page', () => {
   it('opens on The Agency with labelled tabs, and remembers the tab you picked', async () => {
     await open();
     const tabs = [...el.querySelectorAll<HTMLElement>('[role="tab"]')];
-    expect(tabs.map((t) => t.textContent)).toEqual(['Starters (1)', 'The Agency (3)', 'Hermes profiles (0)', 'Claude Code subagents (0)', 'Your presets (0)']);
-    expect(el.querySelector('[role="tablist"]')!.getAttribute('aria-label')).toBe('Library');
+    expect(tabs.map((t) => t.textContent)).toEqual(['Blacksite (1)', 'The Agency (3)', 'Hermes profiles (0)', 'Claude Code subagents (0)', 'Your presets (0)']);
+    expect(el.querySelector('[role="tablist"]')!.getAttribute('aria-label')).toBe('Agent library');
     expect(tabs[1].classList.contains('on')).toBe(true);
     expect(tabs[1].getAttribute('aria-selected')).toBe('true');
     await click(tabs[0]);
     expect(el.querySelector('.card-title')!.textContent).toBe('Writer');
     act(() => library.unmount());
     await open();
-    expect(el.querySelector('[role="tab"].on')!.textContent).toBe('Starters (1)');
+    expect(el.querySelector('[role="tab"].on')!.textContent).toBe('Blacksite (1)');
   });
 
   it('opens on Your presets from a ?tab=presets link', async () => {

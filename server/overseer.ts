@@ -461,7 +461,7 @@ const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a
 // The library the Brain can hire from (compact: slug | name).
 function catalog() {
   const lib = agencyAgents().map((a) => `${a.slug} | ${a.name}`);
-  return `LIBRARY (The Agency, hire with {"library":"<slug>"}):\n${lib.join('\n') || '(none)'}\n\nSTARTERS (hire with {"starter":"<name>"}):\n${STARTERS.map((x) => `${x.name} | ${x.specialty}`).join('\n')}`;
+  return `LIBRARY (The Agency, hire with {"library":"<slug>"}):\n${lib.join('\n') || '(none)'}\n\nBLACKSITE AGENTS (made for this dashboard and its tools; the user sees them as "Blacksite" in the Agent library; hire with {"starter":"<name>"}):\n${STARTERS.map((x) => `${x.name} | ${x.specialty}`).join('\n')}`;
 }
 
 // The Brain's own skills for its instructions: each up to OWN_SKILL_MAX, all together up to
@@ -491,7 +491,7 @@ export function ownSkillsShown(own: SkillDetail[]): { text: string; seen: Set<st
 export const ownSkillsText = (own: SkillDetail[]): string => ownSkillsShown(own).text;
 
 const SYSTEM = (projectName: string, canRead: boolean, own: SkillDetail[] = [], memory = '') => `You are the Brain: the overseer of the user's project "${projectName}" in their personal AI agent dashboard (local, only for them).
-You see everything in the SNAPSHOT: the project folder and its files, Git, every agent and team, what each is doing right now, and what waits for the user. You also run the roster: you build teams, hire agents from the library, and hand out work.
+You see everything in the SNAPSHOT: the project folder and its files, Git, every agent and team, what each is doing right now, and what waits for the user. You also run the roster: you build teams, hire agents from the Agent library (the user's name for the LIBRARY below), and hand out work.
 
 Kinds of request:
 1. A question (about the project, its files, progress, who is doing what, what is stuck, what next): just answer it.${canRead ? ' You can open files in the project folder with Read, Glob and Grep (you work inside it) when the answer needs what is in a file. Never change files yourself (PROJECT.md goes through the write_project_md action).' : ''}
@@ -507,7 +507,8 @@ Kinds of request:
 10. The voxel world: the Station can be a voxel world the agents build around themselves (the WORLD section of the SNAPSHOT says what is there). ${DIORAMA} When you hand world work to a team, say so: don't ask for routes, navigation or playtests, and don't hold building back waiting for them. Everything in it is built by you and the agents: nothing comes ready-made. Its WORLD.md says what the world is: theme and meaning, look, feel, places, characters, story, rules. When the user describes a world they want, ask up to 4 short questions first (theme and what it should mean, mood, era, palette) unless they already said, then write WORLD.md with write_world_md, then plan the scene in this order: ${BUILD_ORDER} The terrain and the buildings are objects (one each); the small things there will be many of (people, trees, lamps, vehicles, boats, stalls) are prefabs made once and placed many times. Set the time of day and lay the ground yourself with build; hand the big pieces and the prefabs to builders (delegate to agents with the world tools: hire the "World Builder" starter if there is none, and split the work between several builders for a big scene), then place the copies or have a builder do it. Keep WORLD.md up to date when the user says something new about the world.
 Team chats: you write in them as "the Brain" (your briefs and follow-ups), and members or the user can write @Brain there to ask you something; you answer them in the thread.
 
-A team is a group chat of 2-6 agents with a shared goal. A lead (planner type) coordinates when there are 3+ members; members hand work to each other by @mentioning. Prefer agents the user already has; otherwise hire from the LIBRARY (pick the slugs that match best); only invent a new agent when nothing in the library fits.
+A team is a group chat of 2-6 agents with a shared goal. A lead (planner type) coordinates when there are 3+ members; members hand work to each other by @mentioning. Prefer agents the user already has; otherwise hire from the LIBRARY or the BLACKSITE AGENTS (pick the ones that match best); only invent a new agent when nothing in them fits.
+Tools follow the work, not the agent: a LIBRARY agent only gets the tools its job title suggests. So when you build a team or change its goal, give the team (access.tools) every tool group its work needs that its members may lack: "social" when it posts or messages anywhere (X, Reddit, Telegram, Discord; posts wait in the Outbox for the user's OK), "world" when it builds the voxel world, "comfyui" for images, "blender" for 3D, "media" and "adobe" for video. Finished results go to Artifacts with save_artifact, which every agent has.
 
 Answer format: a short reply in markdown (a few sentences or a tight list, names not ids, calm chief-of-staff tone). If you take actions, end with ONE fenced block:
 \`\`\`actions
@@ -619,6 +620,17 @@ export function parseActions(text: string): { answer: string; actions: BrainActi
 }
 
 const cleanTools = (t: unknown): string[] => (Array.isArray(t) ? (t as unknown[]) : []).filter((x): x is string => GROUP_IDS.includes(x as string));
+// Tools a team's name or goal plainly needs, added even if the Brain left them out: a team whose agents came from
+// the library may have nobody who can post, and nobody finds out until they try.
+const GOAL_TOOLS: [RegExp, string][] = [
+  [/\b(tweets?|twitter|x (posts?|threads?|account)|post(s|ing)? (on|to) x|reddit|subreddits?|telegram|discord|linkedin|social media|socials)\b/i, 'social'],
+  [/\bvoxel|\b(build|building|builds) the world\b|\bworld builders?\b/i, 'world'],
+];
+export function withGoalTools(tools: string[], goal: string): string[] {
+  const out = new Set(tools);
+  for (const [re, group] of GOAL_TOOLS) if (re.test(goal) && GROUP_IDS.includes(group)) out.add(group);
+  return [...out];
+}
 // ---------- MCP servers ----------
 // Parts of a command line or link that look like a key: long mixes of letters and digits, or known key prefixes.
 const KEYISH = /^(?=.*\d)(?=.*[a-z])[\w+=~.-]{20,}$/i;
@@ -1079,7 +1091,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
       if (have) return have.id;
       if (!agencyAgents().some((x) => x.slug === m.library)) return null;
       const a = hireFromAgency(m.library);
-      done.push({ kind: 'hired', text: `Hired ${a.emoji || ''} ${a.name} from the library`, agentId: a.id });
+      done.push({ kind: 'hired', text: `Hired ${a.emoji || ''} ${a.name} from the Agent library`, agentId: a.id });
       return a.id;
     }
     if (m.starter) {
@@ -1483,7 +1495,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
           description: String(act.description || '').slice(0, 300),
           members,
           lead: members.length > 1 ? lead : null,
-          access: { toolGroups: cleanTools(act.access?.tools || act.access?.toolGroups), mcpServers: serversFor(act.access?.mcpServers) },
+          access: { toolGroups: withGoalTools(cleanTools(act.access?.tools || act.access?.toolGroups), `${act.name || ''} ${act.description || ''}`), mcpServers: serversFor(act.access?.mcpServers) },
           skills: skillSlugs(act.skills),
           color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
           schedule: { type: 'none' },
@@ -1517,6 +1529,8 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         const changed: string[] = [];
         if (act.name) (wf.name = String(act.name).slice(0, 50)), changed.push('name');
         if (act.description) (wf.description = String(act.description).slice(0, 300)), changed.push('goal');
+        // a new name or goal that needs posting or world tools gets them (tools you set yourself below stay as you set them)
+        if ((act.name || act.description) && !act.access) wf.access = { toolGroups: withGoalTools(wf.access?.toolGroups || [], `${wf.name} ${wf.description || ''}`), mcpServers: wf.access?.mcpServers || [] };
         if (act.lead !== undefined) {
           const lead = act.lead ? resolveAll([act.lead])[0] : null;
           if (lead && !(wf.members || []).includes(lead)) wf.members = [lead, ...(wf.members || [])];

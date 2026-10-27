@@ -232,7 +232,7 @@ function QuickTask({ d }: { d: AppState }) {
 
 function Onboarding({ d }: { d: AppState }) {
   const [adding, setAdding] = useState(false);
-  // One click: Chief of Staff, X Writer, Image Maker, 3D Artist, Video Editor, Researcher.
+  // One click: Coordinator, X Writer, Image Maker, 3D Artist, Video Editor, Researcher.
   const addStarterTeam = async () => {
     setAdding(true);
     const lib = await GET<LibraryStarters>('/library').catch(() => null);
@@ -255,7 +255,7 @@ function Onboarding({ d }: { d: AppState }) {
           <li key={s.cta} className="list-row">
             <span className={s.done ? 'font-mono text-accent' : 'font-mono text-faint'} aria-label={s.done ? 'done' : `step ${i + 1}`}>{s.done ? '✓' : `0${i + 1}`}</span>
             <div className="flex-1 min-w-0">{s.text}</div>
-            {i === 1 ? <button className="btn small" disabled={adding} onClick={() => void addStarterTeam()}>Add starter team</button> : null}
+            {i === 1 ? <button className="btn small" disabled={adding} onClick={() => void addStarterTeam()}>Add Blacksite team</button> : null}
             <a className="btn ghost small" href={s.href}>{s.cta}</a>
           </li>
         ))}

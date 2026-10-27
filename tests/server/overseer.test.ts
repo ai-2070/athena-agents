@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { applyActions, parseActions } from '../../server/overseer.ts';
+import { applyActions, parseActions, withGoalTools } from '../../server/overseer.ts';
 import { agents, workflows, activeProject } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
 import { ensureBrain } from '../../server/projects.ts';
@@ -152,5 +152,38 @@ describe('the Brain and routines', () => {
     const snap = await snapshot({ fileBudget: 0 });
     expect(snap).toMatch(/ROUTINES \(\d+;[\s\S]*Morning post \| daily 07:30 Mon Wed \| agents: Scout \| teams: Post Crew \| skills: Brand voice \| last run: never run/);
     expect(snap).toMatch(/- id=brand-voice[^|]* \| Brand voice: How we sound\. \| given to: /);
+  });
+});
+
+describe("a team's tools follow its work", () => {
+  it('a goal that posts gets the Social tools, world building the world tools; other goals nothing extra', () => {
+    expect(withGoalTools(['files'], 'Launch team: writes our X posts and Reddit threads')).toEqual(['files', 'social']);
+    expect(withGoalTools([], 'Posts on Telegram and Discord')).toEqual(['social']);
+    expect(withGoalTools([], 'World builders: build the world from WORLD.md')).toEqual(['world']);
+    expect(withGoalTools([], 'A voxel harbour town')).toEqual(['world']);
+    // (no false alarms on everyday words)
+    expect(withGoalTools([], 'Writes a blog post and an explainer about the new world of AI')).toEqual([]);
+    expect(withGoalTools(['social'], 'Tweets daily')).toEqual(['social']);
+  });
+
+  it("the Brain's team gets them even when it forgets, and a tool you take away stays away", () => {
+    const eng = newAgent({ name: 'Engineer', toolGroups: ['files', 'programs'] });
+    applyActions([{ do: 'create_team', name: 'Launch', description: 'Ships the app and tweets about each release', members: [{ agent: eng.id }] }]);
+    const team = workflows.list().find((w) => w.name === 'Launch')!;
+    expect(team.access?.toolGroups).toContain('social');
+    // taken away on purpose: not put back
+    applyActions([{ do: 'update_team', team: team.id, access: { tools: [] } }]);
+    expect(workflows.get(team.id)!.access?.toolGroups).toEqual([]);
+    // a new goal that needs them: given again
+    applyActions([{ do: 'update_team', team: team.id, description: 'Posts release notes to Discord' }]);
+    expect(workflows.get(team.id)!.access?.toolGroups).toEqual(['social']);
+  });
+});
+
+describe('the Blacksite agents', () => {
+  it("our coordinator isn't named like the Agency's Chief of Staff", async () => {
+    const { STARTERS } = await import('../../server/library.ts');
+    expect(STARTERS.map((x) => x.name)).toContain('Coordinator');
+    expect(STARTERS.map((x) => x.name)).not.toContain('Chief of Staff');
   });
 });

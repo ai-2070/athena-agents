@@ -562,8 +562,8 @@ const withMembers = (wf: TeamView, members: string[]): TeamView => ({
   steps: members.map((id) => ({ type: 'agent' as const, agentId: id })),
   lead: wf.lead && !members.includes(wf.lead) ? null : wf.lead,
 });
-const presetAgent = (a: Agent) => attempt(() => POST(`/presets/agent/${a.id}`), `Saved ${a.name} as a preset (Library › Your presets)`);
-const presetTeam = (w: TeamView) => attempt(() => POST(`/presets/team/${w.id}`), `Saved ${w.name} and its agents as a preset (Library › Your presets)`);
+const presetAgent = (a: Agent) => attempt(() => POST(`/presets/agent/${a.id}`), `Saved ${a.name} as a preset (Agent library › Your presets)`);
+const presetTeam = (w: TeamView) => attempt(() => POST(`/presets/team/${w.id}`), `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`);
 
 // (the tab you were on stays open when you pick another team)
 type TeamTab = 'members' | 'setup';
@@ -718,7 +718,7 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
             </div>
           );
         })}
-        {!members.length ? <p className="empty">No agents yet. Add one below, hire from the Library, or ask the Brain.</p> : null}
+        {!members.length ? <p className="empty">No agents yet. Add one below, hire from the Agent library, or ask the Brain.</p> : null}
       </div>
       <div className="label mt-7">Add someone</div>
       {others.length ? (
@@ -741,7 +741,7 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
       <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
         <button className="btn ghost small" onClick={() => navigate(`#/library?branch=${encodeURIComponent(id)}`)}>
           <Icon name="store" size={14} />
-          Hire from the Library
+          Hire from the Agent library
         </button>
         <button className="btn ghost small" onClick={() => openDock('auto', `For the team "${wf.name}": add `)}>
           <Icon name="brain" size={14} />

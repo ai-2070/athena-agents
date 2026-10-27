@@ -1,4 +1,4 @@
-// Library: ready-made agents. Starters, The Agency (msitarzewski/agency-agents), Hermes profiles, Claude Code subagents,
+// Agent library: ready-made agents. Blacksite's own (made for this dashboard's tools), The Agency (msitarzewski/agency-agents), Hermes profiles, Claude Code subagents,
 // and your presets. A React page on Base UI controls.
 import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
@@ -117,7 +117,7 @@ function LibraryPage() {
 
   const pick = (t: Tab) => setTab((lastTab = t));
   const tabs = [
-    { value: 'starters' as const, label: `Starters (${lib.starters.length})` },
+    { value: 'starters' as const, label: `Blacksite (${lib.starters.length})` },
     { value: 'agency' as const, label: `The Agency (${lib.agency.agents.length})` },
     { value: 'hermes' as const, label: `Hermes profiles (${lib.hermes.length})` },
     { value: 'claude' as const, label: `Claude Code subagents (${lib.claude.length})` },
@@ -143,7 +143,7 @@ function LibraryPage() {
           </div>
         </div>
       ) : null}
-      <Tabs label="Library" tabs={tabs} value={tab} onChange={pick} aside={runsOn} rowClassName="mb-1.5 [&_.tabs]:mb-0 [&_.tabs]:border-b-0" panelClassName="border-t border-line pt-4.5">
+      <Tabs label="Agent library" tabs={tabs} value={tab} onChange={pick} aside={runsOn} rowClassName="mb-1.5 [&_.tabs]:mb-0 [&_.tabs]:border-b-0" panelClassName="border-t border-line pt-4.5">
         {tab === 'starters' ? <Starters lib={lib} overrides={ov} /> : null}
         {tab === 'agency' ? <Agency lib={lib} overrides={ov} /> : null}
         {tab === 'hermes' ? <Hermes lib={lib} data={data} /> : null}
@@ -419,5 +419,5 @@ export function resetLibrary(): void {
 }
 
 // ---------- the router's view ----------
-export const title = () => 'Library';
+export const title = () => 'Agent library';
 export const { render, unmount } = reactPage(() => <LibraryPage />);

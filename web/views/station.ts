@@ -20,6 +20,7 @@ import { neighbours, stepIndex, floorDirection, shortName } from '../projectnav.
 import { slideIn, slideOut } from '../motion.ts';
 import { icon, logo, brandPath } from '../icons.ts';
 import { appIconImage } from '../appicons.ts';
+import { engineKey } from '../agentstats.ts';
 import { openProjectMenu } from '../projects.ts';
 import { teamSteps } from '../../shared/teams.ts';
 import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, toolIntegration, stepLinks, connectorLook, setClaudeConnectors } from './stationdata.ts';
@@ -3505,7 +3506,9 @@ function drawHud(): void {
     const users = d.agents.filter(uses);
     const busy = users.some((a) => busyIds.has(a.id));
     const who = [users.length ? `${users.length} agent${users.length === 1 ? '' : 's'}` : '', brainP === e.brain ? 'the Brain' : ''].filter(Boolean).join(' + ');
-    return { ...e, uses, n: users.length + (brainP === e.brain ? 1 : 0), busy, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${e.ready ? '' : ' (click to set up)'}` };
+    // ready and used by agents: a click shows them on the Agents page; otherwise it opens its setup
+    const toAgents = e.ready && users.length ? `#/agents?uses=${engineKey(users[0])}` : '';
+    return { ...e, uses, n: users.length + (brainP === e.brain ? 1 : 0), busy, toAgents, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${toAgents ? ' (click to see its agents)' : e.ready ? '' : ' (click to set up)'}` };
   });
   S.clockEl ||= h('span', { class: 'min-w-23 text-right font-mono text-[17px] leading-[normal] font-medium tracking-[0.02em] text-ink' });
   S.tileEls = new Map();
@@ -3544,7 +3547,7 @@ function drawHud(): void {
               class: ENGINE,
               style: { '--c': e.color },
               title: e.title,
-              onclick: () => navigate(`#/settings?tab=general&find=${encodeURIComponent(e.find)}`),
+              onclick: () => navigate(e.toAgents || `#/settings?tab=general&find=${encodeURIComponent(e.find)}`),
               onpointerenter: () => S && (S.hover = hoverForEngine(e.uses, brainP === e.brain, e.color)),
               onpointerleave: () => S && (S.hover = null),
             },
@@ -3593,7 +3596,7 @@ function drawEmpty(d: AppState): void {
         'div',
         { class: 'flex flex-wrap items-center gap-2.5' },
         h('button.btn', { class: EMPTY_BTN, onclick: () => openDock('auto', 'Make me a team for ') }, 'Ask the Brain'),
-        h('a.btn.ghost', { class: EMPTY_BTN, href: '#/library' }, 'Library'),
+        h('a.btn.ghost', { class: EMPTY_BTN, href: '#/library' }, 'Agent library'),
         h('button.btn.ghost', {
           class: EMPTY_BTN,
           onclick: async () => {
@@ -3829,8 +3832,8 @@ async function cloneTeam(w: TeamView, withAgents: boolean): Promise<void> {
   await reloadWorkflows();
   choose({ type: 'branch', id: c.id });
 }
-const presetAgent = (a: Agent) => attempt(() => POST(`/presets/agent/${a.id}`), `Saved ${a.name} as a preset (Library › Your presets)`);
-const presetTeam = (w: TeamView) => attempt(() => POST(`/presets/team/${w.id}`), `Saved ${w.name} and its agents as a preset (Library › Your presets)`);
+const presetAgent = (a: Agent) => attempt(() => POST(`/presets/agent/${a.id}`), `Saved ${a.name} as a preset (Agent library › Your presets)`);
+const presetTeam = (w: TeamView) => attempt(() => POST(`/presets/team/${w.id}`), `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`);
 
 // What an agent is doing right now, in words ("Blender · rendering the scene", "thinking…").
 function nowText(agentId: string, wfId?: string): { st: 'needs' | 'idle' | 'working'; text: string } {

@@ -148,7 +148,8 @@ describe('sidebar usage limits', () => {
     await tick(10);
     const status = [...el.querySelectorAll<HTMLButtonElement>('.sidebar-panel-tab')].find((b) => b.textContent === 'Status')!;
     status.click();
-    await tick();
+    // the limits slide out first (a moment), then the status list comes in
+    await tick(250);
     expect(el.textContent).toContain('status list');
     expect(el.querySelector('.limit-row')).toBeNull();
     expect(requests.at(-1)).toMatchObject({ method: 'PUT', url: '/api/settings', body: { look: { sidebar: 'status' } } });

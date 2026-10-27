@@ -665,7 +665,7 @@ function DockList({ settings }: { settings: AppState['settings'] | undefined }) 
         <div className="m-auto text-center text-dim max-w-[380px]">
           <Icon name="sparkles" size={26} className="text-accent mb-2" />
           <p>Ask the Brain anything about the project, or for anything to be done.</p>
-          <p className="hint">It sees every agent and team and what they are doing. It answers questions itself, builds teams from the library ("make me a social media team"), and hands work to the right agent or team.</p>
+          <p className="hint">It sees every agent and team and what they are doing. It answers questions itself, builds teams from the Agent library ("make me a social media team"), and hands work to the right agent or team.</p>
         </div>
       )}
     </div>
