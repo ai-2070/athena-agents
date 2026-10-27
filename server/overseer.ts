@@ -19,7 +19,7 @@ import { listApprovals } from './approvals.ts';
 import type { BrainVerdict } from './approvals.ts';
 import { think, brainModel, parseJSON } from './brain.ts';
 import type { ThinkPart } from './brain.ts';
-import { readJSON, writeJSON, run, dataPath, exists } from './util.ts';
+import { readJSON, writeJSON, run, dataPath, exists, insideRoots } from './util.ts';
 import { describeAttachments, attachmentNames } from './uploads.ts';
 import { listRoutines, saveRoutine, deleteRoutine, getRoutine, startRoutine, routineTargets, runningRoutineRuns, stopRoutineRun } from './routines.ts';
 import { listSkills, getSkill, findSkill, saveSkill, deleteSkillEverywhere, brainSkills, brainSkillSlugs, setBrainSkills } from './skills.ts';
@@ -1568,11 +1568,16 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         if (content.length < 20) throw new Error('nothing to write');
         const dir = ensureBrain(p);
         const file = path.join(dir, 'PROJECT.md');
+        // a PROJECT.md or .brain-history planted as a link would copy a file from elsewhere in and write over it
+        const old = fs.lstatSync(file, { throwIfNoEntry: false });
+        if (old && !old.isFile()) throw new Error('PROJECT.md is a link, not a plain file; not writing through it');
         // keep the old version
-        if (fs.existsSync(file)) {
+        if (old) {
           const hist = path.join(dir, '.brain-history');
+          const keep = path.join(hist, `PROJECT-${new Date().toISOString().replace(/[:.]/g, '-')}.md`);
+          if (!insideRoots(keep, [dir])) throw new Error('.brain-history is a link out of the project folder; not writing through it');
           fs.mkdirSync(hist, { recursive: true });
-          fs.copyFileSync(file, path.join(hist, `PROJECT-${new Date().toISOString().replace(/[:.]/g, '-')}.md`));
+          fs.copyFileSync(file, keep);
         }
         fs.writeFileSync(file, `${content.slice(0, 60000)}\n`);
         log('project', `The Brain wrote PROJECT.md for "${p.name}"`);
