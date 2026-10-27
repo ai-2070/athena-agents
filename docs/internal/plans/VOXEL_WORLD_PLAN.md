@@ -675,6 +675,22 @@ their Brain actions. Quality levels.
 `character` with its rig and animations, `desk`, `orb`, `platform`; default skins; `world_skin` and the
 Brain's `skin` action; the desk monitor on voxel desks; platforms rebuilt when members change.
 
+*Phase 3 done 2026-10-27.* Changed from the plan above: no built-in character, orb or platform recipes.
+- An agent's form ("character") is any prefab a builder makes: a person, an animal, a tree, a lamp, a crystal.
+  It may be one piece (moved whole by the "self" track) or made of named parts (copies placed with "name"),
+  each turning around its prefab's pivot ("pivot": "top" for an arm that hangs from a shoulder).
+- Builders design the animations (`world_animate`): keys per part over time (turn, move, scale; linear,
+  smooth, step or bounce), looping or once. Clips named idle / working / needs play in those states unless
+  the skin picks others; "play" runs one once (a cheer), live on every open Station.
+- `world_skin` dresses an agent (form, desk; the live screen stays), a team (platform, hub) or the Brain
+  (shell, with or without the particle globe), with offset, turn and scale, and can take any of them off the
+  map (`hidden`) and hide their name (`label: false`): artistic freedom. Dressing yourself or your own team
+  needs no OK; anyone else, or the Brain, asks first. Voxel look only; the classic models are hidden, never
+  removed, so the classic look is untouched.
+- Page: `web/voxel/animate.ts` (sampling, easing, crossfades), `rig.ts` (part trees), `skins.ts` (what a skin
+  hides and draws). 107 fps at Medium with skins and animations on.
+- Not yet: glowing voxels in skins don't feed the light pool; dragging a skinned team wasn't checked by hand.
+
 **Phase 4: seeing and polish.**
 `world_look` (render in an open tab, text fallback), build animation and beams, the World side panel (WORLD.md
 editor and history, objects, look) and right-click menu, the world picker on the Station and the Projects page

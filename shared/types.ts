@@ -1013,6 +1013,27 @@ export interface PrefabInstance {
   mirror?: boolean;
   /** materials swapped in this copy: { "shirt": "cloth red" } */
   swap?: Record<string, string>;
+  /** a part's name inside a character ("left arm"): animations move it by this name */
+  name?: string;
+}
+
+/** One moment of a part in an animation. Turns are degrees around the part's own pivot (x, y, z); moves are map units. */
+export interface AnimKey {
+  /** when, from 0 (start) to 1 (end of the clip) */
+  t: number;
+  turn?: Vec3;
+  move?: Vec3;
+  scale?: number;
+  /** how it gets here from the key before */
+  ease?: 'linear' | 'smooth' | 'step' | 'bounce';
+}
+
+/** An animation a builder designed for a character prefab: keys per part ("self" moves the whole character). */
+export interface AnimationClip {
+  /** seconds */
+  duration: number;
+  loop: boolean;
+  tracks: Record<string, AnimKey[]>;
 }
 
 /** An object's or a prefab's voxels (…/objects/<id>.json, …/prefabs/<id>.json): chunks run-length encoded
@@ -1033,8 +1054,13 @@ export interface VoxelPrefabMeta {
   volumes: VoxelVolumeMeta[];
   /** prefab copies placed inside it */
   instances?: number;
-  /** map units from its voxels' origin to the point that stands on the spot it is placed at (bottom centre) */
+  /** map units from its voxels' origin to the point that stands on the spot it is placed at (bottom centre,
+   *  unless the builder chose another: a top pivot for an arm that hangs from a shoulder) */
   pivot: Vec3;
+  /** the pivot the builder chose; missing = bottom centre */
+  pivotAt?: 'bottom' | 'top' | 'center' | Vec3;
+  /** animations its builder designed (for characters made of named parts) */
+  animations?: Record<string, AnimationClip>;
   /** how big it is, map units */
   size: Vec3;
   createdAt: number;
@@ -1061,6 +1087,8 @@ export interface VoxelWorld {
   lights: WorldLight[];
   /** particles: falling petals, snow, fireflies, smoke… */
   effects: WorldEffect[];
+  /** how the Brain, the team platforms and the agents look in this world (voxel look only) */
+  skins: WorldSkins;
   environment: WorldEnvironment;
   createdAt: number;
   updatedAt: number;
@@ -1104,4 +1132,50 @@ export interface WorldMdInfo {
   text: string;
   updatedAt: number;
   max: number;
+}
+
+/** The fields every skin has: where its model sits from the classic one, turned and scaled. */
+interface SkinPlacement {
+  /** map units from where the classic model stands */
+  offset?: Vec3;
+  /** degrees around the vertical */
+  turn?: number;
+  scale?: number;
+  /** take it off the map (the Station still works: click its name, or use the side panel) */
+  hidden?: boolean;
+  /** false: no name label on the map either */
+  label?: boolean;
+  /** who dressed it last */
+  by?: WorldBuilder;
+}
+
+/** An agent in the voxel world: its character, its desk, and which animation plays when. */
+export interface AgentSkin extends SkinPlacement {
+  /** a prefab (id) made of named parts; it takes the classic person's place */
+  character?: string;
+  /** a prefab (id) that takes the classic desk's place (the monitor's screen stays) */
+  desk?: string;
+  /** the character's animation for each state (default: clips named idle, working, needs) */
+  states?: { idle?: string; working?: string; needs?: string };
+}
+
+/** A team's platform and the hub in its middle. */
+export interface TeamSkin extends SkinPlacement {
+  platform?: string;
+  hub?: string;
+}
+
+/** The Brain: a shell around (or instead of) the globe. */
+export interface BrainSkin extends SkinPlacement {
+  shell?: string;
+  /** keep the particle globe, the beam and the halo (default true) */
+  globe?: boolean;
+}
+
+export interface WorldSkins {
+  brain?: BrainSkin;
+  /** by team id */
+  teams: Record<string, TeamSkin>;
+  /** by agent id */
+  agents: Record<string, AgentSkin>;
 }

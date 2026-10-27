@@ -8,7 +8,7 @@ import { BuildError, loadGrids, runBuild, saveGrids, VOXEL_SIZE_MAX, VOXEL_SIZE_
 import type { BuildOutcome, Grid } from './ops.ts';
 import { readObject, readPrefab, saveWorld, worldDir, writeObject, writePrefab, worldVoxels } from './store.ts';
 import { worldForBuild } from './link.ts';
-import type { PrefabInstance, Vec3, WorldEffect, WorldEnvironment, WorldLight, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, VoxelVolumeMeta, VoxelWorld, WorldAnchor, WorldBuilder } from '../../shared/types.ts';
+import type { AgentSkin, BrainSkin, TeamSkin, PrefabInstance, Vec3, WorldEffect, WorldEnvironment, WorldLight, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, VoxelVolumeMeta, VoxelWorld, WorldAnchor, WorldBuilder } from '../../shared/types.ts';
 
 export const WORLD_LIMITS = { voxels: 4_000_000, objects: 300, prefabs: 300, copies: 20_000, prefabSide: 128, prefabVoxels: 200_000, nesting: 4 };
 const HISTORY_KEPT = 50;
@@ -57,7 +57,7 @@ export interface HistoryEntry {
   by: WorldBuilder;
   what: string;
   /** an object (the default), a prefab, a light, an effect or the environment */
-  kind?: 'object' | 'prefab' | 'light' | 'effect' | 'environment';
+  kind?: 'object' | 'prefab' | 'light' | 'effect' | 'environment' | 'skin';
   objectId: string;
   /** the object or prefab before (null: it was new) */
   metaBefore: VoxelObjectMeta | VoxelPrefabMeta | null;
@@ -68,7 +68,7 @@ export interface HistoryEntry {
   /** the whole thing, when it was deleted */
   dataBefore?: VoxelObjectData | null;
   /** a light, effect or environment as it was (null: the light or effect was new) */
-  sceneBefore?: WorldLight | WorldEffect | WorldEnvironment | null;
+  sceneBefore?: WorldLight | WorldEffect | WorldEnvironment | AgentSkin | TeamSkin | BrainSkin | null;
 }
 
 const historyDir = (worldId: string) => worldDir(worldId, 'history');
@@ -95,6 +95,8 @@ export interface BuildRequest {
   /** a new or changed prefab: what it is, and words to find it by */
   description?: unknown;
   tags?: unknown;
+  /** a prefab: the point copies stand on and turn around ("bottom", "top", "center" or [x, y, z]) */
+  pivot?: unknown;
   anchor?: unknown;
   /** map units from the anchor (new objects only; move with changeObject) */
   position?: unknown;
@@ -164,12 +166,21 @@ function nesting(w: VoxelWorld, id: string, target: string | null, seen = new Se
 const count = (v: VoxelVolumeMeta[]) => v.reduce((n, x) => n + x.count, 0);
 const fmt = (n: number) => n.toLocaleString('en-US');
 
-/** A prefab's bottom centre and size (map units), from its voxels. */
-function pivotOf(volumes: VoxelVolumeMeta[]): { pivot: Vec3; size: Vec3 } {
+/** A prefab's pivot (bottom centre unless chosen: top centre, the middle, or a point) and size, map units. */
+export function pivotOf(volumes: VoxelVolumeMeta[], at: VoxelPrefabMeta['pivotAt'] = 'bottom'): { pivot: Vec3; size: Vec3 } {
   const b = objectBox({ volumes });
-  if (!b) return { pivot: [0, 0, 0], size: [0, 0, 0] };
+  if (!b) return { pivot: Array.isArray(at) ? at : [0, 0, 0], size: [0, 0, 0] };
   const r = (n: number) => Math.round(n * 1000) / 1000;
-  return { pivot: [r((b.min[0] + b.max[0]) / 2), r(b.min[1]), r((b.min[2] + b.max[2]) / 2)], size: [r(b.max[0] - b.min[0]), r(b.max[1] - b.min[1]), r(b.max[2] - b.min[2])] };
+  const y = at === 'top' ? b.max[1] : at === 'center' ? (b.min[1] + b.max[1]) / 2 : b.min[1];
+  const pivot: Vec3 = Array.isArray(at) ? (at.map(r) as Vec3) : [r((b.min[0] + b.max[0]) / 2), r(y), r((b.min[2] + b.max[2]) / 2)];
+  return { pivot, size: [r(b.max[0] - b.min[0]), r(b.max[1] - b.min[1]), r(b.max[2] - b.min[2])] };
+}
+
+/** "bottom", "top", "center" or [x, y, z] (map units from the prefab's voxels' origin). */
+export function cleanPivot(v: unknown): VoxelPrefabMeta['pivotAt'] {
+  if (v === 'bottom' || v === 'top' || v === 'center') return v;
+  if (Array.isArray(v) && v.length === 3 && v.every((n) => Number.isFinite(Number(n)))) return v.map(Number) as Vec3;
+  throw bad('pivot is "bottom", "top", "center" or [x, y, z] in map units from the prefab\'s origin');
 }
 
 export function build(req: BuildRequest): BuildReport {
@@ -239,7 +250,8 @@ export function build(req: BuildRequest): BuildReport {
   t.lastBy = req.by;
   if (kind === 'prefab') {
     const p = t as VoxelPrefabMeta;
-    Object.assign(p, pivotOf(volumes));
+    if (req.pivot !== undefined) p.pivotAt = cleanPivot(req.pivot);
+    Object.assign(p, pivotOf(volumes, p.pivotAt));
     if (req.description !== undefined) p.description = String(req.description).slice(0, 300);
     if (Array.isArray(req.tags)) p.tags = [...new Set(req.tags.map((x) => String(x).trim().toLowerCase()).filter(Boolean))].slice(0, 12);
     if (created) w.prefabs.push(p);
@@ -357,6 +369,22 @@ export function undo(by: WorldBuilder, { project, anyone = false }: { project?: 
   if (!mine) return { world: w, text: 'Nothing to undo.' };
   const later = all.filter((h) => h.at > mine.at && h.objectId === mine.objectId && builderKey(h.by) !== builderKey(mine.by));
   if (later.length) throw bad(`${later[0].by.name} changed that after you (${later[0].what}). Ask them, or change it again yourself.`, 409);
+  if (mine.kind === 'skin') {
+    // "agent:<id>", "team:<id>" or "brain:brain"
+    const [to, id] = mine.objectId.split(':');
+    const before = mine.sceneBefore as AgentSkin | null;
+    if (to === 'brain') {
+      if (before) w.skins.brain = before as BrainSkin;
+      else delete w.skins.brain;
+    } else {
+      const list = (to === 'agent' ? w.skins.agents : w.skins.teams) as Record<string, AgentSkin | TeamSkin>;
+      if (before) list[id] = before;
+      else delete list[id];
+    }
+    fs.rmSync(worldDir(w.id, 'history', `${mine.id}.json`), { force: true });
+    saveWorld(w, { skins: true, undone: true, by: by.name });
+    return { world: w, text: `Undid: ${mine.by.name} ${mine.what}.` };
+  }
   if (mine.kind === 'light' || mine.kind === 'effect' || mine.kind === 'environment') {
     if (mine.kind === 'environment') w.environment = (mine.sceneBefore as WorldEnvironment) || w.environment;
     else {

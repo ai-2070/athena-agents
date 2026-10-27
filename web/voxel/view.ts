@@ -41,6 +41,9 @@ export interface WorldView {
   addParts(id: string, parts: ObjectPart[]): THREE.Group;
   /** The material voxels of a render class are drawn with (for instanced copies of prefabs). */
   material(cls: RenderClass): THREE.Material;
+  /** Puts something made elsewhere (a skin: a character, a platform) in the voxel world, or takes it out (its geometry is the caller's). */
+  addObject(o: THREE.Object3D): void;
+  removeObject(o: THREE.Object3D): void;
   /** Where the lights could be (glow spots and builders' lights); asked again every so often and when `version` changes. */
   setLights(source: () => LightCandidate[], version: number): void;
   /** The effects to show, and where each is each frame. */
@@ -319,6 +322,8 @@ export function createWorldView(o: WorldViewOptions): WorldView {
     },
     addParts,
     material: (cls) => mats[cls],
+    addObject: (obj) => voxels.add(obj),
+    removeObject: (obj) => voxels.remove(obj),
     setLights(source, version) {
       lightSource = source;
       lightVersion = version;

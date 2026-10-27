@@ -5,6 +5,8 @@ import { withActor } from '../versions.ts';
 import { VERBS, BuildError } from './ops.ts';
 import { build, changeObject, findObject, findPrefab, ownsObject, undo } from './build.ts';
 import { setEffect, setEnvironment, setLight, EFFECT_KINDS } from './scene.ts';
+import { playAnimation, setAnimation, setSkin, skinTarget } from './characters.ts';
+import { workflows } from '../store.ts';
 import { changePrefab, deletePrefab, importPrefab, libraryList, prefabList, publishPrefab, savePrefabFrom } from './prefabs.ts';
 import { shownWorld } from './link.ts';
 import { worldInfo } from './describe.ts';
@@ -33,6 +35,7 @@ Region tools (a box of w×h×d voxels): {"copy": [w, h, d], "from": [x, y, z], "
 Finishing (on everything at this voxel size, or "in": [w, h, d] from the spot): {"snow_cover": {"depth": 1, "chance": 0.9}} (snow on every ledge the sky can see), {"overgrow": {"chance": 0.25, "hang": 3}, "use": "moss"} (tufts on top, vines down walls), {"weather": {"amount": 0.3}} (wear and dirt, more near the ground).
 Prefabs (small models made once and used many times; see world_prefab):
 {"place": "Palm tree", "at": [x, y, z], "turn": 30} places one copy (any angle; "tilt"/"roll" 0/90/180/270, "scale", "mirror": true, "swap": {"shirt": "cloth red"} to recolour a material in that copy). Many at once: "scatter": {"area": [w, d], "count": 60, "spacing": 6}, or "along": [[x, z], …] with "every": 12, "sides": 2, "offset": 4, "face": "along"|"across", or "grid": {"rows": 3, "cols": 5, "gap": [6, 8]}. "place" can be a list of prefabs to pick from, "turn": "random" or [min, max], "scale": [min, max], "mirror": "random", "swap": a list to pick from. Many copies stand on what is built below them ("on": "surface"); a single one stands exactly at "at" unless "on": "surface". "avoid": "solid" skips spots inside something built.
+Characters: place part prefabs one at a time with "name" ({"place": "Arm", "at": [3, 12, 0], "name": "left arm"}) so animations can move them (world_animate).
 {"unplace": "Palm tree" (or a list, or "all"), "in": [w, h, d]} takes copies away. {"stamp": "Window", "at": [x, y, z], "turn": 90, "swap": {…}} bakes a prefab into this object's voxels (quarter turns), for parts of a building.
 Stock materials (by name, no need to define): grass, moss, dirt, sand, stone, dark stone, cobble, brick, white plaster, wood, dark wood, bark, leaves, pine needles, blossom, autumn leaves, bamboo, water, glass, ice, snow, cloud, red lacquer, roof tile, gold, iron, lantern, neon pink, neon blue, fire, cloth white, skin light, skin medium, skin dark.`;
 
@@ -66,6 +69,7 @@ export function worldTools(gate: Gate): ToolDef[] {
           prefab: str('Build this prefab instead of an object (a new name makes a new one), e.g. "Palm tree". Build it around the origin, standing on y = 0: its bottom centre is the spot copies stand on, and +z is its front.'),
           description: str('A prefab: one line saying what it is'),
           tags: { type: 'array', items: { type: 'string' }, description: 'A prefab: words to find it by' },
+          pivot: { description: 'A prefab: the point it stands on and turns around: "bottom" (default), "top" (an arm hanging from its shoulder), "center", or [x, y, z] map units' },
           steps: { type: 'array', items: { type: 'object' }, description: 'The build steps, in order' },
           anchor: str('New objects: what it is pinned to: "world", "brain", "team:<team id>" or "agent:<agent id>" (default "world")'),
           position: { type: 'array', items: { type: 'number' }, description: 'New objects: [x, y, z] in map units from the anchor (default [0, 0, 0])' },
@@ -79,7 +83,7 @@ export function worldTools(gate: Gate): ToolDef[] {
         const refused = a.prefab ? await othersFirst(ctx, args, a.prefab, 'change the prefab', 'prefab') : await othersFirst(ctx, args, a.object, 'change');
         if (refused) return refused;
         try {
-          const r = build({ by: builderOf(ctx), object: a.object, prefab: a.prefab, description: a.description, tags: a.tags, steps: a.steps, anchor: a.anchor, position: a.position, voxelSize: a.voxel_size, seed: a.seed });
+          const r = build({ by: builderOf(ctx), object: a.object, prefab: a.prefab, description: a.description, tags: a.tags, pivot: (a as { pivot?: unknown }).pivot, steps: a.steps, anchor: a.anchor, position: a.position, voxelSize: a.voxel_size, seed: a.seed });
           log('world', `${ctx.agent.name} ${r.created ? 'built' : 'changed'} ${r.kind === 'prefab' ? 'the prefab ' : ''}"${r.object.name}" in the world`, { agentId: ctx.agent.id });
           return { text: `${r.text}${r.kind === 'object' ? '\nIf this made a new place or changed a character, update WORLD.md (world_md_section) and add a line to "Story so far".' : ''}` };
         } catch (e) {
@@ -153,6 +157,7 @@ export function worldTools(gate: Gate): ToolDef[] {
           description: str('save, change: one line saying what it is'),
           tags: { type: 'array', items: { type: 'string' }, description: 'save, change: words to find it by' },
           query: str('library: words to search for'),
+          pivot: { description: 'change: the point it stands on and turns around: "bottom", "top", "center" or [x, y, z]' },
         },
         ['action'],
       ),
@@ -176,7 +181,7 @@ export function worldTools(gate: Gate): ToolDef[] {
             case 'change': {
               const refused = await othersFirst(ctx, args, a.prefab, 'change the prefab', 'prefab');
               if (refused) return refused;
-              return { text: changePrefab({ by, prefab: String(a.prefab || ''), name: a.name, description: a.description, tags: a.tags }).text };
+              return { text: changePrefab({ by, prefab: String(a.prefab || ''), name: a.name, description: a.description, tags: a.tags, pivot: (a as { pivot?: unknown }).pivot }).text };
             }
             case 'delete':
               return { text: deletePrefab({ by, prefab: String(a.prefab || '') }) };
@@ -276,6 +281,81 @@ export function worldTools(gate: Gate): ToolDef[] {
       run: async (args, ctx) => {
         try {
           return { text: setEnvironment({ by: builderOf(ctx), fields: args as Record<string, unknown> }).text };
+        } catch (e) {
+          return failed(e);
+        }
+      },
+    },
+    {
+      name: 'world_skin',
+      group: 'world',
+      // dressing yourself or your own team is yours to do; anyone else, or the Brain, asks first (see run)
+      risk: 'low',
+      description: 'Dress the Brain, a team or an agent in the voxel world, or take them off the map (artistic freedom). An agent: its "character", whatever form it takes in this world (any prefab: a person, an animal, a tree, a lamp, a floating crystal; with named parts for world_animate to move, or moved whole), in the classic person\'s place, its "desk" (a prefab; the live screen stays), and "states": which animation plays when it is idle, working or waiting for the user (default: the character\'s "idle", "working" and "needs"). A team: its "platform" and the "hub" in its middle (prefabs; a platform\'s radius is in world_info). The Brain: a "shell" prefab around it, "globe": false to hide the particle globe. Any of them: "offset" [x, y, z] map units, "turn" degrees, "scale", "hidden": true to take it off the map (it still works: click its name), "label": false to hide its name too, "clear": true to look classic again. Dressing yourself or your own team needs no OK; anyone else, or the Brain, asks the user first.',
+      parameters: obj(
+        {
+          to: str('"agent", "team" or "brain"'),
+          id: str('The agent or team (name or id); not for the Brain'),
+          character: str('agent: the prefab it takes the form of (a person, an animal, a tree, an object…)'),
+          desk: str('agent: a prefab name'),
+          states: { type: 'object', description: 'agent: {"idle": "clip", "working": "clip", "needs": "clip"}' },
+          platform: str('team: a prefab name'),
+          hub: str('team: a prefab name'),
+          shell: str('brain: a prefab name'),
+          globe: { type: 'boolean', description: 'brain: keep the particle globe (default true)' },
+          offset: { type: 'array', items: { type: 'number' }, description: '[x, y, z] map units from the classic model\'s spot' },
+          turn: { type: 'number', description: 'Degrees around the vertical' },
+          scale: { type: 'number', description: '0.1 to 10' },
+          hidden: { type: 'boolean', description: 'Take it off the map' },
+          label: { type: 'boolean', description: 'false: no name label on the map either' },
+          clear: { type: 'boolean', description: 'Back to the classic look' },
+        },
+        ['to'],
+      ),
+      run: async (args, ctx) => {
+        const { to, id, ...fields } = args as Record<string, unknown> & { to?: string; id?: string };
+        try {
+          if (to !== 'agent' && to !== 'team' && to !== 'brain') return { text: 'to is "agent", "team" or "brain".', isError: true };
+          const target = skinTarget(to, to === 'agent' ? id || ctx.agent.id : id);
+          const mine = to === 'agent' ? target.id === ctx.agent.id : to === 'team' ? (workflows.get(target.id)?.members || []).includes(ctx.agent.id) : false;
+          if (!mine) {
+            const refused = await gate(ctx.agent, 'world_skin_others', 'high', args, ctx, `${ctx.agent.name} wants to change how ${target.name} looks in the voxel world${fields.hidden === true ? ' (take it off the map)' : ''}.`);
+            if (refused) return refused;
+          }
+          return { text: setSkin({ by: builderOf(ctx), to, id: target.id, fields }).text };
+        } catch (e) {
+          return failed(e);
+        }
+      },
+    },
+    {
+      name: 'world_animate',
+      group: 'world',
+      risk: 'low',
+      description: 'Design animations for a prefab an agent takes the form of (a person, an animal, a tree, an object), or play one. Its parts are copies of part prefabs placed with "name" ("head", "left arm", "branch", "lid"); each part turns around its pivot (give an arm the pivot "top" so it swings from the shoulder). A prefab without parts can still move whole with "self" (a lamp that pulses, a tree that sways, a crystal that spins and bobs). An animation is keys per part over time: {"duration": 1.2, "loop": true, "tracks": {"left arm": [{"t": 0, "turn": [0, 0, 0]}, {"t": 0.5, "turn": [-40, 0, 0], "ease": "smooth"}, {"t": 1, "turn": [0, 0, 0], "ease": "smooth"}], "self": [{"t": 0, "move": [0, 0, 0]}, {"t": 0.5, "move": [0, 0.05, 0]}, {"t": 1, "move": [0, 0, 0]}]}}. "t" goes from 0 to 1 over the duration; "turn" is degrees [x, y, z] (x tips forward and back), "move" map units, "scale", "ease" linear, smooth, step or bounce; "self" moves the whole character. Name them "idle", "working" and "needs" to play when the agent is idle, working or waiting for the user, or anything else and pick it with world_skin "states". Actions: "set" (save one), "remove", "list" (parts and animations), "play" (play one once on an agent wearing the character: a cheer when work is done, a bow).',
+      parameters: obj(
+        {
+          action: str('"set", "remove", "list" or "play"'),
+          prefab: str('The character prefab (set, remove, list)'),
+          clip: str('The animation\'s name'),
+          duration: { type: 'number', description: 'set: seconds' },
+          loop: { type: 'boolean', description: 'set: loop (default true)' },
+          tracks: { type: 'object', description: 'set: {"part name": [keys], "self": [keys]}' },
+          agent: str('play: the agent (name or id); default: you'),
+          times: { type: 'number', description: 'play: how many times (default 1)' },
+        },
+        ['action'],
+      ),
+      run: async (args, ctx) => {
+        const a = args as { action?: string; prefab?: string; clip?: string; duration?: unknown; loop?: unknown; tracks?: unknown; agent?: string; times?: unknown };
+        try {
+          if (a.action === 'play') return { text: playAnimation({ by: builderOf(ctx), agent: a.agent || ctx.agent.id, clip: String(a.clip || ''), times: a.times }) };
+          if (a.action !== 'set' && a.action !== 'remove' && a.action !== 'list') return { text: 'action is "set", "remove", "list" or "play".', isError: true };
+          if (a.action !== 'list') {
+            const refused = await othersFirst(ctx, args, a.prefab, 'change the animations of', 'prefab');
+            if (refused) return refused;
+          }
+          return { text: setAnimation({ by: builderOf(ctx), prefab: String(a.prefab || ''), action: a.action, clip: a.clip, fields: { duration: a.duration, loop: a.loop, tracks: a.tracks } }).text };
         } catch (e) {
           return failed(e);
         }

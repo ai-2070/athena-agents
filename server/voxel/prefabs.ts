@@ -11,7 +11,7 @@ import { stockMaterial } from './materials.ts';
 import { newVolume } from '../../shared/voxel.ts';
 import { readObject, readPrefab, saveWorld, writeObject, writePrefab, worldVoxels } from './store.ts';
 import { worldForBuild } from './link.ts';
-import { WORLD_LIMITS, findObject, findPrefab, objectBox, placedCopies, remember, volumesMeta } from './build.ts';
+import { WORLD_LIMITS, cleanPivot, findObject, findPrefab, pivotOf as pivotFrom, placedCopies, remember, volumesMeta } from './build.ts';
 import type { PrefabInstance, Vec3, VoxelMaterial, VoxelObjectData, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
 
 const bad = (msg: string, status = 400) => Object.assign(new Error(msg), { status });
@@ -19,10 +19,7 @@ const fmt = (n: number) => n.toLocaleString('en-US');
 const count = (p: { volumes: { count: number }[] }) => p.volumes.reduce((n, v) => n + v.count, 0);
 
 function pivotOf(p: VoxelPrefabMeta): void {
-  const b = objectBox(p);
-  const r = (n: number) => Math.round(n * 1000) / 1000;
-  p.pivot = b ? [r((b.min[0] + b.max[0]) / 2), r(b.min[1]), r((b.min[2] + b.max[2]) / 2)] : [0, 0, 0];
-  p.size = b ? [r(b.max[0] - b.min[0]), r(b.max[1] - b.min[1]), r(b.max[2] - b.min[2])] : [0, 0, 0];
+  Object.assign(p, pivotFrom(p.volumes, p.pivotAt));
 }
 
 function uniqueName(w: VoxelWorld, want: string): string {
@@ -53,7 +50,9 @@ export function prefabList(w: VoxelWorld): string {
   return w.prefabs
     .map((p) => {
       const u = uses.get(p.id);
-      return `- "${p.name}" (id ${p.id}) by ${p.by.name}: ${p.description || 'no description'}${p.tags.length ? ` [${p.tags.join(', ')}]` : ''} | ${p.size.join('×')} map units, ${fmt(count(p))} voxels at voxel size ${[...new Set(p.volumes.map((v) => v.voxelSize))].join(' and ') || '-'}${p.instances ? `, ${p.instances} copies of other prefabs inside` : ''} | ${u ? `${u.copies} copies in ${u.in.join(', ')}` : 'not placed yet'}`;
+      const parts = (readPrefab(w.id, p.id)?.instances || []).map((i) => i.name).filter(Boolean);
+      const clips = Object.keys(p.animations || {});
+      return `- "${p.name}" (id ${p.id}) by ${p.by.name}: ${p.description || 'no description'}${p.tags.length ? ` [${p.tags.join(', ')}]` : ''} | ${p.size.join('×')} map units, ${fmt(count(p))} voxels at voxel size ${[...new Set(p.volumes.map((v) => v.voxelSize))].join(' and ') || '-'}, pivot ${p.pivotAt && !Array.isArray(p.pivotAt) ? p.pivotAt : p.pivotAt ? p.pivotAt.join(', ') : 'bottom'}${p.instances ? `, ${p.instances} copies of other prefabs inside` : ''}${parts.length ? `, parts: ${parts.join(', ')}` : ''}${clips.length ? `, animations: ${clips.join(', ')}` : ''} | ${u ? `${u.copies} copies in ${u.in.join(', ')}` : 'not placed yet'}`;
     })
     .join('\n');
 }
@@ -143,7 +142,7 @@ export function savePrefabFrom(req: SaveFrom): { prefab: VoxelPrefabMeta; text: 
 }
 
 // ---------- changing one ----------
-export function changePrefab(req: { by: WorldBuilder; prefab: string; name?: unknown; description?: unknown; tags?: unknown; project?: string }): { prefab: VoxelPrefabMeta; text: string } {
+export function changePrefab(req: { by: WorldBuilder; prefab: string; name?: unknown; description?: unknown; tags?: unknown; pivot?: unknown; project?: string }): { prefab: VoxelPrefabMeta; text: string } {
   const w = worldForBuild(req.project || activeProject().id);
   const p = findPrefab(w, req.prefab);
   if (!p) throw bad(`There's no prefab "${req.prefab}".`, 404);
@@ -158,7 +157,13 @@ export function changePrefab(req: { by: WorldBuilder; prefab: string; name?: unk
   }
   if (req.description !== undefined) (p.description = String(req.description).slice(0, 300)), changed.push('description');
   if (Array.isArray(req.tags)) (p.tags = req.tags.map((t) => String(t).toLowerCase()).slice(0, 12)), changed.push('tags');
-  if (!changed.length) return { prefab: p, text: 'Nothing to change: give name, description or tags.' };
+  if (req.pivot !== undefined) {
+    p.pivotAt = cleanPivot(req.pivot);
+    pivotOf(p);
+    p.voxelsAt = Date.now();
+    changed.push(`pivot (now ${p.pivot.join(', ')}; copies already placed now stand and turn on it)`);
+  }
+  if (!changed.length) return { prefab: p, text: 'Nothing to change: give name, description, tags or pivot.' };
   p.updatedAt = Date.now();
   p.lastBy = req.by;
   remember(w.id, { by: req.by, kind: 'prefab', what: `changed the prefab ${p.name} (${changed.join(', ')})`, objectId: p.id, metaBefore: before });

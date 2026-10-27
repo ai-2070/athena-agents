@@ -27,6 +27,7 @@ import { mountStationMenu } from './stationmenu.tsx';
 import type { MenuEntry, StationMenu } from './stationmenu.tsx';
 import type { WorldView } from '../voxel/view.ts';
 import type { WorldLayer } from '../voxel/worldlayer.ts';
+import type { AgentTarget, SkinHost } from '../voxel/skins.ts';
 import type { ActivityEntry, Agent, AppState, Chat, Project, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldAnchor, WorldQuality } from '../../shared/types.ts';
 
 // ---------- types ----------
@@ -383,6 +384,10 @@ interface StationState {
   lookForced?: WorldQuality | null;
   /** the best quality this computer kept up with on this visit (it steps down when frames stay slow) */
   lookCap?: WorldQuality | null;
+  /** labels a skin took off the map ("agent:<id>", "branch:<id>", "brain:brain") */
+  labelHidden?: Set<string>;
+  /** goes up each time the map's models are built again (skins dress the new ones) */
+  builds?: number;
   /** Files dragged over the map: 'map', or 'brain' when they are over the Brain (it glows). */
   fileDrag?: 'map' | 'brain' | null;
   dropHint?: HTMLDivElement | null;
@@ -979,7 +984,7 @@ async function applyStationLook(): Promise<void> {
   if (!S || S.lookShown !== want) return;
   S.view = createWorldView({ renderer: S.renderer, scene: S.scene, camera: S.camera, quality: want, classic: S.classic, w: S.w, h: S.h, onSlow: S.lookForced ? undefined : () => void stepLookDown(want) });
   if (S.world) S.view.adopt(S.world, S.radius || 40);
-  S.worldLayer = createWorldLayer(S.view, anchorAt);
+  S.worldLayer = createWorldLayer(S.view, anchorAt, skinHost);
 }
 
 // Frames stayed slow: one quality level down for this visit (Settings keep what you chose).
@@ -991,6 +996,51 @@ async function stepLookDown(from: WorldQuality): Promise<void> {
   toast(`The Station was slow here, so the voxel world now draws at ${next === 'low' ? 'Low' : 'Medium'} quality. You can change it in Settings › Look.`);
   await applyStationLook();
 }
+
+// What skins dress (web/voxel/skins.ts): the classic models of the Brain, the platforms and the desks, by role.
+// Skins only hide them (and show them again), so the classic look is never changed.
+const partsTagged = (g: THREE.Object3D, part: string) => g.children.filter((o) => o.userData.part === part);
+const skinHost: SkinHost = {
+  version: () => S?.builds || 0,
+  brain() {
+    if (!S?.brain) return null;
+    const b = S.brain;
+    return { anchor: b.group, base: partsTagged(b.group, 'base'), globe: [b.cloud, b.ico, b.halo, b.beam, b.star], pick: { type: 'brain' } };
+  },
+  team(id) {
+    const b = S?.branches.get(id);
+    if (!b) return null;
+    const kids = b.group.children;
+    const hub = kids.find((o) => o.userData.part === 'hub');
+    return {
+      anchor: b.group,
+      floor: partsTagged(b.group, 'floor'),
+      hub: [...(hub ? partsTagged(hub, 'hub-base') : []), ...(b.hub ? [b.hub.holo, b.hub.holo2, b.hub.hubGlow] : [])],
+      extras: [...kids.filter((o) => o.userData.part === 'seat' || o.userData.part === 'spoke'), ...(b.link ? [b.link] : [])],
+      pick: { type: 'branch', id },
+    };
+  },
+  agents() {
+    return (S?.desks || []).map(
+      (d): AgentTarget => ({
+        agentId: d.agent.id,
+        key: `${d.agent.id}@${d.wfId || 'bench'}`,
+        anchor: d.group,
+        person: d.person,
+        // the desk itself; the live screen, the status orb and the rings stay
+        furniture: d.group.children.filter((o) => o !== d.person && o !== d.screenGlow && o !== d.orb && o !== d.orbGlow && o !== d.ring && o !== d.focusRing && ((o as THREE.Mesh).material as MappedMaterial | undefined)?.map !== d.screen.tex),
+        status: () => d.status,
+        pick: d.group.userData.pick,
+      }),
+    );
+  },
+  setLabel(kind, id, hidden) {
+    if (!S) return;
+    S.labelHidden ??= new Set();
+    if (hidden) S.labelHidden.add(`${kind}:${id}`);
+    else S.labelHidden.delete(`${kind}:${id}`);
+  },
+};
 
 // Where a world object's anchor is on the map now: the middle, a team's platform, or an agent's desk.
 const anchorSpot = new THREE.Vector3();
@@ -1051,6 +1101,7 @@ function buildBrain(): void {
   g.add(ped);
   const pedEdges = new THREE.LineSegments(new THREE.EdgesGeometry(ped.geometry), new THREE.LineBasicMaterial({ color: 0x7a9a2c, transparent: true, opacity: 0.6 }));
   pedEdges.position.copy(ped.position);
+  ped.userData.part = pedEdges.userData.part = 'base';
   g.add(pedEdges);
   const N = 2200;
   const pos = new Float32Array(N * 3);
@@ -1204,6 +1255,7 @@ function rebuild(): void {
   const d = state.data;
   if (!d || !S) return;
   S.signature = signature();
+  S.builds = (S.builds || 0) + 1;
   if (S.world) {
     S.scene.remove(S.world);
     S.world.traverse((o: Disposable) => {
@@ -1370,12 +1422,14 @@ function buildBranch(wf: TeamView, i: number, ang: number, agentsById: Map<strin
   under.position.y = -0.2;
   floor.add(under);
   floor.traverse((o) => (o.userData.pick = { type: 'branch', id: wf.id }));
+  floor.userData.part = 'floor';
   pod.add(floor);
 
   // the chat hub in the middle: everyone talks through it
   const hub = new THREE.Group();
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.2, 0.55, 6), new THREE.MeshStandardMaterial({ color: 0x141714, roughness: 0.5, metalness: 0.3, emissive: color, emissiveIntensity: 0.35 }));
   base.position.y = 0.8;
+  base.userData.part = 'hub-base';
   hub.add(base);
   const holo = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.05, 8, 48), new THREE.MeshBasicMaterial({ color: light, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
   holo.rotation.x = Math.PI / 2;
@@ -1395,6 +1449,7 @@ function buildBranch(wf: TeamView, i: number, ang: number, agentsById: Map<strin
   hubGlow.position.y = 1.8;
   hub.add(hubGlow);
   hub.traverse((o) => (o.userData.pick = { type: 'branch', id: wf.id }));
+  hub.userData.part = 'hub';
   pod.add(hub);
   const HUB = new THREE.Vector3(0, 1.7, 0);
 
@@ -1424,6 +1479,7 @@ function buildBranch(wf: TeamView, i: number, ang: number, agentsById: Map<strin
       const seat = new THREE.Mesh(new THREE.RingGeometry(1.75, 1.95, 48), new THREE.MeshBasicMaterial({ color: 0xffcc55, transparent: true, opacity: 0.75, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
       seat.rotation.x = -Math.PI / 2;
       seat.position.copy(pos).setY(0.56);
+      seat.userData.part = 'seat';
       pod.add(seat);
     }
     // spoke from the desk to the hub
@@ -1431,6 +1487,7 @@ function buildBranch(wf: TeamView, i: number, ang: number, agentsById: Map<strin
       new THREE.BufferGeometry().setFromPoints([pos.clone().setY(0.6), HUB.clone().setY(0.6)]),
       new THREE.LineBasicMaterial({ color: light, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false }),
     );
+    spoke.userData.part = 'spoke';
     pod.add(spoke);
     rails.push({ material: spoke.material, base: 0.3 });
     const node: PodNode = { kind: 'agent', pos, obj: desk.group, wfId: wf.id, index: k, links, desk, agentId: agent.id };
@@ -1874,7 +1931,7 @@ function placeLabels(): void {
     const x = (v3.x + 1) * 0.5 * S.w;
     const y = (1 - v3.y) * 0.5 * S.h;
     const off = x < -200 || x > S.w + 200 || y < -200 || y > S.h + 200;
-    const hide = off || ((l.kind === 'agent' || l.kind === 'step') && z < 0.6) || (l.kind === 'int' && z < 0.5);
+    const hide = !!S.labelHidden?.has(`${l.kind}:${l.id}`) || off || ((l.kind === 'agent' || l.kind === 'step') && z < 0.6) || (l.kind === 'int' && z < 0.5);
     l.el.style.display = hide ? 'none' : '';
     const sc = l.kind === 'branch' || l.kind === 'bench' ? Math.min(1.1, Math.max(0.5, (16 * pxPerUnit) / 214)) : 1;
     let tx = -50;
@@ -2151,7 +2208,7 @@ function setupControls(): void {
   };
   const pick = (e: MouseEvent): MapPick | null => {
     setMouse(e);
-    const hits = ray.intersectObjects(S!.scene.children, true).filter((x) => x.object.userData.pick && x.object.visible && !(x.object instanceof THREE.Points) && !(x.object instanceof THREE.Line) && !x.object.userData.dragging);
+    const hits = ray.intersectObjects(S!.scene.children, true).filter((x) => x.object.userData.pick && shownOnMap(x.object) && !(x.object instanceof THREE.Points) && !(x.object instanceof THREE.Line) && !x.object.userData.dragging);
     return ((hits.find((x) => (x.object.userData.pick as MapPick).type === 'agent') || hits[0])?.object.userData.pick as MapPick | undefined) || null;
   };
   const ground = (e: MouseEvent) => {
@@ -3361,6 +3418,8 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
   if (ev.type === 'workflows') return reloadWorkflows();
   // the voxel world changed (a build, a move, WORLD.md, another project's world picked), or another project opened
   if (ev.type === 'world' || ev.type === 'project') S.worldLayer?.refresh();
+  // a builder plays an animation on an agent's character
+  if (ev.type === 'world-anim' && typeof ev.agent === 'string' && typeof ev.clip === 'string') S.worldLayer?.play(ev.agent, ev.clip, typeof ev.times === 'number' ? ev.times : 1);
   // a program was opened or closed: light its tile and the desks that use it
   if (ev.type === 'programs') {
     GET<Program[]>('/programs')
@@ -3485,4 +3544,10 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
     } else if (e.kind === 'done' && a) feedPush(`${a.emoji || ''} ${a.name} finished (${e.seconds}s)`);
     else if (e.kind === 'error' && a) feedPush(`${a.name}: ${String(e.text).slice(0, 80)}`, 'error');
   } else if (isEvent(ev, 'activity') && ev.entry && !['run', 'workflow'].includes(ev.entry.kind)) feedPush(ev.entry.text, ev.entry.kind);
+}
+
+/** Shown on the map: it and everything it sits in are visible (a skin may have hidden the classic model). */
+function shownOnMap(o: THREE.Object3D | null): boolean {
+  for (let x = o; x; x = x.parent) if (!x.visible) return false;
+  return true;
 }

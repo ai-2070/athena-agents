@@ -38,6 +38,7 @@ import { shownWorld, worldForBuild } from './voxel/link.ts';
 import { readWorldMd, writeWorldMd, writeWorldMdSection } from './voxel/worldmd.ts';
 import { worldText } from './voxel/describe.ts';
 import { setEffect, setEnvironment, setLight } from './voxel/scene.ts';
+import { playAnimation, setAnimation, setSkin } from './voxel/characters.ts';
 import type { Agent, Approval, BrainAnswer, BrainDelegate, BrainDone, Project, Routine, Team } from '../shared/types.ts';
 
 /** One line of the Brain chat history (data/projects/<id>/brain-chat.json). */
@@ -512,6 +513,8 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"build","object":"name (a new name makes a new object)","anchor":"world"|"brain"|"team:<team id>","position":[x,y,z],"voxel_size":0.25,"steps":[STEP,…]}   (builds in the project's voxel world; position in map units from the anchor, new objects only; "prefab":"name" instead of "object" builds a prefab, with "description")
 {"do":"world_env","preset":"station|day|golden|dusk|night|overcast|snow","sun":{"elevation":8},"fog":{"density":0.4},"weather":"none|snow|rain|petals|leaves|dust","wind":[1,0,0.5]}   (the world's time of day, sky, sun, fog, weather and wind; only what changes)
 {"do":"world_light","op":"add|change|remove","light":"name (change, remove)","name":"…","kind":"point|spot","color":"#ffb860","intensity":0-10,"range":12,"anchor":"world","object":"object name","position":[x,y,z],"flicker":0.3}   (glowing voxels light their surroundings by themselves; add lights for doorways, spotlights, fires)
+{"do":"skin","to":"agent|team|brain","id":"<agent or team id>","character":"prefab","desk":"prefab","platform":"prefab","hub":"prefab","shell":"prefab","states":{"idle":"clip","working":"clip","needs":"clip"},"offset":[x,y,z],"turn":0,"scale":1,"hidden":false,"label":true,"clear":false}   (how the Brain, a team or an agent looks in the voxel world: an agent's character can be any prefab, a person, an animal, a tree, an object; hidden takes it off the map)
+{"do":"animate","op":"set|remove|play","prefab":"character prefab","clip":"idle|working|needs|any name","duration":1.2,"loop":true,"tracks":{"part name":[{"t":0,"turn":[0,0,0]},{"t":0.5,"turn":[-40,0,0],"ease":"smooth"}],"self":[…]},"agent":"<agent id, for play>"}   (a character's animations: keys per named part)
 {"do":"world_effect","op":"add|change|remove","effect":"name (change, remove)","kind":"petals|leaves|snow|rain|fireflies|embers|sparks|smoke|steam|mist|dust|birds","size":[w,h,d],"amount":0.5,"position":[x,y,z],"object":"object name"}   (particles in an area)
 {"do":"write_world_md","content":"the whole WORLD.md in markdown"}   (sections: # name, ## Theme and meaning, ## Look, ## Feel, ## Places, ## Characters, ## Story so far, ## Rules)
 {"do":"update_world_md","section":"Places › Koi pond","content":"…","append":true|false}   (one section, by heading or a path of headings; added when it isn't there)
@@ -1540,6 +1543,20 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         const { do: _d, action: _a, ...fields } = act as BrainAction & Record<string, unknown>;
         const r = setEnvironment({ by: BRAIN_BUILDER, fields, project: p.id });
         done.push({ kind: 'world', text: `Set the world's look: ${r.world.environment.preset}${r.world.environment.weather && r.world.environment.weather !== 'none' ? `, ${r.world.environment.weather}` : ''}` });
+      } else if (kind === 'skin') {
+        if (auto) throw new Error('only when the user asks');
+        const { do: _d, action: _a, to, id, ...fields } = act as BrainAction & Record<string, unknown>;
+        const r = setSkin({ by: BRAIN_BUILDER, to: String(to) as 'agent' | 'team' | 'brain', id: id as string | undefined, fields, project: p.id });
+        done.push({ kind: 'world', text: r.text.split(':')[0] });
+      } else if (kind === 'animate') {
+        if (auto) throw new Error('only when the user asks');
+        const a = act as BrainAction & Record<string, unknown>;
+        const op = String(a.op || 'set');
+        const text =
+          op === 'play'
+            ? playAnimation({ by: BRAIN_BUILDER, agent: String(a.agent ?? a.id ?? ''), clip: String(a.clip ?? ''), times: a.times, project: p.id })
+            : setAnimation({ by: BRAIN_BUILDER, prefab: String(a.prefab ?? ''), action: op === 'remove' ? 'remove' : 'set', clip: String(a.clip ?? ''), fields: { duration: a.duration, loop: a.loop, tracks: a.tracks }, project: p.id }).text;
+        done.push({ kind: 'world', text: text.split(':')[0] });
       } else if (kind === 'world_light' || kind === 'world_effect') {
         if (auto) throw new Error('only when the user asks');
         const { do: _d, action: _a, light, effect, op, ...fields } = act as BrainAction & Record<string, unknown>;

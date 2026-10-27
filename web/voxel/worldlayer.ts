@@ -17,10 +17,12 @@ import { castsShadow, takesShadow } from './materials.ts';
 import { LIGHT_STRIDE } from './mesher.ts';
 import type { EffectSpec } from './effects.ts';
 import type { WorldView } from './view.ts';
-import { expandInstances, mirrorData, reachablePrefabs, swapPalette } from './instances.ts';
+import { expandInstances, mirrorData, reachablePrefabs, swapPalette, variantKey } from './instances.ts';
+import { SkinLayer } from './skins.ts';
+import type { SkinHost } from './skins.ts';
 import type { FlatCopy, Variant } from './instances.ts';
 import { envPreset } from '../../shared/worldenv.ts';
-import type { ShownWorld, VoxelMaterial, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, WorldAnchor, WorldEffect, WorldLight } from '../../shared/types.ts';
+import type { ShownWorld, VoxelMaterial, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, VoxelWorld, WorldAnchor, WorldEffect, WorldLight } from '../../shared/types.ts';
 
 /** Where an anchor is on the map now (null: not in this project, e.g. another project's team). */
 export type AnchorAt = (a: WorldAnchor) => THREE.Vector3 | null;
@@ -34,6 +36,8 @@ export interface WorldLayer {
   update(): void;
   /** how far the world reaches from the middle (map units), for fitting the view */
   radius(): number;
+  /** plays an animation clip on an agent's character (a 'world-anim' event) */
+  play(agentId: string, clip: string, times?: number): boolean;
   dispose(): void;
 }
 
@@ -121,7 +125,7 @@ interface Placed {
 
 const stampOf = (p: VoxelPrefabMeta) => p.voxelsAt ?? p.updatedAt;
 
-export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: (s: ShownWithName) => void): WorldLayer {
+export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: SkinHost, onShown?: (s: ShownWithName) => void): WorldLayer {
   let shown: ShownWithName | null = null;
   let alive = true;
   const placed = new Map<string, Placed>();
@@ -135,6 +139,70 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
   let again = false;
   let worldId = '';
   const groupId = (m: VoxelObjectMeta) => `world:${worldId}:${m.id}`;
+  /** the world shown now, its prefabs by id, and its palette's fingerprint */
+  let world: VoxelWorld | null = null;
+  let prefabs = new Map<string, VoxelPrefabMeta>();
+  let paletteKey = '';
+  const stale = (wid: string) => !alive || worldId !== wid;
+
+  // the voxels of these prefabs and every prefab they hold (nested ones too), each loaded once
+  const loadPrefabs = async (instances: { prefab: string }[] | undefined): Promise<void> => {
+    const wid = worldId;
+    for (let round = 0; round < 5; round++) {
+      const missing = [...reachablePrefabs(instances as VoxelObjectData['instances'], (id) => prefabData.get(id)?.data)].filter((id) => prefabs.has(id) && !prefabData.has(id));
+      if (!missing.length) return;
+      await Promise.all(
+        missing.map(async (id) => {
+          const d = await GET<VoxelObjectData>(`/worlds/${wid}/prefabs/${id}`).catch(() => null);
+          const pm = prefabs.get(id);
+          if (d && pm && !stale(wid)) prefabData.set(id, { stamp: stampOf(pm), data: d });
+        }),
+      );
+      if (stale(wid)) return;
+    }
+  };
+  // a prefab variant, meshed (once for every object and skin that uses it)
+  const variantMesh = async (id: string, v: Variant, key: string): Promise<PrefabMesh | null> => {
+    const hit = prefabMeshes.get(key);
+    if (hit) return hit;
+    const d = prefabData.get(id)?.data;
+    const w = world;
+    if (!d || !w) return null;
+    const wid = worldId;
+    const parts = await meshInWorker(v.mirror ? mirrorData(d) : d, swapPalette(w.palette, v.swap));
+    if (stale(wid)) return null;
+    // (another object meshed the same variant meanwhile)
+    const raced = prefabMeshes.get(key);
+    if (raced) return raced;
+    const pm: PrefabMesh = { parts: parts.map((p) => ({ geo: partGeometry(p), cls: p.cls, local: partMatrix(p), lights: p.lights, voxelSize: p.voxelSize })), users: 0 };
+    prefabMeshes.set(key, pm);
+    return pm;
+  };
+  const meshKeyOf = (id: string, v: Variant) => `${id}@${prefabs.has(id) ? stampOf(prefabs.get(id)!) : 'gone'}|${variantKey(v)}|${paletteKey}`;
+
+  // skins: the Brain, platforms and agents dressed as prefabs (when the Station says what it shows)
+  const skins = host
+    ? new SkinLayer(view, host, {
+        world: () => world,
+        loadPrefabs: (ids) => loadPrefabs(ids.map((prefab) => ({ prefab }))),
+        lookup: (id) => {
+          const meta = prefabs.get(id);
+          const d = prefabData.get(id);
+          return meta && d ? { data: d.data, pivot: meta.pivot } : null;
+        },
+        mesh: async (id, v) => {
+          const key = meshKeyOf(id, v);
+          const pm = await variantMesh(id, v, key);
+          if (!pm) return null;
+          pm.users++;
+          return { key, parts: pm.parts };
+        },
+        release: (key) => {
+          const pm = prefabMeshes.get(key);
+          if (pm) pm.users--;
+        },
+      })
+    : null;
 
   // ---------- light and effects ----------
   let lights: WorldLight[] = [];
@@ -248,7 +316,8 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
     lightsChanged();
     if (!w) return;
     const wid = w.id;
-    const prefabs = new Map((w.prefabs || []).map((p) => [p.id, p]));
+    world = w;
+    prefabs = new Map((w.prefabs || []).map((p) => [p.id, p]));
     const want = new Map(w.objects.filter((o) => !o.hidden).map((o) => [o.id, o]));
     for (const [id, p] of placed) if (!want.has(id)) (dropObject(p), placed.delete(id));
     // prefabs that were deleted or changed: their voxels are loaded again when needed
@@ -257,24 +326,8 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
       if (!pm || stampOf(pm) !== d.stamp) prefabData.delete(id);
     }
     const palette = JSON.stringify(w.palette);
-    const paletteKey = hashText(palette);
+    paletteKey = hashText(palette);
     const stale = () => !alive || worldId !== wid;
-
-    // the voxels of every prefab these copies reach (nested ones too), each loaded once
-    const loadPrefabs = async (data: VoxelObjectData): Promise<void> => {
-      for (let round = 0; round < 5; round++) {
-        const missing = [...reachablePrefabs(data.instances, (id) => prefabData.get(id)?.data)].filter((id) => prefabs.has(id) && !prefabData.has(id));
-        if (!missing.length) return;
-        await Promise.all(
-          missing.map(async (id) => {
-            const d = await GET<VoxelObjectData>(`/worlds/${wid}/prefabs/${id}`).catch(() => null);
-            const pm = prefabs.get(id);
-            if (d && pm && !stale()) prefabData.set(id, { stamp: stampOf(pm), data: d });
-          }),
-        );
-        if (stale()) return;
-      }
-    };
     // which prefabs (and versions) an object's copies come from: when this changes, they are drawn again
     const copiesKeyOf = (data: VoxelObjectData) =>
       `${[...reachablePrefabs(data.instances, (id) => prefabData.get(id)?.data)]
@@ -282,25 +335,10 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
         .map((id) => `${id}@${prefabs.has(id) ? stampOf(prefabs.get(id)!) : 'gone'}`)
         .join(',')}#${data.instances?.length || 0}`;
 
-    // a prefab variant, meshed (once for every object that uses it)
-    const variantMesh = async (id: string, v: Variant, key: string): Promise<PrefabMesh | null> => {
-      const hit = prefabMeshes.get(key);
-      if (hit) return hit;
-      const d = prefabData.get(id)?.data;
-      if (!d) return null;
-      const parts = await meshInWorker(v.mirror ? mirrorData(d) : d, swapPalette(w.palette, v.swap));
-      if (stale()) return null;
-      // (another object meshed the same variant meanwhile)
-      const raced = prefabMeshes.get(key);
-      if (raced) return raced;
-      const pm: PrefabMesh = { parts: parts.map((p) => ({ geo: partGeometry(p), cls: p.cls, local: partMatrix(p), lights: p.lights, voxelSize: p.voxelSize })), users: 0 };
-      prefabMeshes.set(key, pm);
-      return pm;
-    };
 
     const drawCopies = async (p: Placed): Promise<void> => {
       dropCopies(p);
-      await loadPrefabs(p.data);
+      await loadPrefabs(p.data.instances);
       if (stale()) return;
       const flat = expandInstances(p.data.instances, (id) => {
         const meta = prefabs.get(id);
@@ -310,7 +348,7 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
       // the copies of each prefab variant together: one instanced mesh per part
       const byVariant = new Map<string, FlatCopy[]>();
       for (const c of flat) {
-        const k = `${c.prefab}@${stampOf(prefabs.get(c.prefab)!)}|${c.key}|${paletteKey}`;
+        const k = meshKeyOf(c.prefab, c.variant);
         const list = byVariant.get(k);
         if (list) list.push(c);
         else byVariant.set(k, [c]);
@@ -345,7 +383,7 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
       // its voxels and their colours are as meshed: at most its copies' prefabs changed
       if (p && p.palette === palette && p.meta.voxelsAt === o.voxelsAt && (p.meta.instances || 0) === (o.instances || 0) && JSON.stringify(p.meta.volumes) === JSON.stringify(o.volumes)) {
         p.meta = o;
-        await loadPrefabs(p.data);
+        await loadPrefabs(p.data.instances);
         if (stale()) return;
         if (copiesKeyOf(p.data) !== p.copiesKey) await drawCopies(p);
         if (stale()) return;
@@ -367,6 +405,7 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
       if (data.instances?.length) await drawCopies(np);
       if (stale()) return;
     }
+    await skins?.sync();
     freeUnused();
   }
 
@@ -407,6 +446,7 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
         p.group.rotation.y = (m.rotation * Math.PI) / 180;
         p.group.scale.setScalar(m.scale || 1);
       }
+      skins?.update();
     },
     radius() {
       let r = 0;
@@ -416,9 +456,13 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, onShown?: 
       }
       return r;
     },
+    play(agentId, clip, times = 1) {
+      return skins?.play(agentId, clip.trim().toLowerCase(), times) ?? false;
+    },
     dispose() {
       alive = false;
       if (timer) clearTimeout(timer);
+      skins?.dispose();
       dropAll();
       view.setLights(() => [], ++lightVersion);
       view.setEffects([], () => null);

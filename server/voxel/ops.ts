@@ -753,6 +753,11 @@ export function runBuild(input: BuildInput): BuildOutcome {
           for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) spots.push({ at: [o[0] + c * gx, o[1], o[2] + r * gz], facing: 0 });
         } else spots.push({ at: [...o] as V3, facing: 0 });
         if (spots.length > LIMITS.placedPerCall) throw new BuildError(`one call may place at most ${LIMITS.placedPerCall} copies`);
+        // a part's name in a character ("left arm"): only for one copy at a time
+        const partName = step.name === undefined ? '' : String(step.name).trim().toLowerCase().slice(0, 40);
+        if (partName && spots.length > 1) throw new BuildError('"name" is for one copy at a time (a part of a character)');
+        if (partName === 'self') throw new BuildError('"self" means the whole character; give the part another name');
+        if (partName && instances.some((i) => i.name === partName)) throw new BuildError(`there is already a part called "${partName}" here`);
         const onSurface = step.on === undefined ? many : step.on === 'surface';
         if (step.on !== undefined && step.on !== 'surface' && step.on !== 'spot') throw new BuildError('on is "surface" (stand on what is built below) or "spot" (exactly at the height given)');
         const size = grid.voxelSize;
@@ -777,6 +782,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
             ...((sc) => (sc !== 1 ? { scale: Math.round(sc * 100) / 100 } : {}))(scaleOf()),
             ...(mirrorIt ? { mirror: true } : {}),
             ...(sw && Object.keys(sw).length ? { swap: sw } : {}),
+            ...(partName ? { name: partName } : {}),
           });
         }
         break;
