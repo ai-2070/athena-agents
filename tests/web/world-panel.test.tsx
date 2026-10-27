@@ -50,7 +50,7 @@ beforeEach(() => {
     { id: 'w1', name: 'Garden world', homeProject: 'p1', built: true, objects: 2, voxels: 1200, usedBy: ['p1'], isDefault: false, updatedAt: Date.now() },
     { id: 'w2', name: 'Old city', homeProject: 'p2', built: true, objects: 9, voxels: 50000, usedBy: [], isDefault: true, updatedAt: Date.now() - 86_400_000 },
   ];
-  state.data = { agents: [{ id: 'a1', name: 'Mira' }], projects: [{ id: 'p1', name: 'Launch' }, { id: 'p2', name: 'City' }], project: { id: 'p1', name: 'Launch' }, settings: { look: { station: 'world' } } } as unknown as AppState;
+  state.data = { agents: [{ id: 'a1', name: 'Mira' }], projects: [{ id: 'p1', name: 'Launch' }, { id: 'p2', name: 'City' }], project: { id: 'p1', name: 'Launch' }, settings: { look: { stationLook: 'world' } } } as unknown as AppState;
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method || 'GET';
     const body = init.body ? JSON.parse(String(init.body)) : undefined;

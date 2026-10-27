@@ -520,13 +520,22 @@ export interface LookSetting {
   scale: number;
   accent: string;
   motion: 'full' | 'reduced';
+  /** The font chat messages are in (an id from CHAT_FONTS in shared/look.ts). */
+  chatFont: string;
+  /** How hard the Station's 3D map works: frame rate and sharpness (see STATION_QUALITY in shared/look.ts). */
+  station: StationQuality;
+  /** What the bottom of the sidebar shows: what's set up, or how much of your Claude and Codex plans is used. */
+  sidebar: SidebarPanel;
   /** The Station's look: the classic map, or the voxel world's light (sky, sun and shadows, glow). */
-  station: StationLook;
+  stationLook: StationLook;
   /** How much the voxel world draws: shadows, glow and the miniature blur cost graphics power. */
   worldQuality: WorldQuality;
 }
 export type StationLook = 'classic' | 'world';
 export type WorldQuality = 'low' | 'medium' | 'high';
+
+export type StationQuality = 'smooth' | 'balanced' | 'saver';
+export type SidebarPanel = 'status' | 'limits';
 
 export interface Settings {
   defaults: { engine: EngineId; claudeModel: string; openrouterModel: string; hermesProfile: string; autonomy: Autonomy };
@@ -824,6 +833,39 @@ export interface ProviderUsage {
   id: 'claude' | 'openrouter' | 'codex';
   name: string;
   meters: UsageMeter[];
+}
+
+/** One usage limit of a plan: how much of it is used and when it starts again (ms). */
+export interface LimitWindow {
+  /** "5h", "Week" */
+  label: string;
+  percent: number;
+  resetsAt: number | null;
+}
+/** A plan's limits, for the sidebar. ready: false when it isn't installed or signed in (why says which). */
+export interface ProviderLimits {
+  ready: boolean;
+  why?: string;
+  /** e.g. "pro", "plus" (Codex says) */
+  plan?: string | null;
+  windows: LimitWindow[];
+  /** Codex says you can't use the plan's own usage right now */
+  blocked?: boolean;
+}
+/** Free Codex limit resets on your account; credits: the ones Codex listed, the one that runs out first first. */
+export interface CodexResets {
+  available: number;
+  credits: { id: string; expiresAt: number | null; title: string | null }[];
+}
+/** GET /api/usage-limits */
+export interface UsageLimits {
+  claude: ProviderLimits;
+  codex: ProviderLimits & { resets: CodexResets | null };
+}
+/** POST /api/codex/reset */
+export interface CodexResetResult {
+  outcome: 'reset' | 'nothingToReset' | 'noCredit' | 'alreadyRedeemed';
+  limits: UsageLimits;
 }
 
 /** GET /api/about: which Blacksite this is and where it lives on GitHub. */

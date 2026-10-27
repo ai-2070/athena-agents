@@ -1,11 +1,11 @@
-// Settings > Look: UI scale, accent colour, animations. Changes apply right away and are saved a moment later.
+// Settings > Look: UI scale, accent colour, animations, chat font, Station quality. Changes apply right away and are saved a moment later.
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Radio } from '@base-ui/react/radio';
 import { RadioGroup } from '@base-ui/react/radio-group';
 import { Slider } from '@base-ui/react/slider';
 import { PUT, attempt, state } from '../core.ts';
-import { ACCENTS, DEFAULT_LOOK, applyLook } from '../look.ts';
+import { ACCENTS, CHAT_FONTS, DEFAULT_LOOK, STATION_QUALITY, applyLook, stationLevel } from '../look.ts';
 import { Segmented } from '../ui/controls.tsx';
 import { reactPage } from '../ui/react.tsx';
 import type { LookSetting } from '../../shared/types.ts';
@@ -14,6 +14,8 @@ const SCALES = [80, 90, 100, 110, 125, 150];
 const SAVE_AFTER = 350;
 // an accent colour to pick, in its own colour (--sw); on: the picked one
 const SWATCH = 'flex cursor-pointer items-center gap-2.25 rounded-box border border-line bg-none px-3 py-2.5 text-ink transition-[border-color,background] duration-150 ease-[ease] hover:border-(--sw) [&.on]:border-(--sw) [&.on]:bg-[color-mix(in_srgb,var(--sw)_12%,transparent)]';
+// a chat font to pick: its name in that font, and whose look it matches
+const FONT = 'look-font flex cursor-pointer flex-col items-start gap-0.5 rounded-box border border-line bg-none px-3 py-2.5 text-left text-ink transition-[border-color,background] duration-150 ease-[ease] hover:border-line-2 [&.on]:border-accent [&.on]:bg-accent/8';
 
 export function LookTab() {
   const [look, setLook] = useState<LookSetting>(() => ({ ...DEFAULT_LOOK, ...(state.data?.settings?.look || {}) }));
@@ -107,7 +109,21 @@ export function LookTab() {
         </div>
         <div className="panel">
           <div className="panel-head">
-            <h2>Station</h2>
+            <h2 id="look-chat-font">Chat font</h2>
+          </div>
+          <p className="hint">What the messages in chats are written in: yours, your agents’ and the Brain’s. Names, buttons and code keep their own fonts.</p>
+          <RadioGroup className="mt-3.5 grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2" aria-labelledby="look-chat-font" value={look.chatFont} onValueChange={(v) => set({ chatFont: String(v) })}>
+            {CHAT_FONTS.map((f) => (
+              <Radio.Root key={f.id} value={f.id} nativeButton render={<button type="button" />} className={(s) => (s.checked ? `${FONT} on` : FONT)}>
+                <span className="text-[15px] leading-[1.4]" style={{ fontFamily: f.stack }}>{f.label}</span>
+                <span className="text-[12px] leading-[1.4] text-dim">{f.like}</span>
+              </Radio.Root>
+            ))}
+          </RadioGroup>
+        </div>
+        <div className="panel">
+          <div className="panel-head">
+            <h2>Station look</h2>
           </div>
           <p className="hint">Voxel world lights the Station like the world your agents will build: a sky, a sun with soft shadows, glow around bright things and a miniature blur at the edges. Classic is the dark map.</p>
           <div className="field mt-3.5">
@@ -118,11 +134,11 @@ export function LookTab() {
                 { value: 'classic', label: 'Classic' },
                 { value: 'world', label: 'Voxel world' },
               ]}
-              value={look.station}
-              onChange={(v) => set({ station: v })}
+              value={look.stationLook}
+              onChange={(v) => set({ stationLook: v })}
             />
           </div>
-          {look.station === 'world' ? (
+          {look.stationLook === 'world' ? (
             <div className="field mt-3">
               <span>Quality</span>
               <Segmented
@@ -165,6 +181,39 @@ export function LookTab() {
         </div>
         <div className="panel">
           <div className="panel-head">
+            <h2>Station quality</h2>
+          </div>
+          <p className="hint">How hard the 3D map works. Lower it if your fans spin up, your battery drains or the map stutters with many agents.</p>
+          <div className="field mt-3.5">
+            <span id="look-station">Quality</span>
+            <Segmented label="Station quality" options={STATION_QUALITY.map((q) => ({ value: q.id, label: q.label }))} value={look.station} onChange={(v) => set({ station: v })} />
+          </div>
+          <p className="look-station-hint hint mt-2 mb-0">{stationLevel(look.station).hint}</p>
+        </div>
+        <div className="panel">
+          <div className="panel-head">
+            <h2>Sidebar</h2>
+          </div>
+          <p className="hint">What the bottom of the menu shows: what’s set up, or how much of your Claude and Codex plans you’ve used, with Codex’s free limit resets. The Status / Limits switch there does the same.</p>
+          <div className="field mt-3.5">
+            <span id="look-sidebar">Shows</span>
+            <Segmented
+              label="Sidebar shows"
+              options={[
+                { value: 'status', label: 'Status' },
+                { value: 'limits', label: 'Usage limits' },
+              ]}
+              value={look.sidebar}
+              onChange={(v) => {
+                // the menu reads it from here, so it switches now rather than after the save
+                if (state.data?.settings) state.data.settings.look = { ...state.data.settings.look, sidebar: v };
+                set({ sidebar: v });
+              }}
+            />
+          </div>
+        </div>
+        <div className="panel">
+          <div className="panel-head">
             <h2>Preview</h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -175,6 +224,9 @@ export function LookTab() {
               <span className="dot on" /> running
             </span>
           </div>
+          <p className="look-sample mt-3.5 mb-0 rounded-box border border-line bg-panel-2 px-3 py-2.5 font-chat text-[14px] leading-[1.55]">
+            Done. I read the three reports and put a one-page summary in <code>notes/summary.md</code>.
+          </p>
           <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
             <button className="btn ghost small" onClick={() => set({ ...DEFAULT_LOOK })}>Reset to default</button>
           </div>

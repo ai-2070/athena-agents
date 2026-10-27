@@ -3,12 +3,13 @@
 // agents at desks, tools and checkpoints on pedestals. Beams pulse when work moves; dashed lines show
 // which programs and services each step can reach. Agents not on any branch wait on the Bench.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, ago, toast, promptBox, confirmBox, refreshSoon, modal } from '../core.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.ts';
 import { openDock, attachToBrain } from '../dock.tsx';
 import { filesFromDrop, filesFromPaste, hasFiles } from '../attach.ts';
-import { uiZoom, DEFAULT_LOOK } from '../look.ts';
+import { currentLook, stationLevel, uiZoom, DEFAULT_LOOK } from '../look.ts';
 import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.tsx';
 import { logoUrl, modelUrl, projectMark } from '../projectlogo.ts';
 import { loadModel } from '../modelviewer.ts';
@@ -215,6 +216,8 @@ interface LabelSpec {
 }
 interface Label extends LabelSpec {
   world: THREE.Vector3;
+  /** what was last written to its style (written again only when it changes) */
+  shown?: { display: string; transform: string; origin: string };
 }
 type PickType = 'agent' | 'branch' | 'bench' | 'brain' | 'int';
 /** A dashed wire from a header tile to a desk. */
@@ -343,6 +346,19 @@ interface StationState {
   usageTimer?: ReturnType<typeof setInterval>;
   progTimer?: ReturnType<typeof setInterval>;
   usageIdx?: number;
+  /** when the last frame was drawn, and when you last moved the pointer, scrolled or clicked on the map */
+  lastFrame?: number;
+  lastInput?: number;
+  /** frames drawn so far (for the performance checks) */
+  frames?: number;
+  /** the soft glows, drawn together (see drawGlows) */
+  glows?: GlowBatch;
+  /** the parts every desk has (furniture, body, head, status light), each kind drawn together (see drawMeshBatches) */
+  meshBatches?: Map<string, MeshBatch>;
+  /** the dashed wires, drawn on the map's canvas (see WireBatch) */
+  wireBatch?: WireBatch;
+  /** the wires drawing up into the tiles or down again while the floor changes (see floorSlide) */
+  wireReveal?: { from: number; to: number; at: number; ms: number; delay: number };
   headbar?: Headbar;
   /** What the pointer is over (a team or an agent): only its connections stay lit in the header. */
   hover?: Hover | null;
@@ -426,6 +442,7 @@ const isEvent = <T extends StationEvent['type']>(ev: ServerEvent, type: T): ev i
 /** Globals the Station shares with the chat windows and the UI checks. */
 type StationWindow = Window & {
   __stationDebug?: () => unknown;
+  __stationStats?: () => unknown;
   __chatsRestored?: boolean;
   __teams?: TeamView[];
   __teamWorking?: Record<string, string[]>;
@@ -742,10 +759,12 @@ export async function render(el: HTMLElement): Promise<void> {
   mount(el, root);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(pixelRatioFor(stationLevel(currentLook().station).pixelRatio));
   renderer.setClearColor(0x070807, 1);
   host.append(renderer.domElement);
   const scene = new THREE.Scene();
+  // renderStation updates the scene's positions once a frame, before the glows read them
+  scene.matrixWorldAutoUpdate = false;
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -600, 1200);
   const ambient = new THREE.AmbientLight(0xbfc8ff, 0.55);
   scene.add(ambient);
@@ -800,14 +819,15 @@ export async function render(el: HTMLElement): Promise<void> {
     classic,
   } as Partial<StationState> as StationState; // the rest is filled in below
   S.wireDots = wireDots;
-  S.wires = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-  wires.append(S.wires);
   S.panelView = mountStationPanel(panel, panelApi);
   const menuHost = h('div.dom-contents');
   root.append(menuHost);
   S.menuView = mountStationMenu(menuHost);
   buildBrain();
   setupControls();
+  // moving around the map gets the full frame rate; a still map fewer (see the loop)
+  const moved = () => S && (S.lastInput = performance.now());
+  for (const ev of ['pointermove', 'pointerdown', 'wheel', 'keydown', 'dragover']) root.addEventListener(ev, moved, { passive: true });
   S.ro = new ResizeObserver(resize);
   S.ro.observe(root);
   resize();
@@ -865,6 +885,19 @@ export async function render(el: HTMLElement): Promise<void> {
       return { x: Math.round(r.left + ((p.x + 1) / 2) * r.width), y: Math.round(r.top + ((1 - p.y) / 2) * r.height) };
     };
     return [...S.branches.values()].map((b) => ({ name: b.wf.name, ...at(b.group), desks: b.nodes.map((n) => ({ name: n.desk.agent.name, ...at(n.desk.group) })) }));
+  };
+  // read-only: what the last frame drew (draw calls, triangles, textures) and what moves every frame (performance checks)
+  (window as StationWindow).__stationStats = () => {
+    if (!S) return null;
+    const { render: r, memory: m } = S.renderer.info;
+    // what is drawn, by kind of object and where it sits (the parent's name or kind)
+    const drawn: Record<string, number> = {};
+    S.scene.traverseVisible((o) => {
+      if (!(o instanceof THREE.Mesh || o instanceof THREE.Sprite || o instanceof THREE.Line || o instanceof THREE.Points)) return;
+      const key = `${o.type}:${(o.material as THREE.Material).type}`;
+      drawn[key] = (drawn[key] || 0) + 1;
+    });
+    return { drawn, frames: S.frames || 0, calls: r.calls, triangles: r.triangles, points: r.points, lines: r.lines, geometries: m.geometries, textures: m.textures, pixelRatio: S.renderer.getPixelRatio(), size: [S.w, S.h], desks: S.desks.length, labels: S.labelEls.length, wires: S.wireBatch?.n ?? 0, particles: S.particles.length, objects: S.scene.children.length };
   };
 }
 
@@ -972,7 +1005,7 @@ async function applyStationLook(): Promise<void> {
   const look = { ...DEFAULT_LOOK, ...(state.data?.settings?.look || {}) };
   const order: WorldQuality[] = ['low', 'medium', 'high'];
   const capped = (q: WorldQuality) => (S?.lookCap && order.indexOf(q) > order.indexOf(S.lookCap) ? S.lookCap : q);
-  const want = S.lookForced || (look.station === 'world' ? capped(look.worldQuality) : null);
+  const want = S.lookForced || (look.stationLook === 'world' ? capped(look.worldQuality) : null);
   if (want === S.lookShown) return;
   S.lookShown = want;
   S.worldLayer?.dispose();
@@ -1662,24 +1695,117 @@ function stepT(branch: { path: THREE.Vector3[] }, j: number): number {
   return total ? cum[Math.min(j + 1, cum.length - 1)] / total : 0;
 }
 
+// A box (or any shape) moved into place and painted one colour, to merge with others into one mesh.
+function painted(geo: THREE.BufferGeometry, x: number, y: number, z: number, hex: number | THREE.Color): THREE.BufferGeometry {
+  geo.translate(x, y, z);
+  const c = new THREE.Color(hex);
+  const n = geo.attributes.position.count;
+  const rgb = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) rgb.set([c.r, c.g, c.b], i * 3);
+  geo.setAttribute('color', new THREE.BufferAttribute(rgb, 3));
+  return geo;
+}
+
+// A desk's furniture (top, legs, monitor, stand, chair) is one mesh with one material, made once and shared
+// by every desk: a draw call per desk rather than one per part, which is what slows a map with many agents.
+let furniture: { geo: THREE.BufferGeometry; mat: THREE.MeshStandardMaterial } | null = null;
+function deskFurniture(): { geo: THREE.BufferGeometry; mat: THREE.MeshStandardMaterial } {
+  if (furniture) return furniture;
+  const dark = 0x1a1e1a;
+  const geo = mergeGeometries([
+    painted(new THREE.BoxGeometry(2.6, 0.12, 1.3), 0, 0.9, 0, 0x2a2f29),
+    painted(new THREE.BoxGeometry(0.1, 0.9, 1.1), -1.15, 0.45, 0, dark),
+    painted(new THREE.BoxGeometry(0.1, 0.9, 1.1), 1.15, 0.45, 0, dark),
+    painted(new THREE.BoxGeometry(1.7, 1.08, 0.08), 0, 1.68, -0.38, 0x0e100e),
+    painted(new THREE.BoxGeometry(0.12, 0.3, 0.12), 0, 1.05, -0.38, dark),
+    painted(new THREE.BoxGeometry(0.75, 0.12, 0.7), 0, 0.6, 0.75, dark),
+    painted(new THREE.BoxGeometry(0.75, 0.7, 0.1), 0, 0.98, 1.08, dark),
+  ]);
+  furniture = { geo, mat: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62 }) };
+  return furniture;
+}
+
+// Shapes every desk shares (one copy on the graphics card, and the same shape is what lets them be batched).
+const SHAPES = { body: new THREE.CylinderGeometry(0.22, 0.3, 0.65, 12), head: new THREE.SphereGeometry(0.21, 16, 12), orb: new THREE.SphereGeometry(0.13, 12, 10) };
+
+// ---------- desk parts, batched ----------
+// Every desk has the same furniture, body, head and status light: each kind is drawn for all desks in one go
+// (an instanced mesh), not once per desk. The desk's own meshes stay where they are, for their place, colour,
+// the person's bobbing and the light's pulsing, and for clicking and dragging; they just aren't drawn
+// themselves. (A desk's screen shows its own picture, so screens are still drawn one by one.)
+interface MeshBatch {
+  mesh: THREE.InstancedMesh;
+  sources: THREE.Mesh[];
+  make: () => THREE.Material;
+}
+
+function batchMesh(key: string, src: THREE.Mesh, make: () => THREE.Material): void {
+  if (!S) return;
+  const all = (S.meshBatches ||= new Map());
+  let b = all.get(key);
+  if (!b) {
+    b = { mesh: instanced(src.geometry, make(), 64), sources: [], make };
+    all.set(key, b);
+  }
+  (src.material as THREE.Material).visible = false;
+  b.sources.push(src);
+}
+
+function instanced(geo: THREE.BufferGeometry, mat: THREE.Material, size: number): THREE.InstancedMesh {
+  const mesh = new THREE.InstancedMesh(geo, mat, size);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
+  mesh.raycast = () => {}; // the desks' own meshes are picked, not this
+  mesh.count = 0;
+  return mesh;
+}
+
+function drawMeshBatches(): void {
+  assertMounted(S);
+  for (const b of S.meshBatches?.values() || []) {
+    // grow when there are more desks than room
+    if (b.sources.length > b.mesh.instanceMatrix.count) {
+      const old = b.mesh;
+      b.mesh = instanced(old.geometry, b.make(), Math.max(b.sources.length, old.instanceMatrix.count * 2));
+      old.removeFromParent();
+      (old.material as THREE.Material).dispose();
+      old.dispose();
+    }
+    if (!b.mesh.parent) S.scene.add(b.mesh);
+    // the desks cast and take shadows in the voxel look, like the rest of the map
+    b.mesh.castShadow = b.mesh.receiveShadow = !!S.view;
+    const keep: THREE.Mesh[] = [];
+    let n = 0;
+    for (const src of b.sources) {
+      // gone from the map (rebuilt): drop it; hidden, or inside something hidden: skip it this frame
+      let shown = true;
+      let o: THREE.Object3D | null = src;
+      while (o && o !== S.scene) {
+        if (!o.visible) shown = false;
+        o = o.parent;
+      }
+      if (!o) continue;
+      keep.push(src);
+      if (!shown) continue;
+      b.mesh.setMatrixAt(n, src.matrixWorld);
+      // (the furniture's colours are in its shape, its material is white)
+      b.mesh.setColorAt(n, (src.material as THREE.MeshBasicMaterial).color);
+      n++;
+    }
+    b.sources = keep;
+    b.mesh.count = n;
+    b.mesh.instanceMatrix.needsUpdate = true;
+    if (b.mesh.instanceColor) b.mesh.instanceColor.needsUpdate = true;
+  }
+}
+
 function makeDesk(agent: Agent, colorHex: string, stepNo: string | number): Desk {
   const g = new THREE.Group();
   const color = new THREE.Color(colorHex);
-  const dark = new THREE.MeshStandardMaterial({ color: 0x1a1e1a, roughness: 0.7 });
-  const top = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.12, 1.3), new THREE.MeshStandardMaterial({ color: 0x2a2f29, roughness: 0.6 }));
-  top.position.y = 0.9;
-  g.add(top);
-  for (const x of [-1.15, 1.15]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.9, 1.1), dark);
-    leg.position.set(x, 0.45, 0);
-    g.add(leg);
-  }
-  const mon = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.08, 0.08), new THREE.MeshStandardMaterial({ color: 0x0e100e, roughness: 0.4, metalness: 0.4 }));
-  mon.position.set(0, 1.68, -0.38);
-  g.add(mon);
-  const stand = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, 0.12), dark);
-  stand.position.set(0, 1.05, -0.38);
-  g.add(stand);
+  const { geo, mat } = deskFurniture();
+  const furn = new THREE.Mesh(geo, mat);
+  g.add(furn);
+  batchMesh('furniture', furn, () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62 }));
   const screen = canvasTex(512, 320, () => {});
   const scr = new THREE.Mesh(new THREE.PlaneGeometry(1.58, 0.98), new THREE.MeshBasicMaterial({ map: screen.tex, toneMapped: false }));
   scr.position.set(0, 1.68, -0.33);
@@ -1688,30 +1814,30 @@ function makeDesk(agent: Agent, colorHex: string, stepNo: string | number): Desk
   screenGlow.scale.set(3.2, 2.4, 1);
   screenGlow.position.set(0, 1.7, -0.2);
   g.add(screenGlow);
-  const chair = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.12, 0.7), dark);
-  chair.position.set(0, 0.6, 0.75);
-  g.add(chair);
-  const back = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.7, 0.1), dark);
-  back.position.set(0, 0.98, 1.08);
-  g.add(back);
+  // the person: body in the agent's colour, and head
   const person = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 0.65, 12), new THREE.MeshStandardMaterial({ color: color.clone().lerp(new THREE.Color(0xffffff), 0.15), roughness: 0.6 }));
+  const body = new THREE.Mesh(SHAPES.body, new THREE.MeshStandardMaterial({ color: color.clone().lerp(new THREE.Color(0xffffff), 0.15), roughness: 0.6 }));
   body.position.y = 0.98;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 16, 12), new THREE.MeshStandardMaterial({ color: 0xe6e8e0, roughness: 0.5 }));
+  const head = new THREE.Mesh(SHAPES.head, new THREE.MeshStandardMaterial({ color: 0xe6e8e0, roughness: 0.5 }));
   head.position.y = 1.5;
   person.add(body, head);
   person.position.z = 0.62;
   g.add(person);
-  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), new THREE.MeshBasicMaterial({ color: 0x6b7066 }));
+  batchMesh('body', body, () => new THREE.MeshStandardMaterial({ roughness: 0.6 }));
+  batchMesh('head', head, () => new THREE.MeshStandardMaterial({ roughness: 0.5 }));
+  const orb = new THREE.Mesh(SHAPES.orb, new THREE.MeshBasicMaterial({ color: 0x6b7066 }));
+  batchMesh('orb', orb, () => new THREE.MeshBasicMaterial());
   orb.position.set(0.95, 2.45, -0.38);
   g.add(orb);
   const orbGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: 0xc4ff3d, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
   orbGlow.scale.set(1.4, 1.4, 1);
   orbGlow.position.copy(orb.position);
+  orbGlow.visible = false;
   g.add(orbGlow);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.07, 8, 48), new THREE.MeshBasicMaterial({ color: 0xc4ff3d, transparent: true, opacity: 0 }));
   ring.rotation.x = Math.PI / 2;
   ring.position.y = 0.08;
+  ring.visible = false;
   g.add(ring);
   const focusRing = new THREE.Mesh(new THREE.RingGeometry(1.55, 2.25, 48), new THREE.MeshBasicMaterial({ color: 0xc4ff3d, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
   focusRing.rotation.x = -Math.PI / 2;
@@ -1722,12 +1848,131 @@ function makeDesk(agent: Agent, colorHex: string, stepNo: string | number): Desk
   return desk;
 }
 
+// ---------- glows ----------
+// The soft glows (behind screens and status lights, the Brain's halo, the lights running along the links) are
+// all the same picture added on top of what's behind, so they can be drawn in one go: one draw call for
+// hundreds of them instead of one each, which is most of what made a map with many agents slow. The sprites stay
+// in the scene for their place, size, colour, fading and picking; only their drawing moves here. A glow not
+// collected yet simply draws itself as before.
+interface GlowBatch {
+  mesh: THREE.InstancedMesh;
+  tint: THREE.InstancedBufferAttribute;
+  sprites: THREE.Sprite[];
+  scanned: number;
+}
+const GLOW_VERTEX = `
+attribute vec4 tint;
+varying vec2 vUv;
+varying vec4 vTint;
+void main() {
+  vUv = uv;
+  vTint = tint;
+  // a sprite: faces the camera, sized like the sprite it stands for
+  vec4 at = modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+  at.xy += position.xy * vec2(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz));
+  gl_Position = projectionMatrix * at;
+}`;
+const GLOW_FRAGMENT = `
+uniform sampler2D map;
+varying vec2 vUv;
+varying vec4 vTint;
+void main() {
+  vec4 t = texture2D(map, vUv);
+  gl_FragColor = vec4(vTint.rgb * t.rgb, t.a * vTint.a);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
+
+function glowBatch(size: number): GlowBatch {
+  const geo = new THREE.PlaneGeometry(1, 1);
+  const tint = new THREE.InstancedBufferAttribute(new Float32Array(size * 4), 4);
+  tint.setUsage(THREE.DynamicDrawUsage);
+  geo.setAttribute('tint', tint);
+  const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: glow() } }, vertexShader: GLOW_VERTEX, fragmentShader: GLOW_FRAGMENT, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const mesh = new THREE.InstancedMesh(geo, mat, size);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
+  // after the other see-through pieces, so a glow lights what's in front of it as before (the Brain's logo, at 5, stays on top)
+  mesh.renderOrder = 4;
+  mesh.raycast = () => {}; // the sprites are picked, not this
+  mesh.count = 0;
+  return { mesh, tint, sprites: [], scanned: -1 };
+}
+
+/** Takes a glow sprite into the batch (it stops drawing itself). */
+function batchGlow(sp: THREE.Sprite): void {
+  if (!S?.glows || sp.userData.glowBatched) return;
+  sp.userData.glowBatched = true;
+  sp.material.visible = false;
+  S.glows.sprites.push(sp);
+}
+
+const isGlow = (o: THREE.Object3D): o is THREE.Sprite => o instanceof THREE.Sprite && !!glowTex && o.material.map === glowTex && o.material.blending === THREE.AdditiveBlending;
+
+function drawGlows(): void {
+  assertMounted(S);
+  let b = (S.glows ||= glowBatch(256));
+  if (!b.mesh.parent) S.scene.add(b.mesh);
+  // look for new glows now and then (a rebuilt map, the Brain); spawn() hands over its own right away
+  if (S.frames! - b.scanned >= 30) {
+    b.scanned = S.frames!;
+    S.scene.traverse((o) => isGlow(o) && batchGlow(o));
+  }
+  // grow when there are more glows than room
+  if (b.sprites.length > b.tint.count) {
+    const bigger = glowBatch(Math.max(b.sprites.length, b.tint.count * 2));
+    bigger.sprites = b.sprites;
+    bigger.scanned = b.scanned;
+    S.scene.remove(b.mesh);
+    b.mesh.geometry.dispose();
+    (b.mesh.material as THREE.Material).dispose();
+    b.mesh.dispose();
+    b = S.glows = bigger;
+    S.scene.add(b.mesh);
+  }
+  const tints = b.tint.array as Float32Array;
+  const keep: THREE.Sprite[] = [];
+  let n = 0;
+  for (const sp of b.sprites) {
+    // gone from the map: drop it; hidden (or inside something hidden): skip it this frame
+    let shown = true;
+    let o: THREE.Object3D | null = sp;
+    while (o && o !== S.scene) {
+      if (!o.visible) shown = false;
+      o = o.parent;
+    }
+    if (!o) continue;
+    keep.push(sp);
+    const m = sp.material;
+    if (!shown || m.opacity < 0.004) continue;
+    b.mesh.setMatrixAt(n, sp.matrixWorld);
+    tints.set([m.color.r, m.color.g, m.color.b, m.opacity], n * 4);
+    n++;
+  }
+  b.sprites = keep;
+  b.mesh.count = n;
+  b.mesh.instanceMatrix.needsUpdate = true;
+  b.tint.needsUpdate = true;
+}
+
+/** Draws a frame: positions first, then the glows (which read them), then the picture. */
+function renderStation(): void {
+  assertMounted(S);
+  S.scene.updateMatrixWorld();
+  drawMeshBatches();
+  drawGlows();
+  // the voxel look draws through its own passes (shadows, glow, blur)
+  if (S.view) S.view.render();
+  else S.renderer.render(S.scene, S.camera);
+}
+
 function spawn(p: ParticleSpec): void {
   assertMounted(S);
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: p.color, transparent: true, opacity: p.opacity ?? 1, blending: THREE.AdditiveBlending, depthWrite: false }));
   sp.scale.set(p.size, p.size, 1);
   sp.visible = false;
   (p.parent || S.world!).add(sp);
+  batchGlow(sp);
   S.particles.push({ ...p, sprite: sp });
 }
 
@@ -1786,6 +2031,7 @@ function updateStatuses(): void {
     const ring = node.kind === 'agent' ? node.desk.ring : node.ring;
     ring.material.color.set(st === 'needs-you' ? 0xf0b04a : st === 'failed' ? 0xff5a5a : st === 'done' ? 0x7a9a2c : 0xc4ff3d);
     ring.material.opacity = st === 'running' || st === 'needs-you' ? 0.9 : st === 'done' ? 0.35 : st === 'failed' ? 0.7 : 0;
+    ring.visible = ring.material.opacity > 0;
   }
   for (const l of S.labelEls) {
     if (l.kind === 'agent') {
@@ -1932,7 +2178,9 @@ function placeLabels(): void {
     const y = (1 - v3.y) * 0.5 * S.h;
     const off = x < -200 || x > S.w + 200 || y < -200 || y > S.h + 200;
     const hide = !!S.labelHidden?.has(`${l.kind}:${l.id}`) || off || ((l.kind === 'agent' || l.kind === 'step') && z < 0.6) || (l.kind === 'int' && z < 0.5);
-    l.el.style.display = hide ? 'none' : '';
+    const shown = (l.shown ||= { display: '', transform: '', origin: '' });
+    const display = hide ? 'none' : '';
+    if (shown.display !== display) l.el.style.display = shown.display = display;
     const sc = l.kind === 'branch' || l.kind === 'bench' ? Math.min(1.1, Math.max(0.5, (16 * pxPerUnit) / 214)) : 1;
     let tx = -50;
     let ty = -50;
@@ -1944,18 +2192,41 @@ function placeLabels(): void {
       const dy = y - (1 - v3b.y) * 0.5 * S.h;
       if (Math.abs(dx) >= Math.abs(dy) * 0.6) tx = dx < 0 ? -100 : 0;
       else ty = dy < 0 ? -100 : 0;
-      l.el.style.transformOrigin = `${-tx}% ${-ty}%`;
+      const origin = `${-tx}% ${-ty}%`;
+      if (shown.origin !== origin) l.el.style.transformOrigin = shown.origin = origin;
     }
-    if (!hide) l.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(${tx}%, ${ty}%) scale(${sc.toFixed(3)})`;
+    if (!hide) {
+      const transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(${tx}%, ${ty}%) scale(${sc.toFixed(3)})`;
+      if (shown.transform !== transform) l.el.style.transform = shown.transform = transform;
+    }
   }
   S.labels.dataset.zoom = z > 1.6 ? 'near' : z < 0.75 ? 'far' : 'mid';
 }
 
 // ---------- animation ----------
+// The most pixels drawn per screen pixel: the quality's limit, never more than the screen has.
+const pixelRatioFor = (max: number): number => Math.min(window.devicePixelRatio || 1, max);
+
 function loop(): void {
   if (!S?.alive) return;
   requestAnimationFrame(loop);
-  const dt = Math.min(S.clock.getDelta(), 0.05);
+  // Station quality (Settings > Look): skip frames to stay at its frame rate. Fewer while nothing moves
+  // and while the window is in the back; all of them while you move around the map.
+  const level = stationLevel(currentLook().station);
+  const now = performance.now();
+  const moving = !!S.cam.goal || !!S.fileDrag || now - (S.lastInput || 0) < 1500;
+  const fps = !document.hasFocus() ? level.fps.away : moving ? level.fps.moving : level.fps.still;
+  // (a frame early by a couple of ms still counts, or 60 a second on a 60 Hz screen would drop to 30)
+  if (fps && now - (S.lastFrame || 0) < 1000 / fps - 3) return;
+  S.lastFrame = now;
+  S.frames = (S.frames || 0) + 1;
+  const ratio = pixelRatioFor(level.pixelRatio);
+  if (S.renderer.getPixelRatio() !== ratio) {
+    S.renderer.setPixelRatio(ratio);
+    resize();
+  }
+  // (longer steps at a low frame rate; a cap so coming back to the tab doesn't jump)
+  const dt = Math.min(S.clock.getDelta(), 0.15);
   const t = S.clock.elapsedTime;
   const d = state.data;
   const busy = (d?.runs?.length || 0) + S.active.size;
@@ -2009,27 +2280,37 @@ function loop(): void {
     m.opacity += (want - m.opacity) * Math.min(1, dt * 10);
     desk.focusRing.visible = m.opacity > 0.01;
   }
+  // a desk's screen animates only when it is on screen and big enough to see
+  const screenPx = 1.58 * (S.h / (S.cam.view / S.cam.zoom));
+  const screensShow = screenPx >= level.screenPx;
+  const onScreen = (desk: Desk) => {
+    desk.group.getWorldPosition(v3).project(S!.camera);
+    return Math.abs(v3.x) < 1.1 && Math.abs(v3.y) < 1.1;
+  };
   for (const desk of S.desks) {
     if (desk.status === 'working') {
       desk.person.position.y = Math.abs(Math.sin(t * 6 + desk.agent.id.length)) * 0.06;
       desk.orb.scale.setScalar(1 + 0.35 * Math.sin(t * 5));
       desk.orbGlow.material.opacity = 0.5 + 0.3 * Math.sin(t * 5);
-      if (!desk.lastDraw || t - desk.lastDraw > 0.35) {
+      desk.orbGlow.visible = true;
+      if (screensShow && (!desk.lastDraw || t - desk.lastDraw > 0.35) && onScreen(desk)) {
         desk.lastDraw = t;
         drawScreen(desk, t);
       }
     } else if (desk.status === 'needs') {
       const on = Math.sin(t * 8) > 0;
-      if (!desk.lastDraw || t - desk.lastDraw > 0.5) {
+      if (screensShow && (!desk.lastDraw || t - desk.lastDraw > 0.5) && onScreen(desk)) {
         desk.lastDraw = t;
         drawScreen(desk, t);
       }
       desk.orb.scale.setScalar(on ? 1.5 : 1);
       desk.orbGlow.material.opacity = on ? 0.9 : 0.2;
+      desk.orbGlow.visible = true;
       desk.person.position.y = 0;
     } else {
       desk.orb.scale.setScalar(1);
       desk.orbGlow.material.opacity = 0;
+      desk.orbGlow.visible = false;
       desk.person.position.y = 0;
     }
   }
@@ -2074,11 +2355,12 @@ function loop(): void {
     p.sprite.visible = p.t >= 0;
     if (p.t >= 0) p.sprite.position.copy(p.path(p.t));
   }
-  placeLabels();
+  // the wires measure the header tiles before the labels move (measuring after a move makes the
+  // browser lay the page out again in the middle of the frame)
   drawWires(dt);
+  placeLabels();
   S.worldLayer?.update();
-  if (S.view) S.view.render();
-  else S.renderer.render(S.scene, S.camera);
+  renderStation();
 }
 
 // The dashed wires: header tile (top) to the desk or pedestal (in the map), as SVG curves.
@@ -2087,21 +2369,168 @@ const SVGNS = 'http://www.w3.org/2000/svg';
 const DASH_PERIOD = 7;
 const REDUCED_MOTION = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// The dashed wires are drawn on the map's own canvas, in screen pixels, after the map. They used to be SVG
+// paths, and the flowing dashes made the browser paint every dash of every wire again each frame: with a few
+// dozen teams that took a whole processor core and halved the frame rate even on a fast PC. Here each wire is
+// a strip of triangles and the dashes are worked out per pixel on the graphics card. Same look: dashes 3 px on,
+// 4 off, flowing at each wire's own speed, soft edges.
+interface WireBatch {
+  mesh: THREE.Mesh;
+  geo: THREE.BufferGeometry;
+  /** per corner: x, y (CSS px), distance along the wire, flow | colour and opacity | across the wire (px), half the width */
+  a0: THREE.BufferAttribute;
+  a1: THREE.BufferAttribute;
+  a2: THREE.BufferAttribute;
+  cap: number;
+  n: number;
+  dirty1: boolean;
+  dirty2: boolean;
+}
+const WIRE_STEPS = 24;
+const WIRE_CORNERS = (WIRE_STEPS + 1) * 2;
+const WIRE_VERTEX = `
+attribute vec4 a0;
+attribute vec4 a1;
+attribute vec2 a2;
+uniform vec2 size;
+varying float vDist;
+varying float vY;
+varying vec4 vTint;
+varying vec2 vEdge;
+void main() {
+  vDist = a0.z - a0.w;
+  vY = a0.y;
+  vTint = a1;
+  vEdge = a2;
+  gl_Position = vec4(a0.x / size.x * 2.0 - 1.0, 1.0 - a0.y / size.y * 2.0, 0.0, 1.0);
+}`;
+const WIRE_FRAGMENT = `
+uniform vec2 size;
+uniform float reveal;
+varying float vDist;
+varying float vY;
+varying vec4 vTint;
+varying vec2 vEdge;
+void main() {
+  if (vY > reveal * size.y) discard;
+  // the dash: on for 3 px of every 7, with half a pixel of softening at its ends
+  float d = mod(vDist, 7.0);
+  float dash = max(clamp(min(d + 0.5, 3.5 - d), 0.0, 1.0), clamp(d - 6.5, 0.0, 1.0));
+  // and the edges across the wire
+  float edge = clamp(vEdge.y + 0.5 - abs(vEdge.x), 0.0, 1.0);
+  float a = vTint.a * dash * edge;
+  if (a <= 0.0) discard;
+  gl_FragColor = vec4(vTint.rgb, a);
+  #include <colorspace_fragment>
+}`;
+
+function wireBatch(cap: number): WireBatch {
+  const geo = new THREE.BufferGeometry();
+  const attr = (k: number) => new THREE.BufferAttribute(new Float32Array(cap * WIRE_CORNERS * k), k).setUsage(THREE.DynamicDrawUsage);
+  const a0 = attr(4);
+  const a1 = attr(4);
+  const a2 = attr(2);
+  geo.setAttribute('a0', a0);
+  geo.setAttribute('a1', a1);
+  geo.setAttribute('a2', a2);
+  // two corners per point along a wire, two triangles per step
+  const idx = new Uint32Array(cap * WIRE_STEPS * 6);
+  for (let w = 0, i = 0; w < cap; w++)
+    for (let k = 0; k < WIRE_STEPS; k++) {
+      const v = w * WIRE_CORNERS + k * 2;
+      idx.set([v, v + 1, v + 2, v + 2, v + 1, v + 3], i);
+      i += 6;
+    }
+  geo.setIndex(new THREE.BufferAttribute(idx, 1));
+  geo.setDrawRange(0, 0);
+  const mat = new THREE.ShaderMaterial({ uniforms: { size: { value: new THREE.Vector2(1, 1) }, reveal: { value: 1 } }, vertexShader: WIRE_VERTEX, fragmentShader: WIRE_FRAGMENT, transparent: true, depthTest: false, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }); // (screen y runs down, so the triangles face away)
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 1000; // over the map, like the SVG was
+  mesh.raycast = () => {}; // never picked
+  return { mesh, geo, a0, a1, a2, cap, n: 0, dirty1: true, dirty2: true };
+}
+
+const wireColor = new THREE.Color();
+
+/** Adds one wire: the curve (start, two control points, end), colour, opacity, width and how far its dashes have flowed. */
+function addWire(b: WireBatch, c: number[], color: string, opacity: number, width: number, flow: number): void {
+  const w = b.n++;
+  const p0 = b.a0.array as Float32Array;
+  const p1 = b.a1.array as Float32Array;
+  const p2 = b.a2.array as Float32Array;
+  wireColor.set(color);
+  const half = width / 2;
+  const pad = half + 1;
+  // the points along the curve
+  const pts: number[] = [];
+  for (let k = 0; k <= WIRE_STEPS; k++) {
+    const t = k / WIRE_STEPS;
+    const u = 1 - t;
+    pts.push(u * u * u * c[0] + 3 * u * u * t * c[2] + 3 * u * t * t * c[4] + t * t * t * c[6], u * u * u * c[1] + 3 * u * u * t * c[3] + 3 * u * t * t * c[5] + t * t * t * c[7]);
+  }
+  let dist = 0;
+  for (let k = 0; k <= WIRE_STEPS; k++) {
+    const x = pts[k * 2];
+    const y = pts[k * 2 + 1];
+    if (k > 0) dist += Math.hypot(x - pts[k * 2 - 2], y - pts[k * 2 - 1]);
+    // across the wire: square to the curve here (from the points either side)
+    const a = Math.max(0, k - 1);
+    const z = Math.min(WIRE_STEPS, k + 1);
+    let dx = pts[z * 2] - pts[a * 2];
+    let dy = pts[z * 2 + 1] - pts[a * 2 + 1];
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len;
+    dy /= len;
+    for (const side of [1, -1]) {
+      const v = w * WIRE_CORNERS + k * 2 + (side > 0 ? 0 : 1);
+      p0.set([x - dy * pad * side, y + dx * pad * side, dist, flow], v * 4);
+      // colour and width are sent again only when they change
+      if (p1[v * 4] !== wireColor.r || p1[v * 4 + 1] !== wireColor.g || p1[v * 4 + 2] !== wireColor.b || p1[v * 4 + 3] !== opacity) {
+        p1.set([wireColor.r, wireColor.g, wireColor.b, opacity], v * 4);
+        b.dirty1 = true;
+      }
+      if (p2[v * 2] !== pad * side || p2[v * 2 + 1] !== half) {
+        p2.set([pad * side, half], v * 2);
+        b.dirty2 = true;
+      }
+    }
+  }
+}
+
+/** How much of the wires shows while the floor changes, from the top (1: all of them). */
+function wireReveal(): number {
+  const r = S?.wireReveal;
+  if (!r) return 1;
+  const k = Math.min(1, Math.max(0, (performance.now() - r.at - r.delay) / r.ms));
+  const eased = k * k * (3 - 2 * k);
+  // done (or a floor change that never came back in: show them again rather than keep them hidden)
+  if ((k >= 1 && r.to === 1) || performance.now() - r.at > 4000) S!.wireReveal = undefined;
+  return r.from + (r.to - r.from) * eased;
+}
+
 function drawWires(dt: number): void {
   assertMounted(S);
-  const svg = S.wires;
-  if (!svg) return;
   // nothing hovered: the combined wires (one per team); hovering: every desk's own wire
   const links = (S.hover ? S.links2d : S.links2dAll) || S.links2d || [];
   const rootBox = S.root.getBoundingClientRect();
   const bar = S.hudTop?.querySelector('.st-connected')?.getBoundingClientRect();
-  while (svg.childNodes.length < links.length) {
-    const p = document.createElementNS(SVGNS, 'path');
-    p.setAttribute('fill', 'none');
-    p.setAttribute('stroke-dasharray', '3 4');
-    svg.append(p);
+  // each tile measured once, before anything below changes the page (many wires share a tile)
+  const boxes = new Map<string, DOMRect | undefined>();
+  for (const l of links) if (!boxes.has(l.intId)) boxes.set(l.intId, S.tileEls?.get(l.intId)?.getBoundingClientRect());
+  // room for every wire (a bigger batch when there are more)
+  if (!S.wireBatch || S.wireBatch.cap < links.length) {
+    const old = S.wireBatch;
+    if (old) {
+      S.scene.remove(old.mesh);
+      old.geo.dispose();
+      (old.mesh.material as THREE.Material).dispose();
+    }
+    S.wireBatch = wireBatch(Math.max(64, links.length * 2));
   }
-  while (svg.childNodes.length > links.length) svg.lastChild!.remove();
+  const wb = S.wireBatch;
+  if (!wb.mesh.parent) S.scene.add(wb.mesh);
+  wb.n = 0;
   // a hovered team or agent: light only its tiles and wires
   const focus = S.hover;
   applyHover();
@@ -2112,14 +2541,12 @@ function drawWires(dt: number): void {
   const ends: (number[] | null)[] = [];
   const motion = !REDUCED_MOTION();
   const zoom = uiZoom();
-  links.forEach((l, i) => {
+  links.forEach((l) => {
     assertMounted(S);
-    const p = svg.childNodes[i] as SVGPathElement;
     const tile = S.tileEls?.get(l.intId);
-    const r = tile?.getBoundingClientRect();
+    const r = boxes.get(l.intId);
     const visible = r && r.width && bar && r.left >= bar.left - 2 && r.right <= bar.right + 2;
     if (!visible) {
-      p.setAttribute('d', '');
       ends.push(null);
       return;
     }
@@ -2139,16 +2566,15 @@ function drawWires(dt: number): void {
     const dy = Math.max(60, (y2 - y1) * 0.55);
     const c = [x1, y1, x1, y1 + dy, x2, y2 - dy * 0.6, x2, y2];
     ends.push(c);
-    p.setAttribute('d', `M${c[0].toFixed(1)},${c[1].toFixed(1)} C${c[2].toFixed(1)},${c[3].toFixed(1)} ${c[4].toFixed(1)},${c[5].toFixed(1)} ${c[6].toFixed(1)},${c[7].toFixed(1)}`);
     if (l.flash > 0) l.flash = Math.max(0, l.flash - dt * 0.7);
     const info = intInfo(l.intId);
     const mine = !!l.node && !!focus?.nodes.has(l.node) && (!focus.only || focus.links.has(l.intId));
     // a combined wire is a little thicker the more agents it stands for
     const weight = l.members ? Math.min(1.6, (l.members.length - 1) * 0.3) : 0;
     const live = focus && !mine ? 0.03 : tile!.classList.contains('off') ? 0.12 : mine ? 0.7 : 0.32;
-    p.setAttribute('stroke', info?.color || '#8f968a');
-    p.setAttribute('stroke-opacity', String(live + l.flash * 0.6));
-    p.setAttribute('stroke-width', String((mine ? 1.5 : 1) + weight + l.flash * 1.2));
+    const color = info?.color || '#8f968a';
+    const opacity = Math.min(1, live + l.flash * 0.6);
+    const width = (mine ? 1.5 : 1) + weight + l.flash * 1.2;
     // the dashes flow down from the program to the agents; faster on the wires you are looking at or that just carried a call,
     // and not at all for a program that is off (nothing flows from it) or when motion is switched off
     const flowing = motion && !tile!.classList.contains('off') && !(focus && !mine);
@@ -2156,8 +2582,16 @@ function drawWires(dt: number): void {
     // ease toward the goal speed, so hovering or a call lighting a wire speeds it up and slows it down smoothly
     l.speed = (l.speed ?? goal) + (goal - (l.speed ?? goal)) * Math.min(1, dt * 5);
     l.flow = ((l.flow || 0) + dt * l.speed) % DASH_PERIOD;
-    p.setAttribute('stroke-dashoffset', (-l.flow).toFixed(2));
+    addWire(wb, c, color, opacity, width, l.flow);
   });
+  wb.geo.setDrawRange(0, wb.n * WIRE_STEPS * 6);
+  wb.a0.needsUpdate = true;
+  if (wb.dirty1) wb.a1.needsUpdate = true;
+  if (wb.dirty2) wb.a2.needsUpdate = true;
+  wb.dirty1 = wb.dirty2 = false;
+  const u = (wb.mesh.material as THREE.ShaderMaterial).uniforms;
+  (u.size.value as THREE.Vector2).set(S.w, S.h);
+  u.reveal.value = wireReveal();
   // light running down a wire
   const dotsLayer = S.wireDots;
   S.dots = S.dots.filter((d) => (d.t += dt * 0.9) <= 1);
@@ -2958,6 +3392,7 @@ function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
       : [{ opacity: 0, transform: `translateY(${from})`, filter: 'blur(5px)' }, { opacity: 1, transform: 'translateY(0)', filter: 'blur(0px)' }];
   const anims = els.map((el) => el.animate(frames, { duration: phase === 'out' ? 120 : 240, easing: phase === 'out' ? 'ease-in' : 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: phase === 'out' ? 'forwards' : 'none' }));
   if (wires) {
+    // (the lights running down the wires are still SVG)
     const up = 'inset(0 0 100% 0)';
     const all = 'inset(0 0 0 0)';
     anims.push(
@@ -2966,6 +3401,8 @@ function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
         : wires.animate([{ clipPath: up }, { clipPath: all }], { duration: 380, delay: 150, easing: 'cubic-bezier(0.3, 0.7, 0.2, 1)', fill: 'backwards' }),
     );
   }
+  // the wires themselves (drawn on the map's canvas) the same way
+  S.wireReveal = phase === 'out' ? { from: 1, to: 0, at: performance.now(), ms: 120, delay: 0 } : { from: 0, to: 1, at: performance.now(), ms: 380, delay: 150 };
   const done = Promise.all(anims.map((a) => a.finished.catch(() => undefined))).then(() => undefined);
   if (phase === 'out') {
     floorOut = anims;
@@ -3031,7 +3468,7 @@ function drawHud(): void {
     S.hud.append(S.hudTop, S.statsEl, S.feedEl, S.zoomEl, S.emptyEl);
   }
   // the World button only in the voxel look (the panel closes when the look goes classic)
-  const worldLook = d.settings?.look?.station === 'world';
+  const worldLook = d.settings?.look?.stationLook === 'world';
   const worldBtn = S.zoomEl.querySelector<HTMLButtonElement>('.st-world-btn');
   if (worldBtn) worldBtn.hidden = !worldLook;
   if (!worldLook && S.selected?.type === 'world') choose(null);
@@ -3490,7 +3927,7 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
         // draw the new map once now (it is still hidden): the card uploads every shape and texture on its first draw, and that must not
         // happen on the first frame of the slide-in
         S.renderer.compile(S.scene, S.camera);
-        S.renderer.render(S.scene, S.camera);
+        renderStation();
         await frames(1);
         void floorSlide('in', dir);
       })

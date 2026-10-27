@@ -1,6 +1,9 @@
-// How the dashboard looks: UI scale, accent colour, animations. Saved in settings.look and
+// How the dashboard looks: UI scale, accent colour, animations, chat font, Station quality. Saved in settings.look and
 // remembered in this browser so the page opens at the right size straight away.
 import type { LookSetting } from '../shared/types.ts';
+import { chatFont } from '../shared/look.ts';
+export { CHAT_FONTS, chatFont, STATION_QUALITY, stationLevel } from '../shared/look.ts';
+export type { ChatFont } from '../shared/look.ts';
 
 export interface Accent {
   id: string;
@@ -18,7 +21,10 @@ export const ACCENTS: Accent[] = [
   { id: 'violet', label: 'Violet', c: '#b69cff', hover: '#cbb8ff', dim: '#6f5fa3', on: '#0c0814' },
   { id: 'mint', label: 'Mint', c: '#5fe3c0', hover: '#89ecd2', dim: '#3a8c77', on: '#04110d' },
 ];
-export const DEFAULT_LOOK: LookSetting = { scale: 100, accent: 'lime', motion: 'full', station: 'classic', worldQuality: 'medium' };
+export const DEFAULT_LOOK: LookSetting = { scale: 100, accent: 'lime', motion: 'full', chatFont: 'serif', station: 'balanced', sidebar: 'status', stationLook: 'classic', worldQuality: 'medium' };
+let current: LookSetting = DEFAULT_LOOK;
+/** The look in use now (the Station reads its quality from here every frame). */
+export const currentLook = (): LookSetting => current;
 const KEY = 'dash-look';
 
 // With a UI scale, mouse and box positions are in screen pixels but CSS pixels are scaled:
@@ -27,6 +33,7 @@ export const uiZoom = (): number => parseFloat(document.documentElement.style.zo
 
 export function applyLook(look: Partial<LookSetting> = {}): LookSetting {
   const l: LookSetting = { ...DEFAULT_LOOK, ...look };
+  current = l;
   const root = document.documentElement;
   const scale = Math.max(70, Math.min(160, Number(l.scale) || 100));
   root.style.zoom = scale === 100 ? '' : String(scale / 100);
@@ -36,6 +43,10 @@ export function applyLook(look: Partial<LookSetting> = {}): LookSetting {
   root.style.setProperty('--color-accent-dim', a.dim);
   root.style.setProperty('--color-on-accent', a.on);
   root.classList.toggle('reduce-motion', l.motion === 'reduced');
+  const font = chatFont(l.chatFont);
+  // the default is the stylesheet's own --font-chat
+  if (font.id === DEFAULT_LOOK.chatFont) root.style.removeProperty('--font-chat');
+  else root.style.setProperty('--font-chat', font.stack);
   try {
     localStorage.setItem(KEY, JSON.stringify(l));
   } catch {

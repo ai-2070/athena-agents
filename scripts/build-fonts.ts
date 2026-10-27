@@ -12,6 +12,10 @@ export const FONTS = [
   { pkg: 'archivo', family: 'Archivo', sheets: ['wght.css'] },
   { pkg: 'jetbrains-mono', family: 'JetBrains Mono', sheets: ['wght.css'] },
   { pkg: 'merriweather', family: 'Merriweather', sheets: ['wght.css', 'wght-italic.css'] },
+  // more chat fonts to pick in Settings > Look (web/look.ts CHAT_FONTS); a font's files download only when text uses it
+  { pkg: 'google-sans', family: 'Google Sans', sheets: ['wght.css', 'wght-italic.css'] },
+  { pkg: 'roboto', family: 'Roboto', sheets: ['wght.css', 'wght-italic.css'] },
+  { pkg: 'inter', family: 'Inter', sheets: ['wght.css', 'wght-italic.css'] },
 ];
 
 /** Copies the font files (and their licences) into outdir/fonts; returns the CSS, with urls relative to outdir. */

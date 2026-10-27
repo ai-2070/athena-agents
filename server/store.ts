@@ -42,7 +42,7 @@ const DEFAULT_SETTINGS: Settings = {
   brainSkills: ['self-improvement'],
   brainAnyGitHub: false,
   brainFollowsUp: true,
-  look: { scale: 100, accent: 'lime', motion: 'full', station: 'classic', worldQuality: 'medium' },
+  look: { scale: 100, accent: 'lime', motion: 'full', chatFont: 'serif', station: 'balanced', sidebar: 'status', stationLook: 'classic', worldQuality: 'medium' },
   telegram: { chatId: '' },
   maxToolSteps: 16,
   costLimitUsdPerRun: 2,
@@ -63,7 +63,12 @@ function merge<T>(base: T, over: unknown): T {
 }
 
 export function getSettings(): Settings {
-  return merge(DEFAULT_SETTINGS, readJSON<Partial<Settings>>(SETTINGS_FILE, {}));
+  const raw = readJSON<Partial<Settings>>(SETTINGS_FILE, {});
+  const s = merge(DEFAULT_SETTINGS, raw);
+  // look.station was once the voxel look ("classic" or "world"); it is the map's quality now
+  const old: unknown = raw.look?.station;
+  if (old === 'classic' || old === 'world') s.look = { ...s.look, station: DEFAULT_SETTINGS.look.station, stationLook: raw.look?.stationLook || old };
+  return s;
 }
 
 export function saveSettings(patch: SettingsPatch): Settings {

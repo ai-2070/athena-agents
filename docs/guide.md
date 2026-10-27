@@ -101,7 +101,7 @@ A chat's **Clear memory** button is different: it starts that chat fresh and lea
 
 ## The voxel world
 
-The Station can be a voxel world the Brain and your agents build around themselves. The classic dark map stays the default: turn the world on in **Settings › Look › Station** (Voxel world) and pick a quality (Low for older computers; High adds softer creases).
+The Station can be a voxel world the Brain and your agents build around themselves. The classic dark map stays the default: turn the world on in **Settings › Look › Station look** (Voxel world) and pick a quality (Low for older computers; High adds softer creases).
 
 - **Ask the Brain for one.** Describe the world you want. The Brain asks a few questions (theme, mood, era, colours), writes **WORLD.md**, builds the big pieces itself and hands the details to a builder. The **World Builder** starter (Library) comes ready with the **Voxel world** tools and the **Voxel building** skill; you can give the tools to any agent in its editor.
 - **WORLD.md** says what the world is: its theme and meaning, look, feel, places, characters, story and rules. Every builder reads it before building and updates it as they go. You can edit it too. Earlier versions are kept.
@@ -194,6 +194,12 @@ The amount retained scales with the context window. Set **Context window** if a 
 
 Very long chats still scroll smoothly: from 50 messages on, the chat page and the floating window only draw the messages near what you see, so the floating window can show the whole chat too. Because of this, your browser's Find (Ctrl+F) only finds text in the messages near where you have scrolled.
 
+## Your Claude and Codex usage limits
+
+- **See them in the sidebar.** Click **Limits** above the list at the bottom of the menu (or pick **Usage limits** under **Settings → Look → Sidebar**). In place of what's set up, it shows how much of your Claude and Codex plans you have used in each window (5 hours, the week) and when each starts again. It reads them again every minute. **Status** brings the list back.
+- **Free Codex resets.** When OpenAI has given your Codex account free limit resets, point at **Codex** in the sidebar: a card beside it says how many you have and when the next one runs out. **Reset now** asks first, then uses the one that runs out first and sets your Codex limits back to 0%. If you haven't used any of your limit yet, Codex keeps the reset.
+- **Where the numbers come from.** Claude's come from Anthropic with your Claude Code login; Codex's from the Codex program on this PC (`codex app-server`) with your Codex login. Nothing else is sent anywhere.
+
 ## Approvals and safety
 
 ### Choose how much agents may do
@@ -257,6 +263,7 @@ The dashboard keeps the last **50 versions** per item and groups nearby edits. *
 - **The desktop app says it could not start:** it shows where the server's log is (`server.log`; the one before is `server.old.log`). Choose **Try again**, or check the log for the error.
 - **The page does not open:** visit http://localhost:4800 directly and check the server terminal for errors. Use the port you selected if you changed it.
 - **Browser changes are missing:** rebuild with `bun run build` and reload, or use `bun run dev` while editing. Direct server startup only builds when the bundle is missing.
+- **The fans spin up, the battery drains, or the Station stutters:** lower **Settings → Look → Station quality**. **Balanced** (the default) draws 60 frames a second while you move around the map, 30 when nothing moves, and fewer when the window is in the back. **Battery saver** draws at most 30, a little softer, and leaves desk screens still until you zoom in. Other pages don't draw the map at all. Many agents working at once mostly use memory: each Claude Code agent that is working runs its own program, a few hundred MB each.
 - **An agent cannot run:** check its selected engine in Settings, its login or API key, and whether a local model server is running. For missing Hermes dashboard tools, add the MCP bridge as described in [Giving engine CLIs the dashboard tools](#giving-engine-clis-the-dashboard-tools).
 
 ## Development

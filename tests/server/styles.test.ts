@@ -6,6 +6,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildCss, CSS_ENTRY } from '../../scripts/build-css.ts';
 import { buildFonts, FONTS } from '../../scripts/build-fonts.ts';
+import { CHAT_FONTS } from '../../shared/look.ts';
 
 const WEB = path.resolve(import.meta.dirname, '../../web');
 const sources = (dir: string): string[] =>
@@ -75,6 +76,14 @@ describe('the fonts', () => {
     } finally {
       fs.rmSync(out, { recursive: true, force: true });
     }
+  });
+
+  it('include every chat font Settings > Look offers (other than ones on the computer)', () => {
+    const onComputer = new Set(['Segoe UI', 'SF Pro Text', 'Georgia', 'Times New Roman', 'Helvetica', 'Arial', 'Menlo', 'Consolas']);
+    const shipped = new Set(FONTS.map((f) => f.family));
+    const named = CHAT_FONTS.flatMap((f) => [...f.stack.matchAll(/'([^']+)'/g)].map((m) => m[1] ?? ''));
+    expect(named.filter((n) => !onComputer.has(n) && !shipped.has(n))).toEqual([]);
+    for (const n of ['Google Sans', 'Roboto', 'Inter']) expect(shipped).toContain(n);
   });
 
   it('are not fetched from outside', () => {

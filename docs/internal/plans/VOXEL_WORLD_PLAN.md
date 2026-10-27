@@ -575,7 +575,7 @@ Renderer upgrade behind the Look setting: tone mapping, sun shadows, hemisphere 
 AO, bloom and tilt-shift. A hard-coded test island from a handful of boxes and per-voxel jitter. Measure fps
 at 250k, 1M and 2M voxels on a Windows laptop and in the desktop app. Decide the limits in §3 from this.
 
-What was built: Settings › Look › Station (Classic, the default / Voxel world) and its quality (Low / Medium /
+What was built: Settings › Look › Station look (Classic, the default / Voxel world) and its quality (Low / Medium /
 High); `shared/voxel.ts` (chunks, run-length storage, per-voxel shades); `web/voxel/mesher.ts` (hidden faces
 skipped, corner AO, split into solid / glowing / see-through); `environment.ts` (seven times of day);
 `post.ts` (AO on High, glow, tilt-shift with vignette, tone mapping); `view.ts` (sky, fog, sun with shadows,
