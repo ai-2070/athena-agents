@@ -1046,9 +1046,17 @@ del('/api/terminals/:id', async ({ id }) => ({ ok: terms.closeTerminal(id) }));
 // A bridge that belongs to a run works in the run's project (its agent, workspace and data), even
 // after you open another one. Without a run (an outside MCP client) it's the project open now.
 const inRunProject = <T>(run: engines.RunInfo | null, fn: () => T): T => (run ? store.withProject(run.project, fn) : fn());
-get('/api/internal/tools', async (_p, _b, q) =>
-  inRunProject(engines.runInfo(q.run), () => {
-    const agent = agentFor(q.agent);
+// The agent as its run has it: what a team gave it for this work (tools, MCP servers, skills) counts too.
+// Its saved settings (autonomy, "always allow") are read fresh.
+const bridgeAgent = (run: engines.RunInfo | null, id: string | null | undefined): Agent | ExternalAgent => {
+  const agent = agentFor(id);
+  if (!run || !id || run.agentId !== id || agent === EXTERNAL) return agent;
+  return { ...agent, toolGroups: run.agent.toolGroups, mcpServers: run.agent.mcpServers, _teamSkills: run.agent._teamSkills };
+};
+get('/api/internal/tools', async (_p, _b, q) => {
+  const run = engines.runInfo(q.run);
+  return inRunProject(run, () => {
+    const agent = bridgeAgent(run, q.agent);
     const list = tools.toolDefs(agent);
     if (agent.engine === 'claude-code')
       list.push({
@@ -1057,13 +1065,13 @@ get('/api/internal/tools', async (_p, _b, q) =>
         parameters: { type: 'object', properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } }, required: ['tool_name'] },
       });
     return { tools: list };
-  }),
-);
+  });
+});
 post<{ agent?: string; run?: string; name: string; args?: Record<string, unknown> }>('/api/internal/tools/call', async (_p, body) => {
   // The bridge says which run it belongs to; that gives the right project, approvals, Stop button and delegation depth.
   const run = engines.runInfo(body.run);
   return inRunProject(run, async () => {
-    const agent = agentFor(body.agent);
+    const agent = bridgeAgent(run, body.agent);
     const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
     if (body.name === 'permission_prompt') return { text: JSON.stringify(await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId)) };
     return tools.callTool(agent, body.name, body.args || {}, ctx);
