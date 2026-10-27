@@ -62,6 +62,29 @@ describe('world_look', () => {
   }, 20_000);
 });
 
+describe('world_look says why there is no picture', () => {
+  it('the Station in the classic look: asks for the voxel look, at once', async () => {
+    const { saveSettings } = await import('../../server/store.ts');
+    saveSettings({ look: { stationLook: 'classic' } });
+    const a = newAgent({ name: 'Peeker', toolGroups: ['world'], autonomy: 'full' });
+    // a classic tab answers that it can't draw it
+    const refuse = (e: ServerEvent) => {
+      if (e.type === 'world-look') setTimeout(() => deliverLook((e as ServerEvent & { request: string }).request, { error: "this tab doesn't show that world in the voxel look" }), 5);
+    };
+    bus.on('event', refuse);
+    const t = Date.now();
+    const r = await callTool(a, 'world_look', {});
+    bus.off('event', refuse);
+    expect(r.text).toMatch(/^No picture: the Station is in the classic look.*Settings › Look › Station look › Voxel world/);
+    expect(Date.now() - t).toBeLessThan(2000);
+    saveSettings({ look: { stationLook: 'world' } });
+    bus.on('event', refuse);
+    const r2 = await callTool(a, 'world_look', {});
+    bus.off('event', refuse);
+    expect(r2.text).toMatch(/no open Station could draw it \(this tab doesn't show that world in the voxel look\)\. Ask the user to open the Station with this project open/);
+  });
+});
+
 describe('world_look with no page open', () => {
   it("doesn't wait when no page is open", async () => {
     const { setOpenPages } = await import('../../server/voxel/look.ts');

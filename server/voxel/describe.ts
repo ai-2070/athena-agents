@@ -1,6 +1,8 @@
 // The world in words, for builders (world_info) and the Brain's snapshot: what is there, who built it,
 // where the caller's team stands, and a top-down map of one object when asked.
-import { agents, listProjects, workflows } from '../store.ts';
+import { agents, listProjects, projectData, workflows } from '../store.ts';
+import { readPlain } from '../util.ts';
+import { DESK_REACH, benchSpot, platformRadius, teamSpots } from '../../shared/stationlayout.ts';
 import { getVoxel } from '../../shared/voxel.ts';
 import { loadGrids } from './ops.ts';
 import { readObject, readPrefab, worldVoxels } from './store.ts';
@@ -10,28 +12,41 @@ import { sceneText } from './scene.ts';
 import { skinsText } from './characters.ts';
 import type { VoxelWorld } from '../../shared/types.ts';
 
-/** A team platform's radius on the map (web/views/station.ts podRadius). */
-export const platformRadius = (members: number): number => Math.max(6, (Math.max(1, members) * 5.6) / (2 * Math.PI) + 3.4);
+export { platformRadius };
 
 const ago = (ts: number) => {
   const s = Math.round((Date.now() - ts) / 1000);
   return s < 90 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)}m ago` : s < 129600 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`;
 };
 
-/** Where things are on the map, and where a builder should and shouldn't build. */
+/** Where things are on the map, and where a builder should and shouldn't build: the same layout the Station
+ *  draws (shared/stationlayout.ts), in the order it draws the teams. */
 function layoutText(agentId?: string): string {
-  const teams = workflows.list();
+  // as the page gets them: teams by name, their members still here; agents pinned first, then by name
+  const teams = workflows
+    .list()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((t) => ({ ...t, members: (Array.isArray(t.members) ? t.members : [...new Set((t.steps || []).filter((x) => x.type === 'agent' && x.agentId).map((x) => x.agentId as string))]).filter((id) => agents.get(id)) }));
+  const all = agents.list().sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.name.localeCompare(b.name));
+  const onTeams = new Set(teams.flatMap((t) => t.members));
+  const benched = all.filter((a) => !onTeams.has(a.id)).map((a) => a.id);
+  const saved = readPlain<{ bench?: { x: number; z: number } | null }>(projectData('layout.json'), {}).bench;
+  const spots = teamSpots(teams, { benchCount: benched.length, hasAgent: (id) => !!agents.get(id) });
+  const bench = benchSpot(benched, saved);
+  const xz = (p: [number, number]) => `(${p[0].toFixed(1)}, ${p[1].toFixed(1)})`;
+  const who = (id: string) => agents.get(id)?.name || id;
   const lines = [
-    'Map: map units, y up, the floor at y = 0. The Brain stands at the middle (0, 0, 0) on a pedestal about 4.5 wide with a beam of light above it: keep 6 map units around it clear.',
-    'Team platforms are round, around the Brain; anchor builds to a team ("team:<id>") so they move when the platform is dragged. On a platform the desks sit in a ring near its edge: build outside the platform (more than its radius from its centre), or under it (y < 0).',
+    'Map: map units, y up, the floor at y = 0; positions below are (x, z) on the ground. The Brain stands at the middle (0, 0) on a pedestal about 4.5 wide with a beam of light above it: keep 6 map units around it clear.',
+    `Team platforms are round, around the Brain, their top at y = 0.5; anchor builds to a team ("team:<id>") so they move when the platform is dragged (positions are then from its centre). The desks sit in a ring near the edge and turn to face the camera, so each takes a circle of ${DESK_REACH} map units around its spot (2 for the lead's), about 2.7 tall: build outside the platform (more than its radius from its centre), or under it (y < 0). A build anchored to "agent:<id>" is measured from that agent's desk.`,
   ];
-  for (const t of teams) {
-    const members = (t.members || []).filter((id) => agents.get(id));
-    lines.push(`- team "${t.name}" (anchor team:${t.id}): platform radius ${platformRadius(members.length).toFixed(1)}, ${members.length} agent${members.length === 1 ? '' : 's'}${agentId && members.includes(agentId) ? ' ← your team' : ''}`);
-  }
-  const mine = agentId ? teams.filter((t) => (t.members || []).includes(agentId)) : [];
-  if (agentId && !mine.length) lines.push('You are not on a team: you sit on the Bench, in front of the Brain. Build where the user or the Brain asks, anchored to "agent:<your id>" for things that belong to you.');
-  else if (mine.length) lines.push(`Your plot: the ring from ${platformRadius((mine[0].members || []).length).toFixed(1)} to ${(platformRadius((mine[0].members || []).length) + 8).toFixed(1)} map units around your team's platform (anchor team:${mine[0].id}). Build there unless asked otherwise.`);
+  teams.forEach((t, i) => {
+    const sp = spots[i];
+    lines.push(`- team "${t.name}" (anchor team:${t.id}): centre ${xz(sp.center)}, platform radius ${sp.radius.toFixed(1)}, ${t.members.length} agent${t.members.length === 1 ? '' : 's'}${agentId && t.members.includes(agentId) ? ' ← your team' : ''}${sp.desks.length ? `; desks: ${sp.desks.map((d) => `${who(d.agentId)}${d.lead ? ' (lead)' : ''} at ${xz(d.at)}`).join(', ')}` : ''}`);
+  });
+  if (bench) lines.push(`- the Bench (agents on no team): centre ${xz(bench.center)}, a slab about ${bench.size[0].toFixed(1)} across and ${bench.size[1].toFixed(1)} deep, turned to face the Brain; desks: ${bench.desks.map((d) => `${who(d.agentId)} at ${xz(d.at)}`).join(', ')}`);
+  const mine = agentId ? spots.find((sp) => sp.desks.some((d) => d.agentId === agentId)) : undefined;
+  if (agentId && !mine) lines.push('You are not on a team: you sit on the Bench, in front of the Brain. Build where the user or the Brain asks, anchored to "agent:<your id>" for things that belong to you.');
+  else if (mine) lines.push(`Your plot: the ring from ${mine.radius.toFixed(1)} to ${(mine.radius + 8).toFixed(1)} map units around your team's platform (anchor team:${mine.id}, centre ${xz(mine.center)}). Build there unless asked otherwise.`);
   return lines.join('\n');
 }
 

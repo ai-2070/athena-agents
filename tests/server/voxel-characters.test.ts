@@ -76,3 +76,16 @@ describe('skins', () => {
     expect(() => setSkin({ by: me, to: 'team', id: 'Nope', fields: { hidden: true } })).toThrow(/no team "Nope"/);
   });
 });
+
+describe('world_info: where the platforms and desks are', () => {
+  it('gives each platform its centre and every desk its spot, as the Station draws them', async () => {
+    const { worldInfo } = await import('../../server/voxel/describe.ts');
+    const { teamSpots } = await import('../../shared/stationlayout.ts');
+    const text = worldInfo({ agentId: mira.id });
+    const [spot] = teamSpots([{ id: team.id, members: [mira.id] }], { benchCount: agents.list().length > 1 ? 1 : 0, hasAgent: () => true });
+    const xz = (p: [number, number]) => `(${p[0].toFixed(1)}, ${p[1].toFixed(1)})`;
+    expect(text).toContain(`- team "Gardeners" (anchor team:${team.id}): centre ${xz(spot.center)}, platform radius ${spot.radius.toFixed(1)}, 1 agent ← your team; desks: Mira at ${xz(spot.desks[0].at)}`);
+    expect(text).toMatch(/each takes a circle of 1.6 map units around its spot/);
+    expect(text).toContain(`centre ${xz(spot.center)}). Build there unless asked otherwise.`);
+  });
+});

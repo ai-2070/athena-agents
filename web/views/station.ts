@@ -10,6 +10,8 @@ import { openBranchBuilder } from '../builder.ts';
 import { openDock, attachToBrain } from '../dock.tsx';
 import { filesFromDrop, filesFromPaste, hasFiles } from '../attach.ts';
 import { currentLook, stationLevel, uiZoom, DEFAULT_LOOK } from '../look.ts';
+import { FIRST, benchSpot, teamSpots } from '../../shared/stationlayout.ts';
+import type { TeamSpot } from '../../shared/stationlayout.ts';
 import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.tsx';
 import { logoUrl, modelUrl, projectMark } from '../projectlogo.ts';
 import { loadModel } from '../modelviewer.ts';
@@ -1282,7 +1284,6 @@ function showBrainLogo(url: string): void {
 
 // ---------- layout ----------
 const STEP_GAP = 8;
-const FIRST = 14;
 
 function rebuild(): void {
   const d = state.data;
@@ -1311,17 +1312,14 @@ function rebuild(): void {
   const wfs = S.workflows;
   const used = new Set(wfs.flatMap((w) => w.steps.filter((s) => s.type === 'agent').map((s) => s.agentId)));
   const bench = d.agents.filter((a) => !used.has(a.id));
-  // Branches spread around the Brain, leaving the front open for the Bench.
-  const n = wfs.length;
-  const gap = bench.length ? 0.9 : 0;
-  // Without a Bench, start on a world axis so branches run diagonally on screen (isometric look).
-  const front = gap ? Math.PI / 4 : 0;
+  // Branches spread around the Brain, leaving the front open for the Bench (shared/stationlayout.ts: world_info tells builders the same).
   let maxR = FIRST;
-  const biggest = Math.max(5, ...wfs.map((w) => podRadius((w.members || []).length)));
-  const dist = Math.max(FIRST + biggest, n > 1 ? (biggest + 2.5) / Math.sin(Math.PI / Math.max(2, n + (gap ? 1 : 0))) : 0);
+  const spots = teamSpots(
+    wfs.map((w) => ({ ...w, members: w.members || [] })),
+    { benchCount: bench.length, hasAgent: (id) => agentsById.has(id) },
+  );
   wfs.forEach((wf, i) => {
-    const ang = front + gap / 2 + (n === 1 ? (Math.PI * 2 - gap) / 2 : (i / Math.max(1, n - (gap ? 1 : 0))) * (Math.PI * 2 - gap));
-    const end = buildBranch(wf, i, typeof wf.angle === 'number' ? wf.angle : ang, agentsById, dist);
+    const end = buildBranch(wf, i, spots[i], agentsById);
     maxR = Math.max(maxR, end);
   });
   if (bench.length) buildBench(bench);
@@ -1356,7 +1354,6 @@ function rebuild(): void {
 // A team is a group chat, so it's drawn as a round pod: the agents sit around a shared chat hub,
 // the lead's desk faces the Brain (★), spokes join every desk to the hub, and handoffs fly
 // desk → hub → desk. Teams can sit anywhere (drag) and spin (Shift+drag); wf.pos / wf.rot keep it.
-const podRadius = (n: number): number => Math.max(6, (Math.max(1, n) * 5.6) / (2 * Math.PI) + 3.4);
 
 /** A team's own picture or 3D model in its hub, in place of the emoji (which stays if it can't be read). */
 function loadTeamMark(wf: TeamView, hub: THREE.Group, mark: THREE.Sprite): void {
@@ -1419,16 +1416,16 @@ const BRANCH_NAME = 'flex items-center gap-1.75 font-mono text-[10.5px] leading-
 const BRAIN_LABEL =
   'flex items-center gap-2 py-1.5 px-2.75 cursor-pointer whitespace-nowrap bg-glass backdrop-blur-[16px] backdrop-saturate-140 border border-accent-dim rounded-box font-mono text-[10.5px] leading-[normal] font-bold tracking-[0.2em] transition-[opacity,box-shadow,border-color] duration-200 ease-[ease] [&.att-target]:border-accent [&.att-target]:text-accent [&.att-target]:shadow-[0_0_0_1px_var(--color-accent),0_0_30px_color-mix(in_srgb,var(--color-accent)_40%,transparent)] group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:shadow-[0_0_0_1px_var(--color-accent),0_0_22px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]';
 
-function buildBranch(wf: TeamView, i: number, ang: number, agentsById: Map<string, Agent>, dist: number): number {
+function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<string, Agent>): number {
   assertMounted(S);
   const color = new THREE.Color(wfColor(wf, i));
   const light = color.clone().lerp(new THREE.Color(0xffffff), 0.4);
   const members = (wf.members || []).filter((id) => agentsById.get(id));
-  const R = podRadius(members.length);
+  const R = spot.radius;
   const pod = new THREE.Group();
-  const home = new THREE.Vector3(Math.cos(ang) * dist, 0, Math.sin(ang) * dist);
-  pod.position.copy(wf.pos && Number.isFinite(wf.pos.x) && Number.isFinite(wf.pos.z) ? new THREE.Vector3(wf.pos.x, 0, wf.pos.z) : home);
-  const spin = typeof wf.rot === 'number' ? wf.rot : 0;
+  const home = new THREE.Vector3(spot.home[0], 0, spot.home[1]);
+  pod.position.set(spot.center[0], 0, spot.center[1]);
+  const spin = spot.spin;
   pod.rotation.y = -spin;
   S.world!.add(pod);
   pod.updateMatrixWorld(true);
@@ -1486,17 +1483,14 @@ function buildBranch(wf: TeamView, i: number, ang: number, agentsById: Map<strin
   pod.add(hub);
   const HUB = new THREE.Vector3(0, 1.7, 0);
 
-  // where the Brain is, seen from the pod: the lead sits on that side
+  // where the Brain is, seen from the pod (the lead's desk is on that side: spot.desks are in that order)
   const toBrain = pod.worldToLocal(new THREE.Vector3(0, 0, 0)).setY(0);
-  const baseAng = toBrain.lengthSq() > 0.01 ? Math.atan2(toBrain.z, toBrain.x) : 0;
-  const order = wf.lead && members.includes(wf.lead) ? [wf.lead, ...members.filter((id) => id !== wf.lead)] : members;
   const rails: Rail[] = [{ material: track.material, base: 0.35 }];
   const branchNodes: PodNode[] = [];
   const branchLinks = new Set<string>();
-  order.forEach((agentId, k) => {
+  spot.desks.forEach(({ agentId, local }, k) => {
     const agent = agentsById.get(agentId)!;
-    const a = baseAng + (k / Math.max(1, order.length)) * Math.PI * 2;
-    const pos = new THREE.Vector3(Math.cos(a) * (R - 1.55), 0, Math.sin(a) * (R - 1.55));
+    const pos = new THREE.Vector3(local[0], 0, local[1]);
     const isLead = wf.lead === agentId;
     const step: TeamStep = { type: 'agent', agentId };
     const links = stepLinks(step, agentsById, wf);
@@ -1615,17 +1609,14 @@ function pulseToDesk(teamId: string, agentId: string, count = 4): void {
 function buildBench(agents: Agent[]): void {
   assertMounted(S);
   const dir = new THREE.Vector3(Math.cos(Math.PI / 4), 0, Math.sin(Math.PI / 4));
-  const right = new THREE.Vector3(-dir.z, 0, dir.x);
-  const cols = Math.min(4, agents.length);
   const rows = Math.ceil(agents.length / 4);
   // its saved spot, or in front of the Brain
-  const saved = S.layout?.bench;
-  const center = saved && Number.isFinite(saved.x) ? new THREE.Vector3(saved.x, 0, saved.z) : dir.clone().multiplyScalar(11 + rows * 1.6);
+  const spot = benchSpot(agents.map((a) => a.id), S.layout?.bench)!;
+  const center = new THREE.Vector3(spot.center[0], 0, spot.center[1]);
   const bench = new THREE.Group();
   bench.position.copy(center);
   S.world!.add(bench);
-  const w = cols * 3.4 + 1.2;
-  const dd = rows * 3.2 + 1.2;
+  const [w, dd] = spot.size;
   const slabG = new THREE.Group();
   slabG.rotation.y = -Math.PI / 4;
   const slab = new THREE.Mesh(new THREE.BoxGeometry(dd, 0.4, w), new THREE.MeshStandardMaterial({ color: 0x1b1f1b, roughness: 0.8, emissive: 0x2a3028, emissiveIntensity: 0.3 }));
@@ -1637,10 +1628,8 @@ function buildBench(agents: Agent[]): void {
   slabG.traverse((o) => (o.userData.pick = { type: 'bench' }));
   bench.add(slabG);
   agents.forEach((ag, j) => {
-    const cx = (j % 4) - (cols - 1) / 2;
-    const cz = Math.floor(j / 4) - (rows - 1) / 2;
     const desk = makeDesk(ag, ag.color || '#6b7066', 0);
-    desk.group.position.copy(new THREE.Vector3()).addScaledVector(right, cx * 3.4).addScaledVector(dir, cz * 3.2).setY(0.4);
+    desk.group.position.set(spot.desks[j].local[0], 0.4, spot.desks[j].local[1]);
     desk.group.traverse((o) => (o.userData.pick = { type: 'agent', id: ag.id }));
     bench.add(desk.group);
     S!.desks.push(desk);

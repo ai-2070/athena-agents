@@ -6,7 +6,7 @@ import { VERBS, BuildError } from './ops.ts';
 import { build, changeObject, findObject, findPrefab, ownsObject, undo } from './build.ts';
 import { setEffect, setEnvironment, setLight, EFFECT_KINDS } from './scene.ts';
 import { playAnimation, setAnimation, setSkin, skinTarget } from './characters.ts';
-import { activeProject, workflows } from '../store.ts';
+import { activeProject, getSettings, workflows } from '../store.ts';
 import { requestLook } from './look.ts';
 import { exportFiles, importVox, writeFiles, writePicture } from './exchange.ts';
 import { objectMap } from './describe.ts';
@@ -349,9 +349,15 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
           }
           return { text: `${cap(label)} in "${w.name}" (${w.environment.preset}${view.azimuth !== undefined ? `, from ${view.azimuth}°` : ''}).${saved}`, images: [r.image] };
         }
-        // no picture: the next best thing
-        const words = target === 'object' || target === 'prefab' ? objectMap(w, id!) : 'Ask the user to open the Station with Settings › Look › Station on "Voxel world" to get pictures.';
-        return { text: `No picture: no open Station in the voxel look answered. ${target === 'object' || target === 'prefab' ? 'Here is a map from above instead.\n' : ''}${words}` };
+        // no picture: why, so the user can be asked for the right thing, and the next best thing
+        const why =
+          getSettings().look.stationLook !== 'world'
+            ? 'the Station is in the classic look, which doesn\'t draw the voxel world. Ask the user to turn on Settings › Look › Station look › Voxel world.'
+            : r.note === 'no page is open'
+              ? 'the dashboard isn\'t open in any window. Ask the user to open the Station.'
+              : `no open Station could draw it (${r.note || 'no answer'}). Ask the user to open the Station with this project open.`;
+        const map = target === 'object' || target === 'prefab' ? `\nHere is a map from above instead.\n${objectMap(w, id!)}` : '\nworld_info has where everything stands in the meantime.';
+        return { text: `No picture: ${why}${map}` };
       },
     },
     {
