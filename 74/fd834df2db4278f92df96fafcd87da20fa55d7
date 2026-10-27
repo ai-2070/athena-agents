@@ -1,0 +1,60 @@
+shared/types.ts
+  s_1983b7e258a066::t_24d749a47d2465 617-618,831-845
+server/overseer.ts
+  s_1983b7e258a066::t_3362d97e44d847 330,1095
+  s_1983b7e258a066::t_a7a13eed45bc1f 1456
+  s_1983b7e258a066::t_c496923c62eea6 1090,1092-1094,1099,1295,1457
+  s_1983b7e258a066::t_cc5850e8376674 10,117-120,315,318-328,448,478-479,495,757-759,1058-1068,1088-1089,1091,1096,1098,1209,1217-1223,1225,1233-1235,1253-1255,1294
+tests/web/mcpcopies.test.ts
+  s_1983b7e258a066::t_ade82f7a05e080 1-29
+README.md
+  s_1983b7e258a066::t_e4441c8d2e83c7 59,65-66
+server/engines/index.ts
+  s_1983b7e258a066::t_2748515f7ddc30 10
+  s_1983b7e258a066::t_eab19d40eb1f6c 204,614-615
+web/views/mcp.tsx
+  s_1983b7e258a066::t_800730aacc3039 7,22-27,29-30,50-51,91-93,95-97,112,157-164,240-243,252,254,259-263,265-266,288,290-291,345-357,369-417
+web/builder.ts
+  s_1983b7e258a066::t_d434a7fd828fde 5,115
+web/views/agents.tsx
+  s_1983b7e258a066::t_d434a7fd828fde 12-13,37,123-124,137,146,287-288
+tests/server/brain-mcp.test.ts
+  s_1983b7e258a066::t_3f18d380518bfd 17-18,22,359-411
+tests/web/mcp.test.tsx
+  s_1983b7e258a066::t_ade82f7a05e080 15-16,26,32,159-208
+server/mcp.ts
+  s_1983b7e258a066::t_24d749a47d2465 541,933-937
+  s_1983b7e258a066::t_3c9ef1065c307a 11,23-28,42-44,47-55,210-218,482-483,526-534,537,570-572,582-584,599-715
+server/engines/openai.ts
+  s_1983b7e258a066::t_2748515f7ddc30 154,156-157,163
+server/brain.ts
+  s_1983b7e258a066::t_cc5850e8376674 6,343,358
+web/mcpcopies.ts
+  s_1983b7e258a066::t_91068d67553caa 1-30
+server/tools.ts
+  s_1983b7e258a066::t_64f040e334cb23 15,1038-1039,1042
+tests/server/mcp-copies.test.ts
+  s_1983b7e258a066::t_07e631a5a873f4 1-120
+web/views/stationpanel.tsx
+  s_1983b7e258a066::t_d434a7fd828fde 20,826-827
+server/index.ts
+  s_1983b7e258a066::t_819a75b6d38372 133,684,692-693,695-697,911-912
+docs/guide.md
+  s_1983b7e258a066::t_e4441c8d2e83c7 131,134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "74fd834df2db4278f92df96fafcd87da20fa55d7",
+  "prompts": {},
+  "sessions": {
+    "s_1983b7e258a066": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afa9676a-d9c8-41e3-9e9a-50ddf8309d9c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
