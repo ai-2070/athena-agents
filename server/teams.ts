@@ -16,8 +16,10 @@ import { soleHolder, servicesOf } from './services.ts';
 import type { Agent, LoopInfo, QueuedMessage, Team, TeamMessage, TeamRef, TeamRelay, TeamState } from '../shared/types.ts';
 import type { LoopRequest } from '../shared/commands.ts';
 
-const MAX_TURNS = 16; // agent turns per message you send
-const MAX_PER_AGENT = 5; // turns per agent per message you send
+// No limit on turns, so long work keeps going. What pauses a team is chatter: this many turns in a row
+// where agents only talk (no tool used, a short reply), like two agents thanking each other forever.
+export const MAX_CHATTER = 8;
+const CHATTER_CHARS = 600; // a reply this long is work in itself (a draft, a plan), even without tools
 const CONTEXT_CHARS = 9000; // new group messages handed to an agent per turn
 const KEEP_MESSAGES = 500;
 const MAX_BRAIN_REPLIES = 4; // times the Brain answers @Brain per message you send
@@ -57,7 +59,7 @@ interface QueueItem {
 interface Runtime {
   queue: QueueItem[];
   running: Set<string>;
-  episode: { turns: number; per: Record<string, number>; brain?: number; relays?: number };
+  episode: { turns: number; chatter?: number; brain?: number; relays?: number };
   stopped?: boolean;
   epoch: number; // bumped by stop and clear: turns started before then are dropped
   /** your /queue messages, posted one by one once nobody is working; heldIn: the project they were typed in */
@@ -145,9 +147,9 @@ function saveChat(teamId: string, c: TeamChat, pid?: string) {
 }
 
 // ---------- who is working ----------
-const rt = new Map<string, Runtime>(); // teamId -> { queue: [{agentId, msgIds}], running: Set, episode: {turns, per}, stopped }
+const rt = new Map<string, Runtime>(); // teamId -> { queue: [{agentId, msgIds}], running: Set, episode: {turns}, stopped }
 function runtime(teamId: string): Runtime {
-  if (!rt.has(teamId)) rt.set(teamId, { queue: [], running: new Set(), episode: { turns: 0, per: {} }, epoch: 0, held: [] });
+  if (!rt.has(teamId)) rt.set(teamId, { queue: [], running: new Set(), episode: { turns: 0 }, epoch: 0, held: [] });
   return rt.get(teamId)!;
 }
 
@@ -223,7 +225,7 @@ async function postAndRoute(teamId: string, from: string, text: string | null | 
   const mentions = parseMentions(team, text);
   const msg = post(team, { from, text, mentions, replyTo, ...(attachments.length ? { attachments } : {}), ...(relay ? { relay } : {}) });
   const r = runtime(team.id);
-  r.episode = { turns: 0, per: {} }; // a new message from you gives the team a fresh budget
+  r.episode = { turns: 0 }; // a new message from you gives the team a fresh budget
   r.stopped = false;
   r.interrupted = undefined; // (new work: what was cut off before is not picked up again)
   // you asked the Brain: it answers in the thread, and nobody else starts unless you named them
@@ -490,18 +492,16 @@ function pump(teamId: string) {
     r.queue.splice(r.queue.indexOf(item), 1);
     const team = getTeam(teamId);
     if (!team || !team.members.includes(item.agentId)) continue;
-    // budget: stop runaway back-and-forth
-    const per = r.episode.per[item.agentId] || 0;
-    if (r.episode.turns >= MAX_TURNS || per >= MAX_PER_AGENT) {
+    // stop runaway back-and-forth: agents handing it around without doing anything
+    if ((r.episode.chatter || 0) >= MAX_CHATTER) {
       // (/resume picks these up again, with a fresh budget)
       r.interrupted = [item, ...r.queue];
       r.queue = [];
-      post(team, { from: 'system', text: `Paused: the team took ${r.episode.turns} turns on this. Reply to keep going, or mention someone to continue.` });
+      post(team, { from: 'system', text: `Paused: the last ${r.episode.chatter} replies were only talk, with no work done. Reply to keep going, or mention someone to continue.` });
       state(team);
       return;
     }
     r.episode.turns++;
-    r.episode.per[item.agentId] = per + 1;
     r.running.add(item.agentId);
     (r.current ||= new Map()).set(item.agentId, item);
     state(team);
@@ -616,6 +616,8 @@ async function runTurn(team: Team, item: QueueItem) {
   const mentions = parseMentions(team, text, agent.id);
   const to = chats.get(agent.id, chatId)?.items.length ?? from;
   const msg = post(team, { from: agent.id, text: text || '(no answer)', mentions, ...(to > from ? { turn: { chatId, from, to } } : {}) });
+  const worked = text.length >= CHATTER_CHARS || (chats.get(agent.id, chatId)?.items.slice(from, to) || []).some((i) => i.type === 'tool');
+  r.episode.chatter = worked ? 0 : (r.episode.chatter || 0) + 1;
   const c2 = loadChat(team.id);
   c2.seen[agent.id] = c2.messages.length;
   saveChat(team.id, c2);
@@ -699,7 +701,7 @@ export function resumeTeam(teamId: string): number {
   r.interrupted = undefined;
   if (!items.length) return 0;
   r.stopped = false;
-  r.episode = { turns: 0, per: {} };
+  r.episode = { turns: 0 };
   for (const it of items) {
     const existing = r.queue.find((q) => q.agentId === it.agentId);
     if (existing) existing.msgIds = [...new Set([...existing.msgIds, ...it.msgIds])];
@@ -844,7 +846,7 @@ export function clearThread(teamId: string) {
   r.held = [];
   r.interrupted = undefined;
   stopTeamLoop(teamId, null);
-  r.episode = { turns: 0, per: {} };
+  r.episode = { turns: 0 };
   stopChildren(`team:${teamId}`);
   dropRelays(teamId, { cleared: true });
   const c = loadChat(teamId);
