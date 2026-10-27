@@ -1,0 +1,67 @@
+web/voxel/environment.ts
+  s_136c51292e1494::t_a3dc5c6e0ed00a 4
+  s_136c51292e1494::t_1707eb41cbecd5 1-3,5-11,13-21,23-31,33-41,43-51,53-61,63-71,73-87
+  s_136c51292e1494::t_45277ea1d5b935 12,22,32,42,52,62,72
+web/views/look.tsx
+  s_136c51292e1494::t_14d64f36fc5e8c 108-141
+tests/server/voxel-grid.test.ts
+  s_136c51292e1494::t_b6d3277593d6c5 41
+  s_136c51292e1494::t_f4e6fb30b28297 1-40,42-76
+docs/internal/plans/VOXEL_WORLD_PLAN.md
+  s_136c51292e1494::t_9aa46518d74d77 522,527-555
+  s_136c51292e1494::t_f43c2d7df4de82 556
+web/views/station.ts
+  s_136c51292e1494::t_63ea69051c8dfe 1001
+  s_136c51292e1494::t_51a88e887be6ca 11,28,373-377,735-736,743,749-751,785,805,808,903-904,922,1205,1983-1984
+  s_136c51292e1494::t_0acc22f6e912b0 29,378-380,953,956,985-986,989-991
+  s_136c51292e1494::t_afba8fb1dd58c9 422-425,840-844,951-952,954-955,957-984,987-988,992-1000,1002-1004
+  s_136c51292e1494::t_711042ed0632a3 1005
+web/voxel/bench.ts
+  s_136c51292e1494::t_c050d6f09c998c 1-141
+AGENTS.md
+  s_136c51292e1494::t_9aa46518d74d77 49
+web/voxel/view.ts
+  s_136c51292e1494::t_92c3efe856ee96 114
+  s_136c51292e1494::t_6892a2b5260fe2 1-93,96-113,115-226,230-231,237-255
+  s_136c51292e1494::t_63ea69051c8dfe 94-95,227-229,232-236
+shared/types.ts
+  s_136c51292e1494::t_144c60c38f2de9 521-524,526-527,864-901
+shared/voxel.ts
+  s_136c51292e1494::t_b6d3277593d6c5 104
+  s_136c51292e1494::t_aa33df6c65790c 1-103,105-160
+tests/web/settings-page.test.tsx
+  s_136c51292e1494::t_144c60c38f2de9 144,161
+  s_136c51292e1494::t_f4e6fb30b28297 166-182
+web/look.ts
+  s_136c51292e1494::t_144c60c38f2de9 21
+tests/web/voxel-mesher.test.ts
+  s_136c51292e1494::t_f4e6fb30b28297 1-133
+server/store.ts
+  s_136c51292e1494::t_144c60c38f2de9 45
+web/voxel/mesher.ts
+  s_136c51292e1494::t_6800f3ec67edb7 5
+  s_136c51292e1494::t_b04792f34b0d65 94-112
+  s_136c51292e1494::t_46054fab194495 1-4,6-93,113-193
+web/voxel/post.ts
+  s_136c51292e1494::t_cc8c6436b26c64 79-80,94-97,99,120,137
+  s_136c51292e1494::t_9c3f90ec88947f 1-54,81-93,98,100-104,106-119,121-136,138-154
+  s_136c51292e1494::t_92c3efe856ee96 55-78,105
+README.md
+  s_136c51292e1494::t_9aa46518d74d77 149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85703305dad06204df81d56ef7eea1563d850294",
+  "prompts": {},
+  "sessions": {
+    "s_136c51292e1494": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12e98825-3deb-40d4-899a-410e97df98f4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
