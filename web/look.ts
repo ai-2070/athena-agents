@@ -21,7 +21,7 @@ export const ACCENTS: Accent[] = [
   { id: 'violet', label: 'Violet', c: '#b69cff', hover: '#cbb8ff', dim: '#6f5fa3', on: '#0c0814' },
   { id: 'mint', label: 'Mint', c: '#5fe3c0', hover: '#89ecd2', dim: '#3a8c77', on: '#04110d' },
 ];
-export const DEFAULT_LOOK: LookSetting = { scale: 100, accent: 'lime', motion: 'full', chatFont: 'serif', station: 'balanced' };
+export const DEFAULT_LOOK: LookSetting = { scale: 100, accent: 'lime', motion: 'full', chatFont: 'serif', station: 'balanced', sidebar: 'status' };
 let current: LookSetting = DEFAULT_LOOK;
 /** The look in use now (the Station reads its quality from here every frame). */
 export const currentLook = (): LookSetting => current;

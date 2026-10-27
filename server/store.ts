@@ -42,7 +42,7 @@ const DEFAULT_SETTINGS: Settings = {
   brainSkills: ['self-improvement'],
   brainAnyGitHub: false,
   brainFollowsUp: true,
-  look: { scale: 100, accent: 'lime', motion: 'full', chatFont: 'serif', station: 'balanced' },
+  look: { scale: 100, accent: 'lime', motion: 'full', chatFont: 'serif', station: 'balanced', sidebar: 'status' },
   telegram: { chatId: '' },
   maxToolSteps: 16,
   costLimitUsdPerRun: 2,

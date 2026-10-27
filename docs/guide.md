@@ -177,6 +177,12 @@ The amount retained scales with the context window. Set **Context window** if a 
 
 Very long chats still scroll smoothly: from 50 messages on, the chat page and the floating window only draw the messages near what you see, so the floating window can show the whole chat too. Because of this, your browser's Find (Ctrl+F) only finds text in the messages near where you have scrolled.
 
+## Your Claude and Codex usage limits
+
+- **See them in the sidebar.** Click **Limits** above the list at the bottom of the menu (or pick **Usage limits** under **Settings → Look → Sidebar**). In place of what's set up, it shows how much of your Claude and Codex plans you have used in each window (5 hours, the week) and when each starts again. It reads them again every minute. **Status** brings the list back.
+- **Free Codex resets.** When OpenAI has given your Codex account free limit resets, the sidebar says how many you have and when the next one runs out. **Reset now** asks first, then uses the one that runs out first and sets your Codex limits back to 0%. If you haven't used any of your limit yet, Codex keeps the reset.
+- **Where the numbers come from.** Claude's come from Anthropic with your Claude Code login; Codex's from the Codex program on this PC (`codex app-server`) with your Codex login. Nothing else is sent anywhere.
+
 ## Approvals and safety
 
 ### Choose how much agents may do
