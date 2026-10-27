@@ -151,13 +151,16 @@ const safeName = (s: string): string => s.replace(/[^a-zA-Z0-9_-]/g, '_').slice(
 async function gatherTools(agent: Agent, onEvent: (ev: RunEvent) => void): Promise<{ defs: ToolDef[]; route: Map<string, ToolRoute> }> {
   const defs: ToolDef[] = toolDefs(agent).map((t): ToolDef => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
   const route = new Map<string, ToolRoute>(defs.map((d): [string, ToolRoute] => [d.function.name, { kind: 'builtin', name: d.function.name }]));
+  const servers = mcp.listServers();
   for (const server of agent.mcpServers || []) {
+    // a copy of a service (one account of several) is named by its label: "[OOMOL: Work] Send an email"
+    const shown = mcp.accountOfTool(`${server}__`, servers) || server;
     try {
       const tools = await mcp.listTools(server);
       for (const t of tools) {
         const name = safeName(`${server}__${t.name}`);
         route.set(name, { kind: 'mcp', server, name: t.name });
-        defs.push({ type: 'function', function: { name, description: `[${server}] ${t.description || ''}`.slice(0, 1000), parameters: t.inputSchema || { type: 'object', properties: {} } } });
+        defs.push({ type: 'function', function: { name, description: `[${shown}] ${t.description || ''}`.slice(0, 1000), parameters: t.inputSchema || { type: 'object', properties: {} } } });
       }
     } catch (e) {
       onEvent({ kind: 'status', text: `MCP server ${server} unavailable: ${(e as Error).message}` });

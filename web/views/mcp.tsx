@@ -4,7 +4,7 @@ import { GET, POST, DEL, attempt, confirmBox, copy, refreshSoon } from '../core.
 import { Field, Segmented } from '../ui/controls.tsx';
 import { openModal } from '../ui/overlays.tsx';
 import { reactPage } from '../ui/react.tsx';
-import type { McpSuggestion, ToolGroup } from '../../shared/types.ts';
+import type { McpServerInfo, McpSuggestion, ToolGroup } from '../../shared/types.ts';
 
 // why a server is suggested ("on this PC" gets the accent and a dot); mcp-why stays for the tests
 const WHY = 'mcp-why font-mono text-[11px] leading-[1.4] font-medium';
@@ -19,9 +19,15 @@ interface McpServerConfig {
   headers: Record<string, string>;
   description?: string;
   enabled?: boolean;
+  /** a copy's own name ("Work"), when a service is added more than once */
+  label?: string;
+  /** the service it is another account of */
+  kind?: string;
+  /** when to pick this copy over the service's other ones */
+  useFor?: string;
 }
-/** A preset as GET /api/mcp lists it: whether its command is on this PC and whether it is added. */
-type McpPresetListing = { name: string; title: string; description: string; ready: boolean; installed: boolean } & (
+/** A preset as GET /api/mcp lists it: whether its command is on this PC and whether it is added (and as which servers). */
+type McpPresetListing = { name: string; title: string; description: string; ready: boolean; installed: boolean; copies?: string[] } & (
   | { type: 'stdio'; command: string; args: string[]; env?: Record<string, string> }
   | { type: 'http'; url: string; headers: Record<string, string>; command?: undefined }
 );
@@ -41,6 +47,8 @@ interface ImportableServer {
 /** GET /api/mcp */
 interface McpData {
   servers: Record<string, McpServerConfig>;
+  /** each server's label, service and "use for" (an older server leaves it out) */
+  info?: Record<string, McpServerInfo>;
   presets: McpPresetListing[];
   /** ready-made ones that fit this PC and aren't added (a program they drive is installed, or a basic one) */
   suggested?: McpSuggestion[];
@@ -80,8 +88,13 @@ export function McpTab() {
   // (an older server sends no suggestions)
   const suggested = data.suggested || [];
   const bridgeJson = JSON.stringify({ mcpServers: { dashboard: data.bridge } }, null, 2);
+  const info = data.info || {};
+  // the services a server can be another account of: the ready-made ones and the ones added by hand
+  const services = [...new Map([...data.presets.map((p) => [p.name, shortTitle(p.title)] as const), ...Object.values(info).map((i) => [i.kind, i.service] as const)]).entries()];
   const edit = (name?: string, cfg?: McpServerConfig) =>
-    openModal(name ? `Edit ${name}` : 'Add MCP server', (close) => <ServerForm name={name} cfg={cfg} close={close} saved={() => (void reload(), refreshSoon())} />);
+    openModal(name ? `Edit ${info[name]?.title || name}` : 'Add MCP server', (close) => <ServerForm name={name} cfg={cfg} kind={name ? info[name]?.kind : undefined} services={services} close={close} saved={() => (void reload(), refreshSoon())} />);
+  const addAnother = (p: McpPresetListing) =>
+    openModal(`Add another ${shortTitle(p.title)} account`, (close) => <CopyForm preset={p} servers={data.servers} close={close} saved={() => (void reload(), refreshSoon())} />);
 
   return (
     <>
@@ -96,7 +109,7 @@ export function McpTab() {
         {servers.length ? (
           <div className="list">
             {servers.map(([name, cfg]) => (
-              <ServerRow key={name} name={name} cfg={cfg} onEdit={() => edit(name, cfg)} reload={reload} />
+              <ServerRow key={name} name={name} cfg={cfg} info={info[name]} onEdit={() => edit(name, cfg)} reload={reload} />
             ))}
           </div>
         ) : (
@@ -141,7 +154,14 @@ export function McpTab() {
               <div className="card-sub">{p.description}</div>
               <div className="hint font-mono text-[11.5px] wrap-anywhere">{p.type === 'stdio' ? `${p.command} ${p.args.join(' ')}` : p.url}</div>
               <div className="card-foot">
-                {p.installed ? <span className="pill ok">added</span> : <button className="btn small" onClick={() => void attempt(() => POST('/mcp-preset', { name: p.name }), `Added ${p.title}`).then(reload)}>Add</button>}
+                {p.installed ? (
+                  <>
+                    <span className="pill ok">{(p.copies?.length || 1) > 1 ? `${p.copies!.length} added` : 'added'}</span>
+                    <button className="btn small ghost" title="Another account of the same service, with its own label and keys" onClick={() => addAnother(p)}>Add another</button>
+                  </>
+                ) : (
+                  <button className="btn small" onClick={() => void attempt(() => POST('/mcp-preset', { name: p.name }), `Added ${p.title}`).then(reload)}>Add</button>
+                )}
                 {!p.ready ? <span className="pill warn">{`needs ${p.command}`}</span> : null}
                 {!p.installed && needsKey(p) ? <span className="pill info" title="After adding, put your key in the settings of the added server below">needs your key</span> : null}
               </div>
@@ -217,7 +237,10 @@ export function McpTab() {
   );
 }
 
-function ServerRow({ name, cfg, onEdit, reload }: { name: string; cfg: McpServerConfig; onEdit: () => void; reload: () => Promise<unknown> }) {
+/** A ready-made server's title without "(remote)" and the like: "OOMOL". */
+const shortTitle = (t: string) => t.replace(/\s*\((remote|live|live editor)\)$/i, '');
+
+function ServerRow({ name, cfg, info, onEdit, reload }: { name: string; cfg: McpServerConfig; info?: McpServerInfo; onEdit: () => void; reload: () => Promise<unknown> }) {
   // the last test: running, its tools, or that it did not start
   const [test, setTest] = useState<'running' | 'failed' | string[] | null>(null);
   const run = async () => {
@@ -226,15 +249,21 @@ function ServerRow({ name, cfg, onEdit, reload }: { name: string; cfg: McpServer
     setTest(r ? r.tools.map((t) => t.name) : 'failed');
   };
   const remove = async () => {
-    if (await confirmBox(`Remove ${name}?`, { ok: 'Remove', danger: true })) await attempt(() => DEL(`/mcp/${encodeURIComponent(name)}`)).then(reload);
+    if (await confirmBox(`Remove ${info?.title || name}?`, { ok: 'Remove', danger: true })) await attempt(() => DEL(`/mcp/${encodeURIComponent(name)}`)).then(reload);
   };
+  const copies = (info?.copies || 1) > 1;
   return (
     <div className="mcp-server border-b border-line py-2.5">
       <div className="flex flex-wrap items-center gap-2.5">
         <div className="min-w-0 flex-1">
-          <div className="title">{name}</div>
+          <div className="title flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+            {info?.title || name}
+            {info && info.title !== name ? <span className="hint font-mono text-[11px]">{name}</span> : null}
+            {copies ? <span className="pill info" title={`${info!.service} is added ${info!.copies} times, one per account`}>{`${info!.service} account`}</span> : null}
+          </div>
           <div className="hint font-mono text-[11.5px] wrap-anywhere">{cfg.type === 'stdio' ? `${cfg.command} ${(cfg.args || []).join(' ')}` : cfg.url}</div>
-          {cfg.description ? <div className="hint">{cfg.description}</div> : null}
+          {cfg.useFor ? <div className="hint mcp-use-for">{`Use for: ${cfg.useFor}`}</div> : copies ? <div className="hint mcp-use-for text-amber">{`No "use for" yet: an agent with several ${info!.service} accounts can't tell this one apart. Edit it to say what it is for.`}</div> : null}
+          {cfg.description && !copies ? <div className="hint">{cfg.description}</div> : null}
         </div>
         <button className="btn tiny ghost" disabled={test === 'running'} onClick={() => void run()}>Test</button>
         <button className="btn tiny ghost" onClick={onEdit}>Edit</button>
@@ -256,9 +285,10 @@ function ServerRow({ name, cfg, onEdit, reload }: { name: string; cfg: McpServer
 
 const BLANK: McpServerConfig = { type: 'stdio', command: 'npx', args: [], env: {}, url: '', headers: {} };
 
-function ServerForm({ name = '', cfg = BLANK, close, saved }: { name?: string; cfg?: McpServerConfig; close: () => void; saved: () => void }) {
+function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved }: { name?: string; cfg?: McpServerConfig; kind?: string; services?: (readonly [string, string])[]; close: () => void; saved: () => void }) {
   const [newName, setNewName] = useState(name);
-  const [c, setC] = useState<McpServerConfig>(() => structuredClone(cfg));
+  // the service it is, as the server worked it out ('' = its own)
+  const [c, setC] = useState<McpServerConfig>(() => ({ ...structuredClone(cfg), kind: cfg.kind || (kind && kind !== name ? kind : '') }));
   // the text boxes as typed (turned into lists and maps when saved)
   const [args, setArgs] = useState((cfg.args || []).join(' '));
   const [env, setEnv] = useState(Object.entries(cfg.env || {}).map(([k, v]) => `${k}=${v}`).join('\n'));
@@ -312,12 +342,74 @@ function ServerForm({ name = '', cfg = BLANK, close, saved }: { name?: string; c
             <Field label="Description">
               <input value={c.description || ''} onChange={(e) => setC({ ...c, description: e.target.value })} />
             </Field>
+            <Field label="Same service as" hint="Pick one when this is another account of a service you already have (a second OOMOL or Gmail), so agents and the Brain treat them as accounts of one service.">
+              <select value={c.kind || ''} onChange={(e) => setC({ ...c, kind: e.target.value })}>
+                <option value="">Its own service</option>
+                {services
+                  .filter(([k]) => k !== (name || newName))
+                  .map(([k, t]) => (
+                    <option key={k} value={k}>
+                      {t}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+            <CopyFields label={c.label || ''} useFor={c.useFor || ''} onChange={(v) => setC({ ...c, ...v })} />
           </div>
         </div>
       </div>
       <div className="modal-foot">
         <button className="btn ghost" onClick={close}>Cancel</button>
         <button className="btn" onClick={() => void save()}>Save</button>
+      </div>
+    </>
+  );
+}
+
+/** A copy's label and when to use it: how agents and the Brain tell the accounts of one service apart. */
+function CopyFields({ label, useFor, onChange }: { label: string; useFor: string; onChange: (v: { label?: string; useFor?: string }) => void }) {
+  return (
+    <>
+      <Field label="Label">
+        <input value={label} placeholder="e.g. Work, Personal, Client A" onChange={(e) => onChange({ label: e.target.value })} />
+      </Field>
+      <Field label="Use this one for" hint="Agents and the Brain pick between accounts of one service by this line.">
+        <textarea rows={2} value={useFor} placeholder="e.g. Work email and calendar for acme.com: clients, sales, anything sent as the company" onChange={(e) => onChange({ useFor: e.target.value })} />
+      </Field>
+    </>
+  );
+}
+
+/** Another account of a ready-made server: its label and "use for", and those of the ones already added. */
+function CopyForm({ preset, servers, close, saved }: { preset: McpPresetListing; servers: Record<string, McpServerConfig>; close: () => void; saved: () => void }) {
+  const copies = (preset.copies || []).filter((n) => servers[n]);
+  const [mine, setMine] = useState({ label: '', useFor: '' });
+  const [others, setOthers] = useState<Record<string, { label: string; useFor: string }>>(() => Object.fromEntries(copies.map((n) => [n, { label: servers[n].label || '', useFor: servers[n].useFor || '' }])));
+  const save = async () => {
+    const r = await attempt(() => POST<{ name: string }>('/mcp-preset', { name: preset.name, ...mine, others }), (r) => `Added ${r.name}${needsKey(preset) ? '. Put its own key in it: Edit it above.' : ''}`);
+    if (r) {
+      close();
+      saved();
+    }
+  };
+  return (
+    <>
+      <div className="modal-body">
+        <div className="flex flex-col gap-2.5">
+          <p className="hint">{`A second ${shortTitle(preset.title)} with its own keys, for another account. Give each one a label and say what it is for: an agent or team can have one account or several, and picks by these lines.`}</p>
+          <div className="label">The new one</div>
+          <CopyFields label={mine.label} useFor={mine.useFor} onChange={(v) => setMine({ ...mine, ...v })} />
+          {copies.map((n) => (
+            <div key={n} className="flex flex-col gap-2.5">
+              <div className="label mt-3.5">{`The one you have: ${n}`}</div>
+              <CopyFields label={others[n].label} useFor={others[n].useFor} onChange={(v) => setOthers({ ...others, [n]: { ...others[n], ...v } })} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="modal-foot">
+        <button className="btn ghost" onClick={close}>Cancel</button>
+        <button className="btn" disabled={!mine.label.trim()} onClick={() => void save()}>Add</button>
       </div>
     </>
   );

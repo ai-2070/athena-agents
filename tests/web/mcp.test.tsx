@@ -12,6 +12,8 @@ const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
 let servers: Record<string, unknown>;
 // GET /api/mcp "suggested" (left out, like an older server sends it, unless a test sets it)
 let suggested: unknown[] | undefined;
+// more of GET /api/mcp (presets, info) for a test that needs it
+let mcpMore: Record<string, unknown>;
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
 
@@ -21,12 +23,13 @@ beforeEach(() => {
   servers = { playwright: { type: 'stdio', command: 'npx', args: ['-y', '@playwright/mcp'], env: {}, url: '', headers: {} } };
   requests = [];
   suggested = undefined;
+  mcpMore = {};
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method || 'GET';
     const body = init.body ? JSON.parse(String(init.body)) : null;
     requests.push({ method, url, body });
     const json = (v: unknown) => new Response(JSON.stringify(v));
-    if (url === '/api/mcp' && method === 'GET') return json({ servers, presets: [{ name: 'github', title: 'GitHub', description: 'Repos', ready: true, installed: false, type: 'stdio', command: 'npx', args: ['gh'], env: { TOKEN: 'YOUR_TOKEN' } }], ...(suggested ? { suggested } : {}), importable: [], bridge: { command: 'bun', args: ['bridge.js'], env: {} } });
+    if (url === '/api/mcp' && method === 'GET') return json({ servers, presets: [{ name: 'github', title: 'GitHub', description: 'Repos', ready: true, installed: false, type: 'stdio', command: 'npx', args: ['gh'], env: { TOKEN: 'YOUR_TOKEN' } }], ...(suggested ? { suggested } : {}), importable: [], bridge: { command: 'bun', args: ['bridge.js'], env: {} }, ...mcpMore });
     if (url === '/api/tools') return json({ groups: [{ id: 'files', label: 'Files', description: 'Read and write' }], tools: [{ name: 'read_file', group: 'files', risk: 'none', description: 'Reads' }, { name: 'shell', group: 'files', risk: 'high', description: 'Runs' }] });
     if (url === '/api/mcp/playwright/test') return json({ tools: [{ name: 'click' }, { name: 'type' }] });
     if (url === '/api/mcp' && method === 'POST') {
@@ -151,5 +154,55 @@ describe('openModal()', () => {
     await act(async () => close());
     expect(await asked).toBe(false);
     expect(document.querySelector('#modal-root .modal')).toBeNull();
+  });
+});
+
+describe('several accounts of one service', () => {
+  const OOMOL = 'https://connector.oomol.com/v1/mcp';
+  const oomolPreset = { name: 'oomol', title: 'OOMOL (remote)', description: 'Your OOMOL apps', ready: true, type: 'http', url: OOMOL, headers: { Authorization: 'Bearer YOUR_MCP_API_KEY' } };
+  const info = (name: string, title: string, label: string, useFor: string, copies: number) => ({ title, label, kind: 'oomol', service: 'OOMOL', useFor, copies });
+
+  it('adds another account from an added preset, with labels and what each is for', async () => {
+    servers = { oomol: { type: 'http', command: '', args: [], env: {}, url: OOMOL, headers: {} } };
+    mcpMore = { presets: [{ ...oomolPreset, installed: true, copies: ['oomol'] }], info: { oomol: info('oomol', 'oomol', '', '', 1) } };
+    await open();
+    expect(btn(el, 'Add')).toBeUndefined();
+    await act(async () => btn(el, 'Add another').click());
+    expect(document.querySelector('#modal-root .modal h2')!.textContent).toBe('Add another OOMOL account');
+    const modal = document.querySelector('#modal-root')!;
+    expect(btn(modal, 'Add').disabled).toBe(true);
+    const [newLabel, oldLabel] = [...modal.querySelectorAll<HTMLInputElement>('input')];
+    const [newUse, oldUse] = [...modal.querySelectorAll<HTMLTextAreaElement>('textarea')];
+    expect(modal.textContent).toContain('The one you have: oomol');
+    await type(newLabel, 'Work');
+    await type(newUse, 'acme.com mail');
+    await type(oldLabel, 'Personal');
+    await type(oldUse, 'my own mail');
+    await act(async () => btn(modal, 'Add').click());
+    await settle();
+    expect(requests.find((r) => r.url === '/api/mcp-preset')!.body).toEqual({ name: 'oomol', label: 'Work', useFor: 'acme.com mail', others: { oomol: { label: 'Personal', useFor: 'my own mail' } } });
+  });
+
+  it('shows each account by its label, with what it is for or that it says nothing yet', async () => {
+    servers = {
+      'oomol-work': { type: 'http', command: '', args: [], env: {}, url: OOMOL, headers: {}, label: 'Work', kind: 'oomol', useFor: 'acme.com mail' },
+      'oomol-home': { type: 'http', command: '', args: [], env: {}, url: OOMOL, headers: {}, label: 'Home', kind: 'oomol' },
+    };
+    mcpMore = { presets: [{ ...oomolPreset, installed: true, copies: ['oomol-work', 'oomol-home'] }], info: { 'oomol-work': info('oomol-work', 'OOMOL: Work', 'Work', 'acme.com mail', 2), 'oomol-home': info('oomol-home', 'OOMOL: Home', 'Home', '', 2) } };
+    await open();
+    const rows = [...el.querySelectorAll('.mcp-server')];
+    expect(rows[0].querySelector('.title')!.textContent).toBe('OOMOL: Workoomol-workOOMOL account');
+    expect(rows[0].querySelector('.mcp-use-for')!.textContent).toBe('Use for: acme.com mail');
+    expect(rows[1].querySelector('.mcp-use-for')!.textContent).toContain('No "use for" yet');
+    expect(el.textContent).toContain('2 added');
+    // its form has the label, the "use for" and the service it is an account of
+    await act(async () => btn(rows[1] as HTMLElement, 'Edit').click());
+    expect(document.querySelector('#modal-root .modal h2')!.textContent).toBe('Edit OOMOL: Home');
+    expect(field('Label').value).toBe('Home');
+    expect(document.querySelector<HTMLSelectElement>('#modal-root select')!.value).toBe('oomol');
+    await type(field('Use this one for'), 'family calendar');
+    await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
+    await settle();
+    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({ name: 'oomol-home', label: 'Home', kind: 'oomol', useFor: 'family calendar' });
   });
 });

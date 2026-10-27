@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import { agents, workflows, getSecrets, getSettings } from './store.ts';
 import { TOOL_GROUPS } from './tools.ts';
-import { listServers } from './mcp.ts';
+import { listServers, serversForPrompt } from './mcp.ts';
 import { run, which, tmpFile } from './util.ts';
 import { describeAttachments } from './uploads.ts';
 import { brainSession, systemMessage } from './promptcache.ts';
@@ -340,7 +340,7 @@ export async function designAgent(text: string, { attachments = [] }: { attachme
   const system = `You design one AI agent for the user's personal dashboard from their description.
 Available tool groups (use only these ids, only what the job needs):
 ${TOOLS_TEXT}
-Available MCP servers: ${Object.keys(listServers()).join(', ') || '(none)'}
+Available MCP servers: ${serversForPrompt() || '(none)'}
 Rules: posts and DMs always wait for the user's approval; never invent facts or numbers.
 Answer with JSON only: ${AGENT_SCHEMA}`;
   return cleanAgent(parseJSON<AgentAnswer>(await think(system, `${text || 'Design the agent from the attached files: what they are about is what it should be good at.'}${filesFor(attachments)}`)));
@@ -355,7 +355,7 @@ export async function designBranch(text: string, { allowNew = true, attachments 
 Use the user's existing agents wherever they fit.${allowNew ? ' If an essential role is missing, add a new agent for it (at most 2 new agents).' : ' Use ONLY existing agents.'}
 Pick a lead only when 3 or more agents need coordinating (a planner/chief-of-staff type if available).
 Tool groups for the team's "access" (ids only): ${GROUP_IDS.join(', ')}
-MCP servers: ${Object.keys(listServers()).join(', ') || '(none)'}
+MCP servers: ${serversForPrompt() || '(none)'}
 Answer with JSON only:
 {"name":"short name","description":"one sentence: the team's shared goal","lead":"<existing agent id, or the 'name' of a new agent, or empty>","access":{"tools":["ids"],"mcpServers":["names"]},
  "members":[{"agentId":"<existing id>"} | {"newAgent":${AGENT_SCHEMA}}]}`;

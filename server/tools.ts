@@ -12,6 +12,7 @@ import { startHandoff, awaitHandoff, listHandoffs, DEFAULT_WAIT_S, MAX_WAIT_S } 
 /** Hermes' own MCP tool timeout is 300 s: await_agent answers it well within that. */
 const HERMES_WAIT_S = 240;
 import { requestApproval } from './approvals.ts';
+import { accountOfTool } from './mcp.ts';
 import { knownPrograms, launchProgram, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as social from './social.ts';
@@ -1034,9 +1035,11 @@ export function needsApproval(agent: ToolAgent, risk: Risk, toolName: string): b
 // Ask the user when the agent's autonomy says so. Returns null when it may go ahead, else a refusal result.
 export async function gate(agent: ToolAgent, name: string, risk: Risk, args: ToolArgs, ctx: ToolRunInfo = {}, detail: string | null | undefined = null): Promise<ToolResult | null> {
   if (!needsApproval(agent, risk, name)) return null;
+  // an MCP tool of one account of several says which account: "… wants to use oomol-work__send on OOMOL: Work"
+  const account = accountOfTool(name);
   const d = await requestApproval({
     kind: 'tool',
-    title: `${agent.name} wants to use ${name}`,
+    title: `${agent.name} wants to use ${name}${account ? ` on ${account}` : ''}`,
     detail: detail ?? describeCall(name, args),
     agentId: agent.id,
     agentName: agent.name,

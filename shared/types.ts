@@ -614,6 +614,8 @@ export interface Terminal {
 export interface AppState {
   agents: Agent[];
   mcpServers: string[];
+  /** each MCP server's label, service and "use for" (an older server leaves it out) */
+  mcpInfo?: Record<string, McpServerInfo>;
   project: Project;
   projectSaved: { at: number; error?: string; agents?: number; teams?: number } | null;
   projects: Project[];
@@ -824,6 +826,21 @@ export interface AboutInfo {
   license: string;
   /** GitHub stars, when asked for (?stars=1) and GitHub answered; null otherwise (e.g. a private repo) */
   stars: number | null;
+}
+
+/** An MCP server as the page shows it: a service can be added more than once (several accounts), each copy with a label. */
+export interface McpServerInfo {
+  /** "OOMOL: Work" for a copy with a label, else the server's name */
+  title: string;
+  label: string;
+  /** the service it is (a ready-made server's name, or its own name) */
+  kind: string;
+  /** the service for people ("OOMOL") */
+  service: string;
+  /** when to pick this copy over the service's other ones */
+  useFor: string;
+  /** how many servers of this service there are (1: added once) */
+  copies: number;
 }
 
 /** A ready-made MCP server worth adding on this PC (GET /api/mcp "suggested"): never added on its own. */

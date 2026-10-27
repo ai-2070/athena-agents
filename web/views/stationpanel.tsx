@@ -17,6 +17,7 @@ import { icon, logo } from '../icons.ts';
 import { modelChip, modelInfo } from '../models.ts';
 import { Avatar, DomNode, Icon, useAppState } from '../ui/react.tsx';
 import { ChipSet, Segmented, Tabs } from '../ui/controls.tsx';
+import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, connectorLook } from './stationdata.ts';
 import type { AvailableIntegration, Connector, MapPick, Program, TeamView } from './stationdata.ts';
 import type { Agent, AppState, Project, Team, TeamAccess, TeamState } from '../../shared/types.ts';
@@ -822,7 +823,8 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
       </div>
       {(d.mcpServers || []).length ? (
         <div className="mt-3.5">
-          <ChipSet label="Extra MCP servers" options={d.mcpServers.map((m) => ({ value: m, label: m }))} value={access.mcpServers} onChange={(v) => saveAccess({ mcpServers: v })} />
+          <ChipSet label="Extra MCP servers" options={mcpOptions(d.mcpServers, d.mcpInfo)} value={access.mcpServers} onChange={(v) => saveAccess({ mcpServers: v })} />
+          {copiesWarning(access.mcpServers, d.mcpInfo) ? <p className="hint mcp-copies-warning mt-2 text-amber">{copiesWarning(access.mcpServers, d.mcpInfo)}</p> : null}
         </div>
       ) : null}
       <div className="label mt-7">Connections the team can reach</div>

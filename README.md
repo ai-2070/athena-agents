@@ -56,11 +56,13 @@ Written results, files and folders that agents saved, each with a preview, who m
 
 Add servers from a list, or ask the Brain to do it. **Suggested for this PC** at the top lists the ones for programs you have installed (Blender, GIMP, OBS…) plus a few that help most agents. Nothing is added until you click Add or say yes to the Brain.
 
-- **Work:** a browser, GitHub, Notion, Linear, OOMOL (your connected apps and its hosted AI tools), web search.
+- **Work:** a browser, GitHub, Notion, Linear, OOMOL (your connected apps and its hosted AI tools), Composio (hundreds of apps through one account), web search.
 - **3D and games:** Blender, Maya, Houdini, Substance 3D Painter, Unity, Unreal Engine, Godot, Tripo, Meshy, Sketchfab.
 - **Images, design and stock:** Canva, Freepik, Unsplash, Pixabay, Pexels, Google Fonts, GIMP, Krita, Inkscape, Topaz (AI upscaling).
 - **Audio and video:** ElevenLabs, Audacity, REAPER, MuseScore, OBS.
 - **CAD and 3D printing:** FreeCAD, Rhino, OpenSCAD, your 3D printer.
+
+**More than one account of a service.** Click **Add another** on a preset you already have (say a work and a personal OOMOL or Composio). Give each one a label ("Work", "Personal") and say what it is for. An agent or team can have one account or several: it picks by what each is for, asks you when it's unclear, and approvals say which account a step goes through. While an agent works for a team, the team's account of a service takes the place of the agent's own.
 
 ![The MCP servers page with ready-made presets, some marked as needing a key](docs/images/mcp-servers.png)
 
