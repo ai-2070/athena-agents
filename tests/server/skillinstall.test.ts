@@ -4,7 +4,8 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { parseGitHubUrl, installFromGitHub, reposIn } from '../../server/skillinstall.ts';
 import * as skills from '../../server/skills.ts';
-import { historyOf } from '../../server/history.ts';
+import { historyOf, restoreVersion } from '../../server/history.ts';
+import { withActor } from '../../server/versions.ts';
 import { ask, clearHistory } from '../../server/overseer.ts';
 import { agents, saveSettings, activeProject, listProjects, saveProjects, setActiveProject, withProject } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
@@ -97,6 +98,13 @@ describe('GitHub links', () => {
     expect(() => parseGitHubUrl('http://github.com/acme/skills')).toThrow(/https/);
     expect(() => parseGitHubUrl('https://github.com/acme/skills/issues/3')).toThrow();
     expect(reposIn('see https://github.com/Acme/Skills/tree/main and raw.githubusercontent.com/x/y/main/a')).toEqual(new Set(['acme/skills', 'x/y']));
+    expect(reposIn('(github.com/a/b), www.github.com/c/d.git')).toEqual(new Set(['a/b', 'c/d']));
+  });
+
+  it('a link on another site that only looks like GitHub is not a GitHub link', () => {
+    for (const t of ['Inspect https://notgithub.com/attacker/skills', 'https://evil.github.com/a/b', 'https://example.com/github.com/a/b', 'https://github.com.example.com/a/b', 'https://github.com@example.com/a/b', 'https://notraw.githubusercontent.com/a/b/main/x']) {
+      expect(reposIn(t)).toEqual(new Set());
+    }
   });
 });
 
@@ -122,6 +130,23 @@ describe('installing', () => {
     expect(writer.body).toContain('Write even better.');
     expect(skills.listSkills().filter((s) => s.name === 'Writer')).toHaveLength(1);
     expect(historyOf('skill', writer.slug).versions[0].changes).toEqual(['instructions']);
+  });
+
+  it('an update that changes only the extra files keeps the old ones, and restoring brings them back', async () => {
+    const files = repos['acme/skills'].main;
+    files['skills/writer/examples/one.md'] = 'example one';
+    await installFromGitHub('https://github.com/acme/skills/tree/main/skills/writer');
+    const slug = skills.findSkill('Writer')!.slug;
+    const dir = skills.skillDir(slug);
+    const before = historyOf('skill', slug).versions.length;
+    files['skills/writer/examples/one.md'] = 'example one, changed';
+    await withActor('you', () => installFromGitHub('https://github.com/acme/skills/tree/main/skills/writer'));
+    expect(fs.readFileSync(path.join(dir, 'examples', 'one.md'), 'utf8')).toBe('example one, changed');
+    const h = historyOf('skill', slug);
+    expect(h.versions.length).toBe(before + 1);
+    restoreVersion('skill', slug, h.versions[0].id);
+    expect(fs.readFileSync(path.join(dir, 'examples', 'one.md'), 'utf8')).toBe('example one');
+    expect(skills.getSkill(slug)?.origin?.repo).toBe('acme/skills');
   });
 
   it('finds a branch with a slash in its name, and says so when there is nothing to install', async () => {
