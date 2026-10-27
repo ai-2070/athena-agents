@@ -45,3 +45,11 @@ describe('earlier versions in a backup', () => {
     expect(restoredText('P', r)).toContain('3 earlier versions');
   });
 });
+
+describe('library prefabs in a backup', () => {
+  it('the summary line and the restore message mention them', async () => {
+    const { restoredText } = await import('../../web/backup.ts');
+    expect(summaryLine(cleanSummary({ app: 'my-dashboard', agents: 1, teams: 0, skills: 0, libraryPrefabs: 3 })!)).toBe('1 agent · 0 teams · 0 skills · 3 library prefabs');
+    expect(restoredText('X', { agents: 1, teams: 0, routines: 0, chats: 0, knowledgeFiles: 0, brainFiles: 0, skills: { added: 0, same: 0, renamed: [] }, presets: { added: 0, same: 0 }, libraryPrefabs: { added: 2, same: 1 }, paused: 0, logo: false })).toBe('Restored "X": 1 agent, 0 teams and 2 library prefabs.');
+  });
+});

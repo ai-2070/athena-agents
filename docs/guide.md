@@ -233,9 +233,9 @@ These copies exclude stored keys and account tokens, **not private content you p
 
 Choose **Project menu → Back up this project**. The dashboard writes a `.dashbackup` file under **`Blacksite Backups`** in your home folder.
 
-A backup includes the project's agents, teams, routines, layout, Brain and agent/team chats, knowledge files, MEMORY.md files, logo, `PROJECT.md` and notes. It also includes **every skill and saved preset in your library**, plus earlier versions of the project's agents, teams and memories and of library skills, including deleted items. It does not include stored keys or account tokens.
+A backup includes the project's agents, teams, routines, layout, Brain and agent/team chats, knowledge files, MEMORY.md files, logo, `PROJECT.md` and notes, and its voxel world (with WORLD.md and its prefabs). It also includes **every skill and saved preset in your library, and every prefab in the prefab library**, plus earlier versions of the project's agents, teams and memories and of library skills, including deleted items. It does not include stored keys or account tokens.
 
-Backups are not a full copy of your working folder: back up source files, uploads and generated work separately. Size limits also apply: 200 MB of agent chats, 50 MB each of knowledge files, skills and earlier versions, and 20 MB each of MEMORY.md files and of project brief and notes. Files that do not fit are left out; the saved-backup message reports the number omitted.
+Backups are not a full copy of your working folder: back up source files, uploads and generated work separately. Size limits also apply: 300 MB of voxel world, 200 MB of agent chats, 100 MB of prefab library, 50 MB each of knowledge files, skills and earlier versions, and 20 MB each of MEMORY.md files and of project brief and notes. A restore adds the library prefabs this computer doesn't have yet and leaves the ones it has as they are. Files that do not fit are left out; the saved-backup message reports the number omitted.
 
 ### Restore a backup
 

@@ -187,7 +187,7 @@ export function deletePrefab(req: { by: WorldBuilder; prefab: string; project?: 
 
 // ---------- the prefab library ----------
 /** A prefab shared to every world: its voxels use its own small palette. */
-interface LibraryPrefab {
+export interface LibraryPrefab {
   id: string;
   name: string;
   description: string;
@@ -207,6 +207,46 @@ function library(): LibraryPrefab[] {
   return listFiles(libDir(), (n) => n.endsWith('.json') && LIB_ID.test(n.slice(0, -5)))
     .map((n) => readPlain<LibraryPrefab | null>(dataPath('prefab-library', n), null))
     .filter((x): x is LibraryPrefab => !!x && typeof x.name === 'string' && !!x.data);
+}
+
+/** Every prefab in the library, voxels and all (for backups). */
+export const libraryEntries = (): LibraryPrefab[] => library();
+
+/** A library prefab from a backup, checked: added when the library doesn't have it (by id), else left as it is. */
+export function putLibraryEntry(raw: unknown): 'added' | 'same' | null {
+  const e = raw as Partial<LibraryPrefab> | null;
+  if (!e || typeof e !== 'object' || typeof e.id !== 'string' || !LIB_ID.test(e.id) || typeof e.name !== 'string' || !e.name.trim()) return null;
+  if (!Array.isArray(e.palette) || e.palette.length > 255 || !e.data || !Array.isArray(e.data.volumes)) return null;
+  try {
+    loadGrids(e.data);
+  } catch {
+    // damaged voxels: left out
+    return null;
+  }
+  if (library().some((x) => x.id === e.id)) return 'same';
+  const palette = e.palette.flatMap((m) => {
+    try {
+      return [cleanMaterial({ ...m, material: m.name })];
+    } catch {
+      return [];
+    }
+  });
+  if (palette.length !== e.palette.length) return null;
+  const entry: LibraryPrefab = {
+    id: e.id,
+    name: e.name.trim().slice(0, 80),
+    description: String(e.description ?? '').slice(0, 300),
+    tags: Array.isArray(e.tags) ? e.tags.map(String).slice(0, 12) : [],
+    by: String(e.by ?? '').slice(0, 80),
+    fromWorld: String(e.fromWorld ?? '').slice(0, 80),
+    size: Array.isArray(e.size) && e.size.length === 3 ? (e.size.map(Number) as Vec3) : [0, 0, 0],
+    voxels: Number(e.voxels) || 0,
+    palette,
+    data: { volumes: e.data.volumes },
+    createdAt: Number(e.createdAt) || Date.now(),
+  };
+  writeJSON(libFile(entry.id), entry);
+  return 'added';
 }
 
 /** The library's prefabs without their voxels (for the page). */

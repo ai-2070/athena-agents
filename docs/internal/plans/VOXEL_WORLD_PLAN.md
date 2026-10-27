@@ -646,7 +646,7 @@ Built as planned. Notes:
 - Live test: three agents built Walker, Lamp post, Street tree and Taxi prefabs, a plaza with a road and a
   crosswalk, and a columned exchange, then placed 142 copies (115 people in six colours from one prefab):
   it reads like the stock exchange reference, at full speed.
-- Not yet: the prefab library isn't in backups (like presets, it is global); a world picker and prefab
+- The prefab library goes into every backup like the presets (fixed after Phase 5); a world picker and prefab
   browser in the page are Phase 4.
 
 **Phase 2: light and effects.**

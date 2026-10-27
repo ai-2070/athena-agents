@@ -123,3 +123,36 @@ describe('the tools', () => {
     expect((await callTool(a, 'world_import', { file: path.join('/', 'etc', 'hosts') })).text).toMatch(/outside the folders/);
   });
 });
+
+describe('the prefab library in backups', () => {
+  it('goes into every backup, and a restore adds what this computer lacks', async () => {
+    const { packProject, encodeBackup, decodeBackup, restoreBackup } = await import('../../server/backup.ts');
+    const { publishPrefab, libraryEntries } = await import('../../server/voxel/prefabs.ts');
+    const { listProjects } = await import('../../server/store.ts');
+    const { dataPath } = await import('../../server/util.ts');
+    const me: WorldBuilder = { kind: 'agent', id: 'mira', name: 'Mira' };
+    build({ by: me, prefab: 'Lantern post', steps: [{ voxel_size: 0.125 }, { box: [1, 6, 1], use: 'iron' }, { box: [1, 1, 1], at: [0, 6, 0], use: 'lantern' }] });
+    publishPrefab({ by: me, prefab: 'Lantern post' });
+    const entry = libraryEntries().find((e) => e.name === 'Lantern post')!;
+    const packed = packProject(listProjects()[0]);
+    expect(packed.prefabLibrary.map((e) => e.name)).toContain('Lantern post');
+    const bytes = encodeBackup(packed);
+    const back = decodeBackup(bytes);
+    expect(back.prefabLibrary.find((e) => e.id === entry.id)!.data.volumes.length).toBe(1);
+    // on a computer without it (here: taken out of the library), a restore brings it back
+    fs.rmSync(dataPath('prefab-library', `${entry.id}.json`));
+    const first = await restoreBackup(bytes, { name: 'Restored with library' });
+    expect(first.restored.libraryPrefabs).toEqual({ added: 1, same: 0 });
+    expect(libraryEntries().find((e) => e.id === entry.id)!.palette.map((m) => m.name)).toEqual(['iron', 'lantern']);
+    // and leaves it alone when it is there
+    const again = await restoreBackup(bytes, { name: 'Restored again' });
+    expect(again.restored.libraryPrefabs).toEqual({ added: 0, same: 1 });
+  }, 30_000);
+
+  it('a damaged library entry in a backup is left out', async () => {
+    const { putLibraryEntry } = await import('../../server/voxel/prefabs.ts');
+    expect(putLibraryEntry({ id: '../evil', name: 'x', palette: [], data: { volumes: [] } })).toBeNull();
+    expect(putLibraryEntry({ id: 'lp-bad', name: 'Bad', palette: [], data: { volumes: [{ id: 'v', voxelSize: 0.1, chunks: { '0,0,0': '!!!' } }] } })).toBeNull();
+    expect(putLibraryEntry({ id: 'lp-bad2', name: 'Bad colour', palette: [{ name: 'x', color: 'red', kind: 'solid' }], data: { volumes: [] } })).toBeNull();
+  });
+});

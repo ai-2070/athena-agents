@@ -27,6 +27,8 @@ export interface BackupSummary {
   omitted?: number;
   /** Kept versions of agents, teams and skills (older backups: missing) */
   versions?: number;
+  /** Prefabs in the prefab library (older backups: missing) */
+  libraryPrefabs?: number;
 }
 
 /** GET /api/backups */
@@ -51,6 +53,8 @@ export interface BackupRestored {
   versions?: number;
   /** MEMORY.md files brought back (older servers: missing) */
   memories?: number;
+  /** prefab library entries added (older servers: missing) */
+  libraryPrefabs?: { added: number; same: number };
   paused: number;
   logo: boolean;
 }
@@ -60,7 +64,7 @@ export const fileSize = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` 
 
 /** "3 agents · 1 team · 2 skills": what a backup holds, in one line. */
 export function summaryLine(s: BackupSummary): string {
-  return [plural(s.agents, 'agent'), plural(s.teams, 'team'), s.routines ? plural(s.routines, 'routine') : '', s.chats ? plural(s.chats, 'chat') : '', plural(s.skills, 'skill'), s.presets ? plural(s.presets, 'preset') : '', s.memories ? plural(s.memories, 'MEMORY.md file') : '', s.versions ? plural(s.versions, 'earlier version') : ''].filter(Boolean).join(' · ');
+  return [plural(s.agents, 'agent'), plural(s.teams, 'team'), s.routines ? plural(s.routines, 'routine') : '', s.chats ? plural(s.chats, 'chat') : '', plural(s.skills, 'skill'), s.presets ? plural(s.presets, 'preset') : '', s.libraryPrefabs ? plural(s.libraryPrefabs, 'library prefab') : '', s.memories ? plural(s.memories, 'MEMORY.md file') : '', s.versions ? plural(s.versions, 'earlier version') : ''].filter(Boolean).join(' · ');
 }
 
 /** The summary in a backup file's first lines, or null when it isn't a backup. Reads only the start of the file. */
@@ -102,6 +106,7 @@ export function cleanSummary(v: unknown): BackupSummary | null {
     omitted: num(s.omitted),
     memories: num(s.memories),
     versions: num(s.versions),
+    libraryPrefabs: num(s.libraryPrefabs),
   };
 }
 
@@ -140,6 +145,7 @@ export function restoredText(name: string, r: BackupRestored): string {
   if (r.routines) parts.push(plural(r.routines, 'routine'));
   if (r.skills.added) parts.push(plural(r.skills.added, 'new skill'));
   if (r.presets.added) parts.push(plural(r.presets.added, 'preset'));
+  if (r.libraryPrefabs?.added) parts.push(plural(r.libraryPrefabs.added, 'library prefab'));
   if (r.memories) parts.push(plural(r.memories, 'MEMORY.md file'));
   if (r.versions) parts.push(plural(r.versions, 'earlier version'));
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0];
