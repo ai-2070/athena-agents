@@ -4,7 +4,7 @@
 
 Reviewed repository HEAD `aecc2100a1c838fb1d44a2c6fc3514fcdd872d41`, focusing first on security boundaries, project persistence, and agent execution. The working tree was clean when reviewed. No production source files were changed.
 
-The nine findings below were runtime-reproduced. Probes used temporary `DASH_DATA`, `HOME`, and `USERPROFILE` directories, dummy secrets, Windows directory junctions, and controlled local HTTP endpoints. No real model accounts or user data were used. Probe scripts and fixtures were removed afterward.
+The initial nine findings were runtime-reproduced. Probes used temporary `DASH_DATA`, `HOME`, and `USERPROFILE` directories, dummy secrets, Windows directory junctions, and controlled local HTTP endpoints. No real model accounts or user data were used. Initial probe scripts and fixtures were removed afterward. Continued-review findings below state their own verification status.
 
 P1 findings expose credentials, bypass file access limits, or can delete or overwrite files outside the intended project. P2 findings affect project isolation, tool access, or conversation and restore correctness.
 
@@ -273,3 +273,215 @@ Executed against the reviewed revision before any production changes:
 - Runtime probes reproduced all nine findings as described above. Probe data, home folders, scripts, HTTP servers, and fixtures were isolated from real user state and removed or stopped afterward.
 
 The passing test run emitted a non-failing happy-dom `NotSupportedError` about external `openui.css` loading being disabled. Passing baseline checks did not detect these defects.
+
+## Continued review
+
+The requested review now comprises a complete first pass across application subsystems followed by a second full-project pass. Coverage and verification limits will be recorded below. Vendored upstream skill instructions, Agency agent text, lockfile package contents, and generated assets are reviewed at their application integration boundaries rather than treated as independently authored application subsystems.
+
+## 10. [P1] Cloned chats share live state with the original project
+
+**Locations:** [server/engines/index.ts:194–198](../../../server/engines/index.ts#L194-L198), [server/index.ts:456–467](../../../server/index.ts#L456-L467)
+
+### Problem
+
+Cloning preserves chat IDs, but `liveChat()` and chat-busy detection identify chats globally by chat ID without project identity. A chat update in a cloned project can retrieve the original project's active chat, mutate it, and save its live contents into the clone. Independent runs in the two projects also falsely conflict.
+
+### Reproduction and evidence
+
+**Runtime-reproduced** through production `cloneProject()`, a held API-model run, and the real chat-update HTTP endpoint:
+
+1. Clone A as B, preserving an existing chat.
+2. In A, send a private message after cloning and hold the model response.
+3. Open B. Attempt to start its copied chat, then clear its memory through the chat PUT endpoint.
+
+Observed:
+
+```text
+B startError: This chat is already working on something. Stop it or wait.
+B resetStatus: 200
+B response contains A's post-clone private message: true
+A live chat memory reset by B's request: true
+```
+
+### Recommended change
+
+Scope live chats, compactions, busy checks, queues, steers, loops, stop/delete operations and their consumers by project plus chat ID. Project pinning alone does not disambiguate global in-memory lookups.
+
+## 11. [P1] Stopping a cloned team stops the original project's work
+
+**Locations:** [server/teams.ts:160–163](../../../server/teams.ts#L160-L163), [server/teams.ts:910–921](../../../server/teams.ts#L910-L921)
+
+### Problem
+
+Team runtime state is globally keyed only by team ID, and child runs use `team:<teamId>` as their parent identity. Cloning preserves team IDs. The two projects therefore share working/queue/stop state, and stopping the clone aborts the source team's active agents.
+
+### Reproduction and evidence
+
+**Runtime-reproduced** using production project cloning and team dispatch. Start A's team and hold its agent's local model response. Open B and inspect and stop its copied team.
+
+```text
+B working before Stop: [the source project's agent ID]
+Source run aborted by B's Stop: true
+```
+
+### Recommended change
+
+Namespace team runtimes, relay identities, timers and synthetic parent-run identities by project. Ensure callbacks resume under the same project-scoped runtime they started with.
+
+## 12. [P1] An extrusion can block the server outside the script deadline
+
+**Location:** [server/voxel/ops.ts:573–596](../../../server/voxel/ops.ts#L573-L596)
+
+**Related boundary:** [server/voxel/script.ts:78–94](../../../server/voxel/script.ts#L78-L94)
+
+### Problem
+
+Extrusion polygon coordinates are finite but unbounded. With points `[[1e20,0],[1e20,1],[1e20,2]]`, the inner loop starts at an `x` for which `x + 1 === x`. The degenerate polygon continually fails `inPlan()`, bypassing voxel-write limits. This synchronous host operation also cannot be interrupted by QuickJS's guest-code deadline.
+
+### Reproduction and evidence
+
+**Runtime-reproduced** by calling production `runBuild()` in a disposable child with:
+
+```javascript
+{ extrude: { points: [[1e20, 0], [1e20, 1], [1e20, 2]] }, use: "stone" }
+```
+
+The child printed `entering runBuild extrude host operation`, never returned, and was terminated by an external five-second deadline. No dashboard process or real world was used. The QuickJS-host-callback consequence is source-established; that separate guest entry path was not executed.
+
+### Recommended change
+
+Validate coordinate and bounding-box ranges before iteration. Enforce host-operation iteration/work budgets independently of changed-voxel counts and QuickJS interrupts.
+
+## 13. [P1] A malformed 32-byte VOX file loops forever during import
+
+**Location:** [server/voxel/vox.ts:110](../../../server/voxel/vox.ts#L110)
+
+### Problem
+
+The parser validates chunk content length but not children length or forward progress. An unknown chunk with content length zero and children length `-12` leaves the next offset unchanged, looping synchronously forever. The normal file-size limit accepts this tiny input.
+
+### Reproduction and evidence
+
+**Runtime-reproduced** in an externally supervised disposable child. Construct a 32-byte file with a normal `VOX ` header/version, `MAIN` with 12 child bytes, and `JUNK` with zero content bytes and `-12` child bytes. All integer fields are little-endian.
+
+The child printed `entering parseVox on 32-byte negative-child fixture`, never returned, and was terminated after five seconds.
+
+### Recommended change
+
+Validate signed child lengths and enclosing chunk boundaries, and require every iteration to advance within the input before processing the next chunk.
+
+## 14. [P1] VOX scene expansion bypasses the import voxel limit
+
+**Location:** [server/voxel/vox.ts:149–166](../../../server/voxel/vox.ts#L149-L166)
+
+### Problem
+
+The parser caps stored model voxels, but scene traversal expands duplicate group references into an accumulated array without a cumulative expansion or work budget. A depth-limited acyclic graph can still expand exponentially before world-size checks run.
+
+### Reproduction and evidence
+
+**Runtime-reproduced at bounded scale** with serialized VOX fixtures, each containing one stored voxel and a chain of groups referencing the next group twice:
+
+| Group layers | File bytes | Stored voxels | Expanded voxels |
+|---|---:|---:|---:|
+| 8 | 352 | 1 | 256 |
+| 12 | 480 | 1 | 4,096 |
+
+The production parser and `voxVoxels()` produced these results. Larger memory-exhausting payloads were deliberately not run. Server exhaustion at larger depths is an inference from the source-proven unchecked exponential expansion.
+
+### Recommended change
+
+Apply cumulative expanded-voxel and traversal-work limits while traversing, before appending results. Cycle rejection alone does not bound duplicate references in an acyclic graph.
+
+## 15. [P2] Undo loses grids that a build emptied
+
+**Location:** [server/voxel/build.ts:538–541](../../../server/voxel/build.ts#L538-L541)
+
+### Problem
+
+Saving deliberately omits empty grids, but undo only restores chunks into grids still present in the current data. Clearing a complete grid removes it from disk; undo skips its saved chunks and then deletes the history entry.
+
+### Reproduction and evidence
+
+**Runtime-reproduced** in isolated world data: build `Shed` with one stone voxel, build it again with `{clear:true}`, then undo as the same builder.
+
+```text
+undoText: Undid: Builder A changed Shed.
+restoredGridCount: 0
+restoredVoxelCount: 0
+```
+
+### Recommended change
+
+Recreate missing grids using the history entry's grid ID and voxel size before applying saved chunks. Keep the undo entry until restoration succeeds.
+
+## 16. [P2] Invalid prefab pivots commit voxel changes before returning an error
+
+**Location:** [server/voxel/build.ts:323–331](../../../server/voxel/build.ts#L323-L331)
+
+### Problem
+
+Prefab voxel data is persisted before `cleanPivot()` validates the request. A rejected pivot can leave changed data on disk with neither matching metadata nor an undo entry.
+
+### Reproduction and evidence
+
+**Runtime-reproduced**: create a one-voxel prefab, then submit `{clear:true}` with `pivot:"invalid"`.
+
+```text
+error: pivot is "bottom", "top", "center" or [x, y, z] in map units from the prefab's origin
+dataChanged: true
+historyBefore: 1
+historyAfter: 1
+persistedVolumeCount: 1
+actualGridCount: 0
+```
+
+### Recommended change
+
+Perform pivot and all other fallible request validation before persistent writes. Commit voxel data, metadata and history consistently.
+
+## 17. [P2] Undoing prefab creation breaks another builder's placed copies
+
+**Location:** [server/voxel/build.ts:525–528](../../../server/voxel/build.ts#L525-L528)
+
+### Problem
+
+Undo's dependency safeguards apply only to `prefabMade` (save-from-object operations), not ordinary prefab creation. Later placement changes a consuming object, so the target-history conflict check does not catch it. Undo deletes a prefab still referenced by another builder's objects or skins.
+
+### Reproduction and evidence
+
+**Runtime-reproduced**: A creates prefab `Post`, B places it in an object, then A undoes its last change.
+
+```text
+undoText: Undid: Builder A built the prefab Post.
+prefabStillPresent: false
+remainingInstancePrefab: the deleted prefab's ID
+```
+
+The probe verified the dangling reference on disk; no renderer was needed.
+
+### Recommended change
+
+Apply placed-copy and skin-reference checks whenever undo removes a newly created prefab, matching normal prefab-deletion safeguards.
+
+## 18. [P2] Undo omits global material changes
+
+**Location:** [server/voxel/build.ts:340–342](../../../server/voxel/build.ts#L340-L342)
+
+### Problem
+
+Material steps mutate the world's shared palette, but build history stores no palette before-images. Undo reports success without restoring the material, so every object sharing it remains changed. New materials also remain allocated.
+
+### Reproduction and evidence
+
+**Runtime-reproduced**: build an object using stone, make a material-only build setting stone to red, then undo.
+
+```text
+before: #7d7a74
+after undo: #ff0000
+undoText: Undid: Builder A changed Rock.
+```
+
+### Recommended change
+
+Record and restore per-material before-images with conflict checks for later edits to the same material. Do not overwrite unrelated later palette changes with an entire stale palette snapshot.
