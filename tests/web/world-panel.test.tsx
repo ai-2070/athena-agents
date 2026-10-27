@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
 import { mountReact } from '../../web/ui/react.tsx';
 import { WorldPanel, openWorldPicker } from '../../web/views/worldpanel.tsx';
+import { setPictureSource } from '../../web/voxel/picture.ts';
 import { envPreset } from '../../shared/worldenv.ts';
 import type { AppState, VoxelWorld, WorldListing } from '../../shared/types.ts';
 
@@ -64,6 +65,11 @@ beforeEach(() => {
     if (url === '/api/world/changes') return json([{ at: Date.now() - 30_000, by: 'Mira', what: 'built Sky island' }]);
     if (url === '/api/world/undo') return json({ text: 'Undid: Mira built Sky island.' });
     if (url === '/api/worlds') return json(listing);
+    if (url.startsWith('/api/prefab-library')) return json([{ id: 'lp1', name: 'Palm', description: 'a date palm', tags: [], by: 'Imhotep', fromWorld: 'Nile', size: [2, 3.5, 2], voxels: 85, createdAt: 1 }]);
+    if (url === '/api/world/prefabs/import') return json({ id: 'p9', name: 'Palm 2' });
+    if (url === '/api/world/prefabs/p1/publish') return json({ text: 'Published "Lamp post" in the prefab library.' });
+    if (url === '/api/world/export') return json({ paths: ['/x/lamps.glb'], artifacts: ['a1'], note: '' });
+    if (url === '/api/world/picture') return json({ path: '/x/pic.jpg', artifact: 'a2' });
     return json({ ok: true });
   });
 });
@@ -184,5 +190,53 @@ describe('the World panel', () => {
     await settle();
     expect(document.querySelectorAll('.world-row').length).toBe(2);
     expect(document.body.textContent).toContain('Launch: its voxel world');
+  });
+});
+
+describe('files and pictures out, the prefab library in', () => {
+  it('exports an object as a 3D model or a .vox, and the whole world', async () => {
+    await open();
+    await tab('Built');
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Export Sky island"]')!.click());
+    await act(async () => button(el, '3D model').click());
+    await settle();
+    expect(calls.find((c) => c.url === '/api/world/export')!.body).toEqual({ what: 'object', id: 'o1', format: 'glb' });
+    expect(document.getElementById('toasts')!.textContent + document.body.textContent).toContain('Saved "Sky island" to Artifacts');
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Export Lamp post"]')!.click());
+    await act(async () => button(el, '.vox').click());
+    await settle();
+    expect(calls.filter((c) => c.url === '/api/world/export')[1].body).toEqual({ what: 'prefab', id: 'p1', format: 'vox' });
+    await tab('World');
+    await act(async () => button(el, 'Export the whole world').click());
+    await settle();
+    expect(calls.filter((c) => c.url === '/api/world/export')[2].body).toEqual({ what: 'world', format: 'glb' });
+  });
+
+  it('searches the library, takes a prefab in, and shares one out', async () => {
+    await open();
+    await tab('Built');
+    await act(async () => button(el, 'Library').click());
+    await act(() => new Promise((r) => setTimeout(r, 260)));
+    expect(el.querySelector('.world-library')!.textContent).toContain('Palm by Imhotep · from Nile');
+    await act(async () => button(el, 'Take into this world').click());
+    await settle();
+    expect(calls.find((c) => c.url === '/api/world/prefabs/import')!.body).toEqual({ name: 'Palm' });
+    expect(document.body.textContent).toContain('Took "Palm" into this world as "Palm 2"');
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Share Lamp post to the library"]')!.click());
+    await settle();
+    expect(calls.some((c) => c.method === 'POST' && c.url === '/api/world/prefabs/p1/publish')).toBe(true);
+  });
+
+  it('saves a picture of what you see, only when the Station can draw one', async () => {
+    await open();
+    expect(el.querySelector('.world-picture')).toBeNull();
+    const off = setPictureSource((w) => `data:image/jpeg;base64,${w}`);
+    act(() => view?.unmount());
+    await open();
+    await act(async () => el.querySelector<HTMLButtonElement>('.world-picture')!.click());
+    await settle();
+    expect(calls.find((c) => c.url === '/api/world/picture')!.body).toEqual({ image: 'data:image/jpeg;base64,1600', name: 'Garden world' });
+    expect(document.body.textContent).toContain('Saved a picture to Artifacts');
+    off();
   });
 });

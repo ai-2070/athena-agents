@@ -25,7 +25,7 @@ import * as programs from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as mcp from './mcp.ts';
 import * as social from './social.ts';
-import { removeArtifact } from './artifacts.ts';
+import { addArtifact, removeArtifact } from './artifacts.ts';
 import * as teamMarks from './teammark.ts';
 import * as library from './library.ts';
 import { isEffort } from '../shared/effort.ts';
@@ -41,6 +41,7 @@ import * as worldStore from './voxel/store.ts';
 import * as worldMd from './voxel/worldmd.ts';
 import * as worldScene from './voxel/scene.ts';
 import * as worldLook from './voxel/look.ts';
+import * as worldExchange from './voxel/exchange.ts';
 import * as worldPrefabs from './voxel/prefabs.ts';
 import * as worldCharacters from './voxel/characters.ts';
 import { listVersions, getVersion, withActor } from './versions.ts';
@@ -635,6 +636,27 @@ put<Record<string, unknown> | null>('/api/world/lights/:lid', async ({ lid }, bo
 del('/api/world/lights/:lid', async ({ lid }) => (worldScene.setLight({ by: you, action: 'remove', light: lid }), { ok: true }));
 put<Record<string, unknown> | null>('/api/world/effects/:eid', async ({ eid }, body) => worldScene.setEffect({ by: you, action: 'change', effect: eid, fields: body || {} }).effect);
 del('/api/world/effects/:eid', async ({ eid }) => (worldScene.setEffect({ by: you, action: 'remove', effect: eid }), { ok: true }));
+// files out of the world (to Artifacts and the project folder's exports/), and pictures from the page
+const exportsDir = () => path.join(projects.ensureBrain(), 'exports');
+post<{ what?: unknown; id?: unknown; format?: unknown } | null>('/api/world/export', async (_p, body) => {
+  const w = worldLink.shownWorld().world;
+  if (!w) throw new HttpError(404, 'No world yet.');
+  const what = String(body?.what || '');
+  if (what !== 'object' && what !== 'prefab' && what !== 'world') throw new HttpError(400, 'what is object, prefab or world.');
+  const out = worldExchange.exportFiles(w, what, typeof body?.id === 'string' ? body.id : undefined, body?.format === 'vox' ? 'vox' : 'glb');
+  const paths = worldExchange.writeFiles(exportsDir(), out.files);
+  const made = paths.map((p) => addArtifact({ title: out.files.length > 1 ? `${out.title}: ${path.basename(p)}` : out.title, path: p, note: out.note || 'Made from the voxel world', by: 'You' }));
+  return { paths, artifacts: made.map((a) => a.id), note: out.note };
+});
+post<{ image?: unknown; name?: unknown } | null>('/api/world/picture', async (_p, body) => {
+  const w = worldLink.shownWorld().world;
+  const file = worldExchange.writePicture(exportsDir(), String(body?.name || w?.name || 'world'), String(body?.image || ''));
+  const a = addArtifact({ title: `${w?.name || 'The world'}: a picture`, path: file, note: 'A picture of the voxel world', by: 'You' });
+  return { path: file, artifact: a.id };
+});
+get('/api/prefab-library', async (_p, _b, q) => worldPrefabs.libraryItems(String(q.q || '')));
+post<{ name?: unknown; as?: unknown } | null>('/api/world/prefabs/import', async (_p, body) => worldPrefabs.importPrefab({ by: you, name: String(body?.name || ''), as: body?.as }).prefab);
+post('/api/world/prefabs/:pid/publish', async ({ pid }) => ({ text: worldPrefabs.publishPrefab({ by: you, prefab: pid }) }));
 // how the Brain, a team or an agent looks (e.g. put a hidden agent back on the map)
 put<{ to?: unknown; id?: unknown; fields?: unknown } | null>('/api/world/skins', async (_p, body) => {
   const to = String(body?.to || '');

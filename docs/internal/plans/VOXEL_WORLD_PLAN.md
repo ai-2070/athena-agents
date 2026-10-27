@@ -715,6 +715,16 @@ like presets).
 MagicaVoxel `.vox` import (from allowed folders) and export (and glTF export as an Artifact), a "screenshot
 the world" button that saves a picture to Artifacts. (No building by hand: agents only.)
 
+*Phase 5 done 2026-10-27* (without building by hand, as decided):
+- `world_import`: a MagicaVoxel .vox file (every model, placed by its scene graph; z-up turned y-up) as a prefab
+  or an object; its colours become materials ("<name> 12"), glowing and glass ones too.
+- `world_export` and the World panel: an object, a prefab or the whole world as .glb (glTF 2.0: the same mesher,
+  a material per kind, placed copies as nodes sharing one mesh, mirrored ones flipped) or .vox (one file per
+  voxel size, big grids split into 256³ models), to Artifacts and the project folder's `exports/`.
+- Pictures: `world_look` with "save", and the panel's "Save a picture" (what the user sees).
+- The prefab library in the panel: search, take into this world, share to the library.
+- The mesher moved to `shared/voxelmesh.ts` (the server meshes for glTF).
+
 **Docs**: README and `docs/guide.md` get a "Voxel world" section in the phase it ships (AGENTS.md asks for
 this), and AGENTS.md's layout table gets `server/voxel/` and `web/voxel/`.
 

@@ -9,6 +9,7 @@ import type { MeshPart, ObjectPart, RenderClass } from './mesher.ts';
 import { envPreset, sunDirection } from '../../shared/worldenv.ts';
 import { createPost } from './post.ts';
 import { fitCamera, renderSnapshot, snapCamera } from './snapshot.ts';
+import { setPictureSource } from './picture.ts';
 import type { Post } from './post.ts';
 import { createVoxelMaterials, castsShadow, takesShadow } from './materials.ts';
 import type { VoxelUniforms } from './materials.ts';
@@ -52,6 +53,8 @@ export interface WorldView {
   removeVolume(id: string): void;
   /** A picture for world_look (a JPEG data: URL) of what is in `box`; `only` is drawn alone (a prefab), in the world's light. */
   snapshot(o: SnapshotRequest): string;
+  /** What you see now (your own camera, the screen's shape), `width` pixels wide, as a JPEG data: URL. */
+  picture(width?: number): string;
   /** Frames per second over the next few seconds (and the slowest frame, ms). */
   measure(seconds: number): Promise<{ fps: number; worstMs: number; frames: number }>;
   dispose(): void;
@@ -279,7 +282,16 @@ export function createWorldView(o: WorldViewOptions): WorldView {
   };
   let weatherKey = '';
 
+  const picture = (width = 1600): string => {
+    const size = renderer.getSize(new THREE.Vector2());
+    const w = Math.max(64, Math.min(2048, Math.round(width)));
+    const h = Math.max(64, Math.min(2048, Math.round((w * (size.y || 1)) / (size.x || 1))));
+    return renderSnapshot(renderer, scene, camera, w, h, shown.bloom);
+  };
+  const unregister = setPictureSource(picture);
+
   return {
+    picture,
     get environment() {
       return env;
     },
@@ -383,6 +395,7 @@ export function createWorldView(o: WorldViewOptions): WorldView {
       return { fps: total ? Math.round((f.length / total) * 10000) / 10 : 0, worstMs: Math.round(Math.max(0, ...f)), frames: f.length };
     },
     dispose() {
+      unregister();
       for (const id of [...volumes.keys()]) removeVolume(id);
       scene.remove(hemi, sun, sun.target, voxels, pool.group, effects.group);
       sun.shadow.map?.dispose();

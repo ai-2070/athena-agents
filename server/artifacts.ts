@@ -39,9 +39,11 @@ export interface ArtifactInput {
   note?: string;
   agentId?: string | null;
   chatId?: string | null;
+  /** who made it when it isn't an agent (the activity feed's words), e.g. "You" */
+  by?: string;
 }
 
-export function addArtifact({ title, path: target, text, note = '', agentId = null, chatId = null }: ArtifactInput): Artifact {
+export function addArtifact({ title, path: target, text, note = '', agentId = null, chatId = null, by }: ArtifactInput): Artifact {
   const name = String(title || '').trim().slice(0, 120);
   if (!name) throw new Error('Give the artifact a title.');
   if (!target && !String(text || '').trim()) throw new Error('Give a path to a file or folder, or the text of the result.');
@@ -58,7 +60,7 @@ export function addArtifact({ title, path: target, text, note = '', agentId = nu
     teamId: team?.id || null,
     teamName: team?.name || '',
   });
-  log('artifact', `${agent?.name || 'Someone'} finished "${name}"${team ? ` for ${team.name}` : ''}`, { agentId });
+  log('artifact', `${agent?.name || by || 'Someone'} ${agent || !by ? 'finished' : 'saved'} "${name}"${team ? ` for ${team.name}` : ''}`, { agentId });
   emit('artifacts');
   return item;
 }

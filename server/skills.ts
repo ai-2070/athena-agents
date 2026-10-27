@@ -344,7 +344,7 @@ A busy scene (a street in front of a stock exchange, the Nile with temples and b
 - **Big pieces are objects**: the ground, a building, a river, a temple. Build each in a few calls.
 - **Small things are prefabs**: a person, a palm tree, a street lamp, a taxi, a boat, a market stall, a window. Build each once with world_build and "prefab": "<name>", at a fine voxel size, standing on y = 0 around the origin with its front towards +z. Then place copies: {"place": …} with scatter, along a path, or in a grid, turned and recoloured. Copies are drawn very cheaply: hundreds are fine.
 - **Make variants with swaps**: give the parts that should vary their own material (define "shirt", "car body", "sail"), then place with "swap": [{"shirt": "cloth red"}, {"shirt": "cloth blue"}, …] and different people come out of one prefab. Make two or three prefabs for a crowd (standing, walking, sitting) and place them mixed: "place": ["Walker", "Stander"].
-- **Look first**: world_prefab "list" (this world) and "library" (shared by every world). Reuse what fits; import from the library with world_prefab "import". When you make something good and general, publish it.
+- **Look first**: world_prefab "list" (this world) and "library" (shared by every world). A MagicaVoxel model the user gave you comes in with world_import (as a prefab or an object); world_export saves an object, a prefab or the whole world as a .glb 3D model or a .vox file to Artifacts. Reuse what fits; import from the library with world_prefab "import". When you make something good and general, publish it.
 - **Refactor**: if you built something inside an object that you need again, world_prefab "save" with a box turns it into a prefab ("replace": true puts a copy where it was).
 - **Prefabs inside prefabs**: a street block prefab can hold copies of the lamp and bench prefabs. Changing the lamp changes every lamp.
 - **Stamp** a prefab into an object ({"stamp": "Window", "turn": 90}) when it is part of a building, so it is solid with it (quarter turns only). Place it when it should stand free at any angle.
@@ -389,6 +389,7 @@ A busy scene (a street in front of a stock exchange, the Nile with temples and b
 - Place copies in the object whose ground they stand on: many copies stand on its surface by themselves.
 
 ## After you build
+- **Look at it**: world_look shows you a picture of what you built (an object, a prefab on its own, an agent, the whole world) from any angle. Check proportions, colours, gaps, things floating or sunk, and whether it fits the world; fix and look again. "save": true puts the picture in Artifacts for the user.
 - Read the answer: it says how big the thing is and where. Adjust with world_object (move, turn, scale) rather than rebuilding; world_info with "map" shows an object or prefab from above.
 - Made a mistake? world_undo puts it back.
 - Update WORLD.md: the place under "Places" (what it is, where, who built it, what it means), the character under "Characters", and one dated line under "Story so far" (world_md_section with append).

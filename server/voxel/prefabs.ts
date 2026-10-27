@@ -209,6 +209,14 @@ function library(): LibraryPrefab[] {
     .filter((x): x is LibraryPrefab => !!x && typeof x.name === 'string' && !!x.data);
 }
 
+/** The library's prefabs without their voxels (for the page). */
+export function libraryItems(query = ''): Omit<LibraryPrefab, 'data' | 'palette'>[] {
+  const q = query.trim().toLowerCase();
+  return library()
+    .filter((p) => !q || `${p.name} ${p.description} ${p.tags.join(' ')}`.toLowerCase().includes(q))
+    .map(({ data: _d, palette: _p, ...rest }) => rest);
+}
+
 export function libraryList(query = ''): string {
   const q = query.trim().toLowerCase();
   const all = library().filter((p) => !q || `${p.name} ${p.description} ${p.tags.join(' ')}`.toLowerCase().includes(q));

@@ -8,6 +8,7 @@ import { setEffect, setEnvironment, setLight, EFFECT_KINDS } from './scene.ts';
 import { playAnimation, setAnimation, setSkin, skinTarget } from './characters.ts';
 import { activeProject, workflows } from '../store.ts';
 import { requestLook } from './look.ts';
+import { exportFiles, importVox, writeFiles, writePicture } from './exchange.ts';
 import { objectMap } from './describe.ts';
 import { changePrefab, deletePrefab, importPrefab, libraryList, prefabList, publishPrefab, savePrefabFrom } from './prefabs.ts';
 import { shownWorld } from './link.ts';
@@ -43,7 +44,13 @@ Characters: place part prefabs one at a time with "name" ({"place": "Arm", "at":
 {"unplace": "Palm tree" (or a list, or "all"), "in": [w, h, d]} takes copies away. {"stamp": "Window", "at": [x, y, z], "turn": 90, "swap": {…}} bakes a prefab into this object's voxels (quarter turns), for parts of a building.
 Stock materials (by name, no need to define): grass, moss, dirt, sand, stone, dark stone, cobble, brick, white plaster, wood, dark wood, bark, leaves, pine needles, blossom, autumn leaves, bamboo, water, glass, ice, snow, cloud, red lacquer, roof tile, gold, iron, lantern, neon pink, neon blue, fire, cloth white, skin light, skin medium, skin dark.`;
 
-export function worldTools(gate: Gate): ToolDef[] {
+/** The tools' own file checks (server/tools.ts): only the folders the agent may read or write. */
+interface FileAccess {
+  readable: (ctx: ToolContext, p: string | undefined) => string;
+  writableDir: (ctx: ToolContext, p: string | undefined) => string;
+}
+
+export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
   // asks first when an agent changes what someone else built (the Brain and you never need to)
   const othersFirst = async (ctx: ToolContext, args: ToolArgs, ref: unknown, doing: string, kind: 'object' | 'prefab' = 'object'): Promise<ToolResult | null> => {
     const shown = shownWorld();
@@ -301,6 +308,7 @@ export function worldTools(gate: Gate): ToolDef[] {
         azimuth: { type: 'number', description: 'Degrees around (the Station looks from 45)' },
         elevation: { type: 'number', description: 'Degrees up (the Station looks from 35; 90 is straight down)' },
         zoom: { type: 'number', description: '1 fits the target (default); 2 is twice as close' },
+        save: { type: 'boolean', description: 'Also save the picture to Artifacts (to show the user, or for a post)' },
       }),
       run: async (args, ctx) => {
         const a = args as { target?: string; name?: string; azimuth?: unknown; elevation?: unknown; zoom?: unknown };
@@ -329,10 +337,74 @@ export function worldTools(gate: Gate): ToolDef[] {
         const view: WorldLookView = { target, ...(id ? { id } : {}), azimuth: n(a.azimuth, -720, 720), elevation: n(a.elevation, 5, 90), zoom: n(a.zoom, 0.2, 8), width: 1024, height: 640 };
         ctx.progress?.(`Looking at ${label}…`);
         const r = await requestLook(w.id, activeProject().id, view);
-        if (r.image) return { text: `${cap(label)} in "${w.name}" (${w.environment.preset}${view.azimuth !== undefined ? `, from ${view.azimuth}°` : ''}).`, images: [r.image] };
+        if (r.image) {
+          let saved = '';
+          if ((a as { save?: boolean }).save === true) {
+            const { addArtifact } = await import('../artifacts.ts');
+            const file = writePicture(files.writableDir(ctx, 'pictures'), `${w.name} ${label}`, r.image);
+            addArtifact({ title: `${cap(label)} in ${w.name}`, path: file, note: 'A picture of the voxel world', agentId: ctx.agent.id });
+            saved = ` Saved to Artifacts: ${file}`;
+          }
+          return { text: `${cap(label)} in "${w.name}" (${w.environment.preset}${view.azimuth !== undefined ? `, from ${view.azimuth}°` : ''}).${saved}`, images: [r.image] };
+        }
         // no picture: the next best thing
         const words = target === 'object' || target === 'prefab' ? objectMap(w, id!) : 'Ask the user to open the Station with Settings › Look › Station on "Voxel world" to get pictures.';
         return { text: `No picture: no open Station in the voxel look answered. ${target === 'object' || target === 'prefab' ? 'Here is a map from above instead.\n' : ''}${words}` };
+      },
+    },
+    {
+      name: 'world_import',
+      group: 'world',
+      risk: 'low',
+      description: 'Bring a MagicaVoxel .vox file into the voxel world, as a prefab (to place copies of) or an object. Every model in the file comes in where the file places it; its colours become materials named "<name> 1", "<name> 2"… (change them with {"material": …} steps). The file must be in a folder you may read (your workspace, files the user gave you).',
+      parameters: obj(
+        {
+          file: str('The .vox file'),
+          as: str('"prefab" (default) or "object"'),
+          name: str('Its name in the world (default: the file\'s)'),
+          voxel_size: { type: 'number', description: 'Map units per voxel (default 0.1 for a prefab, the world\'s for an object)' },
+          anchor: str('object: "world", "brain", "team:<id>" or "agent:<id>"'),
+          position: { type: 'array', items: { type: 'number' }, description: 'object: [x, y, z] map units' },
+        },
+        ['file'],
+      ),
+      run: async (args, ctx) => {
+        const a = args as { file?: string; as?: string; name?: string; voxel_size?: unknown; anchor?: unknown; position?: unknown };
+        try {
+          const file = files.readable(ctx, a.file);
+          return { text: importVox({ by: builderOf(ctx), file, as: a.as === 'object' ? 'object' : 'prefab', name: String(a.name || ''), voxelSize: a.voxel_size, anchor: a.anchor, position: a.position }) };
+        } catch (e) {
+          return failed(e);
+        }
+      },
+    },
+    {
+      name: 'world_export',
+      group: 'world',
+      risk: 'low',
+      description: 'Save an object, a prefab or the whole voxel world as a file, to Artifacts (and your workspace\'s exports folder): "glb" is a glTF 3D model for Blender, game engines and the web (placed copies stay copies); "vox" is a MagicaVoxel file (one per voxel size; not for the whole world).',
+      parameters: obj(
+        {
+          what: str('"object", "prefab" or "world"'),
+          name: str('The object or prefab (name or id)'),
+          format: str('"glb" (default) or "vox"'),
+        },
+        ['what'],
+      ),
+      run: async (args, ctx) => {
+        const a = args as { what?: string; name?: string; format?: string };
+        const w = shownWorld().world;
+        if (!w) return { text: 'There is no world yet.', isError: true };
+        if (a.what !== 'object' && a.what !== 'prefab' && a.what !== 'world') return { text: 'what is "object", "prefab" or "world".', isError: true };
+        try {
+          const out = exportFiles(w, a.what, a.name, a.format === 'vox' ? 'vox' : 'glb');
+          const paths = writeFiles(files.writableDir(ctx, 'exports'), out.files);
+          const { addArtifact } = await import('../artifacts.ts');
+          for (const p of paths) addArtifact({ title: out.files.length > 1 ? `${out.title}: ${p.split(/[\\/]/).pop()}` : out.title, path: p, note: out.note || 'Made from the voxel world', agentId: ctx.agent.id });
+          return { text: `Saved ${paths.join(', ')} (${out.files.map((f) => `${Math.round(f.bytes.length / 1024)} KB`).join(', ')}) and added ${paths.length > 1 ? 'them' : 'it'} to Artifacts.${out.note ? ` ${out.note}` : ''}` };
+        } catch (e) {
+          return failed(e);
+        }
       },
     },
     {

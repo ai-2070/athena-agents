@@ -927,7 +927,7 @@ const TOOLS: ToolDef[] = [
     },
   },
   // ---------- the voxel world (server/voxel/tools.ts) ----------
-  ...voxel.worldTools(gate),
+  ...voxel.worldTools(gate, { readable: readablePath, writableDir }),
   // ---------- files ----------
   {
     name: 'list_files',

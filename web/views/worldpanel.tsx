@@ -1,12 +1,15 @@
 // The World panel on the Station (voxel look): the world's WORLD.md and its history, what is built and the
 // prefabs, the look (time of day, weather, glow, lights, effects, who is off the map), and which world this
 // project shows. The world picker also opens on its own from the project menu (openWorldPicker).
+// From here you can also save a picture of what you see, export objects, prefabs or the world as files
+// (.glb, .vox: they go to Artifacts), and take prefabs from the shared prefab library or share one to it.
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Slider } from '@base-ui/react/slider';
 import { GET, POST, PUT, DEL, ago, attempt, confirmBox, md, modal, promptBox, refreshSoon, state, toast } from '../core.ts';
 import { DomNode, Icon, mountReact, useServerEvents } from '../ui/react.tsx';
 import { Chips, Tabs } from '../ui/controls.tsx';
+import { canTakePicture, takePicture } from '../voxel/picture.ts';
 import type { ServerEvent, ShownWorld, VoxelObjectMeta, VoxelPrefabMeta, WorldEnvironment, WorldListing, WorldMdInfo, WorldSkins } from '../../shared/types.ts';
 
 type WorldAnswer = ShownWorld & { fromProjectName?: string };
@@ -22,6 +25,23 @@ interface Change {
   at: number;
   by: string;
   what: string;
+}
+/** A prefab in the shared library (GET /prefab-library). */
+interface LibraryRow {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  by: string;
+  fromWorld: string;
+  size: [number, number, number];
+  voxels: number;
+  createdAt: number;
+}
+interface ExportAnswer {
+  paths: string[];
+  artifacts: string[];
+  note?: string;
 }
 type Tab = 'md' | 'built' | 'look' | 'world';
 
@@ -47,6 +67,49 @@ function useWorld(): { shown: WorldAnswer | null; reload: () => void } {
 
 const voxels = (o: { volumes: { count: number }[] }) => o.volumes.reduce((n, v) => n + v.count, 0);
 const fmt = (n: number) => n.toLocaleString('en-US');
+/** Files out of the world, into Artifacts: the whole world, or one object or prefab, as .glb or .vox. */
+async function exportIt(what: 'object' | 'prefab' | 'world', format: 'glb' | 'vox', name: string, id?: string): Promise<void> {
+  const r = await attempt(() => POST<ExportAnswer>('/world/export', { what, id, format }));
+  if (r) toast(`Saved ${name} to Artifacts${r.paths.length > 1 ? ` (${r.paths.length} files, one per voxel size)` : ''}${r.note ? `. ${r.note}` : ''}`);
+}
+
+/** A picture of what you see on the Station, into Artifacts. */
+async function savePicture(name: string): Promise<void> {
+  let image: string | null = null;
+  try {
+    image = takePicture(1600);
+  } catch {
+    image = null;
+  }
+  if (!image) {
+    toast('A picture needs the Station open in the voxel look.', 'warn');
+    return;
+  }
+  const r = await attempt(() => POST<{ path: string }>('/world/picture', { image, name }));
+  if (r) toast('Saved a picture to Artifacts');
+}
+
+/** Export one thing: a small button that opens its two formats. */
+function ExportButtons({ what, id, name }: { what: 'object' | 'prefab'; id: string; name: string }) {
+  const [open, setOpen] = useState(false);
+  if (!open)
+    return (
+      <button className={ICON_BTN} title={`Export ${name}`} aria-label={`Export ${name}`} onClick={() => setOpen(true)}>
+        <Icon name="download" size={13} />
+      </button>
+    );
+  return (
+    <span className="flex flex-none items-center gap-1">
+      <button className="btn ghost tiny" title="A 3D model for Blender, game engines and the web" onClick={() => (setOpen(false), void exportIt(what, 'glb', `"${name}"`, id))}>
+        3D model
+      </button>
+      <button className="btn ghost tiny" title="A MagicaVoxel file" onClick={() => (setOpen(false), void exportIt(what, 'vox', `"${name}"`, id))}>
+        .vox
+      </button>
+    </span>
+  );
+}
+
 const howText = (s: WorldAnswer): string =>
   s.how === 'own' ? 'This project’s own world.' : s.how === 'shared' ? `Shared with ${s.fromProjectName || 'another project'}: changes show there too.` : s.how === 'carried' ? `Carried over from ${s.fromProjectName || 'another project'}: the first build here makes this project its own copy.` : 'No world yet: the first build starts one.';
 
@@ -65,6 +128,11 @@ export function WorldPanel({ onClose, teamName }: { onClose: () => void; teamNam
           <div className="st-panel-title font-sans text-[16px] leading-[1.25] font-bold">{w?.name || 'World'}</div>
           <div className="hint truncate">{shown ? howText(shown) : 'Loading…'}</div>
         </div>
+        {w && canTakePicture() ? (
+          <button className="icon-btn world-picture" onClick={() => void savePicture(w.name)} title="Save a picture of what you see to Artifacts" aria-label="Save a picture">
+            <Icon name="image" size={15} />
+          </button>
+        ) : null}
         <button className="icon-btn" onClick={onClose} aria-label="Close">
           ✕
         </button>
@@ -204,6 +272,7 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
   const w = shown.world;
   const [prefabs, setPrefabs] = useState<PrefabRow[]>([]);
   const [changes, setChanges] = useState<Change[]>([]);
+  const [library, setLibrary] = useState(false);
   const load = useCallback(() => {
     void GET<PrefabRow[]>('/world/prefabs')
       .then(setPrefabs)
@@ -226,6 +295,10 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
     if (!(await confirmBox(`Delete the prefab "${p.name}"?`, { ok: 'Delete', danger: true }))) return;
     await attempt(() => DEL(`/world/prefabs/${p.id}`), `Deleted the prefab "${p.name}"`);
     load();
+  };
+  const publish = async (p: PrefabRow) => {
+    const r = await attempt(() => POST<{ text: string }>(`/world/prefabs/${p.id}/publish`));
+    if (r) toast(r.text);
   };
   const undo = async () => {
     const r = await attempt(() => POST<{ text: string }>('/world/undo', { anyone: true }));
@@ -258,6 +331,7 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
                 <button className="btn ghost tiny" onClick={() => void hide(o)}>
                   {o.hidden ? 'Show' : 'Hide'}
                 </button>
+                <ExportButtons what="object" id={o.id} name={o.name} />
                 <button className={ICON_BTN} title={`Delete ${o.name}`} aria-label={`Delete ${o.name}`} onClick={() => void remove(o)}>
                   <Icon name="trash-2" size={13} />
                 </button>
@@ -266,7 +340,13 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
           </div>
         </div>
       ))}
-      <div className={SECTION}>Prefabs</div>
+      <div className="flex items-center">
+        <div className={`${SECTION} flex-1`}>Prefabs</div>
+        <button className="btn ghost tiny mt-3" onClick={() => setLibrary(!library)} aria-pressed={library}>
+          <Icon name="library-big" size={12} /> Library
+        </button>
+      </div>
+      {library ? <LibraryView onTaken={load} /> : null}
       {prefabs.length ? null : <p className="hint">No prefabs yet. Builders make the small things there are many of (people, trees, lamps) once, then place copies.</p>}
       <div className="flex flex-col gap-1">
         {prefabs.map((p) => (
@@ -279,6 +359,10 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
                 {p.description || 'no description'} · {p.size.join('×')} · {p.uses ? `${fmt(p.uses.copies)} copies in ${p.uses.in.join(', ')}` : 'not placed'}
               </span>
             </span>
+            <button className={ICON_BTN} title="Share to the library: every project can take it" aria-label={`Share ${p.name} to the library`} onClick={() => void publish(p)}>
+              <Icon name="upload" size={13} />
+            </button>
+            <ExportButtons what="prefab" id={p.id} name={p.name} />
             {p.uses ? null : (
               <button className={ICON_BTN} title={`Delete ${p.name}`} aria-label={`Delete ${p.name}`} onClick={() => void removePrefab(p)}>
                 <Icon name="trash-2" size={13} />
@@ -299,6 +383,49 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** The shared prefab library: search it, and take a prefab into this world. */
+function LibraryView({ onTaken }: { onTaken: () => void }) {
+  const [q, setQ] = useState('');
+  const [rows, setRows] = useState<LibraryRow[] | null>(null);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void GET<LibraryRow[]>(`/prefab-library?q=${encodeURIComponent(q.trim())}`)
+        .then(setRows)
+        .catch(() => setRows([]));
+    }, 200);
+    return () => clearTimeout(t);
+  }, [q]);
+  const take = async (r: LibraryRow) => {
+    const p = await attempt(() => POST<VoxelPrefabMeta>('/world/prefabs/import', { name: r.name }));
+    if (p) {
+      toast(`Took "${r.name}" into this world${p.name !== r.name ? ` as "${p.name}"` : ''}`);
+      onTaken();
+    }
+  };
+  return (
+    <div className="world-library mb-2 flex flex-col gap-1.5 rounded-box border border-line-2 p-2">
+      <p className="hint">Prefabs shared from every project. Take one into this world to place copies of it.</p>
+      <input className="w-full" type="search" placeholder="Search the library" aria-label="Search the library" value={q} onChange={(e) => setQ(e.target.value)} />
+      {!rows ? <p className="hint">Loading…</p> : rows.length ? null : <p className="hint">{q ? 'Nothing matches.' : 'The library is empty. Share a prefab to it with its upload button.'}</p>}
+      {(rows || []).map((r) => (
+        <div key={r.id} className={ROW}>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate">
+              {r.name} <span className={ROW_META}>by {r.by} · from {r.fromWorld}</span>
+            </span>
+            <span className={`block truncate ${ROW_META}`}>
+              {r.description || 'no description'} · {r.size.join('×')} · {fmt(r.voxels)} voxels
+            </span>
+          </span>
+          <button className="btn ghost tiny" onClick={() => void take(r)}>
+            Take into this world
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -466,6 +593,11 @@ export function WorldPicker({ shown, reload }: { shown: WorldAnswer; reload: () 
         <button className="btn ghost small" onClick={() => void newWorld()}>
           <Icon name="plus" size={13} /> New empty world
         </button>
+        {shown.world?.built ? (
+          <button className="btn ghost small" onClick={() => void exportIt('world', 'glb', `"${shown.world!.name}"`)} title="The whole world as a 3D model (.glb), saved to Artifacts">
+            <Icon name="download" size={13} /> Export the whole world
+          </button>
+        ) : null}
         <button className="btn ghost small" onClick={() => void choose('auto', undefined, 'Back to its own world, or the carried-over one')} title="Forget the world picked for this project: its own world when it has one built, else the default or the most recently built world">
           Back to carry-over
         </button>
