@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildCss } from './build-css.ts';
+import { buildFonts } from './build-fonts.ts';
 
 const root = path.resolve(import.meta.dirname, '..');
 const outdir = path.join(root, 'public', 'dist');
@@ -32,7 +33,8 @@ async function build(): Promise<boolean> {
     return false;
   }
   try {
-    fs.writeFileSync(path.join(tmpdir, 'app.css'), await buildCss({ minify: !watch }));
+    // the fonts' @font-face rules go after Tailwind's output (they sit outside its layers)
+    fs.writeFileSync(path.join(tmpdir, 'app.css'), (await buildCss({ minify: !watch })) + '\n' + buildFonts(tmpdir));
   } catch (e) {
     console.error('css:', e instanceof Error ? e.message : e);
     fs.rmSync(tmpdir, { recursive: true, force: true });

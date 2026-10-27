@@ -1,8 +1,11 @@
-// The page's Tailwind stylesheet builds, and class names in web/ are written so Tailwind can see them.
+// The page's Tailwind stylesheet builds, class names in web/ are written so Tailwind can see them, and the
+// fonts come with the page.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildCss, CSS_ENTRY } from '../../scripts/build-css.ts';
+import { buildFonts, FONTS } from '../../scripts/build-fonts.ts';
 
 const WEB = path.resolve(import.meta.dirname, '../../web');
 const sources = (dir: string): string[] =>
@@ -55,4 +58,27 @@ describe('the stylesheet', () => {
     }
     expect(found).toEqual([]);
   }, 60_000);
+});
+
+describe('the fonts', () => {
+  it('come with the page: every file the rules name is copied next to them', () => {
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'fonts-'));
+    try {
+      const css = buildFonts(out);
+      for (const f of FONTS) expect(css).toContain(`font-family: '${f.family}'`);
+      expect(css).toContain('font-style: italic');
+      expect(css).not.toMatch(/https?:/);
+      const urls = [...css.matchAll(/url\(\.\/(fonts\/[\w.-]+)\)/g)].map((m) => m[1] ?? '');
+      expect(urls.length).toBeGreaterThan(0);
+      for (const u of urls) expect(fs.existsSync(path.join(out, u))).toBe(true);
+      expect(fs.existsSync(path.join(out, 'fonts', 'archivo-LICENSE.txt'))).toBe(true);
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true });
+    }
+  });
+
+  it('are not fetched from outside', () => {
+    const html = fs.readFileSync(path.resolve(import.meta.dirname, '../../public/index.html'), 'utf8');
+    expect(html).not.toContain('fonts.googleapis.com');
+  });
 });

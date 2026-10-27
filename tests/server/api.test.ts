@@ -219,6 +219,9 @@ describe('local-only security', () => {
     const csp = r.headers.get('content-security-policy') || '';
     expect(csp).toContain("script-src 'self'");
     expect(csp).toContain("frame-ancestors 'none'");
+    // fonts come from here too
+    expect(csp).toContain("font-src 'self'");
+    expect(csp).not.toContain('googleapis');
   });
 
   it('accepts the live-events socket only from its own page', async () => {
