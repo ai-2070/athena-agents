@@ -1,0 +1,27 @@
+tests/server/skillinstall.test.ts
+  s_4f53eccb4f7bb2::t_fcc245b072dfe8 101-107
+  s_4f53eccb4f7bb2::t_4b06016958bbdd 135-149
+  s_4f53eccb4f7bb2::t_4ea14bc2dbb6cd 7-8
+  s_4f53eccb4f7bb2::t_bdeb5d9418028b 150-151
+server/skillinstall.ts
+  s_4f53eccb4f7bb2::t_6226bbe3bf3743 219-220
+  s_4f53eccb4f7bb2::t_3e674fd49b59eb 217-218,221
+  s_4f53eccb4f7bb2::t_58aa3815297097 9-11
+  s_4f53eccb4f7bb2::t_2d1730ea66aeff 190-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "961ab7e1c1c8debb135290cafab492c2dfa97012",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
