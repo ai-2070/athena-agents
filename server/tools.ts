@@ -14,7 +14,7 @@ const HERMES_WAIT_S = 240;
 import { requestApproval } from './approvals.ts';
 import { agentFetch } from './agentfetch.ts';
 import { accountOf } from './mcp.ts';
-import { knownPrograms, launchProgram, programExe, startMenuApps } from './programs.ts';
+import { knownPrograms, launchProgram, launchTarget, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as social from './social.ts';
 import * as reddit from './reddit.ts';
@@ -127,10 +127,13 @@ function resolveInside(agent: ToolAgent, p: string | undefined, { write = false 
   return { abs, real: real || abs, ok: !!real };
 }
 
-// Files that run code when opened.
-const RUNNABLE = /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|msi|msp|scr|cpl|lnk|url|reg|jar|py|pyw|sh|appref-ms|application|gadget|inf|pif|scf)$/i;
+// Files that run code when opened (Adobe apps run the .jsx / .jsxbin scripts they are handed).
+const RUNNABLE = /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|jsx|jsxbin|wsf|wsh|hta|msi|msp|scr|cpl|lnk|url|reg|jar|py|pyw|sh|command|scpt|applescript|appref-ms|application|gadget|inf|pif|scf)$/i;
 // Programs that run whatever they are given.
-const INTERPRETERS = /^(cmd|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python\d*|py|node|bash|sh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget)(\.exe)?$/i;
+const INTERPRETERS = /^(cmd|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python\d*|py|node|bun|deno|ruby|perl|php|java|javaw|osascript|bash|sh|zsh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget)(\.exe)?$/i;
+// A name as Windows opens it: trailing spaces and dots don't count ("x.py. " opens x.py), nor a ::$DATA stream.
+const asOpened = (p: unknown): string => String(p ?? '').trim().replace(/::\$data$/i, '').replace(/[\s.]+$/, '');
+const runnable = (p: unknown): boolean => RUNNABLE.test(asOpened(p));
 
 /** The chat a tool call runs in (to tell which team it is for). */
 const chatOf = async (ctx: ToolContext): Promise<string | null> => (await import('./engines/index.ts')).runInfo(ctx.runId)?.chatId ?? null;
@@ -246,7 +249,13 @@ const TOOLS: ToolDef[] = [
     name: 'launch_program',
     group: 'programs',
     // Plain launches are low risk; extra arguments, runnable files or shells need a yes.
-    risk: ({ program, file, args }: LaunchArgs) => (INTERPRETERS.test(path.basename(String(program || ''))) || (args && args.length) || (file && RUNNABLE.test(file)) ? 'high' : 'low'),
+    // Judged on the program it really starts: the same one launchProgram picks.
+    risk: ({ program, file, args }: LaunchArgs) => {
+      if ((args && args.length) || (file && runnable(file))) return 'high';
+      const target = launchTarget(program, !!file);
+      const exe = target ? target.exe || target.shortcut : '';
+      return [asOpened(program), asOpened(exe)].some((p) => INTERPRETERS.test(path.basename(p))) ? 'high' : 'low';
+    },
     description: 'Start a program by name or id (e.g. "blender", "premiere", "comfyui", "LM Studio", any Start Menu app). Optionally open a file with it.',
     parameters: obj({ program: str('Program name or id'), file: str('Optional file to open with it'), args: { type: 'array', items: { type: 'string' } } }, ['program']),
     run: async ({ program, file, args }: LaunchArgs) => ({ text: await launchProgram(program, { file, args }) }),
@@ -254,7 +263,7 @@ const TOOLS: ToolDef[] = [
   {
     name: 'open_path',
     group: 'programs',
-    risk: ({ path: p }: { path: string }) => (RUNNABLE.test(String(p || '')) ? 'high' : 'low'),
+    risk: ({ path: p }: { path: string }) => (runnable(p) ? 'high' : 'low'),
     description: 'Open a file or folder with its default program (Explorer for folders).',
     parameters: obj({ path: str('Absolute path') }, ['path']),
     run: async ({ path: p }: { path: string }) => {
@@ -1068,18 +1077,24 @@ export async function gate(agent: ToolAgent, name: string, risk: Risk, args: Too
   return null;
 }
 
+/** How risky one call of a tool is (a tool given by name: unknown ones are high). */
+export function riskOf(tool: ToolDef | string, args: ToolArgs = {}): Risk {
+  const t = typeof tool === 'string' ? BY_NAME.get(tool) : tool;
+  if (!t) return 'high';
+  try {
+    return typeof t.risk === 'function' ? t.risk(args) : t.risk;
+  } catch {
+    return 'high';
+  }
+}
+
 // Run a tool for an agent, asking the user first when its settings say so.
 export async function callTool(agent: ToolAgent, name: string, args: ToolArgs = {}, ctx: ToolRunInfo = {}): Promise<ToolResult> {
   const tool = BY_NAME.get(name);
   if (!tool) throw new Error(`Unknown tool ${name}`);
   if (!toolsForAgent(agent).includes(tool)) throw new Error(`${agent.name} isn't allowed to use ${name}. Turn on the "${tool.group}" tools for it.`);
   args = args && typeof args === 'object' ? args : {};
-  let risk: Risk = 'high';
-  try {
-    risk = typeof tool.risk === 'function' ? tool.risk(args) : tool.risk;
-  } catch {
-    /* treat as high */
-  }
+  const risk = riskOf(tool, args);
   // For tools whose risk depends on arguments, "Always allow" only skips the low-risk form.
   const allowName = typeof tool.risk === 'function' && risk === 'high' ? `${name}:high` : name;
   const refused = await gate(agent, allowName, risk, args, ctx, describeCall(name, args));
