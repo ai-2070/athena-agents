@@ -34,6 +34,27 @@ describe('skills library', () => {
     expect(skills.getSkill('folded')?.description).toBe('first line second line');
   });
 
+  it('reads back exactly the name and description it saved, however often it is saved', () => {
+    const name = 'Say "Hello" #1: it\'s';
+    const description = 'Use for C:\\src\\new and a trailing \\';
+    let s = skills.saveSkill({ name, description, body: 'Hi.' })!;
+    for (let i = 0; i < 3; i++) {
+      expect(s).toMatchObject({ name, description });
+      s = skills.saveSkill({ slug: s.slug, name: s.name, description: s.description, body: s.body })!;
+    }
+    for (const odd of ['>', '| pipe', '- dash', '[x]', '{x}', '@x', 'true\\']) expect(skills.saveSkill({ name: odd, description: 'Use it.', body: '' })?.name).toBe(odd);
+  });
+
+  it('decodes quoted names and descriptions written by hand or the old way', () => {
+    const dir = dataPath('skills', 'quoted');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'SKILL.md'), '---\nname: "Say \\"Hi\\" \\x41\\u00e9"\ndescription: \'It\'\'s for C:\\src\'\n---\nbody');
+    expect(skills.getSkill('quoted')).toMatchObject({ name: 'Say "Hi" Aé', description: "It's for C:\\src" });
+    // an escape YAML doesn't know is kept as it was, and a plain value keeps its quotes
+    fs.writeFileSync(path.join(dir, 'SKILL.md'), '---\nname: "C:\\src\\q"\ndescription: Say "hi"\n---\nbody');
+    expect(skills.getSkill('quoted')).toMatchObject({ name: 'C:\\src\\q', description: 'Say "hi"' });
+  });
+
   it('finds a skill by its display name, with the full instructions', () => {
     make('Email to clients', 'Use for client emails.', 'Always sign with the team name.');
     const s = skills.findSkill('email to clients');

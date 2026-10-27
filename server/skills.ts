@@ -6,11 +6,11 @@
 import { BUILD_ORDER, DIORAMA } from './voxel/diorama.ts';
 import fs from 'node:fs';
 import path from 'node:path';
-import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME, ROOT } from './util.ts';
+import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME, ROOT, yamlScalar, yamlString } from './util.ts';
 import { activeProject, agents, workflows, listProjects, getSettings, saveSettings, withProject, log, emit } from './store.ts';
 import { updateProject } from './projects.ts';
 import crypto from 'node:crypto';
-import { keepVersion, versionFilesDir } from './versions.ts';
+import { keepVersion, pruneVersions, versionFilesDir } from './versions.ts';
 import type { ClaudeSkill, Skill, SkillFile, SkillListing, SkillOrigin } from '../shared/types.ts';
 
 /** A skill as getSkill returns it (dir is cleared so it never reaches the browser). */
@@ -39,20 +39,19 @@ function parse(text: string): { meta: Record<string, string>; body: string } {
   for (let i = 0; i < lines.length; i++) {
     const kv = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(lines[i]);
     if (!kv) continue;
-    let v = kv[2].trim();
+    const v = kv[2].trim();
     // multi-line values: "key: >-", "key: |" or an empty value followed by indented lines
     if (/^[>|][+-]?$/.test(v) || v === '') {
       const parts: string[] = [];
       while (i + 1 < lines.length && /^\s+\S/.test(lines[i + 1])) parts.push(lines[++i].trim());
-      v = v.startsWith('|') ? parts.join('\n') : parts.join(' ');
-    }
-    meta[kv[1]] = v.replace(/^["']|["']$/g, '').trim();
+      meta[kv[1]] = (v.startsWith('|') ? parts.join('\n') : parts.join(' ')).trim();
+    } else meta[kv[1]] = yamlScalar(v);
   }
   return { meta, body: m[2] };
 }
-const yamlLine = (s: string) => (/[:#"'\n]/.test(s) ? JSON.stringify(s) : s);
+// (quoted the way parse reads it back exactly, so saving again changes nothing)
 function compose({ name, description, body }: { name: string; description: string; body?: unknown }): string {
-  return `---\nname: ${yamlLine(name)}\ndescription: ${yamlLine(description.replace(/\s+/g, ' '))}\n---\n\n${String(body || '').trim()}\n`;
+  return `---\nname: ${yamlString(name)}\ndescription: ${yamlString(description.replace(/\s+/g, ' '))}\n---\n\n${String(body || '').trim()}\n`;
 }
 
 function filesIn(dir: string): SkillFile[] {
@@ -245,7 +244,9 @@ export function restoreSkill(item: SkillVersionItem, versionId: string): SkillDe
   const now = getSkill(item.slug);
   if (now) {
     const current: SkillVersionItem = { ...versionItem(now), ...(withFiles ? { files: skillExtraFiles(dir), filesHash: skillFilesHash(dir) } : {}) };
-    const v = keepVersion(vdir, current, item);
+    // (pruned only after the copy below: the version being restored may be the oldest one, which keeping
+    // one more would delete, files and all)
+    const v = keepVersion(vdir, current, item, { prune: false });
     if (v && withFiles && current.files?.length) copySkillFiles(dir, versionFilesDir(vdir, v.id));
   }
   fs.writeFileSync(path.join(dir, 'SKILL.md'), compose({ name: item.name, description: item.description, body: item.body }));
@@ -253,6 +254,7 @@ export function restoreSkill(item: SkillVersionItem, versionId: string): SkillDe
     for (const rel of skillExtraFiles(dir)) fs.rmSync(path.join(dir, ...rel.split('/')), { force: true });
     if (kept && exists(kept)) copySkillFiles(kept, dir);
   }
+  pruneVersions(vdir);
   emit('skills', { slug: item.slug });
   return getSkill(item.slug);
 }
