@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { waitingQuestions } from './questions.ts';
-import { agents, workflows, activeProject, openProject, projectSwitches, listProjects, getSettings, outbox, activity, log, emit, routineRuns, runs as workflowRuns } from './store.ts';
+import { agents, workflows, activeProject, openProject, projectSwitches, listProjects, getSettings, saveSettings, outbox, activity, log, emit, routineRuns, runs as workflowRuns } from './store.ts';
 import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from './library.ts';
 import { TOOL_GROUPS, workspaceOf } from './tools.ts';
 import { listServers, PRESETS, presetNeeds, suggestPresets, importableServers, saveServer, serverName, renameServer, removeServerEverywhere, kindOf, serviceTitle, copyTitle, copiesByKind, copiesWithoutUseFor, serversForPrompt, resolveKind, addedKinds, placeNew } from './mcp.ts';
@@ -97,6 +97,8 @@ export interface BrainAction {
   targets?: unknown;
   body?: unknown;
   append?: unknown;
+  /** station_look: "world" or "classic" */
+  look?: unknown;
   /** install_skill: the GitHub link, and who gets what it installs */
   url?: unknown;
   give?: unknown;
@@ -392,9 +394,11 @@ const BRAIN_BUILDER = { kind: 'brain', name: 'The Brain' } as const;
 const WORLD_MD_IN_SNAPSHOT = 4000;
 function brainWorldSnapshot(): string {
   const shown = shownWorld();
-  if (!shown.world) return 'WORLD: no voxel world yet. A build action starts one for this project.';
+  // in the classic look the Station doesn't draw the world: nobody sees what is built (station_look turns it on)
+  const look = getSettings().look.stationLook === 'world' ? 'Station look: voxel world (the Station draws the world).' : 'Station look: classic (the Station does NOT draw the voxel world, and builders get no pictures; station_look "world" turns it on when the user wants to see a world).';
+  if (!shown.world) return `WORLD: no voxel world yet. A build action starts one for this project. ${look}`;
   const md = readWorldMd(shown.world.id).trim();
-  return `WORLD (the voxel world on the Station):\n${worldText(shown.world, { how: shown.how, fromProject: listProjects().find((x) => x.id === shown.fromProject)?.name })}\nWORLD.md:\n${md.length > WORLD_MD_IN_SNAPSHOT ? `${md.slice(0, WORLD_MD_IN_SNAPSHOT)}\n… (${md.length - WORLD_MD_IN_SNAPSHOT} more characters)` : md}`;
+  return `WORLD (the voxel world on the Station): ${look}\n${worldText(shown.world, { how: shown.how, fromProject: listProjects().find((x) => x.id === shown.fromProject)?.name })}\nWORLD.md:\n${md.length > WORLD_MD_IN_SNAPSHOT ? `${md.slice(0, WORLD_MD_IN_SNAPSHOT)}\n… (${md.length - WORLD_MD_IN_SNAPSHOT} more characters)` : md}`;
 }
 
 // ---------- conversation with the Brain ----------
@@ -511,6 +515,7 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"take_mcp","servers":["<name>",…],"to":…,"id":…}   (or "targets", like give_mcp)
 {"do":"set_mcp","servers":["<name>",…],"to":"agent"|"team","id":"…"}   (their whole list becomes exactly this; [] takes all away)
 {"do":"build","object":"name (a new name makes a new object)","anchor":"world"|"brain"|"team:<team id>","position":[x,y,z],"voxel_size":0.25,"steps":[STEP,…]}   (builds in the project's voxel world; position in map units from the anchor, new objects only; "prefab":"name" instead of "object" builds a prefab, with "description")
+{"do":"station_look","look":"world"|"classic"}   (how the Station looks, for every project: "world" draws the voxel world, "classic" is the dark map; only when the user asks for it, or asks for a world while the Station is classic)
 {"do":"world_env","preset":"station|day|golden|dusk|night|overcast|snow","sun":{"elevation":8},"fog":{"density":0.4},"weather":"none|snow|rain|petals|leaves|dust","wind":[1,0,0.5]}   (the world's time of day, sky, sun, fog, weather and wind; only what changes)
 {"do":"world_light","op":"add|change|remove","light":"name (change, remove)","name":"…","kind":"point|spot","color":"#ffb860","intensity":0-10,"range":12,"anchor":"world","object":"object name","position":[x,y,z],"flicker":0.3}   (glowing voxels light their surroundings by themselves; add lights for doorways, spotlights, fires)
 {"do":"skin","to":"agent|team|brain","id":"<agent or team id>","character":"prefab","desk":"prefab","platform":"prefab","hub":"prefab","shell":"prefab","states":{"idle":"clip","working":"clip","needs":"clip"},"offset":[x,y,z],"turn":0,"scale":1,"hidden":false,"label":true,"clear":false}   (how the Brain, a team or an agent looks in the voxel world: an agent's character can be any prefab, a person, an animal, a tree, an object; hidden takes it off the map)
@@ -1538,6 +1543,14 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         const r = buildInWorld({ by: BRAIN_BUILDER, prefab: act.prefab === undefined ? undefined : String(act.prefab), description: act.description, object: String(act.object ?? act.name ?? ''), anchor: act.anchor, position: act.position, voxelSize: act.voxel_size, steps: act.steps, project: p.id });
         log('world', `The Brain ${r.created ? 'built' : 'changed'} "${r.object.name}" in the world`);
         done.push({ kind: 'world', text: `${r.created ? 'Built' : 'Changed'} "${r.object.name}": ${r.outcome.added.toLocaleString('en-US')} voxels added${r.outcome.removed ? `, ${r.outcome.removed.toLocaleString('en-US')} removed` : ''}` });
+      } else if (kind === 'station_look') {
+        // a setting for every project: only when the user asks in the chat, never from a review
+        if (auto) throw new Error('only when the user asks');
+        const look = String(act.look ?? '');
+        if (look !== 'world' && look !== 'classic') throw new Error('"look" is "world" or "classic"');
+        saveSettings({ look: { stationLook: look } });
+        log('settings', `The Brain turned the Station's ${look === 'world' ? 'voxel look on' : 'voxel look off (classic)'}`);
+        done.push({ kind: 'note', text: look === 'world' ? 'Turned on the voxel look (Settings › Look › Station look)' : 'Put the Station back to the classic look' });
       } else if (kind === 'world_env') {
         if (auto) throw new Error('only when the user asks');
         const { do: _d, action: _a, ...fields } = act as BrainAction & Record<string, unknown>;

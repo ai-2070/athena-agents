@@ -26,6 +26,18 @@ describe('the Brain approves', () => {
     expect(listApprovals()).toHaveLength(0);
   });
 
+  it('never decides a setting: an agent asking to change one goes to you', async () => {
+    let asked = false;
+    setReviewer(async () => ((asked = true), { approve: true, reason: 'fine' }));
+    const p = requestApproval({ kind: 'setting', title: 'Mira wants to see the voxel world', agentId: 'a1', agentName: 'Mira' });
+    await tick();
+    expect(asked).toBe(false);
+    const [a] = listApprovals();
+    expect(a.kind).toBe('setting');
+    decide(a.id, { approved: true });
+    expect((await p).approved).toBe(true);
+  });
+
   it('passes a request it does not approve on to you, with its reason', async () => {
     setReviewer(async () => ({ approve: false, reason: 'pushes to GitHub' }));
     const p = requestApproval({ title: 'Coder wants to use Bash', detail: 'git push', agentId: 'a1', agentName: 'Coder' });

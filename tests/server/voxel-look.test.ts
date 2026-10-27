@@ -47,6 +47,8 @@ describe('world_look', () => {
   });
 
   it('the tool returns the picture, or a map in words for an object', async () => {
+    const { saveSettings } = await import('../../server/store.ts');
+    saveSettings({ look: { stationLook: 'world' } });
     const a = newAgent({ name: 'Looker', toolGroups: ['world'], autonomy: 'full' });
     expect((await callTool(a, 'world_look', {})).text).toMatch(/no world yet/i);
     build({ by: { kind: 'agent', id: a.id, name: 'Looker' }, object: 'Hut', steps: [{ box: [3, 2, 3], use: 'wood' }] });
@@ -62,26 +64,56 @@ describe('world_look', () => {
   }, 20_000);
 });
 
-describe('world_look says why there is no picture', () => {
-  it('the Station in the classic look: asks for the voxel look, at once', async () => {
-    const { saveSettings } = await import('../../server/store.ts');
+describe('world_look in the classic look', () => {
+  it('asks you (once for builders asking together) to turn on the voxel look; no keeps the classic look', async () => {
+    const { saveSettings, getSettings } = await import('../../server/store.ts');
+    const { listApprovals, decide } = await import('../../server/approvals.ts');
     saveSettings({ look: { stationLook: 'classic' } });
     const a = newAgent({ name: 'Peeker', toolGroups: ['world'], autonomy: 'full' });
-    // a classic tab answers that it can't draw it
+    const two = [callTool(a, 'world_look', {}), callTool(a, 'world_look', { target: 'brain' })];
+    await new Promise((r) => setTimeout(r, 20));
+    const asks = listApprovals().filter((x) => x.kind === 'setting');
+    expect(asks).toHaveLength(1);
+    expect(asks[0]).toMatchObject({ title: 'Peeker wants to see the voxel world', data: { allow: 'Turn on the voxel look' } });
+    decide(asks[0].id, { approved: false });
+    for (const r of await Promise.all(two)) expect(r.text).toMatch(/^No picture: the user kept the Station in the classic look/);
+    expect(getSettings().look.stationLook).toBe('classic');
+  });
+
+  it('yes turns it on, and the picture comes once a Station has switched', async () => {
+    const { saveSettings, getSettings } = await import('../../server/store.ts');
+    const { listApprovals, decide } = await import('../../server/approvals.ts');
+    saveSettings({ look: { stationLook: 'classic' } });
+    const a = newAgent({ name: 'Peeker', toolGroups: ['world'], autonomy: 'full' });
+    // the tab can't draw it at first (still loading the world), then it can
+    let asked = 0;
+    const tab = (e: ServerEvent) => {
+      if (e.type !== 'world-look') return;
+      const req = (e as ServerEvent & { request: string }).request;
+      setTimeout(() => deliverLook(req, ++asked === 1 ? { error: 'still loading' } : { image: PNG }), 5);
+    };
+    bus.on('event', tab);
+    const p = callTool(a, 'world_look', {});
+    await new Promise((r) => setTimeout(r, 20));
+    decide(listApprovals().find((x) => x.kind === 'setting')!.id, { approved: true });
+    const r = await p;
+    bus.off('event', tab);
+    expect(getSettings().look.stationLook).toBe('world');
+    expect(r.images).toEqual([PNG]);
+    expect(asked).toBe(2);
+  }, 20_000);
+
+  it("in the voxel look, a Station that can't draw it says why", async () => {
+    const { saveSettings } = await import('../../server/store.ts');
+    saveSettings({ look: { stationLook: 'world' } });
+    const a = newAgent({ name: 'Peeker', toolGroups: ['world'], autonomy: 'full' });
     const refuse = (e: ServerEvent) => {
       if (e.type === 'world-look') setTimeout(() => deliverLook((e as ServerEvent & { request: string }).request, { error: "this tab doesn't show that world in the voxel look" }), 5);
     };
     bus.on('event', refuse);
-    const t = Date.now();
     const r = await callTool(a, 'world_look', {});
     bus.off('event', refuse);
-    expect(r.text).toMatch(/^No picture: the Station is in the classic look.*Settings › Look › Station look › Voxel world/);
-    expect(Date.now() - t).toBeLessThan(2000);
-    saveSettings({ look: { stationLook: 'world' } });
-    bus.on('event', refuse);
-    const r2 = await callTool(a, 'world_look', {});
-    bus.off('event', refuse);
-    expect(r2.text).toMatch(/no open Station could draw it \(this tab doesn't show that world in the voxel look\)\. Ask the user to open the Station with this project open/);
+    expect(r.text).toMatch(/no open Station could draw it \(this tab doesn't show that world in the voxel look\)\. Ask the user to open the Station with this project open/);
   });
 });
 

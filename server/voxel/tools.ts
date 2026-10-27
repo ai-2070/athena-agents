@@ -6,7 +6,8 @@ import { VERBS, BuildError } from './ops.ts';
 import { build, changeObject, findObject, findPrefab, ownsObject, undo } from './build.ts';
 import { setEffect, setEnvironment, setLight, EFFECT_KINDS } from './scene.ts';
 import { playAnimation, setAnimation, setSkin, skinTarget } from './characters.ts';
-import { activeProject, getSettings, workflows } from '../store.ts';
+import { activeProject, getSettings, saveSettings, workflows } from '../store.ts';
+import { requestApproval } from '../approvals.ts';
 import { requestLook } from './look.ts';
 import { exportFiles, importVox, writeFiles, writePicture } from './exchange.ts';
 import { objectMap } from './describe.ts';
@@ -43,6 +44,32 @@ Prefabs (small models made once and used many times; see world_prefab):
 Characters: place part prefabs one at a time with "name" ({"place": "Arm", "at": [3, 12, 0], "name": "left arm"}) so animations can move them (world_animate).
 {"unplace": "Palm tree" (or a list, or "all"), "in": [w, h, d]} takes copies away. {"stamp": "Window", "at": [x, y, z], "turn": 90, "swap": {…}} bakes a prefab into this object's voxels (quarter turns), for parts of a building.
 Stock materials (by name, no need to define): grass, moss, dirt, sand, stone, dark stone, cobble, brick, white plaster, wood, dark wood, bark, leaves, pine needles, blossom, autumn leaves, bamboo, water, glass, ice, snow, cloud, red lacquer, roof tile, gold, iron, lantern, neon pink, neon blue, fire, cloth white, skin light, skin medium, skin dark.`;
+
+// The Station in the classic look can't draw the world. A builder that wants to see it asks you to turn the
+// voxel look on: always you (it changes how the Station looks in every project), once for builders asking together.
+let askingForLook: Promise<boolean> | null = null;
+function askForVoxelLook(agent: ToolAgent): Promise<boolean> {
+  askingForLook ??= requestApproval({
+    kind: 'setting',
+    title: `${agent.name} wants to see the voxel world`,
+    detail: 'The Station is in the classic look, which doesn\'t draw the world your agents build. Turn on the voxel look (Settings › Look › Station look) so they can look at their work? It shows the world on the Station in every project and uses more graphics power; Settings › Look switches it back.',
+    agentId: agent.id,
+    agentName: agent.name,
+    data: { setting: 'stationLook', value: 'world', allow: 'Turn on the voxel look' },
+  })
+    .then((d) => {
+      if (d.approved) {
+        saveSettings({ look: { stationLook: 'world' } });
+        log('settings', `Turned on the voxel look for ${agent.name}`, { agentId: agent.id });
+      }
+      return d.approved;
+    })
+    .finally(() => (askingForLook = null));
+  return askingForLook;
+}
+
+/** How long a Station takes to switch to the voxel look and draw the world, at most (it is asked again meanwhile). */
+export const LOOK_SWITCH_MS = 10_000;
 
 /** The tools' own file checks (server/tools.ts): only the folders the agent may read or write. */
 interface FileAccess {
@@ -337,8 +364,19 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
         }
         const n = (v: unknown, min: number, max: number) => (v === undefined || !Number.isFinite(Number(v)) ? undefined : Math.max(min, Math.min(max, Number(v))));
         const view: WorldLookView = { target, ...(id ? { id } : {}), azimuth: n(a.azimuth, -720, 720), elevation: n(a.elevation, 5, 90), zoom: n(a.zoom, 0.2, 8), width: 1024, height: 640 };
+        let turnedOn = false;
+        if (getSettings().look.stationLook !== 'world') {
+          ctx.progress?.('Asking you to turn on the voxel look…');
+          turnedOn = await askForVoxelLook(ctx.agent);
+          if (!turnedOn) return { text: `No picture: the user kept the Station in the classic look, which doesn't draw the voxel world. Don't ask again in this task.${target === 'object' || target === 'prefab' ? `\nHere is a map from above instead.\n${objectMap(w, id!)}` : '\nworld_info has where everything stands.'}` };
+        }
         ctx.progress?.(`Looking at ${label}…`);
-        const r = await requestLook(w.id, activeProject().id, view);
+        let r = await requestLook(w.id, activeProject().id, view);
+        // just switched: the open Stations are still loading the world, so ask again for a few seconds
+        for (const until = Date.now() + LOOK_SWITCH_MS; turnedOn && !r.image && r.note !== 'no page is open' && Date.now() < until; ) {
+          await new Promise((done) => setTimeout(done, 1500));
+          r = await requestLook(w.id, activeProject().id, view);
+        }
         if (r.image) {
           let saved = '';
           if ((a as { save?: boolean }).save === true) {

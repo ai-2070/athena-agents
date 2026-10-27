@@ -370,7 +370,7 @@ export function approvalCard(a: Approval): HTMLDivElement {
   return h(
     'div.approval',
     h('div.t', a.title),
-    h('div.label', a.kind === 'claude' ? 'Claude Code permission' : a.kind === 'workflow' ? 'Workflow checkpoint' : 'Tool call'),
+    h('div.label', a.kind === 'claude' ? 'Claude Code permission' : a.kind === 'workflow' ? 'Workflow checkpoint' : a.kind === 'setting' ? 'A setting' : 'Tool call'),
     a.brainNote ? h('div.hint', `The Brain passed this to you: ${a.brainNote}`) : null,
     a.detail && !editor ? h('pre', a.detail) : null,
     editor ? h('div', h('div.hint', 'You can edit this before it continues:'), editor) : null,
@@ -378,9 +378,10 @@ export function approvalCard(a: Approval): HTMLDivElement {
     h(
       'div',
       { class: 'mt-3.5 flex flex-wrap items-center gap-2.5' },
-      h('button.btn.small', { onclick: () => decide(true) }, editor ? 'Approve' : 'Allow'),
-      a.kind !== 'workflow' ? h('button.btn.ghost.small', { onclick: () => decide(true, true), title: 'Allow this tool for this agent from now on' }, 'Always allow') : null,
-      h('button.btn.danger.small', { onclick: () => decide(false) }, editor ? 'Stop' : 'Deny'),
+      // a setting says what its button does ("Turn on the voxel look"); it is asked each time, never always allowed
+      h('button.btn.small', { onclick: () => decide(true) }, a.kind === 'setting' && typeof a.data.allow === 'string' ? a.data.allow : editor ? 'Approve' : 'Allow'),
+      a.kind !== 'workflow' && a.kind !== 'setting' ? h('button.btn.ghost.small', { onclick: () => decide(true, true), title: 'Allow this tool for this agent from now on' }, 'Always allow') : null,
+      h('button.btn.danger.small', { onclick: () => decide(false) }, a.kind === 'setting' ? 'Not now' : editor ? 'Stop' : 'Deny'),
     ),
   );
 }

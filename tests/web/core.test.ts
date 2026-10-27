@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ago, freshElement, h, mount, toggleRow } from '../../web/core.ts';
+import { ago, approvalCard, freshElement, h, mount, toggleRow } from '../../web/core.ts';
+import type { Approval } from '../../shared/types.ts';
 
 describe('h()', () => {
   it('builds elements from tag.class#id notation', () => {
@@ -83,5 +84,18 @@ describe('freshElement()', () => {
     mount(fresh, h('p', 'Agents'));
     expect(shell.textContent).toBe('Agents');
     shell.remove();
+  });
+});
+
+describe('approvalCard', () => {
+  const card = (a: Partial<Approval>) => approvalCard({ id: 'ap1', kind: 'tool', title: 'T', detail: '', agentId: 'a1', agentName: 'Mira', data: {}, editable: null, createdAt: 0, ...a });
+  const buttons = (el: HTMLElement) => [...el.querySelectorAll('button')].map((b) => b.textContent);
+  it('a tool call: Allow, Always allow, Deny', () => {
+    expect(buttons(card({}))).toEqual(['Allow', 'Always allow', 'Deny']);
+  });
+  it('a setting says what yes does, and is never always allowed', () => {
+    const el = card({ kind: 'setting', data: { allow: 'Turn on the voxel look' } });
+    expect(el.querySelector('.label')!.textContent).toBe('A setting');
+    expect(buttons(el)).toEqual(['Turn on the voxel look', 'Not now']);
   });
 });

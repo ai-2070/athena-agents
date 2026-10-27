@@ -256,3 +256,17 @@ describe('in the Brain chat', () => {
     expect(agents.get(a.id)?.model).toBe('google/gemini-3-pro');
   });
 });
+
+describe('the Station look', () => {
+  it('the Brain switches it when you ask, never from a review; the snapshot says which it is', async () => {
+    const { getSettings } = await import('../../server/store.ts');
+    saveSettings({ look: { stationLook: 'classic' } });
+    expect(await snapshot()).toMatch(/Station look: classic \(the Station does NOT draw the voxel world/);
+    expect(applyActions([{ do: 'station_look', look: 'world' }], undefined, { auto: true }).done[0]).toMatchObject({ kind: 'error' });
+    expect(getSettings().look.stationLook).toBe('classic');
+    expect(applyActions([{ do: 'station_look', look: 'world' }]).done).toEqual([{ kind: 'note', text: 'Turned on the voxel look (Settings › Look › Station look)' }]);
+    expect(getSettings().look.stationLook).toBe('world');
+    expect(await snapshot()).toMatch(/Station look: voxel world/);
+    expect(applyActions([{ do: 'station_look', look: 'purple' }]).done[0]).toMatchObject({ kind: 'error' });
+  });
+});
