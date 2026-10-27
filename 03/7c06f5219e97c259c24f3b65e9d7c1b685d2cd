@@ -1,0 +1,47 @@
+server/voxel/worldmd.ts
+  s_6659d3aa7b8da4::t_b3bb06cedf3bd3 5,189
+server/voxel/scene.ts
+  s_6659d3aa7b8da4::t_212d9c2cd4a4ca 189-190,193-194
+server/voxel/tools.ts
+  s_6659d3aa7b8da4::t_b3bb06cedf3bd3 11,112,620
+server/voxel/describe.ts
+  s_6659d3aa7b8da4::t_d76666c644eabe 3,114,116
+  s_6659d3aa7b8da4::t_212d9c2cd4a4ca 54,67
+docs/guide.md
+  s_6659d3aa7b8da4::t_4c3f9c5af80b21 104
+server/teams.ts
+  s_6659d3aa7b8da4::t_1cfda73c93995c 519
+  s_6659d3aa7b8da4::t_d76666c644eabe 10,536,540
+  s_6659d3aa7b8da4::t_8521187ba8d528 537
+server/voxel/diorama.ts
+  s_6659d3aa7b8da4::t_b3bb06cedf3bd3 1-8
+README.md
+  s_6659d3aa7b8da4::t_4c3f9c5af80b21 45
+tests/server/voxel-scene.test.ts
+  s_6659d3aa7b8da4::t_cc9bcdb3158505 89-94
+tests/server/voxel-tools.test.ts
+  s_6659d3aa7b8da4::t_1cfda73c93995c 94-110
+server/library.ts
+  s_6659d3aa7b8da4::t_d76666c644eabe 273
+server/overseer.ts
+  s_6659d3aa7b8da4::t_d76666c644eabe 4,485
+server/skills.ts
+  s_6659d3aa7b8da4::t_d76666c644eabe 6,343-344
+  s_6659d3aa7b8da4::t_4624b55b3d41b1 345
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "037c06f5219e97c259c24f3b65e9d7c1b685d2cd",
+  "prompts": {},
+  "sessions": {
+    "s_6659d3aa7b8da4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c160d8b-ec0a-4037-a03a-d69be8543431",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
