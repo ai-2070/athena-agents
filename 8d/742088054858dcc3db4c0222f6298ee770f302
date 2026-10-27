@@ -1,0 +1,100 @@
+public/index.html
+  s_89d5e1794614a5::t_f8c433ed1363b0 24
+server/mcp.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 11,185-192,455-456,460-515
+  s_89d5e1794614a5::t_691c829b94e197 516
+tests/web/appicons.test.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 1-40
+README.md
+  s_89d5e1794614a5::t_c0d4277e2f3e20 57,59,147
+web/views/setup.tsx
+  s_89d5e1794614a5::t_c0d4277e2f3e20 1,12,17,38,62-63,107
+  s_89d5e1794614a5::t_f8c433ed1363b0 108
+web/appicons.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 1-44
+shared/about.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 1-8
+server/index.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 22,126-128,683
+tests/web/groupD-pickers.test.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 49-51,62-63,71-109
+  s_89d5e1794614a5::t_a47a7ae07813e4 110-111
+docs/guide.md
+  s_89d5e1794614a5::t_c0d4277e2f3e20 131-132
+tests/web/mcp.test.tsx
+  s_89d5e1794614a5::t_c0d4277e2f3e20 13-14,23,29,69-90
+tests/server/mcp-presets.test.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 47-52
+web/views/programs.tsx
+  s_89d5e1794614a5::t_c0d4277e2f3e20 7,244-245
+  s_89d5e1794614a5::t_f8c433ed1363b0 161
+  s_89d5e1794614a5::t_8d12ad63e65813 243
+server/overseer.ts
+  s_89d5e1794614a5::t_e87117997e9b2d 11,319
+  s_89d5e1794614a5::t_c0d4277e2f3e20 10,318,320-321,350,434
+web/models.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 2,7,48-49,51,56-57,72,227-231,253,277-280,282-284,286-289,295-297,370-371,374-375,416
+  s_89d5e1794614a5::t_db4f39c24d777c 281,285,387,392
+  s_89d5e1794614a5::t_05262e68871142 233,421,425,428
+tests/server/mcp-suggest.test.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 1-47
+web/views/home.tsx
+  s_89d5e1794614a5::t_c0d4277e2f3e20 7
+  s_89d5e1794614a5::t_f8c433ed1363b0 132
+tests/web/about.test.tsx
+  s_89d5e1794614a5::t_c0d4277e2f3e20 1-63
+web/app.ts
+  s_89d5e1794614a5::t_f8c433ed1363b0 167
+  s_89d5e1794614a5::t_c0d4277e2f3e20 2,24-25,28,113-123,126-127,130,151-154,160
+  s_89d5e1794614a5::t_e0bc75f48e2d6f 124-125,128-129
+server/programs.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 254-272
+shared/types.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 816-840
+web/views/station.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 19,496,643-644,652-653,1716,1718,2854-2856,2868-2873,2876-2877,2880,2885-2888,2891,2931
+  s_89d5e1794614a5::t_8d12ad63e65813 2798,2800
+web/views/mcp.tsx
+  s_89d5e1794614a5::t_c0d4277e2f3e20 7,45-46,80-81,108-113,115,120,123-131
+  s_89d5e1794614a5::t_135f75f1a2a170 9-10,114,116-119,121-122
+  s_89d5e1794614a5::t_27ad553130d19e 8,132
+server/about.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 1-30
+public/app-icons/README.md
+  s_89d5e1794614a5::t_c0d4277e2f3e20 1-13
+tests/server/brain-mcp.test.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 58-63
+web/views/settings.tsx
+  s_89d5e1794614a5::t_c0d4277e2f3e20 10,83,86-87,260-263,265-267,278-280,282,286-287,289,291-298,300-308,311-319,322,326,339,343-344,348-350,352-355,357-360,368-371,393-396,398-399,401-403,405,407-414,416-435
+  s_89d5e1794614a5::t_c8f828162d8664 82,84-85,264,268-277,281,283-285,288,290,299,310,338,340-342,345-347,351,356,361,392
+  s_89d5e1794614a5::t_e9e9793c54a673 397
+  s_89d5e1794614a5::t_066307ccf37647 309
+web/views/stationdata.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 7,77,82,98-99
+tests/web/settings-general.test.tsx
+  s_89d5e1794614a5::t_c0d4277e2f3e20 113,115-124,127-142
+tests/server/about.test.ts
+  s_89d5e1794614a5::t_c0d4277e2f3e20 1-40
+web/styles/components.css
+  s_89d5e1794614a5::t_8d12ad63e65813 16-17,122-123
+web/views/about.tsx
+  s_89d5e1794614a5::t_5a53847ee2e8aa 86
+  s_89d5e1794614a5::t_c0d4277e2f3e20 1-8,10-12,14-23,25-41,46,50-51,54,57-59,61,63-64,66-77,79-85,87-89,91,93-98
+  s_89d5e1794614a5::t_135f75f1a2a170 9,13,24,42-45,47-49,52-53,55-56,60,62,65,78,90,92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8d742088054858dcc3db4c0222f6298ee770f302",
+  "prompts": {},
+  "sessions": {
+    "s_89d5e1794614a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef1d94b9-7f1b-488e-8ee5-36bfb77e2be4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
