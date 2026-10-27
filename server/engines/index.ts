@@ -231,6 +231,7 @@ function pushItem<T extends ChatItem>(chat: Chat, item: T): T {
 // The run belongs to the project it starts in (see withProject): opening another project meanwhile
 // doesn't move its chat, tool calls or files there.
 export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
+  if (closing) throw new Error('The dashboard is stopping.');
   if ([...active.values()].some((r) => r.chatId === chat.id)) throw new Error('This chat is already working on something. Stop it or wait.');
   if (compacting.has(chat.id)) throw new Error('This chat is being compacted. Send it again in a moment.');
   // agent.engine comes from a JSON file, so it may be something unknown.
@@ -716,6 +717,16 @@ export function stopRun(runId: string): boolean {
   cancelForRun(runId);
   stopChildren(runId);
   return !!r;
+}
+
+let closing = false;
+/** The server is stopping: stop every run (an agent's CLI and everything it started with it), start no
+ *  new ones, and wait up to `ms` for them to end, so nothing keeps working in a project after we're gone. */
+export async function stopAllRuns(ms = 3000): Promise<void> {
+  closing = true;
+  for (const id of [...active.keys()]) stopRun(id);
+  const until = Date.now() + ms;
+  while (active.size && Date.now() < until) await new Promise((r) => setTimeout(r, 50));
 }
 
 export function stopChildren(parentRunId: string) {
