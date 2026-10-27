@@ -1,0 +1,19 @@
+server/engines/codex.ts
+  s_2985e654a02247::t_ca47dd88d0cd76 113-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "576f7f4f2c1c4c206964e72aae3efebae2989bb1",
+  "prompts": {},
+  "sessions": {
+    "s_2985e654a02247": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33bac0a1-6956-46f6-bd34-2037a8148165",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
