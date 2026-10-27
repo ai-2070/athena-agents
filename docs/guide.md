@@ -59,6 +59,7 @@ Type **/** in an agent, team or Brain chat to see the commands. They work while 
 - `/loop <message>` repeats a message. `/loop 15m check the build` sends it every 15 minutes, never while a turn is still going; `/loop 5x improve the tests` sends it again after each answer, 5 times. A loop runs 10 times unless you say otherwise (at most 100). It shows above the box with **×** to end it; `/loop off` or `/stop` ends it too. Loops last until the dashboard restarts; use a Routine for anything permanent.
 - `/goal <what done looks like>` keeps the work going until it is done. After each turn, the Brain checks the work against your goal and follows up with what is missing, up to 5 times, then says whether the goal was reached. `/goal` alone shows it, `/goal clear` drops it. In Brain chat, the Brain hands the goal to the right agent or team and follows up there.
 - `/compact` (agent chats) shortens the chat; see Long chats.
+- `/clear` (team chats) empties the chat after you confirm, and each agent forgets the conversation.
 
 Commands the dashboard doesn't know go to the agent as you typed them. A Claude Code agent's own commands and skills (from `~/.claude` and its work folder's `.claude`) are listed in the **/** menu too.
 

@@ -7,7 +7,7 @@
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties } from 'react';
 import { state, GET, POST, DEL, attempt, md, ago, onEvent, confirmBox, toast } from './core.ts';
-import { attachTray } from './attach.ts';
+import { attachTray, COMPOSER_BTNS, COMPOSER_TEXT } from './attach.ts';
 import { pasteBox } from './pastes.ts';
 import { mentionPreviews } from './filepreview.ts';
 import { queuedText } from '../shared/queue.ts';
@@ -419,9 +419,9 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     setReplyTo(m);
     if (m) input.current?.focus();
   }, []);
-  const clear = async () => {
-    if (!(await confirmBox('Clear this team chat? Each agent also forgets the conversation.', { ok: 'Clear', danger: true }))) return;
-    await attempt(() => POST(`/teams/${teamId}/clear`));
+  const clear = async (): Promise<boolean> => {
+    if (!(await confirmBox('Clear this team chat? Each agent also forgets the conversation.', { ok: 'Clear', danger: true }))) return false;
+    return (await attempt(() => POST(`/teams/${teamId}/clear`))) !== undefined;
   };
   const held = (q: QueuedMessage | undefined) => {
     if (q && !store.current.held.some((x) => x.id === q.id)) {
@@ -439,6 +439,8 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   const command = async (name: string, rest: string, typed: string) => {
     emptyBox();
     if (name === 'stop') return stop();
+    // (said no, or it failed: the /clear stays in the box)
+    if (name === 'clear') return void ((await clear()) || pastes.restore(typed));
     if (name === 'goal' && !rest) {
       const r = await attempt(() => GET<TeamChatResponse>(`/teams/${teamId}/chat`));
       return void (r && toast(r.goal ? `Goal: ${r.goal.goal || r.goal.text}` : 'No goal yet. Type /goal and what done looks like.'));
@@ -457,7 +459,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     const box = input.current!;
     // (with pasted text put back: a long goal pasted in goes in full)
     const now = parseCommand(pastes.text(), 'team');
-    if (now && ['stop', 'resume', 'resend', 'goal'].includes(now.name)) return command(now.name, now.rest, pastes.text().trim());
+    if (now && ['stop', 'resume', 'resend', 'goal', 'clear'].includes(now.name)) return command(now.name, now.rest, pastes.text().trim());
     if ((!box.value.trim() && !tray.count()) || sending.current) return;
     sending.current = true;
     try {
@@ -682,11 +684,9 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       </div>
       <DomNode className="dom-contents" make={() => tray.el} deps={[tray]} />
       <DomNode className="dom-contents" make={() => pastes.el} deps={[pastes]} />
-      <div className="flex gap-1.5 items-end relative">
-        <DomNode as="span" className="dom-contents" make={() => tray.picker} deps={[tray]} />
-        <div className="flex-1 relative">
-          <textarea className="min-h-[44px] max-h-[140px] resize-none text-[13.5px]" ref={input} rows={2} aria-label="Message the team" placeholder={busy.length ? 'The team is working… /queue a message to send when it is done' : PLACEHOLDER} />
-          <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">
+      <div className="flex gap-1.5 items-stretch relative">
+        <div className="flex-1 min-w-0 relative">
+          <textarea className={`${COMPOSER_TEXT} text-[13.5px]`} ref={input} rows={2} aria-label="Message the team" placeholder={busy.length ? 'The team is working… /queue a message to send when it is done' : PLACEHOLDER} />          <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">
             {suggest?.opts.map((o, i) => (
               <button
                 key={`${o.t ? '#' : '@'}${o.label}`}
@@ -710,17 +710,17 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
           </div>
           {slash ? <DomNode as="span" className="dom-contents" make={() => slash.el} deps={[slash]} /> : null}
         </div>
-        <button className="btn small" title="Send (Enter)" aria-label="Send" onClick={() => void send()}>
-          <Icon name="send" size={14} />
-        </button>
-        <button className={`btn danger small${busy.length ? '' : ' hidden'}`} title="Stop the whole team" onClick={() => void stop()}>
+        <button className={`btn danger small self-end ${busy.length ? '' : 'hidden'}`} title="Stop the whole team" onClick={() => void stop()}>
           <Icon name="square" size={13} />
           Stop
         </button>
-      </div>
-      <div className="flex justify-between items-center gap-2">
-        <span className="hint">Enter to send · @Name gives it to one agent · @everyone for all · @Brain asks the Brain · #Team asks another team · / for commands · drop or paste files to attach</span>
-        <button className="btn tiny ghost" onClick={() => void clear()}>Clear chat</button>
+        {/* the paperclip at the top of the box, Send at its bottom */}
+        <div className={COMPOSER_BTNS}>
+          <DomNode as="span" className="dom-contents" make={() => tray.picker} deps={[tray]} />
+          <button className="btn" title="Send (Enter)" aria-label="Send" onClick={() => void send()}>
+            <Icon name="send" size={15} />
+          </button>
+        </div>
       </div>
     </div>
   );

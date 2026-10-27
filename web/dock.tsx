@@ -13,7 +13,7 @@ import { queuedText } from '../shared/queue.ts';
 import { parseCommand, parseLoop } from '../shared/commands.ts';
 import { commandChips, slashMenu } from './chatcommands.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
-import { attachTray } from './attach.ts';
+import { attachTray, COMPOSER_BTNS, COMPOSER_TEXT } from './attach.ts';
 import { pasteBox } from './pastes.ts';
 import { openMemory, BRAIN } from './memory.ts';
 import { mentionPreviews } from './filepreview.ts';
@@ -802,15 +802,18 @@ function DockView({ bar }: { bar: HTMLElement }) {
           <DomNode className="dom-contents" make={() => D.tray!.el} deps={[]} />
           <DomNode className="dom-contents" make={() => D.pastes!.el} deps={[]} />
         </div>
-        <div className="flex gap-2 py-3 px-3.5 border-t border-line items-end">
-          <DomNode as="span" className="dom-contents" make={() => D.tray!.picker} deps={[]} />
+        <div className="flex gap-2 py-3 px-3.5 border-t border-line items-stretch">
           <div className="flex-1 min-w-0 relative">
-            <textarea className="dock-input min-h-[46px] max-h-[160px] resize-none" ref={input} rows={2} aria-label="Message the Brain" placeholder={placeholder} />
+            <textarea className={`dock-input ${COMPOSER_TEXT}`} ref={input} rows={2} aria-label="Message the Brain" placeholder={placeholder} />
             <span className="dom-contents" ref={slashHost} />
           </div>
-          <button className="btn" onClick={() => void send()} title="Send (Enter)" aria-label="Send">
-            <Icon name="send" size={15} />
-          </button>
+          {/* the paperclip at the top of the box, Send at its bottom */}
+          <div className={COMPOSER_BTNS}>
+            <DomNode as="span" className="dom-contents" make={() => D.tray!.picker} deps={[]} />
+            <button className="btn" onClick={() => void send()} title="Send (Enter)" aria-label="Send">
+              <Icon name="send" size={15} />
+            </button>
+          </div>
         </div>
       </div>
     </>

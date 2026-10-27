@@ -287,7 +287,7 @@ function AiRow({ mark, name, status, note, children }: { mark: ReactNode; name: 
         </div>
         {note ? <div className={AI_NOTE}>{note}</div> : null}
       </div>
-      {children ? <div className="flex min-h-8 items-center gap-1.5 max-[561px]:col-start-2 max-[561px]:min-h-0">{children}</div> : null}
+      {children ? <div className="flex min-h-8 items-center gap-1.5 self-center max-[561px]:col-start-2 max-[561px]:min-h-0">{children}</div> : null}
     </div>
   );
 }

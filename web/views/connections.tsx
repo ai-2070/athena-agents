@@ -109,7 +109,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
       <div className="col gap-lg flex flex-col gap-4.5">
         <div className="panel">
           <div className="panel-head">
-            <h2>𝕏 X accounts</h2>
+            <h2>X accounts</h2>
             <div className="actions">{accounts.xAppConfigured ? <a className="btn small" href={serverUrl('/oauth/x/start')}>+ Connect an account</a> : null}</div>
           </div>
           {accounts.x.length ? (

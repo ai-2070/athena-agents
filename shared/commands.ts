@@ -21,6 +21,7 @@ export const COMMANDS: readonly SlashCommand[] = [
   { name: 'loop', args: '[15m] [5x] message', about: 'Repeat a message: every so often, or again after each answer', in: ALL },
   { name: 'goal', args: 'what done looks like', about: 'Keep at it until the Brain says it is done (/goal clear to drop it)', in: ALL },
   { name: 'compact', args: '[summary]', about: 'Make the chat shorter so it fits the model', in: ['agent'] },
+  { name: 'clear', args: '', about: 'Clear this chat (each agent also forgets it)', in: ['team'] },
 ];
 
 /** The command typed (a known name) and what follows it, or null when the text isn't one. */
