@@ -8,7 +8,7 @@ The initial nine findings were runtime-reproduced. Probes used temporary `DASH_D
 
 P1 findings expose credentials, bypass file access limits, or can delete or overwrite files outside the intended project. P2 findings affect project isolation, tool access, or conversation and restore correctness.
 
-The review ran in two passes. The first covered every application subsystem once; the second re-reviewed the whole project independently, discarding anything the first pass had already found. Findings 1–29 come from the first pass (plus the browser and probe work done alongside it), 30–77 survived the second pass, and 78–88 are valid issues the lanes reported that the first consolidation had dropped. Four findings were reproduced in an isolated browser and twenty-two through isolated runtime probes — including four converted during the theme follow-up below — and the rest are established from source with the verification limits stated inline. Nothing under `server/`, `web/`, `shared/`, `scripts/` or `src-tauri/` was changed.
+The review began with two whole-project passes, followed by theme-focused investigation and the additional review round recorded below. Findings 1–29 came from the first consolidation; 30–77 were consolidated from the subsystem reviews; 78–88 recovered valid lane findings omitted from that consolidation, and 89–116 come from a third round run against the unchanged source (fourteen of them reproduced at runtime, the rest source-established). Verification is stated per finding: browser reproduction, isolated runtime reproduction, narrower mechanism confirmation, or source-established. Mechanism probes are not end-to-end reproductions. Nothing under `server/`, `web/`, `shared/`, `scripts/` or `src-tauri/` was changed.
 
 ## 1. [P1] Browser-only agents can read unrelated MCP credentials and the internal bridge token
 
@@ -665,7 +665,7 @@ The dominant theme of both passes: work that outlives an `await` re-reads the *c
 - **70. [P2] Restoring the oldest retained skill version deletes the files it is about to restore.** [server/skills.ts:239–255](../../../server/skills.ts#L239-L255), [server/versions.ts:116–126](../../../server/versions.ts#L116-L126). `restoreSkill()` first records the current state, and `keepVersion()` immediately prunes to 50 versions — removing the selected oldest version and its `files-<id>` directory before the copy. The restore then reports success with the old instructions and none of the old scripts.
 - **71. [P2] `trimHistory()` can drop the newest user message entirely.** [server/engines/openai.ts:462–471](../../../server/engines/openai.ts#L462-L471). When one message exceeds the character budget the cut advances past it and then finds no later user message, returning `[]`. The engine then sends only its system prompt, and automatic compaction has nothing older to compact. The 25 MiB body limit makes this reachable from the chat box.
 - **72. [P2] A failed Codex turn is reported as success if it printed anything.** [server/engines/codex.ts:151–186,227–231](../../../server/engines/codex.ts#L151-L186). `turn.failed` is recorded, but the failure (and the non-zero exit) is only raised when `answer` is empty. Commentary emitted before the failure — "I'll inspect the files" — therefore becomes the run's answer, is emitted as `done`, and satisfies a workflow's agent step.
-- **73. [P1] Rebuilding the page deletes bundle chunks that open tabs still need.** [scripts/build-web.ts:50–52](../../../scripts/build-web.ts#L50-L52). Each successful rebuild removes the whole previous output directory, including content-hashed chunks that `bun run dev` reloads and that already-loaded tabs reference lazily (chat, voxel). A tab that has not yet opened an agent chat requests a deleted chunk after the rebuild and the import fails until it is refreshed.
+- **73. [P2] Rebuilding the page deletes bundle chunks that open tabs still need.** [scripts/build-web.ts:50–52](../../../scripts/build-web.ts#L50-L52). Each successful rebuild removes the whole previous output directory, including content-hashed chunks that `bun run dev` reloads and that already-loaded tabs reference lazily (chat, voxel). A tab that has not yet opened an agent chat requests a deleted chunk after the rebuild and the import fails until it is refreshed.
 - **74. [P2] Test isolation does not cover pi's configuration directory.** [tests/server/setup.ts:13–19](../../../tests/server/setup.ts#L13-L19), [server/engines/pi.ts:288–320](../../../server/engines/pi.ts#L288-L320). The setup replaces HOME/USERPROFILE but keeps an inherited `PI_CODING_AGENT_DIR`, which production code prefers. The pi engine tests call the real bridge installer, so a suite run from an environment with that variable set can write the developer's real `mcp.json`.
 - **75. [P2] Server shutdown does not stop active agent subprocesses.** [server/index.ts:1375–1386](../../../server/index.ts#L1375-L1386), [src-tauri/src/main.rs:309–326](../../../src-tauri/src/main.rs#L309-L326). The stdin shutdown path closes terminal sessions and exits; chat engine children are killed only when their run's abort signal fires, and no shutdown handler aborts runs. Quitting the desktop app or installing an update can leave a CLI agent (and any command it started) writing into the project after the dashboard is gone.
 - **76. [P2] The desktop resolves a relative `DASH_DATA` twice.** [src-tauri/src/main.rs:220–243](../../../src-tauri/src/main.rs#L220-L243). A relative override is used as both the child's working directory and its `DASH_DATA`, which the server then resolves against that new directory. `DASH_DATA=state` creates `state/` but stores data in `state/state/`, so the existing data appears to be missing.
@@ -686,13 +686,11 @@ The dominant theme of both passes: work that outlives an `await` re-reads the *c
 - An isolated headless-Chromium session against a throwaway server reproduced findings 19–22 (stale cross-project editor save, MCP argument splitting, Brain engine fallback, Send-button command bypass). One MCP call was intercepted and answered locally; no message, post or model call left the machine.
 - Nothing else was executed: no real model CLI runs, no credentialed provider, no account or social action, no creative app, no installer, no Rust build, no macOS/Linux run, and no unbounded hang or expansion payload.
 
-**Known false lead.** `read`'s `compact: true` element snapshot returned an empty element list for a populated menu, while the same elements were present through `tab.observe()`; the browser results above use the reliable path.
-
 ## Theme follow-up
 
-Four themes carried most of the risk in both passes: asynchronous project pinning, link-following filesystem writes, voxel graph budgets, and desktop lifecycle. A follow-up pass re-examined each one, converted four claims into runtime evidence, falsified one adjacent claim, and recovered eleven valid findings that first-pass lanes had reported but this report had not yet carried (they were dropped in the first consolidation).
+Four themes carried most of the risk in both passes: asynchronous project pinning, link-following filesystem writes, voxel graph budgets, and desktop lifecycle. A follow-up pass re-examined each one, added runtime evidence for four claims, falsified one adjacent claim, and recovered eleven valid findings that first-pass lanes had reported but this report had not yet carried.
 
-**Converted to runtime evidence** (isolated fixtures, dummy data, no real accounts or models):
+**Runtime evidence** (isolated fixtures, dummy data, no real accounts or models; findings 43 and 44 confirm downstream mechanisms rather than the complete entry-to-effect path):
 
 - **Finding 43's mechanism.** `describeAttachments([outsideFile], { inline: 24000 })` returned text containing the outside file's contents — the disclosure does not depend on the importing project at all, only on a path reaching the call.
 - **Finding 44's mechanism.** `gate({ autonomy: 'auto' }, 'some_server__send_email', 'low', {}, {})` returned `null` (proceed, no approval). Any MCP tool an API-model agent can reach is therefore unapproved under the default autonomy.
@@ -700,7 +698,7 @@ Four themes carried most of the risk in both passes: asynchronous project pinnin
 - **Finding 71.** `trimHistory([{ role: 'user', content: 'a'.repeat(410_000) }], 400_000)` returned `[]`, while the same call with a short message kept it. The newest user message is silently dropped when it alone exceeds the budget.
 - **Finding 48, measured on a bounded graph.** Branching 6, 12 and 24 at three wrapper levels produced 216/1 728/13 824 instance evaluations, **4/13/54 ms**, and **43/157/601 real file reads**. Only four distinct prefab files exist in that world, so the traversal is not memoized across instances and its cost grows super-linearly in the branch factor. The world limits allow branching up to 2 000 with four nesting levels, and no traversal or expansion budget is applied — the accepted worst case is 2 000³ ≈ 8×10⁹ instance evaluations synchronously in the server, plus the same graph expanded into voxels by the browser (`expandInstances`) and GLB export. The large case was **not** run; only the measured curve is reported.
 
-**Claim checked and rejected** (worth recording so it is not re-investigated): `walk()` only recurses on `e.isDirectory()`, and Node reports a directory junction as `isSymbolicLink: true, isDirectory: false`. A junction placed inside an assigned knowledge folder is therefore neither descended nor listed; only a **file** symlink matters there, which is what findings 40 and 42 describe. The same holds for the junction-based upload case in finding 3, whose sink is the trust decision itself rather than directory traversal.
+**Claim checked and rejected** (worth recording so it is not re-investigated): `walk()` only recurses on `e.isDirectory()`, and Node reports a directory junction as `isSymbolicLink: true, isDirectory: false`. A junction inside an assigned knowledge folder is not descended; the text-extension filter also excludes the extensionless junction used in the probe. File symlinks with text-file extensions remain a separate source-established issue in finding 40. Finding 3 remains runtime-reproduced: its failure is trusting the canonical uploads root, not recursively traversing a nested junction.
 
 ## 78. [P1] X image attachments use dashboard-wide roots, not the calling agent's
 
@@ -790,4 +788,299 @@ The API engine has the run signal but does not pass it into `mcp.callTool()`; it
 
 **Recommended change:** Propagate the signal through connection waiting and the tool request, re-check it immediately before dispatch, and distinguish cancellation from rollback of an action that already committed.
 
-**Residual uncertainty.** Findings 40–42 depend on file symlinks, which non-administrator Windows refused in this environment; their read/write paths are unambiguous in source but the link creation itself is unexercised. Findings 51, 56–59, 52 and 58 (renderer behaviour), 75–77 (desktop runtime), 73 (`bun run dev` chunk reload) and all macOS/Linux legs are source-established only. Impact was not measured at the permitted worst case for the resource-limiting findings (14, 48); both probes were deliberately bounded and only their scaling is reported. The follow-up pass tested the four themes again and additionally recorded one plausible claim that it could not reproduce (see the rejected claim above).
+**Residual uncertainty.** Findings 40–42 depend on file symlinks, which non-administrator Windows refused in this environment; their read/write paths are unambiguous in source but link creation itself is unexercised. Findings 51–52 and 56–59 (renderer behaviour), 75–77 (desktop runtime), 73 (`bun run dev` chunk reload) and all macOS/Linux legs are source-established only. Impact was not measured at the permitted worst case for the resource-limiting findings (14, 48); both probes were deliberately bounded. The theme follow-up also rejected the nested directory-junction traversal claim above.
+
+## Additional review round
+
+Baseline: report-only HEAD `e6bc723`; application source remains `aecc2100a1c838fb1d44a2c6fc3514fcdd872d41`. Independent lanes cover durable state, execution, Brain orchestration, external integrations, browser state, voxel worlds, and packaging. Findings below are deduplicated against 1–88. Probes use temporary data and home directories, no real credentials or provider calls. Earlier baseline checks are historical evidence, not checks rerun in this round.
+
+## 89. [P1] Windows npm-installed Codex cannot start a chat
+
+**Location:** [server/util.ts:230–233](../../../server/util.ts#L230-L233), [server/engines/codex.ts:108–110,141](../../../server/engines/codex.ts#L108-L141)
+
+The documented installation uses npm, whose Windows command is a `.cmd` shim. `spawnCommand()` rejects every double quote in arguments passed to such a shim, while `codexArgs()` always supplies quoted TOML strings for the dashboard MCP command, arguments and environment. Every chat launch therefore fails before spawning Codex, even with no optional MCP servers or reasoning settings. Lookup, version and login checks can still succeed, making the installation appear usable.
+
+**Runtime-reproduced on Windows:** an isolated PATH selected an inert `codex.cmd`; `run('codex', ['--version'])` exited 0. Calling the real Codex engine with an isolated agent then threw `This argument has characters that can't be passed safely to codex.cmd: mcp_servers.dashboard.command="…/bun.exe"`. The real model CLI was not invoked.
+
+**Recommended change:** support npm-installed CLIs without routing TOML data through an unsafe shell command line, for example by resolving the underlying executable or moving configuration out of the shell arguments. Do not simply remove the shell-injection guard.
+
+## 90. [P2] A cloned project keeps the original's external CLI sessions
+
+**Location:** [server/backup.ts:787–791](../../../server/backup.ts#L787-L791), [server/engines/index.ts:338–351](../../../server/engines/index.ts#L338-L351)
+
+Chats are copied with their `sessionId` and `sessionEngine` intact, and the engine only discards a session when the *engine* changes. A clone therefore resumes the same external conversation: OpenClaw is handed the copied key as `--session-key` and, since the session is not fresh, skips the clone's instructions (the same holds for Hermes). Cloning a project to try something different continues the original's agent conversation.
+
+**Runtime-reproduced:** an isolated project with an OpenClaw chat carrying `dummy-source-session` was cloned through the real backup path; the copy's chat kept the same id, and `openclawArgs` generated `['agent','--session-key','dummy-source-session',…]`. No CLI was launched.
+
+**Recommended change:** clear external session identity when cloning a project and reseed the copied chats from their visible history.
+
+## 91. [P2] A clone or backup loses every team's picture and model
+
+**Location:** [server/backup.ts:379–380](../../../server/backup.ts#L379-L380), [server/projectsync.ts:202–208](../../../server/projectsync.ts#L202-L208)
+
+The team JSON keeps `markFile`, but the matching `team-marks/<id>.<ext>` file is not packed into a backup and not saved with the project folder. Restoring either way recreates teams that reference a symbol whose bytes are gone: the Station falls back to the emoji and the media route returns 404.
+
+**Runtime-reproduced:** a PNG was attached with `setMarkFile()` (the original resolved), the project was cloned, and the copied team still had its `markFile` metadata while `markFile(copiedTeam)` returned `null`.
+
+**Recommended change:** carry `team-marks` files through backup packing and folder auto-save, and restore them beside their teams.
+
+## 92. [P2] A step-list workflow breaks artifact submission everywhere
+
+**Location:** [server/artifacts.ts:27–30](../../../server/artifacts.ts#L27-L30), [server/workflows.ts:269–278](../../../server/workflows.ts#L269-L278)
+
+`teamOf()` reads raw stored workflows and calls `t.members.includes(agentId)`. A workflow made by the current `createFromTemplate()` has `steps` and no `members`, so the first such workflow makes `addArtifact()` throw while scanning — for any agent, in any chat. The `save_artifact` tool and the world_look "save" option both reach this.
+
+**Runtime-reproduced:** after `createFromTemplate('Research brief')`, submitting a text artifact from an unrelated ordinary agent threw `undefined is not an object (evaluating 't.members.includes')` and stored nothing.
+
+**Recommended change:** resolve membership through the normalized team listing (`server/teams.ts`), not raw stored workflows.
+
+## 93. [P2] Skill names and descriptions gain escapes on every save
+
+**Location:** [server/skills.ts:34–56](../../../server/skills.ts#L34-L56)
+
+The writer quotes a scalar with `JSON.stringify()` but the reader only strips the surrounding quotes. A name containing `"` (or a description containing a backslash, like a Windows path) is written as `"Say \"Hello\""` and read back as `Say \"Hello\"`; saving that again escapes the backslashes too. Repeated edits through the skill dialogs corrupt the stored metadata.
+
+**Runtime-reproduced:** `saveSkill({name:'Say "Hello"'})` returned `Say \"Hello\"`, and re-saving the returned value returned `Say \\\"Hello\\\"` — never equal to the original.
+
+**Recommended change:** decode quoted scalars with a real YAML/JSON-compatible reader instead of trimming quotes.
+
+## 94. [P1] A renamed MCP account copy shares another account's login
+
+**Location:** [server/mcp.ts:119–121,887–914](../../../server/mcp.ts#L119-L121)
+
+A browser-sign-in copy derives its `MCP_REMOTE_CONFIG_DIR` from its own server name. Renaming keeps the environment (correctly), which frees the old name; adding the same service again with the same label recreates that name, and the new copy is given the same login directory the renamed one still uses. Two separately labelled accounts can therefore share OAuth state and silently act as each other.
+
+**Runtime-reproduced:** `addPreset('sentry')`, `addPreset('sentry',{label:'Work'})` → `sentry-work`, `renameServer('sentry-work','sentry-archived')`, then `addPreset('sentry',{label:'Work'})` again: the new `sentry-work` and the surviving `sentry-archived` both resolved to `…/.mcp-auth/dashboard-sentry-work`. No sign-in was attempted, so an actual identity crossover is source-established, not executed.
+
+**Recommended change:** give each copy an immutable, independently generated auth-storage identifier that survives rename.
+
+## 95. [P2] "Always allow" does not cover the run that granted it
+
+**Location:** [server/tools.ts:1059–1064](../../../server/tools.ts#L1059-L1064), [server/engines/openai.ts:422–427](../../../server/engines/openai.ts#L422-L427)
+
+The grant is saved onto a freshly loaded agent, while the API engine keeps using the agent object it started with, and `needsApproval()` reads only that object. The next call to the same tool in the same run asks again, even though the user just chose "always".
+
+**Runtime-reproduced (no model, no tools):** with Brain review off, `gate()` on an Ask-autonomy agent for `probe_tool` was approved with `always: true`; the persisted agent then listed `probe_tool` in `alwaysAllow` while the in-flight object did not, and a second `gate()` on that same object produced a second approval request.
+
+**Recommended change:** apply an approved grant to the running agent as well as to storage, or check current persisted grants while keeping the run's effective team access.
+
+## 96. [P2] Clearing a team thread strands a queued Brain request
+
+**Location:** [server/teams.ts:428–466](../../../server/teams.ts#L428-L466), [server/teams.ts:931–949](../../../server/teams.ts#L931-L949)
+
+`clearThread()` bumps the epoch and empties the queue, but an in-flight Brain handler stays in `r.running`, so a new `@Brain` message is parked in `brainQueue`. When the older handler finishes it shifts that request, sees its own stale epoch, and clears the rest of `brainQueue`. The new thread keeps the accepted user request with no answer ever coming.
+
+**Runtime-reproduced:** with a deferred `setBrainHandlers().reply`, `@Brain first` → `clearThread` → `@Brain second` → release the first. Reply ran once; `getThread` still showed only `@Brain second`, with the team idle.
+
+**Recommended change:** key queued Brain requests to their generation, or let a stale handler release its slot without discarding newer requests.
+
+## 97. [P2] A persisted stopped team goal reports resumption without resuming
+
+**Location:** [server/irc.ts:289–298](../../../server/irc.ts#L289-L298), [server/commands.ts:99–106](../../../server/commands.ts#L99-L106)
+
+`resumeBrief()` sets the brief back to `open` before `resumeTeam()` runs. Stopped briefs survive a restart but the interrupted turns do not (the team runtime is process-local), so `resumeTeam()` returns 0 and nothing starts — while `/resume` still answers `{resumed:true}` and the goal sits open, unchecked, until something else wakes the team.
+
+**Runtime-reproduced:** a stopped team brief with a fresh runtime (the post-restart shape) resumed with `{resumed:true}` and a brief status of `open`, while `teamState()` showed no working, queued or resumable work.
+
+**Recommended change:** reopen the brief only after work actually restarted; otherwise report the failure and leave the brief stopped.
+
+## 98. [P2] Startup recovery only repairs the project that happens to be open
+
+**Location:** [server/workflows.ts:101–109](../../../server/workflows.ts#L101-L109), [server/routines.ts:222–230](../../../server/routines.ts#L222-L230), [server/index.ts:1347,1352](../../../server/index.ts#L1347-L1352)
+
+Both recovery passes enumerate project-scoped collections once, at startup, for the selected project. Runs left `running` by a crash in any other project stay `running` after restart although their in-memory controls are gone; activating that project does not repair them, and its Stop handlers return `false` without touching the saved record. The UI keeps showing work that cannot exist.
+
+**Runtime-reproduced:** seeded `running` workflow and routine records in projects A and B, selected B, and ran both startup functions: B's records became `stopped`, A's stayed `running`, and `stopWorkflowRun`/`stopRoutineRun` on A returned `false` each.
+
+**Recommended change:** run startup recovery once per stored project (only at startup, not on ordinary switches).
+
+## 99. [P2] Prefab nesting depth is shared across sibling branches
+
+**Location:** [server/voxel/build.ts:224–237](../../../server/voxel/build.ts#L224-L237)
+
+`nesting()` passes one mutable `seen` set down every branch and returns depth 0 for an already-visited prefab. With one shared non-leaf subtree reachable by two paths, the second path is scored as depth 0, so the reported depth is short of the real longest path and `place` can accept a graph the renderer will not fully expand.
+
+**Runtime-reproduced:** `L` → `C` → `A`, then `B` holding `C` and `A`. Placing `B` (control) drew 2 leaves; the wrapper `D` holding `B` was accepted and drew only 1, the second branch being dropped past the four-level limit.
+
+**Recommended change:** use a path-local recursion guard, or memoize full subtree depths separately from cycle detection.
+
+## 100. [P2] A stamp does not carry its material swap into nested copies
+
+**Location:** [server/voxel/ops.ts:760–768](../../../server/voxel/ops.ts#L760-L768)
+
+`stamp` recolours the prefab's direct voxels with `swap`, but copies nested instances unchanged, so the swap is lost for everything inside them. Placing the same prefab with the same swap composes it correctly, so the two paths disagree and the stamp's wrong colours are persisted.
+
+**Runtime-reproduced:** stamping `C` (which holds `L`) with `red lacquer→neon blue` produced a leaf instance with no swap, while placing it with the same swap produced `[['red lacquer','neon blue']]`.
+
+**Recommended change:** compose the stamp's swap into each copied child instance, matching placed assemblies.
+
+## 101. [P2] An imported object can sit outside the editable voxel range
+
+**Location:** [server/voxel/exchange.ts:60–63](../../../server/voxel/exchange.ts#L60-L63), [server/voxel/ops.ts:320–323](../../../server/voxel/ops.ts#L320-L323)
+
+Import checks only that each side is at most 512 voxels; it never checks the resulting coordinates against the build engine's ±256 range. A taller import is accepted, then `clear`/edits fail their reach check, leaving an object the normal tools cannot fully modify.
+
+**Runtime-reproduced:** a two-voxel `.vox` with its voxels 256 apart imported fine at voxel size 0.25, and clearing it then threw `it reaches past 256 voxels from the object's origin`.
+
+**Recommended change:** validate the normalized min/max coordinates against the editing bounds before writing, or support that range in mutations.
+
+## 102. [P2] Undo can give a name back to an object that another builder now owns
+
+**Location:** [server/voxel/build.ts:514–522](../../../server/voxel/build.ts#L514-L522)
+
+Undo restores object and prefab metadata by id without re-checking the restored name against *other* ids, although ordinary creation and renaming keep names unique. Two objects can then share a name, and name-based lookup picks the wrong one.
+
+**Runtime-reproduced:** builder A built `Oak`, renamed it `Birch`; builder B built a new `Oak`; A's undo of the rename succeeded, leaving two objects named `Oak`, and `findObject(w,'Oak')` resolved to A's restored object rather than B's.
+
+**Recommended change:** reject a restore (without consuming the history entry) when the restored name belongs to a different id.
+
+## 103. [P1] `launch_program` runs a Photoshop script without approval
+
+**Location:** [server/tools.ts:128–131,1153–1168](../../../server/tools.ts#L1153-L1168), [server/programs.ts:649–657](../../../server/programs.ts#L649-L657)
+
+`RUNNABLE` and `INTERPRETERS` never cover `.jsx`, so `launch_program({program:'photoshop', file:'x.jsx'})` is low risk under Auto — no approval. But `launchProgram()` passes `file` straight to `photoshop.exe`, exactly the sink the high-risk `photoshop_run_script` uses. Programs access therefore reaches arbitrary ExtendScript execution without its approval gate or the Adobe tool group.
+
+**Source-established (not executed).**
+
+**Recommended change:** include the Adobe scripting formats in executable classification, or classify against the resolved program's actual opening semantics; do not let a generic launch be a lower-risk alias for an existing high-risk action.
+
+## 104. [P2] A pending steer revives a deleted chat
+
+**Location:** [server/engines/index.ts:477](../../../server/engines/index.ts#L477), [server/engines/index.ts:730–736](../../../server/engines/index.ts#L730-L736)
+
+`steerNow()` falls back to the chat object captured before its wait when neither a live nor a saved chat exists. Deletion marks only the live object and never invalidates pending steers, so a steer that lost the race recreates the deleted chat and starts its replacement task. The `/stream` route hands in exactly such a separate snapshot.
+
+**Source-established (not executed).**
+
+**Recommended change:** invalidate pending steers on deletion and refuse continuation for a chat that no longer exists.
+
+## 105. [P2] A team turn advances its read cursor past messages it never saw
+
+**Location:** [server/teams.ts:579,599,639–641](../../../server/teams.ts#L579-L641)
+
+`runTurn()` delivers the messages available at turn start and records that position, then on completion sets `seen[agent]` to the *current* thread length. Anything another participant posted during the answer was never sent to the agent but is now marked read, so its next turn excludes it — concurrent teammates silently miss each other's results.
+
+**Source-established (not executed).**
+
+**Recommended change:** keep the cursor at the delivered start-of-turn snapshot; the existing `from !== agent.id` filter already excludes the agent's own reply.
+
+## 106. [P2] Tool images never reach an API-model agent
+
+**Location:** [server/engines/openai.ts:438–442](../../../server/engines/openai.ts#L438-L442), [server/voxel/tools.ts:451](../../../server/voxel/tools.ts#L451)
+
+The API engine sends `result.images` to the browser and stores only the text plus `[N image(s) shown to the user]`, so the model never sees the picture. `world_look` promises exactly that visual check while returning only a short scene label besides the image, so API-model builders inspect nothing.
+
+**Source-established (not executed).**
+
+**Recommended change:** include returned tool images in the following multimodal request, keeping the existing browser display and storage path.
+
+## 107. [P2] Stopping a routine does not cancel a team dispatch already in flight
+
+**Location:** [server/routines.ts:161–163](../../../server/routines.ts#L161-L163), [server/routines.ts:201–206](../../../server/routines.ts#L201-L206)
+
+A team target awaits `postUserMessage()`, which may be waiting on asynchronous member selection. `stopRoutineRun()` aborts the routine controller and stops children keyed by the routine's run id, but that signal never reaches this pending dispatch — so the team still starts a new agent run after the routine reports stopped.
+
+**Source-established (not executed).**
+
+**Recommended change:** propagate the routine's signal into pending routing and re-check it immediately before enqueuing.
+
+## 108. [P2] Model changes are validated against the providers in place before the batch
+
+**Location:** [server/overseer.ts:892–923,1223–1225](../../../server/overseer.ts#L892-L923)
+
+`prepareModels()` checks every `set_model` action up front against the roster as it stands, and stores rejections. A batch that first moves an agent to a provider and then sets a model on that provider is therefore rejected by the stale preparation before the execution-time `checkModelNow()` (which correctly reads the updated agent) can run.
+
+**Source-established (not executed).**
+
+**Recommended change:** use preparation only to fetch/cache provider lists and validate each change against the state produced by preceding actions.
+
+## 109. [P2] The dashboard bridge drops every ComfyUI result image
+
+**Location:** [server/mcp-bridge.ts:87–90](../../../server/mcp-bridge.ts#L87-L90), [server/comfyui.ts:301–303](../../../server/comfyui.ts#L301-L303)
+
+`comfyui_run` returns relative `/api/comfyui/view?...` URLs as `ToolResult.images`, but the bridge forwards only `data:` URIs, so CLI agents (through the bridge) receive no image while the API-model path keeps them. The image-generation workflow reports success and shows nothing.
+
+**Source-established (not executed).**
+
+**Recommended change:** convert the built-in image handles into MCP-supported image content (bounded and authorized), or send another representation that preserves both the model's view and the dashboard preview.
+
+## 110. [P2] A send that fails before the server takes it loses the draft
+
+**Location:** [web/chat/ChatView.tsx:136,314–320](../../../web/chat/ChatView.tsx#L136-L320)
+
+`refused` is set only for an `APICallError`, so a transport-level rejection (`TypeError: Failed to fetch`) is treated as an already-sent run failure. The composer and tray were already cleared, and the follow-up reload replaces the optimistic message with the unchanged saved chat — the user's text exists nowhere.
+
+**Source-established (not executed).**
+
+**Recommended change:** distinguish pre-acceptance transport failures from in-stream errors and restore the draft and chips when acceptance is unconfirmed.
+
+## 111. [P2] The Auto-post switch stays off after a failed save
+
+**Location:** [web/views/connections.tsx:282–288](../../../web/views/connections.tsx#L282-L288)
+
+Turning Auto-post off updates the local switch immediately; a failed save only raises a toast and neither restores the switch nor reloads account state. Publishing checks the persisted flag, so the UI shows approval protection on while the account still posts automatically.
+
+**Source-established (not executed).** Affects both X and Reddit, which share this component.
+
+**Recommended change:** await the save and restore the previous value or reload on failure.
+
+## 112. [P2] A pasted `/queue …` message interrupts the running agent
+
+**Location:** [web/chat/ChatView.tsx:440–444](../../../web/chat/ChatView.tsx#L440-L444), [web/pastes.ts:119–128](../../../web/pastes.ts#L119-L128)
+
+`parseCommand()` reads the expanded paste text, but the queue branch tests the literal textarea value, which for a long paste is `[Pasted text #1 …]`. Execution falls through to `send()`, which strips `/queue` and submits the message with `steer: true`, stopping the current run.
+
+**Source-established (not executed).** Distinct from finding 22, which is about the Send button; routing Send through `submit()` would not fix this Enter path.
+
+**Recommended change:** take the queue branch from the same expanded text (or the parsed command name).
+
+## 113. [P2] A Brain message can go to a recipient chosen during the wait
+
+**Location:** [web/dock.tsx:962–967,1075–1083](../../../web/dock.tsx#L962-L1083)
+
+`send()` clears the composer, awaits `steerBrain()`, and only then reads `D.target` again. Changing the recipient dropdown during that wait routes the already-submitted Brain message to the newly selected agent or team, which starts a real run there.
+
+**Source-established (not executed).**
+
+**Recommended change:** capture the recipient before the asynchronous steering boundary and use it for the dispatch.
+
+## 114. [P2] `/loop off` in a team takes staged attachments it never uses
+
+**Location:** [web/teamchat.tsx:503–512](../../../web/teamchat.tsx#L503-L512), [server/commands.ts:108–113](../../../server/commands.ts#L108-L113)
+
+The team loop handler takes the tray for every `/loop` command. The server's off words (`off`, `stop`, `end`, `cancel`) stop the loop and never consume attachments, and the chips are not put back — the staged files are lost. The agent-chat path already avoids taking attachments for these words.
+
+**Source-established (not executed).**
+
+**Recommended change:** handle the loop-off words before uploading or taking the tray.
+
+## 115. [P2] The Windows launcher skips dependency reconciliation
+
+**Location:** [start.cmd:6–9](../../../start.cmd#L6-L9)
+
+The launcher installs only when `node_modules` is absent, then builds and runs the current source unconditionally. A checkout updated across dependency additions (the Tailwind/QuickJS work) keeps its old tree, so `scripts/build-web.ts` or the server fails to import and the launcher exits without starting — the documented double-click/Desktop/Autostart entry point.
+
+**Source-established (not executed).**
+
+**Recommended change:** run the lockfile-backed install before building rather than treating directory existence as readiness.
+
+## 116. [P2] A startup error containing `%` never reaches the loading page
+
+**Location:** [src-tauri/src/main.rs:181–183](../../../src-tauri/src/main.rs#L181-L183), [src-tauri/loading/index.html:65–70](../../../src-tauri/loading/index.html#L65-L70)
+
+`show_start_page()` puts raw JSON into the URL fragment, while the page always `decodeURIComponent()`s it. A perfectly plausible path (for example a `DASH_DATA` directory containing `%`) makes the decode throw; the page then stays on "Starting Blacksite…" with no error, log location or retry button.
+
+**Source-established (not executed).**
+
+**Recommended change:** URI-component-encode the payload to match the consumer's single decode.
+
+## Verification of this round
+
+Every finding above marked **runtime-reproduced** was exercised against the real modules in an isolated fixture (`DASH_DATA`, `HOME`, `USERPROFILE` and `PI_CODING_AGENT_DIR` pointed at throwaway directories before the first import), with dummy data and inert values only:
+
+- **Finding 89:** an isolated PATH held an inert `codex.cmd` whose `--version` exits 0; the real Codex engine then rejected its own `mcp_servers.dashboard.command` argument before spawning. No model CLI ran.
+- **Findings 90, 91, 92, 93, 94:** the real backup/clone, artifact, skill and MCP-preset paths; no provider, sign-in or OAuth call.
+- **Findings 95, 96, 97, 98:** the real `gate()`/approval path, a deferred `setBrainHandlers()` reply, a persisted stopped brief, and seeded running runs across two projects. No model was called.
+- **Findings 99–102:** ordinary `build`/`place`/`stamp`/`import` calls and one undo, all under the small default limits; no expansion payload was run.
+
+The tools were left in place and the fixture data removed; no credentials, accounts, external network or real user data were touched. Findings 103–116 are source-established only and are marked as such.
