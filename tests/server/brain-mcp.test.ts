@@ -14,10 +14,12 @@ import type { Team } from '../../shared/types.ts';
 
 // the "model" answers what the test says
 const answers: string[] = [];
+// what the Brain was told last (its instructions)
+let lastSystem = '';
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', effort: '', fallback: false }),
-  think: async () => answers.shift() || 'OK.',
+  think: async (system: string) => ((lastSystem = system), answers.shift() || 'OK.'),
 }));
 
 const teamNamed = (name: string) => workflows.list().find((w) => w.name === name)!;
@@ -352,5 +354,97 @@ describe('what the Brain sees of a server', () => {
     expect(snap).toContain('--- huge-log.txt (start) ---');
     expect(snap).not.toContain('\uFFFD');
     fs.rmSync(big);
+  });
+});
+
+describe('the Brain and several accounts of one service', () => {
+  it('adds another account only with a label and a "use for", and asks about the one already there', () => {
+    applyActions([{ do: 'add_mcp', preset: 'linear' }]);
+    const bare = applyActions([{ do: 'add_mcp', preset: 'linear', label: 'Client' }]);
+    expect(bare.done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('to add another account give "label" and "useFor"') });
+    const r = applyActions([{ do: 'add_mcp', preset: 'linear', label: 'Client', useFor: "the client's issues" }]);
+    expect(r.done[0]).toMatchObject({ kind: 'mcp', text: expect.stringContaining('Added the MCP server "linear-client" (Linear: Client)') });
+    expect(r.done[1]).toEqual({ kind: 'note', text: '"linear" has no "use for" line yet: ask the user what that account is for and set it with update_mcp' });
+    expect(mcp.listServers()['linear-client']).toMatchObject({ kind: 'linear', label: 'Client', useFor: "the client's issues", url: 'https://mcp.linear.app/mcp' });
+  });
+
+  it('gives one agent two accounts only when each says what it is for, and finds them by label', () => {
+    const a = newAgent({ name: 'Two hats' });
+    applyActions([{ do: 'give_mcp', servers: ['linear'], to: 'agent', id: a.id }]);
+    const refused = applyActions([{ do: 'give_mcp', servers: ['Linear Client'], to: 'agent', id: a.id }]);
+    expect(refused.done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('"linear": an agent or team with several accounts of one service needs a "use for" line on each') });
+    expect(agents.get(a.id)?.mcpServers).toEqual(['linear']);
+    const changed = applyActions([{ do: 'update_mcp', server: 'linear', label: 'Ours', useFor: 'our own roadmap' }]);
+    expect(changed.done[0]).toMatchObject({ kind: 'mcp', text: 'Changed the MCP server "linear": label "Ours", use for' });
+    const given = applyActions([{ do: 'give_mcp', servers: ['Linear: Client'], to: 'agent', id: a.id }]);
+    expect(given.done[0]).toMatchObject({ kind: 'mcp', text: 'Gave the MCP server "linear-client" to Two hats' });
+    expect(agents.get(a.id)?.mcpServers).toEqual(['linear', 'linear-client']);
+    // changing something else keeps the label and "use for"
+    applyActions([{ do: 'update_mcp', server: 'Ours', description: 'Linear for us' }]);
+    expect(mcp.listServers().linear).toMatchObject({ label: 'Ours', useFor: 'our own roadmap', description: 'Linear for us' });
+  });
+
+  it('shows the accounts of a service together, with what each is for', async () => {
+    mcp.addPreset('composio', { label: 'Sales' });
+    mcp.addPreset('composio', { label: 'Support', useFor: 'the support inbox' });
+    const snap = await snapshot({ fileBudget: 0 });
+    expect(snap).toMatch(/\n- Composio: 2 accounts \| Hundreds of apps/);
+    expect(snap).toContain('\n  - composio "Sales" | on | link: https://mcp.composio.dev/session/YOUR_SESSION_ID | headers: x-api-key (values hidden) | use for: (not set: ask the user) | given to: nobody yet');
+    expect(snap).toContain('\n  - composio-support "Support" | on |');
+    expect(snap).toContain('use for: the support inbox');
+    // and is told how to pick between them
+    await ask('which composio account does what?');
+    expect(lastSystem).toContain('give an agent or team the copy whose "use for" fits its work');
+    expect(lastSystem).toContain("the team's copy of a service replaces the agent's own copies of it");
+    expect(lastSystem).toMatch(/MCP servers: .*composio \(Composio: Sales\), composio-support \(Composio: Support; use for: the support inbox\)/);
+  });
+
+  it('a new agent or a team gets only the first of two accounts while one has no "use for"', () => {
+    const r = applyActions([{ do: 'hire', members: [{ new: { name: 'Composio fan', mcpServers: ['composio', 'composio-support'] } }] }]);
+    expect(agents.list().find((x) => x.name === 'Composio fan')?.mcpServers).toEqual(['composio']);
+    expect(r.done).toContainEqual({ kind: 'error', text: expect.stringContaining('left out "composio-support". "composio": an agent or team with several accounts') });
+    const team = workflows.save({ name: 'Inbox crew', members: [], lead: null, steps: [], access: { toolGroups: [], mcpServers: ['composio-support'] } } as Partial<Team>);
+    const u = applyActions([{ do: 'update_team', team: team.id, access: { mcpServers: ['composio-support', 'composio'] } }]);
+    expect(u.done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining("the team wasn't changed") });
+    expect(workflows.get(team.id)?.access?.mcpServers).toEqual(['composio-support']);
+  });
+});
+
+describe('the Brain adds another account by the same rule as the page', () => {
+  const OOMOL = 'https://connector.oomol.com/v1/mcp';
+
+  it('a name of its own does not skip the label and "use for"', () => {
+    applyActions([{ do: 'add_mcp', preset: 'oomol' }]);
+    const r = applyActions([{ do: 'add_mcp', preset: 'oomol', name: 'oomol2' }]);
+    expect(r.done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('OOMOL is added already ("oomol")') });
+    expect(mcp.listServers().oomol2).toBeUndefined();
+    const ok = applyActions([{ do: 'add_mcp', preset: 'oomol', name: 'oomol2', label: 'Side', useFor: 'side projects' }]);
+    expect(ok.done[0].kind).toBe('mcp');
+    expect(mcp.listServers().oomol2).toMatchObject({ kind: 'oomol', label: 'Side', useFor: 'side projects' });
+  });
+
+  it('an import or a custom server that is the same as one there is another account of it', () => {
+    const file = path.join(os.homedir(), '.claude.json');
+    fs.writeFileSync(file, JSON.stringify({ mcpServers: { 'my-oomol': { type: 'http', url: OOMOL } } }));
+    const imported = applyActions([{ do: 'add_mcp', import: 'my-oomol' }]);
+    expect(imported.done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('OOMOL is added already') });
+    const custom = applyActions([{ do: 'add_mcp', name: 'oomol-x', url: OOMOL }], activeProject(), { userWords: `add ${OOMOL}` });
+    expect(custom.done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('OOMOL is added already') });
+    const ok = applyActions([{ do: 'add_mcp', import: 'my-oomol', label: 'Lab', useFor: 'experiments' }]);
+    expect(ok.done[0]).toMatchObject({ kind: 'mcp', text: expect.stringContaining('Added the MCP server "oomol-lab" (OOMOL: Lab)') });
+    expect(mcp.listServers()['oomol-lab']).toMatchObject({ kind: 'oomol', url: OOMOL });
+    fs.rmSync(file);
+  });
+
+  it('names a service in any case, and "service": "" makes a server its own again', () => {
+    const words = 'add https://crm.example.com/mcp and https://eu.crm.example.com/mcp';
+    applyActions([{ do: 'add_mcp', name: 'MyCrm', url: 'https://crm.example.com/mcp' }], activeProject(), { userWords: words });
+    const r = applyActions([{ do: 'add_mcp', name: 'crm-eu', url: 'https://eu.crm.example.com/mcp', service: 'mycrm', label: 'EU', useFor: 'European customers' }], activeProject(), { userWords: words });
+    expect(r.done[0].kind).toBe('mcp');
+    expect(mcp.listServers()['crm-eu'].kind).toBe('MyCrm');
+    expect(mcp.copiesByKind().get('MyCrm')).toEqual(['MyCrm', 'crm-eu']);
+    const u = applyActions([{ do: 'update_mcp', server: 'crm-eu', service: '' }]);
+    expect(u.done[0]).toMatchObject({ kind: 'mcp', text: 'Changed the MCP server "crm-eu": its own service' });
+    expect(mcp.copiesByKind().has('MyCrm')).toBe(false);
   });
 });

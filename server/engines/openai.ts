@@ -148,16 +148,28 @@ export async function listModels(providerId: string): Promise<ModelInfo[]> {
 
 const safeName = (s: string): string => s.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
 
+/** An MCP tool's name for the model: <server>__<tool>, at most 64 characters. Two names cut to the same 64
+ *  ("…__send_email_with_a…" twice) would call the wrong tool: the second one gets a number. */
+export function mcpToolName(server: string, tool: string, taken: { has(name: string): boolean }): string {
+  const base = safeName(`${server}__${tool}`);
+  let name = base;
+  for (let i = 2; taken.has(name); i++) name = `${base.slice(0, 63 - String(i).length)}_${i}`;
+  return name;
+}
+
 async function gatherTools(agent: Agent, onEvent: (ev: RunEvent) => void): Promise<{ defs: ToolDef[]; route: Map<string, ToolRoute> }> {
   const defs: ToolDef[] = toolDefs(agent).map((t): ToolDef => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
   const route = new Map<string, ToolRoute>(defs.map((d): [string, ToolRoute] => [d.function.name, { kind: 'builtin', name: d.function.name }]));
+  const servers = mcp.listServers();
   for (const server of agent.mcpServers || []) {
+    // a copy of a service (one account of several) is named by its label: "[OOMOL: Work] Send an email"
+    const shown = mcp.accountOf(server, servers) || server;
     try {
       const tools = await mcp.listTools(server);
       for (const t of tools) {
-        const name = safeName(`${server}__${t.name}`);
+        const name = mcpToolName(server, t.name, route);
         route.set(name, { kind: 'mcp', server, name: t.name });
-        defs.push({ type: 'function', function: { name, description: `[${server}] ${t.description || ''}`.slice(0, 1000), parameters: t.inputSchema || { type: 'object', properties: {} } } });
+        defs.push({ type: 'function', function: { name, description: `[${shown}] ${t.description || ''}`.slice(0, 1000), parameters: t.inputSchema || { type: 'object', properties: {} } } });
       }
     } catch (e) {
       onEvent({ kind: 'status', text: `MCP server ${server} unavailable: ${(e as Error).message}` });
@@ -410,7 +422,7 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
         else if (target.kind === 'builtin') job = callBuiltin(agent, target.name, args, ctx);
         else
           job = (async () => {
-            const refused = await gate(agent, call.function.name, 'low', args, ctx);
+            const refused = await gate(agent, call.function.name, 'low', args, { ...ctx, mcpServer: target.server });
             if (refused) return refused;
             return mcp.callTool(target.server, target.name, args);
           })().catch((e: Error) => ({ text: `Error: ${e.message}`, isError: true }));

@@ -7,6 +7,7 @@ import { knowledgeContext } from '../knowledge.ts';
 import { memoryContext, memoryStamp, readMemory, hasMemory } from '../memory.ts';
 import { workspaceOf, toolsForAgent } from '../tools.ts';
 import { skillsPrompt } from '../skills.ts';
+import { accountsPrompt, teamWorkServers } from '../mcp.ts';
 import { withAttachments, attachmentNames } from '../uploads.ts';
 import * as openai from './openai.ts';
 import * as claude from './claude.ts';
@@ -200,6 +201,7 @@ export function buildSystemPrompt(agent: Agent): string {
     knowledgeContext(agent),
     memoryContext(agent),
     skillsPrompt(agent),
+    accountsPrompt(agent.mcpServers || []),
     `\n# Where you are
 You are one of several agents on the user's personal dashboard, running on their Windows PC (user folder ${HOME}).
 You work on the project "${project.name}". Its Brain is the folder ${project.brainPath}: the project's files, notes${project.repo ? ` and its GitHub repo (${project.repo})` : ''}. Look there first for context (BRAIN.md, notes/, docs) and keep your work in it.
@@ -609,7 +611,8 @@ export async function askAgent(agent: Agent, message: string, { depth = 1, from 
   if (signal?.aborted) throw new RunStopped();
   let fresh = agentStore.get(agent.id) || agent;
   // extra: what a team adds while the agent works for it (tools, MCP servers, skills)
-  if (extra) fresh = { ...fresh, toolGroups: [...new Set([...(fresh.toolGroups || []), ...(extra.toolGroups || [])])], mcpServers: [...new Set([...(fresh.mcpServers || []), ...(extra.mcpServers || [])])], _teamSkills: extra.skills || [] };
+  // (the team's copy of a service, its account, replaces the agent's own copies of it)
+  if (extra) fresh = { ...fresh, toolGroups: [...new Set([...(fresh.toolGroups || []), ...(extra.toolGroups || [])])], mcpServers: teamWorkServers(fresh.mcpServers || [], extra.mcpServers || []), _teamSkills: extra.skills || [] };
   const chat = (chatId && chats.get(fresh.id, chatId)) || chats.create(fresh.id, title || (from ? `Asked by ${from}` : 'Task'));
   const { runId, promise, signal: runSignal } = startRun(fresh, chat, message, { depth, from, parentRunId, attachments });
   const onAbort = () => stopRun(runId);

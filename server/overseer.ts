@@ -7,7 +7,7 @@ import { waitingQuestions } from './questions.ts';
 import { agents, workflows, activeProject, openProject, projectSwitches, listProjects, getSettings, outbox, activity, log, emit, routineRuns, runs as workflowRuns } from './store.ts';
 import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from './library.ts';
 import { TOOL_GROUPS, workspaceOf } from './tools.ts';
-import { listServers, PRESETS, presetNeeds, suggestPresets, importableServers, saveServer, serverName, renameServer, removeServerEverywhere } from './mcp.ts';
+import { listServers, PRESETS, presetNeeds, suggestPresets, importableServers, saveServer, serverName, renameServer, removeServerEverywhere, kindOf, serviceTitle, copyTitle, copiesByKind, copiesWithoutUseFor, serversForPrompt, resolveKind, addedKinds, placeNew } from './mcp.ts';
 import { knownPrograms } from './programs.ts';
 import type { McpServerConfig } from './mcp.ts';
 import { ensureBrain, brainInfo, updateProject } from './projects.ts';
@@ -114,6 +114,10 @@ export interface BrainAction {
   env?: unknown;
   headers?: unknown;
   rename?: unknown;
+  /** add_mcp / update_mcp: a copy's label ("Work"), when to pick it, and the service it is a copy of */
+  label?: unknown;
+  useFor?: unknown;
+  service?: unknown;
 }
 
 // The most actions one answer can take, and GitHub installs among them.
@@ -308,12 +312,23 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
 
   // MCP servers: how each starts and who has it (env and header values can be keys: names only)
   const servers = listServers();
-  const mcpLines = Object.entries(servers).map(([name, s]) => {
+  const mcpLine = (name: string, s: McpServerConfig, copy: boolean) => {
     const who = [...all.filter((a) => (a.mcpServers || []).includes(name)).map((a) => a.name), ...teams.filter((t) => (t.access?.mcpServers || []).includes(name)).map((t) => `team ${t.name}`)];
     const keys = (label: string, m: Record<string, string> | undefined) => (Object.keys(m || {}).length ? ` | ${label}: ${Object.keys(m || {}).join(', ')} (values hidden)` : '');
-    return `- ${name} | ${s.enabled === false ? 'OFF' : 'on'} | ${mcpWhere(s)}${keys('env', s.env)}${keys('headers', s.headers)}${s.description ? ` | ${cut(s.description, 140)}` : ''} | given to: ${who.join(', ') || 'nobody yet'}`;
+    const about = copy ? ` | use for: ${s.useFor ? cut(s.useFor, 200) : '(not set: ask the user)'}` : `${s.label ? ` | label: ${s.label}` : ''}${s.useFor ? ` | use for: ${cut(s.useFor, 200)}` : ''}${s.description ? ` | ${cut(s.description, 140)}` : ''}`;
+    return `${copy ? '  ' : ''}- ${name}${copy && s.label ? ` "${s.label}"` : ''} | ${s.enabled === false ? 'OFF' : 'on'} | ${mcpWhere(s)}${keys('env', s.env)}${keys('headers', s.headers)}${about} | given to: ${who.join(', ') || 'nobody yet'}`;
+  };
+  // the copies of a service (its accounts) together, under the service
+  const copyGroups = copiesByKind(servers);
+  const mcpLines = Object.entries(servers).flatMap(([name, s]) => {
+    const group = copyGroups.get(kindOf(name, s));
+    if (!group) return [mcpLine(name, s, false)];
+    if (group[0] !== name) return [];
+    const first = servers[group[0]];
+    return [`- ${serviceTitle(kindOf(name, s))}: ${group.length} accounts${first.description ? ` | ${cut(first.description, 140)}` : ''}`, ...group.map((n) => mcpLine(n, servers[n], true))];
   });
-  const ready = PRESETS.map((x) => `${x.name} (${x.title}${servers[x.name] ? ', added' : ''}${presetNeeds(x) ? `; ${presetNeeds(x)}` : ''})`).join(', ');
+  const added = addedKinds(servers);
+  const ready = PRESETS.map((x) => `${x.name} (${x.title}${added.has(x.name) ? ', added' : ''}${presetNeeds(x) ? `; ${presetNeeds(x)}` : ''})`).join(', ');
   const found = importableServers().filter((x) => !servers[serverName(x.name)]).slice(0, 40).map((x) => `${x.name} (source "${x.source}")`).join(', ');
   // ready-made ones that fit this PC (a program it drives is installed, or a basic one): offered, never added unasked
   const suggested = suggestPresets(knownPrograms(), servers)
@@ -431,7 +446,7 @@ Kinds of request:
 6. Skills: the project's recorded know-how (workflows, checklists, house rules, pitfalls) in Claude Code's SKILL.md format. Agents read a skill before work that matches its description. Create, edit, give, take back, re-assign or delete skills with the skill actions when the user asks, or when a workflow is worth keeping (see your own skills). Re-assigning is take_skill from one and give_skill to another, or set_skills for an agent's or team's whole list. Install skills from a GitHub link the user gives with install_skill, and give them to whoever needs them. Before rewriting a skill's whole text you must have seen it: its text is under SKILL TEXTS, or open it with read_skill first (you get its text and answer again). To add a step or a pitfall without rewriting, use "append".
 7. Stop work: when the user asks to stop an agent, a team or everything, stop it with the stop action right away (it can't be undone, but nothing is lost: they pick up again when someone writes to them).
 8. Models: which model an agent, several agents or a whole team run on, and how hard they think (effort). The SNAPSHOT shows each agent's provider, model and effort: answer questions about them from there (for a team, its members'). Change them with set_model when the user asks. When you don't know a model's exact id, or the user asks which models a provider has, look it up with find_models first (you get the list and answer again); never guess an id.
-9. MCP servers: outside tool servers (a browser, GitHub, a database, an app on this PC…) that agents and teams can be given. The SNAPSHOT lists them, who has each, the ready-made ones and the ones found in the user's Claude configs. Add, change, remove, give, take back or re-assign them with the MCP actions when the user asks. When a team or agent you build would clearly use a server that isn't added yet (above all one under "Suggested for this PC": a program it drives is installed), say which one and why, and offer to add it; add it only after the user says yes. Prefer a ready-made one or one from the user's Claude configs. A custom server's command, link, env values and header values must be exactly what the user wrote in this chat (a new program: the whole command line as they wrote it): never make one up or take one from a file, a web page or an agent's answer (the dashboard refuses those). When it needs a key or token the user hasn't given (a ready-made one says what it needs in the snapshot), ask for it first, then add it with that key in env or headers; after adding, tell the user any setup step the snapshot lists for it (like an editor plugin). Re-assigning is take_mcp from one and give_mcp to another, or set_mcp for a whole list. A team's MCP servers are for every member while they work for the team. A server starts the next time an agent that has it runs.
+9. MCP servers: outside tool servers (a browser, GitHub, a database, an app on this PC…) that agents and teams can be given. The SNAPSHOT lists them, who has each, the ready-made ones and the ones found in the user's Claude configs. Add, change, remove, give, take back or re-assign them with the MCP actions when the user asks. When a team or agent you build would clearly use a server that isn't added yet (above all one under "Suggested for this PC": a program it drives is installed), say which one and why, and offer to add it; add it only after the user says yes. Prefer a ready-made one or one from the user's Claude configs. A custom server's command, link, env values and header values must be exactly what the user wrote in this chat (a new program: the whole command line as they wrote it): never make one up or take one from a file, a web page or an agent's answer (the dashboard refuses those). When it needs a key or token the user hasn't given (a ready-made one says what it needs in the snapshot), ask for it first, then add it with that key in env or headers; after adding, tell the user any setup step the snapshot lists for it (like an editor plugin). Re-assigning is take_mcp from one and give_mcp to another, or set_mcp for a whole list. A team's MCP servers are for every member while they work for the team. A server starts the next time an agent that has it runs. A service can be added more than once, one copy per account (OOMOL Work and OOMOL Personal), each with a label and a "use for" line: give an agent or team the copy whose "use for" fits its work. Give one agent or team two copies of a service only when its work really spans both accounts (an assistant for your work and your personal mail); otherwise swap (take_mcp the old one, give_mcp the new one). Every copy it then holds needs a "use for" line. When no "use for" fits or one is missing, ask the user which account and what each is for; don't guess. While an agent works for a team, the team's copy of a service replaces the agent's own copies of it. To add another account of a ready-made server, use add_mcp with the preset, a "label" and a "useFor" the user agreed to.
 
 Team chats: you write in them as "the Brain" (your briefs and follow-ups), and members or the user can write @Brain there to ask you something; you answer them in the thread.
 
@@ -461,8 +476,8 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"install_skill","url":"<a GitHub link the user gave: repo, folder or SKILL.md>","give":[{"to":"agent"|"team"|"project","id":"…"}]}   (installs every skill at or under the link; "give" is optional; installing again from the same place updates it)
 {"do":"read_skill","skill":"<skill id>"}   (alone in its block, or with other look-ups: you get the skill's whole text, then answer again)
 {"do":"delete_skill","skill":"<skill id>"}
-{"do":"add_mcp","preset":"<ready-made name>"}  or  {"do":"add_mcp","import":"<name>","source":"<source, as in the snapshot>"}  or  {"do":"add_mcp","name":"…","description":"one line","command":"the program","args":["…"],"env":{"KEY":"value"}}  or  {"do":"add_mcp","name":"…","description":"…","url":"https://…","headers":{"Authorization":"Bearer …"}}   (a ready-made or imported one also takes "name", "env" and "headers")
-{"do":"update_mcp","server":"<name, or 'new'>","rename":"…","description":"…","command":"…","args":["the whole list"],"url":"…","env":{"KEY":"value","OLD_KEY":null},"headers":{…},"enabled":true|false}   (only the fields that change; in env and headers only the keys given change, null removes one)
+{"do":"add_mcp","preset":"<ready-made name>"}  or  {"do":"add_mcp","import":"<name>","source":"<source, as in the snapshot>"}  or  {"do":"add_mcp","name":"…","description":"one line","command":"the program","args":["…"],"env":{"KEY":"value"}}  or  {"do":"add_mcp","name":"…","description":"…","url":"https://…","headers":{"Authorization":"Bearer …"}}   (a ready-made or imported one also takes "name", "env" and "headers"; another account of a service that is added already needs "label":"Work" and "useFor":"when to pick it")
+{"do":"update_mcp","server":"<name, or 'new'>","rename":"…","description":"…","label":"…","useFor":"…","service":"<the service it is another account of, or \"\" for its own>","command":"…","args":["the whole list"],"url":"…","env":{"KEY":"value","OLD_KEY":null},"headers":{…},"enabled":true|false}   (only the fields that change; in env and headers only the keys given change, null removes one)
 {"do":"remove_mcp","server":"<name>"}   (deletes it and takes it off every agent and team)
 {"do":"give_mcp","servers":["<name, or 'new'>",…],"to":"agent"|"team","id":"<agent or team id, or 'new'>"}   (or "targets":[{"to":…,"id":…},…] instead of "to"/"id", for several at once)
 {"do":"take_mcp","servers":["<name>",…],"to":…,"id":…}   (or "targets", like give_mcp)
@@ -478,7 +493,7 @@ SCHEDULE is {"type":"none"} (run by hand) or {"type":"daily","time":"HH:MM","day
 MEMBER is {"agent":"<existing agent id>"} or {"library":"<slug>"} or {"starter":"<name>"} or {"new":{"name":"…","emoji":"…","specialty":"one line","instructions":"5-10 sentences, second person","tools":["ids"],"skills":["skill ids"],"mcpServers":["names"]}}
 create_team and update_team also take "skills":["skill ids"] (update_team: the team's whole list).
 Tool group ids: ${GROUP_IDS.join(', ')}
-MCP servers: ${Object.keys(listServers()).join(', ') || '(none)'}
+MCP servers: ${serversForPrompt() || '(none)'}
 
 Rules: at most one delegate per answer. Never delete agents or teams (removing from a team is fine). Delete a routine or a skill, or remove an MCP server, only when the user clearly asks for that one to be deleted. Never write a key, token or password back in your reply. Change an agent's model or effort, or stop work, only when the user asks for it. Never put secrets (keys, passwords, tokens) in a skill or a memory. Posts and DMs always wait for the user's approval in the Outbox. Say "nobody is working right now" when that's true. Never invent status, files or numbers.${memory}${ownSkillsText(own)}`;
 
@@ -740,6 +755,9 @@ export function mcpConfigFrom(act: BrainAction, base: McpServerConfig): McpServe
     headers: patchKeys(base.headers || {}, keyPatch(act.headers)),
     description: act.description !== undefined ? String(act.description ?? '').slice(0, 300) : base.description || '',
     enabled: act.enabled !== undefined ? act.enabled !== false : base.enabled !== false,
+    label: act.label !== undefined ? String(act.label ?? '').trim().slice(0, 60) : base.label || '',
+    kind: act.service !== undefined ? resolveKind(act.service) : base.kind || '',
+    useFor: act.useFor !== undefined ? String(act.useFor ?? '').trim().slice(0, 300) : base.useFor || '',
   };
 }
 
@@ -1038,7 +1056,17 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
   const findServer = (ref: unknown, names = Object.keys(listServers())): string | null => {
     const r = ref === 'new' ? lastServer : ref ? String(ref).trim() : null;
     if (!r) return null;
-    return names.find((n) => n === r) || names.find((n) => n.toLowerCase() === r.toLowerCase() || n === serverName(r)) || null;
+    const exact = names.find((n) => n === r) || names.find((n) => n.toLowerCase() === r.toLowerCase() || n === serverName(r));
+    if (exact) return exact;
+    // a copy by its label: "OOMOL Work", "oomol: work", or just "Work" when only one copy has that label
+    const all = listServers();
+    const flat = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const want = flat(r);
+    const labelled = names.filter((n) => all[n]?.label);
+    const full = labelled.find((n) => [`${kindOf(n, all[n])}${all[n].label}`, `${serviceTitle(kindOf(n, all[n]))}${all[n].label}`].some((x) => flat(x) === want));
+    if (full) return full;
+    const byLabel = labelled.filter((n) => flat(all[n].label || '') === want);
+    return byLabel.length === 1 ? byLabel[0] : null;
   };
   // server refs (one or a list) -> the servers' names, and the refs that aren't a server
   const findServers = (refs: unknown): { names: string[]; missing: string[] } => {
@@ -1058,8 +1086,18 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
   const serversFor = (refs: unknown): string[] => {
     const { names, missing } = findServers(refs);
     if (missing.length) done.push({ kind: 'error', text: noServer(missing) });
-    return names;
+    const bare = copiesWithoutUseFor(names);
+    if (!bare.length) return names;
+    // of a service with a copy that has no "use for", keep only the first copy
+    const servers = listServers();
+    const kindAt = (n: string) => kindOf(n, servers[n]);
+    const unclear = new Set(bare.map(kindAt));
+    const kept = names.filter((n) => !unclear.has(kindAt(n)) || names.find((x) => kindAt(x) === kindAt(n)) === n);
+    done.push({ kind: 'error', text: `left out ${names.filter((n) => !kept.includes(n)).map((n) => `"${n}"`).join(', ')}. ${bareCopies(bare)}` });
+    return kept;
   };
+  // why several accounts of one service can't go to the same agent or team yet
+  const bareCopies = (bare: string[]) => `${bare.map((n) => `"${n}"`).join(', ')}: an agent or team with several accounts of one service needs a "use for" line on each (ask the user what each is for and set it with update_mcp "useFor")`;
   // who gets MCP servers: an agent (its own) or a team (for every member while they work for it)
   const mcpHolder = (t: BrainAction): { label: string; servers: string[]; save: (list: string[]) => void; teamId?: string; agentId?: string } => {
     const to = String(t.to || '').toLowerCase();
@@ -1169,7 +1207,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         if (act.preset) {
           const pr = PRESETS.find((x) => x.name.toLowerCase() === String(act.preset).toLowerCase());
           if (!pr) throw new Error(`no ready-made server "${String(act.preset)}" (there are: ${PRESETS.map((x) => x.name).join(', ')})`);
-          base = { ...NO_SERVER, ...pr, env: {}, headers: pr.type === 'http' ? pr.headers : {} };
+          base = { ...NO_SERVER, ...pr, env: {}, headers: pr.type === 'http' ? pr.headers : {}, kind: pr.name };
           from = ', ready-made';
         } else if (act.import) {
           const it = importableServers().find((x) => x.name === String(act.import) && (!act.source || x.source === String(act.source)));
@@ -1177,17 +1215,29 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
           base = { ...NO_SERVER, ...it, command: it.command || '', url: it.url || '' };
           from = `, from ${it.source}`;
         }
-        const name = serverName(act.name || act.preset || act.import);
-        if (!name) throw new Error('the server needs a name');
-        if (name in listServers()) throw new Error(`there already is an MCP server "${name}": change it with update_mcp`);
+        const before = listServers();
         const next = mcpConfigFrom(act, base);
+        const asked = serverName(act.name);
+        if (asked && asked in before) throw new Error(`there already is an MCP server "${asked}": change it with update_mcp`);
+        // The service it is: a ready-made one, the one it says, or worked out (an import or a custom server
+        // can be the same as one there). When that service is added already, this is another account of it,
+        // named or not: it needs a label and a "use for" (the same rule as "Add another" on the page).
+        const fallback = serverName(act.preset || act.import);
+        const kindNow = kindOf(asked || fallback, next);
+        const { name, others } = placeNew(kindNow, { name: asked, base: fallback, label: next.label }, before);
+        if (others.length && (!next.label || !next.useFor)) throw new Error(`${serviceTitle(kindNow)} is added already (${others.map((n) => `"${n}"`).join(', ')}): to add another account give "label" and "useFor" (ask the user what this account is for), or change the one there with update_mcp`);
+        if (!name) throw new Error('the server needs a name');
+        if (name in before) throw new Error(`there already is an MCP server "${name}": change it with update_mcp`);
+        if (others.length) next.kind = kindNow;
         checkStarts(name, next);
         fromUser(next, base);
         saveServer(name, next);
         lastServer = name;
         const keys = [...Object.keys(next.env), ...Object.keys(next.headers)];
         log('mcp', `The Brain added the MCP server "${name}"`);
-        done.push({ kind: 'mcp', text: `Added the MCP server "${name}" (${mcpWhere(next)}${keys.length ? `, with ${keys.join(', ')}` : ''}${from})${next.enabled ? '' : ', turned off'}` });
+        done.push({ kind: 'mcp', text: `Added the MCP server "${name}"${next.label ? ` (${copyTitle(name, next)})` : ''} (${mcpWhere(next)}${keys.length ? `, with ${keys.join(', ')}` : ''}${from})${next.enabled ? '' : ', turned off'}` });
+        const unsaid = others.filter((n) => !before[n].useFor);
+        if (unsaid.length) done.push({ kind: 'note', text: `${unsaid.map((n) => `"${n}"`).join(', ')} has no "use for" line yet: ask the user what that account is for and set it with update_mcp` });
         continue;
       }
       if (kind === 'update_mcp') {
@@ -1195,6 +1245,8 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         if (!name) throw new Error(`no MCP server "${String(act.server ?? act.id ?? act.name ?? '')}"`);
         const old = listServers()[name];
         const next = mcpConfigFrom(act, old);
+        // "service": "" (or its own name): its own service, even when it looks like a ready-made one
+        if (act.service !== undefined && !next.kind) next.kind = name;
         checkStarts(name, next);
         fromUser(next, old);
         const changed: string[] = [];
@@ -1205,6 +1257,11 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         if (env.length) changed.push(`env ${env.join(', ')}`);
         if (headers.length) changed.push(`headers ${headers.join(', ')}`);
         if (next.description !== (old.description || '')) changed.push('description');
+        if ((next.label || '') !== (old.label || '')) changed.push(next.label ? `label "${next.label}"` : 'label removed');
+        if ((next.useFor || '') !== (old.useFor || '')) changed.push('use for');
+        const kindWas = kindOf(name, old);
+        const kindNow = kindOf(name, next);
+        if (kindNow !== kindWas) changed.push(kindNow === name ? 'its own service' : `another account of ${serviceTitle(kindNow)}`);
         if (next.enabled !== (old.enabled !== false)) changed.push(next.enabled ? 'turned on' : 'turned off');
         const rename = act.rename ? serverName(act.rename) : '';
         if (!changed.length && (!rename || rename === name)) throw new Error(`nothing to change in "${name}"`);
@@ -1243,6 +1300,8 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
             const next = kind === 'give_mcp' ? [...new Set([...had, ...names])] : kind === 'take_mcp' ? had.filter((x) => !names.includes(x)) : names;
             const added = next.filter((x) => !had.includes(x));
             const removed = had.filter((x) => !next.includes(x));
+            const bare = added.length ? copiesWithoutUseFor(next) : [];
+            if (bare.length) throw new Error(`${holder.label} wasn't given it. ${bareCopies(bare)}`);
             if (added.length || removed.length) {
               holder.save(next);
               log('mcp', `The Brain changed ${holder.label}'s MCP servers (${[added.length ? `added ${quoted(added)}` : '', removed.length ? `took away ${quoted(removed)}` : ''].filter(Boolean).join('; ')})`, holder.agentId ? { agentId: holder.agentId } : {});
@@ -1403,6 +1462,8 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
           // a whole new list with a name that isn't a server would take the others away: keep the old one
           const mcpList = act.access.mcpServers !== undefined ? findServers(act.access.mcpServers) : null;
           if (mcpList?.missing.length) throw new Error(`${noServer(mcpList.missing)}, so the team wasn't changed`);
+          const bare = mcpList && mcpList.names.some((n) => !(wf.access?.mcpServers || []).includes(n)) ? copiesWithoutUseFor(mcpList.names) : [];
+          if (bare.length) throw new Error(`the team wasn't changed. ${bareCopies(bare)}`);
           wf.access = {
             toolGroups: tools !== undefined ? cleanTools(tools) : wf.access?.toolGroups || [],
             mcpServers: mcpList ? mcpList.names : wf.access?.mcpServers || [],

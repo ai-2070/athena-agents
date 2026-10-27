@@ -9,7 +9,8 @@ import { ChipSet, Field, Segmented, Switch } from '../ui/controls.tsx';
 import { Avatar, DomNode, reactPage, useAppState } from '../ui/react.tsx';
 import type { ModelListing } from '../models.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
-import type { Agent, AppState, Autonomy, EngineStatus, Team, Terminal } from '../../shared/types.ts';
+import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
+import type { Agent, AppState, Autonomy, EngineStatus, McpServerInfo, Team, Terminal } from '../../shared/types.ts';
 
 /** GET /api/agents/:id: the agent plus its knowledge files and resolved workspace. */
 export interface AgentDetail extends Agent {
@@ -33,6 +34,7 @@ interface HermesProfile {
 /** The part of GET /api/mcp used here. */
 interface McpListing {
   servers: Record<string, unknown>;
+  info?: Record<string, McpServerInfo>;
 }
 
 export async function openTerminal(agent: Pick<Agent, 'id'>): Promise<void> {
@@ -118,6 +120,8 @@ const AUTONOMY: { value: Autonomy; label: string; title: string }[] = [
 interface EditorData {
   agent: AgentDetail;
   servers: string[];
+  /** each server's label, service and "use for" */
+  info?: Record<string, McpServerInfo>;
   teams: Team[];
 }
 
@@ -130,7 +134,7 @@ function AgentEditor({ id }: { id: string }) {
     let live = true;
     // (Hermes profiles and OpenClaw agents ask their CLIs, which can be slow: they load with their engine's fields)
     void Promise.all([GET<AgentDetail>(`/agents/${id}`), GET<McpListing>('/mcp').catch(() => ({ servers: {} })), GET<Team[]>('/workflows').catch((): Team[] => [])]).then(
-      ([agent, mcp, teams]) => live && setData({ agent, servers: Object.keys(mcp.servers), teams }),
+      ([agent, mcp, teams]) => live && setData({ agent, servers: Object.keys(mcp.servers), info: (mcp as McpListing).info, teams }),
     );
     return () => void (live = false);
   }, [id, version]);
@@ -139,7 +143,7 @@ function AgentEditor({ id }: { id: string }) {
 }
 
 function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload: () => void }) {
-  const { agent, servers, teams } = data;
+  const { agent, servers, info, teams } = data;
   const id = agent.id;
   const [a, setA] = useState<Agent>(() => structuredClone(agent));
   const [dirty, setDirty] = useState(false);
@@ -280,7 +284,8 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
             <div className="label mt-7">MCP servers</div>
             {servers.length ? (
               <div className="mt-3.5">
-                <ChipSet label="MCP servers" options={servers.map((s) => ({ value: s, label: s }))} value={a.mcpServers} onChange={(v) => set('mcpServers', v)} />
+                <ChipSet label="MCP servers" options={mcpOptions(servers, info)} value={a.mcpServers} onChange={(v) => set('mcpServers', v)} />
+                {copiesWarning(a.mcpServers, info) ? <p className="hint mcp-copies-warning mt-2 text-amber">{copiesWarning(a.mcpServers, info)}</p> : null}
               </div>
             ) : (
               <p className="hint mt-3.5">

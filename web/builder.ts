@@ -2,6 +2,7 @@
 import { h, mount, clear, state, GET, POST, PUT, attempt, modal, chipSet, select, toast, refreshSoon, avatar } from './core.ts';
 import type { ModalHandle } from './core.ts';
 import { teamSteps } from '../shared/teams.ts';
+import { mcpOptions } from './mcpcopies.ts';
 import { icon } from './icons.ts';
 import { attachTray, baseName, isFolderPath } from './attach.ts';
 import type { Agent, Team, TeamAccess, TeamStep } from '../shared/types.ts';
@@ -111,7 +112,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       accessEl,
       h('div.label', 'Programs & tools'),
       h('div', { class: 'mt-3.5' }, chipSet(state.data!.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description })), b.access.toolGroups, (v) => (b.access.toolGroups = v))),
-      Object.keys(mcp.servers).length ? [h('div.label', { class: 'mt-3.5' }, 'MCP servers'), h('div', { class: 'mt-3.5' }, chipSet(Object.keys(mcp.servers), b.access.mcpServers, (v) => (b.access.mcpServers = v)))] : null,
+      Object.keys(mcp.servers).length ? [h('div.label', { class: 'mt-3.5' }, 'MCP servers'), h('div', { class: 'mt-3.5' }, chipSet(mcpOptions(Object.keys(mcp.servers), state.data?.mcpInfo), b.access.mcpServers, (v) => (b.access.mcpServers = v)))] : null,
       h('p.hint', { class: 'mt-3.5' }, 'While working for this team, every member gets these on top of its own tools.'),
     );
 
