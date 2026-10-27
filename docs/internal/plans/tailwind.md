@@ -26,7 +26,7 @@ markup.
   `accent-dim`, `on-accent`, `amber`, `ok`, `ice`, `red`, `glass`, `glass-strong`, `white`, `black` →
   `text-dim`, `bg-panel-2`, `border-line-2`, `bg-accent/10`. Tailwind's own palette is off.
   `look.ts` swaps `--color-accent*` at runtime, so always use the token, never the hex.
-- Fonts: `font-sans` (Archivo), `font-mono` (JetBrains Mono). Body is 15px/1.55 sans.
+- Fonts: `font-sans` (Archivo), `font-mono` (JetBrains Mono), `font-chat` (Merriweather) for the text of chat messages. Body is 15px/1.55 sans.
 - Radius: `rounded-ctl` (7px: buttons, inputs, chips), `rounded-box` (10px: panels, cards, dialogs), `rounded-full`.
 - `shadow-pop`, `ease-soft`, `w-nav` (216px sidebar).
 - Animations: `animate-pulse` `animate-blink` `animate-fade` `animate-fade-fast` `animate-pop` `animate-in-up`

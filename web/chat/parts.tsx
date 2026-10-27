@@ -19,14 +19,14 @@ const RichAnswer = lazy(() => import('./rich.tsx'));
 // A message's look in the floating window (compact) and the Station panel / team turns (mini); the chat
 // page's messages are the shared msg pieces. A message drawn again (scrolled back to) doesn't rise in again.
 const AC = 'max-w-[88%] rounded-[12px] px-3 py-2.25 text-[14px] leading-[1.5] animate-[rise-in_0.2s_ease-out] in-[.again]:animate-none';
-const AC_AGENT = `${AC} self-start border border-line bg-panel`;
-const AC_USER = `${AC} self-end border border-[color-mix(in_srgb,var(--color-accent)_25%,var(--color-line))] bg-[color-mix(in_srgb,var(--color-accent)_14%,var(--color-panel-2))] whitespace-pre-wrap`;
+const AC_AGENT = `${AC} font-chat self-start border border-line bg-panel`;
+const AC_USER = `${AC} font-chat self-end border border-[color-mix(in_srgb,var(--color-accent)_25%,var(--color-line))] bg-[color-mix(in_srgb,var(--color-accent)_14%,var(--color-panel-2))] whitespace-pre-wrap`;
 const AC_ERR = `${AC} self-stretch border border-[color-mix(in_srgb,var(--color-red)_40%,var(--color-line))] text-red`;
 // (Markdown: no space above the first block or below the last)
 const AC_TEXT = '[&>:first-child]:mt-0 [&>:last-child]:mb-0';
 const ST = 'st-msg text-[13.5px] leading-[1.5] wrap-anywhere';
-const ST_ASSISTANT = `${ST} assistant [&_p]:mb-1.5 [&_pre]:max-h-45`;
-const ST_USER = `${ST} user self-end max-w-[90%] border border-line-2 bg-panel-2 px-2.5 py-1.5 whitespace-pre-wrap`;
+const ST_ASSISTANT = `${ST} assistant font-chat [&_p]:mb-1.5 [&_pre]:max-h-45`;
+const ST_USER = `${ST} user font-chat self-end max-w-[90%] border border-line-2 bg-panel-2 px-2.5 py-1.5 whitespace-pre-wrap`;
 const ST_ERR = `${ST} text-red`;
 const ST_CMP = 'st-msg cmp self-stretch border-t border-dashed border-accent/35 pt-1 text-center font-mono text-[10.5px] leading-[normal] tracking-[0.08em] text-accent-dim wrap-anywhere';
 

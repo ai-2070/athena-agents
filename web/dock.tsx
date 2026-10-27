@@ -113,14 +113,14 @@ const PLACEHOLDER = 'What do you want done?';
 const MSG = 'dock-msg rounded-box animate-[rise-in_0.22s_var(--ease-soft)] py-2.5 px-3 border text-[14px] leading-[1.55] wrap-anywhere';
 const MSG_AGENT = `${MSG} border-line bg-[rgba(7,8,7,0.55)]`;
 const MSG_DRAFT = `${MSG} border-accent-dim bg-[rgba(7,8,7,0.55)]`;
-const MSG_USER = `${MSG} user self-end max-w-[85%] whitespace-pre-wrap border-[color-mix(in_srgb,var(--color-accent)_28%,var(--color-line))] bg-[color-mix(in_srgb,var(--color-accent)_9%,#111611)]`;
+const MSG_USER = `${MSG} user font-chat self-end max-w-[85%] whitespace-pre-wrap border-[color-mix(in_srgb,var(--color-accent)_28%,var(--color-line))] bg-[color-mix(in_srgb,var(--color-accent)_9%,#111611)]`;
 /** who wrote it: the avatar, the name, a hint (smaller in a team's thread) */
 const WHO = 'flex items-center gap-2 mb-2 [&_.avatar]:size-6.5 [&_.avatar]:text-[14px]';
 const WHO_SMALL = 'flex items-center gap-2 mb-2 [&_.avatar]:size-5.5 [&_.avatar]:text-[12px]';
 const NOTE = 'animate-[rise-in_0.22s_var(--ease-soft)] flex flex-wrap items-center gap-2 text-[13px] text-dim';
 const NOTE_ERR = 'animate-[rise-in_0.22s_var(--ease-soft)] flex flex-wrap items-center gap-2 text-[13px] text-red';
 /** an answer in Markdown */
-const ANSWER = '[&_p]:mx-0 [&_p]:mt-0 [&_p]:mb-1.5 [&_pre]:max-h-[220px]';
+const ANSWER = 'font-chat [&_p]:mx-0 [&_p]:mt-0 [&_p]:mb-1.5 [&_pre]:max-h-[220px]';
 const BRAIN_AV = 'avatar bg-accent/16 text-accent';
 const ACT = 'flex items-center gap-2 py-1.5 px-2.25 rounded-[8px] text-[12.5px] border animate-[rise-in_.22s_ease-out_both]';
 const ACT_OK = `${ACT} bg-accent/8 border-[color-mix(in_srgb,var(--color-accent)_22%,var(--color-line))]`;

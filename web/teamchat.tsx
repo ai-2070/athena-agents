@@ -87,7 +87,7 @@ const MSG_LIVE = `${MSG} tc-live border-dashed border-[color-mix(in_srgb,var(--c
 const WHO = 'flex items-center gap-1.75 mb-1 text-[13px] [&_.avatar]:size-5.5 [&_.avatar]:text-[12px]';
 const TEAM_AV = 'avatar tc-team-av bg-[color-mix(in_srgb,var(--team-color,var(--color-ice))_18%,transparent)] text-[color:var(--team-color,var(--color-ice))] font-mono text-[12px] leading-[normal] font-bold';
 /** a message's text (Markdown) */
-const TEXT = 'text-[13.5px] leading-[1.55] wrap-anywhere [&_p]:mx-0 [&_p]:mt-0 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_pre]:max-h-[200px]';
+const TEXT = 'font-chat text-[13.5px] leading-[1.55] wrap-anywhere [&_p]:mx-0 [&_p]:mt-0 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_pre]:max-h-[200px]';
 const MENTION = 'tc-mention font-semibold rounded-[4px] px-0.75 text-accent bg-accent/10';
 const MENTION_TEAM = 'tc-mention tc-team font-semibold rounded-[4px] px-0.75 text-ice bg-ice/10';
 const TYPING = 'flex items-center gap-1.75 font-mono text-[11.5px] leading-[normal] font-normal';

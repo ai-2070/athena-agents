@@ -42,6 +42,8 @@
 
   --font-sans: 'Archivo', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  /* what agents, the Brain and you write in a chat (font-chat); names, labels and code keep sans and mono */
+  --font-chat: 'Merriweather', Georgia, 'Times New Roman', serif;
 
   /* rounded-ctl: buttons, inputs, chips. rounded-box: panels, cards, dialogs */
   --radius-ctl: 7px;
