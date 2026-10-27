@@ -12,7 +12,7 @@ import { workflows as teamStore, agents, chats, emit, log, activeProject, openPr
 import { readJSON, writeJSON, uid, dataPath, settledWithin } from './util.ts';
 import { askAgent, stopChat, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
 import { isStepList, teamSteps, parseTeamRefs, teamFrom, fromTeam } from '../shared/teams.ts';
-import { attachmentNames } from './uploads.ts';
+import { attachmentNames, cleanAttachments } from './uploads.ts';
 import { soleHolder, servicesOf } from './services.ts';
 import type { Agent, LoopInfo, QueuedMessage, Team, TeamMessage, TeamRef, TeamRelay, TeamState } from '../shared/types.ts';
 import type { LoopRequest } from '../shared/commands.ts';
@@ -593,15 +593,17 @@ async function runTurn(team: Team, item: QueueItem) {
   const forYou = c.messages.filter((m) => item.msgIds.includes(m.id)).map(said).join('\n\n');
   // the team's files go to the engine once per agent (so models that can't open files get them too), new ones when added;
   // plus what the user attached since this agent last read
+  // (only this project's uploads: a team or thread restored from a saved folder or backup could name any file on the PC)
+  const teamFiles = cleanAttachments(team.files);
   const given = new Set(c.filesSent?.[agent.id] || []);
-  const newTeamFiles = (team.files || []).filter((f) => !given.has(f));
-  const attachments = [...new Set([...newTeamFiles, ...[...fresh, ...c.messages.filter((m) => item.msgIds.includes(m.id))].flatMap((m) => m.attachments || [])])];
+  const newTeamFiles = teamFiles.filter((f) => !given.has(f));
+  const attachments = cleanAttachments([...new Set([...newTeamFiles, ...[...fresh, ...c.messages.filter((m) => item.msgIds.includes(m.id))].flatMap((m) => m.attachments || [])])]);
   c.seen[agent.id] = c.messages.length;
-  c.filesSent = { ...c.filesSent, [agent.id]: team.files || [] };
+  c.filesSent = { ...c.filesSent, [agent.id]: teamFiles };
   saveChat(team.id, c);
   const filesNote = newTeamFiles.length
     ? `The team's reference files from the user (${attachmentNames(newTeamFiles)}) are attached at the end.\n\n`
-    : team.files?.length ? `The team's files: ${team.files.join(', ')}\n\n` : '';
+    : teamFiles.length ? `The team's files: ${teamFiles.join(', ')}\n\n` : '';
   const prompt = `${first ? `${briefing(team, agent)}\n\n` : ''}${filesNote}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\nDo your part now, then reply to the team.`;
   // (where this turn starts in the agent's session: the team chat shows its work, live and afterwards)
   const from = chats.get(agent.id, chatId)?.items.length ?? 0;

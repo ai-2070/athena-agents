@@ -105,8 +105,10 @@ function noLinks(base: string, target: string) {
   }
 }
 
-// Remove what's in dir but no longer in keep (deleted at the source).
-function prune(dir: string, keep: Set<string>) {
+// Remove what's in dir but no longer in keep (deleted at the source). With base, refuse when dir or a
+// folder above it (up to base) is a link: pruning would delete files wherever it points.
+function prune(dir: string, keep: Set<string>, base?: string) {
+  if (base) noLinks(base, dir);
   let list: string[] = [];
   try {
     list = fs.readdirSync(dir);
@@ -136,7 +138,7 @@ function copyTree(from: string, to: string, budget: number, { base, mirror = fal
       }
     }
     if (base) noLinks(base, dst);
-    if (mirror) prune(dst, new Set(list.map((e) => e.name)));
+    if (mirror) prune(dst, new Set(list.map((e) => e.name)), base);
     for (const e of list) {
       const a = path.join(src, e.name);
       const b = path.join(dst, e.name);
@@ -207,7 +209,7 @@ export function saveProject(id: string): SaveStatus | null {
     // the kept versions of agents, teams and memories (and of deleted ones, so they can be brought back there too)
     let left = VERSIONS_CAP;
     for (const kind of VERSIONED) left -= copyTree(projectDir(id, 'versions', kind), path.join(out, 'versions', kind), left, { base: out, mirror: true });
-    if (exists(path.join(out, 'versions'))) prune(path.join(out, 'versions'), new Set(VERSIONED));
+    if (exists(path.join(out, 'versions'))) prune(path.join(out, 'versions'), new Set(VERSIONED), out);
     // the skills the project uses, with their files and versions (skills it stopped using are dropped)
     const used = skillsUsed(id);
     let skillBudget = SKILLS_CAP;
@@ -215,7 +217,7 @@ export function saveProject(id: string): SaveStatus | null {
       skillBudget -= copyTree(skillDir(slug), path.join(out, 'skills', slug), skillBudget, { base: out, mirror: true });
       skillBudget -= copyTree(skillVersionsDir(slug), path.join(out, 'skill-versions', slug), skillBudget, { base: out, mirror: true });
     }
-    for (const sub of ['skills', 'skill-versions']) if (exists(path.join(out, sub))) prune(path.join(out, sub), new Set(used));
+    for (const sub of ['skills', 'skill-versions']) if (exists(path.join(out, sub))) prune(path.join(out, sub), new Set(used), out);
     saveWorldCopy(p, out);
     noLinks(out, path.join(out, 'README.txt'));
     fs.writeFileSync(
@@ -479,7 +481,7 @@ function saveWorldCopy(p: Project, out: string): void {
   }
   noLinks(out, path.join(dst, 'link.json'));
   writeJSON(path.join(dst, 'link.json'), { id: w.id, mode: p.world.mode, name: w.name });
-  prune(dst, new Set(WORLD_PARTS));
+  prune(dst, new Set(WORLD_PARTS), out);
 }
 
 /** The world saved in a folder: linked again when this PC has it, else made again from the files. */

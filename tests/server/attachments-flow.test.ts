@@ -1,6 +1,7 @@
 // Attached files through real runs, with a fake model: what the agent is given, and when.
 import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import type { AddressInfo } from 'node:net';
@@ -73,6 +74,20 @@ describe('a team with files', () => {
     await waitFor(6, team.id);
     expect(seen[0]).toContain('NEW-NOTES');
     expect(seen[0]).not.toContain('GUIDE-TEXT');
+  });
+
+  it("never sends a file outside this project's uploads, as a restored team or thread could name one", async () => {
+    const a = newAgent({ name: 'Reader', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+    const outside = path.join(os.homedir(), 'private-team-file.md');
+    fs.writeFileSync(outside, 'OUTSIDE-PRIVATE-TEXT');
+    // saved straight to the store, as a restore from a folder or backup does (not through the routes)
+    const team = workflows.save({ name: 'Restored', members: [a.id], lead: null, steps: [], files: [outside] } as Partial<Team>);
+    seen.length = 0;
+    await postUserMessage(team.id, 'Go', { route: async () => a.id });
+    await waitFor(2, team.id);
+    expect(seen[0]).toBeTruthy();
+    expect(seen[0]).not.toContain('OUTSIDE-PRIVATE-TEXT');
+    expect(seen[0]).not.toContain(outside);
   });
 });
 

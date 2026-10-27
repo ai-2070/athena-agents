@@ -21,7 +21,7 @@ import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import { withActor } from './versions.ts';
 import { ensureBrain } from './projects.ts';
-import { uploadsRoot } from './uploads.ts';
+import { safeUploadsRoot } from './uploads.ts';
 import * as skills from './skills.ts';
 import { findAgent } from '../shared/agentref.ts';
 import * as voxel from './voxel/tools.ts';
@@ -114,7 +114,9 @@ export function workspaceOf(agent: { workspace?: string }): string {
 function allowedRoots(agent: ToolAgent, write = false): string[] {
   const s = getSettings();
   // attached files (the Brain folder's uploads/) can be read even by an agent with its own workspace
-  return [workspaceOf(agent), dataPath('outputs'), ...(write ? [] : [...kb.knowledgeRoots(agent), uploadsRoot()]), ...(s.allowedFolders || [])];
+  // (not when uploads/ is a link out of the Brain folder)
+  const uploads = write ? null : safeUploadsRoot();
+  return [workspaceOf(agent), dataPath('outputs'), ...(write ? [] : kb.knowledgeRoots(agent)), ...(uploads ? [uploads] : []), ...(s.allowedFolders || [])];
 }
 
 // abs: the path as asked (for messages). real: where it really is, links followed; use it for the file
