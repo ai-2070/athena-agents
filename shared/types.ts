@@ -813,3 +813,15 @@ export interface ProviderUsage {
   name: string;
   meters: UsageMeter[];
 }
+
+/** GET /api/about: which Blacksite this is and where it lives on GitHub. */
+export interface AboutInfo {
+  name: string;
+  version: string;
+  /** "owner/name" on GitHub */
+  repo: string;
+  url: string;
+  license: string;
+  /** GitHub stars, when asked for (?stars=1) and GitHub answered; null otherwise (e.g. a private repo) */
+  stars: number | null;
+}

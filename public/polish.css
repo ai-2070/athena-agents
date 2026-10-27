@@ -81,6 +81,8 @@ body.station-mode #nav-links a:hover .ico { color: var(--accent); }
 .app-icon { display: block; }
 .st-int .app-icon { width: 14px; height: 14px; }
 .st-int.off .app-icon { filter: grayscale(1) brightness(0.55); }
+/* an engine tile (top right, e.g. LM Studio); the tile greys itself out when off */
+.st-engine .app-icon { width: 16px; height: 16px; filter: drop-shadow(0 0 6px var(--c)); }
 .st-badge .app-icon { width: 11px; height: 11px; }
 .st-badge.lg .app-icon { width: 18px; height: 18px; }
 .home-prog-icon .app-icon, .avatar .app-icon { display: inline-block; vertical-align: middle; }
@@ -765,3 +767,58 @@ a.fp-file:hover { color: var(--accent); }
 .skills-libhead .section { margin: 0; }
 .skills-first { justify-content: center; gap: 8px; }
 .btn-ico { display: inline-flex; }
+
+/* Settings > AI keys: one row per engine or key, with its logo, status and actions */
+.ai-group { margin: 22px 0 6px; font: 500 11px/1.3 var(--mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+.panel-head + .ai-group { margin-top: 4px; }
+.ai-list { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.ai-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; column-gap: 14px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.ai-list .ai-row:last-child { border-bottom: 0; padding-bottom: 2px; }
+.ai-row.flash-find { border-radius: var(--r-sm); }
+.ai-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--panel-2); border: 1px solid var(--line); color: var(--ink); font: 600 16px/1 var(--sans); }
+.ai-mark svg { width: 17px; height: 17px; }
+.ai-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ai-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 32px; }
+.ai-name { font: 600 14.5px/1.3 var(--sans); color: var(--ink); }
+.ai-version { font: 12px/1.3 var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+.ai-note { font-size: 12.5px; line-height: 1.5; color: var(--dim); }
+.ai-note a { color: var(--accent); text-underline-offset: 2px; }
+.ai-actions { display: flex; align-items: center; gap: 6px; min-height: 32px; }
+.ai-cmd { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin-right: 4px; vertical-align: middle; }
+.ai-cmd code { min-width: 0; overflow-x: auto; white-space: nowrap; padding: 3px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--ink); font: 12px/1.5 var(--mono); }
+.ai-keyline { display: flex; align-items: stretch; gap: 6px; }
+.ai-keyline input { flex: 1; min-width: 0; }
+.ai-keyline .btn.small { height: auto; min-height: 34px; }
+/* the custom key among plain fields: no logo or rule, its label like the fields around it */
+.ai-key.plain { grid-template-columns: minmax(0, 1fr); padding: 0; border: 0; }
+.ai-key.plain .ai-head { min-height: 0; }
+.ai-key.plain .ai-name { font: 500 11px/1.3 var(--mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+@media (max-width: 560px) {
+  .ai-row { grid-template-columns: 32px minmax(0, 1fr); row-gap: 8px; }
+  .ai-actions { grid-column: 2; min-height: 0; }
+  .ai-keyline { flex-wrap: wrap; }
+  .ai-keyline input { flex-basis: 100%; }
+}
+
+/* Sidebar foot: the version (opens Settings > About) and a link to star Blacksite on GitHub */
+#nav-about { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px -6px 0; padding: 8px 6px 2px; border-top: 1px solid var(--line); }
+#nav-about:empty { display: none; }
+.nav-ver { display: flex; align-items: baseline; gap: 6px; min-width: 0; padding: 3px 6px; margin-left: -6px; border-radius: 6px; color: var(--dim); font: 600 11.5px/1.3 var(--sans); text-decoration: none; transition: background .15s, color .15s; }
+.nav-ver:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--ink); }
+.nav-ver-n { font: 10.5px/1.3 var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+.nav-star { display: inline-flex; align-items: center; gap: 5px; flex: none; height: 22px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--r-sm); color: var(--ink); font: 500 10px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; transition: border-color .15s, color .15s; }
+.nav-star:hover { border-color: var(--accent); color: var(--accent); }
+.nav-star svg { flex: none; }
+
+/* Settings > About */
+.about-head { display: flex; align-items: center; gap: 16px; }
+.about-mark { flex: none; padding: 8px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); color: var(--accent); }
+.about-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.about-title h2 { margin: 0; font: 700 26px/1.1 var(--sans); letter-spacing: -0.01em; }
+.about-title .ai-version { font-size: 13px; }
+.about-lede { margin: 14px 0 0; max-width: 62ch; color: var(--dim); font-size: 14px; line-height: 1.55; }
+.about-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.about-actions .btn { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; }
+.about-repo { text-transform: none; letter-spacing: 0; font-family: var(--mono); }
+.about-gh { display: inline-flex; }
+.star-btn .star-count { margin-left: 2px; padding-left: 8px; border-left: 1px solid color-mix(in srgb, currentColor 35%, transparent); font-variant-numeric: tabular-nums; }

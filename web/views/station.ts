@@ -1686,9 +1686,9 @@ function hoverForLink(intId: string): Hover | null {
 
 // An AI engine (top right): the agents that run on it, with their wires to its tile.
 const ENGINE_TILES = ['claude', 'codex', 'hermes', 'openrouter', 'lmstudio', 'ollama'];
-function hoverForEngine(engine: string, brain: boolean, color: string): Hover | null {
+function hoverForEngine(uses: (a: Agent) => boolean, brain: boolean, color: string): Hover | null {
   if (!S) return null;
-  const ids = new Set((state.data?.agents || []).filter((a) => a.engine === engine).map((a) => a.id));
+  const ids = new Set((state.data?.agents || []).filter(uses).map((a) => a.id));
   const nodes = [...S.nodes, ...(S.benchNodes || [])].filter((n): n is AgentNode => n.kind === 'agent' && ids.has(n.agentId));
   const links = new Set<string>();
   for (const n of nodes) for (const l of n.links) if (ENGINE_TILES.includes(l)) links.add(l);
@@ -2783,38 +2783,44 @@ function drawHud(): void {
     const ok = c.status === 'connected';
     tiles.push({ key: `cc:${c.name}`, int: `cc:${c.name}`, glyph: appLogo(c.name, 14) || look.glyph, color: look.color, on: ok, title: `${c.name} · Claude account connector · ${ok ? 'connected' : c.status === 'needs-auth' ? 'needs sign-in (run /mcp in Claude Code)' : c.detail}`, onclick: () => navigate('#/settings?tab=mcp') });
   }
-  // Claude and Hermes already have their own engine tiles on the right.
-  for (const it of ints) if (it.id !== 'claude' && it.id !== 'hermes') tiles.push({ key: it.id, int: it.id, glyph: mark(it.id), color: it.color, on: it.live, title: `${it.label} · ${it.live ? 'ready' : 'installed, not running'}`, onclick: () => choose({ type: 'int', id: it.id }) });
+  // Model engines (Claude, Hermes, OpenRouter, LM Studio) have their own tiles on the right.
+  const ENGINE_SIDE = new Set(['claude', 'hermes', 'openrouter', 'lmstudio']);
+  for (const it of ints) if (!ENGINE_SIDE.has(it.id)) tiles.push({ key: it.id, int: it.id, glyph: mark(it.id), color: it.color, on: it.live, title: `${it.label} · ${it.live ? 'ready' : 'installed, not running'}`, onclick: () => choose({ type: 'int', id: it.id }) });
   const missing = [
     !d.accounts.x.length && { glyph: logo('x', 13) || '𝕏', title: 'X · not connected (Connections)', href: '#/settings?tab=connections' },
     !d.accounts.telegram.configured && { glyph: logo('telegram', 13) || '✈', title: 'Telegram · not set up (Connections)', href: '#/settings?tab=connections' },
     !(d.accounts.reddit || []).length && { glyph: logo('reddit', 13) || 'r/', title: 'Reddit · not connected (Settings > Connections)', href: '#/settings?tab=connections' },
     !d.accounts.discord.configured && { glyph: logo('discord', 13) || 'D', title: 'Discord · not set up (Connections)', href: '#/settings?tab=connections' },
-    !d.secrets.openrouterKey.set && { glyph: logo('openrouter', 13) || '⇄', title: 'OpenRouter · no key yet (Settings)', href: '#/settings' },
   ].filter(Boolean) as { glyph: SVGSVGElement | string; title: string; href: string }[];
   for (const m of missing) tiles.push({ key: m.title, glyph: m.glyph, color: '#555850', on: false, missing: true, title: m.title, onclick: () => navigate(m.href) });
   const seen = new Set<string>();
   // Every engine an agent (or the Brain) can run on: lit when ready, grey with a setup link when not.
   const brainP = d.settings?.brain?.provider || 'claude';
   const busyIds = new Set((d.runs || []).map((r) => r.agentId));
+  // LM Studio: a tile once it is installed or an agent uses it; lit while its local server is up
+  const lm = ints.find((i) => i.id === 'lmstudio');
+  const onLmStudio = (a: Agent): boolean => a.engine === 'openai' && a.provider === 'lmstudio';
+  const lmStudio = lm || d.agents.some(onLmStudio)
+    ? [{ id: 'openai', uses: onLmStudio, brain: '', name: 'LM Studio', glyph: mark('lmstudio', 15), color: '#6a72ed', ready: !!lm?.live, why: lm ? 'its server is not running (LM Studio > Developer > Start server)' : 'not installed', find: 'LM Studio server' }]
+    : [];
   const engines = [
     { id: 'claude-code', brain: 'claude', name: 'Claude Code', glyph: logo('claude', 15) || '✳', color: '#d97757', ready: d.engines['claude-code'].installed, why: d.engines['claude-code'].installed ? '' : 'not installed', find: 'Claude Code' },
-    { id: 'openai', brain: 'openrouter', name: 'OpenRouter', glyph: logo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
+    { id: 'openai', uses: (a: Agent) => a.engine === 'openai' && !onLmStudio(a), brain: 'openrouter', name: 'OpenRouter', glyph: logo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
+    ...lmStudio,
     { id: 'hermes', brain: 'hermes', name: 'Hermes', glyph: '☤', color: '#d8c25a', ready: d.engines.hermes.installed, why: d.engines.hermes.installed ? '' : 'not installed', find: 'Hermes' },
     { id: 'codex', brain: 'codex', name: 'OpenAI Codex', glyph: logo('openai', 14) || '◎', color: '#e6e8e0', ready: !!(d.engines.codex?.installed && d.engines.codex.loggedIn), why: !d.engines.codex?.installed ? 'not installed' : d.engines.codex.loggedIn ? '' : 'not signed in', find: 'OpenAI Codex' },
-    // pi, oh-my-pi and OpenClaw: only when installed or an agent uses them (most PCs have none)
+    // pi, oh-my-pi and OpenClaw: always shown, like the model picker's tabs (grey with a setup link until installed)
     ...([
       { id: 'pi', name: 'pi', glyph: 'π', color: '#9fd3a8', find: 'pi coding agent' },
       { id: 'omp', name: 'oh-my-pi', glyph: 'Ω', color: '#c8a2f0', find: 'oh-my-pi' },
       { id: 'openclaw', name: 'OpenClaw', glyph: '🦞', color: '#ff6f5e', find: 'OpenClaw' },
-    ] as const)
-      .filter((e) => d.engines[e.id]?.installed || d.agents.some((a) => a.engine === e.id))
-      .map((e) => ({ ...e, brain: '', ready: !!d.engines[e.id]?.installed, why: d.engines[e.id]?.installed ? '' : 'not installed' })),
-  ].map((e) => {
-    const users = d.agents.filter((a) => a.engine === e.id);
+    ] as const).map((e) => ({ ...e, brain: '', ready: !!d.engines[e.id]?.installed, why: d.engines[e.id]?.installed ? '' : 'not installed' })),
+  ].map((e: { id: string; uses?: (a: Agent) => boolean; brain: string; name: string; glyph: SVGSVGElement | HTMLImageElement | string; color: string; ready: boolean; why: string; find: string }) => {
+    const uses = e.uses || ((a: Agent) => a.engine === e.id);
+    const users = d.agents.filter(uses);
     const busy = users.some((a) => busyIds.has(a.id));
     const who = [users.length ? `${users.length} agent${users.length === 1 ? '' : 's'}` : '', brainP === e.brain ? 'the Brain' : ''].filter(Boolean).join(' + ');
-    return { ...e, n: users.length + (brainP === e.brain ? 1 : 0), busy, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${e.ready ? '' : ' (click to set up)'}` };
+    return { ...e, uses, n: users.length + (brainP === e.brain ? 1 : 0), busy, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${e.ready ? '' : ' (click to set up)'}` };
   });
   S.clockEl ||= h('span.st-clock');
   S.tileEls = new Map();
@@ -2850,7 +2856,7 @@ function drawHud(): void {
               style: { '--c': e.color },
               title: e.title,
               onclick: () => navigate(`#/settings?tab=general&find=${encodeURIComponent(e.find)}`),
-              onpointerenter: () => S && (S.hover = hoverForEngine(e.id, brainP === e.brain, e.color)),
+              onpointerenter: () => S && (S.hover = hoverForEngine(e.uses, brainP === e.brain, e.color)),
               onpointerleave: () => S && (S.hover = null),
             },
             e.glyph,

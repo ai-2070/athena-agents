@@ -29,6 +29,11 @@ describe('program icons', () => {
     expect((m as HTMLImageElement).getAttribute('src')).toBe('/app-icons/comfyui.png');
   });
 
+  it('finds LM Studio by its program id and its name, and the Station uses it', () => {
+    for (const name of ['lmstudio', 'LM Studio', 'lm-studio']) expect(appIconUrl(name)).toBe('/app-icons/lmstudio.png');
+    expect((mark('lmstudio', 15) as HTMLImageElement).getAttribute('src')).toBe('/app-icons/lmstudio.png');
+  });
+
   it('still prefers a brand logo when there is one', () => {
     expect((appLogo('blender', 14) as Element).tagName.toLowerCase()).toBe('svg');
   });

@@ -2,6 +2,7 @@
 // see its README). appLogo in views/stationdata.ts falls back to them.
 const APP_ICONS: Record<string, string> = {
   comfyui: '/app-icons/comfyui.png',
+  lmstudio: '/app-icons/lmstudio.png',
 };
 
 // The icon for a program, MCP server or connector name ("comfyui", "ComfyUI", "comfyui-mcp"), or null.

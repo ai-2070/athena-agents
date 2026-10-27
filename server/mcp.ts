@@ -181,6 +181,14 @@ export const PRESETS: McpPreset[] = [
     url: 'https://mcp.linear.app/mcp',
     headers: { Authorization: 'Bearer YOUR_LINEAR_API_KEY' },
   },
+  {
+    name: 'oomol',
+    title: 'OOMOL (remote)',
+    description: 'Your OOMOL connected apps (mail, calendar, drive, chat, issue trackers…) and OOMOL\'s hosted AI tools, OOMOL\'s own server. Make an MCP API key at oomol.com/install/mcp, then put it in the Authorization header and your OOMOL team name in the x-oo-team-name header after adding.',
+    type: 'http',
+    url: 'https://connector.oomol.com/v1/mcp',
+    headers: { Authorization: 'Bearer YOUR_MCP_API_KEY', 'x-oo-team-name': 'YOUR_TEAM_NAME' },
+  },
   // Games and audio
   {
     name: 'unity',
@@ -443,7 +451,8 @@ export const PRESETS: McpPreset[] = [
 /** What a ready-made server needs from the user before it works, in a few words ('' when nothing). */
 export function presetNeeds(p: McpPreset): string {
   const keys = Object.entries(p.type === 'stdio' ? p.env || {} : p.headers).filter(([, v]) => /YOUR_/.test(v));
-  const need = keys.map(([k]) => (p.type === 'stdio' ? k : `a key in the ${k} header`));
+  // a header that isn't Authorization holds something else than a key (OOMOL's team name)
+  const need = keys.map(([k]) => (p.type === 'stdio' ? k : /^authorization$/i.test(k) ? `a key in the ${k} header` : `a value in the ${k} header`));
   return [need.length ? `needs ${need.join(' and ')}` : '', p.setup ? `setup: ${p.setup}` : ''].filter(Boolean).join('; ');
 }
 

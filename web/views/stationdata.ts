@@ -74,7 +74,7 @@ export const INTEGRATIONS: Integration[] = [
   { id: 'codex', label: 'OpenAI Codex', glyph: '◎', color: '#e6e8e0' },
   { id: 'reddit', label: 'Reddit', glyph: 'r/', color: '#ff4500' },
   { id: 'openrouter', label: 'OpenRouter', glyph: '⇄', color: '#94a3b8' },
-  { id: 'lmstudio', label: 'LM Studio', glyph: 'LM', color: '#b48cff' },
+  { id: 'lmstudio', label: 'LM Studio', glyph: 'LM', color: '#6a72ed' },
   { id: 'ollama', label: 'Ollama', glyph: 'OL', color: '#e6e8e0' },
   { id: 'x', label: 'X', glyph: '𝕏', color: '#e6e8e0' },
   { id: 'telegram', label: 'Telegram', glyph: '✈', color: '#4fb3f6' },

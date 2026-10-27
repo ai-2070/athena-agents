@@ -56,7 +56,7 @@ Written results, files and folders that agents saved, each with a preview, who m
 
 Add servers from a list, or ask the Brain to do it:
 
-- **Work:** a browser, GitHub, Notion, Linear, web search.
+- **Work:** a browser, GitHub, Notion, Linear, OOMOL (your connected apps and its hosted AI tools), web search.
 - **3D and games:** Blender, Maya, Houdini, Substance 3D Painter, Unity, Unreal Engine, Godot, Tripo, Meshy, Sketchfab.
 - **Images, design and stock:** Canva, Freepik, Unsplash, Pixabay, Pexels, Google Fonts, GIMP, Krita, Inkscape, Topaz (AI upscaling).
 - **Audio and video:** ElevenLabs, Audacity, REAPER, MuseScore, OBS.
@@ -144,7 +144,7 @@ Projects keep separate agents, teams and chats. The project name at the top left
 | **Routines** | Repeatable jobs, their schedules and the results of each run. |
 | **Outbox** | Questions from agents (click a choice or write an answer), and X and Reddit drafts waiting to be approved, edited or rejected. |
 | **Artifacts** | Written results, files and folders that agents have saved, each with a preview (images, video, audio, 3D models you can turn) and a search box. Chats show the same previews for files agents mention. |
-| **Settings** | Engines and keys, accounts and connections, MCP servers, programs, UI scale, accent colour and motion. |
+| **Settings** | Engines and keys, accounts and connections, MCP servers, programs, UI scale, accent colour and motion. **About** shows the version, the GitHub link with a star button, and this PC's address and data folder; the version and a Star link are also at the bottom of the sidebar. |
 
 In any agent, team or Brain chat, **/** lists the commands (`/queue`, `/stop`, `/resume`, `/resend`, `/loop`, `/goal`, `/compact`), **@** picks another agent, and **#** in a team chat picks another team. What each one does, and how files and long chats are handled: [Chats and files](docs/guide.md#chats-and-files).
 
