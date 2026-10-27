@@ -467,13 +467,35 @@ Read \`result.launch\`: \`outcome.handle\` is the agent's handle, \`outcome.kind
 // path must be the skill's real path there, or "Download again" would add a second copy.
 // `private`: the repo isn't public, so its skills come without a link back to it (no "from" label,
 // no "Download again").
-const BUNDLED: { dir: string; repo: string; ref: string; under: string; private?: boolean }[] = [
+// `nested`: the skill folders sit deeper, in the repo's own folders (Hermes: skills/<category>/<skill>,
+// optional-skills/<category>/<skill>), kept as they are so each one's path in the repo is its path here.
+const BUNDLED: { dir: string; repo: string; ref: string; under: string; private?: boolean; nested?: boolean }[] = [
   { dir: 'storytold', repo: 'hermes-pro/storytold-skills', ref: 'main', under: '' },
   { dir: 'oomol', repo: 'oomol-lab/oo-cli', ref: 'main', under: 'contrib/skills/shared' },
   { dir: 'composio', repo: 'ComposioHQ/skills', ref: 'main', under: 'skills' },
   { dir: 'orca', repo: 'stablyai/orca', ref: 'main', under: 'skills' },
   { dir: 'subagent-skills', repo: 'ai-2070/subagent-skills', ref: 'master', under: '', private: true },
+  { dir: 'hermes', repo: 'NousResearch/hermes-agent', ref: 'main', under: '', nested: true },
 ];
+
+/** The skill folders under a bundle's folder, as paths relative to it ("productivity/pdf"). A folder with a
+ *  SKILL.md is a skill; with `nested`, one without is looked into (a few levels down). */
+function bundleSkillDirs(base: string, nested: boolean, rel = '', depth = 0): string[] {
+  let list: fs.Dirent[] = [];
+  try {
+    list = fs.readdirSync(rel ? path.join(base, ...rel.split('/')) : base, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  for (const e of list) {
+    if (!e.isDirectory() || !SAFE.test(e.name)) continue;
+    const at = rel ? `${rel}/${e.name}` : e.name;
+    if (exists(path.join(base, ...at.split('/'), 'SKILL.md'))) out.push(at);
+    else if (nested && depth < 3) out.push(...bundleSkillDirs(base, nested, at, depth + 1));
+  }
+  return out;
+}
 /** The folder in this repo that holds the bundled skill folders. */
 export const bundledSkillsRoot = (): string => path.join(ROOT, 'skills');
 
@@ -490,17 +512,10 @@ export function bundledSkills(): BundledSkill[] {
   const out: BundledSkill[] = [];
   for (const b of BUNDLED) {
     const base = path.join(bundledSkillsRoot(), b.dir);
-    let list: fs.Dirent[] = [];
-    try {
-      list = fs.readdirSync(base, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const e of list) {
-      if (!e.isDirectory() || !SAFE.test(e.name) || !exists(path.join(base, e.name, 'SKILL.md'))) continue;
-      const at = b.under ? `${b.under}/${e.name}` : e.name;
+    for (const rel of bundleSkillDirs(base, !!b.nested)) {
+      const at = b.under ? `${b.under}/${rel}` : rel;
       const origin = b.private ? undefined : { url: `https://github.com/${b.repo}/tree/${b.ref}/${at}`, repo: b.repo, ref: b.ref, path: at };
-      out.push({ slug: e.name, dir: path.join(base, e.name), repo: b.repo, ...(origin ? { origin } : {}) });
+      out.push({ slug: path.posix.basename(rel), dir: path.join(base, ...rel.split('/')), repo: b.repo, ...(origin ? { origin } : {}) });
     }
   }
   return out.sort((a, b) => a.slug.localeCompare(b.slug));
