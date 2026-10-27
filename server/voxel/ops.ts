@@ -1,14 +1,14 @@
-// The build language: a list of plain JSON steps run in order on one object (docs/internal/plans/VOXEL_WORLD_PLAN.md §4).
-// Nothing is run as code. Positions are whole voxels of the current voxel size, from the cursor; generators
-// (tree, island…) take their sizes in map units, so the same tree comes out finer at a smaller voxel size.
-// A call either works as a whole or changes nothing: a step that fails puts back every voxel it changed.
+// The build language: a list of plain JSON steps run in order on one object or prefab (VOXEL_WORLD_PLAN.md §4, §4b).
+// Nothing is run as code and nothing is built in: shapes, shape tools (revolve, extrude, path, blob), region tools
+// (copy, shift, rotate, flip), and prefabs the agents made themselves, stamped into the voxels or placed as copies.
+// Positions are whole voxels of the current voxel size, from the cursor.
+// A call either works as a whole or changes nothing: a step that fails puts back everything it changed.
 import { CHUNK, CHUNK_CELLS, cellIndex, chunkKey, decodeChunk, encodeChunk, hash3, newVolume } from '../../shared/voxel.ts';
 import { rng, valueNoise } from './noise.ts';
 import type { Volume } from '../../shared/voxel.ts';
 import { stockMaterial } from './materials.ts';
 import { glyph, GLYPH_H, GLYPH_W } from './font.ts';
-import { GENERATORS } from './generators/index.ts';
-import type { VoxelMaterial, VoxelMaterialKind, VoxelObjectData } from '../../shared/types.ts';
+import type { PrefabInstance, VoxelMaterial, VoxelMaterialKind, VoxelObjectData } from '../../shared/types.ts';
 
 export const LIMITS = {
   /** voxels one call may add, remove or repaint */
@@ -21,6 +21,10 @@ export const LIMITS = {
   setPoints: 5000,
   steps: 400,
   scatter: 400,
+  /** prefab copies one call may place */
+  placedPerCall: 2000,
+  /** points in a path, an outline or a profile */
+  points: 512,
 };
 export const VOXEL_SIZE_MIN = 0.05;
 export const VOXEL_SIZE_MAX = 4;
@@ -55,8 +59,8 @@ export function saveGrids(grids: Grid[]): VoxelObjectData {
   return { volumes };
 }
 
-/** What a generator draws with: positions in voxels from the step's spot, sizes in map units through vox(). */
-export interface Pen {
+/** What shape tools draw with: positions in voxels from the step's spot. */
+interface Pen {
   /** the voxel size, in map units */
   readonly size: number;
   /** map units → whole voxels at this size (at least 1) */
@@ -74,12 +78,6 @@ export interface Pen {
   line(a: [number, number, number], b: [number, number, number], value: number, r?: number, opts?: { keep?: boolean }): void;
 }
 
-export interface GeneratorDef {
-  /** one line for the model: what it makes and its parameters (sizes in map units) */
-  help: string;
-  draw(pen: Pen, params: Record<string, unknown>): void;
-}
-
 /** What a call changed. before: every touched chunk as it was (null: there was none), for undo. */
 export interface BuildOutcome {
   added: number;
@@ -90,6 +88,10 @@ export interface BuildOutcome {
   /** materials added to the palette */
   newMaterials: string[];
   notes: string[];
+  /** the prefab copies placed in it now, and how many this call placed and took away */
+  instances: PrefabInstance[];
+  placed: number;
+  unplaced: number;
 }
 
 type Step = Record<string, unknown>;
@@ -118,13 +120,13 @@ const size3 = (v: unknown, what: string): V3 => {
   return out;
 };
 
-const SHAPE_VERBS = ['box', 'sphere', 'ellipsoid', 'cylinder', 'cone', 'pyramid', 'torus', 'line', 'stairs', 'arch', 'set', 'layers', 'text', 'heightmap', 'replace', 'clear', 'scatter'];
+// (placing first: a "place" step may also say "mirror", which alone is a state step)
+const SHAPE_VERBS = ['place', 'unplace', 'stamp', 'box', 'sphere', 'ellipsoid', 'blob', 'cylinder', 'cone', 'pyramid', 'torus', 'revolve', 'extrude', 'path', 'line', 'stairs', 'arch', 'set', 'layers', 'text', 'heightmap', 'replace', 'copy', 'shift', 'rotate', 'flip', 'clear', 'scatter'];
 const STATE_VERBS = ['voxel_size', 'material', 'use', 'seed', 'at', 'move', 'mirror'];
-export const VERBS = [...SHAPE_VERBS, ...Object.keys(GENERATORS), ...STATE_VERBS];
+export const VERBS = [...SHAPE_VERBS, ...STATE_VERBS];
 
 function verbOf(step: Step): string {
   for (const v of SHAPE_VERBS) if (v in step) return v;
-  for (const v of Object.keys(GENERATORS)) if (v in step) return v;
   for (const v of STATE_VERBS) if (v in step) return v;
   throw new BuildError(`unknown step. Each step has one of: ${VERBS.join(', ')}`);
 }
@@ -166,6 +168,22 @@ export interface BuildInput {
   steps: unknown[];
   seed?: number;
   newId: () => string;
+  /** the prefab copies placed in it so far */
+  instances?: PrefabInstance[];
+  /** the world's prefabs, to place or stamp by name */
+  prefabs?: PrefabRef[];
+  /** a prefab's voxels and the copies inside it (for stamp) */
+  loadPrefab?: (id: string) => { grids: Grid[]; instances: PrefabInstance[] } | null;
+  /** why a prefab can't be placed here (a prefab inside itself), or null */
+  cantPlace?: (id: string) => string | null;
+}
+
+/** A prefab as a build sees it. */
+export interface PrefabRef {
+  id: string;
+  name: string;
+  /** map units from its voxels' origin to its bottom centre */
+  pivot: V3;
 }
 
 export function runBuild(input: BuildInput): BuildOutcome {
@@ -174,6 +192,9 @@ export function runBuild(input: BuildInput): BuildOutcome {
   const grids = input.grids;
   const palette = input.palette.map((m) => ({ ...m }));
   const newMaterials: string[] = [];
+  const instances = [...(input.instances || [])];
+  let placed = 0;
+  let unplaced = 0;
   const notes: string[] = [];
   const before = new Map<Grid, Map<string, Uint8Array | null>>();
   let added = 0;
@@ -214,8 +235,9 @@ export function runBuild(input: BuildInput): BuildOutcome {
   };
 
   // ---------- writing voxels ----------
+  const current = () => grid;
   const base = (): V3 => cursor.map((c) => Math.round(c / grid.voxelSize)) as V3;
-  const setAbs = (x: number, y: number, z: number, value: number, keep = false) => {
+  const setAbs = (x: number, y: number, z: number, value: number, keep = false, grid = current()) => {
     const R = LIMITS.reach;
     if (x < -R || x >= R || y < -R || y >= R || z < -R || z >= R) throw new BuildError(`it reaches past ${R} voxels from the object's origin. Use a bigger voxel size, or build that part as another object`);
     const cx = Math.floor(x / CHUNK);
@@ -236,7 +258,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
     else painted++;
     if (added + removed + painted > LIMITS.changedPerCall) throw new BuildError(`one call may change at most ${LIMITS.changedPerCall.toLocaleString('en-US')} voxels: split the build, or use a bigger voxel size`);
   };
-  const getAbs = (x: number, y: number, z: number): number => {
+  const getAbs = (x: number, y: number, z: number, grid = current()): number => {
     const cx = Math.floor(x / CHUNK);
     const cy = Math.floor(y / CHUNK);
     const cz = Math.floor(z / CHUNK);
@@ -308,11 +330,60 @@ export function runBuild(input: BuildInput): BuildOutcome {
         }
   };
 
+
+  // ---------- prefabs and copies ----------
+  const prefabRef = (name: unknown): PrefabRef => {
+    const n = String(name ?? '').trim().toLowerCase();
+    const list = input.prefabs || [];
+    const found = list.find((p) => p.id === n || p.name.toLowerCase() === n);
+    if (!found) throw new BuildError(`no prefab "${String(name ?? '')}". ${list.length ? `This world's prefabs: ${list.map((p) => p.name).join(', ')}.` : 'This world has no prefabs yet.'} Make one with world_build and "prefab": "<name>".`);
+    return found;
+  };
+  /** {"shirt": "cloth red"} as material names, checked (the new one is added to the palette if it is stock) */
+  const swapNames = (sw: unknown): Record<string, string> => {
+    if (!sw || typeof sw !== 'object' || Array.isArray(sw)) throw new BuildError('swap is {"material in the prefab": "material to use instead"}');
+    const out: Record<string, string> = {};
+    for (const [from, to] of Object.entries(sw)) {
+      matIndex(to);
+      out[from.trim().toLowerCase()] = String(to).trim().toLowerCase();
+    }
+    return out;
+  };
+  const swapValues = (sw: unknown): Map<number, number> => {
+    const out = new Map<number, number>();
+    if (sw === undefined) return out;
+    for (const [from, to] of Object.entries(swapNames(sw))) {
+      const i = palette.findIndex((m) => m.name === from);
+      if (i >= 0) out.set(i + 1, matIndex(to));
+    }
+    return out;
+  };
+  const addInstance = (i: PrefabInstance) => {
+    if (++placed > LIMITS.placedPerCall) throw new BuildError(`one call may place at most ${LIMITS.placedPerCall} copies`);
+    instances.push(i);
+  };
+  /** the top of what is built below (map units), in any of this object's grids, looking down from y */
+  const surfaceAt = (x: number, z: number, fromY: number): number | null => {
+    let top: number | null = null;
+    for (const g of grids) {
+      const gx = Math.floor(x / g.voxelSize);
+      const gz = Math.floor(z / g.voxelSize);
+      for (let y = Math.min(LIMITS.reach - 1, Math.floor(fromY / g.voxelSize)); y >= -LIMITS.reach; y--)
+        if (getAbs(gx, y, gz, g)) {
+          const t = (y + 1) * g.voxelSize;
+          if (top === null || t > top) top = t;
+          break;
+        }
+    }
+    return top;
+  };
+  const solidAt = (x: number, y: number, z: number): boolean => grids.some((g) => getAbs(Math.floor(x / g.voxelSize), Math.floor(y / g.voxelSize), Math.floor(z / g.voxelSize), g) > 0);
+
   // ---------- the steps ----------
   const run = (step: Step, depth: number) => {
     const verb = verbOf(step);
     // state
-    if (!SHAPE_VERBS.includes(verb) && !(verb in GENERATORS)) {
+    if (!SHAPE_VERBS.includes(verb)) {
       if (verb === 'voxel_size') {
         grid = gridFor(num(step.voxel_size, 'voxel_size'));
       } else if (verb === 'material') {
@@ -346,7 +417,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
       return;
     }
 
-    // a shape or a generator: where, with what
+    // a shape: where, with what
     const off: V3 = step.at === undefined ? [0, 0, 0] : step.units === 'map' ? (vec(step.at, 'at').map((n) => Math.round(n / grid.voxelSize)) as V3) : ivec(step.at, 'at');
     const b = base();
     const o: V3 = [b[0] + off[0], b[1] + off[1], b[2] + off[2]];
@@ -361,12 +432,283 @@ export function runBuild(input: BuildInput): BuildOutcome {
     };
     const put = putFrom(o);
 
-    if (verb in GENERATORS) {
-      const params = step[verb] && typeof step[verb] === 'object' && !Array.isArray(step[verb]) ? (step[verb] as Record<string, unknown>) : {};
-      GENERATORS[verb].draw(makePen(o), params);
-      return;
-    }
     switch (verb) {
+      // ---------- shape tools ----------
+      case 'blob': {
+        const r = vec(typeof step.blob === 'number' ? [step.blob, step.blob, step.blob] : step.blob, 'blob').map((n) => Math.max(0.5, Math.min(LIMITS.reach, n))) as V3;
+        makePen(o).blob(0, 0, 0, r[0], r[1], r[2], value(), { keep, holes: num(step.holes, 'holes', { min: 0, max: 0.9, def: 0 }), rough: num(step.rough, 'rough', { min: 0, max: 0.9, def: 0 }) });
+        break;
+      }
+      case 'revolve': {
+        // [radius, height] points (voxels), turned around the vertical through the spot: columns, domes, vases, trunks
+        const pts = points(step.revolve, 'revolve', 2).map((p, i) => [num(p[0], `revolve point ${i + 1}: radius`, { min: 0, max: LIMITS.reach }), num(p[1], `revolve point ${i + 1}: height`, { min: -LIMITS.reach * 2, max: LIMITS.reach * 2 })] as [number, number]);
+        pts.sort((a, b) => a[1] - b[1]);
+        const sides = int(step.sides, 'sides', { min: 0, max: 64, def: 0 });
+        if (sides && sides < 3) throw new BuildError('sides is 0 (round) or 3 and up (4: square, 6, 8…)');
+        const y0 = Math.floor(pts[0][1]);
+        const y1 = Math.ceil(pts[pts.length - 1][1]);
+        const rAt = (y: number) => {
+          for (let i = 0; i < pts.length - 1; i++) {
+            const [ra, ya] = pts[i];
+            const [rb, yb] = pts[i + 1];
+            if (y >= ya && y <= yb) return yb === ya ? Math.max(ra, rb) : ra + ((rb - ra) * (y - ya)) / (yb - ya);
+          }
+          return 0;
+        };
+        const inDisc = (x: number, z: number, r: number) => {
+          if (r <= 0) return false;
+          const d = Math.hypot(x, z);
+          if (!sides) return d * d <= r * r + 0.25;
+          // r is the distance to the middle of a side (so a square of radius 2 is 5 wide), a flat side facing +x
+          const seg = (Math.PI * 2) / sides;
+          const a = ((((Math.atan2(z, x) + seg / 2) % seg) + seg) % seg) - seg / 2;
+          return d * Math.cos(a) <= r + 0.3;
+        };
+        const inside = (x: number, y: number, z: number) => y >= y0 && y < y1 && inDisc(x, z, rAt(y + 0.5));
+        const R = Math.ceil(Math.max(...pts.map((p) => p[0]))) + 1;
+        const v = value();
+        for (let y = y0; y < y1; y++)
+          for (let z = -R; z <= R; z++)
+            for (let x = -R; x <= R; x++) {
+              if (!inside(x, y, z)) continue;
+              if (hollow && inside(x + 1, y, z) && inside(x - 1, y, z) && inside(x, y, z + 1) && inside(x, y, z - 1) && inside(x, y + 1, z) && inside(x, y - 1, z)) continue;
+              put(x, y, z, v, keep);
+            }
+        break;
+      }
+      case 'extrude': {
+        // an outline raised to a height: a polygon of [x, z] points, or rows of characters (rows along z, x along a row)
+        const e = (step.extrude && typeof step.extrude === 'object' ? step.extrude : {}) as Record<string, unknown>;
+        const height = int(e.height ?? step.height, 'height', { min: 1, max: LIMITS.reach * 2, def: 1 });
+        const wall = e.wall === undefined ? 0 : int(e.wall, 'wall', { min: 1, max: 64 });
+        let inPlan: (x: number, z: number) => boolean;
+        let box: [number, number, number, number];
+        if (Array.isArray(e.rows)) {
+          const rows = e.rows.map((r) => String(r));
+          inPlan = (x, z) => z >= 0 && z < rows.length && x >= 0 && x < rows[z].length && rows[z][x] !== '.' && rows[z][x] !== ' ';
+          box = [0, 0, Math.max(0, ...rows.map((r) => r.length)) - 1, rows.length - 1];
+        } else {
+          const poly = points(e.points, 'extrude.points', 3).map((p, i) => [num(p[0], `point ${i + 1}`), num(p[1], `point ${i + 1}`)] as [number, number]);
+          // even-odd rule at the voxel's middle
+          inPlan = (x, z) => {
+            const px = x + 0.5;
+            const pz = z + 0.5;
+            let inside = false;
+            for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+              const [xi, zi] = poly[i];
+              const [xj, zj] = poly[j];
+              if (zi > pz !== zj > pz && px < ((xj - xi) * (pz - zi)) / (zj - zi) + xi) inside = !inside;
+            }
+            return inside;
+          };
+          box = [Math.floor(Math.min(...poly.map((p) => p[0]))), Math.floor(Math.min(...poly.map((p) => p[1]))), Math.ceil(Math.max(...poly.map((p) => p[0]))), Math.ceil(Math.max(...poly.map((p) => p[1])))];
+        }
+        // with a wall thickness, only the cells that near the outline
+        const nearEdge = (x: number, z: number) => {
+          for (let d = 1; d <= wall; d++) if (!inPlan(x + d, z) || !inPlan(x - d, z) || !inPlan(x, z + d) || !inPlan(x, z - d)) return true;
+          return false;
+        };
+        const v = value();
+        for (let z = box[1]; z <= box[3]; z++)
+          for (let x = box[0]; x <= box[2]; x++) {
+            if (!inPlan(x, z) || (wall && !nearEdge(x, z))) continue;
+            for (let y = 0; y < height; y++) put(x, y, z, v, keep);
+          }
+        break;
+      }
+      case 'path': {
+        // a brush swept along points ([x, z] or [x, y, z]): roads, rivers, walls, fences
+        const pts = points(step.path, 'path', 2).map((p, i) => (p.length === 3 ? [num(p[0], `point ${i + 1}`), num(p[1], `point ${i + 1}`), num(p[2], `point ${i + 1}`)] : [num(p[0], `point ${i + 1}`), 0, num(p[1], `point ${i + 1}`)]) as V3);
+        const half = num(step.width, 'width', { min: 1, max: 256, def: 1 }) / 2;
+        const height = int(step.height, 'height', { min: 1, max: 256, def: 1 });
+        const v = value();
+        for (let i = 0; i < pts.length - 1; i++) {
+          const [ax, ay, az] = pts[i];
+          const [bx, by, bz] = pts[i + 1];
+          const dx = bx - ax;
+          const dz = bz - az;
+          const len2 = dx * dx + dz * dz || 1;
+          for (let z = Math.floor(Math.min(az, bz) - half); z <= Math.ceil(Math.max(az, bz) + half); z++)
+            for (let x = Math.floor(Math.min(ax, bx) - half); x <= Math.ceil(Math.max(ax, bx) + half); x++) {
+              const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2));
+              if (Math.hypot(x - (ax + dx * t), z - (az + dz * t)) > half) continue;
+              const y = Math.round(ay + (by - ay) * t);
+              for (let k = 0; k < height; k++) put(x, y + k, z, v, keep);
+            }
+        }
+        break;
+      }
+      // ---------- region tools ----------
+      case 'copy':
+      case 'shift':
+      case 'rotate':
+      case 'flip': {
+        const size = size3(step[verb], verb);
+        // copy and shift read from "from" and write at the spot; rotate and flip work in place at the spot
+        const src: V3 = verb === 'copy' || verb === 'shift' ? ((f) => [b[0] + f[0], b[1] + f[1], b[2] + f[2]] as V3)(ivec(step.from, 'from')) : o;
+        const q = quarter(verb === 'flip' ? 0 : step.turn ?? (verb === 'rotate' ? 90 : 0), 'turn');
+        const flipAxis = verb === 'flip' ? String(step.axis || 'x') : step.mirror === undefined ? '' : String(step.mirror);
+        if (flipAxis && !['x', 'y', 'z'].includes(flipAxis)) throw new BuildError('the axis to flip is x, y or z');
+        const cells: [number, number, number, number][] = [];
+        for (let y = 0; y < size[1]; y++) for (let z = 0; z < size[2]; z++) for (let x = 0; x < size[0]; x++) {
+          const v = getAbs(src[0] + x, src[1] + y, src[2] + z);
+          if (v) cells.push([x, y, z, v]);
+        }
+        if (verb !== 'copy') for (const [x, y, z] of cells) setAbs(src[0] + x, src[1] + y, src[2] + z, 0);
+        const [w, , d] = size;
+        for (const [cx, cy, cz, v] of cells) {
+          let [x, y, z] = [cx, cy, cz];
+          if (flipAxis === 'x') x = w - 1 - x;
+          if (flipAxis === 'y') y = size[1] - 1 - y;
+          if (flipAxis === 'z') z = d - 1 - z;
+          [x, z] = turnQuarter(x, z, w, d, q);
+          setAbs(o[0] + x, o[1] + y, o[2] + z, v, keep);
+        }
+        break;
+      }
+      // ---------- prefabs ----------
+      case 'stamp': {
+        // a prefab's voxels baked into this object (turned in quarter turns), for parts of a building
+        const ref = prefabRef(step.stamp);
+        const loaded = input.loadPrefab?.(ref.id);
+        if (!loaded) throw new BuildError(`the prefab "${ref.name}" has no voxels yet`);
+        const q = quarter(step.turn ?? 0, 'turn (a stamp turns in 90° steps; place a copy for any angle)');
+        const swap = swapValues(step.swap);
+        const spot = o.map((n) => n * grid.voxelSize) as V3;
+        for (const g of loaded.grids) {
+          const target = gridFor(g.voxelSize);
+          const pv = ref.pivot.map((n) => n / g.voxelSize) as V3;
+          const sp = spot.map((n) => Math.round(n / g.voxelSize)) as V3;
+          for (const [k, c] of g.vol.chunks) {
+            const [kx, ky, kz] = k.split(',').map(Number);
+            for (let i = 0; i < c.length; i++) {
+              if (!c[i]) continue;
+              const x = kx * CHUNK + (i % CHUNK) - pv[0];
+              const y = ky * CHUNK + Math.floor(i / (CHUNK * CHUNK)) - pv[1];
+              const z = kz * CHUNK + (Math.floor(i / CHUNK) % CHUNK) - pv[2];
+              const [rx, rz] = turnAround(x + 0.5, z + 0.5, q);
+              setAbs(Math.floor(sp[0] + rx), Math.round(sp[1] + y), Math.floor(sp[2] + rz), swap.get(c[i]) ?? c[i], keep, target);
+            }
+          }
+        }
+        // copies inside it come along as copies
+        for (const inst of loaded.instances) {
+          const [rx, rz] = turnAround(inst.p[0] - ref.pivot[0], inst.p[2] - ref.pivot[2], q);
+          addInstance({ ...inst, p: [spot[0] + rx, spot[1] + inst.p[1] - ref.pivot[1], spot[2] + rz], turn: ((inst.turn || 0) + q * 90) % 360 });
+        }
+        break;
+      }
+      case 'place': {
+        const names = Array.isArray(step.place) ? step.place : [step.place];
+        if (!names.length) throw new BuildError('name the prefab to place');
+        const refs = names.map((n) => prefabRef(n));
+        for (const r of refs) {
+          const why = input.cantPlace?.(r.id);
+          if (why) throw new BuildError(why);
+        }
+        const swaps = step.swap === undefined ? [undefined] : Array.isArray(step.swap) ? step.swap.map((x) => swapNames(x)) : [swapNames(step.swap)];
+        const tilt = quarter(step.tilt ?? 0, 'tilt');
+        const roll = quarter(step.roll ?? 0, 'roll');
+        const pick = <T>(list: T[]): T => list[Math.floor(random() * list.length)];
+        const turnOf = (facing: number) => {
+          const t = step.turn;
+          const extra = t === 'random' ? random() * 360 : Array.isArray(t) ? num(t[0], 'turn') + random() * (num(t[1], 'turn') - num(t[0], 'turn')) : num(t, 'turn', { def: 0 });
+          return (((facing + extra) % 360) + 360) % 360;
+        };
+        const scaleOf = () => (Array.isArray(step.scale) ? num(step.scale[0], 'scale', { min: 0.1, max: 10 }) + random() * (num(step.scale[1], 'scale', { min: 0.1, max: 10 }) - num(step.scale[0], 'scale', { min: 0.1, max: 10 })) : num(step.scale, 'scale', { min: 0.1, max: 10, def: 1 }));
+        // where: one spot, scattered in an area, along a path, or in a grid ([x, y, z] voxels, and the way it faces)
+        const spots: { at: V3; facing: number }[] = [];
+        const many = step.scatter !== undefined || step.along !== undefined || step.grid !== undefined;
+        if (step.scatter !== undefined) {
+          const sc = (step.scatter && typeof step.scatter === 'object' ? step.scatter : {}) as Record<string, unknown>;
+          const count = int(sc.count, 'scatter.count', { min: 1, max: LIMITS.placedPerCall });
+          const [w, d] = Array.isArray(sc.area) ? [int(sc.area[0], 'scatter.area', { min: 1, max: 1024 }), int(sc.area[1], 'scatter.area', { min: 1, max: 1024 })] : [16, 16];
+          const gap = num(sc.spacing, 'scatter.spacing', { min: 0, max: 256, def: 0 });
+          for (let tries = 0; spots.length < count && tries < count * 30; tries++) {
+            const at: V3 = [o[0] + Math.floor(random() * w), o[1], o[2] + Math.floor(random() * d)];
+            if (gap && spots.some((s) => Math.hypot(s.at[0] - at[0], s.at[2] - at[2]) < gap)) continue;
+            spots.push({ at, facing: 0 });
+          }
+        } else if (step.along !== undefined) {
+          const pts = points(step.along, 'along', 2).map((p, i) => (p.length === 3 ? [num(p[0], `point ${i + 1}`), num(p[1], `point ${i + 1}`), num(p[2], `point ${i + 1}`)] : [num(p[0], `point ${i + 1}`), 0, num(p[1], `point ${i + 1}`)]) as V3);
+          const every = num(step.every, 'every', { min: 0.5, max: 1024, def: 8 });
+          const sides = int(step.sides, 'sides', { min: 1, max: 2, def: 1 });
+          const offset = num(step.offset, 'offset', { min: -256, max: 256, def: 0 });
+          const face = String(step.face || 'along');
+          if (!['along', 'across', 'none'].includes(face)) throw new BuildError('face is "along" (the way the path goes), "across" (towards the path) or "none"');
+          let carry = 0;
+          for (let i = 0; i < pts.length - 1; i++) {
+            const [ax, ay, az] = pts[i];
+            const [bx, by, bz] = pts[i + 1];
+            const len = Math.hypot(bx - ax, bz - az);
+            if (!len) continue;
+            const ux = (bx - ax) / len;
+            const uz = (bz - az) / len;
+            for (let t = carry; t <= len; t += every) {
+              for (const side of sides === 2 ? [1, -1] : [1]) {
+                // left of the way the path goes is (uz, -ux)… seen from above with +z towards you; offset moves the copy sideways
+                const nx = -uz * side;
+                const nz = ux * side;
+                const at: V3 = [o[0] + ax + ux * t + nx * offset, o[1] + ay + ((by - ay) * t) / len, o[2] + az + uz * t + nz * offset];
+                const facing = face === 'along' ? (Math.atan2(ux, uz) * 180) / Math.PI : face === 'across' ? (Math.atan2(-nx, -nz) * 180) / Math.PI : 0;
+                spots.push({ at, facing });
+              }
+              carry = t + every - len;
+            }
+            if (spots.length > LIMITS.placedPerCall) break;
+          }
+        } else if (step.grid !== undefined) {
+          const g = (step.grid && typeof step.grid === 'object' ? step.grid : {}) as Record<string, unknown>;
+          const rows = int(g.rows, 'grid.rows', { min: 1, max: 200 });
+          const cols = int(g.cols, 'grid.cols', { min: 1, max: 200 });
+          const [gx, gz] = Array.isArray(g.gap) ? [num(g.gap[0], 'grid.gap', { min: 0.5, max: 512 }), num(g.gap[1], 'grid.gap', { min: 0.5, max: 512 })] : [8, 8];
+          for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) spots.push({ at: [o[0] + c * gx, o[1], o[2] + r * gz], facing: 0 });
+        } else spots.push({ at: [...o] as V3, facing: 0 });
+        if (spots.length > LIMITS.placedPerCall) throw new BuildError(`one call may place at most ${LIMITS.placedPerCall} copies`);
+        const onSurface = step.on === undefined ? many : step.on === 'surface';
+        if (step.on !== undefined && step.on !== 'surface' && step.on !== 'spot') throw new BuildError('on is "surface" (stand on what is built below) or "spot" (exactly at the height given)');
+        const size = grid.voxelSize;
+        for (const s of spots) {
+          // the middle of the spot's voxel
+          const x = (s.at[0] + 0.5) * size;
+          const z = (s.at[2] + 0.5) * size;
+          let y = s.at[1] * size;
+          if (onSurface) {
+            const top = surfaceAt(x, z, y + (many ? 32 : 0));
+            if (top !== null) y = top;
+          }
+          if (step.avoid === 'solid' && solidAt(x, y + size * 0.5, z)) continue;
+          const mirrorIt = step.mirror === 'random' ? random() < 0.5 : step.mirror === true;
+          const sw = pick(swaps);
+          addInstance({
+            prefab: pick(refs).id,
+            p: [round3(x), round3(y), round3(z)],
+            ...(turnOf(s.facing) ? { turn: Math.round(turnOf(s.facing) * 10) / 10 } : {}),
+            ...(tilt ? { tilt: tilt * 90 } : {}),
+            ...(roll ? { roll: roll * 90 } : {}),
+            ...((sc) => (sc !== 1 ? { scale: Math.round(sc * 100) / 100 } : {}))(scaleOf()),
+            ...(mirrorIt ? { mirror: true } : {}),
+            ...(sw && Object.keys(sw).length ? { swap: sw } : {}),
+          });
+        }
+        break;
+      }
+      case 'unplace': {
+        const which = step.unplace === 'all' ? null : new Set((Array.isArray(step.unplace) ? step.unplace : [step.unplace]).map((n) => prefabRef(n).id));
+        // inside a box from the spot ("in": [w, h, d], voxels), or everywhere in this object
+        const box = step.in !== undefined ? size3(step.in, 'in') : null;
+        const lo = o.map((n) => n * grid.voxelSize);
+        const keepIt = (i: PrefabInstance) => {
+          if (which && !which.has(i.prefab)) return true;
+          if (!box) return false;
+          return i.p.some((n, a) => n < lo[a] || n >= lo[a] + box[a] * grid.voxelSize);
+        };
+        const before = instances.length;
+        const left = instances.filter(keepIt);
+        instances.splice(0, instances.length, ...left);
+        unplaced += before - left.length;
+        break;
+      }
       case 'box': {
         const s = size3(step.box, 'box');
         const v = value();
@@ -627,7 +969,15 @@ export function runBuild(input: BuildInput): BuildOutcome {
       try {
         run(s as Step, 0);
       } catch (e) {
-        if (e instanceof BuildError && !e.message.startsWith('Step ')) throw new BuildError(`Step ${i + 1} (${Object.keys(s as Step)[0]}): ${e.message}`);
+        if (e instanceof BuildError && !e.message.startsWith('Step ')) {
+          let name = Object.keys(s as Step)[0];
+          try {
+            name = verbOf(s as Step);
+          } catch {
+            /* an unknown step: its first key */
+          }
+          throw new BuildError(`Step ${i + 1} (${name}): ${e.message}`);
+        }
         throw e;
       }
     });
@@ -639,7 +989,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
   }
 
   input.palette.splice(0, input.palette.length, ...palette);
-  if (!added && !removed && !painted) notes.push('Nothing changed: every voxel was already like that.');
+  if (!added && !removed && !painted && !placed && !unplaced) notes.push('Nothing changed: every voxel was already like that.');
   return {
     added,
     removed,
@@ -648,5 +998,43 @@ export function runBuild(input: BuildInput): BuildOutcome {
     before: [...before].map(([g, chunks]) => ({ gridId: g.id, voxelSize: g.voxelSize, chunks: Object.fromEntries([...chunks].map(([k, c]) => [k, c ? encodeChunk(c) : null])) })),
     newMaterials,
     notes,
+    instances,
+    placed,
+    unplaced,
   };
 }
+
+/** A list of points, each a list of numbers. */
+function points(v: unknown, what: string, min: number): number[][] {
+  if (!Array.isArray(v) || v.length < min) throw new BuildError(`${what} is a list of at least ${min} points`);
+  if (v.length > LIMITS.points) throw new BuildError(`${what}: at most ${LIMITS.points} points`);
+  return v.map((p, i) => {
+    if (!Array.isArray(p) || p.length < 2 || p.length > 3) throw new BuildError(`${what}: point ${i + 1} must be [x, z] or [x, y, z]`);
+    return p.map(Number);
+  });
+}
+
+/** 0, 90, 180 or 270 degrees as quarter turns (0-3). */
+function quarter(v: unknown, what: string): number {
+  const n = Number(v);
+  if (!Number.isFinite(n) || ((n % 90) + 90) % 90 !== 0) throw new BuildError(`${what} is 0, 90, 180 or 270`);
+  return (((n / 90) % 4) + 4) % 4;
+}
+
+/** A cell (x, z) of a w×d box turned q quarter turns (like turnAround), as a cell of the turned box (corner kept at 0, 0). */
+function turnQuarter(x: number, z: number, w: number, d: number, q: number): [number, number] {
+  if (q === 1) return [z, w - 1 - x];
+  if (q === 2) return [w - 1 - x, d - 1 - z];
+  if (q === 3) return [d - 1 - z, x];
+  return [x, z];
+}
+
+/** A point turned q quarter turns around the origin, the same way as turn in placing (+z towards +x). */
+function turnAround(x: number, z: number, q: number): [number, number] {
+  if (q === 1) return [z, -x];
+  if (q === 2) return [-x, -z];
+  if (q === 3) return [-z, x];
+  return [x, z];
+}
+
+const round3 = (n: number) => Math.round(n * 1000) / 1000;

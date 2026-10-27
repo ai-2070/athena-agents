@@ -37,7 +37,7 @@ const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 *
 // (deleted ones too, so Recently deleted comes back).
 const VERSION_FILE = /^(agents|teams|memory|skills)\/[^/]+\/[\w-]+\.json$/;
 // A file of the voxel world in a backup: its meta, WORLD.md, an object's voxels or a WORLD.md version
-const WORLD_FILE = /^(world\.json|WORLD\.md|objects\/[\w-]+\.json|versions\/world-md\/[\w-]+\.json)$/;
+const WORLD_FILE = /^(world\.json|WORLD\.md|(objects|prefabs)\/[\w-]+\.json|versions\/world-md\/[\w-]+\.json)$/;
 // A MEMORY.md in a backup: <agent id or "brain">/MEMORY.md
 const MEMORY_PATH = /^([^/]+)\/MEMORY\.md$/;
 // Files from the project folder that go in: the brief and the notes, not the whole folder (it can be a big repo)

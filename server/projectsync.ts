@@ -458,7 +458,7 @@ function restoreChats(folder: string, id: string, agentIds: string[]): number {
 // ---------- the voxel world ----------
 // <folder>/.dashboard/world/: the world the project uses (its voxels, WORLD.md and its versions; the undo
 // history stays in the data folder), and link.json saying how the project uses it.
-const WORLD_PARTS = ['world.json', 'WORLD.md', 'objects', 'versions', 'link.json'];
+const WORLD_PARTS = ['world.json', 'WORLD.md', 'objects', 'prefabs', 'versions', 'link.json'];
 function saveWorldCopy(p: Project, out: string): void {
   const dst = path.join(out, 'world');
   const w = p.world ? getWorld(p.world.id) : null;
@@ -469,7 +469,7 @@ function saveWorldCopy(p: Project, out: string): void {
   }
   ensureDir(dst);
   let left = WORLD_CAP;
-  for (const sub of ['objects', path.join('versions', 'world-md')]) left -= copyTree(worldDir(w.id, sub), path.join(dst, sub), left, { base: out, mirror: true });
+  for (const sub of ['objects', 'prefabs', path.join('versions', 'world-md')]) left -= copyTree(worldDir(w.id, sub), path.join(dst, sub), left, { base: out, mirror: true });
   for (const f of ['world.json', 'WORLD.md']) {
     const src = worldDir(w.id, f);
     const to = path.join(dst, f);
@@ -489,8 +489,10 @@ function restoreWorld(folder: string, id: string): boolean {
   if (!saved || typeof saved.id !== 'string' || !WORLD_ID.test(saved.id)) return false;
   const wid = saved.id;
   if (!getWorld(wid)) {
-    const objects = savedPath(folder, 'world', 'objects');
-    if (objects) copyTree(objects, worldDir(wid, 'objects'), WORLD_CAP * 2);
+    for (const sub of ['objects', 'prefabs']) {
+      const from = savedPath(folder, 'world', sub);
+      if (from) copyTree(from, worldDir(wid, sub), WORLD_CAP * 2);
+    }
     const versions = savedPath(folder, 'world', 'versions', 'world-md');
     if (versions) copyTree(versions, worldDir(wid, 'versions', 'world-md'), WORLD_CAP);
     const md = savedPath(folder, 'world', 'WORLD.md');

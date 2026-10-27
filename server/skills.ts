@@ -329,40 +329,56 @@ Say in one line what you recorded or changed and why, e.g. "Saved how Ana render
   {
     slug: 'voxel-building',
     name: 'Voxel building',
-    description: 'Use before building anything in the voxel world (world_build, or the Brain\'s build action): how the build steps and generators work, scale, palette and light, and how to keep WORLD.md in step.',
+    description: 'Use before building anything in the voxel world (world_build, world_prefab, or the Brain\'s build action): how to build big pieces and small prefabs, place copies to fill a scene, scale, palette and light, and how to keep WORLD.md in step.',
     body: `# Voxel building
 
-The Station can be a voxel world that the agents build around themselves: places, props, and (later) the agents themselves as voxel characters. Good builds look hand-made and belong together. This is how.
+The Station can be a voxel world that the agents build around themselves. Nothing comes ready-made: every tree, person, lamp and building is something a builder made. Good worlds look hand-made, busy and lived in, and belong together. This is how.
 
 ## Before you build
 1. Read WORLD.md (it is in your instructions; world_md_read for all of it). Build in its theme, palette and mood. If it is still the template, ask the user (ask_user) what the world should be, or fill it in from what they told you.
-2. world_info: what is there, who built it, the team platforms, your plot and what to keep clear (the Brain's middle, the platforms' desks).
-3. Plan the build as a few calls: ground, then big shapes, then details, then finishing touches. Each call either works whole or changes nothing.
+2. world_info: what is there, who built it, the prefabs that exist, the team platforms, your plot and what to keep clear (the Brain's middle, the platforms' desks).
+3. Plan the scene: the ground, a few big pieces, and the small things there will be many of.
+
+## Big pieces and small things
+A busy scene (a street in front of a stock exchange, the Nile with temples and boats) is a few big builds and hundreds of repeated small things.
+- **Big pieces are objects**: the ground, a building, a river, a temple. Build each in a few calls.
+- **Small things are prefabs**: a person, a palm tree, a street lamp, a taxi, a boat, a market stall, a window. Build each once with world_build and "prefab": "<name>", at a fine voxel size, standing on y = 0 around the origin with its front towards +z. Then place copies: {"place": …} with scatter, along a path, or in a grid, turned and recoloured. Copies are drawn very cheaply: hundreds are fine.
+- **Make variants with swaps**: give the parts that should vary their own material (define "shirt", "car body", "sail"), then place with "swap": [{"shirt": "cloth red"}, {"shirt": "cloth blue"}, …] and different people come out of one prefab. Make two or three prefabs for a crowd (standing, walking, sitting) and place them mixed: "place": ["Walker", "Stander"].
+- **Look first**: world_prefab "list" (this world) and "library" (shared by every world). Reuse what fits; import from the library with world_prefab "import". When you make something good and general, publish it.
+- **Refactor**: if you built something inside an object that you need again, world_prefab "save" with a box turns it into a prefab ("replace": true puts a copy where it was).
+- **Prefabs inside prefabs**: a street block prefab can hold copies of the lamp and bench prefabs. Changing the lamp changes every lamp.
+- **Stamp** a prefab into an object ({"stamp": "Window", "turn": 90}) when it is part of a building, so it is solid with it (quarter turns only). Place it when it should stand free at any angle.
 
 ## Scale
 - Map units: a desk is 2.6 wide, a person 1.7 tall, a team platform 6-9 in radius. The Brain sits at the middle.
-- Voxel size is per object and can change mid-build with {"voxel_size": …}: terrain 0.5, buildings and trees 0.25 (the world default), small props 0.125, characters and fine detail 0.08-0.1. One object can mix sizes.
-- Shape steps count in voxels of the current size. Generators take sizes in map units, so a tree is the same size at any voxel size, just finer.
-- One call can change 250,000 voxels; a world holds 4,000,000. Big flat areas at a small voxel size use them up fast: use a bigger size for the ground.
+- Voxel size is per object and can change mid-build with {"voxel_size": …}: ground 0.5, buildings 0.25 (the world default), props 0.125, people and fine detail 0.08-0.1. One object can mix sizes.
+- Positions in steps count in voxels of the current size. Work out sizes in map units, then divide: a 1.7 tall person at voxel size 0.1 is 17 voxels.
+- One call changes at most 250,000 voxels and places 2,000 copies; a world holds 4,000,000 voxels and 20,000 copies. Big flat ground at a small voxel size uses voxels up fast: use 0.5 for it. Copies don't count towards the voxel limit, so repeat with prefabs rather than building the same thing again.
+
+## How to build things that look good
+- **Columns, domes, minarets, vases, lamp posts, trunks**: revolve a profile, e.g. a column {"revolve": [[3,0],[3,1],[2,1],[2,18],[3,19],[3,20]]}; "sides": 4 or 8 for square and octagonal ones.
+- **Buildings**: extrude the floor plan as walls ("wall": 1), floor by floor; cut windows and doors with "erase": true boxes or stamp a window prefab along the facade; a cornice is a slightly wider box at each floor line; roofs are pyramids or stepped boxes.
+- **Roads, rivers, canals, walls, fences**: path through points; a river is a path of water at y = -1 with a sand or stone path just wider under its banks.
+- **Ground**: a box or extrude for flat ground (cobble plaza, sand), heightmap with noise for dunes and hills.
+- **Trees and bushes**: a trunk (revolve, or a leaning line with thickness) and crowns of blobs with "rough" and "holes". A palm: a thin trunk curving up (a few line segments), fronds as lines drooping out from the top, a few coconuts.
+- **People** (about 17 voxels tall at 0.1): legs, body, arms and head as small boxes; a coloured shirt material for swaps; skin and hair; keep the head big enough to read from far away.
+- **Vehicles and boats**: boxes for the body, mirrored ({"mirror": "x"}) for symmetry, glass windows, glowing headlights.
+- Every voxel gets its own shade of its material (ramp and jitter): define materials with 3-5 close shades in "ramp" and jitter 0.05-0.12. Flat single colours look plastic.
+- Contrast: warm lights against cool shadows, one strong accent colour (red lacquer, gold, neon) against calmer surroundings.
+- Light: materials of kind "emissive" glow and light up what is around them (lanterns, windows, signs, headlights, neon). Many small lights make a scene alive at dusk.
+- Water and glass are see-through (kind "water", "glass"). Leaves can have holes.
+- Small things sell a place: lamps along the street, people in groups, stalls with awnings, planters, signs with {"text": …}, boats on the river.
+- Weather the result: {"replace": {"from": "stone", "to": "moss", "chance": 0.2}} on lower parts, darker stone at the bottom.
+- Symmetric things (gates, buildings, faces, cars): {"mirror": "x"} and build one half.
+- Detailed small things (a sign, a face, a window): {"layers": …} with a key, one layer per height, bottom first.
 
 ## Where
 - Anchor builds to what they belong to: "team:<id>" for your team's place (it moves when the platform is dragged), "brain" for things around the Brain, "world" for the landscape.
-- Your plot is the ring just outside your team's platform. Don't build over the desks; under the platform (y < 0) is fine, e.g. an island the platform floats on.
-- y = 0 is the floor. Islands put their top at y = -1 so things stand on y = 0.
-
-## Making it look good
-- Generators do the heavy lifting: island (with a pond), tree (cherry, maple, oak, pine, bamboo, bonsai, dead), rock, cloud, lantern, bridge, torii. Use them, then add details with shapes and layers.
-- Every voxel gets its own shade of its material (ramp and jitter): define your own materials with 3-5 close shades in "ramp" and jitter 0.05-0.12. Flat single colours look plastic.
-- Contrast: warm lights against cool shadows, one strong accent colour (red lacquer, gold, neon) against calmer surroundings.
-- Light: materials of kind "emissive" glow and light up what is around them (lanterns, windows, signs, neon). A few small bright ones beat many big ones.
-- Water and glass are see-through (kind "water", "glass"). Leaves can have holes ("leaf" kind, blobs with holes).
-- Small things sell a place: lanterns along a path, fallen petals, stones by the water, a sign with {"text": …}.
-- Weather the result: {"replace": {"from": "stone", "to": "moss", "chance": 0.2}} on the lower parts, dark stone at the bottom of cliffs.
-- Symmetric things (gates, buildings, faces): {"mirror": "x"} and build one half.
-- Detailed small things (a sign, a face, a window): {"layers": …} with a key, one layer per height, bottom first.
+- Your plot is the ring just outside your team's platform. Don't build over the desks; under the platform (y < 0) is fine.
+- Place copies in the object whose ground they stand on: many copies stand on its surface by themselves.
 
 ## After you build
-- Read the answer: it says how big the object is and where. Adjust with world_object (move, turn, scale) rather than rebuilding.
+- Read the answer: it says how big the thing is and where. Adjust with world_object (move, turn, scale) rather than rebuilding; world_info with "map" shows an object or prefab from above.
 - Made a mistake? world_undo puts it back.
 - Update WORLD.md: the place under "Places" (what it is, where, who built it, what it means), the character under "Characters", and one dated line under "Story so far" (world_md_section with append).
 - Changing what someone else built asks the user first. Prefer adding next to it, or ask its builder.

@@ -25,10 +25,12 @@ describe('world tools', () => {
     expect(toolDefs(newAgent({ name: 'Plain', toolGroups: [] })).some((t) => t.name.startsWith('world_'))).toBe(false);
     const risk = Object.fromEntries(allTools().map((t) => [t.name, t.risk]));
     expect(risk).toMatchObject({ world_info: 'none', world_build: 'low', world_object: 'varies', world_md_read: 'none' });
-    // the step language and the generators are in the build tool's description
+    // the step language, prefabs and placing are in the build tool's description; nothing ready-made
     const build = toolDefs(mira).find((t) => t.name === 'world_build')!;
     expect(build.description).toMatch(/"voxel_size": 0.1/);
-    expect(build.description).toMatch(/\{"torii": \{…\}\}/);
+    expect(build.description).toMatch(/\{"place": "Palm tree"/);
+    expect(build.description).toMatch(/nothing comes ready-made/);
+    expect(build.description).not.toMatch(/torii|generator/i);
   });
 
   it('an agent builds without asking, and the answer says what it made', async () => {

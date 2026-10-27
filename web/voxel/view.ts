@@ -30,6 +30,8 @@ export interface WorldView {
   addVolume(id: string, vol: Volume, palette: VoxelMaterial[], at: THREE.Vector3, region?: number): VolumeStats;
   /** Meshed parts (from the mesher or its worker) as one group under `id`, replacing what was there. */
   addParts(id: string, parts: ObjectPart[]): THREE.Group;
+  /** The material voxels of a render class are drawn with (for instanced copies of prefabs). */
+  material(cls: RenderClass): THREE.Material;
   removeVolume(id: string): void;
   /** Frames per second over the next few seconds (and the slowest frame, ms). */
   measure(seconds: number): Promise<{ fps: number; worstMs: number; frames: number }>;
@@ -59,6 +61,21 @@ function srgbVertexColors<T extends THREE.Material>(m: T): T {
   m.customProgramCacheKey = () => 'voxel-srgb-colors';
   return m;
 }
+
+/** A meshed part as geometry, in its region's voxels (place it with partMatrix). */
+export function partGeometry(p: MeshPart): THREE.BufferGeometry {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(p.positions, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(p.normals, 3, true));
+  geo.setAttribute('color', new THREE.BufferAttribute(p.colors, 3, true));
+  geo.setIndex(new THREE.BufferAttribute(p.indices, 1));
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+/** Where a part's geometry sits in its object: its region's corner, at its voxel size. */
+export const partMatrix = (p: Pick<ObjectPart, 'min' | 'voxelSize'>, out = new THREE.Matrix4()): THREE.Matrix4 =>
+  out.makeScale(p.voxelSize, p.voxelSize, p.voxelSize).setPosition(p.min[0] * p.voxelSize, p.min[1] * p.voxelSize, p.min[2] * p.voxelSize);
 
 function skyTexture(env: WorldEnvironment): THREE.CanvasTexture {
   const c = document.createElement('canvas');
@@ -165,13 +182,7 @@ export function createWorldView(o: WorldViewOptions): WorldView {
     removeVolume(id);
     const g = new THREE.Group();
     for (const p of parts) {
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(p.positions, 3));
-      geo.setAttribute('normal', new THREE.BufferAttribute(p.normals, 3, true));
-      geo.setAttribute('color', new THREE.BufferAttribute(p.colors, 3, true));
-      geo.setIndex(new THREE.BufferAttribute(p.indices, 1));
-      geo.computeBoundingSphere();
-      const mesh = new THREE.Mesh(geo, mats[p.cls]);
+      const mesh = new THREE.Mesh(partGeometry(p), mats[p.cls]);
       mesh.position.set(p.min[0], p.min[1], p.min[2]).multiplyScalar(p.voxelSize);
       mesh.scale.setScalar(p.voxelSize);
       mesh.castShadow = p.cls !== 'transparent';
@@ -227,6 +238,7 @@ export function createWorldView(o: WorldViewOptions): WorldView {
       return { voxels: countVoxels(vol), faces: parts.reduce((n, p) => n + p.faces, 0), meshes: g.children.length, ms: Math.round(performance.now() - started) };
     },
     addParts,
+    material: (cls) => mats[cls],
     removeVolume,
     async measure(seconds) {
       // a second to settle first: the first frames compile shaders

@@ -101,7 +101,7 @@ export const TOOL_GROUPS: ToolGroup[] = [
   { id: 'agents', label: 'Delegate', description: 'Ask other agents and Hermes profiles for help.' },
   { id: 'files', label: 'Files', description: 'Read and write files in its workspace and folders you allow.' },
   { id: 'orca', label: 'Orca', description: 'Run Orca CLI commands (worktrees, terminals, its browser).' },
-  { id: 'world', label: 'Voxel world', description: 'Build the voxel world around the Station (places, props, its look) and keep its WORLD.md up to date.' },
+  { id: 'world', label: 'Voxel world', description: 'Build the voxel world around the Station (places, props, prefabs to place many times) and keep its WORLD.md up to date.' },
   { id: 'shell', label: 'Shell', description: 'Run any PowerShell command. Powerful: you are asked each time unless autonomy is Full.' },
 ];
 

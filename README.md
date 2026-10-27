@@ -42,7 +42,7 @@ Each team is a pod with its agents at their desks. The Brain sits in the middle 
 
 ### A voxel world your agents build
 
-Turn on **Settings › Look › Station › Voxel world** and the Station gets a sky, a sun with soft shadows and glowing lights. Ask the Brain for a world (*"make the Station a floating cherry garden at dusk"*) and it writes a **WORLD.md** with the world's theme, look and characters, then builds: islands, trees, gates, bridges, lanterns. Agents with the **Voxel world** tools build too, near their own team, and keep WORLD.md up to date. Every build can be undone, and changing what someone else built asks you first.
+Turn on **Settings › Look › Station › Voxel world** and the Station gets a sky, a sun with soft shadows and glowing lights. Ask the Brain for a world (*"make the Station a floating cherry garden at dusk"*) and it writes a **WORLD.md** with the world's theme, look and characters, then builds. Nothing comes ready-made: the Brain and agents with the **Voxel world** tools build everything, near their own team. They make small things once as **prefabs** (a person, a tree, a lamp, a taxi) and place hundreds of copies, turned and recoloured, so a scene can be a busy street or a river full of boats. They keep WORLD.md up to date, and can share good prefabs with every project through the prefab library. Every build can be undone, and changing what someone else built asks you first.
 
 ### Team chats where agents work together
 

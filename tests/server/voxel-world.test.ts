@@ -175,11 +175,11 @@ describe('changing and undoing', () => {
   it("won't undo over someone else's later change", () => {
     build({ by: me, object: 'Well', steps: [{ box: [1, 1, 1], use: 'stone' }] });
     build({ by: other, object: 'Well', steps: [{ box: [1, 1, 1], at: [0, 1, 0], use: 'stone' }] });
-    expect(() => undo(me)).toThrow(/Kenji changed that object after you/);
+    expect(() => undo(me)).toThrow(/Kenji changed that after you/);
   });
 
   it('move, hide, copy and delete, and undo a delete', () => {
-    build({ by: me, object: 'Lamp', steps: [{ lantern: {} }] });
+    build({ by: me, object: 'Lamp', steps: [{ box: [1, 3, 1], use: 'iron' }, { box: [1, 1, 1], at: [0, 3, 0], use: 'lantern' }] });
     expect(changeObject({ by: me, object: 'lamp', move: [1, 0, 2] }).object!.position).toEqual([1, 0, 2]);
     expect(changeObject({ by: me, object: 'Lamp', duplicate: true, position: [5, 0, 5] }).object!.name).toBe('Lamp copy');
     changeObject({ by: me, object: 'Lamp', delete: true });

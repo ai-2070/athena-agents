@@ -1,6 +1,7 @@
 // Voxel worlds on disk: data/worlds/<world id>/
 //   world.json         the world: palette, objects (without their voxels), environment
-//   objects/<id>.json  an object's voxels (shared/voxel.ts encoding)
+//   objects/<id>.json  an object's voxels (shared/voxel.ts encoding) and the prefab copies placed in it
+//   prefabs/<id>.json  a prefab's voxels (and copies of other prefabs inside it)
 //   WORLD.md           what the world is (worldmd.ts), versions/world-md/ its earlier versions
 //   history/<id>.json  what each build replaced, for undo (history.ts)
 // Worlds aren't inside a project: projects point at one (link.ts), and two projects can share one.
@@ -35,6 +36,7 @@ function clean(w: Partial<VoxelWorld>, id: string): VoxelWorld {
     voxelSize: typeof w.voxelSize === 'number' && w.voxelSize > 0 ? w.voxelSize : DEFAULT_VOXEL_SIZE,
     palette: Array.isArray(w.palette) ? w.palette : [],
     objects: Array.isArray(w.objects) ? w.objects : [],
+    prefabs: Array.isArray(w.prefabs) ? w.prefabs : [],
     environment: w.environment && typeof w.environment === 'object' ? { ...envPreset(w.environment.preset || 'station'), ...w.environment } : envPreset('station'),
     createdAt: w.createdAt || now,
     updatedAt: w.updatedAt || now,
@@ -78,9 +80,22 @@ export function readObject(worldId: string, objectId: string): VoxelObjectData |
   return readPlain<VoxelObjectData | null>(worldDir(worldId, 'objects', `${objectId}.json`), null);
 }
 
+export function readPrefab(worldId: string, prefabId: string): VoxelObjectData | null {
+  if (!OBJECT_ID.test(prefabId)) return null;
+  return readPlain<VoxelObjectData | null>(worldDir(worldId, 'prefabs', `${prefabId}.json`), null);
+}
+
+export function writePrefab(worldId: string, prefabId: string, data: VoxelObjectData | null): void {
+  writeData(worldId, 'prefabs', prefabId, data);
+}
+
 export function writeObject(worldId: string, objectId: string, data: VoxelObjectData | null): void {
-  if (!OBJECT_ID.test(objectId)) throw bad('Not an object id');
-  const file = worldDir(worldId, 'objects', `${objectId}.json`);
+  writeData(worldId, 'objects', objectId, data);
+}
+
+function writeData(worldId: string, kind: 'objects' | 'prefabs', id: string, data: VoxelObjectData | null): void {
+  if (!OBJECT_ID.test(id)) throw bad('Not an id');
+  const file = worldDir(worldId, kind, `${id}.json`);
   if (isLink(path.dirname(file)) || isLink(file)) throw bad('That object file is a link; not writing through it.');
   if (data) writeJSON(file, data);
   else fs.rmSync(file, { force: true });
@@ -95,6 +110,10 @@ export function copyWorld(fromId: string, homeProject: string, name?: string): V
   for (const n of listFiles(worldDir(fromId, 'objects'), (f) => f.endsWith('.json'))) {
     const data = readObject(fromId, n.slice(0, -5));
     if (data) writeObject(to.id, n.slice(0, -5), data);
+  }
+  for (const n of listFiles(worldDir(fromId, 'prefabs'), (f) => f.endsWith('.json'))) {
+    const data = readPrefab(fromId, n.slice(0, -5));
+    if (data) writePrefab(to.id, n.slice(0, -5), data);
   }
   try {
     if (fs.lstatSync(worldDir(fromId, 'WORLD.md')).isFile()) fs.copyFileSync(worldDir(fromId, 'WORLD.md'), worldDir(to.id, 'WORLD.md'));
@@ -111,8 +130,8 @@ export function deleteWorld(id: string): void {
   emit('world', { world: id, deleted: true });
 }
 
-/** Voxels in a world (from its objects' meta). */
-export const worldVoxels = (w: VoxelWorld): number => w.objects.reduce((n, o) => n + o.volumes.reduce((m, v) => m + v.count, 0), 0);
+/** Voxels in a world (from its objects' and prefabs' meta; placed copies don't count again). */
+export const worldVoxels = (w: VoxelWorld): number => [...w.objects, ...w.prefabs].reduce((n, o) => n + o.volumes.reduce((m, v) => m + v.count, 0), 0);
 
 function isLink(p: string): boolean {
   try {

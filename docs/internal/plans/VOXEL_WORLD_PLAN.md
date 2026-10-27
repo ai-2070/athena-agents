@@ -629,13 +629,25 @@ building skill and the World Builder starter.
 - Live test: agents' tool calls (through the same route as the MCP bridge) built an island, a grove, a
   gate, lanterns, a bridge and a watchtower; the open Station showed each build within a second.
 
-**Phase 1b: prefabs and placing (replaces the generators).** *Next, 2026-10-27.*
+**Phase 1b: prefabs and placing (replaces the generators).** *Done 2026-10-27.*
 Take the generators out (code, tests, the skill and the Brain's prompt). Add the shape tools (`revolve`,
 `extrude`, `path`, `blob`, noise terrain), the region tools (`copy`, `move`, `turn`, `flip`, `stamp`),
 prefabs (build into one, save from a box, variants, nested, publish and import), and placing (one, scatter,
 along a path, grid; any turn; swaps; on the surface). The page draws placed copies as instances. The
 skill and the Brain's prompt teach making prefabs and composing scenes. Test with a small scene in the
 style of the references: a street with a building, lamps, trees, people and taxis, all made by tool calls.
+
+Built as planned. Notes:
+- The "Voxel world" tool group stays something you turn on per agent (the World Builder starter has it).
+- `world_prefab` lists, saves (from a box of an object, optionally putting a copy back in its place), renames,
+  deletes (only when no copy is placed), publishes to and imports from the prefab library
+  (`data/prefab-library/`, every world and project). A published prefab must stand alone (no copies inside).
+- Stamping turns in quarter turns, like a placed copy's turn (+x goes to -z at 90°).
+- Live test: three agents built Walker, Lamp post, Street tree and Taxi prefabs, a plaza with a road and a
+  crosswalk, and a columned exchange, then placed 142 copies (115 people in six colours from one prefab):
+  it reads like the stock exchange reference, at full speed.
+- Not yet: the prefab library isn't in backups (like presets, it is global); a world picker and prefab
+  browser in the page are Phase 4.
 
 **Phase 2: light and effects.**
 Material kinds (emissive, glass, water, leaf, snow), world lights with the light budget and emissive clusters,

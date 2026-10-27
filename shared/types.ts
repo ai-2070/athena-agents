@@ -947,11 +947,53 @@ export interface VoxelObjectMeta {
   updatedAt: number;
   /** when its voxels last changed (a move doesn't count): the page meshes it again */
   voxelsAt?: number;
+  /** how many prefab copies are placed in it */
+  instances?: number;
 }
 
-/** An object's voxels (data/worlds/<id>/objects/<object id>.json): chunks run-length encoded (shared/voxel.ts). */
+/** A prefab copy placed in an object (or in another prefab). Not voxels: the page repeats the prefab's mesh. */
+export interface PrefabInstance {
+  /** the prefab's id */
+  prefab: string;
+  /** where its pivot (bottom centre) stands, in map units from the object's origin */
+  p: Vec3;
+  /** degrees around the vertical, any angle */
+  turn?: number;
+  /** quarter turns around x (tilt) and z (roll): 0, 90, 180 or 270 */
+  tilt?: number;
+  roll?: number;
+  scale?: number;
+  /** mirrored left to right (across its own x) */
+  mirror?: boolean;
+  /** materials swapped in this copy: { "shirt": "cloth red" } */
+  swap?: Record<string, string>;
+}
+
+/** An object's or a prefab's voxels (…/objects/<id>.json, …/prefabs/<id>.json): chunks run-length encoded
+ *  (shared/voxel.ts), and the prefab copies placed in it. */
 export interface VoxelObjectData {
   volumes: { id: string; voxelSize: number; chunks: Record<string, string> }[];
+  instances?: PrefabInstance[];
+}
+
+/** A small model an agent made to place many times (a palm, a person, a taxi). Its voxels use the world's palette. */
+export interface VoxelPrefabMeta {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  by: WorldBuilder;
+  lastBy?: WorldBuilder;
+  volumes: VoxelVolumeMeta[];
+  /** prefab copies placed inside it */
+  instances?: number;
+  /** map units from its voxels' origin to the point that stands on the spot it is placed at (bottom centre) */
+  pivot: Vec3;
+  /** how big it is, map units */
+  size: Vec3;
+  createdAt: number;
+  updatedAt: number;
+  voxelsAt?: number;
 }
 
 /** A voxel world (data/worlds/<id>/world.json). Projects point at one (ProjectWorldLink). */
@@ -967,6 +1009,8 @@ export interface VoxelWorld {
   voxelSize: number;
   palette: VoxelMaterial[];
   objects: VoxelObjectMeta[];
+  /** the prefabs its builders made */
+  prefabs: VoxelPrefabMeta[];
   environment: WorldEnvironment;
   createdAt: number;
   updatedAt: number;

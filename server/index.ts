@@ -575,6 +575,11 @@ get('/api/worlds/:wid/objects/:oid', async ({ wid, oid }) => {
   if (!data) throw new HttpError(404, 'No such object.');
   return data;
 });
+get('/api/worlds/:wid/prefabs/:pid', async ({ wid, pid }) => {
+  const data = worldStore.readPrefab(wid, pid);
+  if (!data) throw new HttpError(404, 'No such prefab.');
+  return data;
+});
 put<Record<string, unknown> | null>('/api/world/objects/:oid', async ({ oid }, body) => worldBuild.changeObject({ ...(body || {}), delete: false, duplicate: false, object: oid, by: you }).object);
 del('/api/world/objects/:oid', async ({ oid }) => (worldBuild.changeObject({ object: oid, delete: true, by: you }), { ok: true }));
 post<{ anyone?: unknown } | null>('/api/world/undo', async (_p, body) => worldBuild.undo(you, { anyone: body?.anyone !== false }));

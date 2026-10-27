@@ -3,9 +3,9 @@
 import { agents, listProjects, workflows } from '../store.ts';
 import { getVoxel } from '../../shared/voxel.ts';
 import { loadGrids } from './ops.ts';
-import { readObject, worldVoxels } from './store.ts';
+import { readObject, readPrefab, worldVoxels } from './store.ts';
 import { shownWorld } from './link.ts';
-import { anchorText, boxText, findObject, recentChanges, WORLD_LIMITS } from './build.ts';
+import { anchorText, boxText, findObject, findPrefab, placedCopies, recentChanges, WORLD_LIMITS } from './build.ts';
 import type { VoxelWorld } from '../../shared/types.ts';
 
 /** A team platform's radius on the map (web/views/station.ts podRadius). */
@@ -34,16 +34,18 @@ function layoutText(agentId?: string): string {
 }
 
 export function worldText(w: VoxelWorld, { how, fromProject, agentId }: { how: string; fromProject?: string; agentId?: string }): string {
-  const objects = w.objects.map((o) => `- "${o.name}" (id ${o.id}) by ${o.by.name}${o.lastBy && o.lastBy.name !== o.by.name ? `, last changed by ${o.lastBy.name}` : ''} ${ago(o.updatedAt)}: ${o.volumes.reduce((n, v) => n + v.count, 0).toLocaleString('en-US')} voxels at voxel size ${[...new Set(o.volumes.map((v) => v.voxelSize))].join(' and ') || '-'}, ${boxText(o)}, at ${o.position.join(', ')} from ${anchorText(o.anchor)}${o.rotation ? `, turned ${o.rotation}°` : ''}${o.scale !== 1 ? `, scale ${o.scale}` : ''}${o.hidden ? ' (hidden)' : ''}`);
+  const objects = w.objects.map((o) => `- "${o.name}" (id ${o.id}) by ${o.by.name}${o.lastBy && o.lastBy.name !== o.by.name ? `, last changed by ${o.lastBy.name}` : ''} ${ago(o.updatedAt)}: ${o.volumes.reduce((n, v) => n + v.count, 0).toLocaleString('en-US')} voxels at voxel size ${[...new Set(o.volumes.map((v) => v.voxelSize))].join(' and ') || '-'}, ${boxText(o)}, at ${o.position.join(', ')} from ${anchorText(o.anchor)}${o.rotation ? `, turned ${o.rotation}°` : ''}${o.scale !== 1 ? `, scale ${o.scale}` : ''}${o.instances ? `, ${o.instances} prefab copies placed in it` : ''}${o.hidden ? ' (hidden)' : ''}`);
+  const prefabs = w.prefabs.map((p) => `- "${p.name}" by ${p.by.name}: ${p.description || 'no description'} | ${p.size.join('×')} map units, ${p.volumes.reduce((n, v) => n + v.count, 0).toLocaleString('en-US')} voxels`);
   const changes = recentChanges(w.id, 6).map((c) => `- ${ago(c.at)}: ${c.by} ${c.what}`);
   return [
     `World "${w.name}" (${how === 'carried' ? `carried over from another project${fromProject ? ` (${fromProject})` : ''}: your first build makes this project its own copy` : how === 'shared' ? 'shared with another project: changes show there too' : "this project's own"}).`,
-    `Default voxel size ${w.voxelSize} map units. Time of day: ${w.environment.preset}. ${worldVoxels(w).toLocaleString('en-US')} of ${WORLD_LIMITS.voxels.toLocaleString('en-US')} voxels, ${w.objects.length} of ${WORLD_LIMITS.objects} objects.`,
+    `Default voxel size ${w.voxelSize} map units. Time of day: ${w.environment.preset}. ${worldVoxels(w).toLocaleString('en-US')} of ${WORLD_LIMITS.voxels.toLocaleString('en-US')} voxels, ${w.objects.length} of ${WORLD_LIMITS.objects} objects, ${placedCopies(w).toLocaleString('en-US')} of ${WORLD_LIMITS.copies.toLocaleString('en-US')} placed copies.`,
     `Palette: ${w.palette.map((m) => `${m.name} (${m.kind}, ${m.color})`).join(', ') || 'empty (stock materials are added when first used)'}.`,
     '',
     layoutText(agentId),
     '',
     objects.length ? `Objects:\n${objects.join('\n')}` : 'No objects yet.',
+    prefabs.length ? `\nPrefabs (place copies with {"place": "<name>"}; world_prefab "list" says where each is used):\n${prefabs.join('\n')}` : '\nNo prefabs yet: make the small things you need many of (people, trees, lamps…) as prefabs, then place them.',
     changes.length ? `\nRecent changes:\n${changes.join('\n')}` : '',
   ]
     .filter((x) => x !== '')
@@ -52,9 +54,9 @@ export function worldText(w: VoxelWorld, { how, fromProject, agentId }: { how: s
 
 /** A top-down map of an object at one of its voxel sizes: each cell is the top voxel's material (a key letter), "." empty. */
 export function objectMap(w: VoxelWorld, ref: string, size?: number): string {
-  const o = findObject(w, ref);
-  if (!o) return `No object "${ref}".`;
-  const grids = loadGrids(readObject(w.id, o.id));
+  const o = findObject(w, ref) || findPrefab(w, ref);
+  if (!o) return `No object or prefab "${ref}".`;
+  const grids = loadGrids('anchor' in o ? readObject(w.id, o.id) : readPrefab(w.id, o.id));
   const g = (size !== undefined ? grids.find((x) => Math.abs(x.voxelSize - size) < 1e-6) : null) || [...grids].sort((a, b) => b.vol.chunks.size - a.vol.chunks.size)[0];
   const v = o.volumes.find((x) => x.id === g?.id);
   if (!g || !v?.min || !v.max) return `"${o.name}" is empty.`;
