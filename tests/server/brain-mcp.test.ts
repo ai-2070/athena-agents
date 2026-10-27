@@ -55,6 +55,12 @@ describe('the Brain adds MCP servers', () => {
     expect(mcp.listServers().firecrawl).toBeUndefined();
   });
 
+  it('shows the Brain the servers suggested for this PC, to offer and not to add unasked', async () => {
+    const snap = await snapshot({ fileBudget: 0 });
+    expect(snap).toContain('Suggested for this PC (not added; offer them, add only when the user says yes): ');
+    expect(snap).toMatch(/context7 \(useful to most agents, no key or setup\)/);
+  });
+
   it('adds a custom server only from the command the user wrote', () => {
     const words = 'Please add the weather MCP server: npx -y @acme/weather-mcp --units=metric';
     const made = applyActions([{ do: 'add_mcp', name: 'weather', command: 'npx', args: ['-y', '@acme/weather-mcp', '--units=metric'] }], activeProject(), { userWords: words });

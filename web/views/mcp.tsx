@@ -4,7 +4,7 @@ import { GET, POST, DEL, attempt, confirmBox, copy, refreshSoon } from '../core.
 import { Field, Segmented } from '../ui/controls.tsx';
 import { openModal } from '../ui/overlays.tsx';
 import { reactPage } from '../ui/react.tsx';
-import type { ToolGroup } from '../../shared/types.ts';
+import type { McpSuggestion, ToolGroup } from '../../shared/types.ts';
 
 /** One saved MCP server (server/mcp.ts McpServerConfig). */
 interface McpServerConfig {
@@ -39,6 +39,8 @@ interface ImportableServer {
 interface McpData {
   servers: Record<string, McpServerConfig>;
   presets: McpPresetListing[];
+  /** ready-made ones that fit this PC and aren't added (a program they drive is installed, or a basic one) */
+  suggested?: McpSuggestion[];
   importable: ImportableServer[];
   bridge: { command: string; args: string[]; env: Record<string, string> };
 }
@@ -72,6 +74,8 @@ export function McpTab() {
   if (!data || !tools) return null;
 
   const servers = Object.entries(data.servers);
+  // (an older server sends no suggestions)
+  const suggested = data.suggested || [];
   const bridgeJson = JSON.stringify({ mcpServers: { dashboard: data.bridge } }, null, 2);
   const edit = (name?: string, cfg?: McpServerConfig) =>
     openModal(name ? `Edit ${name}` : 'Add MCP server', (close) => <ServerForm name={name} cfg={cfg} close={close} saved={() => (void reload(), refreshSoon())} />);
@@ -97,6 +101,31 @@ export function McpTab() {
         )}
         <p className="hint mt">Give an agent a server in its Edit page &gt; Tools &gt; MCP servers. Claude Code agents also get the connectors on your Claude account (Gmail, Notion, Drive, Calendar, Higgsfield…) when they are signed in.</p>
       </div>
+
+      {suggested.length ? (
+        <div className="panel">
+          <div className="panel-head">
+            <h2>Suggested for this PC</h2>
+          </div>
+          <p className="hint">Ready-made servers for programs found on this PC, and a few that help most agents. Nothing is added until you click Add: each one runs a program from its maker.</p>
+          <div className="list mt">
+            {suggested.map((sg) => (
+              <div key={sg.name} className="list-item mcp-suggest">
+                <div className="grow">
+                  <div className="title">
+                    {sg.title} <span className={`mcp-why${sg.program ? ' on' : ''}`}>{sg.reason}</span>
+                  </div>
+                  <div className="hint">{sg.description}</div>
+                  {sg.needs ? <div className="hint mcp-suggest-needs">{sg.needs.replace(/^needs /, 'Needs ').replace(/; setup: /, '. Then: ').replace(/^setup: /, 'First: ')}</div> : null}
+                </div>
+                <button className="btn small" onClick={() => void attempt(() => POST('/mcp-preset', { name: sg.name }), `Added ${sg.title}${sg.needs ? '. See what it needs below it.' : ''}`).then(reload)}>
+                  Add
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="panel">
         <div className="panel-head">

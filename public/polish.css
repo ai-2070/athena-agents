@@ -822,3 +822,11 @@ a.fp-file:hover { color: var(--accent); }
 .about-repo { text-transform: none; letter-spacing: 0; font-family: var(--mono); }
 .about-gh { display: inline-flex; }
 .star-btn .star-count { margin-left: 2px; padding-left: 8px; border-left: 1px solid color-mix(in srgb, currentColor 35%, transparent); font-variant-numeric: tabular-nums; }
+
+/* Settings > MCP servers: Suggested for this PC */
+.mcp-suggest .title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.mcp-why { font: 500 11px/1.4 var(--mono); color: var(--dim); }
+.mcp-why.on { color: var(--accent); }
+.mcp-why.on::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
+.mcp-suggest .hint { margin-top: 2px; }
+.mcp-suggest-needs { color: var(--amber); }

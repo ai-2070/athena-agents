@@ -680,7 +680,7 @@ function sendFileSafely(res: http.ServerResponse, p: string, type = MIME[path.ex
 }
 
 // ---------- MCP ----------
-get('/api/mcp', async () => ({ servers: mcp.listServers(), presets: mcp.presetAvailability(), importable: mcp.importableServers(), bridge: mcp.bridgeServerConfig('') }));
+get('/api/mcp', async () => ({ servers: mcp.listServers(), presets: mcp.presetAvailability(), suggested: mcp.suggestPresets(await programs.discoverPrograms()), importable: mcp.importableServers(), bridge: mcp.bridgeServerConfig('') }));
 post<Parameters<typeof mcp.saveServer>[1] & { name: string }>('/api/mcp', async (_p, body) => mcp.saveServer(body.name, body));
 del('/api/mcp/:name', async ({ name }) => {
   // (and off every agent and team that had it)

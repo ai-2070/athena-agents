@@ -10,6 +10,8 @@ import { openModal } from '../../web/ui/overlays.tsx';
 const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
 
 let servers: Record<string, unknown>;
+// GET /api/mcp "suggested" (left out, like an older server sends it, unless a test sets it)
+let suggested: unknown[] | undefined;
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
 
@@ -18,12 +20,13 @@ beforeEach(() => {
   el = document.getElementById('view')!;
   servers = { playwright: { type: 'stdio', command: 'npx', args: ['-y', '@playwright/mcp'], env: {}, url: '', headers: {} } };
   requests = [];
+  suggested = undefined;
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method || 'GET';
     const body = init.body ? JSON.parse(String(init.body)) : null;
     requests.push({ method, url, body });
     const json = (v: unknown) => new Response(JSON.stringify(v));
-    if (url === '/api/mcp' && method === 'GET') return json({ servers, presets: [{ name: 'github', title: 'GitHub', description: 'Repos', ready: true, installed: false, type: 'stdio', command: 'npx', args: ['gh'], env: { TOKEN: 'YOUR_TOKEN' } }], importable: [], bridge: { command: 'bun', args: ['bridge.js'], env: {} } });
+    if (url === '/api/mcp' && method === 'GET') return json({ servers, presets: [{ name: 'github', title: 'GitHub', description: 'Repos', ready: true, installed: false, type: 'stdio', command: 'npx', args: ['gh'], env: { TOKEN: 'YOUR_TOKEN' } }], ...(suggested ? { suggested } : {}), importable: [], bridge: { command: 'bun', args: ['bridge.js'], env: {} } });
     if (url === '/api/tools') return json({ groups: [{ id: 'files', label: 'Files', description: 'Read and write' }], tools: [{ name: 'read_file', group: 'files', risk: 'none', description: 'Reads' }, { name: 'shell', group: 'files', risk: 'high', description: 'Runs' }] });
     if (url === '/api/mcp/playwright/test') return json({ tools: [{ name: 'click' }, { name: 'type' }] });
     if (url === '/api/mcp' && method === 'POST') {
@@ -63,6 +66,28 @@ describe('parsing', () => {
 });
 
 describe('the MCP servers tab', () => {
+  it('suggests servers for programs on this PC, with why and what they need, and adds one only on a click', async () => {
+    suggested = [
+      { name: 'blender', title: 'Blender (live)', description: 'Control a running Blender scene.', reason: 'Blender is installed', needs: 'setup: install the add-on in Blender', program: 'blender' },
+      { name: 'fetch', title: 'Web fetch', description: 'Fetch any URL.', reason: 'useful to most agents, no key or setup', needs: '', program: null },
+    ];
+    await open();
+    expect(el.textContent).toContain('Suggested for this PC');
+    const rows = [...el.querySelectorAll('.mcp-suggest')];
+    expect(rows.map((r) => r.querySelector('.mcp-why')!.textContent)).toEqual(['Blender is installed', 'useful to most agents, no key or setup']);
+    expect(rows[0].querySelector('.mcp-why')!.classList.contains('on')).toBe(true);
+    expect(rows[0].textContent).toContain('First: install the add-on in Blender');
+    expect(requests.some((r) => r.url === '/api/mcp-preset')).toBe(false);
+    await act(async () => btn(rows[0], 'Add').click());
+    await settle();
+    expect(requests.find((r) => r.url === '/api/mcp-preset')!.body).toEqual({ name: 'blender' });
+  });
+
+  it('shows no suggestions section when there are none (or the server sends none)', async () => {
+    await open();
+    expect(el.textContent).not.toContain('Suggested for this PC');
+  });
+
   it('lists servers, presets and built-in tools with their risk', async () => {
     await open();
     expect(el.querySelector('.mcp-server .title')!.textContent).toBe('playwright');

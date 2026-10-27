@@ -54,7 +54,7 @@ Written results, files and folders that agents saved, each with a preview, who m
 
 ### MCP servers in one click
 
-Add servers from a list, or ask the Brain to do it:
+Add servers from a list, or ask the Brain to do it. **Suggested for this PC** at the top lists the ones for programs you have installed (Blender, GIMP, OBS…) plus a few that help most agents. Nothing is added until you click Add or say yes to the Brain.
 
 - **Work:** a browser, GitHub, Notion, Linear, OOMOL (your connected apps and its hosted AI tools), web search.
 - **3D and games:** Blender, Maya, Houdini, Substance 3D Painter, Unity, Unreal Engine, Godot, Tripo, Meshy, Sketchfab.
