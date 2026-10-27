@@ -1,0 +1,29 @@
+README.md
+  s_65fdb1e68d69b5::t_4e85fba216a943 149
+docs/guide.md
+  s_65fdb1e68d69b5::t_5a8307bc5a420c 62
+server/commands.ts
+  s_65fdb1e68d69b5::t_16c87a7a66ba42 255
+tests/server/commands.test.ts
+  s_65fdb1e68d69b5::t_abaa4d429ef2b6 67
+shared/commands.ts
+  s_65fdb1e68d69b5::t_21b05bcfbf4739 24
+tests/web/chatcommands.test.ts
+  s_65fdb1e68d69b5::t_8c89aa03509c5a 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3d4ce4257704c78b0438711ff27892d57b7d942f",
+  "prompts": {},
+  "sessions": {
+    "s_65fdb1e68d69b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "95522663-5355-4b8d-9be1-14ec82ca9a08",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
