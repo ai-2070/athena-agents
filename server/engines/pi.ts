@@ -6,8 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { which, spawnCommand, run as runCmd, BRIDGE_SCRIPT, PORT, DATA, HOME, dataPath, ensureDir, writeJSON } from '../util.ts';
-import { internalToken } from '../store.ts';
-import { workspaceOf } from '../tools.ts';
+import { emit, internalToken, log } from '../store.ts';
+import { toolDefs, workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
 import { cliStatus, pipeLines, tail, SessionGone } from './cli.ts';
 import { splitContent } from '../toolimages.ts';
@@ -197,7 +197,19 @@ async function run(flavor: PiFlavor, { agent, chat, text, signal, onEvent, syste
   // pi: a new chat gets its own session id now; oh-my-pi names a new session itself (in its first line)
   const resume = !!chat.sessionId;
   const sessionId = chat.sessionId || (flavor === 'pi' ? crypto.randomUUID() : '');
-  const instructions = promptFile(agent, `${flavor}-${runId || Date.now().toString(36)}.md`, systemPrompt);
+  // the dashboard tools reach it only through the bridge in its mcp.json: put it there now if it's missing,
+  // so the agent is never told about tools it doesn't have
+  let brief = systemPrompt;
+  const bridge = toolDefs(agent).length ? ensureBridge(flavor) : null;
+  if (bridge && 'added' in bridge) {
+    log('mcp', `Gave ${LABEL[flavor]} the dashboard tools (${bridge.added})`);
+    onEvent({ kind: 'status', text: `Gave ${LABEL[flavor]} the dashboard tools` });
+  } else if (bridge) {
+    log('mcp', `${LABEL[flavor]} has no dashboard tools: ${bridge.problem}`);
+    emit('toast', { text: `${agent.name} can't use the dashboard tools: ${bridge.problem}` });
+    brief += `\n\n(The dashboard's own tools can't be used in this run: ${bridge.problem} Use only your built-in tools, and tell the user this when a task needs the dashboard's tools.)`;
+  }
+  const instructions = promptFile(agent, `${flavor}-${runId || Date.now().toString(36)}.md`, brief);
   const child = spawnCommand(flavor, piArgs(flavor, agent, { sessionId, resume, instructions }), { cwd: workspaceOf(agent), stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ...bridgeEnv(agent.id, runId) } });
   // (pi makes the session with that id even if its first line goes missing)
   if (sessionId) chat.sessionId = sessionId;
@@ -307,4 +319,28 @@ export function addBridge(flavor: PiFlavor): string {
   ensureDir(path.dirname(file));
   writeJSON(file, { ...cfg, mcpServers: servers });
   return file;
+}
+
+/** Is the dashboard bridge in their mcp.json, naming programs that are there? If not it is added (or put
+ *  right: the app was moved or reinstalled). A file it can't read is left alone and says why. Null: it was fine. */
+export function ensureBridge(flavor: PiFlavor): { added: string } | { problem: string } | null {
+  const file = mcpFile(flavor);
+  let entry: { command?: unknown; args?: unknown } | undefined;
+  if (fs.existsSync(file)) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')) as { mcpServers?: Record<string, typeof entry> } | null;
+      entry = cfg?.mcpServers?.dashboard;
+    } catch {
+      return { problem: `${file} isn't valid JSON, so the dashboard wasn't added to it. Fix it, then use Tools & MCP to add the dashboard.` };
+    }
+  }
+  // a program by name is found on the PATH; one by path must be there (a hand-made entry is kept when it works)
+  const there = (p: unknown) => typeof p === 'string' && (path.isAbsolute(p) ? fs.existsSync(p) : !!which(p));
+  const script = Array.isArray(entry?.args) ? entry.args[0] : undefined;
+  if (entry && there(entry.command) && (typeof script !== 'string' || !path.isAbsolute(script) || fs.existsSync(script))) return null;
+  try {
+    return { added: addBridge(flavor) };
+  } catch (e) {
+    return { problem: e instanceof Error ? e.message : String(e) };
+  }
 }

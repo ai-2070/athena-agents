@@ -204,7 +204,7 @@ export function McpTab() {
           <pre>{bridgeJson}</pre>
           <p className="hint">Paste into Claude Desktop, Cursor, or any MCP client. They act as "External MCP client": everything except shell, and they ask you first. The dashboard must be running.</p>
         </details>
-        <p className="hint">pi and oh-my-pi keep it in their own mcp.json (pi needs version 0.99 or newer). Their agents here then use the dashboard tools as themselves; when you run pi on your own, it acts as "External MCP client".</p>
+        <p className="hint">pi and oh-my-pi keep it in their own mcp.json (pi needs version 0.99 or newer); an agent's first run on either adds it there. Their agents here then use the dashboard tools as themselves; when you run pi on your own, it acts as "External MCP client".</p>
       </div>
 
       <div className="panel">

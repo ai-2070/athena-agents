@@ -29,7 +29,7 @@ The [desktop app](../README.md#desktop-app) is the same dashboard in its own win
 
 ## Giving engine CLIs the dashboard tools
 
-Claude Code and Codex receive dashboard tools through an MCP bridge; API-model agents call them directly. For Hermes, open **Settings → MCP servers** and click **Give Hermes the dashboard tools**, then restart Hermes sessions. For pi and oh-my-pi, click **Give pi and oh-my-pi the dashboard tools** on the same page (it adds the dashboard to their `mcp.json`; pi needs version 0.99 or newer).
+Claude Code and Codex receive dashboard tools through an MCP bridge; API-model agents call them directly. For Hermes, open **Settings → MCP servers** and click **Give Hermes the dashboard tools**, then restart Hermes sessions. pi and oh-my-pi get them through their own `mcp.json` (pi needs version 0.99 or newer): the first run of an agent on either adds the dashboard there, and puts it right if the app was moved. **Give pi and oh-my-pi the dashboard tools** on the same page does it by hand. If that file isn't valid JSON it is left alone, and you get a message saying the agent can't use the dashboard tools until it is fixed.
 
 pi and oh-my-pi run their own tools (files, shell, edits) without asking, whatever the agent's autonomy says. OpenClaw follows its own approval settings. Each chat keeps its own pi, oh-my-pi or OpenClaw session. OpenClaw goes through its Gateway when it is running; otherwise it answers on this PC.
 

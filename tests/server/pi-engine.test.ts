@@ -233,3 +233,40 @@ describe('addBridge', () => {
     expect(fs.readFileSync(file, 'utf8')).toBe('{ "mcpServers": { // a comment');
   });
 });
+
+describe('the bridge before a run', () => {
+  const done = [ev({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Done.' }], stopReason: 'stop' } })];
+  const dashboard = () => (JSON.parse(fs.readFileSync(mcpFile('omp'), 'utf8')) as { mcpServers: Record<string, { command: string; args: string[] }> }).mcpServers.dashboard;
+
+  it("adds the dashboard to its mcp.json when it isn't there, once", async () => {
+    fs.rmSync(mcpFile('omp'), { force: true });
+    fake.lines = done;
+    const events: RunEvent[] = [];
+    await omp.run(runArgs('omp', chatOf(), events));
+    expect(dashboard().args[0]).toMatch(/mcp-bridge\.ts$/);
+    expect(events).toContainEqual({ kind: 'status', text: 'Gave oh-my-pi the dashboard tools' });
+    expect(fake.calls[0].instructions).toBe('You are Coder.');
+    const again: RunEvent[] = [];
+    await omp.run(runArgs('omp', chatOf(), again));
+    expect(again.some((e) => e.kind === 'status')).toBe(false);
+  });
+
+  it('puts right an entry whose program is gone (the app moved), and keeps one that works', async () => {
+    fake.lines = done;
+    fs.writeFileSync(mcpFile('omp'), JSON.stringify({ mcpServers: { dashboard: { command: '/nowhere/bun', args: ['/nowhere/mcp-bridge.js'] } } }));
+    await omp.run(runArgs('omp', chatOf(), []));
+    expect(dashboard().command).toBe(process.execPath);
+    // a hand-made one that names a program on the PATH stays as it is
+    fs.writeFileSync(mcpFile('omp'), JSON.stringify({ mcpServers: { dashboard: { command: 'omp', args: ['bridge'] } } }));
+    await omp.run(runArgs('omp', chatOf(), []));
+    expect(dashboard()).toEqual({ command: 'omp', args: ['bridge'] });
+  });
+
+  it("leaves a file it can't read alone, and tells the agent and you", async () => {
+    fake.lines = done;
+    fs.writeFileSync(mcpFile('omp'), '{ "mcpServers": { // a comment');
+    await omp.run(runArgs('omp', chatOf(), []));
+    expect(fs.readFileSync(mcpFile('omp'), 'utf8')).toBe('{ "mcpServers": { // a comment');
+    expect(fake.calls[0].instructions).toMatch(/^You are Coder\.\n\n\(The dashboard's own tools can't be used in this run: .*isn't valid JSON/);
+  });
+});
