@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { GET, POST, attempt, ago, navigate, approvalCard } from '../core.ts';
 import { Avatar, DomNode, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import type { ActivityEntry, AppState, Chat } from '../../shared/types.ts';
+import { appIconUrl } from '../appicons.ts';
 
 /** One entry of GET /api/programs (only the fields this page reads). */
 interface ProgramInfo {
@@ -128,7 +129,7 @@ function HomePage() {
               <div className="list">
                 {services.map((p) => (
                   <div key={p.id} className="list-row">
-                    <span className="w-5.5 text-center">{p.icon}</span>
+                    <span className="w-5.5 text-center">{appIconUrl(p.id) ? <img className="inline-block align-middle" src={appIconUrl(p.id)!} width={20} height={20} alt="" /> : p.icon}</span>
                     <div className="flex-1 min-w-0">
                       <div className="title">{p.name}</div>
                       <div className="hint">{p.running ? (p.serviceUrl ? `running · ${p.serviceUrl}` : 'running') : p.version ? `v${p.version}` : 'installed'}</div>

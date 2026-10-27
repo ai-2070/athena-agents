@@ -813,3 +813,28 @@ export interface ProviderUsage {
   name: string;
   meters: UsageMeter[];
 }
+
+/** GET /api/about: which Blacksite this is and where it lives on GitHub. */
+export interface AboutInfo {
+  name: string;
+  version: string;
+  /** "owner/name" on GitHub */
+  repo: string;
+  url: string;
+  license: string;
+  /** GitHub stars, when asked for (?stars=1) and GitHub answered; null otherwise (e.g. a private repo) */
+  stars: number | null;
+}
+
+/** A ready-made MCP server worth adding on this PC (GET /api/mcp "suggested"): never added on its own. */
+export interface McpSuggestion {
+  name: string;
+  title: string;
+  description: string;
+  /** why: "Blender is installed", or "useful to most agents, no key or setup" */
+  reason: string;
+  /** what it needs from you first (a key, a setup step in the program), '' when nothing */
+  needs: string;
+  /** the Programs page id of the program it drives, null for the basics */
+  program: string | null;
+}

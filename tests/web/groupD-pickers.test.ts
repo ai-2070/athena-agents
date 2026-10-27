@@ -46,7 +46,9 @@ describe('model picker: models on this PC', () => {
     openModelPicker(document.body, { engine: 'openai', provider: 'ollama', model: 'llama3.2' }, (p) => picked.push(p));
     await settle();
     const menu = document.querySelector('.model-menu')!;
-    expect(menu.textContent).toContain('No models found. Is LM Studio running?');
+    // LM Studio has its own tab, so it isn't listed here
+    expect(menu.textContent).not.toContain('LM Studio running');
+    expect(menu.textContent).toContain('No models found. Is Custom server running?');
     expect(menu.querySelector('.st-menu-item.on')?.textContent).toContain('llama3.2');
     buttons(menu, 'qwen3')[0].click();
     expect(picked).toEqual([{ engine: 'openai', provider: 'ollama', model: 'qwen3', effort: '' }]);
@@ -57,10 +59,53 @@ describe('model picker: models on this PC', () => {
     const picked: ModelPatch[] = [];
     openModelPicker(document.body, { engine: 'openai', provider: 'openrouter', model: 'x/y' }, (p) => picked.push(p));
     await settle();
+    [...document.querySelectorAll<HTMLButtonElement>('.model-tab')].find((b) => b.textContent === 'LM Studio')!.click();
+    await settle();
     const input = [...document.querySelectorAll<HTMLInputElement>('.model-search')].find((i) => i.placeholder.includes('LM Studio'))!;
     input.value = 'my-model';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     expect(picked).toEqual([{ engine: 'openai', provider: 'lmstudio', model: 'my-model', effort: '' }]);
+  });
+});
+
+describe('model picker: LM Studio tab', () => {
+  const tabs = () => [...document.querySelectorAll<HTMLButtonElement>('.model-tab')];
+
+  it('sits next to OpenRouter and lists LM Studio models', async () => {
+    serve((_m, path) => (path === '/models?engine=openai&provider=lmstudio' ? { body: [{ id: 'qwen3-coder-30b' }] } : { body: [] }));
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, (p) => picked.push(p));
+    expect(tabs().map((t) => t.textContent).slice(0, 3)).toEqual(['Claude', 'OpenRouter', 'LM Studio']);
+    tabs().find((t) => t.textContent === 'LM Studio')!.click();
+    await settle();
+    const menu = document.querySelector('.model-menu')!;
+    expect(menu.textContent).toContain('On this PC · LM Studio');
+    expect(menu.textContent).not.toContain('OpenRouter key');
+    buttons(menu, 'qwen3-coder-30b')[0].click();
+    expect(picked).toEqual([{ engine: 'openai', provider: 'lmstudio', model: 'qwen3-coder-30b', effort: '' }]);
+  });
+
+  it('opens on the LM Studio tab, marked in use, for an agent on LM Studio', async () => {
+    serve(() => ({ body: [] }));
+    openModelPicker(document.body, { engine: 'openai', provider: 'lmstudio', model: 'qwen3' }, () => {});
+    await settle();
+    expect(document.querySelector('.model-tab.on')?.textContent).toBe('LM Studio');
+    expect(document.querySelector('.model-tab.cur')?.textContent).toBe('LM Studio');
+    expect(document.querySelector('.model-menu .st-menu-item.on')?.textContent).toContain('qwen3');
+  });
+
+  it('says how to start LM Studio when it lists no models', async () => {
+    serve(() => ({ body: [] }));
+    openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {});
+    tabs().find((t) => t.textContent === 'LM Studio')!.click();
+    await settle();
+    expect(document.querySelector('.model-menu')!.textContent).toContain('Is LM Studio running? (LM Studio > Developer > Start server)');
+  });
+
+  it('is not offered where models on this PC cannot be used (the Brain)', () => {
+    serve(() => ({ body: [] }));
+    openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {}, { local: false });
+    expect(tabs().map((t) => t.textContent)).not.toContain('LM Studio');
   });
 });
 

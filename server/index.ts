@@ -19,6 +19,7 @@ import * as codexEngine from './engines/codex.ts';
 import * as piEngine from './engines/pi.ts';
 import * as openclawEngine from './engines/openclaw.ts';
 import { clearWhichCache, which } from './util.ts';
+import { aboutInfo } from './about.ts';
 import * as tools from './tools.ts';
 import * as programs from './programs.ts';
 import * as comfy from './comfyui.ts';
@@ -121,6 +122,9 @@ const need = <T>(v: T, msg = 'Not found'): NonNullable<T> => {
 type ExternalAgent = Pick<Agent, 'id' | 'name' | 'toolGroups' | 'autonomy' | 'knowledge'> & Partial<Agent>;
 const EXTERNAL: ExternalAgent = { id: '_external', name: 'External MCP client', toolGroups: tools.TOOL_GROUPS.map((g) => g.id).filter((g) => g !== 'shell'), autonomy: 'ask', knowledge: { folders: [] } };
 const agentFor = (id: string | null | undefined): Agent | ExternalAgent => (id ? agents.get(id) : null) || EXTERNAL;
+
+// ---------- about (version, GitHub) ----------
+get('/api/about', async (_p, _b, q) => aboutInfo({ withStars: q.stars === '1' }));
 
 // ---------- state ----------
 get('/api/state', async (): Promise<AppState> => ({
@@ -676,7 +680,7 @@ function sendFileSafely(res: http.ServerResponse, p: string, type = MIME[path.ex
 }
 
 // ---------- MCP ----------
-get('/api/mcp', async () => ({ servers: mcp.listServers(), presets: mcp.presetAvailability(), importable: mcp.importableServers(), bridge: mcp.bridgeServerConfig('') }));
+get('/api/mcp', async () => ({ servers: mcp.listServers(), presets: mcp.presetAvailability(), suggested: mcp.suggestPresets(await programs.discoverPrograms()), importable: mcp.importableServers(), bridge: mcp.bridgeServerConfig('') }));
 post<Parameters<typeof mcp.saveServer>[1] & { name: string }>('/api/mcp', async (_p, body) => mcp.saveServer(body.name, body));
 del('/api/mcp/:name', async ({ name }) => {
   // (and off every agent and team that had it)

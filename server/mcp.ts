@@ -8,6 +8,7 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { HOME, IS_WIN, BRIDGE_SCRIPT, PORT, dataPath, readJSON, writeJSON, which, exists } from './util.ts';
 import { emit, log, internalToken, agents, workflows, listProjects, withProject } from './store.ts';
+import type { McpSuggestion } from '../shared/types.ts';
 
 /** One saved MCP server (data/mcp.json). */
 export interface McpServerConfig {
@@ -180,6 +181,14 @@ export const PRESETS: McpPreset[] = [
     type: 'http',
     url: 'https://mcp.linear.app/mcp',
     headers: { Authorization: 'Bearer YOUR_LINEAR_API_KEY' },
+  },
+  {
+    name: 'oomol',
+    title: 'OOMOL (remote)',
+    description: 'Your OOMOL connected apps (mail, calendar, drive, chat, issue trackers…) and OOMOL\'s hosted AI tools, OOMOL\'s own server. Make an MCP API key at oomol.com/install/mcp, then put it in the Authorization header and your OOMOL team name in the x-oo-team-name header after adding.',
+    type: 'http',
+    url: 'https://connector.oomol.com/v1/mcp',
+    headers: { Authorization: 'Bearer YOUR_MCP_API_KEY', 'x-oo-team-name': 'YOUR_TEAM_NAME' },
   },
   // Games and audio
   {
@@ -443,8 +452,66 @@ export const PRESETS: McpPreset[] = [
 /** What a ready-made server needs from the user before it works, in a few words ('' when nothing). */
 export function presetNeeds(p: McpPreset): string {
   const keys = Object.entries(p.type === 'stdio' ? p.env || {} : p.headers).filter(([, v]) => /YOUR_/.test(v));
-  const need = keys.map(([k]) => (p.type === 'stdio' ? k : `a key in the ${k} header`));
+  // a header that isn't Authorization holds something else than a key (OOMOL's team name)
+  const need = keys.map(([k]) => (p.type === 'stdio' ? k : /^authorization$/i.test(k) ? `a key in the ${k} header` : `a value in the ${k} header`));
   return [need.length ? `needs ${need.join(' and ')}` : '', p.setup ? `setup: ${p.setup}` : ''].filter(Boolean).join('; ');
+}
+
+// ---------- suggestions ----------
+// Ready-made servers that drive a program (its id on the Programs page): suggested once that program is installed.
+// Nothing is added on its own: these servers run other people's code, so the user clicks Add (or says yes to the Brain).
+export const PRESET_PROGRAMS: Readonly<Record<string, string>> = {
+  blender: 'blender',
+  maya: 'maya',
+  houdini: 'houdini',
+  'substance-painter': 'painter',
+  unity: 'unity',
+  unreal: 'unreal',
+  godot: 'godot',
+  freecad: 'freecad',
+  rhino: 'rhino',
+  openscad: 'openscad',
+  gimp: 'gimp',
+  krita: 'krita',
+  inkscape: 'inkscape',
+  audacity: 'audacity',
+  reaper: 'reaper',
+  musescore: 'musescore',
+  obs: 'obs',
+  canva: 'canva',
+  topaz: 'gigapixel',
+  'chrome-devtools': 'chrome',
+};
+// Worth suggesting on any PC: no key, no setup, useful to most agents.
+export const BASIC_PRESETS: readonly string[] = ['fetch', 'context7'];
+
+/** The part of a found program a suggestion needs (server/programs.ts Program). */
+interface FoundProgram {
+  id: string;
+  name: string;
+  installed: boolean;
+  exe?: string | null;
+}
+
+// A version of the program its server can't drive: Audacity 4 has no scripting pipe (the server needs Audacity 3).
+const cantDrive = (preset: string, prog: FoundProgram): boolean => preset === 'audacity' && /audacity ?4/i.test(prog.exe || '');
+
+// The same server, whatever name it was saved under (an import, or one added by hand).
+const sameServer = (p: McpPreset, s: McpServerConfig): boolean =>
+  p.type === 'http' ? s.url === p.url : s.command === p.command && (s.args || []).join(' ') === p.args.join(' ');
+
+/** The ready-made servers worth adding on this PC that aren't added yet, each with why. */
+export function suggestPresets(programs: readonly FoundProgram[], servers: McpServers = listServers()): McpSuggestion[] {
+  const added = (p: McpPreset) => !!servers[p.name] || Object.values(servers).some((s) => sameServer(p, s));
+  const out: McpSuggestion[] = [];
+  for (const p of PRESETS) {
+    if (added(p)) continue;
+    const prog = PRESET_PROGRAMS[p.name] ? programs.find((x) => x.id === PRESET_PROGRAMS[p.name] && x.installed && !cantDrive(p.name, x)) : undefined;
+    const reason = prog ? `${prog.name} is installed` : BASIC_PRESETS.includes(p.name) ? 'useful to most agents, no key or setup' : '';
+    if (reason) out.push({ name: p.name, title: p.title, description: p.description, reason, needs: presetNeeds(p), program: prog?.id || null });
+  }
+  // a program's own server first, then the basics
+  return out.sort((a, b) => +!a.program - +!b.program);
 }
 
 export function listServers(): McpServers {

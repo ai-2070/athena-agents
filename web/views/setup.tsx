@@ -1,4 +1,4 @@
-// Settings: everything you set up once, in tabs. General · Connections · MCP servers · Programs · Look.
+// Settings: everything you set up once, in tabs. General · Connections · MCP servers · Programs · Look · About.
 // A search box finds any setting: it switches to its tab, scrolls to it and flashes it.
 // Links can do the same with #/settings?tab=general&find=OpenAI Codex
 // React and Base UI: the tabs, the search (an autocomplete) and every tab's page.
@@ -9,11 +9,12 @@ import { ConnectionsTab } from './connections.tsx';
 import { McpTab } from './mcp.tsx';
 import { ProgramsTab } from './programs.tsx';
 import { LookTab } from './look.tsx';
+import { AboutTab } from './about.tsx';
 import { Tabs } from '../ui/controls.tsx';
 import { Icon, reactPage } from '../ui/react.tsx';
 import type { ComponentType } from 'react';
 
-type TabId = 'general' | 'connections' | 'mcp' | 'programs' | 'look';
+type TabId = 'general' | 'connections' | 'mcp' | 'programs' | 'look' | 'about';
 interface Tab {
   id: TabId;
   label: string;
@@ -34,6 +35,7 @@ const TABS: Tab[] = [
   { id: 'mcp', label: 'MCP servers', Page: McpTab },
   { id: 'programs', label: 'Programs', Page: ProgramsTab },
   { id: 'look', label: 'Look', Page: LookTab },
+  { id: 'about', label: 'About', Page: AboutTab },
 ];
 
 // What can be found. find = text on the page to jump to; words = extra search words.
@@ -57,7 +59,8 @@ const INDEX: IndexEntry[] = [
   { tab: 'general', find: 'Ollama server', label: 'Ollama', words: 'local model server' },
   { tab: 'general', find: 'ComfyUI address', label: 'ComfyUI address', words: 'comfy images workflows 8188 port' },
   { tab: 'general', find: 'Allowed folders', label: 'Allowed folders', words: 'files folders read write paths access' },
-  { tab: 'general', find: 'About', label: 'About this dashboard', words: 'address port data folder login localhost' },
+  { tab: 'about', find: 'This PC', label: 'This PC (address, data folder)', words: 'about address port data folder login localhost' },
+  { tab: 'about', find: 'Version', label: 'Version and GitHub', words: 'about version github repo repository star stars license licence update release help issue bug' },
   { tab: 'connections', sub: 'accounts', find: 'X accounts', label: 'X (Twitter) accounts', words: 'x twitter connect account auto-post dm' },
   { tab: 'connections', sub: 'accounts', find: 'Your X app', label: 'X app setup', words: 'x twitter client id secret callback oauth developer' },
   { tab: 'connections', sub: 'accounts', find: 'Reddit accounts', label: 'Reddit accounts', words: 'reddit connect account auto-post subreddit' },
@@ -101,7 +104,8 @@ export function focusText(root: ParentNode, text: string | null, tries = 14): vo
     if (tries > 0) setTimeout(() => focusText(root, text, tries - 1), 150);
     return;
   }
-  const box = el.closest<HTMLElement>('.panel, .list-row, .card') || el;
+  // the nearest row (an engine or key in AI keys) before the whole panel
+  const box = el.closest<HTMLElement>('.ai-row, .panel, .list-row, .card') || el;
   box.scrollIntoView({ behavior: 'smooth', block: 'center' });
   // flash-find stays as the mark tests look for; the utility next to it is the flash
   box.classList.remove('flash-find', 'animate-[flash-find_2.1s_ease-out]');

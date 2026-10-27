@@ -1,5 +1,5 @@
 // App shell: navigation, routing, the "Needs you" drawer and live notifications.
-import { h, mount, clear, freshElement, state, onState, onEvent, refreshState, refreshSoon, connectEvents, toast, navigate, approvalCard, ago } from './core.ts';
+import { h, mount, clear, freshElement, state, onState, onEvent, refreshState, refreshSoon, connectEvents, toast, navigate, approvalCard, ago, GET } from './core.ts';
 import * as home from './views/home.tsx';
 import * as station from './views/station.ts';
 import * as artifactsView from './views/artifacts.tsx';
@@ -21,10 +21,11 @@ import { guardPageDrops } from './attach.ts';
 import { applyLook, applySavedLook } from './look.ts';
 
 applySavedLook();
-import { icon } from './icons.ts';
+import { icon, logo } from './icons.ts';
+import { REPO } from '../shared/about.ts';
 import { openProjectMenu, openLauncher } from './projects.ts';
 import { projectMark } from './projectlogo.ts';
-import type { AppState, EngineStatus, RunEvent, ServerEvent } from '../shared/types.ts';
+import type { AboutInfo, AppState, EngineStatus, RunEvent, ServerEvent } from '../shared/types.ts';
 
 /** What a view gets as its third render() argument. */
 export interface ViewContext {
@@ -109,6 +110,24 @@ function renderNav() {
   if (d) {
     mount(document.getElementById('nav-status')!, navStatus(d));
   }
+  // the version is asked for once (no GitHub call here: the star count is only fetched in Settings > About)
+  if (!aboutAsked) {
+    aboutAsked = true;
+    void GET<AboutInfo>('/about').then((a) => ((about = a), renderNav()), () => {});
+  }
+  mount(document.getElementById('nav-about')!, navAbout());
+}
+
+let about: AboutInfo | null = null;
+let aboutAsked = false;
+// Bottom of the sidebar: the version (opens Settings > About) and a link to star Blacksite on GitHub.
+const NAV_VER = 'flex min-w-0 items-baseline gap-1.5 -ml-1.5 rounded-[6px] px-1.5 py-0.75 font-sans text-[11.5px] leading-[1.3] font-semibold text-dim [transition:background_0.15s,color_0.15s] hover:bg-accent/12 hover:text-ink';
+const NAV_STAR = 'inline-flex h-5.5 flex-none items-center gap-1.25 rounded-ctl border border-line-2 px-2 font-mono text-[10px] leading-none font-medium tracking-[0.08em] uppercase text-ink [transition:border-color_0.15s,color_0.15s] hover:border-accent hover:text-accent [&_svg]:flex-none';
+function navAbout() {
+  return [
+    h('a', { class: NAV_VER, href: '#/settings?tab=about', title: 'About Blacksite', onclick: () => document.body.classList.remove('nav-open') }, h('span', REPO.name), about ? h('span', { class: 'font-mono text-[10.5px] leading-[1.3] font-normal text-faint tabular-nums' }, `v${about.version}`) : null),
+    h('a', { class: NAV_STAR, href: REPO.url, target: '_blank', rel: 'noopener', title: `${REPO.slug} on GitHub: star it there` }, logo('github', 12, '#e6e8e0'), h('span', 'Star')),
+  ];
 }
 
 // The status list at the bottom left. Every line opens the matching setting.
@@ -129,22 +148,23 @@ function navStatus(d: AppState) {
     line(cc.installed ? (cc.loggedIn ? 'on' : 'warn') : '', 'Claude Code', cc.installed ? (cc.loggedIn ? ver(cc.version) || 'ready' : 'not signed in') : 'not found', S('tab=general&find=Claude Code')),
     line(cx.installed ? (cx.loggedIn ? 'on' : 'warn') : '', 'Codex', cx.installed ? (cx.loggedIn ? ver(cx.version) || 'ready' : 'sign in') : 'not installed', S('tab=general&find=OpenAI Codex')),
     line(e.hermes?.installed ? 'on' : '', 'Hermes', e.hermes?.installed ? 'found' : 'not found', S('tab=general&find=Hermes')),
-    // (only when installed: most PCs have none of these)
-    e.pi?.installed ? line('on', 'pi', ver(e.pi.version) || 'found', S('tab=general&find=pi coding agent')) : null,
-    e.omp?.installed ? line('on', 'oh-my-pi', ver(e.omp.version) || 'found', S('tab=general&find=oh-my-pi')) : null,
-    e.openclaw?.installed ? line('on', 'OpenClaw', ver(e.openclaw.version) || 'found', S('tab=general&find=OpenClaw')) : null,
+    // always listed, like the Station's engine tiles: grey with a link to how to install until found
+    line(e.pi?.installed ? 'on' : '', 'pi coding agent', e.pi?.installed ? ver(e.pi.version) || 'found' : 'not installed', S('tab=general&find=pi coding agent')),
+    line(e.omp?.installed ? 'on' : '', 'oh-my-pi', e.omp?.installed ? ver(e.omp.version) || 'found' : 'not installed', S('tab=general&find=oh-my-pi')),
+    line(e.openclaw?.installed ? 'on' : '', 'OpenClaw', e.openclaw?.installed ? ver(e.openclaw.version) || 'found' : 'not installed', S('tab=general&find=OpenClaw')),
     line(e.openai?.openrouter ? 'on' : '', 'OpenRouter', e.openai?.openrouter ? 'key set' : 'no key', S('tab=general&find=OpenRouter key')),
     line('on', 'Brain', `${brainName}${b.provider === 'openrouter' ? ' · OR' : ''}`, S("tab=general&find=The Brain's model"), "The Brain's model"),
     line(x.length ? 'on' : '', 'X', x.length ? (x.length === 1 ? `@${x[0].username}` : `${x.length} accounts`) : 'not connected', S('tab=connections&sub=accounts&find=X accounts')),
     line(rd.length ? 'on' : '', 'Reddit', rd.length ? (rd.length === 1 ? `u/${rd[0].username}` : `${rd.length} accounts`) : 'not connected', S('tab=connections&sub=accounts&find=Reddit accounts')),
     line(acc.telegram?.configured ? 'on' : '', 'Telegram', acc.telegram?.configured ? 'ready' : 'off', S('tab=connections&sub=accounts&find=Telegram')),
+    line(acc.discord?.configured ? 'on' : '', 'Discord', acc.discord?.configured ? 'ready' : 'off', S('tab=connections&sub=accounts&find=Discord')),
     line((d.mcpServers || []).length ? 'on' : '', 'MCP servers', String((d.mcpServers || []).length), S('tab=mcp&find=Your MCP servers')),
     d.outboxPending || d.questions?.length ? line('busy', 'Outbox', `${d.outboxPending + (d.questions?.length || 0)} waiting`, '#/outbox') : null,
   ];
   const sv = d.projectSaved;
   const savedLine = sv ? (sv.error ? `not saved: ${sv.error}` : `auto-saved ${ago(sv.at)}`) : 'auto-save on';
   const foot = 'min-w-0 flex-1 truncate text-faint';
-  return [...lines, h('a', { class: NS_LINE, href: S('tab=general&find=About'), title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}` }, h('span', { class: foot }, `${d.project?.name || 'Project'} · ${savedLine}`)), h('a', { class: NS_LINE, href: S('tab=general&find=About'), title: 'Address' }, h('span', { class: foot }, `localhost:${d.port} · no login`))];
+  return [...lines, h('a', { class: NS_LINE, href: S('tab=about&find=This PC'), title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}` }, h('span', { class: foot }, `${d.project?.name || 'Project'} · ${savedLine}`)), h('a', { class: NS_LINE, href: S('tab=about&find=This PC'), title: 'Address' }, h('span', { class: foot }, `localhost:${d.port} · no login`))];
 }
 
 async function route() {

@@ -7,6 +7,7 @@ import { brainModelChip } from '../models.ts';
 import { memoryButton, BRAIN } from '../memory.ts';
 import { Field, Segmented, Switch } from '../ui/controls.tsx';
 import { DomNode, reactPage, useAppState } from '../ui/react.tsx';
+import { logo } from '../icons.ts';
 import type { AppState, EngineStatus, SecretKey, SecretStatus, Settings, Terminal } from '../../shared/types.ts';
 
 /** What POST /api/settings/test-openrouter passes on from OpenRouter's /key endpoint. */
@@ -78,10 +79,12 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
           <div className="panel-head">
             <h2>AI keys</h2>
           </div>
-          <div className="flex flex-col gap-4.5">
-            <Engines data={data} reload={reload} />
-            <SecretField k="openrouterKey" secrets={secrets} reload={reload} label="OpenRouter key" placeholder="sk-or-…" hint={<span>One key for hundreds of models (Claude, GPT, Gemini, Llama, DeepSeek…). Get it at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Also usable by Claude Code agents.</span>} />
-            <SecretField k="anthropicKey" secrets={secrets} reload={reload} label="Anthropic API key (optional)" placeholder="sk-ant-…" hint={'For Claude Code agents set to "Anthropic API key" instead of your subscription.'} />
+          <h3 className={`${AI_GROUP} mt-1`}>Engines on this PC</h3>
+          <Engines data={data} reload={reload} />
+          <h3 className={`${AI_GROUP} mt-5.5`}>API keys</h3>
+          <div className={AI_LIST}>
+            <SecretField k="openrouterKey" mark={<Mark brand="openrouter" />} secrets={secrets} reload={reload} label="OpenRouter key" placeholder="sk-or-…" hint={<span>One key for hundreds of models (Claude, GPT, Gemini, Llama, DeepSeek…). Get it at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Also usable by Claude Code agents.</span>} />
+            <SecretField k="anthropicKey" mark={<Mark brand="anthropic" />} optional secrets={secrets} reload={reload} label="Anthropic API key" placeholder="sk-ant-…" hint={'For Claude Code agents set to "Anthropic API key" instead of your subscription.'} />
           </div>
         </div>
 
@@ -233,20 +236,6 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
             <textarea className="code" rows={3} defaultValue={(s.allowedFolders || []).join('\n')} placeholder="C:\Users\you\Videos" onChange={(e) => setP('allowedFolders', lines(e.target.value))} />
           </Field>
         </div>
-        <div className="panel">
-          <div className="panel-head">
-            <h2>About</h2>
-          </div>
-          <div className="kv">
-            <span>Address</span>
-            <span className="font-mono">{`http://localhost:${data.port}`}</span>
-            <span>Login</span>
-            <span>None. Only this PC can open it (it listens on 127.0.0.1).</span>
-            <span>Data</span>
-            <span className="font-mono wrap-anywhere">{data.dataDir}</span>
-          </div>
-          <p className="hint mt-3.5">Keys and account tokens are stored in that data folder on this PC and never sent to the browser.</p>
-        </div>
       </div>
     </div>
   );
@@ -268,13 +257,73 @@ function SavedSwitch({ field, initial, on, off, reload, children }: { field: key
   );
 }
 
-/** A key: typed in, saved to the server (never shown again), removable, and for OpenRouter testable. */
-function SecretField({ k, secrets, reload, label, placeholder, hint }: { k: SecretKey; secrets: SecretStatus; reload: () => Promise<unknown>; label: string; placeholder: string; hint?: ReactNode }) {
+/** A provider's mark: its brand logo, else its own glyph (Hermes, pi… have no logo). */
+function Mark({ brand, glyph }: { brand?: string; glyph?: string }) {
+  // near-black brand colours (Anthropic, OpenAI) would vanish on the dark tile: those draw in the text colour
+  const color = brand && DARK_BRANDS.has(brand) ? '#e6e8e0' : null;
+  return <DomNode as="span" className="ai-mark grid size-8 place-items-center rounded-ctl border border-line bg-panel-2 font-sans text-[16px] leading-none font-semibold text-ink [&_svg]:size-[17px]" make={() => (brand && logo(brand, 18, color)) || document.createTextNode(glyph || '•')} deps={[brand, glyph]} />;
+}
+const DARK_BRANDS = new Set(['anthropic', 'openai']);
+
+// AI keys: one row per engine or key (ai-row, ai-name, ai-mark, ai-key and ai-list stay for the tests)
+const AI_GROUP = 'mb-1.5 font-mono text-[11px] leading-[1.3] font-medium tracking-[0.16em] text-dim uppercase';
+const AI_LIST = 'ai-list flex flex-col border-t border-line [&>.ai-row:last-child]:border-b-0 [&>.ai-row:last-child]:pb-0.5';
+const AI_ROW = 'ai-row grid grid-cols-[32px_minmax(0,1fr)_auto] items-start gap-x-3.5 border-b border-line py-3 [&.flash-find]:rounded-ctl max-[561px]:grid-cols-[32px_minmax(0,1fr)] max-[561px]:gap-y-2';
+const AI_MAIN = 'flex min-w-0 flex-col gap-1.5';
+const AI_HEAD = 'flex min-h-8 flex-wrap items-center gap-2';
+const AI_NAME = 'ai-name font-sans text-[14.5px] leading-[1.3] font-semibold text-ink';
+const AI_NOTE = 'text-[12.5px] leading-normal text-dim [&_a]:text-accent [&_a]:underline-offset-2';
+export const AI_VERSION = 'font-mono text-[12px] leading-[1.3] font-normal text-dim tabular-nums';
+
+/** One engine or key: its mark, name and status, a line about it, and what you can do on the right. */
+function AiRow({ mark, name, status, note, children }: { mark: ReactNode; name: ReactNode; status?: ReactNode; note?: ReactNode; children?: ReactNode }) {
+  return (
+    <div className={AI_ROW}>
+      {mark}
+      <div className={AI_MAIN}>
+        <div className={AI_HEAD}>
+          <span className={AI_NAME}>{name}</span>
+          {status}
+        </div>
+        {note ? <div className={AI_NOTE}>{note}</div> : null}
+      </div>
+      {children ? <div className="flex min-h-8 items-center gap-1.5 max-[561px]:col-start-2 max-[561px]:min-h-0">{children}</div> : null}
+    </div>
+  );
+}
+
+/** "found 2.1.311": the pill, and the version when there is one. */
+const Found = ({ label = 'found', version }: { label?: string; version?: string | null }) => (
+  <>
+    <span className="pill ok">{label}</span>
+    {version ? <span className={AI_VERSION}>{shortVersion(version)}</span> : null}
+  </>
+);
+/** "2.1.311 (Claude Code)" → "2.1.311": the row already says which program it is. */
+const shortVersion = (v: string): string => v.replace(/\s*\([^)]*\)\s*$/, '');
+
+/** An install command to copy into a terminal. */
+function InstallCmd({ cmd }: { cmd: string }) {
+  const copy = () => void navigator.clipboard.writeText(cmd).then(() => toast('Copied'), () => toast('Copy it by hand: the clipboard is blocked', 'warn'));
+  return (
+    <span className="ai-cmd mr-1 inline-flex max-w-full items-center gap-1.5 align-middle">
+      <code className="min-w-0 overflow-x-auto rounded-[5px] border border-line bg-bg px-2 py-0.75 font-mono text-[12px] leading-normal whitespace-nowrap text-ink">{cmd}</code>
+      <button type="button" className="btn ghost tiny" onClick={copy} aria-label={`Copy ${cmd}`}>
+        Copy
+      </button>
+    </span>
+  );
+}
+
+/** A key: typed in, saved to the server (never shown again), removable, and for OpenRouter testable. Without a mark it is a plain field. */
+function SecretField({ k, secrets, reload, label, placeholder, hint, mark, optional = false }: { k: SecretKey; secrets: SecretStatus; reload: () => Promise<unknown>; label: string; placeholder: string; hint?: ReactNode; mark?: ReactNode; optional?: boolean }) {
   const [value, setValue] = useState('');
   const saved = secrets[k];
+  const id = `secret-${k}`;
   const store = async () => {
     if (!value.trim()) return toast('Paste the key first', 'warn');
     await attempt(() => POST('/secrets', { key: k, value: value.trim() }), 'Saved');
+    setValue('');
     refreshSoon(0);
     await reload();
   };
@@ -286,25 +335,40 @@ function SecretField({ k, secrets, reload, label, placeholder, hint }: { k: Secr
   const test = () =>
     attempt(() => POST<OpenRouterKeyInfo>('/settings/test-openrouter'), (r) => `Key works${r.label ? ` (${r.label})` : ''}${r.limit_remaining != null ? ` · $${Number(r.limit_remaining).toFixed(2)} left` : r.usage != null ? ` · $${Number(r.usage).toFixed(2)} used` : ''}`);
   return (
-    <div>
-      <Field label={label} hint={hint}>
-        <input type="password" autoComplete="off" value={value} placeholder={saved.set ? `saved (${saved.hint}) · type to replace` : placeholder} onChange={(e) => setValue(e.target.value)} />
-      </Field>
-      {/* row: the mark tests find the Save button by */}
-      <div className="row mt-3.5 flex flex-wrap items-center gap-2.5">
-        <button className="btn small" onClick={() => void store()}>Save</button>
-        {saved.set ? <button className="btn ghost small" onClick={() => void remove()}>Remove</button> : null}
-        {k === 'openrouterKey' && saved.set ? <button className="btn ghost small" onClick={() => void test()}>Test</button> : null}
+    <div className={mark ? `${AI_ROW} ai-key` : 'ai-row ai-key grid grid-cols-[minmax(0,1fr)] items-start gap-x-3.5 [&.flash-find]:rounded-ctl max-[561px]:gap-y-2'}>
+      {mark}
+      <div className={AI_MAIN}>
+        <div className={mark ? AI_HEAD : 'flex flex-wrap items-center gap-2'}>
+          <label className={mark ? AI_NAME : 'ai-name font-mono text-[11px] leading-[1.3] font-medium tracking-[0.16em] text-dim uppercase'} htmlFor={id}>{label}</label>
+          {saved.set ? <Found label="saved" version={saved.hint} /> : <span className="pill">{optional ? 'optional' : 'not set'}</span>}
+        </div>
+        <div className="flex items-stretch gap-1.5 max-[561px]:flex-wrap">
+          <input className="min-w-0 flex-1 max-[561px]:basis-full" id={id} type="password" autoComplete="off" value={value} placeholder={saved.set ? 'Paste a new key to replace it' : placeholder} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void store()} />
+          <button className="btn small h-auto min-h-8.5" disabled={!value.trim()} onClick={() => void store()}>
+            Save
+          </button>
+          {k === 'openrouterKey' && saved.set ? (
+            <button className="btn ghost small h-auto min-h-8.5" onClick={() => void test()}>
+              Test
+            </button>
+          ) : null}
+          {saved.set ? (
+            <button className="btn ghost small h-auto min-h-8.5" onClick={() => void remove()}>
+              Remove
+            </button>
+          ) : null}
+        </div>
+        {hint ? <div className={AI_NOTE}>{hint}</div> : null}
       </div>
     </div>
   );
 }
 
 // pi, oh-my-pi and OpenClaw: found or not, and how to install them (they sign in to models in their own terminal).
-const CLIS: [keyof EngineStatus & ('pi' | 'omp' | 'openclaw'), string, string][] = [
-  ['pi', 'pi coding agent', 'Install: npm install -g @earendil-works/pi-coding-agent. Sign in to a model provider with /login in pi.'],
-  ['omp', 'oh-my-pi', 'Install: bun install -g @oh-my-pi/pi-coding-agent (needs Bun). Sign in with /login in omp.'],
-  ['openclaw', 'OpenClaw', 'Install: npm install -g openclaw, then run openclaw onboard.'],
+const CLIS: { id: keyof EngineStatus & ('pi' | 'omp' | 'openclaw'); label: string; glyph: string; cmd: string; then: string }[] = [
+  { id: 'pi', label: 'pi coding agent', glyph: 'π', cmd: 'npm install -g @earendil-works/pi-coding-agent', then: 'Then sign in to a model provider with /login in pi.' },
+  { id: 'omp', label: 'oh-my-pi', glyph: 'Ω', cmd: 'bun install -g @oh-my-pi/pi-coding-agent', then: 'Needs Bun. Then sign in with /login in omp.' },
+  { id: 'openclaw', label: 'OpenClaw', glyph: '🦞', cmd: 'npm install -g openclaw', then: 'Then run openclaw onboard.' },
 ];
 
 function Engines({ data, reload }: { data: AppState; reload: () => Promise<unknown> }) {
@@ -325,59 +389,50 @@ function Engines({ data, reload }: { data: AppState; reload: () => Promise<unkno
   const recheck = () =>
     attempt(() => POST<EngineStatus['codex']>('/codex/refresh'), (r) => (r.loggedIn ? 'Codex is signed in' : r.installed ? 'Installed, not signed in yet' : 'Not installed')).then(() => (refreshSoon(0), later(300)));
   return (
-    <div className="kv">
-      <span>Claude Code</span>
-      <span>
-        {cc.installed ? (
-          <span>
-            <span className="pill ok">found</span> {cc.version || ''}
-            <div className="hint">Agents on "My Claude login" use your Claude subscription. Nothing to paste.</div>
-          </span>
-        ) : (
-          <span className="pill bad">not installed</span>
-        )}
-      </span>
-      <span>Hermes</span>
-      <span>{data.engines.hermes.installed ? <span className="pill ok">found</span> : <span className="pill">not installed</span>}</span>
-      {CLIS.map(([id, label, how]) => {
-        const st: Partial<EngineStatus['pi']> = data.engines[id] || {};
-        return [
-          <span key={`${id}-l`}>{label}</span>,
-          <span key={`${id}-v`}>
-            {st.installed ? (
-              <span>
-                <span className="pill ok">found</span> {st.version || ''}
-              </span>
-            ) : (
-              <span>
-                <span className="pill">not installed</span>
-                <div className="hint">{how}</div>
-              </span>
-            )}
-          </span>,
-        ];
-      })}
-      <span>OpenAI Codex</span>
-      <span>
+    <div className={AI_LIST}>
+      <AiRow mark={<Mark brand="claude" />} name="Claude Code" status={cc.installed ? <Found version={cc.version} /> : <span className="pill bad">not installed</span>} note={cc.installed ? 'Agents on "My Claude login" use your Claude subscription. Nothing to paste.' : 'Install Claude Code to run agents on your Claude subscription.'} />
+      <AiRow
+        mark={<Mark brand="openai" />}
+        name="OpenAI Codex"
+        status={!cx.installed ? <span className="pill">not installed</span> : cx.loggedIn ? <Found label="signed in" version={cx.version} /> : <><span className="pill warn">not signed in</span>{cx.version ? <span className={AI_VERSION}>{cx.version}</span> : null}</>}
+        note={!cx.installed ? 'Installs the official CLI with npm (npm install -g @openai/codex). Then sign in with your ChatGPT account.' : cx.loggedIn ? 'Agents set to Codex use your ChatGPT login.' : 'Sign in opens a terminal running "codex login": follow the link, then press Recheck.'}
+      >
         {!cx.installed ? (
-          <span>
-            <span className="pill">not installed</span>{' '}
-            <button className="btn tiny" disabled={installing} onClick={() => void install()}>
-              {installing ? 'Installing…' : 'Install Codex'}
-            </button>
-            <div className="hint">Installs the official CLI with npm (npm install -g @openai/codex). Then sign in with your ChatGPT account.</div>
-          </span>
+          <button className="btn small" disabled={installing} onClick={() => void install()}>
+            {installing ? 'Installing…' : 'Install Codex'}
+          </button>
         ) : (
-          <span>
-            {cx.loggedIn ? <span className="pill ok">signed in</span> : <span className="pill warn">not signed in</span>} {cx.version || ''}{' '}
+          <>
             {cx.loggedIn ? null : (
-              <button className="btn tiny" onClick={() => void signIn()}>Sign in</button>
-            )}{' '}
-            <button className="btn ghost tiny" onClick={() => void recheck()}>Recheck</button>
-            <div className="hint">{cx.loggedIn ? 'Agents set to Codex use your ChatGPT login.' : 'Sign in opens a terminal running "codex login": follow the link, then press Recheck.'}</div>
-          </span>
+              <button className="btn small" onClick={() => void signIn()}>
+                Sign in
+              </button>
+            )}
+            <button className="btn ghost small" onClick={() => void recheck()}>
+              Recheck
+            </button>
+          </>
         )}
-      </span>
+      </AiRow>
+      <AiRow mark={<Mark glyph="☤" />} name="Hermes" status={data.engines.hermes.installed ? <Found /> : <span className="pill">not installed</span>} note={data.engines.hermes.installed ? 'Agents can run on your Hermes profiles.' : null} />
+      {CLIS.map(({ id, label, glyph, cmd, then }) => {
+        const st: Partial<EngineStatus['pi']> = data.engines[id] || {};
+        return (
+          <AiRow
+            key={id}
+            mark={<Mark glyph={glyph} />}
+            name={label}
+            status={st.installed ? <Found version={st.version} /> : <span className="pill">not installed</span>}
+            note={
+              st.installed ? null : (
+                <>
+                  <InstallCmd cmd={cmd} /> {then}
+                </>
+              )
+            }
+          />
+        );
+      })}
     </div>
   );
 }

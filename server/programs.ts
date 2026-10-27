@@ -251,6 +251,25 @@ const CATALOG: CatalogEntry[] = [
   },
   // auto-rigging and animation; mostly used at mesh2motion.org, this is its desktop app
   { id: 'mesh2motion', name: 'Mesh2Motion', category: '3d', icon: '🦴', detect: () => ({ ...placed(/mesh2motion/i, path.join(LOCAL, 'Programs', 'mesh2motion', 'Mesh2Motion.exe')), optional: true }), actions: ['launch'] },
+  // Game engines (their MCP servers are suggested once one is found)
+  {
+    id: 'unity',
+    name: 'Unity',
+    category: '3d',
+    icon: '🎮',
+    // the newest editor Unity Hub installed, else Unity Hub itself
+    detect: () => newestVersioned(path.join(PF, 'Unity', 'Hub', 'Editor'), '', path.join('Editor', 'Unity.exe')) || placed(/^unity hub/i, path.join(PF, 'Unity Hub', 'Unity Hub.exe')),
+    actions: ['launch', 'open'],
+  },
+  {
+    id: 'unreal',
+    name: 'Unreal Engine',
+    category: '3d',
+    icon: '🕹️',
+    detect: () => newestVersioned(path.join(PF, 'Epic Games'), 'UE_', path.join('Engine', 'Binaries', 'Win64', 'UnrealEditor.exe')) || placed(/^unreal engine/i),
+    actions: ['launch', 'open'],
+  },
+  { id: 'godot', name: 'Godot', category: '3d', icon: '🤖', detect: () => ({ exe: which('godot') || null, shortcut: startMenuFind(/^godot/i)?.shortcut || null }), actions: ['launch', 'open'] },
   // Images and design
   { id: 'photoshop', name: 'Photoshop', category: 'creative', icon: '🖼️', detect: () => adobe('photoshop', 'Adobe Photoshop ', 'Photoshop.exe'), actions: ['launch', 'open', 'jsx'] },
   {

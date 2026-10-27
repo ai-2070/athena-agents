@@ -1,9 +1,10 @@
 // Model names with versions, and one picker used everywhere a model can be switched
-// (agents, the Brain chat, Settings): tabs for your favorites, Claude Code, OpenRouter, Hermes, Codex, pi,
+// (agents, the Brain chat, Settings): tabs for your favorites, Claude Code, OpenRouter, LM Studio, Hermes, Codex, pi,
 // oh-my-pi and OpenClaw,
 // and how hard the model thinks (effort).
 import { h, mount, state, GET, PUT, attempt, refreshSoon, toast, navigate } from './core.ts';
 import { icon, logo } from './icons.ts';
+import { appIcon } from './appicons.ts';
 import { uiZoom } from './look.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../shared/effort.ts';
 import type { Agent, BrainSetting, Effort, EngineId, EngineStatus, FavoriteModel } from '../shared/types.ts';
@@ -44,12 +45,16 @@ export interface ModelListing {
   tools?: boolean;
   price?: { in: number; out: number } | null;
 }
+/** A picker tab: an engine, Favorites, or LM Studio (API models on this PC, with a tab of their own). */
+type PickerTab = EngineId | 'fav' | 'lmstudio';
 interface ModelTab {
-  engine: EngineId | 'fav';
+  engine: PickerTab;
   label: string;
   brand: string | null;
   glyph?: string;
 }
+/** The tab a model belongs on: LM Studio models run on the API-model engine but get their own tab. */
+export const tabOf = (t: { engine: EngineId; provider?: string }): EngineId | 'lmstudio' => (t.engine === 'openai' && t.provider === 'lmstudio' ? 'lmstudio' : t.engine);
 
 // What Claude Code's short names point to today.
 const CLAUDE = [
@@ -64,6 +69,7 @@ const CODEX_PICKS = [{ id: 'gpt-6-astra', note: 'OpenAI flagship' }];
 const TABS: ModelTab[] = [
   { engine: 'claude-code', label: 'Claude', brand: 'claude' },
   { engine: 'openai', label: 'OpenRouter', brand: 'openrouter', glyph: '◇' },
+  { engine: 'lmstudio', label: 'LM Studio', brand: null, glyph: 'LM' },
   { engine: 'hermes', label: 'Hermes', brand: null, glyph: '☤' },
   { engine: 'codex', label: 'Codex', brand: 'openai' },
   { engine: 'pi', label: 'pi', brand: null, glyph: 'π' },
@@ -218,9 +224,13 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   let effort: Effort | '' = effortOf(cur);
   // favorites this picker can use (without local servers, only OpenRouter's API models)
   const favs = () => favoriteModels().filter((f) => local || f.engine !== 'openai' || (f.provider || 'openrouter') === 'openrouter');
-  let tab: EngineId | 'fav' = favs().length ? 'fav' : TABS.some((t) => t.engine === cur.engine) ? cur.engine : 'claude-code';
+  // LM Studio's tab only where models on this PC can be used (not for the Brain)
+  const myTabs = TABS.filter((t) => local || t.engine !== 'lmstudio');
+  const curTab = tabOf(cur);
+  const homeTab = (): PickerTab => (myTabs.some((t) => t.engine === curTab) ? curTab : 'claude-code');
+  let tab: PickerTab = favs().length ? 'fav' : homeTab();
   // the engine the effort row is for: on Favorites, the one in use
-  const tabEngine = (): EngineId => (tab === 'fav' ? cur.engine : tab);
+  const tabEngine = (): EngineId => (tab === 'fav' ? cur.engine : tab === 'lmstudio' ? 'openai' : tab);
   const body = h('div.model-body', { class: 'max-h-95 overflow-y-auto' });
   const effortBox = h('div', { class: 'px-1.5 pb-2 border-b border-line mb-1' });
   const pick = (choice: ModelChoice) => (close(), apply({ ...choice, effort: effortFor(choice.engine, effort, choice.provider) }));
@@ -240,7 +250,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
       drawTabs();
       // on Favorites the list itself changes (and with none left, back to the engine in use)
       if (tab === 'fav') {
-        if (!favs().length) tab = TABS.some((t) => t.engine === cur.engine) ? cur.engine : 'claude-code';
+        if (!favs().length) tab = homeTab();
         drawTabs();
         drawEffort();
         drawBody();
@@ -264,14 +274,28 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   const missing = (text: string, settingsFind: string) =>
     h('div', { class: 'flex items-center gap-2 mx-1.5 mb-1.5 px-2.25 py-1.75 rounded-[8px] text-[12px] text-amber bg-amber/10' }, icon('triangle-alert', 14), h('span', { class: 'flex-1 min-w-0' }, text), h('button.btn.tiny', { onclick: () => (close(), navigate(`#/settings?tab=general&find=${encodeURIComponent(settingsFind)}`)) }, 'Set up'));
   const same = (engine: EngineId, model: string) => cur.engine === engine && String(cur.model || '') === model;
+  // The models a server on this PC offers (LM Studio, Ollama, a custom one). It needs one of its own model ids:
+  // an empty model would fall back to the OpenRouter default.
+  const localModels = (p: string, label: string, howToStart = ''): Child[] => {
+    const on = (id: string) => cur.engine === 'openai' && cur.provider === p && cur.model === id;
+    const box = h('div.model-list', h('div.model-sub', { class: 'px-2.5 py-1' }, 'Looking for models…'));
+    const fillLocal = (ms: ModelListing[]) => {
+      const ids = ms.map((m) => m.id);
+      if (cur.engine === 'openai' && cur.provider === p && cur.model && !ids.includes(cur.model)) ids.unshift(cur.model);
+      mount(box, ids.length ? ids.map((id) => row(id, null, on(id), { engine: 'openai', provider: p, model: id }, p === 'ollama' ? 'ollama' : null)) : h('div.model-sub', { class: 'px-2.5 py-1' }, `No models found. Is ${label} running?${howToStart ? ` (${howToStart})` : ''}`));
+    };
+    GET<ModelListing[]>(`/models?engine=openai&provider=${p}`).then(fillLocal, () => fillLocal([]));
+    return [h('div.st-menu-head', `On this PC · ${label}`), box, free(`or type a ${label} model id and press Enter`, (m) => ({ engine: 'openai', provider: p, model: m }))];
+  };
 
   // Effort: the levels the tab's engine takes, and the model's own default.
   const SHORT: Record<Effort, string> = { minimal: 'Min', low: 'Low', medium: 'Med', high: 'High', xhigh: 'X-High', max: 'Max' };
   const drawEffort = () => {
     const engine = tabEngine();
-    const provider = engine === 'openai' ? (tab === 'fav' || cur.engine === 'openai' ? cur.provider : 'openrouter') : undefined;
+    // the provider the effort row is for: the one in use on Favorites or its own tab, else the tab's own
+    const live = tab === 'fav' || tab === curTab;
+    const provider = engine !== 'openai' ? undefined : live ? cur.provider : tab === 'lmstudio' ? 'lmstudio' : 'openrouter';
     const shown = effortFor(engine, effort, provider);
-    const live = engine === cur.engine;
     const level = (value: Effort | '') =>
       h(
         `button.model-effort-level${shown === value ? '.on' : ''}`,
@@ -343,19 +367,12 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
       fill();
       if (local) {
         // a local server needs one of its own model ids (an empty model would fall back to the OpenRouter default)
-        for (const [p, label] of [['lmstudio', 'LM Studio'], ['ollama', 'Ollama'], ['custom', 'Custom server']]) {
-          const on = (id: string) => cur.engine === 'openai' && cur.provider === p && cur.model === id;
-          const box = h('div.model-list', h('div.model-sub', { style: { padding: '4px 10px' } }, 'Looking for models…'));
-          const fillLocal = (ms: ModelListing[]) => {
-            const ids = ms.map((m) => m.id);
-            if (cur.engine === 'openai' && cur.provider === p && cur.model && !ids.includes(cur.model)) ids.unshift(cur.model);
-            mount(box, ids.length ? ids.map((id) => row(id, null, on(id), { engine: 'openai', provider: p, model: id }, p === 'ollama' ? 'ollama' : null)) : h('div.model-sub', { style: { padding: '4px 10px' } }, `No models found. Is ${label} running?`));
-          };
-          GET<ModelListing[]>(`/models?engine=openai&provider=${p}`).then(fillLocal, () => fillLocal([]));
-          items.push(h('div.st-menu-head', `On this PC · ${label}`), box, free(`or type a ${label} model id and press Enter`, (m) => ({ engine: 'openai', provider: p, model: m })));
-        }
+        // (LM Studio has its own tab)
+        items.push(...localModels('ollama', 'Ollama'), ...localModels('custom', 'Custom server'));
       }
       setTimeout(() => search.focus(), 30);
+    } else if (tab === 'lmstudio') {
+      items.push(...localModels('lmstudio', 'LM Studio', 'LM Studio > Developer > Start server'));
     } else if (tab === 'hermes') {
       if (eng.hermes && !eng.hermes.installed) items.push(missing('Hermes is not installed on this PC.', 'Hermes'));
       items.push(h('div.st-menu-head', 'Hermes'), row("The profile's own model", 'whatever your Hermes profile uses', same('hermes', ''), { engine: 'hermes', model: '' }));
@@ -367,12 +384,12 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
       const st: Partial<{ installed: boolean }> = (eng as Partial<Record<string, { installed: boolean }>>)[engine] || {};
       if (eng[engine] && !st.installed) items.push(missing(`${t.name} is not installed on this PC.`, t.find));
       const search = h('input', { class: SEARCH, placeholder: 'Search its models, or type a provider/model id and press Enter' });
-      const list = h('div.model-list', h('div.model-sub', { style: { padding: '4px 10px' } }, 'Looking for models…'));
+      const list = h('div.model-list', h('div.model-sub', { class: 'px-2.5 py-1' }, 'Looking for models…'));
       let all: ModelListing[] = [];
       const fill = () => {
         const q = search.value.toLowerCase();
         const shown = (q ? all.filter((m) => `${m.id} ${m.name}`.toLowerCase().includes(q)) : all).slice(0, 60);
-        mount(list, all.length ? shown.map((m) => row(m.name || m.id, m.id, same(engine, m.id), { engine, model: m.id }, /claude|anthropic/.test(m.id) ? 'claude' : null)) : h('div.model-sub', { style: { padding: '4px 10px' } }, `No models listed. Sign ${t.name} in to a provider, or type a model id.`));
+        mount(list, all.length ? shown.map((m) => row(m.name || m.id, m.id, same(engine, m.id), { engine, model: m.id }, /claude|anthropic/.test(m.id) ? 'claude' : null)) : h('div.model-sub', { class: 'px-2.5 py-1' }, `No models listed. Sign ${t.name} in to a provider, or type a model id.`));
       };
       search.addEventListener('input', fill);
       search.addEventListener('keydown', (e) => e.key === 'Enter' && search.value.trim() && pick({ engine, model: search.value.trim() }));
@@ -396,19 +413,19 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
 
   const tabs = h('div', { class: 'grid grid-cols-[repeat(auto-fill,minmax(66px,1fr))] gap-1 pt-1 px-1.5 pb-2' });
   const drawTabs = (): HTMLDivElement => {
-    const shown: ModelTab[] = favs().length ? [{ engine: 'fav', label: 'Favorites', brand: null }, ...TABS] : TABS;
+    const shown: ModelTab[] = favs().length ? [{ engine: 'fav', label: 'Favorites', brand: null }, ...myTabs] : myTabs;
     return mount(
       tabs,
       shown.map((t) =>
         h(
-          `button.model-tab${tab === t.engine ? '.on' : ''}${cur.engine === t.engine ? '.cur' : ''}`,
+          `button.model-tab${tab === t.engine ? '.on' : ''}${curTab === t.engine ? '.cur' : ''}`,
           {
             class: "flex flex-col items-center gap-0.75 py-1.75 px-0.5 border border-line rounded-[8px] text-dim font-sans text-[10.5px] font-medium leading-[normal] cursor-pointer [transition:border-color_.15s,color_.15s,background_.15s] hover:text-ink [&.on]:border-accent [&.on]:text-ink [&.on]:bg-accent/10 [&.cur]:after:content-[''] [&.cur]:after:size-1.25 [&.cur]:after:rounded-full [&.cur]:after:bg-accent",
             type: 'button',
-            title: cur.engine === t.engine ? `${t.label} (in use)` : t.label,
+            title: curTab === t.engine ? `${t.label} (in use)` : t.label,
             onclick: (e: MouseEvent) => (e.stopPropagation(), (tab = t.engine), drawTabs(), drawEffort(), drawBody()),
           },
-          t.engine === 'fav' ? icon('star', 13) : (t.brand && logo(t.brand, 13)) || h('span', { class: 'text-[13px] leading-[13px]' }, t.glyph || '•'),
+          t.engine === 'fav' ? icon('star', 13) : (t.brand && logo(t.brand, 13)) || appIcon(t.engine, 13) || h('span', { class: 'text-[13px] leading-[13px]' }, t.glyph || '•'),
           h('span', t.label),
         ),
       ),

@@ -13,6 +13,8 @@ h2.section .label { font-weight: 400; }
 .ico-svg, .logo-svg { display: inline-block; flex: none; vertical-align: -3px; }
 /* Craft app icons are full-color squares, so they fill more of the tile than a one-color logo */
 .craft-icon { display: block; border-radius: 4px; }
+/* program icons from public/app-icons (web/appicons.ts): one-colour marks, placed like a logo */
+.app-icon { display: block; }
 
 /* ---------- buttons ---------- */
 .btn {
@@ -117,6 +119,8 @@ label.field > span:first-child, div.field > span:first-child { font: 500 11px/1.
 .st-badge.lg .logo-svg { width: 18px; height: 18px; }
 .st-badge .craft-icon { width: 14px; height: 14px; border-radius: 3px; }
 .st-badge.lg .craft-icon { width: 24px; height: 24px; border-radius: 5px; }
+.st-badge .app-icon { width: 11px; height: 11px; }
+.st-badge.lg .app-icon { width: 18px; height: 18px; }
 .tc-lead { font: 600 9.5px var(--font-mono); letter-spacing: 0.08em; color: var(--color-amber); text-transform: uppercase; }
 .skill-ico { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 10px; color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
 

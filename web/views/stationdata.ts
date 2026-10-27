@@ -4,6 +4,7 @@
 import { state } from '../core.ts';
 import { logo } from '../icons.ts';
 import { craftIcon, craftColor } from '../crafticons.ts';
+import { appIcon } from '../appicons.ts';
 import type { Agent, AppState, ProviderUsage, Team, TeamListing, TeamStep } from '../../shared/types.ts';
 
 /** A connection a step can reach: a service, a program, an MCP server ('mcp:x') or a Claude account connector ('cc:x'). */
@@ -73,12 +74,12 @@ export const INTEGRATIONS: Integration[] = [
   { id: 'codex', label: 'OpenAI Codex', glyph: '◎', color: '#e6e8e0' },
   { id: 'reddit', label: 'Reddit', glyph: 'r/', color: '#ff4500' },
   { id: 'openrouter', label: 'OpenRouter', glyph: '⇄', color: '#94a3b8' },
-  { id: 'lmstudio', label: 'LM Studio', glyph: 'LM', color: '#b48cff' },
+  { id: 'lmstudio', label: 'LM Studio', glyph: 'LM', color: '#6a72ed' },
   { id: 'ollama', label: 'Ollama', glyph: 'OL', color: '#e6e8e0' },
   { id: 'x', label: 'X', glyph: '𝕏', color: '#e6e8e0' },
   { id: 'telegram', label: 'Telegram', glyph: '✈', color: '#4fb3f6' },
   { id: 'discord', label: 'Discord', glyph: 'D', color: '#7d86ff' },
-  { id: 'comfyui', label: 'ComfyUI', glyph: '🧩', color: '#ffd36e' },
+  { id: 'comfyui', label: 'ComfyUI', glyph: '🧩', color: '#f2ff59' },
   { id: 'blender', label: 'Blender', glyph: 'B', color: '#f5792a' },
   { id: 'premiere', label: 'Premiere Pro', glyph: 'Pr', color: '#9a9aff' },
   { id: 'photoshop', label: 'Photoshop', glyph: 'Ps', color: '#31a8ff' },
@@ -94,8 +95,8 @@ export const INTEGRATIONS: Integration[] = [
   { id: 'browser', label: 'Browser', glyph: '🌐', color: '#a9d3e2' },
 ];
 const BRAND_OF: Record<string, string> = { codex: 'openai', reddit: 'reddit', claude: 'claude', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', maya: 'maya', houdini: 'houdini', cad: 'openscad', nvidia: 'nvidia', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
-// A brand logo, or a Craft app's own icon (PhotoCraft…), for a connector or MCP server name.
-export const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null => logo(name, size) || craftIcon(name, size);
+// A brand logo, a Craft app's own icon (PhotoCraft…), or a program's own icon (ComfyUI), for a connector or MCP server name.
+export const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null => logo(name, size) || craftIcon(name, size) || appIcon(name, size);
 // The brand logo for an integration (or connector name), falling back to its glyph.
 export function mark(id: string, size = 14): SVGSVGElement | HTMLImageElement | string {
   const key = id.startsWith('mcp:') ? id.slice(4) : id.startsWith('cc:') ? id.slice(3) : BRAND_OF[id] || id;

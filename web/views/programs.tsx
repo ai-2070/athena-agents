@@ -4,6 +4,7 @@ import { GET, POST, attempt, lightbox, toast, navigate } from '../core.ts';
 import { Field } from '../ui/controls.tsx';
 import { reactPage, useServerEvents } from '../ui/react.tsx';
 import type { Terminal } from '../../shared/types.ts';
+import { appIconUrl } from '../appicons.ts';
 
 /** One known program as GET /api/programs lists it (server/programs.ts discoverPrograms). */
 interface ProgramInfo {
@@ -157,7 +158,7 @@ export function ProgramsTab() {
                 return (
                   <div key={p.id} className="card" data-prog={p.id}>
                     <div className="card-top">
-                      <div className="avatar">{p.icon}</div>
+                      <div className="avatar">{appIconUrl(p.id) ? <img className="inline-block align-middle" src={appIconUrl(p.id)!} width={22} height={22} alt="" /> : p.icon}</div>
                       <div className="min-w-0 flex-1">
                         <div className="card-title">{p.name}</div>
                         <div className="hint prog-state">{progState(p, isStarting)}</div>
@@ -239,7 +240,9 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
   return (
     <div className="panel">
       <div className="panel-head">
-        <h2>🧩 ComfyUI</h2>
+        <h2 className="flex items-center gap-2">
+          <img className="app-icon" src={appIconUrl('comfyui')!} width={20} height={20} alt="" /> ComfyUI
+        </h2>
         <span className={`pill${st.running ? ' ok' : ''}`}>{st.running ? `running · ${st.url}` : 'not running'}</span>
         {device ? <span className="pill">{`${device.name.replace(/^cuda:\d+\s*/, '').slice(0, 40)} · ${device.vramFreeGB}/${device.vramTotalGB} GB free`}</span> : null}
         <div className="actions">

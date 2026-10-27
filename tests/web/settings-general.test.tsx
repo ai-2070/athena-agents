@@ -110,17 +110,35 @@ describe('General & keys', () => {
     expect(document.getElementById('toasts')!.textContent).toContain('nope');
   });
 
-  it('saves a key, then clears the box; an empty box asks for the key first', async () => {
+  it('saves a key, then clears the box; Save waits until a key is typed', async () => {
     await open();
-    await act(async () => el.querySelectorAll<HTMLButtonElement>('.btn.small')[0].click());
-    await settle();
-    expect(document.getElementById('toasts')!.textContent).toContain('Paste the key first');
-    const key = fieldInput('OpenRouter key');
-    expect(key.type).toBe('password');
-    await type(key, ' sk-or-123 ');
-    await act(async () => key.closest('div')!.parentElement!.querySelector<HTMLButtonElement>('.row .btn.small')!.click());
+    // the key's row: found by its label, with its own Save button
+    const row = () => [...el.querySelectorAll('.ai-key')].find((r) => r.querySelector('label')?.textContent === 'OpenRouter key')!;
+    const key = () => row().querySelector<HTMLInputElement>('input')!;
+    const save = () => [...row().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Save')!;
+    expect(row().querySelector('label')!.htmlFor).toBe(key().id);
+    expect(key().type).toBe('password');
+    expect(save().disabled).toBe(true);
+    await type(key(), ' sk-or-123 ');
+    expect(save().disabled).toBe(false);
+    await act(async () => save().click());
     await settle();
     expect(requests.find((r) => r.url === '/api/secrets')!.body).toEqual({ key: 'openrouterKey', value: 'sk-or-123' });
-    expect(fieldInput('OpenRouter key').value).toBe('');
+    expect(key().value).toBe('');
+  });
+
+  it('shows each engine with its logo and status, and copies an install command', async () => {
+    const copied: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (t: string) => void copied.push(t) } });
+    await open();
+    const names = [...el.querySelectorAll('.ai-row .ai-name')].map((n) => n.textContent);
+    expect(names).toEqual(expect.arrayContaining(['Claude Code', 'OpenAI Codex', 'Hermes', 'pi coding agent', 'oh-my-pi', 'OpenClaw', 'OpenRouter key', 'Anthropic API key']));
+    // every engine and key row has a mark (a logo or its glyph)
+    for (const r of el.querySelectorAll('.ai-list .ai-row')) expect(r.querySelector('.ai-mark')!.childNodes.length).toBeGreaterThan(0);
+    // pi isn't in this state, so it shows its install command
+    const copy = el.querySelector<HTMLButtonElement>('.ai-cmd button')!;
+    await act(async () => copy.click());
+    await settle();
+    expect(copied).toEqual(['npm install -g @earendil-works/pi-coding-agent']);
   });
 });

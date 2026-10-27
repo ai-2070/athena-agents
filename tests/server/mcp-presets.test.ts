@@ -44,6 +44,12 @@ describe('MCP presets', () => {
     expect(presetNeeds(by('substance-painter')!)).toContain('--enable-remote-scripting');
   });
 
+  it("include OOMOL's own server, which needs a key and a team name", () => {
+    const oomol = PRESETS.find((p) => p.name === 'oomol')!;
+    expect(oomol.type === 'http' && oomol.url).toBe('https://connector.oomol.com/v1/mcp');
+    expect(presetNeeds(oomol)).toBe('needs a key in the Authorization header and a value in the x-oo-team-name header');
+  });
+
   it('include 3D sources, stock images, design and free creative programs', () => {
     const names = PRESETS.map((p) => p.name);
     for (const n of ['tripo', 'meshy', 'sketchfab', 'unsplash', 'pixabay', 'pexels', 'canva', 'freepik', 'google-design', 'gimp', 'krita', 'inkscape', 'audacity', 'reaper', 'musescore', 'obs', 'topaz']) {
