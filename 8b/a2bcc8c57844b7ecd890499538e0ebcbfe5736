@@ -1,0 +1,19 @@
+web/views/mcp.tsx
+  s_89d5e1794614a5::t_ba37c15ba03227 10,119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8ba2bcc8c57844b7ecd890499538e0ebcbfe5736",
+  "prompts": {},
+  "sessions": {
+    "s_89d5e1794614a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef1d94b9-7f1b-488e-8ee5-36bfb77e2be4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
