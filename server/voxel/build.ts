@@ -5,7 +5,7 @@ import { activeProject } from '../store.ts';
 import { listFiles, readPlain, uid, writeJSON } from '../util.ts';
 import { decodeChunk, countVoxels, volumeBounds } from '../../shared/voxel.ts';
 import { BuildError, loadGrids, runBuild, saveGrids, VOXEL_SIZE_MAX, VOXEL_SIZE_MIN } from './ops.ts';
-import type { BuildOutcome, Grid } from './ops.ts';
+import type { BuildInput, BuildOutcome, Grid } from './ops.ts';
 import { readObject, readPrefab, saveWorld, worldDir, writeObject, writePrefab, worldVoxels } from './store.ts';
 import { changeWorld } from './link.ts';
 import type { AgentSkin, BrainSkin, TeamSkin, PrefabInstance, Vec3, WorldEffect, WorldEnvironment, WorldLight, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, VoxelVolumeMeta, VoxelWorld, WorldAnchor, WorldBuilder } from '../../shared/types.ts';
@@ -134,6 +134,8 @@ export interface BuildRequest {
   steps: unknown;
   /** "map": the steps' positions and sizes are in map units (default: voxels of the current voxel size) */
   units?: unknown;
+  /** a script that hands the steps over one by one instead of `steps` (always in map units; script.ts) */
+  drive?: BuildInput['drive'];
   seed?: unknown;
   /** the project whose world it is (default: the active one) */
   project?: string;
@@ -280,7 +282,8 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
   const palette = [...w.palette];
   if (req.units !== undefined && req.units !== 'map' && req.units !== 'voxels') throw bad('units is "map" or "voxels"');
   const outcome = runBuild({
-    units: req.units === 'map' ? 'map' : 'voxels',
+    units: req.drive || req.units === 'map' ? 'map' : 'voxels',
+    drive: req.drive,
     grids,
     palette,
     voxelSize,

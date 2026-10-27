@@ -8,6 +8,7 @@ import { setEffect, setEnvironment, setLight, EFFECT_KINDS } from './scene.ts';
 import { playAnimation, setAnimation, setSkin, skinTarget } from './characters.ts';
 import { activeProject, getSettings, saveSettings, workflows } from '../store.ts';
 import { requestApproval } from '../approvals.ts';
+import { loadSandbox, runScript, SCRIPT_LIMITS } from './script.ts';
 import { BUILD_ORDER, DIORAMA, DIORAMA_SHORT } from './diorama.ts';
 import { requestLook } from './look.ts';
 import { exportFiles, importVox, writeFiles, writePicture } from './exchange.ts';
@@ -52,7 +53,7 @@ State: {"voxel_size": 0.1}, {"use": "stone"}, {"material": "name", "color": "#rr
 Shapes (each may take "at": offset from the cursor, "use", "erase": true, "hollow": true): {"box": [w, h, d]} (from its corner), {"sphere": r}, {"ellipsoid": [rx, ry, rz]}, {"blob": [rx, ry, rz], "rough": 0.3} (crowns, bushes, rocks), {"cylinder": r, "height": h}, {"cone": r, "height": h}, {"revolve": [[radius, height], …]} (columns, domes, trunks), {"extrude": {"points": [[x, z], …]}, "height": h, "wall": 1} (floor plans, walls, plazas), {"path": [[x, z], …], "width": w, "height": 1} (roads, rivers, walls).
 Copies of a prefab: {"place": "Palm tree", "at": [x, y, z], "turn": 30}, or many with "scatter": {"area": [w, d], "count": 60}, "along": [[x, z], …] with "every": 12, or "grid": {"rows": 3, "cols": 5, "gap": [6, 8]}.
 Stock materials include grass, dirt, sand, stone, cobble, brick, wood, leaves, water, glass, snow, lantern (glows), gold, iron.
-More steps (pyramid, torus, line, stairs, arch, set, layers, text, heightmap, replace, clear, scatter of any step, copy/shift/rotate/flip regions, snow_cover/overgrow/weather finishing, unplace, stamp, characters with named parts, every stock material): world_steps.`;
+More steps (pyramid, torus, line, stairs, arch, set, layers, text, heightmap, replace, clear, scatter of any step, copy/shift/rotate/flip regions, snow_cover/overgrow/weather finishing, unplace, stamp, characters with named parts, every stock material): world_steps. For anything repetitive or procedural (rows that differ, trees that branch, terrain from noise), world_script builds with a small JavaScript program instead.`;
 
 // The Station in the classic look can't draw the world. A builder that wants to see it asks you to turn the
 // voxel look on: always you (it changes how the Station looks in every project), once for builders asking together.
@@ -134,6 +135,45 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
           const r = build({ by: builderOf(ctx), object: a.object, prefab: a.prefab, description: a.description, tags: a.tags, pivot: (a as { pivot?: unknown }).pivot, steps: a.steps, units: a.units, anchor: a.anchor, position: a.position, voxelSize: a.voxel_size, seed: a.seed });
           log('world', `${ctx.agent.name} ${r.created ? 'built' : 'changed'} ${r.kind === 'prefab' ? 'the prefab ' : ''}"${r.object.name}" in the world`, { agentId: ctx.agent.id });
           return { text: `${r.text}${r.kind === 'object' ? '\nIf this made a new place or changed a character, update WORLD.md (world_md_section) and add a line to "Story so far".' : ''}` };
+        } catch (e) {
+          return failed(e instanceof BuildError ? new Error(`Nothing was built. ${e.message}`) : e);
+        }
+      },
+    },
+    {
+      name: 'world_script',
+      group: 'world',
+      risk: 'low',
+      description: `Build with a small JavaScript program instead of a list of steps: for anything repetitive or procedural (a lane of cottages that each differ, branching trees, terrain from noise, a wall of random bricks, a spiral stair). Same targets, limits, undo and all-or-nothing as world_build; it runs sealed off (no files, no network) for at most ${SCRIPT_LIMITS.ms / 1000} seconds. Everything is in map units from the cursor (it starts at the object's origin, y = 0 the floor).
+Build: use(material), material(name, {color, ramp, jitter, kind, emissive, opacity}), voxelSize(s), at(x, y, z), move(dx, dy, dz), mirror("x"), box([x, y, z], [w, h, d], opts) (from its corner), sphere(p, r, opts), ellipsoid(p, [rx, ry, rz], opts), blob(p, [rx, ry, rz], opts), cylinder(p, r, height, opts), cone(p, r, height, opts), line(a, b, opts), path([[x, z], …], width, opts), extrude([[x, z], …], height, opts), revolve(p, [[radius, height], …], opts), place(prefab, p, opts), stamp(prefab, p, opts), set(x, y, z, material) and erase(x, y, z) for single voxels, step({…}) for any world_build step (world_steps lists them). opts are a step's own fields: {use, erase, hollow, keep, turn, scale, swap, height…}.
+Read: solid(x, y, z), materialAt(x, y, z), top(x, z) (the height of what is built there, or null). random() (seeded: the same each run unless "seed" changes), noise(x, z, cell) (0 to 1, smooth over cell map units), log(…) (comes back to you), and Math.
+Example: use("dark wood"); for (let i = 0; i < 6; i++) { const h = 2 + random() * 1.5; box([i * 4, 0, 0], [3, h, 3]); use("roof tile"); box([i * 4 - 0.25, h, -0.25], [3.5, 0.5, 3.5]); use("dark wood"); }`,
+      parameters: obj(
+        {
+          object: str('The object to build or add to, by name (a new name makes a new object). Leave out when building a prefab.'),
+          prefab: str('Build this prefab instead of an object (a new name makes a new one), around the origin, standing on y = 0'),
+          code: str('The JavaScript program'),
+          description: str('A prefab: one line saying what it is'),
+          tags: { type: 'array', items: { type: 'string' }, description: 'A prefab: words to find it by' },
+          pivot: { description: 'A prefab: "bottom" (default), "top", "center", or [x, y, z] map units' },
+          anchor: str('New objects: "world", "brain", "team:<team id>" or "agent:<agent id>" (default "world")'),
+          position: { type: 'array', items: { type: 'number' }, description: 'New objects: [x, y, z] in map units from the anchor' },
+          voxel_size: { type: 'number', description: "The voxel size it starts with (default: the world's). Change it with voxelSize()." },
+          seed: { type: 'number', description: 'The seed for random() and noise() (default 1)' },
+        },
+        ['code'],
+      ),
+      run: async (args, ctx) => {
+        const a = args as { object?: string; prefab?: string; code?: unknown; description?: unknown; tags?: unknown; pivot?: unknown; anchor?: unknown; position?: unknown; voxel_size?: unknown; seed?: unknown };
+        const refused = a.prefab ? await othersFirst(ctx, args, a.prefab, 'change the prefab', 'prefab') : await othersFirst(ctx, args, a.object, 'change');
+        if (refused) return refused;
+        try {
+          const qjs = await loadSandbox();
+          const seed = a.seed === undefined ? 1 : Math.round(Number(a.seed)) || 1;
+          let printed: string[] = [];
+          const r = build({ by: builderOf(ctx), object: a.object, prefab: a.prefab, description: a.description, tags: a.tags, pivot: a.pivot, steps: [], drive: (api) => void (printed = runScript(qjs, String(a.code ?? ''), api, seed).log), anchor: a.anchor, position: a.position, voxelSize: a.voxel_size, seed });
+          log('world', `${ctx.agent.name} ${r.created ? 'built' : 'changed'} ${r.kind === 'prefab' ? 'the prefab ' : ''}"${r.object.name}" in the world with a script`, { agentId: ctx.agent.id });
+          return { text: `${r.text}${printed.length ? `\nThe script's log:\n${printed.join('\n')}` : ''}` };
         } catch (e) {
           return failed(e instanceof BuildError ? new Error(`Nothing was built. ${e.message}`) : e);
         }

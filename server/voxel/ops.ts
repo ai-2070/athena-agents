@@ -20,6 +20,8 @@ export const LIMITS = {
   /** single voxels in one "set" step */
   setPoints: 5000,
   steps: 400,
+  /** steps one script may run (a set() of many voxels counts once per 5,000) */
+  scriptSteps: 20_000,
   scatter: 400,
   /** prefab copies one call may place */
   placedPerCall: 2000,
@@ -241,6 +243,20 @@ export interface BuildInput {
   cantPlace?: (id: string) => string | null;
   /** "map": every step's positions and sizes are in map units (else voxels, unless a step says "units": "map") */
   units?: 'voxels' | 'map';
+  /** a script drives the build instead of `steps`: each step it hands over runs at once, and it can ask what
+   *  is built so far. Whatever it throws undoes the whole build, like a failing step. */
+  drive?: (api: BuildApi) => void;
+}
+
+/** What a script building an object or a prefab can do (positions in map units from its origin). */
+export interface BuildApi {
+  step(step: unknown): void;
+  /** is anything built at that point (in any of its voxel sizes)? */
+  solid(x: number, y: number, z: number): boolean;
+  /** the material there at the current voxel size, or null */
+  materialAt(x: number, y: number, z: number): string | null;
+  /** the top of what is built in that column, at or below y, or null */
+  top(x: number, z: number, fromY: number): number | null;
 }
 
 /** A prefab as a build sees it. */
@@ -252,7 +268,7 @@ export interface PrefabRef {
 }
 
 export function runBuild(input: BuildInput): BuildOutcome {
-  if (!Array.isArray(input.steps) || !input.steps.length) throw new BuildError('steps must be a list of build steps');
+  if (!input.drive && (!Array.isArray(input.steps) || !input.steps.length)) throw new BuildError('steps must be a list of build steps');
   if (input.steps.length > LIMITS.steps) throw new BuildError(`at most ${LIMITS.steps} steps in one call: split the build`);
   const grids = input.grids;
   const palette = input.palette.map((m) => ({ ...m }));
@@ -1128,7 +1144,22 @@ export function runBuild(input: BuildInput): BuildOutcome {
   };
 
   try {
-    input.steps.forEach((s, i) => {
+    if (input.drive) {
+      let n = 0;
+      input.drive({
+        step: (s) => {
+          if (++n > LIMITS.scriptSteps) throw new BuildError(`a script may run at most ${LIMITS.scriptSteps.toLocaleString('en-US')} steps; split the build`);
+          if (!s || typeof s !== 'object' || Array.isArray(s)) throw new BuildError('a step must be an object like {"box": [4, 2, 4]}');
+          run(s as Step, 0);
+        },
+        solid: (x, y, z) => solidAt(x, y, z),
+        materialAt: (x, y, z) => {
+          const v = getAbs(Math.floor(x / grid.voxelSize), Math.floor(y / grid.voxelSize), Math.floor(z / grid.voxelSize));
+          return v ? palette[v - 1]?.name || null : null;
+        },
+        top: (x, z, fromY) => surfaceAt(x, z, fromY),
+      });
+    } else input.steps.forEach((s, i) => {
       if (!s || typeof s !== 'object' || Array.isArray(s)) throw new BuildError(`step ${i + 1} must be an object like {"box": [4, 2, 4]}`);
       try {
         run(s as Step, 0);
