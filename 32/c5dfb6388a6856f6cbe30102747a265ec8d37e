@@ -1,0 +1,26 @@
+tests/server/pi-engine.test.ts
+  s_6659d3aa7b8da4::t_ef162d2c6a293b 236-272
+server/engines/pi.ts
+  s_6659d3aa7b8da4::t_31950bcb592ced 9-10,200-212,323-345
+  s_6659d3aa7b8da4::t_826e1e1cd1bb23 346
+web/views/mcp.tsx
+  s_6659d3aa7b8da4::t_61dd8523d5b1b9 207
+README.md
+  s_6659d3aa7b8da4::t_61dd8523d5b1b9 129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "32c5dfb6388a6856f6cbe30102747a265ec8d37e",
+  "prompts": {},
+  "sessions": {
+    "s_6659d3aa7b8da4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c160d8b-ec0a-4037-a03a-d69be8543431",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
