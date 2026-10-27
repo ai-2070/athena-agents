@@ -58,9 +58,12 @@ Written results, files and folders that agents saved, each with a preview, who m
 
 ### MCP servers in one click
 
-Add servers from a list, or ask the Brain to do it. **Suggested for this PC** at the top lists the ones for programs you have installed (Blender, GIMP, OBS…) plus a few that help most agents. Nothing is added until you click Add or say yes to the Brain.
+Add servers from a list (search it by name or what it does), or ask the Brain to do it. **Suggested for this PC** at the top lists the ones for programs you have installed (Blender, GIMP, OBS…) plus a few that help most agents. Nothing is added until you click Add or say yes to the Brain. Most services' own servers need no key: a browser window opens to sign in the first time they run.
 
-- **Work:** a browser, GitHub, Notion, Linear, OOMOL (your connected apps and its hosted AI tools), Composio (hundreds of apps through one account), web search.
+- **Work:** a browser, GitHub, Notion, Linear, Jira and Confluence, ClickUp, monday.com, Todoist, Airtable, Miro, Dropbox, Calendly, Fireflies, Gamma, Intercom, OOMOL (your connected apps and its hosted AI tools), Composio (hundreds of apps through one account), web search.
+- **Building software:** GitLab, Sentry, Vercel, Netlify, Cloudflare, Railway, Supabase, Neon, CircleCI, Buildkite, Postman, Semgrep, Datadog, Grafana, Hugging Face.
+- **Data, sales and marketing:** Amplitude, Mixpanel, Algolia, MotherDuck, Attio, Close, Klaviyo, Webflow, WordPress.com, market data.
+- **Docs and travel, no key:** any GitHub repo explained (DeepWiki), Microsoft and AWS docs, Wolfram|Alpha, Kiwi.com flights, trivago hotels.
 - **3D and games:** Blender, Maya, Houdini, Substance 3D Painter, Unity, Unreal Engine, Godot, Tripo, Meshy, Sketchfab.
 - **Images, design and stock:** Canva, Freepik, Unsplash, Pixabay, Pexels, Google Fonts, GIMP, Krita, Inkscape, Topaz (AI upscaling).
 - **Audio and video:** ElevenLabs, Audacity, REAPER, MuseScore, OBS.
