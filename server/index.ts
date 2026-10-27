@@ -834,8 +834,18 @@ function sendFileSafely(res: http.ServerResponse, p: string, type = MIME[path.ex
 // ---------- MCP ----------
 get('/api/mcp', async () => {
   const servers = mcp.listServers();
-  return { servers, info: mcp.serverInfo(servers), presets: mcp.presetAvailability(servers), suggested: mcp.suggestPresets(await programs.discoverPrograms(), servers), importable: mcp.importableServers(), bridge: mcp.bridgeServerConfig('') };
+  // (keys, logins and the bridge's token stay hidden here: POST /api/mcp-bridge gives the bridge config to copy)
+  const bridge = mcp.bridgeServerConfig('');
+  return {
+    servers: mcp.hiddenServers(servers),
+    info: mcp.serverInfo(servers),
+    presets: mcp.presetAvailability(servers),
+    suggested: mcp.suggestPresets(await programs.discoverPrograms(), servers),
+    importable: mcp.importableServers().map((s) => mcp.hideSecrets(s)),
+    bridge: { ...bridge, env: { ...bridge.env, DASH_TOKEN: mcp.HIDDEN } },
+  };
 });
+post('/api/mcp-bridge', async () => mcp.bridgeServerConfig(''));
 post<Parameters<typeof mcp.saveServer>[1] & { name: string }>('/api/mcp', async (_p, body) => mcp.saveServer(body.name, body));
 del('/api/mcp/:name', async ({ name }) => {
   // (and off every agent and team that had it)

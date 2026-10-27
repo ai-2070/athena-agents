@@ -12,6 +12,7 @@ import { startHandoff, awaitHandoff, listHandoffs, DEFAULT_WAIT_S, MAX_WAIT_S } 
 /** Hermes' own MCP tool timeout is 300 s: await_agent answers it well within that. */
 const HERMES_WAIT_S = 240;
 import { requestApproval } from './approvals.ts';
+import { agentFetch } from './agentfetch.ts';
 import { accountOf } from './mcp.ts';
 import { knownPrograms, launchProgram, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
@@ -285,11 +286,12 @@ const TOOLS: ToolDef[] = [
     parameters: obj({ url: str('http(s) URL'), max_chars: { type: 'number' } }, ['url']),
     run: async ({ url, max_chars = 20000 }: { url: string; max_chars?: number }) => {
       if (!/^https?:\/\//i.test(url)) throw new Error('Only http(s) URLs.');
-      const res = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) blacksite/0.1.0' }, signal: AbortSignal.timeout(30000), redirect: 'follow' });
+      // (never the dashboard itself, not even through a redirect)
+      const { res, url: final } = await agentFetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) blacksite/0.1.0' }, signal: AbortSignal.timeout(30000) });
       const type = res.headers.get('content-type') || '';
       let body = await res.text();
       if (/html/i.test(type)) body = htmlToText(body);
-      return { text: `HTTP ${res.status} ${res.url}\n\n${truncate(body, max_chars)}` };
+      return { text: `HTTP ${res.status} ${final}\n\n${truncate(body, max_chars)}` };
     },
   },
   // ---------- ComfyUI ----------

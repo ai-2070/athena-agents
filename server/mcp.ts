@@ -623,6 +623,46 @@ export function listServers(): McpServers {
   return readJSON<{ servers?: McpServers }>(FILE, { servers: {} }).servers || {};
 }
 
+// ---------- keys kept out of listings ----------
+// GET /api/mcp shows keys as this mark; saving a server with the mark keeps the key it has.
+export const HIDDEN = '••••••••';
+const SECRET_NAME = /key|token|secret|pass|auth|cred|cookie|session|signature|sig$|pat$/i;
+// a link split into its pieces, the separators kept, so a hidden piece can be put back in place
+const urlParts = (url: string): string[] => url.split(/([/?&=#])/);
+
+/** A link with its key-looking parts hidden: query values named like keys, and the parts a ready-made one has YOUR_... in. */
+function hideUrl(url: string, kind: string | undefined): string {
+  if (!url) return url;
+  const parts = urlParts(url);
+  const preset = PRESETS.find((p) => p.name === kind && p.type === 'http');
+  const model = preset && preset.type === 'http' && /YOUR_/.test(preset.url) ? urlParts(preset.url) : [];
+  return parts.map((s, i) => (s && ((parts[i - 1] === '=' && SECRET_NAME.test(parts[i - 2] || '')) || /YOUR_/.test(model[i] || '')) ? HIDDEN : s)).join('');
+}
+
+const hideValues = (m: Record<string, string> | undefined, all: boolean): Record<string, string> =>
+  Object.fromEntries(Object.entries(m || {}).map(([k, v]) => [k, v && (all || SECRET_NAME.test(k)) && !/YOUR_/.test(v) ? HIDDEN : v]));
+
+/** A server as the page may see it: environment keys, header values and keys in the link hidden. */
+export function hideSecrets<T extends { env?: Record<string, string>; headers?: Record<string, string>; url?: string }>(cfg: T, kind?: string): T {
+  return { ...cfg, env: hideValues(cfg.env, false), headers: hideValues(cfg.headers, true), ...(cfg.url ? { url: hideUrl(cfg.url, kind) } : {}) };
+}
+
+/** Every saved server with its keys hidden (see hideSecrets). */
+export const hiddenServers = (servers: McpServers): McpServers => Object.fromEntries(Object.entries(servers).map(([n, s]) => [n, hideSecrets(s, kindOf(n, s))]));
+
+/** Puts back the keys a form sent as HIDDEN, from the server as saved. */
+function keepHidden(cfg: McpServerInput, was: McpServerConfig | undefined): McpServerInput {
+  if (!was) return cfg;
+  const keep = (m: Record<string, string> | undefined, old: Record<string, string>) => (m ? Object.fromEntries(Object.entries(m).map(([k, v]) => [k, v === HIDDEN && k in old ? old[k] : v])) : m);
+  let url = cfg.url;
+  if (url && url.includes(HIDDEN)) {
+    const now = urlParts(url);
+    const old = urlParts(was.url || '');
+    url = now.length === old.length ? now.map((s, i) => (s === HIDDEN ? old[i] : s)).join('') : url;
+  }
+  return { ...cfg, env: keep(cfg.env, was.env || {}), headers: keep(cfg.headers, was.headers || {}), url };
+}
+
 function saveAll(servers: McpServers) {
   writeJSON(FILE, { servers });
   emit('mcp');
@@ -631,11 +671,13 @@ function saveAll(servers: McpServers) {
 /** A server's name as it is saved: letters, digits, _ and - only. */
 export const serverName = (name: unknown): string => String(name ?? '').trim().replace(/[^\w-]/g, '-');
 
-export function saveServer(name: string, cfg: McpServerInput): McpServerConfig {
+export function saveServer(name: string, input: McpServerInput): McpServerConfig {
   const clean = serverName(name);
   if (!clean) throw new Error('Give the server a name.');
   if (clean === 'dashboard') throw new Error('"dashboard" is reserved for the built-in tools.');
   const servers = listServers();
+  // (the page only ever saw hidden keys: keep the real ones)
+  const cfg = keepHidden(input, servers[clean]);
   const label = cleanLabel(String(cfg.label ?? ''));
   const useFor = cleanUseFor(String(cfg.useFor ?? ''));
   const kind = resolveKind(cfg.kind, servers);
