@@ -15,7 +15,7 @@ export function setOpenPages(count: () => number): void {
   openPages = count;
 }
 
-const waiting = new Map<string, { done: (image: string | null, note?: string) => void; timer: ReturnType<typeof setTimeout> }>();
+const waiting = new Map<string, { done: (image: string | null, note?: string) => void; timer: ReturnType<typeof setTimeout>; asked: number; refused: number }>();
 
 /** Asks the open tabs for a picture; resolves with a data: URL, or null when none answered in time. */
 export function requestLook(worldId: string, project: string, view: WorldLookView, waitMs = LOOK_WAIT_MS): Promise<{ image: string | null; note?: string }> {
@@ -27,7 +27,7 @@ export function requestLook(worldId: string, project: string, view: WorldLookVie
       resolve({ image: null, note: 'no open Station answered' });
     }, waitMs);
     timer.unref?.();
-    waiting.set(request, { done: (image, note) => resolve({ image, note }), timer });
+    waiting.set(request, { done: (image, note) => resolve({ image, note }), timer, asked: openPages(), refused: 0 });
     emit('world-look', { request, world: worldId, project, view });
   });
 }
@@ -38,8 +38,16 @@ export function deliverLook(request: string, body: { image?: unknown; error?: un
   if (!w) return false;
   const image = typeof body.image === 'string' ? body.image : '';
   if (image && (image.length > MAX_IMAGE || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image))) return false;
-  // a tab that can't draw it (not in the voxel look) says so; wait for another unless it's the only answer
-  if (!image) return false;
+  // a tab that can't draw it (not in the voxel look, or showing another world) says so: wait for the others,
+  // and stop waiting once every open page has said no
+  if (!image) {
+    w.refused++;
+    if (w.refused < w.asked) return false;
+    clearTimeout(w.timer);
+    waiting.delete(request);
+    w.done(null, typeof body.error === 'string' && body.error ? body.error.slice(0, 200) : 'no open Station could draw it');
+    return false;
+  }
   clearTimeout(w.timer);
   waiting.delete(request);
   w.done(image);

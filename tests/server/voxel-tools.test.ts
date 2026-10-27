@@ -62,6 +62,18 @@ describe('world tools', () => {
     expect((await callTool(mira, 'world_undo', {})).text).toMatch(/Undid: Mira deleted Pond/);
   });
 
+  it("deleting someone else's object asks once, and the model can't pick another project's world", async () => {
+    await callTool(mira, 'world_build', { object: 'Bridge', steps: [{ box: [4, 1, 1], use: 'wood' }] });
+    const del = callTool(kenji, 'world_object', { object: 'Bridge', delete: true, project: 'some-other-project' });
+    await tick();
+    expect(listApprovals()).toHaveLength(1);
+    decide(listApprovals()[0].id, { approved: true });
+    await tick();
+    expect(listApprovals()).toHaveLength(0);
+    expect((await del).text).toMatch(/Deleted "Bridge"/);
+    expect(shownWorld().world!.objects.some((o) => o.name === 'Bridge')).toBe(false);
+  });
+
   it('WORLD.md: a section edit any time, a whole rewrite only after a fresh read', async () => {
     expect((await callTool(mira, 'world_md_section', { section: 'Places › Pond', content: 'Still water by the Brain.' })).isError).toBe(false);
     const blind = await callTool(kenji, 'world_md_write', { content: '# New\n\nAll new.' });

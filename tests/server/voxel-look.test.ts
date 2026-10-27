@@ -1,7 +1,7 @@
 // world_look asks the open Station tabs for a picture; the first good answer wins, words when none comes.
 import { describe, expect, it } from 'vitest';
 import { bus } from '../../server/store.ts';
-import { deliverLook, requestLook } from '../../server/voxel/look.ts';
+import { deliverLook, requestLook, setOpenPages } from '../../server/voxel/look.ts';
 import { callTool } from '../../server/tools.ts';
 import { newAgent } from '../../server/library.ts';
 import { build } from '../../server/voxel/build.ts';
@@ -10,19 +10,36 @@ import type { ServerEvent } from '../../shared/types.ts';
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
 
 describe('world_look', () => {
-  it('asks the tabs, takes the first picture, ignores bad and late ones', async () => {
+  // asks with this many pages open; returns the answer to come and the request the tabs got
+  const askTabs = (pages: number) => {
+    setOpenPages(() => pages);
     const seen: ServerEvent[] = [];
     const on = (e: ServerEvent) => seen.push(e);
     bus.on('event', on);
     const p = requestLook('w1', 'p1', { target: 'overview', width: 1024, height: 640 }, 2000);
     bus.off('event', on);
-    const ask = seen.find((e) => e.type === 'world-look') as ServerEvent & { request: string; view: { target: string } };
+    setOpenPages(() => 1);
+    return { p, ask: seen.find((e) => e.type === 'world-look') as ServerEvent & { request: string; view: { target: string } } };
+  };
+
+  it('asks the tabs, takes the first picture, ignores bad and late ones', async () => {
+    // two tabs: one can't draw it, the other answers
+    const { p, ask } = askTabs(2);
     expect(ask.view.target).toBe('overview');
     expect(deliverLook(ask.request, { error: 'not in the voxel look' })).toBe(false);
     expect(deliverLook(ask.request, { image: 'data:text/html;base64,PGI+' })).toBe(false);
     expect(deliverLook(ask.request, { image: PNG })).toBe(true);
     expect(deliverLook(ask.request, { image: PNG })).toBe(false);
     expect(await p).toEqual({ image: PNG });
+  });
+
+  it("stops waiting once every open tab says it can't draw it", async () => {
+    const { p, ask } = askTabs(2);
+    const t = Date.now();
+    deliverLook(ask.request, { error: 'not in the voxel look' });
+    deliverLook(ask.request, { error: "this tab doesn't show that world in the voxel look" });
+    expect(await p).toEqual({ image: null, note: "this tab doesn't show that world in the voxel look" });
+    expect(Date.now() - t).toBeLessThan(500);
   });
 
   it('gives up when nobody answers', async () => {

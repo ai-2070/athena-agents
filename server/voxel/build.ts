@@ -7,7 +7,7 @@ import { decodeChunk, countVoxels, volumeBounds } from '../../shared/voxel.ts';
 import { BuildError, loadGrids, runBuild, saveGrids, VOXEL_SIZE_MAX, VOXEL_SIZE_MIN } from './ops.ts';
 import type { BuildOutcome, Grid } from './ops.ts';
 import { readObject, readPrefab, saveWorld, worldDir, writeObject, writePrefab, worldVoxels } from './store.ts';
-import { worldForBuild } from './link.ts';
+import { changeWorld } from './link.ts';
 import type { AgentSkin, BrainSkin, TeamSkin, PrefabInstance, Vec3, WorldEffect, WorldEnvironment, WorldLight, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, VoxelVolumeMeta, VoxelWorld, WorldAnchor, WorldBuilder } from '../../shared/types.ts';
 
 export const WORLD_LIMITS = { voxels: 4_000_000, objects: 300, prefabs: 300, copies: 20_000, prefabSide: 128, prefabVoxels: 200_000, nesting: 4 };
@@ -69,20 +69,49 @@ export interface HistoryEntry {
   dataBefore?: VoxelObjectData | null;
   /** a light, effect or environment as it was (null: the light or effect was new) */
   sceneBefore?: WorldLight | WorldEffect | WorldEnvironment | AgentSkin | TeamSkin | BrainSkin | null;
+  /** a prefab this change made from part of the object (world_prefab save with replace): undoing takes it away too */
+  prefabMade?: string;
 }
 
+/** A history entry without what it replaced (the voxels are read only to undo it). */
+export type HistoryHead = Pick<HistoryEntry, 'id' | 'at' | 'by' | 'what' | 'objectId' | 'kind' | 'prefabMade'> & { file: string };
+
 const historyDir = (worldId: string) => worldDir(worldId, 'history');
-function history(worldId: string): HistoryEntry[] {
-  return listFiles(historyDir(worldId), (n) => n.endsWith('.json'))
-    .map((n) => readPlain<HistoryEntry | null>(worldDir(worldId, 'history', n), null))
-    .filter((h): h is HistoryEntry => !!h)
-    .sort((a, b) => b.at - a.at);
+// Entries can hold megabytes of voxels, so each file is read once and its head kept (until the file changes).
+const heads = new Map<string, Map<string, { stamp: string; head: HistoryHead | null }>>();
+function history(worldId: string): HistoryHead[] {
+  const names = listFiles(historyDir(worldId), (n) => n.endsWith('.json'));
+  let known = heads.get(worldId);
+  if (!known) heads.set(worldId, (known = new Map()));
+  const out: HistoryHead[] = [];
+  for (const n of names) {
+    const file = worldDir(worldId, 'history', n);
+    let stamp = '';
+    try {
+      const st = fs.statSync(file);
+      stamp = `${st.mtimeMs}:${st.size}`;
+    } catch {
+      continue;
+    }
+    let k = known.get(n);
+    if (!k || k.stamp !== stamp) {
+      const h = readPlain<HistoryEntry | null>(file, null);
+      k = { stamp, head: h && typeof h.at === 'number' ? { id: h.id, at: h.at, by: h.by, what: h.what, objectId: h.objectId, kind: h.kind, prefabMade: h.prefabMade, file: n } : null };
+      known.set(n, k);
+    }
+    if (k.head) out.push(k.head);
+  }
+  const present = new Set(names);
+  for (const n of known.keys()) if (!present.has(n)) known.delete(n);
+  return out.sort((a, b) => b.at - a.at);
 }
 export function remember(worldId: string, h: Omit<HistoryEntry, 'id' | 'at'>): void {
+  const all = history(worldId);
   // strictly after the last one, even in the same millisecond: undo goes by this order
-  const e: HistoryEntry = { id: uid('h'), at: Math.max(Date.now(), (history(worldId)[0]?.at ?? 0) + 1), ...h };
+  const e: HistoryEntry = { id: uid('h'), at: Math.max(Date.now(), (all[0]?.at ?? 0) + 1), ...h };
   writeJSON(worldDir(worldId, 'history', `${e.id}.json`), e);
-  for (const old of history(worldId).slice(HISTORY_KEPT)) fs.rmSync(worldDir(worldId, 'history', `${old.id}.json`), { force: true });
+  // the new one is newest, so it is kept
+  for (const old of all.slice(HISTORY_KEPT - 1)) fs.rmSync(worldDir(worldId, 'history', old.file), { force: true });
 }
 
 // ---------- building ----------
@@ -184,8 +213,10 @@ export function cleanPivot(v: unknown): VoxelPrefabMeta['pivotAt'] {
 }
 
 export function build(req: BuildRequest): BuildReport {
-  const pid = req.project || activeProject().id;
-  const w = worldForBuild(pid);
+  return changeWorld(req.project || activeProject().id, (w) => buildIn(w, req));
+}
+
+function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
   const kind = req.prefab !== undefined && req.prefab !== null && String(req.prefab).trim() ? 'prefab' : 'object';
   const name = String((kind === 'prefab' ? req.prefab : req.object) ?? '').trim().slice(0, 80);
   if (!name) throw bad('Name the object to build (a new name makes a new one), or a prefab with "prefab".');
@@ -296,7 +327,10 @@ export interface ObjectChange {
 }
 
 export function changeObject(c: ObjectChange): { world: VoxelWorld; object: VoxelObjectMeta | null; text: string } {
-  const w = worldForBuild(c.project || activeProject().id);
+  return changeWorld(c.project || activeProject().id, (w) => changeObjectIn(w, c));
+}
+
+function changeObjectIn(w: VoxelWorld, c: ObjectChange): { world: VoxelWorld; object: VoxelObjectMeta | null; text: string } {
   const meta = findObject(w, c.object);
   if (!meta) throw bad(`There's no object "${c.object}" in this world. world_info lists them.`, 404);
   const before = structuredClone(meta);
@@ -312,6 +346,9 @@ export function changeObject(c: ObjectChange): { world: VoxelWorld; object: Voxe
     if (w.objects.length >= WORLD_LIMITS.objects) throw bad(`This world has ${WORLD_LIMITS.objects} objects, the most it can hold.`);
     const count = meta.volumes.reduce((n, v) => n + v.count, 0);
     if (worldVoxels(w) + count > WORLD_LIMITS.voxels) throw bad(`A copy would make the world bigger than ${WORLD_LIMITS.voxels.toLocaleString('en-US')} voxels.`);
+    // the copy keeps every prefab copy placed in it
+    const copies = placedCopies(w) + (meta.instances || 0);
+    if (copies > WORLD_LIMITS.copies) throw bad(`A copy would make ${fmt(copies)} placed copies in the world; it can hold ${fmt(WORLD_LIMITS.copies)}.`);
     const now = Date.now();
     const copy: VoxelObjectMeta = { ...structuredClone(meta), id: uid('o'), name: uniqueName(w, String(c.name || `${meta.name} copy`)), by: c.by, lastBy: c.by, createdAt: now, updatedAt: now };
     if (c.position !== undefined) copy.position = vec3(c.position, 'position');
@@ -364,12 +401,31 @@ function uniqueName(w: VoxelWorld, want: string): string {
 // ---------- undo ----------
 /** Undoes the last change `by` made (or anyone's, when `anyone`). Refuses when someone else changed that thing since. */
 export function undo(by: WorldBuilder, { project, anyone = false }: { project?: string; anyone?: boolean } = {}): { world: VoxelWorld; text: string } {
-  const w = worldForBuild(project || activeProject().id);
+  return changeWorld(project || activeProject().id, (w) => undoIn(w, by, anyone));
+}
+
+function undoIn(w: VoxelWorld, by: WorldBuilder, anyone: boolean): { world: VoxelWorld; text: string } {
   const all = history(w.id);
-  const mine = all.find((h) => anyone || builderKey(h.by) === builderKey(by));
-  if (!mine) return { world: w, text: 'Nothing to undo.' };
-  const later = all.filter((h) => h.at > mine.at && h.objectId === mine.objectId && builderKey(h.by) !== builderKey(mine.by));
+  const head = all.find((h) => anyone || builderKey(h.by) === builderKey(by));
+  if (!head) return { world: w, text: 'Nothing to undo.' };
+  const touched = (h: HistoryHead) => h.objectId === head.objectId || (!!head.prefabMade && h.objectId === head.prefabMade);
+  const later = all.filter((h) => h.at > head.at && touched(h) && builderKey(h.by) !== builderKey(head.by));
   if (later.length) throw bad(`${later[0].by.name} changed that after you (${later[0].what}). Ask them, or change it again yourself.`, 409);
+  const mine = readPlain<HistoryEntry | null>(worldDir(w.id, 'history', head.file), null);
+  if (!mine) throw bad('That change can no longer be undone.', 409);
+  if (mine.prefabMade) {
+    const made = mine.prefabMade;
+    const holds = (d: VoxelObjectData | null) => !!d?.instances?.some((i) => i.prefab === made);
+    const elsewhere = [
+      ...w.objects.filter((o) => o.id !== mine.objectId && o.instances && holds(readObject(w.id, o.id))).map((o) => `"${o.name}"`),
+      ...w.prefabs.filter((p) => p.id !== made && p.instances && holds(readPrefab(w.id, p.id))).map((p) => `the prefab "${p.name}"`),
+    ];
+    if (elsewhere.length) throw bad(`The prefab it made is placed in ${elsewhere.join(', ')} now. Take those copies away first.`, 409);
+    const sk = w.skins;
+    if (sk.brain?.shell === made || Object.values(sk.teams).some((t) => t.platform === made || t.hub === made) || Object.values(sk.agents).some((a) => a.character === made || a.desk === made)) throw bad('The prefab it made is worn now (world_skin). Give that skin another prefab first.', 409);
+    w.prefabs = w.prefabs.filter((p) => p.id !== made);
+    writePrefab(w.id, made, null);
+  }
   if (mine.kind === 'skin') {
     // "agent:<id>", "team:<id>" or "brain:brain"
     const [to, id] = mine.objectId.split(':');
@@ -382,7 +438,7 @@ export function undo(by: WorldBuilder, { project, anyone = false }: { project?: 
       if (before) list[id] = before;
       else delete list[id];
     }
-    fs.rmSync(worldDir(w.id, 'history', `${mine.id}.json`), { force: true });
+    fs.rmSync(worldDir(w.id, 'history', head.file), { force: true });
     saveWorld(w, { skins: true, undone: true, by: by.name });
     return { world: w, text: `Undid: ${mine.by.name} ${mine.what}.` };
   }
@@ -394,7 +450,7 @@ export function undo(by: WorldBuilder, { project, anyone = false }: { project?: 
       if (i >= 0) list.splice(i, 1);
       if (mine.sceneBefore) list.push(mine.sceneBefore as WorldLight & WorldEffect);
     }
-    fs.rmSync(worldDir(w.id, 'history', `${mine.id}.json`), { force: true });
+    fs.rmSync(worldDir(w.id, 'history', head.file), { force: true });
     saveWorld(w, { [mine.kind === 'environment' ? 'environment' : `${mine.kind}s`]: true, undone: true, by: by.name });
     return { world: w, text: `Undid: ${mine.by.name} ${mine.what}.` };
   }
@@ -440,7 +496,7 @@ export function undo(by: WorldBuilder, { project, anyone = false }: { project?: 
     }
     putBack(mine.metaBefore);
   }
-  fs.rmSync(worldDir(w.id, 'history', `${mine.id}.json`), { force: true });
+  fs.rmSync(worldDir(w.id, 'history', head.file), { force: true });
   saveWorld(w, { [isPrefab ? 'prefabs' : 'objects']: [mine.objectId], undone: true, by: by.name });
   return { world: w, text: `Undid: ${mine.by.name} ${mine.what}.` };
 }

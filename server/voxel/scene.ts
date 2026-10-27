@@ -5,7 +5,7 @@ import { activeProject } from '../store.ts';
 import { uid } from '../util.ts';
 import { envPreset, ENV_PRESETS } from '../../shared/worldenv.ts';
 import { saveWorld } from './store.ts';
-import { worldForBuild } from './link.ts';
+import { changeWorld } from './link.ts';
 import { anchorText, cleanAnchor, findObject, remember } from './build.ts';
 import type { Vec3, VoxelWorld, WorldBuilder, WorldEffect, WorldEffectKind, WorldEnvironment, WorldEnvPreset, WorldLight } from '../../shared/types.ts';
 
@@ -61,7 +61,10 @@ export interface LightRequest {
 }
 
 export function setLight(req: LightRequest): { world: VoxelWorld; light: WorldLight | null; text: string } {
-  const w = worldForBuild(req.project || activeProject().id);
+  return changeWorld(req.project || activeProject().id, (w) => setLightIn(w, req));
+}
+
+function setLightIn(w: VoxelWorld, req: LightRequest): { world: VoxelWorld; light: WorldLight | null; text: string } {
   const f = req.fields || {};
   const existing = req.action === 'add' ? null : byRef(w.lights, req.light);
   if (req.action !== 'add' && !existing) throw bad(`There's no light "${req.light}". world_info lists them.`, 404);
@@ -102,7 +105,10 @@ export interface EffectRequest {
 }
 
 export function setEffect(req: EffectRequest): { world: VoxelWorld; effect: WorldEffect | null; text: string } {
-  const w = worldForBuild(req.project || activeProject().id);
+  return changeWorld(req.project || activeProject().id, (w) => setEffectIn(w, req));
+}
+
+function setEffectIn(w: VoxelWorld, req: EffectRequest): { world: VoxelWorld; effect: WorldEffect | null; text: string } {
   const f = req.fields || {};
   const existing = req.action === 'add' ? null : byRef(w.effects, req.effect);
   if (req.action !== 'add' && !existing) throw bad(`There's no effect "${req.effect}". world_info lists them.`, 404);
@@ -138,7 +144,10 @@ export function setEffect(req: EffectRequest): { world: VoxelWorld; effect: Worl
 // ---------- the environment ----------
 /** A preset, then any of its fields changed. Colours #rrggbb, angles in degrees. */
 export function setEnvironment(req: { by: WorldBuilder; fields: Record<string, unknown>; project?: string }): { world: VoxelWorld; text: string } {
-  const w = worldForBuild(req.project || activeProject().id);
+  return changeWorld(req.project || activeProject().id, (w) => setEnvironmentIn(w, req));
+}
+
+function setEnvironmentIn(w: VoxelWorld, req: { by: WorldBuilder; fields: Record<string, unknown>; project?: string }): { world: VoxelWorld; text: string } {
   const f = req.fields;
   const before = structuredClone(w.environment);
   let env: WorldEnvironment = structuredClone(w.environment);

@@ -125,12 +125,14 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       ),
       run: async (args, ctx) => {
         const a = args as Record<string, unknown> & { object: string };
-        if (a.duplicate !== true) {
-          const refused = await othersFirst(ctx, args, a.object, a.delete === true ? 'delete' : 'change');
+        // a delete was already asked about (its risk is high); asking again for someone else's would be twice
+        if (a.duplicate !== true && a.delete !== true) {
+          const refused = await othersFirst(ctx, args, a.object, 'change');
           if (refused) return refused;
         }
         try {
-          const r = changeObject({ ...a, by: builderOf(ctx) });
+          // only the tool's own fields: which project's world it changes is never the model's to pick
+          const r = changeObject({ by: builderOf(ctx), object: String(a.object ?? ''), name: a.name, position: a.position, move: a.move, rotation: a.rotation, scale: a.scale, anchor: a.anchor, hidden: a.hidden, duplicate: a.duplicate, delete: a.delete });
           log('world', `${ctx.agent.name}: ${r.text.split('.')[0]}`, { agentId: ctx.agent.id });
           return { text: r.text };
         } catch (e) {

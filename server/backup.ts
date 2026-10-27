@@ -40,6 +40,8 @@ const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 *
 const VERSION_FILE = /^(agents|teams|memory|skills)\/[^/]+\/[\w-]+\.json$/;
 // A file of the voxel world in a backup: its meta, WORLD.md, an object's voxels or a WORLD.md version
 const WORLD_FILE = /^(world\.json|WORLD\.md|(objects|prefabs)\/[\w-]+\.json|versions\/world-md\/[\w-]+\.json)$/;
+// the folders those are in
+const WORLD_DIR = /^(objects|prefabs|versions|versions\/world-md)$/;
 // A MEMORY.md in a backup: <agent id or "brain">/MEMORY.md
 const MEMORY_PATH = /^([^/]+)\/MEMORY\.md$/;
 // Files from the project folder that go in: the brief and the notes, not the whole folder (it can be a big repo)
@@ -191,7 +193,8 @@ interface Budget {
 }
 const budget = (left: number): Budget => ({ left, omitted: 0 });
 
-function packTree(dir: string, budget: Budget, prefix = ''): PackedFile[] {
+/** `keep`: which files and folders (paths from `dir`) go in; the rest isn't read or counted. */
+function packTree(dir: string, budget: Budget, prefix = '', keep?: (rel: string, isDir: boolean) => boolean): PackedFile[] {
   const out: PackedFile[] = [];
   // a linked folder is left out like a linked file (below the top, readdir's entries already say so)
   if (!isPlainDir(dir)) return out;
@@ -205,6 +208,7 @@ function packTree(dir: string, budget: Budget, prefix = ''): PackedFile[] {
     for (const e of list) {
       const r = rel ? `${rel}/${e.name}` : e.name;
       const full = path.join(d, e.name);
+      if (keep && !keep(r, e.isDirectory())) continue;
       if (e.isDirectory()) walk(full, r);
       else if (e.isFile()) {
         let size = 0;
@@ -344,10 +348,12 @@ export function packProject(p: Project): BackupData {
   // the voxel world (not its undo history)
   const worldBudget = budget(CAP.world);
   const w = p.world ? getWorld(p.world.id) : null;
+  // world.json and WORLD.md first, so big voxels can't crowd them out; the undo history isn't read at all
+  const top = (r: string) => r === 'world.json' || r === 'WORLD.md';
   const world = w
     ? {
         name: w.name,
-        files: packTree(worldDir(w.id), worldBudget).filter((f) => WORLD_FILE.test(f.path)),
+        files: [...packTree(worldDir(w.id), worldBudget, '', (r, dir) => !dir && top(r)), ...packTree(worldDir(w.id), worldBudget, '', (r, dir) => (dir ? WORLD_DIR.test(r) : WORLD_FILE.test(r) && !top(r)))],
       }
     : null;
   // the prefab library: shared by every project, so every backup carries it (like the presets), up to its cap

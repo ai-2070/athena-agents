@@ -1566,10 +1566,11 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         done.push({ kind: 'world', text: text.split(':')[0] });
       } else if (kind === 'write_world_md' || kind === 'update_world_md') {
         if (auto) throw new Error('only when the user asks');
+        const content = String(act.content ?? act.body ?? '').trim();
+        if (kind === 'write_world_md' && content.length < 20) throw new Error('nothing to write');
+        // (checked first: a carried-over world becomes this project's own here)
         const w = worldForBuild(p.id);
         if (kind === 'write_world_md') {
-          const content = String(act.content ?? act.body ?? '').trim();
-          if (content.length < 20) throw new Error('nothing to write');
           writeWorldMd(w.id, content);
         } else writeWorldMdSection(w.id, String(act.section ?? ''), act.content ?? act.text ?? '', act.append === true);
         log('world', `The Brain ${kind === 'write_world_md' ? 'wrote' : 'updated'} WORLD.md`);

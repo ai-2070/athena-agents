@@ -10,7 +10,8 @@ import type { Grid } from './ops.ts';
 import { stockMaterial } from './materials.ts';
 import { newVolume } from '../../shared/voxel.ts';
 import { readObject, readPrefab, saveWorld, writeObject, writePrefab, worldVoxels } from './store.ts';
-import { worldForBuild } from './link.ts';
+import { changeWorld, shownWorld } from './link.ts';
+import { skinUses } from './characters.ts';
 import { WORLD_LIMITS, cleanPivot, findObject, findPrefab, pivotOf as pivotFrom, placedCopies, remember, volumesMeta } from './build.ts';
 import type { PrefabInstance, Vec3, VoxelMaterial, VoxelObjectData, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
 
@@ -73,7 +74,10 @@ export interface SaveFrom {
 }
 
 export function savePrefabFrom(req: SaveFrom): { prefab: VoxelPrefabMeta; text: string } {
-  const w = worldForBuild(req.project || activeProject().id);
+  return changeWorld(req.project || activeProject().id, (w) => savePrefabFromIn(w, req));
+}
+
+function savePrefabFromIn(w: VoxelWorld, req: SaveFrom): { prefab: VoxelPrefabMeta; text: string } {
   const o = findObject(w, req.from);
   if (!o) throw bad(`There's no object "${req.from}". world_info lists them.`, 404);
   const name = String(req.name ?? '').trim().slice(0, 80);
@@ -133,17 +137,20 @@ export function savePrefabFrom(req: SaveFrom): { prefab: VoxelPrefabMeta; text: 
     o.instances = left.length;
     o.updatedAt = o.voxelsAt = Date.now();
     o.lastBy = req.by;
-    remember(w.id, { by: req.by, what: `turned part of ${o.name} into the prefab ${name}`, objectId: o.id, metaBefore: before, dataBefore: data });
+    // one change: undoing it puts the part back and takes the new prefab away
+    remember(w.id, { by: req.by, what: `turned part of ${o.name} into the prefab ${name}`, objectId: o.id, metaBefore: before, dataBefore: data, prefabMade: meta.id });
     note = ` That part of "${o.name}" is now a copy of it.`;
-  }
-  remember(w.id, { by: req.by, kind: 'prefab', what: `made the prefab ${name}`, objectId: meta.id, metaBefore: null });
+  } else remember(w.id, { by: req.by, kind: 'prefab', what: `made the prefab ${name}`, objectId: meta.id, metaBefore: null });
   saveWorld(w, { prefabs: [meta.id], objects: req.replace ? [o.id] : [], by: req.by.name });
   return { prefab: meta, text: `Made the prefab "${name}" from "${o.name}": ${fmt(count(meta))} voxels${instances.length ? ` and ${instances.length} copies of other prefabs` : ''}, ${meta.size.join('×')} map units.${note} Place copies with {"place": "${name}"}.` };
 }
 
 // ---------- changing one ----------
 export function changePrefab(req: { by: WorldBuilder; prefab: string; name?: unknown; description?: unknown; tags?: unknown; pivot?: unknown; project?: string }): { prefab: VoxelPrefabMeta; text: string } {
-  const w = worldForBuild(req.project || activeProject().id);
+  return changeWorld(req.project || activeProject().id, (w) => changePrefabIn(w, req));
+}
+
+function changePrefabIn(w: VoxelWorld, req: { by: WorldBuilder; prefab: string; name?: unknown; description?: unknown; tags?: unknown; pivot?: unknown; project?: string }): { prefab: VoxelPrefabMeta; text: string } {
   const p = findPrefab(w, req.prefab);
   if (!p) throw bad(`There's no prefab "${req.prefab}".`, 404);
   const before = structuredClone(p);
@@ -172,11 +179,16 @@ export function changePrefab(req: { by: WorldBuilder; prefab: string; name?: unk
 }
 
 export function deletePrefab(req: { by: WorldBuilder; prefab: string; project?: string }): string {
-  const w = worldForBuild(req.project || activeProject().id);
+  return changeWorld(req.project || activeProject().id, (w) => deletePrefabIn(w, req));
+}
+
+function deletePrefabIn(w: VoxelWorld, req: { by: WorldBuilder; prefab: string; project?: string }): string {
   const p = findPrefab(w, req.prefab);
   if (!p) throw bad(`There's no prefab "${req.prefab}".`, 404);
   const used = prefabUses(w).get(p.id);
   if (used) throw bad(`"${p.name}" is placed ${used.copies} times (in ${used.in.join(', ')}). Take those copies away first ({"unplace": "${p.name}"}), then delete it.`, 409);
+  const skins = skinUses(w, p.id);
+  if (skins.length) throw bad(`"${p.name}" is ${skins.join(', ')}. Give ${skins.length > 1 ? 'those' : 'it'} another prefab (or the classic look) with world_skin first, then delete it.`, 409);
   const data = readPrefab(w.id, p.id);
   w.prefabs = w.prefabs.filter((x) => x.id !== p.id);
   writePrefab(w.id, p.id, null);
@@ -272,7 +284,9 @@ function remap(data: VoxelObjectData, map: Map<number, number>): VoxelObjectData
 }
 
 export function publishPrefab(req: { by: WorldBuilder; prefab: string; project?: string }): string {
-  const w = worldForBuild(req.project || activeProject().id);
+  // publishing changes only the library, so a carried-over world isn't copied for it
+  const w = shownWorld(req.project || activeProject().id).world;
+  if (!w) throw bad('There is no world yet.', 404);
   const p = findPrefab(w, req.prefab);
   if (!p) throw bad(`There's no prefab "${req.prefab}".`, 404);
   const data = readPrefab(w.id, p.id);
@@ -292,7 +306,10 @@ export function publishPrefab(req: { by: WorldBuilder; prefab: string; project?:
 }
 
 export function importPrefab(req: { by: WorldBuilder; name: string; as?: unknown; project?: string }): { prefab: VoxelPrefabMeta; text: string } {
-  const w = worldForBuild(req.project || activeProject().id);
+  return changeWorld(req.project || activeProject().id, (w) => importPrefabIn(w, req));
+}
+
+function importPrefabIn(w: VoxelWorld, req: { by: WorldBuilder; name: string; as?: unknown; project?: string }): { prefab: VoxelPrefabMeta; text: string } {
   const lib = library().find((x) => x.name.toLowerCase() === String(req.name ?? '').trim().toLowerCase() || x.id === req.name);
   if (!lib) throw bad(`There's no "${req.name}" in the prefab library. Action "library" lists what is there.`, 404);
   if (w.prefabs.length >= WORLD_LIMITS.prefabs) throw bad(`This world has ${WORLD_LIMITS.prefabs} prefabs, the most it can hold.`);

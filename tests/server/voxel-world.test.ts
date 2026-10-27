@@ -6,7 +6,8 @@ import type { Grid } from '../../server/voxel/ops.ts';
 import { countVoxels, getVoxel } from '../../shared/voxel.ts';
 import { build, changeObject, undo } from '../../server/voxel/build.ts';
 import { shownWorld, chooseWorld, setDefaultWorld, deleteUnusedWorld, listWorldsFor } from '../../server/voxel/link.ts';
-import { getWorld, readObject } from '../../server/voxel/store.ts';
+import { setEnvironment } from '../../server/voxel/scene.ts';
+import { getWorld, listWorlds, readObject, worldDir } from '../../server/voxel/store.ts';
 import { editSection, readWorldMd, writeWorldMd, writeWorldMdSection, worldMdVersionsDir, worldMdTemplate } from '../../server/voxel/worldmd.ts';
 import { worldInfo } from '../../server/voxel/describe.ts';
 import { listProjects, saveProjects } from '../../server/store.ts';
@@ -156,6 +157,32 @@ describe('worlds and projects', () => {
     chooseWorld('p3', 'new');
     expect(shownWorld('p3').world!.objects).toEqual([]);
   });
+
+  it("a change that fails or changes nothing doesn't copy a carried-over world", () => {
+    addProject('p4');
+    const carried = shownWorld('p4');
+    expect(carried.how).toBe('carried');
+    const worlds = listWorlds().length;
+    const still = () => {
+      expect(shownWorld('p4')).toMatchObject({ how: 'carried', world: { id: carried.world!.id } });
+      expect(listWorlds().length).toBe(worlds);
+      expect(listProjects().find((p) => p.id === 'p4')!.world).toBeUndefined();
+    };
+    expect(undo(me, { project: 'p4' }).text).toBe('Nothing to undo.');
+    still();
+    expect(() => changeObject({ by: me, object: 'Nope', hidden: true, project: 'p4' })).toThrow(/no object "Nope"/);
+    still();
+    expect(changeObject({ by: me, object: 'Garden', project: 'p4' }).text).toMatch(/Nothing to change/);
+    still();
+    expect(() => build({ by: me, object: 'Wall', project: 'p4', steps: [{ box: 'big' }] })).toThrow();
+    still();
+    // a change that works does
+    setEnvironment({ by: me, fields: { preset: 'night' }, project: 'p4' });
+    const own = shownWorld('p4');
+    expect(own.how).toBe('own');
+    expect(own.world!.id).not.toBe(carried.world!.id);
+    expect(getWorld(carried.world!.id)).toBeTruthy();
+  });
 });
 
 describe('changing and undoing', () => {
@@ -187,6 +214,15 @@ describe('changing and undoing', () => {
     undo(me);
     expect(shownWorld().world!.objects.some((o) => o.name === 'Lamp')).toBe(true);
     expect(() => changeObject({ by: me, object: 'Nope', hidden: true })).toThrow(/no object "Nope"/);
+  });
+
+  it('keeps the last 50 changes, and undo still finds the newest', () => {
+    build({ by: me, object: 'Signpost', steps: [{ box: [1, 2, 1], use: 'wood' }] });
+    for (let i = 1; i <= 55; i++) changeObject({ by: me, object: 'Signpost', position: [i, 0, 0] });
+    const w = shownWorld().world!;
+    expect(fs.readdirSync(worldDir(w.id, 'history')).filter((n) => n.endsWith('.json')).length).toBe(50);
+    expect(undo(me).text).toMatch(/Undid: Mira changed Signpost \(position\)/);
+    expect(shownWorld().world!.objects.find((o) => o.name === 'Signpost')!.position).toEqual([54, 0, 0]);
   });
 
   it('world_info describes the world, and maps an object from above', () => {
@@ -238,12 +274,33 @@ describe('the world travels with its project', () => {
     expect(fs.existsSync(path.join(dir, 'history'))).toBe(false);
   });
 
+  it('loading the same folder into another project gives it its own world, unless it was shared', async () => {
+    const { restoreInto } = await import('../../server/projectsync.ts');
+    const p = listProjects()[0];
+    const w = shownWorld(p.id).world!;
+    addProject('p8');
+    expect(restoreInto('p8', p.brainPath)).toBeTruthy();
+    const loaded = shownWorld('p8');
+    expect(loaded.how).toBe('own');
+    expect(loaded.world!.id).not.toBe(w.id);
+    expect(loaded.world!.homeProject).toBe('p8');
+    expect(loaded.world!.objects.map((o) => o.name).sort()).toEqual(w.objects.map((o) => o.name).sort());
+    expect(listProjects().find((x) => x.id === p.id)!.world!.id).toBe(w.id);
+    // saved as shared: shared again
+    const link = path.join(p.brainPath, '.dashboard', 'world', 'link.json');
+    fs.writeFileSync(link, JSON.stringify({ id: w.id, mode: 'shared', name: w.name }));
+    addProject('p9');
+    restoreInto('p9', p.brainPath);
+    expect(shownWorld('p9')).toMatchObject({ how: 'shared', world: { id: w.id } });
+  });
+
   it('a backup brings the world back as a new world of the restored project', async () => {
     const { packProject, encodeBackup, restoreBackup, decodeBackup } = await import('../../server/backup.ts');
     const p = listProjects()[0];
     const before = shownWorld(p.id).world!;
     const packed = packProject(p);
-    expect(packed.world!.files.some((f) => f.path === 'world.json')).toBe(true);
+    // world.json and WORLD.md first, so the voxels can't crowd them out of the size limit
+    expect(packed.world!.files.slice(0, 2).map((f) => f.path).sort()).toEqual(['WORLD.md', 'world.json']);
     expect(packed.world!.files.every((f) => !f.path.startsWith('history/'))).toBe(true);
     expect(decodeBackup(encodeBackup(packed)).world!.files.length).toBe(packed.world!.files.length);
     const { project } = await restoreBackup(encodeBackup(packed), { name: 'Restored world' });

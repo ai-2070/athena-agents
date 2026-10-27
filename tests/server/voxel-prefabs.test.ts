@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { runBuild } from '../../server/voxel/ops.ts';
 import type { Grid, PrefabRef } from '../../server/voxel/ops.ts';
 import { countVoxels, getVoxel } from '../../shared/voxel.ts';
-import { build, undo, changeObject } from '../../server/voxel/build.ts';
+import { build, undo, changeObject, placedCopies, WORLD_LIMITS } from '../../server/voxel/build.ts';
+import { setSkin } from '../../server/voxel/characters.ts';
 import { savePrefabFrom, deletePrefab, publishPrefab, importPrefab, libraryList, prefabList, changePrefab } from '../../server/voxel/prefabs.ts';
 import { shownWorld, chooseWorld } from '../../server/voxel/link.ts';
 import { readObject, readPrefab } from '../../server/voxel/store.ts';
@@ -190,5 +191,50 @@ describe('prefabs in a world', () => {
     expect(readPrefab(w.id, r.prefab.id)!.volumes[0].chunks).toBeTruthy();
     expect(r.prefab.size).toEqual([0.25, 2.25, 0.25]);
     void changeObject;
+  });
+});
+
+describe('prefabs: undo, skins and limits', () => {
+  it('saving with replace is one change: one undo puts the part back and takes the prefab away', () => {
+    build({ by: me, object: 'Yard', steps: [{ box: [4, 1, 4], use: 'sand' }, { box: [1, 2, 1], at: [1, 1, 1], use: 'wood' }] });
+    const w0 = shownWorld().world!;
+    const yard = w0.objects.find((o) => o.name === 'Yard')!;
+    const before = readObject(w0.id, yard.id);
+    const r = savePrefabFrom({ by: me, name: 'Post', from: 'Yard', box: { min: [0.25, 0.25, 0.25], max: [0.5, 0.75, 0.5] }, replace: true });
+    expect(r.prefab.volumes[0].count).toBe(2);
+    expect(undo(me).text).toMatch(/turned part of Yard into the prefab Post/);
+    const w = shownWorld().world!;
+    expect(w.prefabs.some((p) => p.id === r.prefab.id)).toBe(false);
+    expect(readPrefab(w.id, r.prefab.id)).toBeNull();
+    expect(readObject(w.id, yard.id)).toEqual(before);
+    expect(w.objects.find((o) => o.id === yard.id)!.volumes[0].count).toBe(18);
+  });
+
+  it("won't undo the replace while the new prefab is placed somewhere else", () => {
+    savePrefabFrom({ by: me, name: 'Post', from: 'Yard', box: { min: [0.25, 0.25, 0.25], max: [0.5, 0.75, 0.5] }, replace: true });
+    build({ by: { kind: 'user', name: 'You' }, object: 'Fence', steps: [{ place: 'Post', at: [0, 0, 0] }] });
+    expect(() => undo(me)).toThrow(/placed in "Fence"/);
+    expect(shownWorld().world!.prefabs.some((p) => p.name === 'Post')).toBe(true);
+  });
+
+  it("can't delete a prefab the Brain, a team or an agent wears", () => {
+    build({ by: me, prefab: 'Shell', steps: [{ box: [3, 3, 3], use: 'glass', hollow: true }] });
+    setSkin({ by: me, to: 'brain', fields: { shell: 'Shell' } });
+    expect(() => deletePrefab({ by: me, prefab: 'Shell' })).toThrow(/"Shell" is the Brain's shell/);
+    setSkin({ by: me, to: 'brain', fields: { shell: null } });
+    expect(deletePrefab({ by: me, prefab: 'Shell' })).toMatch(/Deleted the prefab "Shell"/);
+  });
+
+  it('a copy of an object counts the copies placed in it toward the limit', () => {
+    build({ by: me, prefab: 'Peg', steps: [{ box: [1, 1, 1], use: 'wood' }] });
+    build({ by: me, object: 'Pegs', steps: [0, 2, 4, 6].map((x) => ({ place: 'Peg', at: [x, 0, 0] })) });
+    const was = WORLD_LIMITS.copies;
+    WORLD_LIMITS.copies = placedCopies(shownWorld().world!) + 3;
+    try {
+      expect(() => changeObject({ by: me, object: 'Pegs', duplicate: true })).toThrow(/placed copies/);
+    } finally {
+      WORLD_LIMITS.copies = was;
+    }
+    expect(changeObject({ by: me, object: 'Pegs', duplicate: true }).object!.instances).toBe(4);
   });
 });

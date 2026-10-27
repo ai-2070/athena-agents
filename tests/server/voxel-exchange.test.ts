@@ -63,6 +63,18 @@ describe('.vox files', () => {
     expect(row.every(Boolean)).toBe(true);
   });
 
+  it('takes a big model (hundreds of thousands of voxels) without running out of stack', () => {
+    // a solid 80×80×80 block: 512,000 voxels
+    const side = 80;
+    const xyzi = new Uint8Array(side * side * side * 4);
+    let i = 0;
+    for (let x = 0; x < side; x++) for (let y = 0; y < side; y++) for (let z = 0; z < side; z++) xyzi.set([x, y, z, 1], (i++) * 4);
+    const f = { models: [{ size: [side, side, side] as [number, number, number], xyzi }], palette: [[200, 100, 50, 255] as [number, number, number, number]], materials: new Map(), nodes: new Map() };
+    const r = voxToGrid(f, 'Block', 0.25, newId);
+    expect(r.count).toBe(side ** 3);
+    expect(countVoxels(r.grid.vol)).toBe(side ** 3);
+  });
+
   it('refuses what is not a .vox file', () => {
     expect(() => parseVox(new TextEncoder().encode('hello there, not a vox file'))).toThrow(/isn't a MagicaVoxel/);
   });

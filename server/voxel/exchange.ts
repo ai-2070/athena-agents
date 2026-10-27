@@ -10,7 +10,7 @@ import type { Grid } from './ops.ts';
 import { parseVox, voxToGrid, gridToVox } from './vox.ts';
 import { toGlb } from './gltf.ts';
 import { readObject, readPrefab, saveWorld, writeObject, writePrefab, worldVoxels } from './store.ts';
-import { worldForBuild, shownWorld } from './link.ts';
+import { changeWorld, shownWorld } from './link.ts';
 import { WORLD_LIMITS, cleanAnchor, findObject, findPrefab, pivotOf, remember, volumesMeta } from './build.ts';
 import { stockMaterial } from './materials.ts';
 import type { Vec3, VoxelObjectMeta, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
@@ -32,7 +32,10 @@ export interface ImportRequest {
 }
 
 export function importVox(req: ImportRequest): string {
-  const w = worldForBuild(req.project || activeProject().id);
+  return changeWorld(req.project || activeProject().id, (w) => importVoxIn(w, req));
+}
+
+function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
   const name = String(req.name || path.basename(req.file, path.extname(req.file))).trim().slice(0, 80);
   if (!name) throw bad('Name it.');
   if (req.as === 'prefab' ? findPrefab(w, name) : findObject(w, name)) throw bad(`There's already ${req.as === 'prefab' ? 'a prefab' : 'an object'} called "${name}".`);

@@ -5,7 +5,7 @@
 // and hub, or the Brain, and can take any of them off the map. All voxel look only.
 import { activeProject, agents, emit, workflows } from '../store.ts';
 import { readPrefab, saveWorld } from './store.ts';
-import { worldForBuild } from './link.ts';
+import { changeWorld, shownWorld } from './link.ts';
 import { findPrefab, remember } from './build.ts';
 import type { AgentSkin, AnimKey, AnimationClip, BrainSkin, TeamSkin, Vec3, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
 
@@ -77,7 +77,10 @@ export interface AnimRequest {
 }
 
 export function setAnimation(req: AnimRequest): { prefab: VoxelPrefabMeta; text: string } {
-  const w = worldForBuild(req.project || activeProject().id);
+  return changeWorld(req.project || activeProject().id, (w) => setAnimationIn(w, req));
+}
+
+function setAnimationIn(w: VoxelWorld, req: AnimRequest): { prefab: VoxelPrefabMeta; text: string } {
   const p = findPrefab(w, req.prefab);
   if (!p) throw bad(`There's no prefab "${req.prefab}".`, 404);
   const parts = partNames(w, p.id);
@@ -112,7 +115,9 @@ export function setAnimation(req: AnimRequest): { prefab: VoxelPrefabMeta; text:
 
 /** Plays an animation once (or a few times) on an agent's character, then it goes back to its state's. */
 export function playAnimation(req: { by: WorldBuilder; agent: string; clip: string; times?: unknown; project?: string }): string {
-  const w = worldForBuild(req.project || activeProject().id);
+  // playing changes nothing, so a carried-over world isn't copied for it
+  const w = shownWorld(req.project || activeProject().id).world;
+  if (!w) throw bad('There is no world yet.', 404);
   const a = agents.get(req.agent) || agents.list().find((x) => x.name.toLowerCase() === String(req.agent).trim().toLowerCase());
   if (!a) throw bad(`There's no agent "${req.agent}".`, 404);
   const skin = w.skins.agents[a.id];
@@ -161,7 +166,10 @@ export function skinTarget(to: SkinTarget, id: unknown): { id: string; name: str
 
 export function setSkin(req: SkinRequest): { world: VoxelWorld; text: string } {
   if (!['agent', 'team', 'brain'].includes(req.to)) throw bad('to is "agent", "team" or "brain"');
-  const w = worldForBuild(req.project || activeProject().id);
+  return changeWorld(req.project || activeProject().id, (w) => setSkinIn(w, req));
+}
+
+function setSkinIn(w: VoxelWorld, req: SkinRequest): { world: VoxelWorld; text: string } {
   const target = skinTarget(req.to, req.id);
   const f = req.fields;
   const list = (req.to === 'agent' ? w.skins.agents : req.to === 'team' ? w.skins.teams : null) as Record<string, AgentSkin | TeamSkin> | null;
@@ -215,6 +223,24 @@ export function setSkin(req: SkinRequest): { world: VoxelWorld; text: string } {
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const pname = (w: VoxelWorld, id?: string) => (id ? `"${w.prefabs.find((p) => p.id === id)?.name || id}"` : '');
+
+/** Which skins use a prefab ("the character of Ada", "the platform of the team Writers"). */
+export function skinUses(w: VoxelWorld, prefabId: string): string[] {
+  const out: string[] = [];
+  const b = w.skins.brain;
+  if (b?.shell === prefabId) out.push("the Brain's shell");
+  for (const [id, s] of Object.entries(w.skins.teams)) {
+    const name = `the team ${workflows.get(id)?.name || id}`;
+    if (s.platform === prefabId) out.push(`the platform of ${name}`);
+    if (s.hub === prefabId) out.push(`the hub of ${name}`);
+  }
+  for (const [id, s] of Object.entries(w.skins.agents)) {
+    const name = agents.get(id)?.name || `agent ${id}`;
+    if (s.character === prefabId) out.push(`the character of ${name}`);
+    if (s.desk === prefabId) out.push(`the desk of ${name}`);
+  }
+  return out;
+}
 
 export function skinText(w: VoxelWorld, s: AgentSkin & TeamSkin & BrainSkin): string {
   const bits = [

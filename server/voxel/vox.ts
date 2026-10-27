@@ -176,16 +176,17 @@ export function voxToGrid(f: VoxFile, name: string, voxelSize: number, newId: ()
   // values 1..n in the order of `materials`; the caller maps them to the world's palette
   const colorOf = new Map(used.map((ci, i) => [ci, i + 1]));
   // centred on x and z, standing on y = 0
-  let [minX, minY, minZ, maxX, maxZ] = [Infinity, Infinity, Infinity, -Infinity, -Infinity];
+  let [minX, minY, minZ, maxX, maxY, maxZ] = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
   for (const [x, y, z] of voxels) {
     minX = Math.min(minX, x);
     maxX = Math.max(maxX, x);
     minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
     minZ = Math.min(minZ, z);
     maxZ = Math.max(maxZ, z);
   }
   const cx = Math.floor((minX + maxX) / 2);
-  const cy = Math.floor((minY + Math.max(...voxels.map((v) => v[1]))) / 2);
+  const cy = Math.floor((minY + maxY) / 2);
   const vol: Volume = newVolume(voxelSize);
   for (const [x, y, z, ci] of voxels) setVoxel(vol, x - cx, z - minZ, -(y - cy), colorOf.get(ci)!);
   return { grid: { id: newId(), voxelSize, vol }, materials, colorOf, count: voxels.length };

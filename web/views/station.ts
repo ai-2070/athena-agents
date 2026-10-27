@@ -3419,14 +3419,20 @@ function nowText(agentId: string, wfId?: string): { st: 'needs' | 'idle' | 'work
 }
 
 // ---------- live events ----------
+/** A builder asked for a picture of the world (world_look). Every tab answers, from any page: with a picture
+ *  when it shows that world in the voxel look, else that it can't, so the server needn't wait for it. */
+export async function answerLook(ev: ServerEvent): Promise<void> {
+  if (typeof ev.request !== 'string') return;
+  const drew = S?.worldLayer ? await S.worldLayer.look(ev).catch(() => false) : false;
+  if (!drew) await POST(`/world/snapshot/${encodeURIComponent(ev.request)}`, { error: "this tab doesn't show that world in the voxel look" }).catch(() => null);
+}
+
 export function onEvent(ev: ServerEvent): void | Promise<void> {
   if (!S) return;
   const d = state.data;
   if (ev.type === 'workflows') return reloadWorkflows();
   // the voxel world changed (a build, a move, WORLD.md, another project's world picked), or another project opened
   if (ev.type === 'world' || ev.type === 'project') S.worldLayer?.refresh(ev.type === 'world' ? ev : undefined);
-  // a builder asked for a picture of the world (world_look): this tab answers if it shows that world
-  if (ev.type === 'world-look') void S.worldLayer?.look(ev);
   // a builder plays an animation on an agent's character
   if (ev.type === 'world-anim' && typeof ev.agent === 'string' && typeof ev.clip === 'string') S.worldLayer?.play(ev.agent, ev.clip, typeof ev.times === 'number' ? ev.times : 1);
   // a program was opened or closed: light its tile and the desks that use it

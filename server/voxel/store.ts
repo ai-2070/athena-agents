@@ -62,8 +62,13 @@ export function listWorlds(): VoxelWorld[] {
     .filter((w): w is VoxelWorld => !!w);
 }
 
+// How many times each world was saved since the server started (link.ts: did a change save anything?)
+const saves = new Map<string, number>();
+export const saveCount = (id: string): number => saves.get(id) || 0;
+
 /** Saves a world's meta (world.json) and tells open pages. */
 export function saveWorld(w: VoxelWorld, event: Record<string, unknown> = {}): VoxelWorld {
+  saves.set(w.id, saveCount(w.id) + 1);
   w.updatedAt = Date.now();
   w.built = w.built || w.objects.length > 0;
   if (isLink(worldDir(w.id))) throw bad('That world folder is a link; not writing through it.');

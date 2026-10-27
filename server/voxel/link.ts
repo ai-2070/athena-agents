@@ -6,7 +6,7 @@
 // The first build on a carried-over world gives the project its own copy, so the other project's world
 // stays as it was. Only a world the user chose to share takes builds from two projects.
 import { activeProject, getSettings, listProjects, saveProjects, saveSettings, emit } from '../store.ts';
-import { copyWorld, deleteWorld as removeWorldFiles, getWorld, listWorlds, newWorld, saveWorld, worldVoxels } from './store.ts';
+import { copyWorld, deleteWorld as removeWorldFiles, getWorld, listWorlds, newWorld, saveCount, saveWorld, worldVoxels } from './store.ts';
 import type { Project, ProjectWorldLink, ShownWorld, VoxelWorld, WorldListing } from '../../shared/types.ts';
 
 const bad = (msg: string, status = 400) => Object.assign(new Error(msg), { status });
@@ -53,20 +53,52 @@ export function shownWorld(pid: string = activeProject().id): ShownWorld {
 
 /** The world a build in this project goes into: its own or shared one, a copy of a carried-over one, or a new one. */
 export function worldForBuild(pid: string = activeProject().id): VoxelWorld {
+  const r = prepare(pid);
+  r.keep?.();
+  return r.world;
+}
+
+/** The world to change, and (when it was just made: a copy or a new one) how to keep it or drop it again. */
+function prepare(pid: string): { world: VoxelWorld; keep?: () => void; drop?: () => void } {
   const shown = shownWorld(pid);
-  if (shown.world && (shown.how === 'own' || shown.how === 'shared')) return shown.world;
+  if (shown.world && (shown.how === 'own' || shown.how === 'shared')) return { world: shown.world };
   const p = project(pid);
-  if (shown.world && shown.how === 'carried') {
-    const own = p.world ? getWorld(p.world.id) : null;
-    const copy = copyWorld(shown.world.id, pid, shown.world.name);
-    setLink(pid, { id: copy.id, mode: 'own' });
-    // its own unbuilt world isn't needed any more
-    if (own && !own.built && own.homeProject === pid && !usedBy(own.id).some((id) => id !== pid)) removeWorldFiles(own.id);
-    return copy;
+  const before = p.world;
+  const made = shown.world && shown.how === 'carried' ? copyWorld(shown.world.id, pid, shown.world.name) : newWorld(pid, `${p.name}'s world`);
+  // linked straight away, so whatever the change calls sees the same world
+  setLink(pid, { id: made.id, mode: 'own' });
+  return {
+    world: made,
+    keep: () => {
+      // its own unbuilt world isn't needed any more
+      const own = before ? getWorld(before.id) : null;
+      if (own && own.id !== made.id && !own.built && own.homeProject === pid && !usedBy(own.id).some((id) => id !== pid)) removeWorldFiles(own.id);
+    },
+    drop: () => {
+      setLink(pid, before);
+      removeWorldFiles(made.id);
+    },
+  };
+}
+
+/**
+ * Runs a change on the world a build in this project goes into. When that world had to be made first (a copy
+ * of a carried-over world, or a new one), it's kept only if the change saved it: a change that fails or finds
+ * nothing to do leaves the project showing the world it showed before.
+ */
+export function changeWorld<T>(pid: string, change: (w: VoxelWorld) => T): T {
+  const r = prepare(pid);
+  if (!r.keep) return change(r.world);
+  const saved = saveCount(r.world.id);
+  let ok = false;
+  try {
+    const out = change(r.world);
+    ok = saveCount(r.world.id) > saved;
+    return out;
+  } finally {
+    if (ok) r.keep();
+    else r.drop?.();
   }
-  const w = newWorld(pid, `${p.name}'s world`);
-  setLink(pid, { id: w.id, mode: 'own' });
-  return w;
 }
 
 /** Projects that point at a world. */

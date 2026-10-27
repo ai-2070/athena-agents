@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { bus, listProjects, activeProject, log } from './store.ts';
-import { dataPath, ensureDir, exists, isPlainDir, readJSON, readPlain, writeJSON, realTarget } from './util.ts';
+import { dataPath, ensureDir, exists, isPlainDir, readJSON, readPlain, writeJSON, realTarget, uid } from './util.ts';
 import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir, checkVersion, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
 import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, skillVersionItem, SKILL_BODY_MAX } from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
@@ -487,8 +487,7 @@ function restoreWorld(folder: string, id: string): boolean {
   const file = savedPath(folder, 'world', 'world.json');
   const saved = file ? readPlain<Partial<VoxelWorld> | null>(file, null) : null;
   if (!saved || typeof saved.id !== 'string' || !WORLD_ID.test(saved.id)) return false;
-  const wid = saved.id;
-  if (!getWorld(wid)) {
+  const fromFiles = (wid: string) => {
     for (const sub of ['objects', 'prefabs']) {
       const from = savedPath(folder, 'world', sub);
       if (from) copyTree(from, worldDir(wid, sub), WORLD_CAP * 2);
@@ -498,9 +497,22 @@ function restoreWorld(folder: string, id: string): boolean {
     const md = savedPath(folder, 'world', 'WORLD.md');
     if (md && fs.lstatSync(md).isFile() && fs.statSync(md).size <= WORLD_MD_MAX * 2) fs.copyFileSync(md, worldDir(wid, 'WORLD.md'));
     writeJSON(worldDir(wid, 'world.json'), { ...saved, id: wid, homeProject: id });
+  };
+  const linkFile = savedPath(folder, 'world', 'link.json');
+  const wasShared = (linkFile ? readPlain<{ mode?: unknown } | null>(linkFile, null) : null)?.mode === 'shared';
+  const wid = saved.id;
+  if (!getWorld(wid)) {
+    fromFiles(wid);
+    setLink(id, { id: wid, mode: 'own' });
+  } else if (!usedBy(wid).some((x) => x !== id)) setLink(id, { id: wid, mode: 'own' });
+  else if (wasShared) setLink(id, { id: wid, mode: 'shared' });
+  else {
+    // another project here builds in that world, and this one had it as its own (the same folder opened
+    // twice, or a copy of it): it gets its own world from the files, so the two don't build in each other's
+    const fresh = uid('w');
+    fromFiles(fresh);
+    setLink(id, { id: fresh, mode: 'own' });
   }
-  // shared when another project here uses it too
-  setLink(id, { id: wid, mode: usedBy(wid).some((x) => x !== id) ? 'shared' : 'own' });
   return true;
 }
 
