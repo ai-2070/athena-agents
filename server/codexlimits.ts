@@ -3,7 +3,7 @@
 import crypto from 'node:crypto';
 import { spawnCommand, killTree, dataPath, ensureDir } from './util.ts';
 import { codexUsage } from './status.ts';
-import type { LimitWindow, CodexResets, ProviderLimits } from '../shared/types.ts';
+import type { LimitWindow, CodexResets, ProviderLimits, UsageMeter } from '../shared/types.ts';
 
 /** What Codex's account/rateLimits/read answers (only the fields used here). */
 interface RawWindow {
@@ -69,6 +69,17 @@ export function parseCodexLimits(raw: unknown, now = Date.now()): CodexLimits {
     resets = { available: Math.max(credits.length, count - (listed.length - credits.length)), credits };
   }
   return { plan: typeof rl.planType === 'string' ? rl.planType : null, windows, resets, blocked: r.ordinaryUsageAllowed === false };
+}
+
+/** The Station's top bar meters (SESSION, WEEK) from the same limits the sidebar shows. */
+export function headbarMeters(l: CodexLimits | null): UsageMeter[] {
+  if (!l) return [];
+  const week = l.windows.find((w) => w.label === 'Week');
+  const session = l.windows.find((w) => w !== week);
+  const meters: UsageMeter[] = [];
+  if (session) meters.push({ label: 'SESSION', percent: session.percent, resetsAt: session.resetsAt });
+  if (week) meters.push({ label: 'WEEK', percent: week.percent, resetsAt: week.resetsAt });
+  return meters;
 }
 
 /** One request to a short-lived `codex app-server` (JSON lines over stdin/stdout). */

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseCodexLimits, windowLabel } from '../../server/codexlimits.ts';
+import { headbarMeters, parseCodexLimits, windowLabel } from '../../server/codexlimits.ts';
 import { checkedStatus, status } from '../../server/engines/codex.ts';
 import { clearWhichCache } from '../../server/util.ts';
 import { bus } from '../../server/store.ts';
@@ -116,5 +116,22 @@ describe('the Codex login check', () => {
       clearWhichCache();
       fs.rmSync(bin, { recursive: true, force: true });
     }
+  });
+});
+
+describe("the Station's top bar", () => {
+  it('shows the same Codex limits as the sidebar, as SESSION and WEEK meters', () => {
+    const l = parseCodexLimits({ rateLimits: { primary: { usedPercent: 37, windowDurationMins: 300, resetsAt: sec(now + 2 * 3_600_000) }, secondary: { usedPercent: 62, windowDurationMins: 10080, resetsAt: sec(now + 3 * DAY) } } }, now);
+    expect(headbarMeters(l)).toEqual([
+      { label: 'SESSION', percent: 37, resetsAt: now + 2 * 3_600_000 },
+      { label: 'WEEK', percent: 62, resetsAt: now + 3 * DAY },
+    ]);
+  });
+
+  it('shows only the windows Codex reports, and nothing without limits', () => {
+    const weekOnly = parseCodexLimits({ rateLimits: { secondary: { usedPercent: 10, windowDurationMins: 10080 } } }, now);
+    expect(headbarMeters(weekOnly).map((m) => m.label)).toEqual(['WEEK']);
+    expect(headbarMeters(null)).toEqual([]);
+    expect(headbarMeters(parseCodexLimits({}, now))).toEqual([]);
   });
 });

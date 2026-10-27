@@ -340,14 +340,16 @@ post<{ text?: unknown; attachments?: unknown }>('/api/assist/agent', async (_p, 
 post<{ text?: unknown; allowNew?: unknown; attachments?: unknown }>('/api/assist/branch', async (_p, body) => brain.designBranch(String(body.text || ''), { allowNew: body.allowNew !== false, attachments: uploads.cleanAttachments(body.attachments) }));
 get('/api/headbar', async () => {
   const eng = engines.engineStatus();
-  const [usage, connectors, or] = await Promise.all([status.claudeUsage(), status.claudeConnectors().catch(() => []), status.openrouterUsage(store.getSecrets().openrouterKey)]);
-  const cx = eng.codex?.installed && eng.codex.loggedIn ? status.codexUsage() : null;
+  // Codex: asked live, like the sidebar (its session logs can be old or missing; they're only the fallback)
+  const ox = await codexEngine.checkedStatus();
+  const [usage, connectors, or, cxLimits] = await Promise.all([status.claudeUsage(), status.claudeConnectors().catch(() => []), status.openrouterUsage(store.getSecrets().openrouterKey), ox?.installed && ox.loggedIn ? codexLimits.codexLimits() : null]);
+
   // One entry per connected provider that reports usage; the header cycles through them.
   const usages = ([
     // Claude Code is always shown when you're signed in; "–" until Anthropic sends numbers
     eng['claude-code'].installed && (usage || eng['claude-code'].loggedIn) && { id: 'claude', name: 'Claude Code', meters: [{ label: 'SESSION', ...(usage?.session || {}) }, { label: 'WEEK', ...(usage?.week || {}) }] },
     or && { id: 'openrouter', name: 'OpenRouter', meters: [or.percent != null ? { label: 'CREDITS', percent: or.percent, text: or.left != null ? `$${or.left.toFixed(2)} left` : null } : null, or.today != null ? { label: 'TODAY', text: `$${or.today.toFixed(2)}` } : null].filter(Boolean) },
-    cx && { id: 'codex', name: 'OpenAI Codex', meters: [cx.session && { label: 'SESSION', ...cx.session }, cx.week && { label: 'WEEK', ...cx.week }].filter(Boolean) },
+    cxLimits && { id: 'codex', name: 'OpenAI Codex', meters: codexLimits.headbarMeters(cxLimits) },
   ] as (ProviderUsage | false | null | undefined)[]).filter((x): x is ProviderUsage => Boolean(x && x.meters.length));
   return { usage, usages, connectors };
 });
