@@ -127,10 +127,14 @@ async fn install(app: &AppHandle, update: &Update) -> Result<(), String> {
     // The server runs from the app's own folder, which the update replaces (and on Windows the
     // installer can't replace a bun.exe that is running): stop it first.
     crate::show_message(app, "Installing the update…", "Blacksite opens again in a moment.");
+    // no "Try again" restart may start a server while the update replaces its files
+    let server = app.state::<crate::Server>();
+    let restarting = server.restarting.lock().unwrap_or_else(|e| e.into_inner());
     crate::stop_server(app);
     if let Err(e) = update.install(&bytes) {
         title(TITLE);
         crate::start_server(app);
+        drop(restarting);
         tell(
             app,
             "The update could not be installed",
