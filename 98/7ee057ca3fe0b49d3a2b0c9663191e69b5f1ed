@@ -1,0 +1,19 @@
+docs/internal/plans/CODE_REVIEW_2026-10-28.md
+  s_dcc3524471da45::t_743a59c6b76c65 11,668,691,693,701,791-1086
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "987ee057ca3fe0b49d3a2b0c9663191e69b5f1ed",
+  "prompts": {},
+  "sessions": {
+    "s_dcc3524471da45": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "924f267e-204d-48b9-b778-7b9b56f44f38",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
