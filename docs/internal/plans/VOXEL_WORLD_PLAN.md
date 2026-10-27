@@ -27,10 +27,12 @@ Looking at the four images, the look comes from a few things, and most of them a
 | Petals, snow, waterfall foam, red smoke, birds | **Particle effects** made of tiny cubes (they match the style), and a few simple flocks. |
 | Water, glass, ice | **Transparent / animated materials** per palette entry (water scrolls and shimmers). |
 | Snow on every ledge | A **`snow_cover` op** that puts snow on top faces of an area. Same idea for moss and vines (`overgrow`). |
-| Big, believable structures | **Generators** (tree, island, pagoda roof, building facade, bridge, character…) that turn a few parameters into thousands of voxels. Models are good at "a 5-tier pagoda, teal roofs" and bad at listing coordinates. |
+| Big, believable structures | **Shape tools** that do the voxel-by-voxel work (revolve a profile into a column or dome, extrude a floor plan into walls, sweep a path into a road or river, noise terrain, rough organic blobs), driven by the agent's design. |
+| Hundreds of people, palms, lamps, taxis, boats | **Prefabs the agents make themselves**, then **placed many times** (along a street, in a grid, scattered on the ground), turned, mirrored and recoloured per copy. Drawn as instances, so a crowd costs almost nothing. |
 
-The design below follows from that: a declarative **op language** with strong generators runs on the server,
-and a renderer upgrade (lighting, AO, bloom, tilt-shift, particles) runs in the page.
+The design below follows from that: a declarative **op language** runs on the server, with no built-in content:
+everything on screen is something an agent built (§4b). A renderer upgrade (lighting, AO, bloom, tilt-shift,
+particles) runs in the page.
 
 ---
 
@@ -316,21 +318,70 @@ recipes. Every op is plain JSON; positions are in voxels of the current volume u
 - `overgrow`: moss, grass tufts, hanging vines on edges and walls.
 - `scatter`: drop a small object or generator many times on the surface of an area (flowers, stones, tufts).
 
-**Generators** (each takes a few parameters and a seed)
-- Nature: `tree` (cherry, maple, pine, bamboo, bonsai, dead), `bush`, `rock`, `cloud`, `island` (floating,
-  tapered rocky underside), `pond`, `waterfall`, `river`.
-- Buildings: `tower`/`pagoda` (tiers, roof style), `facade` (floors, windows, fire escapes, brick pattern),
-  `roof` (gable, hip, curved), `bridge` (arched, railings), `fence`, `torii`, `lamp_post`, `lantern`, `sign`.
-- Things: `desk`, `monitor`, `chair`, `car`, `crate`, `barrel`, `wheel` (spokes, like the waterwheel).
-- **`character`**: a rigged voxel person: height, build, skin, hair style and color, top, bottom, shoes,
-  accessory (cap, glasses, headset, scarf), held item. Output is several volumes (head, torso, arms, legs)
-  with pivots so the page can animate them.
-- **`orb`**: a voxel Brain: shell pattern, core color, rings, inner glow.
-- **`platform`**: a team platform: shape (round, octagon, island, deck), radius, trim color, edge style.
+**No built-in content.** An early version (Phase 1) shipped generators for trees, islands, gates and bridges.
+They are taken out (2026-10-27): everything on screen should be built by the agents, and fixed generators
+cap every world at the same vocabulary and make worlds look alike. The power moves into general tools (below)
+and into prefabs the agents make for themselves (§4b).
 
-Generators live in `server/voxel/generators/` as plain functions `(params, rng, out) => void`, each with a
-JSON schema that is shown to the model. They are the biggest lever on quality, so the first set should be
-small and good rather than many and rough.
+**Shape tools** (general, no content in them)
+- `revolve`: a profile (radius by height) turned around an axis: columns with capitals, domes, minarets,
+  vases, tree trunks, lamp posts.
+- `extrude`: a 2D outline (points, or rows of characters) raised to a height: floor plans into walls,
+  pools, plazas, roads, fields.
+- `path`: a brush swept along points with a width and depth: roads, rivers, canals, walls, fences, rails.
+- `blob`: an ellipsoid with roughness and holes: tree crowns, bushes, clouds, rocks.
+- `heightmap` / `terrain`: from rows, or from noise (hills, dunes, cliffs).
+
+**Region tools** (on what is already built)
+- `copy` a box to another spot, turned 90/180/270 and mirrored; `move` a box; `turn` a box in place; `flip`.
+- `stamp` a prefab into the object's own voxels (turned in 90° steps), for things that are part of a building.
+
+---
+
+## 4b. Prefabs and placing (the scenes in the reference dioramas)
+
+Busy scenes (the stock exchange, the Nile) are a few big builds and hundreds of repeated small things:
+people, palm trees, lamps, taxis, boats, market stalls, benches. Agents make each small thing once, as a
+prefab, and then place it many times.
+
+**Prefabs**
+- A prefab is a small voxel model with a name, a short description, tags, its own voxel size(s), its pivot
+  (default: bottom centre, so it stands on what it is placed on) and its size. It can hold other prefabs
+  placed inside it (a street block with its lamps and benches), up to 4 levels deep.
+- Agents build a prefab like an object: `world_build` with `prefab: "Palm tree"` builds into the prefab
+  instead of into the scene. Or save part of an object as one (`world_prefab` with `from`, a box).
+- Prefabs belong to the world. An agent can also **publish** one to the shared prefab library (all
+  worlds, all projects; like presets) and **import** one from it. Building is still the agents' work: the
+  library starts empty.
+- **Variants**: a prefab names some of its materials as slots (`shirt`, `hull`, `roof`); each copy can
+  swap them (`{"shirt": "cloth red"}`), so one person prefab makes a varied crowd.
+- Changing a prefab changes every copy of it (the page re-meshes it once).
+
+**Placing** (steps in `world_build`, on the object being built)
+- `{"place": "Palm tree", "at": [x, y, z], "turn": 30}`: one copy. `turn` is any angle around the vertical;
+  `tilt`/`roll` in 90° steps; `scale`; `mirror`; `swap` (variants).
+- `{"place": ["Person A", "Person B"], "scatter": {"area": [w, d], "count": 60}, "turn": "random", "swap": [{…}, {…}]}`:
+  many copies, picked from a list, turned at random, each on the ground below it (`"on": "surface"`, the default).
+- `{"place": "Street lamp", "along": [[x, z], …], "every": 12, "face": "path"}`: along a path, facing along it
+  or across it, on one side or both (`"sides": 2`, `"offset": 3`).
+- `{"place": "Market stall", "grid": {"rows": 3, "cols": 5, "gap": [6, 8]}}`.
+- `{"place": …, "in": [w, h, d], "avoid": "solid"}`: only where nothing is built.
+- Placed copies are not voxels: they are a list on the object (prefab, position, turn, scale, swaps), and the
+  page draws each prefab once and repeats it on the GPU, so a crowd of 500 is as cheap as one person.
+  They can be at any angle, unlike voxels (a taxi parked at 20°).
+- `{"unplace": "Person A", "in": [w, h, d]}` takes copies away; `world_object` moves a whole object of them.
+
+**Limits**: 20,000 placed copies per world, 2,000 per call; a prefab up to 128 voxels a side, 200,000 voxels.
+Copies don't count towards the world's voxel limit (their prefab does, once).
+
+**What it does to the rest of the plan**
+- §9 Skins: the characters, desks, platforms and the Brain's shell are prefabs the agents build (a
+  "character" is a prefab with parts for head, body, arms, legs). Until an agent builds one, the classic
+  meshes stay.
+- §7 The Brain: it plans the scene and hands out the prefabs to build ("Mira: a palm tree and a felucca;
+  Kenji: three people and a camel"), then places them, or has a builder do it.
+- The Voxel building skill teaches how to build good small things (a palm from a leaning revolve and drooping
+  path fronds; a person 16 voxels tall at 0.1; a taxi at 0.125) and how to compose a scene.
 
 ---
 
@@ -577,6 +628,14 @@ building skill and the World Builder starter.
   middle of the map; recording `lastWorldPos` from the page is left for Phase 4.
 - Live test: agents' tool calls (through the same route as the MCP bridge) built an island, a grove, a
   gate, lanterns, a bridge and a watchtower; the open Station showed each build within a second.
+
+**Phase 1b: prefabs and placing (replaces the generators).** *Next, 2026-10-27.*
+Take the generators out (code, tests, the skill and the Brain's prompt). Add the shape tools (`revolve`,
+`extrude`, `path`, `blob`, noise terrain), the region tools (`copy`, `move`, `turn`, `flip`, `stamp`),
+prefabs (build into one, save from a box, variants, nested, publish and import), and placing (one, scatter,
+along a path, grid; any turn; swaps; on the surface). The page draws placed copies as instances. The
+skill and the Brain's prompt teach making prefabs and composing scenes. Test with a small scene in the
+style of the references: a street with a building, lamps, trees, people and taxis, all made by tool calls.
 
 **Phase 2: light and effects.**
 Material kinds (emissive, glass, water, leaf, snow), world lights with the light budget and emissive clusters,
