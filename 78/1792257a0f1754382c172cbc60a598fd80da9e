@@ -1,0 +1,61 @@
+server/tools.ts
+  s_136c51292e1494::t_3940cb253989f7 930
+README.md
+  s_136c51292e1494::t_8c8a8e47fae7b7 45
+tests/web/world-panel.test.tsx
+  s_136c51292e1494::t_3d0e97badc775d 8,68-72,195-241
+  s_136c51292e1494::t_f4e3c3e726642e 242
+tests/server/voxel-exchange.test.ts
+  s_136c51292e1494::t_5bae723b78cc13 1-15,17-53,55-58,63-125
+  s_136c51292e1494::t_98440e6fc6e1cd 16,59-62
+  s_136c51292e1494::t_f8a44c49320cb1 54
+docs/guide.md
+  s_136c51292e1494::t_8c8a8e47fae7b7 115
+web/voxel/view.ts
+  s_136c51292e1494::t_5bae723b78cc13 12,56-57,285-292,294,398
+server/voxel/tools.ts
+  s_136c51292e1494::t_3940cb253989f7 11,47-53,311,340-349,355-409
+web/voxel/mesher.ts
+  s_136c51292e1494::t_977ce430ae8d4e 1-2
+server/voxel/exchange.ts
+  s_136c51292e1494::t_e29b97a08c34ca 1-122
+web/voxel/picture.ts
+  s_136c51292e1494::t_5bae723b78cc13 1-19
+server/skills.ts
+  s_136c51292e1494::t_8c8a8e47fae7b7 347,392
+web/views/worldpanel.tsx
+  s_136c51292e1494::t_213224bc95750d 4-5,12,29-45,70-112,131-135,275,299-302,334,343-349,362-365,390-432,596-600
+docs/internal/plans/VOXEL_WORLD_PLAN.md
+  s_136c51292e1494::t_c2b4dac6947cd4 718-727
+server/voxel/prefabs.ts
+  s_136c51292e1494::t_06511d0ab490e9 212-219
+server/voxel/gltf.ts
+  s_136c51292e1494::t_e1ef692af5b57e 1-189
+server/index.ts
+  s_136c51292e1494::t_79f0431839a141 28
+  s_136c51292e1494::t_c2b4dac6947cd4 648,654
+  s_136c51292e1494::t_06511d0ab490e9 44,639-647,649-653,655-659
+server/artifacts.ts
+  s_136c51292e1494::t_c2b4dac6947cd4 42-43,46,63
+server/voxel/vox.ts
+  s_136c51292e1494::t_381404f80f4e50 1-196,199,211-224,226-271
+  s_136c51292e1494::t_e881fb7a21f95b 197-198,200-210,225
+shared/voxelmesh.ts
+  s_136c51292e1494::t_977ce430ae8d4e 1-263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "781792257a0f1754382c172cbc60a598fd80da9e",
+  "prompts": {},
+  "sessions": {
+    "s_136c51292e1494": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12e98825-3deb-40d4-899a-410e97df98f4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
