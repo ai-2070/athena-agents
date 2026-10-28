@@ -55,7 +55,7 @@ const open = async (params: string[] = []) => {
   await act(async () => agents.render(el, params));
   await settle();
 };
-const btn = (root: ParentNode, text: string) => [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
+const btn = (root: ParentNode, text: string) => [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === text)!;
 const type = (input: HTMLInputElement | HTMLTextAreaElement, text: string) =>
   act(async () => {
     const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;

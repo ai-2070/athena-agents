@@ -6,7 +6,7 @@ import { skillPicker } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.ts';
 import { memoryEditor } from '../memory.ts';
 import { ChipSet, Field, SearchBox, Segmented, Switch } from '../ui/controls.tsx';
-import { Avatar, DomNode, ProjectScoped, reactPage, useAppState } from '../ui/react.tsx';
+import { Avatar, DomNode, Icon, ProjectScoped, reactPage, useAppState } from '../ui/react.tsx';
 import type { ModelListing } from '../models.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
@@ -288,6 +288,16 @@ function AgentEditor({ id }: { id: string }) {
   return <EditorForm key={version} data={data} d={d} reload={() => setVersion((v) => v + 1)} />;
 }
 
+/** A panel's title, with its icon. */
+const Heading = ({ icon, children }: { icon: string; children: ReactNode }) => (
+  <h2 className="flex items-center gap-2.5">
+    <span className="grid size-7 flex-none place-items-center rounded-[8px] bg-accent/10 text-accent">
+      <Icon name={icon} size={15} />
+    </span>
+    {children}
+  </h2>
+);
+
 function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload: () => void }) {
   const { agent, servers, info, teams } = data;
   const id = agent.id;
@@ -339,18 +349,22 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
           <button className="btn" disabled={!dirty} onClick={() => void save()}>Save</button>
         </div>
       </div>
-      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
+      <div className="mono-fields grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
         <div className="flex flex-col gap-4.5">
           <div className="panel">
             <div className="panel-head">
-              <h2>Who it is</h2>
+              <Heading icon="bot">Who it is</Heading>
             </div>
-            <div className="flex items-end gap-2.5 [&>label.field]:flex-none">
+            <div className="flex items-end gap-3 [&>label.field]:flex-none max-sm:flex-wrap">
+              {/* how it shows up everywhere else, as you change it */}
+              <div className="flex-none [&_.avatar]:size-15 [&_.avatar]:rounded-[14px] [&_.avatar]:text-[30px]">
+                <Avatar agent={a} lg />
+              </div>
               <Field label="Icon">
-                <input className="w-16 text-center text-[20px]" value={a.emoji} onChange={(e) => set('emoji', e.target.value)} />
+                <input className="h-9.5 w-16 text-center text-[20px] leading-none" value={a.emoji} aria-label="Icon" onChange={(e) => set('emoji', e.target.value)} />
               </Field>
               <Field label="Color">
-                <input className="w-11 h-9.5 p-0.5 bg-panel border border-line-2" type="color" value={a.color || '#c4ff3d'} onChange={(e) => set('color', e.target.value)} />
+                <input className="h-9.5 w-12 cursor-pointer p-1" type="color" value={a.color || '#c4ff3d'} aria-label="Color" onChange={(e) => set('color', e.target.value)} />
               </Field>
               <div className="flex-1 min-w-0">
                 <Field label="Name">
@@ -371,14 +385,14 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
           </div>
           <div className="panel">
             <div className="panel-head">
-              <h2>Knowledge</h2>
+              <Heading icon="file-text">Knowledge</Heading>
             </div>
             {/* (the agent is saved whole: it takes the knowledge as it is now, so Save doesn't undo a link made here) */}
             <Knowledge id={id} synced={(knowledge) => setA((x) => ({ ...x, knowledge }))} />
           </div>
           <div className="panel">
             <div className="panel-head">
-              <h2>MEMORY.md</h2>
+              <Heading icon="brain">MEMORY.md</Heading>
               <span className="hint">saved on its own</span>
             </div>
             <DomNode make={() => (memory.current = memoryEditor(id, { rows: 10 })).el} deps={[id]} />
@@ -388,7 +402,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
         <div className="flex flex-col gap-4.5">
           <div className="panel">
             <div className="panel-head">
-              <h2>Brain</h2>
+              <Heading icon="cpu">Brain</Heading>
             </div>
             <Segmented label="Brain" options={d.engineList.map((e) => ({ value: e.id, label: e.label, title: e.description }))} value={a.engine} onChange={pickEngine} />
             <p className="hint mt-3.5">{d.engineList.find((e) => e.id === a.engine)?.description || ''}</p>
@@ -398,7 +412,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
           </div>
           <div className="panel">
             <div className="panel-head">
-              <h2>Autonomy</h2>
+              <Heading icon="shield-check">Autonomy</Heading>
             </div>
             <Segmented label="Autonomy" options={AUTONOMY} value={a.autonomy || 'auto'} onChange={(v) => set('autonomy', v)} />
             <p className="hint mt-3.5">Ask first: you approve anything that changes something. Auto: asks only for risky actions (running code or scripts in Blender, Photoshop, After Effects, ffmpeg, shell, sending messages); click Always allow to stop being asked for a tool. Full: never asks. X posts always wait in the Outbox unless you turn on auto-post for that account.</p>
@@ -416,14 +430,14 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
           </div>
           <div className="panel">
             <div className="panel-head">
-              <h2>Answers</h2>
+              <Heading icon="sparkles">Answers</Heading>
             </div>
             <Switch checked={!!a.richAnswers} onChange={(v) => set('richAnswers', v)}>Rich answers</Switch>
             <p className="hint mt-3.5">In your own chats with this agent it answers with live components (cards, tables, charts, forms with buttons) instead of plain text. Good for research, comparisons, reports and plans. Off for coding agents and team chats: it adds about 13k tokens of instructions to every message, and smaller or local models often get it wrong. Team chats, routines and other agents always get plain text.</p>
           </div>
           <div className="panel">
             <div className="panel-head">
-              <h2>Tools</h2>
+              <Heading icon="wrench">Tools</Heading>
             </div>
             <ChipSet label="Tools" options={d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description }))} value={a.toolGroups} onChange={(v) => set('toolGroups', v)} />
             <p className="hint mt-3.5">Hover a tool for what it does. Claude Code and Hermes agents also keep their own built-in tools.</p>
@@ -441,7 +455,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
           </div>
           <div className="panel">
             <div className="panel-head">
-              <h2>Skills</h2>
+              <Heading icon="puzzle">Skills</Heading>
             </div>
             <DomNode
               make={() =>
@@ -459,7 +473,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
           </div>
           <div className="panel">
             <div className="panel-head">
-              <h2>Workspace</h2>
+              <Heading icon="folder">Workspace</Heading>
             </div>
             <Field label="Working folder" hint="Where it saves files and runs commands. Empty = its own folder in the dashboard data.">
               <input value={a.workspace || ''} placeholder={agent.workspacePath} onChange={(e) => set('workspace', e.target.value.trim())} />
@@ -470,16 +484,29 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
           </div>
           <div className="panel">
             <div className="panel-head">
-              <h2>More</h2>
+              <Heading icon="ellipsis">More</Heading>
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
-              <button className="btn ghost small" onClick={pin}>{a.pinned ? 'Unpin' : 'Pin to top'}</button>
-              <button className="btn ghost small" onClick={() => void clone()}>Clone</button>
+              <button className="btn ghost small" onClick={pin}>
+                <Icon name="star" size={13} />
+                {a.pinned ? 'Unpin' : 'Pin to top'}
+              </button>
+              <button className="btn ghost small" onClick={() => void clone()}>
+                <Icon name="copy" size={13} />
+                Clone
+              </button>
               {/* put back: show it as it is now (changes not saved yet are dropped) */}
               <DomNode as="span" make={() => historyButton('agent', id, () => (setDirty(false), reload()))} deps={[id]} />
-              <button className="btn ghost small" title="Keep it as a template you can create again in any project (Agent library > Your presets)" onClick={() => void attempt(() => POST(`/presets/agent/${id}`), `Saved ${a.name} as a preset`)}>Save as preset</button>
-              <button className="btn ghost small" title="Write it to ~/.claude/agents so any Claude Code session can use it" onClick={() => void attempt(() => POST<{ file: string }>(`/agents/${id}/export-claude`), (r) => `Saved as ${r.file}`)}>Install in Claude Code</button>
-              <button className="btn danger small" onClick={() => void del()}>Delete</button>
+              <button className="btn ghost small" title="Keep it as a template you can create again in any project (Agent library > Your presets)" onClick={() => void attempt(() => POST(`/presets/agent/${id}`), `Saved ${a.name} as a preset`)}><Icon name="bookmark-plus" size={13} />
+                Save as preset
+              </button>
+              <button className="btn ghost small" title="Write it to ~/.claude/agents so any Claude Code session can use it" onClick={() => void attempt(() => POST<{ file: string }>(`/agents/${id}/export-claude`), (r) => `Saved as ${r.file}`)}><Icon name="terminal" size={13} />
+                Install in Claude Code
+              </button>
+              <button className="btn danger small ml-auto" onClick={() => void del()}>
+                <Icon name="trash-2" size={13} />
+                Delete
+              </button>
             </div>
             <p className="hint mt-3.5">{`Id: ${a.id}${a.source?.type && a.source.type !== 'custom' ? ` · from ${a.source.type}${a.source.slug ? ` (${a.source.slug})` : ''}` : ''}`}</p>
           </div>
