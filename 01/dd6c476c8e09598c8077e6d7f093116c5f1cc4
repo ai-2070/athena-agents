@@ -1,0 +1,32 @@
+docs/guide.md
+  s_fb7830ef5ae78a::t_c8702508d494c7 51
+README.md
+  s_fb7830ef5ae78a::t_c8702508d494c7 51
+web/chatwin.tsx
+  s_fb7830ef5ae78a::t_11988f1ec40073 21,70-71,86,137,171-199,428,557,585,697
+tests/web/shortcuts.test.ts
+  s_fb7830ef5ae78a::t_d459aea3771de9 3,78-102
+  s_fb7830ef5ae78a::t_4b8ec19fbadaca 103
+web/shortcuts.ts
+  s_fb7830ef5ae78a::t_11988f1ec40073 29-42
+tests/web/chatwin.test.tsx
+  s_fb7830ef5ae78a::t_d84eead414baf2 121
+  s_fb7830ef5ae78a::t_d459aea3771de9 7,111-120,122-141
+  s_fb7830ef5ae78a::t_d4ec2d5d78d088 142-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "01dd6c476c8e09598c8077e6d7f093116c5f1cc4",
+  "prompts": {},
+  "sessions": {
+    "s_fb7830ef5ae78a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c455ae74-1bde-4079-90ec-d12e51b0d80f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
