@@ -1,0 +1,35 @@
+server/index.ts
+  s_148e68a955be95::t_b18c15adc62399 16,751
+web/views/agents.tsx
+  s_148e68a955be95::t_3be63e00d8bf27 579
+tests/web/groupD-pickers.test.ts
+  s_148e68a955be95::t_0c97e9bc8045d9 145,154-155
+  s_148e68a955be95::t_a21faeee9f549d 176
+  s_148e68a955be95::t_d99f3ed392c247 161-175,177-178
+tests/server/codex-models.test.ts
+  s_148e68a955be95::t_63db3a0c1476a3 1-93
+server/models.ts
+  s_148e68a955be95::t_77a3dd49d2fe19 111
+  s_148e68a955be95::t_b18c15adc62399 10,39-42,118
+web/models.ts
+  s_148e68a955be95::t_3be63e00d8bf27 40,47-48,69-70,421-424,426-431
+  s_148e68a955be95::t_0c97e9bc8045d9 425
+server/engines/codex.ts
+  s_148e68a955be95::t_461e05753ddce5 5,87-136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a766a682425f1b03a45c0770827d4788543a764a",
+  "prompts": {},
+  "sessions": {
+    "s_148e68a955be95": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "34ad213e-3d89-425f-87e6-cc69b68e4b36",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
