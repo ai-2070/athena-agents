@@ -832,7 +832,9 @@ get('/api/file', async (_p, _b, q, res) => {
     throw new HttpError(404, 'File not found');
   }
   if (!st.isFile()) throw new HttpError(400, 'That is a folder, not a file.');
-  sendFileSafely(res, p);
+  // ?view=1 on a PDF: read it in a browser tab instead of downloading it
+  if (q.view === '1' && path.extname(p).toLowerCase() === '.pdf') sendPdf(res, p);
+  else sendFileSafely(res, p);
   return undefined;
 });
 
@@ -851,6 +853,20 @@ function sendFileSafely(res: http.ServerResponse, p: string, type = MIME[path.ex
     'x-content-type-options': 'nosniff',
     'content-security-policy': 'sandbox; default-src none',
     ...(inline ? {} : { 'content-disposition': `attachment; filename="${path.basename(p).replace(/[^\w.\- ]/g, '_')}"` }),
+  });
+  const stream = fs.createReadStream(p);
+  stream.on('error', () => res.destroy());
+  stream.pipe(res);
+}
+
+// A PDF shown by the browser's own viewer, which keeps a PDF's scripts away from the page. It can't
+// have the sandbox above (the viewer won't open a sandboxed PDF), so it is only for .pdf files and always
+// sent as a PDF, never guessed as anything else. (Other websites can't load it: see Sec-Fetch-Site below.)
+function sendPdf(res: http.ServerResponse, p: string) {
+  res.writeHead(200, {
+    'content-type': 'application/pdf',
+    'x-content-type-options': 'nosniff',
+    'content-disposition': `inline; filename="${path.basename(p).replace(/[^\w.\- ]/g, '_')}"`,
   });
   const stream = fs.createReadStream(p);
   stream.on('error', () => res.destroy());

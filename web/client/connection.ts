@@ -49,6 +49,8 @@ export const apiUrl = (path: string, query?: Query): string => serverUrl(`/api${
 
 /** A file the server hands out (attachments, images, artifacts), for src and href. */
 export const fileUrl = (path: string): string => apiUrl('/file', { path });
+/** A PDF to read in a browser tab (fileUrl downloads it). */
+export const pdfViewUrl = (path: string): string => apiUrl('/file', { path, view: 1 });
 
 /** The ws:// (or wss://) address of a path on the server. */
 export function socketUrl(path: string, query?: Query): string {

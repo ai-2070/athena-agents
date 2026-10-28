@@ -1,12 +1,13 @@
 // Previews of the files a chat mentions: images and videos shown, audio playable, 3D models you can turn, other files and folders
 // as a card, each with a "Show in Explorer / Finder" button below. Only files the dashboard may show
 // (inside the project's folders, see server/files.ts) get one; anything else is left as plain text.
-import { h, mount, POST, attempt, lightbox } from './core.ts';
+import { h, mount, POST, attempt, lightbox, md, modal, toast } from './core.ts';
 import { icon } from './icons.ts';
 import { isMac } from './shortcuts.ts';
 import { findFileMentions } from './mentions.ts';
 import { modelViewer } from './modelviewer.ts';
-import { fileUrl } from './client/connection.ts';
+import { fileUrl, pdfViewUrl } from './client/connection.ts';
+import { fetchFile } from './client/http.ts';
 
 /** POST /api/files/info, one entry per path. */
 export type FileInfo = { path: string; ok: false } | { path: string; ok: true; kind: 'image' | 'video' | 'audio' | 'model' | 'file' | 'folder'; name: string; size: number; modified: number };
@@ -57,13 +58,48 @@ export function zoomable<E extends HTMLElement>(el: E, src: string, name: string
   el.setAttribute('role', 'button');
   el.tabIndex = 0;
   el.setAttribute('aria-label', `Show ${name} bigger`);
-  el.addEventListener('click', () => lightbox(src));
+  el.addEventListener('click', () => lightbox(src, name));
   el.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     e.preventDefault();
-    lightbox(src);
+    lightbox(src, name);
   });
   return el;
+}
+
+// ---------- previews of attached files: pictures big, Markdown read in a dialog, PDFs in a new tab ----------
+export type PreviewKind = 'image' | 'markdown' | 'pdf';
+/** What a click on a file with this name can show, or null when it can only be downloaded. */
+export function previewKind(name: string): PreviewKind | null {
+  if (/\.(png|jpe?g|webp|gif)$/i.test(name)) return 'image';
+  if (/\.(md|markdown)$/i.test(name)) return 'markdown';
+  if (/\.pdf$/i.test(name)) return 'pdf';
+  return null;
+}
+
+/** Markdown, read in a dialog (sanitized by md()). */
+export function showMarkdown(name: string, text: string): void {
+  modal({ title: name, body: md(text) }).el.classList.add('wide');
+}
+
+/** A Markdown file the server has, read in a dialog. */
+export async function previewMarkdown(path: string, name: string): Promise<void> {
+  try {
+    showMarkdown(name, await (await fetchFile(fileUrl(path))).text());
+  } catch {
+    toast(`${name} couldn’t be opened.`, 'error');
+  }
+}
+
+/** A PDF opened in a new browser tab (in the desktop app, the default browser). */
+export const openPdf = (path: string): void => void window.open(pdfViewUrl(path), '_blank', 'noopener');
+
+/** Show a file the server has the way previewKind says. */
+export function previewFile(path: string, name: string): void {
+  const kind = previewKind(name);
+  if (kind === 'image') lightbox(fileUrl(path), name);
+  else if (kind === 'markdown') void previewMarkdown(path, name);
+  else if (kind === 'pdf') openPdf(path);
 }
 
 export function revealButton(path: string): HTMLButtonElement {
@@ -84,15 +120,12 @@ function card(f: Extract<FileInfo, { ok: true }>, compact: boolean): HTMLElement
           ? h('audio', { class: 'mx-2.5 mt-3 mb-2 block w-[calc(100%-20px)]', src: url, controls: true, preload: 'metadata' })
           : f.kind === 'model'
             ? modelViewer(url, f.name, f.size)
-            : h(
-              f.kind === 'folder' ? 'div.fp-file' : 'a.fp-file',
-              f.kind === 'folder' ? { class: fileBox } : { class: `${fileBox} hover:text-accent`, href: url, target: '_blank', rel: 'noopener', title: `Download ${f.name}` },
-              icon(f.kind === 'folder' ? 'folder' : 'file-text', 22),
-              h('span', { class: 'min-w-0 truncate text-[13.5px]' }, f.kind === 'folder' ? `${f.name}/` : f.name),
-            );
+            : fileCard(f, fileBox);
+  // a card that opens bigger when clicked says so when the mouse is over it
+  const opens = f.kind === 'image' || (f.kind === 'file' && previewKind(f.name) !== null);
   return h(
     `div.fp-card.fp-kind-${f.kind}`,
-    { class: compact ? 'flex w-full flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2 [&_.fp-model]:max-h-60' : 'flex w-[min(380px,100%)] flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2', title: f.path },
+    { class: `${compact ? 'flex w-full flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2 [&_.fp-model]:max-h-60' : 'flex w-[min(380px,100%)] flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2'}${opens ? ' transition-colors hover:border-accent-dim' : ''}`, title: f.path },
     preview,
     h(
       'div.fp-bar',
@@ -103,6 +136,18 @@ function card(f: Extract<FileInfo, { ok: true }>, compact: boolean): HTMLElement
       revealButton(f.path),
     ),
   );
+}
+
+// A file without a picture of its own: Markdown opens to read, a PDF in a new tab, the rest download.
+function fileCard(f: Extract<FileInfo, { ok: true }>, fileBox: string): HTMLElement {
+  const label = h('span', { class: 'min-w-0 truncate text-[13.5px]' }, f.kind === 'folder' ? `${f.name}/` : f.name);
+  if (f.kind === 'folder') return h('div.fp-file', { class: fileBox }, icon('folder', 22), label);
+  const kind = previewKind(f.name);
+  if (kind === 'markdown')
+    return h('button.fp-file', { class: `${fileBox} w-full cursor-pointer border-0 bg-transparent text-left hover:bg-panel hover:text-accent`, type: 'button', title: `Read ${f.name}`, onclick: () => void previewMarkdown(f.path, f.name) }, icon('file-text', 22), label);
+  if (kind === 'pdf')
+    return h('a.fp-file', { class: `${fileBox} hover:bg-panel hover:text-accent`, href: pdfViewUrl(f.path), target: '_blank', rel: 'noopener', title: `Open ${f.name} in a new tab` }, icon('file-text', 22), label, h('span', { class: 'ml-auto flex-none text-faint' }, icon('external-link', 14)));
+  return h('a.fp-file', { class: `${fileBox} hover:text-accent`, href: fileUrl(f.path), target: '_blank', rel: 'noopener', title: `Download ${f.name}` }, icon('file-text', 22), label);
 }
 
 /** Previews for these paths. Returns its box right away (empty and hidden until the files are looked

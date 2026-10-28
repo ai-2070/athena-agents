@@ -209,3 +209,40 @@ describe('restoreDraft()', () => {
     expect(input.value).toBe('hello\nand more');
   });
 });
+
+describe('looking at attached files before sending', () => {
+  const frame = () => new Promise((r) => setTimeout(r, 40));
+  const chip = (tray: ReturnType<typeof attachTray>, name: string) => [...tray.el.querySelectorAll<HTMLElement>('.att-chip')].find((c) => c.querySelector('.att-name')!.textContent === name)!;
+
+  it('pictures and Markdown open straight away, a PDF once uploaded, other files not at all', async () => {
+    document.body.append(Object.assign(document.createElement('div'), { id: 'modal-root' }));
+    const opened = vi.fn();
+    vi.stubGlobal('open', opened);
+    const tray = attachTray();
+    tray.add([
+      { rel: 'notes.md', file: new File(['# Plan'], 'notes.md') },
+      { rel: 'brief.pdf', file: new File(['%PDF'], 'brief.pdf') },
+      { rel: 'data.csv', file: new File(['a,b'], 'data.csv') },
+    ]);
+    await frame();
+    expect(chip(tray, 'notes.md').querySelector('.att-open')).not.toBeNull();
+    expect(chip(tray, 'notes.md').className).toContain('hover:border-accent-dim');
+    expect(chip(tray, 'brief.pdf').querySelector('.att-open')).toBeNull();
+    expect(chip(tray, 'data.csv').querySelector('.att-open')).toBeNull();
+    expect(chip(tray, 'data.csv').className).not.toContain('hover:border-accent-dim');
+
+    chip(tray, 'notes.md').querySelector<HTMLButtonElement>('.att-open')!.click();
+    await frame();
+    expect(document.querySelector('.modal-head h2')!.textContent).toBe('notes.md');
+    // (rendered by md(); the test page has no sanitizer, so it shows as plain text here)
+    expect(document.querySelector('.modal-body .md')!.textContent).toContain('Plan');
+
+    await finishAll();
+    await frame();
+    chip(tray, 'brief.pdf').querySelector<HTMLButtonElement>('.att-open')!.click();
+    expect(opened).toHaveBeenCalledWith('/api/file?path=%2Fup%2Fbrief.pdf&view=1', '_blank', 'noopener');
+    // the ✕ still only removes
+    chip(tray, 'brief.pdf').querySelector<HTMLButtonElement>('.att-x')!.click();
+    expect(opened).toHaveBeenCalledTimes(1);
+  });
+});

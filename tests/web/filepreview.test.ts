@@ -1,12 +1,14 @@
 // Previews of the files a chat mentions, each with Show in Explorer / Finder below it.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { filePreviews, forgetFiles, mentionPreviews, revealLabel } from '../../web/filepreview.ts';
+import { filePreviews, forgetFiles, mentionPreviews, previewKind, revealLabel } from '../../web/filepreview.ts';
 
 const FILES: Record<string, { kind: string; size: number }> = {
   '/w/shot.png': { kind: 'image', size: 2048 },
   '/w/clip.mp4': { kind: 'video', size: 3_500_000 },
   '/w/song.mp3': { kind: 'audio', size: 100 },
   '/w/plan.pdf': { kind: 'file', size: 12 },
+  '/w/notes.md': { kind: 'file', size: 9 },
+  '/w/data.csv': { kind: 'file', size: 9 },
   '/w/renders': { kind: 'folder', size: 0 },
   '/w/ship.glb': { kind: 'model', size: 5_000 },
   '/w/huge.glb': { kind: 'model', size: 80 * 1024 * 1024 },
@@ -17,8 +19,9 @@ beforeEach(() => {
   calls = [];
   forgetFiles();
   vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
-    const body = JSON.parse(String(init.body || '{}'));
+    const body = JSON.parse(String(init?.body || '{}'));
     calls.push({ url, body });
+    if (url === '/api/file?path=%2Fw%2Fnotes.md') return new Response('# Notes\n\nHello');
     if (url === '/api/files/info')
       return new Response(JSON.stringify(body.paths.map((p: string) => (FILES[p] ? { path: p, ok: true, name: p.split('/').pop(), modified: 0, ...FILES[p] } : { path: p, ok: false }))));
     return new Response(JSON.stringify({ ok: true }));
@@ -151,5 +154,33 @@ describe('revealLabel()', () => {
     platform.mockReturnValue('Linux x86_64');
     expect(revealLabel()).toBe('Show in folder');
     platform.mockRestore();
+  });
+});
+
+describe('opening attached files', () => {
+  beforeEach(() => document.body.append(Object.assign(document.createElement('div'), { id: 'modal-root' })));
+
+  it('Markdown opens to read, a PDF in a new tab, anything else downloads; only the ones that open light up', async () => {
+    const box = filePreviews(['/w/notes.md', '/w/plan.pdf', '/w/data.csv']);
+    document.body.append(box);
+    await settle();
+    const [md, pdf, csv] = [...box.querySelectorAll<HTMLElement>('.fp-card')];
+    expect(md.className).toContain('hover:border-accent-dim');
+    expect(pdf.className).toContain('hover:border-accent-dim');
+    expect(csv.className).not.toContain('hover:border-accent-dim');
+    const link = pdf.querySelector('a.fp-file')!;
+    expect(link.getAttribute('href')).toBe('/api/file?path=%2Fw%2Fplan.pdf&view=1');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(csv.querySelector('a.fp-file')!.getAttribute('href')).toBe('/api/file?path=%2Fw%2Fdata.csv');
+    const read = md.querySelector<HTMLButtonElement>('button.fp-file')!;
+    expect(read.className).toContain('cursor-pointer');
+    read.click();
+    await settle();
+    expect(document.querySelector('.modal-head h2')!.textContent).toBe('notes.md');
+    expect(document.querySelector('.modal-body .md')!.textContent).toContain('Hello');
+  });
+
+  it('knows which files can be looked at', () => {
+    expect(['a.PNG', 'b.md', 'c.markdown', 'd.pdf', 'e.txt', 'f'].map(previewKind)).toEqual(['image', 'markdown', 'markdown', 'pdf', null, null]);
   });
 });

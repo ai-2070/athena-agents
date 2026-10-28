@@ -6,6 +6,7 @@ import { GET, POST } from './client/http.ts';
 import { openSocket, setPageProject } from './client/connection.ts';
 import { openDialog, showToast } from './ui/overlays.tsx';
 import type { ToastKind } from './ui/overlays.tsx';
+import { zoomView } from './zoomview.ts';
 
 // ---------- API ----------
 // Requests live in web/client/; pages keep importing them from here.
@@ -275,8 +276,12 @@ export function promptBox(title: Child, { label = '', value = '', multiline = fa
   });
 }
 
-export function lightbox(src: string): void {
-  modal({ title: 'Image', body: h('div.lightbox', h('img', { src }), h('p', { class: 'mt-3.5' }, h('a', { href: src, target: '_blank' }, 'Open full size'))) });
+/** A picture shown big, fitted to the window, that zooms (web/zoomview.ts). */
+export function lightbox(src: string, name = 'Image'): void {
+  const view = zoomView(src, name);
+  const m = modal({ title: name, body: view.el });
+  m.el.classList.add('wide');
+  m.el.addEventListener('keydown', view.onKey);
 }
 
 // ---------- small widgets ----------

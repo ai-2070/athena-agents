@@ -294,6 +294,26 @@ describe('attached files', () => {
     expect((await req(`/api/file?path=${encodeURIComponent(f.path)}`)).status).toBe(200);
   });
 
+  it('opens a PDF in a browser tab when asked (view=1); everything else still downloads, sandboxed', async () => {
+    const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
+    const pdf = await (await upload(batch, 'plan.pdf', '%PDF-1.4')).json();
+    const note = await (await upload(batch, 'note.md', '# Hi')).json();
+    const get = (p: string, view = '') => req(`/api/file?path=${encodeURIComponent(p)}${view}`);
+    const plain = await get(pdf.path);
+    expect(plain.headers.get('content-disposition')).toMatch(/^attachment/);
+    expect(plain.headers.get('content-security-policy')).toMatch(/sandbox/);
+    const viewed = await get(pdf.path, '&view=1');
+    expect(viewed.status).toBe(200);
+    expect(viewed.headers.get('content-type')).toBe('application/pdf');
+    expect(viewed.headers.get('content-disposition')).toMatch(/^inline/);
+    expect(viewed.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(await viewed.text()).toBe('%PDF-1.4');
+    // only PDFs: any other file asked for this way is still sent the safe way
+    const md = await get(note.path, '&view=1');
+    expect(md.headers.get('content-disposition')).toMatch(/^attachment/);
+    expect(md.headers.get('content-security-policy')).toMatch(/sandbox/);
+  });
+
   it('needs the x-dash header to upload or remove, and removes only uploads', async () => {
     const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
     expect((await upload(batch, 'a.md', 'x', {})).status).toBe(403);
