@@ -1,0 +1,29 @@
+shared/types.ts
+  s_8f530f9e30e490::t_3ebb65c90b8874 211,213-214
+docs/guide.md
+  s_8f530f9e30e490::t_b49b0c896f6d34 145
+server/routines.ts
+  s_8f530f9e30e490::t_3ebb65c90b8874 89,142,243
+tests/server/routines.test.ts
+  s_8f530f9e30e490::t_4ff23607d9e929 9,144-153
+tests/web/routines-page.test.tsx
+  s_8f530f9e30e490::t_35eba0cb13ac09 101,114,118-120,123-135
+web/views/routines.tsx
+  s_8f530f9e30e490::t_3ebb65c90b8874 125-126,129,137,142,144-146,159,216-217,240-244,290-295,345,392
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f3b5f7a881108e1688042a579d41697d6476b051",
+  "prompts": {},
+  "sessions": {
+    "s_8f530f9e30e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3bb6e3e4-81e1-4afa-a104-48a778c3a87b",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
