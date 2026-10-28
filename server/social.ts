@@ -6,7 +6,7 @@ import path from 'node:path';
 import { dataPath, readJSON, writeJSON, fetchJSON, uid } from './util.ts';
 import { viewable, kindOf } from './files.ts';
 import { teamOf } from './artifacts.ts';
-import { getSettings, getSecrets, outbox as outboxStore, emit, log } from './store.ts';
+import { getSettings, getSecrets, outbox as outboxStore, emit, log, activeProject, withProject } from './store.ts';
 import * as reddit from './reddit.ts';
 import type { FetchError } from './util.ts';
 import type { Collection } from './store.ts';
@@ -410,14 +410,22 @@ export async function draftPost({ platform = 'x', account, text, thread = null, 
   return item;
 }
 
+// posts being published, by project and id
 const publishing = new Set<string>();
 
-export async function approvePost(id: string, edits: ApproveEdits | null = null): Promise<OutboxItem> {
+// Publishing takes a while: the post is saved in the project it is in, whichever project is open by then.
+export function approvePost(id: string, edits: ApproveEdits | null = null): Promise<OutboxItem> {
+  const project = activeProject();
+  return withProject(project, () => approveIn(`${project.id}
+${id}`, id, edits));
+}
+
+async function approveIn(key: string, id: string, edits: ApproveEdits | null): Promise<OutboxItem> {
   const item = outbox.get(id);
   if (!item) throw new Error('No such post.');
   if (item.status === 'posted') return item;
-  if (publishing.has(id)) throw new Error('This post is already being published.');
-  publishing.add(id);
+  if (publishing.has(key)) throw new Error('This post is already being published.');
+  publishing.add(key);
   const posted = item.postIds?.length || 0;
   // Parts already on X can't be edited any more.
   if (edits?.images && item.images) item.images = item.images.filter((p) => edits.images!.includes(p));
@@ -451,7 +459,7 @@ export async function approvePost(id: string, edits: ApproveEdits | null = null)
     Object.assign(item, { status: 'failed', error: (e as Error).message + part });
     log('error', `Post to ${item.accountLabel} failed: ${(e as Error).message}`);
   } finally {
-    publishing.delete(id);
+    publishing.delete(key);
   }
   return outbox.save(item);
 }
@@ -460,7 +468,11 @@ export async function approvePost(id: string, edits: ApproveEdits | null = null)
  * Send a draft back to the team that wrote it, with your feedback: it goes into their chat as a message to its author,
  * and the draft leaves the Outbox as "sent back" (the author saves a new one once it is revised).
  */
-export async function returnPost(id: string, feedback: string, send: (teamId: string, text: string) => Promise<unknown>): Promise<OutboxItem> {
+export function returnPost(id: string, feedback: string, send: (teamId: string, text: string) => Promise<unknown>): Promise<OutboxItem> {
+  return withProject(activeProject(), () => returnIn(id, feedback, send));
+}
+
+async function returnIn(id: string, feedback: string, send: (teamId: string, text: string) => Promise<unknown>): Promise<OutboxItem> {
   const item = outbox.get(id);
   if (!item) throw new Error('No such post.');
   if (item.status !== 'pending' && item.status !== 'failed') throw new Error('Only a post that is waiting can be sent back.');
