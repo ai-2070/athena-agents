@@ -531,9 +531,10 @@ function ChatWindows() {
         ) : null}
       </div>
       {wins.map((w) => {
-        // with more than one window down there, each pill says which chat it holds
+        // with more than one window down there, each pill says which chat it holds; a lone team chat says its team
         const open = w.tabs.find((t) => t.key === w.active) || w.tabs[0];
-        const label = pilled.length > 1 && open ? `${tabInfo(open, busyAgents).label}${w.tabs.length > 1 ? ` +${w.tabs.length - 1}` : ''}` : `${w.tabs.length} chat${w.tabs.length === 1 ? '' : 's'}`;
+        const named = open && (pilled.length > 1 || (w.tabs.length === 1 && open.kind === 'team'));
+        const label = named ? `${tabInfo(open, busyAgents).label}${w.tabs.length > 1 ? ` +${w.tabs.length - 1}` : ''}` : `${w.tabs.length} chat${w.tabs.length === 1 ? '' : 's'}`;
         return createPortal(
           <button
             ref={(el) => void (w.pill = el)}

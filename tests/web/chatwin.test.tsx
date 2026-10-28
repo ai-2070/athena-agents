@@ -80,6 +80,15 @@ describe('the chat window', () => {
     expect(pill.classList.contains('hidden')).toBe(true);
   });
 
+  it('a lone team chat\'s pill says the team\'s name', async () => {
+    window.__teams = [{ id: 't1', name: 'Research', color: '#7350c8' }] as unknown as typeof window.__teams;
+    await act(async () => void openChat('team', 't1'));
+    await settle();
+    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Minimize the chats"]')!.click());
+    await settle();
+    expect(document.querySelector('.bottom-bar .cw-pill')!.textContent).toBe('Research');
+  });
+
   it('lets the tabs shrink and scroll when they don\'t fit, also with a mouse wheel', async () => {
     await act(async () => void openChat('agent', 'a1'));
     await act(async () => void openChat('agent', 'a2'));
