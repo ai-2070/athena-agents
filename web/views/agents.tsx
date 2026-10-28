@@ -59,6 +59,21 @@ interface ChartPick {
 }
 const MICRO = 'font-mono text-[10.5px] leading-none tracking-[0.14em] uppercase text-faint';
 
+/** One number of the overview: an icon, the figure, what it counts. hot: something is going on (the accent). */
+function StatTile({ icon, label, value, hot = false, valueClass = '' }: { icon: string; label: string; value: number; hot?: boolean; valueClass?: string }) {
+  return (
+    <div className={`flex items-center gap-3 rounded-box border px-3.5 py-3 ${hot ? 'border-accent-dim bg-accent/6' : 'border-line bg-bg/40'}`}>
+      <span className={`grid size-9 flex-none place-items-center rounded-[10px] ${hot ? 'bg-accent/15 text-accent' : 'bg-panel-2 text-dim'}`}>
+        <Icon name={icon} size={17} />
+      </span>
+      <div className="min-w-0">
+        <b className={`${valueClass} block font-mono text-[26px] leading-none font-semibold tracking-[-0.02em] ${hot ? 'text-accent' : 'text-ink'}`}>{value}</b>
+        <span className={`${MICRO} mt-1.5 block truncate`}>{label}</span>
+      </div>
+    </div>
+  );
+}
+
 /** What kinds of agents the project has (one bar, a segment per category) and which models they run on. */
 function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppState; pick: ChartPick | null; setPick: (p: ChartPick | null) => void }) {
   const [hot, setHot] = useState<string | null>(null);
@@ -80,31 +95,20 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
     <section className="agents-overview panel mb-4" aria-label="Your agents at a glance">
       <div className="grid grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-x-10 gap-y-7 max-lg:grid-cols-1">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-            <div className="flex items-baseline gap-2.5">
-              <b className="agents-total font-mono text-[34px] leading-none font-semibold tracking-[-0.02em] text-ink">{total}</b>
-              <span className={MICRO}>agents</span>
-            </div>
-            <div className="flex flex-wrap gap-x-5 gap-y-1.5 font-mono text-[11px] leading-none tracking-[0.08em] uppercase text-dim">
-              <span>
-                <b className={working ? 'text-accent' : 'text-ink'}>{working}</b> working now
-              </span>
-              <span>
-                <b className="text-ink">{kinds}</b> {kinds === 1 ? 'category' : 'categories'}
-              </span>
-              <span>
-                <b className="text-ink">{new Set(agents.map((a) => agentModel(a, d.settings.defaults).id)).size}</b> models
-              </span>
-            </div>
+          <div className="grid grid-cols-4 gap-2.5 max-sm:grid-cols-2">
+            <StatTile icon="bot" label="agents" value={total} valueClass="agents-total" />
+            <StatTile icon="radio" label="working now" value={working} hot={working > 0} />
+            <StatTile icon="layout-grid" label={kinds === 1 ? 'category' : 'categories'} value={kinds} />
+            <StatTile icon="cpu" label="models" value={new Set(agents.map((a) => agentModel(a, d.settings.defaults).id)).size} />
           </div>
           <div className={`${MICRO} mt-6 mb-2.5`}>By category</div>
           <div className="relative">
-            <div className="agents-cat-bar flex h-4 gap-0.5" onMouseLeave={() => setHot(null)}>
+            <div className="agents-cat-bar flex h-3.5 gap-0.75" onMouseLeave={() => setHot(null)}>
               {cats.map((s) => (
                 <button
                   key={s.id}
                   type="button"
-                  className={`h-full min-w-1 cursor-pointer transition-[opacity,filter] duration-150 first:rounded-l-[4px] last:rounded-r-[4px] hover:brightness-125 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${catFocus && catFocus !== s.id ? 'opacity-30' : ''}`}
+                  className={`h-full min-w-1 cursor-pointer transition-[opacity,filter] duration-150 first:rounded-l-full last:rounded-r-full hover:brightness-125 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${catFocus && catFocus !== s.id ? 'opacity-30' : ''}`}
                   style={{ flexGrow: s.count, flexBasis: 0, background: s.color }}
                   aria-label={`${s.label}: ${s.count} of ${total} agents`}
                   aria-pressed={picked('category', s)}
@@ -217,18 +221,24 @@ function AgentsList() {
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <DomNode as="span" make={() => deletedButton(['agent', 'team'], () => refreshSoon(0))} deps={[]} />
-          <a className="btn ghost" href="#/library">Hire from Agent library</a>
-          <button className="btn" onClick={() => void create()}>+ New agent</button>
+          <a className="btn ghost" href="#/library">
+            <Icon name="store" size={14} />
+            Hire from Agent library
+          </a>
+          <button className="btn" onClick={() => void create()}>
+            <Icon name="plus" size={14} />
+            New agent
+          </button>
         </div>
       </div>
       <div className="cards">
         {shown.map((a) => (
-          <div key={a.id} className="card">
+          <div key={a.id} className="card agent-card gap-3 border-t-2" style={{ borderTopColor: `color-mix(in srgb, ${a.color || 'var(--color-accent)'} 75%, var(--color-line))` }}>
             <div className="card-top">
               <Avatar agent={a} lg />
-              <div className="flex-1 min-w-0">
-                <div className="card-title">{a.name}</div>
-                <div className="card-sub">{a.specialty || a.description || 'No specialty yet'}</div>
+              <div className="min-w-0 flex-1">
+                <div className="card-title pr-14 text-[15.5px]">{a.name}</div>
+                <div className="card-sub mt-1 text-[12.5px]">{a.specialty || a.description || 'No specialty yet'}</div>
               </div>
             </div>
             {isRunning(a.id) ? (
@@ -240,13 +250,30 @@ function AgentsList() {
               <span className="corner text-faint" aria-label="pinned">★</span>
             ) : null}
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="pill">{engineLabel(a)}</span>
-              <span className="pill">{a.autonomy === 'full' ? 'full autonomy' : a.autonomy === 'ask' ? 'asks first' : 'auto'}</span>
+              <span className="pill inline-flex items-center gap-1.25">
+                <Icon name="cpu" size={11} />
+                {engineLabel(a)}
+              </span>
+              <span className="pill inline-flex items-center gap-1.25">
+                <Icon name={a.autonomy === 'full' ? 'zap' : a.autonomy === 'ask' ? 'hand' : 'shield-check'} size={11} />
+                {a.autonomy === 'full' ? 'full autonomy' : a.autonomy === 'ask' ? 'asks first' : 'auto'}
+              </span>
             </div>
-            <div className="card-foot">
-              <a className="btn small" href={`#/agents/${a.id}`}>Chat</a>
-              <a className="btn ghost small" href={`#/agents/${a.id}/edit`}>Edit</a>
-              {a.engine !== 'openai' ? <button className="btn ghost small" onClick={() => void openTerminal(a)}>Terminal</button> : null}
+            <div className="card-foot border-t border-line pt-3">
+              <a className="btn small" href={`#/agents/${a.id}`}>
+                <Icon name="message-square" size={13} />
+                Chat
+              </a>
+              <a className="btn ghost small" href={`#/agents/${a.id}/edit`}>
+                <Icon name="pencil" size={13} />
+                Edit
+              </a>
+              {a.engine !== 'openai' ? (
+                <button className="btn ghost small ml-auto" title="Open a terminal for this agent" aria-label={`Terminal for ${a.name}`} onClick={() => void openTerminal(a)}>
+                  <Icon name="terminal" size={13} />
+                  Terminal
+                </button>
+              ) : null}
             </div>
           </div>
         ))}
