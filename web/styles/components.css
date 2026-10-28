@@ -223,26 +223,47 @@ a.card.clickable { color: inherit; text-decoration: none; }
 .tc-act:hover { color: var(--color-accent); }
 
 /* ---------- Markdown (md() in web/core.ts, <Markdown> in web/chat/parts.tsx) ---------- */
-/* The browser's own look for what Markdown makes, which Tailwind's reset takes away. :where() keeps these
-   at no specificity, like the browser's, so each chat's own rules still win. */
-:where(.md) :where(h1) { font-size: 2em; margin: 0.67em 0; }
-:where(.md) :where(h2) { font-size: 1.5em; margin: 0.83em 0; }
-:where(.md) :where(h3) { font-size: 1.17em; margin: 1em 0; }
-:where(.md) :where(h4) { margin: 1.33em 0; }
-:where(.md) :where(h5) { font-size: 0.83em; margin: 1.67em 0; }
-:where(.md) :where(h6) { font-size: 0.67em; margin: 2.33em 0; }
-:where(.md) :where(ul, ol) { margin: 1em 0; padding-left: 40px; }
+/* What Markdown makes, which Tailwind's reset takes away. :where() keeps these at no specificity,
+   so each chat's own rules still win. Headings sit closer to what follows than to what came before. */
+:where(.md) :where(h1) { font-size: 1.75em; line-height: 1.25; margin: 1.1em 0 0.5em; }
+:where(.md) :where(h2) { font-size: 1.4em; line-height: 1.3; margin: 1.2em 0 0.5em; }
+:where(.md) :where(h3) { font-size: 1.17em; line-height: 1.35; margin: 1.2em 0 0.45em; }
+:where(.md) :where(h4, h5, h6) { font-size: 1em; margin: 1.2em 0 0.4em; }
+:where(.md) :where(h6) { color: var(--color-dim); }
+:where(.md) :where(ul, ol) { margin: 0.6em 0 0.9em; padding-left: 1.6em; }
 :where(.md) :where(ul) { list-style: disc; }
 :where(.md) :where(ol) { list-style: decimal; }
-:where(.md) :where(li li, ul ul, ol ul) { margin: 0; }
+:where(.md) :where(li + li) { margin-top: 0.25em; }
+:where(.md) :where(li > ul, li > ol) { margin: 0.25em 0; }
 :where(.md) :where(ul ul, ol ul) { list-style: circle; }
-:where(.md) :where(blockquote) { margin: 1em 40px; }
-:where(.md) :where(hr) { margin: 0.5em 0; }
-:where(.md) :where(img) { display: inline; }
-:where(.md) :where(table) { border-collapse: separate; border-spacing: 2px; }
-:where(.md) :where(td, th) { padding: 1px; }
-:where(.md) :where(th) { font-weight: 700; text-align: center; }
-:where(.md) :where(dd) { margin-left: 40px; }
+:where(.md) :where(li::marker) { color: var(--color-dim); }
+:where(.md) :where(blockquote) { margin: 0.8em 0; padding: 0.1em 0 0.1em 1em; border-left: 3px solid var(--color-line-2); color: var(--color-dim); }
+:where(.md) :where(blockquote, li) > :where(:last-child) { margin-bottom: 0; }
+:where(.md) :where(hr) { margin: 1.4em 0; border: 0; border-top: 1px solid var(--color-line-2); }
+:where(.md) :where(img) { display: inline; max-width: 100%; }
+:where(.md) :where(dd) { margin-left: 1.6em; }
+/* nothing pushes the text away from the top or bottom of its box */
+:where(.md) > :where(:first-child) { margin-top: 0; }
+:where(.md) > :where(:last-child) { margin-bottom: 0; }
+/* tables: lines between rows, a shaded header, and a sideways scroll when too wide (md() wraps each one) */
+:where(.md) :where(.md-table) { overflow-x: auto; margin: 0.8em 0 1em; }
+:where(.md) :where(table) { border-collapse: collapse; font-size: 0.93em; line-height: 1.5; }
+:where(.md) :where(th, td) { border: 1px solid var(--color-line-2); padding: 0.45em 0.75em; text-align: left; vertical-align: top; }
+:where(.md) :where(th) { font-weight: 700; background: var(--color-panel-2); }
+:where(.md) :where(tbody tr:nth-child(even)) { background: color-mix(in srgb, var(--color-panel-2) 55%, transparent); }
+:where(.md) :where(th[align='center'], td[align='center']) { text-align: center; }
+:where(.md) :where(th[align='right'], td[align='right']) { text-align: right; }
+
+/* a Markdown file read on its own (filepreview.ts): a document, set for reading */
+.md.md-doc { font-size: 15px; line-height: 1.7; padding: 6px 16px 14px; overflow-wrap: break-word; }
+.md.md-doc p { margin: 0 0 0.9em; }
+.md.md-doc h1 { font-size: 1.9em; letter-spacing: -0.01em; }
+.md.md-doc h2 { padding-bottom: 0.3em; border-bottom: 1px solid var(--color-line); }
+.md.md-doc table { width: 100%; }
+.md.md-doc li + li { margin-top: 0.55em; }
+.md.md-doc li > p { margin-bottom: 0.4em; }
+.md.md-doc :is(blockquote, li) > p:last-child { margin-bottom: 0; }
+.md.md-doc pre { max-height: none; }
 
 /* ---------- chats: messages, tool calls, the message box ---------- */
 .messages { flex: 1; overflow-y: auto; padding: 22px 28px 10px; display: flex; flex-direction: column; gap: 14px; }
@@ -262,8 +283,7 @@ a.card.clickable { color: inherit; text-decoration: none; }
 .msg.assistant p { margin: 0 0 10px; }
 .msg.assistant h1, .msg.assistant h2, .msg.assistant h3 { font-size: 16px; margin: 16px 0 8px; }
 .msg.assistant ul, .msg.assistant ol { padding-left: 22px; margin: 6px 0 10px; }
-.msg.assistant table { border-collapse: collapse; margin: 8px 0; font-size: 13.5px; display: block; overflow-x: auto; }
-.msg.assistant td, .msg.assistant th { border: 1px solid var(--color-line-2); padding: 5px 9px; }
+.msg.assistant table { font-size: 13.5px; }
 .msg.assistant img { max-width: 100%; }
 /* links in what someone wrote in a chat (font-chat): quiet, so a reply full of file names stays easy to read */
 :is(.msg, .font-chat) a:not(.btn) {
@@ -361,6 +381,8 @@ details.compaction .hint.warn { color: var(--color-amber); }
 }
 .modal.narrow { width: min(520px, 100%); }
 .modal-back.wide .modal { width: min(1100px, 100%); }
+/* a document to read (a Markdown file): about 80 characters a line */
+.modal-back.doc .modal { width: min(800px, 100%); }
 .modal-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--color-line); }
 .modal-head h2 { margin: 0; font-size: 17px; font-weight: 700; flex: 1; }
 .modal-body { padding: 20px; overflow-y: auto; }

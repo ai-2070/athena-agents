@@ -23,6 +23,13 @@ describe('md() on agent output', () => {
     expect(a.rel).toBe('noopener');
   });
 
+  it('puts each table in its own box that scrolls sideways', () => {
+    const el = md('| a | b |\n| - | - |\n| 1 | 2 |');
+    const table = el.querySelector('table')!;
+    expect(table.parentElement!.className).toBe('md-table');
+    expect(table.querySelectorAll('th')).toHaveLength(2);
+  });
+
   it('drops javascript: links', () => {
     const a = md('[x](javascript:alert(1))').querySelector('a');
     expect(a?.getAttribute('href') ?? '').not.toMatch(/javascript:/i);
