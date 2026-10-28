@@ -1,5 +1,5 @@
 // Checks what scripts/build-desktop.ts staged, the way the desktop app runs it: the bundled Bun
-// starts the bundled server on a free port with a throwaway data folder, the page and an API answer,
+// starts the bundled server on a free port with a throwaway data folder and home folder, the page and an API answer,
 // the MCP bridge starts, and the server stops by itself once its stdin closes.
 // Run after build-desktop: bun scripts/desktop-smoke.ts [--target <triple>]
 import fs from 'node:fs';
@@ -33,13 +33,20 @@ function fail(msg: string): never {
   process.exit(1);
 }
 
-const data = fs.mkdtempSync(path.join(os.tmpdir(), 'dash-smoke-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dash-smoke-'));
+const data = path.join(tmp, 'data');
+// a home of its own too: the default project's folder is <home>/Documents/Blacksite, and its auto-save
+// must never touch yours
+const home = path.join(tmp, 'home');
+fs.mkdirSync(data);
+fs.mkdirSync(home);
+const isolated = { DASH_DATA: data, HOME: home, USERPROFILE: home, PI_CODING_AGENT_DIR: path.join(home, '.pi', 'agent') };
 const port = await freePort();
 const base = `http://127.0.0.1:${port}`;
 // cwd outside the repo, so nothing can be found by accident next to the sources
 const server = Bun.spawn([bun, path.join(app, 'server', 'index.js'), '--port', String(port), '--no-open'], {
   cwd: data,
-  env: { ...process.env, DASH_DATA: data, DASH_DESKTOP: '1' },
+  env: { ...process.env, ...isolated, DASH_DESKTOP: '1' },
   stdin: 'pipe',
   stdout: 'pipe',
   stderr: 'pipe',
@@ -81,7 +88,7 @@ try {
 
   // the bridge, as Claude Code would start it: one MCP initialize request over stdio
   const bridge = Bun.spawn([bun, path.join(app, 'server', 'mcp-bridge.js')], {
-    env: { ...process.env, DASH_PORT: String(port), DASH_DATA: data },
+    env: { ...process.env, ...isolated, DASH_PORT: String(port) },
     stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'inherit',
@@ -110,5 +117,5 @@ try {
 } finally {
   server.kill();
   await server.exited;
-  fs.rmSync(data, { recursive: true, force: true });
+  fs.rmSync(tmp, { recursive: true, force: true });
 }
