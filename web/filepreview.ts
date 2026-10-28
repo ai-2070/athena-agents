@@ -1,13 +1,14 @@
 // Previews of the files a chat mentions: images and videos shown, audio playable, 3D models you can turn, other files and folders
 // as a card, each with a "Show in Explorer / Finder" button below. Only files the dashboard may show
 // (inside the project's folders, see server/files.ts) get one; anything else is left as plain text.
-import { h, mount, POST, attempt, lightbox, md, modal, toast } from './core.ts';
+import { h, mount, POST, attempt, lightbox, toast } from './core.ts';
 import { icon } from './icons.ts';
 import { isMac } from './shortcuts.ts';
 import { findFileMentions } from './mentions.ts';
 import { modelViewer } from './modelviewer.ts';
 import { fileUrl, pdfViewUrl } from './client/connection.ts';
 import { fetchFile } from './client/http.ts';
+import { showMarkdownDialog } from './ui/bigmarkdown.tsx';
 
 /** POST /api/files/info, one entry per path. */
 export type FileInfo = { path: string; ok: false } | { path: string; ok: true; kind: 'image' | 'video' | 'audio' | 'model' | 'file' | 'folder'; name: string; size: number; modified: number };
@@ -79,12 +80,8 @@ export function previewKind(name: string): PreviewKind | null {
   return null;
 }
 
-/** Markdown, read in a dialog (sanitized by md()). */
-export function showMarkdown(name: string, text: string): void {
-  const doc = md(text);
-  doc.classList.add('md-doc');
-  modal({ title: name, body: doc }).el.classList.add('doc');
-}
+/** Markdown, read in a dialog (web/ui/bigmarkdown.tsx). */
+export const showMarkdown = showMarkdownDialog;
 
 /** A Markdown file the server has, read in a dialog. */
 export async function previewMarkdown(path: string, name: string): Promise<void> {

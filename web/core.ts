@@ -184,16 +184,20 @@ export const freshElement = <E extends Element>(el: E): E => {
   return fresh;
 };
 
-export function md(text: unknown): HTMLDivElement {
+const MD_OPTIONS = { breaks: true, gfm: true } as const;
+function mdDiv(): HTMLDivElement {
   const div = document.createElement('div');
   // md: the browser's usual look for headings, lists and quotes (web/styles/components.css)
   div.className = 'md';
-  // agent output is untrusted: sanitize, and if the sanitizer can't run here, show plain text instead
+  return div;
+}
+// agent output is untrusted: sanitize, and if the sanitizer can't run here, show plain text instead
+function mdFill(div: HTMLDivElement, html: string, plain: string): HTMLDivElement {
   if (!DOMPurify.isSupported) {
-    div.textContent = String(text || '');
+    div.textContent = plain;
     return div;
   }
-  div.innerHTML = DOMPurify.sanitize(marked.parse(String(text || ''), { breaks: true, gfm: true }) as string);
+  div.innerHTML = DOMPurify.sanitize(html);
   // a wide table scrolls sideways in its own box instead of pushing the page wider
   for (const t of div.querySelectorAll('table')) {
     const wrap = document.createElement('div');
@@ -211,6 +215,38 @@ export function md(text: unknown): HTMLDivElement {
     if (t.length <= 40 && !/\s/.test(t) && !el.closest('pre')) el.classList.add('whitespace-nowrap');
   }
   return div;
+}
+
+export function md(text: unknown): HTMLDivElement {
+  const src = String(text || '');
+  return mdFill(mdDiv(), DOMPurify.isSupported ? (marked.parse(src, MD_OPTIONS) as string) : '', src);
+}
+
+/** A long Markdown text cut between its top-level blocks into pieces of about `size` characters.
+ *  Each piece is drawn only when asked (md() for the whole text takes seconds on a huge file),
+ *  and reads the same as it would inside the whole: [links][by name] still find their address. */
+export function mdChunks(text: string, size = 8000): { raw: string; render: () => HTMLDivElement }[] {
+  const tokens = marked.lexer(text, MD_OPTIONS);
+  const chunks: { raw: string; render: () => HTMLDivElement }[] = [];
+  const add = (part: typeof tokens) => {
+    const raw = part.map((t) => t.raw).join('');
+    // (the parser wants the address list the lexer found, on the array it is given)
+    const piece = Object.assign([...part], { links: tokens.links }) as typeof tokens;
+    chunks.push({ raw, render: () => mdFill(mdDiv(), marked.parser(piece, MD_OPTIONS), raw) });
+  };
+  let part: typeof tokens = Object.assign([], { links: tokens.links }) as typeof tokens;
+  let chars = 0;
+  for (const t of tokens) {
+    part.push(t);
+    chars += t.raw.length;
+    if (chars >= size) {
+      add(part);
+      part = Object.assign([], { links: tokens.links }) as typeof tokens;
+      chars = 0;
+    }
+  }
+  if (part.length) add(part);
+  return chunks;
 }
 
 // ---------- toasts ----------

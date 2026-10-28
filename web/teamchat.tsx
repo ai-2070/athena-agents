@@ -11,6 +11,7 @@ import { attachTray, COMPOSER_BTNS, COMPOSER_TEXT } from './attach.ts';
 import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { mentionPreviews } from './filepreview.ts';
+import { useFind } from './ui/find.tsx';
 import { queuedText } from '../shared/queue.ts';
 import { parseCommand } from '../shared/commands.ts';
 import { commandChips, slashMenu } from './chatcommands.ts';
@@ -426,6 +427,8 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   const input = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
+  // Ctrl+F (⌘F)
+  const find = useFind(list);
   const chips = useRef<HTMLDivElement>(null);
   // something to send in the box (words or files): Send; nothing while the team works: Stop
   const [filled, setFilled] = useState(false);
@@ -716,6 +719,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   const lead = C.team?.lead;
   return (
     <div className={fill ? 'flex flex-col gap-2 h-full' : 'flex flex-col gap-2'} ref={root}>
+      {find}
       <div
         // (in a scrolling column, an item must keep its height: never squeezed by the list's)
         className={fill ? 'tc-list overflow-y-auto flex flex-col gap-2 py-1 px-0.5 *:shrink-0 flex-1 min-h-0' : 'tc-list overflow-y-auto flex flex-col gap-2 py-1 px-0.5 *:shrink-0 min-h-[120px]'}

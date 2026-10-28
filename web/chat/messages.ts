@@ -77,6 +77,11 @@ export function readOutput(output: unknown): ToolOutput {
   return { text: typeof output === 'string' ? output : output == null ? '' : JSON.stringify(output, null, 2), images: [] };
 }
 
+/** What a message says, for the search (Ctrl+F): its text, and the names of the tools it used. */
+export function searchText(m: Pick<ChatMessage, 'parts'>): string {
+  return m.parts.map((p) => (p.type === 'text' || p.type === 'reasoning' ? p.text : p.type === 'dynamic-tool' ? p.toolName : '')).join('\n');
+}
+
 export function toUIMessages(items: readonly ChatItem[], from = 0, to = items.length): ChatMessage[] {
   const out: ChatMessage[] = [];
   // the assistant message the next tool calls belong to (only within a turn)
