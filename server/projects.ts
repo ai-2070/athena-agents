@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { HOME, ensureDir, exists, insideRoots, isPlainDir, run, slugify, uid, which, dataPath } from './util.ts';
 import { listProjects, saveProjects, activeProject, setActiveProject, log } from './store.ts';
+import { toPercent } from '../shared/look.ts';
 import type { Project } from '../shared/types.ts';
 import type { ProjectPeek } from './projectsync.ts';
 
@@ -68,7 +69,8 @@ export async function createProject({ name, mode = 'new', folder = '', repo = ''
   return project;
 }
 
-export type ProjectPatch = Partial<Pick<Project, 'name' | 'description' | 'skills' | 'brainPath'>>;
+/** backgroundOpacity / mapDotsOpacity: 0-100, or null to go back to the default. */
+export type ProjectPatch = Partial<Pick<Project, 'name' | 'description' | 'skills' | 'brainPath'>> & { backgroundOpacity?: unknown; mapDotsOpacity?: unknown };
 
 export function updateProject(id: string, patch: ProjectPatch): Project {
   const list = listProjects();
@@ -86,6 +88,18 @@ export function updateProject(id: string, patch: ProjectPatch): Project {
   if (patch.brainPath) {
     if (!exists(patch.brainPath)) throw new Error(`${patch.brainPath} doesn't exist.`);
     p.brainPath = path.resolve(patch.brainPath);
+  }
+  // how strong the Station's background picture and the map's dots are
+  for (const key of ['backgroundOpacity', 'mapDotsOpacity'] as const) {
+    const v = patch[key];
+    if (v === undefined) continue;
+    if (v === null) {
+      delete p[key];
+      continue;
+    }
+    const pct = toPercent(v);
+    if (pct === null) throw new Error('An opacity is a percent from 0 to 100.');
+    p[key] = pct;
   }
   saveProjects(list);
   return p;

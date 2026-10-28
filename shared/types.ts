@@ -260,6 +260,10 @@ export interface Project {
   modelExt?: string | null;
   /** The picture behind the Station's map (.dashboard/background.*): when it last changed; null = none. Added by the server. */
   backgroundAt?: number | null;
+  /** How strong that picture is, 0-100; missing: 50 in the classic look, 100 in the voxel look (shared/look.ts). */
+  backgroundOpacity?: number;
+  /** How strong the classic map's floor dots are, 0-100; missing: 100. */
+  mapDotsOpacity?: number;
   /** Which voxel world it uses (missing: none of its own yet, see ProjectWorldLink). */
   world?: ProjectWorldLink;
 }

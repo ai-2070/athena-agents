@@ -1,5 +1,5 @@
 // Settings > Look: UI scale, accent colour, animations, chat font, Station quality. Changes apply right away and are saved a moment later.
-// The Station's background picture belongs to the open project (saved in its folder, not in the settings).
+// The Station's background picture and its opacities belong to the open project (not the settings).
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Radio } from '@base-ui/react/radio';
@@ -10,7 +10,8 @@ import { ACCENTS, CHAT_FONTS, DEFAULT_LOOK, STATION_QUALITY, applyLook, stationL
 import { Segmented } from '../ui/controls.tsx';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { backgroundUrl, pickBackground, removeBackground } from '../projectlogo.ts';
-import type { LookSetting } from '../../shared/types.ts';
+import { BACKGROUND_OPACITY, backgroundOpacity, mapDotsOpacity } from '../../shared/look.ts';
+import type { LookSetting, Project } from '../../shared/types.ts';
 
 const SCALES = [80, 90, 100, 110, 125, 150];
 const SAVE_AFTER = 350;
@@ -19,29 +20,98 @@ const SWATCH = 'flex cursor-pointer items-center gap-2.25 rounded-box border bor
 // a chat font to pick: its name in that font, and whose look it matches
 const FONT = 'look-font flex cursor-pointer flex-col items-start gap-0.5 rounded-box border border-line bg-none px-3 py-2.5 text-left text-ink transition-[border-color,background] duration-150 ease-[ease] hover:border-line-2 [&.on]:border-accent [&.on]:bg-accent/8';
 
-// The open project's picture behind the map: a small preview, and buttons to change or remove it.
-function StationBackground() {
+type OpacityKey = 'backgroundOpacity' | 'mapDotsOpacity';
+
+// A 0-100% slider for one of the open project's opacities: the Station follows while you drag, and it is
+// saved when you let go. Default puts the project back on the look's own value.
+function OpacitySlider({ project, field, label, value, hint }: { project: Project; field: OpacityKey; label: string; value: number; hint: string }) {
+  const [dragging, setDragging] = useState<number | null>(null);
+  const shown = dragging ?? value;
+  // (the Station reads the open project each frame)
+  const live = (n: number | undefined) => {
+    const p = state.data?.project;
+    if (p?.id !== project.id) return;
+    if (n === undefined) delete p[field];
+    else p[field] = n;
+  };
+  const save = async (n: number | null) => {
+    live(n ?? undefined);
+    await attempt(() => PUT(`/projects/${encodeURIComponent(project.id)}`, { [field]: n }));
+    setDragging(null);
+  };
+  return (
+    <div className="field mt-3">
+      <span>{label}</span>
+      <div className="flex items-center gap-3">
+        <Slider.Root
+          className="flex-1"
+          min={0}
+          max={100}
+          step={5}
+          value={shown}
+          format={{ style: 'unit', unit: 'percent', maximumFractionDigits: 0 }}
+          onValueChange={(v) => {
+            const n = Array.isArray(v) ? v[0] : v;
+            setDragging(n);
+            live(n);
+          }}
+          onValueCommitted={(v) => void save(Array.isArray(v) ? v[0] : v)}
+        >
+          <Slider.Control className="flex h-5.5 cursor-pointer touch-none items-center">
+            <Slider.Track className="relative h-1 flex-1 rounded-[2px] bg-line-2">
+              <Slider.Indicator className="rounded-[2px] bg-accent" />
+              <Slider.Thumb className="size-4 rounded-full bg-accent shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_25%,transparent)] has-focus-visible:outline has-focus-visible:outline-offset-3 has-focus-visible:outline-accent" aria-label={label} />
+            </Slider.Track>
+          </Slider.Control>
+        </Slider.Root>
+        <b className="look-opacity min-w-11 text-right font-mono text-[13px] leading-[normal] font-semibold text-accent">{`${shown}%`}</b>
+        {project[field] !== undefined ? (
+          <button type="button" className="btn ghost tiny" onClick={() => void save(null)}>
+            Default
+          </button>
+        ) : null}
+      </div>
+      <p className="hint mt-1.5">{hint}</p>
+    </div>
+  );
+}
+
+// The open project's picture behind the map: a small preview, buttons to change or remove it, and how strong
+// it and the map's dots are.
+function StationBackground({ look }: { look: LookSetting['stationLook'] }) {
   const proj = useAppState()?.project;
   if (!proj?.id) return null;
   const url = backgroundUrl(proj);
   const ref = { id: proj.id, name: proj.name };
   return (
-    <div className="field mt-3.5">
-      <span>Background</span>
-      <div className="flex flex-wrap items-center gap-2.5">
-        {url ? <img className="look-background h-16 w-28 flex-none rounded-ctl border border-line object-cover" src={url} alt="" /> : null}
-        <button type="button" className="btn ghost small" onClick={() => void pickBackground(ref)}>
-          <Icon name="image" size={13} />
-          {url ? 'Change picture' : 'Add a picture'}
-        </button>
-        {url ? (
-          <button type="button" className="btn ghost small" onClick={() => void removeBackground(ref)}>
-            Remove
+    <>
+      <div className="field mt-3.5">
+        <span>Background</span>
+        <div className="flex flex-wrap items-center gap-2.5">
+          {url ? <img className="look-background h-16 w-28 flex-none rounded-ctl border border-line object-cover" src={url} alt="" /> : null}
+          <button type="button" className="btn ghost small" onClick={() => void pickBackground(ref)}>
+            <Icon name="image" size={13} />
+            {url ? 'Change picture' : 'Add a picture'}
           </button>
-        ) : null}
+          {url ? (
+            <button type="button" className="btn ghost small" onClick={() => void removeBackground(ref)}>
+              Remove
+            </button>
+          ) : null}
+        </div>
+        <p className="hint mt-1.5">{`A picture behind the map, for ${proj.name} only. Dimmed in the classic look; in the voxel world it takes the sky's place. You can also ask the Brain to set one.`}</p>
       </div>
-      <p className="hint mt-1.5">{`A picture behind the map, for ${proj.name} only. Dimmed in the classic look; in the voxel world it takes the sky's place. You can also ask the Brain to set one.`}</p>
-    </div>
+      {url ? (
+        <OpacitySlider
+          project={proj}
+          field="backgroundOpacity"
+          label="Picture opacity"
+          value={backgroundOpacity(proj, look)}
+          hint={`How strongly the picture shows. 0% hides it. Unless you pick one, it is ${BACKGROUND_OPACITY.classic}% in the classic look and ${BACKGROUND_OPACITY.world}% in the voxel world.`}
+        />
+      ) : null}
+      <OpacitySlider project={proj} field="mapDotsOpacity" label="Map dots opacity" value={mapDotsOpacity(proj)} hint="The dots on the classic map's floor. 0% hides them." />
+    </>
   );
 }
 
@@ -182,7 +252,7 @@ export function LookTab() {
               <p className="hint mt-1.5">Low has no shadows or glow, for older computers. High adds softer creases and smoother edges.</p>
             </div>
           ) : null}
-          <StationBackground />
+          <StationBackground look={look.stationLook} />
         </div>
       </div>
       <div className="flex flex-col gap-2.5">
