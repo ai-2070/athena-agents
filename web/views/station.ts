@@ -3060,9 +3060,10 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
     item(
       'Delete team',
       async () => {
-        if (!(await confirmBox(`Delete the team "${w.name}"? Its agents stay in the project.`, { ok: 'Delete', danger: true }))) return;
+        if (!(await confirmBox(`Delete the team "${w.name}" and its agents? Agents that are also on another team stay.`, { ok: 'Delete', danger: true }))) return;
         await attempt(() => DEL(`/workflows/${w.id}`));
         choose(null);
+        refreshSoon(0);
         reloadWorkflows();
       },
       'danger',

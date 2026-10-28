@@ -275,7 +275,7 @@ Choose **New project → From backup**, then drop in a `.dashbackup` file or cho
 
 Open **History** in a skill editor, agent editor, team panel or MEMORY.md to compare an earlier version with the current one and restore it. Restoring also keeps the current version, so you can undo the restore.
 
-The dashboard keeps the last **50 versions** per item and groups nearby edits. **Recently deleted** on the Skills and Agents pages can bring deleted items back, including a skill's extra files. Agent and team history is also saved with the project's `.dashboard` copy.
+The dashboard keeps the last **50 versions** per item and groups nearby edits. **Recently deleted** on the Skills and Agents pages can bring deleted items back, including a skill's extra files. Deleting a team deletes its agents too, except agents that are also on another team; to bring a team back with its agents, bring the agents back first. Agent and team history is also saved with the project's `.dashboard` copy.
 
 ## Troubleshooting
 

@@ -779,9 +779,10 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
     api.choose({ type: 'branch', id: c.id });
   };
   const remove = async () => {
-    if (!(await confirmBox(`Delete the team "${wf.name}"? Its agents stay in the project, the team chat is removed.`, { ok: 'Delete', danger: true }))) return;
+    if (!(await confirmBox(`Delete the team "${wf.name}" and its agents? Agents that are also on another team stay. The team chat is removed.`, { ok: 'Delete', danger: true }))) return;
     await attempt(() => DEL(`/workflows/${id}`));
     api.choose(null);
+    refreshSoon(0);
     void api.reloadTeams();
   };
   return (

@@ -183,7 +183,7 @@ export async function openDeleted(kinds: VersionKind[], { onRestored }: { onRest
   };
   m = modal({
     title: 'Recently deleted',
-    body: h('div', { class: 'flex flex-col gap-2.5' }, h('p.hint', kinds.includes('skill') ? 'Deleted skills come back with their extra files. Bring one back and give it to whoever should have it again.' : 'An agent comes back without its teams (add it back to them); a team comes back with the members that still exist.'), box),
+    body: h('div', { class: 'flex flex-col gap-2.5' }, h('p.hint', kinds.includes('skill') ? 'Deleted skills come back with their extra files. Bring one back and give it to whoever should have it again.' : 'An agent comes back without its teams (add it back to them); a team comes back with the members that still exist, so bring back its agents first.'), box),
     foot: [h('button.btn', { onclick: () => m.close() }, 'Done')],
   });
   await load();

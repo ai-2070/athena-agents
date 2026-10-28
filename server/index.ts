@@ -400,8 +400,8 @@ put<Partial<Agent>>('/api/agents/:id', async ({ id }, body) => {
   if ('effort' in body) a.effort = isEffort(body.effort) ? body.effort : '';
   return agents.save(a);
 });
-del('/api/agents/:id', async ({ id }) => {
-  const gone = need(agents.get(id));
+function deleteAgent(gone: Agent): void {
+  const id = gone.id;
   agents.remove(id);
   log('agent', `Deleted agent ${gone.name}`, { agentId: id });
   // and take it off every branch it was on
@@ -410,6 +410,9 @@ del('/api/agents/:id', async ({ id }) => {
     const members = teams.normalize({ ...wf }).members; // without the deleted agent (old step lists too)
     if (steps.length !== (wf.steps || []).length || members.length !== (wf.members || []).length) workflows.save({ ...wf, steps, members, lead: wf.lead === id ? null : wf.lead });
   }
+}
+del('/api/agents/:id', async ({ id }) => {
+  deleteAgent(need(agents.get(id)));
   return { ok: true };
 });
 post('/api/agents/:id/duplicate', async ({ id }) => {
@@ -991,12 +994,21 @@ get('/api/workflows/:id/mark', async ({ id }, _b, _q, res) => {
 post<{ name?: unknown; data?: unknown }>('/api/workflows/:id/mark', async ({ id }, body) => teamMarks.setMarkFile(id, body.name, body.data));
 del('/api/workflows/:id/mark', async ({ id }) => teamMarks.removeMarkFile(id));
 del('/api/workflows/:id', async ({ id }) => {
-  const gone = workflows.get(id);
+  const gone = teams.getTeam(id);
   if (!gone) return { ok: true };
   workflows.remove(gone.id);
   teamMarks.dropMarkFiles(gone.id);
   log('team', `Deleted team ${gone.name}`);
-  return { ok: true };
+  // its agents go with it, except those still on another team
+  const elsewhere = new Set(teams.listTeams().flatMap((t) => t.members));
+  const deleted: string[] = [];
+  for (const agentId of gone.members) {
+    const a = agents.get(agentId);
+    if (!a || elsewhere.has(agentId)) continue;
+    deleteAgent(a);
+    deleted.push(agentId);
+  }
+  return { ok: true, deletedAgents: deleted };
 });
 // "Run": a step list runs its steps; a team gets the input in its chat.
 post<{ input?: string }>('/api/workflows/:id/run', async ({ id }, body) =>
