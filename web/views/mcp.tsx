@@ -1,7 +1,7 @@
 // Tools & MCP: built-in tools, MCP servers (presets, custom, imported), and sharing dashboard tools with Hermes / other apps.
 import { useCallback, useEffect, useState } from 'react';
 import { GET, POST, DEL, attempt, confirmBox, copy, refreshSoon } from '../core.ts';
-import { Field, Segmented } from '../ui/controls.tsx';
+import { Field, SearchBox, Segmented } from '../ui/controls.tsx';
 import { openModal } from '../ui/overlays.tsx';
 import { reactPage } from '../ui/react.tsx';
 import type { McpServerInfo, McpSuggestion, ToolGroup } from '../../shared/types.ts';
@@ -177,7 +177,7 @@ export function McpTab() {
         <div className="panel-head">
           <h2>Presets</h2>
           <div className="actions">
-            <input className="w-55" type="search" placeholder="Search presets…" aria-label="Search presets" value={find} onChange={(e) => setFind(e.target.value)} />
+            <SearchBox className="w-[min(300px,100%)]" placeholder="Search presets" label="Search presets" value={find} onChange={setFind} />
           </div>
         </div>
         {!shown.length ? <p className="empty">{`No preset matches "${find.trim()}".`}</p> : null}

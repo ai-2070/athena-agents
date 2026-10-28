@@ -5,6 +5,7 @@ import { Tabs as BaseTabs } from '@base-ui/react/tabs';
 import { Toggle } from '@base-ui/react/toggle';
 import { ToggleGroup } from '@base-ui/react/toggle-group';
 import type { ReactNode } from 'react';
+import { Icon } from './react.tsx';
 
 export interface Choice<V extends string> {
   value: V;
@@ -142,5 +143,27 @@ export function Chips<V extends string>({ options, value, onChange, label, class
         </Toggle>
       ))}
     </ToggleGroup>
+  );
+}
+
+/** The search box every list uses: a magnifier, mono text, and a ✕ that clears it. className sizes the whole box. */
+export function SearchBox({ value, onChange, placeholder, label, className = '', autoFocus }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  label: string;
+  className?: string;
+  autoFocus?: boolean;
+}) {
+  return (
+    <div className={`search-box relative min-w-0 ${className}`.trim()}>
+      <Icon name="search" size={14} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
+      <input type="search" className="w-full py-2 pr-8 pl-9 font-mono text-[12.5px]" placeholder={placeholder} aria-label={label} autoFocus={autoFocus} value={value} onChange={(e) => onChange(e.target.value)} />
+      {value ? (
+        <button type="button" className="absolute top-1/2 right-1.5 grid size-6 -translate-y-1/2 cursor-pointer place-items-center rounded-[5px] border-0 bg-transparent p-0 text-[11px] text-faint hover:bg-panel-2 hover:text-ink" aria-label="Clear the search" title="Clear" onClick={() => onChange('')}>
+          ✕
+        </button>
+      ) : null}
+    </div>
   );
 }

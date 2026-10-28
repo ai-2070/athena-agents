@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { h, GET, POST, PUT, DEL, attempt, navigate, md, modal, toast, refreshSoon, confirmBox } from '../core.ts';
-import { Chips, Segmented, Tabs } from '../ui/controls.tsx';
+import { Chips, SearchBox, Segmented, Tabs } from '../ui/controls.tsx';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
 import type { Agent, AppState, EngineId, PresetListing, Team } from '../../shared/types.ts';
 
@@ -219,15 +219,7 @@ function Agency({ lib, overrides: ov }: { lib: LibraryIndex; overrides: () => Ov
   const list = lib.agency.agents.filter((a) => (!division || a.division === division) && (!q || `${a.name} ${a.description} ${a.vibe}`.toLowerCase().includes(q)));
   return (
     <>
-      <div className="max-w-140">
-        <input
-          autoFocus
-          aria-label="Search the specialists"
-          placeholder={'Search 270+ specialists: "tiktok", "unity", "seo", "security"…'}
-          value={query}
-          onChange={(e) => setQuery((lastQuery = e.target.value))}
-        />
-      </div>
+      <SearchBox className="max-w-140" autoFocus label="Search the specialists" placeholder={'Search 270+ specialists: "tiktok", "unity", "seo", "security"…'} value={query} onChange={(v) => setQuery((lastQuery = v))} />
       {/* (a toggle's value can't be empty, so All is 'all') */}
       <Chips
         label="Division"

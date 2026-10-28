@@ -5,6 +5,7 @@ import { GET, DEL, attempt, md, copy, confirmBox } from '../core.ts';
 import { filePreviews } from '../filepreview.ts';
 import { fileUrl } from '../client/connection.ts';
 import { DomNode, Icon, reactPage, useServerEvents } from '../ui/react.tsx';
+import { SearchBox } from '../ui/controls.tsx';
 import type { Artifact } from '../../shared/types.ts';
 
 const when = (ts?: number) => (ts ? new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
@@ -41,9 +42,7 @@ function ArtifactsPage() {
   return (
     <>
       <div className="art-search flex flex-wrap items-center gap-3 mb-3.5">
-        <div className="flex-1 min-w-0">
-          <input type="search" className="w-full" placeholder="Search by name, note, team, who made it, file name…" aria-label="Search artifacts" value={query} onChange={(e) => setQuery((lastQuery = e.target.value))} />
-        </div>
+        <SearchBox className="flex-1" placeholder="Search by name, note, team, who made it, file name…" label="Search artifacts" value={query} onChange={(v) => setQuery((lastQuery = v))} />
         <span className="hint">{query.trim() ? `${list.length} of ${total}` : total ? `${total}` : ''}</span>
       </div>
       <div className="flex flex-col gap-2.5">

@@ -5,7 +5,7 @@ import { GET, POST, PUT, DEL, attempt, refreshSoon, navigate, toast, confirmBox,
 import { skillPicker } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.ts';
 import { memoryEditor } from '../memory.ts';
-import { ChipSet, Field, Segmented, Switch } from '../ui/controls.tsx';
+import { ChipSet, Field, SearchBox, Segmented, Switch } from '../ui/controls.tsx';
 import { Avatar, DomNode, ProjectScoped, reactPage, useAppState } from '../ui/react.tsx';
 import type { ModelListing } from '../models.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';

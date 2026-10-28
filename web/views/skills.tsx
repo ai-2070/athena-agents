@@ -10,6 +10,7 @@ import { skillPicker, loadSkills, forgetSkills } from '../skillpick.ts';
 import { deletedButton } from '../history.ts';
 import { openEditor, openGitHub, openImport } from '../skilldialogs.ts';
 import { DomNode, Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { SearchBox } from '../ui/controls.tsx';
 import type { Agent, AppState, ClaudeSkill, ServerEvent, SkillInstallResult, SkillListing, TeamListing } from '../../shared/types.ts';
 
 interface SkillsData {
@@ -96,7 +97,7 @@ function SkillsPage({ open }: { open?: string }) {
       <div className="flex flex-wrap items-center gap-2.5 justify-between mt-7">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="section m-0">{`Library (${data.skills.length})`}</h2>
-          <input className="w-55" type="search" placeholder="Search skills…" aria-label="Search skills" value={query} onChange={(e) => setQuery((lastQuery = e.target.value))} />
+          <SearchBox className="w-[min(300px,100%)]" placeholder="Search skills" label="Search skills" value={query} onChange={(v) => setQuery((lastQuery = v))} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <DomNode as="span" make={() => deletedButton(['skill'], () => void reload())} deps={[]} />

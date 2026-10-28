@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
 import { Slider } from '@base-ui/react/slider';
 import { GET, POST, PUT, DEL, ago, attempt, confirmBox, md, modal, promptBox, refreshSoon, state, toast } from '../core.ts';
 import { DomNode, Icon, mountReact, useServerEvents } from '../ui/react.tsx';
-import { Chips, Tabs } from '../ui/controls.tsx';
+import { Chips, SearchBox, Tabs } from '../ui/controls.tsx';
 import { canTakePicture, takePicture } from '../voxel/picture.ts';
 import type { ServerEvent, ShownWorld, VoxelObjectMeta, VoxelPrefabMeta, WorldEnvironment, WorldListing, WorldMdInfo, WorldSkins } from '../../shared/types.ts';
 
@@ -428,7 +428,7 @@ function LibraryView({ onTaken }: { onTaken: () => void }) {
   return (
     <div className="world-library mb-2 flex flex-col gap-1.5 rounded-box border border-line-2 p-2">
       <p className="hint">Prefabs shared from every project. Take one into this world to place copies of it.</p>
-      <input className="w-full" type="search" placeholder="Search the library" aria-label="Search the library" value={q} onChange={(e) => setQ(e.target.value)} />
+      <SearchBox placeholder="Search the library" label="Search the library" value={q} onChange={setQ} />
       {!rows ? <p className="hint">Loading…</p> : rows.length ? null : <p className="hint">{q ? 'Nothing matches.' : 'The library is empty. Share a prefab to it with its upload button.'}</p>}
       {(rows || []).map((r) => (
         <div key={r.id} className={ROW}>
