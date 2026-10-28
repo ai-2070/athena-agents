@@ -768,6 +768,8 @@ function DockView({ bar }: { bar: HTMLElement }) {
   const teams = teamsToPick();
   const waiting = held.items();
   const idle = dockIdle();
+  // the button says so while the Brain writes an answer
+  const brainBusy = D.items.some((it) => it.kind === 'brain' && it.live);
   const placeholder = D.tray?.count() ? 'What should be done with these files?' : idle ? PLACEHOLDER : 'Working… Write to change course now, or /queue a message for when this is done';
   // nothing to send while something works: Stop in Send's place
   drawnFilled = !!D.input?.value.trim();
@@ -788,7 +790,13 @@ function DockView({ bar }: { bar: HTMLElement }) {
           onDragEnter={(e) => e.dataTransfer?.types.includes('Files') && toggle(true)}
         >
           <Icon name="sparkles" size={17} />
-          <span>Ask the Brain…</span>
+          {brainBusy ? (
+            <span className="brain-working text-transparent bg-clip-text bg-[linear-gradient(100deg,var(--color-dim)_35%,var(--color-ink)_50%,var(--color-dim)_65%)] bg-[length:250%_100%] animate-shimmer" role="status">
+              Brain is working…
+            </span>
+          ) : (
+            <span>Ask the Brain…</span>
+          )}
           <kbd className="font-mono text-[10px] font-medium leading-[normal] text-faint border border-line-2 rounded-[4px] px-1.25 py-px">{brainKeyLabel(station)}</kbd>
         </button>,
         bar,

@@ -68,6 +68,7 @@
   --animate-in-right: in-right 0.32s var(--ease-soft);
   --animate-rise-in: rise-in 0.28s var(--ease-soft);
   --animate-cw-pop: cw-pop 0.26s var(--ease-soft);
+  --animate-shimmer: shimmer 1.8s linear infinite;
 }
 
 /* keyframes, for animate-* above or animate-[name_0.2s_ease-out] */
@@ -78,6 +79,8 @@
 @keyframes in-right { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
 @keyframes rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes slide { from { transform: translateY(8px); opacity: 0; } }
+/* a light band sliding over text that is clipped to its gradient (text-transparent bg-clip-text) */
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @keyframes cw-pop { from { opacity: 0; transform: translateY(14px) scale(0.97); } to { opacity: 1; transform: none; } }
 @keyframes flash-find { 0%, 35% { box-shadow: 0 0 0 2px var(--color-accent), 0 0 30px color-mix(in srgb, var(--color-accent) 40%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; } }
 @keyframes nav-wide-in { from { width: 58px; opacity: 0.85; } to { width: var(--spacing-nav); opacity: 1; } }
