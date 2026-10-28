@@ -126,7 +126,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
             </Field>
             <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
               <Field label="Claude Code model">
-                <input defaultValue={s.defaults.claudeModel} onChange={(e) => setP('defaults.claudeModel', e.target.value)} />
+                <input className="code" defaultValue={s.defaults.claudeModel} onChange={(e) => setP('defaults.claudeModel', e.target.value)} />
               </Field>
               <Field label="API model">
                 <input className="code" defaultValue={s.defaults.openrouterModel} onChange={(e) => setP('defaults.openrouterModel', e.target.value)} />
