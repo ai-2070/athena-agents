@@ -1,0 +1,22 @@
+tests/web/chatwin.test.tsx
+  s_396d5bfc5760b7::t_1e36b75efa08d2 79-98
+web/chatwin.tsx
+  s_396d5bfc5760b7::t_7d8702741e5e40 300-317,319-321,357-360,386
+  s_396d5bfc5760b7::t_52470544527f6c 318,361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aaa24fff3b11ea5274a5b84ed241e363d99190e9",
+  "prompts": {},
+  "sessions": {
+    "s_396d5bfc5760b7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de96135a-e4af-4979-a2dd-6138daa4ed26",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
