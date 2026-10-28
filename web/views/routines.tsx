@@ -2,7 +2,7 @@
 // teams) and which skills they use. Run it by hand or on a schedule.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { h, GET, POST, PUT, DEL, attempt, navigate, confirmBox, ago, state } from '../core.ts';
+import { h, GET, POST, PUT, DEL, attempt, navigate, confirmBox, ago, state, toast } from '../core.ts';
 import { icon } from '../icons.ts';
 import { loadSkills, skillsCache } from '../skillpick.ts';
 import { scheduleEditor, scheduleText } from '../schedule.ts';
@@ -10,7 +10,7 @@ import { openChat } from '../chatwin.tsx';
 import { attachMentions, startMention, KIND_LABEL } from '../routinemention.ts';
 import type { Candidate } from '../routinemention.ts';
 import { findMentions } from '../../shared/routines.ts';
-import { Field } from '../ui/controls.tsx';
+import { Field, Switch } from '../ui/controls.tsx';
 import { DomNode, Icon, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import type { AppState, Routine, RoutineListing, RoutineMention, RoutineMentionKind, RoutineRun, RoutineRunTarget, TeamListing } from '../../shared/types.ts';
 
@@ -73,10 +73,10 @@ function StatusIcon({ status }: { status: string }) {
 }
 
 // ---------- the list ----------
-async function create(): Promise<void> {
-  const r = await attempt(() => POST<Routine>('/routines', { name: 'New routine' }));
-  if (r) navigate(`#/routines/${r.id}`);
-}
+/** A new routine is only a draft in the editor: nothing is saved until it has something to do. */
+const NEW = 'new';
+const create = (): void => navigate(`#/routines/${NEW}`);
+const BLANK: Routine = { id: '', name: 'New routine', text: '', mentions: [], schedule: { type: 'none' }, enabled: false };
 
 function RoutinesList() {
   const teams = useTeams();
@@ -121,6 +121,13 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
   const [running, setRunning] = useState(false);
   const last = r.lastRun;
   const sched = r.schedule && r.schedule.type !== 'none';
+  // the switch answers at once; the list catches up when the server says it changed
+  const [on, setOn] = useState(!!r.enabled);
+  useEffect(() => setOn(!!r.enabled), [r.enabled]);
+  const toggleOn = async (v: boolean) => {
+    setOn(v);
+    if (!(await attempt(() => PUT(`/routines/${r.id}`, { enabled: v }), v ? 'Schedule on' : 'Schedule off'))) setOn(!v);
+  };
   const run = async () => {
     setRunning(true);
     await attempt(() => POST(`/routines/${r.id}/run`, {}), 'Routine started');
@@ -132,8 +139,13 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
         <div className="skill-ico"><Icon name="repeat" size={18} /></div>
         <div className="flex-1 min-w-0">
           <a className="skill-name font-semibold text-[15px] text-inherit hover:text-accent" href={`#/routines/${r.id}`}>{r.name}</a>
-          <div className="hint">{sched ? (r.enabled ? scheduleText(r.schedule) : `${scheduleText(r.schedule)} · off`) : 'run by hand'}</div>
+          <div className="hint">{sched ? (on ? scheduleText(r.schedule) : `${scheduleText(r.schedule)} · off`) : 'run by hand'}</div>
         </div>
+        {sched ? (
+          <Switch checked={on} onChange={(v) => void toggleOn(v)} className="flex-none flex-nowrap">
+            <span className="sr-only">{`Schedule for ${r.name}`}</span>
+          </Switch>
+        ) : null}
       </div>
       {r.description || r.text ? <p className={DESC}>{r.description || r.text}</p> : <p className={DESC}>Nothing written yet.</p>}
       {r.mentions.length ? (
@@ -169,6 +181,9 @@ function RoutineEditor({ id }: { id: string }) {
   const teams = useTeams();
   const [loaded, setLoaded] = useState<Routine | null | 'gone'>(null);
   useEffect(() => {
+    // (not the routine before this one, while it loads)
+    setLoaded(id === NEW ? BLANK : null);
+    if (id === NEW) return;
     let live = true;
     void GET<Routine>(`/routines/${id}`)
       .then((r) => live && setLoaded(r))
@@ -182,7 +197,7 @@ function RoutineEditor({ id }: { id: string }) {
       </p>
     );
   if (!loaded || !teams) return <p className="text-dim">Loading routines…</p>;
-  return <EditorForm first={loaded} teams={teams} />;
+  return <EditorForm key={loaded.id} first={loaded} teams={teams} />;
 }
 
 function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) {
@@ -195,6 +210,12 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   const [text, setText] = useState(first.text);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  // a draft has no id yet: its first Save makes the routine
+  const isNew = !id;
+  // the schedule's kind and switch, here too because the schedule editor (plain DOM) changes the routine directly
+  const [kind, setKind] = useState(first.schedule?.type || 'none');
+  const [on, setOn] = useState(!!first.enabled);
+  const canSave = dirty && !saving && !!name.trim() && !!text.trim();
   const missing = first.mentions.filter((m) => m.missing);
   const ta = useRef<HTMLTextAreaElement>(null);
   const cands = () => (d ? candidates(d, teams) : []);
@@ -203,13 +224,24 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   useEffect(() => attachMentions(ta.current!, () => candsRef.current(), () => {}), []);
 
   const save = async (): Promise<boolean> => {
+    // never an empty routine
+    if (!text.trim()) return toast('Write what the routine should do first', 'warn'), ta.current?.focus(), false;
+    if (!name.trim()) return toast('Give the routine a name', 'warn'), false;
     setSaving(true);
-    const out = await attempt(() => PUT<Routine>(`/routines/${id}`, { name, description, text, schedule: r.current.schedule, enabled: r.current.enabled }), 'Saved');
+    const body = { name, description, text, schedule: r.current.schedule, enabled: r.current.enabled };
+    const out = await attempt(() => (isNew ? POST<Routine>('/routines', body) : PUT<Routine>(`/routines/${id}`, body)), isNew ? 'Routine added' : 'Saved');
     setSaving(false);
     if (!out) return false;
     r.current.mentions = out.mentions;
     setDirty(false);
+    if (isNew) navigate(`#/routines/${out.id}`);
     return true;
+  };
+  // the switch saves by itself (just that), so a routine can be turned on or off without touching the rest
+  const switchSchedule = (v: boolean) => {
+    r.current.enabled = v;
+    setOn(v);
+    if (!isNew) void attempt(() => PUT(`/routines/${id}`, { enabled: v }), v ? 'Schedule on' : 'Schedule off').then((ok) => ok || (r.current.enabled = !v, setOn(!v)));
   };
   const del = async () => {
     if (!(await confirmBox(`Delete the routine "${name}"?`, { ok: 'Delete', danger: true }))) return;
@@ -248,11 +280,11 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   );
 
   return (
-    <>
+    <div className="mono-fields">
       <div className="flex flex-wrap items-center justify-between gap-2.5 mb-4">
         <a className="btn ghost small" href="#/routines">← Routines</a>
         <div className="flex flex-wrap items-center gap-2.5">
-          <button className="btn" disabled={!dirty || saving} onClick={() => void save()}>Save</button>
+          <button className="btn" disabled={!canSave} title={!text.trim() ? 'Write what the routine should do first' : undefined} onClick={() => void save()}>Save</button>
         </div>
       </div>
       <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
@@ -301,12 +333,18 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
           </div>
         </div>
         <div className="flex flex-col gap-4.5">
-          <RunIt id={id} beforeRun={async () => !dirty || (await save())} />
+          <RunIt id={id} disabled={isNew} beforeRun={async () => !dirty || (await save())} />
           <div className="panel">
             <div className="panel-head">
               <h2>Schedule</h2>
+              <div className="actions" title={kind === 'none' ? 'Pick Every… or Daily to schedule this routine' : undefined}>
+                <Switch checked={on && kind !== 'none'} onChange={switchSchedule} disabled={kind === 'none'}>
+                  {kind === 'none' ? 'Off' : on ? 'On' : 'Off'}
+                </Switch>
+              </div>
             </div>
-            <DomNode make={() => scheduleEditor(r.current, () => setDirty(true), { inputLabel: 'Extra for scheduled runs (optional)' })} deps={[id]} />
+            <DomNode make={() => scheduleEditor(r.current, () => (setDirty(true), setKind(r.current.schedule?.type || 'none')), { inputLabel: 'Extra for scheduled runs (optional)', showToggle: false })} deps={[id]} />
+            {kind !== 'none' ? <p className="hint">Runs while the dashboard is open.</p> : null}
           </div>
           <div className="panel">
             <div className="panel-head">
@@ -314,16 +352,18 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             </div>
             <Runs id={id} />
           </div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button className="btn danger small" onClick={() => void del()}>Delete routine</button>
-          </div>
+          {isNew ? null : (
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button className="btn danger small" onClick={() => void del()}>Delete routine</button>
+            </div>
+          )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
-function RunIt({ id, beforeRun }: { id: string; beforeRun: () => Promise<boolean> }) {
+function RunIt({ id, beforeRun, disabled = false }: { id: string; beforeRun: () => Promise<boolean>; disabled?: boolean }) {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const run = async () => {
@@ -340,7 +380,7 @@ function RunIt({ id, beforeRun }: { id: string; beforeRun: () => Promise<boolean
       </div>
       <textarea rows={2} aria-label="Extra for this run" placeholder="Optional: anything extra for this run" value={input} onChange={(e) => setInput(e.target.value)} />
       <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
-        <button className="btn" disabled={busy} onClick={() => void run()}>
+        <button className="btn" disabled={busy || disabled} title={disabled ? 'Save the routine first' : undefined} onClick={() => void run()}>
           <Icon name="play" size={14} />
           Run now
         </button>

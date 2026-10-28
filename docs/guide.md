@@ -142,7 +142,7 @@ Each project can have its own background picture behind the map: click the Brain
 
 ## Routines: work worth repeating
 
-Create a routine, write the instructions, and **@mention** the agents or teams that should do the work and the skills they should use. Run it when needed or set a schedule. Each run records what its agents and teams did.
+Create a routine, write the instructions, and **@mention** the agents or teams that should do the work and the skills they should use. Run it when needed or set a schedule. A new routine is only saved once it has something to do. A scheduled routine has a sliding switch, on its page and on its card in the list, to turn the schedule on or off without opening anything else. Each run records what its agents and teams did.
 
 For example, with those agents and skills already created:
 

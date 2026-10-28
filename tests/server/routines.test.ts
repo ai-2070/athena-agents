@@ -132,6 +132,15 @@ describe('a routine', () => {
     expect(saveRoutine({ text: '@Chief plans.' }, r.id).mentions.map((m) => m.name)).toEqual(['Chief']);
   });
 
+  it('never saves an empty routine, but an old empty one can still be switched', () => {
+    expect(() => saveRoutine({ name: 'Blank' })).toThrow(/what the routine should do/);
+    expect(() => saveRoutine({ name: 'Blank', text: '   ' })).toThrow(/what the routine should do/);
+    const r = saveRoutine({ name: 'Has text', text: 'Do it.' });
+    expect(() => saveRoutine({ text: '  ' }, r.id)).toThrow(/what the routine should do/);
+    expect(getRoutine(r.id)!.text).toBe('Do it.');
+    expect(saveRoutine({ enabled: true }, r.id).enabled).toBe(true);
+  });
+
   it('will not run without an agent or a team', async () => {
     const r = saveRoutine({ name: 'Nobody', text: 'Do something.' });
     await expect(startRoutine(r.id)).rejects.toThrow(/Mention at least one agent or team/);

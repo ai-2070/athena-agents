@@ -88,6 +88,8 @@ export function saveRoutine(patch: Partial<Routine>, id?: string): Routine {
   if (patch.enabled !== undefined) next.enabled = !!patch.enabled;
   next.name ||= 'New routine';
   next.text ??= '';
+  // a routine with nothing to do is never saved (one that is already empty can still be switched or deleted)
+  if ((!old || patch.text !== undefined) && !next.text.trim()) throw oops('Write what the routine should do first.');
   // the mentions are worked out from the text. Text kept as it was is brought up to date first
   // (renames), so saving only the name or schedule doesn't lose who the routine is for.
   const fresh = refresh(next.text, old?.mentions || [], patch.text === undefined);

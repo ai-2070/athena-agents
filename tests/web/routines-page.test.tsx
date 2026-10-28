@@ -25,6 +25,8 @@ beforeEach(() => {
     const json = (v: unknown) => new Response(JSON.stringify(v));
     if (url === '/api/routines/r1' && method === 'GET') return json(routine);
     if (url === '/api/routines/r1' && method === 'PUT') return json({ ...routine, ...body, mentions: [] });
+    if (url === '/api/routines' && method === 'GET') return json([{ ...routine, schedule: { type: 'daily', time: '09:00' }, enabled: false }, { ...routine, id: 'r3', name: 'By hand' }]);
+    if (url === '/api/routines' && method === 'POST') return json({ ...routine, ...body, id: 'r2', mentions: [] });
     if (url.startsWith('/api/routine-runs')) return json([run]);
     if (url.startsWith('/api/skills')) return json({ skills: [], claude: [] });
     return json(url.includes('/workflows') ? [] : { ok: true });
@@ -74,6 +76,49 @@ describe('the routine editor', () => {
     const calls = requests.filter((r) => r.method !== 'GET').map((r) => `${r.method} ${r.url}`);
     expect(calls).toEqual(['PUT /api/routines/r1', 'POST /api/routines/r1/run']);
     expect(requests.find((r) => r.method === 'PUT')!.body).toMatchObject({ name: 'Evening news', text: 'Find news.', schedule: { type: 'none' } });
+  });
+
+  it('a new routine is a draft: nothing is saved until it has something to do, and Run now waits', async () => {
+    await act(async () => routines.render(el, ['new']));
+    await settle(100);
+    expect(btn('Save').disabled).toBe(true);
+    expect(btn('Run now').disabled).toBe(true);
+    expect(el.textContent).not.toContain('Delete routine');
+    const ta = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="What to do"]')!;
+    await typeInto(ta, '   ');
+    expect(btn('Save').disabled).toBe(true);
+    await typeInto(ta, 'Find news.');
+    expect(btn('Save').disabled).toBe(false);
+    await act(async () => btn('Save').click());
+    await settle();
+    expect(requests.filter((r) => r.method !== 'GET').map((r) => `${r.method} ${r.url}`)).toEqual(['POST /api/routines']);
+    expect(requests.find((r) => r.method === 'POST')!.body).toMatchObject({ name: 'New routine', text: 'Find news.' });
+    expect(location.hash).toBe('#/routines/r2');
+  });
+
+  it('a sliding switch turns the schedule on and off, and saves just that', async () => {
+    await open();
+    const sw = () => el.querySelector<HTMLElement>('[role="switch"]')!;
+    // Manual: nothing to switch
+    expect(sw().hasAttribute('data-disabled')).toBe(true);
+    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('.seg button')].find((b) => b.textContent === 'Daily')!.click());
+    expect(sw().hasAttribute('data-disabled')).toBe(false);
+    expect(sw().getAttribute('aria-checked')).toBe('false');
+    await act(async () => el.querySelector<HTMLElement>('.panel .toggle-text')!.click());
+    await settle();
+    expect(sw().getAttribute('aria-checked')).toBe('true');
+    const put = requests.filter((r) => r.method === 'PUT');
+    expect(put.at(-1)!.body).toEqual({ enabled: true });
+  });
+
+  it('on the list, a scheduled routine has a switch that saves just that; a manual one has none', async () => {
+    await act(async () => routines.render(el, []));
+    await settle(100);
+    const cards = [...el.querySelectorAll<HTMLElement>('.skill-name')].map((a) => a.parentElement!.parentElement!.parentElement!);
+    expect(cards.map((c) => c.querySelectorAll('[role="switch"]').length)).toEqual([1, 0]);
+    await act(async () => cards[0].querySelector<HTMLElement>('.toggle-text')!.click());
+    await settle();
+    expect(requests.filter((r) => r.method === 'PUT').map((r) => [r.url, r.body])).toEqual([['/api/routines/r1', { enabled: true }]]);
   });
 
   it('lists its runs, the newest open, with what each agent did', async () => {

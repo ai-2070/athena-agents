@@ -9,7 +9,7 @@ const MIN_MINUTES = 5;
 export { scheduleText };
 
 /** Edits item.schedule and item.enabled in place; onChange runs after every edit. */
-export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean }, onChange: () => void, { inputLabel = 'Input for scheduled runs' }: { inputLabel?: string } = {}): HTMLDivElement {
+export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean }, onChange: () => void, { inputLabel = 'Input for scheduled runs', showToggle = true }: { inputLabel?: string; /** false: the page has its own on/off switch. */ showToggle?: boolean } = {}): HTMLDivElement {
   item.schedule ||= { type: 'none' };
   const box = h('div', { class: 'flex flex-col gap-2.5' });
   const draw = () => {
@@ -55,7 +55,7 @@ export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean },
           )
         : null,
       s.type !== 'none' ? field(inputLabel, h('input', { value: s.input || '', oninput: (e) => ((s.input = e.target.value), mark()) })) : null,
-      s.type !== 'none' ? h('label', { class: 'flex flex-wrap items-center gap-2.5' }, toggle(!!item.enabled, (v) => ((item.enabled = v), mark())), h('span', 'Schedule on (runs while the dashboard is open)')) : null,
+      s.type !== 'none' && showToggle ? h('label', { class: 'flex flex-wrap items-center gap-2.5' }, toggle(!!item.enabled, (v) => ((item.enabled = v), mark())), h('span', 'Schedule on (runs while the dashboard is open)')) : null,
     );
   };
   draw();
