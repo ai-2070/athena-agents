@@ -1,0 +1,28 @@
+docs/guide.md
+  s_4f53eccb4f7bb2::t_f77afa0209e89c 25
+server/projectsync.ts
+  s_4f53eccb4f7bb2::t_4c3b5d4c6b8595 8-9,307-321,538-539
+tests/server/fresh-profile.test.ts
+  s_4f53eccb4f7bb2::t_042ccdd7b55f89 1-45
+server/store.ts
+  s_4f53eccb4f7bb2::t_4c3b5d4c6b8595 123,129,133-137
+  s_4f53eccb4f7bb2::t_b56a8c2bacbacc 138-139
+scripts/desktop-smoke.ts
+  s_4f53eccb4f7bb2::t_4deae349c33d8f 2,36-43,49,91,120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0897544c8ac1fcfb5e570717884a1260e14c4018",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
