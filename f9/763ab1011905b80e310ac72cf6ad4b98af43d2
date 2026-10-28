@@ -1,0 +1,71 @@
+web/dock.tsx
+  s_96fa78fa397186::t_0fd257ec387cbb 21,691-692,694-695,714
+  s_96fa78fa397186::t_9f8c4ed2edc7fb 696-713
+web/ui/find.tsx
+  s_96fa78fa397186::t_8ae4b13c35bae5 158,213,236-237
+  s_96fa78fa397186::t_efee2c87b0b4f9 155,165,167,185,195,198-201,239,264,267
+  s_96fa78fa397186::t_c3a01b1c896ac6 1-154,156-157,159-164,166,168-184,186-194,196-197,202-212,214-235,238,240-263,265-266,268-274
+web/teamchat.tsx
+  s_96fa78fa397186::t_0fd257ec387cbb 14,722
+  s_96fa78fa397186::t_6c947cdec0713f 430-431
+tests/web/dock.test.tsx
+  s_96fa78fa397186::t_6996edf07152fa 80-95
+docs/guide.md
+  s_96fa78fa397186::t_3b9f75d48d331e 53-54
+web/chat/window.tsx
+  s_96fa78fa397186::t_98022c8d6960ca 30-31,53,106
+web/styles/base.css
+  s_96fa78fa397186::t_98022c8d6960ca 13-15
+tests/web/bigmarkdown.test.tsx
+  s_96fa78fa397186::t_cff1b01eb4eb03 36-38,86
+  s_96fa78fa397186::t_6c947cdec0713f 18
+  s_96fa78fa397186::t_ebddd6af2f01a4 7-8,74,98
+  s_96fa78fa397186::t_e30cb83e2aa09f 1-6,9-17,19-26,30-35,39-51,53-73,76-77,80-85,88-93,95-97,99-103
+  s_96fa78fa397186::t_7b9e8a60ef5b01 27-29,75
+  s_96fa78fa397186::t_fcc93196545d1d 79
+  s_96fa78fa397186::t_0447ae15611cbf 52,78,87
+  s_96fa78fa397186::t_370d01c4be8f63 94
+tests/web/chatview.test.tsx
+  s_96fa78fa397186::t_54146e8c558a5f 652-655
+  s_96fa78fa397186::t_0fbf19485b62a8 687-704
+README.md
+  s_96fa78fa397186::t_3b9f75d48d331e 51
+web/chat/ChatView.tsx
+  s_96fa78fa397186::t_b4a0fd59a38f05 19,21,601-603,605,763
+web/core.ts
+  s_96fa78fa397186::t_aa49c34c6e61b1 187-188,192-195,197,200,220-227,229,231-234,236-250
+  s_96fa78fa397186::t_6c947cdec0713f 228,230,235
+  s_96fa78fa397186::t_828bab3a82614d 251
+tests/web/teamchat-turns.test.tsx
+  s_96fa78fa397186::t_a1578f029be27e 123-148
+tests/web/find.test.tsx
+  s_96fa78fa397186::t_ee60e93e90c48f 250,256
+  s_96fa78fa397186::t_8ae4b13c35bae5 108-111
+  s_96fa78fa397186::t_fcc93196545d1d 1,5,7,9-107,112-127,272-273
+  s_96fa78fa397186::t_a1578f029be27e 2-4,6,8,128-249,251-255,257-271
+web/chat/messages.ts
+  s_96fa78fa397186::t_b4a0fd59a38f05 80-84
+web/ui/bigmarkdown.tsx
+  s_96fa78fa397186::t_fa0792ffda9594 10,75-76,79-82
+  s_96fa78fa397186::t_6c947cdec0713f 1-6,8-9,17-19,23,26,45-72,77-78,83
+  s_96fa78fa397186::t_68795f1d2013d4 7,11-16,20-22,24-25,27-44,73-74,84
+web/filepreview.ts
+  s_96fa78fa397186::t_6c947cdec0713f 11,83-84
+  s_96fa78fa397186::t_8b3f03983f1301 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f9763ab1011905b80e310ac72cf6ad4b98af43d2",
+  "prompts": {},
+  "sessions": {
+    "s_96fa78fa397186": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "95e33f2e-3a68-4606-b3a1-2a2dc820ffd0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
