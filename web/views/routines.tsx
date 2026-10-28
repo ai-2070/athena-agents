@@ -11,7 +11,7 @@ import { attachMentions, startMention, KIND_LABEL } from '../routinemention.ts';
 import type { Candidate } from '../routinemention.ts';
 import { findMentions } from '../../shared/routines.ts';
 import { Field } from '../ui/controls.tsx';
-import { DomNode, Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { DomNode, Icon, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import type { AppState, Routine, RoutineListing, RoutineMention, RoutineMentionKind, RoutineRun, RoutineRunTarget, TeamListing } from '../../shared/types.ts';
 
 /** Agents, teams and skills a routine can mention. Agents first: on a name clash they win (the server does the same). */
@@ -425,4 +425,4 @@ function TargetRow({ t }: { t: RoutineRunTarget }) {
 }
 
 export const title = (p: string[]) => (p[0] ? 'Routine' : 'Routines');
-export const { render, unmount } = reactPage((p) => (p[0] ? <RoutineEditor id={p[0]} /> : <RoutinesList />));
+export const { render, unmount } = reactPage((p) => (p[0] ? <ProjectScoped><RoutineEditor id={p[0]} /></ProjectScoped> : <RoutinesList />));

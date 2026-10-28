@@ -6,7 +6,7 @@ import { skillPicker } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.ts';
 import { memoryEditor } from '../memory.ts';
 import { ChipSet, Field, Segmented, Switch } from '../ui/controls.tsx';
-import { Avatar, DomNode, reactPage, useAppState } from '../ui/react.tsx';
+import { Avatar, DomNode, ProjectScoped, reactPage, useAppState } from '../ui/react.tsx';
 import type { ModelListing } from '../models.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
@@ -725,4 +725,4 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
 }
 
 export const title = (params: string[] = []): string => (params[1] === 'edit' ? 'Edit agent' : 'Agents');
-export const { render, unmount } = reactPage((params) => (params[0] && params[1] === 'edit' ? <AgentEditor id={params[0]} /> : <AgentsList />));
+export const { render, unmount } = reactPage((params) => (params[0] && params[1] === 'edit' ? <ProjectScoped><AgentEditor id={params[0]} /></ProjectScoped> : <AgentsList />));

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { GET, POST, PUT, DEL, attempt, navigate, confirmBox, promptBox, ago, lightbox } from '../core.ts';
 import { scheduleEditor, scheduleText } from '../schedule.ts';
 import { Field, Switch } from '../ui/controls.tsx';
-import { DomNode, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { DomNode, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import type { AppState, Schedule, Team, TeamStep } from '../../shared/types.ts';
 
 /** One entry of GET /api/tools → tools. */
@@ -407,4 +407,4 @@ function Runs({ id, version }: { id: string; version: number }) {
 }
 
 export const title = () => 'Workflows';
-export const { render, unmount } = reactPage((p) => (p[0] ? <WorkflowEditor id={p[0]} /> : <WorkflowsList />));
+export const { render, unmount } = reactPage((p) => (p[0] ? <ProjectScoped><WorkflowEditor id={p[0]} /></ProjectScoped> : <WorkflowsList />));
