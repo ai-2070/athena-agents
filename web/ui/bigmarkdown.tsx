@@ -1,6 +1,6 @@
 // A Markdown file read in a dialog. A very long one is drawn only where you are reading: the text is
-// cut between its blocks (mdChunks) and just the pieces near the screen are in the page, so a 5 MB
-// file opens at once. Ctrl+F (⌘F) searches it (web/ui/find.tsx), since the browser's find only sees
+// cut between its blocks (mdChunks) and just the pieces near the screen are in the page, so even a
+// 100 MB file opens at once. Ctrl+F (⌘F) searches it (web/ui/find.tsx), since the browser's find only sees
 // what is drawn.
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import type { MutableRefObject } from 'react';

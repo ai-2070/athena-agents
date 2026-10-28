@@ -222,31 +222,66 @@ export function md(text: unknown): HTMLDivElement {
   return mdFill(mdDiv(), DOMPurify.isSupported ? (marked.parse(src, MD_OPTIONS) as string) : '', src);
 }
 
-/** A long Markdown text cut between its top-level blocks into pieces of about `size` characters.
- *  Each piece is drawn only when asked (md() for the whole text takes seconds on a huge file),
- *  and reads the same as it would inside the whole: [links][by name] still find their address. */
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+const LINK_DEF = /^ {0,3}\[[^\]]+\]:\s*\S/;
+// a line that may carry on the block above it (a list item, an indented line): no cut just before it
+const CARRIES_ON = /^(\s|[-*+]\s|\d{1,9}[.)]\s)/;
+
+/** A long Markdown text cut between its blocks into pieces of about `size` characters.
+ *  The cutting only looks at lines; each piece is read as Markdown when it is drawn. (Reading the
+ *  whole text up front took seconds and gigabytes on a big file, enough to crash the page.)
+ *  A piece reads the same as it would inside the whole: [links][by name] still find their address,
+ *  and a code block too long for one piece is closed and opened again where it is cut. */
 export function mdChunks(text: string, size = 8000): { raw: string; render: () => HTMLDivElement }[] {
-  const tokens = marked.lexer(text, MD_OPTIONS);
-  const chunks: { raw: string; render: () => HTMLDivElement }[] = [];
-  const add = (part: typeof tokens) => {
-    const raw = part.map((t) => t.raw).join('');
-    // (the parser wants the address list the lexer found, on the array it is given)
-    const piece = Object.assign([...part], { links: tokens.links }) as typeof tokens;
-    chunks.push({ raw, render: () => mdFill(mdDiv(), marked.parser(piece, MD_OPTIONS), raw) });
+  // past this a piece is cut anyway, even inside a list or a code block
+  const hard = Math.max(size * 25, 200_000);
+  const pieces: { from: number; to: number; open: string; close: string }[] = [];
+  const defs: string[] = [];
+  let defChars = 0;
+  let start = 0;
+  let open = '';
+  // the code block we are in: its marker (``` or ~~~) and its first line
+  let fence = '';
+  let fenceLine = '';
+  const cut = (at: number) => {
+    if (at <= start) return;
+    pieces.push({ from: start, to: at, open, close: fence ? `\n${fence}\n` : '' });
+    start = at;
+    open = fence ? `${fenceLine}\n` : '';
   };
-  let part: typeof tokens = Object.assign([], { links: tokens.links }) as typeof tokens;
-  let chars = 0;
-  for (const t of tokens) {
-    part.push(t);
-    chars += t.raw.length;
-    if (chars >= size) {
-      add(part);
-      part = Object.assign([], { links: tokens.links }) as typeof tokens;
-      chars = 0;
+  let blank = false;
+  for (let ls = 0; ls < text.length; ) {
+    const nl = text.indexOf('\n', ls);
+    const le = nl < 0 ? text.length : nl + 1;
+    const head = text.slice(ls, Math.min(le, ls + 200));
+    const isBlank = le - ls <= 200 && head.trim() === '';
+    if (ls - start >= hard || (!fence && blank && !isBlank && ls - start >= size && !CARRIES_ON.test(head))) cut(ls);
+    const m = FENCE.exec(head);
+    if (fence) {
+      if (m && m[1][0] === fence[0] && m[1].length >= fence.length && head.slice(m[0].length).trim() === '') fence = '';
+    } else if (m) {
+      fence = m[1];
+      fenceLine = head.replace(/\r?\n$/, '');
+    } else if (LINK_DEF.test(head) && defChars < 100_000) {
+      const line = text.slice(ls, Math.min(le, ls + 2000)).trim();
+      defs.push(line);
+      defChars += line.length;
     }
+    // one huge line (no line breaks at all): cut it at spaces
+    for (let at = ls + hard; at < le; at += hard) {
+      const sp = text.lastIndexOf(' ', at);
+      cut(sp > at - 2000 ? sp + 1 : at);
+    }
+    blank = isBlank;
+    ls = le;
   }
-  if (part.length) add(part);
-  return chunks;
+  cut(text.length);
+  // the [name]: address lines go with every piece (they draw nothing themselves)
+  const tail = defs.length ? `\n\n${defs.join('\n')}\n` : '';
+  return pieces.map((p) => {
+    const raw = text.slice(p.from, p.to);
+    return { raw, render: () => mdFill(mdDiv(), DOMPurify.isSupported ? (marked.parse(p.open + raw + p.close + tail, MD_OPTIONS) as string) : '', raw) };
+  });
 }
 
 // ---------- toasts ----------

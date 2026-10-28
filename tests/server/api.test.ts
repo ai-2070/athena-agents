@@ -290,8 +290,11 @@ describe('attached files', () => {
     expect(sneaky.path).toBe(path.join(root, 'escape.txt'));
     const inFolder = await (await upload(batch, 'assets/logo.svg', '<svg/>')).json();
     expect(inFolder.top).toBe(path.join(root, 'assets') + path.sep);
-    // the page can show it
-    expect((await req(`/api/file?path=${encodeURIComponent(f.path)}`)).status).toBe(200);
+    // the page can show it, and knows its size before reading it (to skip one too big to show)
+    const shown = await req(`/api/file?path=${encodeURIComponent(f.path)}`);
+    expect(shown.status).toBe(200);
+    expect(shown.headers.get('content-length')).toBe('7');
+    expect(await shown.text()).toBe('# Brief');
   });
 
   it('opens a PDF in a browser tab when asked (view=1); everything else still downloads, sandboxed', async () => {

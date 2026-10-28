@@ -83,10 +83,21 @@ export function previewKind(name: string): PreviewKind | null {
 /** Markdown, read in a dialog (web/ui/bigmarkdown.tsx). */
 export const showMarkdown = showMarkdownDialog;
 
+/** Past this a Markdown file isn't read in the page: holding all of it would take more memory than a tab has. */
+export const MAX_MARKDOWN_BYTES = 200 * 1024 * 1024;
+/** Says so (and returns true) when a Markdown file is too big to read here. */
+export function markdownTooBig(name: string, bytes: number): boolean {
+  if (bytes <= MAX_MARKDOWN_BYTES) return false;
+  toast(`${name} is too big to read here (${Math.round(bytes / 1024 / 1024)} MB). Open it in another app.`, 'error');
+  return true;
+}
+
 /** A Markdown file the server has, read in a dialog. */
 export async function previewMarkdown(path: string, name: string): Promise<void> {
   try {
-    showMarkdown(name, await (await fetchFile(fileUrl(path))).text());
+    const res = await fetchFile(fileUrl(path));
+    if (markdownTooBig(name, Number(res.headers.get('content-length') || 0))) return void res.body?.cancel();
+    showMarkdown(name, await res.text());
   } catch {
     toast(`${name} couldn’t be opened.`, 'error');
   }

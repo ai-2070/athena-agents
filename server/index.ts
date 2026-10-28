@@ -856,7 +856,15 @@ post<{ path?: unknown }>('/api/files/reveal', async (_p, body) => {
 // Agent-made files are shown, never run: only media display inline; everything else downloads, sandboxed.
 function sendFileSafely(res: http.ServerResponse, p: string, type = MIME[path.extname(p).toLowerCase()] || 'application/octet-stream') {
   const inline = /^(image\/(png|jpeg|webp|gif)|video\/|audio\/)/.test(type);
+  // the size up front: the page can tell a file too big to show before it downloads it
+  let length: Record<string, string> = {};
+  try {
+    length = { 'content-length': String(fs.statSync(p).size) };
+  } catch {
+    /* sent without it */
+  }
   res.writeHead(200, {
+    ...length,
     'content-type': type,
     'x-content-type-options': 'nosniff',
     'content-security-policy': 'sandbox; default-src none',

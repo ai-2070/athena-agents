@@ -1,7 +1,7 @@
 // A very long Markdown file: cut between its blocks, and only the pieces near the screen are drawn.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { md, mdChunks } from '../../web/core.ts';
-import { showMarkdown } from '../../web/filepreview.ts';
+import { MAX_MARKDOWN_BYTES, markdownTooBig, previewMarkdown, showMarkdown } from '../../web/filepreview.ts';
 import { BIG_MARKDOWN } from '../../web/ui/bigmarkdown.tsx';
 
 // (the dialog draws outside act, as in the page)
@@ -38,6 +38,48 @@ describe('mdChunks()', () => {
     expect(pieces.map((p) => p.querySelectorAll('code').length).filter(Boolean)).toEqual([1]);
     expect(pieces.map((p) => p.innerHTML).join('')).not.toContain('onerror');
     expect(md(text).querySelectorAll('li')).toHaveLength(500);
+  });
+
+  it('cuts a code block too long for one piece, and each piece still draws it as code', () => {
+    const text = `Before\n\n\`\`\`ts\n${'const x = 1; // a line of code\n'.repeat(20_000)}\`\`\`\n\nAfter [link][ref]\n\n[ref]: https://example.com/ref\n`;
+    const chunks = mdChunks(text, 100);
+    expect(chunks.length).toBeGreaterThan(2);
+    expect(chunks.reduce((n, c) => n + c.raw.length, 0)).toBe(text.length);
+    const pieces = chunks.map((c) => c.render());
+    // every piece with code lines has them inside a code block, none as plain text
+    const withCode = pieces.filter((p) => p.textContent!.includes('const x'));
+    expect(withCode.length).toBeGreaterThan(1);
+    expect(withCode.every((p) => [...p.querySelectorAll('p')].every((n) => !n.textContent!.includes('const x')))).toBe(true);
+    expect(withCode.every((p) => p.querySelector('code'))).toBe(true);
+    // after the cut block the text reads as Markdown again
+    expect(pieces.at(-1)!.querySelector('a')!.getAttribute('href')).toBe('https://example.com/ref');
+  });
+
+  it('cuts one huge line without line breaks at its spaces', () => {
+    const text = 'word '.repeat(200_000);
+    const chunks = mdChunks(text);
+    expect(chunks.length).toBeGreaterThan(3);
+    expect(chunks.reduce((n, c) => n + c.raw.length, 0)).toBe(text.length);
+    expect(chunks.every((c) => c.raw.endsWith(' '))).toBe(true);
+  });
+});
+
+describe('a Markdown file too big to read', () => {
+  beforeEach(() => (document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div>'));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = '';
+  });
+
+  it('says so instead of loading it', async () => {
+    const text = vi.fn(async () => '# never read');
+    const cancel = vi.fn(async () => undefined);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, headers: new Headers({ 'content-length': String(MAX_MARKDOWN_BYTES + 1) }), text, body: { cancel } })));
+    await previewMarkdown('/x/huge.md', 'huge.md');
+    expect(text).not.toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalled();
+    expect(document.querySelector('.modal-body')).toBeNull();
+    expect(markdownTooBig('huge.md', 10)).toBe(false);
   });
 });
 

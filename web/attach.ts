@@ -5,7 +5,7 @@ import { h, mount, POST, DEL, toast, lightbox } from './core.ts';
 import { upload } from './client/http.ts';
 import { fileUrl } from './client/connection.ts';
 import { icon } from './icons.ts';
-import { openPdf, previewKind, showMarkdown } from './filepreview.ts';
+import { markdownTooBig, openPdf, previewKind, showMarkdown } from './filepreview.ts';
 import type { UploadedFile } from '../shared/types.ts';
 
 /** A file to upload. rel: its path inside a dropped folder ('docs/a.md'), or just its name. */
@@ -356,7 +356,7 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
     const file = it.picked[0]?.file;
     const kind = previewKind(it.name);
     if (kind === 'image' && (it.preview || it.path)) return { title: `Show ${it.name} bigger`, go: () => lightbox(it.preview || fileUrl(it.path!), it.name) };
-    if (kind === 'markdown' && file) return { title: `Read ${it.name}`, go: () => void file.text().then((t) => showMarkdown(it.name, t), () => toast(`${it.name} couldn’t be read.`, 'error')) };
+    if (kind === 'markdown' && file) return { title: `Read ${it.name}`, go: () => void (markdownTooBig(it.name, file.size) || file.text().then((t) => showMarkdown(it.name, t), () => toast(`${it.name} couldn’t be read.`, 'error'))) };
     if (kind === 'pdf' && it.path && it.state === 'done') return { title: `Open ${it.name} in a new tab`, go: () => openPdf(it.path!) };
     return null;
   };
