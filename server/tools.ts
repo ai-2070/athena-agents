@@ -229,6 +229,22 @@ const TOOLS: ToolDef[] = [
       return { text: `No answer yet (waited ${Math.round(waitMs / 60_000)} minutes). The question stays in the user's Outbox${where ? `, and their answer will come to you as a new message ${where}` : ''}. End your turn now: say in one line that you are waiting for their answer, and don't guess it.` };
     },
   },
+  // ---------- asking for tools (every agent) ----------
+  // Asking changes nothing by itself: the Brain or the user decides (see the approval inside), so no gate before it.
+  {
+    name: 'request_tool',
+    group: 'core',
+    risk: 'none',
+    description: `Ask for a set of tools you don't have yet, when your task needs them. The Brain (the project's overseer) checks the request and may pass it to the user. If it is given, you keep those tools and can use them right away. Say plainly what you need them for. For things that aren't tools (a login, a key, an account, a program to install), ask the user with ask_user instead. The sets:\n${TOOL_GROUPS.map((g) => `- ${g.id} (${g.label}): ${g.description}`).join('\n')}`,
+    parameters: obj(
+      {
+        tools: { type: 'string', enum: TOOL_GROUPS.map((g) => g.id), description: 'Which set of tools, e.g. "files".' },
+        why: str('What you need them for in your task, in a sentence or two.'),
+      },
+      ['tools', 'why'],
+    ),
+    run: async ({ tools, why }: { tools?: unknown; why?: unknown }, ctx) => requestTools(ctx, String(tools ?? ''), String(why ?? '')),
+  },
   // ---------- programs ----------
   {
     name: 'list_programs',
@@ -1027,6 +1043,42 @@ const TOOLS: ToolDef[] = [
     },
   },
 ];
+
+const addGroup = (a: { toolGroups?: string[] }, id: string) => {
+  a.toolGroups = [...new Set([...(a.toolGroups || []), id])];
+};
+
+// request_tool: the Brain looks first (see reviewApproval), and the user decides what it passes on.
+// Given tools are kept on the agent and added to the run going now, so it can use them at once.
+async function requestTools(ctx: ToolContext, id: string, why: string): Promise<ToolResult> {
+  const group = TOOL_GROUPS.find((g) => g.id === id.trim());
+  if (!group) return { text: `There is no "${id}" set of tools. The sets: ${TOOL_GROUPS.map((g) => g.id).join(', ')}.`, isError: true };
+  const reason = why.trim().slice(0, 1000);
+  if (!reason) return { text: 'Say what you need these tools for (why).', isError: true };
+  // only the dashboard's own agents have tools to change (not workflows or outside MCP clients)
+  if (!agentStore.get(ctx.agent.id)) return { text: "Only the dashboard's agents can ask for tools. Ask the user with ask_user instead.", isError: true };
+  const { runInfo } = await import('./engines/index.ts');
+  const run = ctx.runId ? runInfo(ctx.runId) : null;
+  if ([...(ctx.agent.toolGroups || []), ...(run?.agent.toolGroups || [])].includes(group.id)) return { text: `You already have the ${group.label} tools.` };
+  const d = await requestApproval({
+    kind: 'tools',
+    title: `${ctx.agent.name} asks for the ${group.label} tools`,
+    detail: `${reason}\n\n${group.label}: ${group.description}`,
+    agentId: ctx.agent.id,
+    agentName: ctx.agent.name,
+    data: { group: group.id, args: { tools: group.id, why: reason }, runId: ctx.runId || null },
+  });
+  if (!d.approved) return { text: `Not given${d.message ? `: ${d.message}` : ''}. Don't ask for it again: do what you can without it, or ask the user with ask_user what to do instead.`, isError: true, denied: true };
+  const saved = agentStore.get(ctx.agent.id);
+  if (saved) {
+    addGroup(saved, group.id);
+    agentStore.save(saved);
+  }
+  addGroup(ctx.agent, group.id);
+  if (run) addGroup(run.agent, group.id);
+  const names = TOOLS.filter((t) => t.group === group.id).map((t) => t.name);
+  return { text: `Given: you now have the ${group.label} tools (${names.join(', ')}). Use them now. If you don't see them yet, they come with your next message.` };
+}
 
 type LaunchArgs = { program: string; file?: string; args?: string[] };
 type ComfyRunArgs = { workflow: string; prompt?: string; negative?: string; inputs?: Record<string, unknown>; randomize_seed?: boolean };

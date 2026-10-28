@@ -474,6 +474,13 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
       // Every tool call needs a result, or the provider rejects the next message.
       for (const call of r.calls) if (!answered.has(call.id)) chat.llm.push({ role: 'tool', tool_call_id: call.id, content: '(not run: the user stopped this)' });
     }
+    // tools given by request_tool are offered from the next step on
+    if (defs.length && r.calls.some((c) => c.function.name === 'request_tool'))
+      for (const t of toolDefs(agent))
+        if (!route.has(t.name)) {
+          route.set(t.name, { kind: 'builtin', name: t.name });
+          defs.push({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } });
+        }
     if (pictures.length) chat.llm.push({ role: 'user', content: [{ type: 'text', text: 'The pictures the tools above returned:' }, ...pictures.slice(-MAX_IMAGES).map((p): UserPart => ({ type: 'image_url', image_url: { url: FILE_URL + p } }))] });
     if (settings.costLimitUsdPerRun && cost > settings.costLimitUsdPerRun) {
       onEvent({ kind: 'text', text: `\n\n_Stopped: this run passed the $${settings.costLimitUsdPerRun} limit set in Settings._` });
