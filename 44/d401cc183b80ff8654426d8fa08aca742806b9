@@ -1,0 +1,31 @@
+tests/server/routines.test.ts
+  s_8f530f9e30e490::t_d9da92ef4ce359 135-143
+web/views/routines.tsx
+  s_8f530f9e30e490::t_531e674be10af0 5,13,76-79,124-130,142,144-148,200
+  s_8f530f9e30e490::t_89a8d6a406ba7e 184-186,213-218,227-229,231-232,237,240-245,283,287,336,340-344,346-347,355-359,362,366,383
+web/schedule.ts
+  s_8f530f9e30e490::t_531e674be10af0 12,58
+docs/guide.md
+  s_8f530f9e30e490::t_14cda50414ef30 145
+tests/web/routines-page.test.tsx
+  s_8f530f9e30e490::t_63c2083c251777 117
+  s_8f530f9e30e490::t_fc87ffff576568 28-29,81-116,118-123
+server/routines.ts
+  s_8f530f9e30e490::t_531e674be10af0 91-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "44d401cc183b80ff8654426d8fa08aca742806b9",
+  "prompts": {},
+  "sessions": {
+    "s_8f530f9e30e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3bb6e3e4-81e1-4afa-a104-48a778c3a87b",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
