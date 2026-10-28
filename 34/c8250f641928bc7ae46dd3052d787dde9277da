@@ -1,0 +1,42 @@
+tests/web/markdown.test.ts
+  s_954238bf7b9f03::t_7013d5f6678226 30-31,33-40
+  s_954238bf7b9f03::t_d28b3895c10050 32
+web/look.ts
+  s_954238bf7b9f03::t_8b1a8dcf24571e 24
+web/styles/app.css
+  s_954238bf7b9f03::t_8b1a8dcf24571e 46
+tests/web/look.test.tsx
+  s_954238bf7b9f03::t_8b1a8dcf24571e 22,32,97
+web/core.ts
+  s_954238bf7b9f03::t_be096aca585e02 200-204
+web/styles/components.css
+  s_954238bf7b9f03::t_be096aca585e02 268-273
+tests/web/settings-page.test.tsx
+  s_954238bf7b9f03::t_8b1a8dcf24571e 144,161,180
+shared/look.ts
+  s_954238bf7b9f03::t_8b1a8dcf24571e 14-15
+web/teamchat.tsx
+  s_954238bf7b9f03::t_3245932e5a59e5 8,268-304
+  s_954238bf7b9f03::t_5462c7bb864cc5 358-362
+  s_954238bf7b9f03::t_391bf0ecd25236 305-306
+README.md
+  s_954238bf7b9f03::t_8b1a8dcf24571e 156
+tests/web/teamchat-turns.test.tsx
+  s_954238bf7b9f03::t_d09b4944855a8d 167-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "34c8250f641928bc7ae46dd3052d787dde9277da",
+  "prompts": {},
+  "sessions": {
+    "s_954238bf7b9f03": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d74391c-d7ce-4e72-b895-e393eac8d0d0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
