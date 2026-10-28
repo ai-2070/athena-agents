@@ -1,0 +1,21 @@
+web/ui/find.tsx
+  s_96fa78fa397186::t_d280d9e68995c9 54-64,67
+tests/web/find.test.tsx
+  s_96fa78fa397186::t_bf3b17482105c4 233-234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fb5beeff3977641ed25fc7b46c9560e177f88bd5",
+  "prompts": {},
+  "sessions": {
+    "s_96fa78fa397186": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "95e33f2e-3a68-4606-b3a1-2a2dc820ffd0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
