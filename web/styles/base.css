@@ -23,14 +23,12 @@ pre {
 }
 
 /* text boxes look the same everywhere */
-input[type='text'], input[type='search'], input[type='password'], input[type='number'], input[type='url'], input[type='time'], input:not([type]), select, textarea {
+input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='button'], [type='submit'], [type='reset'], [type='image'], [type='hidden']), select, textarea {
   width: 100%;
   background: var(--color-panel); border: 1px solid var(--color-line-2); color: var(--color-ink);
   padding: 8px 10px; outline: none;
 }
-/* rounded, except text inputs, which stay square */
 input, select, textarea { border-radius: var(--radius-ctl); }
-input[type='text'], input[type='search'], input[type='password'], input[type='number'], input[type='url'], input[type='time'], input:not([type]) { border-radius: 0; }
 input:focus, select:focus, textarea:focus { border-color: var(--color-accent); }
 textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
 textarea.code, input.code { font-family: var(--font-mono); font-size: 12.5px; }
