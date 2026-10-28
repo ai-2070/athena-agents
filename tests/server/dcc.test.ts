@@ -58,6 +58,8 @@ describe('command lines', () => {
     expect(prusaSlicerArgs({ input: 'a.stl', output: 'a.bgcode' })).toContain('--binary-gcode');
     expect(() => prusaSlicerArgs({ input: 'a.stl', output: 'a.txt' })).toThrow(/gcode/);
     expect(() => prusaSlicerArgs({ input: 'a.stl', output: 'a.gcode', settings: { 'x y': 1 } })).toThrow(/setting name/);
+    // files only through profiles, input and output (those are checked), and nothing that runs a program
+    for (const k of ['load', 'LOAD', 'output', 'o', 'datadir', 'post_process', 'export-3mf', 'save', 'loadconfig']) expect(() => prusaSlicerArgs({ input: 'a.stl', output: 'a.gcode', settings: { [k]: 'C:/outside/x.ini' } }), k).toThrow(/can't be set here/);
   });
 
   it('nvtt_export: BC7 by default, one mip level when mips are off', () => {
