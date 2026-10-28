@@ -1,0 +1,24 @@
+tests/server/file-tools.test.ts
+  s_4f53eccb4f7bb2::t_d4b1097d9ae589 112-131
+  s_4f53eccb4f7bb2::t_b4ee8b918004d8 9
+server/social.ts
+  s_4f53eccb4f7bb2::t_19f41992bfe0f1 73-74,342,348,357,385
+server/tools.ts
+  s_4f53eccb4f7bb2::t_19f41992bfe0f1 729-730
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6a1c7f5ed9f5d045ac815299882e6448f312cbc3",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
