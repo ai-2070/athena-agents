@@ -1,0 +1,21 @@
+web/views/agents.tsx
+  s_8f530f9e30e490::t_0d22c9f3494396 9,291-300,352,356,358-362,364,367,388,395,405,415,433,440,458,476,487,490-497,500-509
+tests/web/agents-page.test.tsx
+  s_8f530f9e30e490::t_6217d06220759d 58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8503a68e9f10274d0351c01df27c4305b690422a",
+  "prompts": {},
+  "sessions": {
+    "s_8f530f9e30e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3bb6e3e4-81e1-4afa-a104-48a778c3a87b",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
