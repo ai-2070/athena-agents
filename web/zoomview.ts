@@ -1,6 +1,6 @@
-// A picture that fits its box and zooms: pinch (touch, trackpad), Ctrl / ⌘ + scroll, a click (in where you
-// click, out again with the next one), the − / + buttons and the + − 0 keys. Zoomed in, drag or scroll to move
-// around. Plain DOM without core.ts, so the lightbox in core.ts can use it.
+// A picture that fits its box and zooms: the scroll wheel, pinch (touch, trackpad), a click (in where you
+// click, out again with the next one), the − / + buttons and the + − 0 keys. Zoomed in, drag to move around.
+// Plain DOM without core.ts, so the lightbox in core.ts can use it.
 import { icon } from './icons.ts';
 
 const MAX = 8;
@@ -31,7 +31,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, attrs: R
 };
 
 export function zoomView(src: string, name: string): ZoomView {
-  const box = el('div', 'zoom-box relative flex h-[calc(100vh-210px)] min-h-50 w-full touch-none items-center justify-center overflow-hidden rounded-[8px] bg-black/40 select-none', { tabindex: '0', 'aria-label': `${name}. Click or pinch to zoom.` });
+  const box = el('div', 'zoom-box relative flex h-[calc(100vh-210px)] min-h-50 w-full touch-none items-center justify-center overflow-hidden rounded-[8px] bg-black/40 select-none', { tabindex: '0', 'aria-label': `${name}. Click, scroll or pinch to zoom.` });
   const img = el('img', 'block max-h-full max-w-full cursor-zoom-in object-contain will-change-transform', { src, alt: name, draggable: 'false' });
   box.append(img);
 
@@ -71,7 +71,8 @@ export function zoomView(src: string, name: string): ZoomView {
 
   /** Zoom to s, keeping the point under (cx, cy) on screen where it is. */
   const zoomTo = (s: number, cx?: number, cy?: number, smooth = false) => {
-    const next = Math.max(1, Math.min(MAX, s));
+    // (scrolling in and back out can stop a hair above fitted: call that fitted)
+    const next = s < 1.01 ? 1 : Math.min(MAX, s);
     const r = box.getBoundingClientRect();
     // the point, from the box's middle (its middle when none is given)
     const px = cx === undefined ? 0 : cx - (r.left + r.width / 2);
@@ -139,19 +140,21 @@ export function zoomView(src: string, name: string): ZoomView {
   box.addEventListener('pointerup', up);
   box.addEventListener('pointercancel', up);
 
-  // ---------- wheel: pinching on a trackpad comes as Ctrl + wheel; plain scrolling moves a zoomed picture ----------
+  // ---------- wheel: scrolling up or down zooms at the pointer (a trackpad pinch comes as Ctrl + wheel, the
+  // same thing); scrolling sideways moves a zoomed picture ----------
   box.addEventListener(
     'wheel',
     (e) => {
       e.preventDefault();
-      if (e.ctrlKey || e.metaKey) {
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? box.clientHeight : 1;
+      const dy = e.deltaY * unit;
+      const dx = e.deltaX * unit;
+      if (dy && (e.ctrlKey || e.metaKey || Math.abs(dy) >= Math.abs(dx))) {
         // a mouse wheel's steps are big, a trackpad's small: both end up a gentle zoom
-        const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
         return zoomTo(scale * Math.exp(-Math.max(-50, Math.min(50, dy)) * 0.01), e.clientX, e.clientY);
       }
       if (scale === 1) return;
-      x -= e.deltaX;
-      y -= e.deltaY;
+      x -= dx;
       draw(false);
     },
     { passive: false },
