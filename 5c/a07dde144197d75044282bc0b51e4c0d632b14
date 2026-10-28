@@ -1,0 +1,19 @@
+src-tauri/src/main.rs
+  s_ca9c5f0894a6a0::t_982814b57fecb9 97-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5ca07dde144197d75044282bc0b51e4c0d632b14",
+  "prompts": {},
+  "sessions": {
+    "s_ca9c5f0894a6a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b425ba2-6f1e-4b67-aeae-7cbd9fe7c487",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
