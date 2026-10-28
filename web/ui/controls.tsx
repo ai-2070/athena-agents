@@ -40,6 +40,7 @@ export function Tabs<V extends string>({ tabs, value, onChange, aside, children,
               {t.label}
             </BaseTabs.Tab>
           ))}
+          <BaseTabs.Indicator className="tab-indicator" />
         </BaseTabs.List>
         {aside}
       </div>
