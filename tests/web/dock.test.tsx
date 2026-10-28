@@ -77,6 +77,22 @@ describe('the Brain chat', () => {
     expect(panel().classList.contains('hidden')).toBe(true);
   });
 
+  it('Ctrl+F (⌘F) opens a search box in the chat, and Esc closes only the box', async () => {
+    await act(async () => launcher().click());
+    await settle();
+    input().focus();
+    await act(async () => void input().dispatchEvent(new KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true, cancelable: true })));
+    await settle();
+    const found = panel().querySelector<HTMLInputElement>('[role="search"] input');
+    expect(found).not.toBeNull();
+    await act(async () => void found!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
+    await settle();
+    expect(panel().querySelector('[role="search"]')).toBeNull();
+    expect(panel().classList.contains('hidden')).toBe(false);
+    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
+    await settle();
+  });
+
   it('sends to the Brain, an agent or a team, and shows whose model answers', async () => {
     await act(async () => launcher().click());
     await settle();

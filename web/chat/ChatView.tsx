@@ -16,8 +16,9 @@ import { icon } from '../icons.ts';
 import { latestCompaction, memoryStart } from '../../shared/compaction.ts';
 import { Dom, MessageView, isRichCode } from './parts.tsx';
 import type { Variant } from './parts.tsx';
-import { beforeTurn, toUIMessages, userParts } from './messages.ts';
+import { beforeTurn, searchText, toUIMessages, userParts } from './messages.ts';
 import { WINDOW_FROM, Windowed } from './window.tsx';
+import { useFind } from '../ui/find.tsx';
 import { estimateHeight, messageSig } from './estimate.ts';
 import { chatTransport } from './transport.ts';
 import { agentMentions, insertMention } from './mention.ts';
@@ -597,8 +598,11 @@ export function ChatView(p: ChatViewProps) {
       />
     );
   };
+  // Ctrl+F (⌘F): a long chat draws only some of its messages, so the search reads them all and scrolls to the one it found
+  const revealRow = useRef<((i: number) => void) | null>(null);
+  const find = useFind(list, windowed ? { count: shown.length, text: (i) => searchText(shown[i]), reveal: (i) => revealRow.current?.(i) } : null);
   const rows = windowed ? (
-    <Windowed items={shown} scroller={list} atEnd={near.current} gap={compact ? 8 : 14} estimate={(m, width) => estimateHeight(m, width, compact)} memoKey={(m) => `${agent.id}/${chatId || viewId}/${compact ? 'c' : ''}${m.id}/${messageSig(m)}`} render={row} />
+    <Windowed items={shown} scroller={list} atEnd={near.current} gap={compact ? 8 : 14} estimate={(m, width) => estimateHeight(m, width, compact)} memoKey={(m) => `${agent.id}/${chatId || viewId}/${compact ? 'c' : ''}${m.id}/${messageSig(m)}`} render={row} reveal={revealRow} />
   ) : (
     shown.map(row)
   );
@@ -756,6 +760,7 @@ export function ChatView(p: ChatViewProps) {
 
   return (
     <>
+      {find}
       <div ref={list} className={variant === 'mini' ? 'oc-mini-list flex min-h-0 min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto py-1' : compact ? 'ac-list flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-0.5 py-1' : 'messages'} onScroll={onScroll}>
         {empty ? (
           variant === 'mini' ? (

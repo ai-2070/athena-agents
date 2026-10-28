@@ -50,6 +50,8 @@ Projects keep separate agents, teams and chats. Use the project name at the top 
 
 Agent and team chats open in floating, resizable windows with tabs. Drag a tab along the tabs to reorder it, out onto the map to open it in a new window, or onto another window's tabs to move it there; drag a window by its title bar onto another window's tabs to join them. Press **Ctrl+↓** (**⌘↓** on macOS) to minimize the window on top, again for the next one, and **Ctrl+↑** (**⌘↑**) to bring them back, the one minimized last first.
 
+To find something in a chat, press **Ctrl+F** (**⌘F** on macOS) while you are in it: the Brain chat, an agent's chat or a team's. A search box opens with the number of matches; every match is lit up, **Enter** goes to the next one, **Shift+Enter** to the previous one, and **Esc** closes the box. It reads the whole chat, including old messages that are not drawn on screen. The same works in a Markdown file opened to read. Very large Markdown files open at once, because only the part you are reading is drawn.
+
 To arrange the windows, use the **Arrange** button in a window's title bar or the keys (**Ctrl+Alt** on Windows, **Ctrl+⌥** on macOS):
 
 - **Left half** / **Right half** (**←** / **→**): snaps the window on top to that side, next to the sidebar and above the bottom bar. Press it again for ⅔ of the width, then ⅓.

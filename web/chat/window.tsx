@@ -27,6 +27,8 @@ export interface WindowedProps<T extends { id: string }> {
    */
   memoKey?: (item: T) => string;
   render: (item: T) => ReactNode;
+  /** filled with a way to scroll to a message by its number (for the search, web/ui/find.tsx) */
+  reveal?: { current: ((index: number) => void) | null };
 }
 
 /** Heights measured before, by memo key, with the list width they were measured at. */
@@ -48,7 +50,7 @@ export function rememberedHeight(key: string, width: number): number | undefined
   return known && Math.abs(known.width - width) < SAME_WIDTH ? known.size : undefined;
 }
 
-export function Windowed<T extends { id: string }>({ items, scroller, atEnd, gap, estimate, memoKey, render }: WindowedProps<T>) {
+export function Windowed<T extends { id: string }>({ items, scroller, atEnd, gap, estimate, memoKey, render, reveal }: WindowedProps<T>) {
   // (read once, when the list first draws)
   const startAtEnd = useRef(atEnd);
   // the list's width, kept by a ResizeObserver: a guess runs for every message not drawn yet, and
@@ -101,6 +103,7 @@ export function Windowed<T extends { id: string }>({ items, scroller, atEnd, gap
     // (far past the end: the browser stops it at the bottom, so the first draw is already the newest messages)
     initialOffset: () => (startAtEnd.current ? Number.MAX_SAFE_INTEGER : (scroller.current?.scrollTop ?? 0)),
   });
+  if (reveal) reveal.current = (i) => v.scrollToIndex(i, { align: 'center' });
   // messages drawn before: drawn again (scrolled back to), they don't play their arrival animation
   const [seen] = useState(() => new Set<string>());
   return (

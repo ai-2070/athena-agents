@@ -120,6 +120,32 @@ describe('team chat box', () => {
   });
 });
 
+describe('team chat search', () => {
+  it('Ctrl+F (⌘F) searches the thread, and counts a message that arrives meanwhile', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    const bar = () => el.querySelector<HTMLElement>('[role="search"]');
+    el.querySelector('textarea')!.focus();
+    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true, cancelable: true })));
+    expect(bar()).not.toBeNull();
+    const box = bar()!.querySelector('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(box, 'thumbnail');
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(() => new Promise((r) => setTimeout(r, 300)));
+    expect(bar()!.querySelector('[aria-live]')!.textContent).toBe('1 / 2');
+    // a new message with the word: the count follows
+    await teamEvent({ kind: 'message', message: { id: 'm2', ts: 9, from: 'maker', text: 'The thumbnail is ready', mentions: [] } });
+    await act(() => new Promise((r) => setTimeout(r, 300)));
+    expect(bar()!.querySelector('[aria-live]')!.textContent).toBe('1 / 3');
+    await act(async () => void box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
+    expect(bar()).toBeNull();
+  });
+});
+
 describe('team chat turns', () => {
   it("a working agent's turn streams in: its tool calls and text as they come", async () => {
     const el = document.createElement('div');

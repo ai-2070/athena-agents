@@ -649,7 +649,10 @@ describe('a long chat', () => {
       tops.set(this, Math.min(Math.max(0, v), maxTop(this)));
     });
     vi.spyOn(Element.prototype, 'scrollTo').mockImplementation(function (this: Element, a?: ScrollToOptions | number) {
-      if (typeof a === 'object' && a.top != null) this.scrollTop = a.top;
+      if (typeof a === 'object' && a.top != null) {
+        this.scrollTop = a.top;
+        this.dispatchEvent(new Event('scroll'));
+      }
     });
   });
   afterEach(() => vi.restoreAllMocks());
@@ -677,6 +680,24 @@ describe('a long chat', () => {
     expect(rows).toContain('answer 399');
     expect(rows).not.toContain('question 0');
     await scrollTo(list, 0);
+    expect(drawn(el)).toContain('question 0');
+    expect(drawn(el)).not.toContain('answer 399');
+  });
+
+  it('Ctrl+F searches every message, drawn or not, and scrolls to the one it finds', async () => {
+    chat.items = many(400);
+    const el = await open();
+    await rest();
+    expect(drawn(el)).not.toContain('question 0');
+    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true, cancelable: true })));
+    const box = el.querySelector<HTMLInputElement>('[role="search"] input')!;
+    expect(box).not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(box, 'question 0');
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await rest();
+    expect(el.querySelector('[role="search"] [aria-live]')!.textContent).toBe('1 / 1');
     expect(drawn(el)).toContain('question 0');
     expect(drawn(el)).not.toContain('answer 399');
   });

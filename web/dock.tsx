@@ -18,6 +18,7 @@ import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { openMemory, BRAIN } from './memory.ts';
 import { mentionPreviews } from './filepreview.ts';
+import { useFind } from './ui/find.tsx';
 import { brainKeyLabel, brainKeyTitle, brainShortcut } from './shortcuts.ts';
 import { Avatar, DomNode, Icon, useAppState } from './ui/react.tsx';
 import { ChipSet } from './ui/controls.tsx';
@@ -687,25 +688,30 @@ function DockList({ settings }: { settings: AppState['settings'] | undefined }) 
       el.removeEventListener('loadedmetadata', follow, true);
     };
   }, []);
+  // Ctrl+F (⌘F)
+  const find = useFind(list);
   return (
-    <div
-      className="dock-list flex-1 min-h-0 overflow-y-auto p-3.5 flex flex-col gap-2.5"
-      ref={list}
-      onScroll={(e) => {
-        const el = e.currentTarget;
-        stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-      }}
-    >
-      {D.items.length ? (
-        D.items.map((it) => <Item key={it.id} it={it} settings={settings} />)
-      ) : (
-        <div className="m-auto text-center text-dim max-w-[380px]">
-          <Icon name="sparkles" size={26} className="text-accent mb-2" />
-          <p>Ask the Brain anything about the project, or for anything to be done.</p>
-          <p className="hint">It sees every agent and team and what they are doing. It answers questions itself, builds teams from the Agent library ("make me a social media team"), and hands work to the right agent or team.</p>
-        </div>
-      )}
-    </div>
+    <>
+      {find}
+      <div
+        className="dock-list flex-1 min-h-0 overflow-y-auto p-3.5 flex flex-col gap-2.5"
+        ref={list}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        }}
+      >
+        {D.items.length ? (
+          D.items.map((it) => <Item key={it.id} it={it} settings={settings} />)
+        ) : (
+          <div className="m-auto text-center text-dim max-w-[380px]">
+            <Icon name="sparkles" size={26} className="text-accent mb-2" />
+            <p>Ask the Brain anything about the project, or for anything to be done.</p>
+            <p className="hint">It sees every agent and team and what they are doing. It answers questions itself, builds teams from the Agent library ("make me a social media team"), and hands work to the right agent or team.</p>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
