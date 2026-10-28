@@ -39,12 +39,17 @@ const HOST = 'flex-1 min-h-0 py-2 px-2.5 bg-[#070807]';
 
 function TerminalsPage({ asked }: { asked?: string }) {
   const data = useAppState();
+  // the app state as it was when the page opened: it may not have a terminal just opened yet
+  const [opened] = useState(() => data);
   const [first, setFirst] = useState<TerminalInfo[] | null>(null);
   useEffect(() => void GET<TerminalInfo[]>('/terminals').then(setFirst).catch(() => setFirst([])), []);
   if (!first) return null;
   // the live list once the app state has it (terminals opening and closing elsewhere)
   const list = data?.terminals || first;
-  const current = pickTerminal(asked, first.length ? first : list);
+  // which one shows: by the live list once the app state has changed since the page opened (a
+  // terminal closed here goes), by the first list until then
+  const live = data !== opened && data?.terminals ? data.terminals : null;
+  const current = pickTerminal(asked, live || (first.length ? first : list));
   const close = async (id: string) => {
     await attempt(() => DEL(`/terminals/${id}`));
     if (current === id) navigate('#/terminals');

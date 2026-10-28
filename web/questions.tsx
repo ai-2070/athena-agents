@@ -21,11 +21,20 @@ export function deliveredText(q: AgentQuestion): string {
   return q.note || '';
 }
 
-/** The waiting question in the list that a chat's ask_user call made (matched by its text, newest first). */
-export function questionFor(list: readonly AgentQuestion[] | undefined, input: unknown): AgentQuestion | null {
+/** Whose chat a tool call is in: its question is that agent's, asked in that chat. */
+export interface QuestionOwner {
+  agentId: string;
+  chatId: string | null;
+}
+
+/** The waiting question in the list that a chat's ask_user call made (matched by its text, newest first,
+ *  and by the agent and chat it is in: two agents asking the same thing each answer their own). */
+export function questionFor(list: readonly AgentQuestion[] | undefined, input: unknown, owner?: QuestionOwner | null): AgentQuestion | null {
   const asked = input && typeof input === 'object' ? String((input as { question?: unknown }).question ?? '').trim().slice(0, 2000) : '';
   if (!asked) return null;
-  return [...(list || [])].reverse().find((q) => q.status === 'waiting' && q.question === asked) || null;
+  // (a question asked outside a known chat has no chatId: then the agent alone decides)
+  const theirs = (q: AgentQuestion) => !owner || (q.agentId === owner.agentId && (!q.chatId || !owner.chatId || q.chatId === owner.chatId));
+  return [...(list || [])].reverse().find((q) => q.status === 'waiting' && q.question === asked && theirs(q)) || null;
 }
 
 /** Where a card is shown: the Outbox page, under the tool call in a chat, or in the Needs you drawer. */

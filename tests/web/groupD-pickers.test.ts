@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
-import { openModelPicker } from '../../web/models.ts';
+import { brainModelChip, openModelPicker } from '../../web/models.ts';
 import { openBranchBuilder } from '../../web/builder.ts';
 import type { ModelPatch } from '../../web/models.ts';
 import type { AppState } from '../../shared/types.ts';
@@ -106,6 +106,23 @@ describe('model picker: LM Studio tab', () => {
     serve(() => ({ body: [] }));
     openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {}, { local: false });
     expect(tabs().map((t) => t.textContent)).not.toContain('LM Studio');
+  });
+
+  it("the Brain's picker offers only the engines the Brain can think with, favorites too", () => {
+    serve(() => ({ body: [] }));
+    (state.data as unknown as { settings: Record<string, unknown> }).settings = {
+      brain: { provider: 'claude', model: 'haiku' },
+      favoriteModels: [
+        { engine: 'pi', model: '' },
+        { engine: 'codex', model: 'gpt-5' },
+      ],
+    };
+    document.body.append(brainModelChip());
+    document.querySelector<HTMLButtonElement>('.model-chip')!.click();
+    const names = tabs().map((t) => t.textContent);
+    expect(names).toEqual(['Favorites', 'Claude', 'OpenRouter', '☤Hermes', 'Codex']);
+    const rows = [...document.querySelectorAll('.model-body .model-row')].map((r) => r.textContent);
+    expect(rows).toEqual([expect.stringContaining('gpt-5')]);
   });
 });
 

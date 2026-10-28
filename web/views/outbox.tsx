@@ -232,7 +232,7 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
             <div key={i}>
               <textarea
                 aria-label={parts.length > 1 ? `Part ${i + 1}` : 'Text'}
-                rows={Math.min(6, Math.ceil(p.parts[i].length / 70) + 1)}
+                rows={Math.min(6, Math.ceil(t.length / 70) + 1)}
                 value={t}
                 onChange={(e) => setParts(parts.map((x, j) => (j === i ? e.target.value : x)))}
               />
