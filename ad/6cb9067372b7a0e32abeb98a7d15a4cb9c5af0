@@ -1,0 +1,19 @@
+web/views/stationpanel.tsx
+  s_d41b3cfe0ff6f7::t_0ef545398ea355 107-108,469,473
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ad6cb9067372b7a0e32abeb98a7d15a4cb9c5af0",
+  "prompts": {},
+  "sessions": {
+    "s_d41b3cfe0ff6f7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4c27fda-cf88-4eff-8c4e-5cafb32325be",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+web/questions.tsx
+  s_dbee9296e44ff3::t_e1525b9dd978ff 75,80-81,83-90,99,106,108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "72812db37dd5201a234b90ceaae012655b739e15",
+  "prompts": {},
+  "sessions": {
+    "s_dbee9296e44ff3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "36e83cb6-327a-4c38-b393-995c069dfb62",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
