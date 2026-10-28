@@ -1,0 +1,23 @@
+web/views/worldpanel.tsx
+  s_4f53eccb4f7bb2::t_046d2504adec77 258
+  s_4f53eccb4f7bb2::t_7e73f233e15f1c 174-175,183-184,189-195,221-228,273
+tests/web/world-panel.test.tsx
+  s_4f53eccb4f7bb2::t_8be3ffdb1019da 40,50,63,120-136
+  s_4f53eccb4f7bb2::t_848c807903d0c6 137-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d07738cfd4851b4bf9c68fbbe3c69d14fd5cf592",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
