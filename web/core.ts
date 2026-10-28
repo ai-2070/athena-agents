@@ -299,6 +299,8 @@ export interface ModalOptions {
   body?: Child;
   foot?: Child[];
   narrow?: boolean;
+  /** Animate away when closed; on unless false. */
+  exit?: boolean;
   onClose?: () => void;
 }
 export interface ModalHandle {
@@ -306,8 +308,8 @@ export interface ModalHandle {
   /** The backdrop (.modal-back); the dialog is the .modal inside it. */
   el: HTMLDivElement;
 }
-export function modal({ title, body, foot = [], narrow = false, onClose }: ModalOptions = {}): ModalHandle {
-  return openDialog({ title: asNodes(title), body: asNodes(body), foot: foot.length ? asNodes(foot) : null, narrow, onClose });
+export function modal({ title, body, foot = [], narrow = false, exit = true, onClose }: ModalOptions = {}): ModalHandle {
+  return openDialog({ title: asNodes(title), body: asNodes(body), foot: foot.length ? asNodes(foot) : null, narrow, exit, onClose });
 }
 
 export function confirmBox(text: Child, { ok = 'Yes', danger = false }: { ok?: string; danger?: boolean } = {}): Promise<boolean> {

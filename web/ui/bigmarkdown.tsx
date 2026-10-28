@@ -78,7 +78,8 @@ function MarkdownDoc({ text }: { text: string }) {
 export function showMarkdownDialog(name: string, text: string): void {
   const host = h('div');
   let view: { unmount: () => void } | null = null;
-  const m = modal({ title: name, body: host, onClose: () => queueMicrotask(() => view?.unmount()) });
+  // (unmounted after the closing animation, or the text would vanish first)
+  const m = modal({ title: name, body: host, onClose: () => setTimeout(() => view?.unmount(), 600) });
   m.el.classList.add('doc');
   view = mountReact(host, <MarkdownDoc text={text} />);
 }

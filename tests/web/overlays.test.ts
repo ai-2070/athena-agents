@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { confirmBox, h, modal, promptBox, toast } from '../../web/core.ts';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
-const dialogs = () => [...document.querySelectorAll<HTMLElement>('#modal-root .modal')];
+// (the open ones: a closed one stays a moment while it animates away)
+const dialogs = () => [...document.querySelectorAll<HTMLElement>('#modal-root .modal[data-open]')];
+const allDialogs = () => [...document.querySelectorAll<HTMLElement>('#modal-root .modal')];
 const escape = (on: Element) => on.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
 
 beforeEach(() => {
@@ -67,6 +69,33 @@ describe('modal()', () => {
     expect(dialogs()).toHaveLength(1);
     expect(dialogs()[0].querySelector('h2')!.textContent).toBe('Editor');
     first.close();
+  });
+});
+
+describe('modal() exit animation', () => {
+  it('goes at once with exit: false', () => {
+    modal({ title: 'Quick', body: 'x', exit: false }).close();
+    expect(allDialogs()).toHaveLength(0);
+  });
+
+
+  it('stays on screen while it animates away, tells the caller at once, then is gone (unless exit is false)', async () => {
+    const onClose = vi.fn();
+    const m = modal({ title: 'Picture', body: 'x', onClose });
+    expect(m.el.classList.contains('exit')).toBe(true);
+    m.close();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(allDialogs()).toHaveLength(1);
+    await new Promise((r) => setTimeout(r, 600));
+    expect(allDialogs()).toHaveLength(0);
+  });
+
+  it('a dialog opened right after does not nest inside the one on its way out', () => {
+    modal({ title: 'Picture', body: 'x' }).close();
+    const next = modal({ title: 'Next', body: 'y' });
+    expect(allDialogs()).toHaveLength(1);
+    expect(allDialogs()[0].querySelector('h2')!.textContent).toBe('Next');
+    next.close();
   });
 });
 

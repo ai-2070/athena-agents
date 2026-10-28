@@ -74,7 +74,7 @@ describe('pasteBox()', () => {
     expect(box.el.classList.contains('hidden')).toBe(true);
   });
 
-  it('opens what was pasted from the chip, and can take it out of the message', () => {
+  it('opens what was pasted from the chip, and can take it out of the message', async () => {
     const { box, input } = setup();
     const long = lines(15);
     paste(input, long);
@@ -83,6 +83,8 @@ describe('pasteBox()', () => {
     const remove = [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent?.trim().endsWith('Remove'))!;
     remove.click();
     expect(input.value).toBe('');
+    // (the dialog animates away first)
+    await new Promise((r) => setTimeout(r, 600));
     expect(document.querySelector('.paste-view')).toBeNull();
   });
 

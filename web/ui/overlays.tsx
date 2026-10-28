@@ -23,6 +23,8 @@ export interface DialogSpec {
   onClose?: () => void;
   /** What gets focus when it opens: by default its first text box, else the dialog itself. */
   focus?: () => HTMLElement | null | undefined;
+  /** Fade and shrink away when closed, like it did when it opened (the dialog stays until that is done). On unless false. */
+  exit?: boolean;
   /** React content instead of body and foot: it draws its own .modal-body and .modal-foot. */
   content?: ReactNode;
 }
@@ -59,9 +61,21 @@ function closeEntry(entry: Entry): void {
   // the ones on top of it go first: they live inside it
   for (const above of entries.slice(entries.indexOf(entry) + 1).reverse()) closeEntry(above);
   entry.open = false;
-  // gone at once, as before (no closing animation to wait for)
-  update(entries.filter((e) => e !== entry));
+  if (entry.spec.exit !== false) {
+    // stays in the list (closed) until its animation is done; the timer is for when no animation ever ends
+    update([...entries]);
+    setTimeout(() => remove(entry), EXIT_MS);
+  } else {
+    // gone at once
+    update(entries.filter((e) => e !== entry && e.open));
+  }
   entry.spec.onClose?.();
+}
+
+/** How long a closing dialog may take at most. */
+const EXIT_MS = 500;
+function remove(entry: Entry): void {
+  if (entries.includes(entry)) update(entries.filter((e) => e !== entry));
 }
 
 // ---------- the host: one React root, re-made when the page's containers change (tests rebuild them) ----------
@@ -123,9 +137,9 @@ function DialogView({ entry, container, children }: { entry: Entry; container: H
   const popup = useRef<HTMLDivElement>(null);
   const firstFocus = () => spec.focus?.() || popup.current?.querySelector<HTMLElement>('.modal-body input:not([type=checkbox]):not([type=radio]):not([disabled]), .modal-body textarea') || popup.current;
   return (
-    <Dialog.Root open={entry.open} onOpenChange={(open) => !open && closeEntry(entry)}>
+    <Dialog.Root open={entry.open} onOpenChange={(open) => !open && closeEntry(entry)} onOpenChangeComplete={(open) => !open && remove(entry)}>
       <Dialog.Portal container={container}>
-        <Dialog.Viewport className="modal-back" ref={(el: HTMLDivElement | null) => void (entry.view.current = el || entry.view.current)}>
+        <Dialog.Viewport className={`modal-back${spec.exit !== false ? ' exit' : ''}`} ref={(el: HTMLDivElement | null) => void (entry.view.current = el || entry.view.current)}>
           <Dialog.Popup ref={popup} className={`modal${spec.narrow ? ' narrow' : ''}`} initialFocus={firstFocus}>
             <div className="modal-head">
               <Dialog.Title ref={title} />
@@ -150,6 +164,8 @@ function DialogView({ entry, container, children }: { entry: Entry; container: H
 /** Opens a dialog on top of any already open. Its elements exist when this returns. */
 export function openDialog(spec: DialogSpec): OpenDialog {
   ensureHost();
+  // (a dialog still on its way out would hold this one inside it)
+  if (entries.some((e) => !e.open)) update(entries.filter((e) => e.open));
   const entry: Entry = { id: ++nextId, spec, open: true, view: { current: null } };
   update([...entries, entry]);
   const el = entry.view.current;

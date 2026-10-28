@@ -64,6 +64,8 @@
   --animate-fade: fade 0.18s ease-out;
   --animate-fade-fast: fade 0.14s ease-out;
   --animate-pop: pop 0.26s var(--ease-soft);
+  --animate-fade-out: fade-out 0.16s ease-in forwards;
+  --animate-pop-out: pop-out 0.16s ease-in forwards;
   --animate-in-up: in-up 0.25s var(--ease-soft);
   --animate-in-right: in-right 0.32s var(--ease-soft);
   --animate-rise-in: rise-in 0.28s var(--ease-soft);
@@ -74,6 +76,8 @@
 /* keyframes, for animate-* above or animate-[name_0.2s_ease-out] */
 @keyframes pulse { 50% { opacity: 0.3; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes pop-out { to { opacity: 0; transform: scale(0.94); } }
 @keyframes pop { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
 @keyframes in-up { from { opacity: 0; transform: translateY(18px) scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes in-right { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }

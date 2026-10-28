@@ -379,6 +379,9 @@ details.compaction .hint.warn { color: var(--color-amber); }
   background: var(--color-glass-strong); backdrop-filter: blur(18px); border: 1px solid var(--color-line-2); border-radius: var(--radius-box); box-shadow: var(--shadow-pop);
   animation: var(--animate-pop);
 }
+/* the way out (a dialog opened with exit: true), the opening backwards */
+.modal-back.exit[data-ending-style] { animation: var(--animate-fade-out); }
+.modal-back.exit[data-ending-style] .modal { animation: var(--animate-pop-out); }
 .modal.narrow { width: min(520px, 100%); }
 .modal-back.wide .modal { width: min(1100px, 100%); }
 /* a document to read (a Markdown file): about 80 characters a line */
