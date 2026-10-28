@@ -224,12 +224,37 @@ export function clearWhichCache() {
   whichCache.clear();
 }
 
+/** What an npm (or pnpm) .cmd shim runs: node and the package's script, read from the shim. Null for
+ *  any other .cmd, or when the script or node isn't there. */
+export function shimTarget(shim: string): { command: string; args: string[] } | null {
+  let text = '';
+  try {
+    if (fs.statSync(shim).size > 20_000) return null;
+    text = fs.readFileSync(shim, 'utf8');
+  } catch {
+    return null;
+  }
+  // "%dp0%\node_modules\@openai\codex\bin\codex.js" (npm) or "%~dp0\..\codex\bin\codex.js" (pnpm)
+  const m = /"%~?dp0%?\\?([^"%]+?\.[cm]?js)"/i.exec(text);
+  if (!m) return null;
+  const dir = path.dirname(shim);
+  const script = path.resolve(dir, m[1].replace(/\\/g, '/'));
+  if (!exists(script)) return null;
+  const local = path.join(dir, 'node.exe');
+  const node = exists(local) ? local : which('node');
+  return node && /\.exe$/i.test(node) ? { command: node, args: [script] } : null;
+}
+
 // Build a spawn() call that works for .cmd/.bat shims on Windows too.
 export function spawnCommand(cmd: string, args: string[] = [], opts: SpawnOptions = {}): ChildProcess {
   const exe = which(cmd) || cmd;
   if (IS_WIN && /\.(cmd|bat)$/i.test(exe)) {
     // These go through cmd.exe, which would interpret these characters: refuse rather than risk injection.
     const bad = args.find((a) => /["%!^&|<>\r\n]/.test(String(a)));
+    // An npm-installed CLI (codex.cmd) only starts node with its script: start that directly instead, no
+    // cmd.exe in between, so its arguments (Codex's quoted settings) go through as they are.
+    const direct = bad !== undefined ? shimTarget(exe) : null;
+    if (direct) return spawn(direct.command, [...direct.args, ...args], { windowsHide: true, ...opts });
     if (bad !== undefined) throw new Error(`This argument has characters that can't be passed safely to ${path.basename(exe)}: ${String(bad).slice(0, 80)}`);
     const quoted = [exe, ...args].map(winQuote).join(' ');
     return spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${quoted}"`], {

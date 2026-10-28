@@ -357,6 +357,43 @@ describe('agent runs and projects', () => {
     }
   });
 
+  it('the MCP bridge gives an agent the tools its team gave it for the work', async () => {
+    let release = () => {};
+    const model = http.createServer((rq, rs) => {
+      if (rq.url?.endsWith('/models')) return rs.end(JSON.stringify({ data: [{ id: 'mock' }] }));
+      new Promise<void>((r) => (release = r)).then(() => {
+        rs.writeHead(200, { 'content-type': 'text/event-stream' });
+        rs.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ok' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+      });
+    });
+    await new Promise<void>((r) => model.listen(0, '127.0.0.1', () => r()));
+    try {
+      const send = async (p: string, body: unknown, method = 'POST') => (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
+      await send('/api/settings', { providers: { custom: { baseUrl: `http://127.0.0.1:${(model.address() as { port: number }).port}/v1` } } }, 'PUT');
+      // the agent has no Files tools of its own; its team gives them
+      const agent = await send('/api/agents', { name: 'Team helper', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [], autonomy: 'auto' });
+      const team = await send('/api/workflows', { name: 'File team', members: [agent.id], lead: agent.id, access: { toolGroups: ['files'] } });
+      await send(`/api/teams/${team.id}/messages`, { text: `@${agent.name} write it down` });
+      let run: { id: string; agentId: string } | undefined;
+      for (let i = 0; i < 100 && !run; i++) {
+        run = ((await (await req('/api/runs')).json()) as { id: string; agentId: string }[]).find((r) => r.agentId === agent.id);
+        if (!run) await new Promise((r) => setTimeout(r, 50));
+      }
+      expect(run).toBeTruthy();
+      const internal = { 'content-type': 'application/json', 'x-dash-internal': fs.readFileSync(path.join(tmp, 'data', '.internal-token'), 'utf8').trim() };
+      const tools = await (await req(`/api/internal/tools?agent=${agent.id}&run=${run!.id}`, { headers: internal })).json();
+      expect(tools.tools.map((t: { name: string }) => t.name)).toContain('list_files');
+      const r = await req('/api/internal/tools/call', { method: 'POST', headers: internal, body: JSON.stringify({ agent: agent.id, run: run!.id, name: 'list_files', args: {} }) });
+      expect(r.status).toBe(200);
+      // without the run it is the agent's own tools only
+      const own = await (await req(`/api/internal/tools?agent=${agent.id}`, { headers: internal })).json();
+      expect(own.tools.map((t: { name: string }) => t.name)).not.toContain('list_files');
+    } finally {
+      release();
+      await new Promise<void>((r) => model.close(() => r()));
+    }
+  });
+
   it('keeps versions of an agent, restores one, and brings back a deleted one', async () => {
     const send = async (p: string, body: unknown, method = 'POST') => (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
     const a = await send('/api/agents', { name: 'Api versions', systemPrompt: 'First.' });

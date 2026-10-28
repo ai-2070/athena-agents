@@ -204,12 +204,13 @@ export function McpTab() {
         <div className="flex flex-wrap items-center gap-2.5">
           <button className="btn small" onClick={() => void attempt(() => POST('/hermes/add-bridge'), 'Hermes now has the dashboard tools (restart Hermes sessions to see them)')}>Give Hermes the dashboard tools</button>
           <button className="btn small" onClick={() => void attempt(() => POST<{ message: string }>('/pi/add-bridge'), (r) => r.message)}>Give pi and oh-my-pi the dashboard tools</button>
-          <button className="btn ghost small" onClick={() => copy(bridgeJson)}>Copy MCP config for other apps</button>
+          {/* (the page is shown the config without its token: the copy gets the real one) */}
+          <button className="btn ghost small" onClick={() => void attempt(() => POST<McpData['bridge']>('/mcp-bridge')).then((b) => b && copy(JSON.stringify({ mcpServers: { dashboard: b } }, null, 2)))}>Copy MCP config for other apps</button>
         </div>
         <details className="mt-3.5">
           <summary className="label cursor-pointer">Show config</summary>
           <pre>{bridgeJson}</pre>
-          <p className="hint">Paste into Claude Desktop, Cursor, or any MCP client. They act as "External MCP client": everything except shell, and they ask you first. The dashboard must be running.</p>
+          <p className="hint">The token is hidden here; Copy puts the real one in. Paste into Claude Desktop, Cursor, or any MCP client. They act as "External MCP client": everything except shell, and they ask you first. The dashboard must be running.</p>
         </details>
         <p className="hint">pi and oh-my-pi keep it in their own mcp.json (pi needs version 0.99 or newer); an agent's first run on either adds it there. Their agents here then use the dashboard tools as themselves; when you run pi on your own, it acts as "External MCP client".</p>
       </div>
@@ -338,7 +339,7 @@ function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved 
                 <Field label="Arguments" hint="Separated by spaces.">
                   <input className="code" value={args} placeholder="-y @playwright/mcp@latest" onChange={(e) => setArgs(e.target.value)} />
                 </Field>
-                <Field label="Environment" hint="One KEY=value per line.">
+                <Field label="Environment" hint="One KEY=value per line. Saved keys show as dots; leave them to keep them.">
                   <textarea className="code" rows={3} value={env} placeholder="API_KEY=…" onChange={(e) => setEnv(e.target.value)} />
                 </Field>
               </>
@@ -347,7 +348,7 @@ function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved 
                 <Field label="URL">
                   <input className="code" value={c.url} placeholder="https://…/mcp" onChange={(e) => setC({ ...c, url: e.target.value })} />
                 </Field>
-                <Field label="Headers">
+                <Field label="Headers" hint="Saved values show as dots; leave them to keep them.">
                   <textarea className="code" rows={3} value={headers} placeholder="Authorization: Bearer …" onChange={(e) => setHeaders(e.target.value)} />
                 </Field>
               </>

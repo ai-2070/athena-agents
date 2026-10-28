@@ -220,7 +220,11 @@ Very long chats still scroll smoothly: from 50 messages on, the chat page and th
 | **Auto** (default) | For high-risk actions, such as shell commands, scripts and sending messages. |
 | **Full** | Tool approvals are skipped. Use only when you trust the agent and its access. |
 
-An explicit **Always allow** choice can also skip later approval requests for that tool. Autonomy is not an operating-system sandbox: shell commands and external tools can act with the access of the account running them.
+Agents can't fetch the dashboard's own pages, so a web page can't lead them to your settings. The Tools & MCP page shows saved keys as dots; leave the dots when you edit a server to keep its key.
+
+For API-model agents, an MCP server's tool counts as low risk only when the server says it just reads; any other one asks on **Auto** too. A server you turn off isn't started for them.
+
+An explicit **Always allow** choice can also skip later approval requests for that tool, from that moment on in the same run too. Autonomy is not an operating-system sandbox: shell commands and external tools can act with the access of the account running them.
 
 **The Brain approves** is on by default. When an agent or team requests permission, the Brain reviews it first. It is instructed to allow routine, reversible work within the task and pass risky or unclear requests to **Needs you**, with a reason. This is a model's judgment, not a hard safety guarantee. Turn it off under **Settings → General & keys → The Brain's model** if you want requests to come to you directly.
 

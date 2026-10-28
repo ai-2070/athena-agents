@@ -645,36 +645,43 @@ export async function serviceUrl(id: string): Promise<string | null> {
   return service ? service().catch(() => null) : null;
 }
 
+/** What launchProgram starts for a name: a program file (given the file and arguments), or a shortcut opened as is. */
+export type LaunchTarget = { exe: string; name: string; onPath: boolean; shortcut?: undefined } | { shortcut: string; name: string; startMenu: boolean; exe?: undefined };
+
+// Which program a name means. The approval check and the launch both use this, so a name can't be
+// judged as one program and then start another (a trailing space, a different case).
+export function launchTarget(nameOrId: unknown, withExtra: boolean): LaunchTarget | null {
+  const key = String(nameOrId || '').trim();
+  if (!key) return null;
+  const progs = knownPrograms();
+  const lower = key.toLowerCase();
+  const known = progs.find((p) => p.id === lower || p.name.toLowerCase() === lower) || progs.find((p) => p.name.toLowerCase().includes(lower));
+  if (known?.exe && !known.cli) return { exe: known.exe, name: known.name, onPath: false };
+  if (known?.shortcut && !withExtra) return { shortcut: known.shortcut, name: known.name, startMenu: false };
+  const lnk = startMenuApps().find((a) => a.name.toLowerCase() === lower) || startMenuApps().find((a) => a.name.toLowerCase().includes(lower));
+  if (lnk) return { shortcut: lnk.shortcut, name: lnk.name, startMenu: true };
+  const exe = which(key);
+  return exe ? { exe, name: path.basename(exe), onPath: true } : null;
+}
+
 // Launch a known program, a Start Menu entry, or anything on PATH. Optionally open a file/URL with it.
 // nameOrId and args can come straight from a tool call or request body, so they are checked here.
 export async function launchProgram(nameOrId: unknown, { file = null, args = [] }: { file?: string | null; args?: unknown } = {}): Promise<string> {
   const key = String(nameOrId || '').trim();
   if (!key) throw new Error('Which program? Give its name.');
-  const progs = knownPrograms();
-  const lower = key.toLowerCase();
-  const known = progs.find((p) => p.id === lower || p.name.toLowerCase() === lower) || progs.find((p) => p.name.toLowerCase().includes(lower));
   const extra: string[] = [...(file ? [file] : []), ...(Array.isArray(args) ? (args as string[]) : [])];
-  if (known?.exe && !known.cli) {
-    launchDetached(known.exe, extra);
+  const target = launchTarget(key, extra.length > 0);
+  if (!target) throw new Error(`Couldn't find a program called "${key}". Use list_programs to see what's installed.`);
+  if (target.exe !== undefined) {
+    launchDetached(target.exe, extra);
+    if (target.onPath) return `Started ${target.name}.`;
     checkSoon();
-    return `Started ${known.name}${file ? ` with ${file}` : ''}.`;
+    return `Started ${target.name}${file ? ` with ${file}` : ''}.`;
   }
-  if (known?.shortcut && !extra.length) {
-    openWithShell(known.shortcut);
-    checkSoon();
-    return `Started ${known.name}.`;
-  }
-  const lnk = startMenuApps().find((a) => a.name.toLowerCase() === lower) || startMenuApps().find((a) => a.name.toLowerCase().includes(lower));
-  if (lnk) {
-    openWithShell(lnk.shortcut);
-    return `Started ${lnk.name} (from the Start Menu).`;
-  }
-  const exe = which(key);
-  if (exe) {
-    launchDetached(exe, extra);
-    return `Started ${path.basename(exe)}.`;
-  }
-  throw new Error(`Couldn't find a program called "${key}". Use list_programs to see what's installed.`);
+  openWithShell(target.shortcut);
+  if (target.startMenu) return `Started ${target.name} (from the Start Menu).`;
+  checkSoon();
+  return `Started ${target.name}.`;
 }
 
 export function programExe(id: string): string | null {

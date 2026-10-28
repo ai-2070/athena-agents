@@ -81,12 +81,18 @@ export function openscadArgs({ input, output, defines = {} }: { input: string; o
   return ['-o', output, ...sets.flat(), input];
 }
 
+// PrusaSlicer options that take files or folders, do something other than set a print setting, or run programs
+const NOT_A_SETTING = /^(no-)?(load|o|output|output-filename-format|save|datadir|loadconfig|config|post-process|export-.*|import-.*|info|help.*|gcodeviewer|single-instance.*|delete-after-load|threads|loglevel|sw-renderer|opengl-.*|app-updater|.*-file|.*-files|.*-path|.*-dir)$/;
+
 /** prusa-slicer-console arguments: slice a model to G-code with saved profiles and a few settings. */
 export function prusaSlicerArgs({ input, output, profiles = [], settings = {} }: { input: string; output: string; profiles?: string[]; settings?: Record<string, string | number | boolean> }): string[] {
   if (!/\.(gcode|bgcode)$/i.test(output)) throw new Error('The output must end in .gcode or .bgcode.');
   const opts = Object.entries(settings).flatMap(([k, v]) => {
     const key = k.toLowerCase().replace(/_/g, '-');
     if (!/^[a-z][a-z0-9-]*$/.test(key)) throw new Error(`"${k}" is not a PrusaSlicer setting name.`);
+    // Files go in profiles, input and output, where they are checked; settings that name files, read or
+    // write elsewhere, or run a program (post-process) are refused.
+    if (NOT_A_SETTING.test(key)) throw new Error(`"${k}" can't be set here: give profiles in "profiles", and the files in "input" and "output".`);
     if (v === true) return [`--${key}`];
     if (v === false) return [`--no-${key}`];
     return [`--${key}`, String(v)];

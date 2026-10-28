@@ -82,6 +82,8 @@ export interface RunEntry {
   project: Project;
   /** (its id) */
   projectId: string;
+  /** the agent as the run has it, with what a team added (tools, MCP servers): the bridge uses this one */
+  agent: Agent;
   /** stopped for a new message from you: its /queue messages and loop stay */
   steered?: boolean;
 }
@@ -107,6 +109,8 @@ export interface RunInfo {
   depth: number;
   signal: AbortSignal;
   project: Project;
+  /** the agent as the run has it (see RunEntry) */
+  agent: Agent;
 }
 
 export interface StartRunOptions {
@@ -197,7 +201,7 @@ export function liveActivity(): LiveActivity[] {
 
 export function runInfo(runId: string | null | undefined): RunInfo | null {
   const r = runId && active.get(runId);
-  return r ? { id: runId, agentId: r.agentId, projectId: r.projectId, chatId: r.chatId, depth: r.depth, signal: r.signal, project: r.project } : null;
+  return r ? { id: runId, agentId: r.agentId, projectId: r.projectId, chatId: r.chatId, depth: r.depth, signal: r.signal, project: r.project, agent: r.agent } : null;
 }
 
 // The chat object a running agent is writing to, so edits made meanwhile aren't overwritten.
@@ -272,7 +276,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   const controller = new AbortController();
   const started = Date.now();
   const inProject = <T>(fn: () => T): T => withProject(project, fn);
-  const entry: RunEntry = { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, startedAt: started, agentName: agent.name, project, projectId: project.id };
+  const entry: RunEntry = { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, startedAt: started, agentName: agent.name, project, projectId: project.id, agent };
   active.set(runId, entry);
   // Saving skips chats deleted while the run was going.
   const persist = () =>

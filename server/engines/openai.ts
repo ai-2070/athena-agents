@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getSettings, getSecrets } from '../store.ts';
 import { attachedImages } from '../uploads.ts';
+import { inlineToolImages, keepToolImages } from '../toolimages.ts';
 import { callTool as callBuiltin, toolDefs, gate } from '../tools.ts';
 import * as mcp from '../mcp.ts';
 import { PORT } from '../util.ts';
@@ -66,7 +67,7 @@ interface ToolDef {
   function: { name: string; description?: string; parameters: unknown };
 }
 
-type ToolRoute = { kind: 'builtin'; name: string } | { kind: 'mcp'; server: string; name: string };
+type ToolRoute = { kind: 'builtin'; name: string } | { kind: 'mcp'; server: string; name: string; risk: 'low' | 'high' };
 
 interface Usage {
   cost?: number;
@@ -161,14 +162,15 @@ async function gatherTools(agent: Agent, onEvent: (ev: RunEvent) => void): Promi
   const defs: ToolDef[] = toolDefs(agent).map((t): ToolDef => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
   const route = new Map<string, ToolRoute>(defs.map((d): [string, ToolRoute] => [d.function.name, { kind: 'builtin', name: d.function.name }]));
   const servers = mcp.listServers();
-  for (const server of agent.mcpServers || []) {
+  // (a server you turned off isn't started or offered)
+  for (const server of (agent.mcpServers || []).filter((n) => mcp.isEnabled(n, servers))) {
     // a copy of a service (one account of several) is named by its label: "[OOMOL: Work] Send an email"
     const shown = mcp.accountOf(server, servers) || server;
     try {
       const tools = await mcp.listTools(server);
       for (const t of tools) {
         const name = mcpToolName(server, t.name, route);
-        route.set(name, { kind: 'mcp', server, name: t.name });
+        route.set(name, { kind: 'mcp', server, name: t.name, risk: mcp.mcpToolRisk(t) });
         defs.push({ type: 'function', function: { name, description: `[${shown}] ${t.description || ''}`.slice(0, 1000), parameters: t.inputSchema || { type: 'object', properties: {} } } });
       }
     } catch (e) {
@@ -296,6 +298,21 @@ export function expandImages(msgs: LlmMessage[], vision: boolean, maxImages = MA
   });
 }
 
+/** Why an answer ended early, from the provider's finish_reason ('' for a finished one). */
+export function cutReason(finish: string | null | undefined): string {
+  if (finish === 'length') return 'The answer was cut off: the model reached its length limit.';
+  if (finish === 'content_filter') return "The provider's content filter stopped the answer.";
+  if (finish === 'error') return 'The provider stopped the answer with an error.';
+  return '';
+}
+
+/** A tool result's pictures, saved next to the chat, as files the model gets to see. */
+async function toolPictures(agentId: string, chatId: string, images: readonly string[] | undefined): Promise<string[]> {
+  if (!images?.length) return [];
+  const links = keepToolImages(agentId, chatId, await inlineToolImages(images));
+  return links.filter((l) => l.startsWith('/api/file?path=')).map((l) => decodeURIComponent(l.slice('/api/file?path='.length)));
+}
+
 const hasImages = (msgs: LlmMessage[]) => msgs.some((m) => m.role === 'user' && Array.isArray(m.content) && m.content.some((x) => x.type === 'image_url'));
 
 export async function run({ agent, chat, text, signal, onEvent, depth, runId, systemPrompt, attachments = [], compact }: EngineRunArgs): Promise<EngineResult> {
@@ -397,6 +414,13 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
       cached += Number(r.usage.prompt_tokens_details?.cached_tokens || 0);
       context = Number(r.usage.total_tokens || 0) || Number(r.usage.prompt_tokens || 0) + Number(r.usage.completion_tokens || 0);
     }
+    // Cut off (out of tokens) or stopped by the provider: not a finished answer, and a half-written tool call
+    // must not run with whatever arguments survived. What it wrote stays, and /resume carries on from there.
+    const cut = cutReason(r.finish);
+    if (cut) {
+      if (r.content) chat.llm.push({ role: 'assistant', content: r.content });
+      throw new Error(`${cut} Send /resume to let it carry on.`);
+    }
     // Some providers leave ids empty; results must match their call.
     for (const c of r.calls) c.id ||= `call_${Math.random().toString(36).slice(2, 12)}`;
     chat.llm.push({ role: 'assistant', content: r.content || null, ...(r.calls.length ? { tool_calls: r.calls } : {}) });
@@ -405,6 +429,8 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
     if (!r.calls.length) break;
 
     const answered = new Set();
+    // files of the pictures the tools returned this step
+    const pictures: string[] = [];
     try {
       for (const call of r.calls) {
         if (signal.aborted) throw new Error('Stopped.');
@@ -422,9 +448,10 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
         else if (target.kind === 'builtin') job = callBuiltin(agent, target.name, args, ctx);
         else
           job = (async () => {
-            const refused = await gate(agent, call.function.name, 'low', args, { ...ctx, mcpServer: target.server });
+            // (only a tool that says it just reads counts as low risk: the others may send, delete or run things)
+            const refused = await gate(agent, call.function.name, target.risk, args, { ...ctx, mcpServer: target.server });
             if (refused) return refused;
-            return mcp.callTool(target.server, target.name, args);
+            return mcp.callTool(target.server, target.name, args, { signal });
           })().catch((e: Error) => ({ text: `Error: ${e.message}`, isError: true }));
         // Stop must not wait for a slow tool to finish.
         // (the stop listener is removed again when the tool finishes first, so long runs don't pile them up)
@@ -436,7 +463,10 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
         });
         const result = await Promise.race([job, stopped]).finally(() => onStop && signal.removeEventListener('abort', onStop));
         onEvent({ kind: 'tool_result', id: call.id, text: result.text, images: result.images, isError: result.isError });
-        const note = result.images?.length ? `\n[${result.images.length} image(s) shown to the user]` : '';
+        // the pictures go to the model too, in a message after the tool results (a tool message can't hold one)
+        const seen = await toolPictures(agent.id, chat.id, result.images);
+        pictures.push(...seen);
+        const note = result.images?.length ? `\n[${result.images.length} image(s) shown to the user${seen.length ? '; you get them in the next message' : ''}]` : '';
         chat.llm.push({ role: 'tool', tool_call_id: call.id, content: String(result.text || '(no output)').slice(0, 24000) + note });
         answered.add(call.id);
       }
@@ -444,6 +474,7 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
       // Every tool call needs a result, or the provider rejects the next message.
       for (const call of r.calls) if (!answered.has(call.id)) chat.llm.push({ role: 'tool', tool_call_id: call.id, content: '(not run: the user stopped this)' });
     }
+    if (pictures.length) chat.llm.push({ role: 'user', content: [{ type: 'text', text: 'The pictures the tools above returned:' }, ...pictures.slice(-MAX_IMAGES).map((p): UserPart => ({ type: 'image_url', image_url: { url: FILE_URL + p } }))] });
     if (settings.costLimitUsdPerRun && cost > settings.costLimitUsdPerRun) {
       onEvent({ kind: 'text', text: `\n\n_Stopped: this run passed the $${settings.costLimitUsdPerRun} limit set in Settings._` });
       break;
@@ -468,5 +499,7 @@ export function trimHistory(msgs: LlmMessage[], maxChars = 400_000): LlmMessage[
   let start = 0;
   for (let cut = 0; start < msgs.length && cut < drop; start++) cut += sizes[start];
   while (start < msgs.length && msgs[start].role !== 'user') start++;
+  // (one message over the whole budget: still start at the newest user message, never send nothing)
+  if (start >= msgs.length) start = Math.max(0, msgs.findLastIndex((m) => m.role === 'user'));
   return msgs.slice(start);
 }
