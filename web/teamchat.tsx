@@ -292,7 +292,8 @@ function Fold({ children }: { children: ReactNode }) {
       </div>
       {long ? (
         <button
-          className="tc-more mt-1 inline-flex items-center gap-1 font-mono text-[11px] leading-[normal] text-faint hover:text-accent"
+          type="button"
+          className="tc-more mt-1 inline-flex cursor-pointer items-center gap-1 font-mono text-[11px] leading-[normal] text-faint hover:text-accent"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
