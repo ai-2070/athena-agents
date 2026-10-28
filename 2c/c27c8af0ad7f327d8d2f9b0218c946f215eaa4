@@ -1,0 +1,19 @@
+web/views/agents.tsx
+  s_8f530f9e30e490::t_d7a126561e6df8 62-76,98-102,106,111,224-231,236,239-241,253-260,262-276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2cc27c8af0ad7f327d8d2f9b0218c946f215eaa4",
+  "prompts": {},
+  "sessions": {
+    "s_8f530f9e30e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3bb6e3e4-81e1-4afa-a104-48a778c3a87b",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
