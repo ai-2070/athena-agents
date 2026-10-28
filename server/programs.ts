@@ -694,6 +694,17 @@ export function programExe(id: string): string | null {
   }
 }
 
+/** Is Orca on this PC: its app, or its command line tool (`orca`; `orca-ide` on Linux, where bare `orca` is
+ *  usually the screen reader; or the command in ORCA_CLI_COMMAND). */
+export function orcaInstalled(): boolean {
+  const cmd = process.env.ORCA_CLI_COMMAND?.trim();
+  if (cmd && which(cmd)) return true;
+  if (which(process.platform === 'linux' ? 'orca-ide' : 'orca')) return true;
+  if (IS_WIN) return !!programExe('orca');
+  if (process.platform === 'darwin') return !!first('/Applications/Orca.app', path.join(HOME, 'Applications', 'Orca.app'));
+  return false;
+}
+
 export function fileExists(p: string): boolean {
   try {
     return fs.statSync(p).isFile();

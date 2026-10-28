@@ -9,9 +9,10 @@ import path from 'node:path';
 import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME, ROOT, yamlScalar, yamlString } from './util.ts';
 import { activeProject, agents, workflows, listProjects, getSettings, saveSettings, withProject, log, emit } from './store.ts';
 import { updateProject } from './projects.ts';
+import { orcaInstalled } from './programs.ts';
 import crypto from 'node:crypto';
 import { keepVersion, pruneVersions, versionFilesDir } from './versions.ts';
-import type { ClaudeSkill, Skill, SkillFile, SkillListing, SkillOrigin } from '../shared/types.ts';
+import type { ClaudeSkill, Project, Skill, SkillFile, SkillListing, SkillOrigin } from '../shared/types.ts';
 
 /** A skill as getSkill returns it (dir is cleared so it never reaches the browser). */
 export type SkillDetail = Skill & { dir?: undefined };
@@ -683,6 +684,18 @@ export function skillsFor(agent: { skills?: string[] }, extra: string[] | null |
     if (s) out.push({ ...s, via: (agent.skills || []).includes(slug) ? 'agent' : (extra || []).includes(slug) ? 'team' : 'project' });
   }
   return out;
+}
+
+export const ORCA_SKILL = 'orca-agents';
+/** With Orca on this PC, every agent in the project gets "Start agents in Orca": run each time a project
+ *  is created or opened. Returns the project when the skill was added. */
+export function enableOrcaSkill(projectId: string, installed: boolean = orcaInstalled()): Project | null {
+  if (!installed || !getSkill(ORCA_SKILL)) return null;
+  const p = listProjects().find((x) => x.id === projectId);
+  if (!p || p.skills?.includes(ORCA_SKILL)) return null;
+  const next = updateProject(p.id, { skills: [...(p.skills || []), ORCA_SKILL] });
+  log('skill', `Orca is installed: every agent in "${p.name}" can now start agents in Orca`);
+  return next;
 }
 
 // The part of an agent's instructions that lists its skills.
