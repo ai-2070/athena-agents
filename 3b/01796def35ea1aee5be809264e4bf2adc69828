@@ -1,0 +1,34 @@
+web/ui/bigmarkdown.tsx
+  s_8f530f9e30e490::t_27b1eecdbb49d2 81-82
+tests/web/overlays.test.ts
+  s_8f530f9e30e490::t_9477c4404c3adc 6-8,75-82,84,88,90,94,96-97
+  s_8f530f9e30e490::t_11541ef442b239 72-74,83,85-87,89,91-93,95,98
+web/core.ts
+  s_8f530f9e30e490::t_973943d8a50d41 303,312
+  s_8f530f9e30e490::t_c06a7f95854367 302,311
+web/styles/components.css
+  s_8f530f9e30e490::t_973943d8a50d41 382-384
+web/ui/overlays.tsx
+  s_8f530f9e30e490::t_c06a7f95854367 26,64,142
+  s_8f530f9e30e490::t_973943d8a50d41 27,65-71,75-80,140,167-168
+web/styles/app.css
+  s_8f530f9e30e490::t_973943d8a50d41 67-68,79-80
+tests/web/pastes.test.ts
+  s_8f530f9e30e490::t_9477c4404c3adc 77,86-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3b01796def35ea1aee5be809264e4bf2adc69828",
+  "prompts": {},
+  "sessions": {
+    "s_8f530f9e30e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3bb6e3e4-81e1-4afa-a104-48a778c3a87b",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
