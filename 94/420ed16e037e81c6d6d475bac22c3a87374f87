@@ -1,0 +1,23 @@
+web/ui/react.tsx
+  s_8f530f9e30e490::t_63ba3b077352ff 103-140
+web/views/stationpanel.tsx
+  s_8f530f9e30e490::t_63ba3b077352ff 18,737,751
+tests/web/hoverscroll.test.tsx
+  s_8f530f9e30e490::t_16a6b669a4d804 1-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "94420ed16e037e81c6d6d475bac22c3a87374f87",
+  "prompts": {},
+  "sessions": {
+    "s_8f530f9e30e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3bb6e3e4-81e1-4afa-a104-48a778c3a87b",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
