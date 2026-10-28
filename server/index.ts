@@ -427,10 +427,14 @@ post<{ folder?: string; url?: string; name?: string; content?: string }>('/api/a
     return { ok: true };
   }
   if (body.url) {
-    const res = await fetch(body.url, { signal: AbortSignal.timeout(30000) });
-    const text = await res.text();
-    const name = body.name || new URL(body.url).hostname + new URL(body.url).pathname.replace(/\W+/g, '_') + '.md';
-    return { file: kb.addKnowledgeFile(id, name, `Source: ${body.url}\n\n${/html/.test(res.headers.get('content-type') || '') ? text.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+\n/g, '\n').replace(/[ \t]+/g, ' ') : text}`) };
+    const url = body.url;
+    // (the download takes a while: the file goes to this project's agent, whichever project is open by then)
+    return store.withProject(store.activeProject(), async () => {
+      const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+      const text = await res.text();
+      const name = body.name || new URL(url).hostname + new URL(url).pathname.replace(/\W+/g, '_') + '.md';
+      return { file: kb.addKnowledgeFile(id, name, `Source: ${url}\n\n${/html/.test(res.headers.get('content-type') || '') ? text.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+\n/g, '\n').replace(/[ \t]+/g, ' ') : text}`) };
+    });
   }
   return { file: kb.addKnowledgeFile(id, body.name, body.content || '') };
 });
@@ -457,13 +461,7 @@ put<{ title?: unknown; reset?: unknown }>('/api/agents/:id/chats/:cid', async ({
   // While a run is going, change the copy it is writing so the edit sticks.
   const c = engines.liveChat(cid) || need(chats.get(id, cid));
   if (body.title) c.title = String(body.title).slice(0, 120);
-  if (body.reset) {
-    c.sessionId = null;
-    c.llm = [];
-    delete c.reseed;
-    delete c.context;
-    c.items.push({ type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', reset: true, ts: Date.now() });
-  }
+  if (body.reset) engines.resetMemory(c);
   return chats.save(c);
 });
 post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/messages', async ({ id, cid }, body) => {
@@ -517,13 +515,13 @@ post<{ text?: unknown; attachments?: unknown; steer?: unknown }>('/api/agents/:i
   return undefined;
 });
 get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {
-  const run = engines.activeRuns().find((r) => r.chatId === cid && r.agentId === id);
-  if (!run) {
+  const runId = engines.chatRunId(id, cid);
+  if (!runId) {
     res.writeHead(204, { 'cache-control': 'no-store' });
     res.end();
     return undefined;
   }
-  await uistream.streamRun(res, { chatId: cid, runId: run.id, items: engines.liveChat(cid)?.items || [] });
+  await uistream.streamRun(res, { chatId: cid, runId, items: engines.liveChat(cid)?.items || [] });
   return undefined;
 });
 // Compaction: the Compact button, the memory meter, and editing the compacted history

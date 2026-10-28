@@ -179,7 +179,7 @@ const TOOLS: ToolDef[] = [
       const { runInfo, liveChat } = await import('./engines/index.ts');
       const { recall } = await import('./compaction.ts');
       const run = runInfo(ctx.runId);
-      const chat = run ? liveChat(run.chatId) || chats.get(run.agentId, run.chatId) : null;
+      const chat = run ? liveChat(run.chatId, run.projectId) || chats.get(run.agentId, run.chatId) : null;
       if (!chat) return { text: 'recall_history only works inside a dashboard chat.', isError: true };
       return recall(chat.items, args);
     },

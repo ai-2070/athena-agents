@@ -318,7 +318,8 @@ export interface Chat {
   items: ChatItem[];
   llm: unknown[];
   sessionId: string | null;
-  /** The engine that made sessionId: another engine can't resume it, so it starts a new session. */
+  /** The engine that answered here last (and made sessionId): another engine can't resume it, so it
+   *  starts from the chat so far (a new session, or for the API model a new chat.llm). */
   sessionEngine?: EngineId;
   /** Set when this is the agent's session for a team chat. */
   teamId?: string | null;
@@ -367,6 +368,8 @@ export interface ActiveRun {
   id: string;
   agentId: string;
   chatId: string;
+  /** the project it runs in (a cloned project's chats have the same ids) */
+  projectId?: string;
   startedAt: number;
   agentName: string;
   parentRunId: string | null;
