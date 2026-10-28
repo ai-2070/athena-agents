@@ -1,0 +1,51 @@
+web/core.ts
+  s_9267fed6cec519::t_e14bfa4196d686 9,279-284
+server/index.ts
+  s_9267fed6cec519::t_d00218f07cde1f 863-864
+  s_9267fed6cec519::t_1f0be49c76c1e8 835-837,862,865-869
+  s_9267fed6cec519::t_d6940c58adc681 870-875
+web/client/connection.ts
+  s_9267fed6cec519::t_e14bfa4196d686 52-53
+web/attach.ts
+  s_9267fed6cec519::t_b6d5bb59a2b826 4,8,335-336,340-347,352-361
+  s_9267fed6cec519::t_bddba81eb899fc 362
+web/zoomview.ts
+  s_9267fed6cec519::t_0f62df52e6aaa1 101
+  s_9267fed6cec519::t_196799332cd2e6 45-47
+  s_9267fed6cec519::t_99a5f9cacfb302 1-44,48-91,93-100,102,105-130,132-133,135-185
+  s_9267fed6cec519::t_939c545af3e742 92,103-104,131,134
+tests/server/api.test.ts
+  s_9267fed6cec519::t_0f62df52e6aaa1 297-316
+docs/guide.md
+  s_9267fed6cec519::t_af9de69627ffec 74-75
+web/filepreview.ts
+  s_9267fed6cec519::t_8595166a40fb95 4,9-10,61,65,70-104,123-125,128,141-151
+  s_9267fed6cec519::t_979976a7b73c30 152
+tests/web/filepreview.test.ts
+  s_9267fed6cec519::t_75a4674736113b 180
+  s_9267fed6cec519::t_0f62df52e6aaa1 3,10-11,24,159-179,181-185
+  s_9267fed6cec519::t_3dff18a839d25c 22
+  s_9267fed6cec519::t_5d0c0e6096af6f 186
+tests/web/zoomview.test.ts
+  s_9267fed6cec519::t_0f62df52e6aaa1 1-55,61-63
+  s_9267fed6cec519::t_366ef83ef4763c 56-60
+tests/web/attach-tray.test.ts
+  s_9267fed6cec519::t_0f62df52e6aaa1 212-236,239-248
+  s_9267fed6cec519::t_75a4674736113b 237-238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4d112a762c6ca05e40aa4f0ba27f937f7e7bc0f0",
+  "prompts": {},
+  "sessions": {
+    "s_9267fed6cec519": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0fddae96-82ee-4e70-ba9c-3fc4adf6123b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
