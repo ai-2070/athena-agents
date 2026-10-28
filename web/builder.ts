@@ -34,6 +34,18 @@ const STEP_BTN = 'size-5.5 p-0 border cursor-pointer text-[11px] hover:enabled:t
 const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a', '#4f7fa8', '#5a9a3a', '#a84a5a', '#2f8fa0'];
 
 // wf: an existing team to edit. prefill: a design from the Brain ({ name, description, members, leadIndex, access }).
+/** One boxed part of the dialog: an icon and a title (and a count or the like at the end), then its content. */
+function section(title: string, ico: string, ...content: (Node | null)[]): HTMLElement {
+  const last = content.at(-1);
+  const end = last instanceof HTMLElement && last.classList.contains('pill') ? content.pop() : null;
+  return h(
+    'section',
+    { class: 'flex flex-col gap-3 rounded-box border border-line bg-panel/50 p-4' },
+    h('div', { class: 'flex items-center gap-2 font-mono text-[11px] font-semibold tracking-[0.16em] text-dim uppercase' }, icon(ico, 14), title, end),
+    ...content,
+  );
+}
+
 export async function openBranchBuilder({ wf = null, prefill = null, describe = '', files = [], onSaved }: BranchBuilderOptions = {}): Promise<ModalHandle> {
   const d = state.data!;
   const mcp = await GET<{ servers: Record<string, unknown> }>('/mcp').catch(() => ({ servers: {} as Record<string, unknown> }));
@@ -59,6 +71,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   desc.addEventListener('input', () => (b.description = desc.value));
 
   const listEl = h('div', { class: 'flex flex-col gap-1.5' });
+  const count = h('span.pill');
   const drawMembers = () => {
     const agents = byId();
     clear(listEl);
@@ -86,32 +99,45 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       );
     });
     if (!b.members.length) listEl.append(h('p.empty', 'No agents yet. Add them below, or describe the goal and press Auto-build.'));
+    count.textContent = String(b.members.length);
+    drawPick();
   };
 
-  let addId = d.agents[0]?.id || '';
-  const addRow = h(
-    'div',
-    { class: 'flex flex-wrap items-center gap-2.5 mt-3.5' },
-    d.agents.length
-      ? [
-          h('div', { style: { width: '260px' } }, select(d.agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` })), addId, (v) => (addId = v))),
-          h('button.btn.small', {
-            onclick: () => {
-              if (!addId || b.members.some((m) => m.agentId === addId)) return;
-              b.members.push({ agentId: addId });
-              drawMembers();
-            },
-          }, '+ Add agent'),
-        ]
-      : h('span.hint', 'You have no agents yet: Auto-build can create them.'),
-  );
+  // the agents you can add: a short list to search and click, each with its badge (not a dropdown, which can't show it)
+  const pickSearch = h('input', { placeholder: 'Search your agents…', 'aria-label': 'Search your agents', class: 'font-mono text-[12.5px]' });
+  const pickList = h('div', { class: 'flex max-h-52 flex-col gap-1 overflow-y-auto' });
+  const drawPick = () => {
+    const q = pickSearch.value.toLowerCase();
+    const left = d.agents.filter((a) => !b.members.some((m) => m.agentId === a.id) && (!q || `${a.name} ${a.specialty || ''}`.toLowerCase().includes(q)));
+    mount(
+      pickList,
+      left.length
+        ? left.map((a) =>
+            h(
+              'button',
+              {
+                type: 'button',
+                class: 'flex w-full cursor-pointer items-center gap-2.5 rounded-ctl border border-line bg-bg px-2.5 py-1.5 text-left text-ink [transition:border-color_0.15s] hover:border-accent [&_.avatar]:size-7 [&_.avatar]:text-[14px]',
+                title: `Add ${a.name} to the team`,
+                onclick: () => (b.members.push({ agentId: a.id }), drawMembers()),
+              },
+              avatar(a),
+              h('span', { class: 'min-w-0 flex-1' }, h('span', { class: 'block truncate text-[13px] leading-tight font-medium' }, a.name), a.specialty ? h('span', { class: 'mt-0.5 block truncate text-[11.5px] leading-tight text-faint' }, a.specialty) : null),
+              h('span', { class: 'flex flex-none items-center gap-1 font-mono text-[10.5px] tracking-[0.1em] text-dim uppercase' }, icon('plus', 12), 'Add'),
+            ),
+          )
+        : h('p.hint', d.agents.length ? (q ? 'No agent matches.' : 'Everyone is already on the team.') : 'You have no agents yet: Auto-build can create them.'),
+    );
+  };
+  pickSearch.addEventListener('input', drawPick);
+  const addRow = h('div', { class: 'mt-3.5 flex flex-col gap-2' }, d.agents.length ? pickSearch : null, pickList);
 
   const accessEl = h('div');
   const drawAccess = () =>
     mount(
       accessEl,
       h('div.label', 'Programs & tools'),
-      h('div', { class: 'mt-3.5' }, chipSet(state.data!.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description })), b.access.toolGroups, (v) => (b.access.toolGroups = v))),
+      h('div', { class: 'mt-3' }, chipSet(state.data!.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description })), b.access.toolGroups, (v) => (b.access.toolGroups = v))),
       Object.keys(mcp.servers).length ? [h('div.label', { class: 'mt-3.5' }, 'MCP servers'), h('div', { class: 'mt-3.5' }, chipSet(mcpOptions(Object.keys(mcp.servers), state.data?.mcpInfo), b.access.mcpServers, (v) => (b.access.mcpServers = v)))] : null,
       h('p.hint', { class: 'mt-3.5' }, 'While working for this team, every member gets these on top of its own tools.'),
     );
@@ -134,11 +160,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       ),
     );
   };
-  const filesEl = h(
-    'div',
-    h('div.label', 'Files'),
-    h('div', { class: 'flex flex-col gap-2 mt-3.5' }, keptEl, tray.el, h('div', { class: 'flex flex-wrap items-center gap-2' }, tray.picker, h('span.hint', 'Briefs, brand guides, assets: drop or paste files or folders anywhere here. Auto-build reads them, and every member is told where they are.'))),
-  );
+  const filesBody = [keptEl, tray.el, h('div', { class: 'flex flex-wrap items-center gap-2' }, tray.picker, h('span.hint', 'Briefs, brand guides, assets: drop or paste files or folders anywhere here. Auto-build reads them, and every member is told where they are.'))];
   const allFiles = async () => {
     const fresh = await tray.ready();
     return fresh ? [...new Set([...b.files, ...fresh])] : null;
@@ -174,7 +196,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       const fresh = design.members.filter((m) => m.newAgent).length;
       toast(`Picked ${design.members.length} agents${fresh ? `, ${fresh} of them new` : ''}. Change anything, then save.`);
     },
-  }, '✨ Auto-build');
+  }, icon('sparkles', 14), 'Auto-build');
 
   let m: ModalHandle;
   let saving = false;
@@ -237,12 +259,12 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
     title: wf ? `Edit ${wf.name}` : 'New team',
     body: h(
       'div',
-      { class: 'flex flex-col gap-4.5' },
-      h('p.hint', 'A team is a group chat of agents. You write to the team, the lead (or the best fit) takes it, and they hand work to each other with @mentions.'),
-      h('div', { class: 'flex flex-col gap-2.5' }, h('label.field', h('span', 'Name'), name), h('label.field', h('span', 'Goal'), desc), h('div', { class: 'flex flex-wrap items-center gap-2.5' }, autoBtn, status)),
-      filesEl,
-      h('div', h('div.label', 'Members'), h('div', { class: 'mt-3.5' }, listEl), addRow),
-      h('div', accessEl),
+      { class: 'flex flex-col gap-4' },
+      h('p.hint', { class: 'm-0' }, 'A team is a group chat of agents. You write to the team, the lead (or the best fit) takes it, and they hand work to each other with @mentions.'),
+      section('Basics', 'users', h('label.field', h('span', 'Name'), name), h('label.field', h('span', 'Goal'), desc), h('div', { class: 'flex flex-wrap items-center gap-2.5' }, autoBtn, status)),
+      section('Files', 'paperclip', ...filesBody),
+      section('Members', 'bot', h('div', { class: 'flex flex-col gap-3' }, listEl, h('div.label', { class: 'mt-1' }, 'Add an agent'), addRow), count),
+      section('Access', 'wrench', accessEl),
     ),
     foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), saveBtn],
     // closed without saving: the files dropped here go too
@@ -252,6 +274,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       if (!savedOk && !saving) tray.discard();
     },
   });
+  m.el.classList.add('mono-fields');
   tray.dropZone(m.el.querySelector<HTMLElement>('.modal')!, 'Drop files or folders for the team');
   drawMembers();
   drawAccess();

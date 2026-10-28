@@ -4,7 +4,6 @@
 import { StrictMode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Select } from '@base-ui/react/select';
 import { GET, POST, PUT, DEL, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon } from '../core.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.ts';
@@ -18,6 +17,7 @@ import { icon, logo } from '../icons.ts';
 import { modelChip, modelInfo } from '../models.ts';
 import { Avatar, DomNode, HoverScroll, Icon, useAppState } from '../ui/react.tsx';
 import { ChipSet, Segmented, Tabs } from '../ui/controls.tsx';
+import { AgentSelect } from '../ui/agentselect.tsx';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { WorldPanel } from './worldpanel.tsx';
 import { fileManager, previewFile, previewKind, previewTitle } from '../filepreview.ts';
@@ -799,45 +799,6 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
       </div>
       <p className="hint mt-3.5">Tip: drag an agent onto this team on the map to add it (hold Ctrl to also keep it on its other team).</p>
     </>
-  );
-}
-
-// An agent to pick, drawn like the rest of the panel: its badge, its name, one even gap between them. (A
-// plain <select> can only show the emoji as small text.)
-function AgentSelect({ agents, value, onChange }: { agents: Agent[]; value: string; onChange: (id: string) => void }) {
-  const row = 'flex min-w-0 items-center gap-2.5 [&_.avatar]:size-6.5 [&_.avatar]:text-[14px]';
-  const picked = agents.find((a) => a.id === value);
-  return (
-    <Select.Root value={value} onValueChange={(v) => v && onChange(String(v))}>
-      <Select.Trigger aria-label="Agent to add" className="flex w-full cursor-pointer items-center gap-2.5 rounded-ctl border border-line-2 bg-panel px-2.5 py-1.5 text-left text-[13.5px] text-ink outline-none focus-visible:border-accent data-popup-open:border-accent">
-        <span className={`${row} flex-1`}>
-          {picked ? <Avatar agent={picked} /> : null}
-          <span className="min-w-0 truncate">{picked?.name}</span>
-        </span>
-        <Select.Icon className="flex text-dim">
-          <Icon name="chevron-down" size={16} />
-        </Select.Icon>
-      </Select.Trigger>
-      <Select.Portal>
-        <Select.Positioner className="z-96 outline-none" alignItemWithTrigger={false} side="bottom" align="start" sideOffset={4} collisionPadding={8}>
-          <Select.Popup className="st-menu static max-h-72 min-w-(--anchor-width) max-w-none">
-            <Select.List>
-              {agents.map((a) => (
-                <Select.Item key={a.id} value={a.id} className="st-menu-item">
-                  <span className={`${row} flex-1`}>
-                    <Avatar agent={a} />
-                    <Select.ItemText className="min-w-0 truncate">{a.name}</Select.ItemText>
-                  </span>
-                  <Select.ItemIndicator className="flex text-accent">
-                    <Icon name="check" size={14} />
-                  </Select.ItemIndicator>
-                </Select.Item>
-              ))}
-            </Select.List>
-          </Select.Popup>
-        </Select.Positioner>
-      </Select.Portal>
-    </Select.Root>
   );
 }
 
