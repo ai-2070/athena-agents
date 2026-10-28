@@ -42,9 +42,9 @@ export function zoomView(src: string, name: string): ZoomView {
     return b;
   };
   const level = el('button', 'btn ghost small min-w-16 font-mono tabular-nums', { type: 'button', title: 'Fit to the window (0)' });
-  const full = el('a', 'btn ghost small ml-3 gap-1.5 no-underline', { href: src, target: '_blank', rel: 'noopener' });
+  const full = el('a', 'btn ghost small ml-auto gap-1.5 no-underline', { href: src, target: '_blank', rel: 'noopener' });
   full.append(icon('external-link', 14), 'Open full size');
-  const bar = el('div', 'mt-3 flex flex-wrap items-center justify-center gap-1.5');
+  const bar = el('div', 'mt-3 flex items-center gap-1.5');
   bar.append(btn('Zoom out (−)', icon('zoom-out', 15), () => zoomBy(1 / STEP)), level, btn('Zoom in (+)', icon('zoom-in', 15), () => zoomBy(STEP)), full);
   const root = el('div', 'lightbox');
   root.append(box, bar);
