@@ -100,6 +100,44 @@ export function Avatar({ agent, lg = false }: { agent: { color?: string; emoji?:
   );
 }
 
+/** One line of text that, when it is cut off, slowly scrolls to its end while the pointer is over it (or over
+ *  the element `host` finds up the tree, such as the card it is in) and eases back after. */
+export function HoverScroll({ children, className = '', host }: { children: ReactNode; className?: string; host?: string }) {
+  const outer = useRef<HTMLSpanElement>(null);
+  const inner = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const box = outer.current;
+    const text = inner.current;
+    if (!box || !text) return;
+    const area = (host && box.closest(host)) || box;
+    const enter = () => {
+      const over = text.scrollWidth - box.clientWidth;
+      if (over <= 0) return;
+      // a steady reading pace, after a short wait
+      text.style.transition = `transform ${over / 45 + 0.3}s linear 0.35s`;
+      text.style.transform = `translateX(${-over}px)`;
+    };
+    const leave = () => {
+      text.style.transition = 'transform 0.25s ease-out';
+      text.style.transform = '';
+    };
+    area.addEventListener('mouseenter', enter);
+    area.addEventListener('mouseleave', leave);
+    return () => {
+      area.removeEventListener('mouseenter', enter);
+      area.removeEventListener('mouseleave', leave);
+    };
+  }, [host]);
+  // (the right edge fades out instead of an ellipsis, which a moving line can't keep)
+  return (
+    <span ref={outer} className={`block overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%_-_14px),transparent)] ${className}`}>
+      <span ref={inner} className="inline-flex items-center gap-1 will-change-transform">
+        {children}
+      </span>
+    </span>
+  );
+}
+
 /** One of the app's icons (web/icons.ts). */
 export function Icon({ name, size = 16, className = '' }: { name: string; size?: number; className?: string }) {
   const markup = useMemo(() => ({ __html: icon(name).innerHTML }), [name]);

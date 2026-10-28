@@ -15,7 +15,7 @@ import { projectMark, pickLogo, removeLogo, pickModel, removeModel, pickBackgrou
 import { pickTeamMark, EMOJI_CHOICES, DEFAULT_TEAM_MARK } from '../teammark.ts';
 import { icon, logo } from '../icons.ts';
 import { modelChip, modelInfo } from '../models.ts';
-import { Avatar, DomNode, Icon, useAppState } from '../ui/react.tsx';
+import { Avatar, DomNode, HoverScroll, Icon, useAppState } from '../ui/react.tsx';
 import { ChipSet, Segmented, Tabs } from '../ui/controls.tsx';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { WorldPanel } from './worldpanel.tsx';
@@ -734,7 +734,7 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
                   {a.name}
                   {isLead ? <span className="tc-lead">lead</span> : null}
                 </div>
-                <div className={`st-member-now mt-0.5 flex items-center gap-1 overflow-hidden text-[12px] text-ellipsis whitespace-nowrap ${st === 'working' ? 'text-accent' : 'text-dim'}`}>
+                <HoverScroll host=".st-member" className={`st-member-now mt-0.5 text-[12px] ${st === 'working' ? 'text-accent' : 'text-dim'}`}>
                   {st === 'working' ? (
                     <>
                       <span className="dot busy" /> {now.text || 'Working…'}
@@ -748,7 +748,7 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
                   ) : (
                     a.specialty || 'Ready'
                   )}
-                </div>
+                </HoverScroll>
                 <DomNode className="mt-1.5" make={() => modelChip(a, { compact: true })} deps={[a]} />
               </div>
               <div className="flex gap-1">
