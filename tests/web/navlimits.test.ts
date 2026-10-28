@@ -154,6 +154,22 @@ describe('sidebar usage limits', () => {
     expect(el.querySelector('.limit-row')).toBeNull();
     expect(requests.at(-1)).toMatchObject({ method: 'PUT', url: '/api/settings', body: { look: { sidebar: 'status' } } });
   });
+
+  it('each project remembers its own choice; one that never switched follows Settings > Look', async () => {
+    const one = { id: 'p1', name: 'One', sidebar: 'limits' };
+    const two = { id: 'p2', name: 'Two' };
+    state.data = { ...state.data, settings: { look: { sidebar: 'status' } }, project: one, projects: [one, two] } as unknown as AppState;
+    expect(sidebarPanel()).toBe('limits');
+    draw();
+    await tick(10);
+    [...el.querySelectorAll<HTMLButtonElement>('.sidebar-panel-tab')].find((b) => b.textContent === 'Status')!.click();
+    await tick(250);
+    expect(one.sidebar).toBe('status');
+    expect(requests).toContainEqual({ method: 'PUT', url: '/api/projects/p1', body: { sidebar: 'status' } });
+    // switching to the other project: it never picked, so it shows the default
+    state.data!.project = two as unknown as AppState['project'];
+    expect(sidebarPanel()).toBe('status');
+  });
 });
 
 describe('placing the resets card beside the sidebar', () => {

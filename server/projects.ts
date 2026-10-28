@@ -70,7 +70,7 @@ export async function createProject({ name, mode = 'new', folder = '', repo = ''
 }
 
 /** backgroundOpacity / mapDotsOpacity: 0-100, or null to go back to the default. */
-export type ProjectPatch = Partial<Pick<Project, 'name' | 'description' | 'skills' | 'brainPath'>> & { backgroundOpacity?: unknown; mapDotsOpacity?: unknown };
+export type ProjectPatch = Partial<Pick<Project, 'name' | 'description' | 'skills' | 'brainPath'>> & { backgroundOpacity?: unknown; mapDotsOpacity?: unknown; sidebar?: unknown };
 
 export function updateProject(id: string, patch: ProjectPatch): Project {
   const list = listProjects();
@@ -100,6 +100,12 @@ export function updateProject(id: string, patch: ProjectPatch): Project {
     const pct = toPercent(v);
     if (pct === null) throw new Error('An opacity is a percent from 0 to 100.');
     p[key] = pct;
+  }
+  // what the bottom of the sidebar last showed in this project (Status / Limits)
+  if (patch.sidebar !== undefined) {
+    if (patch.sidebar === null) delete p.sidebar;
+    else if (patch.sidebar === 'status' || patch.sidebar === 'limits') p.sidebar = patch.sidebar;
+    else throw new Error('The sidebar shows "status" or "limits".');
   }
   saveProjects(list);
   return p;

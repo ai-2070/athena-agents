@@ -266,6 +266,8 @@ export interface Project {
   mapDotsOpacity?: number;
   /** Which voxel world it uses (missing: none of its own yet, see ProjectWorldLink). */
   world?: ProjectWorldLink;
+  /** What the bottom of the sidebar last showed in this project; missing: Settings > Look's choice. */
+  sidebar?: SidebarPanel;
 }
 
 // ---------- chats ----------

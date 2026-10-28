@@ -6,6 +6,7 @@ import { Radio } from '@base-ui/react/radio';
 import { RadioGroup } from '@base-ui/react/radio-group';
 import { Slider } from '@base-ui/react/slider';
 import { PUT, attempt, state } from '../core.ts';
+import { rememberSidebarPanel } from '../navlimits.ts';
 import { ACCENTS, CHAT_FONTS, DEFAULT_LOOK, STATION_QUALITY, applyLook, stationLevel } from '../look.ts';
 import { Segmented } from '../ui/controls.tsx';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
@@ -302,10 +303,12 @@ export function LookTab() {
                 { value: 'status', label: 'Status' },
                 { value: 'limits', label: 'Usage limits' },
               ]}
-              value={look.sidebar}
+              value={state.data?.project?.sidebar || look.sidebar}
               onChange={(v) => {
                 // the menu reads it from here, so it switches now rather than after the save
                 if (state.data?.settings) state.data.settings.look = { ...state.data.settings.look, sidebar: v };
+                // the open project remembers it too, or its own last choice would win over this
+                rememberSidebarPanel(v);
                 set({ sidebar: v });
               }}
             />
