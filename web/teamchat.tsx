@@ -87,7 +87,7 @@ const MSG_ME = `${MSG} border-[color-mix(in_srgb,var(--color-accent)_24%,var(--c
 const MSG_RELAY = `${MSG} tc-relay border-[color-mix(in_srgb,var(--team-color,var(--color-ice))_28%,var(--color-line))] bg-[color-mix(in_srgb,var(--team-color,var(--color-ice))_6%,#0d100d)]`;
 /** an agent working now, its turn streaming in */
 const MSG_LIVE = `${MSG} tc-live border-dashed border-[color-mix(in_srgb,var(--color-accent)_30%,var(--color-line))] bg-[rgba(7,8,7,0.55)]`;
-const WHO = 'flex items-center gap-1.75 mb-1 text-[13px] [&_.avatar]:size-5.5 [&_.avatar]:text-[12px]';
+const WHO = 'flex items-center gap-1.75 mb-2 text-[13px] [&_.avatar]:size-5.5 [&_.avatar]:text-[12px]';
 const TEAM_AV = 'avatar tc-team-av bg-[color-mix(in_srgb,var(--team-color,var(--color-ice))_18%,transparent)] text-[color:var(--team-color,var(--color-ice))] font-mono text-[12px] leading-[normal] font-bold';
 /** a message's text (Markdown) */
 const TEXT = 'font-chat text-[13.5px] leading-[1.55] wrap-anywhere [&_p]:mx-0 [&_p]:mt-0 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_pre]:max-h-[200px]';
@@ -293,7 +293,7 @@ function Fold({ children }: { children: ReactNode }) {
       {long ? (
         <button
           type="button"
-          className="tc-more mt-1 inline-flex cursor-pointer items-center gap-1 font-mono text-[11px] leading-[normal] text-faint hover:text-accent"
+          className="tc-more mt-2 inline-flex cursor-pointer items-center gap-1 font-mono text-[11px] leading-[normal] text-faint hover:text-accent"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
@@ -310,7 +310,7 @@ function Work({ m }: { m: TeamMessage }) {
   const [opened, setOpened] = useState(false);
   const turn = m.turn!;
   return (
-    <details className="tc-work mt-1.5" onToggle={(e) => (e.currentTarget as HTMLDetailsElement).open && setOpened(true)}>
+    <details className="tc-work mt-2" onToggle={(e) => (e.currentTarget as HTMLDetailsElement).open && setOpened(true)}>
       <summary className="list-none cursor-pointer inline-flex items-center gap-1.25 font-mono text-[11px] leading-[normal] font-normal text-faint [&::-webkit-details-marker]:hidden hover:text-accent [[open]>&]:text-accent">
         <Icon name="wrench" size={12} />
         Show the work
@@ -361,7 +361,16 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
           <DomNode className="dom-contents" make={() => textWithMentions(m.text, names ? names.split('\n') : [], teams ? teams.split('\n') : [])} deps={[m.text, names, teams]} />
         </Fold>
       ) : null}
-      <DomNode className="dom-contents" make={() => mentionPreviews(m.text, m.attachments, { compact: true, key: `team:${m.id}` })} deps={[m.id, m.text, JSON.stringify(m.attachments || [])]} />
+      <DomNode
+        className="dom-contents"
+        make={() => {
+          // room above and below the file cards (the box stays hidden until its files are found)
+          const box = mentionPreviews(m.text, m.attachments, { compact: true, key: `team:${m.id}` });
+          box?.classList.add('my-2');
+          return box;
+        }}
+        deps={[m.id, m.text, JSON.stringify(m.attachments || [])]}
+      />
       {m.turn && m.from !== 'user' && m.from !== 'system' ? <Work m={m} /> : null}
       {m.mentions?.length && m.from !== 'user' ? (
         <div className="flex items-center gap-1.25 mt-1.5 font-mono text-[10.5px] font-medium leading-[normal] text-ice">
