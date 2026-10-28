@@ -38,6 +38,8 @@ const SESSION: ChatItem[] = [
 ];
 let live: ReturnType<typeof uiStream>;
 let requests: string[];
+// messages the chat got while the event socket was down
+let missed: object[] = [];
 let bodies: Record<string, unknown>;
 const settle = () => act(() => new Promise((r) => setTimeout(r, 40)));
 
@@ -49,18 +51,22 @@ beforeEach(() => {
   forgetFiles();
   requests = [];
   bodies = {};
+  missed = [];
   live = uiStream();
   state.data = { runs: [], approvals: [], agents: [{ id: 'lead', name: 'Lead', emoji: '🧭', color: '#fff' }, { id: 'maker', name: 'Maker', emoji: '🎨', color: '#fff' }] } as unknown as AppState;
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     requests.push(`${init.method || 'GET'} ${url}`);
     if (init.body) bodies[url] = JSON.parse(String(init.body));
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
+    // (the page's state, loaded again when the event socket comes back)
+    if (url === '/api/state') return json(state.data);
     if (url === '/api/teams/t1/chat')
       return json({
         team: { id: 't1', name: 'Thumbs', members: ['lead', 'maker'], lead: 'lead', steps: [] },
         messages: [
           { id: 'u1', ts: 0, from: 'user', text: 'Make a thumbnail', mentions: [] },
           { id: 'm1', ts: 1, from: 'lead', text: 'Plan: @Maker make the thumbnail.', mentions: ['maker'], turn: { chatId: 'lead-chat', from: 0, to: 3 } },
+          ...missed,
         ],
         working: ['maker'],
         queued: [],
@@ -363,6 +369,56 @@ describe('team chat turns', () => {
     await settle();
     expect(order()).toEqual(['first', 'third', 'second']);
     expect(bodies['/api/teams/t1/queue/order']).toEqual({ ids: ['q1', 'q3', 'q2'] });
+  });
+
+  it('/loop off ends the loop and leaves the files staged for the next message', async () => {
+    // (an upload that is still going: before, /loop off waited for it and then took the files)
+    class SlowXHR {
+      upload = { onprogress: null };
+      open() {}
+      setRequestHeader() {}
+      send() {}
+      abort() {}
+    }
+    vi.stubGlobal('XMLHttpRequest', SlowXHR);
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    const fileIn = el.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(fileIn, 'files', { value: [new File(['x'], 'notes.txt')], configurable: true });
+    await act(async () => void fileIn.dispatchEvent(new Event('change')));
+    await settle();
+    expect(el.querySelectorAll('.att-chip').length).toBe(1);
+    const box = el.querySelector('textarea')!;
+    box.value = '/loop off';
+    await act(async () => void box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    await settle();
+    expect(bodies['/api/teams/t1/loop']).toEqual({ text: 'off', attachments: [] });
+    expect(el.querySelectorAll('.att-chip').length).toBe(1);
+    vi.unstubAllGlobals();
+    vi.stubGlobal('WebSocket', FakeSocket);
+  });
+
+  it('after the event socket comes back, the chat loads again (what was missed shows)', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    // (the first connection, opened)
+    await act(async () => FakeSocket.last!.onopen!());
+    await settle();
+    const before = requests.filter((r) => r === 'GET /api/teams/t1/chat').length;
+    // the socket drops and comes back (a new one opens)
+    await act(async () => {
+      FakeSocket.last!.onclose!();
+      await new Promise((r) => setTimeout(r, 1600));
+    });
+    missed = [{ id: 'm2', ts: 2, from: 'maker', text: 'Thumbnail is ready.', mentions: [] }];
+    await act(async () => FakeSocket.last!.onopen!());
+    await settle();
+    expect(requests.filter((r) => r === 'GET /api/teams/t1/chat').length).toBe(before + 1);
+    expect(el.textContent).toContain('Thumbnail is ready.');
   });
 
   it('/ commands: the menu, /goal and /loop go to the server, the loop and goal show as chips', async () => {

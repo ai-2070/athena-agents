@@ -6,7 +6,7 @@
 // mention() change its text directly, as typing does.
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties } from 'react';
-import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, confirmBox, toast } from './core.ts';
+import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, onReconnect, confirmBox, toast } from './core.ts';
 import { attachTray, COMPOSER_BTNS, COMPOSER_TEXT } from './attach.ts';
 import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
@@ -76,6 +76,8 @@ interface MentionOption {
 }
 
 const PLACEHOLDER = 'Message the team… type @ to mention someone';
+// what ends a /loop (server/commands.ts)
+const LOOP_OFF = /^(off|stop|end|cancel)$/i;
 
 // ---------- looks (tc-msg, tc-relay, tc-live, tc-team-av, tc-mention, tc-team stay: tests look them up) ----------
 const MSG = 'tc-msg py-2 px-2.5 border rounded-box animate-[rise-in_0.22s_var(--ease-soft)]';
@@ -125,13 +127,15 @@ function useTeamData(teamId: string): [TeamChatData, () => void, { current: Team
   useEffect(() => {
     let alive = true;
     const c = (C.current = blank());
-    // what arrived while the first GET was on its way, so the snapshot can't undo it
-    const early = { loading: true, cleared: false, state: false };
+    // what arrived while a GET was on its way, so the snapshot can't undo it (fresh: those messages;
+    // turned: whose turns started)
+    let early = { loading: true, cleared: false, state: false, fresh: new Set<string>(), turned: new Set<string>() };
     const off = onEvent((ev) => {
       if (!alive) return;
       if (ev.type === 'team' && ev.teamId === teamId) {
         const e = ev.event as TeamEvent;
         if (e.kind === 'message' && !c.messages.some((m) => m.id === e.message.id)) c.messages = [...c.messages, e.message];
+        if (e.kind === 'message' && early.loading) early.fresh.add(e.message.id);
         if (e.kind === 'state') {
           Object.assign(c, { working: e.working, queued: e.queued, held: e.held || [], loop: e.loop || null });
           early.state ||= early.loading;
@@ -144,6 +148,7 @@ function useTeamData(teamId: string): [TeamChatData, () => void, { current: Team
         if (e.kind === 'turn' && e.state === 'start') {
           if (e.chatId) c.sessions = { ...c.sessions, [e.agentId]: e.chatId };
           c.turning = new Set(c.turning).add(e.agentId);
+          if (early.loading) early.turned.add(e.agentId);
         }
         if (e.kind === 'turn' && e.state === 'end') {
           const { [e.agentId]: _gone, ...rest } = c.activity;
@@ -172,27 +177,36 @@ function useTeamData(teamId: string): [TeamChatData, () => void, { current: Team
         }
       }
     });
-    GET<TeamChatResponse>(`/teams/${teamId}/chat`)
-      .then((r) => {
-        if (!alive) return;
-        c.team = r.team;
-        c.others = r.others || [];
-        c.messages = mergeSnapshot(r.messages, c.messages, early.cleared);
-        // (cleared while it loaded: the snapshot's sessions and who was working are from before)
-        if (!early.cleared) {
-          c.sessions = { ...(r.sessions || {}), ...c.sessions };
-          // who was already working when this opened: their turns are going now
-          c.turning = new Set([...c.turning, ...r.working]);
-        }
-        if (!early.state && !early.cleared) Object.assign(c, { working: r.working, queued: r.queued, held: r.held || [], loop: r.loop || null });
-        c.goal ||= r.goal || null;
-        bump();
-      })
-      .catch(() => {})
-      .finally(() => (early.loading = false));
+    // again: the event socket came back, and what happened while it was down never came as events
+    const load = (again: boolean) => {
+      const now: typeof early = (early = { loading: true, cleared: false, state: false, fresh: new Set(), turned: new Set() });
+      GET<TeamChatResponse>(`/teams/${teamId}/chat`)
+        .then((r) => {
+          if (!alive || now !== early) return;
+          c.team = r.team;
+          c.others = r.others || [];
+          // (again: the saved chat stands, with what came in while it loaded)
+          c.messages = mergeSnapshot(r.messages, again ? c.messages.filter((m) => now.fresh.has(m.id)) : c.messages, now.cleared);
+          // (cleared while it loaded: the snapshot's sessions and who was working are from before)
+          if (!now.cleared) {
+            c.sessions = { ...(r.sessions || {}), ...c.sessions };
+            // who was already working when this opened: their turns are going now (again: a turn that
+            // ended while the socket was down is not going any more)
+            c.turning = new Set([...(again ? [...c.turning].filter((id) => now.turned.has(id)) : c.turning), ...r.working]);
+          }
+          if (!now.state && !now.cleared) Object.assign(c, { working: r.working, queued: r.queued, held: r.held || [], loop: r.loop || null });
+          c.goal = again ? r.goal || null : c.goal || r.goal || null;
+          bump();
+        })
+        .catch(() => {})
+        .finally(() => (now.loading = false));
+    };
+    load(false);
+    const offReconnect = onReconnect(() => alive && load(true));
     return () => {
       alive = false;
       off();
+      offReconnect();
     };
   }, [teamId, bump]);
   return [C.current, bump, C];
@@ -486,11 +500,21 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     held(r.queued);
   };
 
+  const loopOff = async (rest: string, typed: string) => {
+    emptyBox();
+    const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`/teams/${teamId}/loop`, { text: rest, attachments: [] }));
+    if (!r) return restore(typed);
+    store.current.loop = r.loop;
+    bump();
+  };
+
   const send = async () => {
     const box = input.current!;
     // (with pasted text put back: a long goal pasted in goes in full)
     const now = parseCommand(pastes.text(), 'team');
     if (now && ['stop', 'resume', 'resend', 'goal', 'clear'].includes(now.name)) return command(now.name, now.rest, pastes.text().trim());
+    // /loop off ends the loop: the files staged for the next message stay (they would go nowhere)
+    if (now?.name === 'loop' && LOOP_OFF.test(now.rest)) return loopOff(now.rest, pastes.text().trim());
     if ((!box.value.trim() && !tray.count()) || sending.current) return;
     sending.current = true;
     try {
@@ -503,6 +527,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       // "/loop [15m] [5x] …": posted again and again (with the files), or /loop off
       const cmd = parseCommand(typed, 'team');
       if (cmd?.name === 'loop') {
+        if (LOOP_OFF.test(cmd.rest)) return loopOff(cmd.rest, typed);
         emptyBox();
         const taken = tray.take();
         const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`/teams/${teamId}/loop`, { text: cmd.rest, attachments }));

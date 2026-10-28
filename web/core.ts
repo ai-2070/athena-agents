@@ -39,6 +39,15 @@ export function onEvent(fn: EventListenerFn): () => void {
   return () => eventListeners.delete(fn);
 }
 
+// The event socket came back after it dropped: the server doesn't send what was missed meanwhile,
+// so views that build on events load again.
+const reconnectListeners = new Set<() => void>();
+export function onReconnect(fn: () => void): () => void {
+  reconnectListeners.add(fn);
+  return () => reconnectListeners.delete(fn);
+}
+let connectedOnce = false;
+
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 export async function refreshState(): Promise<void> {
   try {
@@ -76,7 +85,11 @@ export function connectEvents(): void {
     }
   };
   socket.onclose = () => setTimeout(connectEvents, 1500);
-  socket.onopen = () => refreshSoon(0);
+  socket.onopen = () => {
+    refreshSoon(0);
+    if (connectedOnce) for (const fn of reconnectListeners) fn();
+    connectedOnce = true;
+  };
 }
 
 // ---------- DOM ----------
