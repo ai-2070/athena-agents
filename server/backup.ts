@@ -33,7 +33,7 @@ export const BACKUP_MAX = UNPACKED_MAX;
 
 // How much of each kind is packed at most (the same limits as the auto-save into the project folder).
 // A file that doesn't fit any more is left out and counted (BackupSummary.omitted). Keep docs/guide.md in step.
-const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024, world: 300 * 1024 * 1024, library: 100 * 1024 * 1024 };
+const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024, world: 300 * 1024 * 1024, library: 100 * 1024 * 1024, marks: 100 * 1024 * 1024 };
 // A kept version in a backup: <kind>/<item id>/<version id>.json, and a skill version's files under
 // skills/<slug>/files-<version id>/. Agents and teams are the project's; skills are the library's
 // (deleted ones too, so Recently deleted comes back).
@@ -51,6 +51,8 @@ const LOGO_RE = /^logo\.(png|jpg|webp|gif)$/;
 const ID_RE = /^[\w.-]+$/;
 const CHAT_ID_RE = /^[\w-]+$/;
 const PRESET_RE = /^p[at][\w-]+$/;
+// A team's picture or 3D model: team-marks/<team id>.<ext> (see teammark.ts)
+const MARK_RE = /^([\w.-]+)\.(png|jpg|jpeg|webp|gif|glb|gltf|obj|stl|ply|fbx)$/;
 
 /** Where backups are written: a folder in your home folder. */
 export const backupsRoot = (): string => {
@@ -126,6 +128,8 @@ export interface BackupData {
   presets: Preset[];
   /** The voxel world the project uses (WORLD_FILE paths). Older backups: null. */
   world: { name: string; files: PackedFile[] } | null;
+  /** The teams' pictures and 3D models (MARK_RE names). Older backups: missing. */
+  teamMarks?: PackedFile[];
   /** The prefab library (every project's), like the presets. Older backups: empty. */
   prefabLibrary: LibraryPrefab[];
   /** Files left out because their kind's size limit was reached (see CAP) */
@@ -365,6 +369,8 @@ export function packProject(p: Project): BackupData {
     libraryLeft -= size;
     return true;
   });
+  const marksBudget = budget(CAP.marks);
+  const teamMarks = packTree(projectDir(id, 'team-marks'), marksBudget, '', (r, dir) => !dir && MARK_RE.test(r));
   const presets = jsonFiles(dataPath('presets'))
     .map((n) => readJSON<Preset>(dataPath('presets', n)))
     .filter((x): x is Preset => !!x && PRESET_RE.test(String(x.id)));
@@ -390,7 +396,8 @@ export function packProject(p: Project): BackupData {
     presets,
     world,
     prefabLibrary,
-    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted + worldBudget.omitted + libraryOmitted,
+    teamMarks,
+    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted + worldBudget.omitted + libraryOmitted + marksBudget.omitted,
   };
 }
 
@@ -556,6 +563,7 @@ export function decodeBackup(buf: Buffer): BackupData {
     presets: arr<Preset>(b.presets).filter((p) => p && typeof p === 'object' && PRESET_RE.test(String(p.id)) && (p.kind === 'agent' || p.kind === 'team')),
     prefabLibrary: arr<LibraryPrefab>(b.prefabLibrary).filter((e) => e && typeof e === 'object'),
     world: b.world && typeof b.world === 'object' && Array.isArray(b.world.files) ? { name: String(b.world.name || 'World').slice(0, 80), files: files(b.world.files).filter((f) => WORLD_FILE.test(f.path)) } : null,
+    teamMarks: files(b.teamMarks).filter((f) => MARK_RE.test(f.path)),
     omitted: Number(b.omitted) || 0,
   };
 }
@@ -736,10 +744,19 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
     folder = base;
     for (let i = 2; owner(folder) || (exists(folder) && fs.readdirSync(folder).length); i++) folder = `${base}-${i}`;
   }
+  // a BRAIN.md already there is yours: only the one the new project starts with is replaced by the saved one
+  const hadBrainMd = exists(path.join(folder, 'BRAIN.md')) || isLink(path.join(folder, 'BRAIN.md'));
   const created = await createProject({ name, mode: 'new', folder, description: String(opts.description || '').trim() || b.project.description });
   const id = created.id;
   const oldBrain = b.project.brainPath;
   const newBrain = created.brainPath;
+
+  // the brief and notes first, so the agents' knowledge folders in them are there when they are checked
+  // (only into a file that isn't there yet: the folder may be one you have)
+  const brainFiles = b.brain.filter((f) => {
+    if (!BRAIN_FILES.includes(f.path) && !BRAIN_DIRS.some((d) => f.path.startsWith(`${d}/`))) return false;
+    return writePacked(newBrain, f, { overwrite: f.path === 'BRAIN.md' && !hadBrainMd });
+  }).length;
 
   const skills = restoreSkills(b.skills);
   const swap = (list: unknown): string[] => (Array.isArray(list) ? list.map((s) => skills.map.get(String(s)) || String(s)) : []);
@@ -787,9 +804,15 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   for (const { agentId, chat } of b.chats) {
     if (!agentIds.has(agentId)) continue;
     const { _deleted, ...rest } = chat;
-    writeJSON(projectDir(id, 'chats', agentId, `${chat.id}.json`), { ...rest, agentId });
+    // an engine's session (Claude Code, Codex, Hermes, OpenClaw…) stays the original's: the copy starts a
+    // new one from the chat so far, so the two don't carry on in one conversation
+    const session = rest.sessionId ? { sessionId: null, reseed: true } : {};
+    writeJSON(projectDir(id, 'chats', agentId, `${chat.id}.json`), { ...rest, ...session, agentId });
     chats++;
   }
+  // the teams' pictures and models, beside their teams
+  const teamIds = new Set(b.teams.map((t) => t.id));
+  for (const f of b.teamMarks || []) if (teamIds.has(MARK_RE.exec(f.path)![1])) writePacked(ensureDir(projectDir(id, 'team-marks')), f);
   const kRoot = ensureDir(projectDir(id, 'knowledge'));
   const knowledgeFiles = b.knowledge.filter((f) => writePacked(kRoot, f)).length;
   // MEMORY.md files go back under the agent (or the Brain) they were saved for
@@ -807,11 +830,6 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
     writeJSON(worldDir(fresh.id, 'world.json'), { ...fresh, ...saved, format: 1, id: fresh.id, homeProject: id, name: fresh.name });
     setLink(id, { id: fresh.id, mode: 'own' });
   }
-  // the brief and notes: only into a file that isn't there yet (the folder may be one you have)
-  const brainFiles = b.brain.filter((f) => {
-    if (!BRAIN_FILES.includes(f.path) && !BRAIN_DIRS.some((d) => f.path.startsWith(`${d}/`))) return false;
-    return writePacked(newBrain, f, { overwrite: f.path === 'BRAIN.md' && freshBrainMd(newBrain) });
-  }).length;
 
   let logo = false;
   if (b.logo) {
@@ -954,14 +972,4 @@ function restoreVersions(b: BackupData, id: string, skillMap: Map<string, string
     }
   }
   return n;
-}
-
-// The BRAIN.md a new project starts with can be replaced by the saved one; one you wrote can't.
-function freshBrainMd(folder: string): boolean {
-  try {
-    const text = fs.readFileSync(path.join(folder, 'BRAIN.md'), 'utf8');
-    return text.includes("This folder is the project's Brain.") && text.length < 600;
-  } catch {
-    return true;
-  }
 }

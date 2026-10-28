@@ -103,7 +103,7 @@ Every agent, and the Brain, keeps a **MEMORY.md** for each project: short notes 
 - **The Brain keeps its own** and can add a note to an agent's memory when you ask it to ("Tell the Writer to remember we use British spelling"). It never rewrites an agent's memory, and the self-improvement review can't change any memory.
 - **Read and change it yourself.** Open an agent's editor or its chat page and use **MEMORY.md**. For the Brain, use the page icon at the top of the Brain chat, or **Settings → The Brain's model**. **History** shows earlier versions, who changed them and can restore one.
 
-A chat's **Clear memory** button is different: it starts that chat fresh and leaves MEMORY.md alone. Don't keep keys or passwords in a memory.
+A chat's **Clear memory** button is different: it starts that chat fresh and leaves MEMORY.md alone (pressed while the agent answers, the answer it is writing is forgotten too). Don't keep keys or passwords in a memory.
 
 ## The voxel world
 
@@ -249,9 +249,9 @@ These copies exclude stored keys and account tokens, **not private content you p
 
 Choose **Project menu → Back up this project**. The dashboard writes a `.dashbackup` file under **`Blacksite Backups`** in your home folder.
 
-A backup includes the project's agents, teams, routines, layout, Brain and agent/team chats, knowledge files, MEMORY.md files, logo, `PROJECT.md` and notes, and its voxel world (with WORLD.md and its prefabs). It also includes **every skill and saved preset in your library, and every prefab in the prefab library**, plus earlier versions of the project's agents, teams and memories and of library skills, including deleted items. It does not include stored keys or account tokens.
+A backup includes the project's agents, teams, routines, layout, Brain and agent/team chats, knowledge files, MEMORY.md files, logo, the teams' pictures and 3D models, `PROJECT.md` and notes, and its voxel world (with WORLD.md and its prefabs). It also includes **every skill and saved preset in your library, and every prefab in the prefab library**, plus earlier versions of the project's agents, teams and memories and of library skills, including deleted items. It does not include stored keys or account tokens.
 
-Backups are not a full copy of your working folder: back up source files, uploads and generated work separately. Size limits also apply: 300 MB of voxel world, 200 MB of agent chats, 100 MB of prefab library, 50 MB each of knowledge files, skills and earlier versions, and 20 MB each of MEMORY.md files and of project brief and notes. A restore adds the library prefabs this computer doesn't have yet and leaves the ones it has as they are. Files that do not fit are left out; the saved-backup message reports the number omitted.
+Backups are not a full copy of your working folder: back up source files, uploads and generated work separately. Size limits also apply: 300 MB of voxel world, 200 MB of agent chats, 100 MB each of prefab library and team pictures and models, 50 MB each of knowledge files, skills and earlier versions, and 20 MB each of MEMORY.md files and of project brief and notes. A restore adds the library prefabs this computer doesn't have yet and leaves the ones it has as they are. Files that do not fit are left out; the saved-backup message reports the number omitted.
 
 ### Restore a backup
 
@@ -260,6 +260,8 @@ Choose **New project → From backup**, then drop in a `.dashbackup` file or cho
 - Restore creates a new project; it does not replace the original.
 - Missing skills and presets are added. If a skill has the same ID but different contents, your existing skill stays and the restored copy gets an `-restored` suffix. Matching skills receive the backup's earlier versions.
 - Scheduled teams and routines return **paused**, so the restored copy does not run the same work twice. Re-enable the schedules you want.
+- Agent chats come back with what was said, but a Claude Code, Codex, Hermes or OpenClaw chat starts a new session from that history: the copy never carries on in the original's conversation.
+- A `BRAIN.md` already in the folder you restore into stays as it is.
 
 ### Undo changes
 

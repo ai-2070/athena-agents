@@ -15,6 +15,7 @@ import type { Version } from './versions.ts';
 import { getWorld, worldDir, WORLD_ID } from './voxel/store.ts';
 import { setLink, usedBy } from './voxel/link.ts';
 import { WORLD_MD_MAX } from './voxel/worldmd.ts';
+import { rebase } from './backup.ts';
 import type { Agent, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
 
 /** The last auto-save of a project (AppState.projectSaved). */
@@ -30,7 +31,8 @@ export interface SavedProjectFile {
   format: number;
   app: string;
   savedAt: number;
-  project: { name?: string; description?: string; repo?: string; skills?: string[] };
+  /** brainPath: the folder it was saved from, so folders inside it move with a copy (older saves: missing) */
+  project: { name?: string; description?: string; repo?: string; skills?: string[]; brainPath?: string };
   agents: Agent[];
   teams: Team[];
   routines?: Routine[];
@@ -66,6 +68,7 @@ const VERSIONS_CAP = 50 * 1024 * 1024; // nor more than 50 MB of agent and team 
 const SKILLS_CAP = 50 * 1024 * 1024; // nor more than 50 MB of skills (with their files and versions)
 const MEMORY_CAP = 20 * 1024 * 1024; // nor more than 20 MB of MEMORY.md files
 const WORLD_CAP = 300 * 1024 * 1024; // nor more than 300 MB of voxel world
+const MARKS_CAP = 100 * 1024 * 1024; // nor more than 100 MB of team pictures and models
 // The versioned collections (data/projects/<id>/versions/<kind>/<item id>/<version id>.json)
 const VERSIONED = ['agents', 'workflows', 'memory'] as const;
 const saved = new Map<string, SaveStatus>(); // projectId -> { at, error }
@@ -190,7 +193,7 @@ export function saveProject(id: string): SaveStatus | null {
       format: FORMAT,
       app: 'my-dashboard',
       savedAt: Date.now(),
-      project: { name: p.name, description: p.description || '', repo: p.repo || '', skills: p.skills || [] },
+      project: { name: p.name, description: p.description || '', repo: p.repo || '', skills: p.skills || [], brainPath: p.brainPath },
       agents,
       teams,
       routines,
@@ -202,6 +205,8 @@ export function saveProject(id: string): SaveStatus | null {
     // agent chats: chats/<agent id>/<chat id>.json, the visible history plus the engine's memory (sessionId, llm)
     copyTree(projectDir(id, 'chats'), path.join(out, 'chats'), CHATS_CAP, { base: out, mirror: true });
     copyTree(projectDir(id, 'knowledge'), path.join(out, 'knowledge'), KNOWLEDGE_CAP, { base: out, mirror: true });
+    // the teams' pictures and 3D models (team-marks/<team id>.<ext>)
+    copyTree(projectDir(id, 'team-marks'), path.join(out, 'team-marks'), MARKS_CAP, { base: out, mirror: true });
     // memory/<agent id or "brain">/MEMORY.md
     copyTree(projectDir(id, 'memory'), path.join(out, 'memory'), MEMORY_CAP, { base: out, mirror: true });
     // the kept versions of agents, teams and memories (and of deleted ones, so they can be brought back there too)
@@ -280,7 +285,9 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   if (!j) return null;
   if (jsonFiles(projectDir(id, 'agents')).length) return null; // never overwrite a project that has agents
   const safe = (x: { id?: unknown } | null | undefined) => typeof x?.id === 'string' && /^[\w.-]+$/.test(x.id);
-  for (const a of (j.agents || []).filter(safe)) writeJSON(projectDir(id, 'agents', `${a.id}.json`), a);
+  // folders inside the folder it was saved from are this folder's now (a copy mustn't work in the original)
+  const move = movedAgent(j.project?.brainPath, folder);
+  for (const a of (j.agents || []).filter(safe)) writeJSON(projectDir(id, 'agents', `${a.id}.json`), move(a));
   for (const t of (j.teams || []).filter(safe)) writeJSON(projectDir(id, 'workflows', `${t.id}.json`), t);
   for (const r of (j.routines || []).filter(safe)) writeJSON(projectDir(id, 'routines', `${r.id}.json`), r);
   if (j.layout) writeJSON(projectDir(id, 'layout.json'), j.layout);
@@ -294,13 +301,28 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   // (copyTree skips links below this folder: a linked file or folder isn't a plain file or folder)
   const knowledge = savedPath(folder, 'knowledge');
   if (knowledge) copyTree(knowledge, projectDir(id, 'knowledge'), KNOWLEDGE_CAP * 4);
+  const marks = savedPath(folder, 'team-marks');
+  if (marks) copyTree(marks, projectDir(id, 'team-marks'), MARKS_CAP * 2);
   restoreMemory(folder, id);
   const chatCount = restoreChats(folder, id, (j.agents || []).filter(safe).map((a) => a.id as string));
-  const versionCount = restoreVersions(folder, id);
+  const versionCount = restoreVersions(folder, id, move);
   const skills = restoreSkills(folder, j.project?.name || path.basename(folder));
   restoreWorld(folder, id);
   log('project', `Loaded ${(j.agents || []).length} agents, ${(j.teams || []).length} teams, ${chatCount} chats, ${skills.added.length} skills and ${versionCount} earlier versions from ${folder}`);
   return { agents: (j.agents || []).length, teams: (j.teams || []).length, chats: chatCount, versions: versionCount, skills, project: j.project || {} };
+}
+
+// An agent's workspace and knowledge folders inside the folder it was saved from (from), moved to the same
+// place in this one (to). Folders elsewhere stay as they are.
+function movedAgent(from: string | undefined, to: string): (a: Agent) => Agent {
+  if (!from) return (a) => a;
+  const move = (p: unknown) => (typeof p === 'string' && p ? (rebase(p, from, to) ?? p) : p);
+  return (a) => {
+    const out: Agent = { ...a };
+    if (typeof out.workspace === 'string' && out.workspace) out.workspace = String(move(out.workspace));
+    if (out.knowledge && Array.isArray(out.knowledge.folders)) out.knowledge = { ...out.knowledge, folders: out.knowledge.folders.map((f) => String(move(f))) };
+    return out;
+  };
 }
 
 // Versions saved in <folder>/.dashboard/<parts>/<item id>/: each checked to be a plain file inside the
@@ -336,11 +358,15 @@ function savedDirs(folder: string, parts: string[], ok: (name: string) => boolea
 
 // The kept versions of agents and teams. Versions of agents and teams that were deleted come back too:
 // they show in Recently deleted.
-function restoreVersions(folder: string, id: string): number {
+function restoreVersions(folder: string, id: string, move: (a: Agent) => Agent): number {
   let n = 0;
   for (const kind of VERSIONED) {
     for (const itemId of savedDirs(folder, ['versions', kind], (x) => /^[\w.-]+$/.test(x) && !x.startsWith('.'))) {
-      const check = (item: Record<string, unknown>) => (kind === 'agents' ? cleanAgentVersion(item, itemId) : kind === 'workflows' ? cleanTeamVersion(item, itemId) : isMemoryOwner(itemId) ? cleanMemoryVersion(item, itemId) : null);
+      const agentVersion = (item: Record<string, unknown>) => {
+        const a = cleanAgentVersion(item, itemId);
+        return a ? move(a as unknown as Agent) : null;
+      };
+      const check = (item: Record<string, unknown>) => (kind === 'agents' ? agentVersion(item) : kind === 'workflows' ? cleanTeamVersion(item, itemId) : isMemoryOwner(itemId) ? cleanMemoryVersion(item, itemId) : null);
       for (const v of savedVersions<unknown>(folder, ['versions', kind], itemId, check)) {
         writeJSON(projectDir(id, 'versions', kind, itemId, `${v.id}.json`), v);
         n++;
