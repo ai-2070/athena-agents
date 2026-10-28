@@ -142,7 +142,7 @@ describe('model picker: effort', () => {
     expect(document.querySelector('.model-effort-level.on')?.textContent).toBe('Max');
   });
 
-  it('carries the effort to a model on another engine, as its nearest level', () => {
+  it('carries the effort to a model on another engine, as its nearest level', async () => {
     serve(() => ({ body: [] }));
     const picked: ModelPatch[] = [];
     openModelPicker(document.body, { engine: 'claude-code', model: 'opus', effort: 'max' }, (p) => picked.push(p));
@@ -151,9 +151,29 @@ describe('model picker: effort', () => {
     expect(levels().map((b) => b.textContent)).toEqual(['Default', 'Min', 'Low', 'Med', 'High', 'X-High']);
     expect(document.querySelector('.model-effort-level.on')?.textContent).toBe('X-High');
     expect(picked).toEqual([]);
+    // (no list from the server: the built-in one shows)
+    await vi.waitFor(() => expect(buttons(document.querySelector('.model-menu')!, 'gpt-6-astra').length).toBe(1));
     buttons(document.querySelector('.model-menu')!, 'gpt-6-astra')[0].click();
     expect(picked).toEqual([{ engine: 'codex', model: 'gpt-6-astra', effort: 'xhigh' }]);
     expect(document.querySelector('.model-menu')).toBeNull();
+  });
+
+  it("lists the models Codex has, not a fixed few", async () => {
+    serve((_m, path) =>
+      path === '/models?engine=codex'
+        ? { body: [{ id: '', name: "Codex's default model" }, { id: 'gpt-6.1-sol', name: 'GPT-6.1-Sol', description: 'Latest workhorse model.' }, { id: 'gpt-6-luna', name: 'GPT-6-Luna' }] }
+        : { body: [] },
+    );
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'codex', model: '' }, (p) => picked.push(p));
+    const menu = document.querySelector('.model-menu')!;
+    await vi.waitFor(() => expect(buttons(menu, 'GPT-6.1-Sol').length).toBe(1));
+    expect(menu.textContent).toContain('Latest workhorse model.');
+    expect(buttons(menu, 'gpt-6-astra')).toEqual([]);
+    // the default shows once, from the picker itself
+    expect(buttons(menu, "Codex's default model").length).toBe(1);
+    buttons(menu, 'GPT-6-Luna')[0].click();
+    expect(picked).toEqual([{ engine: 'codex', model: 'gpt-6-luna', effort: '' }]);
   });
 
   it('goes back to the old level when saving the new one fails', async () => {

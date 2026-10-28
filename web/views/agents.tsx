@@ -576,7 +576,7 @@ function EngineFields({ a, d, set, fit }: {
     parts = (
       <>
         <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
-          {model('Model', "Empty = Codex's default (e.g. gpt-6-astra).")}
+          {model('Model', "Empty = Codex's default. Pick one of the models Codex lists, or type an id.")}
           <div>
             <div className="label">Codex</div>
             <p className="hint">{cx.installed ? (cx.loggedIn ? `Signed in · ${cx.version || ''}` : 'Installed, not signed in yet: Settings > General > Sign in') : 'Not installed yet: Settings > General > Install Codex'}</p>
