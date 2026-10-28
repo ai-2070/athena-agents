@@ -171,6 +171,97 @@ describe('the chat window', () => {
   });
 });
 
+describe('arranging the windows', () => {
+  /** Presses Ctrl+Alt (Ctrl+⌥) + an arrow; true if it did something. */
+  const arrange = (key: string) => {
+    const e = new KeyboardEvent('keydown', { key, ctrlKey: true, altKey: true, bubbles: true, cancelable: true });
+    act(() => void window.dispatchEvent(e));
+    return e.defaultPrevented;
+  };
+  const shown = () => [...document.querySelectorAll<HTMLElement>('.cw')].filter((el) => !el.classList.contains('hidden'));
+  /** Each shown window's tabs and where it is, left to right. */
+  const layout = () =>
+    shown()
+      .map((el) => ({ tabs: [...el.querySelectorAll('[role="tab"]')].map((t) => t.textContent).join(','), x: parseFloat(el.style.left), y: parseFloat(el.style.top), w: parseFloat(el.style.width) }))
+      .sort((a, b) => a.x - b.x);
+  // the room arranged windows share (happy-dom's screen is 1024 × 768): right of the rail, above the bottom bar
+  const area = { x: 72, y: 64, w: 1024 - 86, h: 768 - 64 - 74 };
+
+  it('snaps the window on top to the left or right half; the same side again makes it ⅔ wide', async () => {
+    await act(async () => void openChat('agent', 'a1'));
+    await settle();
+    expect(arrange('ArrowLeft')).toBe(true);
+    await settle();
+    const half = (area.w - 10) / 2;
+    expect(layout()).toEqual([{ tabs: '🔭Scout', x: area.x, y: area.y, w: half }]);
+    expect(parseFloat(win().style.height)).toBe(area.h);
+    arrange('ArrowLeft');
+    await settle();
+    expect(layout()[0].w).toBeCloseTo(((area.w - 10) * 2) / 3);
+    arrange('ArrowRight');
+    await settle();
+    expect(layout()).toEqual([{ tabs: '🔭Scout', x: area.x + area.w - half, y: area.y, w: half }]);
+    // it is remembered
+    expect(JSON.parse(localStorage.getItem('dash-chatwin')!).wins[0].rect.x).toBe(area.x + area.w - half);
+  });
+
+  it('separates every tab into a window of its own side by side, and combines them back', async () => {
+    await act(async () => void openChat('agent', 'a1'));
+    await act(async () => void openChat('agent', 'a2'));
+    await settle();
+    expect(arrange('ArrowUp')).toBe(true);
+    await settle();
+    const half = (area.w - 10) / 2;
+    // in the tabs' order, left to right
+    expect(layout()).toEqual([
+      { tabs: '🔭Scout', x: area.x, y: area.y, w: half },
+      { tabs: '✍️Writer', x: area.x + half + 10, y: area.y, w: half },
+    ]);
+    // the chat you were on stays on top
+    expect(chatWindows().at(-1)!.tabs).toEqual(['agent:a2']);
+    expect(arrange('ArrowDown')).toBe(true);
+    await settle();
+    expect(chatWindows()).toEqual([{ id: expect.any(Number), tabs: ['agent:a2', 'agent:a1'], active: 'agent:a2' }]);
+  });
+
+  it('a minimized window comes back to take part', async () => {
+    await act(async () => void openChat('agent', 'a1'));
+    await act(async () => void openChat('agent', 'a2'));
+    await act(async () => moveChatTab('agent:a2', null));
+    await settle();
+    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Minimize the chats"]')!.click());
+    await settle();
+    expect(shown()).toHaveLength(1);
+    arrange('ArrowUp');
+    await settle();
+    expect(layout().map((l) => l.tabs)).toEqual(['🔭Scout', '✍️Writer']);
+  });
+
+  it('keys with nothing to do keep their usual job', async () => {
+    await act(async () => void openChat('agent', 'a1'));
+    await settle();
+    // one chat: nothing to separate or combine
+    expect(arrange('ArrowUp')).toBe(false);
+    expect(arrange('ArrowDown')).toBe(false);
+  });
+
+  it('the Layout menu arranges too, and shows the keys', async () => {
+    await act(async () => void openChat('agent', 'a1'));
+    await act(async () => void openChat('agent', 'a2'));
+    await act(async () => moveChatTab('agent:a2', null));
+    await settle();
+    await act(async () => document.querySelector<HTMLButtonElement>('[data-win] button[aria-label="Arrange the chat windows"]')!.click());
+    await settle();
+    const items = [...document.querySelectorAll<HTMLElement>('.cw-layout [role="menuitem"]')];
+    const k = isMac() ? '⌃⌥' : 'Ctrl+Alt+';
+    expect(items.map((i) => i.textContent!.trim())).toEqual([`Left half${k}←`, `Right half${k}→`, 'Side by side', `Separate tabs${k}↑`, `Combine all${k}↓`]);
+    await act(async () => items.find((i) => i.textContent!.trim() === 'Side by side')!.click());
+    await settle();
+    const half = (area.w - 10) / 2;
+    expect(layout().map((l) => [l.x, l.w])).toEqual([[area.x, half], [area.x + half + 10, half]]);
+  });
+});
+
 // Pointer events as React and the window listeners see them.
 const pointer = (type: string, target: EventTarget, x: number, y: number) => {
   const e = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y });

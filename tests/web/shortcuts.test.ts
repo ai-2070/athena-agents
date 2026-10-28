@@ -91,13 +91,27 @@ describe('chatWindowShortcut()', () => {
     expect(key({ key: 'ArrowDown', metaKey: true }, false)).toBeNull();
     expect(key({ key: 'ArrowDown' }, true)).toBeNull();
     expect(key({ key: 'ArrowDown', metaKey: true, shiftKey: true }, true)).toBeNull();
-    expect(key({ key: 'ArrowUp', ctrlKey: true, altKey: true }, false)).toBeNull();
+    expect(key({ key: 'ArrowUp', metaKey: true, altKey: true }, true)).toBeNull();
     expect(key({ key: 'ArrowDown', metaKey: true, repeat: true }, true)).toBeNull();
     expect(key({ key: 'ArrowLeft', metaKey: true }, true)).toBeNull();
   });
 
-  it('the tooltips show the keys', () => {
-    expect(chatWindowKeys(true)).toEqual({ min: '⌘↓', back: '⌘↑' });
-    expect(chatWindowKeys(false)).toEqual({ min: 'Ctrl+↓', back: 'Ctrl+↑' });
+  it('Ctrl+Alt (Ctrl+⌥) + arrows arrange: ← → snap, ↑ separates, ↓ combines', () => {
+    for (const mac of [true, false]) {
+      expect(key({ key: 'ArrowLeft', ctrlKey: true, altKey: true }, mac)).toBe('left');
+      expect(key({ key: 'ArrowRight', ctrlKey: true, altKey: true }, mac)).toBe('right');
+      expect(key({ key: 'ArrowUp', ctrlKey: true, altKey: true }, mac)).toBe('separate');
+      expect(key({ key: 'ArrowDown', ctrlKey: true, altKey: true }, mac)).toBe('combine');
+      expect(key({ key: 'ArrowLeft', ctrlKey: true, altKey: true, metaKey: true }, mac)).toBeNull();
+      expect(key({ key: 'ArrowLeft', ctrlKey: true, altKey: true, shiftKey: true }, mac)).toBeNull();
+    }
+    // plain ⌘ / Ctrl + ← → stays with the text box (start of line, next word)
+    expect(key({ key: 'ArrowLeft', metaKey: true }, true)).toBeNull();
+    expect(key({ key: 'ArrowRight', ctrlKey: true }, false)).toBeNull();
+  });
+
+  it('the tooltips and the Layout menu show the keys', () => {
+    expect(chatWindowKeys(true)).toEqual({ minimize: '⌘↓', restore: '⌘↑', left: '⌃⌥←', right: '⌃⌥→', separate: '⌃⌥↑', combine: '⌃⌥↓' });
+    expect(chatWindowKeys(false)).toEqual({ minimize: 'Ctrl+↓', restore: 'Ctrl+↑', left: 'Ctrl+Alt+←', right: 'Ctrl+Alt+→', separate: 'Ctrl+Alt+↑', combine: 'Ctrl+Alt+↓' });
   });
 });

@@ -48,7 +48,16 @@ Projects keep separate agents, teams and chats. Use the project name at the top 
 
 ## Chats and files
 
-Agent and team chats open in floating, resizable windows with tabs. Drag a tab along the tabs to reorder it, out onto the map to open it in a new window, or onto another window's tabs to move it there; drag a window by its title bar onto another window's tabs to join them. Press **Ctrl+↓** (**⌘↓** on macOS) to minimize the window on top, again for the next one, and **Ctrl+↑** (**⌘↑**) to bring them back, the one minimized last first. A new chat opens in the window you used last, and the windows and their tabs are remembered in this browser. Type **@** in a chat to pick another agent. An agent with **Delegate** enabled can hand that agent part of the work. Handing off doesn't make it wait: the other agent starts at once, so an agent can hand out several tasks side by side and collect each answer when it's ready, however long the work takes.
+Agent and team chats open in floating, resizable windows with tabs. Drag a tab along the tabs to reorder it, out onto the map to open it in a new window, or onto another window's tabs to move it there; drag a window by its title bar onto another window's tabs to join them. Press **Ctrl+↓** (**⌘↓** on macOS) to minimize the window on top, again for the next one, and **Ctrl+↑** (**⌘↑**) to bring them back, the one minimized last first.
+
+To arrange the windows, use the **Arrange** button in a window's title bar or the keys (**Ctrl+Alt** on Windows, **Ctrl+⌥** on macOS):
+
+- **Left half** / **Right half** (**←** / **→**): snaps the window on top to that side, next to the sidebar and above the bottom bar. Press it again for ⅔ of the width, then ⅓.
+- **Side by side** (menu only): puts all the windows next to each other, keeping their tabs.
+- **Separate tabs** (**↑**): gives every tab a window of its own, all side by side. When they don't fit across, they go in rows.
+- **Combine all** (**↓**): puts every tab back into the window on top, on the chat you were in.
+
+Minimized windows come back when you arrange them. If Rectangle or Magnet is installed on your Mac, it takes **Ctrl+⌥** + arrows first; the Arrange button still works. A new chat opens in the window you used last, and the windows and their tabs are remembered in this browser. Type **@** in a chat to pick another agent. An agent with **Delegate** enabled can hand that agent part of the work. Handing off doesn't make it wait: the other agent starts at once, so an agent can hand out several tasks side by side and collect each answer when it's ready, however long the work takes.
 
 Type **/** in an agent, team or Brain chat to see the commands. They work while the agent is busy:
 

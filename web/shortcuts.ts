@@ -27,16 +27,35 @@ export function brainShortcut(e: KeyboardEvent, { open, onStation }: { open: boo
   return 'open';
 }
 
+/** What a chat window key does (see chatWindowShortcut). */
+export type ChatWindowAction = 'minimize' | 'restore' | 'left' | 'right' | 'separate' | 'combine';
+
+// Ctrl+Alt (Ctrl+⌥ on a Mac) + an arrow arranges the windows, as Rectangle does on a Mac.
+const ARRANGE: Record<string, ChatWindowAction> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'separate', ArrowDown: 'combine' };
+
 /**
- * The chat windows from the keyboard: ⌘↓ minimizes the window on top, ⌘↑ brings back the one
- * minimized last (Ctrl instead of ⌘ on Windows and Linux). Holding the key down doesn't repeat it.
+ * The chat windows from the keyboard. ⌘↓ minimizes the window on top, ⌘↑ brings back the one
+ * minimized last (Ctrl instead of ⌘ on Windows and Linux). Ctrl+Alt (Ctrl+⌥) with ← / → snaps the
+ * window on top to that half of the screen, ↑ gives every tab a window of its own side by side, and
+ * ↓ puts all the windows back into one. Holding a key down doesn't repeat it.
  */
-export function chatWindowShortcut(e: KeyboardEvent, mac = isMac()): 'minimize' | 'restore' | null {
-  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return null;
+export function chatWindowShortcut(e: KeyboardEvent, mac = isMac()): ChatWindowAction | null {
+  if (!ARRANGE[e.key] || e.shiftKey || e.repeat || e.isComposing) return null;
+  if (e.ctrlKey && e.altKey) return e.metaKey ? null : ARRANGE[e.key];
   const mod = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
-  if (!mod || e.altKey || e.shiftKey || e.repeat || e.isComposing) return null;
-  return e.key === 'ArrowDown' ? 'minimize' : 'restore';
+  if (!mod || e.altKey) return null;
+  return e.key === 'ArrowDown' ? 'minimize' : e.key === 'ArrowUp' ? 'restore' : null;
 }
 
-/** The chat window keys as the tooltips show them. */
-export const chatWindowKeys = (mac = isMac()): { min: string; back: string } => (mac ? { min: '⌘↓', back: '⌘↑' } : { min: 'Ctrl+↓', back: 'Ctrl+↑' });
+/** The chat window keys as the tooltips and the Layout menu show them. */
+export function chatWindowKeys(mac = isMac()): Record<ChatWindowAction, string> {
+  const arrange = mac ? '⌃⌥' : 'Ctrl+Alt+';
+  return {
+    minimize: mac ? '⌘↓' : 'Ctrl+↓',
+    restore: mac ? '⌘↑' : 'Ctrl+↑',
+    left: `${arrange}←`,
+    right: `${arrange}→`,
+    separate: `${arrange}↑`,
+    combine: `${arrange}↓`,
+  };
+}

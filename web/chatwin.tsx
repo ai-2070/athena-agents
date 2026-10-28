@@ -3,6 +3,8 @@
 // minimize it to a pill or maximize it. Drag a tab along the tabs to reorder it, onto another
 // window's tabs to move it there, or out onto the map to open it in a window of its own. Drag a
 // window by its title bar onto another's tabs to merge the two. The window clicked last is on top.
+// The Layout menu (and Ctrl+Alt + arrows) snaps a window to half the screen, puts the windows side by
+// side, gives every tab a window of its own, or puts them all back into one.
 // Sizes, places and open tabs are remembered in this browser.
 // The windows are React (Base UI tabs); each tab's conversation is made directly (renderTeamChat,
 // renderAgentChat) so openChat() can hand its api back at once, and its window puts it in place.
@@ -12,6 +14,7 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from
 import { createPortal, flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
+import { Menu } from '@base-ui/react/menu';
 import { Tabs } from '@base-ui/react/tabs';
 import { state, onState, GET } from './core.ts';
 import { renderTeamChat } from './teamchat.tsx';
@@ -19,6 +22,7 @@ import { renderAgentChat } from './agentchat.tsx';
 import { uiZoom } from './look.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import { chatWindowKeys, chatWindowShortcut } from './shortcuts.ts';
+import type { ChatWindowAction } from './shortcuts.ts';
 import { Avatar, Icon, useAppState } from './ui/react.tsx';
 import type { TeamListing } from '../shared/types.ts';
 
@@ -174,29 +178,49 @@ function ensure(): void {
   }
 }
 
-// ⌘↓ / ⌘↑ (Ctrl on Windows): minimize the window on top, or bring back the one minimized last.
-// The key only counts when there is a window to act on, so in a text box with nothing to do it
-// still jumps to the start or end as usual.
+// The keys (chatWindowShortcut): ⌘↓ / ⌘↑ minimize the window on top and bring back the one
+// minimized last; Ctrl+Alt + arrows arrange the windows. A key only counts when there is something
+// to do, so in a text box with nothing to do it keeps its usual job.
 let keysOn = false;
 function onWindowKey(e: KeyboardEvent): void {
   const act = e.defaultPrevented ? null : chatWindowShortcut(e);
-  if (!act) return;
-  const open = wins.filter((w) => w.tabs.length);
-  if (act === 'minimize') {
-    const w = topmost(open.filter((x) => !x.min));
-    if (!w?.el || !w.pill) return;
-    e.preventDefault();
-    // don't leave the cursor in a chat box that is going away
-    const focused = document.activeElement;
-    if (focused instanceof HTMLElement && w.el.contains(focused)) focused.blur();
-    setMin(w, true);
-    return;
+  if (act && runAction(act)) e.preventDefault();
+}
+
+/** Does what a window key or Layout menu item says; false if there was nothing to do. */
+function runAction(act: ChatWindowAction, w?: Win): boolean {
+  const open = wins.filter((x) => x.tabs.length);
+  const top = w || topmost(open.filter((x) => !x.min));
+  switch (act) {
+    case 'minimize': {
+      if (!top?.el || !top.pill) return false;
+      // don't leave the cursor in a chat box that is going away
+      const focused = document.activeElement;
+      if (focused instanceof HTMLElement && top.el.contains(focused)) focused.blur();
+      setMin(top, true);
+      return true;
+    }
+    case 'restore': {
+      const last = open.filter((x) => x.min).reduce<Win | null>((a, x) => (!a || x.minAt > a.minAt || (x.minAt === a.minAt && x.z > a.z) ? x : a), null);
+      if (!last?.el) return false;
+      setMin(last, false);
+      if (last.active) activate(last, last.active);
+      return true;
+    }
+    case 'left':
+    case 'right':
+      if (!top?.el) return false;
+      snap(top, act);
+      return true;
+    case 'separate':
+      if (open.flatMap((x) => x.tabs).length < 2) return false;
+      separate();
+      return true;
+    case 'combine':
+      if (open.length < 2) return false;
+      combine();
+      return true;
   }
-  const w = open.filter((x) => x.min).reduce<Win | null>((a, x) => (!a || x.minAt > a.minAt || (x.minAt === a.minAt && x.z > a.z) ? x : a), null);
-  if (!w?.el) return;
-  e.preventDefault();
-  setMin(w, false);
-  if (w.active) activate(w, w.active);
 }
 
 // The smallest a window gets: 380 × 300, or less on a screen too small for that.
@@ -208,6 +232,17 @@ function minSize() {
 // Room a maximized window leaves at the bottom: the bottom bar ("Ask the Brain", minimized chats)
 // stays visible below it, like the Dock on a Mac (the bar sits 18px up and is about 44px tall).
 const BAR_ROOM = 74;
+
+/**
+ * The room a maximized window fills, and arranged windows share: it lines up with the Station's
+ * side panel, 14px in from the rail (58px) and the right edge, and stops above the bottom bar.
+ */
+function area(): Rect {
+  const z = uiZoom();
+  const vw = window.innerWidth / z;
+  const vh = window.innerHeight / z;
+  return { x: 72, y: 64, w: vw - 86, h: vh - 64 - BAR_ROOM };
+}
 
 /** Where a window goes: its rect kept inside the screen, or the screen less a margin when maximized. */
 function placement(w: Win): CSSProperties {
@@ -221,8 +256,8 @@ function placement(w: Win): CSSProperties {
   r.x = Math.max(4, Math.min(r.x, vw - 120));
   r.y = Math.max(4, Math.min(r.y, vh - 48));
   const zIndex = w.z;
-  // maximized, it lines up with the Station's side panel: 14px in from the rail (58px) and the right edge
-  return w.max ? { zIndex, left: '72px', top: '64px', width: `${vw - 86}px`, height: `${vh - 64 - BAR_ROOM}px` } : { zIndex, left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` };
+  const a = w.max ? area() : r;
+  return { zIndex, left: `${a.x}px`, top: `${a.y}px`, width: `${a.w}px`, height: `${a.h}px` };
 }
 
 /** The window whose tabs are at this point on screen (not counting `skip`), if they're not covered. */
@@ -457,6 +492,138 @@ function setMax(w: Win, v: boolean) {
   if (from.width && !reducedMotion()) flipFrom(el, from, { duration: 380 });
 }
 
+// ---------- arranging the windows ----------
+/** Space between arranged windows. */
+const GAP = 10;
+/** Pressing the same snap again steps through these widths, as Rectangle does. */
+const SNAP_WIDTHS = [1 / 2, 2 / 3, 1 / 3];
+
+const byPlace = (a: Win, b: Win) => a.rect.x - b.rect.x || a.rect.y - b.rect.y || a.z - b.z;
+
+/**
+ * Puts windows at new places, shown and not maximized. Each glides there from where it was, out of
+ * its pill if it was minimized, or out of `from` (a window that just got made).
+ */
+function arrange(list: { w: Win; rect: Rect; from?: DOMRect }[]): void {
+  const starts = list.map(({ w, from }) => {
+    const shown = w.el && !w.el.classList.contains('hidden') && !w.shrinking;
+    const box = from || (shown ? w.el!.getBoundingClientRect() : w.min ? w.pill?.getBoundingClientRect() : undefined);
+    w.el?.getAnimations().forEach((x) => x.cancel());
+    return { box, fade: !shown };
+  });
+  for (const { w, rect } of list) {
+    w.rect = { ...rect };
+    w.max = false;
+    w.min = false;
+    w.minimizing = null;
+    w.shrinking = false;
+  }
+  save();
+  changed();
+  list.forEach(({ w }, i) => {
+    const { box, fade } = starts[i];
+    if (w.el && box?.width) flipFrom(w.el, box, { duration: 380, fade });
+    else pop(w);
+  });
+}
+
+/** A window's place on the left or right side of the screen, this share of it wide. */
+function snapRect(side: 'left' | 'right', share: number): Rect {
+  const a = area();
+  const w = (a.w - GAP) * share;
+  return { x: side === 'left' ? a.x : a.x + a.w - w, y: a.y, w, h: a.h };
+}
+
+/** Snaps a window to half the screen; snapping it to the same side again makes it ⅔, then ⅓ wide. */
+function snap(w: Win, side: 'left' | 'right'): void {
+  const near = (r: Rect) => Math.abs(r.x - w.rect.x) < 1 && Math.abs(r.y - w.rect.y) < 1 && Math.abs(r.w - w.rect.w) < 1 && Math.abs(r.h - w.rect.h) < 1;
+  const i = w.max || w.min ? -1 : SNAP_WIDTHS.findIndex((share) => near(snapRect(side, share)));
+  arrange([{ w, rect: snapRect(side, SNAP_WIDTHS[(i + 1) % SNAP_WIDTHS.length]) }]);
+  raise(w);
+}
+
+/** n places side by side in the work area, in even rows when they don't all fit across. */
+function grid(n: number): Rect[] {
+  const a = area();
+  const fit = Math.max(1, Math.floor((a.w + GAP) / (minSize().w + GAP)));
+  const rows = Math.ceil(n / fit);
+  const h = (a.h - GAP * (rows - 1)) / rows;
+  const out: Rect[] = [];
+  for (let row = 0, left = n; row < rows; row++) {
+    const cols = Math.ceil(left / (rows - row));
+    const w = (a.w - GAP * (cols - 1)) / cols;
+    for (let c = 0; c < cols; c++) out.push({ x: a.x + c * (w + GAP), y: a.y + row * (h + GAP), w, h });
+    left -= cols;
+  }
+  return out;
+}
+
+/** Back to typing in the chat you were on, in its window on top. */
+function focusChat(key: string | null | undefined): void {
+  const w = key ? winOf(key) : null;
+  if (!w || !key) return;
+  raise(w);
+  activate(w, key);
+}
+
+/** Puts every window (minimized ones too) side by side, keeping their left-to-right order. */
+function sideBySide(): void {
+  const list = wins.filter((w) => w.tabs.length).sort(byPlace);
+  const at = grid(list.length);
+  const top = topmost(list.filter((w) => !w.min));
+  arrange(list.map((w, i) => ({ w, rect: at[i] })));
+  focusChat(top?.active);
+}
+
+/** Gives every tab a window of its own, side by side in the order the tabs were in. */
+function separate(): void {
+  const before = wins.filter((w) => w.tabs.length).sort(byPlace);
+  const current = (topmost(before.filter((w) => !w.min)) || topmost(before))?.active;
+  const list: { w: Win; from?: DOMRect }[] = [];
+  for (const w of before) {
+    // the tab that was open stays in its window; the others come out of it
+    const keep = w.tabs.find((t) => t.key === w.active) || w.tabs[0];
+    const from = w.el && !w.el.classList.contains('hidden') && !w.min ? w.el.getBoundingClientRect() : undefined;
+    for (const t of [...w.tabs]) {
+      if (t === keep) {
+        list.push({ w });
+        continue;
+      }
+      w.tabs.splice(w.tabs.indexOf(t), 1);
+      const n = newWin(w.rect);
+      n.tabs.push(t);
+      n.body!.append(t.body);
+      n.active = t.key;
+      t.body.classList.remove('hidden');
+      list.push({ w: n, from });
+    }
+    w.active = keep.key;
+  }
+  const at = grid(list.length);
+  arrange(list.map((x, i) => ({ ...x, rect: at[i] })));
+  focusChat(current);
+}
+
+/** Puts all the windows' tabs into the window on top, keeping the chat you were on. */
+function combine(): void {
+  const list = wins.filter((w) => w.tabs.length);
+  const into = topmost(list.filter((w) => !w.min)) || topmost(list)!;
+  const current = into.active;
+  for (const w of list.sort(byPlace)) {
+    if (w === into) continue;
+    for (const t of w.tabs) {
+      into.tabs.push(t);
+      into.body?.append(t.body);
+    }
+    w.tabs = [];
+    w.active = null;
+    dropWin(w);
+  }
+  if (into.min) setMin(into, false);
+  else pop(into);
+  focusChat(current);
+}
+
 /** A little pop when a window appears. */
 function pop(w: Win) {
   const el = w.el;
@@ -582,7 +749,7 @@ function ChatWindows() {
             className={`cw-pill fixed z-44 right-[84px] bottom-[22px] flex items-center gap-2 py-2.25 px-3.5 border border-line-2 rounded-full bg-panel text-ink cursor-pointer font-sans text-[12.5px] font-medium leading-[normal] shadow-[0_10px_30px_rgba(0,0,0,.45)] animate-[cw-pop_.25s_ease-out] hover:border-accent in-[.bottom-bar]:relative in-[.bottom-bar]:right-auto in-[.bottom-bar]:bottom-auto in-[.bottom-bar]:z-auto in-[.bottom-bar]:py-2.75 in-[.bottom-bar]:px-4 in-[.bottom-bar]:animate-none in-[.bottom-bar]:hover:[transform:translateY(-2px)] ${w.tabs.length && (w.min || w.shrinking) ? '' : ' hidden'}`}
             style={w.shrinking ? { opacity: 0 } : undefined}
             onClick={() => setMin(w, false)}
-            title={`${w.tabs.length > 1 ? `Open the chats: ${w.tabs.map((t) => tabInfo(t, busyAgents).label).join(', ')}` : 'Open the chats'} (${keys.back} brings back the last one)`}
+            title={`${w.tabs.length > 1 ? `Open the chats: ${w.tabs.map((t) => tabInfo(t, busyAgents).label).join(', ')}` : 'Open the chats'} (${keys.restore} brings back the last one)`}
           >
             <Icon name="message-square" size={15} />
             <span className="max-w-[180px] truncate">{label}</span>
@@ -694,7 +861,8 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
           </Tabs.List>
         </Tabs.Root>
         <span className="flex-1 min-w-0" />
-        <button className={BTN} title={`Minimize (${chatWindowKeys().min})`} aria-label="Minimize the chats" onClick={() => setMin(w, true)}>
+        <LayoutMenu w={w} />
+        <button className={BTN} title={`Minimize (${chatWindowKeys().minimize})`} aria-label="Minimize the chats" onClick={() => setMin(w, true)}>
           –
         </button>
         <button className={BTN} title="Maximize / restore" aria-label={w.max ? 'Restore the chats' : 'Maximize the chats'} onClick={() => setMax(w, !w.max)}>
@@ -710,6 +878,43 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
         <div key={dir} className={w.max ? `${cls} hidden` : cls} aria-hidden="true" onPointerDown={(e) => startResize(e, w, dir)} />
       ))}
     </div>
+  );
+}
+
+/** The Layout menu in a window's title bar: the arranging, with their keys. */
+function LayoutMenu({ w }: { w: Win }) {
+  const keys = chatWindowKeys();
+  const open = wins.filter((x) => x.tabs.length);
+  const items: { act: ChatWindowAction | 'side'; label: string; icon: string; off?: boolean; line?: boolean }[] = [
+    { act: 'left', label: 'Left half', icon: 'panel-left' },
+    { act: 'right', label: 'Right half', icon: 'panel-right' },
+    { act: 'side', label: 'Side by side', icon: 'columns-2', off: open.length < 2 },
+    { act: 'separate', label: 'Separate tabs', icon: 'layout-grid', off: open.flatMap((x) => x.tabs).length < 2, line: true },
+    { act: 'combine', label: 'Combine all', icon: 'combine', off: open.length < 2 },
+  ];
+  return (
+    <Menu.Root modal={false}>
+      <Menu.Trigger className={BTN} title="Arrange windows" aria-label="Arrange the chat windows">
+        <Icon name="layout-panel-left" size={14} />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner className="z-96 outline-none" side="bottom" align="end" sideOffset={4} collisionPadding={8}>
+          <Menu.Popup className="cw-layout st-menu static min-w-60 max-w-80">
+            <Menu.Group>
+              <Menu.GroupLabel className="st-menu-head">Arrange</Menu.GroupLabel>
+              {items.map((it) => [
+                it.line ? <Menu.Separator key={`${it.act}-line`} className="st-menu-sep" /> : null,
+                <Menu.Item key={it.act} className="st-menu-item data-disabled:opacity-40 data-disabled:pointer-events-none" disabled={it.off} onClick={() => (it.act === 'side' ? sideBySide() : runAction(it.act, w))}>
+                  <Icon name={it.icon} size={15} />
+                  {it.label}
+                  {it.act !== 'side' ? <span className="ml-auto pl-4 font-mono text-[11.5px] text-faint">{keys[it.act]}</span> : null}
+                </Menu.Item>,
+              ])}
+            </Menu.Group>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }
 

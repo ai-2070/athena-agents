@@ -48,7 +48,7 @@ Turn on **Settings › Look › Station look › Voxel world** (or ask the Brain
 
 Everyone sees the whole conversation. Agents hand work to each other with @mentions, and the files they make show up in the chat: images, video, audio and 3D models you can turn with the mouse. Teams talk to each other too: write **#Team Name** and the message goes to that team's chat, and its answer comes back once that team is done.
 
-Chats open as tabs in floating windows. Drag a tab out onto the map to give it a window of its own, drag it onto another window's tabs to move it there, or drag a window by its title bar onto another's tabs to join the two. **Ctrl+↓** (**⌘↓** on macOS) minimizes the window on top, and **Ctrl+↑** (**⌘↑**) brings back the one you minimized last.
+Chats open as tabs in floating windows. Drag a tab out onto the map to give it a window of its own, drag it onto another window's tabs to move it there, or drag a window by its title bar onto another's tabs to join the two. **Ctrl+↓** (**⌘↓** on macOS) minimizes the window on top, and **Ctrl+↑** (**⌘↑**) brings back the one you minimized last. The **Arrange** button in a window's title bar snaps it to the left or right half, puts the windows side by side, gives every tab a window of its own, or combines them all into one; **Ctrl+Alt** (**Ctrl+⌥**) with **←** / **→** / **↑** / **↓** does the same from the keyboard.
 
 ![A team chat with an audio player and a 3D model preview, next to the team's panel with its members and their models](docs/images/team-chat.png)
 
