@@ -1,0 +1,27 @@
+web/views/stationpanel.tsx
+  s_8f530f9e30e490::t_07db5d43f4e6df 20
+web/ui/agentselect.tsx
+  s_8f530f9e30e490::t_07db5d43f4e6df 1-2,4-43
+  s_8f530f9e30e490::t_08eb067ccdd402 3
+tests/web/builder-pick.test.ts
+  s_8f530f9e30e490::t_d4dea02e008c74 1-39,41-51
+  s_8f530f9e30e490::t_219dd8e1b865f0 40
+web/builder.ts
+  s_8f530f9e30e490::t_08eb067ccdd402 37-48,74,102-103,106-133,140,163,199,262-267,277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f54d5194c1be0cd189ade46ec54aede966050972",
+  "prompts": {},
+  "sessions": {
+    "s_8f530f9e30e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3bb6e3e4-81e1-4afa-a104-48a778c3a87b",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
