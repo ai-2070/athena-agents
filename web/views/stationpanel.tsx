@@ -835,120 +835,134 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
     void api.reloadTeams();
   };
   return (
-    <>
-      <div className="label">Name and goal</div>
-      <div className="mt-3.5 flex items-center gap-2.5">
-        <div className="min-w-0 flex-1">
-          <input key={`n:${wf.name}`} aria-label="Team name" defaultValue={wf.name} ref={committed<HTMLInputElement>((el) => void api.saveTeam({ ...latest.current, name: el.value.trim() || latest.current.name }))} />
+    <div className="mono-fields flex flex-col gap-3">
+      <SetupBox icon="pen-line" title="Name and goal" hint="Every member reads the goal before it answers in the chat.">
+        <div className="flex items-center gap-2.5">
+          <div className="min-w-0 flex-1">
+            <input key={`n:${wf.name}`} aria-label="Team name" defaultValue={wf.name} ref={committed<HTMLInputElement>((el) => void api.saveTeam({ ...latest.current, name: el.value.trim() || latest.current.name }))} />
+          </div>
+          <input
+            key={`c:${color}`}
+            type="color"
+            aria-label="Team colour"
+            defaultValue={color}
+            className="h-9.5 w-12 cursor-pointer p-1"
+            ref={committed<HTMLInputElement>((el) => void api.saveTeam({ ...latest.current, color: el.value }))}
+          />
         </div>
-        <input
-          key={`c:${color}`}
-          type="color"
-          aria-label="Team colour"
-          defaultValue={color}
-          className="h-8.5 w-10 border border-line-2 bg-panel p-0.5"
-          ref={committed<HTMLInputElement>((el) => void api.saveTeam({ ...latest.current, color: el.value }))}
-        />
-      </div>
-      <div className="mt-3.5">
         <textarea
           key={`d:${wf.description || ''}`}
           rows={3}
+          className="mt-2.5"
           aria-label="Team goal"
           defaultValue={wf.description || ''}
           placeholder="The team's goal, e.g. grow our X account with daily posts"
           ref={committed<HTMLTextAreaElement>((el) => void api.saveTeam({ ...latest.current, description: el.value.trim() }))}
         />
-      </div>
-      <p className="hint">Every member reads the goal before it answers in the chat.</p>
-      <div className="label mt-7">Team skills</div>
-      <p className="hint">Every member gets these while it works for this team (on top of its own and the project's).</p>
-      <DomNode
-        className="mt-3.5"
-        make={() => skillPicker(wf.skills || [], (v) => void api.saveTeam({ ...latest.current, skills: v }), { inherited: (d.project?.skills || []).map((slug) => ({ slug, from: 'project' })), empty: 'No team skills yet.' })}
-        deps={[id, (wf.skills || []).join('|'), (d.project?.skills || []).join('|')]}
-      />
-      <div className="label mt-7">Extra access while working for this team</div>
-      <p className="hint">Members get these on top of their own tools.</p>
-      <div className="mt-3.5">
-        <ChipSet label="Extra tools" options={d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description }))} value={access.toolGroups} onChange={(v) => saveAccess({ toolGroups: v })} />
-      </div>
-      {(d.mcpServers || []).length ? (
-        <div className="mt-3.5">
-          <ChipSet label="Extra MCP servers" options={mcpOptions(d.mcpServers, d.mcpInfo)} value={access.mcpServers} onChange={(v) => saveAccess({ mcpServers: v })} />
-          {copiesWarning(access.mcpServers, d.mcpInfo) ? <p className="hint mcp-copies-warning mt-2 text-amber">{copiesWarning(access.mcpServers, d.mcpInfo)}</p> : null}
-        </div>
-      ) : null}
-      <div className="label mt-7">Connections the team can reach</div>
-      <ConnectionList api={api} d={d} ids={api.teamLinks(id)} />
-      <div className="label mt-7">Daily routine</div>
-      <p className="hint">The team gets this message on its schedule, as if you wrote it in the chat.</p>
-      <div className="flex flex-wrap items-center gap-2">
-        <Segmented
-          label="Daily routine"
-          options={[
-            { value: 'none', label: 'Off' },
-            { value: 'daily', label: 'Every day' },
-          ]}
-          value={sch.type === 'daily' ? 'daily' : 'none'}
-          onChange={(t) => saveSchedule({ type: t })}
+      </SetupBox>
+      <SetupBox icon="puzzle" title="Team skills" hint="Every member gets these while it works for this team (on top of its own and the project's).">
+        <DomNode
+          make={() => skillPicker(wf.skills || [], (v) => void api.saveTeam({ ...latest.current, skills: v }), { inherited: (d.project?.skills || []).map((slug) => ({ slug, from: 'project' })), empty: 'No team skills yet.' })}
+          deps={[id, (wf.skills || []).join('|'), (d.project?.skills || []).join('|')]}
         />
-        {sch.type === 'daily' ? <input key={`t:${sch.time}`} type="time" aria-label="Time" defaultValue={sch.time || '09:00'} className="w-27.5" ref={committed<HTMLInputElement>((el) => saveSchedule({ time: el.value }))} /> : null}
-      </div>
-      {sch.type === 'daily' ? (
-        <div className="mt-3.5">
-          <input key={`m:${sch.input || ''}`} aria-label="What the team should do each time" defaultValue={sch.input || ''} placeholder="What the team should do each time" ref={committed<HTMLInputElement>((el) => saveSchedule({ input: el.value }))} />
-        </div>
-      ) : null}
-      <div className="label mt-7">Symbol on the map</div>
-      <p className="hint">Shown in the middle of the team's pod. An emoji, or a picture or 3D model of your own.</p>
-      <SymbolPicker api={api} wf={wf} />
-      <div className="label mt-7">On the map</div>
-      <p className="hint">Drag the team to move it anywhere. Shift+drag spins it.</p>
-      <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
-        <button className="btn ghost small" onClick={() => void api.spinTeam(id)}>
-          <Icon name="rotate-cw" size={14} />
-          Spin 45°
-        </button>
-        {wf.pos || wf.rot ? (
-          <button className="btn ghost small" onClick={() => void api.saveTeam({ ...wf, pos: null, rot: null, angle: null })}>
-            <Icon name="rotate-ccw" size={14} />
-            Put back next to the Brain
-          </button>
+      </SetupBox>
+      <SetupBox icon="wrench" title="Extra access" hint="Members get these on top of their own tools while they work for this team.">
+        <ChipSet label="Extra tools" options={d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description }))} value={access.toolGroups} onChange={(v) => saveAccess({ toolGroups: v })} />
+        {(d.mcpServers || []).length ? (
+          <div className="mt-3">
+            <div className="label mb-2">MCP servers</div>
+            <ChipSet label="Extra MCP servers" options={mcpOptions(d.mcpServers, d.mcpInfo)} value={access.mcpServers} onChange={(v) => saveAccess({ mcpServers: v })} />
+            {copiesWarning(access.mcpServers, d.mcpInfo) ? <p className="hint mcp-copies-warning mt-2 text-amber">{copiesWarning(access.mcpServers, d.mcpInfo)}</p> : null}
+          </div>
         ) : null}
-        <button className="btn ghost small" onClick={() => api.zoomToTeam(id)}>
-          <Icon name="zoom-in" size={14} />
-          Zoom to it
-        </button>
+      </SetupBox>
+      <SetupBox icon="plug" title="Connections the team can reach">
+        <ConnectionList api={api} d={d} ids={api.teamLinks(id)} />
+      </SetupBox>
+      <SetupBox icon="clock" title="Daily routine" hint="The team gets this message on its schedule, as if you wrote it in the chat.">
+        <div className="flex flex-wrap items-center gap-2">
+          <Segmented
+            label="Daily routine"
+            options={[
+              { value: 'none', label: 'Off' },
+              { value: 'daily', label: 'Every day' },
+            ]}
+            value={sch.type === 'daily' ? 'daily' : 'none'}
+            onChange={(t) => saveSchedule({ type: t })}
+          />
+          {sch.type === 'daily' ? <input key={`t:${sch.time}`} type="time" aria-label="Time" defaultValue={sch.time || '09:00'} className="w-27.5" ref={committed<HTMLInputElement>((el) => saveSchedule({ time: el.value }))} /> : null}
+        </div>
+        {sch.type === 'daily' ? (
+          <div className="mt-2.5">
+            <input key={`m:${sch.input || ''}`} aria-label="What the team should do each time" defaultValue={sch.input || ''} placeholder="What the team should do each time" ref={committed<HTMLInputElement>((el) => saveSchedule({ input: el.value }))} />
+          </div>
+        ) : null}
+      </SetupBox>
+      <SetupBox icon="star" title="Symbol on the map" hint="Shown in the middle of the team's pod. An emoji, or a picture or 3D model of your own.">
+        <SymbolPicker api={api} wf={wf} />
+      </SetupBox>
+      <SetupBox icon="move" title="On the map" hint="Drag the team to move it anywhere. Shift+drag spins it.">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button className="btn ghost small" onClick={() => void api.spinTeam(id)}>
+            <Icon name="rotate-cw" size={14} />
+            Spin 45°
+          </button>
+          {wf.pos || wf.rot ? (
+            <button className="btn ghost small" onClick={() => void api.saveTeam({ ...wf, pos: null, rot: null, angle: null })}>
+              <Icon name="rotate-ccw" size={14} />
+              Put back next to the Brain
+            </button>
+          ) : null}
+          <button className="btn ghost small" onClick={() => api.zoomToTeam(id)}>
+            <Icon name="zoom-in" size={14} />
+            Zoom to it
+          </button>
+        </div>
+      </SetupBox>
+      <SetupBox icon="workflow" title="Team builder and copies">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button className="btn ghost small" onClick={() => openBranchBuilder({ wf, onSaved: () => void api.reloadTeams() })}>
+            <Icon name="workflow" size={14} />
+            Open the team builder
+          </button>
+          <button className="btn ghost small" title="A new team with the same members and settings" onClick={() => void cloneTeam(false)}>
+            <Icon name="copy" size={14} />
+            Clone team
+          </button>
+          <button className="btn ghost small" title="A new team with copies of every member" onClick={() => void cloneTeam(true)}>
+            <Icon name="copy" size={14} />
+            Clone with its agents
+          </button>
+          <button className="btn ghost small" title="Keep the team and its agents as a template for any project" onClick={() => void presetTeam(wf)}>
+            <Icon name="bookmark-plus" size={14} />
+            Save as preset
+          </button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
+          <DomNode as="span" className="dom-contents" make={() => historyButton('team', id, () => void api.reloadTeams())} deps={[id]} />
+          <button className="btn danger tiny ml-auto" onClick={() => void remove()}>
+            <Icon name="trash-2" size={12} />
+            Delete team
+          </button>
+        </div>
+      </SetupBox>
+    </div>
+  );
+}
+
+/** One boxed part of the team's Setup: an icon and a title, a short line under it, then its content. */
+function SetupBox({ icon, title, hint, children }: { icon: string; title: string; hint?: string; children: ReactNode }) {
+  return (
+    <section className="rounded-box border border-line bg-bg/40 p-3.5">
+      <div className="flex items-center gap-2 font-mono text-[11px] font-semibold tracking-[0.16em] text-dim uppercase">
+        <span className="grid size-6 flex-none place-items-center rounded-[7px] bg-accent/10 text-accent">
+          <Icon name={icon} size={13} />
+        </span>
+        {title}
       </div>
-      <div className="mt-7 flex flex-wrap items-center gap-2.5">
-        <button className="btn ghost small" onClick={() => openBranchBuilder({ wf, onSaved: () => void api.reloadTeams() })}>
-          <Icon name="workflow" size={14} />
-          Open the team builder
-        </button>
-      </div>
-      <div className="label mt-7">Copy it</div>
-      <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
-        <button className="btn ghost small" title="A new team with the same members and settings" onClick={() => void cloneTeam(false)}>
-          <Icon name="copy" size={14} />
-          Clone team
-        </button>
-        <button className="btn ghost small" title="A new team with copies of every member" onClick={() => void cloneTeam(true)}>
-          <Icon name="copy" size={14} />
-          Clone with its agents
-        </button>
-        <button className="btn ghost small" title="Keep the team and its agents as a template for any project" onClick={() => void presetTeam(wf)}>
-          <Icon name="bookmark-plus" size={14} />
-          Save as preset
-        </button>
-      </div>
-      <div className="mt-7 flex flex-wrap items-center gap-1.5">
-        <DomNode as="span" className="dom-contents" make={() => historyButton('team', id, () => void api.reloadTeams())} deps={[id]} />
-        <button className="btn danger tiny" onClick={() => void remove()}>
-          Delete team
-        </button>
-      </div>
-    </>
+      {hint ? <p className="hint mt-2 mb-0">{hint}</p> : null}
+      <div className="mt-3">{children}</div>
+    </section>
   );
 }
 
@@ -962,26 +976,37 @@ function SymbolPicker({ api, wf }: { api: StationPanelApi; wf: TeamView }) {
   const current = wf.mark || DEFAULT_TEAM_MARK;
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-1">
-        {EMOJI_CHOICES.map((e) => (
-          <button key={e} className="btn ghost small px-2 py-0.5 text-[17px]" title={e} aria-pressed={!own && current === e} onClick={() => void setEmoji(e)}>
-            {e}
-          </button>
-        ))}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(44px,1fr))] gap-1.5">
+        {EMOJI_CHOICES.map((e) => {
+          const on = !own && current === e;
+          return (
+            <button
+              key={e}
+              className={`grid h-11 cursor-pointer place-items-center rounded-ctl border text-[21px] leading-none [transition:border-color_0.15s,background-color_0.15s,transform_0.15s] hover:-translate-y-px hover:border-accent-dim ${on ? 'border-accent bg-accent/10 shadow-[0_0_0_1px_var(--color-accent)]' : 'border-line-2 bg-panel'}`}
+              title={e}
+              aria-pressed={on}
+              onClick={() => void setEmoji(e)}
+            >
+              {e}
+            </button>
+          );
+        })}
       </div>
-      <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
-        <input aria-label="Your own emoji" placeholder="Type or paste an emoji" maxLength={16} className="w-42.5" ref={committed<HTMLInputElement>((el) => el.value.trim() && void setEmoji(el.value.trim()))} />
-        <button className="btn ghost small" onClick={() => void pickTeamMark({ id: wf.id, name: wf.name }).then((ok) => void (ok && api.reloadTeams()))}>
+      <div className="mt-3 flex items-center gap-2">
+        <input aria-label="Your own emoji" placeholder="Type or paste an emoji" maxLength={16} className="min-w-0 flex-1" ref={committed<HTMLInputElement>((el) => el.value.trim() && void setEmoji(el.value.trim()))} />
+        <button className="btn ghost small flex-none" onClick={() => void pickTeamMark({ id: wf.id, name: wf.name }).then((ok) => void (ok && api.reloadTeams()))}>
           <Icon name="image" size={14} />
-          Use a picture or 3D model…
+          Picture or 3D model…
         </button>
-        {own ? (
-          <button className="btn ghost small" onClick={() => void setEmoji(wf.mark || '')}>
+      </div>
+      {own ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2.5">
+          <p className="hint m-0">{`Showing your ${own} (a .glb turns, a picture stays flat).`}</p>
+          <button className="btn ghost tiny" onClick={() => void setEmoji(wf.mark || '')}>
             Back to the emoji
           </button>
-        ) : null}
-      </div>
-      {own ? <p className="hint mt-3.5">{`Showing your ${own} (a .glb turns, a picture stays flat).`}</p> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

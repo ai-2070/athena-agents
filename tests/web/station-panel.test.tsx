@@ -129,6 +129,19 @@ describe('the Station panel', () => {
     expect(saved.at(-1)!.lead).toBe(null);
   });
 
+  it('a team: Setup is mono and boxed, and the symbol picker marks the one in use', async () => {
+    await open({ type: 'branch', id: 't1' });
+    await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
+    await settle();
+    expect(el.querySelector('.mono-fields')).not.toBeNull();
+    const titles = [...el.querySelectorAll('.mono-fields > section')].map((x) => x.firstElementChild!.textContent?.trim());
+    expect(titles.slice(0, 3)).toEqual(['Name and goal', 'Team skills', 'Extra access']);
+    expect(titles).toContain('Symbol on the map');
+    const symbol = [...el.querySelectorAll('.mono-fields > section')].find((x) => x.firstElementChild!.textContent?.trim() === 'Symbol on the map')!;
+    expect(symbol.querySelectorAll('button[aria-pressed="true"]').length).toBeLessThanOrEqual(1);
+    expect(symbol.querySelectorAll('button[aria-pressed]').length).toBeGreaterThan(5);
+  });
+
   it('a team: the Setup tab saves the name when you leave the field, and the routine', async () => {
     await open({ type: 'branch', id: 't1' });
     await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
