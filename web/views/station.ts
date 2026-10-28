@@ -13,7 +13,7 @@ import { currentLook, stationLevel, uiZoom, DEFAULT_LOOK } from '../look.ts';
 import { backgroundOpacity, mapDotsOpacity } from '../../shared/look.ts';
 import { FIRST, benchSpot, teamSpots } from '../../shared/stationlayout.ts';
 import type { TeamSpot } from '../../shared/stationlayout.ts';
-import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.tsx';
+import { openChat, refreshChatTabs, restoreChats, closeChatsForProject, minimizeMaximizedChats } from '../chatwin.tsx';
 import { backgroundUrl, logoUrl, modelUrl, projectMark } from '../projectlogo.ts';
 import { loadModel } from '../modelviewer.ts';
 import { teamMarkUrl, DEFAULT_TEAM_MARK } from '../teammark.ts';
@@ -767,6 +767,8 @@ export async function render(el: HTMLElement): Promise<void> {
   wires.append(wireDots);
   root.append(host, wires, labels, hud, panel);
   mount(el, root);
+  // the side panel peeks out under a maximized chat: using it brings it forward
+  panel.addEventListener('pointerdown', minimizeMaximizedChats);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(pixelRatioFor(stationLevel(currentLook().station).pixelRatio));
@@ -3533,6 +3535,8 @@ function drawHud(): void {
       h('button', { class: ZOOM_BTN, title: 'Whole station (0)', onclick: () => resetView() }, icon('house', 17)),
     );
     // the empty-state note sits at the side, not over the map
+    // (so do the zoom and home buttons)
+    S.zoomEl.addEventListener('pointerdown', minimizeMaximizedChats);
     S.emptyEl = h('div', { class: 'absolute left-4.5 top-18.5 pointer-events-none' });
     S.statsEl = h('div', { class: 'absolute top-14.5 right-4.5 pointer-events-auto group-has-[.st-panel:not(.hidden)]/root:hidden' });
     S.hud.append(S.hudTop, S.statsEl, S.feedEl, S.zoomEl, S.emptyEl);

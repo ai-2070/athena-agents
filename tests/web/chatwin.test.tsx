@@ -3,7 +3,7 @@
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
-import { chatWindows, closeChatsForProject, moveChatTab, openChat, restoreChats } from '../../web/chatwin.tsx';
+import { chatWindows, closeChatsForProject, minimizeMaximizedChats, moveChatTab, openChat, restoreChats } from '../../web/chatwin.tsx';
 import type { AppState } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -63,6 +63,33 @@ describe('the chat window', () => {
     await act(async () => close.click());
     expect(tabs().map((t) => t.textContent)).toEqual(['🔭Scout']);
     expect(JSON.parse(localStorage.getItem('dash-chatwin')!).wins.map((w: { tabs: string[] }) => w.tabs)).toEqual([['agent:a1']]);
+  });
+
+  it('maximized, stops above the bottom bar instead of under Ask the Brain', async () => {
+    await act(async () => void openChat('agent', 'a1'));
+    await settle();
+    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Maximize the chats"]')!.click());
+    await settle();
+    const bottom = parseFloat(win().style.top) + parseFloat(win().style.height);
+    // the bar sits 18px up and is about 44px tall
+    expect(window.innerHeight - bottom).toBeGreaterThanOrEqual(18 + 44);
+  });
+
+  it('minimizes when maximized and the Station under it is used, and comes back maximized', async () => {
+    await act(async () => void openChat('agent', 'a1'));
+    await settle();
+    // a window that is not maximized stays open
+    await act(async () => minimizeMaximizedChats());
+    await settle();
+    expect(win().classList.contains('hidden')).toBe(false);
+    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Maximize the chats"]')!.click());
+    await act(async () => minimizeMaximizedChats());
+    await settle();
+    expect(win().classList.contains('hidden')).toBe(true);
+    await act(async () => document.querySelector<HTMLButtonElement>('.bottom-bar .cw-pill')!.click());
+    await settle();
+    expect(win().classList.contains('hidden')).toBe(false);
+    expect(document.querySelector('button[aria-label="Restore the chats"]')).not.toBeNull();
   });
 
   it('minimizes to a pill in the bottom bar, and opens again from it', async () => {

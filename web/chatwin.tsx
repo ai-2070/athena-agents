@@ -172,6 +172,10 @@ function minSize() {
   return { w: Math.min(380, window.innerWidth / z - 20), h: Math.min(300, window.innerHeight / z - 20) };
 }
 
+// Room a maximized window leaves at the bottom: the bottom bar ("Ask the Brain", minimized chats)
+// stays visible below it, like the Dock on a Mac (the bar sits 18px up and is about 44px tall).
+const BAR_ROOM = 74;
+
 /** Where a window goes: its rect kept inside the screen, or the screen less a margin when maximized. */
 function placement(w: Win): CSSProperties {
   const z = uiZoom();
@@ -184,7 +188,8 @@ function placement(w: Win): CSSProperties {
   r.x = Math.max(4, Math.min(r.x, vw - 120));
   r.y = Math.max(4, Math.min(r.y, vh - 48));
   const zIndex = w.z;
-  return w.max ? { zIndex, left: '70px', top: '64px', width: `${vw - 90}px`, height: `${vh - 84}px` } : { zIndex, left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` };
+  // maximized, it lines up with the Station's side panel: 14px in from the rail (58px) and the right edge
+  return w.max ? { zIndex, left: '72px', top: '64px', width: `${vw - 86}px`, height: `${vh - 64 - BAR_ROOM}px` } : { zIndex, left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` };
 }
 
 /** The window whose tabs are at this point on screen (not counting `skip`), if they're not covered. */
@@ -722,6 +727,11 @@ export function restoreChats(): void {
 
 export function closeChatsForProject(): void {
   if (host) for (const w of [...wins]) closeWin(w);
+}
+
+/** Minimizes the maximized windows: the Station's side panel or map buttons under them were clicked. */
+export function minimizeMaximizedChats(): void {
+  for (const w of wins) if (w.max && !w.min && w.tabs.length) setMin(w, true);
 }
 
 /** The open windows' tabs, bottom window first (for tests). */
