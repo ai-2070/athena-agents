@@ -1,7 +1,8 @@
 // Artifacts: what an agent or team finished that isn't an outgoing post or email (a written result, a file, a folder).
 import fs from 'node:fs';
 import path from 'node:path';
-import { agents, artifacts, chats, workflows, emit, log } from './store.ts';
+import { agents, artifacts, chats, emit, log } from './store.ts';
+import { listTeams } from './teams.ts';
 import { viewable } from './files.ts';
 import { uid } from './util.ts';
 import type { Artifact } from '../shared/types.ts';
@@ -24,7 +25,8 @@ export function checkTarget(raw: unknown): { kind: 'file' | 'folder'; path: stri
 /** The team a run was for: the team chat it runs in, else the agent's team when it is on exactly one. */
 export function teamOf(agentId: string, chatId?: string | null): { id: string; name: string } | null {
   const chatTeam = chatId ? chats.get(agentId, chatId)?.teamId : null;
-  const teams = workflows.list();
+  // (teams as they read now: an old step list gets its members from its agent steps)
+  const teams = listTeams();
   const team = (chatTeam && teams.find((t) => t.id === chatTeam)) || (() => {
     const mine = teams.filter((t) => t.members.includes(agentId));
     return mine.length === 1 ? mine[0] : null;
