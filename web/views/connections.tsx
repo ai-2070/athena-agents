@@ -284,7 +284,9 @@ function AutoPost({ initial, title, ask, save }: { initial: boolean; title: stri
   const change = async (v: boolean) => {
     if (v && !(await confirmBox(ask, { ok: 'Turn on', danger: true }))) return;
     setOn(v);
-    void attempt(() => save(v), v ? 'Auto-post on' : 'Auto-post off');
+    // not saved: the switch goes back, so it shows what the account really does
+    const saved = await attempt(async () => (await save(v), true), v ? 'Auto-post on' : 'Auto-post off');
+    if (!saved) setOn(!v);
   };
   return (
     <span title={title}>
