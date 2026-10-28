@@ -27,4 +27,15 @@ describe('md() on agent output', () => {
     const a = md('[x](javascript:alert(1))').querySelector('a');
     expect(a?.getAttribute('href') ?? '').not.toMatch(/javascript:/i);
   });
+
+  it('keeps a short file name or code word on one line, but lets longer text wrap', () => {
+    const el = md('See [mention-text.tsx](https://x/a) and `frame-ancestors`, [intercepts Tab](https://x/b), `' + 'a'.repeat(50) + '`\n\n```\nsome-code\n```');
+    const [file, phrase] = [...el.querySelectorAll('a')];
+    const [word, long, block] = [...el.querySelectorAll('code')];
+    expect(file.classList.contains('whitespace-nowrap')).toBe(true);
+    expect(word.classList.contains('whitespace-nowrap')).toBe(true);
+    expect(phrase.classList.contains('whitespace-nowrap')).toBe(false);
+    expect(long.classList.contains('whitespace-nowrap')).toBe(false);
+    expect(block.classList.contains('whitespace-nowrap')).toBe(false);
+  });
 });
