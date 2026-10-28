@@ -104,8 +104,8 @@ const CONN =
 const CONNS = 'mt-2 flex flex-col gap-1';
 // a file or folder in the Brain list (st-file stays as a mark the tests look for); one that opens is a button that lights up
 const FILE = 'st-file flex min-w-0 items-center gap-1.5 overflow-hidden py-0.5 text-left text-[12.5px] text-ellipsis whitespace-nowrap text-dim';
-const FILE_OPENS = `${FILE} group cursor-pointer rounded-[4px] border-0 bg-transparent px-0 [transition:color_0.3s_cubic-bezier(0.65,0,0.35,1),transform_0.3s_cubic-bezier(0.65,0,0.35,1)] hover:translate-x-1 hover:text-accent focus-visible:text-accent`;
-const FILE_ICON = 'flex-none text-faint transition-colors duration-300 ease-[cubic-bezier(0.65,0,0.35,1)] group-hover:text-accent group-focus-visible:text-accent';
+const FILE_OPENS = `${FILE} group cursor-pointer rounded-[4px] border-0 bg-transparent px-0 [transition:color_0.18s_cubic-bezier(0.37,0,0.63,1),translate_0.18s_cubic-bezier(0.37,0,0.63,1)] hover:translate-x-1 hover:text-accent focus-visible:text-accent`;
+const FILE_ICON = 'flex-none text-faint transition-colors duration-180 ease-[cubic-bezier(0.37,0,0.63,1)] group-hover:text-accent group-focus-visible:text-accent';
 // the Brain's three numbers
 const STAT = 'flex flex-col gap-0.75 rounded-box border border-line p-2 font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.1em] text-dim uppercase';
 const STAT_N = 'font-sans text-[20px] leading-[normal] font-bold tracking-normal text-ink';
@@ -466,11 +466,11 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
                 fromPath ? (
                   <button
                     type="button"
-                    className="st-about-from hint group mt-0.5 flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-left [transition:color_0.3s_cubic-bezier(0.65,0,0.35,1),transform_0.3s_cubic-bezier(0.65,0,0.35,1)] hover:translate-x-1 hover:text-accent focus-visible:text-accent"
+                    className="st-about-from hint group mt-0.5 flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-left [transition:color_0.18s_cubic-bezier(0.37,0,0.63,1),translate_0.18s_cubic-bezier(0.37,0,0.63,1)] hover:translate-x-1 hover:text-accent focus-visible:text-accent"
                     title={`Read ${summary.from}`}
                     onClick={() => previewFile(fromPath, summary.from!)}
                   >
-                    <Icon name="file-text" size={12} className="flex-none text-faint transition-colors duration-300 ease-[cubic-bezier(0.65,0,0.35,1)] group-hover:text-accent" />
+                    <Icon name="file-text" size={12} className="flex-none text-faint transition-colors duration-180 ease-[cubic-bezier(0.37,0,0.63,1)] group-hover:text-accent" />
                     {`from ${summary.from}`}
                   </button>
                 ) : (
