@@ -1,0 +1,23 @@
+web/dock.tsx
+  s_96fa78fa397186::t_d90abb3f14cf94 771-772,793-799
+web/styles/app.css
+  s_96fa78fa397186::t_d90abb3f14cf94 71,82-83
+tests/web/dock-stream.test.tsx
+  s_96fa78fa397186::t_3a3ed14e22d402 52-56,94-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1117d590edad4a6a4532d8ab5f89f38ce489e3d9",
+  "prompts": {},
+  "sessions": {
+    "s_96fa78fa397186": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "95e33f2e-3a68-4606-b3a1-2a2dc820ffd0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
