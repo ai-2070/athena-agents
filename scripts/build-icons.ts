@@ -17,6 +17,7 @@ const UI = [
   'key-round', 'server', 'monitor', 'film', 'palette', 'pen-line', 'list-checks', 'circle-pause', 'grip-vertical', 'mouse-pointer-click', 'store',
   'file-text', 'folder-open', 'rotate-cw', 'chevron-right', 'rocket',
   'puzzle', 'copy', 'bookmark-plus', 'download', 'repeat', 'at-sign', 'paperclip', 'file', 'folder-up', 'upload', 'archive', 'history', 'archive-restore', 'star', 'gauge', 'target', 'slash',
+  'layout-panel-left', 'panel-left', 'panel-right', 'columns-2', 'layout-grid', 'combine',
 ];
 const BRANDS: Record<string, string> = {
   gmail: 'gmail', notion: 'notion', 'google drive': 'googledrive', drive: 'googledrive', 'google calendar': 'googlecalendar', calendar: 'googlecalendar',
