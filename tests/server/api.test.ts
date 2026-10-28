@@ -101,6 +101,19 @@ describe('API', () => {
     expect(list.find((x: { id: string }) => x.id === t.id)).toMatchObject({ name: 'Crew', members: [a.id] });
   });
 
+  it('deletes a team with its agents, but keeps agents that are on another team', async () => {
+    const send = async (method: string, p: string, body?: unknown) => (await req(p, { method, headers: json, ...(body ? { body: JSON.stringify(body) } : {}) })).json();
+    const solo = await send('POST', '/api/agents', { name: 'Only Here' });
+    const shared = await send('POST', '/api/agents', { name: 'Also Elsewhere' });
+    const t = await send('POST', '/api/workflows', { name: 'Doomed', members: [solo.id, shared.id], lead: solo.id });
+    const other = await send('POST', '/api/workflows', { name: 'Survivor', members: [shared.id] });
+    expect((await send('DELETE', `/api/workflows/${t.id}`)).deletedAgents).toEqual([solo.id]);
+    expect((await req(`/api/agents/${solo.id}`)).status).toBe(404);
+    expect((await req(`/api/agents/${shared.id}`)).ok).toBe(true);
+    expect((await send('GET', `/api/workflows/${other.id}`)).members).toEqual([shared.id]);
+    expect((await req(`/api/workflows/${t.id}`)).status).toBe(404);
+  });
+
   it("keeps a team's emoji symbol, and a picture or model only through its own route", async () => {
     const send = async (method: string, p: string, body?: unknown) => req(p, { method, headers: json, ...(body ? { body: JSON.stringify(body) } : {}) });
     const a = await (await send('POST', '/api/agents', { name: 'Symbol Tester' })).json();
