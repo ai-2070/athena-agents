@@ -1,0 +1,35 @@
+web/views/skills.tsx
+  s_8f530f9e30e490::t_a167788e00b9ec 13,100
+web/ui/controls.tsx
+  s_8f530f9e30e490::t_a22f91ecaac8ca 8,148-169
+web/views/worldpanel.tsx
+  s_8f530f9e30e490::t_33b6111fd5317b 11,431
+web/views/mcp.tsx
+  s_8f530f9e30e490::t_33b6111fd5317b 4,180
+web/views/library.tsx
+  s_8f530f9e30e490::t_33b6111fd5317b 6,222
+web/styles/base.css
+  s_8f530f9e30e490::t_a22f91ecaac8ca 35
+web/views/artifacts.tsx
+  s_8f530f9e30e490::t_a167788e00b9ec 8,45
+web/views/agents.tsx
+  s_8f530f9e30e490::t_33b6111fd5317b 8
+tests/web/controls.test.tsx
+  s_8f530f9e30e490::t_1a9c8ed07332b4 6,44-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0987ccaa07167478608376f0c516e8cce3e4b87a",
+  "prompts": {},
+  "sessions": {
+    "s_8f530f9e30e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3bb6e3e4-81e1-4afa-a104-48a778c3a87b",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
