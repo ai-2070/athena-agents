@@ -338,7 +338,13 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
     lights = w?.lights || [];
     setEffects(w?.effects || []);
     lightsChanged();
-    if (!w) return;
+    if (!w) {
+      // the world is gone: its skins come off too (and what they hid comes back)
+      world = null;
+      prefabs = new Map();
+      await skins?.sync();
+      return;
+    }
     const wid = w.id;
     world = w;
     prefabs = new Map((w.prefabs || []).map((p) => [p.id, p]));
@@ -477,10 +483,11 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
       for (const a of host?.agents() || []) if (a.agentId === v.id) add(a.anchor);
       skins?.boundsOf('agent', v.id, box);
     } else {
-      // the whole world, and the Station on it
+      // the whole world, and the Station on it (with its skins: a big character can reach past its desk)
       for (const p of placed.values()) add(p.group);
       add(host?.brain()?.anchor);
       for (const a of host?.agents() || []) add(a.anchor);
+      skins?.boundsOfAll(box);
     }
     return box;
   };
@@ -501,6 +508,15 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
       });
   };
   run();
+  // a refresh still waiting, or a load going on, lands first (world_look right after a build sees it)
+  const settled = async (): Promise<void> => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+      run();
+    }
+    while (loading) await loading;
+  };
 
   // (reused every frame)
   const fallback = new THREE.Vector3();
@@ -517,11 +533,16 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
         if (changed) for (const id of ev.objects) if (typeof id === 'string') pendingBuilds.set(id, by);
       }
       if (timer) clearTimeout(timer);
-      timer = setTimeout(run, 120);
+      timer = setTimeout(() => {
+        timer = null;
+        run();
+      }, 120);
     },
     async look(req) {
       const v = req.view as WorldLookView | undefined;
-      if (typeof req.request !== 'string' || !v || typeof v !== 'object' || !worldId || req.world !== worldId) return false;
+      if (typeof req.request !== 'string' || !v || typeof v !== 'object') return false;
+      await settled();
+      if (!alive || !worldId || req.world !== worldId) return false;
       let only: { group: THREE.Group; release: () => void } | null = null;
       try {
         const box = new THREE.Box3();

@@ -6,8 +6,10 @@ import { Animator, blendPoses, cleanKeys, clipTime, ease, fadeWeight, prepareCli
 import type { Pose } from '../../web/voxel/animate.ts';
 import { applyPose, buildRig, partNames, partTree } from '../../web/voxel/rig.ts';
 import type { RigLookup } from '../../web/voxel/rig.ts';
-import { agentPlan, brainPlan, stateClip, teamPlan } from '../../web/voxel/skins.ts';
-import type { AnimationClip, PrefabInstance, Vec3 } from '../../shared/types.ts';
+import { agentPlan, brainPlan, SkinLayer, stateClip, teamPlan } from '../../web/voxel/skins.ts';
+import type { SkinHost } from '../../web/voxel/skins.ts';
+import type { WorldView } from '../../web/voxel/view.ts';
+import type { AnimationClip, PrefabInstance, Vec3, VoxelPrefabMeta, VoxelWorld } from '../../shared/types.ts';
 
 const close = (a: number, b: number) => expect(a).toBeCloseTo(b, 4);
 
@@ -167,5 +169,55 @@ describe('what a skin hides', () => {
     expect(stateClip({ states: { needs: 'wave' } }, 'needs', hasClip)).toBe('wave');
     expect(stateClip(undefined, 'idle', hasClip)).toBe('idle');
     expect(stateClip({ states: { working: 'missing' } }, 'working', hasClip)).toBeNull();
+  });
+});
+
+describe('dressing again when a skin changes', () => {
+  // a Brain shell made of a frame that holds a nested part, on a fake map
+  const meta = (id: string, voxelsAt: number) => ({ id, name: id, description: '', tags: [], by: { kind: 'brain' }, volumes: [], pivot: [0, 0, 0], size: [1, 1, 1], createdAt: 1, updatedAt: 1, voxelsAt }) as VoxelPrefabMeta;
+  const setup = () => {
+    const world = {
+      palette: [{ name: 'stone', color: '#888888', kind: 'solid' }],
+      prefabs: [meta('shell', 1), meta('part', 1)],
+      skins: { brain: { shell: 'shell' } },
+    } as unknown as VoxelWorld;
+    const meshed: string[] = [];
+    const parts: Record<string, PrefabInstance[]> = { shell: [P([0, 1, 0], 'part')], part: [] };
+    const brain = { anchor: new THREE.Group(), base: [new THREE.Group()], globe: [], pick: null };
+    const view = { addObject: () => {}, removeObject: () => {}, material: () => new THREE.MeshBasicMaterial() } as unknown as WorldView;
+    const host: SkinHost = { version: () => 1, brain: () => brain, team: () => null, agents: () => [], setLabel: () => {} };
+    const layer = new SkinLayer(view, host, {
+      world: () => world,
+      loadPrefabs: async () => {},
+      lookup: (id) => (parts[id] ? { data: { volumes: [], instances: parts[id] }, pivot: [0, 0, 0] } : null),
+      mesh: async (id) => {
+        meshed.push(id);
+        return { key: id, parts: [{ geo: new THREE.BoxGeometry(id === 'part' ? 8 : 1, 1, 1), cls: 'opaque', local: new THREE.Matrix4() }] };
+      },
+      release: () => {},
+    });
+    return { world, meshed, layer };
+  };
+
+  it('an edited nested part, or a change to a ramp or jitter, dresses it again', async () => {
+    const { world, meshed, layer } = setup();
+    await layer.sync();
+    expect(meshed).toEqual(['shell', 'part']);
+    await layer.sync();
+    expect(meshed).toHaveLength(2); // nothing changed
+    world.prefabs[1] = meta('part', 2);
+    await layer.sync();
+    expect(meshed).toEqual(['shell', 'part', 'shell', 'part']);
+    world.palette[0] = { ...world.palette[0], jitter: 0.2 };
+    await layer.sync();
+    expect(meshed).toHaveLength(6);
+  });
+
+  it('the whole-world bounds take in every skin', async () => {
+    const { layer } = setup();
+    await layer.sync();
+    const box = new THREE.Box3();
+    layer.boundsOfAll(box);
+    expect(box.max.x - box.min.x).toBeCloseTo(8);
   });
 });

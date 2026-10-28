@@ -147,6 +147,9 @@ interface Dressed {
   hidden: [THREE.Object3D, boolean][];
   label: [SkinHost['setLabel'] extends (...a: infer A) => void ? A : never] | null;
   meshKeys: string[];
+  /** every prefab its models are made of, nested parts too (found while building them), and their versions then */
+  parts: Set<string>;
+  partsKey: string;
   /** meshes with glowing voxels, and where in them (LIGHT_STRIDE numbers a spot) */
   glow: { mesh: THREE.Mesh; lights: Float32Array }[];
   /** a character */
@@ -219,22 +222,25 @@ export class SkinLayer {
         want.set(`agent:${a.key}`, { plan: agentPlan(as, has), anchorOf: () => a.anchor, hideOf: (r) => (r === 'person' ? [a.person] : r === 'furniture' ? a.furniture : []), all: () => a.anchor, skin: as, label: ['agent', a.agentId], pick: a.pick, agent: a });
       }
     }
-    // what each needs, as a fingerprint: the skin, its prefabs' versions, the palette, the Station's build
-    const palette = w ? JSON.stringify(w.palette.map((m) => [m.name, m.color, m.kind, m.emissive])) : '';
+    // what each needs, as a fingerprint: the skin, its prefabs' versions, the palette (all of it: a ramp or
+    // jitter changes the colours too), the Station's build
+    const palette = w ? JSON.stringify(w.palette) : '';
     const fingerprintOf = (key: string, x: { plan: SkinPlan; skin: unknown }) => {
       const prefabIds = x.plan.models.map((m) => m.prefab);
       return JSON.stringify([key, v, x.skin, prefabIds.map((id) => [id, stamp(prefabs.get(id)), prefabs.get(id)?.animations ? JSON.stringify(prefabs.get(id)!.animations) : '']), palette.length, hashText(palette)]);
     };
+    // the nested parts aren't named by the skin: an edited part (or one put in place of another) redresses too
+    const partsKeyOf = (parts: Set<string>) => JSON.stringify([...parts].sort().map((id) => [id, stamp(prefabs.get(id))]));
     for (const [key, d] of this.dressed) {
       const x = want.get(key);
-      if (!x || fingerprintOf(key, x) !== d.fingerprint) this.undress(key);
+      if (!x || fingerprintOf(key, x) !== d.fingerprint || partsKeyOf(d.parts) !== d.partsKey) this.undress(key);
     }
     for (const [key, x] of want) {
       if (this.dressed.has(key)) continue;
       const anchor = x.anchorOf();
       if (!anchor) continue;
       const fp = fingerprintOf(key, x);
-      const d: Dressed = { fingerprint: fp, anchor, local: localMatrix(x.skin), root: new THREE.Group(), hidden: [], label: null, meshKeys: [], glow: [] };
+      const d: Dressed = { fingerprint: fp, anchor, local: localMatrix(x.skin), root: new THREE.Group(), hidden: [], label: null, meshKeys: [], parts: new Set(), partsKey: '', glow: [] };
       d.root.matrixAutoUpdate = false;
       this.dressed.set(key, d);
       // take the classic models off
@@ -269,6 +275,7 @@ export class SkinLayer {
           d.status = x.agent?.status;
         }
       }
+      d.partsKey = partsKeyOf(d.parts);
       this.view.addObject(d.root);
       this.ctx.changed?.();
     }
@@ -281,6 +288,7 @@ export class SkinLayer {
     const nodes: PartNode[] = [];
     const walk = (n: PartNode) => {
       nodes.push(n);
+      d.parts.add(n.prefab);
       n.children.forEach(walk);
     };
     walk(tree);
@@ -345,10 +353,18 @@ export class SkinLayer {
     }
   }
 
+  /** Grows `box` around every skin worn now (for a picture of the whole world). */
+  boundsOfAll(box: THREE.Box3): void {
+    for (const d of this.dressed.values()) {
+      d.root.updateWorldMatrix(true, true);
+      box.expandByObject(d.root);
+    }
+  }
+
   /** A prefab on its own (for a picture of it): a model, and how to give its meshes back. */
   async standalone(prefab: string): Promise<{ group: THREE.Group; release: () => void } | null> {
     await this.ctx.loadPrefabs([prefab]);
-    const d: Dressed = { fingerprint: '', anchor: new THREE.Object3D(), local: new THREE.Matrix4(), root: new THREE.Group(), hidden: [], label: null, meshKeys: [], glow: [] };
+    const d: Dressed = { fingerprint: '', anchor: new THREE.Object3D(), local: new THREE.Matrix4(), root: new THREE.Group(), hidden: [], label: null, meshKeys: [], parts: new Set(), partsKey: '', glow: [] };
     const model = await this.model(prefab, d);
     if (!model) {
       for (const k of d.meshKeys) this.ctx.release(k);
