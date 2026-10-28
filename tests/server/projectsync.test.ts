@@ -522,4 +522,16 @@ describe('auto-save into the project folder', () => {
     expect(st).toMatchObject({ agents: 0, teams: 0 });
     expect(allText(path.join(p.brainPath, '.dashboard'))).not.toContain('folder-link-sentinel');
   });
+
+  // directory junctions need no admin rights on Windows (elsewhere 'junction' makes a plain folder link)
+  it.each(['skills', 'skill-versions', 'versions'])("won't prune a folder that a planted .dashboard/%s link points at", async (sub) => {
+    const p = await createProject({ name: `Planted ${sub}`, mode: 'new', folder: folder(`planted-${sub}`) });
+    const precious = path.join(os.homedir(), `precious-${sub}`);
+    fs.mkdirSync(precious, { recursive: true });
+    fs.writeFileSync(path.join(precious, 'precious.txt'), 'keep me');
+    fs.mkdirSync(path.join(p.brainPath, '.dashboard'), { recursive: true });
+    fs.symlinkSync(precious, path.join(p.brainPath, '.dashboard', sub), 'junction');
+    expect(sync.saveProject(p.id)?.error).toMatch(/link/);
+    expect(fs.readFileSync(path.join(precious, 'precious.txt'), 'utf8')).toBe('keep me');
+  });
 });

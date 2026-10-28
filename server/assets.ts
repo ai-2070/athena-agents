@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fetchJSON } from './util.ts';
-import { extractZip, safeEntryName } from './unzip.ts';
+import { extractZip, safeEntryName, writeInside } from './unzip.ts';
 
 // Poly Haven asks API users to send their own User-Agent.
 const UA = 'Blacksite (local AI agent dashboard)';
@@ -175,10 +175,7 @@ export async function downloadAsset(source: AssetSource, id: string, dir: string
     for (const f of files) {
       const rel = safeEntryName(f.rel);
       if (!rel) continue;
-      const dest = path.join(dir, ...rel.split('/'));
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.writeFileSync(dest, await fetchFile(f.url, signal));
-      out.push(rel);
+      if (writeInside(dir, rel, await fetchFile(f.url, signal))) out.push(rel);
     }
     return out;
   }
@@ -186,6 +183,5 @@ export async function downloadAsset(source: AssetSource, id: string, dir: string
   const buf = await fetchFile(download.downloadLink, signal);
   if (/\.zip$/i.test(download.fileName)) return extractZip(buf, dir);
   const name = safeEntryName(download.fileName) || `${id}.bin`;
-  fs.writeFileSync(path.join(dir, name), buf);
-  return [name];
+  return writeInside(dir, name, buf) ? [name] : [];
 }

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import * as skills from '../../server/skills.ts';
@@ -102,5 +103,42 @@ describe('who gets which skill', () => {
     expect(prompt).toContain('# Your skills');
     expect(prompt).toContain('- Checklist: Use before finishing a task.');
     expect(prompt).toContain('read_skill');
+  });
+});
+
+describe('importing a Claude Code skill', () => {
+  const claudeSkill = (name: string) => {
+    const dir = path.join(os.homedir(), '.claude', 'skills', name);
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  };
+
+  it('copies its files but leaves out a linked folder', () => {
+    const src = claudeSkill('with-link');
+    fs.writeFileSync(path.join(src, 'SKILL.md'), '---\nname: With link\ndescription: Use it.\n---\n\nSteps.');
+    fs.writeFileSync(path.join(src, 'notes.md'), 'extra');
+    const outside = fs.mkdtempSync(path.join(os.homedir(), 'outside-skill-'));
+    fs.writeFileSync(path.join(outside, 'private.md'), 'outside-sentinel');
+    // (junctions need no admin rights on Windows; elsewhere this makes a plain folder link)
+    fs.symlinkSync(outside, path.join(src, 'linked'), 'junction');
+    const s = skills.importClaudeSkill('with-link');
+    expect(s?.body).toContain('Steps.');
+    expect(s?.files.map((f) => f.path)).toEqual(['notes.md']);
+    expect(fs.existsSync(path.join(dataPath('skills', s!.slug), 'linked'))).toBe(false);
+  });
+
+  it('refuses a SKILL.md that is a link', (ctx) => {
+    const src = claudeSkill('linked-md');
+    const outside = path.join(fs.mkdtempSync(path.join(os.homedir(), 'outside-md-')), 'secret.md');
+    fs.writeFileSync(outside, '---\nname: Secret\ndescription: x\n---\n\noutside-sentinel');
+    try {
+      fs.symlinkSync(outside, path.join(src, 'SKILL.md'));
+    } catch (e) {
+      // file links need admin rights on Windows
+      if ((e as NodeJS.ErrnoException).code === 'EPERM') return ctx.skip();
+      throw e;
+    }
+    expect(() => skills.importClaudeSkill('linked-md')).toThrow(/link/);
+    expect(skills.listSkills().some((x) => x.preview?.includes('outside-sentinel'))).toBe(false);
   });
 });

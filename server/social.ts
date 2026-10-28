@@ -70,6 +70,8 @@ export interface DraftInput {
   thread?: string[] | null;
   /** Image files to attach to the first part (X only, up to 4, 5 MB each). */
   images?: string[] | null;
+  /** The folders those images may come from: an agent's own readable folders (default: every folder the page may show). */
+  imageRoots?: string[];
   replyTo?: string | null;
   to?: string | null;
   agentId?: string | null;
@@ -337,13 +339,13 @@ export function disconnectX(accountId: string) {
 // ---------- Outbox ----------
 /** The real paths of the images an agent or you attached, or an error saying what is wrong with them. */
 const X_IMAGE_MAX = 5 * 1024 * 1024;
-export function checkImages(platform: string, images: unknown): string[] {
+export function checkImages(platform: string, images: unknown, roots?: string[]): string[] {
   const list = (Array.isArray(images) ? images : []).filter((p): p is string => typeof p === 'string' && !!p.trim());
   if (!list.length) return [];
   if (platform !== 'x') throw new Error('Images can only go with X posts for now.');
   if (list.length > 4) throw new Error('X allows at most 4 images on a post.');
   return list.map((raw) => {
-    const real = viewable(raw);
+    const real = viewable(raw, roots);
     if (!real) throw new Error(`${raw} is not a file in this project's folders, so it can't be attached.`);
     if (kindOf(real) !== 'image' || /\.gif$/i.test(real)) throw new Error(`${path.basename(real)} is not a PNG, JPEG or WebP image.`);
     const size = fs.statSync(real).size;
@@ -352,7 +354,7 @@ export function checkImages(platform: string, images: unknown): string[] {
   });
 }
 
-export async function draftPost({ platform = 'x', account, text, thread = null, images = null, replyTo = null, to = null, agentId = null, chatId = null, agentName = '', note = '', subreddit = '', title = '', link = '', parent = '' }: DraftInput): Promise<OutboxItem & { autoPosted?: boolean }> {
+export async function draftPost({ platform = 'x', account, text, thread = null, images = null, imageRoots, replyTo = null, to = null, agentId = null, chatId = null, agentName = '', note = '', subreddit = '', title = '', link = '', parent = '' }: DraftInput): Promise<OutboxItem & { autoPosted?: boolean }> {
   const team = agentId ? teamOf(agentId, chatId) : null;
   const teamFields = team ? { teamId: team.id, teamName: team.name } : {};
   // Reddit: a post (subreddit + title + text or link) or a comment (parent = post/comment id or URL)
@@ -380,7 +382,7 @@ export async function draftPost({ platform = 'x', account, text, thread = null, 
   }
   const parts = (thread && thread.length ? thread : [text]).map((t) => String(t || '').trim()).filter(Boolean);
   if (!parts.length) throw new Error('The post is empty.');
-  const imagePaths = checkImages(platform, images);
+  const imagePaths = checkImages(platform, images, imageRoots);
   let accountId: string | null = null;
   let accountLabel = platform;
   if (platform === 'x_dm') {

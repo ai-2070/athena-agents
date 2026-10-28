@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { callTool } from '../../server/tools.ts';
 import { insideRoots, realTarget } from '../../server/util.ts';
 import { listApprovals } from '../../server/approvals.ts';
+import { newAgent } from '../../server/library.ts';
 import type { ToolAgent } from '../../server/tools.ts';
 
 const linksWork = process.platform !== 'win32'; // links need admin rights on Windows
@@ -106,5 +107,25 @@ describe('realTarget() / insideRoots()', () => {
     const { base, workspace } = setup();
     fs.mkdirSync(path.join(base, 'workspace-2'));
     expect(insideRoots(path.join(base, 'workspace-2', 'x.txt'), [workspace])).toBeNull();
+  });
+});
+
+describe('X post images from an agent', () => {
+  it("only come from the folders that agent may read, not another agent's workspace", async () => {
+    const { base, workspace, agent } = setup();
+    const otherWs = path.join(base, 'other-workspace');
+    fs.mkdirSync(otherWs);
+    newAgent({ name: 'Other', workspace: otherWs });
+    const theirs = path.join(otherWs, 'render.png');
+    const mine = path.join(workspace, 'mine.png');
+    fs.writeFileSync(theirs, 'P');
+    fs.writeFileSync(mine, 'P');
+    const poster: ToolAgent = { ...agent, toolGroups: ['social'] };
+    const r = await callTool(poster, 'x_draft_post', { text: 'Look', images: [theirs] });
+    expect(r.isError).toBe(true);
+    expect(r.text).toMatch(/can't be attached/);
+    // its own image passes that check (and then stops at there being no X account here)
+    const own = await callTool(poster, 'x_draft_post', { text: 'Look', images: [mine] });
+    expect(own.text).not.toMatch(/can't be attached/);
   });
 });

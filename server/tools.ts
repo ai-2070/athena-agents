@@ -21,7 +21,7 @@ import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import { withActor } from './versions.ts';
 import { ensureBrain } from './projects.ts';
-import { uploadsRoot } from './uploads.ts';
+import { safeUploadsRoot } from './uploads.ts';
 import * as skills from './skills.ts';
 import { findAgent } from '../shared/agentref.ts';
 import * as voxel from './voxel/tools.ts';
@@ -114,7 +114,9 @@ export function workspaceOf(agent: { workspace?: string }): string {
 function allowedRoots(agent: ToolAgent, write = false): string[] {
   const s = getSettings();
   // attached files (the Brain folder's uploads/) can be read even by an agent with its own workspace
-  return [workspaceOf(agent), dataPath('outputs'), ...(write ? [] : [...kb.knowledgeRoots(agent), uploadsRoot()]), ...(s.allowedFolders || [])];
+  // (not when uploads/ is a link out of the Brain folder)
+  const uploads = write ? null : safeUploadsRoot();
+  return [workspaceOf(agent), dataPath('outputs'), ...(write ? [] : kb.knowledgeRoots(agent)), ...(uploads ? [uploads] : []), ...(s.allowedFolders || [])];
 }
 
 // abs: the path as asked (for messages). real: where it really is, links followed; use it for the file
@@ -583,7 +585,8 @@ const TOOLS: ToolDef[] = [
     run: async ({ source, id, folder, resolution, format }: { source: AssetSource; id: string; folder: string; resolution?: string; format?: string }, ctx) => {
       if (source !== 'polyhaven' && source !== 'ambientcg') throw new Error('source must be polyhaven or ambientcg.');
       if (!/^[\w-]+$/.test(String(id))) throw new Error('That is not an asset id.');
-      const dir = path.join(writableDir(ctx, folder), id);
+      // (the asset's own folder too: one already there could be a link out of the allowed folders)
+      const dir = writableDir(ctx, path.join(String(folder || '.'), id));
       ctx.progress?.(`Downloading ${id}…`);
       const files = await assetLib.downloadAsset(source, id, dir, { resolution, format, signal: ctx.signal });
       return { text: `Saved ${files.length} file${files.length === 1 ? '' : 's'} in ${dir}:\n${files.join('\n')}\nLicence: CC0 (free for any use, no credit needed). ${source === 'polyhaven' ? 'Powered by Poly Haven (polyhaven.com).' : 'From ambientCG (ambientcg.com).'}` };
@@ -723,7 +726,8 @@ const TOOLS: ToolDef[] = [
       },
     ),
     run: async ({ text, thread, images, account, reply_to, note }: { text?: string; thread?: string[]; images?: string[]; account?: string; reply_to?: string; note?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'x', text, thread, images, account, replyTo: reply_to, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
+      // images only from the folders this agent may read, not every agent's workspace
+      const r = await social.draftPost({ platform: 'x', text, thread, images, imageRoots: allowedRoots(ctx.agent), account, replyTo: reply_to, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: r.status === 'posted' ? `Posted: ${r.url}` : r.status === 'failed' ? `Auto-post failed: ${r.error}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },

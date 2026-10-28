@@ -1,5 +1,6 @@
 // The Brain's actions: parsing its ```actions block and carrying them out (teams, members, PROJECT.md, delegate).
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { applyActions, parseActions, withGoalTools } from '../../server/overseer.ts';
@@ -80,6 +81,46 @@ describe('applyActions()', () => {
     const hist = fs.readdirSync(path.join(dir, '.brain-history'));
     expect(hist.length).toBe(1);
     expect(fs.readFileSync(path.join(dir, '.brain-history', hist[0]), 'utf8')).toContain('First version');
+  });
+
+  // (junctions need no admin rights on Windows; elsewhere 'junction' makes a plain folder link)
+  it("doesn't keep the old PROJECT.md through a .brain-history link", () => {
+    const dir = ensureBrain(activeProject());
+    const outside = fs.mkdtempSync(path.join(os.homedir(), 'outside-history-'));
+    const hist = path.join(dir, '.brain-history');
+    fs.writeFileSync(path.join(dir, 'PROJECT.md'), '# Project\n\nThe brief so far.');
+    fs.rmSync(hist, { recursive: true, force: true });
+    fs.symlinkSync(outside, hist, 'junction');
+    try {
+      const r = applyActions([{ do: 'write_project_md', content: '# Project\n\nA new brief, long enough.' }]);
+      expect(r.done[0].kind).toBe('error');
+      expect(fs.readdirSync(outside)).toEqual([]);
+      expect(fs.readFileSync(path.join(dir, 'PROJECT.md'), 'utf8')).toContain('The brief so far');
+    } finally {
+      fs.rmSync(hist, { recursive: true, force: true });
+    }
+  });
+
+  it("doesn't write through a PROJECT.md that links elsewhere", (ctx) => {
+    const dir = ensureBrain(activeProject());
+    const outside = path.join(fs.mkdtempSync(path.join(os.homedir(), 'outside-brief-')), 'precious.md');
+    fs.writeFileSync(outside, 'keep me');
+    const file = path.join(dir, 'PROJECT.md');
+    fs.rmSync(file, { force: true });
+    try {
+      fs.symlinkSync(outside, file);
+    } catch (e) {
+      // file links need admin rights on Windows
+      if ((e as NodeJS.ErrnoException).code === 'EPERM') return ctx.skip();
+      throw e;
+    }
+    try {
+      const r = applyActions([{ do: 'write_project_md', content: '# Project\n\nA new brief, long enough.' }]);
+      expect(r.done[0].kind).toBe('error');
+      expect(fs.readFileSync(outside, 'utf8')).toBe('keep me');
+    } finally {
+      fs.rmSync(file, { force: true });
+    }
   });
 
   it('ignores a PROJECT.md that is (almost) empty', () => {

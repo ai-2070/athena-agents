@@ -7,7 +7,7 @@ import { getSecrets } from '../store.ts';
 import { claudeMcpConfig } from '../mcp.ts';
 import { workspaceOf } from '../tools.ts';
 import { knowledgeRoots } from '../knowledge.ts';
-import { uploadsRoot } from '../uploads.ts';
+import { safeUploadsRoot } from '../uploads.ts';
 import { effortFor } from '../../shared/effort.ts';
 import type { Agent, Chat, EngineStatus } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
@@ -140,9 +140,9 @@ export function claudeArgs(agent: Agent, { promptFile, mcpFile, interactive = fa
 // Attached files live in the Brain folder's uploads/: an agent with its own workspace needs it added.
 // A resumed session doesn't keep --add-dir, so a file attached earlier in the chat counts too.
 export function uploadsDirArgs(agent: Agent, chat: Pick<Chat, 'items'>, attachments: string[] = []): string[] {
-  const uploads = uploadsRoot();
+  const uploads = safeUploadsRoot();
   const hadFiles = attachments.length > 0 || chat.items.some((i) => i.type === 'user' && !!i.attachments?.length);
-  return hadFiles && !isInside(workspaceOf(agent), uploads) ? ['--add-dir', uploads] : [];
+  return uploads && hadFiles && !isInside(workspaceOf(agent), uploads) ? ['--add-dir', uploads] : [];
 }
 
 export async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId, attachments }: EngineRunArgs): Promise<EngineResult> {

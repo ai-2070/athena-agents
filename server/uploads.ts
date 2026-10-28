@@ -29,12 +29,27 @@ class UploadError extends Error {
 
 export const uploadsRoot = (p?: Project): string => path.join(ensureBrain(p), 'uploads');
 
+// uploads/ only while it really is a folder in the Brain folder: a crafted project could make it a link
+// to anywhere on the PC, and agents may read everything under it. Null when it points out.
+export function safeUploadsRoot(p?: Project): string | null {
+  const brain = ensureBrain(p);
+  const root = path.join(brain, 'uploads');
+  const r = realTarget(brain);
+  const q = realTarget(root);
+  return r && q && isInside(r, q) ? root : null;
+}
+const checkedRoot = (): string => {
+  const root = safeUploadsRoot();
+  if (!root) throw new UploadError(400, "The project's uploads folder is a link out of its Brain folder, so it isn't used.");
+  return root;
+};
+
 // A new folder for one drop: uploads/2026-10-26_143012-ab12
 export function newBatch(): { batch: string; dir: string } {
   const d = new Date();
   const two = (n: number) => String(n).padStart(2, '0');
   const batch = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}_${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}-${crypto.randomBytes(2).toString('hex')}`;
-  const root = uploadsRoot();
+  const root = checkedRoot();
   const dir = ensureDir(path.join(root, batch));
   // a Git project: keep dropped files out of commits (an agent's `git add -A` would take them all)
   const ignore = path.join(root, '.gitignore');
@@ -80,8 +95,9 @@ export function reserveName(file: string): string {
 // Save one file of a batch from the raw request body (streamed, never held in memory).
 export async function receive(req: http.IncomingMessage, batch: string, rel: string): Promise<UploadedFile> {
   if (!/^[\w-]{1,64}$/.test(batch)) throw new UploadError(400, 'Bad upload batch.');
-  const dir = path.join(uploadsRoot(), batch);
-  if (!exists(dir) || !inside(uploadsRoot(), dir)) throw new UploadError(400, 'That upload batch is gone. Attach the files again.');
+  const root = checkedRoot();
+  const dir = path.join(root, batch);
+  if (!exists(dir) || !inside(root, dir)) throw new UploadError(400, 'That upload batch is gone. Attach the files again.');
   const parts = safeParts(rel);
   if (!parts.length) throw new UploadError(400, 'The file needs a name.');
   if (parts.length > MAX_DEPTH) throw new UploadError(400, 'That folder is nested too deep.');
@@ -89,7 +105,7 @@ export async function receive(req: http.IncomingMessage, batch: string, rel: str
   if (declared > MAX_FILE_BYTES) throw new UploadError(413, `${parts[parts.length - 1]} is over ${MAX_FILE_BYTES / 1024 / 1024} MB.`);
   ensureDir(path.dirname(path.join(dir, ...parts)));
   // a folder in the path that is a link out of uploads/
-  if (!inside(uploadsRoot(), path.dirname(path.join(dir, ...parts)))) throw new UploadError(400, 'Bad upload path.');
+  if (!inside(root, path.dirname(path.join(dir, ...parts)))) throw new UploadError(400, 'Bad upload path.');
   const target = reserveName(path.join(dir, ...parts));
   const tmp = `${target}.${crypto.randomBytes(3).toString('hex')}.part`;
   let size = 0;
@@ -124,8 +140,8 @@ const inside = (root: string, p: string) => {
 // The attachments a request names, keeping only uploads of this project that still exist.
 // Folders end with a separator.
 export function cleanAttachments(list: unknown): string[] {
-  if (!Array.isArray(list)) return [];
-  const root = uploadsRoot();
+  const root = safeUploadsRoot();
+  if (!Array.isArray(list) || !root) return [];
   const out = new Set<string>();
   for (const x of list) {
     if (typeof x !== 'string' || !x) continue;
@@ -138,7 +154,7 @@ export function cleanAttachments(list: unknown): string[] {
 
 // Take back something you attached (✕ on its chip): only inside uploads/.
 export function removeUpload(p: string): boolean {
-  const root = uploadsRoot();
+  const root = checkedRoot();
   const abs = path.resolve(String(p || ''));
   if (!inside(root, abs)) throw new UploadError(403, 'Only uploaded files can be removed.');
   if (!exists(abs)) return false;
