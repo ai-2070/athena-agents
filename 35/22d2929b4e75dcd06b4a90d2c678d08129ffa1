@@ -1,0 +1,28 @@
+server/irc.ts
+  s_4f53eccb4f7bb2::t_6f8b5daf9503e8 269-273
+  s_4f53eccb4f7bb2::t_f28f6ae236ee98 46-51
+  s_4f53eccb4f7bb2::t_c63cc1e456e630 148,151,156
+  s_4f53eccb4f7bb2::t_c23b91c5e686f8 300,302-306,310
+server/commands.ts
+  s_4f53eccb4f7bb2::t_80ca052c3cd322 103,105
+  s_4f53eccb4f7bb2::t_afd4e4a66306e3 104
+tests/server/irc.test.ts
+  s_4f53eccb4f7bb2::t_b4013de809d7e5 9-11
+  s_4f53eccb4f7bb2::t_8d0cddb6a5de6e 201-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3522d2929b4e75dcd06b4a90d2c678d08129ffa1",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
