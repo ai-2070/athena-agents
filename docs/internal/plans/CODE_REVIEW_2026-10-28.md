@@ -1084,3 +1084,20 @@ Every finding above marked **runtime-reproduced** was exercised against the real
 - **Findings 99–102:** ordinary `build`/`place`/`stamp`/`import` calls and one undo, all under the small default limits; no expansion payload was run.
 
 The tools were left in place and the fixture data removed; no credentials, accounts, external network or real user data were touched. Findings 103–116 are source-established only and are marked as such.
+
+## Fixes
+
+All 116 findings were checked against the source again and fixed on branch `LZL0/code-review-2`; none turned out invalid. Each group is one merge commit (`Merge review fixes: …`) holding its own smaller commits, which name the findings they cover. After the merges `bun run check` passed (170 test files, 1,390 tests, 21 skipped) and `bun run build` passed; the Rust code passed `cargo fmt --check`, `clippy -D warnings` and `cargo test`.
+
+Choices worth knowing:
+
+- **1:** agent fetches refuse any address that reaches this PC on the dashboard's port (redirects and DNS answers included). GET `/api/mcp` shows secrets as dots; saving a server with dots keeps its real values. "Copy MCP config" reads the real config from POST `/api/mcp-bridge`.
+- **12, 14, 48:** new work limits: 20M voxel spots looked at per build call, 1M voxels / 200,000 visits per `.vox` scene, 20,000 drawn copies per object or prefab (`WORLD_LIMITS.drawn`), 200,000 nodes per `.glb`. A very large build (a hollow sphere above a radius of about 135 voxels) can now be refused.
+- **19:** project editors redraw on a project switch, and every change the page sends carries the project it shows (`x-dash-project`); the server refuses it with 409 once another project is open (project routes are exempt).
+- **30:** a fresh profile first loads the saved `.dashboard` copy in "My workspace" instead of saving over it; the smoke script uses a throwaway HOME.
+- **33:** a team turn that would start while another project is open is held for `/resume` instead of running in the wrong project.
+- **44:** for API-model agents an MCP tool is low risk only when it declares `readOnlyHint: true`. Claude Code agents still pre-allow their assigned MCP servers on Auto and Full.
+- **62:** questions carry no id in the tool call, so cards match by text plus the agent and chat they sit in.
+- **84:** saving a WORLD.md draft after the world changed is refused and the text kept, rather than discarded.
+- **90:** clones and backup restores drop external CLI sessions and reseed from the visible chat; restoring a project folder keeps them, as before.
+- **94:** each new MCP account copy gets its own login folder (`dashboard-<name>-<random>`) that survives rename; existing copies keep theirs.
