@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { connectEvents, state } from '../../web/core.ts';
-import { initDock } from '../../web/dock.tsx';
+import { initDock, savedAnswer } from '../../web/dock.tsx';
 import type { AppState } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -174,5 +174,23 @@ describe('the Brain chat', () => {
     await act(async () => void last.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true })));
     await settle();
     expect(texts()).toEqual(['second, changed', 'first']);
+  });
+});
+
+describe('a reopened Brain chat', () => {
+  it('shows what the Brain did as actions, not as lines of its answer', () => {
+    const done = [{ kind: 'skill' as const, text: 'Made the skill "Finish the job"', skillId: 'finish-the-job' }];
+    expect(savedAnswer({ role: 'brain', text: 'I made it.', ts: 1, done })).toEqual({ answer: 'I made it.', done, delegate: undefined });
+    const steps = [{ id: 't1', name: 'Read', input: { file_path: 'README.md' }, state: 'done' as const, output: 'hello' }];
+    expect(savedAnswer({ role: 'brain', text: 'It says hello.', ts: 2, steps })).toMatchObject({ answer: 'It says hello.', done: [], steps });
+  });
+
+  it('splits the "(…)" lines off answers saved before actions were kept apart', () => {
+    const r = savedAnswer({ role: 'brain', text: 'I made it.\n(Made the skill "Finish the job")\n(Updated "Code Review Team": access)\n(handed to Web Team: Build it.)', ts: 1 });
+    expect(r.answer).toBe('I made it.');
+    expect(r.done.map((d) => d.text)).toEqual(['Made the skill "Finish the job"', 'Updated "Code Review Team": access']);
+    expect(r.delegate?.name).toBe('Web Team');
+    // a whole answer in brackets stays the answer
+    expect(savedAnswer({ role: 'brain', text: '(stopped before answering: the user sent a new message)', ts: 1 })).toMatchObject({ answer: '(stopped before answering: the user sent a new message)', done: [] });
   });
 });

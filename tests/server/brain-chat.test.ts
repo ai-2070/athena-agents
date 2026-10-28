@@ -2,15 +2,19 @@
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { activeProject, bus, listProjects, saveProjects, setActiveProject, workflows } from '../../server/store.ts';
-import { ask, clearHistory, history, steerAsks } from '../../server/overseer.ts';
+import { ask, brainChatLine, clearHistory, history, steerAsks } from '../../server/overseer.ts';
 import type { ServerEvent } from '../../shared/types.ts';
 
-// the "model" answers only when the test says so
+// the "model" answers only when the test says so (and tells what it does as it thinks through thinking's onPart)
 const pending: ((text: string) => void)[] = [];
+const thinking: (((p: unknown) => void) | undefined)[] = [];
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', fallback: false }),
-  think: () => new Promise<string>((resolve) => pending.push(resolve)),
+  think: (_system: string, _prompt: string, opts?: { onPart?: (p: unknown) => void }) => {
+    thinking.push(opts?.onPart);
+    return new Promise<string>((resolve) => pending.push(resolve));
+  },
 }));
 // handing work on waits while the test holds it (an answer past the point where it could be stopped)
 const briefs: (() => void)[] = [];
@@ -36,6 +40,38 @@ const answerNext = async (text: string) => {
 };
 
 describe('the Brain chat', () => {
+  it('keeps the files it read with its answer, so a reopened chat shows them', async () => {
+    const pid = activeProject().id;
+    clearHistory(pid);
+    const going = ask('what does the readme say?');
+    await until(() => pending.length > 0);
+    const tell = thinking.at(-1)!;
+    tell({ kind: 'tool', id: 't1', name: 'Read', args: { file_path: 'README.md' } });
+    tell({ kind: 'tool_result', id: 't1', text: 'x'.repeat(5000) });
+    tell({ kind: 'tool', id: 't2', name: 'Glob', args: { pattern: '*.md' } });
+    pending.shift()!('It says hello.');
+    await going;
+    const saved = history(pid)[1];
+    expect(saved.text).toBe('It says hello.');
+    expect(saved.steps).toEqual([
+      { id: 't1', name: 'Read', input: { file_path: 'README.md' }, state: 'done', output: expect.stringMatching(/^x{2000}…$/) },
+      // (no result came: not shown as still running)
+      { id: 't2', name: 'Glob', input: { pattern: '*.md' }, state: 'error', output: '(no result)' },
+    ]);
+    clearHistory(pid);
+  });
+
+  it('keeps where it handed the work, so a reopened chat follows it again', async () => {
+    const pid = activeProject().id;
+    clearHistory(pid);
+    const going = ask('get a review going');
+    await answerNext('On it.\n```actions\n[{"do":"create_team","name":"Review crew","members":[{"new":{"name":"Reviewer"}}]},{"do":"delegate","to":"team","id":"new","message":"Review the app."}]\n```');
+    await going;
+    const saved = history(pid)[1];
+    expect(saved.delegate).toMatchObject({ kind: 'branch', name: 'Review crew', sent: { messageId: expect.any(String), ts: expect.any(Number) } });
+    clearHistory(pid);
+  });
+
   it('a late answer does not bring back a conversation you cleared, or change anything', async () => {
     const pid = activeProject().id;
     const first = ask('old-question-sentinel');
@@ -88,7 +124,12 @@ describe('the Brain chat', () => {
       expect(r.delegate).toMatchObject({ kind: 'branch', name: 'Launch crew' });
       // its question once, with its own answer (no "stopped before answering" next to it)
       expect(history(pid).map((m) => m.role)).toEqual(['user', 'brain']);
-      expect(history(pid)[1].text).toContain('Done');
+      // what it did is kept apart from what it said (a reopened chat shows it as actions), and read back to it as before
+      const saved = history(pid)[1];
+      expect(saved.text).toBe('Done');
+      expect(saved.done?.map((d) => d.kind)).toEqual(['hired', 'team']);
+      expect(saved.delegate).toMatchObject({ kind: 'branch', name: 'Launch crew', message: 'Plan the launch.' });
+      expect(brainChatLine(saved)).toMatch(/^Done\n\(Created a new agent: .*Launcher\)\n\(Built the team "Launch crew".*\)\n\(handed to Launch crew: Plan the launch\.\)$/);
       expect(late).toEqual([expect.objectContaining({ projectId: pid, answer: expect.objectContaining({ delegate: expect.objectContaining({ name: 'Launch crew' }) }) })]);
     } finally {
       holdBriefs = false;

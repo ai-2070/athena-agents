@@ -218,9 +218,9 @@ async function review(project: Project, batch: FinishedWork[]): Promise<ReviewRe
   const changed = done.filter((d) => d.kind !== 'error' && d.kind !== 'note');
   if (!changed.length && !answer) return null;
   const who = [...new Set(batch.map((w) => w.agentName))].join(', ');
-  const text = [`**Learned from ${who}'s work.** ${answer}`.trim(), ...changed.map((d) => `(${d.text})`)].join('\n');
-  addBrainNote(project.id, text);
-  emit('brain-learned', { projectId: project.id, answer: `**Learned from ${who}'s work.** ${answer}`.trim(), done: changed });
+  const text = `**Learned from ${who}'s work.** ${answer}`.trim();
+  addBrainNote(project.id, text, changed);
+  emit('brain-learned', { projectId: project.id, answer: text, done: changed });
   return { answer, done: changed };
 }
 

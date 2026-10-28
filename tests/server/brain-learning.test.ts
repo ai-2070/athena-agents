@@ -105,7 +105,8 @@ describe('learning from finished work', () => {
     const last = history().at(-1)!;
     expect(last.role).toBe('brain');
     expect(last.text).toContain("Learned from Renderer's work");
-    expect(last.text).toContain('(Made the skill "Product render")');
+    expect(last.text).not.toContain('(Made the skill');
+    expect(last.done?.map((d) => d.text)).toEqual(['Made the skill "Product render"', 'Gave "Product render" to Renderer']);
   });
 
   it('says nothing when there is nothing to keep', async () => {
