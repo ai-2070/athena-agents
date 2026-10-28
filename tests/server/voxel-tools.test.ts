@@ -86,6 +86,17 @@ describe('world tools', () => {
     expect((await callTool(kenji, 'world_md_write', { content: '# New\n\nAll new.' })).text).toMatch(/Saved WORLD.md/);
   });
 
+  it("a section edit doesn't count as reading the whole of WORLD.md", async () => {
+    const sol = newAgent({ name: 'Sol', toolGroups: ['world'], autonomy: 'auto' });
+    await callTool(mira, 'world_md_section', { section: 'Places › Grove', content: 'Old trees.' });
+    expect((await callTool(sol, 'world_md_section', { section: 'Story so far', content: '- a walk', append: true })).isError).toBe(false);
+    expect((await callTool(sol, 'world_md_write', { content: '# Mine\n\nOnly mine.' })).text).toMatch(/Read WORLD.md with world_md_read first/);
+    // after a read, its own section edits keep it up to date
+    await callTool(sol, 'world_md_read', {});
+    await callTool(sol, 'world_md_section', { section: 'Story so far', content: '- a swim', append: true });
+    expect((await callTool(sol, 'world_md_write', { content: '# New\n\nAll new.' })).text).toMatch(/Saved WORLD.md/);
+  });
+
   it("builders get WORLD.md in their instructions; others don't", () => {
     expect(buildSystemPrompt(mira)).toMatch(/# The voxel world: .*\n[\s\S]*<world-md>\n# New/);
     expect(buildSystemPrompt(newAgent({ name: 'Plain', toolGroups: [] }))).not.toMatch(/voxel world/);

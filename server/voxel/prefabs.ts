@@ -11,9 +11,9 @@ import { stockMaterial } from './materials.ts';
 import { newVolume } from '../../shared/voxel.ts';
 import { readObject, readPrefab, saveWorld, writeObject, writePrefab, worldVoxels } from './store.ts';
 import { changeWorld, shownWorld } from './link.ts';
-import { skinUses } from './characters.ts';
-import { WORLD_LIMITS, cleanPivot, findObject, findPrefab, pivotOf as pivotFrom, placedCopies, prefabSize, remember, volumesMeta } from './build.ts';
-import type { PrefabInstance, Vec3, VoxelMaterial, VoxelObjectData, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
+import { ANIM_LIMITS, cleanClip, skinUses } from './characters.ts';
+import { WORLD_LIMITS, cleanPivot, findObject, findPrefab, nesting, pivotOf as pivotFrom, placedCopies, prefabSize, remember, volumesMeta } from './build.ts';
+import type { AnimationClip, PrefabInstance, Vec3, VoxelMaterial, VoxelObjectData, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
 
 const bad = (msg: string, status = 400) => Object.assign(new Error(msg), { status });
 const fmt = (n: number) => n.toLocaleString('en-US');
@@ -125,6 +125,12 @@ function savePrefabFromIn(w: VoxelWorld, req: SaveFrom): { prefab: VoxelPrefabMe
   const meta: VoxelPrefabMeta = { id: uid('p'), name, description: String(req.description ?? '').slice(0, 300), tags: Array.isArray(req.tags) ? req.tags.map((t) => String(t).toLowerCase()).slice(0, 12) : [], by: req.by, volumes: volumesMeta(taken), instances: instances.length || undefined, pivot: [0, 0, 0], size: [0, 0, 0], createdAt: Date.now(), updatedAt: Date.now(), voxelsAt: Date.now() };
   if (!count(meta) && !instances.length) throw bad('Nothing of that object is inside the box.');
   if (count(meta) > WORLD_LIMITS.prefabVoxels) throw bad(`a prefab can hold ${fmt(WORLD_LIMITS.prefabVoxels)} voxels; that part has ${fmt(count(meta))}.`);
+  // kept in the object too, the part's voxels count twice
+  if (!req.replace && worldVoxels(w) + count(meta) > WORLD_LIMITS.voxels) throw bad(`The world has no room for ${fmt(count(meta))} more voxels (it holds ${fmt(WORLD_LIMITS.voxels)}). Use "replace" to turn that part into a copy instead.`);
+  // the copies it takes in nest one level deeper inside it, as deep as placing them in a prefab may go
+  const memo = new Map<string, { holds: boolean; depth: number }>();
+  const deepest = Math.max(-1, ...[...new Set(instances.map((i) => i.prefab))].map((id) => nesting(w, id, null, memo).depth));
+  if (deepest + 1 >= WORLD_LIMITS.nesting) throw bad(`The copies in that part already nest ${deepest + 1} deep; prefabs nest at most ${WORLD_LIMITS.nesting} deep, so they can't go inside a new prefab. Stamp some of them into voxels first.`);
   pivotOf(meta);
   writePrefab(w.id, meta.id, { ...saveGrids(taken), ...(instances.length ? { instances } : {}) });
   w.prefabs.push(meta);
@@ -212,7 +218,32 @@ export interface LibraryPrefab {
   voxels: number;
   palette: VoxelMaterial[];
   data: VoxelObjectData;
+  /** the point copies stand on and turn around, as its builder chose it (missing: bottom centre) */
+  pivotAt?: VoxelPrefabMeta['pivotAt'];
+  animations?: Record<string, AnimationClip>;
   createdAt: number;
+}
+
+/** A library entry's pivot and animations, checked (anything damaged is left out). */
+function libraryLook(e: Partial<LibraryPrefab>): Pick<LibraryPrefab, 'pivotAt' | 'animations'> {
+  const out: Pick<LibraryPrefab, 'pivotAt' | 'animations'> = {};
+  if (e.pivotAt !== undefined)
+    try {
+      out.pivotAt = cleanPivot(e.pivotAt);
+    } catch {
+      /* the default pivot */
+    }
+  if (e.animations && typeof e.animations === 'object' && !Array.isArray(e.animations)) {
+    const clips: Record<string, AnimationClip> = {};
+    for (const [name, clip] of Object.entries(e.animations).slice(0, ANIM_LIMITS.clips))
+      try {
+        if (clip && typeof clip === 'object') clips[name.slice(0, 40)] = cleanClip(clip as unknown as Record<string, unknown>);
+      } catch {
+        /* left out */
+      }
+    if (Object.keys(clips).length) out.animations = clips;
+  }
+  return out;
 }
 const LIB_ID = /^[\w-]{1,64}$/;
 const libDir = () => dataPath('prefab-library');
@@ -257,6 +288,7 @@ export function putLibraryEntry(raw: unknown): 'added' | 'same' | null {
     voxels: Number(e.voxels) || 0,
     palette,
     data: { volumes: e.data.volumes },
+    ...libraryLook(e),
     createdAt: Number(e.createdAt) || Date.now(),
   };
   writeJSON(libFile(entry.id), entry);
@@ -302,7 +334,7 @@ export function publishPrefab(req: { by: WorldBuilder; prefab: string; project?:
   const map = new Map(order.map((v, i) => [v, i + 1]));
   // the same name again replaces that entry
   const existing = library().find((x) => x.name.toLowerCase() === p.name.toLowerCase());
-  const entry: LibraryPrefab = { id: existing?.id || uid('lp'), name: p.name, description: p.description, tags: p.tags, by: req.by.name, fromWorld: w.name, size: p.size, voxels: count(p), palette, data: remap(data, map), createdAt: Date.now() };
+  const entry: LibraryPrefab = { id: existing?.id || uid('lp'), name: p.name, description: p.description, tags: p.tags, by: req.by.name, fromWorld: w.name, size: p.size, voxels: count(p), palette, data: remap(data, map), ...(p.pivotAt !== undefined ? { pivotAt: p.pivotAt } : {}), ...(p.animations && Object.keys(p.animations).length ? { animations: structuredClone(p.animations) } : {}), createdAt: Date.now() };
   writeJSON(libFile(entry.id), entry);
   return `${existing ? 'Updated' : 'Published'} "${p.name}" in the prefab library: every world can take it now (world_prefab action "import").`;
 }
@@ -332,7 +364,7 @@ function importPrefabIn(w: VoxelWorld, req: { by: WorldBuilder; name: string; as
   });
   const data = remap(lib.data, map);
   const name = uniqueName(w, String(req.as ?? '').trim() || lib.name);
-  const meta: VoxelPrefabMeta = { id: uid('p'), name, description: lib.description, tags: lib.tags, by: req.by, volumes: volumesMeta(loadGrids(data)), pivot: [0, 0, 0], size: [0, 0, 0], createdAt: Date.now(), updatedAt: Date.now(), voxelsAt: Date.now() };
+  const meta: VoxelPrefabMeta = { id: uid('p'), name, description: lib.description, tags: lib.tags, by: req.by, volumes: volumesMeta(loadGrids(data)), pivot: [0, 0, 0], size: [0, 0, 0], ...libraryLook(lib), createdAt: Date.now(), updatedAt: Date.now(), voxelsAt: Date.now() };
   pivotOf(meta);
   writePrefab(w.id, meta.id, data);
   w.prefabs.push(meta);
