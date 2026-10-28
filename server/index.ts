@@ -13,7 +13,7 @@ import { listApprovals, decide, requestApproval, setReviewer } from './approvals
 import * as engines from './engines/index.ts';
 import { PROVIDERS, listModels } from './engines/openai.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
-import { CODEX_MODELS } from './models.ts';
+import { codexModelList } from './models.ts';
 import { listProfiles } from './engines/hermes.ts';
 import * as codexEngine from './engines/codex.ts';
 import * as piEngine from './engines/pi.ts';
@@ -748,7 +748,7 @@ post<{ source?: string; slug: string; profile: string; name: string; overrides?:
 get('/api/models', async (_p, _b, q) => {
   if (q.engine === 'claude-code') return CLAUDE_MODELS;
   if (q.engine === 'hermes') return [];
-  if (q.engine === 'codex') return CODEX_MODELS;
+  if (q.engine === 'codex') return codexModelList();
   if (q.engine === 'pi' || q.engine === 'omp') return piEngine.listModels(q.engine).catch(() => []);
   if (q.engine === 'openclaw') return openclawEngine.listModels().catch(() => []);
   return listModels(q.provider || 'openrouter');

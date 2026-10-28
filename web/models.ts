@@ -37,13 +37,15 @@ export interface ModelInfo {
   brand: string | null;
   where: string;
 }
-/** One entry of GET /api/models?engine=openai. */
+/** One entry of GET /api/models (engine=openai, codex, pi…). */
 export interface ModelListing {
   id: string;
   name?: string;
   context?: number | null;
   tools?: boolean;
   price?: { in: number; out: number } | null;
+  /** Codex: what the model is for */
+  description?: string;
 }
 /** A picker tab: an engine, Favorites, or LM Studio (API models on this PC, with a tab of their own). */
 type PickerTab = EngineId | 'fav' | 'lmstudio';
@@ -64,7 +66,8 @@ const CLAUDE = [
   { id: 'claude-fable-5-1', alias: 'fable', family: 'Fable', version: '5.1', note: 'creative writing' },
 ];
 const OPENROUTER_PICKS = ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5', 'anthropic/claude-haiku-5.5'];
-const CODEX_PICKS = [{ id: 'gpt-6-astra', note: 'OpenAI flagship' }];
+// shown when the server can't be reached; normally Codex's own list comes from GET /models?engine=codex
+const CODEX_PICKS: ModelListing[] = [{ id: 'gpt-6-astra', name: 'GPT-6-Astra', description: 'Frontier intelligence for the most demanding work.' }];
 
 const TABS: ModelTab[] = [
   { engine: 'claude-code', label: 'Claude', brand: 'claude' },
@@ -415,8 +418,17 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
       if (!cx.installed) items.push(missing('Codex is not installed yet.', 'OpenAI Codex'));
       else if (!cx.loggedIn) items.push(missing('Codex is installed but not signed in.', 'OpenAI Codex'));
       items.push(h('div.st-menu-head', 'OpenAI Codex · your ChatGPT login'), row("Codex's default model", 'whatever Codex picks', same('codex', ''), { engine: 'codex', model: '' }, 'openai'));
-      for (const c of CODEX_PICKS) items.push(row(c.id, c.note, same('codex', c.id), { engine: 'codex', model: c.id }, 'openai'));
-      items.push(free('or type a model id and press Enter', (m) => ({ engine: 'codex', model: m })));
+      const list = h('div.model-list', h('div.model-sub', { class: 'px-2.5 py-1' }, 'Looking for models…'));
+      const fillCodex = (ms: ModelListing[]) =>
+        mount(
+          list,
+          ms.filter((m) => m.id).map((m) => row(m.name || m.id, m.description ? `${m.id} · ${m.description}` : m.id, same('codex', m.id), { engine: 'codex', model: m.id }, 'openai')),
+        );
+      items.push(list, free('or type a model id and press Enter', (m) => ({ engine: 'codex', model: m })));
+      GET<ModelListing[]>('/models?engine=codex').then(
+        (ms) => fillCodex(ms.some((m) => m.id) ? ms : CODEX_PICKS),
+        () => fillCodex(CODEX_PICKS),
+      );
     }
     mount(body, items);
   };

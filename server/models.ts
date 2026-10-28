@@ -7,6 +7,7 @@ import { listModels } from './engines/openai.ts';
 import { listProfiles } from './engines/hermes.ts';
 import { listModels as piModels } from './engines/pi.ts';
 import { listModels as openclawModels } from './engines/openclaw.ts';
+import { listModels as codexModels } from './engines/codex.ts';
 import type { Agent, EngineId, ProviderId } from '../shared/types.ts';
 
 export type ModelProvider = 'claude' | 'openrouter' | 'lmstudio' | 'ollama' | 'custom' | 'codex' | 'hermes' | 'pi' | 'omp' | 'openclaw';
@@ -35,10 +36,10 @@ export const PROVIDER_IDS = Object.keys(MODEL_PROVIDERS) as ModelProvider[];
 // CLIs that pick a model themselves when none is named, and take any id they know (no fixed list to check against)
 const OWN_DEFAULT = new Set<ModelProvider>(['codex', 'hermes', 'pi', 'omp', 'openclaw']);
 
-export const CODEX_MODELS: { id: string; name: string }[] = [
-  { id: '', name: "Codex's default model" },
-  { id: 'gpt-6-astra', name: 'GPT-6 Astra' },
-];
+/** Codex's models for the picker: its default first, then the ones Codex lists. */
+export async function codexModelList(): Promise<{ id: string; name: string; description?: string }[]> {
+  return [{ id: '', name: "Codex's default model" }, ...(await codexModels())];
+}
 
 const ALIASES: Record<string, ModelProvider> = {
   'claude-code': 'claude',
@@ -107,14 +108,14 @@ const cacheKey = (p: ModelProvider) => {
 };
 export const clearModelCache = (): void => cache.clear();
 
-/** Every model a provider has. [] when it can't be listed (not set up, server not running, Codex). */
+/** Every model a provider has. [] when it can't be listed (not set up, server not running). */
 export async function availableModels(p: ModelProvider): Promise<FoundModel[]> {
   const key = cacheKey(p);
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.list;
   let list: FoundModel[] = [];
   if (p === 'claude') list = CLAUDE_MODELS.map((m) => ({ id: m.id, name: m.name }));
-  else if (p === 'codex') list = CODEX_MODELS.filter((m) => m.id).map((m) => ({ id: m.id, name: m.name }));
+  else if (p === 'codex') list = (await codexModels().catch(() => [])).map((m) => ({ id: m.id, name: m.name, ...(m.description ? { note: m.description } : {}) }));
   else if (p === 'hermes') {
     const seen = new Set<string>();
     for (const pr of await listProfiles().catch(() => [])) {

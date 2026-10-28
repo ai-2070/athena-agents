@@ -2,7 +2,7 @@
 // resuming the same Codex thread so the conversation continues. The dashboard tools come in as an MCP server.
 import fs from 'node:fs';
 import path from 'node:path';
-import { which, spawnCommand, killTree, run as runCmd, BRIDGE_SCRIPT, PORT, dataPath, ensureDir } from '../util.ts';
+import { which, spawnCommand, killTree, run as runCmd, BRIDGE_SCRIPT, PORT, HOME, dataPath, ensureDir } from '../util.ts';
 import { internalToken, emit } from '../store.ts';
 import { listServers } from '../mcp.ts';
 import { workspaceOf } from '../tools.ts';
@@ -83,6 +83,56 @@ export async function checkedStatus(): Promise<CodexStatus & { path: string | nu
   return status();
 }
 export const refreshStatus = () => (statusCache.at = 0);
+
+// ---------- models ----------
+export interface CodexModel {
+  id: string;
+  name: string;
+  description?: string;
+}
+// Used when Codex can't say what it has (not installed, or too old for `codex debug models`).
+export const FALLBACK_MODELS: CodexModel[] = [{ id: 'gpt-6-astra', name: 'GPT-6-Astra', description: 'Frontier intelligence for the most demanding work.' }];
+
+/** The models in Codex's catalog (what `codex debug models` prints, or its models_cache.json), in Codex's own order.
+ *  Hidden ones (internal helpers like the auto-review model) are left out. */
+export function parseModels(text: string): CodexModel[] {
+  let j: unknown;
+  try {
+    j = JSON.parse(text.slice(Math.max(0, text.indexOf('{'))));
+  } catch {
+    return [];
+  }
+  const rows = j && typeof j === 'object' && Array.isArray((j as { models?: unknown }).models) ? ((j as { models: unknown[] }).models as Record<string, unknown>[]) : [];
+  return rows
+    .filter((m) => m && typeof m === 'object' && typeof m.slug === 'string' && m.slug && m.visibility !== 'hide')
+    .map((m, i) => ({ m, i, p: typeof m.priority === 'number' ? m.priority : Infinity }))
+    .sort((a, b) => a.p - b.p || a.i - b.i)
+    .map(({ m }) => ({
+      id: String(m.slug),
+      name: typeof m.display_name === 'string' && m.display_name ? m.display_name : String(m.slug),
+      ...(typeof m.description === 'string' && m.description ? { description: m.description } : {}),
+    }));
+}
+
+let modelsCache: { at: number; list: CodexModel[] } = { at: 0, list: [] };
+/** The models Codex can use with this login, newest first. Falls back to a short built-in list. */
+export async function listModels(): Promise<CodexModel[]> {
+  if (modelsCache.list.length && Date.now() - modelsCache.at < 5 * 60_000) return modelsCache.list;
+  let list: CodexModel[] = [];
+  if (which('codex')) list = parseModels((await runCmd('codex', ['debug', 'models'], { timeout: 30000, maxBytes: 20_000_000 }).catch(() => ({ stdout: '' }))).stdout);
+  if (!list.length) {
+    // an older Codex without `debug models` still keeps the catalog it fetched
+    const file = path.join(process.env.CODEX_HOME || path.join(HOME, '.codex'), 'models_cache.json');
+    try {
+      list = parseModels(fs.readFileSync(file, 'utf8'));
+    } catch {
+      /* no cache */
+    }
+  }
+  if (list.length) modelsCache = { at: Date.now(), list };
+  return list.length ? list : FALLBACK_MODELS;
+}
+export const clearModelsCache = (): void => void (modelsCache = { at: 0, list: [] });
 
 // TOML values for -c overrides (Codex parses the value part as TOML).
 const tstr = (s: unknown): string => JSON.stringify(String(s).replace(/\\/g, '/'));
