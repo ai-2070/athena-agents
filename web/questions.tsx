@@ -72,14 +72,22 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
         {inChat ? <span className="hint">Also in your Outbox</span> : <b>{q.agentName || 'An agent'}</b>}
         {inChat ? null : <span className="hint">{`${q.teamName ? `team ${q.teamName} · ` : ''}${ago(q.createdAt)}`}</span>}
       </div>
-      <p className="text-[15px] font-semibold whitespace-pre-wrap">{q.question}</p>
+      <p className="text-[15px] leading-relaxed font-semibold whitespace-pre-wrap wrap-anywhere">{q.question}</p>
       {q.detail ? <DomNode className="hint [&>:first-child>:first-child]:mt-0 [&>:first-child>:last-child]:mb-0" make={() => md(q.detail)} deps={[q.detail]} /> : null}
       {waiting ? (
         <>
           {q.choices.length ? (
-            <div className="flex flex-wrap items-center gap-2">
+            // one row per choice: they are often whole sentences, so they wrap instead of running off the card
+            <div className="grid gap-1.5">
               {q.choices.map((c) => (
-                <button key={c} className="btn small" disabled={busy} title={text.trim() ? 'Send this choice, with what you wrote' : 'Send this answer'} onClick={() => void answer(c)}>
+                <button
+                  key={c}
+                  type="button"
+                  className="w-full cursor-pointer rounded-ctl border border-line-2 bg-panel-2 px-3 py-2 text-left text-[13.5px] leading-snug text-ink wrap-anywhere transition-colors enabled:hover:border-accent enabled:hover:bg-accent/8 enabled:hover:text-accent disabled:cursor-not-allowed disabled:opacity-45"
+                  disabled={busy}
+                  title={text.trim() ? 'Send this choice with your note' : 'Send this answer'}
+                  onClick={() => void answer(c)}
+                >
                   {c}
                 </button>
               ))}
@@ -88,16 +96,16 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
           <textarea
             rows={2}
             aria-label={`Answer ${who}`}
-            placeholder={q.choices.length ? 'Or answer in your own words… (goes along with a choice you click)' : `Answer ${who} in your own words…`}
+            placeholder={q.choices.length ? 'Add a note, or answer in your own words…' : `Answer ${who} in your own words…`}
             value={text}
             disabled={busy}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && (e.ctrlKey || e.metaKey) && text.trim() && void answer()}
           />
           <div className="flex flex-wrap items-center gap-2.5">
-            <button className="btn ghost small" disabled={busy || !text.trim()} title="Send what you wrote (Ctrl+Enter)" onClick={() => void answer()}>Send answer</button>
+            <button className={`btn small${text.trim() ? '' : ' ghost'}`} disabled={busy || !text.trim()} title="Send what you wrote (Ctrl+Enter)" onClick={() => void answer()}>Send answer</button>
             <span className="min-w-0 flex-1" />
-            <button className="btn ghost tiny" disabled={busy} title={`Close it without answering: ${who} hears you passed`} onClick={() => void dismiss()}>Dismiss</button>
+            <button className="btn ghost small" disabled={busy} title={`Close it without answering: ${who} hears you passed`} onClick={() => void dismiss()}>Dismiss</button>
           </div>
         </>
       ) : (
