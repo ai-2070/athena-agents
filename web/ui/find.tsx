@@ -51,8 +51,20 @@ export function countIn(text: string, query: string): number {
   return n;
 }
 
+// The look of the matches. It is added from here, not written in web/styles: the CSS optimizer
+// does not know ::highlight() yet and warns on every build.
+let styled = false;
+function lookOfMatches(): void {
+  if (styled) return;
+  styled = true;
+  const el = document.createElement('style');
+  el.textContent = '::highlight(find){background:color-mix(in srgb,var(--color-amber) 45%,transparent);color:inherit}::highlight(find-current){background:var(--color-accent);color:var(--color-on-accent)}';
+  document.head.append(el);
+}
+
 function paint(all: Range[], current: Range | null): void {
   if (canHighlight()) {
+    lookOfMatches();
     CSS.highlights.set('find', new Highlight(...all));
     if (current) CSS.highlights.set('find-current', new Highlight(current));
     else CSS.highlights.delete('find-current');

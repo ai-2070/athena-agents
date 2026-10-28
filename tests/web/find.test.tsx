@@ -230,6 +230,8 @@ describe('the search box on a list', () => {
       key('f', { ctrlKey: true });
       await rest(50);
       await type('cat');
+      // (their look is added to the page, since the CSS build does not know ::highlight())
+      expect(document.head.textContent).toContain('::highlight(find-current)');
       expect(lit.get('find')!.ranges).toHaveLength(3);
       expect(lit.get('find-current')!.ranges).toHaveLength(1);
       key('Enter', {}, box()!);
