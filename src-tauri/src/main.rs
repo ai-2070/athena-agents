@@ -94,6 +94,9 @@ fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .inner_size(1440.0, 900.0)
         .min_inner_size(900.0, 600.0)
         .center()
+        // Tauri's own file drop handler swallows the page's drag and drop events,
+        // so dropping files on chats and projects did nothing. The page handles drops itself.
+        .disable_drag_drop_handler()
         .on_navigation(move |url| on_navigation(&nav_app, url))
         // links that open a new tab (target=_blank, window.open) go to the default browser
         .on_new_window(move |url, _features| {
