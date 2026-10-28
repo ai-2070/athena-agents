@@ -621,8 +621,11 @@ Example: use("dark wood"); for (let i = 0; i < 6; i++) { const h = 2 + random() 
         const w = shownWorld().world;
         if (!w || shownWorld().how === 'carried') return { text: "This project has no world of its own yet: build something first (it makes this project's world), then write its WORLD.md.", isError: true };
         try {
+          // only a builder that had read the version it changed has read the result (it never sees the rest)
+          const key = readKey(ctx, w.id);
+          const fresh = mdRead.has(key) && mdRead.get(key) === worldMdStamp(w.id);
           const r = withActor('agent', () => writeWorldMdSection(w.id, String(section), content, append === true));
-          mdRead.set(readKey(ctx, w.id), r.updatedAt);
+          if (fresh) mdRead.set(key, r.updatedAt);
           return { text: `Saved WORLD.md (${r.text.length.toLocaleString('en-US')} characters).` };
         } catch (e) {
           return failed(e);

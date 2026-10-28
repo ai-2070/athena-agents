@@ -60,6 +60,10 @@ function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
   const volumes = volumesMeta([grid]);
   const span = volumes[0]?.min && volumes[0]?.max ? volumes[0].max.map((n, a) => n - volumes[0].min![a] + 1) : [0, 0, 0];
   if (span.some((n) => n > LIMITS.reach * 2)) throw bad(`That model is ${span.join('×')} voxels; the most is ${LIMITS.reach * 2} a side. Bring it in at a bigger voxel size.`);
+  // it stands on y = 0, centred on x and z: every voxel must be within the build tools' reach, or it can't be edited
+  const R = LIMITS.reach;
+  const v0 = volumes[0];
+  if (v0?.min && v0.max && (v0.min.some((n) => n < -R) || v0.max.some((n) => n >= R))) throw bad(`That model is ${span.join('×')} voxels and stands on its base, so it reaches past ${R} voxels from its middle (the most the build tools can edit). Bring it in at a bigger voxel size.`);
   if (worldVoxels(w) + count > WORLD_LIMITS.voxels) throw bad(`The world has no room for ${fmt(count)} more voxels.`);
   const now = Date.now();
   if (req.as === 'prefab') {
@@ -68,6 +72,8 @@ function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
     Object.assign(p, pivotOf(volumes));
     writePrefab(w.id, p.id, saveGrids([grid]));
     w.prefabs.push(p);
+    // (a world with only a prefab is built too: it isn't replaced by another project's world)
+    w.built = true;
     remember(w.id, { by: req.by, kind: 'prefab', what: `brought in the prefab ${name} from a .vox file`, objectId: p.id, metaBefore: null });
     saveWorld(w, { prefabs: [p.id], by: req.by.name });
     return `Brought "${path.basename(req.file)}" in as the prefab "${name}": ${fmt(count)} voxels at voxel size ${size}, ${p.size.join('×')} map units, ${materials.length} colours. Place copies with {"place": "${name}"}.`;
