@@ -342,4 +342,23 @@ describe('the Station background', () => {
     expect(applyActions([{ do: 'background', clear: true }]).done).toEqual([{ kind: 'note', text: 'Took the Station background away' }]);
     expect(backgroundFile(p)).toBeNull();
   });
+
+  it('the Brain sets how strong the picture and the map dots are, puts them back, and never from a review', async () => {
+    const { activeProject, listProjects } = await import('../../server/store.ts');
+    const p = activeProject();
+    const now = () => listProjects().find((x) => x.id === p.id)!;
+    expect(await snapshot()).toMatch(/picture opacity the default \(50% classic, 100% voxel\), map dots opacity 100%/);
+
+    expect(applyActions([{ do: 'background', opacity: 30 }], undefined, { auto: true }).done[0]).toMatchObject({ kind: 'error' });
+    expect(now().backgroundOpacity).toBeUndefined();
+    expect(applyActions([{ do: 'background', opacity: 30, dots: '20%' }]).done).toEqual([{ kind: 'note', text: 'Set the background picture to 30% opacity and the map dots to 20% opacity' }]);
+    expect(now()).toMatchObject({ backgroundOpacity: 30, mapDotsOpacity: 20 });
+    expect(await snapshot()).toMatch(/picture opacity 30%, map dots opacity 20%/);
+
+    expect(applyActions([{ do: 'background', dots: 'default' }]).done).toEqual([{ kind: 'note', text: 'Set the map dots back to the default opacity' }]);
+    expect(now().mapDotsOpacity).toBeUndefined();
+    expect(now().backgroundOpacity).toBe(30);
+    expect(applyActions([{ do: 'background', opacity: 'bright' }]).done[0]).toMatchObject({ kind: 'error' });
+    expect(now().backgroundOpacity).toBe(30);
+  });
 });

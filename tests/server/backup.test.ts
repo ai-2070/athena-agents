@@ -4,7 +4,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { agents, chats, workflows, routines, setSecret, listProjects } from '../../server/store.ts';
-import { createProject, setBackground, setLogo } from '../../server/projects.ts';
+import { createProject, setBackground, setLogo, updateProject } from '../../server/projects.ts';
 import { newAgent } from '../../server/library.ts';
 import { saveSkill, getSkill, skillsLibrary } from '../../server/skills.ts';
 import { saveAgentPreset, listPresets, deletePreset } from '../../server/presets.ts';
@@ -31,6 +31,7 @@ describe('workspace backups', () => {
     fs.writeFileSync(path.join(p.brainPath, 'notes', 'idea.md'), 'An idea');
     setLogo(p.id, `data:image/png;base64,${PNG}`);
     setBackground(p.id, `data:image/png;base64,${PNG}`);
+    updateProject(p.id, { backgroundOpacity: 30, mapDotsOpacity: 0 });
     const skill = saveSkill({ name: 'Voice Guide', description: 'How we write', body: 'Short sentences.' })!;
     fs.writeFileSync(path.join(skillsLibrary(), skill.slug, 'examples.md'), 'Example one');
     const a = newAgent({ name: 'Writer', skills: [skill.slug], workspace: path.join(p.brainPath, 'drafts') });
@@ -76,6 +77,7 @@ describe('workspace backups', () => {
     expect(project.brainPath).not.toBe(src.brainPath);
     expect(project.name).toBe('Backed Up');
     expect(project.description).toBe('Launch work');
+    expect(project).toMatchObject({ backgroundOpacity: 30, mapDotsOpacity: 0 });
     expect(restored).toMatchObject({ agents: 2, teams: 1, routines: 1, chats: 1, knowledgeFiles: 1, logo: true, background: true });
     expect(restored.skills.added).toBe(0); // same skills already in the library
     // it is open now, and has what the original had

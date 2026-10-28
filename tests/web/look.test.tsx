@@ -133,6 +133,21 @@ describe('Settings > Look', () => {
     expect(calls.some(([url, init]) => String(url).includes('/projects/p1/background') && init?.method === 'DELETE')).toBe(true);
   });
 
+  it("slides the picture's and the map dots' opacity for the open project, and puts one back to the default", async () => {
+    state.data = { settings: { look: { ...DEFAULT_LOOK } }, project: { id: 'p1', name: 'Launch', brainPath: '', repo: '', createdAt: 0, backgroundAt: 42, mapDotsOpacity: 40 } } as unknown as AppState;
+    await act(async () => root.render(<LookTab />));
+    const pct = () => [...el.querySelectorAll('.look-opacity')].map((b) => b.textContent);
+    // the picture's default in the classic look, and the project's own dots
+    expect(pct()).toEqual(['50%', '40%']);
+    expect(el.textContent).toContain('Picture opacity');
+    expect(el.textContent).toContain('Map dots opacity');
+    const reset = [...el.querySelectorAll<HTMLButtonElement>('button')].filter((b) => b.textContent === 'Default');
+    expect(reset).toHaveLength(1);
+    await act(async () => reset[0].click());
+    expect(puts).toContainEqual({ mapDotsOpacity: null });
+    expect(state.data.project?.mapDotsOpacity).toBeUndefined();
+  });
+
   it('offers to add one when the project has none', async () => {
     state.data = { settings: { look: { ...DEFAULT_LOOK } }, project: { id: 'p1', name: 'Launch', brainPath: '', repo: '', createdAt: 0, backgroundAt: null } } as unknown as AppState;
     await act(async () => root.render(<LookTab />));
@@ -140,5 +155,8 @@ describe('Settings > Look', () => {
     const buttons = [...el.querySelectorAll<HTMLButtonElement>('button')].map((b) => b.textContent || '');
     expect(buttons.some((t) => t.includes('Add a picture'))).toBe(true);
     expect(buttons).not.toContain('Remove');
+    // no picture to fade, but the map's dots still have their slider
+    expect(el.textContent).not.toContain('Picture opacity');
+    expect(el.textContent).toContain('Map dots opacity');
   });
 });

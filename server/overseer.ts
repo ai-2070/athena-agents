@@ -31,6 +31,7 @@ import { installFromGitHub, parseGitHubUrl, reposIn } from './skillinstall.ts';
 import type { SkillInstallResult } from '../shared/types.ts';
 import { cleanSchedule, scheduleText } from '../shared/routines.ts';
 import { EFFORTS, EFFORT_NAMES, effortFor, isEffort } from '../shared/effort.ts';
+import { BACKGROUND_OPACITY, mapDotsOpacity, toPercent } from '../shared/look.ts';
 import { MODEL_PROVIDERS, PROVIDER_IDS, modelProvider, providerOfAgent, providerProblem, readyProviders, defaultModelFor, checkModel, checkModelNow, availableModels, findModels } from './models.ts';
 import type { Effort } from '../shared/effort.ts';
 import type { ModelProvider } from './models.ts';
@@ -118,6 +119,9 @@ export interface BrainAction {
   /** background: the picture's path (absolute, or in the project folder); clear: true takes it away */
   image?: unknown;
   clear?: unknown;
+  /** background: how strong the picture and the classic map's dots are, 0-100 or "default" */
+  opacity?: unknown;
+  dots?: unknown;
   /** install_skill: the GitHub link, and who gets what it installs */
   url?: unknown;
   give?: unknown;
@@ -397,7 +401,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     `NOW: ${new Date().toLocaleString()}`,
     `PROJECT: ${p.name} (id ${p.id})`,
     p.description ? `What the user said the project is: ${p.description}` : 'The user has not described the project yet.',
-    `Station background: ${backgroundFile(p) ? 'a picture the user or you set (background clear:true takes it away)' : 'none (the plain map; the background action sets a picture)'}`,
+    `Station background: ${backgroundFile(p) ? 'a picture the user or you set (background clear:true takes it away)' : 'none (the plain map; the background action sets a picture)'}; picture opacity ${p.backgroundOpacity !== undefined ? `${p.backgroundOpacity}%` : `the default (${BACKGROUND_OPACITY.classic}% classic, ${BACKGROUND_OPACITY.world}% voxel)`}, map dots opacity ${mapDotsOpacity(p)}%`,
     `Project folder (the Brain folder, every agent's default workspace): ${root}`,
     info ? `Size: ${info.files} files, ${info.sizeMB} MB` : '',
     info?.git ? `GitHub/Git: ${info.git.url || info.git.remote || 'local repo'} | branch ${info.git.branch} | ${info.git.changes} uncommitted changes\nRecent commits:\n${commits}` : 'Git: not a Git repo',
@@ -563,6 +567,7 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"build","object":"name (a new name makes a new object)","anchor":"world"|"brain"|"team:<team id>","position":[x,y,z],"voxel_size":0.25,"units":"map","steps":[STEP,…]}   (builds in the project's voxel world; position in map units from the anchor, new objects only; "units":"map" puts the steps in map units too; "prefab":"name" instead of "object" builds a prefab, with "description")
 {"do":"station_look","look":"world"|"classic"}   (how the Station looks, for every project: "world" draws the voxel world, "classic" is the dark map; only when the user asks for it, or asks for a world while the Station is classic)
 {"do":"background","image":"<path of a PNG, JPG, WebP or GIF: a file the user attached, or one in the project folder>"}  or  {"do":"background","clear":true}   (the picture behind the Station's map in this project, in the classic and the voxel look, where it takes the sky's place; only when the user asks)
+{"do":"background","opacity":40,"dots":20}   (how strong that picture and the classic map's floor dots are in this project, in percent: 0 hides it, 100 is full; "default" puts one back; either one alone is fine, and they go with "image" too; only when the user asks)
 {"do":"world_env","preset":"station|day|golden|dusk|night|overcast|snow","sun":{"elevation":8},"fog":{"density":0.4},"weather":"none|snow|rain|petals|leaves|dust","wind":[1,0,0.5]}   (the world's time of day, sky, sun, fog, weather and wind; only what changes)
 {"do":"world_light","op":"add|change|remove","light":"name (change, remove)","name":"…","kind":"point|spot","color":"#ffb860","intensity":0-10,"range":12,"anchor":"world","object":"object name","position":[x,y,z],"flicker":0.3}   (glowing voxels light their surroundings by themselves; add lights for doorways, spotlights, fires)
 {"do":"skin","to":"agent|team|brain","id":"<agent or team id>","character":"prefab","desk":"prefab","platform":"prefab","hub":"prefab","shell":"prefab","states":{"idle":"clip","working":"clip","needs":"clip"},"offset":[x,y,z],"turn":0,"scale":1,"hidden":false,"label":true,"clear":false}   (how the Brain, a team or an agent looks in the voxel world: an agent's character can be any prefab, a person, an animal, a tree, an object; hidden takes it off the map)
@@ -1642,19 +1647,35 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         done.push({ kind: 'note', text: look === 'world' ? 'Turned on the voxel look (Settings › Look › Station look)' : 'Put the Station back to the classic look' });
       } else if (kind === 'background') {
         if (auto) throw new Error('only when the user asks');
+        // how strong the picture and the map's dots are: a percent, or "default"
+        const opacity: { backgroundOpacity?: number | null; mapDotsOpacity?: number | null } = {};
+        for (const [field, key] of [['opacity', 'backgroundOpacity'], ['dots', 'mapDotsOpacity']] as const) {
+          const v = act[field];
+          if (v === undefined) continue;
+          const pct = v === null || v === 'default' ? null : toPercent(v);
+          if (pct === null && v !== null && v !== 'default') throw new Error(`"${field}" is a percent from 0 to 100, or "default"`);
+          opacity[key] = pct;
+        }
+        const raw = String(act.image ?? '').trim();
         if (act.clear === true) {
           removeBackground(p.id);
           log('project', `The Brain took the background away in "${p.name}"`);
           done.push({ kind: 'note', text: 'Took the Station background away' });
-        } else {
-          const raw = String(act.image ?? '').trim();
-          if (!raw) throw new Error('give "image": the path of a picture, or "clear": true');
+        } else if (raw || !Object.keys(opacity).length) {
+          if (!raw) throw new Error('give "image": the path of a picture, "clear": true, "opacity" or "dots"');
           // only pictures the dashboard may show anyway: the project folder, attached files, outputs, allowed folders
           const file = viewable(path.isAbsolute(raw) ? raw : path.join(p.brainPath, raw), [ensureBrain(p), ...viewRoots()]);
           if (!file) throw new Error(`${raw} isn't in the project folder or another folder the dashboard may read`);
           setBackgroundFromFile(p.id, file);
           log('project', `The Brain set "${path.basename(file)}" as the background in "${p.name}"`);
           done.push({ kind: 'note', text: `Set ${path.basename(file)} as the Station background` });
+        }
+        if (Object.keys(opacity).length) {
+          updateProject(p.id, opacity);
+          const says = (what: string, v: number | null | undefined) => (v === undefined ? [] : [v === null ? `${what} back to the default opacity` : `${what} to ${v}% opacity`]);
+          const text = [...says('the background picture', opacity.backgroundOpacity), ...says('the map dots', opacity.mapDotsOpacity)].join(' and ');
+          log('project', `The Brain set ${text} in "${p.name}"`);
+          done.push({ kind: 'note', text: `Set ${text}` });
         }
         emit('project-logo', { id: p.id });
       } else if (kind === 'world_env') {

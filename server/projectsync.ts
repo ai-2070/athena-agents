@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { bus, listProjects, activeProject, log, takeNewDefaultProject } from './store.ts';
 import { updateProject } from './projects.ts';
+import { savedOpacity } from '../shared/look.ts';
 import { dataPath, ensureDir, exists, isPlainDir, readJSON, readPlain, writeJSON, realTarget, uid } from './util.ts';
 import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir, checkVersion, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
 import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, skillVersionItem, SKILL_BODY_MAX } from './skills.ts';
@@ -33,7 +34,7 @@ export interface SavedProjectFile {
   app: string;
   savedAt: number;
   /** brainPath: the folder it was saved from, so folders inside it move with a copy (older saves: missing) */
-  project: { name?: string; description?: string; repo?: string; skills?: string[]; brainPath?: string };
+  project: { name?: string; description?: string; repo?: string; skills?: string[]; brainPath?: string; backgroundOpacity?: number; mapDotsOpacity?: number };
   agents: Agent[];
   teams: Team[];
   routines?: Routine[];
@@ -196,7 +197,7 @@ export function saveProject(id: string): SaveStatus | null {
       format: FORMAT,
       app: 'my-dashboard',
       savedAt: Date.now(),
-      project: { name: p.name, description: p.description || '', repo: p.repo || '', skills: p.skills || [], brainPath: p.brainPath },
+      project: { name: p.name, description: p.description || '', repo: p.repo || '', skills: p.skills || [], brainPath: p.brainPath, backgroundOpacity: p.backgroundOpacity, mapDotsOpacity: p.mapDotsOpacity },
       agents,
       teams,
       routines,
@@ -339,6 +340,7 @@ export function adoptSavedFolder(id: string): RestoreResult | null {
   updateProject(id, {
     ...(!p?.description && typeof description === 'string' && description ? { description } : {}),
     ...(Array.isArray(skills) && skills.length ? { skills } : {}),
+    ...savedOpacity(restored.project),
   });
   return restored;
 }

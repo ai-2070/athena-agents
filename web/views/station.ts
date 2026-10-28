@@ -10,6 +10,7 @@ import { openBranchBuilder } from '../builder.ts';
 import { openDock, attachToBrain } from '../dock.tsx';
 import { filesFromDrop, filesFromPaste, hasFiles } from '../attach.ts';
 import { currentLook, stationLevel, uiZoom, DEFAULT_LOOK } from '../look.ts';
+import { backgroundOpacity, mapDotsOpacity } from '../../shared/look.ts';
 import { FIRST, benchSpot, teamSpots } from '../../shared/stationlayout.ts';
 import type { TeamSpot } from '../../shared/stationlayout.ts';
 import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.tsx';
@@ -395,6 +396,8 @@ interface StationState {
   panelView?: { update: () => void; unmount: () => void };
   /** the classic map's lights and floor dots (hidden in the voxel look) */
   classic: THREE.Object3D[];
+  /** the classic map's floor dots: their opacity is the project's (Settings › Look › Station look) */
+  mapDots: THREE.PointsMaterial;
   /** the project's background picture (tex once loaded), and the background it took over (the voxel look's sky) */
   backdrop?: { url: string; tex: THREE.Texture | null; prev: THREE.Scene['background'] } | null;
   /** the voxel look (web/voxel), while it is on */
@@ -782,12 +785,13 @@ export async function render(el: HTMLElement): Promise<void> {
   rim.position.set(-40, 20, -30);
   scene.add(rim);
   const classic: THREE.Object3D[] = [ambient, sun, rim];
+  const mapDots = new THREE.PointsMaterial({ color: 0x262b24, size: 2, sizeAttenuation: false, transparent: true, depthWrite: false });
   {
     const pts: number[] = [];
     for (let x = -150; x <= 150; x += 3) for (let z = -150; z <= 150; z += 3) pts.push(x, -0.01, z);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    const dots = new THREE.Points(g, new THREE.PointsMaterial({ color: 0x262b24, size: 2, sizeAttenuation: false }));
+    const dots = new THREE.Points(g, mapDots);
     scene.add(dots);
     classic.push(dots);
   }
@@ -824,6 +828,7 @@ export async function render(el: HTMLElement): Promise<void> {
     dots: [],
     links2d: [],
     classic,
+    mapDots,
   } as Partial<StationState> as StationState; // the rest is filled in below
   S.wireDots = wireDots;
   S.panelView = mountStationPanel(panel, panelApi);
@@ -1193,8 +1198,8 @@ function buildBrain(): void {
 // ---------- the project's background picture ----------
 // Drawn as the scene's background, cropped to fill the screen. In the voxel look it takes the sky's place:
 // the voxel look sets its sky as the background, so the picture takes over each frame and gives the sky
-// back when it is removed. Dimmed in the classic look so the map's lines and names stay easy to read.
-const BACKDROP_DIM = { classic: 0.5, world: 1 };
+// back when it is removed. Dimmed in the classic look so the map's lines and names stay easy to read; each
+// project can pick how strong it is (and how strong the map's dots are) in Settings › Look.
 
 // Load the project's picture when it changed. Cheap to call often.
 function setBackdrop(): void {
@@ -1231,15 +1236,19 @@ function fitBackdrop(): void {
   tex.offset.set((1 - tex.repeat.x) / 2, (1 - tex.repeat.y) / 2);
 }
 
-// Each frame, before drawing: the picture is the background (the voxel look may have set its sky since).
+// Each frame, before drawing: the picture is the background (the voxel look may have set its sky since),
+// as strong as the project wants it, and so are the map's dots.
 function applyBackdrop(): void {
-  const tex = S?.backdrop?.tex;
-  if (!S || !tex) return;
+  if (!S) return;
+  const proj = state.data?.project;
+  S.mapDots.opacity = mapDotsOpacity(proj) / 100;
+  const tex = S.backdrop?.tex;
+  if (!tex) return;
   if (S.scene.background !== tex) {
     S.backdrop!.prev = S.scene.background;
     S.scene.background = tex;
   }
-  S.scene.backgroundIntensity = S.view ? BACKDROP_DIM.world : BACKDROP_DIM.classic;
+  S.scene.backgroundIntensity = backgroundOpacity(proj, S.view ? 'world' : 'classic') / 100;
 }
 
 function dropBackdrop(): void {

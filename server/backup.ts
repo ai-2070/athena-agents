@@ -21,6 +21,7 @@ import { getWorld, newWorld, worldDir } from './voxel/store.ts';
 import { setLink } from './voxel/link.ts';
 import { libraryEntries, putLibraryEntry } from './voxel/prefabs.ts';
 import type { LibraryPrefab } from './voxel/prefabs.ts';
+import { savedOpacity } from '../shared/look.ts';
 import type { Agent, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
 
 export const BACKUP_EXT = '.dashbackup';
@@ -110,7 +111,7 @@ export interface BackupData {
   kind: 'workspace-backup';
   format: number;
   createdAt: number;
-  project: { name: string; description: string; repo: string; skills: string[]; brainPath: string };
+  project: { name: string; description: string; repo: string; skills: string[]; brainPath: string; backgroundOpacity?: number; mapDotsOpacity?: number };
   agents: Agent[];
   teams: Team[];
   routines: Routine[];
@@ -385,7 +386,7 @@ export function packProject(p: Project): BackupData {
     kind: 'workspace-backup',
     format: FORMAT,
     createdAt: Date.now(),
-    project: { name: p.name, description: p.description || '', repo: p.repo || '', skills: p.skills || [], brainPath: p.brainPath },
+    project: { name: p.name, description: p.description || '', repo: p.repo || '', skills: p.skills || [], brainPath: p.brainPath, backgroundOpacity: p.backgroundOpacity, mapDotsOpacity: p.mapDotsOpacity },
     agents: readAll<Agent>(projectDir(id, 'agents')),
     teams: readAll<Team>(projectDir(id, 'workflows')),
     routines: readAll<Routine>(projectDir(id, 'routines')),
@@ -550,7 +551,7 @@ export function decodeBackup(buf: Buffer): BackupData {
     kind: 'workspace-backup',
     format: Number(b.format) || FORMAT,
     createdAt: Number(b.createdAt) || 0,
-    project: { name: String(pr.name || ''), description: String(pr.description || ''), repo: String(pr.repo || ''), skills: arr<unknown>(pr.skills).map(String), brainPath: String(pr.brainPath || '') },
+    project: { name: String(pr.name || ''), description: String(pr.description || ''), repo: String(pr.repo || ''), skills: arr<unknown>(pr.skills).map(String), brainPath: String(pr.brainPath || ''), ...savedOpacity(pr) },
     agents: arr<Agent>(b.agents).filter((a) => a && typeof a === 'object' && typeof a.id === 'string' && ID_RE.test(a.id)),
     teams: arr<Team>(b.teams).filter((t) => t && typeof t === 'object' && typeof t.id === 'string' && ID_RE.test(t.id)),
     routines: arr<Routine>(b.routines).filter((r) => r && typeof r === 'object' && typeof r.id === 'string' && ID_RE.test(r.id)),
@@ -890,6 +891,8 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   let project = created;
   const projSkills = known(swap(b.project.skills));
   if (projSkills.length) project = updateProject(id, { skills: projSkills });
+  // how strong its Station background picture and map dots were
+  project = updateProject(id, savedOpacity(b.project));
   emit('project', { id });
   emit('skills');
   log('project', `Restored "${project.name}" from a backup: ${b.agents.length} agents, ${b.teams.length} teams, ${b.routines.length} routines, ${chats} chats, ${skills.added} new skills`);

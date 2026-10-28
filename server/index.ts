@@ -31,6 +31,7 @@ import * as teamMarks from './teammark.ts';
 import * as library from './library.ts';
 import { isEffort } from '../shared/effort.ts';
 import { queuedText } from '../shared/queue.ts';
+import { savedOpacity } from '../shared/look.ts';
 import * as commands from './commands.ts';
 import { openGoal } from './briefs.ts';
 import * as kb from './knowledge.ts';
@@ -231,6 +232,7 @@ post<Parameters<typeof projects.createProject>[0] | null>('/api/projects', async
   const restored = projectSync.restoreInto(p.id, p.brainPath);
   if (restored && !p.description && restored.project.description) p = projects.updateProject(p.id, { description: restored.project.description });
   if (restored?.project.skills?.length) p = projects.updateProject(p.id, { skills: restored.project.skills });
+  if (restored) p = projects.updateProject(p.id, savedOpacity(restored.project));
   if (restored) store.emit('project', { id: p.id });
   p = { ...(skills.enableOrcaSkill(p.id) || p), restored };
   projects.touch(p.id);
@@ -255,7 +257,12 @@ post('/api/projects/:id/activate', async ({ id }) => {
   log('project', `Switched to project "${p.name}"`);
   return p;
 });
-put<projects.ProjectPatch | null>('/api/projects/:id', async ({ id }, body) => projects.updateProject(id, body || {}));
+put<projects.ProjectPatch | null>('/api/projects/:id', async ({ id }, body) => {
+  const p = projects.updateProject(id, body || {});
+  // the Station in other tabs draws the new opacity
+  if (body && ('backgroundOpacity' in body || 'mapDotsOpacity' in body)) store.emit('project-logo', { id });
+  return p;
+});
 // ---------- backups: a project with its agents, chats and knowledge, plus every skill and preset ----------
 post('/api/projects/:id/backup', async ({ id }) => backup.createBackup(id));
 get('/api/backups', async () => ({ dir: backup.backupsRoot(), backups: backup.listBackups() }));

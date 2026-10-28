@@ -1,5 +1,5 @@
 // Settings > Look choices both sides use: the chat fonts (here so the build's font test can check they all ship)
-// and how hard the Station's map works.
+// how hard the Station's map works, and how strong a project's background picture and map dots are.
 import type { StationQuality } from './types.ts';
 
 /** A font for chat messages; like: whose look it matches. They all come with the app (scripts/build-fonts.ts)
@@ -40,3 +40,31 @@ export const STATION_QUALITY: StationLevel[] = [
   { id: 'saver', label: 'Battery saver', hint: '30 frames a second at most and a little softer. For laptops on battery and older PCs, and many agents.', fps: { moving: 30, still: 20, away: 8 }, pixelRatio: 1, screenPx: 110 },
 ];
 export const stationLevel = (id: string | undefined): StationLevel => STATION_QUALITY.find((q) => q.id === id) || STATION_QUALITY[1];
+
+/** How strong the project's background picture is (percent) when it hasn't picked one: dimmed in the classic
+ *  look so the map's lines and names stay easy to read, full in the voxel look where it takes the sky's place. */
+export const BACKGROUND_OPACITY = { classic: 50, world: 100 } as const;
+/** The classic map's floor dots, in percent, when the project hasn't picked how strong they are. */
+export const MAP_DOTS_OPACITY = 100;
+
+/** A percent from 0 to 100 (whole), or null for anything that isn't a number. */
+export function toPercent(v: unknown): number | null {
+  const n = typeof v === 'string' && v.trim() ? Number(v.trim().replace(/%$/, '')) : v;
+  return typeof n === 'number' && Number.isFinite(n) ? Math.round(Math.min(100, Math.max(0, n))) : null;
+}
+
+type StationOpacity = { backgroundOpacity?: number | null; mapDotsOpacity?: number | null };
+/** The project's picture opacity in this look (its own, or the look's default). */
+export const backgroundOpacity = (p: StationOpacity | null | undefined, look: 'classic' | 'world'): number => toPercent(p?.backgroundOpacity) ?? BACKGROUND_OPACITY[look];
+/** The project's map dots opacity (its own, or the default). */
+export const mapDotsOpacity = (p: StationOpacity | null | undefined): number => toPercent(p?.mapDotsOpacity) ?? MAP_DOTS_OPACITY;
+
+/** The Station opacities a saved project had (only valid ones), to put back with updateProject. */
+export function savedOpacity(saved: { backgroundOpacity?: unknown; mapDotsOpacity?: unknown } | null | undefined): { backgroundOpacity?: number; mapDotsOpacity?: number } {
+  const out: { backgroundOpacity?: number; mapDotsOpacity?: number } = {};
+  for (const key of ['backgroundOpacity', 'mapDotsOpacity'] as const) {
+    const pct = toPercent(saved?.[key]);
+    if (pct !== null) out[key] = pct;
+  }
+  return out;
+}
