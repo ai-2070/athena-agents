@@ -174,7 +174,7 @@ describe('what a skin hides', () => {
 
 describe('dressing again when a skin changes', () => {
   // a Brain shell made of a frame that holds a nested part, on a fake map
-  const meta = (id: string, voxelsAt: number) => ({ id, name: id, description: '', tags: [], by: { kind: 'brain' }, volumes: [], pivot: [0, 0, 0], size: [1, 1, 1], createdAt: 1, updatedAt: 1, voxelsAt }) as VoxelPrefabMeta;
+  const meta = (id: string, voxelsAt: number) => ({ id, name: id, description: '', tags: [], by: { kind: 'brain', name: 'the Brain' }, volumes: [], pivot: [0, 0, 0], size: [1, 1, 1], createdAt: 1, updatedAt: 1, voxelsAt }) as VoxelPrefabMeta;
   const setup = () => {
     const world = {
       palette: [{ name: 'stone', color: '#888888', kind: 'solid' }],
