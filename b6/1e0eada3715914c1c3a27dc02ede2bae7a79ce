@@ -1,0 +1,34 @@
+tests/server/project-opacity.test.ts
+  s_349f16b860a9ea::t_dd8e2aeb3da4c1 28-36
+tests/web/navlimits.test.ts
+  s_349f16b860a9ea::t_e07c5939ee35e7 157-172
+docs/guide.md
+  s_349f16b860a9ea::t_082fd120586a36 216
+web/navlimits.ts
+  s_349f16b860a9ea::t_a584ff802a60fa 58,60
+  s_349f16b860a9ea::t_dd3ce7492ec15e 28-39
+web/views/look.tsx
+  s_349f16b860a9ea::t_232caf3ab74a0e 306,310-311
+  s_349f16b860a9ea::t_593a5764c29888 9
+server/projects.ts
+  s_349f16b860a9ea::t_e1174b77388160 104-109
+  s_349f16b860a9ea::t_e86b9d10cbda70 73
+shared/types.ts
+  s_349f16b860a9ea::t_0cac2e322de2a3 269-270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b61e0eada3715914c1c3a27dc02ede2bae7a79ce",
+  "prompts": {},
+  "sessions": {
+    "s_349f16b860a9ea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6eb27415-5821-4db9-a041-668b9481de74",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
