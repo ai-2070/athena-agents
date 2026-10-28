@@ -114,8 +114,9 @@ export function openProjectMenu(anchor: Element): void {
   // the name turns into a box: Enter or leaving it saves, Esc keeps the old name
   const startRename = (p: Project, row: HTMLElement, item: HTMLElement, label: HTMLElement) => {
     if (row.querySelector('.proj-rename-row')) return;
-    const input = h('input', { class: 'min-w-0 flex-1', value: p.name, maxlength: 80, 'aria-label': `New name for ${p.name}` });
-    const box = h('div.proj-rename-row', { class: 'flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-1.25' }, projectMark(p, 16), input);
+    // (the same height and left edge as the item it replaces, so nothing below it moves)
+    const input = h('input', { class: 'h-7 min-w-0 flex-1 px-2 py-0 text-[13.5px] leading-none', value: p.name, maxlength: 80, 'aria-label': `New name for ${p.name}` });
+    const box = h('div.proj-rename-row', { class: 'flex min-h-8.75 min-w-0 flex-1 items-center gap-2.5 px-2.5' }, h('span', { class: 'w-[13px] flex-none' }), projectMark(p, 16), input);
     let done = false;
     const finish = (commit: boolean) => {
       if (done) return;
