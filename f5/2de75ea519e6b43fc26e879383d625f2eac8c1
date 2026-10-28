@@ -1,0 +1,34 @@
+tests/server/brain-models.test.ts
+  s_4f53eccb4f7bb2::t_1cdf98108d5cb2 4
+  s_4f53eccb4f7bb2::t_66ae1dbc652bb0 264-278,280,284-291
+  s_4f53eccb4f7bb2::t_9ffe4cf2742b98 210-223
+  s_4f53eccb4f7bb2::t_25da43e713bb62 279,281-283
+tests/server/brain-skills.test.ts
+  s_4f53eccb4f7bb2::t_261e3e046f5f65 103-110,112
+server/overseer.ts
+  s_4f53eccb4f7bb2::t_98e77d18f0566b 850-852
+  s_4f53eccb4f7bb2::t_b31eff0a4ef1ea 894-895,897,899-903,906,915
+  s_4f53eccb4f7bb2::t_560acfec725711 925-926,930,937-945
+  s_4f53eccb4f7bb2::t_16acbf97545db5 1873-1874
+  s_4f53eccb4f7bb2::t_ca0234e390f5e1 1858-1860
+  s_4f53eccb4f7bb2::t_100bf59a47ed2a 1465-1467
+  s_4f53eccb4f7bb2::t_9258451047b147 1891-1893
+  s_4f53eccb4f7bb2::t_1873479da134f7 1246-1247
+  s_4f53eccb4f7bb2::t_665a2789081975 946-947
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f52de75ea519e6b43fc26e879383d625f2eac8c1",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
