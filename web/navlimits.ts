@@ -25,7 +25,18 @@ export function resetLimitsCache(): void {
   hidePop();
 }
 
-export const sidebarPanel = (): SidebarPanel => state.data?.settings?.look?.sidebar || currentLook().sidebar || 'status';
+// each project remembers what it last showed; one that never switched follows Settings > Look
+export const sidebarPanel = (): SidebarPanel => state.data?.project?.sidebar || state.data?.settings?.look?.sidebar || currentLook().sidebar || 'status';
+
+/** Remembers the choice for the open project too (here now, on the server in the background). */
+export function rememberSidebarPanel(p: SidebarPanel): void {
+  const proj = state.data?.project;
+  if (!proj) return;
+  proj.sidebar = p;
+  const listed = state.data?.projects?.find((x) => x.id === proj.id);
+  if (listed && listed !== proj) listed.sidebar = p;
+  void PUT(`/projects/${encodeURIComponent(proj.id)}`, { sidebar: p }).catch((e: unknown) => toast((e as Error).message, 'error'));
+}
 
 // Switching Status / Limits: the old lines slide out toward where they sit (Status on the left, Limits on the
 // right), the new ones slide in from the other side one after another, and the line under the tab glides over.
@@ -44,7 +55,9 @@ export function setSidebarPanel(p: SidebarPanel, redraw: () => void): void {
     const look = { ...DEFAULT_LOOK, ...currentLook(), ...(state.data?.settings?.look || {}), sidebar: p };
     if (state.data?.settings) state.data.settings.look = look;
     applyLook(look);
+    rememberSidebarPanel(p);
     redraw();
+    // also the default for projects that haven't picked one yet
     void PUT('/settings', { look: { sidebar: p } }).catch((e: unknown) => toast((e as Error).message, 'error'));
     if (reducedMotion() || typeof document.body.animate !== 'function') return;
     const now = host?.querySelector<HTMLElement>('.sidebar-panel-mark');

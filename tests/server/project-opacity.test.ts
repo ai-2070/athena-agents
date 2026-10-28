@@ -25,6 +25,15 @@ describe('Station opacities', () => {
     expect(listProjects().find((x) => x.id === p.id)?.mapDotsOpacity).toBe(10);
   });
 
+  it('each project remembers what the sidebar last showed (Status / Limits)', async () => {
+    const a = await createProject({ name: 'On limits' });
+    const b = await createProject({ name: 'Never switched' });
+    expect(updateProject(a.id, { sidebar: 'limits' }).sidebar).toBe('limits');
+    expect(listProjects().find((x) => x.id === b.id)?.sidebar).toBeUndefined();
+    expect(() => updateProject(a.id, { sidebar: 'chart' })).toThrow(/status/);
+    expect(updateProject(a.id, { sidebar: null }).sidebar).toBeUndefined();
+  });
+
   it('fall back to the look’s own values', () => {
     expect(backgroundOpacity({}, 'classic')).toBe(50);
     expect(backgroundOpacity({}, 'world')).toBe(100);
