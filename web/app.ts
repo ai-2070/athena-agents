@@ -84,7 +84,7 @@ const VIEW_FLUSH = 'min-w-0 *:animate-[fade_0.35s_ease-out]';
 // clipped to the icon strip and its text fades in when it opens (body.nav-wide); on a narrow one a hovered
 // icon shows its name beside it.
 const NAV_LINK =
-  'group flex items-center gap-3 border-l-2 px-5 py-3 font-mono text-[12px] leading-[1.2] font-medium tracking-[0.14em] uppercase [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] in-[.station-mode]:relative max-md:in-[.station-mode]:justify-center max-md:in-[.station-mode]:px-0 max-md:in-[.station-mode.nav-wide]:justify-start max-md:in-[.station-mode.nav-wide]:px-5 md:in-[.station-mode]:justify-start md:in-[.station-mode]:pr-0 md:in-[.station-mode]:pl-4.75';
+  'group flex items-center gap-3 border-l-2 px-5 py-3 font-mono text-[12px] leading-[1.2] font-medium tracking-[0.14em] uppercase [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] in-[.station-mode]:relative max-md:in-[.station-mode]:justify-center max-md:in-[.station-mode]:px-0 max-md:in-[.station-mode.nav-wide]:justify-start max-md:in-[.station-mode.nav-wide]:px-5 md:in-[.station-mode]:justify-start md:in-[.station-mode]:pr-5 md:in-[.station-mode]:pl-4.75';
 const NAV_LINK_OFF = 'border-l-transparent text-dim hover:bg-panel-2 hover:text-ink';
 const NAV_LINK_ON = 'border-l-accent bg-panel-2 text-accent';
 const NAV_ICO = 'grid w-5 place-items-center text-center text-[14px] tracking-[0] in-[.station-mode]:text-[15px] in-[.station-mode]:group-hover:text-accent';
