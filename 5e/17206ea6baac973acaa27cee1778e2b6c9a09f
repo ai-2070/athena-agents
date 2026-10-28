@@ -1,0 +1,27 @@
+tests/web/voxel-light-effects.test.ts
+  s_4f53eccb4f7bb2::t_3b3e5e1a46d51b 123-133
+web/voxel/post.ts
+  s_4f53eccb4f7bb2::t_1d9497eed538d9 101-102,117-119,153-154
+web/voxel/quality.ts
+  s_4f53eccb4f7bb2::t_1d9497eed538d9 3-4,13-14,22-24,33-35,37,41-42,50,53-59
+web/voxel/view.ts
+  s_4f53eccb4f7bb2::t_1d9497eed538d9 35-36,299,305
+web/views/station.ts
+  s_4f53eccb4f7bb2::t_1d9497eed538d9 354-355,1957,2214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5e17206ea6baac973acaa27cee1778e2b6c9a09f",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
