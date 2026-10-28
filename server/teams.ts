@@ -564,6 +564,9 @@ function pump(teamId: string) {
   }
 }
 
+/** Every team turn ends with this: the briefing comes only on an agent's first turn, so the key rules are repeated here. */
+export const TURN_ASK = "Do your part now and finish it: install what you need, ask for tools you don't have with request_tool (and the user with ask_user for access or keys), and don't wait on teammates for work you can do yourself. Then reply to the team.";
+
 export function briefing(team: Team, agent: Agent): string {
   const roster = team.members
     .map((id) => agents.get(id))
@@ -594,6 +597,15 @@ How this chat works:
 - A task you hand to a teammate is theirs: don't also do it yourself, and don't give the same task to two people. Work that needs something only one member has (see "has" above) goes to that member.
 - Anything that needs the user's judgment or help, or that only they can unblock: ask them with ask_user (with short choices to click), not only in your reply, and don't mention a teammate for it.
 - The Brain (the project's overseer) hands the team work and checks on it. To ask it something (about the project, other teams, what to do next) or to say you're stuck, write @Brain.
+
+Finishing the work:
+- Work you're given is yours to finish. Don't decline it, don't stop partway, and don't reply with a plan instead of the result.
+- Start your own part now. Don't wait for a teammate to finish theirs first: do everything you can without them, and only then say exactly what you still need from whom.
+- If you need a package, library or program, install it and keep going.
+- If you need tools you don't have, ask for them with request_tool. For access, a login or a key, ask the user with ask_user. Say exactly what you need, and carry on with whatever you can do meanwhile.
+- When something fails, try another way before calling it blocked.
+- Stop only when your part is done, or when you're waiting on an answer you asked for.
+
 - Keep replies short: what you did, the result, and who acts next.${team.lead === agent.id ? '\n- You are the lead: break the request down, give each part to one owner, and when everyone is done post the combined result for the user.' : ''}`;
 }
 
@@ -638,7 +650,7 @@ async function runTurn(team: Team, item: QueueItem) {
   const filesNote = newTeamFiles.length
     ? `The team's reference files from the user (${attachmentNames(newTeamFiles)}) are attached at the end.\n\n`
     : teamFiles.length ? `The team's files: ${teamFiles.join(', ')}\n\n` : '';
-  const prompt = `${first ? `${briefing(team, agent)}\n\n` : ''}${filesNote}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\nDo your part now, then reply to the team.`;
+  const prompt = `${first ? `${briefing(team, agent)}\n\n` : ''}${filesNote}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\n${TURN_ASK}`;
   // (where this turn starts in the agent's session: the team chat shows its work, live and afterwards)
   const from = chats.get(agent.id, chatId)?.items.length ?? 0;
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'start', chatId } });

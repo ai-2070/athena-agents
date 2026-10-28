@@ -68,7 +68,7 @@ function call<T>(pathname: string, body?: unknown): Promise<T> {
   });
 }
 
-const server = new Server({ name: 'dashboard', version: '0.1.0' }, { capabilities: { tools: {} } });
+const server = new Server({ name: 'dashboard', version: '0.1.0' }, { capabilities: { tools: { listChanged: true } } });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   try {
@@ -88,6 +88,8 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       const m = /^data:([^;]+);base64,(.*)$/.exec(img);
       if (m) content.push({ type: 'image', mimeType: m[1], data: m[2] });
     }
+    // tools given by request_tool: tell the client to fetch the list again, so it can use them at once
+    if (req.params.name === 'request_tool' && !r.isError) void server.sendToolListChanged().catch(() => {});
     return { content, isError: !!r.isError };
   } catch (e) {
     return { content: [{ type: 'text', text: `Dashboard error: ${(e as Error).message}. Is the dashboard running on port ${port}?` }], isError: true };

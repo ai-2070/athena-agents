@@ -166,6 +166,7 @@ In any agent, team or Brain chat, **/** lists the commands (`/queue`, `/stop`, `
 | **Full** | Never; tool approvals are skipped. Use only when you trust the agent and its access. |
 
 - **The Brain approves** is on by default: it allows routine, reversible work and sends risky or unclear requests to **Needs you** with a reason. That is a model's judgment, not a hard safety guarantee.
+- **Agents can ask for tools.** An agent that needs a set of tools it doesn't have (Files, Browser, Blender…) asks for it. The Brain gives it when the task needs it and sends the rest to **Needs you**. Shell and posting or messaging always come to you. An agent keeps the tools it's given; you can take them away in its settings.
 - The server listens on **127.0.0.1** only, and there is **no dashboard login**: anyone who can reach the running service may be able to use it. Never expose it through a public tunnel or reverse proxy.
 - Keys and account tokens stay server-side, in `data/secrets.json` and `data/accounts.json`. They are never sent to the browser or included in project exports.
 - Autonomy is not an operating-system sandbox: built-in file tools respect the allowed roots, but shell commands and outside tools act with the access of the account running them.

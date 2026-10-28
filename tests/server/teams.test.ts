@@ -4,11 +4,13 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { bus, chats, saveSettings, workflows } from '../../server/store.ts';
-import { MAX_CHATTER, editQueuedTeam, getThread, orderQueuedTeam, parseMentions, postUserMessage, queueUserMessage, steerTeam, stopTeam, teamState } from '../../server/teams.ts';
+import { MAX_CHATTER, TURN_ASK, briefing, editQueuedTeam, getThread, orderQueuedTeam, parseMentions, postUserMessage, queueUserMessage, steerTeam, stopTeam, teamState } from '../../server/teams.ts';
 import type { ServerEvent, Team } from '../../shared/types.ts';
 
 // a fake OpenAI-compatible model: the Lead hands off to the Maker, the Maker reports back, the Lead wraps up
 let server: http.Server;
+// the last message each agent was sent, by name
+const lastAsk: Record<string, string> = {};
 beforeAll(async () => {
   server = http.createServer(async (req, res) => {
     if (req.url?.endsWith('/models')) return res.end(JSON.stringify({ data: [{ id: 'mock' }] }));
@@ -17,6 +19,8 @@ beforeAll(async () => {
     const j = JSON.parse(body) as { messages: { content: string }[] };
     const system = j.messages[0].content;
     const last = j.messages.at(-1)!.content;
+    const who = /You are (\w+)/.exec(system)?.[1];
+    if (who) lastAsk[who] = last;
     let reply = 'Okay.';
     // Slow works on and on (until it is stopped), except on a change of plan
     if (system.includes('You are Slow') && !/Change of plan/.test(last)) {
@@ -77,6 +81,24 @@ describe('a team chat', () => {
       'Lead: All done, the thumbnail is ready.',
     ]);
     expect(thread.messages[1].mentions).toEqual([maker.id]);
+    // every turn ends by telling the agent to finish its part, not only the first one (which has the briefing)
+    expect(lastAsk.Maker).toContain('How this chat works');
+    expect(lastAsk.Maker.endsWith(TURN_ASK)).toBe(true);
+    expect(lastAsk.Lead).not.toContain('How this chat works');
+    expect(lastAsk.Lead.endsWith(TURN_ASK)).toBe(true);
+  });
+
+  it('briefs members to finish their part: no declining, no waiting on teammates, install or ask for what they need', () => {
+    const one = agent('Solo');
+    const team = workflows.save({ name: 'Solo team', members: [one.id], lead: one.id, steps: [] } as Partial<Team>);
+    const text = briefing(team, one);
+    expect(text).toMatch(/Work you're given is yours to finish\. Don't decline it/);
+    expect(text).toMatch(/Don't wait for a teammate to finish theirs first/);
+    expect(text).toMatch(/install it and keep going/);
+    expect(text).toMatch(/ask for them with request_tool/);
+    expect(text).toMatch(/For access, a login or a key, ask the user with ask_user/);
+    expect(TURN_ASK).toMatch(/finish it/);
+    expect(TURN_ASK).toMatch(/request_tool/);
   });
 });
 

@@ -2,12 +2,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Approval } from '../../shared/types.ts';
 
-const brain = vi.hoisted(() => ({ prompts: [] as string[], answer: '{"approve":true,"reason":"routine edit"}' }));
+const brain = vi.hoisted(() => ({ prompts: [] as string[], systems: [] as string[], answer: '{"approve":true,"reason":"routine edit"}' }));
 const runs = vi.hoisted(() => ({ projectId: '' }));
 
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
-  think: async (_system: string, user: string) => (brain.prompts.push(user), brain.answer),
+  think: async (system: string, user: string) => (brain.systems.push(system), brain.prompts.push(user), brain.answer),
 }));
 vi.mock('../../server/engines/index.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/engines/index.ts')>()),
@@ -24,6 +24,7 @@ const request = (over: Partial<Approval> = {}): Approval => ({
 
 beforeEach(() => {
   brain.prompts = [];
+  brain.systems = [];
   brain.answer = '{"approve":true,"reason":"routine edit"}';
   runs.projectId = '';
 });
@@ -74,5 +75,16 @@ describe('the Brain reviews a request', () => {
     const v = await withProject(left, () => reviewApproval(request({ data: { runId: 'r1', args: {} } })));
     expect(v.approve).toBe(false);
     expect(brain.prompts).toHaveLength(0);
+  });
+
+  it('judges a request for tools by what the task needs, and never gives Shell itself', async () => {
+    const ask = (group: string) => request({ kind: 'tools', title: `Coder asks for the ${group} tools`, data: { group, args: { tools: group, why: 'to read the project files' } } });
+    expect((await reviewApproval(ask('files'))).approve).toBe(true);
+    expect(brain.systems[0]).toMatch(/asks to be given a set of tools/);
+    expect(brain.prompts[0]).toContain('to read the project files');
+    const shell = await reviewApproval(ask('shell'));
+    expect(shell.approve).toBe(false);
+    expect(shell.reason).toMatch(/only you can give it/);
+    expect(brain.prompts).toHaveLength(1);
   });
 });
