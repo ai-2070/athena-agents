@@ -847,8 +847,9 @@ function checkStarts(name: string, s: McpServerConfig) {
 
 // ---------- models ----------
 // set_model checks its model ids before the actions run (prepareModels: the lists come over the network)
-// and leaves what is wrong with one here, so applyActions refuses it.
-const modelProblems = new WeakMap<BrainAction, string>();
+// and leaves what is wrong with one here, so applyActions refuses it. on: the providers the agents it
+// is about ran on then (an earlier action may move them first: then each is checked again as it runs).
+const modelProblems = new WeakMap<BrainAction, { why: string; on: Map<string, ModelProvider> }>();
 
 /** The effort an action asks for: undefined = leave it, '' = the model's own. */
 export function effortAsked(v: unknown): Effort | '' | undefined {
@@ -890,12 +891,19 @@ const targetList = (act: BrainAction): BrainAction[] => (Array.isArray(act.targe
 /** Check the model ids of set_model actions against their provider's list (before applyActions, which
  *  checks each agent again against the lists fetched here: see checkModelNow). */
 export async function prepareModels(actions: BrainAction[]): Promise<void> {
+  // providers earlier actions move agents to: their lists are needed for the checks that run later
+  const movedTo = new Set<ModelProvider>();
   for (const act of actions.slice(0, ACTIONS_MAX)) {
-    if (actionKind(act) !== 'set_model' || act.model === undefined || act.model === null) continue;
-    const model = String(act.model).trim();
+    if (actionKind(act) !== 'set_model') continue;
     const prov = modelProvider(act.provider);
+    if (act.model === undefined || act.model === null) {
+      if (prov) movedTo.add(prov);
+      continue;
+    }
+    const model = String(act.model).trim();
     // no provider: the model is for the provider each agent runs on now
     const byProvider = new Map<ModelProvider, string[]>();
+    const on = new Map<string, ModelProvider>();
     let later = false;
     if (prov) byProvider.set(prov, []);
     else {
@@ -904,6 +912,7 @@ export async function prepareModels(actions: BrainAction[]): Promise<void> {
           for (const a of modelTargets(t, { agent: null, team: null }).list) {
             const p = providerOfAgent(a);
             byProvider.set(p, [...(byProvider.get(p) || []), a.name]);
+            on.set(a.id, p);
           }
         } catch {
           // ('new': made by an earlier action, so not there yet; anything else is reported when it runs)
@@ -913,14 +922,27 @@ export async function prepareModels(actions: BrainAction[]): Promise<void> {
     }
     // who it is about is known only when the actions run: have every provider's list ready for that check
     if (later) await Promise.all(readyProviders().map((p) => availableModels(p).catch(() => [])));
+    else if (!prov && movedTo.size) await Promise.all([...movedTo].map((p) => availableModels(p).catch(() => [])));
+    if (prov) movedTo.add(prov);
     for (const [p, names] of byProvider) {
       const why = await checkModel(p, model);
       if (why) {
-        modelProblems.set(act, names.length ? `${why}: ${names.join(', ')} ${names.length > 1 ? 'run' : 'runs'} on ${MODEL_PROVIDERS[p].label} (give "provider" to move them)` : why);
+        modelProblems.set(act, { why: names.length ? `${why}: ${names.join(', ')} ${names.length > 1 ? 'run' : 'runs'} on ${MODEL_PROVIDERS[p].label} (give "provider" to move them)` : why, on });
         break;
       }
     }
   }
+}
+
+/** The problem prepareModels found with a set_model, unless an earlier action has moved its agents since. */
+function modelProblem(act: BrainAction): string | null {
+  const found = modelProblems.get(act);
+  if (!found) return null;
+  for (const [id, p] of found.on) {
+    const a = agents.get(id);
+    if (!a || providerOfAgent(a) !== p) return null;
+  }
+  return found.why;
 }
 
 // ---------- stopping work ----------
@@ -1221,7 +1243,8 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         continue;
       }
       if (kind === 'set_model') {
-        const problem = modelProblems.get(act);
+        // (moved by an earlier action: each agent is checked below, against the lists prepareModels fetched)
+        const problem = modelProblem(act);
         if (problem) throw new Error(problem);
         const hasModel = act.model !== undefined && act.model !== null;
         const model = hasModel ? String(act.model).trim() : '';
@@ -1439,8 +1462,9 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
       }
       if (kind === 'give_skill' || kind === 'take_skill' || kind === 'set_skills') {
         const { found, missing } = findSkills(act.skills ?? act.skill);
-        if (missing.length) done.push({ kind: 'error', text: `${kind}: no skill ${missing.map((m) => `"${m}"`).join(', ')}` });
-        if (!found.length && kind !== 'set_skills') continue;
+        // set_skills replaces the whole list: with a name it can't find, it changes nothing (an empty list still clears)
+        if (missing.length) done.push({ kind: 'error', text: `${kind}: no skill ${missing.map((m) => `"${m}"`).join(', ')}${kind === 'set_skills' ? ', so nothing was changed' : ''}` });
+        if (kind === 'set_skills' ? missing.length > 0 : !found.length) continue;
         const slugs = found.map((sk) => sk.slug);
         const names = (list: string[]) => list.map((slug) => `"${getSkill(slug)?.name || slug}"`).join(', ');
         for (const target of targetsOf(act)) {
@@ -1836,7 +1860,9 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
   me.past = true;
   // you switched projects while it thought (even if you came back since: the chat dropped this turn), so skip its actions
   const skipped: BrainDone = { kind: 'error', text: `You switched projects while the Brain was thinking, so nothing was changed. Open "${p.name}" and ask again.` };
-  const stale = () => projectSwitches() !== switchesAtStart || openProject().id !== p.id;
+  // (a new conversation started while installs or model lists were fetched: the same, and nothing is kept)
+  const cleared = () => generation(p.id) !== gen;
+  const stale = () => projectSwitches() !== switchesAtStart || openProject().id !== p.id || cleared();
   // the user's own words in this chat: GitHub links and MCP server settings are checked against them
   const userWords = [text, ...past.filter((m) => m.role === 'user').map((m) => m.text)].join('\n');
   // GitHub installs first (they download), with the user's own words to check the links against; a
@@ -1849,7 +1875,8 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
   });
   // model ids checked against their provider's list (a switch meanwhile is caught below)
   if (!stale() && parsed.actions.slice(0, ACTIONS_MAX).some((a) => actionKind(a) === 'set_model')) await prepareModels(parsed.actions);
-  if (finished.length) skipped.text = `You switched projects while the Brain was thinking, so nothing else was changed. Open "${p.name}" and ask again.`;
+  if (cleared()) skipped.text = `You started a new conversation while the Brain was thinking, so nothing${finished.length ? ' else' : ''} was changed.`;
+  else if (finished.length) skipped.text = `You switched projects while the Brain was thinking, so nothing else was changed. Open "${p.name}" and ask again.`;
   const applied = stale() ? { done: parsed.actions.length ? [skipped, ...finished] : [], delegate: null } : applyActions(parsed.actions, p, { seenSkills, userWords });
   const done = applied.done;
   let delegate = applied.delegate;
@@ -1866,8 +1893,9 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
   }
   const r = { answer: parsed.answer, done, delegate };
   const now = Date.now();
-  // on top of the history as it is now (not as it was before thinking), so nothing saved meanwhile is lost
-  remember([...history(p.id), { role: 'user', text, ts: now, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: [r.answer, ...done.map((d) => `(${d.text})`), delegate ? `(handed to ${delegate.name}: ${delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n'), ts: Date.now() }], p.id);
+  // on top of the history as it is now (not as it was before thinking), so nothing saved meanwhile is lost;
+  // cleared meanwhile: this turn belongs to the old conversation, so it isn't brought back
+  if (!cleared()) remember([...history(p.id), { role: 'user', text, ts: now, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: [r.answer, ...done.map((d) => `(${d.text})`), delegate ? `(handed to ${delegate.name}: ${delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n'), ts: Date.now() }], p.id);
   return { ...r, model: bm, project: p.name };
 }
 

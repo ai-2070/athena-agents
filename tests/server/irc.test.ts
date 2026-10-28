@@ -6,8 +6,9 @@ import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ask, clearHistory, history } from '../../server/overseer.ts';
-import { startIrc, FOLLOW_UPS_MAX } from '../../server/irc.ts';
-import { listBriefs } from '../../server/briefs.ts';
+import { sendBrief, startIrc, FOLLOW_UPS_MAX } from '../../server/irc.ts';
+import { addBrief, listBriefs, updateBrief } from '../../server/briefs.ts';
+import { resumeInTeam } from '../../server/commands.ts';
 import { newAgent } from '../../server/library.ts';
 import { activeProject, chats, saveSettings, setActiveProject, workflows } from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
@@ -196,6 +197,50 @@ describe('follow-up edge cases', () => {
     expect(listBriefs(b.id)).toEqual([]);
     setActiveProject(a.id);
     expect(notes().at(-1)).toContain('**Holder finished.**');
+  });
+
+  it('a team stopped while its work is being checked is not followed up', async () => {
+    const lead = agent('Finisher');
+    const t = team('Stopped mid-check', lead.id);
+    let judge!: (v: string) => void;
+    verdicts.push(new Promise<string>((r) => (judge = r)));
+    answers.push(delegate('team', t.id, 'Make the poster'));
+    await ask('poster please');
+    await until(() => asked.some((a) => a.user.includes('Make the poster') && a.system.includes('Decide whether')));
+    stopTeam(t.id);
+    expect(briefFor(t.id)?.status).toBe('stopped');
+    judge('{"done":false,"followUp":"@Finisher add the logo","summary":"No logo."}');
+    await new Promise((r) => setTimeout(r, 200));
+    expect(thread(t.id).filter((m) => m.from === 'brain').map((m) => m.text)).toEqual(['Make the poster']);
+    expect(briefFor(t.id)?.status).toBe('stopped');
+  });
+
+  it("a stopped team goal with nothing left to pick up stays stopped on /resume", () => {
+    const lead = agent('Finisher');
+    const t = team('After a restart', lead.id);
+    // (stopped before a restart: the brief is saved, the cut-off turns are not)
+    const b = addBrief({ kind: 'team', targetId: t.id, name: t.name, text: 'Ship it', goal: 'Ship it', origin: 'chat', ts: Date.now() });
+    updateBrief(b.id, { status: 'stopped' });
+    expect(() => resumeInTeam(t.id)).toThrow(/Nothing was left to pick up again/);
+    expect(briefFor(t.id)?.status).toBe('stopped');
+  });
+
+  it('keeps a brief in the project it was handed out in while the team picks who answers', async () => {
+    const x = agent('Finisher');
+    const y = agent('Writer');
+    const t = workflows.save({ name: 'Leaderless', description: '', members: [x.id, y.id], lead: null, steps: [] } as Partial<Team>);
+    const a = activeProject();
+    const b = await createProject({ name: 'IRC C', mode: 'new', folder: path.join(os.homedir(), 'irc-projects', 'c') });
+    setActiveProject(a.id);
+    try {
+      const sent = sendBrief({ kind: 'branch', id: t.id, name: t.name, message: 'Sort the files' });
+      setActiveProject(b.id);
+      await sent;
+      expect(listBriefs(a.id).findLast((x) => x.targetId === t.id)?.text).toBe('Sort the files');
+      expect(listBriefs(b.id)).toEqual([]);
+    } finally {
+      setActiveProject(a.id);
+    }
   });
 });
 

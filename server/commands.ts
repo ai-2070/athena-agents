@@ -100,8 +100,9 @@ export function resumeInTeam(teamId: string): { resumed: true } {
   const t = team(teamId);
   const brief = stoppedBrief('team', t.id);
   const picked = brief ? resumeBrief(brief, RESUME_TEXT) : teams.resumeTeam(t.id) > 0;
-  // (a goal opened again counts: the Brain checks the next time the team goes quiet)
-  if (!picked && !brief) throw fail(400, "Nothing to resume: the team wasn't stopped or paused.");
+  // (a stopped goal whose cut-off turns are gone, e.g. after a restart, stays stopped)
+  if (!picked && brief) throw fail(409, 'Nothing was left to pick up again. Write in the chat to start the work again.');
+  if (!picked) throw fail(400, "Nothing to resume: the team wasn't stopped or paused.");
   return { resumed: true };
 }
 
