@@ -1,0 +1,29 @@
+server/util.ts
+  s_4f53eccb4f7bb2::t_2e0a71b07e8551 241
+  s_4f53eccb4f7bb2::t_e76ce077473103 254-257
+  s_4f53eccb4f7bb2::t_875e246c61e238 227-240,242-247
+tests/server/fixtures/fake-codex.js
+  s_4f53eccb4f7bb2::t_74ce29b2a5f5de 1-16
+server/engines/codex.ts
+  s_4f53eccb4f7bb2::t_78c63a0f92e794 155-158
+  s_4f53eccb4f7bb2::t_cf0f4d3eb794f1 148
+  s_4f53eccb4f7bb2::t_654d8d5ee5c866 231-232,234
+tests/server/codex-run.test.ts
+  s_4f53eccb4f7bb2::t_acd40b5441efc2 1-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "56500832118625882123b6c684b31622c24ebb85",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
