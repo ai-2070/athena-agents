@@ -1,0 +1,28 @@
+server/projectsync.ts
+  s_4f53eccb4f7bb2::t_1e8874044430f5 18,34-35,71,196,208-209,288-290,304-305,308,315-327,361,365-369
+docs/guide.md
+  s_4f53eccb4f7bb2::t_c40cb05d81038b 252,254,263-264
+  s_4f53eccb4f7bb2::t_130dbd438867d5 106
+tests/server/clone-restore.test.ts
+  s_4f53eccb4f7bb2::t_5e2168b7ecd490 1-12,14-100,106-107
+  s_4f53eccb4f7bb2::t_c81e63974a83d1 13,101-105
+server/backup.ts
+  s_4f53eccb4f7bb2::t_97b5bdeed1aeb3 36,54,131-132,372-373,399-400,566,747-748,754-760,807-810,813-815
+  s_4f53eccb4f7bb2::t_07a91e10339b65 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2c043305690a274671020bacc7d71af623312e0b",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
