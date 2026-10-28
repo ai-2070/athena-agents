@@ -5,7 +5,7 @@ import { h, mount, POST, DEL, toast, lightbox } from './core.ts';
 import { upload } from './client/http.ts';
 import { fileUrl } from './client/connection.ts';
 import { icon } from './icons.ts';
-import { markdownTooBig, openPdf, previewKind, showMarkdown } from './filepreview.ts';
+import { markdownTooBig, onDesktop, openFile, openPdf, previewKind, showMarkdown } from './filepreview.ts';
 import type { UploadedFile } from '../shared/types.ts';
 
 /** A file to upload. rel: its path inside a dropped folder ('docs/a.md'), or just its name. */
@@ -350,13 +350,16 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
     );
   };
   // How a chip's file opens: pictures and Markdown straight from the computer (no need to wait for the
-  // upload), a PDF in a new tab once it is uploaded. null: it can't be looked at.
+  // upload), a PDF in a new tab once it is uploaded (the desktop app: any file, in its own program).
+  // null: it can't be looked at.
   const opener = (it: Item): { title: string; go: () => void } | null => {
     if (it.kind !== 'file') return null;
     const file = it.picked[0]?.file;
     const kind = previewKind(it.name);
     if (kind === 'image' && (it.preview || it.path)) return { title: `Show ${it.name} bigger`, go: () => lightbox(it.preview || fileUrl(it.path!), it.name) };
     if (kind === 'markdown' && file) return { title: `Read ${it.name}`, go: () => void (markdownTooBig(it.name, file.size) || file.text().then((t) => showMarkdown(it.name, t), () => toast(`${it.name} couldn’t be read.`, 'error'))) };
+    // in the desktop app any file opens in its own program once it is uploaded
+    if (onDesktop() && it.path && it.state === 'done') return { title: `Open ${it.name}`, go: () => openFile(it.path!) };
     if (kind === 'pdf' && it.path && it.state === 'done') return { title: `Open ${it.name} in a new tab`, go: () => openPdf(it.path!) };
     return null;
   };

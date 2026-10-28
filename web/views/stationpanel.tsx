@@ -19,7 +19,7 @@ import { Avatar, DomNode, Icon, useAppState } from '../ui/react.tsx';
 import { ChipSet, Segmented, Tabs } from '../ui/controls.tsx';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { WorldPanel } from './worldpanel.tsx';
-import { fileManager, previewFile, previewKind } from '../filepreview.ts';
+import { fileManager, previewFile, previewKind, previewTitle } from '../filepreview.ts';
 import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, connectorLook } from './stationdata.ts';
 import type { AvailableIntegration, Connector, MapPick, Program, TeamView } from './stationdata.ts';
 import type { Agent, AppState, Project, Team, TeamAccess, TeamState } from '../../shared/types.ts';
@@ -384,17 +384,17 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
 }
 
 // A row in the Brain folder list: a folder opens in Finder / Explorer, a picture, Markdown file or PDF
-// opens the way it does in a chat, anything else is just its name.
+// opens the way it does in a chat (in the desktop app any file opens), anything else is just its name.
 function BrainEntry({ entry: e }: { entry: BrainInfo['entries'][number] }) {
   const kind = e.dir ? null : previewKind(e.name);
-  if (!e.dir && !kind)
+  const title = e.dir ? `Open ${e.name} in ${fileManager()}` : previewTitle(e.name);
+  if (!title)
     return (
       <div className={FILE}>
         <Icon name="pen-line" size={13} className="flex-none text-faint" />
         <span className="min-w-0 truncate">{e.name}</span>
       </div>
     );
-  const title = e.dir ? `Open ${e.name} in ${fileManager()}` : kind === 'image' ? `Show ${e.name} bigger` : kind === 'pdf' ? `Open ${e.name} in a new tab` : `Read ${e.name}`;
   const go = () => (e.dir ? void attempt(() => POST('/brain/open', { path: e.path })) : previewFile(e.path, e.name));
   return (
     <button type="button" className={FILE_OPENS} title={title} aria-label={title} onClick={go}>

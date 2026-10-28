@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { attachTray, restoreDraft, MAX_ATTACHMENTS } from '../../web/attach.ts';
 import type { PickedFile } from '../../web/attach.ts';
+import { state } from '../../web/core.ts';
+import type { AppState } from '../../shared/types.ts';
 
 class FakeXHR {
   static all: FakeXHR[] = [];
@@ -244,5 +246,24 @@ describe('looking at attached files before sending', () => {
     // the ✕ still only removes
     chip(tray, 'brief.pdf').querySelector<HTMLButtonElement>('.att-x')!.click();
     expect(opened).toHaveBeenCalledTimes(1);
+  });
+
+  it('in the desktop app any uploaded file opens in its own program', async () => {
+    const posted: unknown[] = [];
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => (posted.push([url, JSON.parse(String(init.body))]), new Response('{"ok":true}')));
+    state.data = { desktop: true } as AppState;
+    try {
+      const tray = attachTray();
+      tray.add([{ rel: 'data.csv', file: new File(['a,b'], 'data.csv') }]);
+      await frame();
+      expect(chip(tray, 'data.csv').querySelector('.att-open')).toBeNull();
+      await finishAll();
+      await frame();
+      chip(tray, 'data.csv').querySelector<HTMLButtonElement>('.att-open')!.click();
+      await frame();
+      expect(posted.at(-1)).toEqual(['/api/files/open', { path: '/up/data.csv' }]);
+    } finally {
+      state.data = null;
+    }
   });
 });

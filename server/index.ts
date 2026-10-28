@@ -165,6 +165,7 @@ get('/api/state', async (): Promise<AppState> => ({
   port: PORT,
   home: HOME,
   dataDir: dataPath(),
+  desktop: !!process.env.DASH_DESKTOP,
 }));
 
 get('/api/activity', async () => activity(200));
@@ -846,10 +847,15 @@ get('/api/file', async (_p, _b, q, res) => {
   return undefined;
 });
 
-// Files a chat mentions: whether each is there and what it is (for its preview), and Show in Explorer / Finder.
+// Files a chat mentions: whether each is there and what it is (for its preview), Show in Explorer / Finder,
+// and Open (the desktop app: with the file's own program).
 post<{ paths?: unknown }>('/api/files/info', async (_p, body) => files.fileInfo(body.paths));
 post<{ path?: unknown }>('/api/files/reveal', async (_p, body) => {
   files.reveal(body.path);
+  return { ok: true };
+});
+post<{ path?: unknown }>('/api/files/open', async (_p, body) => {
+  files.open(body.path);
   return { ok: true };
 });
 

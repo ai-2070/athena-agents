@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { GET, POST, PUT, DEL, attempt, toast, ago, refreshSoon } from '../core.ts';
 import { fetchFile } from '../client/http.ts';
 import { fileUrl } from '../client/connection.ts';
+import { openFile } from '../filepreview.ts';
 import { reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { QuestionCard } from '../questions.tsx';
 import type { AgentQuestion, OutboxPost } from '../../shared/types.ts';
@@ -138,6 +139,8 @@ const STATUS: Record<string, [string, string]> = {
 };
 
 function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
+  // the desktop app opens an image in its own program
+  const desktop = !!useAppState()?.desktop;
   const editable = p.status === 'pending' || p.status === 'failed';
   const serverTitle = p.platform === 'reddit' && p.reddit?.kind === 'post' ? p.reddit.title || '' : null;
   const [parts, setPartsNow] = useState(p.parts);
@@ -220,6 +223,7 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
                 <div className="flex flex-wrap items-center gap-1.5">
                   <button className="btn ghost tiny" title="Copy the image, to paste it into a post yourself" onClick={() => void copyImage(url)}>Copy</button>
                   <a className="btn ghost tiny" href={url} download={name} title="Save the image file">Save</a>
+                  {desktop ? <button className="btn ghost tiny" title={`Open ${name}`} onClick={() => openFile(f)}>Open</button> : null}
                 </div>
               </div>
             );

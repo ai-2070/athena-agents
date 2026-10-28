@@ -1,8 +1,9 @@
-// Files the dashboard may show in the browser (previews in chats) and reveal in Explorer / Finder:
+// Files the dashboard may show in the browser (previews in chats), reveal in Explorer / Finder and
+// (in the desktop app) open with their default program:
 // only inside the project's folders, never anywhere else on the disk.
 import fs from 'node:fs';
 import path from 'node:path';
-import { dataPath, insideRoots, revealInShell } from './util.ts';
+import { dataPath, insideRoots, openWithShell, revealInShell, runnable } from './util.ts';
 import { agents, getSettings, projectData } from './store.ts';
 import { ensureBrain } from './projects.ts';
 import { comfyOutputDirs } from './programs.ts';
@@ -54,4 +55,14 @@ export function reveal(p: unknown): void {
   if (!real) throw Object.assign(new Error('That file is outside the dashboard folders.'), { status: 403 });
   if (!fs.existsSync(real)) throw Object.assign(new Error('That file is no longer there.'), { status: 404 });
   revealInShell(real);
+}
+
+/** Opens the file with its default program (a folder in Explorer / Finder). Programs and scripts are
+ *  never started this way: agents write files here, and opening one must not run it. */
+export function open(p: unknown): void {
+  const real = viewable(p);
+  if (!real) throw Object.assign(new Error('That file is outside the dashboard folders.'), { status: 403 });
+  if (!fs.existsSync(real)) throw Object.assign(new Error('That file is no longer there.'), { status: 404 });
+  if (runnable(p) || runnable(real)) throw Object.assign(new Error(`${path.basename(real)} is a program or script, so it isn't opened from here.`), { status: 403 });
+  openWithShell(real);
 }

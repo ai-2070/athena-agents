@@ -1,17 +1,18 @@
-// Files a chat mentions: previews only inside the project's folders, and Show in Explorer / Finder.
+// Files a chat mentions: previews only inside the project's folders, Show in Explorer / Finder, and Open.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { fileInfo, kindOf, reveal, viewRoots } from '../../server/files.ts';
+import { fileInfo, kindOf, open, reveal, viewRoots } from '../../server/files.ts';
 import { ensureBrain } from '../../server/projects.ts';
 import { newAgent } from '../../server/library.ts';
 
 // never really open Explorer / Finder
-const shell = vi.hoisted(() => ({ revealed: [] as string[] }));
+const shell = vi.hoisted(() => ({ revealed: [] as string[], opened: [] as string[] }));
 vi.mock('../../server/util.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/util.ts')>()),
   revealInShell: (p: string) => shell.revealed.push(p),
+  openWithShell: (p: string) => shell.opened.push(p),
 }));
 
 const write = (p: string, body = 'x') => (fs.mkdirSync(path.dirname(p), { recursive: true }), fs.writeFileSync(p, body), p);
@@ -82,6 +83,29 @@ describe('reveal()', () => {
     expect(() => reveal(outside)).toThrow(expect.objectContaining({ status: 403 }));
     expect(() => reveal(path.join(ensureBrain(), 'gone.txt'))).toThrow(expect.objectContaining({ status: 404 }));
     expect(() => reveal('relative.txt')).toThrow(expect.objectContaining({ status: 403 }));
+  });
+});
+
+describe('open()', () => {
+  it('opens a project file or folder with its own program', () => {
+    const f = write(path.join(ensureBrain(), 'open', 'report.docx'));
+    open(f);
+    expect(shell.opened.at(-1)).toBe(fs.realpathSync.native(f));
+    open(path.dirname(f));
+    expect(shell.opened.at(-1)).toBe(fs.realpathSync.native(path.dirname(f)));
+  });
+
+  it('never starts programs or scripts', () => {
+    const before = shell.opened.length;
+    for (const name of ['setup.exe', 'run.BAT', 'x.ps1', 'tool.py', 'a.lnk', 'trick.cmd.', 'Thing.app'])
+      expect(() => open(write(path.join(ensureBrain(), 'open', name)))).toThrow(expect.objectContaining({ status: 403 }));
+    expect(shell.opened.length).toBe(before);
+  });
+
+  it('refuses files outside the project, and missing ones', () => {
+    const outside = write(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'out-')), 'a.txt'));
+    expect(() => open(outside)).toThrow(expect.objectContaining({ status: 403 }));
+    expect(() => open(path.join(ensureBrain(), 'gone.txt'))).toThrow(expect.objectContaining({ status: 404 }));
   });
 });
 

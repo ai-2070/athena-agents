@@ -397,6 +397,14 @@ export function launchDetached(exe: string, args: string[] = [], opts: SpawnOpti
 
 // Open a file, folder, URL or .lnk with its default handler.
 // No cmd.exe here: URLs go to the URL handler, files and folders to Explorer.
+// Files that run code when opened (Adobe apps run the .jsx / .jsxbin scripts they are handed;
+// a macOS .app folder or a Linux .desktop file starts a program).
+const RUNNABLE = /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|jsx|jsxbin|wsf|wsh|hta|msi|msp|scr|cpl|lnk|url|reg|jar|py|pyw|sh|command|scpt|applescript|appref-ms|application|gadget|inf|pif|scf|app|pkg|appimage|desktop)$/i;
+// A name as Windows opens it: trailing spaces and dots don't count ("x.py. " opens x.py), nor a ::$DATA stream.
+export const asOpened = (p: unknown): string => String(p ?? '').trim().replace(/::\$data$/i, '').replace(/[\s.]+$/, '');
+/** Whether opening this file with its default program would run code. */
+export const runnable = (p: unknown): boolean => RUNNABLE.test(asOpened(p));
+
 export function openWithShell(target: string) {
   target = String(target);
   if (/[\r\n]/.test(target)) throw new Error('Invalid path or link.');

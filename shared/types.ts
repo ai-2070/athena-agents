@@ -666,6 +666,8 @@ export interface AppState {
   port: number;
   home: string;
   dataDir: string;
+  /** the desktop app started this server (files open with their own programs there) */
+  desktop?: boolean;
 }
 
 // ---------- skills and presets ----------

@@ -1,6 +1,8 @@
 // Previews of the files a chat mentions, each with Show in Explorer / Finder below it.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { filePreviews, forgetFiles, mentionPreviews, previewKind, revealLabel } from '../../web/filepreview.ts';
+import { filePreviews, forgetFiles, mentionPreviews, previewFile, previewKind, previewTitle, revealLabel } from '../../web/filepreview.ts';
+import { state } from '../../web/core.ts';
+import type { AppState } from '../../shared/types.ts';
 
 const FILES: Record<string, { kind: string; size: number }> = {
   '/w/shot.png': { kind: 'image', size: 2048 },
@@ -180,7 +182,54 @@ describe('opening attached files', () => {
     expect(document.querySelector('.modal-body .md.md-doc')!.textContent).toContain('Hello');
   });
 
+  it('opens no file in another program outside the desktop app', async () => {
+    const box = filePreviews(['/w/data.csv', '/w/shot.png']);
+    document.body.append(box);
+    await settle();
+    expect(box.querySelector('.fp-open')).toBeNull();
+    expect(previewTitle('data.csv')).toBeNull();
+  });
+
   it('knows which files can be looked at', () => {
     expect(['a.PNG', 'b.md', 'c.markdown', 'd.pdf', 'e.txt', 'f'].map(previewKind)).toEqual(['image', 'markdown', 'markdown', 'pdf', null, null]);
+  });
+});
+
+describe('in the desktop app', () => {
+  beforeEach(() => (state.data = { desktop: true } as AppState));
+  afterEach(() => (state.data = null));
+  const opened = () => calls.filter((c) => c.url === '/api/files/open').map((c) => c.body.path);
+
+  it('a PDF or any other file opens in its own program instead of a tab or a download', async () => {
+    const box = filePreviews(['/w/plan.pdf', '/w/data.csv']);
+    document.body.append(box);
+    await settle();
+    const [pdf, csv] = [...box.querySelectorAll<HTMLElement>('.fp-card')];
+    expect(box.querySelector('a.fp-file')).toBeNull();
+    expect(csv.className).toContain('hover:border-accent-dim');
+    pdf.querySelector<HTMLButtonElement>('button.fp-file')!.click();
+    csv.querySelector<HTMLButtonElement>('button.fp-file')!.click();
+    await settle();
+    expect(opened()).toEqual(['/w/plan.pdf', '/w/data.csv']);
+  });
+
+  it('every file gets an Open button next to Show in Explorer / Finder; folders do not', async () => {
+    const box = filePreviews(['/w/shot.png', '/w/clip.mp4', '/w/renders']);
+    document.body.append(box);
+    await settle();
+    const [img, vid, dir] = [...box.querySelectorAll<HTMLElement>('.fp-card')];
+    expect(dir.querySelector('.fp-open')).toBeNull();
+    img.querySelector<HTMLButtonElement>('.fp-open')!.click();
+    vid.querySelector<HTMLButtonElement>('.fp-open')!.click();
+    await settle();
+    expect(opened()).toEqual(['/w/shot.png', '/w/clip.mp4']);
+  });
+
+  it('previewFile opens what the page cannot show; pictures still open big here', async () => {
+    previewFile('/w/data.csv', 'data.csv');
+    previewFile('/w/plan.pdf', 'plan.pdf');
+    await settle();
+    expect(opened()).toEqual(['/w/data.csv', '/w/plan.pdf']);
+    expect(['a.png', 'b.md', 'c.pdf', 'd.zip'].map(previewTitle)).toEqual(['Show a.png bigger', 'Read b.md', 'Open c.pdf', 'Open d.zip']);
   });
 });

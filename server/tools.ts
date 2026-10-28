@@ -2,7 +2,7 @@
 // Risk decides when you're asked first: autonomy "ask" checks low + high, "auto" checks high only, "full" never asks.
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, ROOT, IS_WIN, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which, insideRoots } from './util.ts';
+import { HOME, ROOT, IS_WIN, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which, insideRoots, asOpened, runnable } from './util.ts';
 import * as assetLib from './assets.ts';
 import type { AssetSource, AssetKind } from './assets.ts';
 import { mayaScript, houdiniScript, sibling, sbsrenderArgs, openscadArgs, prusaSlicerArgs, nvttArgs, handbrakeArgs, GPU_FIELDS, formatGpus } from './dcc.ts';
@@ -129,13 +129,8 @@ function resolveInside(agent: ToolAgent, p: string | undefined, { write = false 
   return { abs, real: real || abs, ok: !!real };
 }
 
-// Files that run code when opened (Adobe apps run the .jsx / .jsxbin scripts they are handed).
-const RUNNABLE = /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|jsx|jsxbin|wsf|wsh|hta|msi|msp|scr|cpl|lnk|url|reg|jar|py|pyw|sh|command|scpt|applescript|appref-ms|application|gadget|inf|pif|scf)$/i;
 // Programs that run whatever they are given.
 const INTERPRETERS = /^(cmd|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python\d*|py|node|bun|deno|ruby|perl|php|java|javaw|osascript|bash|sh|zsh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget)(\.exe)?$/i;
-// A name as Windows opens it: trailing spaces and dots don't count ("x.py. " opens x.py), nor a ::$DATA stream.
-const asOpened = (p: unknown): string => String(p ?? '').trim().replace(/::\$data$/i, '').replace(/[\s.]+$/, '');
-const runnable = (p: unknown): boolean => RUNNABLE.test(asOpened(p));
 
 /** The chat a tool call runs in (to tell which team it is for). */
 const chatOf = async (ctx: ToolContext): Promise<string | null> => (await import('./engines/index.ts')).runInfo(ctx.runId)?.chatId ?? null;

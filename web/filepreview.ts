@@ -1,7 +1,8 @@
 // Previews of the files a chat mentions: images and videos shown, audio playable, 3D models you can turn, other files and folders
-// as a card, each with a "Show in Explorer / Finder" button below. Only files the dashboard may show
+// as a card, each with a "Show in Explorer / Finder" button below (and in the desktop app an Open button:
+// the file in its own program). Only files the dashboard may show
 // (inside the project's folders, see server/files.ts) get one; anything else is left as plain text.
-import { h, mount, POST, attempt, lightbox, toast } from './core.ts';
+import { h, mount, POST, attempt, lightbox, toast, state } from './core.ts';
 import { icon } from './icons.ts';
 import { isMac } from './shortcuts.ts';
 import { findFileMentions } from './mentions.ts';
@@ -18,6 +19,12 @@ const isWindows = (): boolean => /win/i.test((navigator as Navigator & { userAge
 export const revealLabel = (): string => (isWindows() ? 'Show in Explorer' : isMac() ? 'Show in Finder' : 'Show in folder');
 /** What this computer's file manager is called ("Open notes in Finder"). */
 export const fileManager = (): string => (isWindows() ? 'Explorer' : isMac() ? 'Finder' : 'the file manager');
+
+/** The desktop app: files open with their own programs instead of downloading or opening a browser tab. */
+export const onDesktop = (): boolean => !!state.data?.desktop;
+
+/** Opens the file with its default program (desktop app). Programs and scripts are refused by the server. */
+export const openFile = (path: string): void => void attempt(() => POST('/files/open', { path }));
 
 // ---------- looking files up: one request for everything asked for in the same moment ----------
 const known = new Map<string, { at: number; info: Promise<FileInfo> }>();
@@ -106,12 +113,25 @@ export async function previewMarkdown(path: string, name: string): Promise<void>
 /** A PDF opened in a new browser tab (in the desktop app, the default browser). */
 export const openPdf = (path: string): void => void window.open(pdfViewUrl(path), '_blank', 'noopener');
 
-/** Show a file the server has the way previewKind says. */
+/** Show a file the server has the way previewKind says. In the desktop app a PDF, or a file the page
+ *  can't show, opens in its own program. */
 export function previewFile(path: string, name: string): void {
   const kind = previewKind(name);
   if (kind === 'image') lightbox(fileUrl(path), name);
   else if (kind === 'markdown') void previewMarkdown(path, name);
+  else if (onDesktop()) openFile(path);
   else if (kind === 'pdf') openPdf(path);
+}
+
+/** What a click on this file does, for its title. null: nothing (a file the browser can only download). */
+export function previewTitle(name: string): string | null {
+  const kind = previewKind(name);
+  return kind === 'image' ? `Show ${name} bigger` : kind === 'markdown' ? `Read ${name}` : onDesktop() ? `Open ${name}` : kind === 'pdf' ? `Open ${name} in a new tab` : null;
+}
+
+/** Open, in the desktop app: the file in its own program. */
+export function openButton(path: string, name: string): HTMLButtonElement {
+  return h('button.btn.tiny.ghost.fp-open', { class: 'flex-none gap-1.25', type: 'button', title: `Open ${name}`, onclick: () => openFile(path) }, icon('external-link', 13), 'Open');
 }
 
 export function revealButton(path: string): HTMLButtonElement {
@@ -134,7 +154,7 @@ function card(f: Extract<FileInfo, { ok: true }>, compact: boolean): HTMLElement
             ? modelViewer(url, f.name, f.size)
             : fileCard(f, fileBox);
   // a card that opens bigger when clicked says so when the mouse is over it
-  const opens = f.kind === 'image' || (f.kind === 'file' && previewKind(f.name) !== null);
+  const opens = f.kind === 'image' || (f.kind === 'file' && (onDesktop() || previewKind(f.name) !== null));
   return h(
     `div.fp-card.fp-kind-${f.kind}`,
     { class: `${compact ? 'flex w-full flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2 [&_.fp-model]:max-h-60' : 'flex w-[min(380px,100%)] flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2'}${opens ? ' transition-colors hover:border-accent-dim' : ''}`, title: f.path },
@@ -145,18 +165,22 @@ function card(f: Extract<FileInfo, { ok: true }>, compact: boolean): HTMLElement
       h('span.fp-name', { class: 'min-w-0 truncate' }, f.name),
       f.kind !== 'folder' && f.size ? h('span.fp-size', { class: 'whitespace-nowrap text-faint' }, size(f.size)) : null,
       h('span', { class: 'min-w-0 flex-1' }),
+      onDesktop() && f.kind !== 'folder' ? openButton(f.path, f.name) : null,
       revealButton(f.path),
     ),
   );
 }
 
 // A file without a picture of its own: Markdown opens to read, a PDF in a new tab, the rest download.
+// In the desktop app a PDF and the rest open in their own programs.
 function fileCard(f: Extract<FileInfo, { ok: true }>, fileBox: string): HTMLElement {
   const label = h('span', { class: 'min-w-0 truncate text-[13.5px]' }, f.kind === 'folder' ? `${f.name}/` : f.name);
   if (f.kind === 'folder') return h('div.fp-file', { class: fileBox }, icon('folder', 22), label);
   const kind = previewKind(f.name);
   if (kind === 'markdown')
     return h('button.fp-file', { class: `${fileBox} w-full cursor-pointer border-0 bg-transparent text-left hover:bg-panel hover:text-accent`, type: 'button', title: `Read ${f.name}`, onclick: () => void previewMarkdown(f.path, f.name) }, icon('file-text', 22), label);
+  if (onDesktop())
+    return h('button.fp-file', { class: `${fileBox} w-full cursor-pointer border-0 bg-transparent text-left hover:bg-panel hover:text-accent`, type: 'button', title: `Open ${f.name}`, onclick: () => openFile(f.path) }, icon('file-text', 22), label, h('span', { class: 'ml-auto flex-none text-faint' }, icon('external-link', 14)));
   if (kind === 'pdf')
     return h('a.fp-file', { class: `${fileBox} hover:bg-panel hover:text-accent`, href: pdfViewUrl(f.path), target: '_blank', rel: 'noopener', title: `Open ${f.name} in a new tab` }, icon('file-text', 22), label, h('span', { class: 'ml-auto flex-none text-faint' }, icon('external-link', 14)));
   return h('a.fp-file', { class: `${fileBox} hover:text-accent`, href: fileUrl(f.path), target: '_blank', rel: 'noopener', title: `Download ${f.name}` }, icon('file-text', 22), label);
