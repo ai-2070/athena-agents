@@ -1,10 +1,11 @@
 // Attaching files and folders: drop or paste them on a chat (or the Brain on the map), or pick them with the
 // paperclip. They upload straight away into the project's Brain folder (uploads/…), and the message
 // then carries their paths. A tray shows each one as a chip with its progress.
-import { h, mount, POST, DEL, toast } from './core.ts';
+import { h, mount, POST, DEL, toast, lightbox } from './core.ts';
 import { upload } from './client/http.ts';
 import { fileUrl } from './client/connection.ts';
 import { icon } from './icons.ts';
+import { openPdf, previewKind, showMarkdown } from './filepreview.ts';
 import type { UploadedFile } from '../shared/types.ts';
 
 /** A file to upload. rel: its path inside a dropped folder ('docs/a.md'), or just its name. */
@@ -331,15 +332,33 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
   const chip = (it: Item) => {
     const pct = it.bytes ? Math.min(100, Math.round((it.sent / it.bytes) * 100)) : 100;
     const meta = it.state === 'error' ? it.error : it.state === 'uploading' ? `${pct}%` : it.kind === 'folder' ? `${it.picked.length} file${it.picked.length === 1 ? '' : 's'} · ${size(it.bytes)}` : size(it.bytes);
-    return h(
-      `div.att-chip.${it.state}`,
-      { title: it.state === 'error' ? it.error || '' : it.path || it.name },
+    const open = it.state === 'error' ? null : opener(it);
+    const face = [
       it.preview ? h('img', { class: 'size-5.5 flex-none rounded-[4px] object-cover', src: it.preview, alt: '' }) : h('span.att-ico', icon(it.kind === 'folder' ? 'folder' : 'file', 14)),
       h('span.att-name', it.name),
       h('span', { class: `max-w-[140px] truncate font-mono text-[10.5px] leading-[normal] ${it.state === 'error' ? 'text-red' : it.state === 'uploading' ? 'text-accent' : 'text-faint'}` }, meta),
+    ];
+    return h(
+      `div.att-chip.${it.state}`,
+      { class: open ? 'transition-colors hover:border-accent-dim' : '', title: it.state === 'error' ? it.error || '' : it.path || it.name },
+      // a file that can be looked at opens when clicked (the name and size are its button)
+      open
+        ? h('button.att-open', { class: 'flex min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-inherit [font:inherit] hover:text-accent [&:hover_.att-ico]:text-accent', type: 'button', title: open.title, 'aria-label': open.title, onclick: open.go }, face)
+        : face,
       it.state === 'uploading' ? h('span', { class: 'absolute bottom-0 left-0 h-0.5 w-full origin-left bg-accent [transform:scaleX(var(--p,0))] transition-transform duration-150 ease-linear', style: { '--p': String(pct / 100) } }) : null,
       h('button.att-x', { type: 'button', title: 'Remove', 'aria-label': `Remove ${it.name}`, onclick: () => remove(it) }, icon('x', 12)),
     );
+  };
+  // How a chip's file opens: pictures and Markdown straight from the computer (no need to wait for the
+  // upload), a PDF in a new tab once it is uploaded. null: it can't be looked at.
+  const opener = (it: Item): { title: string; go: () => void } | null => {
+    if (it.kind !== 'file') return null;
+    const file = it.picked[0]?.file;
+    const kind = previewKind(it.name);
+    if (kind === 'image' && (it.preview || it.path)) return { title: `Show ${it.name} bigger`, go: () => lightbox(it.preview || fileUrl(it.path!), it.name) };
+    if (kind === 'markdown' && file) return { title: `Read ${it.name}`, go: () => void file.text().then((t) => showMarkdown(it.name, t), () => toast(`${it.name} couldn’t be read.`, 'error')) };
+    if (kind === 'pdf' && it.path && it.state === 'done') return { title: `Open ${it.name} in a new tab`, go: () => openPdf(it.path!) };
+    return null;
   };
   const forget = (p: string) => DEL(`/uploads?path=${encodeURIComponent(p)}`).catch(() => {});
   const remove = (it: Item) => {

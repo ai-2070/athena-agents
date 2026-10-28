@@ -366,7 +366,6 @@ details.compaction .hint.warn { color: var(--color-amber); }
 .modal-body { padding: 20px; overflow-y: auto; }
 .modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 14px 20px; border-top: 1px solid var(--color-line); flex-wrap: wrap; }
 .modal-foot .left { margin-right: auto; display: flex; gap: 8px; flex-wrap: wrap; }
-.lightbox img { max-width: 92vw; max-height: 88vh; display: block; border: 1px solid var(--color-line-2); }
 
 .toast {
   --tone: var(--color-accent);
