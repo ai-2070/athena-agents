@@ -6,7 +6,7 @@ import { newAgent } from '../../server/library.ts';
 import { agents, saveSettings, workflows } from '../../server/store.ts';
 import { getThread, postUserMessage } from '../../server/teams.ts';
 import { saveSkill } from '../../server/skills.ts';
-import { getRoutine, listRuns, routineTargets, saveRoutine, startRoutine } from '../../server/routines.ts';
+import { checkRoutineSchedules, getRoutine, listRuns, routineTargets, saveRoutine, startRoutine } from '../../server/routines.ts';
 import { cleanSchedule, findMentions, mentionQuery, renameMentions } from '../../shared/routines.ts';
 import type { RoutineMention, RoutineRun, Team } from '../../shared/types.ts';
 
@@ -139,6 +139,16 @@ describe('a routine', () => {
     expect(() => saveRoutine({ text: '  ' }, r.id)).toThrow(/what the routine should do/);
     expect(getRoutine(r.id)!.text).toBe('Do it.');
     expect(saveRoutine({ enabled: true }, r.id).enabled).toBe(true);
+  });
+
+  it('a switched-off routine does not run, by hand or on its schedule, until it is switched on', async () => {
+    const r = saveRoutine({ name: 'Paused', text: 'Do it.', schedule: { type: 'interval', minutes: 5 }, enabled: true });
+    saveRoutine({ paused: true }, r.id);
+    await expect(startRoutine(r.id)).rejects.toThrow(/switched off/);
+    checkRoutineSchedules(Date.now() + 3_600_000);
+    expect(listRuns(r.id)).toHaveLength(0);
+    expect(saveRoutine({ paused: false }, r.id).paused).toBe(false);
+    await expect(startRoutine(r.id)).rejects.toThrow(/Mention at least one agent or team/);
   });
 
   it('will not run without an agent or a team', async () => {

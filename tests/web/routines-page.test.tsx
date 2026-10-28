@@ -98,7 +98,7 @@ describe('the routine editor', () => {
 
   it('a sliding switch turns the schedule on and off, and saves just that', async () => {
     await open();
-    const sw = () => el.querySelector<HTMLElement>('[role="switch"]')!;
+    const sw = () => el.querySelector<HTMLElement>('.panel-head [role="switch"]')!;
     // Manual: nothing to switch
     expect(sw().hasAttribute('data-disabled')).toBe(true);
     await act(async () => [...el.querySelectorAll<HTMLButtonElement>('.seg button')].find((b) => b.textContent === 'Daily')!.click());
@@ -111,14 +111,28 @@ describe('the routine editor', () => {
     expect(put.at(-1)!.body).toEqual({ enabled: true });
   });
 
-  it('on the list, a scheduled routine has a switch that saves just that; a manual one has none', async () => {
+  it('on the list, every routine has an on/off switch that saves just that, and off blocks Run', async () => {
     await act(async () => routines.render(el, []));
     await settle(100);
     const cards = [...el.querySelectorAll<HTMLElement>('.skill-name')].map((a) => a.parentElement!.parentElement!.parentElement!);
-    expect(cards.map((c) => c.querySelectorAll('[role="switch"]').length)).toEqual([1, 0]);
+    expect(cards.map((c) => c.querySelectorAll('[role="switch"]').length)).toEqual([1, 1]);
+    const runBtn = (c: HTMLElement) => [...c.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === 'Run')!;
+    expect(runBtn(cards[0]).disabled).toBe(false);
     await act(async () => cards[0].querySelector<HTMLElement>('.toggle-text')!.click());
     await settle();
-    expect(requests.filter((r) => r.method === 'PUT').map((r) => [r.url, r.body])).toEqual([['/api/routines/r1', { enabled: true }]]);
+    expect(requests.filter((r) => r.method === 'PUT').map((r) => [r.url, r.body])).toEqual([['/api/routines/r1', { paused: true }]]);
+    expect(runBtn(cards[0]).disabled).toBe(true);
+    expect(cards[0].textContent).toContain('switched off');
+  });
+
+  it('the editor has a Routine on/off switch beside Save; off saves at once and blocks Run now', async () => {
+    await open();
+    const sw = el.querySelector<HTMLElement>('[role="switch"]')!;
+    expect(sw.getAttribute('aria-checked')).toBe('true');
+    await act(async () => [...el.querySelectorAll<HTMLElement>('.toggle-text')].find((t) => t.textContent === 'Routine on')!.click());
+    await settle();
+    expect(requests.filter((r) => r.method === 'PUT').at(-1)!.body).toEqual({ paused: true });
+    expect(btn('Run now').disabled).toBe(true);
   });
 
   it('lists its runs, the newest open, with what each agent did', async () => {

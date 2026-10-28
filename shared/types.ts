@@ -208,7 +208,10 @@ export interface Routine {
   text: string;
   mentions: RoutineMention[];
   schedule?: Schedule;
+  /** The schedule is on. */
   enabled?: boolean;
+  /** Switched off: it doesn't run, by hand or on its schedule. */
+  paused?: boolean;
   lastScheduledAt?: number;
   createdAt?: number;
   updatedAt?: number;

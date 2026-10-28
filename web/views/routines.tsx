@@ -122,11 +122,11 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
   const last = r.lastRun;
   const sched = r.schedule && r.schedule.type !== 'none';
   // the switch answers at once; the list catches up when the server says it changed
-  const [on, setOn] = useState(!!r.enabled);
-  useEffect(() => setOn(!!r.enabled), [r.enabled]);
+  const [on, setOn] = useState(!r.paused);
+  useEffect(() => setOn(!r.paused), [r.paused]);
   const toggleOn = async (v: boolean) => {
     setOn(v);
-    if (!(await attempt(() => PUT(`/routines/${r.id}`, { enabled: v }), v ? 'Schedule on' : 'Schedule off'))) setOn(!v);
+    if (!(await attempt(() => PUT(`/routines/${r.id}`, { paused: !v }), v ? 'Routine on' : 'Routine off'))) setOn(!v);
   };
   const run = async () => {
     setRunning(true);
@@ -134,18 +134,16 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
     setRunning(false);
   };
   return (
-    <div className="flex flex-col gap-2.5 p-3.5 border border-line rounded-[12px] bg-panel cursor-pointer transition-[border-color,transform] duration-180 ease-[ease] animate-[rise-in_.25s_ease-out_both] min-w-0 hover:border-accent-dim hover:[transform:translateY(-1px)]">
+    <div className={`flex flex-col gap-2.5 p-3.5 border border-line rounded-[12px] bg-panel cursor-pointer ${on ? '' : '[&>:not(:first-child)]:opacity-55'} transition-[border-color,transform] duration-180 ease-[ease] animate-[rise-in_.25s_ease-out_both] min-w-0 hover:border-accent-dim hover:[transform:translateY(-1px)]`}>
       <div className="flex gap-3 items-center">
         <div className="skill-ico"><Icon name="repeat" size={18} /></div>
         <div className="flex-1 min-w-0">
           <a className="skill-name font-semibold text-[15px] text-inherit hover:text-accent" href={`#/routines/${r.id}`}>{r.name}</a>
-          <div className="hint">{sched ? (on ? scheduleText(r.schedule) : `${scheduleText(r.schedule)} · off`) : 'run by hand'}</div>
+          <div className="hint">{!on ? 'switched off' : sched ? (r.enabled ? scheduleText(r.schedule) : `${scheduleText(r.schedule)} · schedule off`) : 'run by hand'}</div>
         </div>
-        {sched ? (
-          <Switch checked={on} onChange={(v) => void toggleOn(v)} className="flex-none flex-nowrap">
-            <span className="sr-only">{`Schedule for ${r.name}`}</span>
-          </Switch>
-        ) : null}
+        <Switch checked={on} onChange={(v) => void toggleOn(v)} className="flex-none flex-nowrap" >
+          <span className="font-mono text-[10.5px] font-semibold tracking-[0.1em] text-dim uppercase" title={`Switch ${r.name} ${on ? 'off' : 'on'}`}>{on ? 'On' : 'Off'}</span>
+        </Switch>
       </div>
       {r.description || r.text ? <p className={DESC}>{r.description || r.text}</p> : <p className={DESC}>Nothing written yet.</p>}
       {r.mentions.length ? (
@@ -158,7 +156,7 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
         <span className="hint">Nobody mentioned yet</span>
       )}
       <div className="flex items-center gap-1.5 mt-auto">
-        <button className="btn small" disabled={running} onClick={() => void run()}>
+        <button className="btn small" disabled={running || !on} title={on ? undefined : 'Switch the routine on to run it'} onClick={() => void run()}>
           <Icon name="play" size={13} />
           Run
         </button>
@@ -215,6 +213,8 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   // the schedule's kind and switch, here too because the schedule editor (plain DOM) changes the routine directly
   const [kind, setKind] = useState(first.schedule?.type || 'none');
   const [on, setOn] = useState(!!first.enabled);
+  // the routine itself on or off (paused: it doesn't run at all)
+  const [active, setActive] = useState(!first.paused);
   const canSave = dirty && !saving && !!name.trim() && !!text.trim();
   const missing = first.mentions.filter((m) => m.missing);
   const ta = useRef<HTMLTextAreaElement>(null);
@@ -237,7 +237,11 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
     if (isNew) navigate(`#/routines/${out.id}`);
     return true;
   };
-  // the switch saves by itself (just that), so a routine can be turned on or off without touching the rest
+  const switchActive = (v: boolean) => {
+    setActive(v);
+    if (!isNew) void attempt(() => PUT(`/routines/${id}`, { paused: !v }), v ? 'Routine on' : 'Routine off').then((ok) => ok || setActive(!v));
+  };
+  // the schedule's switch saves by itself (just that), so a routine can be turned on or off without touching the rest
   const switchSchedule = (v: boolean) => {
     r.current.enabled = v;
     setOn(v);
@@ -283,7 +287,12 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
     <div className="mono-fields">
       <div className="flex flex-wrap items-center justify-between gap-2.5 mb-4">
         <a className="btn ghost small" href="#/routines">← Routines</a>
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-3.5">
+          {isNew ? null : (
+            <Switch checked={active} onChange={switchActive}>
+              <span className="font-mono text-[11px] font-semibold tracking-[0.12em] text-dim uppercase">{active ? 'Routine on' : 'Routine off'}</span>
+            </Switch>
+          )}
           <button className="btn" disabled={!canSave} title={!text.trim() ? 'Write what the routine should do first' : undefined} onClick={() => void save()}>Save</button>
         </div>
       </div>
@@ -333,7 +342,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
           </div>
         </div>
         <div className="flex flex-col gap-4.5">
-          <RunIt id={id} disabled={isNew} beforeRun={async () => !dirty || (await save())} />
+          <RunIt id={id} disabled={isNew || !active} beforeRun={async () => !dirty || (await save())} />
           <div className="panel">
             <div className="panel-head">
               <h2>Schedule</h2>
@@ -380,7 +389,7 @@ function RunIt({ id, beforeRun, disabled = false }: { id: string; beforeRun: () 
       </div>
       <textarea rows={2} aria-label="Extra for this run" placeholder="Optional: anything extra for this run" value={input} onChange={(e) => setInput(e.target.value)} />
       <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
-        <button className="btn" disabled={busy || disabled} title={disabled ? 'Save the routine first' : undefined} onClick={() => void run()}>
+        <button className="btn" disabled={busy || disabled} title={disabled ? 'Save the routine first, and switch it on, to run it' : undefined} onClick={() => void run()}>
           <Icon name="play" size={14} />
           Run now
         </button>
