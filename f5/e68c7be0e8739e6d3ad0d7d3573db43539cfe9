@@ -1,0 +1,29 @@
+server/artifacts.ts
+  s_4f53eccb4f7bb2::t_1f0566305efc71 4-5,28-29
+tests/server/presets.test.ts
+  s_4f53eccb4f7bb2::t_6c0404ee8117aa 79
+  s_4f53eccb4f7bb2::t_d5d51e42137703 1,4
+  s_4f53eccb4f7bb2::t_33c94b9ca2faed 67-78,80-87
+server/presets.ts
+  s_4f53eccb4f7bb2::t_67c468a80cde4b 39,72,74,100-101,105
+tests/server/artifacts.test.ts
+  s_4f53eccb4f7bb2::t_988d7ea7a58faf 39-47
+  s_4f53eccb4f7bb2::t_6f2fa7eb63af23 6
+  s_4f53eccb4f7bb2::t_b1eb9cd5cdda6e 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f5e68c7be0e8739e6d3ad0d7d3573db43539cfe9",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
