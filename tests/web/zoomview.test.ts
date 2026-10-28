@@ -60,4 +60,25 @@ describe('lightbox()', () => {
     expect(wheel.defaultPrevented).toBe(true);
     expect(level()).not.toBe('Fit');
   });
+
+  it('the scroll wheel zooms in and out without Ctrl; sideways scrolling does not zoom', async () => {
+    lightbox('/x.png', 'x.png');
+    await tick();
+    const box = document.querySelector<HTMLElement>('.zoom-box')!;
+    const scroll = (deltaX: number, deltaY: number) => {
+      const wheel = new WheelEvent('wheel', { deltaX, deltaY, bubbles: true, cancelable: true });
+      box.dispatchEvent(wheel);
+      return wheel;
+    };
+    expect(scroll(0, -100).defaultPrevented).toBe(true);
+    expect(level()).toBe('165%');
+    scroll(0, -100);
+    expect(level()).toBe('272%');
+    scroll(0, 100);
+    expect(level()).toBe('165%');
+    scroll(80, 0);
+    expect(level()).toBe('165%');
+    scroll(0, 100);
+    expect(level()).toBe('Fit');
+  });
 });
