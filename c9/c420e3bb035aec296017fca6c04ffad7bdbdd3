@@ -1,0 +1,22 @@
+tests/web/station-panel.test.tsx
+  s_8f530f9e30e490::t_aa088d5a40f8e6 132-139,143-144
+  s_8f530f9e30e490::t_8e11f14476d10f 140-142
+web/views/stationpanel.tsx
+  s_8f530f9e30e490::t_7d59f29f6cc86f 838-851,856,862-869,871-893,895-919,921-926,928-961,963-965,979-993,995-997,999,1001-1005,1008-1009
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c9c420e3bb035aec296017fca6c04ffad7bdbdd3",
+  "prompts": {},
+  "sessions": {
+    "s_8f530f9e30e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3bb6e3e4-81e1-4afa-a104-48a778c3a87b",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
