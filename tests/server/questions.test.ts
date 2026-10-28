@@ -114,6 +114,29 @@ describe('ask_user', () => {
     expect(teamPosts[0].text.startsWith('@Trend Scout: ')).toBe(true);
   });
 
+  it('a late team answer names the agent as it is called now', async () => {
+    const a = agent('Old Name');
+    const team = workflows.save({ name: 'Renamers', members: [a.id], steps: [] } as Partial<Team> as Team);
+    const c = chats.create(a.id, 'Team turn', team.id);
+    const asked = q.addQuestion({ question: 'Which color?', agentId: a.id, chatId: c.id });
+    agents.save({ ...agents.get(a.id)!, name: 'New Name' });
+    await q.answerQuestion(asked.id, { text: 'Blue' });
+    expect(teamPosts.map((p) => p.text.split(':')[0])).toEqual(['@New Name']);
+  });
+
+  it('two answers at once: only the first goes, and a dismissal meanwhile changes nothing', async () => {
+    const a = agent();
+    const c = chats.create(a.id, 'Twice');
+    const asked = q.addQuestion({ question: 'Ship it?', choices: ['Yes', 'No'], agentId: a.id, chatId: c.id });
+    const first = q.answerQuestion(asked.id, { choice: 'Yes' });
+    const second = q.answerQuestion(asked.id, { choice: 'No' });
+    expect(q.dismissQuestion(asked.id).status).toBe('waiting');
+    await expect(second).rejects.toMatchObject({ status: 409 });
+    expect(await first).toMatchObject({ status: 'answered', choice: 'Yes' });
+    expect(queued).toHaveLength(1);
+    expect(questions.get(asked.id)).toMatchObject({ status: 'answered', choice: 'Yes' });
+  });
+
   it('an answer for a run that ended goes to its chat even if the wait did not notice', async () => {
     const a = agent();
     const c = chats.create(a.id, 'Logo');
