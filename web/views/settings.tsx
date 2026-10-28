@@ -6,7 +6,7 @@ import { GET, POST, PUT, attempt, toast, refreshSoon, navigate } from '../core.t
 import { brainModelChip } from '../models.ts';
 import { memoryButton, BRAIN } from '../memory.ts';
 import { Field, Segmented, Switch } from '../ui/controls.tsx';
-import { DomNode, reactPage, useAppState } from '../ui/react.tsx';
+import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { logo } from '../icons.ts';
 import type { AppState, EngineStatus, SecretKey, SecretStatus, Settings, Terminal } from '../../shared/types.ts';
 
@@ -302,13 +302,17 @@ const Found = ({ label = 'found', version }: { label?: string; version?: string 
 /** "2.1.311 (Claude Code)" → "2.1.311": the row already says which program it is. */
 const shortVersion = (v: string): string => v.replace(/\s*\([^)]*\)\s*$/, '');
 
-/** An install command to copy into a terminal. */
+/** An install command to copy into a terminal: a small terminal window's line, with its prompt icon and a Copy button in one box. */
 function InstallCmd({ cmd }: { cmd: string }) {
   const copy = () => void navigator.clipboard.writeText(cmd).then(() => toast('Copied'), () => toast('Copy it by hand: the clipboard is blocked', 'warn'));
   return (
-    <span className="ai-cmd mr-1 inline-flex max-w-full items-center gap-1.5 align-middle">
-      <code className="min-w-0 overflow-x-auto rounded-[5px] border border-line bg-bg px-2 py-0.75 font-mono text-[12px] leading-normal whitespace-nowrap text-ink">{cmd}</code>
-      <button type="button" className="btn ghost tiny" onClick={copy} aria-label={`Copy ${cmd}`}>
+    <span className="ai-cmd mr-1 inline-flex max-w-full items-stretch overflow-hidden rounded-ctl border border-line-2 bg-black/35 align-middle">
+      <span className="flex flex-none items-center border-r border-line px-2 text-accent" aria-hidden="true">
+        <Icon name="terminal" size={14} />
+      </span>
+      <code className="min-w-0 overflow-x-auto border-0 bg-transparent px-2.5 py-1.25 font-mono text-[12px] leading-normal whitespace-nowrap text-ink select-all">{cmd}</code>
+      <button type="button" className="flex flex-none cursor-pointer items-center gap-1.5 border-0 border-l border-line bg-transparent px-2.5 font-mono text-[10.5px] font-semibold tracking-[0.1em] text-dim uppercase transition-colors hover:bg-panel-2 hover:text-accent" onClick={copy} aria-label={`Copy ${cmd}`}>
+        <Icon name="copy" size={12} />
         Copy
       </button>
     </span>
