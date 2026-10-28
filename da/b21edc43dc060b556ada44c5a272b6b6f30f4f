@@ -1,0 +1,24 @@
+shared/voxel.ts
+  s_4f53eccb4f7bb2::t_1d66db1d4d1633 161-172
+server/voxel/ops.ts
+  s_4f53eccb4f7bb2::t_511b3c37e2164e 6,30-32,149,288-293,332,394,420,568,579-581,590-599,603,605-614,618-621,627,647,669,798-803,806-808,871,969,996-999,1144,1255-1258
+  s_4f53eccb4f7bb2::t_b4b4d753962e0a 33
+server/voxel/gltf.ts
+  s_4f53eccb4f7bb2::t_f316c5b570f21b 5,12-14,106-107,109-111,116-120,122,128-134,141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dab21edc43dc060b556ada44c5a272b6b6f30f4f",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
