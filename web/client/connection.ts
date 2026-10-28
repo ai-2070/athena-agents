@@ -18,6 +18,13 @@ export function setConnection(next: Partial<Connection> = DEFAULT): void {
   if (next.headers) conn.headers = { ...next.headers };
 }
 
+/** The project the page shows: changes carry it, and the server refuses them once another project is open
+ *  (a form loaded from one project can't be saved into the next). */
+export function setPageProject(id: string | null | undefined): void {
+  if (id) conn.headers['x-dash-project'] = id;
+  else delete conn.headers['x-dash-project'];
+}
+
 /** A copy of the headers every request sends. */
 export const requestHeaders = (): Record<string, string> => ({ ...conn.headers });
 

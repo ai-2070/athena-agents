@@ -82,6 +82,17 @@ describe('API', () => {
     expect(st.dataDir.startsWith(tmp)).toBe(true);
   });
 
+  it("refuses a change made for a project that is no longer open (finding 19)", async () => {
+    const st = await (await req('/api/state')).json();
+    const stale = await req('/api/agents', { method: 'POST', headers: { ...json, 'x-dash-project': 'another-project' }, body: JSON.stringify({ name: 'Stale' }) });
+    expect(stale.status).toBe(409);
+    const agents = await (await req('/api/agents')).json();
+    expect(agents.some((a: { name: string }) => a.name === 'Stale')).toBe(false);
+    const fresh = await req('/api/agents', { method: 'POST', headers: { ...json, 'x-dash-project': st.project.id }, body: JSON.stringify({ name: 'Fresh' }) });
+    expect(fresh.status).toBe(200);
+    await req(`/api/agents/${(await fresh.json()).id}`, { method: 'DELETE', headers: json });
+  });
+
   it('creates an agent and a team', async () => {
     const a = await (await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Tester' }) })).json();
     expect(a.id).toMatch(/^tester-/);

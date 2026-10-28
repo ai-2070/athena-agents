@@ -1266,6 +1266,12 @@ const server = http.createServer(async (req, res) => {
         // Other websites can't add this header without a CORS preflight, which we never allow.
         throw new HttpError(403, 'Missing x-dash header');
       }
+      // A change made for the project the page shows, after another one was opened (in this tab or another):
+      // refused, so it can't land in the wrong project. Project routes name their project themselves.
+      const pageProject = req.headers['x-dash-project'];
+      if (!internal && req.method !== 'GET' && typeof pageProject === 'string' && pageProject && !url.pathname.startsWith('/api/projects') && pageProject !== store.activeProject().id) {
+        throw new HttpError(409, 'Another project was opened meanwhile. Nothing was changed; try again.');
+      }
       if (url.pathname === '/api/comfyui/view') return await comfy.proxyView(Object.fromEntries(url.searchParams), res);
       // an attached file: the raw bytes, streamed to disk (the router only reads JSON bodies)
       const upload = req.method === 'POST' && /^\/api\/uploads\/([\w-]+)$/.exec(url.pathname);

@@ -3,7 +3,7 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { Agent, AppState, Approval, ServerEvent } from '../shared/types.ts';
 import { GET, POST } from './client/http.ts';
-import { openSocket } from './client/connection.ts';
+import { openSocket, setPageProject } from './client/connection.ts';
 import { openDialog, showToast } from './ui/overlays.tsx';
 import type { ToastKind } from './ui/overlays.tsx';
 
@@ -52,6 +52,7 @@ let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 export async function refreshState(): Promise<void> {
   try {
     state.data = await GET<AppState>('/state');
+    setPageProject(state.data?.project?.id);
     for (const fn of state.listeners) fn(state.data);
   } catch (e) {
     console.warn('state refresh failed', e);

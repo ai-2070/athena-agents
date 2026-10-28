@@ -1,6 +1,6 @@
 // The page's one way to the server: addresses, headers, errors, uploads and sockets.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiUrl, fileUrl, requestHeaders, serverUrl, setConnection, socketUrl } from '../../web/client/connection.ts';
+import { apiUrl, fileUrl, requestHeaders, serverUrl, setConnection, setPageProject, socketUrl } from '../../web/client/connection.ts';
 import { api, fetchFile, serverFetch, upload } from '../../web/client/http.ts';
 import { dashFetch } from '../../web/chat/transport.ts';
 
@@ -19,6 +19,16 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   setConnection();
+});
+
+describe("the page's project", () => {
+  it('goes with every request once known, and goes away when cleared', () => {
+    expect(requestHeaders()['x-dash-project']).toBeUndefined();
+    setPageProject('proj-a');
+    expect(requestHeaders()).toMatchObject({ 'x-dash': '1', 'x-dash-project': 'proj-a' });
+    setPageProject(null);
+    expect(requestHeaders()['x-dash-project']).toBeUndefined();
+  });
 });
 
 describe('addresses', () => {
