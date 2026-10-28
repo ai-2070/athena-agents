@@ -13,7 +13,7 @@ import { currentLook, stationLevel, uiZoom, DEFAULT_LOOK } from '../look.ts';
 import { FIRST, benchSpot, teamSpots } from '../../shared/stationlayout.ts';
 import type { TeamSpot } from '../../shared/stationlayout.ts';
 import { openChat, refreshChatTabs, restoreChats, closeChatsForProject } from '../chatwin.tsx';
-import { logoUrl, modelUrl, projectMark } from '../projectlogo.ts';
+import { backgroundUrl, logoUrl, modelUrl, projectMark } from '../projectlogo.ts';
 import { loadModel } from '../modelviewer.ts';
 import { teamMarkUrl, DEFAULT_TEAM_MARK } from '../teammark.ts';
 import { neighbours, stepIndex, floorDirection, shortName } from '../projectnav.ts';
@@ -395,6 +395,8 @@ interface StationState {
   panelView?: { update: () => void; unmount: () => void };
   /** the classic map's lights and floor dots (hidden in the voxel look) */
   classic: THREE.Object3D[];
+  /** the project's background picture (tex once loaded), and the background it took over (the voxel look's sky) */
+  backdrop?: { url: string; tex: THREE.Texture | null; prev: THREE.Scene['background'] } | null;
   /** the voxel look (web/voxel), while it is on */
   view?: WorldView | null;
   /** the project's voxel world on the map, while the voxel look is on */
@@ -957,6 +959,7 @@ export function unmount(): void {
   S.worldLayer = null;
   S.view?.dispose();
   S.view = null;
+  dropBackdrop();
   S.renderer.dispose();
   S.scene.traverse((o: Disposable) => {
     o.geometry?.dispose?.();
@@ -975,6 +978,7 @@ function resize(): void {
   S.renderer.domElement.style.width = `${S.w}px`;
   S.renderer.domElement.style.height = `${S.h}px`;
   S.view?.setSize(S.w, S.h);
+  fitBackdrop();
   updateCamera();
 }
 
@@ -1184,6 +1188,67 @@ function buildBrain(): void {
   S.scene.add(g);
   S.brain = { group: g, cloud, ico, halo, beam, star, light, logo: null, logoKey: '', model: null, modelLight: null };
   setBrainLogo();
+}
+
+// ---------- the project's background picture ----------
+// Drawn as the scene's background, cropped to fill the screen. In the voxel look it takes the sky's place:
+// the voxel look sets its sky as the background, so the picture takes over each frame and gives the sky
+// back when it is removed. Dimmed in the classic look so the map's lines and names stay easy to read.
+const BACKDROP_DIM = { classic: 0.5, world: 1 };
+
+// Load the project's picture when it changed. Cheap to call often.
+function setBackdrop(): void {
+  if (!S) return;
+  const url = backgroundUrl(state.data?.project) || '';
+  if ((S.backdrop?.url || '') === url) return;
+  dropBackdrop();
+  if (!url) return;
+  const b: NonNullable<StationState['backdrop']> = { url, tex: null, prev: null };
+  S.backdrop = b;
+  new THREE.TextureLoader().load(
+    url,
+    (tex) => {
+      if (S?.backdrop !== b) return tex.dispose();
+      tex.colorSpace = THREE.SRGBColorSpace;
+      b.tex = tex;
+      fitBackdrop();
+    },
+    undefined,
+    () => {
+      if (S?.backdrop === b) toast("Couldn't load the background picture.", 'warn');
+    },
+  );
+}
+
+// Crop the picture to cover the screen: the sides of a wide one, the top and bottom of a tall one.
+function fitBackdrop(): void {
+  const tex = S?.backdrop?.tex;
+  const img = tex?.image as { width?: number; height?: number } | undefined;
+  if (!S || !tex || !img?.width || !img.height) return;
+  const screen = S.w / S.h;
+  const pic = img.width / img.height;
+  tex.repeat.set(Math.min(1, screen / pic), Math.min(1, pic / screen));
+  tex.offset.set((1 - tex.repeat.x) / 2, (1 - tex.repeat.y) / 2);
+}
+
+// Each frame, before drawing: the picture is the background (the voxel look may have set its sky since).
+function applyBackdrop(): void {
+  const tex = S?.backdrop?.tex;
+  if (!S || !tex) return;
+  if (S.scene.background !== tex) {
+    S.backdrop!.prev = S.scene.background;
+    S.scene.background = tex;
+  }
+  S.scene.backgroundIntensity = S.view ? BACKDROP_DIM.world : BACKDROP_DIM.classic;
+}
+
+function dropBackdrop(): void {
+  const b = S?.backdrop;
+  if (!S || !b) return;
+  if (b.tex && S.scene.background === b.tex) S.scene.background = b.prev;
+  S.scene.backgroundIntensity = 1;
+  b.tex?.dispose();
+  S.backdrop = null;
 }
 
 // Put the project's 3D model, or else its logo, inside the globe (or take it out). The logo always faces you and gently
@@ -1953,6 +2018,7 @@ function renderStation(): void {
   S.scene.updateMatrixWorld();
   drawMeshBatches();
   drawGlows();
+  applyBackdrop();
   // the voxel look draws through its own passes (shadows, glow, blur)
   if (S.view) S.view.render(S.frameAim || 0);
   else S.renderer.render(S.scene, S.camera);
@@ -3440,6 +3506,7 @@ function drawHud(): void {
   if (!d || !S) return;
   floorId = d.project?.id ?? floorId;
   setBrainLogo();
+  setBackdrop();
   const ints = availableIntegrations(d, S.progs);
   const needs = d.approvals.length + d.outboxPending + (d.questions?.length || 0);
   if (!S.hudBuilt) {

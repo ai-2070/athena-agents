@@ -11,7 +11,7 @@ import { openDock } from '../dock.tsx';
 import { openChat } from '../chatwin.tsx';
 import { skillPicker } from '../skillpick.ts';
 import { historyButton } from '../history.ts';
-import { projectMark, pickLogo, removeLogo, pickModel, removeModel } from '../projectlogo.ts';
+import { projectMark, pickLogo, removeLogo, pickModel, removeModel, pickBackground, removeBackground } from '../projectlogo.ts';
 import { pickTeamMark, EMOJI_CHOICES, DEFAULT_TEAM_MARK } from '../teammark.ts';
 import { icon, logo } from '../icons.ts';
 import { modelChip, modelInfo } from '../models.ts';
@@ -377,7 +377,8 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
   );
 }
 
-// What the project is about, and its logo (shown here, on the start screen, in the project menu and in the globe).
+// What the project is about, and its logo (shown here, on the start screen, in the project menu and in the globe),
+// 3D model and the background picture behind the map.
 function About({ proj, summary }: { proj: Partial<Project>; summary: { text: string; from: string | null } | null }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -466,6 +467,15 @@ function About({ proj, summary }: { proj: Partial<Project>; summary: { text: str
           {proj.modelAt ? (
             <button className="btn ghost tiny" onClick={() => ref && void removeModel(ref)}>
               Remove 3D model
+            </button>
+          ) : null}
+          <button className="btn ghost tiny" title="A picture behind the map, in this project only" onClick={() => ref && void pickBackground(ref)}>
+            <Icon name="image" size={12} />
+            {proj.backgroundAt ? 'Change background' : 'Add background'}
+          </button>
+          {proj.backgroundAt ? (
+            <button className="btn ghost tiny" onClick={() => ref && void removeBackground(ref)}>
+              Remove background
             </button>
           ) : null}
         </div>

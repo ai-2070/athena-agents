@@ -284,27 +284,24 @@ export function logoFile(p: Project): string | null {
   return null;
 }
 
-/** The project plus when its logo and its 3D model last changed (the page adds it to their URLs so a new one shows at once). */
-export function withLogo(p: Project): Project & { logoAt: number | null; modelAt: number | null; modelExt: string | null } {
-  const f = logoFile(p);
-  let logoAt: number | null = null;
-  if (f) {
-    try {
-      logoAt = Math.round(fs.statSync(f).mtimeMs);
-    } catch {
-      /* just removed */
-    }
+// When a file last changed, or null (just removed).
+const changedAt = (f: string | null): number | null => {
+  if (!f) return null;
+  try {
+    return Math.round(fs.statSync(f).mtimeMs);
+  } catch {
+    return null;
   }
+};
+
+/** A project as the page gets it: plus when its logo, 3D model and background last changed. */
+export type ProjectWithMedia = Project & { logoAt: number | null; modelAt: number | null; modelExt: string | null; backgroundAt: number | null };
+
+/** The project plus when its logo, its 3D model and its background last changed (the page adds it to their URLs so a new one shows at once). */
+export function withLogo(p: Project): ProjectWithMedia {
   const m = modelFile(p);
-  let modelAt: number | null = null;
-  if (m) {
-    try {
-      modelAt = Math.round(fs.statSync(m).mtimeMs);
-    } catch {
-      /* just removed */
-    }
-  }
-  return { ...p, logoAt, modelAt, modelExt: m && modelAt ? path.extname(m).slice(1) : null };
+  const modelAt = changedAt(m);
+  return { ...p, logoAt: changedAt(logoFile(p)), modelAt, modelExt: m && modelAt ? path.extname(m).slice(1) : null, backgroundAt: changedAt(backgroundFile(p)) };
 }
 
 // What the bytes really are (the data URL's type is only what the browser says).
@@ -319,35 +316,92 @@ export function sniffImage(buf: Buffer): (typeof LOGO_EXT)[number] | null {
 function logoDir(p: Project): string {
   const dir = ensureDir(path.join(p.brainPath, '.dashboard'));
   // never write through a link someone planted in the project folder
-  if (fs.lstatSync(dir).isSymbolicLink()) throw new Error("The project's .dashboard folder is a link; not writing a logo there.");
+  if (fs.lstatSync(dir).isSymbolicLink()) throw new Error("The project's .dashboard folder is a link; not writing there.");
   return dir;
 }
 
-export function setLogo(id: string, dataUrl: unknown): Project & { logoAt: number | null } {
-  const p = listProjects().find((x) => x.id === id);
-  if (!p) throw new Error('No such project.');
-  const m = /^data:image\/[a-z+.-]+;base64,([A-Za-z0-9+/=\s]+)$/i.exec(String(dataUrl || ''));
-  if (!m) throw new Error('Pick a PNG, JPG, WebP or GIF image.');
-  const buf = Buffer.from(m[1], 'base64');
-  if (buf.length > LOGO_MAX) throw new Error('That image is too big (3 MB at most).');
+// Saves an image as .dashboard/<base>.<its real type>, in place of the old one (of any type).
+function writeImage(p: Project, base: string, buf: Buffer, max: number): void {
+  if (buf.length > max) throw new Error(`That image is too big (${max / 1048576} MB at most).`);
   const ext = sniffImage(buf);
   if (!ext) throw new Error('Pick a PNG, JPG, WebP or GIF image.');
   const dir = logoDir(p);
   for (const e of LOGO_EXT) {
-    const old = path.join(dir, `logo.${e}`);
+    const old = path.join(dir, `${base}.${e}`);
     if (fs.existsSync(old) || isLink(old)) fs.rmSync(old, { force: true });
   }
-  fs.writeFileSync(path.join(dir, `logo.${ext}`), buf);
+  fs.writeFileSync(path.join(dir, `${base}.${ext}`), buf);
+}
+
+// The bytes of an image data URL (the page sends pictures this way).
+function imageData(dataUrl: unknown): Buffer {
+  const m = /^data:image\/[a-z+.-]+;base64,([A-Za-z0-9+/=\s]+)$/i.exec(String(dataUrl || ''));
+  if (!m) throw new Error('Pick a PNG, JPG, WebP or GIF image.');
+  return Buffer.from(m[1], 'base64');
+}
+
+const needProject = (id: string): Project => {
+  const p = listProjects().find((x) => x.id === id);
+  if (!p) throw new Error('No such project.');
+  return p;
+};
+
+export function setLogo(id: string, dataUrl: unknown): ProjectWithMedia {
+  const p = needProject(id);
+  writeImage(p, 'logo', imageData(dataUrl), LOGO_MAX);
   log('project', `New logo for "${p.name}"`);
   return withLogo(p);
 }
 
-export function removeLogo(id: string): Project & { logoAt: number | null } {
-  const p = listProjects().find((x) => x.id === id);
-  if (!p) throw new Error('No such project.');
+export function removeLogo(id: string): ProjectWithMedia {
+  const p = needProject(id);
   const dir = path.join(p.brainPath, '.dashboard');
   // (not through a .dashboard that links elsewhere: that would delete files there)
   if (isPlainDir(dir)) for (const e of LOGO_EXT) fs.rmSync(path.join(dir, `logo.${e}`), { force: true });
+  return withLogo(p);
+}
+
+// ---------- the project's background ----------
+// A picture behind the Station's map, in the classic look and the voxel look (where it takes the sky's
+// place). Kept next to the logo (.dashboard/background.<ext>), so it travels with the folder.
+export const BACKGROUND_MAX = 12 * 1024 * 1024;
+
+export function backgroundFile(p: Project): string | null {
+  for (const ext of LOGO_EXT) {
+    const f = mediaFile(p, `background.${ext}`);
+    if (f) return f;
+  }
+  return null;
+}
+
+export function setBackground(id: string, dataUrl: unknown): ProjectWithMedia {
+  const p = needProject(id);
+  writeImage(p, 'background', imageData(dataUrl), BACKGROUND_MAX);
+  log('project', `New background for "${p.name}"`);
+  return withLogo(p);
+}
+
+/** A copy of an image file on this PC becomes the background. The caller checks the file may be read. */
+export function setBackgroundFromFile(id: string, file: string): ProjectWithMedia {
+  const p = needProject(id);
+  let st: fs.Stats;
+  try {
+    st = fs.statSync(file);
+  } catch {
+    throw new Error(`There is no file at ${file}.`);
+  }
+  if (!st.isFile()) throw new Error(`${file} is not a file.`);
+  // (before reading it: a huge file isn't read only to be refused)
+  if (st.size > BACKGROUND_MAX) throw new Error(`That image is too big (${BACKGROUND_MAX / 1048576} MB at most).`);
+  writeImage(p, 'background', fs.readFileSync(file), BACKGROUND_MAX);
+  log('project', `New background for "${p.name}"`);
+  return withLogo(p);
+}
+
+export function removeBackground(id: string): ProjectWithMedia {
+  const p = needProject(id);
+  const dir = path.join(p.brainPath, '.dashboard');
+  if (isPlainDir(dir)) for (const e of LOGO_EXT) fs.rmSync(path.join(dir, `background.${e}`), { force: true });
   return withLogo(p);
 }
 
@@ -391,9 +445,8 @@ export function looksLikeModel(ext: string, buf: Buffer): boolean {
   }
 }
 
-export function setModel(id: string, name: unknown, dataUrl: unknown): Project & { logoAt: number | null; modelAt: number | null; modelExt: string | null } {
-  const p = listProjects().find((x) => x.id === id);
-  if (!p) throw new Error('No such project.');
+export function setModel(id: string, name: unknown, dataUrl: unknown): ProjectWithMedia {
+  const p = needProject(id);
   const ext = path.extname(String(name || '')).slice(1).toLowerCase();
   if (!(MODEL_EXT as readonly string[]).includes(ext)) throw new Error(`Pick a 3D model file: ${MODEL_EXT.map((e) => `.${e}`).join(', ')}.`);
   const m = /^data:[^,]*;base64,([A-Za-z0-9+/=\s]+)$/i.exec(String(dataUrl || ''));
@@ -411,9 +464,8 @@ export function setModel(id: string, name: unknown, dataUrl: unknown): Project &
   return withLogo(p);
 }
 
-export function removeModel(id: string): Project & { logoAt: number | null; modelAt: number | null; modelExt: string | null } {
-  const p = listProjects().find((x) => x.id === id);
-  if (!p) throw new Error('No such project.');
+export function removeModel(id: string): ProjectWithMedia {
+  const p = needProject(id);
   const dir = path.join(p.brainPath, '.dashboard');
   if (isPlainDir(dir)) for (const e of MODEL_EXT) fs.rmSync(path.join(dir, `brain-model.${e}`), { force: true });
   return withLogo(p);

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { addNote, createProject, logoFile, modelFile, projectSummary, removeLogo, removeModel, setLogo, updateProject, withLogo } from '../../server/projects.ts';
+import { addNote, backgroundFile, createProject, logoFile, modelFile, projectSummary, removeBackground, removeLogo, removeModel, setBackground, setBackgroundFromFile, setLogo, updateProject, withLogo } from '../../server/projects.ts';
 
 // a real 1×1 PNG
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -46,6 +46,36 @@ describe('project logo', () => {
     setLogo(p.id, PNG);
     expect(removeLogo(p.id).logoAt).toBeNull();
     expect(logoFile(p)).toBeNull();
+  });
+});
+
+describe('project background', () => {
+  it('saves a picture next to the logo, replaces it and removes it', async () => {
+    const p = await createProject({ name: 'Back one', mode: 'new', folder: folder('back-one') });
+    expect(withLogo(p).backgroundAt).toBeNull();
+    expect(setBackground(p.id, PNG).backgroundAt).toBeTypeOf('number');
+    expect(backgroundFile(p)).toBe(path.join(p.brainPath, '.dashboard', 'background.png'));
+    setBackground(p.id, 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+    expect(fs.readdirSync(path.join(p.brainPath, '.dashboard')).filter((n) => n.startsWith('background.'))).toEqual(['background.gif']);
+    // the logo is its own file
+    expect(logoFile(p)).toBeNull();
+    expect(removeBackground(p.id).backgroundAt).toBeNull();
+    expect(backgroundFile(p)).toBeNull();
+  });
+
+  it('copies a picture file, and refuses what is not a picture', async () => {
+    const p = await createProject({ name: 'Back two', mode: 'new', folder: folder('back-two') });
+    const pic = path.join(p.brainPath, 'sky.png');
+    fs.writeFileSync(pic, Buffer.from(PNG.split(',')[1], 'base64'));
+    setBackgroundFromFile(p.id, pic);
+    expect(fs.readFileSync(backgroundFile(p)!)).toEqual(fs.readFileSync(pic));
+    const fake = path.join(p.brainPath, 'fake.png');
+    fs.writeFileSync(fake, '<svg onload="alert(1)"/>');
+    expect(() => setBackgroundFromFile(p.id, fake)).toThrow(/PNG, JPG/);
+    expect(() => setBackgroundFromFile(p.id, path.join(p.brainPath, 'nope.png'))).toThrow(/no file/);
+    expect(() => setBackgroundFromFile(p.id, p.brainPath)).toThrow(/not a file/);
+    // the old one stays when the new one is refused
+    expect(backgroundFile(p)).not.toBeNull();
   });
 });
 

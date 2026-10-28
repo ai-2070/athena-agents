@@ -375,9 +375,16 @@ export function createWorldView(o: WorldViewOptions): WorldView {
       // the glowing things near what it shows light it, not the ones near your view
       pool.assign(lightSource(), f.target, Math.max(f.halfWidth, f.halfHeight));
       pool.tick(clock.elapsedTime);
+      // builders see the world's own sky, not a background picture the project has
+      const bg = scene.background;
+      const bgIntensity = scene.backgroundIntensity;
+      scene.background = sky.tex;
+      scene.backgroundIntensity = 1;
       try {
         return renderSnapshot(renderer, scene, snapCamera(f), w, h, shown.bloom);
       } finally {
+        scene.background = bg;
+        scene.backgroundIntensity = bgIntensity;
         for (const c of off) c.visible = true;
         if (s.only) scene.remove(s.only);
         // (your view's lights again on the next frame)

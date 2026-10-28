@@ -258,6 +258,8 @@ export interface Project {
   /** The 3D model that replaces the logo inside the Brain's globe (.dashboard/brain-model.*): when it last changed and its file type; null = none. */
   modelAt?: number | null;
   modelExt?: string | null;
+  /** The picture behind the Station's map (.dashboard/background.*): when it last changed; null = none. Added by the server. */
+  backgroundAt?: number | null;
   /** Which voxel world it uses (missing: none of its own yet, see ProjectWorldLink). */
   world?: ProjectWorldLink;
 }
