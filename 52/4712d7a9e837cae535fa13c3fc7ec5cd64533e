@@ -1,0 +1,20 @@
+docs/guide.md
+  s_4f53eccb4f7bb2::t_11ce031c6365f3 225-227
+  s_4f53eccb4f7bb2::t_0d2216bf55832a 223-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "524712d7a9e837cae535fa13c3fc7ec5cd64533e",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
