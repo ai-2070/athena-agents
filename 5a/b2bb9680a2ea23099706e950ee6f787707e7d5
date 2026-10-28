@@ -1,0 +1,28 @@
+tests/web/teamchat-turns.test.tsx
+  s_4f53eccb4f7bb2::t_c4964a5101d30a 61-62
+  s_4f53eccb4f7bb2::t_a06238e30900b8 374-407,411-416,418-420,422-423
+  s_4f53eccb4f7bb2::t_a53bdc8498c53d 41-42,54,69,417,421
+  s_4f53eccb4f7bb2::t_939fb38e0ade42 408-410
+web/teamchat.tsx
+  s_4f53eccb4f7bb2::t_194a081dff1218 509-510
+  s_4f53eccb4f7bb2::t_36c9e20d9687bd 182
+  s_4f53eccb4f7bb2::t_98c4275953b0ae 9,79-80,130-132,138,151,180-181,183-205,209,503-508,516-517,530
+web/core.ts
+  s_4f53eccb4f7bb2::t_d71497bf7296e5 42-50,88-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5ab2bb9680a2ea23099706e950ee6f787707e7d5",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
