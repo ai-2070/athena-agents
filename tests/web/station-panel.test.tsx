@@ -116,8 +116,10 @@ describe('the Station panel', () => {
 
   it('a team: adding someone and taking someone off save its members', async () => {
     await open({ type: 'branch', id: 't1' });
-    const sel = el.querySelector<HTMLSelectElement>('select[aria-label="Agent to add"]')!;
-    expect([...sel.options].map((o) => o.value)).toEqual(['a3']);
+    // (the one agent not on the team is picked, with its badge)
+    const pick = el.querySelector<HTMLElement>('[aria-label="Agent to add"]')!;
+    expect(pick.textContent).toContain('Writer');
+    expect(pick.querySelector('.avatar')).not.toBeNull();
     await act(async () => button('Add').click());
     expect(saved.at(-1)!.members).toEqual(['a1', 'a2', 'a3']);
     expect(saved.at(-1)!.steps!.map((s) => s.agentId)).toEqual(['a1', 'a2', 'a3']);
