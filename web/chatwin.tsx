@@ -297,6 +297,28 @@ function ChatWindow({ refs }: { refs: NonNullable<typeof host> }) {
   const winRef = useCallback((el: HTMLDivElement | null) => void (refs.win.current = el), [refs]);
   const bodyRef = useCallback((el: HTMLDivElement | null) => void (refs.body.current = el), [refs]);
   const pillRef = useCallback((el: HTMLButtonElement | null) => void (refs.pill.current = el), [refs]);
+  // The tabs scroll sideways when they don't fit. Their scrollbar is hidden, so a mouse wheel
+  // scrolls them too, and the open tab is kept in view.
+  const listRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const onWheel = (e: WheelEvent) => {
+      if (list.scrollWidth <= list.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      list.scrollLeft += e.deltaY;
+    };
+    list.addEventListener('wheel', onWheel, { passive: false });
+    return () => list.removeEventListener('wheel', onWheel);
+  }, []);
+  useEffect(() => {
+    const list = listRef.current;
+    const tab = W.active ? list?.querySelector<HTMLElement>(`[data-key="${CSS.escape(W.active)}"]`) : null;
+    if (!list || !tab) return;
+    const l = tab.offsetLeft;
+    if (l < list.scrollLeft) list.scrollLeft = l;
+    else if (l + tab.offsetWidth > list.scrollLeft + list.clientWidth) list.scrollLeft = l + tab.offsetWidth - list.clientWidth;
+  }, [W.active, W.tabs.length, W.max]);
   const any = W.tabs.length > 0;
   const teams = window.__teams || [];
   const busyAgents = new Set((d?.runs || []).map((r) => r.agentId));
@@ -332,8 +354,11 @@ function ChatWindow({ refs }: { refs: NonNullable<typeof host> }) {
           onDoubleClick={(e) => !(e.target as Element).closest('button') && setMax(!W.max)}
         >
           <Icon name="message-square" size={15} />
-          <Tabs.Root value={W.active} onValueChange={(v) => activate(String(v))}>
-            <Tabs.List className="flex gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden self-end min-w-0" aria-label="Open chats">
+          {/* min-w-0 lets the tabs shrink to the room there is and scroll, instead of
+              pushing past the window's buttons. pb-px/-mb-px keep the open tab's 1px overlap
+              of the line below from being cut off by the scrolling. */}
+          <Tabs.Root className="flex min-w-0 self-end -mb-px" value={W.active} onValueChange={(v) => activate(String(v))}>
+            <Tabs.List ref={listRef} className="relative flex gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0 pb-px" aria-label="Open chats">
               {W.tabs.map((t) => {
                 let label = '';
                 let lead = null;
@@ -358,6 +383,7 @@ function ChatWindow({ refs }: { refs: NonNullable<typeof host> }) {
                 return (
                   <div
                     key={t.key}
+                    data-key={t.key}
                     className={`cw-tab ${TAB} [&_.avatar]:size-5 [&_.avatar]:text-[11px] ${on ? 'text-ink bg-bg border-line -mb-px' : 'border-transparent text-dim hover:text-ink hover:bg-ink/4'}`}
                     title={label}
                     onAuxClick={(e) => e.button === 1 && closeTab(t.key)}

@@ -76,4 +76,24 @@ describe('the chat window', () => {
     expect(win().classList.contains('hidden')).toBe(false);
     expect(pill.classList.contains('hidden')).toBe(true);
   });
+
+  it('lets the tabs shrink and scroll when they don\'t fit, also with a mouse wheel', async () => {
+    await act(async () => void openChat('agent', 'a1'));
+    await act(async () => void openChat('agent', 'a2'));
+    await settle();
+    const list = document.querySelector<HTMLElement>('.cw [role="tablist"]')!;
+    // the tabs' wrapper must be able to shrink, or the list never gets narrow enough to scroll
+    expect(list.parentElement!.classList.contains('min-w-0')).toBe(true);
+    const wheel = () => {
+      const e = new WheelEvent('wheel', { deltaY: 40, cancelable: true });
+      list.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    // everything fits: the wheel is left alone
+    expect(wheel()).toBe(false);
+    Object.defineProperty(list, 'scrollWidth', { configurable: true, value: 600 });
+    Object.defineProperty(list, 'clientWidth', { configurable: true, value: 200 });
+    expect(wheel()).toBe(true);
+    expect(list.scrollLeft).toBe(40);
+  });
 });
