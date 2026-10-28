@@ -1,0 +1,27 @@
+server/dcc.ts
+  s_4f53eccb4f7bb2::t_13447fe3af1b95 84-86
+  s_4f53eccb4f7bb2::t_dffbdfc54d0807 93-95
+tests/server/dcc.test.ts
+  s_4f53eccb4f7bb2::t_bba58d5bf46167 61-62
+tests/server/comfyui-cancel.test.ts
+  s_4f53eccb4f7bb2::t_888636af84dfa5 1-39
+server/comfyui.ts
+  s_4f53eccb4f7bb2::t_0b825d2a1cc999 312-322
+  s_4f53eccb4f7bb2::t_207e8b34a98c6f 286
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d12f67375f19c959c53ea4e7403708ba4bb9050a",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
