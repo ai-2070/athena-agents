@@ -25,18 +25,21 @@ import type { AttachTray, PickedFile } from './attach.ts';
 import type { PasteBox } from './pastes.ts';
 import type { AgentDraft, BranchDesign } from './builder.ts';
 import type { TeamEvent } from './teamchat.tsx';
-import type { ActiveRun, Agent, AppState, BrainAnswer, BrainDelegate, BrainDone, Chat, ChatItem, QueuedMessage, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
+import type { ActiveRun, Agent, AppState, BrainAnswer, BrainDelegate, BrainDone, BrainStep, Chat, ChatItem, QueuedMessage, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
 import type { UIMessage } from 'ai';
 
 // A handed-off agent's turn, streamed in as it goes: the AI SDK pieces load when first needed.
 const TurnView = lazy(() => import('./chat/TurnView.tsx').then((m) => ({ default: m.TurnView })));
 
 /** One line of GET /api/brain/history. */
-interface BrainHistoryEntry {
+export interface BrainHistoryEntry {
   role: 'user' | 'brain';
   text: string;
   ts: number;
   attachments?: string[];
+  done?: BrainDone[];
+  delegate?: Pick<BrainDelegate, 'kind' | 'id' | 'name' | 'message' | 'sent'>;
+  steps?: BrainStep[];
 }
 /** A workflow run as 'workflow-run' events and GET /api/workflow-runs carry it (old step-list teams). */
 interface WorkflowRun {
@@ -66,14 +69,6 @@ type NoteItem = { id: string; kind: 'note'; text: string; busy?: boolean; error?
  *  turns started since (a /resume), so the view follows the new one */
 type AgentItem = { id: string; kind: 'agent'; agentId: string; chatId: string; text: string; tools: ToolChip[]; images: string[]; reason: string; done: boolean; status?: string; started?: boolean; turn?: number };
 type BranchItem = { id: string; kind: 'branch'; wfId: string; name: string; reason: string; since: number; messages: TeamMessage[]; working: string[]; next?: string[]; runId?: string; steps?: unknown; error?: string | null; output?: string; briefId?: string };
-/** A tool the Brain used while it answered (it reads the project's files). */
-interface BrainStep {
-  id: string;
-  name: string;
-  input: unknown;
-  state: 'running' | 'done' | 'error';
-  output: string;
-}
 /** live: the answer is still streaming in (answer: what it has written so far; steps: the tools it used) */
 type BrainItem = { id: string; kind: 'brain'; answer?: string; done: BrainDone[]; delegate?: BrainDelegate | null; old?: boolean; live?: boolean; steps?: BrainStep[]; ask?: Sent };
 type DraftItem = { id: string; kind: 'agent-draft'; agent: AgentDraft; task: string; attachments: string[] };
@@ -224,8 +219,34 @@ async function loadHistory() {
   const project = D.project;
   const msgs = await GET<BrainHistoryEntry[]>('/brain/history').catch((): BrainHistoryEntry[] => []);
   if (!current() || project !== D.project || D.items.length) return;
-  for (const m of msgs.slice(-6)) D.items.push(m.role === 'user' ? { id: `h${m.ts}u`, kind: 'user', text: m.text, attachments: m.attachments } : { id: `h${m.ts}b`, kind: 'brain', answer: m.text, done: [], old: true });
+  for (const m of msgs.slice(-6)) {
+    if (m.role === 'user') D.items.push({ id: `h${m.ts}u`, kind: 'user', text: m.text, attachments: m.attachments });
+    else {
+      const b = savedAnswer(m);
+      D.items.push({ id: `h${m.ts}b`, kind: 'brain', ...b, old: true });
+      // the agent or team it handed the work to, followed below it again
+      if (b.delegate) follow(b.delegate);
+    }
+  }
   draw();
+}
+
+// A saved Brain answer with the files it read and what it did shown as they were live. Answers saved before the actions were
+// kept apart have them in the text as "(…)" lines at the end; those are split off as plain notes.
+export function savedAnswer(m: BrainHistoryEntry): { answer: string; done: BrainDone[]; delegate?: BrainDelegate; steps?: BrainStep[] } {
+  const delegate = m.delegate ? { ...m.delegate } : undefined;
+  if (m.done || m.delegate || m.steps) return { answer: m.text, done: m.done || [], delegate, steps: m.steps };
+  const lines = m.text.split('\n');
+  const done: BrainDone[] = [];
+  let legacy: BrainDelegate | undefined;
+  // (a whole answer in brackets, like "(stopped before answering…)", stays the answer)
+  while (lines.length > 1 && /^\(.+\)$/.test(lines.at(-1)!.trim())) {
+    const t = lines.pop()!.trim().slice(1, -1);
+    const to = /^handed to (.+?): /.exec(t);
+    if (to && !legacy) legacy = { kind: 'agent', id: '', name: to[1], message: t.slice(to[0].length) };
+    else done.unshift({ kind: 'note', text: t });
+  }
+  return { answer: lines.join('\n').trimEnd(), done, delegate: legacy };
 }
 
 async function newConversation() {
@@ -1138,7 +1159,13 @@ function showAnswer(live: BrainItem, r: BrainAnswer, goal: boolean) {
   // the server already handed it on, as the Brain: follow the agent's chat or the team's thread here
   const d = r.delegate;
   if (goal && !d) add({ kind: 'note', text: "The Brain didn't hand this goal to anyone, so there is nothing to follow up. Pick an agent or team above, or ask it to hand it on." });
-  if (d?.kind === 'agent' && d.sent?.chatId) {
+  if (d) follow(d);
+}
+
+/** The agent's chat or the team's thread the Brain handed work to, followed in the chat (live, or once
+ *  more in a reopened chat). */
+function follow(d: BrainDelegate) {
+  if (d.kind === 'agent' && d.sent?.chatId) {
     const chatId = d.sent.chatId;
     const it = add({ kind: 'agent', agentId: d.id, chatId, text: '', tools: [], images: [], reason: 'from the Brain', done: false, started: true });
     // it may have finished before this answer got here (then no 'done' comes for this card)
@@ -1159,7 +1186,11 @@ function showAnswer(live: BrainItem, r: BrainAnswer, goal: boolean) {
         it.next = t.queued;
         draw();
       })
-      .catch(() => {});
+      // (a team deleted since: nothing to follow)
+      .catch(() => {
+        const at = D.items.indexOf(it);
+        if (at !== -1) D.items.splice(at, 1), draw();
+      });
   }
 }
 

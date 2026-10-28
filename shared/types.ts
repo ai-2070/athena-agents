@@ -775,6 +775,14 @@ export interface MemoryInfo {
 
 // ---------- the Brain ----------
 export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'world' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
+/** A tool the Brain used while it answered (it reads the project's files). */
+export interface BrainStep {
+  id: string;
+  name: string;
+  input: unknown;
+  state: 'running' | 'done' | 'error';
+  output: string;
+}
 export interface BrainDelegate {
   kind: 'agent' | 'branch';
   id: string;

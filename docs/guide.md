@@ -132,7 +132,7 @@ For example, with those agents and skills already created:
 
 ## The Brain and your teams
 
-When the Brain hands work to a team, it writes in the team chat as **Brain**, so the work goes out even when no browser tab is open. Work for a single agent starts a new chat with that agent.
+When the Brain hands work to a team, it writes in the team chat as **Brain**, so the work goes out even when no browser tab is open. Work for a single agent starts a new chat with that agent. Brain chat follows that work below the Brain's answer, and it shows the same after you reopen the app: the files the Brain read, what it changed, and the agent's or team's work it handed on.
 
 **Who answers in a team chat.** Agents you **@mention** answer. Otherwise: the agent whose message you replied to; else the only member with what the message needs (Blender, Maya, Houdini, Substance 3D, CAD and 3D printing, NVIDIA, ComfyUI, Adobe, FFmpeg, posting on X or Reddit, Orca, or one of its MCP servers such as GitHub); else the team's lead; else the member who fits best. Agents see who has what in the team roster and hand such work to that member.
 

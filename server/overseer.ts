@@ -40,14 +40,26 @@ import { readWorldMd, writeWorldMd, writeWorldMdSection } from './voxel/worldmd.
 import { worldText } from './voxel/describe.ts';
 import { setEffect, setEnvironment, setLight } from './voxel/scene.ts';
 import { playAnimation, setAnimation, setSkin } from './voxel/characters.ts';
-import type { Agent, Approval, BrainAnswer, BrainDelegate, BrainDone, Project, Routine, Team } from '../shared/types.ts';
+import type { Agent, Approval, BrainAnswer, BrainDelegate, BrainDone, BrainStep, Project, Routine, Team } from '../shared/types.ts';
 
 /** One line of the Brain chat history (data/projects/<id>/brain-chat.json). */
 export interface BrainChatMessage {
   role: 'user' | 'brain';
+  /** What was said. For the Brain, its answer alone: what it did is in done and delegate. */
   text: string;
   ts: number;
   attachments?: string[];
+  /** What the Brain did with this answer, so a reopened chat shows it the way it first did. */
+  done?: BrainDone[];
+  /** Who it handed the work to, and where (a reopened chat follows that work again). */
+  delegate?: Pick<BrainDelegate, 'kind' | 'id' | 'name' | 'message' | 'sent'>;
+  /** The files it read while it answered (results cut short). */
+  steps?: BrainStep[];
+}
+
+// A history line the way the Brain reads it back: what it said, then what it did.
+export function brainChatLine(m: BrainChatMessage): string {
+  return [m.text, ...(m.done || []).map((d) => `(${d.text})`), m.delegate ? `(handed to ${m.delegate.name}: ${m.delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n');
 }
 
 /** A new agent the Brain invents in an action (any field may be missing). */
@@ -152,6 +164,9 @@ const installed = new WeakMap<BrainAction, SkillInstallResult | Error>();
 const SKIP = new Set(['node_modules', '.git', '.next', 'dist', 'build', '.venv', '__pycache__', '.cache', '.claude']);
 const TEXT = /\.(md|txt|json|ya?ml|toml|csv|js|ts|py|html|css)$/i;
 const HISTORY_KEEP = 24;
+// the Brain's tool calls kept with an answer, and how much of each result
+const STEPS_KEPT = 40;
+const STEP_OUTPUT_KEPT = 2000;
 // How much of a routine's text the Brain sees. A longer routine's text can't be rewritten by the
 // Brain (it would lose the part it never saw); its name, schedule and so on still can.
 export const ROUTINE_TEXT_SHOWN = 4000;
@@ -451,8 +466,8 @@ export function clearHistory(pid = activeProject().id) {
   remember([], pid);
 }
 // A message from the Brain nobody asked for (what it learned from finished work), on top of the chat.
-export function addBrainNote(pid: string, text: string) {
-  remember([...history(pid), { role: 'brain', text, ts: Date.now() }], pid);
+export function addBrainNote(pid: string, text: string, done: BrainDone[] = []) {
+  remember([...history(pid), { role: 'brain', text, ts: Date.now(), ...(done.length ? { done } : {}) }], pid);
 }
 
 const GROUP_IDS = TOOL_GROUPS.map((g) => g.id);
@@ -1813,7 +1828,7 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
   const canRead = bm.provider === 'claude' || bm.provider === 'codex';
   const snap = await snapshot({ fileBudget: canRead ? 6000 : 12000 });
   const past = history(p.id);
-  const convo = past.length ? `\n\nEARLIER IN THIS CHAT:\n${past.slice(-12).map((m) => `${m.role === 'user' ? 'User' : 'Brain'}: ${cut(m.text, 600)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`).join('\n')}` : '';
+  const convo = past.length ? `\n\nEARLIER IN THIS CHAT:\n${past.slice(-12).map((m) => `${m.role === 'user' ? 'User' : 'Brain'}: ${cut(brainChatLine(m), 600)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`).join('\n')}` : '';
   // files the user attached: where they are (it can open them when it reads files), and the text of small ones
   const files = attachments.length ? `\n\n${describeAttachments(attachments, { inline: canRead ? 8000 : 24000 })}\n(When you delegate, the attached files go along with your brief: mention them in it.)` : '';
   // files from earlier turns (the last few): where they are, and for a Brain that can't open files, their text
@@ -1821,12 +1836,24 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
   const earlierFiles = earlier.length ? `\n\n${describeAttachments(earlier, { inline: canRead ? 0 : 8000, heading: 'Files the user attached earlier in this chat' })}` : '';
   // skills: its own (in its instructions), and the whole text of the ones this message or the last few name
   const own = brainSkills();
-  const named = skillTexts(skillsNamedIn([text, ...past.slice(-4).map((m) => m.text)].join('\n')).filter((slug) => !own.some((sk) => sk.slug === slug)));
+  const named = skillTexts(skillsNamedIn([text, ...past.slice(-4).map(brainChatLine)].join('\n')).filter((slug) => !own.some((sk) => sk.slug === slug)));
   const seenSkills = new Set([...ownSkillsShown(own).seen, ...named.seen]);
   const system = SYSTEM(p.name, canRead, own, brainMemoryContext(p.id));
   const goalNote = goal ? `\n\n(The user set this as a GOAL with /goal: hand it to the agent or team best placed to do it, with a clear brief. You will check their work against it after each turn and follow up until it is met.)` : '';
   const prompt = `SNAPSHOT\n${snap}${named.text}\n\n${catalog()}${convo}${earlierFiles}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}${goalNote}`;
-  const opts = { tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '', cwd: ensureBrain(p), timeout: 180000, maxTokens: 4000, onPart };
+  // the tools it uses, kept with its answer so a reopened chat shows them as the live one did
+  // (since it last started over, as the chat shows them)
+  let steps: BrainStep[] = [];
+  const tell = (part: BrainPart) => {
+    if (part.kind === 'restart') steps = [];
+    else if (part.kind === 'tool' && steps.length < STEPS_KEPT) steps.push({ id: part.id, name: part.name, input: part.args ?? {}, state: 'running', output: '' });
+    else if (part.kind === 'tool_result') {
+      const st = steps.find((x) => x.id === part.id);
+      if (st) Object.assign(st, { state: part.isError ? 'error' : 'done', output: cut(part.text, STEP_OUTPUT_KEPT) });
+    }
+    onPart?.(part);
+  };
+  const opts = { tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '', cwd: ensureBrain(p), timeout: 180000, maxTokens: 4000, onPart: tell };
   let parsed = parseActions(await think(system, prompt, opts));
   // it asked to open skills or look up models: give it what it asked for and let it answer again (once)
   const asked = parsed.actions.filter((a) => actionKind(a) === 'read_skill').map((a) => String(a.skill || a.id || a.name || ''));
@@ -1838,7 +1865,7 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
     for (const slug of opened.seen) seenSkills.add(slug);
     const models = searches.length ? `\n\nMODELS YOU LOOKED UP (find_models):\n${(await Promise.all(searches.map(async (a) => `--- provider: ${String(a.provider || 'all set up')} | query: ${String(a.query || '(all)')} ---\n${await findModels(a.provider, a.query).catch((e: unknown) => `Couldn't look them up: ${(e as Error).message}`)}`))).join('\n\n')}` : '';
     const again = `${prompt}\n\nYOUR FIRST ANSWER:\n${parsed.answer || '(none)'}${opened.text}${missing.length ? `\n\nNo skill named: ${missing.join(', ')}` : ''}${models}\n\nNow give your full answer to the user (with any actions). Don't ask for these look-ups again.`;
-    onPart?.({ kind: 'restart' });
+    tell({ kind: 'restart' });
     parsed = parseActions(await think(system, again, opts));
   }
   parsed.actions = parsed.actions.filter((a) => actionKind(a) !== 'read_skill' && actionKind(a) !== 'find_models');
@@ -1895,7 +1922,7 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
   const now = Date.now();
   // on top of the history as it is now (not as it was before thinking), so nothing saved meanwhile is lost;
   // cleared meanwhile: this turn belongs to the old conversation, so it isn't brought back
-  if (!cleared()) remember([...history(p.id), { role: 'user', text, ts: now, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: [r.answer, ...done.map((d) => `(${d.text})`), delegate ? `(handed to ${delegate.name}: ${delegate.message.slice(0, 200)})` : ''].filter(Boolean).join('\n'), ts: Date.now() }], p.id);
+  if (!cleared()) remember([...history(p.id), { role: 'user', text, ts: now, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: r.answer, ts: Date.now(), ...(done.length ? { done } : {}), ...(delegate ? { delegate: { kind: delegate.kind, id: delegate.id, name: delegate.name, message: delegate.message, ...(delegate.sent ? { sent: delegate.sent } : {}) } } : {}), ...(steps.length ? { steps: steps.map((st) => (st.state === 'running' ? { ...st, state: 'error' as const, output: '(no result)' } : st)) } : {}) }], p.id);
   return { ...r, model: bm, project: p.name };
 }
 
