@@ -177,7 +177,7 @@ describe('opening attached files', () => {
     read.click();
     await settle();
     expect(document.querySelector('.modal-head h2')!.textContent).toBe('notes.md');
-    expect(document.querySelector('.modal-body .md')!.textContent).toContain('Hello');
+    expect(document.querySelector('.modal-body .md.md-doc')!.textContent).toContain('Hello');
   });
 
   it('knows which files can be looked at', () => {

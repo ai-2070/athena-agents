@@ -194,6 +194,13 @@ export function md(text: unknown): HTMLDivElement {
     return div;
   }
   div.innerHTML = DOMPurify.sanitize(marked.parse(String(text || ''), { breaks: true, gfm: true }) as string);
+  // a wide table scrolls sideways in its own box instead of pushing the page wider
+  for (const t of div.querySelectorAll('table')) {
+    const wrap = document.createElement('div');
+    wrap.className = 'md-table';
+    t.replaceWith(wrap);
+    wrap.append(t);
+  }
   for (const a of div.querySelectorAll('a')) {
     a.target = '_blank';
     a.rel = 'noopener';

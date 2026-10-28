@@ -79,7 +79,9 @@ export function previewKind(name: string): PreviewKind | null {
 
 /** Markdown, read in a dialog (sanitized by md()). */
 export function showMarkdown(name: string, text: string): void {
-  modal({ title: name, body: md(text) }).el.classList.add('wide');
+  const doc = md(text);
+  doc.classList.add('md-doc');
+  modal({ title: name, body: doc }).el.classList.add('doc');
 }
 
 /** A Markdown file the server has, read in a dialog. */
