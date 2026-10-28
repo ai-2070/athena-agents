@@ -3,7 +3,7 @@
 // (copy, shift, rotate, flip), and prefabs the agents made themselves, stamped into the voxels or placed as copies.
 // Positions are whole voxels of the current voxel size, from the cursor (map units with "units": "map": inVoxels).
 // A call either works as a whole or changes nothing: a step that fails puts back everything it changed.
-import { CHUNK, CHUNK_CELLS, cellIndex, chunkKey, decodeChunk, encodeChunk, hash3, hexRgb, newVolume, volumeBounds } from '../../shared/voxel.ts';
+import { CHUNK, CHUNK_CELLS, cellIndex, chunkKey, composeSwaps, decodeChunk, encodeChunk, hash3, hexRgb, newVolume, volumeBounds } from '../../shared/voxel.ts';
 import { rng, valueNoise } from './noise.ts';
 import type { Volume } from '../../shared/voxel.ts';
 import { stockMaterial } from './materials.ts';
@@ -27,6 +27,10 @@ export const LIMITS = {
   placedPerCall: 2000,
   /** points in a path, an outline or a profile */
   points: 512,
+  /** how far a point of a path, an outline or a profile may be from the step's spot, in voxels */
+  pointReach: 2048,
+  /** voxel spots one call may look at (also those it leaves as they are), so no step can run for ever */
+  work: 20_000_000,
 };
 export const VOXEL_SIZE_MIN = 0.05;
 export const VOXEL_SIZE_MAX = 4;
@@ -142,7 +146,7 @@ const STEP_LENGTHS: Record<string, Record<string, Conv | Record<string, Conv>>> 
   pyramid: { pyramid: 'size', height: 'size' },
   torus: { torus: 'len', tube: 'len' },
   revolve: { revolve: 'pos' },
-  extrude: { extrude: { points: 'pos', height: 'size', wall: 'size' }, height: 'size' },
+  extrude: { extrude: { points: 'pos', height: 'size', wall: 'size' }, height: 'size', wall: 'size' },
   path: { path: 'pos', width: 'size', height: 'size' },
   line: { line: 'pos', thickness: 'size' },
   stairs: { stairs: { width: 'size', rise: 'size', run: 'size' } },
@@ -281,6 +285,12 @@ export function runBuild(input: BuildInput): BuildOutcome {
   let added = 0;
   let removed = 0;
   let painted = 0;
+  let work = 0;
+  /** counts spots looked at: a step too big to work out stops with an error instead of holding up the server */
+  const tick = (n = 1) => {
+    work += n;
+    if (work > LIMITS.work) throw new BuildError(`this is too much to work out in one call (more than ${LIMITS.work.toLocaleString('en-US')} voxel spots looked at): make the shapes smaller, split the build, or use a bigger voxel size`);
+  };
 
   // ---------- state ----------
   let grid: Grid;
@@ -319,6 +329,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
   const current = () => grid;
   const base = (): V3 => cursor.map((c) => Math.round(c / grid.voxelSize)) as V3;
   const setAbs = (x: number, y: number, z: number, value: number, keep = false, grid = current()) => {
+    tick();
     const R = LIMITS.reach;
     if (x < -R || x >= R || y < -R || y >= R || z < -R || z >= R) throw new BuildError(`it reaches past ${R} voxels from the object's origin. Use a bigger voxel size, or build that part as another object`);
     const cx = Math.floor(x / CHUNK);
@@ -380,6 +391,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
         for (let y = Math.floor(-ay); y <= Math.ceil(ay); y++)
           for (let z = Math.floor(-az); z <= Math.ceil(az); z++)
             for (let x = Math.floor(-ax); x <= Math.ceil(ax); x++) {
+              tick();
               const d = (x / ax) ** 2 + (y / ay) ** 2 + (z / az) ** 2;
               const edge = 1 - rough * hash3(cx + x, cy + y, cz + z, seed + 3);
               if (d > edge * edge) continue;
@@ -405,6 +417,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
     for (let y = 0; y < s[1]; y++)
       for (let z = 0; z < s[2]; z++)
         for (let x = 0; x < s[0]; x++) {
+          tick();
           if (!inside(x, y, z)) continue;
           if (hollow && inside(x + 1, y, z) && inside(x - 1, y, z) && inside(x, y + 1, z) && inside(x, y - 1, z) && inside(x, y, z + 1) && inside(x, y, z - 1)) continue;
           put(x, y, z, value, keep);
@@ -552,6 +565,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
         for (let y = y0; y < y1; y++)
           for (let z = -R; z <= R; z++)
             for (let x = -R; x <= R; x++) {
+              tick(pts.length);
               if (!inside(x, y, z)) continue;
               if (hollow && inside(x + 1, y, z) && inside(x - 1, y, z) && inside(x, y, z + 1) && inside(x, y, z - 1) && inside(x, y + 1, z) && inside(x, y - 1, z)) continue;
               put(x, y, z, v, keep);
@@ -562,7 +576,9 @@ export function runBuild(input: BuildInput): BuildOutcome {
         // an outline raised to a height: a polygon of [x, z] points, or rows of characters (rows along z, x along a row)
         const e = (step.extrude && typeof step.extrude === 'object' ? step.extrude : {}) as Record<string, unknown>;
         const height = int(e.height ?? step.height, 'height', { min: 1, max: LIMITS.reach * 2, def: 1 });
-        const wall = e.wall === undefined ? 0 : int(e.wall, 'wall', { min: 1, max: 64 });
+        // ("wall" beside "height", as the help shows it, or inside "extrude")
+        const wallRaw = e.wall ?? step.wall;
+        const wall = wallRaw === undefined ? 0 : int(wallRaw, 'wall', { min: 1, max: 64 });
         let inPlan: (x: number, z: number) => boolean;
         let box: [number, number, number, number];
         if (Array.isArray(e.rows)) {
@@ -571,28 +587,44 @@ export function runBuild(input: BuildInput): BuildOutcome {
           box = [0, 0, Math.max(0, ...rows.map((r) => r.length)) - 1, rows.length - 1];
         } else {
           const poly = points(e.points, 'extrude.points', 3).map((p, i) => [num(p[0], `point ${i + 1}`), num(p[1], `point ${i + 1}`)] as [number, number]);
-          // even-odd rule at the voxel's middle
-          inPlan = (x, z) => {
-            const px = x + 0.5;
-            const pz = z + 0.5;
-            let inside = false;
+          box = [Math.floor(Math.min(...poly.map((p) => p[0]))), Math.floor(Math.min(...poly.map((p) => p[1]))), Math.ceil(Math.max(...poly.map((p) => p[0]))), Math.ceil(Math.max(...poly.map((p) => p[1])))];
+          // which cells are inside, worked out once a row at a time (even-odd rule at the voxel's middle)
+          const [x0, z0] = box;
+          const w = box[2] - x0 + 1;
+          const d = box[3] - z0 + 1;
+          tick(w * d + d * poly.length);
+          const mask = new Uint8Array(w * d);
+          for (let row = 0; row < d; row++) {
+            const pz = z0 + row + 0.5;
+            const xs: number[] = [];
             for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
               const [xi, zi] = poly[i];
               const [xj, zj] = poly[j];
-              if (zi > pz !== zj > pz && px < ((xj - xi) * (pz - zi)) / (zj - zi) + xi) inside = !inside;
+              if (zi > pz !== zj > pz) xs.push(((xj - xi) * (pz - zi)) / (zj - zi) + xi);
             }
-            return inside;
-          };
-          box = [Math.floor(Math.min(...poly.map((p) => p[0]))), Math.floor(Math.min(...poly.map((p) => p[1]))), Math.ceil(Math.max(...poly.map((p) => p[0]))), Math.ceil(Math.max(...poly.map((p) => p[1])))];
+            xs.sort((m, n) => m - n);
+            // inside when an odd number of crossings lie right of the cell's middle
+            let k = 0;
+            for (let col = 0; col < w; col++) {
+              const px = x0 + col + 0.5;
+              while (k < xs.length && xs[k] <= px) k++;
+              if ((xs.length - k) % 2) mask[row * w + col] = 1;
+            }
+          }
+          inPlan = (x, z) => x >= x0 && z >= z0 && x - x0 < w && z - z0 < d && mask[(z - z0) * w + (x - x0)] === 1;
         }
         // with a wall thickness, only the cells that near the outline
         const nearEdge = (x: number, z: number) => {
-          for (let d = 1; d <= wall; d++) if (!inPlan(x + d, z) || !inPlan(x - d, z) || !inPlan(x, z + d) || !inPlan(x, z - d)) return true;
+          for (let d = 1; d <= wall; d++) {
+            tick();
+            if (!inPlan(x + d, z) || !inPlan(x - d, z) || !inPlan(x, z + d) || !inPlan(x, z - d)) return true;
+          }
           return false;
         };
         const v = value();
         for (let z = box[1]; z <= box[3]; z++)
           for (let x = box[0]; x <= box[2]; x++) {
+            tick();
             if (!inPlan(x, z) || (wall && !nearEdge(x, z))) continue;
             for (let y = 0; y < height; y++) put(x, y, z, v, keep);
           }
@@ -612,6 +644,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
           const len2 = dx * dx + dz * dz || 1;
           for (let z = Math.floor(Math.min(az, bz) - half); z <= Math.ceil(Math.max(az, bz) + half); z++)
             for (let x = Math.floor(Math.min(ax, bx) - half); x <= Math.ceil(Math.max(ax, bx) + half); x++) {
+              tick();
               const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2));
               if (Math.hypot(x - (ax + dx * t), z - (az + dz * t)) > half) continue;
               const y = Math.round(ay + (by - ay) * t);
@@ -633,6 +666,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
         if (flipAxis && !['x', 'y', 'z'].includes(flipAxis)) throw new BuildError('the axis to flip is x, y or z');
         const cells: [number, number, number, number][] = [];
         for (let y = 0; y < size[1]; y++) for (let z = 0; z < size[2]; z++) for (let x = 0; x < size[0]; x++) {
+          tick();
           const v = getAbs(src[0] + x, src[1] + y, src[2] + z);
           if (v) cells.push([x, y, z, v]);
         }
@@ -761,10 +795,17 @@ export function runBuild(input: BuildInput): BuildOutcome {
             }
           }
         }
-        // copies inside it come along as copies
+        // copies inside it come along as copies: checked like placing them, and recoloured by the stamp's swap too
+        for (const id of new Set(loaded.instances.map((i) => i.prefab))) {
+          const why = input.cantPlace?.(id);
+          if (why) throw new BuildError(why);
+        }
+        const outer = step.swap === undefined ? null : new Map(Object.entries(swapNames(step.swap)));
         for (const inst of loaded.instances) {
           const [rx, rz] = turnAround(inst.p[0] - ref.pivot[0], inst.p[2] - ref.pivot[2], q);
-          addInstance({ ...inst, p: [spot[0] + rx, spot[1] + inst.p[1] - ref.pivot[1], spot[2] + rz], turn: ((inst.turn || 0) + q * 90) % 360 });
+          const { swap: own, ...rest } = inst;
+          const sw = outer ? Object.fromEntries(composeSwaps(own, outer)) : own;
+          addInstance({ ...rest, p: [spot[0] + rx, spot[1] + inst.p[1] - ref.pivot[1], spot[2] + rz], turn: ((inst.turn || 0) + q * 90) % 360, ...(sw && Object.keys(sw).length ? { swap: sw } : {}) });
         }
         break;
       }
@@ -827,6 +868,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
                 const facing = face === 'along' ? (Math.atan2(ux, uz) * 180) / Math.PI : face === 'across' ? (Math.atan2(-nx, -nz) * 180) / Math.PI : 0;
                 spots.push({ at, facing });
               }
+              if (spots.length > LIMITS.placedPerCall) break;
               carry = t + every - len;
             }
             if (spots.length > LIMITS.placedPerCall) break;
@@ -924,6 +966,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
         for (let t = 0; t < h; t++)
           for (let a = 0; a <= 2 * R; a++)
             for (let c = 0; c <= 2 * R; c++) {
+              tick();
               if (!inside(t, a, c)) continue;
               if (hollow && inside(t, a + 1, c) && inside(t, a - 1, c) && inside(t, a, c + 1) && inside(t, a, c - 1) && (verb === 'cylinder' ? true : inside(t + 1, a, c) && inside(t - 1, a, c))) continue;
               const [x, y, z] = map(t, a, c);
@@ -950,7 +993,10 @@ export function runBuild(input: BuildInput): BuildOutcome {
         const v = value();
         const E = Math.ceil(R + t);
         const T = Math.ceil(t);
-        for (let y = -T; y <= T; y++) for (let z = -E; z <= E; z++) for (let x = -E; x <= E; x++) if ((Math.hypot(x, z) - R) ** 2 + y * y <= t * t) put(x, y, z, v, keep);
+        for (let y = -T; y <= T; y++) for (let z = -E; z <= E; z++) for (let x = -E; x <= E; x++) {
+          tick();
+          if ((Math.hypot(x, z) - R) ** 2 + y * y <= t * t) put(x, y, z, v, keep);
+        }
         break;
       }
       case 'line': {
@@ -1095,6 +1141,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
         // inside a box from the spot ("in": [w, h, d]), or the whole of this voxel size's grid
         const box = step.in !== undefined ? size3(step.in, 'in') : null;
         const visit = (x: number, y: number, z: number) => {
+          tick();
           if (getAbs(x, y, z) !== from) return;
           if (chance < 1 && hash3(x, y, z, seed + 11) >= chance) return;
           setAbs(x, y, z, to);
@@ -1205,7 +1252,10 @@ function points(v: unknown, what: string, min: number): number[][] {
   if (v.length > LIMITS.points) throw new BuildError(`${what}: at most ${LIMITS.points} points`);
   return v.map((p, i) => {
     if (!Array.isArray(p) || p.length < 2 || p.length > 3) throw new BuildError(`${what}: point ${i + 1} must be [x, z] or [x, y, z]`);
-    return p.map(Number);
+    const out = p.map(Number);
+    // (a point far out makes a shape too big to work out, or one whose loops never move on)
+    if (out.some((n) => Math.abs(n) > LIMITS.pointReach)) throw new BuildError(`${what}: point ${i + 1} is more than ${LIMITS.pointReach} voxels from the spot`);
+    return out;
   });
 }
 
