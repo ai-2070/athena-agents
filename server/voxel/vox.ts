@@ -106,8 +106,11 @@ export function parseVox(buf: Uint8Array): VoxFile {
       }
       out.nodes.set(nid, { kind: 'shp', models });
     }
-    // MAIN's own content is empty; step into its children rather than over them
-    at = id === 'MAIN' ? c + n : c + n + view.getInt32(at + 8, true);
+    // MAIN's own content is empty; step into its children rather than over them. Every other chunk's
+    // children must fit in the file too, so each turn moves forward (a negative size would loop forever).
+    const kids = view.getInt32(at + 8, true);
+    if (kids < 0 || (id !== 'MAIN' && c + n + kids > buf.length)) throw bad('That .vox file is damaged.');
+    at = id === 'MAIN' ? c + n : c + n + kids;
   }
   if (!out.models.length) throw bad('That .vox file has no models in it.');
   return out;
@@ -125,10 +128,16 @@ function rotation(b: number): number[] {
   return m;
 }
 
+/** Scene nodes and models one file's scene may visit (groups can name the same node many times over). */
+export const VOX_MAX_VISITS = 200_000;
+
 /** Every voxel of the file, placed: [x, y, z (file space, z up), colour index]. */
 export function voxVoxels(f: VoxFile): [number, number, number, number][] {
   const out: [number, number, number, number][] = [];
+  let visits = 0;
   const put = (m: VoxModel, t: [number, number, number], r: number[]) => {
+    // a model placed many times counts each time: the limit is on what comes in, not what is stored
+    if (out.length + m.xyzi.length / 4 > VOX_MAX_VOXELS) throw bad(`That .vox file places more than ${VOX_MAX_VOXELS.toLocaleString('en-US')} voxels.`);
     const half = m.size.map((s) => Math.floor(s / 2));
     for (let i = 0; i < m.xyzi.length; i += 4) {
       const v = [m.xyzi[i] - half[0], m.xyzi[i + 1] - half[1], m.xyzi[i + 2] - half[2]];
@@ -149,13 +158,18 @@ export function voxVoxels(f: VoxFile): [number, number, number, number][] {
   const walk = (id: number, t: [number, number, number], r: number[], depth: number) => {
     const n = f.nodes.get(id);
     if (!n || depth > 64) return;
+    if (++visits > VOX_MAX_VISITS) throw bad("That .vox file's scene is too big to read.");
     if (n.kind === 'trn') {
       const nt = n.t || [0, 0, 0];
       const nr = n.r || I;
       const pt: [number, number, number] = [t[0] + r[0] * nt[0] + r[1] * nt[1] + r[2] * nt[2], t[1] + r[3] * nt[0] + r[4] * nt[1] + r[5] * nt[2], t[2] + r[6] * nt[0] + r[7] * nt[1] + r[8] * nt[2]];
       if (n.child !== undefined) walk(n.child, pt, mul(r, nr), depth + 1);
     } else if (n.kind === 'grp') for (const c of n.children || []) walk(c, t, r, depth + 1);
-    else for (const mid of n.models || []) if (f.models[mid]) put(f.models[mid], t, r);
+    else
+      for (const mid of n.models || []) {
+        if (++visits > VOX_MAX_VISITS) throw bad("That .vox file's scene is too big to read.");
+        if (f.models[mid]) put(f.models[mid], t, r);
+      }
   };
   walk(0, [0, 0, 0], I, 0);
   return out;

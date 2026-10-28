@@ -143,6 +143,21 @@ describe('the agent editor', () => {
     expect(btn(el, 'Save').disabled).toBe(true);
   });
 
+  it('opening another project loads the editor again from it (the old unsaved form is gone)', async () => {
+    await open(['a1', 'edit']);
+    await type(field('Name'), 'Unsaved A edit');
+    const loads = () => requests.filter((r) => r.method === 'GET' && r.url === '/api/agents/a1').length;
+    const before = loads();
+    await act(async () => {
+      state.data = { ...state.data!, project: { id: 'p2', skills: [] } } as unknown as AppState;
+      for (const fn of state.listeners) fn(state.data);
+    });
+    await settle();
+    expect(loads()).toBeGreaterThan(before);
+    expect(field('Name').value).toBe('Writer');
+    expect(btn(el, 'Save').disabled).toBe(true);
+  });
+
   it('a folder linked as knowledge stays linked when you then save the agent', async () => {
     await open(['a1', 'edit']);
     await act(async () => btn(el, '+ Link a folder').click());

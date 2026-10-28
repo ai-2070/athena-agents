@@ -22,7 +22,7 @@ The [README](../README.md) says what the dashboard is, how to install it, which 
 The [desktop app](../README.md#desktop-app) is the same dashboard in its own window. It starts the dashboard's server when you open it and stops it when you quit. Links to other sites open in your browser.
 
 - **Closing the window keeps it running** in the tray (the notification area on Windows, the menu bar on macOS), so agents keep working. Click the tray icon, or open the app again, to bring the window back. To quit, right-click the tray icon and choose **Quit Blacksite**. On a Linux desktop that hides tray icons (GNOME without an extension), open the app again from the app menu to bring the window back.
-- **Its data is separate** from a checkout's `data/` folder. It lives in `%APPDATA%\com.ai2070.blacksite\data` on Windows, `~/Library/Application Support/com.ai2070.blacksite/data` on macOS and `~/.local/share/com.ai2070.blacksite/data` on Linux. To use another folder, start the app with `DASH_DATA` set to it.
+- **Its data is separate** from a checkout's `data/` folder. It lives in `%APPDATA%\com.ai2070.blacksite\data` on Windows, `~/Library/Application Support/com.ai2070.blacksite/data` on macOS and `~/.local/share/com.ai2070.blacksite/data` on Linux. To use another folder, start the app with `DASH_DATA` set to it. Its first project uses the same **My workspace** folder as the browser version: if that folder already has a saved copy (`.dashboard`), the app loads it first instead of saving an empty project over it.
 - **It uses port 14800**, not 4800, so it can run next to the browser version. If 14800 is taken, it uses the next free port. To sign in to X or Reddit from the app, add the callback address its **Connections** page shows (with 14800) to your X or Reddit app.
 - **The installers are not signed yet.** On Windows, choose **More info → Run anyway**. On macOS, Control-click the app in Finder and choose **Open**, or allow it under **System Settings → Privacy & Security**.
 - **It updates itself.** A little after it opens, and every few hours after that, the app checks for a new version. When there is one, it asks you: **Install and restart** downloads it (the window's title shows how far it got), installs it and opens the app again. Installing restarts the dashboard, so agents that are working stop; they pick up again when you write to them. **Later** asks again the next time you open the app. On Linux, a `.deb` or `.rpm` update asks for your password. To turn updates off, start the app with `DASH_NO_UPDATES` set. What the updater did is in `updater.log`, next to the server's log.
@@ -103,7 +103,7 @@ Every agent, and the Brain, keeps a **MEMORY.md** for each project: short notes 
 - **The Brain keeps its own** and can add a note to an agent's memory when you ask it to ("Tell the Writer to remember we use British spelling"). It never rewrites an agent's memory, and the self-improvement review can't change any memory.
 - **Read and change it yourself.** Open an agent's editor or its chat page and use **MEMORY.md**. For the Brain, use the page icon at the top of the Brain chat, or **Settings → The Brain's model**. **History** shows earlier versions, who changed them and can restore one.
 
-A chat's **Clear memory** button is different: it starts that chat fresh and leaves MEMORY.md alone. Don't keep keys or passwords in a memory.
+A chat's **Clear memory** button is different: it starts that chat fresh and leaves MEMORY.md alone (pressed while the agent answers, the answer it is writing is forgotten too). Don't keep keys or passwords in a memory.
 
 ## The voxel world
 
@@ -112,7 +112,7 @@ The Station can be a voxel world the Brain and your agents build around themselv
 - **Ask the Brain for one.** Describe the world you want. The Brain asks a few questions (theme, mood, era, colours), writes **WORLD.md**, builds the big pieces itself and hands the details to a builder. The **World Builder** (Agent library › Blacksite) comes ready with the **Voxel world** tools and the **Voxel building** skill; you can give the tools to any agent in its editor.
 - **WORLD.md** says what the world is: its theme and meaning, look, feel, places, characters, story and rules. Every builder reads it before building and updates it as they go. You can edit it too. Earlier versions are kept.
 - **Nothing comes ready-made.** Builders make big pieces (ground, buildings, rivers) as objects, and the small things there are many of (people, trees, lamps, cars, boats) as **prefabs**: made once, then placed many times, scattered, along a street or in a grid, turned to any angle and recoloured per copy. Hundreds of copies cost the page very little. A builder can turn part of an object into a prefab, and share a good prefab with every project through the **prefab library**.
-- **Agents build near their team.** Builds pinned to a team move with it when you drag its platform. One build call changes at most 250,000 voxels and places 2,000 copies; a world holds up to 4 million voxels and 20,000 copies.
+- **Agents build near their team.** Builds pinned to a team move with it when you drag its platform. One build call changes at most 250,000 voxels and places 2,000 copies; a world holds up to 4 million voxels and 20,000 copies, and one object or prefab can show at most 20,000 copies, counting copies inside copies.
 - **Light, weather and life.** Glowing voxels (lanterns, windows, signs, headlights) light up what is around them. Builders can also put up lights (a doorway's warm spill, a spotlight, a flickering fire), set the time of day, sky, fog, weather and wind, and add particles in an area: petals, leaves, snow, rain, fireflies, embers, sparks, smoke, steam, mist, dust, birds. Finishing touches put snow on every ledge the sky can see, moss and vines on old walls, and wear near the ground.
 - **Agents take a form in the world.** An agent can be dressed in a voxel form of its own: a person, an animal, a tree, a lamp, anything a builder makes, with a desk if it wants one. Builders design its animations themselves (keys per part: an arm that types, a crown that sways, a crystal that spins) and pick which plays while the agent is idle, working or waiting for you; they can also play one once, like a cheer when work is done. Team platforms and the Brain can be dressed too. For the sake of the picture, a builder can also take an agent, a platform or the Brain off the map (and their name labels): they keep working, and the side panel and Agents page still open them. Dressing yourself or your own team needs no OK; anyone else, or the Brain, asks you first.
 - **Voxel size** is per object and can change in the middle of a build: coarse for ground, fine for small props and characters. Builders give sizes and positions in map units (the same numbers `world_info` and the team's plans use), whatever the voxel size; `world_steps` lists every build step there is. For anything repetitive or procedural (a lane of cottages that each differ, trees that branch, terrain from noise), `world_script` lets a builder write a small JavaScript program instead. It runs sealed off from your computer (no files, no network, at most 20 seconds) and builds through the same steps, so the same limits, undo and all-or-nothing apply.
@@ -220,7 +220,11 @@ Very long chats still scroll smoothly: from 50 messages on, the chat page and th
 | **Auto** (default) | For high-risk actions, such as shell commands, scripts and sending messages. |
 | **Full** | Tool approvals are skipped. Use only when you trust the agent and its access. |
 
-An explicit **Always allow** choice can also skip later approval requests for that tool. Autonomy is not an operating-system sandbox: shell commands and external tools can act with the access of the account running them.
+Agents can't fetch the dashboard's own pages, so a web page can't lead them to your settings. The Tools & MCP page shows saved keys as dots; leave the dots when you edit a server to keep its key.
+
+For API-model agents, an MCP server's tool counts as low risk only when the server says it just reads; any other one asks on **Auto** too. A server you turn off isn't started for them.
+
+An explicit **Always allow** choice can also skip later approval requests for that tool, from that moment on in the same run too. Autonomy is not an operating-system sandbox: shell commands and external tools can act with the access of the account running them.
 
 **The Brain approves** is on by default. When an agent or team requests permission, the Brain reviews it first. It is instructed to allow routine, reversible work within the task and pass risky or unclear requests to **Needs you**, with a reason. This is a model's judgment, not a hard safety guarantee. Turn it off under **Settings → General & keys → The Brain's model** if you want requests to come to you directly.
 
@@ -249,9 +253,9 @@ These copies exclude stored keys and account tokens, **not private content you p
 
 Choose **Project menu → Back up this project**. The dashboard writes a `.dashbackup` file under **`Blacksite Backups`** in your home folder.
 
-A backup includes the project's agents, teams, routines, layout, Brain and agent/team chats, knowledge files, MEMORY.md files, logo, `PROJECT.md` and notes, and its voxel world (with WORLD.md and its prefabs). It also includes **every skill and saved preset in your library, and every prefab in the prefab library**, plus earlier versions of the project's agents, teams and memories and of library skills, including deleted items. It does not include stored keys or account tokens.
+A backup includes the project's agents, teams, routines, layout, Brain and agent/team chats, knowledge files, MEMORY.md files, logo, the teams' pictures and 3D models, `PROJECT.md` and notes, and its voxel world (with WORLD.md and its prefabs). It also includes **every skill and saved preset in your library, and every prefab in the prefab library**, plus earlier versions of the project's agents, teams and memories and of library skills, including deleted items. It does not include stored keys or account tokens.
 
-Backups are not a full copy of your working folder: back up source files, uploads and generated work separately. Size limits also apply: 300 MB of voxel world, 200 MB of agent chats, 100 MB of prefab library, 50 MB each of knowledge files, skills and earlier versions, and 20 MB each of MEMORY.md files and of project brief and notes. A restore adds the library prefabs this computer doesn't have yet and leaves the ones it has as they are. Files that do not fit are left out; the saved-backup message reports the number omitted.
+Backups are not a full copy of your working folder: back up source files, uploads and generated work separately. Size limits also apply: 300 MB of voxel world, 200 MB of agent chats, 100 MB each of prefab library and team pictures and models, 50 MB each of knowledge files, skills and earlier versions, and 20 MB each of MEMORY.md files and of project brief and notes. A restore adds the library prefabs this computer doesn't have yet and leaves the ones it has as they are. Files that do not fit are left out; the saved-backup message reports the number omitted.
 
 ### Restore a backup
 
@@ -260,6 +264,8 @@ Choose **New project → From backup**, then drop in a `.dashbackup` file or cho
 - Restore creates a new project; it does not replace the original.
 - Missing skills and presets are added. If a skill has the same ID but different contents, your existing skill stays and the restored copy gets an `-restored` suffix. Matching skills receive the backup's earlier versions.
 - Scheduled teams and routines return **paused**, so the restored copy does not run the same work twice. Re-enable the schedules you want.
+- Agent chats come back with what was said, but a Claude Code, Codex, Hermes or OpenClaw chat starts a new session from that history: the copy never carries on in the original's conversation.
+- A `BRAIN.md` already in the folder you restore into stays as it is.
 
 ### Undo changes
 

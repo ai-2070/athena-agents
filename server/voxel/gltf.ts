@@ -2,11 +2,15 @@
 // same mesher), one material per kind (solid, glowing, glass, water, leaf, metal). Placed copies stay
 // copies: a prefab is one mesh that every copy's node uses, so a crowd stays small.
 import { meshObject } from '../../shared/voxelmesh.ts';
+import { composeSwaps } from '../../shared/voxel.ts';
 import type { ObjectPart, RenderClass } from '../../shared/voxelmesh.ts';
 import { readObject, readPrefab } from './store.ts';
 import type { PrefabInstance, VoxelMaterial, VoxelObjectData, VoxelWorld } from '../../shared/types.ts';
 
 type Json = Record<string, unknown>;
+
+/** Nodes one file may hold: every placed copy (copies inside copies too) is a node or two. */
+export const GLB_MAX_NODES = 200_000;
 
 const CLASS_MATERIAL: Record<RenderClass, Json> = {
   opaque: { name: 'solid', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 0.88 } },
@@ -99,33 +103,42 @@ export function toGlb(w: VoxelWorld, target: GltfTarget): Uint8Array {
 
   // prefabs: one mesh per prefab and swap, shared by every copy
   const prefabMeshes = new Map<string, number | null>();
-  const paletteFor = (swap?: Record<string, string>): VoxelMaterial[] => {
-    if (!swap) return w.palette;
+  const paletteFor = (swap: [string, string][]): VoxelMaterial[] => {
+    if (!swap.length) return w.palette;
     const pal = [...w.palette];
-    for (const [from, to] of Object.entries(swap)) {
-      const i = pal.findIndex((m) => m.name === from);
-      const t = w.palette.find((m) => m.name === to);
+    for (const [from, to] of swap) {
+      const i = pal.findIndex((m) => m.name.toLowerCase() === from);
+      const t = w.palette.find((m) => m.name.toLowerCase() === to);
       if (i >= 0 && t) pal[i] = t;
     }
     return pal;
   };
+  const prefabData = new Map<string, ReturnType<typeof readPrefab>>();
+  const dataOf = (id: string) => {
+    if (!prefabData.has(id)) prefabData.set(id, readPrefab(w.id, id));
+    return prefabData.get(id) ?? null;
+  };
   /** Nodes for the copies placed in some data (and the copies inside them), as children of `into`. */
-  const copies = (list: PrefabInstance[] | undefined, depth: number, seen: string[]): number[] => {
+  const copies = (list: PrefabInstance[] | undefined, depth: number, seen: string[], parentSwap: Map<string, string> = new Map()): number[] => {
     const out: number[] = [];
     if (depth > 4) return out;
     for (const inst of list || []) {
       const p = w.prefabs.find((x) => x.id === inst.prefab);
       if (!p || seen.includes(p.id)) continue;
-      const key = `${p.id}|${JSON.stringify(inst.swap || {})}`;
-      const data = readPrefab(w.id, p.id);
-      if (!prefabMeshes.has(key)) prefabMeshes.set(key, data ? meshOf(meshObject({ volumes: data.volumes }, paletteFor(inst.swap)), p.name) : null);
+      if (nodes.length + 2 > GLB_MAX_NODES) throw Object.assign(new Error(`That has too many copies (copies inside copies counted) to go in one file: the most is about ${(GLB_MAX_NODES / 2).toLocaleString('en-US')}.`), { status: 413 });
+      // a copy's swaps, then the ones of the copies it is inside (as the page draws it)
+      const swap = composeSwaps(inst.swap, parentSwap);
+      const sorted = [...swap].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+      const key = `${p.id}|${JSON.stringify(sorted)}`;
+      const data = dataOf(p.id);
+      if (!prefabMeshes.has(key)) prefabMeshes.set(key, data ? meshOf(meshObject({ volumes: data.volumes }, paletteFor(sorted)), p.name) : null);
       const mesh = prefabMeshes.get(key);
       // its pivot stands at p: the prefab's voxels are moved back by the pivot in a child node
       const inner: Json = { name: `${p.name} (voxels)`, translation: p.pivot.map((n) => -n), ...(mesh !== null && mesh !== undefined ? { mesh } : {}) };
       nodes.push(inner);
       const innerId = nodes.length - 1;
       const kids = [innerId];
-      for (const c of copies(data?.instances, depth + 1, [...seen, p.id])) {
+      for (const c of copies(data?.instances, depth + 1, [...seen, p.id], swap)) {
         // copies inside the prefab are in its voxels' frame too
         (nodes[innerId].children = (nodes[innerId].children as number[] | undefined) || []).push(c);
       }

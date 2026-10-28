@@ -145,13 +145,17 @@ export async function run({ agent, chat, text, signal, onEvent, systemPrompt, ru
   let stderr = '';
   let answer = '';
   let lastError = '';
+  let turnFailed = false;
   // (cast: TypeScript can't see the callback below set it)
   let usage = null as CodexUsage | null;
 
   const handle = (ev: CodexEvent) => {
     if (ev.type === 'thread.started' && ev.thread_id) chat.sessionId = ev.thread_id;
     else if (ev.type === 'turn.completed') usage = ev.usage || null;
-    else if (ev.type === 'turn.failed') lastError = ev.error?.message || 'Codex failed.';
+    else if (ev.type === 'turn.failed') {
+      turnFailed = true;
+      lastError = ev.error?.message || 'Codex failed.';
+    }
     else if (ev.type === 'error') {
       lastError = ev.message || lastError;
       if (/Reconnecting/.test(ev.message || '')) onEvent({ kind: 'status', text: ev.message!.slice(0, 120) });
@@ -224,9 +228,10 @@ export async function run({ agent, chat, text, signal, onEvent, systemPrompt, ru
   }
   signal.removeEventListener('abort', onAbort);
   if (signal.aborted) throw new Error('Stopped.');
-  if (!answer) {
+  // A failed turn is a failure even when it said something first ("I'll look at the files"): that is not its answer.
+  if (!answer || turnFailed || code !== 0) {
     if (/401|Unauthorized|not logged in|login/i.test(lastError + stderr)) throw new Error('Codex is not signed in. Open Settings > General > OpenAI Codex > Sign in (runs "codex login").');
-    throw new Error(lastError || `Codex exited (${code}) without an answer.${stderr ? `\n${stderr.trim().slice(-1200)}` : ''}`);
+    throw new Error(lastError || `Codex exited (${code}) ${answer ? 'before it finished' : 'without an answer'}.${stderr ? `\n${stderr.trim().slice(-1200)}` : ''}`);
   }
   return { text: answer, tokens: usage ? (usage.input_tokens || 0) + (usage.output_tokens || 0) : 0 };
 }

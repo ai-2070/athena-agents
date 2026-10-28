@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createProject, logoFile, projectSummary, removeLogo, setLogo, updateProject, withLogo } from '../../server/projects.ts';
+import { addNote, createProject, logoFile, modelFile, projectSummary, removeLogo, removeModel, setLogo, updateProject, withLogo } from '../../server/projects.ts';
 
 // a real 1×1 PNG
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -64,5 +64,35 @@ describe('project summary', () => {
   it('says nothing when there is nothing to say', async () => {
     const p = await createProject({ name: 'Sum three', mode: 'new', folder: folder('sum-three') });
     expect(projectSummary(updateProject(p.id, { description: '' })).text).toBe('');
+  });
+});
+
+// Links planted in a project folder (junctions need no admin rights on Windows; elsewhere 'junction' makes a plain folder link)
+describe('links in the project folder', () => {
+  it("doesn't serve or remove a logo or model through a .dashboard link", async () => {
+    const p = await createProject({ name: 'Logo link', mode: 'new', folder: folder('logo-link') });
+    const outside = fs.mkdtempSync(path.join(os.homedir(), 'outside-media-'));
+    fs.writeFileSync(path.join(outside, 'logo.png'), 'private-sentinel');
+    fs.writeFileSync(path.join(outside, 'brain-model.glb'), 'private-sentinel');
+    fs.rmSync(path.join(p.brainPath, '.dashboard'), { recursive: true, force: true });
+    fs.symlinkSync(outside, path.join(p.brainPath, '.dashboard'), 'junction');
+    expect(logoFile(p)).toBeNull();
+    expect(modelFile(p)).toBeNull();
+    removeLogo(p.id);
+    removeModel(p.id);
+    expect(fs.readdirSync(outside).sort()).toEqual(['brain-model.glb', 'logo.png']);
+  });
+
+  it("doesn't write a note through a notes link", async () => {
+    const p = await createProject({ name: 'Note link', mode: 'new', folder: folder('note-link') });
+    const outside = fs.mkdtempSync(path.join(os.homedir(), 'outside-notes-'));
+    fs.writeFileSync(path.join(outside, 'precious.md'), 'keep me');
+    fs.rmSync(path.join(p.brainPath, 'notes'), { recursive: true, force: true });
+    fs.symlinkSync(outside, path.join(p.brainPath, 'notes'), 'junction');
+    expect(() => addNote('precious', 'overwritten by note', p)).toThrow(/link/);
+    expect(fs.readFileSync(path.join(outside, 'precious.md'), 'utf8')).toBe('keep me');
+    // a plain notes folder still works
+    fs.rmSync(path.join(p.brainPath, 'notes'));
+    expect(fs.readFileSync(addNote('fine', 'hello', p), 'utf8')).toBe('hello');
   });
 });

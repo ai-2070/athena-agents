@@ -38,6 +38,8 @@ struct Server {
     port: AtomicU16,
     /// Bumped on every start and stop, so a watcher of an old server stays quiet.
     generation: AtomicU64,
+    /// Held while the server is restarted, so two restarts can't each start a server.
+    restarting: Mutex<()>,
 }
 
 fn main() {
@@ -122,10 +124,7 @@ fn on_navigation(app: &AppHandle, url: &Url) -> bool {
         // the start page's "Try again" button
         if url.query() == Some("restart") {
             let app = app.clone();
-            thread::spawn(move || {
-                stop_server(&app);
-                start_server(&app);
-            });
+            thread::spawn(move || restart_server(&app));
         }
         return true;
     }
@@ -172,7 +171,8 @@ fn show_message(app: &AppHandle, title: &str, text: &str) {
 
 fn show_start_page(app: &AppHandle, info: serde_json::Value) {
     let Some(w) = app.get_webview_window(MAIN) else { return };
-    let payload = info.to_string();
+    // the page decodes it once (decodeURIComponent): a bare % in a path would make that throw
+    let payload = encode_uri_component(&info.to_string());
     let base = if cfg!(windows) {
         "http://tauri.localhost/index.html"
     } else {
@@ -184,7 +184,30 @@ fn show_start_page(app: &AppHandle, info: serde_json::Value) {
     }
 }
 
+/// Like the page's encodeURIComponent: everything but letters, digits and -_.!~*'() as %XX.
+fn encode_uri_component(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for b in text.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
 // ---------- the server ----------
+
+/// The start page's "Try again": a click while a restart is still going does nothing.
+fn restart_server(app: &AppHandle) {
+    let state = app.state::<Server>();
+    let Ok(_restarting) = state.restarting.try_lock() else {
+        return;
+    };
+    stop_server(app);
+    start_server(app);
+}
 
 fn start_server(app: &AppHandle) {
     let state = app.state::<Server>();
@@ -202,7 +225,11 @@ fn start_server(app: &AppHandle) {
             )
         }
     };
-    *state.child.lock().unwrap() = Some(child);
+    // a server still in the slot would be left running with nothing to stop it
+    if let Some(mut old) = state.child.lock().unwrap().replace(child) {
+        let _ = old.kill();
+        let _ = old.wait();
+    }
 
     let app = app.clone();
     thread::spawn(move || watch_server(app, generation, port));
@@ -218,7 +245,8 @@ fn spawn_server(app: &AppHandle, port: u16) -> Result<Child, String> {
     let bun = sidecar("bun")?;
     // where chats, agents, keys and settings live; set DASH_DATA to use another folder
     let data = match std::env::var_os("DASH_DATA") {
-        Some(d) => PathBuf::from(d),
+        // made whole here: it is also the server's working folder, where a relative one would be read again
+        Some(d) => std::path::absolute(PathBuf::from(d)).map_err(|e| e.to_string())?,
         None => paths.app_data_dir().map_err(|e| e.to_string())?.join("data"),
     };
     fs::create_dir_all(&data).map_err(|e| format!("could not create {}: {e}", data.display()))?;
@@ -408,4 +436,19 @@ fn login_shell_path() -> Option<String> {
         .find_map(|l| l.strip_prefix("__DASH_PATH__"))
         .map(str::to_owned)
         .filter(|p| !p.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::encode_uri_component;
+
+    #[test]
+    fn start_page_payload_survives_one_decode() {
+        // a % in a path must come out as %25, so the page's decodeURIComponent gives it back
+        let encoded = encode_uri_component(r#"{"log":"C:\data 100%\server.log #1"}"#);
+        assert!(encoded.contains("100%25"));
+        assert!(!encoded.contains(['#', ' ', '"', '\\']));
+        assert_eq!(encode_uri_component("a-b_c.d!e~f*g'h(i)"), "a-b_c.d!e~f*g'h(i)");
+        assert_eq!(encode_uri_component("é"), "%C3%A9");
+    }
 }

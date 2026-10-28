@@ -43,7 +43,12 @@ function report(b: BrainBrief, pid: string, text: string) {
 /** Hand the Brain's delegate on, as the Brain: a message in the team chat, or a new chat with the agent.
  *  Fills in delegate.sent. With follow-ups on, it is kept as a brief to check on. */
 // goal: your /goal from the Brain chat: kept as a brief (even with follow-ups off), checked against it.
-export async function sendBrief(delegate: BrainDelegate, { goal = '' }: { goal?: string } = {}): Promise<void> {
+export function sendBrief(delegate: BrainDelegate, opts: { goal?: string } = {}): Promise<void> {
+  // (the brief is kept in the project it was handed out in, even if you open another meanwhile)
+  return withProject(activeProject(), () => sendNow(delegate, opts));
+}
+
+async function sendNow(delegate: BrainDelegate, { goal = '' }: { goal?: string }): Promise<void> {
   const message = delegate.message || '(no brief)';
   const attachments = delegate.attachments || [];
   const keep = followsUp() || !!goal;
@@ -140,13 +145,15 @@ export async function teamIdle(teamId: string, { stopped }: { stopped: boolean }
   // another project is open now: its chats and briefs aren't the ones in view
   if (openProject().id !== p.id) return;
   const brief = openBrief('team', teamId, p.id);
-  if (!brief || checking.has(brief.id)) return;
+  if (!brief) return;
   // follow-ups turned off since it was handed out: leave it to them (your /goal is followed all the same)
   if (!followsUp() && !brief.goal) return;
+  // (even while a check is on its way: its verdict then finds the brief stopped and does nothing)
   if (stopped) {
     updateBrief(brief.id, { status: 'stopped' }, p.id);
     return;
   }
+  if (checking.has(brief.id)) return;
   const team = getTeam(teamId);
   if (!team) return;
   const thread = getThread(teamId, 500).messages;
@@ -259,7 +266,11 @@ export function setAgentGoal(agent: Agent, chat: Chat, goal: string): BrainBrief
 }
 
 /** /goal in a team's chat: posted for the team (when it is quiet), checked whenever it goes quiet. */
-export async function setTeamGoal(teamId: string, goal: string, route: RouteFn | null = pickMember): Promise<BrainBrief> {
+export function setTeamGoal(teamId: string, goal: string, route: RouteFn | null = pickMember): Promise<BrainBrief> {
+  return withProject(activeProject(), () => teamGoal(teamId, goal, route));
+}
+
+async function teamGoal(teamId: string, goal: string, route: RouteFn | null): Promise<BrainBrief> {
   const team = getTeam(teamId);
   if (!team) throw new Error('No such team.');
   const s = teamState(team.id);
@@ -286,12 +297,17 @@ export function stoppedBriefs(open: BrainBrief[]): BrainBrief[] {
 }
 
 /** Pick up a brief that was stopped: a team's cut-off turns, or the agent's chat. */
+// (it opens again only when work really starts: a team's cut-off turns don't outlive a restart)
 export function resumeBrief(b: BrainBrief, continueText: string): boolean {
-  updateBrief(b.id, { status: 'open' });
-  if (b.kind === 'team') return resumeTeam(b.targetId) > 0;
+  if (b.kind === 'team') {
+    const picked = resumeTeam(b.targetId) > 0;
+    if (picked) updateBrief(b.id, { status: 'open' });
+    return picked;
+  }
   const agent = agents.get(b.targetId);
   const chat = b.chatId ? chats.get(b.targetId, b.chatId) : null;
   if (!agent || !chat || isChatBusy(chat.id)) return false;
+  updateBrief(b.id, { status: 'open' });
   if (b.goal) queueMessage(agent, chat, continueText, [], { from: '/resume' });
   else runForBrief(agent, chat.id, continueText, [], b);
   return true;

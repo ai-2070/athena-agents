@@ -375,6 +375,26 @@ export function rebuildLlm(llm: LlmMessage[], items: ChatItem[], upto: number): 
   return k > u ? [llm[u], ...llm.slice(k)] : llm.slice(u);
 }
 
+/** The API model's message list made from the chat as it shows (after another engine answered here): what
+ *  it remembers (after the latest compaction or Clear memory) up to the message being answered, which the
+ *  engine adds itself. Another engine's tool calls aren't the API model's: only what was said goes in. */
+export function llmFromItems(items: ChatItem[]): LlmMessage[] {
+  const cur = items.findLastIndex((i) => i.type === 'user');
+  const out: LlmMessage[] = [];
+  for (let i = memoryStart(items); i < (cur === -1 ? items.length : cur); i++) {
+    const it = items[i];
+    if (it.type === 'user') out.push({ role: 'user', content: `${it.text}${it.attachments?.length ? `\n(attached: ${it.attachments.join(', ')})` : ''}` });
+    else if (it.type === 'assistant' && it.text.trim()) {
+      // (it starts with your message)
+      if (!out.length) continue;
+      const last = out[out.length - 1];
+      if (last.role === 'assistant') last.content = `${String(last.content ?? '')}\n\n${it.text}`;
+      else out.push({ role: 'assistant', content: it.text });
+    }
+  }
+  return out;
+}
+
 // ---------- compacting ----------
 export interface CompactOptions {
   trigger: CompactionTrigger;

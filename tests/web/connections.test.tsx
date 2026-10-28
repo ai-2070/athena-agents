@@ -123,6 +123,25 @@ describe('the Outbox', () => {
     expect(text().value).toBe('Mine');
   });
 
+  it('a thread the server cut shorter after a failed send still shows your edited parts', async () => {
+    posts = [post({ parts: ['One', 'Two', 'Three'], images: undefined })];
+    const ok = globalThis.fetch;
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      if (url.endsWith('/approve')) {
+        // (the first part went out; what is left waits)
+        posts = [{ ...posts[0], status: 'failed', parts: ['Three'], error: 'X said no' } as OutboxPost];
+        return new Response(JSON.stringify(posts[0]));
+      }
+      return ok(url, init);
+    });
+    await openOutbox();
+    await type(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Part 3"]')!, 'Three, changed');
+    await act(async () => btn(el, 'Approve & post').click());
+    await settle();
+    expect(el.querySelectorAll('textarea[aria-label^="Part"]').length).toBe(3);
+    expect(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Part 3"]')!.value).toBe('Three, changed');
+  });
+
   it('lets you change a Reddit post title before approving', async () => {
     posts = [post({ platform: 'reddit', images: undefined, reddit: { kind: 'post', subreddit: 'rust', title: 'Old title' } } as Partial<OutboxPost>)];
     await openOutbox();
@@ -161,6 +180,22 @@ describe('Connections', () => {
     await settle();
     expect(sw.getAttribute('aria-checked')).toBe('true');
     expect(requests.find((r) => r.url === '/api/accounts/x/x1')!.body).toEqual({ autopost: true });
+  });
+
+  it('turning auto-post off that can not be saved puts the switch back on', async () => {
+    state.data = { ...state.data!, accounts: { x: [{ id: 'x1', username: 'ada', name: 'Ada', autopost: true, connectedAt: Date.now() }], reddit: [] } } as unknown as AppState;
+    const ok = globalThis.fetch;
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      if (url === '/api/accounts/x/x1') return new Response(JSON.stringify({ error: 'Could not save it.' }), { status: 500 });
+      return ok(url, init);
+    });
+    await openConnections('#/settings?tab=connections&sub=accounts');
+    const sw = el.querySelector<HTMLElement>('.conn-account [role="switch"]')!;
+    expect(sw.getAttribute('aria-checked')).toBe('true');
+    await act(async () => sw.click());
+    await settle();
+    expect(sw.getAttribute('aria-checked')).toBe('true');
+    expect(document.getElementById('toasts')!.textContent).toContain('Could not save it.');
   });
 
   it('saves the X app, and shows the callback address to register', async () => {

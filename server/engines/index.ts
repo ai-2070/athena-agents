@@ -82,6 +82,8 @@ export interface RunEntry {
   project: Project;
   /** (its id) */
   projectId: string;
+  /** the agent as the run has it, with what a team added (tools, MCP servers): the bridge uses this one */
+  agent: Agent;
   /** stopped for a new message from you: its /queue messages and loop stay */
   steered?: boolean;
 }
@@ -107,6 +109,8 @@ export interface RunInfo {
   depth: number;
   signal: AbortSignal;
   project: Project;
+  /** the agent as the run has it (see RunEntry) */
+  agent: Agent;
 }
 
 export interface StartRunOptions {
@@ -148,14 +152,23 @@ export const ENGINE_LIST: EngineInfo[] = [
 const active = new Map<string, RunEntry>(); // runId -> { abort, agentId, chatId, chat, depth, parentRunId }
 // each run, done once it has ended (its last steps included): a steer waits for the run it stopped
 const ends = new Map<string, Promise<void>>();
+
+// What is kept in memory for a chat (below) is by project and chat: a cloned project keeps its chats' ids,
+// so a chat id alone could mean the original's chat. Without a project: the one the work belongs to.
+const chatKey = (projectId: string, chatId: string): string => `${projectId}\n${chatId}`;
+const here = (): string => activeProject().id;
+const runsIn = (projectId: string, chatId: string): [string, RunEntry][] => [...active.entries()].filter(([, r]) => r.projectId === projectId && r.chatId === chatId);
+
 // chats where a new message waits for the run it stopped to end: it goes next, so nothing else starts meanwhile
 const steering = new Set<string>();
-// chats being compacted outside a run (Compact button, /compact), by id: no run may start meanwhile,
+// chats being compacted outside a run (Compact button, /compact): no run may start meanwhile,
 // and edits or a delete meanwhile go to this copy (see liveChat)
 const compacting = new Map<string, Chat>();
+// chats whose memory you cleared while a run went: cleared again when it ends, so its answer doesn't refill it
+const resets = new Set<string>();
 
 export function activeRuns(): ActiveRun[] {
-  return [...active.entries()].map(([id, r]) => ({ id, agentId: r.agentId, chatId: r.chatId, startedAt: r.startedAt, agentName: r.agentName, parentRunId: r.parentRunId || null, depth: r.depth }));
+  return [...active.entries()].map(([id, r]) => ({ id, agentId: r.agentId, chatId: r.chatId, projectId: r.projectId, startedAt: r.startedAt, agentName: r.agentName, parentRunId: r.parentRunId || null, depth: r.depth }));
 }
 
 // What the current turn of a chat is about: its message, latest tool and latest text.
@@ -188,13 +201,33 @@ export function liveActivity(): LiveActivity[] {
 
 export function runInfo(runId: string | null | undefined): RunInfo | null {
   const r = runId && active.get(runId);
-  return r ? { id: runId, agentId: r.agentId, projectId: r.projectId, chatId: r.chatId, depth: r.depth, signal: r.signal, project: r.project } : null;
+  return r ? { id: runId, agentId: r.agentId, projectId: r.projectId, chatId: r.chatId, depth: r.depth, signal: r.signal, project: r.project, agent: r.agent } : null;
 }
 
 // The chat object a running agent is writing to, so edits made meanwhile aren't overwritten.
-export function liveChat(chatId: string): Chat | null {
-  for (const r of active.values()) if (r.chatId === chatId) return r.chat;
-  return compacting.get(chatId) || null;
+export function liveChat(chatId: string, projectId: string = here()): Chat | null {
+  for (const r of active.values()) if (r.projectId === projectId && r.chatId === chatId) return r.chat;
+  return compacting.get(chatKey(projectId, chatId)) || null;
+}
+
+/** The run going in an agent's chat (in this project), if any. */
+export function chatRunId(agentId: string, chatId: string, projectId: string = here()): string | null {
+  return runsIn(projectId, chatId).find(([, r]) => r.agentId === agentId)?.[0] ?? null;
+}
+
+/** Clear memory: the agent starts fresh after this. While a run goes, its memory is cleared again when it
+ *  ends (what it answers now came from the memory you cleared). */
+export function resetMemory(chat: Chat, projectId: string = here()): void {
+  chat.items.push({ type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', reset: true, ts: Date.now() });
+  if (runsIn(projectId, chat.id).length) resets.add(chatKey(projectId, chat.id));
+  clearMemory(chat);
+}
+
+function clearMemory(chat: Chat): void {
+  chat.sessionId = null;
+  chat.llm = [];
+  delete chat.reseed;
+  delete chat.context;
 }
 
 export function buildSystemPrompt(agent: Agent): string {
@@ -231,17 +264,19 @@ function pushItem<T extends ChatItem>(chat: Chat, item: T): T {
 // The run belongs to the project it starts in (see withProject): opening another project meanwhile
 // doesn't move its chat, tool calls or files there.
 export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
-  if ([...active.values()].some((r) => r.chatId === chat.id)) throw new Error('This chat is already working on something. Stop it or wait.');
-  if (compacting.has(chat.id)) throw new Error('This chat is being compacted. Send it again in a moment.');
+  if (closing) throw new Error('The dashboard is stopping.');
+  const project = activeProject();
+  const key = chatKey(project.id, chat.id);
+  if (runsIn(project.id, chat.id).length) throw new Error('This chat is already working on something. Stop it or wait.');
+  if (compacting.has(key)) throw new Error('This chat is being compacted. Send it again in a moment.');
   // agent.engine comes from a JSON file, so it may be something unknown.
   const engine: Engine | undefined = (ENGINES as Partial<Record<string, Engine>>)[agent.engine];
   if (!engine) throw new Error(`Unknown engine "${agent.engine}".`);
   const runId = uid('r');
   const controller = new AbortController();
   const started = Date.now();
-  const project = activeProject();
   const inProject = <T>(fn: () => T): T => withProject(project, fn);
-  const entry: RunEntry = { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, startedAt: started, agentName: agent.name, project, projectId: project.id };
+  const entry: RunEntry = { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, startedAt: started, agentName: agent.name, project, projectId: project.id, agent };
   active.set(runId, entry);
   // Saving skips chats deleted while the run was going.
   const persist = () =>
@@ -335,13 +370,18 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       if (controller.signal.aborted) throw new Error('Stopped.');
       // A session belongs to the engine that made it: after the agent changed engines, a new one starts
       // with the chat so far. (Older chats don't say whose it is: if it's gone, the engine says so; see below.)
+      // The API model keeps its own memory (chat.llm): after another engine answered here it is made again
+      // from the chat so far, and after the API model answered, a CLI engine starts from the chat so far too.
+      const before = chat.sessionEngine;
       if (cli) {
-        if (chat.sessionId && chat.sessionEngine && chat.sessionEngine !== agent.engine) {
+        if (before && before !== agent.engine) {
           chat.sessionId = null;
           chat.reseed = true;
         }
-        chat.sessionEngine = agent.engine;
+      } else if (before ? before !== 'openai' : !!chat.sessionId) {
+        chat.llm = compaction.llmFromItems(chat.items);
       }
+      chat.sessionEngine = agent.engine;
       // Codex, Hermes and OpenClaw get the instructions only when their session starts: a session that is
       // already going is told when MEMORY.md changed since its last run (by you, or in another chat)
       const memoryAt = hasMemory(agent) ? memoryStamp(agent.id) : 0;
@@ -389,6 +429,11 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       if (depth > 0 && !stopped) throw e;
       return '';
     } finally {
+      // you cleared its memory meanwhile: what this run added to it goes too
+      if (resets.delete(key)) {
+        clearMemory(chat);
+        persist();
+      }
       active.delete(runId);
       cancelForRun(runId);
       emit('runs');
@@ -403,15 +448,15 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       // done: your next /queue message goes now, then the loop's next one (a stopped run takes them with it: you said stop)
       if (steered) {
         // the queue and the loop carry on after your new message (a loop turn it cut counts as done)
-        loopRunEnded(chat.id, runId, false);
+        loopRunEnded(project.id, chat.id, runId, false);
         // (it waits for this run to end and goes now; one that gave up waiting is first in the queue)
-        if (!steering.has(chat.id)) carryOn(chat.id);
+        if (!steering.has(key)) carryOn(project.id, chat.id);
       } else if (stopped) {
-        unqueue(chat.id);
-        stopLoop(chat.id, 'Loop stopped.');
+        unqueue(chat.id, undefined, project.id);
+        stopLoop(chat.id, 'Loop stopped.', project.id);
       } else {
-        loopRunEnded(chat.id, runId, failed);
-        carryOn(chat.id);
+        loopRunEnded(project.id, chat.id, runId, failed);
+        carryOn(project.id, chat.id);
       }
     }
   });
@@ -442,21 +487,25 @@ export interface Steered {
  *  and loop stay), and this message starts next, with what was done so far. Nothing going: sent as usual.
  *  Not while it works for a team or another agent: they wait on that answer. */
 export function steerChat(agent: Agent, chat: Chat, text: string, { attachments = [], waitMs = STEER_WAIT_MS }: { attachments?: string[]; waitMs?: number } = {}): Promise<Steered> {
-  const mine = (steers.get(chat.id) || Promise.resolve()).then(() => steerNow(agent, chat, text, attachments, waitMs));
+  // (the wait outlives the request: what comes after it stays in this project)
+  const project = activeProject();
+  const key = chatKey(project.id, chat.id);
+  const mine = (steers.get(key) || Promise.resolve()).then(() => withProject(project, () => steerNow(agent, chat, text, attachments, waitMs, project.id)));
   const tail = mine.then(
     () => {},
     () => {},
   );
-  steers.set(chat.id, tail);
-  void tail.then(() => steers.get(chat.id) === tail && steers.delete(chat.id));
+  steers.set(key, tail);
+  void tail.then(() => steers.get(key) === tail && steers.delete(key));
   return mine;
 }
 
-async function steerNow(agent: Agent, chat: Chat, text: string, attachments: string[], waitMs: number): Promise<Steered> {
-  const runs = [...active.entries()].filter(([, r]) => r.chatId === chat.id);
+async function steerNow(agent: Agent, chat: Chat, text: string, attachments: string[], waitMs: number, projectId: string): Promise<Steered> {
+  const key = chatKey(projectId, chat.id);
+  const runs = runsIn(projectId, chat.id);
   if (runs.some(([, r]) => r.depth > 0)) throw httpError(409, `${agent.name} is working for a team or another agent in this chat. Stop it there, or /queue your message for when it is done.`);
   if (!runs.length) return { runId: startRun(agent, chat, text, { attachments }).runId };
-  steering.add(chat.id);
+  steering.add(key);
   let ended: boolean;
   try {
     for (const [id, r] of runs) {
@@ -468,22 +517,25 @@ async function steerNow(agent: Agent, chat: Chat, text: string, attachments: str
       waitMs,
     );
   } finally {
-    steering.delete(chat.id);
+    steering.delete(key);
   }
+  // deleted while it waited: never make it again
+  const now = liveChat(chat.id, projectId) || chats.get(agent.id, chat.id);
+  if (!now || now._deleted || chat._deleted) throw httpError(404, 'This chat was deleted.');
   // still ending: this message goes first, the moment it has
   if (!ended) return { runId: queueFirst(agent, chat, text, attachments) };
   try {
     // (the stopped run saved its part: start from the chat as it is now)
-    return { runId: startRun(agent, liveChat(chat.id) || chats.get(agent.id, chat.id) || chat, text, { attachments }).runId };
+    return { runId: startRun(agent, now, text, { attachments }).runId };
   } catch (e) {
     // (refused after all: what waited behind it goes on)
-    carryOn(chat.id);
+    carryOn(projectId, chat.id);
     throw e;
   }
 }
 
 // ---------- /queue: messages that wait for the chat to be free ----------
-// Kept in memory by chat. Each goes as its own message, in order, when the run before it ends.
+// Kept in memory by project and chat (chatKey). Each goes as its own message, in order, when the run before it ends.
 const waiting = new Map<string, { agentId: string; project: Project; items: QueuedMessage[] }>();
 // queued messages someone waits on: told the run each one started, or null if it never will
 const starts = new Map<string, (runId: string | null) => void>();
@@ -491,92 +543,98 @@ const told = (id: string, runId: string | null) => {
   starts.get(id)?.(runId);
   starts.delete(id);
 };
-const chatBusy = (chatId: string) => [...active.values()].some((r) => r.chatId === chatId) || compacting.has(chatId) || steering.has(chatId);
+const chatBusy = (projectId: string, chatId: string) => runsIn(projectId, chatId).length > 0 || compacting.has(chatKey(projectId, chatId)) || steering.has(chatKey(projectId, chatId));
 /** Something is going in this chat: a run, or a compaction. */
-export const isChatBusy = chatBusy;
-const emitQueue = (agentId: string, chatId: string) => emit('queue', { agentId, chatId, queued: queuedMessages(chatId) });
+export const isChatBusy = (chatId: string, projectId: string = here()): boolean => chatBusy(projectId, chatId);
+const emitQueue = (agentId: string, chatId: string, projectId: string) => emit('queue', { agentId, chatId, queued: queuedMessages(chatId, projectId) });
 
-export function queuedMessages(chatId: string): QueuedMessage[] {
-  return [...(waiting.get(chatId)?.items || [])];
+export function queuedMessages(chatId: string, projectId: string = here()): QueuedMessage[] {
+  return [...(waiting.get(chatKey(projectId, chatId))?.items || [])];
 }
 
 /** Send now if the chat is free, else once it is done with what it is doing. from: who it is from, when not you. */
 export function queueMessage(agent: Agent, chat: Chat, text: string, attachments: string[] = [], { from }: { from?: string } = {}): { runId: string } | { queued: QueuedMessage } {
-  if (!chatBusy(chat.id) && !waiting.has(chat.id)) return { runId: startRun(agent, chat, text, { attachments, from: from || null }).runId };
-  const w = waiting.get(chat.id) || { agentId: agent.id, project: activeProject(), items: [] };
+  const project = activeProject();
+  const key = chatKey(project.id, chat.id);
+  if (!chatBusy(project.id, chat.id) && !waiting.has(key)) return { runId: startRun(agent, chat, text, { attachments, from: from || null }).runId };
+  const w = waiting.get(key) || { agentId: agent.id, project, items: [] };
   const queued: QueuedMessage = { id: uid('q'), text, ...(attachments.length ? { attachments } : {}), ...(from ? { from } : {}), ts: Date.now() };
   w.items.push(queued);
-  waiting.set(chat.id, w);
-  emitQueue(agent.id, chat.id);
+  waiting.set(key, w);
+  emitQueue(agent.id, chat.id, project.id);
   // (free after all: the oldest goes now)
-  sendQueued(chat.id);
+  sendQueued(project.id, chat.id);
   return { queued };
 }
 
 /** A steer whose stopped run is slow to end: first in the queue (after earlier ones like it), so it goes
  *  the moment that run has. Resolves with the run it starts, or null if it never does. */
 function queueFirst(agent: Agent, chat: Chat, text: string, attachments: string[]): Promise<string | null> {
-  const w = waiting.get(chat.id) || { agentId: agent.id, project: activeProject(), items: [] };
+  const project = activeProject();
+  const key = chatKey(project.id, chat.id);
+  const w = waiting.get(key) || { agentId: agent.id, project, items: [] };
   const q: QueuedMessage = { id: uid('q'), text, ...(attachments.length ? { attachments } : {}), ts: Date.now() };
   const at = w.items.findIndex((x) => !starts.has(x.id));
   w.items.splice(at === -1 ? w.items.length : at, 0, q);
-  waiting.set(chat.id, w);
+  waiting.set(key, w);
   const started = new Promise<string | null>((resolve) => starts.set(q.id, resolve));
-  emitQueue(agent.id, chat.id);
+  emitQueue(agent.id, chat.id, project.id);
   // (it ended meanwhile after all)
-  carryOn(chat.id);
+  carryOn(project.id, chat.id);
   return started;
 }
 
 /** Change the text of a queued message before it goes. null: it already went. */
-export function editQueued(chatId: string, id: string, text: unknown): QueuedMessage | null {
-  const w = waiting.get(chatId);
+export function editQueued(chatId: string, id: string, text: unknown, projectId: string = here()): QueuedMessage | null {
+  const w = waiting.get(chatKey(projectId, chatId));
   const q = w?.items.find((x) => x.id === id);
   if (!w || !q) return null;
   q.text = queuedEdit(text, !!q.attachments?.length);
-  emitQueue(w.agentId, chatId);
+  emitQueue(w.agentId, chatId, projectId);
   return q;
 }
 
 /** Put the queued messages in this order (ids it doesn't name keep their place after the ones it does). */
-export function orderQueued(chatId: string, ids: unknown): QueuedMessage[] {
-  const w = waiting.get(chatId);
+export function orderQueued(chatId: string, ids: unknown, projectId: string = here()): QueuedMessage[] {
+  const w = waiting.get(chatKey(projectId, chatId));
   if (!w) return [];
   w.items = reorderQueued(w.items, ids);
-  emitQueue(w.agentId, chatId);
+  emitQueue(w.agentId, chatId, projectId);
   return [...w.items];
 }
 
 /** Take back one queued message (id), or all of them. Returns what was taken. */
-export function unqueue(chatId: string, id?: string): QueuedMessage[] {
-  const w = waiting.get(chatId);
+export function unqueue(chatId: string, id?: string, projectId: string = here()): QueuedMessage[] {
+  const key = chatKey(projectId, chatId);
+  const w = waiting.get(key);
   if (!w) return [];
   const taken = id ? w.items.filter((q) => q.id === id) : w.items;
   w.items = id ? w.items.filter((q) => q.id !== id) : [];
-  if (!w.items.length) waiting.delete(chatId);
+  if (!w.items.length) waiting.delete(key);
   for (const q of taken) told(q.id, null);
-  if (taken.length) emitQueue(w.agentId, chatId);
+  if (taken.length) emitQueue(w.agentId, chatId, projectId);
   return taken;
 }
 
 /** The chat is free: your next /queue message goes now, else the loop's next one. */
-function carryOn(chatId: string) {
-  sendQueued(chatId);
-  fireLoop(chatId);
+function carryOn(projectId: string, chatId: string) {
+  sendQueued(projectId, chatId);
+  fireLoop(projectId, chatId);
 }
 
-function sendQueued(chatId: string) {
-  const w = waiting.get(chatId);
-  if (!w || chatBusy(chatId)) return;
+function sendQueued(projectId: string, chatId: string) {
+  const key = chatKey(projectId, chatId);
+  const w = waiting.get(key);
+  if (!w || chatBusy(projectId, chatId)) return;
   const next = w.items.shift()!;
-  if (!w.items.length) waiting.delete(chatId);
+  if (!w.items.length) waiting.delete(key);
   // in the project it was typed in, like the run before it
   withProject(w.project, () => {
     const agent = agentStore.get(w.agentId);
     const chat = chats.get(w.agentId, chatId);
     if (!agent || !chat) {
       for (const q of [next, ...w.items]) told(q.id, null);
-      return void waiting.delete(chatId);
+      return void waiting.delete(key);
     }
     try {
       told(next.id, startRun(agent, chat, next.text, { attachments: next.attachments || [], from: next.from || null }).runId);
@@ -586,7 +644,7 @@ function sendQueued(chatId: string) {
     }
   });
   // (after the run's start event, so an open chat knows that turn came from its queue)
-  emitQueue(w.agentId, chatId);
+  emitQueue(w.agentId, chatId, projectId);
 }
 
 // ---------- after a run ----------
@@ -633,35 +691,38 @@ interface ChatLoop extends LoopInfo {
 }
 const loops = new Map<string, ChatLoop>();
 
-export function loopOf(chatId: string): LoopInfo | null {
-  const l = loops.get(chatId);
+export function loopOf(chatId: string, projectId: string = here()): LoopInfo | null {
+  const l = loops.get(chatKey(projectId, chatId));
   return l ? { text: l.text, every: l.every, times: l.times, done: l.done, next: l.next } : null;
 }
-const emitLoop = (agentId: string, chatId: string) => emit('loop', { agentId, chatId, loop: loopOf(chatId) });
+const emitLoop = (agentId: string, chatId: string, projectId: string) => emit('loop', { agentId, chatId, loop: loopOf(chatId, projectId) });
 
 /** Start a loop in this chat (instead of one going there): the first one goes now, or when the chat is free. */
 export function startLoop(agent: Agent, chat: Chat, req: LoopRequest, attachments: string[] = []): LoopInfo {
-  stopLoop(chat.id, null);
-  loops.set(chat.id, { ...req, done: 0, next: null, agentId: agent.id, project: activeProject(), attachments, due: true, timer: null, runId: null });
-  fireLoop(chat.id);
-  emitLoop(agent.id, chat.id);
-  return loopOf(chat.id)!;
+  const project = activeProject();
+  stopLoop(chat.id, null, project.id);
+  loops.set(chatKey(project.id, chat.id), { ...req, done: 0, next: null, agentId: agent.id, project, attachments, due: true, timer: null, runId: null });
+  fireLoop(project.id, chat.id);
+  emitLoop(agent.id, chat.id, project.id);
+  return loopOf(chat.id, project.id)!;
 }
 
 /** End the loop in this chat. why: the note left in the chat (null: none). */
-export function stopLoop(chatId: string, why: string | null): boolean {
-  const l = loops.get(chatId);
+export function stopLoop(chatId: string, why: string | null, projectId: string = here()): boolean {
+  const key = chatKey(projectId, chatId);
+  const l = loops.get(key);
   if (!l) return false;
   if (l.timer) clearTimeout(l.timer);
-  loops.delete(chatId);
+  loops.delete(key);
   if (why) withProject(l.project, () => addChatNote(l.agentId, chatId, why));
-  emitLoop(l.agentId, chatId);
+  emitLoop(l.agentId, chatId, projectId);
   return true;
 }
 
-function fireLoop(chatId: string) {
-  const l = loops.get(chatId);
-  if (!l || !l.due || chatBusy(chatId) || waiting.has(chatId)) return;
+function fireLoop(projectId: string, chatId: string) {
+  const key = chatKey(projectId, chatId);
+  const l = loops.get(key);
+  if (!l || !l.due || chatBusy(projectId, chatId) || waiting.has(key)) return;
   l.due = false;
   l.done++;
   l.next = null;
@@ -676,27 +737,27 @@ function fireLoop(chatId: string) {
       return (e as Error).message;
     }
   });
-  if (started) return void stopLoop(chatId, `Loop ended: ${started}`);
+  if (started) return void stopLoop(chatId, `Loop ended: ${started}`, projectId);
   if (l.every != null && l.done < l.times) {
     l.next = Date.now() + l.every;
     l.timer = setTimeout(() => {
       l.timer = null;
       l.due = true;
-      fireLoop(chatId);
+      fireLoop(projectId, chatId);
     }, l.every);
     l.timer.unref?.();
   }
-  emitLoop(l.agentId, chatId);
+  emitLoop(l.agentId, chatId, projectId);
 }
 
-function loopRunEnded(chatId: string, runId: string, failed: boolean) {
-  const l = loops.get(chatId);
+function loopRunEnded(projectId: string, chatId: string, runId: string, failed: boolean) {
+  const l = loops.get(chatKey(projectId, chatId));
   if (!l || l.runId !== runId) return;
   l.runId = null;
-  if (failed) return void stopLoop(chatId, `Loop ended: turn ${l.done} of ${l.times} failed.`);
-  if (l.done >= l.times) return void stopLoop(chatId, `Loop done: sent ${l.times} time${l.times > 1 ? 's' : ''}.`);
+  if (failed) return void stopLoop(chatId, `Loop ended: turn ${l.done} of ${l.times} failed.`, projectId);
+  if (l.done >= l.times) return void stopLoop(chatId, `Loop done: sent ${l.times} time${l.times > 1 ? 's' : ''}.`, projectId);
   if (l.every == null) l.due = true;
-  emitLoop(l.agentId, chatId);
+  emitLoop(l.agentId, chatId, projectId);
 }
 
 function lastAssistantText(chat: Chat): string {
@@ -718,21 +779,32 @@ export function stopRun(runId: string): boolean {
   return !!r;
 }
 
+let closing = false;
+/** The server is stopping: stop every run (an agent's CLI and everything it started with it), start no
+ *  new ones, and wait up to `ms` for them to end, so nothing keeps working in a project after we're gone. */
+export async function stopAllRuns(ms = 3000): Promise<void> {
+  closing = true;
+  for (const id of [...active.keys()]) stopRun(id);
+  const until = Date.now() + ms;
+  while (active.size && Date.now() < until) await new Promise((r) => setTimeout(r, 50));
+}
+
 export function stopChildren(parentRunId: string) {
   for (const [id, r] of active) if (r.parentRunId === parentRunId) stopRun(id);
 }
 
-export function stopChat(chatId: string) {
-  for (const [id, r] of active) if (r.chatId === chatId) stopRun(id);
+export function stopChat(chatId: string, projectId: string = here()) {
+  for (const [id] of runsIn(projectId, chatId)) stopRun(id);
 }
 
 // A chat deleted while running: stop it and make sure nothing writes it back.
-export function forgetChat(chatId: string) {
-  const live = liveChat(chatId);
+export function forgetChat(chatId: string, projectId: string = here()) {
+  const live = liveChat(chatId, projectId);
   if (live) live._deleted = true;
-  unqueue(chatId);
-  stopLoop(chatId, null);
-  stopChat(chatId);
+  resets.delete(chatKey(projectId, chatId));
+  unqueue(chatId, undefined, projectId);
+  stopLoop(chatId, null, projectId);
+  stopChat(chatId, projectId);
 }
 
 // Used by ask_agent and workflows: run to completion in a fresh chat, return the answer.
@@ -762,12 +834,19 @@ export async function askAgent(agent: Agent, message: string, { depth = 1, from 
 const httpError = (status: number, msg: string) => Object.assign(new Error(msg), { status });
 
 /** Compacts a chat now (the Compact button, or /compact). Not while it is answering. */
-export async function compactNow(agent: Agent, chatId: string, mode?: 'instant' | 'summary'): Promise<{ item: CompactionItem | null; chat: Chat }> {
-  if (compacting.has(chatId)) throw httpError(409, 'This chat is being compacted already.');
-  if (liveChat(chatId)) throw httpError(409, 'The agent is answering in this chat. Compact it when it is done (or stop it).');
+export function compactNow(agent: Agent, chatId: string, mode?: 'instant' | 'summary'): Promise<{ item: CompactionItem | null; chat: Chat }> {
+  // (a summary takes a while: the chat is saved in its own project, whichever is open by then)
+  const project = activeProject();
+  return withProject(project, () => compactIn(project.id, agent, chatId, mode));
+}
+
+async function compactIn(projectId: string, agent: Agent, chatId: string, mode?: 'instant' | 'summary'): Promise<{ item: CompactionItem | null; chat: Chat }> {
+  const key = chatKey(projectId, chatId);
+  if (compacting.has(key)) throw httpError(409, 'This chat is being compacted already.');
+  if (liveChat(chatId, projectId)) throw httpError(409, 'The agent is answering in this chat. Compact it when it is done (or stop it).');
   const chat = chats.get(agent.id, chatId);
   if (!chat) throw httpError(404, 'Not found');
-  compacting.set(chatId, chat);
+  compacting.set(key, chat);
   try {
     const item = await compaction.compactChat(chat, { trigger: 'manual', mode, window: await compaction.contextWindow(agent, chat), current: false });
     // deleted while the summary was being written: don't write it back
@@ -779,9 +858,8 @@ export async function compactNow(agent: Agent, chatId: string, mode?: 'instant' 
     }
     return { item, chat };
   } finally {
-    compacting.delete(chatId);
-    sendQueued(chatId);
-    fireLoop(chatId);
+    compacting.delete(key);
+    carryOn(projectId, chatId);
   }
 }
 

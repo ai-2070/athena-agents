@@ -36,7 +36,7 @@ export type Preset = AgentPreset | TeamPreset;
 
 const DIR = () => ensureDir(dataPath('presets'));
 const RUNTIME_FIELDS = ['id', 'createdAt', 'updatedAt', 'lastModel', 'lastModelAt', 'pinned', 'workspace'];
-const agentTemplate = (a: Agent): AgentTemplate => Object.fromEntries(Object.entries(a).filter(([k]) => !RUNTIME_FIELDS.includes(k) && !k.startsWith('_'))) as AgentTemplate;
+const agentTemplate = (a: Partial<Agent>): AgentTemplate => Object.fromEntries(Object.entries(a).filter(([k]) => !RUNTIME_FIELDS.includes(k) && !k.startsWith('_'))) as AgentTemplate;
 const TEAM_FIELDS = ['name', 'description', 'color', 'mark', 'access', 'skills', 'schedule'] as const;
 const teamTemplate = (t: Partial<Team>): TeamTemplate => Object.fromEntries(TEAM_FIELDS.filter((k) => t[k] !== undefined).map((k) => [k, structuredClone(t[k])])) as TeamTemplate;
 
@@ -69,9 +69,9 @@ export function saveAgentPreset(agentId: string, { name }: { name?: string } = {
 }
 
 export function saveTeamPreset(teamId: string, { name }: { name?: string } = {}): TeamPreset {
-  const t = workflows.get(teamId);
+  const t = getTeam(teamId); // an old step list gets its members from its agent steps
   if (!t) throw new Error('No such team.');
-  const ids = (t.members || []).filter((id) => agents.get(id));
+  const ids = t.members;
   const p: TeamPreset = {
     id: uid('pt'),
     kind: 'team',
@@ -97,11 +97,12 @@ export function usePreset(id: string): { agent: Agent } | { team: Team; agents: 
   const p = readJSON<Preset>(path.join(DIR(), `${path.basename(String(id))}.json`), null);
   if (!p) throw new Error('No such preset.');
   if (p.kind === 'agent') {
-    const a = newAgent({ ...structuredClone(p.agent), source: { type: 'preset', preset: p.id } });
+    // (an imported preset may carry an id or other per-copy fields: never reuse them)
+    const a = newAgent({ ...agentTemplate(structuredClone(p.agent)), source: { type: 'preset', preset: p.id } });
     log('preset', `Created ${a.name} from a preset`, { agentId: a.id });
     return { agent: a };
   }
-  const made = p.members.map((m) => newAgent({ ...structuredClone(m), source: { type: 'preset', preset: p.id } }));
+  const made = p.members.map((m) => newAgent({ ...agentTemplate(structuredClone(m)), source: { type: 'preset', preset: p.id } }));
   const team = workflows.save({
     ...teamTemplate(p.team),
     members: made.map((a) => a.id),

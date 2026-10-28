@@ -1,6 +1,6 @@
 // Workflows: a list of steps run in order. Each step sees the input and earlier outputs as {{input}}, {{prev}}, {{step1}}…
 // Step types: agent (ask an agent), tool (call a dashboard tool), approval (wait for you, editable), x_post (to the Outbox), notify.
-import { workflows, runs, agents as agentStore, emit, log, activeProject, withProject } from './store.ts';
+import { workflows, runs, agents as agentStore, emit, log, activeProject, withProject, listProjects } from './store.ts';
 import { renderTemplate, uid } from './util.ts';
 import { askAgent, stopChildren, RunStopped } from './engines/index.ts';
 import { callTool, TOOL_GROUPS } from './tools.ts';
@@ -97,14 +97,18 @@ export function stopWorkflowRun(runId: string): boolean {
   return !!ctl;
 }
 
-// Runs that were going when the dashboard stopped can't continue.
+// Runs that were going when the dashboard stopped can't continue (in every project, not only the open one).
 export function markInterruptedRuns() {
-  for (const r of runs.list()) {
-    if (r.status !== 'running') continue;
-    r.status = 'stopped';
-    r.error = 'The dashboard was closed while this ran.';
-    for (const st of r.steps) if (st.status === 'running' || st.status === 'needs-you') st.status = 'failed';
-    runs.save(r);
+  for (const p of listProjects()) {
+    withProject(p, () => {
+      for (const r of runs.list()) {
+        if (r.status !== 'running') continue;
+        r.status = 'stopped';
+        r.error = 'The dashboard was closed while this ran.';
+        for (const st of r.steps) if (st.status === 'running' || st.status === 'needs-you') st.status = 'failed';
+        runs.save(r);
+      }
+    });
   }
 }
 

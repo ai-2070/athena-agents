@@ -224,12 +224,37 @@ export function clearWhichCache() {
   whichCache.clear();
 }
 
+/** What an npm (or pnpm) .cmd shim runs: node and the package's script, read from the shim. Null for
+ *  any other .cmd, or when the script or node isn't there. */
+export function shimTarget(shim: string): { command: string; args: string[] } | null {
+  let text = '';
+  try {
+    if (fs.statSync(shim).size > 20_000) return null;
+    text = fs.readFileSync(shim, 'utf8');
+  } catch {
+    return null;
+  }
+  // "%dp0%\node_modules\@openai\codex\bin\codex.js" (npm) or "%~dp0\..\codex\bin\codex.js" (pnpm)
+  const m = /"%~?dp0%?\\?([^"%]+?\.[cm]?js)"/i.exec(text);
+  if (!m) return null;
+  const dir = path.dirname(shim);
+  const script = path.resolve(dir, m[1].replace(/\\/g, '/'));
+  if (!exists(script)) return null;
+  const local = path.join(dir, 'node.exe');
+  const node = exists(local) ? local : which('node');
+  return node && /\.exe$/i.test(node) ? { command: node, args: [script] } : null;
+}
+
 // Build a spawn() call that works for .cmd/.bat shims on Windows too.
 export function spawnCommand(cmd: string, args: string[] = [], opts: SpawnOptions = {}): ChildProcess {
   const exe = which(cmd) || cmd;
   if (IS_WIN && /\.(cmd|bat)$/i.test(exe)) {
     // These go through cmd.exe, which would interpret these characters: refuse rather than risk injection.
     const bad = args.find((a) => /["%!^&|<>\r\n]/.test(String(a)));
+    // An npm-installed CLI (codex.cmd) only starts node with its script: start that directly instead, no
+    // cmd.exe in between, so its arguments (Codex's quoted settings) go through as they are.
+    const direct = bad !== undefined ? shimTarget(exe) : null;
+    if (direct) return spawn(direct.command, [...direct.args, ...args], { windowsHide: true, ...opts });
     if (bad !== undefined) throw new Error(`This argument has characters that can't be passed safely to ${path.basename(exe)}: ${String(bad).slice(0, 80)}`);
     const quoted = [exe, ...args].map(winQuote).join(' ');
     return spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${quoted}"`], {
@@ -472,13 +497,38 @@ export async function readText(file: string, max = 400_000): Promise<string> {
   return buf.subarray(0, max).toString('utf8');
 }
 
+// YAML's double-quoted escapes (JSON's are a subset, so a value written with JSON.stringify reads back
+// exactly). An escape YAML doesn't know is kept as it is, backslash and all.
+const YAML_ESCAPES: Record<string, string> = { '0': '\0', a: '\x07', b: '\b', t: '\t', '\t': '\t', n: '\n', v: '\v', f: '\f', r: '\r', e: '\x1b', ' ': ' ', '"': '"', '/': '/', '\\': '\\', N: '\x85', _: '\xa0', L: String.fromCharCode(0x2028), P: String.fromCharCode(0x2029) };
+/** One YAML scalar on one line, as its text: "double" and 'single' quotes are decoded, a plain one is trimmed. */
+export function yamlScalar(raw: string): string {
+  const v = raw.trim();
+  if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) {
+    return v.slice(1, -1).replace(/\\(x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[\s\S])/g, (all, e: string) => {
+      if (e.length > 1) {
+        const code = parseInt(e.slice(1), 16);
+        return code <= 0x10ffff ? String.fromCodePoint(code) : all;
+      }
+      return YAML_ESCAPES[e] ?? all;
+    });
+  }
+  if (v.length >= 2 && v.startsWith("'") && v.endsWith("'")) return v.slice(1, -1).replace(/''/g, "'");
+  return v;
+}
+// characters YAML may read as line breaks (JSON.stringify leaves them as they are)
+const YAML_BREAKS = [0x85, 0x2028, 0x2029];
+/** A string as a YAML scalar on one line: plain when that reads back the same, else double-quoted. */
+export function yamlString(s: string): string {
+  return s === '' || /[:#"'\\\n\r\t]/.test(s) || /^[\s>|[\]{}&*!%@`,?-]/.test(s) || /\s$/.test(s) ? JSON.stringify(s).replace(/[^\x00-\x7e]/g, (c) => (YAML_BREAKS.includes(c.charCodeAt(0)) ? `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}` : c)) : s;
+}
+
 export function parseFrontmatter(text: string): { meta: Record<string, string>; body: string } {
   const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
   if (!m) return { meta: {}, body: text };
   const meta: Record<string, string> = {};
   for (const line of m[1].split(/\r?\n/)) {
     const kv = /^([A-Za-z0-9_-]+)\s*:\s*(.*)$/.exec(line);
-    if (kv) meta[kv[1]] = kv[2].replace(/^["']|["']$/g, '').trim();
+    if (kv) meta[kv[1]] = yamlScalar(kv[2]);
   }
   return { meta, body: text.slice(m[0].length) };
 }

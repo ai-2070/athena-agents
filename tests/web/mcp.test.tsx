@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as mcp from '../../web/views/mcp.tsx';
-import { parseHeaders, parseKv } from '../../web/views/mcp.tsx';
+import { joinArgs, parseHeaders, parseKv, splitArgs } from '../../web/views/mcp.tsx';
 import { confirmBox } from '../../web/core.ts';
 import { openModal } from '../../web/ui/overlays.tsx';
 
@@ -65,6 +65,13 @@ describe('parsing', () => {
   it('reads KEY=value and Name: value lines, skipping the rest', () => {
     expect(parseKv('A=1\n\n B = two=2 \nnot this')).toEqual({ A: '1', B: 'two=2' });
     expect(parseHeaders('Authorization: Bearer x:y\nnope')).toEqual({ Authorization: 'Bearer x:y' });
+  });
+
+  it('writes arguments with spaces or quotes in double quotes, and reads them back the same', () => {
+    const args = ['-y', 'C:/MCP Servers/server.js', 'say "hi"', '', 'C:\\tools\\x.exe'];
+    expect(joinArgs(args)).toBe('-y "C:/MCP Servers/server.js" "say \\"hi\\"" "" C:\\tools\\x.exe');
+    expect(splitArgs(joinArgs(args))).toEqual(args);
+    expect(splitArgs('  -y   @playwright/mcp  ')).toEqual(['-y', '@playwright/mcp']);
   });
 });
 
@@ -148,6 +155,16 @@ describe('the MCP servers tab', () => {
     await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
     await settle();
     expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({ name: 'playwright', args: ['-y', '@playwright/mcp'], env: { DEBUG: '1' } });
+  });
+
+  it('changing only the description keeps an argument with a space in it whole', async () => {
+    servers = { local: { type: 'stdio', command: 'node', args: ['C:/MCP Servers/server.js'], env: {}, url: '', headers: {} } };
+    await open();
+    await act(async () => btn(el, 'Edit').click());
+    expect(field('Arguments').value).toBe('"C:/MCP Servers/server.js"');
+    await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
+    await settle();
+    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({ name: 'local', args: ['C:/MCP Servers/server.js'] });
   });
 
   it('removes a server only after you confirm', async () => {

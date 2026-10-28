@@ -26,11 +26,17 @@ export const dashFetch: typeof fetch = async (input, init) => {
 export const streamUrl = (agentId: string, chatId: string): string => apiUrl(`/agents/${agentId}/chats/${chatId}/stream`);
 
 /** One agent's chats: a send posts only the new message (the server keeps the history); a resume
- *  picks up the run going in the chat. */
-export function chatTransport(agentId: string, chatId: () => string | null): DefaultChatTransport<ChatMessage> {
+ *  picks up the run going in the chat. accepted: the server took a request (it answered with a stream). */
+export function chatTransport(agentId: string, chatId: () => string | null, accepted?: () => void): DefaultChatTransport<ChatMessage> {
   return new DefaultChatTransport<ChatMessage>({
     api: apiUrl('/agents'),
-    fetch: dashFetch,
+    fetch: accepted
+      ? async (input, init) => {
+          const res = await dashFetch(input, init);
+          if (res.ok) accepted();
+          return res;
+        }
+      : dashFetch,
     // (steer: sent while it works, it stops the run going now and goes next)
     prepareSendMessagesRequest: ({ messages, body }) => ({ api: streamUrl(agentId, chatId() || 'none'), body: { ...readUser(messages[messages.length - 1]), ...(body?.steer === true ? { steer: true } : {}) } }),
     prepareReconnectToStreamRequest: () => ({ api: streamUrl(agentId, chatId() || 'none') }),

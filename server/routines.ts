@@ -2,7 +2,7 @@
 // it (one or more agents and teams) and which skills they use for it. Each mentioned agent gets the
 // routine in its own chat; each mentioned team gets it in its team chat (where @mentioned members
 // pick it up). An agent that is in a mentioned team is reached through the team, not twice.
-import { routines, routineRuns, agents, chats, emit, log, activeProject, withProject } from './store.ts';
+import { routines, routineRuns, agents, chats, emit, log, activeProject, withProject, listProjects } from './store.ts';
 import { uid } from './util.ts';
 import { askAgent, stopChildren, RunStopped } from './engines/index.ts';
 import { getTeam, listTeams, postUserMessage } from './teams.ts';
@@ -158,7 +158,8 @@ export async function startRoutine(id: string, { trigger = 'manual', input = '' 
     const message = routineMessage(r, { skills, input, others: targets.filter((x) => x !== t).map(label) });
     try {
       if (t.kind === 'team') {
-        await postUserMessage(t.id, message, { route: pickMember, skills });
+        // (Stop reaches it while it still picks who answers: then nobody starts on it)
+        await postUserMessage(t.id, message, { route: pickMember, skills, signal: ac.signal });
         t.status = 'sent';
         t.output = 'Posted in the team chat.';
       } else {
@@ -218,14 +219,18 @@ function prune(routineId: string) {
   for (const old of listRuns(routineId).slice(KEEP_RUNS)) if (old.status !== 'running') routineRuns.remove(old.id);
 }
 
-// Runs that were going when the dashboard stopped can't continue.
+// Runs that were going when the dashboard stopped can't continue (in every project, not only the open one).
 export function markInterruptedRoutines() {
-  for (const run of routineRuns.list()) {
-    if (run.status !== 'running') continue;
-    run.status = 'stopped';
-    run.error = 'The dashboard was closed while this ran.';
-    for (const t of run.targets) if (t.status === 'running') t.status = 'stopped';
-    routineRuns.save(run);
+  for (const p of listProjects()) {
+    withProject(p, () => {
+      for (const run of routineRuns.list()) {
+        if (run.status !== 'running') continue;
+        run.status = 'stopped';
+        run.error = 'The dashboard was closed while this ran.';
+        for (const t of run.targets) if (t.status === 'running') t.status = 'stopped';
+        routineRuns.save(run);
+      }
+    });
   }
 }
 

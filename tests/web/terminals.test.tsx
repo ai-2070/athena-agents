@@ -6,6 +6,23 @@ import * as terminals from '../../web/views/terminals.tsx';
 import { pickTerminal } from '../../web/views/terminals.tsx';
 import type { AppState } from '../../shared/types.ts';
 
+// (no real terminal in happy-dom: an open terminal is just its host element here)
+vi.mock('@xterm/xterm', () => ({
+  Terminal: class {
+    cols = 80;
+    rows = 24;
+    loadAddon() {}
+    open() {}
+    focus() {}
+    write() {}
+    onData() {
+      return { dispose() {} };
+    }
+    dispose() {}
+  },
+}));
+vi.mock('@xterm/addon-fit', () => ({ FitAddon: class { fit() {} } }));
+
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
 let requests: { method: string; url: string; body: unknown }[];
@@ -54,5 +71,35 @@ describe('the Terminals page', () => {
     await settle();
     expect(requests.find((r) => r.method === 'POST')!.body).toEqual({ kind: 'shell' });
     expect(location.hash).toBe('#/terminals/t9');
+  });
+
+  it('closing the terminal that shows falls back to the next one (the page stays the same)', async () => {
+    class FakeSocket {
+      readyState = 0;
+      send() {}
+      close() {}
+    }
+    vi.stubGlobal('WebSocket', FakeSocket);
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    const open = [{ id: 't1', title: 'One' }, { id: 't2', title: 'Two' }];
+    state.data = { ...state.data!, terminals: open } as unknown as AppState;
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      requests.push({ method: init.method || 'GET', url, body: null });
+      return new Response(JSON.stringify(url === '/api/terminals' ? open : { ok: true }));
+    });
+    await act(async () => terminals.render(el, []));
+    await settle();
+    const current = () => el.querySelector('nav[aria-label="Terminals"] a[aria-current="page"]')!.textContent;
+    expect(current()).toContain('One');
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Close One"]')!.click());
+    await settle();
+    // the app state hears it is gone
+    await act(async () => {
+      state.data = { ...state.data!, terminals: [open[1]] } as unknown as AppState;
+      for (const fn of state.listeners) fn(state.data);
+    });
+    await settle();
+    expect(requests.some((r) => r.method === 'DELETE' && r.url === '/api/terminals/t1')).toBe(true);
+    expect(current()).toContain('Two');
   });
 });

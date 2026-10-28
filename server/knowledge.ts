@@ -40,15 +40,26 @@ export interface KnowledgeRead {
 
 export const knowledgeDir = (agentId: string): string => ensureDir(projectData('knowledge', agentId));
 
+// Plain text files only: a link inside a knowledge folder (reference.md -> a file anywhere on the PC)
+// would be read straight into the agent's instructions. (walk already skips linked folders.)
+const plainText = (p: string): boolean => {
+  if (!TEXT_EXT.test(p)) return false;
+  try {
+    return fs.lstatSync(p).isFile();
+  } catch {
+    return false;
+  }
+};
+
 export function knowledgeFiles(agent: KnowledgeAgent): KnowledgeFile[] {
   const files: Omit<KnowledgeFile, 'size'>[] = [];
   const own = knowledgeDir(agent.id);
-  for (const f of walk(own, { maxDepth: 4, filter: (p) => TEXT_EXT.test(p) })) files.push({ path: f, label: path.relative(own, f), own: true });
+  for (const f of walk(own, { maxDepth: 4, filter: plainText })) files.push({ path: f, label: path.relative(own, f), own: true });
   for (const folder of agent.knowledge?.folders || []) {
     if (!exists(folder)) continue;
     const st = fs.statSync(folder);
     if (st.isFile()) files.push({ path: folder, label: path.basename(folder), own: false });
-    else for (const f of walk(folder, { maxDepth: 5, filter: (p) => TEXT_EXT.test(p), limit: 2000 })) files.push({ path: f, label: path.join(path.basename(folder), path.relative(folder, f)), own: false });
+    else for (const f of walk(folder, { maxDepth: 5, filter: plainText, limit: 2000 })) files.push({ path: f, label: path.join(path.basename(folder), path.relative(folder, f)), own: false });
   }
   return files.map((f) => {
     let size = 0;

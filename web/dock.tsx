@@ -62,8 +62,9 @@ interface Sent {
 type UserItem = { id: string; kind: 'user'; text: string; attachments?: string[]; sent?: Sent };
 /** action: a button after the text ("Send it my message") */
 type NoteItem = { id: string; kind: 'note'; text: string; busy?: boolean; error?: boolean; action?: { label: string; run: () => void } };
-/** started: its message went, so its turn can be streamed in (web/chat/TurnView) */
-type AgentItem = { id: string; kind: 'agent'; agentId: string; chatId: string; text: string; tools: ToolChip[]; images: string[]; reason: string; done: boolean; status?: string; started?: boolean };
+/** started: its message went, so its turn can be streamed in (web/chat/TurnView); turn: counts the
+ *  turns started since (a /resume), so the view follows the new one */
+type AgentItem = { id: string; kind: 'agent'; agentId: string; chatId: string; text: string; tools: ToolChip[]; images: string[]; reason: string; done: boolean; status?: string; started?: boolean; turn?: number };
 type BranchItem = { id: string; kind: 'branch'; wfId: string; name: string; reason: string; since: number; messages: TeamMessage[]; working: string[]; next?: string[]; runId?: string; steps?: unknown; error?: string | null; output?: string; briefId?: string };
 /** A tool the Brain used while it answered (it reads the project's files). */
 interface BrainStep {
@@ -234,8 +235,23 @@ async function newConversation() {
   held.clear();
   loop.stop();
   historyLoads.reset();
-  D.items = [];
+  forgetConversation();
   draw();
+}
+
+// What belonged to the conversation just left: what /resume would pick up again, and (by the
+// generation) the agent and team designs still on their way.
+let conversation = 0;
+function forgetConversation() {
+  conversation++;
+  D.stoppedAsk = null;
+  D.stoppedWork = null;
+  D.items = [];
+}
+/** Take an item out of the chat, if it is still there (a new conversation may have cleared it). */
+function remove(it: DockItem) {
+  const at = D.items.indexOf(it);
+  if (at !== -1) D.items.splice(at, 1);
 }
 
 // Another project was opened: this chat was about the old one. Drop it (and anything still waiting
@@ -249,7 +265,7 @@ function projectChanged(d: { project?: { id: string } | null }) {
   brainAsks.reset();
   held.clear();
   loop.stop();
-  D.items = [];
+  forgetConversation();
   draw();
   loadHistory();
   loadWorkflows();
@@ -475,7 +491,7 @@ function AgentMessage({ it }: { it: AgentItem }) {
       {it.started ? (
         <div className="flex flex-col gap-1.5 min-w-0">
           <Suspense fallback={null}>
-            <TurnView agentId={it.agentId} chatId={it.chatId} live />
+            <TurnView key={it.turn || 0} agentId={it.agentId} chatId={it.chatId} live onSend={(t) => void continueAgent(it, t)} />
           </Suspense>
         </div>
       ) : it.text ? (
@@ -927,7 +943,7 @@ async function send(given: string[] = []) {
   } finally {
     sending = false;
     if (uploading) {
-      D.items.splice(D.items.indexOf(uploading), 1);
+      remove(uploading);
       draw();
     }
   }
@@ -957,14 +973,16 @@ async function send(given: string[] = []) {
   const queued = queuedText(typed);
   const text = queued ?? typed;
   if (!text && !attachments.length) return void (typed && toast('Write the message after /queue'));
+  // who it goes to: as chosen now (not whoever is picked while the Brain's answer is being stopped)
+  const target = D.target;
   // a Brain message belongs to a project: wait until the page knows which one is open
-  if (D.target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Send it again in a moment.');
+  if (target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Send it again in a moment.');
   emptyBox();
   tray.take();
-  if (queued != null) return void held.add(text, { attachments, target: D.target });
+  if (queued != null) return void held.add(text, { attachments, target });
   // to the Brain while it writes an answer: that answer stops, and this one is answered now
-  if (D.target === 'auto') await steerBrain();
-  return track(() => dispatch(text, attachments, D.target));
+  if (target === 'auto') await steerBrain();
+  return track(() => dispatch(text, attachments, target));
 }
 
 // The answers the Brain is writing now, to cut off when you send a new message meanwhile.
@@ -981,7 +999,7 @@ async function steerBrain() {
   for (const x of live) {
     answering.get(x)?.abort();
     answering.delete(x);
-    D.items.splice(D.items.indexOf(x), 1);
+    remove(x);
   }
   add({ kind: 'note', text: "Stopped the Brain's answer to take your new message." });
   await attempt(() => POST('/brain/steer'));
@@ -1039,7 +1057,7 @@ async function brainStop() {
   const live = D.items.filter((x): x is BrainItem => x.kind === 'brain' && !!x.live);
   D.stoppedAsk = live.find((x) => x.ask)?.ask || null;
   brainAsks.reset();
-  for (const x of live) D.items.splice(D.items.indexOf(x), 1);
+  for (const x of live) remove(x);
   const back = held.clear();
   if (back.length) D.pastes!.restore(back.map((m) => m.text).filter(Boolean).join('\n\n'));
   const looped = loop.stop();
@@ -1060,7 +1078,10 @@ async function brainResume() {
   if (r instanceof Error) return void (ask || toast(r.message || 'Nothing to resume.'));
   D.stoppedWork = null;
   // (they work again: the chat waits for them before a /queue message or the loop's next one)
-  for (const x of D.items) if (x.kind === 'agent' && r.chats.includes(x.chatId)) x.done = false;
+  // (the newest card of each chat follows it: an older one shows a turn already done)
+  const cards = new Map<string, AgentItem>();
+  for (const x of D.items) if (x.kind === 'agent') cards.set(x.chatId, x);
+  for (const x of cards.values()) if (r.chats.includes(x.chatId)) again(x);
   add({ kind: 'note', text: `Resumed: ${r.resumed.join(', ')}.` });
 }
 
@@ -1162,18 +1183,34 @@ async function toAgent(agentId: string, text: string, reason = '', attachments: 
   draw();
 }
 
+/** Its chat works again (a new turn): the card follows that turn. */
+function again(it: AgentItem) {
+  it.done = false;
+  it.status = '';
+  it.turn = (it.turn || 0) + 1;
+}
+
+// A button in an agent's Rich answer: what it sends goes to that agent's chat, followed here.
+async function continueAgent(it: AgentItem, text: string) {
+  if (!it.done) return toast('It is still working. Wait for it to finish.');
+  const r = await attempt(() => POST(`/agents/${it.agentId}/chats/${it.chatId}/messages`, { text, attachments: [] }));
+  if (!r || !D.items.includes(it)) return;
+  add({ kind: 'user', text });
+  add({ kind: 'agent', agentId: it.agentId, chatId: it.chatId, text: '', tools: [], images: [], reason: it.reason, done: false, started: true });
+}
+
 async function toBranch(wfId: string, text: string, reason = '', attachments: string[] = [], goal = false) {
   const wf = D.workflows.find((w) => w.id === wfId);
   // (shown before it is sent, so it hears who starts working: the team starts before the reply comes)
   const it = add({ kind: 'branch', wfId, name: wf?.name || 'Team', reason, since: Date.now(), messages: [], working: [] });
   if (goal) {
-    if (!(await attempt(() => POST(`/teams/${wfId}/goal`, { text })))) D.items.splice(D.items.indexOf(it), 1);
+    if (!(await attempt(() => POST(`/teams/${wfId}/goal`, { text })))) remove(it);
     return draw();
   }
   // (while the team works, it changes its course: whoever is working takes it up now)
   const msg = await attempt(() => POST<TeamMessage>(`/teams/${wfId}/steer`, { text, attachments }));
   if (!msg) {
-    D.items.splice(D.items.indexOf(it), 1);
+    remove(it);
     return draw();
   }
   it.since = msg.ts;
@@ -1183,16 +1220,21 @@ async function toBranch(wfId: string, text: string, reason = '', attachments: st
 
 async function newAgent(text: string, attachments: string[] = []) {
   const n = add({ kind: 'note', text: 'Designing an agent for this…', busy: true });
+  const gen = conversation;
   const a: Partial<AgentDraft> & Failed = await POST<AgentDraft>('/assist/agent', { text, attachments }).catch((e: Error) => ({ error: e.message }));
-  D.items.splice(D.items.indexOf(n), 1);
+  // (a new conversation or another project since: the design belongs to the old one)
+  if (gen !== conversation) return;
+  remove(n);
   if (a.error) return add({ kind: 'note', text: `Couldn't design it: ${a.error}`, error: true });
   add({ kind: 'agent-draft', agent: a as AgentDraft, task: text, attachments });
 }
 
 async function newBranch(text: string, attachments: string[] = []) {
   const n = add({ kind: 'note', text: 'Building a team from your agents…', busy: true });
+  const gen = conversation;
   const design: Partial<BranchDesign> & Failed = await POST<BranchDesign>('/assist/branch', { text, attachments }).catch((e: Error) => ({ error: e.message }));
-  D.items.splice(D.items.indexOf(n), 1);
+  if (gen !== conversation) return;
+  remove(n);
   if (design.error) return add({ kind: 'note', text: `Couldn't build it: ${design.error}`, error: true });
   draw();
   openBranchBuilder({
@@ -1221,10 +1263,13 @@ function handleEvent(ev: ServerEvent) {
     return;
   }
   if (ev.type === 'run') {
-    const it = D.items.find((x): x is AgentItem => x.kind === 'agent' && x.chatId === ev.chatId);
+    // (the newest card for the chat: a button in an answer adds one for the turn it starts)
+    const it = D.items.findLast((x): x is AgentItem => x.kind === 'agent' && x.chatId === ev.chatId);
     if (!it) return;
     const e = ev.event as RunEvent;
-    if (e.kind === 'text') {
+    // a new turn in its chat (a /resume, a button in its answer): follow that one
+    if (e.kind === 'start' && it.done) again(it);
+    else if (e.kind === 'text') {
       it.text += e.text;
       it.status = 'Writing…';
     } else if (e.kind === 'tool') {

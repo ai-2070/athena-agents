@@ -12,8 +12,9 @@ import { startHandoff, awaitHandoff, listHandoffs, DEFAULT_WAIT_S, MAX_WAIT_S } 
 /** Hermes' own MCP tool timeout is 300 s: await_agent answers it well within that. */
 const HERMES_WAIT_S = 240;
 import { requestApproval } from './approvals.ts';
+import { agentFetch } from './agentfetch.ts';
 import { accountOf } from './mcp.ts';
-import { knownPrograms, launchProgram, programExe, startMenuApps } from './programs.ts';
+import { knownPrograms, launchProgram, launchTarget, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as social from './social.ts';
 import * as reddit from './reddit.ts';
@@ -21,7 +22,7 @@ import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import { withActor } from './versions.ts';
 import { ensureBrain } from './projects.ts';
-import { uploadsRoot } from './uploads.ts';
+import { safeUploadsRoot } from './uploads.ts';
 import * as skills from './skills.ts';
 import { findAgent } from '../shared/agentref.ts';
 import * as voxel from './voxel/tools.ts';
@@ -114,7 +115,9 @@ export function workspaceOf(agent: { workspace?: string }): string {
 function allowedRoots(agent: ToolAgent, write = false): string[] {
   const s = getSettings();
   // attached files (the Brain folder's uploads/) can be read even by an agent with its own workspace
-  return [workspaceOf(agent), dataPath('outputs'), ...(write ? [] : [...kb.knowledgeRoots(agent), uploadsRoot()]), ...(s.allowedFolders || [])];
+  // (not when uploads/ is a link out of the Brain folder)
+  const uploads = write ? null : safeUploadsRoot();
+  return [workspaceOf(agent), dataPath('outputs'), ...(write ? [] : kb.knowledgeRoots(agent)), ...(uploads ? [uploads] : []), ...(s.allowedFolders || [])];
 }
 
 // abs: the path as asked (for messages). real: where it really is, links followed; use it for the file
@@ -126,10 +129,13 @@ function resolveInside(agent: ToolAgent, p: string | undefined, { write = false 
   return { abs, real: real || abs, ok: !!real };
 }
 
-// Files that run code when opened.
-const RUNNABLE = /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|msi|msp|scr|cpl|lnk|url|reg|jar|py|pyw|sh|appref-ms|application|gadget|inf|pif|scf)$/i;
+// Files that run code when opened (Adobe apps run the .jsx / .jsxbin scripts they are handed).
+const RUNNABLE = /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|jsx|jsxbin|wsf|wsh|hta|msi|msp|scr|cpl|lnk|url|reg|jar|py|pyw|sh|command|scpt|applescript|appref-ms|application|gadget|inf|pif|scf)$/i;
 // Programs that run whatever they are given.
-const INTERPRETERS = /^(cmd|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python\d*|py|node|bash|sh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget)(\.exe)?$/i;
+const INTERPRETERS = /^(cmd|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python\d*|py|node|bun|deno|ruby|perl|php|java|javaw|osascript|bash|sh|zsh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget)(\.exe)?$/i;
+// A name as Windows opens it: trailing spaces and dots don't count ("x.py. " opens x.py), nor a ::$DATA stream.
+const asOpened = (p: unknown): string => String(p ?? '').trim().replace(/::\$data$/i, '').replace(/[\s.]+$/, '');
+const runnable = (p: unknown): boolean => RUNNABLE.test(asOpened(p));
 
 /** The chat a tool call runs in (to tell which team it is for). */
 const chatOf = async (ctx: ToolContext): Promise<string | null> => (await import('./engines/index.ts')).runInfo(ctx.runId)?.chatId ?? null;
@@ -177,7 +183,7 @@ const TOOLS: ToolDef[] = [
       const { runInfo, liveChat } = await import('./engines/index.ts');
       const { recall } = await import('./compaction.ts');
       const run = runInfo(ctx.runId);
-      const chat = run ? liveChat(run.chatId) || chats.get(run.agentId, run.chatId) : null;
+      const chat = run ? liveChat(run.chatId, run.projectId) || chats.get(run.agentId, run.chatId) : null;
       if (!chat) return { text: 'recall_history only works inside a dashboard chat.', isError: true };
       return recall(chat.items, args);
     },
@@ -245,7 +251,13 @@ const TOOLS: ToolDef[] = [
     name: 'launch_program',
     group: 'programs',
     // Plain launches are low risk; extra arguments, runnable files or shells need a yes.
-    risk: ({ program, file, args }: LaunchArgs) => (INTERPRETERS.test(path.basename(String(program || ''))) || (args && args.length) || (file && RUNNABLE.test(file)) ? 'high' : 'low'),
+    // Judged on the program it really starts: the same one launchProgram picks.
+    risk: ({ program, file, args }: LaunchArgs) => {
+      if ((args && args.length) || (file && runnable(file))) return 'high';
+      const target = launchTarget(program, !!file);
+      const exe = target ? target.exe || target.shortcut : '';
+      return [asOpened(program), asOpened(exe)].some((p) => INTERPRETERS.test(path.basename(p))) ? 'high' : 'low';
+    },
     description: 'Start a program by name or id (e.g. "blender", "premiere", "comfyui", "LM Studio", any Start Menu app). Optionally open a file with it.',
     parameters: obj({ program: str('Program name or id'), file: str('Optional file to open with it'), args: { type: 'array', items: { type: 'string' } } }, ['program']),
     run: async ({ program, file, args }: LaunchArgs) => ({ text: await launchProgram(program, { file, args }) }),
@@ -253,7 +265,7 @@ const TOOLS: ToolDef[] = [
   {
     name: 'open_path',
     group: 'programs',
-    risk: ({ path: p }: { path: string }) => (RUNNABLE.test(String(p || '')) ? 'high' : 'low'),
+    risk: ({ path: p }: { path: string }) => (runnable(p) ? 'high' : 'low'),
     description: 'Open a file or folder with its default program (Explorer for folders).',
     parameters: obj({ path: str('Absolute path') }, ['path']),
     run: async ({ path: p }: { path: string }) => {
@@ -285,11 +297,12 @@ const TOOLS: ToolDef[] = [
     parameters: obj({ url: str('http(s) URL'), max_chars: { type: 'number' } }, ['url']),
     run: async ({ url, max_chars = 20000 }: { url: string; max_chars?: number }) => {
       if (!/^https?:\/\//i.test(url)) throw new Error('Only http(s) URLs.');
-      const res = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) blacksite/0.1.0' }, signal: AbortSignal.timeout(30000), redirect: 'follow' });
+      // (never the dashboard itself, not even through a redirect)
+      const { res, url: final } = await agentFetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) blacksite/0.1.0' }, signal: AbortSignal.timeout(30000) });
       const type = res.headers.get('content-type') || '';
       let body = await res.text();
       if (/html/i.test(type)) body = htmlToText(body);
-      return { text: `HTTP ${res.status} ${res.url}\n\n${truncate(body, max_chars)}` };
+      return { text: `HTTP ${res.status} ${final}\n\n${truncate(body, max_chars)}` };
     },
   },
   // ---------- ComfyUI ----------
@@ -583,7 +596,8 @@ const TOOLS: ToolDef[] = [
     run: async ({ source, id, folder, resolution, format }: { source: AssetSource; id: string; folder: string; resolution?: string; format?: string }, ctx) => {
       if (source !== 'polyhaven' && source !== 'ambientcg') throw new Error('source must be polyhaven or ambientcg.');
       if (!/^[\w-]+$/.test(String(id))) throw new Error('That is not an asset id.');
-      const dir = path.join(writableDir(ctx, folder), id);
+      // (the asset's own folder too: one already there could be a link out of the allowed folders)
+      const dir = writableDir(ctx, path.join(String(folder || '.'), id));
       ctx.progress?.(`Downloading ${id}…`);
       const files = await assetLib.downloadAsset(source, id, dir, { resolution, format, signal: ctx.signal });
       return { text: `Saved ${files.length} file${files.length === 1 ? '' : 's'} in ${dir}:\n${files.join('\n')}\nLicence: CC0 (free for any use, no credit needed). ${source === 'polyhaven' ? 'Powered by Poly Haven (polyhaven.com).' : 'From ambientCG (ambientcg.com).'}` };
@@ -723,7 +737,8 @@ const TOOLS: ToolDef[] = [
       },
     ),
     run: async ({ text, thread, images, account, reply_to, note }: { text?: string; thread?: string[]; images?: string[]; account?: string; reply_to?: string; note?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'x', text, thread, images, account, replyTo: reply_to, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
+      // images only from the folders this agent may read, not every agent's workspace
+      const r = await social.draftPost({ platform: 'x', text, thread, images, imageRoots: allowedRoots(ctx.agent), account, replyTo: reply_to, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: r.status === 'posted' ? `Posted: ${r.url}` : r.status === 'failed' ? `Auto-post failed: ${r.error}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },
@@ -1057,6 +1072,8 @@ export async function gate(agent: ToolAgent, name: string, risk: Risk, args: Too
   });
   if (!d.approved) return { text: `The user said no${d.message ? `: ${d.message}` : ''}. Don't retry the same thing; ask what they want instead.`, isError: true, denied: true };
   if (d.always && agent.id && !agent.id.startsWith('_')) {
+    // the run asking keeps going with this same agent: the yes counts for the rest of it too
+    agent.alwaysAllow = [...new Set([...(agent.alwaysAllow || []), name])];
     const fresh = agentStore.get(agent.id);
     if (fresh) {
       fresh.alwaysAllow = [...new Set([...(fresh.alwaysAllow || []), name])];
@@ -1066,18 +1083,24 @@ export async function gate(agent: ToolAgent, name: string, risk: Risk, args: Too
   return null;
 }
 
+/** How risky one call of a tool is (a tool given by name: unknown ones are high). */
+export function riskOf(tool: ToolDef | string, args: ToolArgs = {}): Risk {
+  const t = typeof tool === 'string' ? BY_NAME.get(tool) : tool;
+  if (!t) return 'high';
+  try {
+    return typeof t.risk === 'function' ? t.risk(args) : t.risk;
+  } catch {
+    return 'high';
+  }
+}
+
 // Run a tool for an agent, asking the user first when its settings say so.
 export async function callTool(agent: ToolAgent, name: string, args: ToolArgs = {}, ctx: ToolRunInfo = {}): Promise<ToolResult> {
   const tool = BY_NAME.get(name);
   if (!tool) throw new Error(`Unknown tool ${name}`);
   if (!toolsForAgent(agent).includes(tool)) throw new Error(`${agent.name} isn't allowed to use ${name}. Turn on the "${tool.group}" tools for it.`);
   args = args && typeof args === 'object' ? args : {};
-  let risk: Risk = 'high';
-  try {
-    risk = typeof tool.risk === 'function' ? tool.risk(args) : tool.risk;
-  } catch {
-    /* treat as high */
-  }
+  const risk = riskOf(tool, args);
   // For tools whose risk depends on arguments, "Always allow" only skips the low-risk form.
   const allowName = typeof tool.risk === 'function' && risk === 'high' ? `${name}:high` : name;
   const refused = await gate(agent, allowName, risk, args, ctx, describeCall(name, args));

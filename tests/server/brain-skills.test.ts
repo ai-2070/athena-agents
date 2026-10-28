@@ -100,10 +100,16 @@ describe('the Brain makes and edits skills', () => {
     ]);
     expect(agents.get(a.id)?.skills).toEqual(['multi-one']);
     expect(agents.get(b.id)?.skills).toEqual(['multi-one', 'multi-two', 'multi-three']);
-    // a whole list
-    const set = applyActions([{ do: 'set_skills', skills: ['multi-three', 'nope'], to: 'team', id: team.id }]);
+    // a whole list: a name it can't find changes nothing (not even the names it can)
+    const before = workflows.get(team.id)?.skills;
+    const bad = applyActions([{ do: 'set_skills', skills: ['multi-three', 'nope'], to: 'team', id: team.id }]);
+    expect(bad.done).toEqual([expect.objectContaining({ kind: 'error', text: 'set_skills: no skill "nope", so nothing was changed' })]);
+    expect(workflows.get(team.id)?.skills).toEqual(before);
+    applyActions([{ do: 'set_skills', skills: ['does-not-exist-fixture'], to: 'agent', id: b.id }]);
+    expect(agents.get(b.id)?.skills).toEqual(['multi-one', 'multi-two', 'multi-three']);
+    const set = applyActions([{ do: 'set_skills', skills: ['multi-three'], to: 'team', id: team.id }]);
     expect(workflows.get(team.id)?.skills).toEqual(['multi-three']);
-    expect(set.done.map((d) => d.kind)).toEqual(['error', 'skill']);
+    expect(set.done.map((d) => d.kind)).toEqual(['skill']);
     applyActions([{ do: 'set_skills', skills: [], to: 'agent', id: b.id }]);
     expect(agents.get(b.id)?.skills).toEqual([]);
   });

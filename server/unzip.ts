@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { insideRoots } from './util.ts';
 
 export interface ZipEntry {
   name: string;
@@ -64,16 +65,26 @@ export function readZip(buf: Buffer): ZipEntry[] {
   return out;
 }
 
-/** Unpack a zip into dir. Returns the files written (relative names); unsafe names are skipped. */
+/** Write data to dir/rel (a safe relative name) only when it really lands inside dir: a folder or file
+ * already there could be a link to elsewhere on the PC. False when it doesn't. */
+export function writeInside(dir: string, rel: string, data: Buffer): boolean {
+  const dest = path.join(dir, ...rel.split('/'));
+  if (!insideRoots(dest, [dir])) return false;
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  // (checked again once the folders are made, and written where it really is)
+  const real = insideRoots(dest, [dir]);
+  if (!real) return false;
+  fs.writeFileSync(real, data);
+  return true;
+}
+
+/** Unpack a zip into dir. Returns the files written (relative names); unsafe names, and entries that
+ * would land outside dir through a link already there, are skipped. */
 export function extractZip(buf: Buffer, dir: string): string[] {
   const written: string[] = [];
   for (const e of readZip(buf)) {
     const rel = safeEntryName(e.name);
-    if (!rel) continue;
-    const dest = path.join(dir, ...rel.split('/'));
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.writeFileSync(dest, e.data);
-    written.push(rel);
+    if (rel && writeInside(dir, rel, e.data)) written.push(rel);
   }
   return written;
 }

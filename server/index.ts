@@ -21,6 +21,7 @@ import * as openclawEngine from './engines/openclaw.ts';
 import { clearWhichCache, which } from './util.ts';
 import { aboutInfo } from './about.ts';
 import * as tools from './tools.ts';
+import { inlineToolImages } from './toolimages.ts';
 import * as programs from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as mcp from './mcp.ts';
@@ -427,10 +428,14 @@ post<{ folder?: string; url?: string; name?: string; content?: string }>('/api/a
     return { ok: true };
   }
   if (body.url) {
-    const res = await fetch(body.url, { signal: AbortSignal.timeout(30000) });
-    const text = await res.text();
-    const name = body.name || new URL(body.url).hostname + new URL(body.url).pathname.replace(/\W+/g, '_') + '.md';
-    return { file: kb.addKnowledgeFile(id, name, `Source: ${body.url}\n\n${/html/.test(res.headers.get('content-type') || '') ? text.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+\n/g, '\n').replace(/[ \t]+/g, ' ') : text}`) };
+    const url = body.url;
+    // (the download takes a while: the file goes to this project's agent, whichever project is open by then)
+    return store.withProject(store.activeProject(), async () => {
+      const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+      const text = await res.text();
+      const name = body.name || new URL(url).hostname + new URL(url).pathname.replace(/\W+/g, '_') + '.md';
+      return { file: kb.addKnowledgeFile(id, name, `Source: ${url}\n\n${/html/.test(res.headers.get('content-type') || '') ? text.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+\n/g, '\n').replace(/[ \t]+/g, ' ') : text}`) };
+    });
   }
   return { file: kb.addKnowledgeFile(id, body.name, body.content || '') };
 });
@@ -457,13 +462,7 @@ put<{ title?: unknown; reset?: unknown }>('/api/agents/:id/chats/:cid', async ({
   // While a run is going, change the copy it is writing so the edit sticks.
   const c = engines.liveChat(cid) || need(chats.get(id, cid));
   if (body.title) c.title = String(body.title).slice(0, 120);
-  if (body.reset) {
-    c.sessionId = null;
-    c.llm = [];
-    delete c.reseed;
-    delete c.context;
-    c.items.push({ type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', reset: true, ts: Date.now() });
-  }
+  if (body.reset) engines.resetMemory(c);
   return chats.save(c);
 });
 post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/messages', async ({ id, cid }, body) => {
@@ -517,13 +516,13 @@ post<{ text?: unknown; attachments?: unknown; steer?: unknown }>('/api/agents/:i
   return undefined;
 });
 get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {
-  const run = engines.activeRuns().find((r) => r.chatId === cid && r.agentId === id);
-  if (!run) {
+  const runId = engines.chatRunId(id, cid);
+  if (!runId) {
     res.writeHead(204, { 'cache-control': 'no-store' });
     res.end();
     return undefined;
   }
-  await uistream.streamRun(res, { chatId: cid, runId: run.id, items: engines.liveChat(cid)?.items || [] });
+  await uistream.streamRun(res, { chatId: cid, runId, items: engines.liveChat(cid)?.items || [] });
   return undefined;
 });
 // Compaction: the Compact button, the memory meter, and editing the compacted history
@@ -834,8 +833,18 @@ function sendFileSafely(res: http.ServerResponse, p: string, type = MIME[path.ex
 // ---------- MCP ----------
 get('/api/mcp', async () => {
   const servers = mcp.listServers();
-  return { servers, info: mcp.serverInfo(servers), presets: mcp.presetAvailability(servers), suggested: mcp.suggestPresets(await programs.discoverPrograms(), servers), importable: mcp.importableServers(), bridge: mcp.bridgeServerConfig('') };
+  // (keys, logins and the bridge's token stay hidden here: POST /api/mcp-bridge gives the bridge config to copy)
+  const bridge = mcp.bridgeServerConfig('');
+  return {
+    servers: mcp.hiddenServers(servers),
+    info: mcp.serverInfo(servers),
+    presets: mcp.presetAvailability(servers),
+    suggested: mcp.suggestPresets(await programs.discoverPrograms(), servers),
+    importable: mcp.importableServers().map((s) => mcp.hideSecrets(s)),
+    bridge: { ...bridge, env: { ...bridge.env, DASH_TOKEN: mcp.HIDDEN } },
+  };
 });
+post('/api/mcp-bridge', async () => mcp.bridgeServerConfig(''));
 post<Parameters<typeof mcp.saveServer>[1] & { name: string }>('/api/mcp', async (_p, body) => mcp.saveServer(body.name, body));
 del('/api/mcp/:name', async ({ name }) => {
   // (and off every agent and team that had it)
@@ -1036,9 +1045,17 @@ del('/api/terminals/:id', async ({ id }) => ({ ok: terms.closeTerminal(id) }));
 // A bridge that belongs to a run works in the run's project (its agent, workspace and data), even
 // after you open another one. Without a run (an outside MCP client) it's the project open now.
 const inRunProject = <T>(run: engines.RunInfo | null, fn: () => T): T => (run ? store.withProject(run.project, fn) : fn());
-get('/api/internal/tools', async (_p, _b, q) =>
-  inRunProject(engines.runInfo(q.run), () => {
-    const agent = agentFor(q.agent);
+// The agent as its run has it: what a team gave it for this work (tools, MCP servers, skills) counts too.
+// Its saved settings (autonomy, "always allow") are read fresh.
+const bridgeAgent = (run: engines.RunInfo | null, id: string | null | undefined): Agent | ExternalAgent => {
+  const agent = agentFor(id);
+  if (!run || !id || run.agentId !== id || agent === EXTERNAL) return agent;
+  return { ...agent, toolGroups: run.agent.toolGroups, mcpServers: run.agent.mcpServers, _teamSkills: run.agent._teamSkills };
+};
+get('/api/internal/tools', async (_p, _b, q) => {
+  const run = engines.runInfo(q.run);
+  return inRunProject(run, () => {
+    const agent = bridgeAgent(run, q.agent);
     const list = tools.toolDefs(agent);
     if (agent.engine === 'claude-code')
       list.push({
@@ -1047,16 +1064,18 @@ get('/api/internal/tools', async (_p, _b, q) =>
         parameters: { type: 'object', properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } }, required: ['tool_name'] },
       });
     return { tools: list };
-  }),
-);
+  });
+});
 post<{ agent?: string; run?: string; name: string; args?: Record<string, unknown> }>('/api/internal/tools/call', async (_p, body) => {
   // The bridge says which run it belongs to; that gives the right project, approvals, Stop button and delegation depth.
   const run = engines.runInfo(body.run);
   return inRunProject(run, async () => {
-    const agent = agentFor(body.agent);
+    const agent = bridgeAgent(run, body.agent);
     const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
     if (body.name === 'permission_prompt') return { text: JSON.stringify(await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId)) };
-    return tools.callTool(agent, body.name, body.args || {}, ctx);
+    const r = await tools.callTool(agent, body.name, body.args || {}, ctx);
+    // MCP takes pictures as data only: ComfyUI's result links are read here, so the agent sees them too
+    return r.images?.length ? { ...r, images: await inlineToolImages(r.images) } : r;
   });
 });
 
@@ -1247,6 +1266,12 @@ const server = http.createServer(async (req, res) => {
         // Other websites can't add this header without a CORS preflight, which we never allow.
         throw new HttpError(403, 'Missing x-dash header');
       }
+      // A change made for the project the page shows, after another one was opened (in this tab or another):
+      // refused, so it can't land in the wrong project. Project routes name their project themselves.
+      const pageProject = req.headers['x-dash-project'];
+      if (!internal && req.method !== 'GET' && typeof pageProject === 'string' && pageProject && !url.pathname.startsWith('/api/projects') && pageProject !== store.activeProject().id) {
+        throw new HttpError(409, 'Another project was opened meanwhile. Nothing was changed; try again.');
+      }
       if (url.pathname === '/api/comfyui/view') return await comfy.proxyView(Object.fromEntries(url.searchParams), res);
       // an attached file: the raw bytes, streamed to disk (the router only reads JSON bodies)
       const upload = req.method === 'POST' && /^\/api\/uploads\/([\w-]+)$/.exec(url.pathname);
@@ -1372,9 +1397,13 @@ server.listen(PORT, '127.0.0.1', () => {
   if (OPEN) void pageReady.then(() => openWithShell(url));
 });
 
+let stopping = false;
 const shutdown = () => {
+  if (stopping) return;
+  stopping = true;
   terms.closeAll();
-  process.exit(0);
+  // agents' CLIs are stopped too: they would go on writing into the project with no dashboard to see it
+  void engines.stopAllRuns().finally(() => process.exit(0));
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

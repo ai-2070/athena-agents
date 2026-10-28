@@ -1,6 +1,7 @@
 // MCP servers: the dashboard connects to them for API-model agents and hands them to Claude Code agents.
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -115,10 +116,12 @@ export const signsInByBrowser = (p: McpPreset): boolean => !!remoteUrl(p);
 
 /** Another account of a service that signs in through the browser keeps its own login. mcp-remote keeps one
  *  login per link, so a second account would quietly be the first. Its folder sits next to mcp-remote's own
- *  (~/.mcp-auth), not in the data folder, so the tokens stay out of backups. */
+ *  (~/.mcp-auth), not in the data folder, so the tokens stay out of backups. The folder gets a random part
+ *  of its own: a copy keeps it when renamed, so a new copy given the old name must not land in it. (A copy
+ *  that has a folder already keeps it, so it stays signed in.) */
 export function withOwnLogin<T extends { args?: string[] | string; env?: Record<string, string> }>(name: string, cfg: T): T {
   if (!Array.isArray(cfg.args) || !cfg.args.includes('mcp-remote') || cfg.env?.MCP_REMOTE_CONFIG_DIR) return cfg;
-  return { ...cfg, env: { ...cfg.env, MCP_REMOTE_CONFIG_DIR: path.join(HOME, '.mcp-auth', `dashboard-${serverName(name)}`) } };
+  return { ...cfg, env: { ...cfg.env, MCP_REMOTE_CONFIG_DIR: path.join(HOME, '.mcp-auth', `dashboard-${serverName(name)}-${crypto.randomBytes(4).toString('hex')}`) } };
 }
 
 export const PRESETS: McpPreset[] = [
@@ -623,6 +626,46 @@ export function listServers(): McpServers {
   return readJSON<{ servers?: McpServers }>(FILE, { servers: {} }).servers || {};
 }
 
+// ---------- keys kept out of listings ----------
+// GET /api/mcp shows keys as this mark; saving a server with the mark keeps the key it has.
+export const HIDDEN = '••••••••';
+const SECRET_NAME = /key|token|secret|pass|auth|cred|cookie|session|signature|sig$|pat$/i;
+// a link split into its pieces, the separators kept, so a hidden piece can be put back in place
+const urlParts = (url: string): string[] => url.split(/([/?&=#])/);
+
+/** A link with its key-looking parts hidden: query values named like keys, and the parts a ready-made one has YOUR_... in. */
+function hideUrl(url: string, kind: string | undefined): string {
+  if (!url) return url;
+  const parts = urlParts(url);
+  const preset = PRESETS.find((p) => p.name === kind && p.type === 'http');
+  const model = preset && preset.type === 'http' && /YOUR_/.test(preset.url) ? urlParts(preset.url) : [];
+  return parts.map((s, i) => (s && ((parts[i - 1] === '=' && SECRET_NAME.test(parts[i - 2] || '')) || /YOUR_/.test(model[i] || '')) ? HIDDEN : s)).join('');
+}
+
+const hideValues = (m: Record<string, string> | undefined, all: boolean): Record<string, string> =>
+  Object.fromEntries(Object.entries(m || {}).map(([k, v]) => [k, v && (all || SECRET_NAME.test(k)) && !/YOUR_/.test(v) ? HIDDEN : v]));
+
+/** A server as the page may see it: environment keys, header values and keys in the link hidden. */
+export function hideSecrets<T extends { env?: Record<string, string>; headers?: Record<string, string>; url?: string }>(cfg: T, kind?: string): T {
+  return { ...cfg, env: hideValues(cfg.env, false), headers: hideValues(cfg.headers, true), ...(cfg.url ? { url: hideUrl(cfg.url, kind) } : {}) };
+}
+
+/** Every saved server with its keys hidden (see hideSecrets). */
+export const hiddenServers = (servers: McpServers): McpServers => Object.fromEntries(Object.entries(servers).map(([n, s]) => [n, hideSecrets(s, kindOf(n, s))]));
+
+/** Puts back the keys a form sent as HIDDEN, from the server as saved. */
+function keepHidden(cfg: McpServerInput, was: McpServerConfig | undefined): McpServerInput {
+  if (!was) return cfg;
+  const keep = (m: Record<string, string> | undefined, old: Record<string, string>) => (m ? Object.fromEntries(Object.entries(m).map(([k, v]) => [k, v === HIDDEN && k in old ? old[k] : v])) : m);
+  let url = cfg.url;
+  if (url && url.includes(HIDDEN)) {
+    const now = urlParts(url);
+    const old = urlParts(was.url || '');
+    url = now.length === old.length ? now.map((s, i) => (s === HIDDEN ? old[i] : s)).join('') : url;
+  }
+  return { ...cfg, env: keep(cfg.env, was.env || {}), headers: keep(cfg.headers, was.headers || {}), url };
+}
+
 function saveAll(servers: McpServers) {
   writeJSON(FILE, { servers });
   emit('mcp');
@@ -631,11 +674,13 @@ function saveAll(servers: McpServers) {
 /** A server's name as it is saved: letters, digits, _ and - only. */
 export const serverName = (name: unknown): string => String(name ?? '').trim().replace(/[^\w-]/g, '-');
 
-export function saveServer(name: string, cfg: McpServerInput): McpServerConfig {
+export function saveServer(name: string, input: McpServerInput): McpServerConfig {
   const clean = serverName(name);
   if (!clean) throw new Error('Give the server a name.');
   if (clean === 'dashboard') throw new Error('"dashboard" is reserved for the built-in tools.');
   const servers = listServers();
+  // (the page only ever saw hidden keys: keep the real ones)
+  const cfg = keepHidden(input, servers[clean]);
   const label = cleanLabel(String(cfg.label ?? ''));
   const useFor = cleanUseFor(String(cfg.useFor ?? ''));
   const kind = resolveKind(cfg.kind, servers);
@@ -924,10 +969,12 @@ function resolveCommand(command: string, args: string[]): { command: string; arg
 // ---------- live connections ----------
 const clients = new Map<string, Promise<Client>>();
 
-async function connect(name: string): Promise<Client> {
-  if (clients.has(name)) return clients.get(name)!;
+// test: the Test button may start a server that is turned off; agents may not
+async function connect(name: string, { test = false } = {}): Promise<Client> {
   const cfg = name === 'dashboard' ? null : listServers()[name];
   if (!cfg) throw new Error(`No MCP server named "${name}".`);
+  if (cfg.enabled === false && !test) throw new Error(`The MCP server "${name}" is turned off.`);
+  if (clients.has(name)) return clients.get(name)!;
   const job = (async () => {
     const client = new Client({ name: 'blacksite', version: '0.1.0' });
     if (cfg.type === 'stdio') {
@@ -973,16 +1020,27 @@ export async function disconnect(name: string) {
   }
 }
 
-export async function listTools(name: string): Promise<McpTool[]> {
-  const client = await connect(name);
+export async function listTools(name: string, { test = false } = {}): Promise<McpTool[]> {
+  const client = await connect(name, { test });
   const r = await withTimeout(client.listTools(), 60000, `${name} took too long to list its tools`);
   return r.tools || [];
 }
 
-export async function callTool(server: string, tool: string, args?: Record<string, unknown> | null): Promise<McpToolResult> {
-  const client = await connect(server);
+/** Whether a server is there and switched on (agents only get those). */
+export const isEnabled = (name: string, servers: McpServers = listServers()): boolean => !!servers[name] && servers[name].enabled !== false;
+
+/** How risky calling an MCP tool is: only one that says it just reads (readOnlyHint) skips the question on Auto. */
+export const mcpToolRisk = (tool: Pick<McpTool, 'annotations'>): 'low' | 'high' => (tool.annotations?.readOnlyHint === true ? 'low' : 'high');
+
+// Stop (signal) cancels the call: while the server is still starting, and the request itself.
+export async function callTool(server: string, tool: string, args?: Record<string, unknown> | null, { signal }: { signal?: AbortSignal } = {}): Promise<McpToolResult> {
+  const stopped = () => new Error('Stopped before the tool ran.');
+  if (signal?.aborted) throw stopped();
+  const client = await untilStopped(connect(server), signal, stopped);
+  // (stopped while it connected: the call is never sent)
+  if (signal?.aborted) throw stopped();
   // The SDK's return type also covers the old { toolResult } shape; servers today send CallToolResult.
-  const r = (await withTimeout(client.callTool({ name: tool, arguments: args || {} }, undefined, { timeout: 10 * 60_000, resetTimeoutOnProgress: true }), 10 * 60_000, `${server}.${tool} took over 10 minutes`)) as CallToolResult;
+  const r = (await withTimeout(client.callTool({ name: tool, arguments: args || {} }, undefined, { timeout: 10 * 60_000, resetTimeoutOnProgress: true, ...(signal ? { signal } : {}) }), 10 * 60_000, `${server}.${tool} took over 10 minutes`)) as CallToolResult;
   const texts: string[] = [];
   const images: string[] = [];
   for (const c of r.content || []) {
@@ -998,12 +1056,25 @@ export async function callTool(server: string, tool: string, args?: Record<strin
   return { text: (r.isError ? 'ERROR: ' : '') + texts.join('\n'), images };
 }
 
+/** p, or fail as soon as the signal stops (p itself goes on: a server that is starting stays for next time). */
+function untilStopped<T>(p: Promise<T>, signal: AbortSignal | undefined, err: () => Error): Promise<T> {
+  if (!signal) return p;
+  return new Promise<T>((resolve, reject) => {
+    const onStop = () => reject(err());
+    signal.addEventListener('abort', onStop, { once: true });
+    p.then(
+      (v) => (signal.removeEventListener('abort', onStop), resolve(v)),
+      (e: unknown) => (signal.removeEventListener('abort', onStop), reject(e)),
+    );
+  });
+}
+
 function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
   return Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
 }
 
 export async function testServer(name: string): Promise<{ name: string; description: string }[]> {
-  const tools = await listTools(name);
+  const tools = await listTools(name, { test: true });
   return tools.map((t) => ({ name: t.name, description: (t.description || '').slice(0, 300) }));
 }
 

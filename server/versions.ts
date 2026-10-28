@@ -94,8 +94,9 @@ export function getVersion<T>(dir: string, id: string): Version<T> | null {
 
 /** Keep `before` (what an item was until now) in dir, unless it's the same as `after` or part of the
  *  same change as the last version (the same withActor run, or else edits close together). Returns the
- *  version kept, or null. extra: kept with a deleted one besides the item (a skill's extra files). */
-export function keepVersion<T>(dir: string, before: T, after: T | null, { ignore = [], deleted = false, extra }: { ignore?: readonly string[]; deleted?: boolean; extra?: Partial<T> } = {}): Version<T> | null {
+ *  version kept, or null. extra: kept with a deleted one besides the item (a skill's extra files).
+ *  prune: false leaves old versions for the caller to prune (one it is still reading from, a restore). */
+export function keepVersion<T>(dir: string, before: T, after: T | null, { ignore = [], deleted = false, extra, prune = true }: { ignore?: readonly string[]; deleted?: boolean; extra?: Partial<T>; prune?: boolean } = {}): Version<T> | null {
   if (!before) return null;
   if (!deleted && after && canonical(before, ignore) === canonical(after, ignore)) return null;
   const ctx = actor.getStore();
@@ -115,7 +116,7 @@ export function keepVersion<T>(dir: string, before: T, after: T | null, { ignore
   const v: Version<T> = { id: uid('v'), at: stamp(last?.at), by, ...(deleted ? { deleted: true } : {}), ...(ctx?.note ? { note: ctx.note } : {}), item: { ...before, ...extra } };
   writeJSON(path.join(ensureDir(dir), `${v.id}.json`), v);
   ctx?.kept.set(path.resolve(dir), v.id);
-  pruneVersions(dir);
+  if (prune) pruneVersions(dir);
   return v;
 }
 

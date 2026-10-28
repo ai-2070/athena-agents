@@ -32,7 +32,8 @@ export interface VolumeStats {
 }
 
 export interface WorldView {
-  render(): void;
+  /** `aimMs`: how long a frame is meant to take when the Station holds frames back (0: not held back) */
+  render(aimMs?: number): void;
   setSize(w: number, h: number): void;
   setEnvironment(env: WorldEnvironment): void;
   readonly environment: WorldEnvironment;
@@ -295,13 +296,13 @@ export function createWorldView(o: WorldViewOptions): WorldView {
     get environment() {
       return env;
     },
-    render() {
+    render(aimMs = 0) {
       const now = performance.now();
       if (frames) {
         if (last) frames.push(now - last);
         last = now;
       }
-      if (lastFrame && slow?.frame(now - lastFrame)) o.onSlow?.();
+      if (lastFrame && slow?.frame(now - lastFrame, aimMs)) o.onSlow?.();
       lastFrame = now;
       const dt = Math.min(clock.getDelta(), 0.1);
       const t = clock.elapsedTime;

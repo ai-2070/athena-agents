@@ -1,7 +1,7 @@
 // Projects: create, switch, and look inside a project's Brain folder (files, notes, GitHub).
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, ensureDir, exists, run, slugify, uid, which, dataPath } from './util.ts';
+import { HOME, ensureDir, exists, insideRoots, isPlainDir, run, slugify, uid, which, dataPath } from './util.ts';
 import { listProjects, saveProjects, activeProject, setActiveProject, log } from './store.ts';
 import type { Project } from '../shared/types.ts';
 import type { ProjectPeek } from './projectsync.ts';
@@ -178,7 +178,10 @@ export function addNote(name: unknown, content: unknown, p: Project = activeProj
   const dir = ensureDir(path.join(p.brainPath, 'notes'));
   const safe = String(name || 'note').replace(/[^\w.\- ]+/g, '_').replace(/\.md$/i, '') + '.md';
   const file = path.join(dir, safe);
-  fs.writeFileSync(file, String(content || ''));
+  // a notes/ folder or a note that links out of the Brain folder (planted in a project folder) would write over a file elsewhere
+  const real = insideRoots(file, [p.brainPath]);
+  if (!real) throw new Error('That note is a link out of the Brain folder; not writing through it.');
+  fs.writeFileSync(real, String(content || ''));
   return file;
 }
 
@@ -260,10 +263,23 @@ export function touch(id: string) {
 const LOGO_EXT = ['png', 'jpg', 'webp', 'gif'] as const;
 const LOGO_MAX = 3 * 1024 * 1024;
 
+// .dashboard/<name> only when it is a plain file in a plain .dashboard folder: a link planted in the
+// project folder could point at any file on the PC, and these are served to the page.
+function mediaFile(p: Project, name: string): string | null {
+  const dir = path.join(p.brainPath, '.dashboard');
+  if (!isPlainDir(dir)) return null;
+  const f = path.join(dir, name);
+  try {
+    return fs.lstatSync(f).isFile() ? f : null;
+  } catch {
+    return null;
+  }
+}
+
 export function logoFile(p: Project): string | null {
   for (const ext of LOGO_EXT) {
-    const f = path.join(p.brainPath, '.dashboard', `logo.${ext}`);
-    if (exists(f)) return f;
+    const f = mediaFile(p, `logo.${ext}`);
+    if (f) return f;
   }
   return null;
 }
@@ -330,7 +346,8 @@ export function removeLogo(id: string): Project & { logoAt: number | null } {
   const p = listProjects().find((x) => x.id === id);
   if (!p) throw new Error('No such project.');
   const dir = path.join(p.brainPath, '.dashboard');
-  for (const e of LOGO_EXT) fs.rmSync(path.join(dir, `logo.${e}`), { force: true });
+  // (not through a .dashboard that links elsewhere: that would delete files there)
+  if (isPlainDir(dir)) for (const e of LOGO_EXT) fs.rmSync(path.join(dir, `logo.${e}`), { force: true });
   return withLogo(p);
 }
 
@@ -342,8 +359,8 @@ export const MODEL_MAX = 15 * 1024 * 1024;
 
 export function modelFile(p: Project): string | null {
   for (const ext of MODEL_EXT) {
-    const f = path.join(p.brainPath, '.dashboard', `brain-model.${ext}`);
-    if (exists(f)) return f;
+    const f = mediaFile(p, `brain-model.${ext}`);
+    if (f) return f;
   }
   return null;
 }
@@ -398,7 +415,7 @@ export function removeModel(id: string): Project & { logoAt: number | null; mode
   const p = listProjects().find((x) => x.id === id);
   if (!p) throw new Error('No such project.');
   const dir = path.join(p.brainPath, '.dashboard');
-  for (const e of MODEL_EXT) fs.rmSync(path.join(dir, `brain-model.${e}`), { force: true });
+  if (isPlainDir(dir)) for (const e of MODEL_EXT) fs.rmSync(path.join(dir, `brain-model.${e}`), { force: true });
   return withLogo(p);
 }
 

@@ -3,14 +3,15 @@
 import fs from 'node:fs';
 import { activeProject } from '../store.ts';
 import { listFiles, readPlain, uid, writeJSON } from '../util.ts';
-import { decodeChunk, countVoxels, volumeBounds } from '../../shared/voxel.ts';
+import { decodeChunk, countVoxels, newVolume, volumeBounds } from '../../shared/voxel.ts';
 import { BuildError, loadGrids, runBuild, saveGrids, VOXEL_SIZE_MAX, VOXEL_SIZE_MIN } from './ops.ts';
 import type { BuildInput, BuildOutcome, Grid } from './ops.ts';
 import { readObject, readPrefab, saveWorld, worldDir, writeObject, writePrefab, worldVoxels } from './store.ts';
 import { changeWorld } from './link.ts';
-import type { AgentSkin, BrainSkin, TeamSkin, PrefabInstance, Vec3, WorldEffect, WorldEnvironment, WorldLight, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, VoxelVolumeMeta, VoxelWorld, WorldAnchor, WorldBuilder } from '../../shared/types.ts';
+import type { AgentSkin, BrainSkin, TeamSkin, PrefabInstance, VoxelMaterial, Vec3, WorldEffect, WorldEnvironment, WorldLight, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, VoxelVolumeMeta, VoxelWorld, WorldAnchor, WorldBuilder } from '../../shared/types.ts';
 
-export const WORLD_LIMITS = { voxels: 4_000_000, objects: 300, prefabs: 300, copies: 20_000, prefabSide: 128, prefabVoxels: 200_000, nesting: 4 };
+// drawn: the copies one object or prefab may draw, the copies inside copies counted too
+export const WORLD_LIMITS = { voxels: 4_000_000, objects: 300, prefabs: 300, copies: 20_000, drawn: 20_000, prefabSide: 128, prefabVoxels: 200_000, nesting: 4 };
 const HISTORY_KEPT = 50;
 
 const bad = (msg: string, status = 400) => Object.assign(new Error(msg), { status });
@@ -71,6 +72,25 @@ export interface HistoryEntry {
   sceneBefore?: WorldLight | WorldEffect | WorldEnvironment | AgentSkin | TeamSkin | BrainSkin | null;
   /** a prefab this change made from part of the object (world_prefab save with replace): undoing takes it away too */
   prefabMade?: string;
+  /** palette entries the change set (the palette is the whole world's): each as it was (null: new) and as it was made */
+  materials?: MaterialChange[];
+}
+
+export interface MaterialChange {
+  /** its place in the palette (voxels hold it plus one) */
+  at: number;
+  before: VoxelMaterial | null;
+  after: VoxelMaterial;
+}
+
+/** The palette entries `after` changed or added compared with `before`. */
+export function paletteChanges(before: VoxelMaterial[], after: VoxelMaterial[]): MaterialChange[] {
+  const out: MaterialChange[] = [];
+  after.forEach((m, at) => {
+    const was = before[at];
+    if (!was || JSON.stringify(was) !== JSON.stringify(m)) out.push({ at, before: was ? structuredClone(was) : null, after: structuredClone(m) });
+  });
+  return out;
 }
 
 /** A history entry without what it replaced (the voxels are read only to undo it). */
@@ -187,7 +207,10 @@ export const boxText = (o: { volumes: VoxelVolumeMeta[] }, box?: { min: Vec3; ma
  * character made only of parts has no voxels of its own). A copy stands as the page draws it:
  * T(p) · Ry(turn) · Rx(tilt) · Rz(roll) · S(scale, mirrored in x) · T(-pivot) (web/voxel/instances.ts).
  */
-export function prefabBox(w: VoxelWorld, id: string, depth = 0): { min: Vec3; max: Vec3 } | null {
+export function prefabBox(w: VoxelWorld, id: string, depth = 0, memo = new Map<string, { min: Vec3; max: Vec3 } | null>()): { min: Vec3; max: Vec3 } | null {
+  // each prefab's box is worked out once per depth: copies of copies would otherwise multiply the work
+  const key = `${id}@${depth}`;
+  if (memo.has(key)) return memo.get(key)!;
   const p = w.prefabs.find((x) => x.id === id);
   if (!p) return null;
   let box = objectBox(p);
@@ -195,7 +218,7 @@ export function prefabBox(w: VoxelWorld, id: string, depth = 0): { min: Vec3; ma
   const DEG = Math.PI / 180;
   for (const i of readPrefab(w.id, id)?.instances || []) {
     const child = w.prefabs.find((x) => x.id === i.prefab);
-    const cb = child ? prefabBox(w, child.id, depth + 1) : null;
+    const cb = child ? prefabBox(w, child.id, depth + 1, memo) : null;
     if (!child || !cb) continue;
     const s = i.scale ?? 1;
     const [ct, st] = [Math.cos((i.turn || 0) * DEG), Math.sin((i.turn || 0) * DEG)];
@@ -212,6 +235,7 @@ export function prefabBox(w: VoxelWorld, id: string, depth = 0): { min: Vec3; ma
           box = box ? { min: box.min.map((n, a) => Math.min(n, v[a])) as Vec3, max: box.max.map((n, a) => Math.max(n, v[a])) as Vec3 } : { min: [...v] as Vec3, max: [...v] as Vec3 };
         }
   }
+  memo.set(key, box);
   return box;
 }
 
@@ -221,19 +245,52 @@ export function prefabSize(w: VoxelWorld, p: VoxelPrefabMeta): string {
   return b ? b.max.map((n, a) => r1(n - b.min[a])).join('×') : '0×0×0';
 }
 
-/** Does prefab `id` hold `target` (directly or deeper)? And how deep do copies nest inside `id`? */
-function nesting(w: VoxelWorld, id: string, target: string | null, seen = new Set<string>()): { holds: boolean; depth: number } {
-  if (seen.has(id)) return { holds: false, depth: 0 };
-  seen.add(id);
+/**
+ * Does prefab `id` hold `target` (directly or deeper)? And how deep do copies nest inside `id` (its longest
+ * chain)? A prefab reached by two paths counts on both: only one on the current path (a loop) stops there.
+ */
+export function nesting(w: VoxelWorld, id: string, target: string | null, memo = new Map<string, { holds: boolean; depth: number }>(), path = new Set<string>()): { holds: boolean; depth: number } {
+  const known = memo.get(id);
+  if (known) return known;
+  if (path.has(id)) return { holds: false, depth: 0 };
+  path.add(id);
   let holds = false;
   let depth = 0;
-  for (const i of readPrefab(w.id, id)?.instances || []) {
-    if (i.prefab === target) holds = true;
-    const n = nesting(w, i.prefab, target, seen);
+  for (const child of new Set((readPrefab(w.id, id)?.instances || []).map((i) => i.prefab))) {
+    if (child === target) holds = true;
+    const n = nesting(w, child, target, memo, path);
     holds ||= n.holds;
     depth = Math.max(depth, n.depth + 1);
   }
-  return { holds, depth };
+  path.delete(id);
+  const out = { holds, depth };
+  memo.set(id, out);
+  return out;
+}
+
+/**
+ * How many copies these copies draw, counting the copies inside them all the way down (the page and a .glb
+ * draw every one). `override` stands in for a prefab's copies before they are saved.
+ */
+export function drawnCopies(w: VoxelWorld, list: PrefabInstance[], override?: { id: string; instances: PrefabInstance[] }, memo = new Map<string, number>()): number {
+  const inside = (id: string, path: Set<string>): number => {
+    const known = memo.get(id);
+    if (known !== undefined) return known;
+    if (path.has(id) || path.size > WORLD_LIMITS.nesting) return 0;
+    path.add(id);
+    let n = 0;
+    const kids = override?.id === id ? override.instances : readPrefab(w.id, id)?.instances || [];
+    // (counted per prefab, then multiplied: a big number never takes long to reach)
+    const per = new Map<string, number>();
+    for (const i of kids) per.set(i.prefab, (per.get(i.prefab) || 0) + 1);
+    for (const [child, times] of per) n += times * (1 + inside(child, path));
+    path.delete(id);
+    memo.set(id, n);
+    return n;
+  };
+  let total = 0;
+  for (const i of list) total += 1 + inside(i.prefab, new Set());
+  return total;
 }
 
 const count = (v: VoxelVolumeMeta[]) => v.reduce((n, x) => n + x.count, 0);
@@ -275,6 +332,8 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
     target = { id: uid('o'), name, by: req.by, anchor: cleanAnchor(req.anchor), position: req.position === undefined ? [0, 0, 0] : vec3(req.position, 'position'), rotation: 0, scale: 1, volumes: [], createdAt: now, updatedAt: now };
   }
   const t = target;
+  // everything that can be refused is checked before anything is written
+  const pivotAt = kind === 'prefab' && req.pivot !== undefined ? cleanPivot(req.pivot) : undefined;
   const voxelSize = req.voxelSize === undefined ? w.voxelSize : Number(req.voxelSize);
   if (!Number.isFinite(voxelSize) || voxelSize < VOXEL_SIZE_MIN || voxelSize > VOXEL_SIZE_MAX) throw bad(`voxel_size is from ${VOXEL_SIZE_MIN} to ${VOXEL_SIZE_MAX} map units`);
   const data = kind === 'prefab' ? readPrefab(w.id, t.id) : readObject(w.id, t.id);
@@ -316,6 +375,7 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
     const copies = placedCopies(w) - ((t as VoxelObjectMeta).instances || 0) + outcome.instances.length;
     if (copies > WORLD_LIMITS.copies) throw new BuildError(`This would make ${fmt(copies)} placed copies in the world; it can hold ${fmt(WORLD_LIMITS.copies)}.`);
   }
+  if (outcome.placed > 0) drawnCheck(w, kind, t, outcome.instances);
 
   const metaBefore = created ? null : structuredClone(t);
   const instancesChanged = outcome.placed > 0 || outcome.unplaced > 0;
@@ -328,7 +388,7 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
   t.lastBy = req.by;
   if (kind === 'prefab') {
     const p = t as VoxelPrefabMeta;
-    if (req.pivot !== undefined) p.pivotAt = cleanPivot(req.pivot);
+    if (pivotAt !== undefined) p.pivotAt = pivotAt;
     Object.assign(p, pivotOf(volumes, p.pivotAt));
     if (created) w.prefabs.push(p);
     // (copies placed inside count too: a character made of parts has no voxels of its own)
@@ -337,9 +397,10 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
     if (req.description !== undefined) p.description = String(req.description).slice(0, 300);
     if (Array.isArray(req.tags)) p.tags = [...new Set(req.tags.map((x) => String(x).trim().toLowerCase()).filter(Boolean))].slice(0, 12);
   } else if (created) w.objects.push(t as VoxelObjectMeta);
+  const materials = paletteChanges(w.palette, palette);
   w.palette = palette;
   w.built = true;
-  remember(w.id, { by: req.by, kind, what: `${created ? 'built' : 'changed'} ${kind === 'prefab' ? 'the prefab ' : ''}${t.name}`, objectId: t.id, metaBefore, chunks: outcome.before, ...(instancesChanged ? { instancesBefore: data?.instances || [] } : {}) });
+  remember(w.id, { by: req.by, kind, what: `${created ? 'built' : 'changed'} ${kind === 'prefab' ? 'the prefab ' : ''}${t.name}`, objectId: t.id, metaBefore, chunks: outcome.before, ...(instancesChanged ? { instancesBefore: data?.instances || [] } : {}), ...(materials.length ? { materials } : {}) });
   // (builder and the counts: the page plays the build where it happened, with a beam from the builder's desk)
   saveWorld(w, { [kind === 'prefab' ? 'prefabs' : 'objects']: [t.id], by: req.by.name, builder: req.by, added: outcome.added, placed: outcome.placed });
 
@@ -357,6 +418,33 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
     .filter(Boolean)
     .join('\n');
   return { world: w, object: t, kind, created, outcome, text };
+}
+
+/** Refuses copies that would draw too many copies (copies inside copies counted), here or in a prefab that holds this one. */
+function drawnCheck(w: VoxelWorld, kind: 'object' | 'prefab', t: { id: string; name: string }, instances: PrefabInstance[]): void {
+  const tooMany = (n: number, where: string) => new BuildError(`This would make ${where} draw ${fmt(n)} copies, counting the copies inside copies; the most is ${fmt(WORLD_LIMITS.drawn)}. Place fewer, or stamp parts into a prefab's voxels instead of placing them.`);
+  if (kind === 'object') {
+    const n = drawnCopies(w, instances);
+    if (n > WORLD_LIMITS.drawn) throw tooMany(n, `"${t.name}"`);
+    return;
+  }
+  // a prefab that grows makes everything that holds it grow too
+  const override = { id: t.id, instances };
+  const memo = new Map<string, number>();
+  for (const p of [{ id: t.id, name: t.name }, ...w.prefabs.filter((p) => p.id !== t.id && p.instances)]) {
+    const n = drawnCopies(w, [{ prefab: p.id, p: [0, 0, 0] }], override, memo) - 1;
+    if (n > WORLD_LIMITS.drawn) throw tooMany(n, `the prefab "${p.name}"`);
+  }
+  // (only objects with a copy of it, directly or inside another prefab, can have grown)
+  const holdsMemo = new Map<string, { holds: boolean; depth: number }>();
+  const holders = new Set([t.id, ...w.prefabs.filter((p) => p.instances && nesting(w, p.id, t.id, holdsMemo).holds).map((p) => p.id)]);
+  for (const o of w.objects) {
+    if (!o.instances) continue;
+    const list = readObject(w.id, o.id)?.instances || [];
+    if (!list.some((i) => holders.has(i.prefab))) continue;
+    const n = drawnCopies(w, list, override, memo);
+    if (n > WORLD_LIMITS.drawn) throw tooMany(n, `"${o.name}"`);
+  }
 }
 
 export const anchorText = (a: WorldAnchor): string => (a.to === 'world' ? 'the middle of the map' : a.to === 'brain' ? 'the Brain' : `${a.to} ${a.id}`);
@@ -465,18 +553,38 @@ function undoIn(w: VoxelWorld, by: WorldBuilder, anyone: boolean): { world: Voxe
   if (later.length) throw bad(`${later[0].by.name} changed that after you (${later[0].what}). Ask them, or change it again yourself.`, 409);
   const mine = readPlain<HistoryEntry | null>(worldDir(w.id, 'history', head.file), null);
   if (!mine) throw bad('That change can no longer be undone.', 409);
-  if (mine.prefabMade) {
-    const made = mine.prefabMade;
+  // everything that can refuse is checked first: a refused undo changes nothing and stays to be undone later
+  const isThing = mine.kind === undefined || mine.kind === 'object' || mine.kind === 'prefab';
+  if (isThing && mine.metaBefore) {
+    // names stay one per object (and per prefab): giving one back that another has now would make two
+    const others: { id: string; name: string }[] = mine.kind === 'prefab' ? w.prefabs : w.objects;
+    const name = mine.metaBefore.name.toLowerCase();
+    const taken = others.find((o) => o.id !== mine.objectId && o.name.toLowerCase() === name);
+    if (taken) throw bad(`Undoing it would give back the name "${mine.metaBefore.name}", and another ${mine.kind === 'prefab' ? 'prefab' : 'object'} is called that now. Rename that one first.`, 409);
+  }
+  // the palette is the whole world's: a material changed again since is left alone, so the undo waits
+  const mats = mine.materials || [];
+  for (const m of mats) if (m.before && JSON.stringify(w.palette[m.at]) !== JSON.stringify(m.after)) throw bad(`The material "${m.after.name}" was changed again after that. Change it back yourself with {"material": "${m.after.name}", …}.`, 409);
+  // a prefab the change made goes away with it, unless it is in use now
+  const made = mine.prefabMade || (mine.kind === 'prefab' && !mine.metaBefore ? mine.objectId : '');
+  if (made) {
     const holds = (d: VoxelObjectData | null) => !!d?.instances?.some((i) => i.prefab === made);
     const elsewhere = [
-      ...w.objects.filter((o) => o.id !== mine.objectId && o.instances && holds(readObject(w.id, o.id))).map((o) => `"${o.name}"`),
+      ...w.objects.filter((o) => o.id !== (mine.prefabMade ? mine.objectId : '') && o.instances && holds(readObject(w.id, o.id))).map((o) => `"${o.name}"`),
       ...w.prefabs.filter((p) => p.id !== made && p.instances && holds(readPrefab(w.id, p.id))).map((p) => `the prefab "${p.name}"`),
     ];
     if (elsewhere.length) throw bad(`The prefab it made is placed in ${elsewhere.join(', ')} now. Take those copies away first.`, 409);
     const sk = w.skins;
     if (sk.brain?.shell === made || Object.values(sk.teams).some((t) => t.platform === made || t.hub === made) || Object.values(sk.agents).some((a) => a.character === made || a.desk === made)) throw bad('The prefab it made is worn now (world_skin). Give that skin another prefab first.', 409);
-    w.prefabs = w.prefabs.filter((p) => p.id !== made);
-    writePrefab(w.id, made, null);
+  }
+  if (mats.length) {
+    for (const m of mats) if (m.before) w.palette[m.at] = m.before;
+    // new materials go too, when they are the last ones and nothing was changed since (so nothing else uses them)
+    if (all[0] === head) for (const m of [...mats].sort((a, b) => b.at - a.at)) if (!m.before && m.at === w.palette.length - 1) w.palette.pop();
+  }
+  if (mine.prefabMade) {
+    w.prefabs = w.prefabs.filter((p) => p.id !== mine.prefabMade);
+    writePrefab(w.id, mine.prefabMade, null);
   }
   if (mine.kind === 'skin') {
     // "agent:<id>", "team:<id>" or "brain:brain"
@@ -536,8 +644,9 @@ function undoIn(w: VoxelWorld, by: WorldBuilder, anyone: boolean): { world: Voxe
       const data = read(mine.objectId);
       const grids = loadGrids(data);
       for (const b of mine.chunks || []) {
-        const g = grids.find((x) => x.id === b.gridId);
-        if (!g) continue;
+        let g = grids.find((x) => x.id === b.gridId);
+        // a grid the change emptied isn't saved (saveGrids leaves empty ones out): it comes back here
+        if (!g) grids.push((g = { id: b.gridId, voxelSize: b.voxelSize, vol: newVolume(b.voxelSize) }));
         for (const [k, c] of Object.entries(b.chunks)) c ? g.vol.chunks.set(k, decodeChunk(c)) : g.vol.chunks.delete(k);
       }
       const instances = mine.instancesBefore ?? data?.instances ?? [];

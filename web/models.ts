@@ -175,6 +175,8 @@ export function modelChip(agent: Agent, { onChange, compact = false }: { onChang
 // settings.brain = { provider: 'claude' | 'openrouter' | 'hermes' | 'codex', model }
 const BRAIN_ENGINE: Record<string, EngineId | undefined> = { claude: 'claude-code', openrouter: 'openai', hermes: 'hermes', codex: 'codex' };
 const BRAIN_PROVIDER: Record<string, BrainSetting['provider'] | undefined> = { 'claude-code': 'claude', openai: 'openrouter', hermes: 'hermes', codex: 'codex' };
+/** The engines the Brain can think with (its picker offers only these). */
+const BRAIN_ENGINES: readonly EngineId[] = ['claude-code', 'openai', 'hermes', 'codex'];
 export function brainAsAgent(b: { provider?: string; model?: string; effort?: Effort | '' } | null | undefined = state.data?.settings?.brain): ModelTarget & { model: string; provider: string } {
   const p = b?.provider || 'claude';
   return { engine: BRAIN_ENGINE[p] || 'claude-code', model: b?.model ?? 'haiku', provider: 'openrouter', effort: b?.effort || '' };
@@ -190,7 +192,13 @@ export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: 
     e.stopPropagation();
     openModelPicker(chip, brainAsAgent(), async (patch) => {
       const sameOne = sameModel(brainAsAgent(), patch);
-      const brain: BrainSetting = { provider: BRAIN_PROVIDER[patch.engine] || 'claude', model: patch.model ?? '', effort: patch.effort };
+      // (an engine the Brain can't think with is not offered; never quietly swap in Claude for one)
+      const provider = BRAIN_PROVIDER[patch.engine];
+      if (!provider) {
+        toast("The Brain can't use that engine. Pick Claude, OpenRouter, Hermes or Codex.", 'error');
+        return false;
+      }
+      const brain: BrainSetting = { provider, model: patch.model ?? '', effort: patch.effort };
       const r = await attempt(() => PUT('/settings', { brain }));
       if (!r) return false;
       if (state.data?.settings) state.data.settings.brain = brain;
@@ -200,7 +208,7 @@ export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: 
       toast(sameOne ? `The Brain now thinks at ${e ? `${EFFORT_NAMES[e].toLowerCase()} effort` : "the model's default effort"}` : `The Brain now thinks with ${withEffort(brainAsAgent(brain))}`);
       onChange?.(brain);
       return true;
-    }, { title: "The Brain's model", local: false });
+    }, { title: "The Brain's model", local: false, engines: BRAIN_ENGINES });
   });
   draw();
   return chip;
@@ -211,7 +219,9 @@ export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: 
 // Picking a model closes the picker; changing the effort of the model in use applies it at once and keeps it open
 // (apply returns, or resolves to, false when that failed: the row goes back to what it was).
 // local: offer models on this PC (LM Studio, Ollama, a custom server); the Brain can't use them.
-export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch: ModelPatch) => unknown, { title = 'Model', local = true }: { title?: string; local?: boolean } = {}): void {
+// engines: only these engines' tabs and favorites (the Brain's picker); all when left out.
+export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch: ModelPatch) => unknown, { title = 'Model', local = true, engines }: { title?: string; local?: boolean; engines?: readonly EngineId[] } = {}): void {
+  const usable = (e: EngineId) => !engines || engines.includes(e);
   document.querySelector('.model-menu')?.remove();
   const r = anchor.getBoundingClientRect();
   const menu = h('div.st-menu.model-menu');
@@ -223,9 +233,9 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   // the effort asked for (kept as asked: each engine sends its nearest level)
   let effort: Effort | '' = effortOf(cur);
   // favorites this picker can use (without local servers, only OpenRouter's API models)
-  const favs = () => favoriteModels().filter((f) => local || f.engine !== 'openai' || (f.provider || 'openrouter') === 'openrouter');
+  const favs = () => favoriteModels().filter((f) => usable(f.engine) && (local || f.engine !== 'openai' || (f.provider || 'openrouter') === 'openrouter'));
   // LM Studio's tab only where models on this PC can be used (not for the Brain)
-  const myTabs = TABS.filter((t) => local || t.engine !== 'lmstudio');
+  const myTabs = TABS.filter((t) => (local || t.engine !== 'lmstudio') && (t.engine === 'fav' || t.engine === 'lmstudio' || usable(t.engine)));
   const curTab = tabOf(cur);
   const homeTab = (): PickerTab => (myTabs.some((t) => t.engine === curTab) ? curTab : 'claude-code');
   let tab: PickerTab = favs().length ? 'fav' : homeTab();

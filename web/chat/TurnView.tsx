@@ -31,6 +31,7 @@ export function TurnView({ agentId, chatId, live, from, to, empty, onEnd, onSend
   const [viewId] = useState(() => `turn-${chatId}-${Math.random().toString(36).slice(2, 8)}`);
   const { messages, setMessages, resumeStream, status } = useChat<ChatMessage>({ id: viewId, transport });
   const [loaded, setLoaded] = useState(false);
+  const owner = useMemo(() => ({ agentId, chatId }), [agentId, chatId]);
   const streaming = status === 'submitted' || status === 'streaming';
 
   useEffect(() => {
@@ -65,7 +66,7 @@ export function TurnView({ agentId, chatId, live, from, to, empty, onEnd, onSend
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       {messages.map((m) => (
-        <MessageView key={m.id} m={m} variant="mini" busy={streaming} streaming={streaming && m.id === lastId} dim={false} onSend={(t) => onSend?.(t)} />
+        <MessageView key={m.id} m={m} variant="mini" busy={streaming} streaming={streaming && m.id === lastId} dim={false} onSend={(t) => onSend?.(t)} owner={owner} />
       ))}
     </div>
   );

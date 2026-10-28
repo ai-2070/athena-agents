@@ -120,4 +120,15 @@ describe('stepping down when slow', () => {
     const low = new SlowWatch('low');
     for (let i = 0; i < 500; i++) expect(low.frame(80)).toBe(false);
   });
+
+  it("frames held back on purpose (30 or 15 a second) aren't slowness; ones late for their aim are", () => {
+    const still = new SlowWatch('high');
+    for (let i = 0; i < 600; i++) expect(still.frame(i % 4 ? 33.4 : 50, 1000 / 30)).toBe(false);
+    const away = new SlowWatch('high');
+    for (let i = 0; i < 300; i++) expect(away.frame(66.7, 1000 / 15)).toBe(false);
+    const late = new SlowWatch('high');
+    let said = false;
+    for (let i = 0; i < 300; i++) said ||= late.frame(50, 1000 / 30);
+    expect(said).toBe(true);
+  });
 });

@@ -283,9 +283,7 @@ export async function runWorkflow({ workflow, prompt, negative, inputs = {}, ran
   while (Date.now() - started < timeoutSec * 1000) {
     await new Promise((r) => setTimeout(r, 1500));
     if (signal?.aborted) {
-      // Take the job off ComfyUI's queue too.
-      await fetch(`${url}/queue`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ delete: [promptId] }) }).catch(() => {});
-      await fetch(`${url}/interrupt`, { method: 'POST' }).catch(() => {});
+      await cancelPrompt(url, promptId);
       throw new Error('Stopped.');
     }
     const hist = await fetchJSON<Record<string, HistoryEntry>>(`${url}/history/${promptId}`, { timeout: 15000 }).catch(() => null);
@@ -309,6 +307,17 @@ export async function runWorkflow({ workflow, prompt, negative, inputs = {}, ran
     onProgress?.(Math.round((Date.now() - started) / 1000));
   }
   throw new Error(`Still running after ${timeoutSec}s (prompt ${promptId}). Check ComfyUI.`);
+}
+
+/** Takes one job off ComfyUI: out of the queue, and interrupted only when it is the one running now
+ *  (an interrupt stops whatever runs, which may be someone else's job). */
+export async function cancelPrompt(url: string, promptId: string): Promise<void> {
+  const json = { 'content-type': 'application/json' };
+  await fetch(`${url}/queue`, { method: 'POST', headers: json, body: JSON.stringify({ delete: [promptId] }) }).catch(() => {});
+  const q = await fetchJSON<{ queue_running?: unknown[][] }>(`${url}/queue`, { timeout: 10000 }).catch(() => null);
+  if (!q?.queue_running?.some((job) => Array.isArray(job) && job[1] === promptId)) return;
+  // (newer ComfyUI interrupts only the prompt named; older ones the running one, which is this one)
+  await fetch(`${url}/interrupt`, { method: 'POST', headers: json, body: JSON.stringify({ prompt_id: promptId }) }).catch(() => {});
 }
 
 export async function queueStatus(): Promise<ComfyQueueStatus> {
@@ -335,6 +344,21 @@ export async function proxyView(query: Record<string, string>, res: ServerRespon
   const inline = /^(image\/(png|jpeg|webp|gif)|video\/|audio\/)/.test(type);
   res.writeHead(r.status, { 'content-type': type, 'cache-control': 'max-age=3600', 'x-content-type-options': 'nosniff', 'content-security-policy': 'sandbox; default-src none', ...(inline ? {} : { 'content-disposition': 'attachment' }) });
   res.end(Buffer.from(await r.arrayBuffer()));
+}
+
+/** A result picture's bytes (a /api/comfyui/view link's filename, subfolder and type), for a model to see.
+ *  Only PNG, JPEG, WebP or GIF up to max bytes; else null. */
+export async function viewImage(link: string, max: number): Promise<{ mime: string; bytes: Buffer } | null> {
+  const m = /^\/api\/comfyui\/view\?(.*)$/s.exec(link);
+  if (!m) return null;
+  const q = new URLSearchParams(m[1]);
+  const url = await comfyUrl();
+  if (!url || !q.get('filename')) return null;
+  const r = await fetch(`${url}/view?${new URLSearchParams({ filename: q.get('filename') || '', subfolder: q.get('subfolder') || '', type: q.get('type') || 'output' })}`, { signal: AbortSignal.timeout(30000) });
+  const mime = (r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  if (!r.ok || !/^image\/(png|jpeg|webp|gif)$/.test(mime) || Number(r.headers.get('content-length') || 0) > max) return null;
+  const bytes = Buffer.from(await r.arrayBuffer());
+  return bytes.length && bytes.length <= max ? { mime, bytes } : null;
 }
 
 export async function startComfy(): Promise<string> {

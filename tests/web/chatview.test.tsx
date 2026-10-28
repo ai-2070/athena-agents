@@ -192,6 +192,48 @@ describe('the agent chat (AI SDK)', () => {
     expect(el.querySelector('textarea')!.value).toBe('are you there?');
   });
 
+  it('a message that never reaches the server (no connection) comes back to the box', async () => {
+    const el = await open();
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      if (url.endsWith('/stream') && init.method === 'POST') throw new TypeError('Failed to fetch');
+      return new Response(JSON.stringify(url === '/api/agents/a1/chats/c1' ? chat : []), { headers: { 'content-type': 'application/json' } });
+    });
+    await type(el, 'are you there?');
+    await settle();
+    await settle();
+    expect(document.getElementById('toasts')!.textContent).toContain('Failed to fetch');
+    expect(el.querySelector('textarea')!.value).toBe('are you there?');
+  });
+
+  it('the Send button runs a command like Enter does', async () => {
+    const el = await open();
+    const box = el.querySelector('textarea')!;
+    box.value = '/goal finish the tests';
+    await act(async () => box.dispatchEvent(new Event('input', { bubbles: true })));
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click());
+    await settle();
+    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/goal')!.body).toEqual({ text: 'finish the tests' });
+    expect(requests.some((r) => r.method === 'POST' && r.url.endsWith('/stream'))).toBe(false);
+  });
+
+  it('a long pasted /queue message while it works waits its turn (it does not change the course)', async () => {
+    const el = await open();
+    await type(el, 'go');
+    await settle();
+    const box = el.querySelector('textarea')!;
+    const long = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`).join('\n');
+    box.value = '';
+    const data = { types: ['text/plain'], items: [], files: [], getData: (t: string) => (t === 'text/plain' ? `/queue ${long}` : '') } as unknown as DataTransfer;
+    const e = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'clipboardData', { value: data });
+    await act(async () => void box.dispatchEvent(e));
+    expect(box.value).toMatch(/^\[Pasted text #1/);
+    await act(async () => void box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    await settle();
+    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/queue')!.body).toEqual({ text: long, attachments: [] });
+    expect(requests.filter((r) => r.url.endsWith('/stream') && r.method === 'POST')).toHaveLength(1);
+  });
+
   it('a run that fails says so, and the message stays sent (it is not put back in the box)', async () => {
     const el = await open();
     await type(el, 'go');

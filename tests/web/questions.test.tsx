@@ -134,6 +134,16 @@ describe('in the chat', () => {
     expect(questionFor(undefined, {})).toBeNull();
   });
 
+  it('two agents asking the same thing: each tool call shows its own agent’s question', () => {
+    const qs = [question({ id: 'qa', agentId: 'a1', chatId: 'c1' }), question({ id: 'qb', agentId: 'a2', chatId: 'c2' })];
+    expect(questionFor(qs, { question: 'Which style?' }, { agentId: 'a1', chatId: 'c1' })?.id).toBe('qa');
+    expect(questionFor(qs, { question: 'Which style?' }, { agentId: 'a2', chatId: 'c2' })?.id).toBe('qb');
+    // the same agent in another chat: not that one's
+    expect(questionFor(qs, { question: 'Which style?' }, { agentId: 'a1', chatId: 'c9' })).toBeNull();
+    // (one asked with no chat known still shows in the agent's chat)
+    expect(questionFor([question({ id: 'qc', agentId: 'a1', chatId: null })], { question: 'Which style?' }, { agentId: 'a1', chatId: 'c1' })?.id).toBe('qc');
+  });
+
   it('lets you answer right under the tool call while the agent waits', async () => {
     await show(<ToolCard part={part({ question: 'Which style?', choices: ['Flat', '3D'] })} variant="full" busy />);
     expect(el.querySelector('.question.in-chat')).toBeTruthy();

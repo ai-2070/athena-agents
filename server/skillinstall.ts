@@ -6,8 +6,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { dataPath, ensureDir, run, which, writeJSON } from './util.ts';
 import { emit, log } from './store.ts';
-import { listSkills, getSkill, skillDir, skillVersionsDir, skillFromText, uniqueSlug, isSkillSlug } from './skills.ts';
-import { keepVersion } from './versions.ts';
+import { listSkills, getSkill, skillDir, skillVersionsDir, skillFromText, uniqueSlug, isSkillSlug, skillExtraFiles, skillFilesHash, copySkillFiles } from './skills.ts';
+import type { SkillVersionItem } from './skills.ts';
+import { keepVersion, versionFilesDir } from './versions.ts';
 import type { SkillInstallResult, SkillOrigin } from '../shared/types.ts';
 
 export const MAX_SKILLS = 20; // per link
@@ -186,8 +187,13 @@ export async function installFromGitHub(url: string, { proceed = () => true }: {
         if (!proceed()) throw new Error('not installed: you switched projects while it downloaded');
         const before = same ? getSkill(slug) : null;
         if (before) {
-          const after = skillFromText(fs.readFileSync(path.join(tmp, 'SKILL.md'), 'utf8'), slug);
-          keepVersion(skillVersionsDir(slug), { slug, name: before.name, description: before.description, body: before.body.trim() }, after);
+          // the old version is kept with its extra files, so an update that changed only those still
+          // counts, and bringing it back brings back the files it had
+          const dir = skillDir(slug);
+          const after: SkillVersionItem = { ...skillFromText(fs.readFileSync(path.join(tmp, 'SKILL.md'), 'utf8'), slug), filesHash: skillFilesHash(tmp) };
+          const was: SkillVersionItem = { slug, name: before.name, description: before.description, body: before.body.trim(), files: skillExtraFiles(dir), filesHash: skillFilesHash(dir) };
+          const v = keepVersion(skillVersionsDir(slug), was, after, { ignore: ['files'] });
+          if (v && was.files?.length) copySkillFiles(dir, versionFilesDir(skillVersionsDir(slug), v.id));
         }
         fs.rmSync(skillDir(slug), { recursive: true, force: true });
         fs.renameSync(tmp, skillDir(slug));
@@ -208,6 +214,10 @@ export async function installFromGitHub(url: string, { proceed = () => true }: {
 /** owner/repo of every GitHub link in a text (lowercase), to check a link came from the user. */
 export function reposIn(text: string): Set<string> {
   const out = new Set<string>();
-  for (const m of String(text || '').matchAll(/(?:github\.com|raw\.githubusercontent\.com)\/([\w.-]+)\/([\w.-]+)/gi)) out.add(`${m[1]}/${m[2].replace(/\.git$/, '')}`.toLowerCase());
+  // The whole host must be GitHub's: not the end of another one (notgithub.com, x.github.com), not the
+  // start of one (github.com.example.com: the slash must follow), nor part of another site's path
+  // (example.com/github.com/...).
+  const links = /(?<![\w.@/:%\\-])(?:https?:\/\/)?(?:(?:www\.)?github\.com|raw\.githubusercontent\.com)\/([\w.-]+)\/([\w.-]+)/gi;
+  for (const m of String(text || '').matchAll(links)) out.add(`${m[1]}/${m[2].replace(/\.git$/, '')}`.toLowerCase());
   return out;
 }

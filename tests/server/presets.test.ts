@@ -1,5 +1,7 @@
+import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { agents, workflows } from '../../server/store.ts';
+import { dataPath } from '../../server/util.ts';
 import { newAgent } from '../../server/library.ts';
 import * as presets from '../../server/presets.ts';
 import type { Team } from '../../shared/types.ts';
@@ -60,6 +62,27 @@ describe('presets', () => {
     expect(made.agents).toHaveLength(2);
     expect(made.team.members).toEqual(made.agents.map((x) => x.id));
     expect(agents.get(made.team.lead!)?.name).toBe('Planner');
+  });
+
+  it('saves an old step-list team with its agents and lead', () => {
+    const a = newAgent({ name: 'Step one' });
+    const b = newAgent({ name: 'Step two' });
+    const team = workflows.save({ name: 'Old steps', lead: a.id, steps: [{ type: 'agent', agentId: a.id }, { type: 'agent', agentId: b.id }] } as Partial<Team>);
+    const p = presets.saveTeamPreset(team.id);
+    expect(p.members.map((m) => m.name)).toEqual(['Step one', 'Step two']);
+    expect(p.leadIndex).toBe(0);
+  });
+
+  it("an imported preset that carries an agent's id makes a new agent, not a replacement", () => {
+    const victim = newAgent({ name: 'Victim', systemPrompt: 'Mine.' });
+    const id = 'pa-imported-1';
+    fs.mkdirSync(dataPath('presets'), { recursive: true });
+    fs.writeFileSync(dataPath('presets', `${id}.json`), JSON.stringify({ id, kind: 'agent', name: 'Imported', description: '', savedAt: Date.now(), agent: { id: victim.id, name: 'Imported', systemPrompt: 'Theirs.', createdAt: 1, pinned: true } }));
+    const made = presets.usePreset(id);
+    if (!('agent' in made)) throw new Error('expected an agent');
+    expect(made.agent.id).not.toBe(victim.id);
+    expect(agents.get(victim.id)).toMatchObject({ name: 'Victim', systemPrompt: 'Mine.' });
+    expect(made.agent).toMatchObject({ name: 'Imported', systemPrompt: 'Theirs.', pinned: false });
   });
 
   it('deletes presets, and rejects ids that are not presets', () => {

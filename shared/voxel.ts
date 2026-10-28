@@ -158,3 +158,15 @@ export function voxelShade(s: MaterialShades, x: number, y: number, z: number, s
   const k = 1 + (hash3(x, y, z, seed) * 2 - 1) * s.jitter;
   return [Math.min(255, Math.round(pick[0] * k)), Math.min(255, Math.round(pick[1] * k)), Math.min(255, Math.round(pick[2] * k))];
 }
+
+/**
+ * A copy's own material swaps with its parent's applied after them: the child's "shirt" → "red", then the
+ * parent's "red" → "blue" (the same as web/voxel/instances.ts draws nested copies).
+ */
+export function composeSwaps(child: Record<string, string> | undefined, parent: Map<string, string>): Map<string, string> {
+  const norm = (s: string) => s.trim().toLowerCase();
+  const out = new Map<string, string>();
+  for (const [k, v] of Object.entries(child || {})) out.set(norm(k), parent.get(norm(v)) ?? norm(v));
+  for (const [k, v] of parent) if (!out.has(k)) out.set(k, v);
+  return out;
+}

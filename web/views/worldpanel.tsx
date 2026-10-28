@@ -171,6 +171,8 @@ export function WorldPanel({ onClose, teamName }: { onClose: () => void; teamNam
 function MdTab({ shown }: { shown: WorldAnswer }) {
   const [info, setInfo] = useState<WorldMdInfo | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  // the world the draft was opened in: the picker can switch worlds while you type
+  const [draftOf, setDraftOf] = useState('');
   const [versions, setVersions] = useState<MdVersion[] | null>(null);
   const load = useCallback(() => {
     void GET<WorldMdInfo>('/world/md')
@@ -178,10 +180,19 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
       .catch(() => setInfo(null));
   }, []);
   useEffect(load, [load, shown.world?.id, shown.world?.updatedAt]);
+  useEffect(() => setVersions(null), [shown.world?.id]);
+  const otherWorld = editing !== null && !!info && info.worldId !== draftOf;
   useServerEvents((ev) => ev.type === 'world-md' && editing === null && load());
   if (!shown.world) return <p className="hint">There is no world yet. Once something is built, its WORLD.md is here: what the world is, its look, places and characters.</p>;
   const save = async () => {
     if (editing === null) return;
+    // never over another world's WORLD.md
+    const now = await GET<WorldMdInfo>('/world/md').catch(() => null);
+    if (!now || now.worldId !== draftOf) {
+      if (now) setInfo(now);
+      toast('This edit was for another world, so it wasn’t saved. Copy what you need, then press Cancel.', 'warn');
+      return;
+    }
     const r = await attempt(() => PUT<WorldMdInfo>('/world/md', { text: editing }), 'Saved WORLD.md');
     if (r) {
       setInfo(r);
@@ -207,7 +218,14 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
       {editing === null ? (
         <>
           <div className="flex flex-wrap items-center gap-1.5">
-            <button className="btn small" onClick={() => setEditing(info?.text || '')} disabled={!info}>
+            <button
+              className="btn small"
+              onClick={() => {
+                setDraftOf(info?.worldId || '');
+                setEditing(info?.text || '');
+              }}
+              disabled={!info}
+            >
               <Icon name="pencil" size={13} /> Edit
             </button>
             <button className="btn ghost small" onClick={() => void showVersions()} aria-pressed={!!versions}>
@@ -237,6 +255,7 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
         </>
       ) : (
         <>
+          {otherWorld ? <p className="hint text-amber">The world shown changed while you were editing. This text was for the other world, so it can’t be saved here.</p> : null}
           <textarea
             className="code min-h-80 w-full resize-y leading-[1.55]"
             spellCheck={false}
@@ -251,7 +270,7 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
             }}
           />
           <div className="flex items-center gap-1.5">
-            <button className="btn small" onClick={() => void save()} disabled={editing === info?.text}>
+            <button className="btn small" onClick={() => void save()} disabled={editing === info?.text || otherWorld}>
               Save
             </button>
             <button className="btn ghost small" onClick={() => setEditing(null)}>
