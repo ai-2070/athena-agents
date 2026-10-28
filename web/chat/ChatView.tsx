@@ -578,6 +578,7 @@ export function ChatView(p: ChatViewProps) {
   const windowed = variant !== 'mini' && shown.length >= WINDOW_FROM;
   const lastId = messages[messages.length - 1]?.id;
   const chatPath = chatId ? `/agents/${agent.id}/chats/${chatId}` : undefined;
+  const owner = useMemo(() => ({ agentId: agent.id, chatId }), [agent.id, chatId]);
   const row = (m: ChatMessage) => {
     const seq = m.metadata?.seq;
     return (
@@ -590,6 +591,7 @@ export function ChatView(p: ChatViewProps) {
         dim={seq != null && seq < dimBefore}
         onSend={(t) => void send(t)}
         chatPath={chatPath}
+        owner={owner}
         latestCompaction={latest?.item.id ?? null}
         onCompactionSaved={() => void reload()}
       />

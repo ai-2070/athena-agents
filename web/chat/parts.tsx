@@ -11,6 +11,7 @@ import { findFileMentions } from '../mentions.ts';
 import { readOutput, readUser } from './messages.ts';
 import { useAppState } from '../ui/react.tsx';
 import { QuestionCard, questionFor } from '../questions.tsx';
+import type { QuestionOwner } from '../questions.tsx';
 import type { ChatMessage, ChatPart } from './messages.ts';
 import type { CompactionItem } from '../../shared/types.ts';
 
@@ -88,7 +89,7 @@ const brief = (input: unknown): string =>
 const openTools = new Set<string>();
 
 /** A tool call: its name and what it was about, opening to its input and result (and images below). */
-export function ToolCard({ part, variant, busy }: { part: DynamicToolUIPart; variant: Variant; busy: boolean }) {
+export function ToolCard({ part, variant, busy, owner }: { part: DynamicToolUIPart; variant: Variant; busy: boolean; owner?: QuestionOwner | null }) {
   const [open, setOpen] = useState(() => openTools.has(part.toolCallId));
   const done = part.state === 'output-available' || part.state === 'output-error';
   const failed = part.state === 'output-error';
@@ -105,7 +106,7 @@ export function ToolCard({ part, variant, busy }: { part: DynamicToolUIPart; var
   const small = variant !== 'full';
   // ask_user while the agent waits: answer right here (it's in the Outbox too)
   const asked = useAppState()?.questions;
-  const question = part.toolName === 'ask_user' && !done ? questionFor(asked, part.input) : null;
+  const question = part.toolName === 'ask_user' && !done ? questionFor(asked, part.input, owner) : null;
   return (
     <div className={small ? 'flex flex-col gap-1' : 'flex flex-col gap-1.5'}>
       {question ? <QuestionCard q={question} place="chat" /> : null}
@@ -190,9 +191,11 @@ export interface MessageViewProps {
   chatPath?: string;
   latestCompaction?: string | null;
   onCompactionSaved?: () => void;
+  /** whose chat this is (an ask_user card shows that agent's question) */
+  owner?: QuestionOwner | null;
 }
 
-export function MessageView({ m, variant, busy, streaming, dim, onSend, chatPath, latestCompaction, onCompactionSaved }: MessageViewProps) {
+export function MessageView({ m, variant, busy, streaming, dim, onSend, chatPath, latestCompaction, onCompactionSaved, owner }: MessageViewProps) {
   if (m.role === 'user') {
     const { text, attachments } = readUser(m);
     const paths = [...attachments, ...findFileMentions(text)];
@@ -213,7 +216,7 @@ export function MessageView({ m, variant, busy, streaming, dim, onSend, chatPath
       {m.parts.map((p: ChatPart, i) => {
         const key = `${m.id}:${i}`;
         if (p.type === 'text') return <TextPart key={key} text={p.text} variant={variant} streaming={streaming && i === lastText && p.state === 'streaming'} dim={dim} onSend={onSend} />;
-        if (p.type === 'dynamic-tool') return <ToolCard key={key} part={p} variant={variant} busy={busy} />;
+        if (p.type === 'dynamic-tool') return <ToolCard key={key} part={p} variant={variant} busy={busy} owner={owner} />;
         if (p.type === 'data-compaction') {
           const it = p.data as CompactionItem;
           if (variant === 'mini') return <div key={key} className={ST_CMP} title="The agent’s memory of the messages above was compacted. Open the full chat to see or edit it.">— COMPACTED —</div>;
