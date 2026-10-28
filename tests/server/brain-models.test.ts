@@ -1,7 +1,7 @@
 // The Brain sets the model and effort of agents, several agents or whole teams, and looks up
 // which models a provider has.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyActions, ask, clearHistory, effortAsked, prepareModels, snapshot } from '../../server/overseer.ts';
+import { applyActions, ask, clearHistory, effortAsked, history, prepareModels, snapshot } from '../../server/overseer.ts';
 import type { BrainAction } from '../../server/overseer.ts';
 import { availableModels, checkModel, clearModelCache, findModels, matchModels, modelProvider, providerOfAgent } from '../../server/models.ts';
 import { agents, saveSettings, setSecret, workflows } from '../../server/store.ts';
@@ -207,6 +207,20 @@ describe('set_model', () => {
     expect(agents.get(a.id)?.model).toBe('google/gemini-3-flash');
   });
 
+  it('checks a model against the provider an earlier action in the same answer moved the agent to', async () => {
+    const a = newAgent({ name: 'Mover', engine: 'claude-code', model: 'sonnet' });
+    const acts: BrainAction[] = [
+      { do: 'set_model', to: 'agent', id: a.id, provider: 'openrouter' },
+      { do: 'set_model', to: 'agent', id: a.id, model: 'google/gemini-3-flsh' },
+      { do: 'set_model', to: 'agent', id: a.id, model: 'google/gemini-3-flash' },
+    ];
+    await prepareModels(acts);
+    const r = applyActions(acts);
+    expect(r.done.map((d) => d.kind)).toEqual(['model', 'error', 'model']);
+    expect(r.done[1].text).toMatch(/Mover: OpenRouter has no model "google\/gemini-3-flsh"/);
+    expect(agents.get(a.id)).toMatchObject({ engine: 'openai', provider: 'openrouter', model: 'google/gemini-3-flash' });
+  });
+
   it('a model the provider does not have is refused before anything changes', async () => {
     const a = newAgent({ name: 'Researcher', engine: 'openai', provider: 'openrouter', model: 'google/gemini-3-pro' });
     const acts: BrainAction[] = [{ do: 'set_model', to: 'agent', id: a.id, model: 'opus' }];
@@ -245,6 +259,34 @@ describe('in the Brain chat', () => {
     expect(r.answer).toBe('Switched.');
     expect(r.done).toEqual([expect.objectContaining({ kind: 'model' })]);
     expect(agents.get(a.id)).toMatchObject({ model: 'google/gemini-3-flash', effort: 'low' });
+  });
+
+  it('a new conversation started while model lists are fetched changes nothing and keeps nothing', async () => {
+    const a = newAgent({ name: 'Cleared one', engine: 'openai', provider: 'openrouter', model: 'google/gemini-3-pro' });
+    clearHistory();
+    let fetched!: () => void;
+    const gate = new Promise<void>((r) => (fetched = r));
+    let calledFetch = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        calledFetch = true;
+        await gate;
+        return new Response(JSON.stringify({ data: OPENROUTER }));
+      }),
+    );
+    answers.push(`Switched.\n\`\`\`actions\n[{"do":"set_model","to":"agent","id":"${a.id}","model":"google/gemini-3-flash"}]\n\`\`\``);
+    const n = asked.length;
+    const going = ask('put it on flash');
+    // (the answer is in: the model list for its set_model is being fetched)
+    for (let i = 0; i < 200 && !(calledFetch && asked.length > n); i++) await new Promise((r) => setTimeout(r, 5));
+    expect(calledFetch && asked.length > n).toBe(true);
+    clearHistory();
+    fetched();
+    const r = await going;
+    expect(r.done).toEqual([expect.objectContaining({ kind: 'error', text: expect.stringContaining('You started a new conversation') })]);
+    expect(agents.get(a.id)?.model).toBe('google/gemini-3-pro');
+    expect(history()).toEqual([]);
   });
 
   it('refuses a misspelled model id', async () => {
