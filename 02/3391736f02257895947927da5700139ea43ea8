@@ -1,0 +1,26 @@
+docs/guide.md
+  s_8edd25ec2ff8c6::t_5594e20d3fc36e 85
+tests/web/zoomview.test.ts
+  s_8edd25ec2ff8c6::t_1c3b6dbe039caa 63-83
+web/zoomview.ts
+  s_8edd25ec2ff8c6::t_a9368ed0babc61 1-3
+  s_8edd25ec2ff8c6::t_f07c00c9a6f6f1 143-144,149-152,157
+  s_8edd25ec2ff8c6::t_4343cddb610f1b 74-75
+  s_8edd25ec2ff8c6::t_daee86c4991654 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "023391736f02257895947927da5700139ea43ea8",
+  "prompts": {},
+  "sessions": {
+    "s_8edd25ec2ff8c6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10efb69e-2807-4ef2-bd2c-971af91bcdf9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
