@@ -1,0 +1,19 @@
+web/app.ts
+  s_91e8199826be01::t_788e042c65441c 87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ce3f969f61f0f560ee46b7500d1b0c313270c444",
+  "prompts": {},
+  "sessions": {
+    "s_91e8199826be01": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7638ef92-7683-4bd7-91c1-fcc674a46922",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
