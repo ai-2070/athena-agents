@@ -66,6 +66,33 @@ type Tools = { groups: ToolGroup[]; tools: ToolListing[] };
 
 /** KEY=value lines (environment). */
 export const parseKv = (t: string): Record<string, string> => Object.fromEntries(t.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.includes('=')).map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]));
+/** A command's arguments as one line: one with a space (a path like C:/MCP Servers/x.js) or a quote in
+ *  it goes in double quotes, with a quote inside as \". splitArgs() reads it back the same. */
+export const joinArgs = (args: readonly string[]): string => args.map((a) => (a && !/[\s"]/.test(a) ? a : `"${a.replace(/"/g, '\\"')}"`)).join(' ');
+/** The arguments typed in one line: split at spaces, except inside "double quotes" (\" is a quote there). */
+export function splitArgs(t: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let quoted = false;
+  // (a "" is an empty argument: a word has started once a quote opens)
+  let started = false;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (quoted && ch === '\\' && t[i + 1] === '"') {
+      cur += '"';
+      i++;
+    } else if (ch === '"') {
+      quoted = !quoted;
+      started = true;
+    } else if (!quoted && /\s/.test(ch)) {
+      if (cur || started) out.push(cur);
+      cur = '';
+      started = false;
+    } else cur += ch;
+  }
+  if (cur || started) out.push(cur);
+  return out;
+}
 /** Name: value lines (HTTP headers). */
 export const parseHeaders = (t: string): Record<string, string> => Object.fromEntries(t.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.includes(':')).map((l) => [l.slice(0, l.indexOf(':')).trim(), l.slice(l.indexOf(':') + 1).trim()]));
 
@@ -303,11 +330,11 @@ function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved 
   // A new server left alone has its service worked out.
   const [ownPicked, setOwnPicked] = useState(!!name);
   // the text boxes as typed (turned into lists and maps when saved)
-  const [args, setArgs] = useState((cfg.args || []).join(' '));
+  const [args, setArgs] = useState(() => joinArgs(cfg.args || []));
   const [env, setEnv] = useState(Object.entries(cfg.env || {}).map(([k, v]) => `${k}=${v}`).join('\n'));
   const [headers, setHeaders] = useState(Object.entries(cfg.headers || {}).map(([k, v]) => `${k}: ${v}`).join('\n'));
   const save = async () => {
-    const body = { name: newName, ...c, kind: c.kind || (ownPicked ? newName : ''), args: args.split(/\s+/).filter(Boolean), env: parseKv(env), headers: parseHeaders(headers) };
+    const body = { name: newName, ...c, kind: c.kind || (ownPicked ? newName : ''), args: args === joinArgs(cfg.args || []) ? cfg.args || [] : splitArgs(args), env: parseKv(env), headers: parseHeaders(headers) };
     if (await attempt(() => POST('/mcp', body), 'Saved')) {
       close();
       saved();
@@ -335,7 +362,7 @@ function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved 
                 <Field label="Command">
                   <input className="code" value={c.command} placeholder="npx, uvx, node, python, or a full path" onChange={(e) => setC({ ...c, command: e.target.value })} />
                 </Field>
-                <Field label="Arguments" hint="Separated by spaces.">
+                <Field label="Arguments" hint='Separated by spaces. Put one with a space in "double quotes".'>
                   <input className="code" value={args} placeholder="-y @playwright/mcp@latest" onChange={(e) => setArgs(e.target.value)} />
                 </Field>
                 <Field label="Environment" hint="One KEY=value per line.">
