@@ -1,0 +1,31 @@
+server/skills.ts
+  s_266ac4019e7ca0::t_2825a38502db22 15
+  s_266ac4019e7ca0::t_a30790c843c7a3 12,689-698
+  s_266ac4019e7ca0::t_e9263cc88bdfe7 699-700
+server/programs.ts
+  s_266ac4019e7ca0::t_a30790c843c7a3 697-707
+server/index.ts
+  s_266ac4019e7ca0::t_af0cf45f1ce25a 217,227-231
+  s_266ac4019e7ca0::t_326204b2505449 226
+  s_266ac4019e7ca0::t_89eed44f82df12 234,266,282
+tests/server/orca-skill.test.ts
+  s_266ac4019e7ca0::t_326204b2505449 1-56
+docs/guide.md
+  s_266ac4019e7ca0::t_c8b373eab5c781 94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a4cf522a2843c52789c36dc5722018ea07cc5248",
+  "prompts": {},
+  "sessions": {
+    "s_266ac4019e7ca0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f45be69-0b1a-40b5-ae44-85ae4511c75d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
