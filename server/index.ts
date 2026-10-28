@@ -214,7 +214,7 @@ post<Parameters<typeof projects.createProject>[0] | null>('/api/projects', async
   if (restored && !p.description && restored.project.description) p = projects.updateProject(p.id, { description: restored.project.description });
   if (restored?.project.skills?.length) p = projects.updateProject(p.id, { skills: restored.project.skills });
   if (restored) store.emit('project', { id: p.id });
-  p = { ...p, restored };
+  p = { ...(skills.enableOrcaSkill(p.id) || p), restored };
   projects.touch(p.id);
   launcherPending = false;
   return p;
@@ -223,9 +223,15 @@ post<Parameters<typeof projects.createProject>[0] | null>('/api/projects', async
 let launcherPending = true;
 get('/api/projects/overview', async () => ({ ...projects.overview(projectSync.peek), showLauncher: launcherPending }));
 post('/api/projects/save', async () => projectSync.saveProject(store.activeProject().id));
-post('/api/projects/launcher-done', async () => ((launcherPending = false), { ok: true }));
+// The start screen closed; picking the project that is open already lands here too.
+post('/api/projects/launcher-done', async () => {
+  launcherPending = false;
+  skills.enableOrcaSkill(store.activeProject().id);
+  return { ok: true };
+});
 post('/api/projects/:id/activate', async ({ id }) => {
   const p = store.setActiveProject(id);
+  skills.enableOrcaSkill(id);
   projects.touch(id);
   launcherPending = false;
   log('project', `Switched to project "${p.name}"`);
@@ -257,7 +263,7 @@ postFile('/api/backups/restore', async (_p, upload, q) => {
   }
   projects.touch(r.project.id);
   launcherPending = false;
-  return { ...projects.withLogo(r.project), restored: r.restored };
+  return { ...projects.withLogo(skills.enableOrcaSkill(r.project.id) || r.project), restored: r.restored };
 });
 del('/api/projects/:id', async ({ id }) => projects.removeProject(id));
 // A copy of a project as a new one. Shares the restore's lock: both hold a whole unpacked project in memory.
@@ -273,7 +279,7 @@ post<{ name?: string }>('/api/projects/:id/clone', async ({ id }, body) => {
     restoring = false;
   }
   projects.touch(r.project.id);
-  return { ...projects.withLogo(r.project), restored: r.restored };
+  return { ...projects.withLogo(skills.enableOrcaSkill(r.project.id) || r.project), restored: r.restored };
 });
 // Delete a project: back it up, check the backup, then remove it. Not while an agent is working in it.
 post('/api/projects/:id/delete', async ({ id }) => {
