@@ -1,0 +1,41 @@
+server/mcp.ts
+  s_4f53eccb4f7bb2::t_89f17e39f42138 1020-1021,1026-1035,1037-1038,1040
+  s_4f53eccb4f7bb2::t_1fab0d2b6af505 969-970,973-974
+  s_4f53eccb4f7bb2::t_6980a817ecf9c4 1036
+  s_4f53eccb4f7bb2::t_924f3c92df8981 1056-1068
+  s_4f53eccb4f7bb2::t_684187728a1a39 1074
+server/tools.ts
+  s_4f53eccb4f7bb2::t_5bf5b51238aed1 1071-1072
+tests/server/fixtures/fake-mcp.mjs
+  s_4f53eccb4f7bb2::t_0a643a97a840ea 1-19
+server/toolimages.ts
+  s_4f53eccb4f7bb2::t_f036e7b9a23871 41-64
+server/index.ts
+  s_4f53eccb4f7bb2::t_3da1542de6c43c 24
+  s_4f53eccb4f7bb2::t_3ff7bf87e87199 1078-1080
+server/programs.ts
+  s_4f53eccb4f7bb2::t_d502796ea0e4cd 675
+tests/server/openai-engine.test.ts
+  s_4f53eccb4f7bb2::t_f65e457aa59baa 131-155
+  s_4f53eccb4f7bb2::t_d1a70e25f223c0 1-130,156-165
+server/comfyui.ts
+  s_4f53eccb4f7bb2::t_3e634d563fa834 340-354
+server/engines/openai.ts
+  s_4f53eccb4f7bb2::t_78ca0c373a76be 6,70,165-166,173,301-315,417-423,432-433,451-452,454,466-469,477,502-503
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "af6075e77f9723a8c326c1c499919f2e939b75d9",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
