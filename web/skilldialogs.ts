@@ -121,6 +121,7 @@ export async function openEditor(slug: string | null, reload: () => unknown): Pr
     // the files were only for the Brain to read: they go with the dialog
     onClose: () => tray.discard(),
   });
+  m.el.classList.add('mono-fields');
   tray.dropZone(m.el.querySelector<HTMLElement>('.modal')!, 'Drop examples or notes for the Brain');
   setTimeout(() => ask.focus(), 40);
 }

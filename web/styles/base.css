@@ -34,6 +34,8 @@ input, select, textarea { border-radius: var(--radius-ctl); }
 input:focus, select:focus, textarea:focus { border-color: var(--color-accent); }
 textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
 textarea.code, input.code { font-family: var(--font-mono); font-size: 12.5px; }
+/* the Settings pages and the skill editor: every box in mono, like the .code ones */
+.mono-fields :is(input, select, textarea) { font-family: var(--font-mono); font-size: 12.5px; }
 select {
   appearance: none; padding-right: 28px;
   background-image: linear-gradient(45deg, transparent 50%, var(--color-dim) 50%), linear-gradient(135deg, var(--color-dim) 50%, transparent 50%);

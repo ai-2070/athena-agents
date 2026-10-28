@@ -256,6 +256,7 @@ function SettingsPage() {
       onChange={(t) => go(t)}
       rowClassName="mb-4.5 flex flex-wrap items-end gap-3.5 border-b border-line max-[761px]:flex-col max-[761px]:items-stretch [&>.tabs]:-mb-px [&>.tabs]:min-w-0 [&>.tabs]:flex-1 [&>.tabs]:border-b-0"
       aside={<SettingsSearch onChoose={choose} />}
+      panelClassName="mono-fields"
     >
       <TabBody key={`${tab}:${drawn}`} tab={TABS.find((t) => t.id === tab)!} hostRef={(el) => void (panel.current = el)} />
     </Tabs>
