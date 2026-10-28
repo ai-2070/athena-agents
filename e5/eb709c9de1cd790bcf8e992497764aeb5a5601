@@ -1,0 +1,26 @@
+tests/web/mcp.test.tsx
+  s_4f53eccb4f7bb2::t_e5122ec47c5eba 5
+  s_4f53eccb4f7bb2::t_c72490ccd49d64 69-75
+  s_4f53eccb4f7bb2::t_2bc2502b1b0703 160-169
+web/views/mcp.tsx
+  s_4f53eccb4f7bb2::t_e2dcb65fb1f567 333
+  s_4f53eccb4f7bb2::t_e26b10fe6aa7a6 337
+  s_4f53eccb4f7bb2::t_5407e17350e003 365
+  s_4f53eccb4f7bb2::t_a6d361396edd98 69-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e5eb709c9de1cd790bcf8e992497764aeb5a5601",
+  "prompts": {},
+  "sessions": {
+    "s_4f53eccb4f7bb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e7caa1c-1bdc-4c40-8d75-b4c6b17a348f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
