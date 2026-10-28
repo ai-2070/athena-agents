@@ -166,7 +166,8 @@ const target = desktopTarget(argValue('--target') || process.env.TAURI_ENV_TARGE
 const started = performance.now();
 step(`building for ${target.triple}`);
 
-sh([process.execPath, path.join(root, 'scripts', 'build-web.ts')]);
+// (--clean: no chunks of earlier builds in the app)
+sh([process.execPath, path.join(root, 'scripts', 'build-web.ts'), '--clean']);
 fs.rmSync(stage, { recursive: true, force: true });
 fs.mkdirSync(stage, { recursive: true });
 await bundleServer();

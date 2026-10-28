@@ -5,7 +5,8 @@
 // Keys and tokens are never written there.
 import fs from 'node:fs';
 import path from 'node:path';
-import { bus, listProjects, activeProject, log } from './store.ts';
+import { bus, listProjects, activeProject, log, takeNewDefaultProject } from './store.ts';
+import { updateProject } from './projects.ts';
 import { dataPath, ensureDir, exists, isPlainDir, readJSON, readPlain, writeJSON, realTarget, uid } from './util.ts';
 import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir, checkVersion, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
 import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, skillVersionItem, SKILL_BODY_MAX } from './skills.ts';
@@ -327,6 +328,21 @@ function movedAgent(from: string | undefined, to: string): (a: Agent) => Agent {
   };
 }
 
+// A fresh data folder (a new install, or the desktop app next to the browser version) makes a default project
+// in the same "My workspace" folder an earlier one may have saved into. Load that copy first: the first auto-save
+// would otherwise write the empty project over it and drop its skills and world.
+export function adoptSavedFolder(id: string): RestoreResult | null {
+  const p = listProjects().find((x) => x.id === id);
+  const restored = p ? restoreInto(id, p.brainPath) : null;
+  if (!restored) return null;
+  const { description, skills } = restored.project;
+  updateProject(id, {
+    ...(!p?.description && typeof description === 'string' && description ? { description } : {}),
+    ...(Array.isArray(skills) && skills.length ? { skills } : {}),
+  });
+  return restored;
+}
+
 // Versions saved in <folder>/.dashboard/<parts>/<item id>/: each checked to be a plain file inside the
 // folder and a version (item checked by `check`), put back under the item and id it was saved as
 // (whatever the file itself claims). Newest first, at most VERSIONS_KEPT.
@@ -547,6 +563,8 @@ function restoreWorld(folder: string, id: string): boolean {
 // Save after anything in the project changes.
 const WATCH = new Set(['agents', 'workflows', 'routines', 'layout', 'team', 'knowledge', 'memory', 'brain-chat', 'chats', 'skills']);
 export function startAutoSave() {
+  const fresh = takeNewDefaultProject();
+  if (fresh) adoptSavedFolder(fresh.id);
   bus.on('event', (ev) => {
     // an event that names its project (an agent chat) saves that one, even if another is open now
     if ((ev.type === 'world' || ev.type === 'world-md') && typeof ev.world === 'string') {

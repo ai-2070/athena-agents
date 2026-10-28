@@ -1,8 +1,10 @@
-// Bundles the browser app (web/*.ts) into public/dist with Bun. Pass --watch to rebuild on change.
+// Bundles the browser app (web/*.ts) into public/dist with Bun. Pass --watch to rebuild on change,
+// --clean to leave out the last builds' chunks (for a package: the desktop app).
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildCss } from './build-css.ts';
 import { buildFonts } from './build-fonts.ts';
+import { keepOldChunks } from './keep-chunks.ts';
 
 const root = path.resolve(import.meta.dirname, '..');
 const outdir = path.join(root, 'public', 'dist');
@@ -10,6 +12,7 @@ const outdir = path.join(root, 'public', 'dist');
 // a compile error leaves the last good bundle in place.
 const tmpdir = path.join(root, 'public', '.dist-tmp');
 const watch = process.argv.includes('--watch');
+const clean = process.argv.includes('--clean');
 
 async function build(): Promise<boolean> {
   const started = performance.now();
@@ -47,6 +50,8 @@ async function build(): Promise<boolean> {
   fs.writeFileSync(path.join(tmpdir, 'openui.css'), `@layer openui {\n${openui}\n}\n`);
   // (outputs read their size from the files, so take it before the move)
   const size = result.outputs.reduce((n, o) => n + o.size, 0);
+  // open tabs still ask for the chunks of the build they loaded
+  if (!clean) keepOldChunks(outdir, tmpdir);
   fs.rmSync(outdir, { recursive: true, force: true });
   try {
     fs.renameSync(tmpdir, outdir);

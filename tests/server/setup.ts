@@ -13,6 +13,8 @@ const home = path.join(dir, 'home');
 fs.mkdirSync(home, { recursive: true });
 process.env.HOME = home;
 process.env.USERPROFILE = home;
+// pi prefers this over the home folder: an inherited one would let pi's tests write your real mcp.json
+process.env.PI_CODING_AGENT_DIR = path.join(home, '.pi', 'agent');
 if (os.homedir() !== home) throw new Error(`Tests could not use a throwaway home folder (got ${os.homedir()}); stopping so your real files stay untouched.`);
 // and the dashboard really uses the throwaway data folder
 const { dataPath } = await import('../../server/util.ts');

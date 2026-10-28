@@ -37,6 +37,7 @@ const world = (over: Partial<VoxelWorld> = {}): VoxelWorld => ({
 
 let calls: { method: string; url: string; body?: unknown }[];
 let mdText: string;
+let mdWorld: string;
 let listing: WorldListing[];
 let el: HTMLElement;
 let view: { unmount: () => void } | null = null;
@@ -46,6 +47,7 @@ beforeEach(() => {
   el = document.getElementById('host')!;
   calls = [];
   mdText = '# Garden world\n\n## Theme and meaning\nA calm garden.';
+  mdWorld = 'w1';
   listing = [
     { id: 'w1', name: 'Garden world', homeProject: 'p1', built: true, objects: 2, voxels: 1200, usedBy: ['p1'], isDefault: false, updatedAt: Date.now() },
     { id: 'w2', name: 'Old city', homeProject: 'p2', built: true, objects: 9, voxels: 50000, usedBy: [], isDefault: true, updatedAt: Date.now() - 86_400_000 },
@@ -58,7 +60,7 @@ beforeEach(() => {
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (url === '/api/world') return json({ world: world(), how: 'own' });
     if (url === '/api/world/md' && method === 'PUT') return json({ worldId: 'w1', text: (mdText = (body as { text: string }).text), updatedAt: Date.now(), max: 50000 });
-    if (url === '/api/world/md') return json({ worldId: 'w1', text: mdText, updatedAt: Date.now() - 60_000, max: 50000 });
+    if (url === '/api/world/md') return json({ worldId: mdWorld, text: mdText, updatedAt: Date.now() - 60_000, max: 50000 });
     if (url === '/api/world/md/versions') return json([{ id: 'v1', at: Date.now() - 3_600_000, by: 'agent', chars: 30 }]);
     if (url === '/api/world/md/versions/v1/restore') return json({ worldId: 'w1', text: (mdText = '# Back'), updatedAt: Date.now(), max: 50000 });
     if (url === '/api/world/prefabs') return json([{ id: 'p1', name: 'Lamp post', description: 'an iron lamp', tags: [], by: mira, volumes: [], pivot: [0, 0, 0], size: [0.25, 2.25, 0.25], createdAt: 1, updatedAt: 1, uses: { in: ['"Lamps"'], copies: 12 } }]);
@@ -113,6 +115,25 @@ describe('the World panel', () => {
     await settle();
     expect(calls.find((c) => c.method === 'PUT' && c.url === '/api/world/md')!.body).toEqual({ text: '# Garden world\n\nNew text.' });
     expect(el.querySelector('textarea')).toBeNull();
+  });
+
+  it("never saves a draft over another world's WORLD.md", async () => {
+    await open();
+    await act(async () => button(el, 'Edit').click());
+    const area = el.querySelector('textarea')!;
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+      set.call(area, 'Garden notes.');
+      area.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    // another world is shown now (the project menu's picker)
+    mdWorld = 'w2';
+    await act(async () => button(el, 'Save').click());
+    await settle();
+    expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/world/md')).toBe(false);
+    expect(document.getElementById('toasts')!.textContent).toContain('for another world');
+    expect(el.querySelector('textarea')!.value).toBe('Garden notes.');
+    expect(button(el, 'Save').disabled).toBe(true);
   });
 
   it('lists earlier WORLD.md versions and brings one back', async () => {

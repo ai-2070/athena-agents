@@ -120,12 +120,21 @@ export function internalToken(): string {
 const PROJECTS_FILE = dataPath('projects.json');
 const DEFAULT_PROJECT = (): Project => ({ id: 'default', name: 'My workspace', brainPath: path.join(HOME, 'Documents', 'Blacksite', 'My workspace'), repo: '', createdAt: Date.now() });
 
+let madeDefault = false;
 export function listProjects(): Project[] {
   const list = readJSON<Project[]>(PROJECTS_FILE, null);
   if (Array.isArray(list) && list.length) return list;
   const first = [DEFAULT_PROJECT()];
   writeJSON(PROJECTS_FILE, first);
+  madeDefault = true;
   return first;
+}
+
+/** Was the default project just made (a fresh data folder)? Says so once: see projectsync's adoptSavedFolder. */
+export function takeNewDefaultProject(): Project | null {
+  if (!madeDefault) return null;
+  madeDefault = false;
+  return listProjects().find((p) => p.id === DEFAULT_PROJECT().id) ?? null;
 }
 
 export function saveProjects(list: Project[]) {

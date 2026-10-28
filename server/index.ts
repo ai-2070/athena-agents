@@ -1370,9 +1370,13 @@ server.listen(PORT, '127.0.0.1', () => {
   if (OPEN) void pageReady.then(() => openWithShell(url));
 });
 
+let stopping = false;
 const shutdown = () => {
+  if (stopping) return;
+  stopping = true;
   terms.closeAll();
-  process.exit(0);
+  // agents' CLIs are stopped too: they would go on writing into the project with no dashboard to see it
+  void engines.stopAllRuns().finally(() => process.exit(0));
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
