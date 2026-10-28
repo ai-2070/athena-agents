@@ -19,7 +19,7 @@ beforeEach(() => {
 
 describe('chat fonts', () => {
   it('the default keeps the stylesheet’s own font', () => {
-    applyLook({ chatFont: 'serif' });
+    applyLook({ chatFont: 'sans' });
     expect(fontVar()).toBe('');
   });
 
@@ -29,7 +29,7 @@ describe('chat fonts', () => {
     applyLook({ chatFont: 'mono' });
     expect(fontVar()).toContain('JetBrains Mono');
     // back to the default
-    applyLook({ chatFont: 'serif' });
+    applyLook({ chatFont: 'sans' });
     expect(fontVar()).toBe('');
   });
 
@@ -94,7 +94,7 @@ describe('Settings > Look', () => {
     await act(async () => root.render(<LookTab />));
     const choices = [...el.querySelectorAll<HTMLButtonElement>('.look-font')];
     expect(choices.map((c) => c.firstElementChild!.textContent)).toEqual(CHAT_FONTS.map((f) => f.label));
-    expect(choices.map((c) => c.getAttribute('aria-checked'))).toEqual(CHAT_FONTS.map((f) => String(f.id === 'serif')));
+    expect(choices.map((c) => c.getAttribute('aria-checked'))).toEqual(CHAT_FONTS.map((f) => String(f.id === 'sans')));
     const unquoted = (v: string) => v.replace(/["']/g, '');
     expect(choices.map((c) => unquoted((c.firstElementChild as HTMLElement).style.fontFamily))).toEqual(CHAT_FONTS.map((f) => unquoted(f.stack)));
     expect(el.querySelector('.look-sample')!.className).toContain('font-chat');

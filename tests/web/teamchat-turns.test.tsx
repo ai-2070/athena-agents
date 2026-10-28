@@ -164,6 +164,30 @@ describe('team chat turns', () => {
     expect(work.textContent).not.toContain('team brief');
   });
 
+  it('a long message folds with Show more; a short one does not', async () => {
+    // (happy-dom has no layout: the lead's reply is made to measure tall)
+    const tall = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.textContent?.includes('Plan:') ? 900 : 40;
+    });
+    try {
+      const el = document.createElement('div');
+      document.body.append(el);
+      open = renderTeamChat(el, 't1');
+      await settle();
+      const more = [...el.querySelectorAll<HTMLButtonElement>('.tc-more')];
+      expect(more).toHaveLength(1);
+      expect(more[0].closest('.tc-msg')!.textContent).toContain('Plan:');
+      expect(el.querySelectorAll('.tc-folded')).toHaveLength(1);
+      expect(more[0].textContent).toBe('Show more');
+      await act(async () => more[0].click());
+      expect(el.querySelector('.tc-folded')).toBeNull();
+      expect(more[0].textContent).toBe('Show less');
+      expect(more[0].getAttribute('aria-expanded')).toBe('true');
+    } finally {
+      tall.mockRestore();
+    }
+  });
+
   it('a state update that still lists a finished agent as working does not bring its turn back', async () => {
     const el = document.createElement('div');
     document.body.append(el);

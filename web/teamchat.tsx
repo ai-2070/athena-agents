@@ -5,7 +5,7 @@
 // focus, mention and destroy. The message box stays uncontrolled: the paste chips, the / menu and
 // mention() change its text directly, as typing does.
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, onReconnect, confirmBox, toast } from './core.ts';
 import { attachTray, COMPOSER_BTNS, COMPOSER_TEXT } from './attach.ts';
 import { pasteBox } from './pastes.ts';
@@ -265,6 +265,45 @@ function textWithMentions(text: string, names: readonly string[], teams: readonl
   return el;
 }
 
+/** How tall a message shows before it folds, and how much taller it must be to fold (a few lines more isn't worth a click). */
+const FOLD_AT = 360;
+const FOLD_SLACK = 120;
+/** A long message shows its start and a Show more button, so one reply doesn't fill the whole window. */
+function Fold({ children }: { children: ReactNode }) {
+  const inner = useRef<HTMLDivElement>(null);
+  const [long, setLong] = useState(false);
+  const [open, setOpen] = useState(false);
+  useLayoutEffect(() => {
+    const el = inner.current;
+    if (!el) return;
+    const check = () => setLong(el.scrollHeight > FOLD_AT + FOLD_SLACK);
+    check();
+    // pictures and previews load later and make it taller
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const folded = long && !open;
+  return (
+    <>
+      <div className={folded ? 'tc-folded max-h-[360px] overflow-hidden [mask-image:linear-gradient(to_bottom,#000_70%,transparent)]' : undefined}>
+        <div ref={inner}>{children}</div>
+      </div>
+      {long ? (
+        <button
+          className="tc-more mt-1 inline-flex items-center gap-1 font-mono text-[11px] leading-[normal] text-faint hover:text-accent"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          <Icon name="chevron-down" size={12} className={open ? 'rotate-180' : undefined} />
+          {open ? 'Show less' : 'Show more'}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
 /** "Show the work": the steps and tool calls behind a reply, loaded when opened. */
 function Work({ m }: { m: TeamMessage }) {
   const [opened, setOpened] = useState(false);
@@ -316,7 +355,11 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
         ) : null}
       </div>
       {parent ? <div className="text-[12px] text-faint mb-1 truncate">{`↪ ${senderName(parent, (id) => agentOf(id)?.name)}: ${String(parent.text).slice(0, 90)}`}</div> : null}
-      {m.text ? <DomNode className="dom-contents" make={() => textWithMentions(m.text, names ? names.split('\n') : [], teams ? teams.split('\n') : [])} deps={[m.text, names, teams]} /> : null}
+      {m.text ? (
+        <Fold>
+          <DomNode className="dom-contents" make={() => textWithMentions(m.text, names ? names.split('\n') : [], teams ? teams.split('\n') : [])} deps={[m.text, names, teams]} />
+        </Fold>
+      ) : null}
       <DomNode className="dom-contents" make={() => mentionPreviews(m.text, m.attachments, { compact: true, key: `team:${m.id}` })} deps={[m.id, m.text, JSON.stringify(m.attachments || [])]} />
       {m.turn && m.from !== 'user' && m.from !== 'system' ? <Work m={m} /> : null}
       {m.mentions?.length && m.from !== 'user' ? (

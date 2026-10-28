@@ -197,6 +197,11 @@ export function md(text: unknown): HTMLDivElement {
     a.target = '_blank';
     a.rel = 'noopener';
   }
+  // a short file name or code word stays on one line (browsers break after any hyphen: "mention-" / "text.tsx")
+  for (const el of div.querySelectorAll('a, code')) {
+    const t = el.textContent || '';
+    if (t.length <= 40 && !/\s/.test(t) && !el.closest('pre')) el.classList.add('whitespace-nowrap');
+  }
   return div;
 }
 

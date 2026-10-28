@@ -11,14 +11,14 @@ export interface ChatFont {
   stack: string;
 }
 export const CHAT_FONTS: ChatFont[] = [
-  { id: 'serif', label: 'Merriweather', like: 'A book-like serif (the default)', stack: "'Merriweather', Georgia, 'Times New Roman', serif" },
+  { id: 'sans', label: 'Archivo', like: 'The same font as the rest of the page (the default)', stack: "'Archivo', 'Segoe UI', system-ui, sans-serif" },
+  { id: 'serif', label: 'Merriweather', like: 'A book-like serif', stack: "'Merriweather', Georgia, 'Times New Roman', serif" },
   { id: 'mono', label: 'JetBrains Mono', like: 'Like Claude Code in a terminal', stack: "'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" },
   { id: 'system', label: 'System font', like: 'Like ChatGPT: your computer’s own font (Segoe UI on Windows, San Francisco on a Mac)', stack: "ui-sans-serif, -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif" },
   { id: 'google', label: 'Google Sans', like: 'Like Gemini and Google Search', stack: "'Google Sans', 'Segoe UI', system-ui, sans-serif" },
   { id: 'roboto', label: 'Roboto', like: 'Like Android', stack: "'Roboto', 'Segoe UI', system-ui, sans-serif" },
   // San Francisco can only be used on Apple devices; Inter is the closest free match
   { id: 'apple', label: 'San Francisco', like: 'Like iPhone and Mac (Inter, a close match, on Windows)', stack: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', sans-serif" },
-  { id: 'sans', label: 'Archivo', like: 'The same font as the rest of the page', stack: "'Archivo', 'Segoe UI', system-ui, sans-serif" },
 ];
 export const chatFont = (id: string | undefined): ChatFont => CHAT_FONTS.find((f) => f.id === id) || CHAT_FONTS[0];
 
