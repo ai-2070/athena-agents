@@ -2,7 +2,7 @@
 // and the Status / Limits switch.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, state } from '../../web/core.ts';
-import { navLimits, panelSwitch, resetLimitsCache, sidebarPanel, timeUntil } from '../../web/navlimits.ts';
+import { navLimits, panelSwitch, placeFixed, resetLimitsCache, sidebarPanel, timeUntil } from '../../web/navlimits.ts';
 import type { AppState, UsageLimits } from '../../shared/types.ts';
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
@@ -153,5 +153,34 @@ describe('sidebar usage limits', () => {
     expect(el.textContent).toContain('status list');
     expect(el.querySelector('.limit-row')).toBeNull();
     expect(requests.at(-1)).toMatchObject({ method: 'PUT', url: '/api/settings', body: { look: { sidebar: 'status' } } });
+  });
+});
+
+describe('placing the resets card beside the sidebar', () => {
+  afterEach(() => {
+    document.documentElement.style.zoom = '';
+  });
+  // browsers differ with a UI scale (zoom on <html>): rects in screen pixels with left/top in page pixels,
+  // or both in page pixels. Either way the card's corner lands where it was asked to.
+  for (const [name, toRect] of [
+    ['rects in screen pixels', (css: number) => css * 1.1],
+    ['rects in page pixels', (css: number) => css],
+  ] as const) {
+    it(`with a 110% UI scale, ${name}`, () => {
+      document.documentElement.style.zoom = '1.1';
+      const card = document.createElement('div');
+      document.body.append(card);
+      card.getBoundingClientRect = () => ({ left: toRect(parseFloat(card.style.left)), top: toRect(parseFloat(card.style.top)) }) as DOMRect;
+      placeFixed(card, 245, 400);
+      expect(card.getBoundingClientRect().left).toBeCloseTo(245);
+      expect(card.getBoundingClientRect().top).toBeCloseTo(400);
+    });
+  }
+
+  it('sits above the sidebar, which is z-80 on the Station', async () => {
+    draw();
+    await tick(10);
+    hoverCodex();
+    expect(document.querySelector('.codex-resets')!.className).toContain('z-[85]');
   });
 });

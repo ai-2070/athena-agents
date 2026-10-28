@@ -159,7 +159,8 @@ async function useReset(redraw: () => void): Promise<void> {
 let pop: HTMLElement | null = null;
 let anchor: HTMLElement | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
-const POP = 'codex-resets fixed z-[55] flex w-56 flex-col gap-0.5 rounded-box border border-line-2 bg-panel px-3 py-2.5 font-mono shadow-pop animate-[fade_0.15s_ease-out]';
+// (above the sidebar, which is z-80 on the Station)
+const POP = 'codex-resets fixed z-[85] flex w-56 flex-col gap-0.5 rounded-box border border-line-2 bg-panel px-3 py-2.5 font-mono shadow-pop animate-[fade_0.15s_ease-out]';
 
 const hasResets = () => !!(limits?.codex.ready && limits.codex.resets?.available);
 
@@ -191,12 +192,25 @@ function drawPop(redraw: () => void): void {
     next?.expiresAt ? h('span', { class: 'text-[11px] text-faint', title: `Runs out ${when(next.expiresAt)}` }, `Next expires in ${timeUntil(next.expiresAt)}`) : null,
     h('button', { class: 'btn ghost tiny mt-1.5 self-start', disabled: resetting, onclick: () => void useReset(redraw) }, resetting ? 'Resetting…' : 'Reset now'),
   );
-  // beside the sidebar, level with Codex, kept on screen (positions are in screen pixels, the page may be zoomed)
-  const z = uiZoom();
+  // beside the sidebar, level with Codex, kept on screen (the sidebar is as tall as the window)
   const a = anchor.getBoundingClientRect();
-  const side = anchor.closest('aside')?.getBoundingClientRect().right ?? a.right;
-  pop.style.left = `${(side + 8) / z}px`;
-  pop.style.top = `${Math.max(8, Math.min(a.top / z, window.innerHeight / z - pop.offsetHeight - 8))}px`;
+  const nav = anchor.closest('aside')?.getBoundingClientRect() ?? a;
+  const tall = pop.getBoundingClientRect().height;
+  placeFixed(pop, nav.right + 8, Math.max(nav.top + 8, Math.min(a.top, nav.bottom - tall - 8)));
+}
+
+// Puts a fixed element's top left corner at x, y as getBoundingClientRect measures. With the UI scale
+// (zoom on <html>) browsers differ in whether rects and left/top are in screen or page pixels, so this
+// places it once and measures how the two compare instead of assuming.
+export function placeFixed(el: HTMLElement, x: number, y: number): void {
+  const z = uiZoom();
+  el.style.left = `${x / z}px`;
+  el.style.top = `${y / z}px`;
+  const r = el.getBoundingClientRect();
+  const kx = x > 0 && r.left > 0 ? r.left / (x / z) : z;
+  const ky = y > 0 && r.top > 0 ? r.top / (y / z) : z;
+  if (Math.abs(r.left - x) > 0.5) el.style.left = `${x / kx}px`;
+  if (Math.abs(r.top - y) > 0.5) el.style.top = `${y / ky}px`;
 }
 
 function showPop(el: HTMLElement, redraw: () => void): void {
