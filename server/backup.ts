@@ -1,5 +1,5 @@
 // Backups: one file with everything in a project (agents, teams, routines, layout, chats, knowledge
-// files, MEMORY.md files, logo, PROJECT.md and notes, its voxel world, and the kept versions of its agents, teams and memories) plus every skill in
+// files, MEMORY.md files, logo and background, PROJECT.md and notes, its voxel world, and the kept versions of its agents, teams and memories) plus every skill in
 // the library with its versions, every saved preset and the prefab library. Written
 // to <home>/Blacksite Backups on Windows, macOS and Linux. Drop one into "New project > From
 // backup" to get it all back as a new project, here or on another PC. Keys and tokens are never in it.
@@ -11,7 +11,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { HOME, IS_WIN, dataPath, ensureDir, exists, insideRoots, isPlainDir, readJSON, readPlain, realTarget, slugify, writeJSON } from './util.ts';
 import { listProjects, emit, log } from './store.ts';
-import { createProject, projectsRoot, removeProject, setLogo, updateProject } from './projects.ts';
+import { createProject, projectsRoot, removeProject, setBackground, setLogo, updateProject } from './projects.ts';
 import { isSkillSlug, skillsLibrary, skillDir, skillVersionsDir, skillVersionItem } from './skills.ts';
 import { checkVersion, listVersions, pruneVersions, versionFilesDir, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
 import type { Version } from './versions.ts';
@@ -48,6 +48,7 @@ const MEMORY_PATH = /^([^/]+)\/MEMORY\.md$/;
 const BRAIN_FILES = ['PROJECT.md', 'BRAIN.md'];
 const BRAIN_DIRS = ['notes'];
 const LOGO_RE = /^logo\.(png|jpg|webp|gif)$/;
+const BACKGROUND_RE = /^background\.(png|jpg|webp|gif)$/;
 const ID_RE = /^[\w.-]+$/;
 const CHAT_ID_RE = /^[\w-]+$/;
 const PRESET_RE = /^p[at][\w-]+$/;
@@ -122,6 +123,8 @@ export interface BackupData {
   memory: PackedFile[];
   brain: PackedFile[];
   logo: PackedFile | null;
+  /** The picture behind the Station's map. Older backups: missing. */
+  background?: PackedFile | null;
   skills: { slug: string; files: PackedFile[] }[];
   /** Kept versions (see VERSION_FILE). Older backups: empty. */
   versions: PackedFile[];
@@ -170,6 +173,7 @@ export interface BackupRestoreResult {
   /** routines and teams that ran on a schedule: paused, so a copy doesn't run them twice */
   paused: number;
   logo: boolean;
+  background: boolean;
 }
 
 // ---------- packing ----------
@@ -316,18 +320,20 @@ export function packProject(p: Project): BackupData {
       /* not there */
     }
   }
-  let logo: PackedFile | null = null;
-  for (const ext of ['png', 'jpg', 'webp', 'gif']) {
-    const f = path.join(p.brainPath, '.dashboard', `logo.${ext}`);
-    try {
-      if (fs.lstatSync(f).isFile()) {
-        logo = { path: `logo.${ext}`, data: fs.readFileSync(f).toString('base64') };
-        break;
+  // the logo and the background (.dashboard/<name>.<ext>, plain files only)
+  const packImage = (name: string): PackedFile | null => {
+    for (const ext of ['png', 'jpg', 'webp', 'gif']) {
+      const f = path.join(p.brainPath, '.dashboard', `${name}.${ext}`);
+      try {
+        if (fs.lstatSync(f).isFile()) return { path: `${name}.${ext}`, data: fs.readFileSync(f).toString('base64') };
+      } catch {
+        /* none */
       }
-    } catch {
-      /* none */
     }
-  }
+    return null;
+  };
+  const logo = packImage('logo');
+  const background = packImage('background');
   const skillBudget = budget(CAP.skills);
   const skills: BackupData['skills'] = [];
   for (const e of fs.readdirSync(skillsLibrary(), { withFileTypes: true })) {
@@ -391,6 +397,7 @@ export function packProject(p: Project): BackupData {
     memory,
     brain,
     logo,
+    background,
     skills,
     versions,
     presets,
@@ -555,6 +562,7 @@ export function decodeBackup(buf: Buffer): BackupData {
     memory: files(b.memory).filter((f) => isMemoryOwner(MEMORY_PATH.exec(f.path)?.[1])),
     brain: files(b.brain),
     logo: b.logo && typeof b.logo.path === 'string' && LOGO_RE.test(b.logo.path) && typeof b.logo.data === 'string' ? b.logo : null,
+    background: b.background && typeof b.background.path === 'string' && BACKGROUND_RE.test(b.background.path) && typeof b.background.data === 'string' ? b.background : null,
     skills: arr<BackupData['skills'][number]>(b.skills)
       .filter((s) => s && isSkillSlug(s.slug))
       .map((s) => ({ slug: s.slug, files: files(s.files) }))
@@ -841,6 +849,15 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
       /* not a picture after all: no logo */
     }
   }
+  let background = false;
+  if (b.background) {
+    try {
+      setBackground(id, `data:image/png;base64,${b.background.data}`);
+      background = true;
+    } catch {
+      /* not a picture after all: no background */
+    }
+  }
 
   // saved presets: added when not there yet (their ids are unique, so the same id is the same preset)
   let presetsAdded = 0;
@@ -892,6 +909,7 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
       versions,
       paused,
       logo,
+      background,
     },
   };
 }

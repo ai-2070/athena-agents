@@ -4,7 +4,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { agents, chats, workflows, routines, setSecret, listProjects } from '../../server/store.ts';
-import { createProject, setLogo } from '../../server/projects.ts';
+import { createProject, setBackground, setLogo } from '../../server/projects.ts';
 import { newAgent } from '../../server/library.ts';
 import { saveSkill, getSkill, skillsLibrary } from '../../server/skills.ts';
 import { saveAgentPreset, listPresets, deletePreset } from '../../server/presets.ts';
@@ -30,6 +30,7 @@ describe('workspace backups', () => {
     fs.writeFileSync(path.join(p.brainPath, 'PROJECT.md'), '# Backed Up\n\nThe plan.');
     fs.writeFileSync(path.join(p.brainPath, 'notes', 'idea.md'), 'An idea');
     setLogo(p.id, `data:image/png;base64,${PNG}`);
+    setBackground(p.id, `data:image/png;base64,${PNG}`);
     const skill = saveSkill({ name: 'Voice Guide', description: 'How we write', body: 'Short sentences.' })!;
     fs.writeFileSync(path.join(skillsLibrary(), skill.slug, 'examples.md'), 'Example one');
     const a = newAgent({ name: 'Writer', skills: [skill.slug], workspace: path.join(p.brainPath, 'drafts') });
@@ -57,6 +58,7 @@ describe('workspace backups', () => {
     expect(data.knowledge.map((f) => f.path)).toEqual([`${a.id}/brand.md`]);
     expect(data.brain.map((f) => f.path).sort()).toEqual(['BRAIN.md', 'PROJECT.md', 'notes/idea.md']);
     expect(data.logo?.path).toBe('logo.png');
+    expect(data.background?.path).toBe('background.png');
     expect(data.skills.find((s) => s.slug === skill.slug)?.files.map((f) => f.path).sort()).toEqual(['SKILL.md', 'examples.md']);
     expect(data.presets.some((x) => x.name === 'Editor preset')).toBe(true);
     expect(zlib.gunzipSync(bytes.subarray(bytes.indexOf(0x0a, bytes.indexOf(0x0a) + 1) + 1)).toString()).not.toContain('sentinel-not-in-backups');
@@ -65,7 +67,7 @@ describe('workspace backups', () => {
     expect(listed?.summary).toMatchObject({ name: 'Backed Up', agents: 2 });
   });
 
-  it('restores a backup as a new project in a new folder, with agents, teams, routines, chats, knowledge, notes and logo', async () => {
+  it('restores a backup as a new project in a new folder, with agents, teams, routines, chats, knowledge, notes, logo and background', async () => {
     const src = listProjects().find((p) => p.name === 'Backed Up')!;
     const file = backup.listBackups().find((x) => x.summary?.name === 'Backed Up')!;
     const { project, restored } = await backup.restoreBackup(backup.readBackupFile(file.name), {});
@@ -74,7 +76,7 @@ describe('workspace backups', () => {
     expect(project.brainPath).not.toBe(src.brainPath);
     expect(project.name).toBe('Backed Up');
     expect(project.description).toBe('Launch work');
-    expect(restored).toMatchObject({ agents: 2, teams: 1, routines: 1, chats: 1, knowledgeFiles: 1, logo: true });
+    expect(restored).toMatchObject({ agents: 2, teams: 1, routines: 1, chats: 1, knowledgeFiles: 1, logo: true, background: true });
     expect(restored.skills.added).toBe(0); // same skills already in the library
     // it is open now, and has what the original had
     const list = agents.list();
@@ -86,6 +88,7 @@ describe('workspace backups', () => {
     expect(fs.readFileSync(path.join(project.brainPath, 'PROJECT.md'), 'utf8')).toContain('The plan.');
     expect(fs.readFileSync(path.join(project.brainPath, 'notes', 'idea.md'), 'utf8')).toBe('An idea');
     expect(fs.existsSync(path.join(project.brainPath, '.dashboard', 'logo.png'))).toBe(true);
+    expect(fs.existsSync(path.join(project.brainPath, '.dashboard', 'background.png'))).toBe(true);
     // schedules are paused so the copy doesn't run them twice
     expect(restored.paused).toBe(2);
     expect(workflows.list()[0].enabled).toBe(false);

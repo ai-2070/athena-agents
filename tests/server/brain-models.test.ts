@@ -312,3 +312,34 @@ describe('the Station look', () => {
     expect(applyActions([{ do: 'station_look', look: 'purple' }]).done[0]).toMatchObject({ kind: 'error' });
   });
 });
+
+describe('the Station background', () => {
+  it('the Brain sets a picture from the project folder when you ask, takes it away, and never from a review', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const { activeProject } = await import('../../server/store.ts');
+    const { backgroundFile } = await import('../../server/projects.ts');
+    const p = activeProject();
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+    fs.mkdirSync(path.join(p.brainPath, 'art'), { recursive: true });
+    fs.writeFileSync(path.join(p.brainPath, 'art', 'sky.png'), png);
+    expect(await snapshot()).toMatch(/Station background: none/);
+
+    expect(applyActions([{ do: 'background', image: 'art/sky.png' }], undefined, { auto: true }).done[0]).toMatchObject({ kind: 'error' });
+    expect(backgroundFile(p)).toBeNull();
+    expect(applyActions([{ do: 'background', image: 'art/sky.png' }]).done).toEqual([{ kind: 'note', text: 'Set sky.png as the Station background' }]);
+    expect(backgroundFile(p)).not.toBeNull();
+    expect(await snapshot()).toMatch(/Station background: a picture/);
+
+    // not a file from elsewhere on the PC
+    const outside = path.join(os.homedir(), 'elsewhere.png');
+    fs.writeFileSync(outside, png);
+    expect(applyActions([{ do: 'background', image: outside }]).done[0]).toMatchObject({ kind: 'error' });
+    expect(applyActions([{ do: 'background', image: '../elsewhere.png' }]).done[0]).toMatchObject({ kind: 'error' });
+    expect(applyActions([{ do: 'background' }]).done[0]).toMatchObject({ kind: 'error' });
+
+    expect(applyActions([{ do: 'background', clear: true }]).done).toEqual([{ kind: 'note', text: 'Took the Station background away' }]);
+    expect(backgroundFile(p)).toBeNull();
+  });
+});

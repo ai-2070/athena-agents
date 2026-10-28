@@ -189,6 +189,24 @@ del('/api/projects/:id/logo', async ({ id }) => {
   store.emit('project-logo', { id });
   return p;
 });
+// The picture behind the Station's map (classic and voxel look).
+get('/api/projects/:id/background', async ({ id }, _b, _q, res) => {
+  const p = need(store.listProjects().find((x) => x.id === id));
+  const f = projects.backgroundFile(p);
+  if (!f) throw new HttpError(404, 'No background');
+  sendFileSafely(res, f);
+  return undefined;
+});
+post<{ data?: unknown }>('/api/projects/:id/background', async ({ id }, body) => {
+  const p = projects.setBackground(id, body.data);
+  store.emit('project-logo', { id });
+  return p;
+});
+del('/api/projects/:id/background', async ({ id }) => {
+  const p = projects.removeBackground(id);
+  store.emit('project-logo', { id });
+  return p;
+});
 // The 3D model that replaces the logo inside the Brain's globe.
 get('/api/projects/:id/model', async ({ id }, _b, _q, res) => {
   const p = need(store.listProjects().find((x) => x.id === id));
