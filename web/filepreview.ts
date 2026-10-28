@@ -15,6 +15,8 @@ export type FileInfo = { path: string; ok: false } | { path: string; ok: true; k
 const isWindows = (): boolean => /win/i.test((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || navigator.platform || '');
 /** What the button says on this computer. */
 export const revealLabel = (): string => (isWindows() ? 'Show in Explorer' : isMac() ? 'Show in Finder' : 'Show in folder');
+/** What this computer's file manager is called ("Open notes in Finder"). */
+export const fileManager = (): string => (isWindows() ? 'Explorer' : isMac() ? 'Finder' : 'the file manager');
 
 // ---------- looking files up: one request for everything asked for in the same moment ----------
 const known = new Map<string, { at: number; info: Promise<FileInfo> }>();

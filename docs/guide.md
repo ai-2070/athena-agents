@@ -73,6 +73,8 @@ Use the paperclip, drop files and folders, or paste them (**Ctrl+V**, **⌘V** o
 
 Click an attached picture, Markdown file or PDF to look at it, before or after sending: pictures open big, Markdown opens to read, and a PDF opens in a new browser tab (once it has uploaded). A big picture fits the window; zoom with a click (click again to zoom back out), a pinch, **Ctrl** or **⌘** + scroll, the **−** / **+** buttons or the **+**, **−** and **0** keys, and drag to move around.
 
+Clicking the Brain on the Station shows what is in its folder. Pictures, Markdown files and PDFs there open the same way, so does **from PROJECT.md** under the description, and a folder opens in Finder or Explorer.
+
 ## Skills: instructions worth keeping
 
 Skills use Claude Code's `SKILL.md` format. Assign them to an agent, a team, the whole project or the Brain.

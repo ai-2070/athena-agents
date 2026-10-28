@@ -199,6 +199,17 @@ export function addNote(name: unknown, content: unknown, p: Project = activeProj
   return file;
 }
 
+/** A folder inside the Brain to open in Finder / Explorer: the Brain itself when none is given. Only a real
+ *  folder there (opening a file would run it, and a link may point out of the Brain). */
+export function brainFolder(sub: unknown, p: Project = activeProject()): string {
+  const root = ensureBrain(p);
+  if (sub == null || sub === '') return root;
+  const target = path.resolve(root, String(sub));
+  const real = insideRoots(target, [root]);
+  if (!real || !isPlainDir(real)) throw Object.assign(new Error('That folder isn’t in the Brain folder.'), { status: 403 });
+  return real;
+}
+
 export async function gitPull(p: Project = activeProject()): Promise<string> {
   const r = await run('git', ['-C', p.brainPath, 'pull', '--ff-only'], { timeout: 5 * 60_000 });
   if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().slice(-500));

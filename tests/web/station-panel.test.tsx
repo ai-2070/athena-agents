@@ -16,6 +16,7 @@ let picked: MapPick | null;
 let teams: TeamView[];
 let saved: TeamView[];
 let chosen: (MapPick | null)[];
+let posts: { url: string; body: unknown }[];
 let view: { update: () => void; unmount: () => void } | null = null;
 let el: HTMLElement;
 
@@ -66,9 +67,24 @@ beforeEach(() => {
     accounts: { reddit: [], x: [{ id: 'x1' }], telegram: { configured: false }, discord: { configured: false } },
     secrets: { openrouterKey: { set: true } },
   } as unknown as AppState;
-  vi.stubGlobal('fetch', async (url: string) => {
+  posts = [];
+  vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
-    if (url === '/api/brain') return json({ project: {}, entries: [{ name: 'PROJECT.md', dir: false, path: 'PROJECT.md' }, { name: 'notes', dir: true, path: 'notes' }], files: 2, sizeMB: 0.1, git: null, summary: { text: 'A product launch.', from: 'PROJECT.md' } });
+    if (init?.method === 'POST') posts.push({ url, body: JSON.parse(String(init.body || '{}')) });
+    if (url === '/api/brain')
+      return json({
+        project: {},
+        entries: [
+          { name: 'notes', dir: true, path: 'C:/Brain/notes' },
+          { name: '.DS_Store', dir: false, path: 'C:/Brain/.DS_Store' },
+          { name: 'PROJECT.md', dir: false, path: 'C:/Brain/PROJECT.md' },
+        ],
+        files: 2,
+        sizeMB: 0.1,
+        git: null,
+        summary: { text: 'A product launch.', from: 'PROJECT.md' },
+      });
+    if (url.startsWith('/api/file?')) return new Response('# Launch plan\n\nShip it.');
     return json([]);
   });
 });
@@ -146,7 +162,21 @@ describe('the Station panel', () => {
     for (let i = 0; i < 20 && !el.querySelector('.st-file'); i++) await settle();
     expect(el.querySelector('.st-panel-title')!.textContent).toBe('Launch');
     expect(el.querySelector('.st-about-text')!.textContent).toBe('A product launch.');
-    expect([...el.querySelectorAll('.st-file')].map((f) => f.textContent!.trim())).toEqual(['PROJECT.md', 'notes']);
+    expect([...el.querySelectorAll('.st-file')].map((f) => f.textContent!.trim())).toEqual(['notes', '.DS_Store', 'PROJECT.md']);
+    // a folder opens in Finder / Explorer, a Markdown file opens to read, anything else is just a name
+    expect([...el.querySelectorAll('.st-file')].map((f) => f.tagName)).toEqual(['BUTTON', 'DIV', 'BUTTON']);
+    await act(async () => el.querySelector<HTMLButtonElement>('button.st-file')!.click());
+    await settle();
+    expect(posts.at(-1)).toEqual({ url: '/api/brain/open', body: { path: 'C:/Brain/notes' } });
+    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('button.st-file')].at(-1)!.click());
+    await settle();
+    expect(document.querySelector('.modal-head h2')!.textContent).toBe('PROJECT.md');
+    expect(document.querySelector('.modal-body .md')!.textContent).toContain('Launch plan');
+    // so does the file the description comes from
+    document.querySelector('#modal-root')!.innerHTML = '';
+    await act(async () => el.querySelector<HTMLButtonElement>('button.st-about-from')!.click());
+    await settle();
+    expect(document.querySelector('.modal-head h2')!.textContent).toBe('PROJECT.md');
     expect([...el.querySelectorAll('.list .title')].map((t) => t.textContent)).toEqual(['Thumbs', 'Posts']);
     await act(async () => el.querySelector<HTMLElement>('.list .list-row')!.click());
     expect(chosen.at(-1)).toEqual({ type: 'branch', id: 't1' });
