@@ -21,6 +21,7 @@ import * as openclawEngine from './engines/openclaw.ts';
 import { clearWhichCache, which } from './util.ts';
 import { aboutInfo } from './about.ts';
 import * as tools from './tools.ts';
+import { inlineToolImages } from './toolimages.ts';
 import * as programs from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as mcp from './mcp.ts';
@@ -1074,7 +1075,9 @@ post<{ agent?: string; run?: string; name: string; args?: Record<string, unknown
     const agent = bridgeAgent(run, body.agent);
     const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
     if (body.name === 'permission_prompt') return { text: JSON.stringify(await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId)) };
-    return tools.callTool(agent, body.name, body.args || {}, ctx);
+    const r = await tools.callTool(agent, body.name, body.args || {}, ctx);
+    // MCP takes pictures as data only: ComfyUI's result links are read here, so the agent sees them too
+    return r.images?.length ? { ...r, images: await inlineToolImages(r.images) } : r;
   });
 });
 

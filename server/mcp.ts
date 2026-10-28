@@ -966,10 +966,12 @@ function resolveCommand(command: string, args: string[]): { command: string; arg
 // ---------- live connections ----------
 const clients = new Map<string, Promise<Client>>();
 
-async function connect(name: string): Promise<Client> {
-  if (clients.has(name)) return clients.get(name)!;
+// test: the Test button may start a server that is turned off; agents may not
+async function connect(name: string, { test = false } = {}): Promise<Client> {
   const cfg = name === 'dashboard' ? null : listServers()[name];
   if (!cfg) throw new Error(`No MCP server named "${name}".`);
+  if (cfg.enabled === false && !test) throw new Error(`The MCP server "${name}" is turned off.`);
+  if (clients.has(name)) return clients.get(name)!;
   const job = (async () => {
     const client = new Client({ name: 'blacksite', version: '0.1.0' });
     if (cfg.type === 'stdio') {
@@ -1015,16 +1017,27 @@ export async function disconnect(name: string) {
   }
 }
 
-export async function listTools(name: string): Promise<McpTool[]> {
-  const client = await connect(name);
+export async function listTools(name: string, { test = false } = {}): Promise<McpTool[]> {
+  const client = await connect(name, { test });
   const r = await withTimeout(client.listTools(), 60000, `${name} took too long to list its tools`);
   return r.tools || [];
 }
 
-export async function callTool(server: string, tool: string, args?: Record<string, unknown> | null): Promise<McpToolResult> {
-  const client = await connect(server);
+/** Whether a server is there and switched on (agents only get those). */
+export const isEnabled = (name: string, servers: McpServers = listServers()): boolean => !!servers[name] && servers[name].enabled !== false;
+
+/** How risky calling an MCP tool is: only one that says it just reads (readOnlyHint) skips the question on Auto. */
+export const mcpToolRisk = (tool: Pick<McpTool, 'annotations'>): 'low' | 'high' => (tool.annotations?.readOnlyHint === true ? 'low' : 'high');
+
+// Stop (signal) cancels the call: while the server is still starting, and the request itself.
+export async function callTool(server: string, tool: string, args?: Record<string, unknown> | null, { signal }: { signal?: AbortSignal } = {}): Promise<McpToolResult> {
+  const stopped = () => new Error('Stopped before the tool ran.');
+  if (signal?.aborted) throw stopped();
+  const client = await untilStopped(connect(server), signal, stopped);
+  // (stopped while it connected: the call is never sent)
+  if (signal?.aborted) throw stopped();
   // The SDK's return type also covers the old { toolResult } shape; servers today send CallToolResult.
-  const r = (await withTimeout(client.callTool({ name: tool, arguments: args || {} }, undefined, { timeout: 10 * 60_000, resetTimeoutOnProgress: true }), 10 * 60_000, `${server}.${tool} took over 10 minutes`)) as CallToolResult;
+  const r = (await withTimeout(client.callTool({ name: tool, arguments: args || {} }, undefined, { timeout: 10 * 60_000, resetTimeoutOnProgress: true, ...(signal ? { signal } : {}) }), 10 * 60_000, `${server}.${tool} took over 10 minutes`)) as CallToolResult;
   const texts: string[] = [];
   const images: string[] = [];
   for (const c of r.content || []) {
@@ -1040,12 +1053,25 @@ export async function callTool(server: string, tool: string, args?: Record<strin
   return { text: (r.isError ? 'ERROR: ' : '') + texts.join('\n'), images };
 }
 
+/** p, or fail as soon as the signal stops (p itself goes on: a server that is starting stays for next time). */
+function untilStopped<T>(p: Promise<T>, signal: AbortSignal | undefined, err: () => Error): Promise<T> {
+  if (!signal) return p;
+  return new Promise<T>((resolve, reject) => {
+    const onStop = () => reject(err());
+    signal.addEventListener('abort', onStop, { once: true });
+    p.then(
+      (v) => (signal.removeEventListener('abort', onStop), resolve(v)),
+      (e: unknown) => (signal.removeEventListener('abort', onStop), reject(e)),
+    );
+  });
+}
+
 function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
   return Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
 }
 
 export async function testServer(name: string): Promise<{ name: string; description: string }[]> {
-  const tools = await listTools(name);
+  const tools = await listTools(name, { test: true });
   return tools.map((t) => ({ name: t.name, description: (t.description || '').slice(0, 300) }));
 }
 

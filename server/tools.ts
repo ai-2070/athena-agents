@@ -1068,6 +1068,8 @@ export async function gate(agent: ToolAgent, name: string, risk: Risk, args: Too
   });
   if (!d.approved) return { text: `The user said no${d.message ? `: ${d.message}` : ''}. Don't retry the same thing; ask what they want instead.`, isError: true, denied: true };
   if (d.always && agent.id && !agent.id.startsWith('_')) {
+    // the run asking keeps going with this same agent: the yes counts for the rest of it too
+    agent.alwaysAllow = [...new Set([...(agent.alwaysAllow || []), name])];
     const fresh = agentStore.get(agent.id);
     if (fresh) {
       fresh.alwaysAllow = [...new Set([...(fresh.alwaysAllow || []), name])];

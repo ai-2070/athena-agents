@@ -672,7 +672,7 @@ export async function launchProgram(nameOrId: unknown, { file = null, args = [] 
   const extra: string[] = [...(file ? [file] : []), ...(Array.isArray(args) ? (args as string[]) : [])];
   const target = launchTarget(key, extra.length > 0);
   if (!target) throw new Error(`Couldn't find a program called "${key}". Use list_programs to see what's installed.`);
-  if (target.exe) {
+  if (target.exe !== undefined) {
     launchDetached(target.exe, extra);
     if (target.onPath) return `Started ${target.name}.`;
     checkSoon();

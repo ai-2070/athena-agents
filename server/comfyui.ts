@@ -337,6 +337,21 @@ export async function proxyView(query: Record<string, string>, res: ServerRespon
   res.end(Buffer.from(await r.arrayBuffer()));
 }
 
+/** A result picture's bytes (a /api/comfyui/view link's filename, subfolder and type), for a model to see.
+ *  Only PNG, JPEG, WebP or GIF up to max bytes; else null. */
+export async function viewImage(link: string, max: number): Promise<{ mime: string; bytes: Buffer } | null> {
+  const m = /^\/api\/comfyui\/view\?(.*)$/s.exec(link);
+  if (!m) return null;
+  const q = new URLSearchParams(m[1]);
+  const url = await comfyUrl();
+  if (!url || !q.get('filename')) return null;
+  const r = await fetch(`${url}/view?${new URLSearchParams({ filename: q.get('filename') || '', subfolder: q.get('subfolder') || '', type: q.get('type') || 'output' })}`, { signal: AbortSignal.timeout(30000) });
+  const mime = (r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  if (!r.ok || !/^image\/(png|jpeg|webp|gif)$/.test(mime) || Number(r.headers.get('content-length') || 0) > max) return null;
+  const bytes = Buffer.from(await r.arrayBuffer());
+  return bytes.length && bytes.length <= max ? { mime, bytes } : null;
+}
+
 export async function startComfy(): Promise<string> {
   return launchProgram('comfyui');
 }

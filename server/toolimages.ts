@@ -38,6 +38,30 @@ export function splitContent(content: unknown): { text: string; images: string[]
   return { text: texts.join('\n'), images };
 }
 
+/** A tool result's images as data: URIs, for a model or an MCP client to see: the data: ones as they are,
+ *  and the dashboard's ComfyUI result links read from ComfyUI. A few, each at most 5 MB; others left out. */
+export async function inlineToolImages(images: readonly string[] | undefined, max = 6): Promise<string[]> {
+  const out: string[] = [];
+  const limit = 5 * 1024 * 1024;
+  for (const src of images || []) {
+    if (out.length >= max) break;
+    const m = /^data:([\w/+.-]+);base64,(.*)$/s.exec(src);
+    if (m) {
+      if (EXT[m[1].toLowerCase()] && m[2].length <= (limit * 4) / 3 + 4) out.push(src);
+      continue;
+    }
+    if (!src.startsWith('/api/comfyui/view?')) continue;
+    try {
+      const { viewImage } = await import('./comfyui.ts');
+      const img = await viewImage(src, limit);
+      if (img) out.push(`data:${img.mime};base64,${img.bytes.toString('base64')}`);
+    } catch {
+      /* ComfyUI went away: the picture stays a link in the chat */
+    }
+  }
+  return out;
+}
+
 /** Saves the data: images of a tool result next to the chat and gives their links instead (any other
  *  link stays as it is). Too big, not an image, or unsaveable: left out. */
 export function keepToolImages(agentId: string, chatId: string, images: readonly string[] | undefined): string[] {
