@@ -1,4 +1,5 @@
 // Settings > Look: UI scale, accent colour, animations, chat font, Station quality. Changes apply right away and are saved a moment later.
+// The Station's background picture belongs to the open project (saved in its folder, not in the settings).
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Radio } from '@base-ui/react/radio';
@@ -7,7 +8,8 @@ import { Slider } from '@base-ui/react/slider';
 import { PUT, attempt, state } from '../core.ts';
 import { ACCENTS, CHAT_FONTS, DEFAULT_LOOK, STATION_QUALITY, applyLook, stationLevel } from '../look.ts';
 import { Segmented } from '../ui/controls.tsx';
-import { reactPage } from '../ui/react.tsx';
+import { Icon, reactPage, useAppState } from '../ui/react.tsx';
+import { backgroundUrl, pickBackground, removeBackground } from '../projectlogo.ts';
 import type { LookSetting } from '../../shared/types.ts';
 
 const SCALES = [80, 90, 100, 110, 125, 150];
@@ -16,6 +18,32 @@ const SAVE_AFTER = 350;
 const SWATCH = 'flex cursor-pointer items-center gap-2.25 rounded-box border border-line bg-none px-3 py-2.5 text-ink transition-[border-color,background] duration-150 ease-[ease] hover:border-(--sw) [&.on]:border-(--sw) [&.on]:bg-[color-mix(in_srgb,var(--sw)_12%,transparent)]';
 // a chat font to pick: its name in that font, and whose look it matches
 const FONT = 'look-font flex cursor-pointer flex-col items-start gap-0.5 rounded-box border border-line bg-none px-3 py-2.5 text-left text-ink transition-[border-color,background] duration-150 ease-[ease] hover:border-line-2 [&.on]:border-accent [&.on]:bg-accent/8';
+
+// The open project's picture behind the map: a small preview, and buttons to change or remove it.
+function StationBackground() {
+  const proj = useAppState()?.project;
+  if (!proj?.id) return null;
+  const url = backgroundUrl(proj);
+  const ref = { id: proj.id, name: proj.name };
+  return (
+    <div className="field mt-3.5">
+      <span>Background</span>
+      <div className="flex flex-wrap items-center gap-2.5">
+        {url ? <img className="look-background h-16 w-28 flex-none rounded-ctl border border-line object-cover" src={url} alt="" /> : null}
+        <button type="button" className="btn ghost small" onClick={() => void pickBackground(ref)}>
+          <Icon name="image" size={13} />
+          {url ? 'Change picture' : 'Add a picture'}
+        </button>
+        {url ? (
+          <button type="button" className="btn ghost small" onClick={() => void removeBackground(ref)}>
+            Remove
+          </button>
+        ) : null}
+      </div>
+      <p className="hint mt-1.5">{`A picture behind the map, for ${proj.name} only. Dimmed in the classic look; in the voxel world it takes the sky's place. You can also ask the Brain to set one.`}</p>
+    </div>
+  );
+}
 
 export function LookTab() {
   const [look, setLook] = useState<LookSetting>(() => ({ ...DEFAULT_LOOK, ...(state.data?.settings?.look || {}) }));
@@ -154,6 +182,7 @@ export function LookTab() {
               <p className="hint mt-1.5">Low has no shadows or glow, for older computers. High adds softer creases and smoother edges.</p>
             </div>
           ) : null}
+          <StationBackground />
         </div>
       </div>
       <div className="flex flex-col gap-2.5">

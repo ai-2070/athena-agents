@@ -119,4 +119,26 @@ describe('Settings > Look', () => {
     await act(async () => vi.advanceTimersByTime(400));
     expect(puts).toEqual([{ look: { ...DEFAULT_LOOK, station: 'saver' } }]);
   });
+
+  it("shows the open project's background picture, and removes it", async () => {
+    state.data = { settings: { look: { ...DEFAULT_LOOK } }, project: { id: 'p1', name: 'Launch', brainPath: '', repo: '', createdAt: 0, backgroundAt: 42 } } as unknown as AppState;
+    await act(async () => root.render(<LookTab />));
+    const img = el.querySelector<HTMLImageElement>('.look-background')!;
+    expect(img.getAttribute('src')).toContain('/projects/p1/background');
+    expect(el.textContent).toContain('for Launch only');
+    const buttons = [...el.querySelectorAll<HTMLButtonElement>('button')];
+    expect(buttons.some((b) => b.textContent?.includes('Change picture'))).toBe(true);
+    await act(async () => buttons.find((b) => b.textContent === 'Remove')!.click());
+    const calls = (fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls;
+    expect(calls.some(([url, init]) => String(url).includes('/projects/p1/background') && init?.method === 'DELETE')).toBe(true);
+  });
+
+  it('offers to add one when the project has none', async () => {
+    state.data = { settings: { look: { ...DEFAULT_LOOK } }, project: { id: 'p1', name: 'Launch', brainPath: '', repo: '', createdAt: 0, backgroundAt: null } } as unknown as AppState;
+    await act(async () => root.render(<LookTab />));
+    expect(el.querySelector('.look-background')).toBeNull();
+    const buttons = [...el.querySelectorAll<HTMLButtonElement>('button')].map((b) => b.textContent || '');
+    expect(buttons.some((t) => t.includes('Add a picture'))).toBe(true);
+    expect(buttons).not.toContain('Remove');
+  });
 });
