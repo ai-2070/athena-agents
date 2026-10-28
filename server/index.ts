@@ -325,8 +325,9 @@ put<Body | null>('/api/layout', async (_p, body) => {
 });
 post<{ name?: unknown; content?: unknown }>('/api/brain/note', async (_p, body) => ({ file: projects.addNote(body.name, body.content) }));
 post('/api/brain/pull', async () => ({ message: await projects.gitPull() }));
-post<{ app?: string }>('/api/brain/open', async (_p, body) => {
-  const dir = projects.ensureBrain();
+// path: a folder inside the Brain (a row in the Brain panel), or the Brain folder itself
+post<{ app?: string; path?: unknown }>('/api/brain/open', async (_p, body) => {
+  const dir = projects.brainFolder(body.path);
   if (body.app === 'vscode') {
     const msg = await programs.launchProgram('vscode', { file: dir });
     return { message: msg };

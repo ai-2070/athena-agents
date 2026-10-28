@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { addNote, backgroundFile, createProject, logoFile, modelFile, projectSummary, removeBackground, removeLogo, removeModel, setBackground, setBackgroundFromFile, setLogo, updateProject, withLogo } from '../../server/projects.ts';
+import { addNote, backgroundFile, brainFolder, createProject, logoFile, modelFile, projectSummary, removeBackground, removeLogo, removeModel, setBackground, setBackgroundFromFile, setLogo, updateProject, withLogo } from '../../server/projects.ts';
 
 // a real 1×1 PNG
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -111,6 +111,22 @@ describe('links in the project folder', () => {
     removeLogo(p.id);
     removeModel(p.id);
     expect(fs.readdirSync(outside).sort()).toEqual(['brain-model.glb', 'logo.png']);
+  });
+
+  it('opens only real folders inside the Brain in Finder / Explorer', async () => {
+    const p = await createProject({ name: 'Open folder', mode: 'new', folder: folder('open-folder') });
+    fs.mkdirSync(path.join(p.brainPath, 'notes'), { recursive: true });
+    const real = (x: string) => fs.realpathSync(x);
+    expect(brainFolder(undefined, p)).toBe(p.brainPath);
+    expect(real(brainFolder(path.join(p.brainPath, 'notes'), p))).toBe(real(path.join(p.brainPath, 'notes')));
+    expect(real(brainFolder('notes', p))).toBe(real(path.join(p.brainPath, 'notes')));
+    // a file would be run, a folder outside or a link out of the Brain isn't the Brain's
+    expect(() => brainFolder(path.join(p.brainPath, 'BRAIN.md'), p)).toThrow(/Brain folder/);
+    expect(() => brainFolder(os.homedir(), p)).toThrow(/Brain folder/);
+    expect(() => brainFolder('../', p)).toThrow(/Brain folder/);
+    const outside = fs.mkdtempSync(path.join(os.homedir(), 'outside-open-'));
+    fs.symlinkSync(outside, path.join(p.brainPath, 'elsewhere'), 'junction');
+    expect(() => brainFolder(path.join(p.brainPath, 'elsewhere'), p)).toThrow(/Brain folder/);
   });
 
   it("doesn't write a note through a notes link", async () => {

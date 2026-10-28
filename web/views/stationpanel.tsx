@@ -19,6 +19,7 @@ import { Avatar, DomNode, Icon, useAppState } from '../ui/react.tsx';
 import { ChipSet, Segmented, Tabs } from '../ui/controls.tsx';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { WorldPanel } from './worldpanel.tsx';
+import { fileManager, previewFile, previewKind } from '../filepreview.ts';
 import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, connectorLook } from './stationdata.ts';
 import type { AvailableIntegration, Connector, MapPick, Program, TeamView } from './stationdata.ts';
 import type { Agent, AppState, Project, Team, TeamAccess, TeamState } from '../../shared/types.ts';
@@ -101,6 +102,10 @@ const BODY = 'min-h-0 flex-1 overflow-y-auto px-4 pt-3.5 pb-4.5';
 const CONN =
   'st-conn flex w-full cursor-pointer items-center gap-2.5 rounded-box border border-line bg-bg px-2 py-1.5 text-left text-[13px] text-ink [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] hover:border-line-2';
 const CONNS = 'mt-2 flex flex-col gap-1';
+// a file or folder in the Brain list (st-file stays as a mark the tests look for); one that opens is a button that lights up
+const FILE = 'st-file flex min-w-0 items-center gap-1.5 overflow-hidden py-0.5 text-left text-[12.5px] text-ellipsis whitespace-nowrap text-dim';
+const FILE_OPENS = `${FILE} group cursor-pointer rounded-[4px] border-0 bg-transparent px-0 [transition:color_0.18s_cubic-bezier(0.37,0,0.63,1),translate_0.18s_cubic-bezier(0.37,0,0.63,1)] hover:translate-x-1 hover:text-accent focus-visible:text-accent`;
+const FILE_ICON = 'flex-none text-faint transition-colors duration-180 ease-[cubic-bezier(0.37,0,0.63,1)] group-hover:text-accent group-focus-visible:text-accent';
 // the Brain's three numbers
 const STAT = 'flex flex-col gap-0.75 rounded-box border border-line p-2 font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.1em] text-dim uppercase';
 const STAT_N = 'font-sans text-[20px] leading-[normal] font-bold tracking-normal text-ink';
@@ -271,7 +276,11 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
         </div>
       </PanelHead>
       <div className={BODY}>
-        <About proj={proj} summary={proj.description ? { text: proj.description, from: 'description' } : info?.summary?.text ? info.summary : null} />
+        <About
+          proj={proj}
+          summary={proj.description ? { text: proj.description, from: 'description' } : info?.summary?.text ? info.summary : null}
+          fromPath={info?.entries.find((e) => !e.dir && e.name === info.summary?.from)?.path}
+        />
         <div className="grid grid-cols-[repeat(3,1fr)] gap-1.5">
           <div className={STAT}>
             <b className={STAT_N}>{d.agents.length}</b>agents
@@ -333,10 +342,7 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
               <div className="hint mt-3.5">{`${info.files} files · ${info.sizeMB} MB`}</div>
               <div className="mt-2 grid grid-cols-[1fr_1fr] gap-x-2.5 gap-y-0.5">
                 {info.entries.map((e) => (
-                  <div key={e.path || e.name} className="st-file flex items-center gap-1.5 overflow-hidden py-0.5 text-[12.5px] text-ellipsis whitespace-nowrap text-dim">
-                    <Icon name={e.dir ? 'folder' : 'pen-line'} size={13} className="text-faint" />
-                    {e.name}
-                  </div>
+                  <BrainEntry key={e.path || e.name} entry={e} />
                 ))}
               </div>
             </>
@@ -377,9 +383,31 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
   );
 }
 
+// A row in the Brain folder list: a folder opens in Finder / Explorer, a picture, Markdown file or PDF
+// opens the way it does in a chat, anything else is just its name.
+function BrainEntry({ entry: e }: { entry: BrainInfo['entries'][number] }) {
+  const kind = e.dir ? null : previewKind(e.name);
+  if (!e.dir && !kind)
+    return (
+      <div className={FILE}>
+        <Icon name="pen-line" size={13} className="flex-none text-faint" />
+        <span className="min-w-0 truncate">{e.name}</span>
+      </div>
+    );
+  const title = e.dir ? `Open ${e.name} in ${fileManager()}` : kind === 'image' ? `Show ${e.name} bigger` : kind === 'pdf' ? `Open ${e.name} in a new tab` : `Read ${e.name}`;
+  const go = () => (e.dir ? void attempt(() => POST('/brain/open', { path: e.path })) : previewFile(e.path, e.name));
+  return (
+    <button type="button" className={FILE_OPENS} title={title} aria-label={title} onClick={go}>
+      <Icon name={e.dir ? 'folder' : kind === 'image' ? 'image' : 'file-text'} size={13} className={FILE_ICON} />
+      <span className="min-w-0 truncate">{e.name}</span>
+    </button>
+  );
+}
+
 // What the project is about, and its logo (shown here, on the start screen, in the project menu and in the globe),
 // 3D model and the background picture behind the map.
-function About({ proj, summary }: { proj: Partial<Project>; summary: { text: string; from: string | null } | null }) {
+// fromPath: the file the text comes from (PROJECT.md / README.md), which opens to read when clicked
+function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: { text: string; from: string | null } | null; fromPath?: string }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const text = summary?.text || '';
@@ -434,7 +462,21 @@ function About({ proj, summary }: { proj: Partial<Project>; summary: { text: str
           ) : text ? (
             <>
               <p className="st-about-text m-0 line-clamp-6 text-[13.5px] leading-[1.5] text-ink">{text}</p>
-              {summary?.from && summary.from !== 'description' ? <div className="hint">{`from ${summary.from}`}</div> : null}
+              {summary?.from && summary.from !== 'description' ? (
+                fromPath ? (
+                  <button
+                    type="button"
+                    className="st-about-from hint group mt-0.5 flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-left [transition:color_0.18s_cubic-bezier(0.37,0,0.63,1),translate_0.18s_cubic-bezier(0.37,0,0.63,1)] hover:translate-x-1 hover:text-accent focus-visible:text-accent"
+                    title={`Read ${summary.from}`}
+                    onClick={() => previewFile(fromPath, summary.from!)}
+                  >
+                    <Icon name="file-text" size={12} className="flex-none text-faint transition-colors duration-180 ease-[cubic-bezier(0.37,0,0.63,1)] group-hover:text-accent" />
+                    {`from ${summary.from}`}
+                  </button>
+                ) : (
+                  <div className="hint">{`from ${summary.from}`}</div>
+                )
+              ) : null}
             </>
           ) : (
             <p className="hint">No description yet. Say what the project is about, or ask the Brain to write PROJECT.md.</p>
