@@ -3513,10 +3513,10 @@ function drawHud(): void {
     S.hudBuilt = true;
     S.hudTop = h('div', { class: 'absolute top-0 left-0 right-0 flex items-center gap-3.5 px-4.5 bg-[linear-gradient(#070807_40%,transparent)] pointer-events-auto' });
     S.feedEl = h('div', { class: 'absolute left-4 bottom-4 w-[min(380px,40vw)] font-mono text-[11.5px] leading-[1.45] font-normal pointer-events-auto' });
-    // moves left of the side panel while it is open
+    // moves left of the side panel while it is open, and glides back as the panel slides out (.closing)
     S.zoomEl = h(
       'div',
-      { class: 'absolute right-4 bottom-4 flex flex-col gap-1.5 pointer-events-auto group-has-[.st-panel:not(.hidden)]/root:right-101.5' },
+      { class: 'absolute right-4 bottom-4 flex flex-col gap-1.5 pointer-events-auto [transition:right_0.32s_var(--ease-soft)] motion-reduce:transition-none group-has-[.st-panel:not(.hidden):not(.closing)]/root:right-101.5' },
       // the World panel (voxel look only: shown or hidden on each drawHud)
       h('button.st-world-btn', { class: `${ZOOM_BTN} mb-1.5`, hidden: true, title: 'World: WORLD.md, what is built, the look, which world', 'aria-label': 'World', onclick: () => choose(S?.selected?.type === 'world' ? null : { type: 'world' }) }, icon('globe', 17)),
       h('button', { class: ZOOM_BTN, title: 'Zoom in (+)', onclick: () => zoomAt(1.3) }, icon('zoom-in', 17)),
@@ -3857,9 +3857,11 @@ function choose(p: MapPick | null): void {
     // slide out, then hide (unless something was picked meanwhile)
     if (!S.panel.classList.contains('hidden') && !S.panelClosing) {
       const panel = S.panel;
+      panel.classList.add('closing');
       S.panelClosing = slideOut(panel, { x: 40, duration: 230 }).then(() => {
         if (S && !S.selected) panel.classList.add('hidden');
         if (S) S.panelClosing = null;
+        panel.classList.remove('closing');
       });
     }
     return;
@@ -3877,7 +3879,7 @@ function choose(p: MapPick | null): void {
   const wasOpen = !S.panel.classList.contains('hidden') && !S.panelClosing;
   S.panel.getAnimations().forEach((a) => a.cancel());
   S.panelClosing = null;
-  S.panel.classList.remove('hidden');
+  S.panel.classList.remove('hidden', 'closing');
   if (wasOpen) slideIn(S.panel, { x: 14, duration: 280 });
   else slideIn(S.panel, { x: 44, duration: 420, blur: 4 });
   renderPanel();
