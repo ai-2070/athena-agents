@@ -98,7 +98,8 @@ export function createPost(renderer: THREE.WebGLRenderer, scene: THREE.Scene, ca
   const composer = new EffectComposer(renderer, target);
   composer.setPixelRatio(ratio());
   composer.setSize(w, h);
-  composer.addPass(new RenderPass(scene, camera));
+  const scenePass = new RenderPass(scene, camera);
+  composer.addPass(scenePass);
   let gtao: GTAOPass | null = null;
   if (quality === 'high') {
     gtao = new GTAOPass(scene, camera, w, h);
@@ -113,7 +114,9 @@ export function createPost(renderer: THREE.WebGLRenderer, scene: THREE.Scene, ca
   const tiltV = new ShaderPass(TILT_SHIFT);
   composer.addPass(tiltH);
   composer.addPass(tiltV);
-  composer.addPass(new OutputPass());
+  // (kept: composer.dispose() doesn't dispose its passes)
+  const output = new OutputPass();
+  composer.addPass(output);
 
   let look: PostLook = { bloom: 0.6, tiltShift: 0.4 };
   const apply = () => {
@@ -147,6 +150,8 @@ export function createPost(renderer: THREE.WebGLRenderer, scene: THREE.Scene, ca
       bloom.dispose();
       tiltH.dispose();
       tiltV.dispose();
+      output.dispose();
+      scenePass.dispose();
       composer.dispose();
       target.dispose();
     },

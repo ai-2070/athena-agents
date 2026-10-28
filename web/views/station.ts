@@ -351,6 +351,8 @@ interface StationState {
   usageIdx?: number;
   /** when the last frame was drawn, and when you last moved the pointer, scrolled or clicked on the map */
   lastFrame?: number;
+  /** how long a frame is meant to take at the frame rate the Station holds to now (0: as fast as it can) */
+  frameAim?: number;
   lastInput?: number;
   /** frames drawn so far (for the performance checks) */
   frames?: number;
@@ -1952,7 +1954,7 @@ function renderStation(): void {
   drawMeshBatches();
   drawGlows();
   // the voxel look draws through its own passes (shadows, glow, blur)
-  if (S.view) S.view.render();
+  if (S.view) S.view.render(S.frameAim || 0);
   else S.renderer.render(S.scene, S.camera);
 }
 
@@ -2209,6 +2211,7 @@ function loop(): void {
   // (a frame early by a couple of ms still counts, or 60 a second on a 60 Hz screen would drop to 30)
   if (fps && now - (S.lastFrame || 0) < 1000 / fps - 3) return;
   S.lastFrame = now;
+  S.frameAim = fps ? 1000 / fps : 0;
   S.frames = (S.frames || 0) + 1;
   const ratio = pixelRatioFor(level.pixelRatio);
   if (S.renderer.getPixelRatio() !== ratio) {
