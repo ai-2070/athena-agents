@@ -26,3 +26,17 @@ export function brainShortcut(e: KeyboardEvent, { open, onStation }: { open: boo
   if (document.querySelector('.modal-back, .model-menu, .proj-menu')) return null;
   return 'open';
 }
+
+/**
+ * The chat windows from the keyboard: ⌘↓ minimizes the window on top, ⌘↑ brings back the one
+ * minimized last (Ctrl instead of ⌘ on Windows and Linux). Holding the key down doesn't repeat it.
+ */
+export function chatWindowShortcut(e: KeyboardEvent, mac = isMac()): 'minimize' | 'restore' | null {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return null;
+  const mod = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+  if (!mod || e.altKey || e.shiftKey || e.repeat || e.isComposing) return null;
+  return e.key === 'ArrowDown' ? 'minimize' : 'restore';
+}
+
+/** The chat window keys as the tooltips show them. */
+export const chatWindowKeys = (mac = isMac()): { min: string; back: string } => (mac ? { min: '⌘↓', back: '⌘↑' } : { min: 'Ctrl+↓', back: 'Ctrl+↑' });

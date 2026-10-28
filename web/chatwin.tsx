@@ -18,6 +18,7 @@ import { renderTeamChat } from './teamchat.tsx';
 import { renderAgentChat } from './agentchat.tsx';
 import { uiZoom } from './look.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
+import { chatWindowKeys, chatWindowShortcut } from './shortcuts.ts';
 import { Avatar, Icon, useAppState } from './ui/react.tsx';
 import type { TeamListing } from '../shared/types.ts';
 
@@ -66,6 +67,8 @@ interface Win {
   /** while the window shrinks into its pill, both are drawn (the pill unseen, to know where to go) */
   shrinking: boolean;
   minimizing: Promise<void> | null;
+  /** when it was last minimized (higher is later), so ⌘↑ brings back the last one first */
+  minAt: number;
 }
 /** One window, as remembered in localStorage. */
 interface SavedWindow {
@@ -80,6 +83,7 @@ const KEY = 'dash-chatwin';
 const wins: Win[] = [];
 let nextId = 1;
 let zTop = 0;
+let minSeq = 0;
 
 /** The remembered windows (an older save held one window at the top level). */
 const load = (): SavedWindow[] => {
@@ -130,7 +134,7 @@ function defaultRect(): Rect {
 
 /** A new, empty window on top. It is drawn at once, so its body is there to put tabs in. */
 function newWin(rect: Rect, min = false, max = false): Win {
-  const w: Win = { id: nextId++, tabs: [], active: null, min, max, rect: { ...rect }, z: ++zTop, el: null, body: null, pill: null, shrinking: false, minimizing: null };
+  const w: Win = { id: nextId++, tabs: [], active: null, min, max, rect: { ...rect }, z: ++zTop, el: null, body: null, pill: null, shrinking: false, minimizing: null, minAt: 0 };
   wins.push(w);
   changed();
   return w;
@@ -164,6 +168,35 @@ function ensure(): void {
   // also drops the tab of an agent that was deleted
   onState(() => wins.some((w) => w.tabs.length) && refreshChatTabs());
   if (!window.__teams) GET<TeamListing[]>('/workflows').then((w) => ((window.__teams ||= w), changed())).catch(() => {});
+  if (!keysOn) {
+    keysOn = true;
+    window.addEventListener('keydown', onWindowKey);
+  }
+}
+
+// ⌘↓ / ⌘↑ (Ctrl on Windows): minimize the window on top, or bring back the one minimized last.
+// The key only counts when there is a window to act on, so in a text box with nothing to do it
+// still jumps to the start or end as usual.
+let keysOn = false;
+function onWindowKey(e: KeyboardEvent): void {
+  const act = e.defaultPrevented ? null : chatWindowShortcut(e);
+  if (!act) return;
+  const open = wins.filter((w) => w.tabs.length);
+  if (act === 'minimize') {
+    const w = topmost(open.filter((x) => !x.min));
+    if (!w?.el || !w.pill) return;
+    e.preventDefault();
+    // don't leave the cursor in a chat box that is going away
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && w.el.contains(focused)) focused.blur();
+    setMin(w, true);
+    return;
+  }
+  const w = open.filter((x) => x.min).reduce<Win | null>((a, x) => (!a || x.minAt > a.minAt || (x.minAt === a.minAt && x.z > a.z) ? x : a), null);
+  if (!w?.el) return;
+  e.preventDefault();
+  setMin(w, false);
+  if (w.active) activate(w, w.active);
 }
 
 // The smallest a window gets: 380 × 300, or less on a screen too small for that.
@@ -392,6 +425,7 @@ function setMin(w: Win, v: boolean) {
   save();
   const el = w.el!;
   if (v) {
+    w.minAt = ++minSeq;
     w.shrinking = true;
     changed();
     const to = w.pill!.getBoundingClientRect();
@@ -520,6 +554,7 @@ function ChatWindows() {
   const dragged = drag ? drag.from.tabs.find((t) => t.key === drag!.key) : null;
   const ghost = drag && dragged ? tabInfo(dragged, busyAgents) : null;
   const torn = drag && !drag.target ? tornRect(drag) : null;
+  const keys = chatWindowKeys();
   return (
     <>
       {/* one layer for all the windows, so they stack among themselves (by z) and not over the rest */}
@@ -547,7 +582,7 @@ function ChatWindows() {
             className={`cw-pill fixed z-44 right-[84px] bottom-[22px] flex items-center gap-2 py-2.25 px-3.5 border border-line-2 rounded-full bg-panel text-ink cursor-pointer font-sans text-[12.5px] font-medium leading-[normal] shadow-[0_10px_30px_rgba(0,0,0,.45)] animate-[cw-pop_.25s_ease-out] hover:border-accent in-[.bottom-bar]:relative in-[.bottom-bar]:right-auto in-[.bottom-bar]:bottom-auto in-[.bottom-bar]:z-auto in-[.bottom-bar]:py-2.75 in-[.bottom-bar]:px-4 in-[.bottom-bar]:animate-none in-[.bottom-bar]:hover:[transform:translateY(-2px)] ${w.tabs.length && (w.min || w.shrinking) ? '' : ' hidden'}`}
             style={w.shrinking ? { opacity: 0 } : undefined}
             onClick={() => setMin(w, false)}
-            title={w.tabs.length > 1 ? `Open the chats: ${w.tabs.map((t) => tabInfo(t, busyAgents).label).join(', ')}` : 'Open the chats'}
+            title={`${w.tabs.length > 1 ? `Open the chats: ${w.tabs.map((t) => tabInfo(t, busyAgents).label).join(', ')}` : 'Open the chats'} (${keys.back} brings back the last one)`}
           >
             <Icon name="message-square" size={15} />
             <span className="max-w-[180px] truncate">{label}</span>
@@ -659,7 +694,7 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
           </Tabs.List>
         </Tabs.Root>
         <span className="flex-1 min-w-0" />
-        <button className={BTN} title="Minimize" aria-label="Minimize the chats" onClick={() => setMin(w, true)}>
+        <button className={BTN} title={`Minimize (${chatWindowKeys().min})`} aria-label="Minimize the chats" onClick={() => setMin(w, true)}>
           –
         </button>
         <button className={BTN} title="Maximize / restore" aria-label={w.max ? 'Restore the chats' : 'Maximize the chats'} onClick={() => setMax(w, !w.max)}>

@@ -4,6 +4,7 @@ import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
 import { chatWindows, closeChatsForProject, minimizeMaximizedChats, moveChatTab, openChat, restoreChats } from '../../web/chatwin.tsx';
+import { isMac } from '../../web/shortcuts.ts';
 import type { AppState } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -105,6 +106,39 @@ describe('the chat window', () => {
     await settle();
     expect(win().classList.contains('hidden')).toBe(false);
     expect(pill.classList.contains('hidden')).toBe(true);
+  });
+
+  it('⌘↓ / Ctrl+↓ minimizes the window on top, ⌘↑ / Ctrl+↑ brings back the one minimized last', async () => {
+    const press = (key: string) => {
+      const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...(isMac() ? { metaKey: true } : { ctrlKey: true }) });
+      act(() => void window.dispatchEvent(e));
+      return e.defaultPrevented;
+    };
+    const shown = () => [...document.querySelectorAll<HTMLElement>('.cw')].filter((el) => !el.classList.contains('hidden')).length;
+    await act(async () => void openChat('agent', 'a1'));
+    await settle();
+    await act(async () => void openChat('agent', 'a2'));
+    await act(async () => moveChatTab('agent:a2', null));
+    await settle();
+    expect(shown()).toBe(2);
+    // the window on top (Writer's) goes first, then the other
+    expect(press('ArrowDown')).toBe(true);
+    await settle();
+    expect(shown()).toBe(1);
+    expect(document.querySelector('.cw:not(.hidden) [role="tab"]')!.textContent).toBe('🔭Scout');
+    expect(press('ArrowDown')).toBe(true);
+    await settle();
+    expect(shown()).toBe(0);
+    // nothing left to minimize: the key keeps its usual job
+    expect(press('ArrowDown')).toBe(false);
+    // back in reverse: Scout's window was minimized last
+    expect(press('ArrowUp')).toBe(true);
+    await settle();
+    expect(document.querySelector('.cw:not(.hidden) [role="tab"]')!.textContent).toBe('🔭Scout');
+    expect(press('ArrowUp')).toBe(true);
+    await settle();
+    expect(shown()).toBe(2);
+    expect(press('ArrowUp')).toBe(false);
   });
 
   it('a lone team chat\'s pill says the team\'s name', async () => {

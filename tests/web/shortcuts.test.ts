@@ -1,6 +1,6 @@
 // Opening the Brain chat from the keyboard: Ctrl+K / ⌘K anywhere, Space on the Station.
 import { afterEach, describe, expect, it } from 'vitest';
-import { brainKeyLabel, brainKeyTitle, brainShortcut } from '../../web/shortcuts.ts';
+import { brainKeyLabel, brainKeyTitle, brainShortcut, chatWindowKeys, chatWindowShortcut } from '../../web/shortcuts.ts';
 
 /** Presses a key on el (the page itself by default) and says what it does to the Brain chat. */
 function press(init: KeyboardEventInit, ctx: { open?: boolean; onStation?: boolean } = {}, el: Element = document.body) {
@@ -73,5 +73,31 @@ describe('the button label', () => {
   it('its tooltip names every way in', () => {
     expect(brainKeyTitle(true)).toBe('Ask the Brain (⌘K, or Space on the Station)');
     expect(brainKeyTitle(false)).toBe('Ask the Brain (Ctrl+K, or Space on the Station)');
+  });
+});
+
+describe('chatWindowShortcut()', () => {
+  const key = (init: KeyboardEventInit, mac: boolean) => chatWindowShortcut(new KeyboardEvent('keydown', init), mac);
+
+  it('⌘↓ minimizes and ⌘↑ brings back on a Mac; Ctrl elsewhere', () => {
+    expect(key({ key: 'ArrowDown', metaKey: true }, true)).toBe('minimize');
+    expect(key({ key: 'ArrowUp', metaKey: true }, true)).toBe('restore');
+    expect(key({ key: 'ArrowDown', ctrlKey: true }, false)).toBe('minimize');
+    expect(key({ key: 'ArrowUp', ctrlKey: true }, false)).toBe('restore');
+  });
+
+  it('the other modifier, extra modifiers, a held key or other keys are not it', () => {
+    expect(key({ key: 'ArrowDown', ctrlKey: true }, true)).toBeNull();
+    expect(key({ key: 'ArrowDown', metaKey: true }, false)).toBeNull();
+    expect(key({ key: 'ArrowDown' }, true)).toBeNull();
+    expect(key({ key: 'ArrowDown', metaKey: true, shiftKey: true }, true)).toBeNull();
+    expect(key({ key: 'ArrowUp', ctrlKey: true, altKey: true }, false)).toBeNull();
+    expect(key({ key: 'ArrowDown', metaKey: true, repeat: true }, true)).toBeNull();
+    expect(key({ key: 'ArrowLeft', metaKey: true }, true)).toBeNull();
+  });
+
+  it('the tooltips show the keys', () => {
+    expect(chatWindowKeys(true)).toEqual({ min: '⌘↓', back: '⌘↑' });
+    expect(chatWindowKeys(false)).toEqual({ min: 'Ctrl+↓', back: 'Ctrl+↑' });
   });
 });
