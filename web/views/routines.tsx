@@ -88,7 +88,7 @@ function RoutinesList() {
   return (
     <>
       <p className="lede max-w-[68ch]">A routine is work you want done again and again: a morning news check, a weekly report, a content plan. Write it once, @mention the agents and teams who do it and the skills they should use, then run it by hand or on a schedule.</p>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
         <h2 className="section m-0">{`Your routines${list.length ? ` (${list.length})` : ''}`}</h2>
         <button className="btn" onClick={() => void create()}>
           <Icon name="plus" size={14} />
@@ -96,13 +96,13 @@ function RoutinesList() {
         </button>
       </div>
       {list.length ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-4">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-3">
           {list.map((r) => (
             <RoutineCard key={r.id} r={r} teams={teams} />
           ))}
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-4 py-12 text-center">
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
           <p className="m-0 text-dim">No routines yet.</p>
           <p className="hint m-0 max-w-130">Example: "Every morning, @Researcher finds the 3 biggest AI stories, then @Content Team turns them into a post using @Brand voice."</p>
           <button className="btn" onClick={() => void create()}>
@@ -134,12 +134,12 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
     setRunning(false);
   };
   return (
-    <div className={`card glass-plate hover:shadow-none gap-3 ${on ? '' : '[&>:not(:first-child)]:opacity-55'}`}>
+    <div className={`card glass-plate hover:shadow-none gap-3 !rounded-[10px] !p-4 ${on ? '' : '[&>:not(:first-child)]:opacity-55'}`}>
       <div className="flex items-center gap-3">
-        <div className="skill-ico"><Icon name="repeat" size={18} /></div>
+        <div className="skill-ico !h-9 !w-9 !rounded-[8px]"><Icon name="repeat" size={16} /></div>
         <div className="flex-1 min-w-0">
-          <a className="skill-name text-[15px] font-semibold text-ink hover:text-ink hover:underline" href={`#/routines/${r.id}`}>{r.name}</a>
-          <div className="hint">{!on ? 'switched off' : sched ? (r.enabled ? scheduleText(r.schedule) : `${scheduleText(r.schedule)} · schedule off`) : 'run by hand'}</div>
+          <a className="skill-name text-[14px] font-semibold text-ink hover:text-ink hover:underline" href={`#/routines/${r.id}`}>{r.name}</a>
+          <div className="hint mt-0.5">{!on ? 'switched off' : sched ? (r.enabled ? scheduleText(r.schedule) : `${scheduleText(r.schedule)} · schedule off`) : 'run by hand'}</div>
         </div>
         <Switch checked={on} onChange={(v) => void toggleOn(v)} className="flex-none flex-nowrap" >
           <span className="text-[12.5px] font-medium text-dim" title={`Switch ${r.name} ${on ? 'off' : 'on'}`}>{on ? 'On' : 'Off'}</span>
@@ -155,7 +155,7 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
       ) : (
         <span className="hint">Nobody mentioned yet</span>
       )}
-      <div className="mt-auto flex items-center gap-2 border-t border-line pt-4">
+      <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-line pt-3">
         <button className="btn small" disabled={running || !on} title={on ? undefined : 'Switch the routine on to run it'} onClick={() => void run()}>
           <Icon name="play" size={13} />
           Run
@@ -268,8 +268,8 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   ];
   const skills = found.filter((m) => m.kind === 'skill').map((m) => <MentionChip key={`s:${m.id}`} m={m} teams={teams} />);
   const whoRow = (label: string, ico: string, items: ReactNode[], empty: string) => (
-    <div className="grid grid-cols-[130px_minmax(0,1fr)] items-center gap-3 max-sm:grid-cols-1 max-sm:gap-2">
-      <div className="inline-flex items-center gap-2 text-[13px] leading-[normal] font-medium text-dim">
+    <div className="grid grid-cols-[120px_minmax(0,1fr)] items-start gap-3 max-sm:grid-cols-1 max-sm:gap-1.5">
+      <div className="inline-flex items-center gap-2 pt-0.5 text-[13px] leading-[normal] font-medium text-dim">
         <Icon name={ico} size={13} />
         {label}
       </div>
@@ -285,7 +285,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
         <a className="btn ghost small" href="#/routines">← Routines</a>
         <div className="flex flex-wrap items-center gap-4">
           {isNew ? null : (
@@ -296,9 +296,9 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
           <button className="btn" disabled={!canSave} title={!text.trim() ? 'Write what the routine should do first' : undefined} onClick={() => void save()}>Save</button>
         </div>
       </div>
-      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-6 max-lg:grid-cols-1">
-        <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
-          <div className="panel glass-plate">
+      <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] items-start gap-8 max-lg:grid-cols-1 max-lg:gap-8">
+        <div className="flex min-w-0 flex-col gap-7">
+          <div>
             <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
               <Field label="Name">
                 <input value={name} onChange={(e) => (setName(e.target.value), setDirty(true))} />
@@ -308,8 +308,8 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
               </Field>
             </div>
           </div>
-          <div className="panel glass-plate">
-            <div className="panel-head">
+          <div className="border-t border-line pt-6">
+            <div className="panel-head !mb-3">
               <h2>What to do</h2>
               <div className="actions">
                 {insert('agent', 'Agent', 'bot')}
@@ -326,7 +326,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
               placeholder={'What should be done? Type @ to mention who does it and the skills to use.\n\ne.g. @Researcher find the 3 most interesting AI stories from the last day, with links. Then @Content Team writes one X post about the best one using @Brand voice.'}
               onChange={(e) => (setText(e.target.value), setDirty(true))}
             />
-            <p className="hint mt-3">
+            <p className="hint mt-3 max-w-[68ch] leading-[1.5]">
               Type <b>@</b> to mention an agent, a team or a skill. Mentioned agents and teams each get the routine (an agent in a mentioned team gets it in that team chat); mentioned skills are given to all of them for it.
             </p>
             <div className="rt-who mt-5 flex flex-col gap-4 border-t border-line pt-5">
@@ -341,10 +341,10 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             </div>
           </div>
         </div>
-        <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
+        <div className="flex min-w-0 flex-col gap-6 border-l border-line pl-6 max-lg:border-l-0 max-lg:border-t max-lg:pl-0 max-lg:pt-6">
           <RunIt id={id} disabled={isNew || !active} beforeRun={async () => !dirty || (await save())} />
-          <div className="panel glass-plate">
-            <div className="panel-head">
+          <div className="panel border-t border-line !border-x-0 !border-b-0 !bg-transparent !px-0 !pt-6 !pb-0 !shadow-none">
+            <div className="panel-head !mb-3">
               <h2>Schedule</h2>
               <div className="actions" title={kind === 'none' ? 'Pick Every… or Daily to schedule this routine' : undefined}>
                 <Switch checked={on && kind !== 'none'} onChange={switchSchedule} disabled={kind === 'none'}>
@@ -355,14 +355,14 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             <DomNode make={() => scheduleEditor(r.current, () => (setDirty(true), setKind(r.current.schedule?.type || 'none')), { inputLabel: 'Extra for scheduled runs (optional)', showToggle: false })} deps={[id]} />
             {kind !== 'none' ? <p className="hint">Runs while the dashboard is open.</p> : null}
           </div>
-          <div className="panel glass-plate">
-            <div className="panel-head">
+          <div className="border-t border-line pt-6">
+            <div className="panel-head !mb-3">
               <h2>Runs</h2>
             </div>
             <Runs id={id} />
           </div>
           {isNew ? null : (
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 border-t border-line pt-5">
               <button className="btn danger small" onClick={() => void del()}>Delete routine</button>
             </div>
           )}
@@ -383,12 +383,12 @@ function RunIt({ id, beforeRun, disabled = false }: { id: string; beforeRun: () 
     if (out) setInput('');
   };
   return (
-    <div className="panel glass-plate">
-      <div className="panel-head">
+    <div>
+      <div className="panel-head !mb-3">
         <h2>Run it</h2>
       </div>
       <textarea rows={2} aria-label="Extra for this run" placeholder="Optional: anything extra for this run" value={input} onChange={(e) => setInput(e.target.value)} />
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <button className="btn" disabled={busy || disabled} title={disabled ? 'Save the routine first, and switch it on, to run it' : undefined} onClick={() => void run()}>
           <Icon name="play" size={14} />
           Run now
@@ -411,10 +411,10 @@ function Runs({ id }: { id: string }) {
   useEffect(() => (load(), () => clearTimeout(timer.current)), [load]);
   useServerEvents((ev) => ev.type === 'routine-run' && (ev as { routineId?: string }).routineId === id && load());
   if (!runs) return null;
-  if (!runs.length) return <p className="empty py-6">No runs yet.</p>;
+  if (!runs.length) return <p className="empty !py-4">No runs yet.</p>;
   const isOpen = (run: RoutineRun, i: number) => (open ? open.has(run.id) : i === 0);
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col divide-y divide-line">
       {runs.slice(0, 15).map((run, i) => (
         <details
           key={run.id}
@@ -428,7 +428,7 @@ function Runs({ id }: { id: string }) {
             setOpen(next);
           }}
         >
-          <summary className="flex cursor-pointer flex-wrap items-center gap-2 py-2">
+          <summary className="flex cursor-pointer flex-wrap items-center gap-2 py-3 text-[13px]">
             <StatusIcon status={run.status} />
             <b>{run.status}</b>
             <span className="hint">{`${ago(run.createdAt)} · ${run.trigger}`}</span>
@@ -448,9 +448,9 @@ function Runs({ id }: { id: string }) {
 
 function TargetRow({ t }: { t: RoutineRunTarget }) {
   return (
-    <div className="grid grid-cols-[22px_1fr] gap-3 border-b border-line py-3 last:border-b-0 [&_pre]:max-h-50">
+    <div className="grid grid-cols-[16px_minmax(0,1fr)] gap-2 border-t border-line py-3 [&_pre]:max-h-50">
       <StatusIcon status={t.status} />
-      <div>
+      <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <b>{t.name}</b>
           <span className="hint">{t.kind === 'team' ? `team · ${t.status}` : t.status}</span>

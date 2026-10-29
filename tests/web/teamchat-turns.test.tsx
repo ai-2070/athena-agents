@@ -108,6 +108,24 @@ describe('team chat box', () => {
     expect(document.activeElement).toBe(box);
   });
 
+  it('changes the team lead model from the composer', async () => {
+    const lead = state.data!.agents[0];
+    lead.engine = 'claude-code';
+    lead.model = 'sonnet';
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    await act(async () => el.querySelector<HTMLButtonElement>('.model-chip')!.click());
+    const haiku = [...document.querySelectorAll<HTMLButtonElement>('.model-menu .st-menu-item')]
+      .find((button) => button.textContent?.includes('Haiku (latest)'));
+    expect(haiku).toBeDefined();
+    await act(async () => haiku!.click());
+    await settle();
+    expect(requests).toContain('PUT /api/agents/lead');
+    expect(bodies['/api/agents/lead']).toMatchObject({ engine: 'claude-code', model: 'haiku' });
+  });
+
   it('every "5m ago" shares one timer', () => {
     const spy = vi.spyOn(globalThis, 'setInterval');
     const offs = [clock(() => {}), clock(() => {}), clock(() => {})];

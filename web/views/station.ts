@@ -4,7 +4,7 @@
 // which programs and services each step can reach. Agents not on any branch wait on the Bench.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, ago, toast, promptBox, confirmBox, refreshSoon, modal } from '../core.ts';
+import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, onEventConnection, ago, toast, promptBox, confirmBox, refreshSoon, modal } from '../core.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.ts';
 import { openDock, attachToBrain } from '../dock.tsx';
@@ -339,6 +339,7 @@ interface StationState {
   selected: MapPick | null;
   cam: Cam;
   feed: FeedItem[];
+  liveConnected: boolean;
   clock: THREE.Clock;
   alive: boolean;
   wires: SVGGElement | null;
@@ -358,6 +359,7 @@ interface StationState {
   onPaste: (e: ClipboardEvent) => void;
   ro?: ResizeObserver;
   offState?: () => void;
+  offConnection?: () => void;
   headTimer?: ReturnType<typeof setInterval>;
   clockTimer?: ReturnType<typeof setInterval>;
   usageTimer?: ReturnType<typeof setInterval>;
@@ -838,6 +840,7 @@ export async function render(el: HTMLElement): Promise<void> {
     selected: null,
     cam: { target: new THREE.Vector3(), az: Math.PI / 4, el: Math.atan(1 / Math.SQRT2), zoom: 1, view: 70, goal: null },
     feed: [],
+    liveConnected: false,
     clock: new THREE.Clock(),
     alive: true,
     wires: null,
@@ -865,6 +868,11 @@ export async function render(el: HTMLElement): Promise<void> {
   if (!S) return;
   rebuild();
   drawHud();
+  S.offConnection = onEventConnection((connected) => {
+    if (!S) return;
+    S.liveConnected = connected;
+    drawFeed();
+  });
   resetView(true);
   void applyStationLook();
   S.offState = onState(() => {
@@ -964,6 +972,7 @@ export function unmount(): void {
   if (!S) return;
   S.alive = false;
   S.offState?.();
+  S.offConnection?.();
   S.offPalette?.();
   S.ro?.disconnect();
   clearInterval(S.progTimer);
@@ -3664,8 +3673,6 @@ function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
 // ---------- HUD ----------
 // buttons that press in and lift on hover
 const TRANSITION = '[transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s]';
-// the header's two groups sit on glass, so their writing is readable on any map (the voxel look's sky is dark whatever the theme is)
-const CAPSULE = 'glass rounded-ctl';
 const CONN_LABEL = 'inline-flex items-center gap-2 mr-1.5 whitespace-nowrap text-[12px] leading-[normal] font-medium text-dim';
 // a header tile; off and missing are marked by class, hot and the row's focus / soft by the script. The brand colour (--c) tints it;
 // its glyph is mixed toward the text colour so a pale brand still reads on white
@@ -3707,7 +3714,7 @@ function drawHud(): void {
   if (!S.hudBuilt) {
     S.hudBuilt = true;
     S.hudTop = h('div', { class: 'absolute top-0 left-0 right-0 flex items-center gap-4 px-5 pointer-events-none *:pointer-events-auto' });
-    S.feedEl = h('div', { class: 'glass absolute left-4 bottom-4 w-[min(380px,40vw)] max-md:w-[min(380px,calc(100%-96px))] max-md:bottom-20 p-4 rounded-box text-[12.5px] leading-[1.45] font-normal pointer-events-auto' });
+    S.feedEl = h('div.st-live-feed', { class: 'absolute left-4 bottom-4 w-[min(380px,40vw)] max-md:w-[min(380px,calc(100%-96px))] max-md:bottom-20 p-4 text-[12.5px] leading-[1.45] font-normal pointer-events-auto' });
     // moves left of the side panel while it is open, and glides back as the panel slides out (.closing)
     S.zoomEl = h(
       'div',
@@ -3778,14 +3785,14 @@ function drawHud(): void {
     const toAgents = e.ready && users.length ? `#/agents?uses=${engineKey(users[0])}` : '';
     return { ...e, uses, n: users.length + (brainP === e.brain ? 1 : 0), busy, toAgents, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${toAgents ? ' (click to see its agents)' : e.ready ? '' : ' (click to set up)'}` };
   });
-  S.clockEl ||= h('span', { class: 'min-w-24 text-right text-[15px] leading-[normal] font-medium tabular-nums text-dim max-md:hidden' });
+  S.clockEl ||= h('span.st-clock', { class: 'min-w-28 text-right text-[14px] leading-[normal] font-normal tabular-nums text-dim max-md:hidden [font-family:"DSEG7_Classic",sans-serif]' });
   S.tileEls = new Map();
   mount(
     S.hudTop,
     h('div.st-project-wrap', { class: 'group/proj flex flex-col items-stretch gap-0.75 flex-none' }, ...projectWrapParts()),
     h(
       'div.st-connected',
-      { class: `${CAPSULE} group/conn flex items-center gap-1.5 flex-1 min-w-0 px-3 py-1 max-md:hidden overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden` },
+      { class: 'group/conn flex items-center gap-1.5 flex-1 min-w-0 px-3 py-1 max-md:hidden overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' },
       h('span', { class: CONN_LABEL }, h('span.dot.on'), 'Connected to'),
       tiles
         .filter((t) => !seen.has(t.title.split(' · ')[0].toLowerCase()) && seen.add(t.title.split(' · ')[0].toLowerCase()))
@@ -3802,8 +3809,8 @@ function drawHud(): void {
         }),
     ),
     h(
-      'div',
-      { class: `${CAPSULE} flex items-center gap-5 flex-none px-3 py-1 max-md:min-w-0 max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden` },
+      'div.st-engine-bar',
+      { class: 'flex items-center gap-5 flex-none px-3 py-1 max-md:min-w-0 max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden' },
       h(
         'div',
         { class: 'flex items-center gap-1.5' },
@@ -3942,8 +3949,14 @@ function drawUsage(animate: boolean): void {
   );
 }
 
+const clockFormat = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 function tickClock(): void {
-  if (S?.clockEl) S.clockEl.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  if (!S?.clockEl) return;
+  S.clockEl.replaceChildren(...clockFormat.formatToParts(new Date()).map((part) =>
+    part.type === 'dayPeriod'
+      ? h('span', { class: 'font-sans text-[11px] font-medium' }, part.value)
+      : document.createTextNode(part.value),
+  ));
 }
 
 async function loadHeadbar(): Promise<void> {
@@ -3965,10 +3978,9 @@ function feedPush(text: string, kind = 'run'): void {
 
 function drawFeed(): void {
   if (!S?.feedEl) return;
-  S.feedEl.classList.toggle('hidden', !S.feed.length);
   mount(
     S.feedEl,
-    h('div', { class: 'flex items-center gap-2 mb-2 text-[12px] leading-[normal] font-medium text-dim' }, h('span.dot.busy'), 'Live'),
+    h('div', { class: 'flex items-center gap-2 mb-2 text-[12px] leading-[normal] font-medium text-dim', role: 'status' }, h('span', { class: `dot ${S.liveConnected ? 'on' : 'warn'} [box-shadow:none]`, 'aria-hidden': 'true' }), S.liveConnected ? 'Live' : 'Reconnecting…'),
     S.feed.map((f, i) => h('div', { style: { opacity: String(1 - i * 0.12) }, class: f.kind === 'error' ? `${FEED_ITEM} text-red` : `${FEED_ITEM} text-ink` }, h('span', { class: 'flex-none w-14 text-faint' }, ago(f.ts)), f.text)),
   );
 }

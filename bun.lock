@@ -14,6 +14,7 @@
         "@fontsource-variable/jetbrains-mono": "^5.3.0",
         "@fontsource-variable/merriweather": "^5.3.0",
         "@fontsource-variable/roboto": "^5.3.0",
+        "@fontsource/dseg7-classic": "5.3.0",
         "@jitl/quickjs-singlefile-mjs-release-sync": "0.32.0",
         "@lydell/node-pty": "^1.2.0-beta.18",
         "@modelcontextprotocol/sdk": "^1.32.2",
@@ -119,6 +120,8 @@
     "@fontsource-variable/merriweather": ["@fontsource-variable/merriweather@5.3.0", "", {}, "sha512-wK7S4NtPXWUWll/sZCdub93pqSCnFkpKFbnoOE8fh+9Ut6JFjgkc9UlBxHJ0RVMkDpoWwGwMwYYTMvd3G9aAXA=="],
 
     "@fontsource-variable/roboto": ["@fontsource-variable/roboto@5.3.0", "", {}, "sha512-BoaaZiQf8fgtxv07KXkTwx1bKz/EoqIlTXq2OOKKXINxp6qXWdnlChqV+hSaDANS49yyUASFl3OVBMMDTCIHFA=="],
+
+    "@fontsource/dseg7-classic": ["@fontsource/dseg7-classic@5.3.0", "", {}, "sha512-Y7JJRPszb1DwL6EEA1QFyL8wev2o0K/Lt/9AR0Y/1/0Z/5+O7p8muJR4OeJr+HrmPoJB/20mF+vMu6WiQxmtmQ=="],
 
     "@hono/node-server": ["@hono/node-server@2.1.5", "", { "peerDependencies": { "hono": "^4 || ^5.0.0-0" } }, "sha512-MgP/I06GdvsilDspMk/qmRzpk8LOUStP6jFAbSRi40W09DhoyUn+Mj7eyKICPqeYKybOjVFLVIAQzvu1bfIa7Q=="],
 

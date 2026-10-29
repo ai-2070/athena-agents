@@ -167,7 +167,7 @@ function SettingsSearch({ onChoose }: { onChoose: (hit: Hit) => void }) {
     >
       {/* the frame lights up on focus (focus-within), so the box inside it needs no outline of its own */}
       <div
-        className="relative mb-1.5 flex w-[min(300px,40vw)] items-center gap-2 rounded-ctl border border-line-2 bg-bg px-3 text-faint shadow-card transition-[border-color,box-shadow] duration-200 ease-[ease] focus-within:border-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)] max-[761px]:w-auto"
+        className="relative mb-2 flex w-[min(280px,40vw)] items-center gap-2 rounded-ctl border border-line bg-panel/50 px-3 text-faint transition-[border-color,box-shadow] duration-200 ease-[ease] focus-within:border-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)] max-[761px]:w-full"
         ref={anchor}
       >
         <Icon name="search" size={15} />
@@ -254,7 +254,7 @@ function SettingsPage() {
       tabs={TABS.map((t) => ({ value: t.id, label: t.label }))}
       value={tab}
       onChange={(t) => go(t)}
-      rowClassName="mb-8 flex flex-wrap items-end gap-3.5 border-b border-line max-[761px]:flex-col max-[761px]:flex-nowrap max-[761px]:items-stretch [&>.tabs]:-mb-px [&>.tabs]:min-w-0 [&>.tabs]:flex-1 [&>.tabs]:border-b-0"
+      rowClassName="mb-9 flex flex-wrap items-end gap-4 border-b border-line max-[761px]:flex-col max-[761px]:flex-nowrap max-[761px]:items-stretch max-[761px]:gap-2 [&>.tabs]:-mb-px [&>.tabs]:min-w-0 [&>.tabs]:flex-1 [&>.tabs]:border-b-0"
       aside={<SettingsSearch onChoose={choose} />}
     >
       <TabBody key={`${tab}:${drawn}`} tab={TABS.find((t) => t.id === tab)!} hostRef={(el) => void (panel.current = el)} />

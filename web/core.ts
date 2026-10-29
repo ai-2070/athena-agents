@@ -7,6 +7,7 @@ import { openSocket, setPageProject } from './client/connection.ts';
 import { openDialog, showToast } from './ui/overlays.tsx';
 import type { ToastKind } from './ui/overlays.tsx';
 import { zoomView } from './zoomview.ts';
+import { slideSegment } from './segmotion.ts';
 
 // ---------- API ----------
 // Requests live in web/client/; pages keep importing them from here.
@@ -49,6 +50,21 @@ export function onReconnect(fn: () => void): () => void {
 }
 let connectedOnce = false;
 
+let eventsConnected = false;
+const connectionListeners = new Set<(connected: boolean) => void>();
+/** Watch whether live events are connected; the current state is sent immediately. */
+export function onEventConnection(fn: (connected: boolean) => void): () => void {
+  connectionListeners.add(fn);
+  fn(eventsConnected);
+  return () => connectionListeners.delete(fn);
+}
+
+function setEventConnection(connected: boolean): void {
+  if (eventsConnected === connected) return;
+  eventsConnected = connected;
+  for (const fn of connectionListeners) fn(connected);
+}
+
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 export async function refreshState(): Promise<void> {
   try {
@@ -86,8 +102,12 @@ export function connectEvents(): void {
       }
     }
   };
-  socket.onclose = () => setTimeout(connectEvents, 1500);
+  socket.onclose = () => {
+    setEventConnection(false);
+    setTimeout(connectEvents, 1500);
+  };
   socket.onopen = () => {
+    setEventConnection(true);
     refreshSoon(0);
     if (connectedOnce) for (const fn of reconnectListeners) fn();
     connectedOnce = true;
@@ -375,14 +395,19 @@ export type OptionList<V extends string = string> = readonly (V | Option<V>)[];
 
 export function seg<V extends string>(options: OptionList<V>, value: V | null | undefined, onChange: (v: V) => void): HTMLDivElement {
   const wrap = h('div.seg');
-  const render = (v: V | null | undefined) => {
-    clear(wrap);
-    for (const o of options) {
-      const opt: Option<V> = typeof o === 'string' ? { value: o, label: o } : o;
-      wrap.append(h(`button${opt.value === v ? '.on' : ''}`, { type: 'button', title: opt.title || '', onclick: () => (render(opt.value), onChange(opt.value)) }, opt.label));
-    }
-  };
-  render(value);
+  for (const o of options) {
+    const opt: Option<V> = typeof o === 'string' ? { value: o, label: o } : o;
+    const button = h(`button${opt.value === value ? '.on' : ''}`, {
+      type: 'button', title: opt.title || '', onclick: () => {
+        const previous = wrap.querySelector<HTMLButtonElement>('button.on');
+        previous?.classList.remove('on');
+        button.classList.add('on');
+        slideSegment(previous, button);
+        onChange(opt.value);
+      },
+    }, opt.label);
+    wrap.append(button);
+  }
   return wrap;
 }
 

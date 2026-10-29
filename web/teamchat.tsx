@@ -7,16 +7,18 @@
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, onReconnect, confirmBox, toast } from './core.ts';
-import { attachTray, COMPOSER_BTNS, COMPOSER_TEXT } from './attach.ts';
+import { attachTray } from './attach.ts';
 import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { mentionPreviews } from './filepreview.ts';
+import { modelChip } from './models.ts';
+import { slideIn } from './motion.ts';
 import { useFind } from './ui/find.tsx';
 import { queuedText } from '../shared/queue.ts';
 import { parseCommand } from '../shared/commands.ts';
 import { commandChips, slashMenu } from './chatcommands.ts';
 import type { SlashMenu } from './chatcommands.ts';
-import { Avatar, DomNode, Icon, mountReact, useAppState } from './ui/react.tsx';
+import { Avatar, DomNode, Icon, IconWeightProvider, mountReact, useAppState } from './ui/react.tsx';
 import type { Agent, BrainBrief, LoopInfo, QueuedMessage, RunEvent, Team, TeamMessage, TeamRef, TeamState } from '../shared/types.ts';
 
 // A working agent's turn (and the work behind a reply): the AI SDK pieces load when first needed.
@@ -335,7 +337,7 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
   const relay = m.relay;
   return (
     <div className={relay ? MSG_RELAY : m.from === 'user' ? MSG_ME : MSG_OTHER} style={relay ? ({ '--team-color': team?.color || 'var(--color-ice)' } as CSSProperties) : undefined}>
-      <div className={WHO}>
+      <div className={m.from === 'user' ? 'sr-only' : WHO}>
         {author ? (
           <Avatar agent={author} />
         ) : brain ? (
@@ -427,13 +429,24 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   const input = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!fill || !root.current) return;
+    const parts = [root.current.querySelector('.tc-list'), root.current.querySelector('.dock-composer')];
+    const animations = parts.map((part, i) => {
+      const animation = part && slideIn(part, { y: 10, duration: 420 + i * 60 });
+      void animation?.finished.catch(() => {});
+      animation?.effect?.updateTiming({ delay: 160 + i * 40, fill: 'backwards' });
+      return animation;
+    });
+    return () => animations.forEach((animation) => animation?.cancel());
+  }, [fill]);
   // Ctrl+F (⌘F)
   const find = useFind(list);
   const chips = useRef<HTMLDivElement>(null);
   // something to send in the box (words or files): Send; nothing while the team works: Stop
   const [filled, setFilled] = useState(false);
   const refill = useRef(() => {});
-  const tray = useMemo(() => attachTray({ onChange: () => refill.current() }), []);
+  const tray = useMemo(() => attachTray({ onChange: () => refill.current(), iconWeight: 'regular' }), []);
   refill.current = () => setFilled(!!input.current?.value.trim() || tray.count() > 0);
   // long pasted text, folded into a chip until it is sent
   const pastes = useMemo(() => pasteBox(), []);
@@ -717,12 +730,13 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
 
   const turns = [...C.turning].filter((id) => C.sessions[id]);
   const lead = C.team?.lead;
+  const leadAgent = lead ? agentOf(lead) : undefined;
   return (
     <div className={fill ? 'flex flex-col gap-3 h-full' : 'flex flex-col gap-3'} ref={root}>
       {find}
       <div
         // (in a scrolling column, an item must keep its height: never squeezed by the list's)
-        className={fill ? 'tc-list overflow-y-auto flex flex-col gap-4 py-2 px-1 *:shrink-0 flex-1 min-h-0' : 'tc-list overflow-y-auto flex flex-col gap-4 py-2 px-1 *:shrink-0 min-h-[120px]'}
+        className={fill ? 'tc-list overflow-y-auto flex flex-col gap-6 pt-4 pb-5 *:shrink-0 flex-1 min-h-0' : 'tc-list overflow-y-auto flex flex-col gap-6 pt-4 pb-5 px-1 *:shrink-0 min-h-[120px]'}
         ref={list}
         style={fill ? undefined : { maxHeight: `${height}px` }}
         onScroll={(e) => {
@@ -809,7 +823,8 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       <DomNode className="dom-contents" make={() => pastes.el} deps={[pastes]} />
       <div className="dock-composer relative">
         <div className="flex-1 min-w-0 relative">
-          <textarea className={`${COMPOSER_TEXT} dock-input w-full text-[13.5px]`} ref={input} rows={2} aria-label="Message the team" placeholder={busy.length ? 'The team is working… Write to change its course now, or /queue a message for when it is done' : PLACEHOLDER} />          <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">
+          <textarea className="dock-input block field-sizing-content min-h-[56px] max-h-[max(160px,20vh)] w-full resize-none text-[13.5px]" ref={input} rows={2} aria-label="Message the team" placeholder={busy.length ? 'The team is working… Write to change its course now, or /queue a message for when it is done' : PLACEHOLDER} />
+          <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">
             {suggest?.opts.map((o, i) => (
               <button
                 key={`${o.t ? '#' : '@'}${o.label}`}
@@ -833,17 +848,35 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
           </div>
           {slash ? <DomNode as="span" className="dom-contents" make={() => slash.el} deps={[slash]} /> : null}
         </div>
-        <div className={`${COMPOSER_BTNS} items-center px-2 pt-1 pb-2`} style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-          <DomNode as="span" className="dom-contents" make={() => tray.picker} deps={[tray]} />
-          {busy.length && !filled ? (
-            <button className="btn danger rounded-full" title="Stop the whole team" aria-label="Stop" onClick={() => void stop()}>
-              <Icon name="square" size={14} />
-            </button>
-          ) : (
-            <button className="btn rounded-full" title={busy.length ? 'Send now: whoever is working stops and takes this up (Enter)' : 'Send (Enter)'} aria-label="Send" onClick={() => void send()}>
-              <Icon name="arrow-up" size={16} />
-            </button>
-          )}
+        <div className="flex items-center gap-1 px-2 pt-1 pb-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1">
+            {leadAgent ? (
+              <>
+                <span className="pl-1.5 text-[12.5px] text-faint">Lead</span>
+                <DomNode
+                  className="inline-flex min-w-0 items-center [&_.model-chip]:rounded-ctl [&_.model-chip]:border-transparent [&_.model-chip]:bg-transparent [&_.model-chip]:h-7 [&_.model-chip]:px-2 [&_.model-chip]:py-0 [&_.model-chip]:text-[12.5px] [&_.model-chip]:text-dim [&_.model-chip]:hover:bg-panel-2 [&_.model-chip]:hover:text-ink"
+                  make={() => {
+                    const chip = modelChip(leadAgent, { compact: true });
+                    chip.title = `Change ${leadAgent.name}'s model (team lead)`;
+                    return chip;
+                  }}
+                  deps={[leadAgent]}
+                />
+              </>
+            ) : <span className="pl-1.5 text-[12.5px] text-faint">Each agent uses its own model</span>}
+          </div>
+          <div className="flex flex-none items-center gap-1">
+            <DomNode as="span" className="dom-contents" make={() => tray.picker} deps={[tray]} />
+            {busy.length && !filled ? (
+              <button className="btn danger size-8 px-0" title="Stop the whole team" aria-label="Stop" onClick={() => void stop()}>
+                <Icon name="square" size={14} />
+              </button>
+            ) : (
+              <button className="btn size-8 px-0" title={busy.length ? 'Send now: whoever is working stops and takes this up (Enter)' : 'Send (Enter)'} aria-label="Send" onClick={() => void send()}>
+                <Icon name="arrow-up" size={16} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -852,7 +885,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
 
 export function renderTeamChat(container: HTMLElement, teamId: string, { height = 360, fill = false }: TeamChatOptions = {}): TeamChatApi {
   const box: BoxRef = { input: null, pending: { focus: false, mentions: [] } };
-  const root = mountReact(container, <TeamChat teamId={teamId} height={height} fill={fill} box={box} />);
+  const root = mountReact(container, <IconWeightProvider value="regular"><TeamChat teamId={teamId} height={height} fill={fill} box={box} /></IconWeightProvider>);
   return {
     // (before the box is drawn, kept until it is)
     focus: () => (box.input ? box.input.focus() : (box.pending.focus = true)),

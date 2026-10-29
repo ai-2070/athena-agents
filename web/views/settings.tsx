@@ -73,7 +73,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
   const setC = (k: 'auto' | 'engineOwn' | 'instant', on: boolean) => (setCompaction({ ...compaction, [k]: on }), setP(`compaction.${k}`, on));
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-12 max-lg:gap-10">
       <Section title="Engines on this PC" description="The programs your agents can run on. They are found by themselves.">
         <Engines data={data} reload={reload} />
       </Section>
@@ -238,17 +238,17 @@ function SavedSwitch({ field, initial, on, off, reload, title, description }: { 
 function Mark({ brand, glyph }: { brand?: string; glyph?: string }) {
   // near-black brand colours (Anthropic, OpenAI) draw in the text colour, so they show on a dark page too
   const color = brand && DARK_BRANDS.has(brand) ? 'currentColor' : null;
-  return <DomNode as="span" className="ai-mark grid size-8 place-items-center rounded-ctl border border-line bg-panel-2 font-sans text-[16px] leading-none font-semibold text-ink [&_svg]:size-[17px]" make={() => (brand && logo(brand, 18, color)) || document.createTextNode(glyph || '•')} deps={[brand, glyph]} />;
+  return <DomNode as="span" className="ai-mark grid size-8 place-items-center rounded-ctl bg-panel-2 font-sans text-[16px] leading-none font-semibold text-ink [&_svg]:size-[17px]" make={() => (brand && logo(brand, 18, color)) || document.createTextNode(glyph || '•')} deps={[brand, glyph]} />;
 }
 const DARK_BRANDS = new Set(['anthropic', 'openai']);
 
 // AI keys: one row per engine or key (ai-row, ai-name, ai-mark, ai-key and ai-list stay for the tests)
 const AI_LIST = 'ai-list divide-y divide-line';
-const AI_ROW = 'ai-row grid grid-cols-[32px_minmax(0,1fr)_auto] items-start gap-x-4 px-5 py-4 [&.flash-find]:rounded-ctl max-[561px]:grid-cols-[32px_minmax(0,1fr)] max-[561px]:gap-y-3';
+const AI_ROW = 'ai-row grid grid-cols-[32px_minmax(0,1fr)_auto] items-start gap-x-3.5 px-5 py-4 [&.flash-find]:rounded-ctl max-[561px]:grid-cols-[32px_minmax(0,1fr)] max-[561px]:gap-y-3';
 const AI_MAIN = 'flex min-w-0 flex-col gap-1';
-const AI_HEAD = 'flex min-h-8 flex-wrap items-center gap-2.5';
+const AI_HEAD = 'flex min-h-8 flex-wrap items-center gap-x-2.5 gap-y-1';
 const AI_NAME = 'ai-name font-sans text-[14px] leading-[1.3] font-medium text-ink';
-const AI_NOTE = 'max-w-[62ch] text-[13px] leading-normal text-dim [&_a]:text-accent [&_a]:underline-offset-2';
+const AI_NOTE = 'max-w-[62ch] text-[13px] leading-[1.5] text-dim [&_a]:text-accent [&_a]:underline-offset-2';
 export const AI_VERSION = 'font-mono text-[12px] leading-[1.3] font-normal text-dim tabular-nums';
 
 /** One engine or key: its mark, name and status, a line about it, and what you can do on the right.

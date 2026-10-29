@@ -4,8 +4,10 @@ import { Switch as BaseSwitch } from '@base-ui/react/switch';
 import { Tabs as BaseTabs } from '@base-ui/react/tabs';
 import { Toggle } from '@base-ui/react/toggle';
 import { ToggleGroup } from '@base-ui/react/toggle-group';
+import { useLayoutEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Icon } from './react.tsx';
+import { slideSegment } from '../segmotion.ts';
 
 export interface Choice<V extends string> {
   value: V;
@@ -59,8 +61,15 @@ export function Segmented<V extends string>({ options, value, onChange, label }:
   onChange: (v: V) => void;
   label: string;
 }) {
+  const root = useRef<HTMLDivElement>(null);
+  const previous = useRef<HTMLButtonElement | null>(null);
+  useLayoutEffect(() => {
+    const selected = root.current?.querySelector<HTMLButtonElement>('button.on') ?? null;
+    slideSegment(previous.current, selected);
+    previous.current = selected;
+  }, [value, options]);
   return (
-    <ToggleGroup className="seg" aria-label={label} value={value ? [value] : []} onValueChange={(v) => v[0] && onChange(v[0] as V)}>
+    <ToggleGroup ref={root} className="seg" aria-label={label} value={value ? [value] : []} onValueChange={(v) => v[0] && onChange(v[0] as V)}>
       {options.map((o) => (
         <Toggle key={o.value} value={o.value} title={o.title} className={(s) => on(s.pressed)}>
           {o.label}

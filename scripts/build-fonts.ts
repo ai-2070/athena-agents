@@ -1,7 +1,5 @@
-// The page's fonts, served from here rather than Google's servers, so the app looks the same offline and
-// nothing is fetched from outside. Takes the variable fonts from the Fontsource packages, copies the
-// files into <outdir>/fonts and returns their @font-face rules for app.css. Used by build-web.ts (and
-// its test); plain Node.
+// The page's fonts are served locally so the app looks the same offline.
+// Copies the Fontsource files into <outdir>/fonts and returns their @font-face rules.
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -17,6 +15,7 @@ export const FONTS = [
   // more chat fonts to pick in Settings > Look (web/look.ts CHAT_FONTS); a font's files download only when text uses it
   { pkg: 'google-sans', family: 'Google Sans', sheets: ['wght.css', 'wght-italic.css'] },
   { pkg: 'roboto', family: 'Roboto', sheets: ['wght.css', 'wght-italic.css'] },
+  { pkg: 'dseg7-classic', family: 'DSEG7 Classic', sheets: ['400.css'] },
 ];
 
 /** Copies the font files (and their licences) into outdir/fonts; returns the CSS, with urls relative to outdir. */
@@ -25,14 +24,16 @@ export function buildFonts(outdir: string): string {
   fs.mkdirSync(fontsDir, { recursive: true });
   let css = '';
   for (const font of FONTS) {
-    const dir = path.join(PKGS, font.pkg);
+    const dir = font.pkg === 'dseg7-classic'
+      ? path.join(path.dirname(PKGS), '@fontsource', font.pkg)
+      : path.join(PKGS, font.pkg);
     // the fonts' licence (SIL Open Font License) goes with them
     fs.copyFileSync(path.join(dir, 'LICENSE'), path.join(fontsDir, `${font.pkg}-LICENSE.txt`));
     for (const sheet of font.sheets) {
       css += fs
         .readFileSync(path.join(dir, sheet), 'utf8')
         .replace(/font-family:\s*'[^']+'/g, `font-family: '${font.family}'`)
-        .replace(/url\(\.\/files\/([\w.-]+\.woff2)\)/g, (_, file: string) => {
+        .replace(/url\(\.\/files\/([\w.-]+\.woff2?)\)/g, (_, file: string) => {
           fs.copyFileSync(path.join(dir, 'files', file), path.join(fontsDir, file));
           return `url(./fonts/${file})`;
         });

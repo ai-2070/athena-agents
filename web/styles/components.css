@@ -22,7 +22,7 @@ h2.section .label { font-weight: 400; }
   height: 36px; padding: 0 16px; border-radius: var(--radius-ctl);
   background: var(--color-accent); color: var(--color-on-accent);
   border: 1px solid color-mix(in srgb, var(--color-accent) 82%, var(--color-ink));
-  box-shadow: 0 1px 2px rgb(20 22 40 / 0.14), inset 0 1px 0 rgb(255 255 255 / 0.16);
+  box-shadow: inset 0 1px 0 var(--glass-spec), inset 0 -1px 0 light-dark(rgb(20 22 40 / 0.04), rgb(0 0 0 / 0.18)), 0 1px 2px light-dark(rgb(20 22 40 / 0.12), rgb(0 0 0 / 0.3)), 0 3px 6px -3px light-dark(rgb(20 22 40 / 0.12), rgb(0 0 0 / 0.35));
   font: 500 13.5px/1 var(--font-sans); letter-spacing: -0.005em;
   cursor: pointer; white-space: nowrap;
   transition: transform 0.18s var(--ease-soft), background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.2s, opacity 0.2s;
@@ -30,9 +30,9 @@ h2.section .label { font-weight: 400; }
 .btn:hover { background: var(--color-accent-hover); }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
-.btn.ghost { background: var(--color-panel); color: var(--color-ink); border-color: var(--color-line-2); box-shadow: var(--shadow-card); }
+.btn.ghost { background: var(--color-panel); color: var(--color-ink); border-color: var(--color-line-2); }
 .btn.ghost:hover { background: var(--color-panel-2); border-color: color-mix(in srgb, var(--color-ink) 22%, var(--color-line-2)); color: var(--color-ink); }
-.btn.danger { background: var(--color-panel); color: var(--color-red); border-color: color-mix(in srgb, var(--color-red) 38%, var(--color-line-2)); box-shadow: var(--shadow-card); }
+.btn.danger { background: var(--color-panel); color: var(--color-red); border-color: color-mix(in srgb, var(--color-red) 38%, var(--color-line-2)); }
 .btn.danger:hover { background: color-mix(in srgb, var(--color-red) 9%, var(--color-panel)); border-color: color-mix(in srgb, var(--color-red) 60%, var(--color-line-2)); }
 .btn.small { height: 30px; padding: 0 12px; font-size: 13px; }
 .btn.tiny { height: 26px; padding: 0 9px; font-size: 12px; gap: 6px; }
@@ -59,11 +59,16 @@ label.field > span:first-child, div.field > span:first-child { font: 500 13px/1.
 /* a switch between a few choices: one soft track, the picked one lifted out of it */
 .seg { display: inline-flex; flex-wrap: wrap; gap: 2px; width: fit-content; max-width: 100%; padding: 3px; background: var(--color-panel-2); border: 1px solid var(--color-line); border-radius: calc(var(--radius-ctl) + 3px); }
 .seg button {
-  background: transparent; border: 0; border-radius: var(--radius-ctl); padding: 6px 14px; cursor: pointer; color: var(--color-dim);
+  position: relative; isolation: isolate; background: transparent; border: 0; border-radius: var(--radius-ctl); padding: 6px 14px; cursor: pointer; color: var(--color-dim);
   font: 500 13px/1.3 var(--font-sans); white-space: nowrap;
   transition: color 0.15s, background-color 0.15s, box-shadow 0.15s;
 }
-.seg button.on, .seg button[data-checked], .seg button[data-pressed] { background: var(--color-raise); color: var(--color-ink); box-shadow: 0 1px 2px rgb(20 22 40 / 0.12), 0 0 0 1px var(--color-line); }
+.seg button.on, .seg button[data-checked], .seg button[data-pressed] { color: var(--color-ink); }
+.seg button:is(.on, [data-checked], [data-pressed])::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; transform-origin: top left;
+  background: light-dark(rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.1));
+  box-shadow: inset 0 1px 0 var(--glass-spec), 0 0 0 1px var(--color-line-2), 0 1px 2px light-dark(rgb(20 22 40 / 0.08), transparent);
+}
 .seg button:not(.on):not([data-checked]):not([data-pressed]):hover { color: var(--color-ink); }
 .seg button:focus-visible { outline-offset: 1px; }
 
@@ -438,6 +443,9 @@ details.compaction .hint.warn { color: var(--color-amber); }
   border: 1px solid var(--color-line);
   box-shadow: inset 0 1px 0 var(--glass-spec);
 }
+body:not(.station-mode) #view .glass-plate {
+  background-image: linear-gradient(155deg, light-dark(transparent, color-mix(in srgb, var(--glass-spec) 45%, transparent)), transparent 55%);
+}
 .st-panel, .st-menu, .tc-suggest, .modal, .dock, .glass:not(.modal-back) {
   --color-bg: light-dark(rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.045));
   --color-panel: light-dark(rgb(255 255 255 / 0.44), rgb(255 255 255 / 0.05));
@@ -463,7 +471,7 @@ details.compaction .hint.warn { color: var(--color-amber); }
     0 40px 90px -24px light-dark(rgb(20 22 40 / 0.32), rgb(0 0 0 / 0.95));
 }
 /* the Brain chat: a gentler sheen (it is a big, mostly quiet surface), and the panel's shadow */
-.dock {
+.dock, .cw {
   --glass-sheen: light-dark(rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.045));
   box-shadow:
     inset 0 1px 0 var(--glass-spec),
@@ -493,24 +501,18 @@ details.compaction .hint.warn { color: var(--color-amber); }
   .st-panel, .st-menu, .tc-suggest, .modal, .dock, .glass:not(.modal-back) { -webkit-backdrop-filter: none; backdrop-filter: none; background: light-dark(#fafafc, #060608); }
 }
 /* buttons and fields keep the page's own shape; only their fill is glass */
-.st-panel .btn.ghost, .modal .btn.ghost, .dock .btn.ghost { box-shadow: inset 0 1px 0 var(--glass-spec); }
-:is(.st-panel, .dock) .icon-btn { width: 28px; height: 28px; border-color: var(--color-line); background: var(--color-panel); box-shadow: inset 0 1px 0 var(--glass-spec); }
-:is(.st-panel, .dock) .icon-btn:hover { background: var(--color-panel-2); }
-:is(.st-panel, .dock) .icon-btn.plain { width: 26px; height: 26px; border-color: transparent; background: transparent; box-shadow: none; }
-:is(.st-panel, .dock) .icon-btn.plain:hover { background: var(--color-panel-2); color: var(--color-ink); }
-:is(.st-panel, .modal) :is(input:not([type='checkbox'], [type='radio'], [type='range']), textarea, select) { box-shadow: inset 0 1px 0 var(--glass-spec); }
+:is(.st-panel, .dock, .cw) .icon-btn { width: 28px; height: 28px; border-color: var(--color-line); background: var(--color-panel); box-shadow: inset 0 1px 0 var(--glass-spec); }
+:is(.st-panel, .dock, .cw) .icon-btn:hover { background: var(--color-panel-2); }
+:is(.st-panel, .dock, .cw) .icon-btn.plain { width: 26px; height: 26px; border-color: transparent; background: transparent; box-shadow: none; }
+:is(.st-panel, .dock, .cw) .icon-btn.plain:hover { background: var(--color-panel-2); color: var(--color-ink); }
+:is(.st-panel, .modal) :is(input:not([type='checkbox'], [type='radio'], [type='range']), textarea, select):not(:focus) { box-shadow: inset 0 1px 0 var(--glass-spec); }
 /* A gentler sheen keeps the dialog header quiet. */
 .modal { --glass-sheen: light-dark(rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.045)); }
 /* the Cancel button is a soft plate, the main one gets a lit top edge so it has some body */
 .btn.ghost { background: light-dark(rgb(20 22 40 / 0.03), rgb(255 255 255 / 0.04)); }
 .btn.ghost:hover { background: light-dark(rgb(20 22 40 / 0.06), rgb(255 255 255 / 0.09)); }
-.btn:not(.ghost, .danger, .plain) { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28), 0 1px 2px rgb(0 0 0 / 0.22); }
 /* the choice between a few things: a faint track, and the picked one a lit plate instead of a grey block */
 .seg { background: light-dark(rgb(20 22 40 / 0.035), rgb(255 255 255 / 0.035)); border-color: var(--color-line); }
-.seg button:is(.on, [data-checked], [data-pressed]) {
-  background: light-dark(rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.1));
-  box-shadow: inset 0 1px 0 var(--glass-spec), 0 0 0 1px var(--color-line-2), 0 1px 2px light-dark(rgb(20 22 40 / 0.08), transparent);
-}
 /* a checkbox drawn by us (the browser's own is a stock blue square) */
 input[type='checkbox'] {
   appearance: none; -webkit-appearance: none; flex: none; display: inline-grid; place-content: center;

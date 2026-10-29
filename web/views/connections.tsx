@@ -117,30 +117,6 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
           <PanelNote>Agents with the Social tools draft posts into the Outbox; you approve each one. X bills API use per request on your developer account.</PanelNote>
         </Section>
 
-        <Section title="Reddit accounts" description="The accounts your agents can read and post with." action={accounts.redditAppConfigured ? <a className="btn small" href={serverUrl('/oauth/reddit/start')}>+ Connect an account</a> : null}>
-          {(accounts.reddit || []).length ? (
-            accounts.reddit.map((a) => (
-              <div key={a.id} className="list-row flex-wrap gap-4 px-5 py-4">
-                {a.icon ? <img className="size-8 rounded-full" src={a.icon} width={32} height={32} alt="" /> : <div className="avatar size-8 rounded-full text-[12px]">r/</div>}
-                <div className="min-w-0 flex-1">
-                  <div className="title">{`u/${a.username}`}</div>
-                  <div className="hint">{`connected ${ago(a.connectedAt)}`}</div>
-                </div>
-                <AutoPost
-                  initial={a.autopost}
-                  title="Publish agent posts and comments right away, without the Outbox"
-                  ask={`Let agents post to Reddit as u/${a.username} without asking you?`}
-                  save={(v) => POST(`/accounts/reddit/${a.id}`, { autopost: v })}
-                />
-                <button className="btn tiny danger" onClick={() => void disconnect(`u/${a.username}`, `/accounts/reddit/${a.id}`, reload)}>Disconnect</button>
-              </div>
-            ))
-          ) : (
-            <Row title="No account connected yet" description={accounts.redditAppConfigured ? 'Click Connect, sign in to Reddit and allow access.' : 'First set up your Reddit app below (one time).'} />
-          )}
-          <PanelNote>Agents read subreddits and search freely. Posts and comments they write wait in the Outbox for you.</PanelNote>
-        </Section>
-
         <Section title="Telegram" description="Agents and workflows can message you, e.g. when a long task is done.">
           <FieldRow label="Bot token" size="lg">
             <input className="code" type="password" autoComplete="off" placeholder={saved(secrets.telegramBotToken, 'Bot token from @BotFather')} onChange={(e) => (tg.current.token = e.target.value)} />
@@ -197,6 +173,30 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
             <button className="btn small" onClick={() => void saveX()}>Save</button>
           </RowActions>
           <PanelNote>{`Open the dashboard at the same address you registered (${location.host}). localhost and 127.0.0.1 count as different addresses for X.`}</PanelNote>
+        </Section>
+
+        <Section title="Reddit accounts" description="The accounts your agents can read and post with." action={accounts.redditAppConfigured ? <a className="btn small" href={serverUrl('/oauth/reddit/start')}>+ Connect an account</a> : null}>
+          {(accounts.reddit || []).length ? (
+            accounts.reddit.map((a) => (
+              <div key={a.id} className="list-row flex-wrap gap-4 px-5 py-4">
+                {a.icon ? <img className="size-8 rounded-full" src={a.icon} width={32} height={32} alt="" /> : <div className="avatar size-8 rounded-full text-[12px]">r/</div>}
+                <div className="min-w-0 flex-1">
+                  <div className="title">{`u/${a.username}`}</div>
+                  <div className="hint">{`connected ${ago(a.connectedAt)}`}</div>
+                </div>
+                <AutoPost
+                  initial={a.autopost}
+                  title="Publish agent posts and comments right away, without the Outbox"
+                  ask={`Let agents post to Reddit as u/${a.username} without asking you?`}
+                  save={(v) => POST(`/accounts/reddit/${a.id}`, { autopost: v })}
+                />
+                <button className="btn tiny danger" onClick={() => void disconnect(`u/${a.username}`, `/accounts/reddit/${a.id}`, reload)}>Disconnect</button>
+              </div>
+            ))
+          ) : (
+            <Row title="No account connected yet" description={accounts.redditAppConfigured ? 'Click Connect, sign in to Reddit and allow access.' : 'First set up your Reddit app below (one time).'} />
+          )}
+          <PanelNote>Agents read subreddits and search freely. Posts and comments they write wait in the Outbox for you.</PanelNote>
         </Section>
 
         <Section title="Your Reddit app (one-time setup)" description="Reddit needs an app of yours to sign accounts in." action={accounts.redditAppConfigured ? <span className="pill ok">ready</span> : <span className="pill warn">not set</span>}>

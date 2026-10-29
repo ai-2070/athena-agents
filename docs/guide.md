@@ -47,6 +47,9 @@ pi and oh-my-pi run their own tools (files, shell, edits) without asking, whatev
 
 Projects keep separate agents, teams and chats. Use the project name at the top left to switch projects, create another one or make a backup.
 
+On the Station, the activity feed says **Live** in green while live updates are connected. **Reconnecting…** means the
+connection dropped and the dashboard is trying again.
+
 ## Chats and files
 
 Agent and team chats open in floating, resizable windows with tabs. Drag a tab along the tabs to reorder it, out onto the map to open it in a new window, or onto another window's tabs to move it there; drag a window by its title bar onto another window's tabs to join them. Press **Ctrl+↓** (**⌘↓** on macOS) to minimize the window on top, again for the next one, and **Ctrl+↑** (**⌘↑**) to bring them back, the one minimized last first.

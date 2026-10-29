@@ -7,7 +7,7 @@
   :root:not([data-theme='light']) {
     color-scheme: dark;
     --color-bg: #0e0f11;
-    --color-side: #0b0c0e;
+    --color-side: #000;
     --color-floor: #08090a;
     --color-panel: #131417;
     --color-panel-2: #1a1b20;
@@ -37,7 +37,7 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
   --color-bg: #0e0f11;
-  --color-side: #0b0c0e;
+  --color-side: #000;
   --color-floor: #08090a;
   --color-panel: #131417;
   --color-panel-2: #1a1b20;
@@ -74,6 +74,17 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+
+/* Pages use true black in dark mode; the Station keeps its own map palette. */
+body:not(.station-mode) {
+  --color-bg: light-dark(#fff, #000);
+  --color-panel: light-dark(#fcfcfd, #0b0b0d);
+  --color-panel-2: light-dark(#f3f3f6, #17171a);
+  --color-raise: light-dark(#fff, #202024);
+}
+body:not(.station-mode) #main {
+  background-image: linear-gradient(155deg, light-dark(transparent, rgb(255 255 255 / 0.045)), transparent 42%);
+}
 a { color: var(--color-accent); text-decoration: none; }
 a:hover { color: var(--color-accent-hover); }
 ::selection { background: color-mix(in srgb, var(--color-accent) 28%, transparent); }
@@ -109,6 +120,8 @@ input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [ty
 input, select, textarea { border-radius: var(--radius-ctl); }
 input:hover, select:hover, textarea:hover { border-color: color-mix(in srgb, var(--color-ink) 22%, var(--color-line-2)); }
 input:focus, select:focus, textarea:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent); }
+/* Text fields use their focus shadow instead of a second focus-visible outline. */
+textarea:focus-visible, select:focus-visible { outline: none; }
 input:disabled, select:disabled, textarea:disabled { background: var(--color-panel-2); color: var(--color-faint); cursor: not-allowed; }
 input[type='search']::-webkit-search-cancel-button { display: none; appearance: none; }
 textarea { resize: vertical; min-height: 96px; line-height: 1.55; }

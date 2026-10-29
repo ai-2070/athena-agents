@@ -95,7 +95,7 @@ const NAV_TXT =
 const NAV_COUNT =
   'ml-auto in-[.station-mode]:[display:none] in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 // a line of the status list at the bottom left
-const NS_LINE = '-mx-2 flex items-center gap-2 rounded-ctl px-2 py-[5px] text-[12.5px] text-dim no-underline [transition:background_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink';
+const NS_LINE = 'group flex min-w-0 w-full items-center gap-2.5 rounded-ctl px-2 py-1 text-[12.5px] leading-5 text-dim no-underline [transition:background-color_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
 
 let viewEl = document.getElementById('view')!;
 const titleEl = document.getElementById('page-title')!;
@@ -113,7 +113,7 @@ function renderNav() {
   const d = state.data;
   if (d) {
     // the status list, or (Status / Limits switch) your Claude and Codex usage limits
-    mount(document.getElementById('nav-status')!, panelSwitch(renderNav), sidebarPanel() === 'limits' ? navLimits(renderNav) : navStatus(d));
+    mount(document.getElementById('nav-status')!, sidebarPanel() === 'limits' ? navLimits(renderNav) : navStatus(d), panelSwitch(renderNav));
   }
   // the version is asked for once (no GitHub call here: the star count is only fetched in Settings > About)
   if (!aboutAsked) {
@@ -141,35 +141,38 @@ function navStatus(d: AppState) {
   const S = (q: string) => `#/settings?${q}`;
   const ver = (v: string | null | undefined) => (v ? String(v).split(/\s/)[0] : '');
   const line = (dot: string, label: string, value: string, href: string, title?: string) =>
-    h('a', { class: NS_LINE, href, title: title || label, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: `dot ${dot}` }), h('span', { class: 'min-w-0 flex-1 truncate' }, label), value ? h('span', { class: 'text-[11.5px] whitespace-nowrap text-faint' }, value) : null);
+    h('a', { class: NS_LINE, href, title: title || label, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: `dot ${dot} size-1.5 [box-shadow:none]` }), h('span', { class: 'min-w-0 flex-1 truncate text-ink' }, label), value ? h('span', { class: 'max-w-[48%] min-w-0 truncate text-right text-[11.5px] text-faint tabular-nums', title: value }, value) : null);
   const cc: Partial<EngineStatus['claude-code']> = e['claude-code'] || {};
   const cx: Partial<EngineStatus['codex']> = e.codex || {};
   const acc: Partial<AppState['accounts']> = d.accounts || {};
-  const x = acc.x || [];
-  const rd = acc.reddit || [];
   const b = d.settings?.brain || { provider: 'claude', model: 'haiku' };
   const brainName = String(b.model || 'haiku').replace(/^anthropic\/claude-/, '').replace(/^./, (c) => c.toUpperCase());
-  const lines = [
+  const heading = 'mt-3 px-2 pb-1 text-[11px] leading-4 font-medium text-faint';
+  const sv = d.projectSaved;
+  const savedLine = sv ? (sv.error ? `not saved: ${sv.error}` : `auto-saved ${ago(sv.at)}`) : 'auto-save on';
+  const footer = 'flex min-w-0 w-full items-start gap-2.5 rounded-ctl px-2 py-1.5 text-[11.5px] leading-4 text-faint hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
+  return [
+    h('div', { class: heading }, 'Engines'),
     line(cc.installed ? (cc.loggedIn ? 'on' : 'warn') : '', 'Claude Code', cc.installed ? (cc.loggedIn ? ver(cc.version) || 'ready' : 'not signed in') : 'not found', S('tab=general&find=Claude Code')),
     line(cx.installed ? (cx.loggedIn ? 'on' : 'warn') : '', 'Codex', cx.installed ? (cx.loggedIn ? ver(cx.version) || 'ready' : 'sign in') : 'not installed', S('tab=general&find=OpenAI Codex')),
     line(e.hermes?.installed ? 'on' : '', 'Hermes', e.hermes?.installed ? 'found' : 'not found', S('tab=general&find=Hermes')),
-    // always listed, like the Station's engine tiles: grey with a link to how to install until found
     line(e.pi?.installed ? 'on' : '', 'pi coding agent', e.pi?.installed ? ver(e.pi.version) || 'found' : 'not installed', S('tab=general&find=pi coding agent')),
     line(e.omp?.installed ? 'on' : '', 'oh-my-pi', e.omp?.installed ? ver(e.omp.version) || 'found' : 'not installed', S('tab=general&find=oh-my-pi')),
     line(e.openclaw?.installed ? 'on' : '', 'OpenClaw', e.openclaw?.installed ? ver(e.openclaw.version) || 'found' : 'not installed', S('tab=general&find=OpenClaw')),
+    h('div', { class: heading }, 'Models and connections'),
     line(e.openai?.openrouter ? 'on' : '', 'OpenRouter', e.openai?.openrouter ? 'key set' : 'no key', S('tab=general&find=OpenRouter key')),
     line('on', 'Brain', `${brainName}${b.provider === 'openrouter' ? ' · OR' : ''}`, S("tab=general&find=The Brain's model"), "The Brain's model"),
-    line(x.length ? 'on' : '', 'X', x.length ? (x.length === 1 ? `@${x[0].username}` : `${x.length} accounts`) : 'not connected', S('tab=connections&sub=accounts&find=X accounts')),
-    line(rd.length ? 'on' : '', 'Reddit', rd.length ? (rd.length === 1 ? `u/${rd[0].username}` : `${rd.length} accounts`) : 'not connected', S('tab=connections&sub=accounts&find=Reddit accounts')),
     line(acc.telegram?.configured ? 'on' : '', 'Telegram', acc.telegram?.configured ? 'ready' : 'off', S('tab=connections&sub=accounts&find=Telegram')),
     line(acc.discord?.configured ? 'on' : '', 'Discord', acc.discord?.configured ? 'ready' : 'off', S('tab=connections&sub=accounts&find=Discord')),
     line((d.mcpServers || []).length ? 'on' : '', 'MCP servers', String((d.mcpServers || []).length), S('tab=mcp&find=Your MCP servers')),
     d.outboxPending || d.questions?.length ? line('busy', 'Outbox', `${d.outboxPending + (d.questions?.length || 0)} waiting`, '#/outbox') : null,
+    h('div', { class: 'mt-2 border-t border-line pt-2' },
+      h('a', { class: footer, href: S('tab=about&find=This PC'), title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}` },
+        icon('folder-open', 13), h('span', { class: 'flex min-w-0 flex-1 flex-col gap-0.5' },
+          h('span', { class: 'truncate text-dim' }, d.project?.name || 'Project'),
+          h('span', { class: 'truncate', title: savedLine }, savedLine))),
+      h('a', { class: footer, href: S('tab=about&find=This PC'), title: 'Address' }, icon('globe', 13), h('span', { class: 'min-w-0 truncate' }, `localhost:${d.port} · no login`))),
   ];
-  const sv = d.projectSaved;
-  const savedLine = sv ? (sv.error ? `not saved: ${sv.error}` : `auto-saved ${ago(sv.at)}`) : 'auto-save on';
-  const foot = 'min-w-0 flex-1 truncate text-faint';
-  return [...lines, h('a', { class: NS_LINE, href: S('tab=about&find=This PC'), title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}` }, h('span', { class: foot }, `${d.project?.name || 'Project'} · ${savedLine}`)), h('a', { class: NS_LINE, href: S('tab=about&find=This PC'), title: 'Address' }, h('span', { class: foot }, `localhost:${d.port} · no login`))];
 }
 
 async function route() {

@@ -171,6 +171,7 @@ animations and transitions to about 0ms.
 | **To and paperclip menus close** | the reverse, kept on screen until it ends (Base UI waits for the transition) | 0.10s |
 | **Model picker opens** | `menu-pop` keyframe: opacity 0 to 1, scale .97 and a 3px slide (`--menu-dy`), origin top-left (below the chip) or bottom-left (above it) | 0.14s, `--ease-soft` |
 | **Model picker closes** | fades and shrinks to .97 (`slideOut`), no clicks while it goes, then removed; removed at once if Motion is Reduced or there are no animations; a 500ms backstop removes it if the animation never ends | 110ms `cubic-bezier(.5,0,.75,0)` |
+| **Segmented choices** | the selected plate slides and resizes from the previous choice; buttons and their keyboard focus stay in place | 240ms, `--ease-soft`; off with reduced motion |
 | Hover and open states | background and colour transitions | 0.12s (menu items), 0.15s (To button, example prompts) |
 
 Measured in a real browser (frame by frame): each popup goes from opacity 0 to 1 over 6 to 7 frames on the way in, and
@@ -213,8 +214,24 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
   Dialog backdrops do not blur: the dialog itself needs to see the page behind it.
 - Flat pages and the attached sidebar use plates instead of blur. `.glass-plate` gives them a panel fill, hairline edge and
   inset highlight; the glass tokens are available at the root for plates outside floating surfaces.
+- Outside the Station, dark pages sit on true black with a faint neutral gradient and near-black plates; the sidebar is
+  true black in dark mode. Light pages retain their white surfaces. The Station keeps its own map palette.
+- The Station's integration and engine bars have no surrounding fill or border. Its clock uses a locally bundled
+  seven-segment font, with the locale's day period in Geist.
+- The sidebar groups engine and connection status above a compact Status / Limits switch. Its list scrolls vertically;
+  the switch stays at the bottom, and the project and address do not need horizontal scrolling. X and Reddit remain in
+  Connections, not in the sidebar.
 - Settings sections share the Section and Row layout. Programs and Outbox use the same layout.
+- In Connections > Accounts, Reddit accounts and their one-time setup appear together at the end.
 - Agent and team chats use one composer with controls below the text; answers sit directly on the window.
+- Team chat windows use the same gentle glass sheen and shadow as the Brain, with a transparent conversation area and
+  compact tabs. Your messages keep their author and time for assistive technology while showing the text as a quiet plate.
+- A team composer's model chip changes the lead agent's model, as in the Brain's team target. When there is no lead it
+  says each agent uses its own model. The chip is 28px tall, Send is 32px square, and the window close is a 28px plate.
+- Team windows use the Brain's 20px side padding and stagger their header, messages and composer as they open. Reduced
+  motion turns these entrances off. Textareas and inputs share the same focus border and shadow outside chat composers.
+- Raised action buttons share two inset and two outer shadows; deliberately plain, disabled and composer icon buttons
+  remain flat.
 - Choice controls use the shared Base UI select and glass menu rather than native select popups. Checkboxes and segmented
   controls share the same treatment on pages and in dialogs.
 - Plain-DOM project, skill, mention and model menus and Base UI menus use exit motion; reduced-motion settings still apply.

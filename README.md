@@ -38,6 +38,8 @@ The screenshots below use made-up demo data.
 
 Each team is a pod with its agents at their desks. The Brain sits in the middle and sets up teams, skills and routines when you ask. Lines run from the programs and services at the top to the agents that use them, and light up when an agent makes a call.
 
+The Station's activity feed shows **Live** in green while live updates are connected, and **Reconnecting…** if the connection drops.
+
 ![The Station, a live 3D map with three teams, the Brain, and the programs connected to the agents](docs/images/station.png)
 
 ### A voxel world your agents build

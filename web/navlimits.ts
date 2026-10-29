@@ -1,4 +1,4 @@
-// The sidebar's usage view, in place of the status list (the Status / Limits switch above it, or Settings > Look):
+// The sidebar's usage view, in place of the status list (the Status / Limits switch below it, or Settings > Look):
 // how much of your Claude and Codex plans is used, when each limit starts again, and Codex's free limit resets.
 import { h, mount, GET, POST, PUT, state, confirmBox, toast } from './core.ts';
 import { DEFAULT_LOOK, applyLook, currentLook, uiZoom } from './look.ts';
@@ -39,10 +39,10 @@ export function rememberSidebarPanel(p: SidebarPanel): void {
 }
 
 // Switching Status / Limits: the old lines slide out toward where they sit (Status on the left, Limits on the
-// right), the new ones slide in from the other side one after another, and the line under the tab glides over.
+// right), the new ones slide in from the other side one after another, and the selected plate glides over.
 // Only on a switch: the sidebar is drawn again often, and that must not replay it.
 let switching = false;
-const lines = (host: Element | null): HTMLElement[] => (host ? ([...host.children].slice(1) as HTMLElement[]) : []);
+const lines = (host: Element | null): HTMLElement[] => host ? [...host.children].filter((el): el is HTMLElement => el instanceof HTMLElement && !el.classList.contains('sidebar-panel-switch')) : [];
 
 /** Switches what the sidebar shows, here and in Settings > Look. */
 export function setSidebarPanel(p: SidebarPanel, redraw: () => void): void {
@@ -97,7 +97,7 @@ function load(redraw: () => void): void {
   });
 }
 
-const ROW = '-mx-2 flex items-center gap-2 rounded-ctl px-2 py-[5px] text-[12.5px] text-dim no-underline [transition:background_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink';
+const ROW = 'group flex min-w-0 w-full items-center gap-2.5 rounded-ctl px-2 py-1 text-[12.5px] leading-5 text-dim no-underline [transition:background-color_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
 const close = () => document.body.classList.remove('nav-open');
 
 function head(name: string, brand: string, color: string | undefined, p: ProviderLimits, href: string, right: string) {
@@ -105,9 +105,9 @@ function head(name: string, brand: string, color: string | undefined, p: Provide
   return h(
     'a',
     { class: ROW, href, title: p.ready ? `${name} plan limits` : `${name}: ${p.why}`, onclick: close },
-    h('span', { class: `dot ${dot}` }),
-    h('span', { class: 'flex min-w-0 flex-1 items-center gap-1.5 truncate' }, logo(brand, 11, color), h('span', { class: 'truncate' }, name)),
-    right ? h('span', { class: 'text-[11.5px] whitespace-nowrap text-faint' }, right) : null,
+    h('span', { class: `dot ${dot} size-1.5 [box-shadow:none]` }),
+    h('span', { class: 'flex min-w-0 flex-1 items-center gap-1.5 text-ink' }, logo(brand, 12, color), h('span', { class: 'min-w-0 truncate' }, name)),
+    right ? h('span', { class: 'max-w-[48%] min-w-0 truncate text-right text-[11.5px] text-faint', title: right }, right) : null,
   );
 }
 
@@ -263,16 +263,16 @@ export function navLimits(redraw: () => void): HTMLElement[] {
   ];
 }
 
-/** The Status / Limits switch at the top of the sidebar's list. */
+/** The Status / Limits switch at the bottom of the sidebar's list. */
 export function panelSwitch(redraw: () => void): HTMLElement {
   const now = sidebarPanel();
   const tab = (p: SidebarPanel, label: string, title: string) =>
     h(
       'button',
-      { type: 'button', class: `sidebar-panel-tab relative cursor-pointer border-0 bg-transparent px-0 py-1 text-[12px] font-medium transition-colors duration-200 ${now === p ? 'on text-ink' : 'text-faint hover:text-ink'}`, title, 'aria-pressed': String(now === p), onclick: () => now !== p && setSidebarPanel(p, redraw) },
-      label,
-      // the line under the tab that's on (it glides to the other tab on a switch)
-      now === p ? h('span.sidebar-panel-mark', { class: 'pointer-events-none absolute -bottom-px left-0 h-0.5 w-full rounded-full bg-accent', 'aria-hidden': 'true' }) : null,
+      { type: 'button', class: `sidebar-panel-tab relative flex-1 cursor-pointer rounded-[7px] border-0 bg-transparent px-2 py-1.5 text-[12px] leading-4 font-medium transition-colors duration-150 ${now === p ? 'on text-ink' : 'text-faint hover:text-ink'}`, title, 'aria-pressed': String(now === p), onclick: () => now !== p && setSidebarPanel(p, redraw) },
+      h('span', { class: 'relative z-1' }, label),
+      // the selected plate glides to the other tab on a switch
+      now === p ? h('span.sidebar-panel-mark', { class: 'pointer-events-none absolute inset-0 rounded-[7px] border border-line-2 bg-panel-2 shadow-[inset_0_1px_0_var(--glass-spec)]', 'aria-hidden': 'true' }) : null,
     );
-  return h('div', { class: 'mb-1.5 flex items-center gap-4' }, tab('status', 'Status', "What's set up"), tab('limits', 'Limits', 'How much of your Claude and Codex plans is used'));
+  return h('div', { class: 'sidebar-panel-switch sticky bottom-0 z-10 mt-2 flex gap-0.5 rounded-[10px] border border-line bg-side p-1' }, tab('status', 'Status', "What's set up"), tab('limits', 'Limits', 'How much of your Claude and Codex plans is used'));
 }

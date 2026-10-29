@@ -12,12 +12,12 @@ export { scheduleText };
 export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean }, onChange: () => void, { inputLabel = 'Input for scheduled runs', showToggle = true }: { inputLabel?: string; /** false: the page has its own on/off switch. */ showToggle?: boolean } = {}): HTMLDivElement {
   item.schedule ||= { type: 'none' };
   const box = h('div', { class: 'flex flex-col gap-4' });
+  const fields = h('div', { class: 'flex flex-col gap-4 empty:hidden' });
   const draw = () => {
     const s = item.schedule!;
     const mark = () => onChange();
     mount(
-      box,
-      seg([{ value: 'none', label: 'Manual' }, { value: 'interval', label: 'Every…' }, { value: 'daily', label: 'Daily' }], s.type, (v) => ((s.type = v), mark(), draw())),
+      fields,
       s.type === 'interval'
         ? field(
             'Every (minutes)',
@@ -58,6 +58,7 @@ export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean },
       s.type !== 'none' && showToggle ? h('label', { class: 'flex flex-wrap items-center gap-3' }, toggle(!!item.enabled, (v) => ((item.enabled = v), mark())), h('span', 'Schedule on (runs while the dashboard is open)')) : null,
     );
   };
+  box.append(seg([{ value: 'none', label: 'Manual' }, { value: 'interval', label: 'Every…' }, { value: 'daily', label: 'Daily' }], item.schedule.type, (v) => ((item.schedule!.type = v), onChange(), draw())), fields);
   draw();
   return box;
 }

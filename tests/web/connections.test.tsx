@@ -167,6 +167,13 @@ describe('Connections', () => {
     expect(el.textContent).toContain('Waiting for you (1)');
   });
 
+  it('keeps Reddit accounts and setup at the end of account settings', async () => {
+    await openConnections('#/settings?tab=connections&sub=accounts');
+    const sections = [...el.querySelectorAll('.settings-section h2')].map((heading) => heading.textContent);
+    expect(sections.slice(-2)).toEqual(['Reddit accounts', 'Your Reddit app (one-time setup)']);
+    expect(sections.indexOf('Discord')).toBeLessThan(sections.indexOf('Reddit accounts'));
+  });
+
   it('turns auto-post on only after you confirm', async () => {
     await openConnections('#/settings?tab=connections&sub=accounts');
     const sw = el.querySelector<HTMLElement>('.conn-account [role="switch"]')!;

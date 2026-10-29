@@ -101,7 +101,11 @@ describe('the routine editor', () => {
     const sw = () => el.querySelector<HTMLElement>('.panel-head [role="switch"]')!;
     // Manual: nothing to switch
     expect(sw().hasAttribute('data-disabled')).toBe(true);
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('.seg button')].find((b) => b.textContent === 'Daily')!.click());
+    const daily = [...el.querySelectorAll<HTMLButtonElement>('.seg button')].find((b) => b.textContent === 'Daily')!;
+    daily.focus();
+    await act(async () => daily.click());
+    expect(document.activeElement).toBe(daily);
+    expect(el.querySelector('input[type="time"]')).not.toBeNull();
     expect(sw().hasAttribute('data-disabled')).toBe(false);
     expect(sw().getAttribute('aria-checked')).toBe('false');
     await act(async () => el.querySelector<HTMLElement>('.panel .toggle-text')!.click());
