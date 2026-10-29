@@ -1,5 +1,5 @@
 // What a React page needs from the rest of the app: a place to mount, the live app state, and icons.
-import { Fragment, StrictMode, useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { Fragment, StrictMode, createContext, useCallback, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { CSSProperties, DependencyList, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { h, mount, onEvent, onState, state } from '../core.ts';
@@ -138,8 +138,14 @@ export function HoverScroll({ children, className = '', host }: { children: Reac
   );
 }
 
-/** One of the app's line icons (Phosphor Light, picked by name in web/phosphor.ts). */
+export type IconWeight = 'light' | 'regular';
+const IconWeightContext = createContext<IconWeight>('light');
+/** Icons inside it are drawn at this weight (Light unless a part of the page asks for a step stronger). */
+export const IconWeightProvider = IconWeightContext.Provider;
+export const useIconWeight = (): IconWeight => useContext(IconWeightContext);
+
+/** One of the app's line icons (Phosphor, picked by name in web/phosphor.ts). */
 export function Icon({ name, size = 16, className = '' }: { name: string; size?: number; className?: string }) {
   const Glyph = phosphorFor(name);
-  return <Glyph weight="light" size={size} className={`ico-svg ${className}`.trim()} aria-hidden="true" />;
+  return <Glyph weight={useIconWeight()} size={size} className={`ico-svg ${className}`.trim()} aria-hidden="true" />;
 }

@@ -17,7 +17,7 @@ import { projectMark, pickLogo, removeLogo, pickModel, removeModel, pickBackgrou
 import { pickTeamMark, EMOJI_CHOICES, DEFAULT_TEAM_MARK } from '../teammark.ts';
 import { icon, logo } from '../icons.ts';
 import { modelChip, modelInfo } from '../models.ts';
-import { Avatar, DomNode, HoverScroll, Icon, useAppState } from '../ui/react.tsx';
+import { Avatar, DomNode, HoverScroll, Icon, IconWeightProvider, useAppState } from '../ui/react.tsx';
 import { ChipSet, Segmented, Tabs } from '../ui/controls.tsx';
 import { AgentSelect } from '../ui/agentselect.tsx';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
@@ -72,7 +72,9 @@ export function mountStationPanel(el: HTMLElement, api: StationPanelApi): { upda
   const root = createRoot(el);
   root.render(
     <StrictMode>
-      <Panel api={api} subscribe={subscribe} version={() => version} />
+      <IconWeightProvider value="regular">
+        <Panel api={api} subscribe={subscribe} version={() => version} />
+      </IconWeightProvider>
     </StrictMode>,
   );
   return {
