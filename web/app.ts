@@ -61,7 +61,7 @@ const NAV: NavLink[] = [
   { path: 'artifacts', label: 'Artifacts', ico: 'archive', view: artifactsView },
   // how many agents this project has
   { path: 'agents', label: 'Agents', ico: 'bot', view: agents, count: () => state.data?.agents?.length || 0 },
-  { path: 'library', label: 'Agent library', ico: 'library-big', view: library },
+  { path: 'library', label: 'Agent Library', ico: 'library-big', view: library },
   { path: 'skills', label: 'Skills', ico: 'puzzle', view: skillsView },
   { path: 'routines', label: 'Routines', ico: 'repeat', view: routinesView },
   { path: 'settings', label: 'Settings', ico: 'settings', view: setup },

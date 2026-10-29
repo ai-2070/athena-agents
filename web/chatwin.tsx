@@ -699,7 +699,7 @@ const GRIPS: Record<string, string> = {
   se: "absolute z-2 size-4.5 -bottom-1.5 -right-1.5 cursor-nwse-resize after:content-[''] after:absolute after:right-2.25 after:bottom-2.25 after:size-2.5 after:bg-[linear-gradient(135deg,transparent_0_48%,var(--color-line-2)_48%_58%,transparent_58%_70%,var(--color-line-2)_70%_80%,transparent_80%)]",
   sw: 'absolute z-2 size-3.5 -bottom-1 -left-1 cursor-nesw-resize',
 };
-const TAB = 'group/tab relative flex items-center gap-2 px-2.5 py-1.5 max-w-[200px] cursor-pointer flex-none rounded-ctl text-[13px] font-medium select-none [transition:background_.15s,color_.15s,opacity_.15s]';
+const TAB = 'group/tab relative flex h-10 max-w-[220px] flex-none cursor-pointer items-center gap-2 bg-[linear-gradient(145deg,var(--glass-sheen),transparent_70%)] px-3 text-[13px] font-medium select-none rounded-t-[10px] rounded-b-none [transition:background-color_.15s,color_.15s,opacity_.15s]';
 const BTN = 'icon-btn plain flex-none';
 /** Where a dragged tab would land: a line in the gap before (or after) a tab. */
 const MARK = 'absolute top-1.5 bottom-1.5 w-0.5 rounded-full bg-accent pointer-events-none';
@@ -709,8 +709,8 @@ function tabInfo(t: ChatTab, busyAgents: Set<string>): { label: string; lead: Re
   if (t.kind === 'team') {
     const w = (window.__teams || []).find((x) => x.id === t.id);
     const lead = (
-      <span className="st-badge size-5" style={{ '--c': w?.color || '#7350c8' } as CSSProperties}>
-        <Icon name="users" size={11} />
+      <span className="st-badge size-6" style={{ '--c': w?.color || '#7350c8' } as CSSProperties}>
+        <Icon name="users" size={13} />
       </span>
     );
     return { label: w?.name || 'Team', lead, busy: (window.__teamWorking?.[t.id] || []).length > 0 };
@@ -832,7 +832,7 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
       onPointerDownCapture={() => raise(w)}
     >
       <div
-        className={`flex items-center gap-1.5 px-5 pt-4 pb-2 max-sm:px-4 cursor-grab group-[.moving]/cw:cursor-grabbing text-dim min-h-[46px] ${w.max ? 'rounded-t-[12px]' : 'rounded-t-[16px]'}`}
+        className={`flex items-center gap-1.5 border-b border-line px-5 pt-3 max-sm:px-4 cursor-grab group-[.moving]/cw:cursor-grabbing text-dim min-h-[52px] ${w.max ? 'rounded-t-[12px]' : 'rounded-t-[16px]'}`}
         data-cw-strip={w.id}
         onPointerDown={(e) => startDrag(e, w)}
         onDoubleClick={(e) => !(e.target as Element).closest('button, .cw-tab') && setMax(w, !w.max)}
@@ -840,7 +840,7 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
         <Icon name="message-square" size={15} />
         {/* Let tabs scroll instead of pushing past the window's buttons. */}
         <Tabs.Root className="flex min-w-0" value={w.active} onValueChange={(v) => activate(w, String(v))}>
-          <Tabs.List ref={listRef} className="relative flex gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0" aria-label="Open chats">
+          <Tabs.List ref={listRef} className="relative flex gap-0.5 self-end overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0" aria-label="Open chats">
             {w.tabs.map((t) => {
               const { label, lead, busy } = tabInfo(t, busyAgents);
               const on = t.key === w.active;
@@ -850,7 +850,7 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
                 <div
                   key={t.key}
                   data-key={t.key}
-                  className={`cw-tab ${TAB} [&_.avatar]:size-5 [&_.avatar]:text-[11px] ${on ? 'text-ink bg-panel' : 'text-dim hover:text-ink hover:bg-panel-2'}${lifted ? ' opacity-35' : ''}`}
+                  className={`cw-tab ${TAB} [&_.avatar]:size-6 [&_.avatar]:text-[12px] ${on ? 'bg-ink/5 text-ink' : 'text-dim hover:bg-ink/5 hover:text-ink'}${lifted ? ' opacity-35' : ''}`}
                   title={label}
                   onPointerDown={(e) => startTabDrag(e, w, t)}
                   onAuxClick={(e) => e.button === 1 && closeTab(t.key)}
@@ -863,9 +863,9 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
                     {busy ? <span className="dot busy" aria-label="working" /> : null}
                   </Tabs.Tab>
                   <button
-                    className={`cw-x text-faint cursor-pointer px-0.5 text-[11px] [transition:opacity_.15s] hover:text-ink ${on ? 'opacity-100' : 'opacity-0 group-hover/tab:opacity-100'}`}
+                    className={`cw-x text-faint cursor-pointer px-0.5 text-[11px] [transition:opacity_.15s,color_.15s] hover:text-ink ${on ? 'opacity-100' : 'opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100'}`}
                     title="Close" aria-label={`Close ${label}`} onClick={() => closeTab(t.key)}>
-                    <Icon name="x" size={12} />
+                    <Icon name="x" size={14} />
                   </button>
                 </div>
               );

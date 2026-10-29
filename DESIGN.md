@@ -218,14 +218,17 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
   true black in dark mode. Light pages retain their white surfaces. The Station keeps its own map palette.
 - The Station's integration and engine bars have no surrounding fill or border. Its clock uses a locally bundled
   seven-segment font, with the locale's day period in Geist.
+- The team panel groups members into one inset list instead of stacking separate cards. Member actions sit beside the
+  model, leaving names and status more room; Setup uses flat sections separated by hairlines.
 - The sidebar groups engine and connection status above a compact Status / Limits switch. Its list scrolls vertically;
   the switch stays at the bottom, and the project and address do not need horizontal scrolling. X and Reddit remain in
   Connections, not in the sidebar.
 - Settings sections share the Section and Row layout. Programs and Outbox use the same layout.
 - In Connections > Accounts, Reddit accounts and their one-time setup appear together at the end.
 - Agent and team chats use one composer with controls below the text; answers sit directly on the window.
-- Team chat windows use the same gentle glass sheen and shadow as the Brain, with a transparent conversation area and
-  compact tabs. Your messages keep their author and time for assistive technology while showing the text as a quiet plate.
+- Team chat windows use the same gentle glass sheen and shadow as the Brain, with a transparent conversation area.
+  Agent and team tabs have square bottoms and a static sheen instead of pills or outlines; the active tab has a quiet
+  fill. Your messages keep their author and time for assistive technology while showing the text as a quiet plate.
 - A team composer's model chip changes the lead agent's model, as in the Brain's team target. When there is no lead it
   says each agent uses its own model. The chip is 28px tall, Send is 32px square, and the window close is a 28px plate.
 - Team windows use the Brain's 20px side padding and stagger their header, messages and composer as they open. Reduced
