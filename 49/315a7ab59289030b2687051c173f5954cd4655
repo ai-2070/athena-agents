@@ -1,0 +1,27 @@
+web/navlimits.ts
+  s_8892bfc24ba38a::t_31ddc6fe9d7fcf 176
+public/index.html
+  s_8892bfc24ba38a::t_aa7e540c98a550 36,47
+src-tauri/loading/index.html
+  s_8892bfc24ba38a::t_542548ca34e48f 49,51
+web/dock.tsx
+  s_8892bfc24ba38a::t_648da628e1e665 880
+web/styles/base.css
+  s_8892bfc24ba38a::t_9c42568699e54e 84-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "49315a7ab59289030b2687051c173f5954cd4655",
+  "prompts": {},
+  "sessions": {
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
