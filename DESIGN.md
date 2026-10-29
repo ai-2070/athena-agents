@@ -227,6 +227,8 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
 - In Connections > Accounts, Reddit accounts and their one-time setup appear together at the end.
 - The agent editor groups identity and model before knowledge and memory; knowledge and MEMORY.md share a plate with a
   divider. Clicking the agent's avatar opens an offline emoji picker. Model suggestions use the shared glass menu.
+- The routine editor pairs its monospace instructions with Schedule, then places Runs across the page below. Run now
+  sits beside Save; history uses compact status rows, aligned actions and formatted results without nested boxes.
 - Agent and team chats use one composer with controls below the text; answers sit directly on the window.
 - The full agent chat keeps the agent and conversation list in a quiet attached sidebar. Its empty state offers
   suggestions as soft rows, while the composer sits on the page without a ruled footer. The model picker and square Send

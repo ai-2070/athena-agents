@@ -2,7 +2,7 @@
 // teams) and which skills they use. Run it by hand or on a schedule.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { h, GET, POST, PUT, DEL, attempt, navigate, confirmBox, ago, state, toast } from '../core.ts';
+import { h, md, GET, POST, PUT, DEL, attempt, navigate, confirmBox, ago, state, toast } from '../core.ts';
 import { icon } from '../icons.ts';
 import { loadSkills, skillsCache } from '../skillpick.ts';
 import { scheduleEditor, scheduleText } from '../schedule.ts';
@@ -208,6 +208,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   const [text, setText] = useState(first.text);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState(false);
   // a draft has no id yet: its first Save makes the routine
   const isNew = !id;
   // the schedule's kind and switch, here too because the schedule editor (plain DOM) changes the routine directly
@@ -236,6 +237,12 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
     setDirty(false);
     if (isNew) navigate(`#/routines/${out.id}`);
     return true;
+  };
+  const run = async () => {
+    if (dirty && !(await save())) return;
+    setRunning(true);
+    await attempt(() => POST(`/routines/${id}/run`, { input: '' }), 'Routine started');
+    setRunning(false);
   };
   const switchActive = (v: boolean) => {
     setActive(v);
@@ -284,8 +291,8 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   );
 
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+    <div className="mx-auto max-w-6xl">
+      <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
         <a className="btn ghost small" href="#/routines">← Routines</a>
         <div className="flex flex-wrap items-center gap-4">
           {isNew ? null : (
@@ -293,12 +300,21 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
               <span className="text-[13px] font-medium text-dim">{active ? 'Routine on' : 'Routine off'}</span>
             </Switch>
           )}
+          <button className="btn ghost" disabled={running || isNew || !active} title={isNew || !active ? 'Save the routine first, and switch it on, to run it' : undefined} onClick={() => void run()}>
+            <Icon name="play" size={14} />
+            Run now
+          </button>
           <button className="btn" disabled={!canSave} title={!text.trim() ? 'Write what the routine should do first' : undefined} onClick={() => void save()}>Save</button>
         </div>
       </div>
-      <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] items-start gap-8 max-lg:grid-cols-1 max-lg:gap-8">
-        <div className="flex min-w-0 flex-col gap-7">
+      <div className="mb-7">
+        <h1 className="m-0 text-[22px] leading-[1.2] font-semibold text-ink">{isNew ? 'New routine' : name || 'Routine'}</h1>
+        <p className="hint mt-2 mb-0">Set the work, who does it and when it runs.</p>
+      </div>
+      <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(300px,1fr)] items-start gap-5 max-lg:grid-cols-1">
+        <div className="glass-plate min-w-0 rounded-box p-5 sm:p-6">
           <div>
+            <div className="panel-head !mb-4"><h2>Details</h2></div>
             <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
               <Field label="Name">
                 <input value={name} onChange={(e) => (setName(e.target.value), setDirty(true))} />
@@ -308,8 +324,8 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
               </Field>
             </div>
           </div>
-          <div className="border-t border-line pt-6">
-            <div className="panel-head !mb-3">
+          <div className="mt-6 border-t border-line pt-6">
+            <div className="panel-head !mb-3 flex-wrap gap-3">
               <h2>What to do</h2>
               <div className="actions">
                 {insert('agent', 'Agent', 'bot')}
@@ -319,7 +335,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             </div>
             <textarea
               ref={ta}
-              className="min-h-45 leading-[1.55]"
+              className="code min-h-45 leading-[1.55]"
               rows={9}
               aria-label="What to do"
               value={text}
@@ -341,9 +357,8 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             </div>
           </div>
         </div>
-        <div className="flex min-w-0 flex-col gap-6 border-l border-line pl-6 max-lg:border-l-0 max-lg:border-t max-lg:pl-0 max-lg:pt-6">
-          <RunIt id={id} disabled={isNew || !active} beforeRun={async () => !dirty || (await save())} />
-          <div className="panel border-t border-line !border-x-0 !border-b-0 !bg-transparent !px-0 !pt-6 !pb-0 !shadow-none">
+        <aside className="flex min-w-0 flex-col gap-5">
+          <section className="panel glass-plate !m-0 !p-5 sm:!p-6">
             <div className="panel-head !mb-3">
               <h2>Schedule</h2>
               <div className="actions" title={kind === 'none' ? 'Pick Every… or Daily to schedule this routine' : undefined}>
@@ -354,49 +369,24 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             </div>
             <DomNode make={() => scheduleEditor(r.current, () => (setDirty(true), setKind(r.current.schedule?.type || 'none')), { inputLabel: 'Extra for scheduled runs (optional)', showToggle: false })} deps={[id]} />
             {kind !== 'none' ? <p className="hint">Runs while the dashboard is open.</p> : null}
-          </div>
-          <div className="border-t border-line pt-6">
+          </section>
+        </aside>
+        <section className="glass-plate col-span-2 rounded-box p-5 sm:p-6 max-lg:col-span-1">
             <div className="panel-head !mb-3">
               <h2>Runs</h2>
             </div>
             <Runs id={id} />
-          </div>
-          {isNew ? null : (
-            <div className="flex flex-wrap items-center gap-3 border-t border-line pt-5">
-              <button className="btn danger small" onClick={() => void del()}>Delete routine</button>
-            </div>
-          )}
-        </div>
+            {isNew ? null : (
+              <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-5">
+                <button className="btn danger small" onClick={() => void del()}>Delete routine</button>
+              </div>
+            )}
+          </section>
       </div>
     </div>
   );
 }
 
-function RunIt({ id, beforeRun, disabled = false }: { id: string; beforeRun: () => Promise<boolean>; disabled?: boolean }) {
-  const [input, setInput] = useState('');
-  const [busy, setBusy] = useState(false);
-  const run = async () => {
-    if (!(await beforeRun())) return;
-    setBusy(true);
-    const out = await attempt(() => POST(`/routines/${id}/run`, { input }), 'Routine started');
-    setBusy(false);
-    if (out) setInput('');
-  };
-  return (
-    <div>
-      <div className="panel-head !mb-3">
-        <h2>Run it</h2>
-      </div>
-      <textarea rows={2} aria-label="Extra for this run" placeholder="Optional: anything extra for this run" value={input} onChange={(e) => setInput(e.target.value)} />
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button className="btn" disabled={busy || disabled} title={disabled ? 'Save the routine first, and switch it on, to run it' : undefined} onClick={() => void run()}>
-          <Icon name="play" size={14} />
-          Run now
-        </button>
-      </div>
-    </div>
-  );
-}
 
 /** The routine's last runs, kept current; the newest is open, and whichever you opened stays open. */
 function Runs({ id }: { id: string }) {
@@ -416,8 +406,9 @@ function Runs({ id }: { id: string }) {
   return (
     <div className="flex flex-col divide-y divide-line">
       {runs.slice(0, 15).map((run, i) => (
+        <div key={run.id} className="relative">
         <details
-          key={run.id}
+          className="group/run"
           open={isOpen(run, i)}
           onToggle={(e) => {
             const now = (e.currentTarget as HTMLDetailsElement).open;
@@ -428,19 +419,26 @@ function Runs({ id }: { id: string }) {
             setOpen(next);
           }}
         >
-          <summary className="flex cursor-pointer flex-wrap items-center gap-2 py-3 text-[13px]">
-            <StatusIcon status={run.status} />
-            <b>{run.status}</b>
-            <span className="hint">{`${ago(run.createdAt)} · ${run.trigger}`}</span>
-            {run.status === 'running' ? (
-              <button className="btn tiny danger" onClick={(e) => (e.preventDefault(), void attempt(() => POST(`/routine-runs/${run.id}/stop`)))}>Stop</button>
-            ) : null}
+          <summary className="flex cursor-pointer list-none items-center gap-3 py-3 text-[13px] [&::-webkit-details-marker]:hidden">
+            <span className="grid size-5 flex-none place-items-center"><StatusIcon status={run.status} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold capitalize text-ink">{run.status}</span>
+              <span className="hint mt-0.5 block">{`${ago(run.createdAt)} · ${run.trigger}`}</span>
+            </span>
+            {run.status === 'running' ? <span className="w-14 flex-none" aria-hidden="true" /> : null}
+            <Icon name="chevron-down" size={14} className="flex-none text-dim transition-transform group-open/run:rotate-180" />
           </summary>
-          {run.targets.map((t) => (
-            <TargetRow key={`${t.kind}:${t.id}`} t={t} />
-          ))}
-          {run.skills.length ? <div className="hint">{`Skills: ${run.skills.map((slug) => skillsCache().find((s) => s.slug === slug)?.name || slug).join(', ')}`}</div> : null}
+          <div className="pb-3">
+            {run.targets.map((t) => (
+              <TargetRow key={`${t.kind}:${t.id}`} t={t} />
+            ))}
+            {run.skills.length ? <div className="hint mt-2">{`Skills: ${run.skills.map((slug) => skillsCache().find((s) => s.slug === slug)?.name || slug).join(', ')}`}</div> : null}
+          </div>
         </details>
+        {run.status === 'running' ? (
+          <button className="btn tiny danger absolute top-3 right-8" onClick={() => void attempt(() => POST(`/routine-runs/${run.id}/stop`))}>Stop</button>
+        ) : null}
+        </div>
       ))}
     </div>
   );
@@ -448,27 +446,29 @@ function Runs({ id }: { id: string }) {
 
 function TargetRow({ t }: { t: RoutineRunTarget }) {
   return (
-    <div className="grid grid-cols-[16px_minmax(0,1fr)] gap-2 border-t border-line py-3 [&_pre]:max-h-50">
-      <StatusIcon status={t.status} />
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <b>{t.name}</b>
-          <span className="hint">{t.kind === 'team' ? `team · ${t.status}` : t.status}</span>
-          <span className="flex-1 min-w-0" />
-          {t.kind === 'team' ? (
-            <button className="btn ghost tiny" onClick={() => openChat('team', t.id)}>
-              <Icon name="message-square" size={12} />
-              Team chat
-            </button>
-          ) : t.chatId ? (
-            <a className="btn ghost tiny" href={`#/agents/${t.id}/${t.chatId}`}>
-              <Icon name="message-square" size={12} />
-              Chat
-            </a>
-          ) : null}
-        </div>
-        {t.output ? <pre>{t.output}</pre> : null}
+    <div className="border-t border-line py-3 [&_pre]:max-h-50">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="grid size-5 flex-none place-items-center"><StatusIcon status={t.status} /></span>
+        <b className="min-w-0 break-words">{t.name}</b>
+        <span className="hint capitalize">{t.kind === 'team' ? `team · ${t.status}` : t.status}</span>
+        <span className="flex-1 min-w-0" />
+        {t.kind === 'team' ? (
+          <button className="btn ghost tiny" onClick={() => openChat('team', t.id)}>
+            <Icon name="message-square" size={12} />
+            Team chat
+          </button>
+        ) : t.chatId ? (
+          <a className="btn ghost tiny" href={`#/agents/${t.id}/${t.chatId}`}>
+            <Icon name="message-square" size={12} />
+            Chat
+          </a>
+        ) : null}
       </div>
+      {t.output ? (
+        <div className="mt-3 max-h-72 max-w-[80ch] overflow-y-auto text-[13.5px] leading-[1.65] text-ink [&_.md>:first-child]:mt-0 [&_.md>:last-child]:mb-0">
+          <DomNode make={() => md(t.output)} deps={[t.output]} />
+        </div>
+      ) : null}
     </div>
   );
 }

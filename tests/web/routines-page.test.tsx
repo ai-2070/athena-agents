@@ -11,12 +11,14 @@ const settle = (ms = 30) => act(() => new Promise((r) => setTimeout(r, ms)));
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
 const routine = { id: 'r1', name: 'Morning news', description: '', text: 'Find news.', schedule: { type: 'none' }, enabled: false, mentions: [] };
-const run = { id: 'run1', routineId: 'r1', status: 'done', trigger: 'manual', createdAt: Date.now(), skills: [], targets: [{ kind: 'agent', id: 'a1', name: 'Writer', status: 'done', chatId: 'c1', output: 'Three stories.' }] };
+const run = { id: 'run1', routineId: 'r1', status: 'done', trigger: 'manual', createdAt: Date.now(), skills: [], targets: [{ kind: 'agent', id: 'a1', name: 'Writer', status: 'done', chatId: 'c1', output: '**Three stories.**' }] };
 
+let runsData: unknown[];
 beforeEach(() => {
   document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><section id="view"></section>';
   el = document.getElementById('view')!;
   requests = [];
+  runsData = [run];
   state.data = { agents: [{ id: 'a1', name: 'Writer', emoji: '✍️', specialty: 'Posts' }] } as unknown as AppState;
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method || 'GET';
@@ -27,7 +29,7 @@ beforeEach(() => {
     if (url === '/api/routines/r1' && method === 'PUT') return json({ ...routine, ...body, mentions: [] });
     if (url === '/api/routines' && method === 'GET') return json([{ ...routine, schedule: { type: 'daily', time: '09:00' }, enabled: false }, { ...routine, id: 'r3', name: 'By hand' }]);
     if (url === '/api/routines' && method === 'POST') return json({ ...routine, ...body, id: 'r2', mentions: [] });
-    if (url.startsWith('/api/routine-runs')) return json([run]);
+    if (url.startsWith('/api/routine-runs')) return json(runsData);
     if (url.startsWith('/api/skills')) return json({ skills: [], claude: [] });
     return json(url.includes('/workflows') ? [] : { ok: true });
   });
@@ -76,6 +78,7 @@ describe('the routine editor', () => {
     const calls = requests.filter((r) => r.method !== 'GET').map((r) => `${r.method} ${r.url}`);
     expect(calls).toEqual(['PUT /api/routines/r1', 'POST /api/routines/r1/run']);
     expect(requests.find((r) => r.method === 'PUT')!.body).toMatchObject({ name: 'Evening news', text: 'Find news.', schedule: { type: 'none' } });
+    expect(requests.find((r) => r.url === '/api/routines/r1/run')!.body).toEqual({ input: '' });
   });
 
   it('a new routine is a draft: nothing is saved until it has something to do, and Run now waits', async () => {
@@ -144,6 +147,22 @@ describe('the routine editor', () => {
     const details = el.querySelector<HTMLDetailsElement>('details')!;
     expect(details.open).toBe(true);
     expect(details.textContent).toContain('Three stories.');
+    expect(details.querySelector('strong')?.textContent).toBe('Three stories.');
     expect(details.querySelector('a[href="#/agents/a1/c1"]')).not.toBeNull();
+  });
+
+  it('keeps run details usable while stopping a running entry', async () => {
+    runsData = [
+      { ...run, id: 'running1', status: 'running', targets: [{ ...run.targets[0], status: 'running' }] },
+      { ...run, id: 'running2', status: 'running' },
+    ];
+    await open();
+    const details = [...el.querySelectorAll<HTMLDetailsElement>('details')];
+    expect(details.map((item) => item.open)).toEqual([true, false]);
+    await act(async () => details[0].parentElement!.querySelector<HTMLButtonElement>('button')!.click());
+    expect(requests.some((r) => r.method === 'POST' && r.url === '/api/routine-runs/running1/stop')).toBe(true);
+    expect(details[0].open).toBe(true);
+    await act(async () => details[1].querySelector('summary')!.click());
+    expect(details[1].open).toBe(true);
   });
 });

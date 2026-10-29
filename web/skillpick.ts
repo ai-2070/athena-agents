@@ -93,7 +93,7 @@ export function skillPicker(current: readonly string[] | null | undefined, onCha
           ? shown.map((s) =>
               h(
                 'button.st-menu-item',
-                { class: 'gap-3 py-2', type: 'button', title: s.description, onclick: () => (close(), (list = [...list, s.slug]), onChange(list), draw()) },
+                { class: 'shrink-0 gap-3 py-2', type: 'button', title: s.description, onclick: () => (close(), (list = [...list, s.slug]), onChange(list), draw()) },
                 h('span', { class: 'grid size-7 flex-none place-items-center rounded-[8px] bg-accent/10 text-accent' }, icon('puzzle', 14)),
                 h('span', { class: 'min-w-0 flex-1' }, h('span', { class: 'block truncate text-[13px] leading-tight font-medium' }, s.name), h('span', { class: 'mt-0.5 block truncate text-[11.5px] leading-tight font-normal text-faint' }, s.description)),
               ),
