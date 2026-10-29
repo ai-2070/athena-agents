@@ -44,7 +44,7 @@ export function AboutTab() {
   const version = about ? `v${about.version}` : '…';
   return (
     <div className="flex flex-col gap-10">
-      <div className="panel flex flex-wrap items-center gap-x-6 gap-y-5 p-7">
+      <div className="glass-plate flex flex-wrap items-center gap-x-6 gap-y-5 rounded-box p-7">
         <BrandMark size={56} />
         <div className="min-w-0 flex-1 basis-80">
           <div className="about-title flex flex-wrap items-baseline gap-2.5">

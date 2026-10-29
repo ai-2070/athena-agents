@@ -1,8 +1,9 @@
 // Programs: what's installed and running on this PC, ComfyUI, and every Start Menu app.
 import { useCallback, useEffect, useState } from 'react';
 import { GET, POST, attempt, lightbox, toast, navigate } from '../core.ts';
-import { Field, SearchBox } from '../ui/controls.tsx';
+import { Field, Row, SearchBox, Section } from '../ui/controls.tsx';
 import { reactPage, useServerEvents } from '../ui/react.tsx';
+import { SelectControl } from '../ui/select.tsx';
 import type { Terminal } from '../../shared/types.ts';
 import { appIconStyle, appIconUrl } from '../appicons.ts';
 
@@ -131,7 +132,7 @@ export function ProgramsTab() {
     }).catch(() => {});
   });
 
-  if (failed) return <div className="panel"><p className="text-red">Something went wrong: {failed}</p></div>;
+  if (failed) return <div className="glass-plate rounded-box p-6"><p className="text-red">Something went wrong: {failed}</p></div>;
   if (!progs) return <p className="text-dim">Looking around this PC…</p>;
 
   const start = async (p: ProgramInfo) => {
@@ -150,46 +151,33 @@ export function ProgramsTab() {
         const list = progs.filter((p) => p.category === cat && p.installed);
         if (!list.length) return null;
         return (
-          <div key={cat} className="mt-10">
-            <h2 className="section">{label}</h2>
-            <div className="cards">
-              {list.map((p) => {
-                const isStarting = starting.has(p.id);
-                return (
-                  <div key={p.id} className="card" data-prog={p.id}>
-                    <div className="card-top">
-                      <div className="avatar after:hidden">{appIconUrl(p.id) ? <img className="app-icon inline-block align-middle" src={appIconUrl(p.id)!} width={22} height={22} alt="" style={appIconStyle(p.id, 22)} /> : p.icon}</div>
-                      <div className="min-w-0 flex-1">
-                        <div className="card-title">{p.name}</div>
-                        <div className="hint prog-state">{progState(p, isStarting)}</div>
-                      </div>
-                    </div>
-                    <span className="corner">
-                      <span className={`dot${p.running ? ' on' : isStarting ? ' busy' : ''}`} />
-                    </span>
-                    {ABOUT[p.id] ? <div className="card-sub">{ABOUT[p.id]}</div> : null}
-                    <div className="card-foot">
-                      {p.actions.includes('launch') || (!p.cli && p.exe) ? <button className="btn small" onClick={() => void start(p)}>Start</button> : null}
-                      {p.serviceUrl ? <a className="btn ghost small" href={p.serviceUrl} target="_blank" rel="noopener">Open</a> : null}
-                      {p.actions.includes('terminal') ? <button className="btn ghost small" onClick={() => void openCli(p)}>Terminal</button> : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <Section key={cat} className="mt-10" headingClassName="section" title={label}>
+            {list.map((p) => {
+              const isStarting = starting.has(p.id);
+              return (
+                <div key={p.id} data-prog={p.id}>
+                  <Row
+                    title={<span className="flex flex-wrap items-center gap-2.5"><span className="avatar size-8 after:hidden">{appIconUrl(p.id) ? <img className="app-icon inline-block align-middle" src={appIconUrl(p.id)!} width={20} height={20} alt="" style={appIconStyle(p.id, 20)} /> : p.icon}</span><span>{p.name}</span><span className={`dot${p.running ? ' on' : isStarting ? ' busy' : ''}`} /></span>}
+                    description={<><span className="hint prog-state">{progState(p, isStarting)}</span>{ABOUT[p.id] ? <span className="block mt-1">{ABOUT[p.id]}</span> : null}</>}
+                  >
+                    {p.actions.includes('launch') || (!p.cli && p.exe) ? <button className="btn small" onClick={() => void start(p)}>Start</button> : null}
+                    {p.serviceUrl ? <a className="btn ghost small" href={p.serviceUrl} target="_blank" rel="noopener">Open</a> : null}
+                    {p.actions.includes('terminal') ? <button className="btn ghost small" onClick={() => void openCli(p)}>Terminal</button> : null}
+                  </Row>
+                </div>
+              );
+            })}
+          </Section>
         );
       })}
-      <div className="mt-10">
-        <h2 className="section">Not found</h2>
-        <p className="hint max-w-[68ch]">
+      <Section className="mt-10" headingClassName="section" title="Not found">
+        <div className="px-5 py-4 text-[13px] leading-normal text-dim">
           {progs.filter((p) => !p.installed).map((p) => p.name).join(', ') || 'Everything in the catalog was found.'} Set custom paths in Settings.
-        </p>
-      </div>
-      <div className="mt-10">
-        <h2 className="section">All apps (Start Menu)</h2>
+        </div>
+      </Section>
+      <Section className="mt-10" headingClassName="section" title="All apps (Start Menu)">
         <AllApps />
-      </div>
+      </Section>
     </>
   );
 }
@@ -202,20 +190,16 @@ function AllApps() {
   const ql = query.toLowerCase();
   const shown = apps.filter((a) => !ql || a.name.toLowerCase().includes(ql) || a.folder.toLowerCase().includes(ql)).slice(0, 120);
   return (
-    <>
-      <SearchBox className="mb-4 max-w-[420px]" placeholder={`Search ${apps.length} apps`} label="Search the Start Menu apps" value={query} onChange={setQuery} />
-      <div className="cards prog-apps grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
+    <div className="prog-apps">
+      <div className="px-5 py-4"><SearchBox className="max-w-[420px]" placeholder={`Search ${apps.length} apps`} label="Search the Start Menu apps" value={query} onChange={setQuery} /></div>
+      <div className="divide-y divide-line border-t border-line">
         {shown.map((a) => (
-          <div key={a.shortcut || a.name} className="card flex-row items-center gap-3 px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <div className="prog-app-name text-[14px] font-semibold">{a.name}</div>
-              {a.folder ? <div className="hint">{a.folder}</div> : null}
-            </div>
+          <Row key={a.shortcut || a.name} title={<span className="prog-app-name">{a.name}</span>} description={a.folder || undefined}>
             <button className="btn tiny ghost" onClick={() => void attempt(() => POST<{ message: string }>('/programs/launch', { program: a.name }), (r) => r.message)}>Start</button>
-          </div>
+          </Row>
         ))}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -236,30 +220,20 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
   };
   const device = st.devices?.[0];
   return (
-    <div className="panel">
-      <div className="panel-head">
-        <h2 className="flex items-center gap-2">
-          <img className="app-icon" src={appIconUrl('comfyui')!} width={20} height={20} alt="" style={appIconStyle('comfyui', 20)} /> ComfyUI
-        </h2>
+    <Section title={<span className="flex items-center gap-2"><img className="app-icon" src={appIconUrl('comfyui')!} width={20} height={20} alt="" style={appIconStyle('comfyui', 20)} /> ComfyUI</span>} action={!st.running ? (
+      <button className="btn small" onClick={() => void attempt(() => POST('/comfyui/start'), 'Starting ComfyUI… give it a minute').then(() => setTimeout(rescan, 20000))}>Start ComfyUI</button>
+    ) : (
+      <a className="btn ghost small" href={st.url} target="_blank" rel="noopener">Open ComfyUI</a>
+    )}>
+      <div className="flex flex-wrap gap-2 px-5 py-4">
         <span className={`pill${st.running ? ' ok' : ''}`}>{st.running ? `running · ${st.url}` : 'not running'}</span>
         {device ? <span className="pill">{`${device.name.replace(/^cuda:\d+\s*/, '').slice(0, 40)} · ${device.vramFreeGB}/${device.vramTotalGB} GB free`}</span> : null}
-        <div className="actions">
-          {!st.running ? (
-            <button className="btn small" onClick={() => void attempt(() => POST('/comfyui/start'), 'Starting ComfyUI… give it a minute').then(() => setTimeout(rescan, 20000))}>Start ComfyUI</button>
-          ) : (
-            <a className="btn ghost small" href={st.url} target="_blank" rel="noopener">Open ComfyUI</a>
-          )}
-        </div>
       </div>
       {comfy.workflows.length ? (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 px-5 py-4">
           <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
             <Field label="Workflow">
-              <select value={workflow} onChange={(e) => setWorkflow(e.target.value)}>
-                {comfy.workflows.map((w) => (
-                  <option key={w.name} value={w.name}>{w.name}</option>
-                ))}
-              </select>
+              <SelectControl aria-label="Workflow" value={workflow} onChange={setWorkflow} options={comfy.workflows.map((w) => ({ value: w.name, label: w.name }))} />
             </Field>
             <div />
           </div>
@@ -277,9 +251,9 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
           </div>
         </div>
       ) : (
-        <p className="hint">No saved workflows found. Save one in ComfyUI (Workflow &gt; Save), or drop an API-format JSON into the dashboard data/comfy-workflows folder.</p>
+        <p className="hint m-0 px-5 py-4">No saved workflows found. Save one in ComfyUI (Workflow &gt; Save), or drop an API-format JSON into the dashboard data/comfy-workflows folder.</p>
       )}
-    </div>
+    </Section>
   );
 }
 

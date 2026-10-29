@@ -4,6 +4,7 @@ import { GET, POST, DEL, attempt, confirmBox, copy, refreshSoon } from '../core.
 import { Field, PanelNote, Row, SearchBox, Section, Segmented } from '../ui/controls.tsx';
 import { openModal } from '../ui/overlays.tsx';
 import { reactPage } from '../ui/react.tsx';
+import { SelectControl } from '../ui/select.tsx';
 import type { McpServerInfo, McpSuggestion, ToolGroup } from '../../shared/types.ts';
 
 // why a server is suggested ("on this PC" gets the accent and a dot); mcp-why stays for the tests
@@ -109,7 +110,7 @@ export function McpTab() {
     [],
   );
   useEffect(() => void reload(), [reload]);
-  if (failed) return <div className="panel"><p className="text-red">Something went wrong: {failed}</p></div>;
+  if (failed) return <div className="glass-plate rounded-box p-6"><p className="text-red">Something went wrong: {failed}</p></div>;
   if (!data || !tools) return null;
 
   const servers = Object.entries(data.servers);
@@ -162,7 +163,7 @@ export function McpTab() {
         {!shown.length ? <p className="empty m-0">{`No preset matches "${find.trim()}".`}</p> : null}
         <div className="cards">
           {shown.map((p) => (
-            <div key={p.name} className="card">
+            <div key={p.name} className="glass-plate flex min-w-0 flex-col gap-2.5 rounded-box p-5">
               <div className="card-title">{p.title}</div>
               <div className="card-sub">{p.description}</div>
               <div className="hint font-mono text-[11.5px] wrap-anywhere">{p.type === 'stdio' ? `${p.command} ${p.args.join(' ')}` : p.url}</div>
@@ -355,16 +356,7 @@ function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved 
               <input value={c.description || ''} onChange={(e) => setC({ ...c, description: e.target.value })} />
             </Field>
             <Field label="Same service as" hint="Pick one when this is another account of a service you already have (a second OOMOL or Gmail), so agents and the Brain treat them as accounts of one service.">
-              <select value={c.kind || ''} onChange={(e) => (setOwnPicked(true), setC({ ...c, kind: e.target.value }))}>
-                <option value="">Its own service</option>
-                {services
-                  .filter(([k]) => k !== (name || newName))
-                  .map(([k, t]) => (
-                    <option key={k} value={k}>
-                      {t}
-                    </option>
-                  ))}
-              </select>
+              <SelectControl aria-label="Same service as" value={c.kind || ''} onChange={(value) => (setOwnPicked(true), setC({ ...c, kind: value }))} options={[{ value: '', label: 'Its own service' }, ...services.filter(([k]) => k !== (name || newName)).map(([value, label]) => ({ value, label }))]} />
             </Field>
             <CopyFields label={c.label || ''} useFor={c.useFor || ''} onChange={(v) => setC({ ...c, ...v })} />
           </div>

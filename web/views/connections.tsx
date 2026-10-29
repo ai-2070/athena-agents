@@ -120,7 +120,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
         <Section title="Reddit accounts" description="The accounts your agents can read and post with." action={accounts.redditAppConfigured ? <a className="btn small" href={serverUrl('/oauth/reddit/start')}>+ Connect an account</a> : null}>
           {(accounts.reddit || []).length ? (
             accounts.reddit.map((a) => (
-              <div key={a.id} className="list-row gap-4 px-5 py-4">
+              <div key={a.id} className="list-row flex-wrap gap-4 px-5 py-4">
                 {a.icon ? <img className="size-8 rounded-full" src={a.icon} width={32} height={32} alt="" /> : <div className="avatar size-8 rounded-full text-[12px]">r/</div>}
                 <div className="min-w-0 flex-1">
                   <div className="title">{`u/${a.username}`}</div>

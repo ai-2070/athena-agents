@@ -17,10 +17,10 @@ import type { LookSetting, Project } from '../../shared/types.ts';
 
 const SCALES = [80, 90, 100, 110, 125, 150];
 const SAVE_AFTER = 350;
-// an accent colour to pick, in its own colour (--sw): a round dot and its name; on: the picked one gets a ring in that colour
-const SWATCH = 'flex cursor-pointer items-center gap-3 rounded-box border border-line-2 bg-bg px-4 py-3.5 text-[14px] font-medium text-ink transition-[border-color,background-color,box-shadow] duration-150 ease-[ease] hover:bg-panel-2 [&.on]:border-(--sw) [&.on]:ring-2 [&.on]:ring-(--sw)';
+// an accent colour to pick, in its own colour (--sw): a round dot and its name; on: the picked one gets a border in that colour
+const SWATCH = 'flex cursor-pointer items-center gap-3 rounded-box border border-line bg-panel px-4 py-3.5 text-[14px] font-medium text-ink shadow-[inset_0_1px_0_var(--glass-spec)] transition-[border-color,background-color] duration-150 hover:bg-panel-2 [&.on]:border-(--sw)';
 // a chat font to pick: its name in that font, and whose look it matches
-const FONT = 'look-font flex cursor-pointer flex-col items-start gap-1 rounded-box border border-line-2 bg-bg px-4 py-3.5 text-left text-ink transition-[border-color,background-color,box-shadow] duration-150 ease-[ease] hover:bg-panel-2 [&.on]:border-accent [&.on]:ring-2 [&.on]:ring-accent';
+const FONT = 'look-font flex cursor-pointer flex-col items-start gap-1 rounded-box border border-line bg-panel px-4 py-3.5 text-left text-ink shadow-[inset_0_1px_0_var(--glass-spec)] transition-[border-color,background-color] duration-150 hover:bg-panel-2 [&.on]:border-accent';
 // a slider: a slim track, the part up to the thumb in the accent, a thumb with a ring of the page colour around it
 const TRACK = 'relative h-1 flex-1 rounded-full bg-line-2';
 const THUMB = 'size-4.5 rounded-full border-2 border-bg bg-accent shadow-lift has-focus-visible:outline has-focus-visible:outline-offset-3 has-focus-visible:outline-accent';

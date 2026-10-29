@@ -7,6 +7,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { GET, POST, DEL, attempt, navigate } from '../core.ts';
 import { openSocket } from '../client/connection.ts';
 import { reactPage, useAppState } from '../ui/react.tsx';
+import { SelectControl } from '../ui/select.tsx';
 import { isDark, onThemeChange, themeColor } from '../theme.ts';
 import type { Terminal as TerminalInfo } from '../../shared/types.ts';
 
@@ -106,7 +107,7 @@ function Launcher() {
   if (!data) return null;
   const e = data.engines;
   const card = (title: string, about: string, body: OpenTerminal) => (
-    <button key={title} type="button" className="card clickable term-card text-left [font:inherit] text-inherit w-full" onClick={() => void open(body)}>
+    <button key={title} type="button" className="glass-plate term-card flex w-full cursor-pointer flex-col gap-2.5 rounded-box p-5 text-left [font:inherit] text-inherit transition-colors hover:bg-panel-2" onClick={() => void open(body)}>
       <div className="card-title">{title}</div>
       <div className="card-sub">{about}</div>
     </button>
@@ -125,18 +126,14 @@ function Launcher() {
           {card('Orca', 'Orca CLI: status, worktrees, agent sessions.', { kind: 'command', command: 'orca', args: ['status'], title: 'Orca' })}
         </div>
         {agents.length ? (
-          <div className="panel mt-8">
+          <div className="glass-plate mt-8 rounded-box p-6">
             <div className="panel-head">
               <h2>Open an agent in a terminal</h2>
             </div>
             <p className="hint">Runs the agent interactively with its instructions, model, tools and MCP servers. Great for long hands-on sessions.</p>
             <div className="flex flex-wrap items-center gap-3 mt-4">
               <div className="w-75">
-                <select aria-label="Agent" value={agentId} onChange={(ev) => setAgentId(ev.target.value)}>
-                  {agents.map((a) => (
-                    <option key={a.id} value={a.id}>{`${a.emoji || ''} ${a.name}`}</option>
-                  ))}
-                </select>
+                <SelectControl aria-label="Agent" value={agentId} onChange={setAgentId} options={agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` }))} />
               </div>
               <button className="btn" onClick={() => void open({ kind: 'agent', agentId })}>Open</button>
             </div>
