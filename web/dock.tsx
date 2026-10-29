@@ -22,6 +22,7 @@ import { useFind } from './ui/find.tsx';
 import { brainKeyLabel, brainKeyTitle, brainShortcut } from './shortcuts.ts';
 import { Avatar, DomNode, Icon, IconWeightProvider, useAppState } from './ui/react.tsx';
 import { ChipSet } from './ui/controls.tsx';
+import { Dropdown, DropdownContent, DropdownGroup, DropdownLabel, DropdownRadioGroup, DropdownRadioItem, DropdownTrigger } from './ui/dropdown.tsx';
 import type { AttachTray, PickedFile } from './attach.ts';
 import type { PasteBox } from './pastes.ts';
 import type { AgentDraft, BranchDesign } from './builder.ts';
@@ -152,7 +153,7 @@ function draw() {
 }
 
 export function initDock(): void {
-  D.tray = attachTray({ onChange: draw });
+  D.tray = attachTray({ onChange: draw, iconWeight: 'regular' });
   D.pastes = pasteBox();
   // the bottom bar holds the "Ask the Brain" button (and the minimized chats, web/chatwin.tsx)
   const bar = h('div.bottom-bar', { class: 'fixed z-45 left-1/2 bottom-4.5 [transform:translateX(-50%)] flex items-center gap-2.5 pointer-events-none *:pointer-events-auto' });
@@ -182,7 +183,8 @@ export function initDock(): void {
     if (shortcut) {
       e.preventDefault();
       toggle(shortcut === 'open' ? true : !D.open);
-    } else if (e.key === 'Escape' && D.open && !e.defaultPrevented && !document.querySelector('.modal-back, .model-menu')) {
+    } else if (e.key === 'Escape' && D.open && !e.defaultPrevented && !document.querySelector('.modal-back, .model-menu, .st-menu')) {
+      // (a menu that is open takes the Esc: it closes, and the chat stays)
       e.preventDefault();
       toggle(false);
     }
@@ -730,6 +732,68 @@ function DockList({ settings }: { settings: AppState['settings'] | undefined }) 
   );
 }
 
+// Who the next message goes to: the Brain, a new agent or team, any agent, any team. One pick; its check marks it.
+function TargetMenu({ agents, teams }: { agents: readonly Agent[]; teams: readonly TeamListing[] }) {
+  const t = D.target;
+  const agent = t.startsWith('a:') ? agents.find((a) => a.id === t.slice(2)) : undefined;
+  const team = t.startsWith('b:') ? teams.find((w) => w.id === t.slice(2)) : undefined;
+  const shown = agent?.name || team?.name || (t === 'new-agent' ? 'New agent' : t === 'new-branch' ? 'New team' : 'The Brain');
+  // an agent's badge (a plain <select> could only show its emoji as small text)
+  const badge = (a: Agent, size: string) => (
+    <span className={`flex flex-none ${size}`}>
+      <Avatar agent={a} />
+    </span>
+  );
+  return (
+    <Dropdown>
+      <DropdownTrigger className="dock-target" aria-label="Send to" title="Who gets your message. The Brain answers, builds teams and agents, and hands work on.">
+        {agent ? badge(agent, '[&_.avatar]:size-4 [&_.avatar]:text-[10px]') : null}
+        <span className="min-w-0 truncate">{shown}</span>
+        <Icon name="chevron-down" size={12} className="flex-none text-faint" />
+      </DropdownTrigger>
+      <DropdownContent side="top" align="start" className="max-h-96 min-w-52">
+        <DropdownRadioGroup
+          value={t}
+          onValueChange={(v) => {
+            D.target = String(v);
+            now();
+          }}
+        >
+          <DropdownRadioItem value="auto" icon={<Icon name="brain" size={16} />}>
+            The Brain
+          </DropdownRadioItem>
+          <DropdownRadioItem value="new-agent" icon={<Icon name="user-plus" size={16} />}>
+            New agent from this
+          </DropdownRadioItem>
+          <DropdownRadioItem value="new-branch" icon={<Icon name="users" size={16} />}>
+            New team from this
+          </DropdownRadioItem>
+          {agents.length ? (
+            <DropdownGroup>
+              <DropdownLabel>Agents</DropdownLabel>
+              {agents.map((a) => (
+                <DropdownRadioItem key={a.id} value={`a:${a.id}`} icon={badge(a, '[&_.avatar]:size-5 [&_.avatar]:text-[12px]')}>
+                  {a.name}
+                </DropdownRadioItem>
+              ))}
+            </DropdownGroup>
+          ) : null}
+          {teams.length ? (
+            <DropdownGroup>
+              <DropdownLabel>Teams</DropdownLabel>
+              {teams.map((w) => (
+                <DropdownRadioItem key={w.id} value={`b:${w.id}`} icon={<Icon name="users" size={16} />}>
+                  {w.name}
+                </DropdownRadioItem>
+              ))}
+            </DropdownGroup>
+          ) : null}
+        </DropdownRadioGroup>
+      </DropdownContent>
+    </Dropdown>
+  );
+}
+
 // An example from the empty chat goes into the box (as if typed: the / menu and Send see it), ready to send or change.
 function suggest(text: string) {
   const box = D.input;
@@ -883,44 +947,13 @@ function DockView({ bar }: { bar: HTMLElement }) {
           <div className="dock-composer relative">
             <textarea className="dock-input block field-sizing-content min-h-[56px] max-h-[max(160px,20vh)] w-full resize-none" ref={input} rows={2} aria-label="Message the Brain" placeholder={placeholder} />
             <span className="dom-contents" ref={slashHost} />
-            <div className="flex items-center gap-1 px-2 pt-1 pb-2 [&_.att-menu]:right-0 [&_.att-menu]:left-auto">
+            <div className="flex items-center gap-1 px-2 pt-1 pb-2">
               {/* who it goes to and which model answers (these wrap on a narrow screen; the buttons stay on the right) */}
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1">
                 <span className="pl-1.5 text-[12.5px] text-faint">To</span>
-                <span className="relative inline-flex min-w-0 items-center">
-                  <select
-                    className="dock-target"
-                    aria-label="Send to"
-                    title="Who gets your message. The Brain answers, builds teams and agents, and hands work on."
-                    value={D.target}
-                    onChange={(e) => {
-                      D.target = e.target.value;
-                      now();
-                    }}
-                  >
-                    <option value="auto">The Brain</option>
-                    <option value="new-agent">+ New agent from this</option>
-                    <option value="new-branch">+ New team from this</option>
-                    {agents.length ? (
-                      <optgroup label="Agents">
-                        {agents.map((a) => (
-                          <option key={a.id} value={`a:${a.id}`}>{`${a.emoji || ''} ${a.name}`}</option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                    {teams.length ? (
-                      <optgroup label="Teams">
-                        {teams.map((w) => (
-                          <option key={w.id} value={`b:${w.id}`}>{`⇢ ${w.name}`}</option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                  </select>
-                  {/* (the same thin chevron as the model's chip beside it, not the browser's arrow) */}
-                  <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-1.5 text-faint" />
-                </span>
+                <TargetMenu agents={agents} teams={teams} />
                 <DomNode
-                  className="dock-model inline-flex min-w-0 items-center [&_.model-chip]:rounded-ctl [&_.model-chip]:border-transparent [&_.model-chip]:bg-transparent [&_.model-chip]:px-2 [&_.model-chip]:py-1 [&_.model-chip]:text-[12px] [&_.model-chip]:text-dim [&_.model-chip]:hover:bg-panel-2 [&_.model-chip]:hover:text-ink"
+                  className="dock-model inline-flex min-w-0 items-center [&_.model-chip]:rounded-ctl [&_.model-chip]:border-transparent [&_.model-chip]:bg-transparent [&_.model-chip]:h-7 [&_.model-chip]:px-2 [&_.model-chip]:py-0 [&_.model-chip]:text-[12.5px] [&_.model-chip]:text-dim [&_.model-chip]:hover:bg-panel-2 [&_.model-chip]:hover:text-ink"
                   make={() => modelNode(D.target, agents)}
                   deps={[D.target, data, D.workflows]}
                 />

@@ -155,7 +155,8 @@ describe('model picker: effort', () => {
     await vi.waitFor(() => expect(buttons(document.querySelector('.model-menu')!, 'gpt-6-astra').length).toBe(1));
     buttons(document.querySelector('.model-menu')!, 'gpt-6-astra')[0].click();
     expect(picked).toEqual([{ engine: 'codex', model: 'gpt-6-astra', effort: 'xhigh' }]);
-    expect(document.querySelector('.model-menu')).toBeNull();
+    // (it fades out first, and is gone when that is done)
+    await vi.waitFor(() => expect(document.querySelector('.model-menu')).toBeNull());
   });
 
   it("lists the models Codex has, not a fixed few", async () => {

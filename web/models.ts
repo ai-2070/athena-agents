@@ -6,6 +6,7 @@ import { h, mount, state, GET, PUT, attempt, refreshSoon, toast, navigate } from
 import { icon, logo } from './icons.ts';
 import { appIcon } from './appicons.ts';
 import { uiZoom } from './look.ts';
+import { reducedMotion, slideOut } from './motion.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../shared/effort.ts';
 import type { Agent, BrainSetting, Effort, EngineId, EngineStatus, FavoriteModel } from '../shared/types.ts';
 import type { Child } from './core.ts';
@@ -228,9 +229,17 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   document.querySelector('.model-menu')?.remove();
   const r = anchor.getBoundingClientRect();
   const menu = h('div.st-menu.model-menu');
+  let closing = false;
   const close = () => {
-    menu.remove();
     document.removeEventListener('pointerdown', outside, true);
+    if (closing) return;
+    closing = true;
+    // it fades out and shrinks a little before it goes (at once with Motion set to Reduced, or where there are no animations)
+    if (reducedMotion() || typeof menu.animate !== 'function') return menu.remove();
+    menu.style.pointerEvents = 'none';
+    void slideOut(menu, { scale: 0.97, duration: 110 }).then(() => menu.remove());
+    // (the animation never ending must not leave it on screen)
+    setTimeout(() => menu.remove(), 500);
   };
   const outside = (e: PointerEvent) => !menu.contains(e.target as Node | null) && close();
   // the effort asked for (kept as asked: each engine sends its nearest level)
@@ -464,6 +473,8 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   const R = { left: r.left / z, top: r.top / z, bottom: r.bottom / z };
   const height = Math.min(600, menu.offsetHeight || 480);
   const below = R.bottom + 6 + height < H - 10;
-  Object.assign(menu.style, { position: 'fixed', left: `${Math.max(10, Math.min(R.left, W - 350))}px`, top: `${below ? R.bottom + 6 : Math.max(10, R.top - 6 - height)}px`, transform: 'none', zIndex: 95 });
+  Object.assign(menu.style, { position: 'fixed', left: `${Math.max(10, Math.min(R.left, W - 350))}px`, top: `${below ? R.bottom + 6 : Math.max(10, R.top - 6 - height)}px`, transform: 'none', zIndex: 95, transformOrigin: below ? 'top left' : 'bottom left' });
+  // it settles in from the side of the chip it opened from
+  menu.style.setProperty('--menu-dy', below ? '-3px' : '3px');
   setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
 }

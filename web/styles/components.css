@@ -192,27 +192,36 @@ a.card.clickable { color: inherit; text-decoration: none; }
 .dom-contents { display: contents; }
 
 /* ---------- menus ---------- */
-/* a floating menu: the Station's right-click menu, the project menu, the model picker, Give to… */
+/* a floating menu, the app's dropdown (web/ui/dropdown.tsx; ReUI's DropdownMenu): the Station's right-click menu, the project
+   menu, the paperclip's, who a chat message goes to, the model picker, Give to… Its surface is glass (below). */
 .st-menu {
-  position: absolute; left: 0; top: 0; z-index: 20; min-width: 232px; max-width: 280px; max-height: 480px; overflow-y: auto; padding: 6px;
-  background: var(--color-glass-strong); backdrop-filter: blur(16px) saturate(140%);
-  border: 1px solid var(--color-line); border-radius: var(--radius-box); box-shadow: var(--shadow-pop);
-  animation: var(--animate-fade-fast);
+  position: absolute; left: 0; top: 0; z-index: 20; min-width: 232px; max-width: 280px; max-height: 480px; overflow-y: auto; padding: 4px;
+  border: 1px solid var(--color-line); border-radius: 10px;
+  animation: var(--animate-menu);
 }
-.st-menu-head { padding: 8px 10px 8px; font: 500 12px var(--font-sans); color: var(--color-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the dropdown (Base UI) goes in and out by transitions instead: Base UI keeps it on screen until its ending style is
+   done, and it opens from the side of its trigger (--transform-origin is set by where it is placed) */
+.st-menu.dd { animation: none; transform-origin: var(--transform-origin); transition: opacity 0.14s, transform 0.14s var(--ease-soft); }
+.st-menu.dd[data-starting-style], .st-menu.dd[data-ending-style] { opacity: 0; transform: scale(0.96); }
+.st-menu.dd[data-side='top'][data-starting-style], .st-menu.dd[data-side='top'][data-ending-style] { transform: translateY(4px) scale(0.96); }
+.st-menu.dd[data-side='bottom'][data-starting-style], .st-menu.dd[data-side='bottom'][data-ending-style] { transform: translateY(-4px) scale(0.96); }
+.st-menu.dd[data-ending-style] { transition-duration: 0.1s; }
+.st-menu-head { padding: 6px 8px 4px; font: 500 12px var(--font-sans); color: var(--color-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .st-menu-item {
-  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 10px; border: 0; border-radius: 7px;
-  background: none; color: var(--color-ink); font-size: 13.5px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 6px 8px; border: 0; border-radius: 7px;
+  background: none; color: var(--color-ink); font-size: 13.5px; line-height: 20px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   transition: background-color 0.12s, color 0.12s;
 }
-.st-menu-item:hover, .st-menu-item[data-highlighted] { background: var(--color-panel-2); color: var(--color-ink); outline: none; }
+/* the one you point at, or reach with the arrow keys: a faint tint (the page's plate colours sit too close to the glass to show) */
+.st-menu-item:hover, .st-menu-item[data-highlighted], .st-menu-item:focus-visible { background: light-dark(rgb(20 22 40 / 0.06), rgb(255 255 255 / 0.09)); color: var(--color-ink); outline: none; }
+.st-menu-item[data-disabled] { opacity: 0.5; pointer-events: none; }
 .st-menu-item.on { color: var(--color-accent); }
 .st-menu-item.danger { color: var(--color-red); }
-.st-menu-item.danger:hover { background: color-mix(in srgb, var(--color-red) 10%, transparent); color: var(--color-red); }
-.st-menu-item .ico-svg { color: var(--color-icon); }
-.st-menu-item:hover .ico-svg { color: var(--color-ink); }
+.st-menu-item.danger:hover, .st-menu-item.danger[data-highlighted] { background: color-mix(in srgb, var(--color-red) 12%, transparent); color: var(--color-red); }
+.st-menu-item .ico-svg { flex: none; color: var(--color-icon); }
+.st-menu-item:hover .ico-svg, .st-menu-item[data-highlighted] .ico-svg { color: var(--color-ink); }
 .st-menu-item.danger .ico-svg { color: var(--color-red); }
-.st-menu-sep { height: 1px; background: var(--color-line); margin: 6px 4px; }
+.st-menu-sep { height: 1px; background: var(--color-line); margin: 4px -4px; }
 
 /* the model picker (web/models.ts) */
 .model-menu { min-width: 280px; max-width: 340px; max-height: 500px; width: 340px; }
@@ -414,11 +423,11 @@ details.compaction .hint.warn { color: var(--color-amber); }
 .toast.error { --tone: var(--color-red); }
 .toast.warn { --tone: var(--color-amber); }
 
-/* ---------- glass: the Station's side panel, the project menu, the New project dialog and the Brain chat are frosted glass ---------- */
+/* ---------- glass: the Station's side panel, the menus, the New project dialog and the Brain chat are frosted glass ---------- */
 /* Everything in them reads the same tokens as the rest of the page, but here they are clear glass instead of solid greys:
    tiles, fields and buttons become soft see-through plates, and the surface itself blurs what is behind it.
    Light: milky white. Dark: true OLED black. */
-.st-panel, .proj-menu, .modal-back.glass .modal, .dock {
+.st-panel, .st-menu, .modal-back.glass .modal, .dock {
   --glass-base: light-dark(rgb(255 255 255 / 0.56), rgb(0 0 0 / 0.64));
   --glass-sheen: light-dark(rgb(255 255 255 / 0.6), rgb(255 255 255 / 0.1));
   --glass-edge: light-dark(rgb(255 255 255 / 0.8), rgb(255 255 255 / 0.12));
@@ -454,8 +463,8 @@ details.compaction .hint.warn { color: var(--color-amber); }
     0 0 0 1px light-dark(rgb(20 22 40 / 0.06), rgb(0 0 0 / 0.7)),
     0 40px 90px -24px light-dark(rgb(20 22 40 / 0.32), rgb(0 0 0 / 0.95));
 }
-/* the menu keeps its own radius and its scrolling (st-menu); only the surface and the shadow are glass */
-.proj-menu {
+/* a menu keeps its own radius and its scrolling (above); only its surface and shadow are glass */
+.st-menu {
   box-shadow:
     inset 0 1px 0 var(--glass-spec),
     0 0 0 1px light-dark(rgb(20 22 40 / 0.06), rgb(0 0 0 / 0.7)),
@@ -470,15 +479,12 @@ details.compaction .hint.warn { color: var(--color-amber); }
     0 0 0 1px light-dark(rgb(20 22 40 / 0.06), rgb(0 0 0 / 0.7)),
     0 40px 90px -24px light-dark(rgb(20 22 40 / 0.32), rgb(0 0 0 / 0.95));
 }
-/* a menu item lights up with a faint tint: the plate colours above sit too close to the glass to show */
-.proj-menu .st-menu-item:hover, .proj-menu .st-menu-item[data-highlighted], .proj-menu .st-menu-item:focus-visible { background: light-dark(rgb(20 22 40 / 0.06), rgb(255 255 255 / 0.09)); }
-.proj-menu .st-menu-item.danger:hover { background: color-mix(in srgb, var(--color-red) 12%, transparent); }
 /* no blur available, or asked not to see through things: a plain, nearly opaque sheet */
 @supports not (backdrop-filter: blur(1px)) {
-  .st-panel, .proj-menu, .modal-back.glass .modal, .dock { background: light-dark(rgb(250 250 252 / 0.97), rgb(6 6 8 / 0.98)); }
+  .st-panel, .st-menu, .modal-back.glass .modal, .dock { background: light-dark(rgb(250 250 252 / 0.97), rgb(6 6 8 / 0.98)); }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .st-panel, .proj-menu, .modal-back.glass .modal, .dock { -webkit-backdrop-filter: none; backdrop-filter: none; background: light-dark(#fafafc, #060608); }
+  .st-panel, .st-menu, .modal-back.glass .modal, .dock { -webkit-backdrop-filter: none; backdrop-filter: none; background: light-dark(#fafafc, #060608); }
 }
 /* buttons and fields keep the page's own shape; only their fill is glass */
 .st-panel .btn.ghost, .modal-back.glass .btn.ghost, .dock .btn.ghost { box-shadow: inset 0 1px 0 var(--glass-spec); }
@@ -523,12 +529,12 @@ details.compaction .hint.warn { color: var(--color-amber); }
 .dock-composer { border: 1px solid var(--color-line-2); border-radius: 12px; background: var(--color-panel); box-shadow: inset 0 1px 0 var(--glass-spec); }
 /* no ring when the box has focus (the cursor is enough; it is the only thing you can type in here) */
 .dock-composer .dock-input { border: 0; border-radius: 12px 12px 0 0; background: transparent; box-shadow: none; outline: none; padding: 12px 14px 4px; }
-/* who it goes to: plain text with a small arrow until you point at it */
-.dock-composer select.dock-target {
-  width: auto; max-width: 190px; field-sizing: content; padding: 4px 22px 4px 8px; border: 0; border-radius: var(--radius-ctl);
-  background-color: transparent; background-image: none; box-shadow: none; font-size: 12.5px; line-height: 20px; color: var(--color-dim); cursor: pointer;
+/* who it goes to: the button that opens its menu (TargetMenu): plain text with a small arrow until you point at it */
+.dock-composer .dock-target {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 190px; height: 28px; padding: 0 8px; border: 0; border-radius: var(--radius-ctl);
+  background: transparent; font-size: 12.5px; line-height: 1; color: var(--color-dim); cursor: pointer; transition: background-color 0.15s, color 0.15s;
 }
-.dock-composer select.dock-target:hover, .dock-composer select.dock-target:focus-visible { background-color: var(--color-panel-2); color: var(--color-ink); }
+.dock-composer .dock-target:hover, .dock-composer .dock-target[data-popup-open], .dock-composer .dock-target:focus-visible { background: var(--color-panel-2); color: var(--color-ink); }
 /* the paperclip: an icon button like the others in the row */
 .dock-composer .btn.ghost { width: 32px; height: 32px; padding: 0; border-color: transparent; background: transparent; box-shadow: none; color: var(--color-icon); }
 .dock-composer .btn.ghost:hover { background: var(--color-panel-2); color: var(--color-ink); }

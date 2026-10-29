@@ -5,7 +5,9 @@ import { h, mount, POST, DEL, toast, lightbox } from './core.ts';
 import { upload } from './client/http.ts';
 import { fileUrl } from './client/connection.ts';
 import { icon } from './icons.ts';
+import { mountAttachMenu } from './attachmenu.tsx';
 import { markdownTooBig, onDesktop, openFile, openPdf, previewKind, showMarkdown } from './filepreview.ts';
+import type { IconWeight } from './ui/react.tsx';
 import type { UploadedFile } from '../shared/types.ts';
 
 /** A file to upload. rel: its path inside a dropped folder ('docs/a.md'), or just its name. */
@@ -273,46 +275,25 @@ export interface AttachTray {
   discard: () => void;
 }
 
-// deferred: hold the files and upload only when ready() is called (a new project: its folder doesn't exist yet).
-// the menu under the paperclip: Files…, A folder…
-const MENU_ITEM = 'flex cursor-pointer items-center gap-2.5 rounded-ctl px-3 py-2 text-left text-[13px] whitespace-nowrap text-ink hover:bg-panel-2';
-/** A chat box's buttons right of the text: the paperclip at the top, Send at the bottom, both the same
- *  square, and the paperclip's menu opening leftward so it stays on screen. */
-export const COMPOSER_BTNS = 'flex flex-none flex-col justify-between gap-2 [&_.btn]:size-9 [&_.btn]:px-0 [&_.att-menu]:right-0 [&_.att-menu]:left-auto';
+/** A chat box's buttons right of the text: the paperclip at the top, Send at the bottom, both the same square. */
+export const COMPOSER_BTNS = 'flex flex-none flex-col justify-between gap-2 [&_.btn]:size-9 [&_.btn]:px-0';
 /** Its text box: never shorter than the two buttons, and growing upward with what you type to about a
  *  fifth of the window before it scrolls. */
 export const COMPOSER_TEXT = 'block field-sizing-content min-h-[80px] max-h-[max(160px,20vh)] resize-none';
 // a place that takes dropped files, while files are dragged over it
 const OVER = 'outline-2 outline-dashed outline-accent -outline-offset-3'.split(' ');
 
-export function attachTray({ deferred = false, onChange }: { deferred?: boolean; onChange?: () => void } = {}): AttachTray {
+// deferred: hold the files and upload only when ready() is called (a new project: its folder doesn't exist yet).
+// iconWeight: the weight the chat around it draws its icons in (the paperclip is drawn apart from it).
+export function attachTray({ deferred = false, onChange, iconWeight }: { deferred?: boolean; onChange?: () => void; iconWeight?: IconWeight } = {}): AttachTray {
   let items: Item[] = [];
   const el = h('div.att-tray.hidden');
   const fileIn = h('input', { type: 'file', multiple: true, hidden: true });
   const dirIn = h('input', { type: 'file', multiple: true, hidden: true, webkitdirectory: true });
-  // (att-menu: a box with the paperclip on its right opens it leftward)
-  const menu = h('div.hidden', { class: 'att-menu absolute bottom-[calc(100%+6px)] left-0 z-60 flex min-w-[150px] flex-col rounded-box border border-line bg-glass-strong p-1.5 shadow-pop animate-fade-fast' });
-  const closeMenu = () => {
-    menu.classList.add('hidden');
-    document.removeEventListener('pointerdown', outside, true);
-  };
-  const outside = (e: PointerEvent) => !picker.contains(e.target as Node) && closeMenu();
-  const btn = h('button.btn.ghost.small', {
-    type: 'button',
-    title: 'Attach files or a folder (or drop or paste them here)',
-    'aria-label': 'Attach files',
-    onclick: () => {
-      const open = menu.classList.toggle('hidden') === false;
-      if (open) document.addEventListener('pointerdown', outside, true);
-      else closeMenu();
-    },
-  }, icon('paperclip', 15));
-  mount(
-    menu,
-    h('button', { class: MENU_ITEM, type: 'button', onclick: () => (closeMenu(), fileIn.click()) }, icon('file', 14), 'Files…'),
-    h('button', { class: MENU_ITEM, type: 'button', onclick: () => (closeMenu(), dirIn.click()) }, icon('folder-up', 14), 'A folder…'),
-  );
-  const picker = h('span', { class: 'relative inline-flex flex-none' }, btn, menu, fileIn, dirIn);
+  // the paperclip and its menu (Files…, A folder…) are the app's dropdown, drawn into this host
+  const menuHost = h('span', { class: 'inline-flex' });
+  mountAttachMenu(menuHost, { files: () => fileIn.click(), folder: () => dirIn.click(), weight: iconWeight });
+  const picker = h('span', { class: 'relative inline-flex flex-none' }, menuHost, fileIn, dirIn);
   fileIn.addEventListener('change', () => (add(filesFromInput(fileIn.files)), (fileIn.value = '')));
   dirIn.addEventListener('change', () => (add(filesFromInput(dirIn.files)), (dirIn.value = '')));
 
