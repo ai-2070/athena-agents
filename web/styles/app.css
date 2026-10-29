@@ -1,4 +1,4 @@
-/* Athena Agents: quiet white surfaces, hairline borders, one calm accent, Inter. Dark when the system is dark
+/* Athena Agents: quiet white surfaces, hairline borders, one calm accent, Archivo. Dark when the system is dark
    (the overrides are in base.css). Built by scripts/build-web.ts into public/dist/app.css.
    Layers, lowest first: Tailwind's theme and reset with our element styles (base.css), the chats' OpenUI
    stylesheet (added by the build), the shared pieces (components.css), then utilities, which win over
@@ -50,10 +50,10 @@
   --color-glass-strong: rgb(255 255 255 / 0.94);
   --color-scrim: rgb(20 22 34 / 0.34);
 
-  --font-sans: 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-sans: 'Archivo', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
   /* what agents, the Brain and you write in a chat (font-chat); names, labels and code keep sans and mono */
-  --font-chat: 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-chat: 'Archivo', 'Segoe UI', system-ui, sans-serif;
 
   /* semibold is the heaviest the page uses: bold type reads loud on white */
   --font-weight-bold: 600;

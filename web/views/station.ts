@@ -620,7 +620,7 @@ function fitText(ctx: CanvasRenderingContext2D, text: unknown, max: number): str
 }
 
 // The little monitor on each desk. Its colours come from the palette, so it is drawn again when the theme changes.
-const SCREEN_SANS = '"Inter", "Segoe UI", system-ui, sans-serif';
+const SCREEN_SANS = '"Archivo", "Segoe UI", system-ui, sans-serif';
 const SCREEN_MONO = '"JetBrains Mono", Consolas, monospace';
 function drawScreen(desk: Desk, tick = 0): void {
   const { ctx, canvas } = desk.screen;

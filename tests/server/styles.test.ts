@@ -72,7 +72,7 @@ describe('the fonts', () => {
       const urls = [...css.matchAll(/url\(\.\/(fonts\/[\w.-]+)\)/g)].map((m) => m[1] ?? '');
       expect(urls.length).toBeGreaterThan(0);
       for (const u of urls) expect(fs.existsSync(path.join(out, u))).toBe(true);
-      expect(fs.existsSync(path.join(out, 'fonts', 'inter-LICENSE.txt'))).toBe(true);
+      expect(fs.existsSync(path.join(out, 'fonts', 'archivo-LICENSE.txt'))).toBe(true);
     } finally {
       fs.rmSync(out, { recursive: true, force: true });
     }

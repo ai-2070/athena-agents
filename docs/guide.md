@@ -225,7 +225,7 @@ Very long chats still scroll smoothly: from 50 messages on, the chat page and th
 
 ## Light and dark
 
-Athena Agents follows your computer: white when the system is set to light, near-black when it is set to dark, and it switches by itself while the app is open. There is nothing to turn on. **Settings → Look → Accent colour** picks the highlight colour (**Aegean**, **Olive**, **Gold**, **Terracotta**, **Amethyst** or **Slate**); each one has a light and a dark version, so it reads well on both. A project saved with an older accent (lime, ice, amber, rose, violet or mint) moves to the closest new one. The Station's classic map follows it too: a pale map on a light system, a night map on a dark one. The voxel world keeps its own sky. The page is set in Inter; the font that chats are written in is still your choice under **Look**.
+Athena Agents follows your computer: white when the system is set to light, near-black when it is set to dark, and it switches by itself while the app is open. There is nothing to turn on. **Settings → Look → Accent colour** picks the highlight colour (**Aegean**, **Olive**, **Gold**, **Terracotta**, **Amethyst** or **Slate**); each one has a light and a dark version, so it reads well on both. A project saved with an older accent (lime, ice, amber, rose, violet or mint) moves to the closest new one. The Station's classic map follows it too: a pale map on a light system, a night map on a dark one. The voxel world keeps its own sky. The page is set in Archivo; the font that chats are written in is still your choice under **Look**.
 
 ## Your Claude and Codex usage limits
 
