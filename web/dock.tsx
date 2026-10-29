@@ -13,14 +13,14 @@ import { queuedText } from '../shared/queue.ts';
 import { parseCommand, parseLoop } from '../shared/commands.ts';
 import { commandChips, slashMenu } from './chatcommands.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
-import { attachTray, COMPOSER_BTNS, COMPOSER_TEXT } from './attach.ts';
+import { attachTray } from './attach.ts';
 import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { openMemory, BRAIN } from './memory.ts';
 import { mentionPreviews } from './filepreview.ts';
 import { useFind } from './ui/find.tsx';
 import { brainKeyLabel, brainKeyTitle, brainShortcut } from './shortcuts.ts';
-import { Avatar, DomNode, Icon, useAppState } from './ui/react.tsx';
+import { Avatar, DomNode, Icon, IconWeightProvider, useAppState } from './ui/react.tsx';
 import { ChipSet } from './ui/controls.tsx';
 import type { AttachTray, PickedFile } from './attach.ts';
 import type { PasteBox } from './pastes.ts';
@@ -106,22 +106,25 @@ interface Dock {
 
 const D: Dock = { open: false, shown: false, launcherHidden: false, launcherFaded: false, target: 'auto', items: [], input: null, workflows: [], project: null, panel: null, launcher: null };
 const PLACEHOLDER = 'What do you want done?';
+// what the empty chat offers to start with (click one: it goes into the box, ready to send or change)
+const SUGGESTIONS = ['What is everyone working on?', 'Make me a social media team', 'Write PROJECT.md for this project'];
 
 // ---------- looks (dock-msg, user and brain stay: tests look them up) ----------
-const MSG = 'dock-msg rounded-box animate-[rise-in_0.22s_var(--ease-soft)] py-3 px-4 border text-[14px] leading-[1.6] wrap-anywhere';
-const MSG_AGENT = `${MSG} border-line bg-panel`;
-const MSG_DRAFT = `${MSG} border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-line))] bg-panel`;
-const MSG_USER = `${MSG} user font-chat self-end max-w-[85%] whitespace-pre-wrap border-line bg-panel-2`;
+// Answers sit on the glass with no card of their own (the name row says who wrote them); yours is a soft plate.
+const MSG = 'dock-msg animate-[rise-in_0.22s_var(--ease-soft)] text-[14px] leading-[1.6] wrap-anywhere';
+const MSG_AGENT = MSG;
+const MSG_DRAFT = `${MSG} rounded-box border py-3 px-4 border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-line))] bg-panel`;
+const MSG_USER = `${MSG} user font-chat self-end max-w-[85%] whitespace-pre-wrap rounded-[12px] border border-line bg-panel-2 py-2.5 px-3.5`;
 /** who wrote it: the avatar, the name, a hint (smaller in a team's thread) */
-const WHO = 'flex items-center gap-2.5 mb-3 [&_.avatar]:size-7 [&_.avatar]:text-[14px]';
+const WHO = 'flex items-center gap-2.5 mb-2 [&_.avatar]:size-6 [&_.avatar]:text-[12px] [&_b]:text-[13px]';
 const WHO_SMALL = 'flex items-center gap-2.5 mb-2.5 [&_.avatar]:size-6 [&_.avatar]:text-[12px]';
 const NOTE = 'animate-[rise-in_0.22s_var(--ease-soft)] flex flex-wrap items-center gap-2.5 text-[13px] text-dim';
 const NOTE_ERR = 'animate-[rise-in_0.22s_var(--ease-soft)] flex flex-wrap items-center gap-2.5 text-[13px] text-red';
 /** an answer in Markdown */
 const ANSWER = 'font-chat [&_p]:mx-0 [&_p]:mt-0 [&_p]:mb-2.5 [&_pre]:max-h-[220px]';
 const BRAIN_AV = 'avatar bg-accent/10 text-accent';
-const ACT = 'flex items-center gap-2.5 py-2 px-3 rounded-ctl text-[13px] border animate-[rise-in_.22s_ease-out_both]';
-const ACT_OK = `${ACT} bg-panel-2 border-line`;
+const ACT = 'flex items-center gap-2.5 py-1.5 px-3 rounded-ctl text-[13px] border animate-[rise-in_.22s_ease-out_both]';
+const ACT_OK = `${ACT} bg-panel border-line`;
 const ACT_ERR = `${ACT} bg-amber/8 border-[color-mix(in_srgb,var(--color-amber)_35%,var(--color-line))]`;
 
 // ---------- drawing ----------
@@ -161,7 +164,10 @@ export function initDock(): void {
   flushSync(() =>
     root.render(
       <StrictMode>
-        <DockView bar={bar} />
+        {/* the chat's icons are a step stronger, like the Station panel's */}
+        <IconWeightProvider value="regular">
+          <DockView bar={bar} />
+        </IconWeightProvider>
       </StrictMode>,
     ),
   );
@@ -694,7 +700,7 @@ function DockList({ settings }: { settings: AppState['settings'] | undefined }) 
     <>
       {find}
       <div
-        className="dock-list flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-5"
+        className="dock-list flex-1 min-h-0 overflow-y-auto px-5 pt-4 pb-5 flex flex-col gap-6 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-14px),transparent_100%)]"
         ref={list}
         onScroll={(e) => {
           const el = e.currentTarget;
@@ -704,15 +710,34 @@ function DockList({ settings }: { settings: AppState['settings'] | undefined }) 
         {D.items.length ? (
           D.items.map((it) => <Item key={it.id} it={it} settings={settings} />)
         ) : (
-          <div className="m-auto text-center text-dim max-w-[380px] py-8">
-            <Icon name="sparkles" size={26} className="text-accent mb-3" />
-            <p>Ask the Brain anything about the project, or for anything to be done.</p>
-            <p className="hint">It sees every agent and team and what they are doing. It answers questions itself, builds teams from the Agent library ("make me a social media team"), and hands work to the right agent or team.</p>
+          <div className="m-auto flex w-full max-w-[380px] flex-col items-center py-6 text-center">
+            <div className="mb-4 grid size-11 place-items-center rounded-[12px] border border-line bg-panel text-accent shadow-[inset_0_1px_0_var(--glass-spec)]">
+              <Icon name="sparkles" size={20} />
+            </div>
+            <h3 className="m-0 text-[16px] leading-[1.3] font-semibold text-ink">Ask the Brain</h3>
+            <p className="mt-1.5 mb-0 text-[13.5px] leading-[1.55] text-dim">Ask about the project, or ask for anything to be done. It sees every agent and team, builds teams from the Agent library, and hands work to the right one.</p>
+            <div className="mt-5 flex w-full flex-col gap-1.5">
+              {SUGGESTIONS.map((s) => (
+                <button key={s} className="dock-suggest" onClick={() => suggest(s)}>
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
     </>
   );
+}
+
+// An example from the empty chat goes into the box (as if typed: the / menu and Send see it), ready to send or change.
+function suggest(text: string) {
+  const box = D.input;
+  if (!box) return;
+  box.value = text;
+  box.dispatchEvent(new Event('input', { bubbles: true }));
+  box.focus();
+  box.setSelectionRange(text.length, text.length);
 }
 
 // whether the box had words in it when the chat was last drawn (typing redraws only when that changes)
@@ -809,52 +834,23 @@ function DockView({ bar }: { bar: HTMLElement }) {
         bar,
       )}
       <div
-        className={`dock fixed z-46 left-1/2 bottom-4 -translate-x-1/2 w-[min(680px,calc(100vw-32px))] h-[min(70vh,640px)] flex flex-col border border-line overflow-hidden rounded-[16px] bg-glass-strong backdrop-blur-[16px] backdrop-saturate-140 shadow-pop ${D.shown ? '' : ' hidden'}`}
+        className={`dock fixed z-46 left-1/2 bottom-4 -translate-x-1/2 w-[min(680px,calc(100vw-32px))] h-[min(70vh,640px)] flex flex-col overflow-hidden rounded-[16px] ${D.shown ? '' : ' hidden'}`}
         ref={(el) => void (D.panel = el)}
       >
-        <div className="flex items-center gap-2.5 py-3.5 px-5 border-b border-line max-sm:flex-wrap max-sm:px-4">
+        <div className="flex items-center gap-1.5 px-5 pt-4 pb-2 max-sm:px-4">
           <b className="flex items-center gap-2.5 text-[14px] whitespace-nowrap">
-            <Icon name="brain" size={16} className="text-dim" />
+            <Icon name="brain" size={17} className="text-dim" />
             Brain chat
           </b>
-          <span className="flex-1 min-w-0 max-sm:hidden" />
-          <span className="text-[12.5px] font-medium text-faint">To</span>
-          <select
-            className="dock-target w-[210px] py-1.5 pr-8 pl-3 text-[13px] max-sm:w-auto max-sm:min-w-[150px] max-sm:flex-1"
-            aria-label="Send to"
-            value={D.target}
-            onChange={(e) => {
-              D.target = e.target.value;
-              now();
-            }}
-          >
-            <option value="auto">🧠 The Brain: answers, builds, hands off</option>
-            <option value="new-agent">+ New agent from this</option>
-            <option value="new-branch">+ New team from this</option>
-            {agents.length ? (
-              <optgroup label="Agents">
-                {agents.map((a) => (
-                  <option key={a.id} value={`a:${a.id}`}>{`${a.emoji || ''} ${a.name}`}</option>
-                ))}
-              </optgroup>
-            ) : null}
-            {teams.length ? (
-              <optgroup label="Teams">
-                {teams.map((w) => (
-                  <option key={w.id} value={`b:${w.id}`}>{`⇢ ${w.name}`}</option>
-                ))}
-              </optgroup>
-            ) : null}
-          </select>
-          <DomNode className="dock-model inline-flex items-center [&_.model-chip]:text-[11px]" make={() => modelNode(D.target, agents)} deps={[D.target, data, D.workflows]} />
-          <button className="icon-btn" onClick={() => openMemory(BRAIN)} title="The Brain's MEMORY.md: what it remembers across conversations" aria-label="The Brain's MEMORY.md">
-            <Icon name="file-text" size={15} />
+          <span className="flex-1 min-w-0" />
+          <button className="icon-btn plain" onClick={() => openMemory(BRAIN)} title="The Brain's MEMORY.md: what it remembers across conversations" aria-label="The Brain's MEMORY.md">
+            <Icon name="file-text" size={16} />
           </button>
-          <button className="icon-btn" onClick={() => void newConversation()} title="New conversation (the Brain forgets this chat)" aria-label="New conversation">
-            <Icon name="rotate-ccw" size={15} />
+          <button className="icon-btn plain" onClick={() => void newConversation()} title="New conversation (the Brain forgets this chat)" aria-label="New conversation">
+            <Icon name="rotate-ccw" size={16} />
           </button>
           <button className="icon-btn" onClick={() => toggle(false)} aria-label="Close">
-            ✕
+            <Icon name="x" size={15} />
           </button>
         </div>
         <DockList settings={data?.settings} />
@@ -882,23 +878,67 @@ function DockView({ bar }: { bar: HTMLElement }) {
           <DomNode className="dom-contents" make={() => D.tray!.el} deps={[]} />
           <DomNode className="dom-contents" make={() => D.pastes!.el} deps={[]} />
         </div>
-        <div className="flex gap-2.5 py-4 px-5 border-t border-line items-stretch">
-          <div className="flex-1 min-w-0 relative">
-            <textarea className={`dock-input ${COMPOSER_TEXT}`} ref={input} rows={2} aria-label="Message the Brain" placeholder={placeholder} />
+        <div className="px-5 pt-1 pb-4 max-sm:px-4">
+          {/* one glass field: the text on top, and under it who it goes to, which model answers, the paperclip and Send */}
+          <div className="dock-composer relative">
+            <textarea className="dock-input block field-sizing-content min-h-[56px] max-h-[max(160px,20vh)] w-full resize-none" ref={input} rows={2} aria-label="Message the Brain" placeholder={placeholder} />
             <span className="dom-contents" ref={slashHost} />
-          </div>
-          {/* the paperclip at the top of the box, Send at its bottom (Stop there while something works and the box is empty) */}
-          <div className={COMPOSER_BTNS}>
-            <DomNode as="span" className="dom-contents" make={() => D.tray!.picker} deps={[]} />
-            {stopInstead ? (
-              <button className="btn danger" onClick={() => void brainStop()} title="Stop the Brain and the work it handed on" aria-label="Stop">
-                <Icon name="square" size={14} />
-              </button>
-            ) : (
-              <button className="btn" onClick={() => void send()} title={idle ? 'Send (Enter)' : 'Send now: the Brain stops the answer it is writing and takes this up (Enter)'} aria-label="Send">
-                <Icon name="send" size={15} />
-              </button>
-            )}
+            <div className="flex items-center gap-1 px-2 pt-1 pb-2 [&_.att-menu]:right-0 [&_.att-menu]:left-auto">
+              {/* who it goes to and which model answers (these wrap on a narrow screen; the buttons stay on the right) */}
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1">
+                <span className="pl-1.5 text-[12.5px] text-faint">To</span>
+                <span className="relative inline-flex min-w-0 items-center">
+                  <select
+                    className="dock-target"
+                    aria-label="Send to"
+                    title="Who gets your message. The Brain answers, builds teams and agents, and hands work on."
+                    value={D.target}
+                    onChange={(e) => {
+                      D.target = e.target.value;
+                      now();
+                    }}
+                  >
+                    <option value="auto">The Brain</option>
+                    <option value="new-agent">+ New agent from this</option>
+                    <option value="new-branch">+ New team from this</option>
+                    {agents.length ? (
+                      <optgroup label="Agents">
+                        {agents.map((a) => (
+                          <option key={a.id} value={`a:${a.id}`}>{`${a.emoji || ''} ${a.name}`}</option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {teams.length ? (
+                      <optgroup label="Teams">
+                        {teams.map((w) => (
+                          <option key={w.id} value={`b:${w.id}`}>{`⇢ ${w.name}`}</option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                  </select>
+                  {/* (the same thin chevron as the model's chip beside it, not the browser's arrow) */}
+                  <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-1.5 text-faint" />
+                </span>
+                <DomNode
+                  className="dock-model inline-flex min-w-0 items-center [&_.model-chip]:rounded-ctl [&_.model-chip]:border-transparent [&_.model-chip]:bg-transparent [&_.model-chip]:px-2 [&_.model-chip]:py-1 [&_.model-chip]:text-[12px] [&_.model-chip]:text-dim [&_.model-chip]:hover:bg-panel-2 [&_.model-chip]:hover:text-ink"
+                  make={() => modelNode(D.target, agents)}
+                  deps={[D.target, data, D.workflows]}
+                />
+              </div>
+              <div className="flex flex-none items-center gap-1">
+                <DomNode as="span" className="dom-contents" make={() => D.tray!.picker} deps={[]} />
+                {/* (Stop in Send's place while something works and the box is empty) */}
+                {stopInstead ? (
+                  <button className="btn danger size-8 px-0" onClick={() => void brainStop()} title="Stop the Brain and the work it handed on" aria-label="Stop">
+                    <Icon name="square" size={14} />
+                  </button>
+                ) : (
+                  <button className="btn size-8 px-0" onClick={() => void send()} title={idle ? 'Send (Enter)' : 'Send now: the Brain stops the answer it is writing and takes this up (Enter)'} aria-label="Send">
+                    <Icon name="arrow-up" size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

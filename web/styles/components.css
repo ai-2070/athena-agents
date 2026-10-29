@@ -414,11 +414,11 @@ details.compaction .hint.warn { color: var(--color-amber); }
 .toast.error { --tone: var(--color-red); }
 .toast.warn { --tone: var(--color-amber); }
 
-/* ---------- glass: the Station's side panel, the project menu and the New project dialog are frosted glass ---------- */
+/* ---------- glass: the Station's side panel, the project menu, the New project dialog and the Brain chat are frosted glass ---------- */
 /* Everything in them reads the same tokens as the rest of the page, but here they are clear glass instead of solid greys:
    tiles, fields and buttons become soft see-through plates, and the surface itself blurs what is behind it.
    Light: milky white. Dark: true OLED black. */
-.st-panel, .proj-menu, .modal-back.glass .modal {
+.st-panel, .proj-menu, .modal-back.glass .modal, .dock {
   --glass-base: light-dark(rgb(255 255 255 / 0.56), rgb(0 0 0 / 0.64));
   --glass-sheen: light-dark(rgb(255 255 255 / 0.6), rgb(255 255 255 / 0.1));
   --glass-edge: light-dark(rgb(255 255 255 / 0.8), rgb(255 255 255 / 0.12));
@@ -446,6 +446,14 @@ details.compaction .hint.warn { color: var(--color-amber); }
     0 0 0 1px light-dark(rgb(20 22 40 / 0.06), rgb(0 0 0 / 0.7)),
     0 40px 90px -24px light-dark(rgb(20 22 40 / 0.32), rgb(0 0 0 / 0.95));
 }
+/* the Brain chat: a gentler sheen (it is a big, mostly quiet surface), and the panel's shadow */
+.dock {
+  --glass-sheen: light-dark(rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.045));
+  box-shadow:
+    inset 0 1px 0 var(--glass-spec),
+    0 0 0 1px light-dark(rgb(20 22 40 / 0.06), rgb(0 0 0 / 0.7)),
+    0 40px 90px -24px light-dark(rgb(20 22 40 / 0.32), rgb(0 0 0 / 0.95));
+}
 /* the menu keeps its own radius and its scrolling (st-menu); only the surface and the shadow are glass */
 .proj-menu {
   box-shadow:
@@ -467,18 +475,42 @@ details.compaction .hint.warn { color: var(--color-amber); }
 .proj-menu .st-menu-item.danger:hover { background: color-mix(in srgb, var(--color-red) 12%, transparent); }
 /* no blur available, or asked not to see through things: a plain, nearly opaque sheet */
 @supports not (backdrop-filter: blur(1px)) {
-  .st-panel, .proj-menu, .modal-back.glass .modal { background: light-dark(rgb(250 250 252 / 0.97), rgb(6 6 8 / 0.98)); }
+  .st-panel, .proj-menu, .modal-back.glass .modal, .dock { background: light-dark(rgb(250 250 252 / 0.97), rgb(6 6 8 / 0.98)); }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .st-panel, .proj-menu, .modal-back.glass .modal { -webkit-backdrop-filter: none; backdrop-filter: none; background: light-dark(#fafafc, #060608); }
+  .st-panel, .proj-menu, .modal-back.glass .modal, .dock { -webkit-backdrop-filter: none; backdrop-filter: none; background: light-dark(#fafafc, #060608); }
 }
 /* buttons and fields keep the page's own shape; only their fill is glass */
-.st-panel .btn.ghost, .modal-back.glass .btn.ghost { box-shadow: inset 0 1px 0 var(--glass-spec); }
-.st-panel .icon-btn { width: 28px; height: 28px; border-color: var(--color-line); background: var(--color-panel); box-shadow: inset 0 1px 0 var(--glass-spec); }
-.st-panel .icon-btn:hover { background: var(--color-panel-2); }
-.st-panel .icon-btn.plain { width: 26px; height: 26px; border-color: transparent; background: transparent; box-shadow: none; }
-.st-panel .icon-btn.plain:hover { background: var(--color-panel-2); color: var(--color-ink); }
+.st-panel .btn.ghost, .modal-back.glass .btn.ghost, .dock .btn.ghost { box-shadow: inset 0 1px 0 var(--glass-spec); }
+:is(.st-panel, .dock) .icon-btn { width: 28px; height: 28px; border-color: var(--color-line); background: var(--color-panel); box-shadow: inset 0 1px 0 var(--glass-spec); }
+:is(.st-panel, .dock) .icon-btn:hover { background: var(--color-panel-2); }
+:is(.st-panel, .dock) .icon-btn.plain { width: 26px; height: 26px; border-color: transparent; background: transparent; box-shadow: none; }
+:is(.st-panel, .dock) .icon-btn.plain:hover { background: var(--color-panel-2); color: var(--color-ink); }
 :is(.st-panel, .modal-back.glass) :is(input:not([type='checkbox'], [type='radio'], [type='range']), textarea, select) { box-shadow: inset 0 1px 0 var(--glass-spec); }
+/* the details of a glass dialog: a gentler sheen, so the head doesn't read as a grey band over a black body */
+.modal-back.glass .modal { --glass-sheen: light-dark(rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.045)); }
+/* the Cancel button is a soft plate, the main one gets a lit top edge so it has some body */
+.modal-back.glass .btn.ghost { background: light-dark(rgb(20 22 40 / 0.03), rgb(255 255 255 / 0.04)); }
+.modal-back.glass .btn.ghost:hover { background: light-dark(rgb(20 22 40 / 0.06), rgb(255 255 255 / 0.09)); }
+.modal-back.glass .btn:not(.ghost, .danger, .plain) { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28), 0 1px 2px rgb(0 0 0 / 0.22); }
+/* the choice between a few things: a faint track, and the picked one a lit plate instead of a grey block */
+.modal-back.glass .seg { background: light-dark(rgb(20 22 40 / 0.035), rgb(255 255 255 / 0.035)); border-color: var(--color-line); }
+.modal-back.glass .seg button:is(.on, [data-checked], [data-pressed]) {
+  background: light-dark(rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.1));
+  box-shadow: inset 0 1px 0 var(--glass-spec), 0 0 0 1px var(--color-line-2), 0 1px 2px light-dark(rgb(20 22 40 / 0.08), transparent);
+}
+/* a checkbox drawn by us (the browser's own is a stock blue square) */
+.modal-back.glass input[type='checkbox'] {
+  appearance: none; -webkit-appearance: none; flex: none; display: inline-grid; place-content: center;
+  width: 16px; height: 16px; margin: 0 2px 0 0; cursor: pointer;
+  border: 1px solid var(--color-line-2); border-radius: 5px; background: var(--color-panel); box-shadow: inset 0 1px 0 var(--glass-spec);
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.modal-back.glass input[type='checkbox']:hover { border-color: color-mix(in srgb, var(--color-ink) 30%, var(--color-line-2)); }
+.modal-back.glass input[type='checkbox']:checked { background: var(--color-accent); border-color: var(--color-accent); }
+.modal-back.glass input[type='checkbox']:checked::after {
+  content: ''; width: 8px; height: 4.5px; border: solid var(--color-on-accent); border-width: 0 0 1.6px 1.6px; transform: translateY(-1px) rotate(-45deg);
+}
 /* lists of things you can open are stacks of glass plates, not ruled rows */
 .st-panel .list { gap: 8px; }
 .st-panel .list-row {
@@ -487,5 +519,25 @@ details.compaction .hint.warn { color: var(--color-amber); }
 }
 .st-panel .list-row:last-child { border-bottom: 1px solid var(--color-line); }
 .st-panel .list-row:hover { background: var(--color-panel-2); border-color: var(--color-line-2); }
+/* the Brain chat's composer (web/dock.tsx): one glass field, the text on top and its controls in a row under it */
+.dock-composer { border: 1px solid var(--color-line-2); border-radius: 12px; background: var(--color-panel); box-shadow: inset 0 1px 0 var(--glass-spec); }
+/* no ring when the box has focus (the cursor is enough; it is the only thing you can type in here) */
+.dock-composer .dock-input { border: 0; border-radius: 12px 12px 0 0; background: transparent; box-shadow: none; outline: none; padding: 12px 14px 4px; }
+/* who it goes to: plain text with a small arrow until you point at it */
+.dock-composer select.dock-target {
+  width: auto; max-width: 190px; field-sizing: content; padding: 4px 22px 4px 8px; border: 0; border-radius: var(--radius-ctl);
+  background-color: transparent; background-image: none; box-shadow: none; font-size: 12.5px; line-height: 20px; color: var(--color-dim); cursor: pointer;
+}
+.dock-composer select.dock-target:hover, .dock-composer select.dock-target:focus-visible { background-color: var(--color-panel-2); color: var(--color-ink); }
+/* the paperclip: an icon button like the others in the row */
+.dock-composer .btn.ghost { width: 32px; height: 32px; padding: 0; border-color: transparent; background: transparent; box-shadow: none; color: var(--color-icon); }
+.dock-composer .btn.ghost:hover { background: var(--color-panel-2); color: var(--color-ink); }
+/* what the empty chat offers: quiet plates, one under the other */
+.dock-suggest {
+  display: block; width: 100%; padding: 9px 14px; text-align: left; cursor: pointer;
+  border: 1px solid var(--color-line); border-radius: 10px; background: var(--color-panel); box-shadow: inset 0 1px 0 var(--glass-spec);
+  color: var(--color-dim); font-size: 13.5px; transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.dock-suggest:hover { background: var(--color-panel-2); border-color: var(--color-line-2); color: var(--color-ink); }
 /* on a phone the panel is a sheet from the bottom: the Brain's button would sit on top of it */
 @media (max-width: 820px) { body:has(.st-panel:not(.hidden)) .dock-launcher { display: none !important; } }

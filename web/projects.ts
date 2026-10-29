@@ -481,8 +481,8 @@ Look at the project folder and help me set it up: ask me what you need to know f
       field('Name', name),
       field('What is this project?', about, 'The Brain reads this, looks at the folder and asks you what it needs to know.'),
       modeBox,
-      extra,
-      hint,
+      // the folder's field and the note about it sit together, so the note reads as part of it
+      h('div', { class: 'flex flex-col gap-2' }, extra, hint),
       filesRow,
       kickoffRow,
     ),

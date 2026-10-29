@@ -77,6 +77,21 @@ describe('the Brain chat', () => {
     expect(panel().classList.contains('hidden')).toBe(true);
   });
 
+  it('offers a few things to ask while the chat is empty, and one goes into the box when clicked', async () => {
+    await act(async () => launcher().click());
+    await settle();
+    const offered = [...panel().querySelectorAll<HTMLButtonElement>('.dock-suggest')];
+    expect(offered.map((b) => b.textContent)).toEqual(['What is everyone working on?', 'Make me a social media team', 'Write PROJECT.md for this project']);
+    await act(async () => offered[1].click());
+    expect(input().value).toBe('Make me a social media team');
+    expect(document.activeElement).toBe(input());
+    // (leave the box as it was)
+    input().value = '';
+    await act(async () => void input().dispatchEvent(new Event('input', { bubbles: true })));
+    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
+    await settle();
+  });
+
   it('Ctrl+F (⌘F) opens a search box in the chat, and Esc closes only the box', async () => {
     await act(async () => launcher().click());
     await settle();
