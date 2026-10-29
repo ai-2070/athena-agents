@@ -1,0 +1,31 @@
+tests/web/dropdown.test.tsx
+  s_8892bfc24ba38a::t_2df50f379d7a1c 7,88-98
+tests/web/home.test.tsx
+  s_8892bfc24ba38a::t_9961c1179211ce 68-70
+tests/web/programs.test.tsx
+  s_8892bfc24ba38a::t_a45113ea355691 100-102
+tests/web/terminals.test.tsx
+  s_8892bfc24ba38a::t_5634559cf7b961 77-80
+tests/web/workflows-page.test.tsx
+  s_8892bfc24ba38a::t_1330a0f0ae9695 70-72
+web/models.ts
+  s_8892bfc24ba38a::t_5260114060c50b 9,227-228,231-232,239-250,487-491
+web/projects.ts
+  s_8892bfc24ba38a::t_93fc437e30b2b3 7,89-90,93-94,97,99-101,103-112,243-247
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6cee27019eb522c4f144898d39acc2d605644aec",
+  "prompts": {},
+  "sessions": {
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "unknown"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
