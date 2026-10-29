@@ -1,0 +1,31 @@
+web/views/agents.tsx
+  s_8892bfc24ba38a::t_6d6069ad4302f4 10,68,103,124,234,390,422,429,439,449,589
+web/views/library.tsx
+  s_8892bfc24ba38a::t_9f8108d6c05f5c 125,149,194
+web/views/outbox.tsx
+  s_8892bfc24ba38a::t_f72ce71192bc51 10-11,50,53-61,63,67,69,84,100,114-121,123,186
+web/views/home.tsx
+  s_8892bfc24ba38a::t_5e1e11ba117970 6,59,71,93,102,122,146,178,209,214
+web/views/routines.tsx
+  s_8892bfc24ba38a::t_e5933e9df7326d 137,301,311,346,358,386
+web/views/skills.tsx
+  s_8892bfc24ba38a::t_0e17c0bf0e158e 78,85,177,233
+web/views/workflows.tsx
+  s_8892bfc24ba38a::t_5722ce0fba5a3c 8,120,138,212,222,231,235,259,268,274,299,308,321
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f4ee81d1d5f8cd9ff9a32a3bf0c2f923287b35e9",
+  "prompts": {},
+  "sessions": {
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
