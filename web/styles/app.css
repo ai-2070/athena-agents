@@ -33,6 +33,8 @@
   --color-ink: #1a1a1f;
   --color-dim: #5b5b66;
   --color-faint: #747480;
+  /* line icons (nav, icon buttons, menus): a step softer than the text beside them */
+  --color-icon: #71727e;
   /* the accent: look.ts swaps these four for the colour picked in Settings > Look */
   --color-accent: #4f5fd6;
   --color-accent-hover: #3f4ec0;
