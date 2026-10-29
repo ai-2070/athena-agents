@@ -43,7 +43,7 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 | `server/projectsync.ts`, `backup.ts`, `versions.ts` | Auto-save into `<project>/.dashboard`, `.dashbackup` files, version history |
 | `shared/` | Types and logic both sides import (`types.ts` is the source of truth for data shapes) |
 | `web/` | Browser app. Every page in `web/views/` is React on Base UI (`reactPage()` in `web/ui/react.tsx`) except the Station's map and header (`station.ts`, three.js and plain DOM); its side panel (`stationpanel.tsx`) and right-click menu (`stationmenu.tsx`) are React, and `stationdata.ts` has what the map and panel share. The Brain chat, the floating chat window, its agent tabs and team chats are React too (`dock.tsx`, `chatwin.tsx`, `agentchat.tsx`, `teamchat.tsx`). Some smaller pieces (dialogs' contents, the model picker, file previews) are still plain DOM via the `h()` helper in `web/core.ts`; a React page hosts one with `<DomNode>`. Agent chats are React (`web/chat/*.tsx`, Vercel AI SDK + OpenUI) |
-| `web/ui/` | Base UI (`@base-ui/react`) pieces. `overlays.tsx` draws every dialog and toast: `modal()`, `confirmBox()`, `promptBox()` and `toast()` in `web/core.ts` call it with plain DOM. `react.tsx` mounts a React page (`mountReact`, `useAppState`, `Icon`); `controls.tsx` has `Tabs`, `Segmented` and `Chips` in the app's own classes |
+| `web/ui/` | Base UI (`@base-ui/react`) pieces. `overlays.tsx` draws every dialog and toast: `modal()`, `confirmBox()`, `promptBox()` and `toast()` in `web/core.ts` call it with plain DOM. `react.tsx` mounts a React page (`mountReact`, `useAppState`, `Icon`); `controls.tsx` has `Tabs`, `Segmented` and `Chips` in the app's own classes; `dropdown.tsx` is the dropdown menu (ReUI's, on Base UI's Menu; the `.st-menu` classes in `components.css` are its look, and every floating menu shares them): the paperclip's menu (`web/attachmenu.tsx`) and the chat's "To" picker use it |
 | `web/client/` | The page's only way to the server: addresses (`apiUrl`, `fileUrl`, `serverUrl`), requests (`api`, uploads) and sockets. A test fails if other code writes `/api/`, `fetch(` or `new WebSocket(` |
 | `web/views/` | One module per page (`station.ts` is the 3D map, three.js) |
 | `server/voxel/` | The voxel world (`docs/internal/plans/VOXEL_WORLD_PLAN.md`): worlds on disk (`store.ts`), which world a project shows (`link.ts`), the build steps (`ops.ts`: shapes, shape and region tools, stamping and placing prefabs), building and undo (`build.ts`), prefabs and the prefab library (`prefabs.ts`), WORLD.md (`worldmd.ts`), the agents' tools (`tools.ts`), `world_script`'s sandbox (`script.ts`: QuickJS in WebAssembly, no files or network) |
@@ -96,6 +96,8 @@ for checking both; nothing sets it in the app).
 - Labels, tabs, buttons and captions are sentence case in Geist; mono is for code, paths, URLs, ids and keys. No uppercase
   letter-spaced captions, no coloured glows, no gradient text. Controls are `rounded-ctl`, cards `rounded-box`; depth is
   `shadow-card`, `shadow-lift` and `shadow-pop`.
+
+`DESIGN.md` records the Brain chat's styling and motion (the glass material, the dropdown, the composer, every animation with its timing) and why each choice was made.
 
 ## Security boundaries (don't weaken these)
 
