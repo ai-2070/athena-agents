@@ -226,6 +226,11 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
 - Settings sections share the Section and Row layout. Programs and Outbox use the same layout.
 - In Connections > Accounts, Reddit accounts and their one-time setup appear together at the end.
 - Agent and team chats use one composer with controls below the text; answers sit directly on the window.
+- The full agent chat keeps the agent and conversation list in a quiet attached sidebar. Its empty state offers
+  suggestions as soft rows, while the composer sits on the page without a ruled footer. The model picker and square Send
+  button follow the Brain composer's compact controls.
+- The chat memory percentage has a static accent-tinted fill proportional to the context used; it does not measure
+  the separate `MEMORY.md` file.
 - Team chat windows use the same gentle glass sheen and shadow as the Brain, with a transparent conversation area.
   Agent and team tabs have square bottoms and a static sheen instead of pills or outlines; the active tab has a quiet
   fill. Your messages keep their author and time for assistive technology while showing the text as a quiet plate.

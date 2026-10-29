@@ -7,7 +7,7 @@ import { memoryButton } from '../memory.ts';
 import { modelChip, modelInfo } from '../models.ts';
 import { kTokens } from '../../shared/compaction.ts';
 import { attachTray } from '../attach.ts';
-import { Avatar, DomNode, reactPage } from '../ui/react.tsx';
+import { Avatar, DomNode, Icon, reactPage } from '../ui/react.tsx';
 import type { PageContext } from '../ui/react.tsx';
 import type { AgentDetail } from './agents.tsx';
 import type { ChatViewApi } from '../chat/ChatView.tsx';
@@ -130,51 +130,53 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
   const info = modelInfo(agent);
   const how = memory ? (memory.own ? `${ENGINE_LABEL[agent.engine] || 'Its engine'} compacts it by itself when it is nearly full` : memory.auto ? `Compacts by itself at ${kTokens(memory.compactAt)}` : 'Automatic compaction is off') : '';
   return (
-    <div className="grid h-[calc(100vh-61px)] grid-cols-[270px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1" ref={page}>
-      <div className="flex min-h-0 flex-col border-r border-line bg-panel max-md:border-r-0 max-md:border-b">
-        <div className="border-b border-line p-5">
-          <div className="flex items-center gap-3.5">
+    <div className="grid h-[calc(100vh-61px)] grid-cols-[260px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1" ref={page}>
+      <aside className="flex min-h-0 flex-col border-r border-line bg-bg max-md:border-r-0 max-md:border-b">
+        <div className="border-b border-line px-5 pt-6 pb-5">
+          <div className="flex items-center gap-3">
             <Avatar agent={agent} lg />
-            <div className="min-w-0 flex-1">
-              <div className="text-[16px] leading-[1.25] font-bold">{agent.name}</div>
-              <div className="hint mt-0.5">{agent.specialty || ''}</div>
+            <div className="min-w-0 flex-1 text-[15px] leading-[1.3] font-semibold wrap-anywhere">{agent.name}</div>
+          </div>
+          {agent.specialty ? <p className="hint mt-3 mb-0">{agent.specialty}</p> : null}
+          <div className="mt-4 flex flex-col gap-1 text-[12px] leading-[1.4] text-dim">
+            <span>{info.name}</span>
+            <span className="text-faint">{info.where}</span>
+          </div>
+          <div className="mt-5 flex flex-col gap-2">
+            <button className="btn small w-full justify-center" onClick={() => void newChat()}>+ New chat</button>
+            <div className="grid grid-cols-2 gap-2">
+              <a className={`btn ghost tiny justify-center ${agent.engine === 'openai' ? 'col-span-2' : ''}`} href={`#/agents/${agent.id}/edit`}>Edit</a>
+              {agent.engine !== 'openai' ? (
+                <button className="btn ghost tiny justify-center" title="Open this agent in a live terminal" onClick={() => void openTerminal(agent)}><Icon name="terminal" size={13} />Terminal</button>
+              ) : null}
+              <DomNode as="span" className="col-span-2 [&_button]:w-full [&_button]:justify-center" make={() => memoryButton(agent.id, agent.name, 'button.btn.ghost.tiny')} deps={[agent.id]} />
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="pill">{info.name}</span>
-            <span className="pill">{info.where}</span>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button className="btn small" onClick={() => void newChat()}>+ New chat</button>
-            <a className="btn ghost small" href={`#/agents/${agent.id}/edit`}>Edit</a>
-            <DomNode as="span" make={() => memoryButton(agent.id, agent.name)} deps={[agent.id]} />
-            {agent.engine !== 'openai' ? (
-              <button className="btn ghost small" title="Open this agent in a live terminal" onClick={() => void openTerminal(agent)}>Terminal</button>
-            ) : null}
-          </div>
           <details className="mt-4">
-            <summary className="label cursor-pointer">{`${tools.length} tools`}</summary>
+            <summary className="label cursor-pointer text-dim">{`${tools.length} tools`}</summary>
             <div className="hint chat-tools mt-2 font-mono text-[11.5px] leading-[1.8]">{tools.join(' · ')}</div>
           </details>
         </div>
-        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2.5 max-md:max-h-48 max-md:flex-none" aria-label="Chats">
+        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-4 max-md:max-h-48 max-md:flex-none" aria-label="Chats">
+          <div className="label px-2 pb-2 text-faint">Chats</div>
           {chats.map((c) => (
-            <a key={c.id} className={c.id === chat.id ? 'on block rounded-ctl bg-ink/7 px-3 py-2.5 text-[13.5px] text-ink' : 'block rounded-ctl px-3 py-2.5 text-[13.5px] text-dim hover:bg-ink/5 hover:text-ink'} aria-current={c.id === chat.id ? 'page' : undefined} href={`#/agents/${agent.id}/${c.id}`}>
-              <span className="t block truncate">{c.title || 'Chat'}</span>
-              <span className="text-[12px] leading-[normal] text-faint">{`${ago(c.updatedAt)} · ${c.count} items`}</span>
+            <a key={c.id} className={c.id === chat.id ? 'on block rounded-[10px] bg-panel px-3 py-3 text-[13px] text-ink shadow-[inset_0_1px_0_var(--glass-spec)]' : 'block rounded-[10px] px-3 py-3 text-[13px] text-dim hover:bg-panel hover:text-ink'} aria-current={c.id === chat.id ? 'page' : undefined} href={`#/agents/${agent.id}/${c.id}`}>
+              <span className="t block truncate font-medium">{c.title || 'Chat'}</span>
+              <span className="mt-1 block text-[11.5px] leading-[normal] text-faint">{`${ago(c.updatedAt)} · ${c.count} items`}</span>
             </a>
           ))}
         </nav>
-      </div>
-      <div className="flex min-h-0 min-w-0 flex-col">
-        <div className="chat-head flex flex-wrap items-center justify-between gap-3 border-b border-line px-10 py-3 max-md:px-4">
+      </aside>
+      <div className="flex min-h-0 min-w-0 flex-col [&_.composer]:border-0 [&_.composer]:bg-transparent">
+        <div className="chat-head flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-line px-8 py-3 max-md:px-4">
           <div className="min-w-0 flex-1">
-            <span className="chat-title text-[13.5px] font-medium text-ink">{chat.title || 'Chat'}</span>
+            <span className="chat-title text-[14px] font-semibold text-ink">{chat.title || 'Chat'}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {memory ? (
-              <span className={memory.tokens >= memory.compactAt * 0.8 ? 'pill mem warn' : 'pill mem'} title={`About ${kTokens(memory.tokens)} of ${kTokens(memory.window)} tokens. ${how} (Settings > Chat memory).`}>
-                {`Memory ${memory.percent}%`}
+              <span className={`pill mem relative overflow-hidden ${memory.tokens >= memory.compactAt * 0.8 ? 'warn' : ''}`} title={`About ${kTokens(memory.tokens)} of ${kTokens(memory.window)} tokens. ${how} (Settings > Chat memory).`}>
+                <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--color-accent)_26%,transparent),color-mix(in_srgb,var(--color-accent)_9%,transparent))]" style={{ width: `${Math.max(0, Math.min(100, memory.percent))}%` }} />
+                <span className="relative">{`Memory ${memory.percent}%`}</span>
               </span>
             ) : null}
             <button className="btn tiny ghost" title="Compact the agent’s memory of this chat now: older messages become a short history, the latest stay in full (or type /compact)" onClick={() => void api.current?.compact()}>Compact</button>

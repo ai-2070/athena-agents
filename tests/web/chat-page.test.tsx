@@ -71,6 +71,7 @@ describe('the agent chat page', () => {
     const mem = el.querySelector('.pill.mem')!;
     expect(mem.textContent).toBe('Memory 85%');
     expect(mem.classList.contains('warn')).toBe(true);
+    expect(mem.querySelector<HTMLElement>('[aria-hidden="true"]')!.style.width).toBe('85%');
     expect(el.querySelector('.chat-tools')!.textContent).toBe('read_file · web_search');
   });
 

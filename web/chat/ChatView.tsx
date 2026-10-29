@@ -700,11 +700,11 @@ export function ChatView(p: ChatViewProps) {
   const working = streaming || serverRunning;
   const sendBtn =
     working && !filled ? (
-      <button key="stop" className={variant === 'mini' ? 'btn danger small' : 'btn danger rounded-full'} onClick={() => void stop()} title={`Stop ${agent.name}`} aria-label="Stop">
+      <button key="stop" className={variant === 'mini' ? 'btn danger small' : compact ? 'btn danger rounded-full' : 'btn danger size-8! px-0'} onClick={() => void stop()} title={`Stop ${agent.name}`} aria-label="Stop">
         <Dom make={() => icon('square', variant === 'mini' ? 13 : 14)} deps={[]} />
       </button>
     ) : (
-      <button key="send" className={variant === 'mini' ? 'btn small' : 'btn rounded-full'} onClick={submit} disabled={compacting} title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
+      <button key="send" className={variant === 'mini' ? 'btn small' : compact ? 'btn rounded-full' : 'btn size-8! px-0'} onClick={submit} disabled={compacting} title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
         <Dom make={() => icon(variant === 'mini' ? 'send' : 'arrow-up', variant === 'mini' ? 14 : 16)} deps={[]} />
       </button>
     );
@@ -772,15 +772,16 @@ export function ChatView(p: ChatViewProps) {
               <p className="hint mt-1.5 mb-0">{agent.specialty || ''}</p>
             </div>
           ) : (
-            <div className="empty-chat m-auto max-w-[560px] py-12 text-center text-dim">
-              <div className="text-[40px] leading-none">{agent.emoji || '🤖'}</div>
-              <p className="mt-4 mb-0">
+            <div className="empty-chat m-auto w-full max-w-[440px] py-12 text-center text-dim">
+              <div className="mx-auto grid size-15 place-items-center rounded-[16px] border border-line bg-panel text-[32px] leading-none shadow-[inset_0_1px_0_var(--glass-spec)]">{agent.emoji || '🤖'}</div>
+              <p className="mt-5 mb-0 text-[16px] font-medium text-ink">
                 Ask {agent.name} anything{agent.specialty ? `. Good at: ${agent.specialty}` : ''}.
               </p>
-              <div className="chips mt-5 justify-center">
+              <div className="mt-5 flex flex-col gap-2">
                 {suggestions(agent).map((t) => (
-                  <button key={t} className="chip" onClick={() => p.apiRef?.current?.setDraft(t)}>
-                    {t}
+                  <button key={t} className="flex w-full cursor-pointer items-center gap-3 rounded-[10px] border border-line bg-panel px-4 py-3 text-left text-[13px] text-dim shadow-[inset_0_1px_0_var(--glass-spec)] transition-colors hover:bg-panel-2 hover:text-ink" onClick={() => p.apiRef?.current?.setDraft(t)}>
+                    <span className="min-w-0 flex-1">{t}</span>
+                    <Dom make={() => icon('chevron-right', 14)} deps={[]} />
                   </button>
                 ))}
               </div>
@@ -841,7 +842,7 @@ export function ChatView(p: ChatViewProps) {
             <div className="dock-composer relative">
               {composer}
               <div className={`${COMPOSER_BTNS} items-center px-2 pt-1 pb-2`} style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-                {p.footer ? <span className="mr-auto min-w-0"><Dom make={() => p.footer!} deps={[p.footer]} /></span> : null}
+                {p.footer ? <span className="mr-auto inline-flex min-w-0 items-center [&_.model-chip]:h-7 [&_.model-chip]:rounded-ctl [&_.model-chip]:border-transparent [&_.model-chip]:bg-transparent [&_.model-chip]:px-2 [&_.model-chip]:py-0 [&_.model-chip]:text-dim [&_.model-chip]:hover:bg-panel-2 [&_.model-chip]:hover:text-ink"><Dom make={() => p.footer!} deps={[p.footer]} /></span> : null}
                 {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
                 {sendBtn}
               </div>
