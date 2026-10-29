@@ -121,7 +121,7 @@ const chipIcon = (mi: ModelInfo, engine: string): SVGSVGElement | HTMLSpanElemen
 export const effortOf = (a: ModelTarget): Effort | '' => effortFor(a.engine, a.effort, a.provider);
 const effortTag = (a: ModelTarget) => {
   const e = effortOf(a);
-  return e ? h('span', { class: 'font-sans text-[10.5px] font-medium leading-[15px] text-accent border border-accent-dim rounded-full px-1.5', title: `Effort: ${EFFORT_NAMES[e]}` }, EFFORT_NAMES[e]) : null;
+  return e ? h('span', { class: 'pill-shadow font-sans text-[10.5px] font-medium leading-[15px] text-accent border border-accent-dim rounded-full px-1.5', title: `Effort: ${EFFORT_NAMES[e]}` }, EFFORT_NAMES[e]) : null;
 };
 /** "Claude Opus 5.5" or "Claude Opus 5.5 (high effort)" */
 const withEffort = (a: ModelTarget) => {

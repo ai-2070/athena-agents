@@ -225,6 +225,8 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
   Connections, not in the sidebar.
 - Settings sections share the Section and Row layout. Programs and Outbox use the same layout.
 - In Connections > Accounts, Reddit accounts and their one-time setup appear together at the end.
+- The agent editor groups identity and model before knowledge and memory; knowledge and MEMORY.md share a plate with a
+  divider. Clicking the agent's avatar opens an offline emoji picker. Model suggestions use the shared glass menu.
 - Agent and team chats use one composer with controls below the text; answers sit directly on the window.
 - The full agent chat keeps the agent and conversation list in a quiet attached sidebar. Its empty state offers
   suggestions as soft rows, while the composer sits on the page without a ruled footer. The model picker and square Send
@@ -238,8 +240,8 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
   says each agent uses its own model. The chip is 28px tall, Send is 32px square, and the window close is a 28px plate.
 - Team windows use the Brain's 20px side padding and stagger their header, messages and composer as they open. Reduced
   motion turns these entrances off. Textareas and inputs share the same focus border and shadow outside chat composers.
-- Raised action buttons share two inset and two outer shadows; deliberately plain, disabled and composer icon buttons
-  remain flat.
+- Raised action buttons, pills, badges and chips share two inset and two outer shadows. Deliberately plain or disabled
+  buttons and the flat composer model control keep no shadow.
 - Choice controls use the shared Base UI select and glass menu rather than native select popups. Checkboxes and segmented
   controls share the same treatment on pages and in dialogs.
 - Plain-DOM project, skill, mention and model menus and Base UI menus use exit motion; reduced-motion settings still apply.

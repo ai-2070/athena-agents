@@ -35,7 +35,7 @@ export function skillPicker(current: readonly string[] | null | undefined, onCha
   const draw = () => {
     const lib = skillsCache();
     const by = new Map(lib.map((s) => [s.slug, s]));
-    const add = h('button', { class: 'inline-flex items-center gap-1.5 py-1 px-3 border border-dashed border-line-2 rounded-full text-dim cursor-pointer text-[12.5px] hover:text-ink hover:bg-ink/5', type: 'button', onclick: (e) => openMenu(e.currentTarget) }, icon('plus', 13), 'Add skill');
+    const add = h('button', { class: 'pill-shadow inline-flex items-center gap-1.5 py-1 px-3 border border-dashed border-line-2 rounded-full text-dim cursor-pointer text-[12.5px] hover:text-ink hover:bg-ink/5', type: 'button', onclick: (e) => openMenu(e.currentTarget) }, icon('plus', 13), 'Add skill');
     mount(
       box,
       h(
@@ -44,7 +44,7 @@ export function skillPicker(current: readonly string[] | null | undefined, onCha
         list.map((slug) =>
           h(
             'span',
-            { class: 'inline-flex items-center gap-1.5 py-1 pr-1.5 pl-2.25 border border-[color-mix(in_srgb,var(--color-accent)_35%,var(--color-line))] rounded-full bg-accent/9 text-[12.5px] text-ink', title: by.get(slug)?.description || slug },
+            { class: 'pill-shadow inline-flex items-center gap-1.5 py-1 pr-1.5 pl-2.25 border border-[color-mix(in_srgb,var(--color-accent)_35%,var(--color-line))] rounded-full bg-accent/9 text-[12.5px] text-ink', title: by.get(slug)?.description || slug },
             icon('puzzle', 12),
             by.get(slug)?.name || slug,
             h('button', { class: 'text-dim cursor-pointer text-[10px] px-0.75 hover:text-ink', type: 'button', title: 'Remove', onclick: () => ((list = list.filter((x) => x !== slug)), onChange(list), draw()) }, '✕'),
@@ -52,7 +52,7 @@ export function skillPicker(current: readonly string[] | null | undefined, onCha
         ),
         inherited
           .filter((x) => !list.includes(x.slug))
-          .map((x) => h('span', { class: 'inline-flex items-center gap-1.5 py-1 px-2.25 border border-dashed border-line-2 rounded-full text-[12.5px] text-dim', title: `${by.get(x.slug)?.description || ''}\nComes from ${x.from}` }, icon('puzzle', 12), by.get(x.slug)?.name || x.slug, h('span', { class: 'text-[11.5px] text-faint' }, x.from))),
+          .map((x) => h('span', { class: 'pill-shadow inline-flex items-center gap-1.5 py-1 px-2.25 border border-dashed border-line-2 rounded-full text-[12.5px] text-dim', title: `${by.get(x.slug)?.description || ''}\nComes from ${x.from}` }, icon('puzzle', 12), by.get(x.slug)?.name || x.slug, h('span', { class: 'text-[11.5px] text-faint' }, x.from))),
         add,
       ),
       !list.length && !inherited.length ? h('div.hint', { class: 'mt-2' }, empty) : null,

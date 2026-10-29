@@ -1647,7 +1647,7 @@ function loadTeamMark(wf: TeamView, hub: THREE.Group, mark: THREE.Sprite): void 
 // The map labels move every frame (inline transform), so only their colors animate. The script marks their
 // state with classes (sel, hot, live, needs, att-target) and data-status; the parent marks focus and data-zoom.
 const CHIP =
-  'glass group/chip flex items-center gap-1.5 py-1 px-2.5 whitespace-nowrap cursor-pointer rounded-full text-[12px] leading-[normal] font-medium text-ink transition-[opacity,border-color] duration-200 ease-[ease] hover:border-accent-dim [&.sel]:border-accent [&:is([data-status=running],[data-status=needs-you],[data-status=working])]:border-accent-dim group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent';
+  'glass pill-shadow group/chip flex items-center gap-1.5 py-1 px-2.5 whitespace-nowrap cursor-pointer rounded-full text-[12px] leading-[normal] font-medium text-ink transition-[opacity,border-color] duration-200 ease-[ease] hover:border-accent-dim [&.sel]:border-accent [&:is([data-status=running],[data-status=needs-you],[data-status=working])]:border-accent-dim group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent';
 const CHIP_DOT =
   'size-1.5 rounded-full bg-faint group-data-[status=working]/chip:bg-accent group-data-[status=running]/chip:bg-accent group-data-[status=needs]/chip:bg-amber group-data-[status=needs-you]/chip:bg-amber group-data-[status=needs]/chip:animate-[pulse_0.8s_infinite] group-data-[status=needs-you]/chip:animate-[pulse_0.8s_infinite]';
 // the model shows only when zoomed in
@@ -1658,7 +1658,7 @@ const BRANCH = `group/card w-58 ${CARD} hover:border-(--c) [&.sel]:border-(--c) 
 const BENCH = `[--c:var(--color-faint)] w-52 ${CARD} group-[.focus]/labels:opacity-18`;
 const BRANCH_NAME = 'flex items-center gap-2 text-[13px] leading-[1.3] font-semibold text-ink';
 const BRAIN_LABEL =
-  'glass flex items-center gap-2 py-2 px-3.5 cursor-pointer whitespace-nowrap rounded-full text-[13px] leading-[normal] font-semibold text-ink transition-[opacity,border-color] duration-200 ease-[ease] hover:border-accent-dim [&.att-target]:border-accent [&.att-target]:text-accent group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent';
+  'glass pill-shadow flex items-center gap-2 py-2 px-3.5 cursor-pointer whitespace-nowrap rounded-full text-[13px] leading-[normal] font-semibold text-ink transition-[opacity,border-color] duration-200 ease-[ease] hover:border-accent-dim [&.att-target]:border-accent [&.att-target]:text-accent group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent';
 
 function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<string, Agent>): number {
   assertMounted(S);

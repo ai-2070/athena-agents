@@ -22,11 +22,16 @@ h2.section .label { font-weight: 400; }
   height: 36px; padding: 0 16px; border-radius: var(--radius-ctl);
   background: var(--color-accent); color: var(--color-on-accent);
   border: 1px solid color-mix(in srgb, var(--color-accent) 82%, var(--color-ink));
-  box-shadow: inset 0 1px 0 var(--glass-spec), inset 0 -1px 0 light-dark(rgb(20 22 40 / 0.04), rgb(0 0 0 / 0.18)), 0 1px 2px light-dark(rgb(20 22 40 / 0.12), rgb(0 0 0 / 0.3)), 0 3px 6px -3px light-dark(rgb(20 22 40 / 0.12), rgb(0 0 0 / 0.35));
   font: 500 13.5px/1 var(--font-sans); letter-spacing: -0.005em;
   cursor: pointer; white-space: nowrap;
   transition: transform 0.18s var(--ease-soft), background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.2s, opacity 0.2s;
 }
+/* Raised controls and pill-shaped chips share the same two inset and two outer shadows. */
+:is(.btn, .chip, .pill, .badge, .model-chip, .model-latest, .pill-shadow, .cw-pill, .dock-launcher) {
+  box-shadow: inset 0 1px 0 var(--glass-spec), inset 0 -1px 0 light-dark(rgb(20 22 40 / 0.04), rgb(0 0 0 / 0.18)), 0 1px 2px light-dark(rgb(20 22 40 / 0.12), rgb(0 0 0 / 0.3)), 0 3px 6px -3px light-dark(rgb(20 22 40 / 0.12), rgb(0 0 0 / 0.35));
+}
+/* Composer model controls are flat, not pills. */
+.dock-composer .model-chip { box-shadow: none; }
 .btn:hover { background: var(--color-accent-hover); }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }

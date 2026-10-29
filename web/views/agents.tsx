@@ -1,5 +1,6 @@
 // Agents: your team, and the editor for one agent.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Autocomplete } from '@base-ui/react/autocomplete';
 import type { ReactNode } from 'react';
 import { GET, POST, PUT, DEL, attempt, refreshSoon, navigate, toast, confirmBox, promptBox, isRunning, ENGINE_LABEL } from '../core.ts';
 import { skillPicker } from '../skillpick.ts';
@@ -15,6 +16,8 @@ import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { ENGINE_NAMES, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
 import type { Slice } from '../agentstats.ts';
 import type { Agent, AppState, Autonomy, EngineStatus, McpServerInfo, Team, Terminal } from '../../shared/types.ts';
+
+const EmojiPicker = lazy(() => import('../ui/emojipicker.tsx').then((m) => ({ default: m.EmojiPicker })));
 
 /** GET /api/agents/:id: the agent plus its knowledge files and resolved workspace. */
 export interface AgentDetail extends Agent {
@@ -378,6 +381,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
 
   return (
     <>
+      <div className="mx-auto max-w-5xl">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <a className="btn ghost small" href="#/agents">← Agents</a>
         <div className="flex flex-wrap items-center gap-3">
@@ -385,26 +389,30 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
           <button className="btn" disabled={!dirty} onClick={() => void save()}>Save</button>
         </div>
       </div>
-      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-6 max-lg:grid-cols-1">
-        <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
+      <div className="mb-6">
+        <h1 className="m-0 text-[22px] leading-[1.2] font-semibold text-ink">Edit agent</h1>
+        <p className="hint mt-2 mb-0">Set its instructions, model and access.</p>
+      </div>
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 [&>.panel]:mt-0">
           <div className="panel glass-plate">
             <div className="panel-head">
-              <Heading icon="bot">Who it is</Heading>
+              <Heading icon="bot">Identity and instructions</Heading>
             </div>
-            <div className="flex items-end gap-4 [&>label.field]:flex-none max-sm:flex-wrap">
-              {/* how it shows up everywhere else, as you change it */}
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-4">
               <div className="flex-none [&_.avatar]:size-15 [&_.avatar]:rounded-[14px] [&_.avatar]:text-[30px]">
-                <Avatar agent={a} lg />
+                <Suspense fallback={<Avatar agent={a} lg />}>
+                  <EmojiPicker value={a.emoji} onChange={(emoji) => set('emoji', emoji)}><Avatar agent={a} lg /></EmojiPicker>
+                </Suspense>
               </div>
-              <Field label="Icon">
-                <input className="h-9.5 w-16 text-center text-[20px] leading-none" value={a.emoji} aria-label="Icon" onChange={(e) => set('emoji', e.target.value)} />
-              </Field>
-              <Field label="Color">
-                <input className="h-9.5 w-12 cursor-pointer p-1" type="color" value={colorValue(a.color)} aria-label="Color" onChange={(e) => set('color', e.target.value)} />
-              </Field>
-              <div className="flex-1 min-w-0">
-                <Field label="Name">
-                  <input value={a.name} onChange={(e) => set('name', e.target.value)} />
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+                <div className="min-w-0">
+                  <Field label="Name">
+                    <input value={a.name} onChange={(e) => set('name', e.target.value)} />
+                  </Field>
+                </div>
+                <Field label="Color">
+                  <input className="h-9.5 w-12 cursor-pointer p-1" type="color" value={colorValue(a.color)} aria-label="Color" onChange={(e) => set('color', e.target.value)} />
                 </Field>
               </div>
             </div>
@@ -415,27 +423,10 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
             </div>
             <div className="mt-4">
               <Field label="Instructions">
-                <textarea className="code" rows={16} value={a.systemPrompt} placeholder="How this agent thinks, works and talks. Its process, rules, what good output looks like." onChange={(e) => set('systemPrompt', e.target.value)} />
+                <textarea className="code" rows={12} value={a.systemPrompt} placeholder="How this agent thinks, works and talks. Its process, rules, what good output looks like." onChange={(e) => set('systemPrompt', e.target.value)} />
               </Field>
             </div>
           </div>
-          <div className="panel glass-plate">
-            <div className="panel-head">
-              <Heading icon="file-text">Knowledge</Heading>
-            </div>
-            {/* (the agent is saved whole: it takes the knowledge as it is now, so Save doesn't undo a link made here) */}
-            <Knowledge id={id} synced={(knowledge) => setA((x) => ({ ...x, knowledge }))} />
-          </div>
-          <div className="panel glass-plate">
-            <div className="panel-head">
-              <Heading icon="brain">MEMORY.md</Heading>
-              <span className="hint">saved on its own</span>
-            </div>
-            <DomNode make={() => (memory.current = memoryEditor(id, { rows: 10 })).el} deps={[id]} />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
           <div className="panel glass-plate">
             <div className="panel-head">
               <Heading icon="cpu">Brain</Heading>
@@ -446,7 +437,26 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
               <EngineFields a={a} d={d} set={set} fit={(x) => (setA(fit(x)), setDirty(true))} />
             </div>
           </div>
-          <div className="panel glass-plate">
+          <div className="glass-plate overflow-hidden rounded-box">
+            <section className="p-5 sm:p-6">
+              <div className="panel-head">
+                <Heading icon="file-text">Knowledge</Heading>
+              </div>
+              {/* Save keeps any knowledge linked while editing. */}
+              <Knowledge id={id} synced={(knowledge) => setA((x) => ({ ...x, knowledge }))} />
+            </section>
+            <section className="border-t border-line p-5 sm:p-6">
+              <div className="panel-head">
+                <Heading icon="brain">MEMORY.md</Heading>
+                <span className="hint">saved on its own</span>
+              </div>
+              <DomNode make={() => (memory.current = memoryEditor(id, { rows: 10 })).el} deps={[id]} />
+            </section>
+          </div>
+        </div>
+
+        <div className="glass-plate overflow-hidden rounded-box [&_.panel-head]:mb-4">
+          <div className="p-5 sm:p-6">
             <div className="panel-head">
               <Heading icon="shield-check">Autonomy</Heading>
             </div>
@@ -464,14 +474,14 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
               </div>
             ) : null}
           </div>
-          <div className="panel">
+          <div className="border-t border-line p-5 sm:p-6">
             <div className="panel-head">
               <Heading icon="sparkles">Answers</Heading>
             </div>
             <Switch checked={!!a.richAnswers} onChange={(v) => set('richAnswers', v)}>Rich answers</Switch>
             <p className="hint mt-4">In your own chats with this agent it answers with live components (cards, tables, charts, forms with buttons) instead of plain text. Good for research, comparisons, reports and plans. Off for coding agents and team chats: it adds about 13k tokens of instructions to every message, and smaller or local models often get it wrong. Team chats, routines and other agents always get plain text.</p>
           </div>
-          <div className="panel">
+          <div className="border-t border-line p-5 sm:p-6">
             <div className="panel-head">
               <Heading icon="wrench">Tools</Heading>
             </div>
@@ -489,7 +499,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
               </p>
             )}
           </div>
-          <div className="panel">
+          <div className="border-t border-line p-5 sm:p-6">
             <div className="panel-head">
               <Heading icon="puzzle">Skills</Heading>
             </div>
@@ -507,7 +517,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
             />
             <p className="hint mt-4">Skills given to this agent. It also gets the project's skills and, while working for a team, that team's skills (both greyed). Save to apply. Manage the library under Skills.</p>
           </div>
-          <div className="panel">
+          <div className="border-t border-line p-5 sm:p-6">
             <div className="panel-head">
               <Heading icon="folder">Workspace</Heading>
             </div>
@@ -518,7 +528,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
               <button className="btn ghost small" onClick={() => void attempt(() => POST(`/agents/${id}/open-workspace`))}>Open folder</button>
             </div>
           </div>
-          <div className="panel">
+          <div className="border-t border-line p-5 sm:p-6">
             <div className="panel-head">
               <Heading icon="ellipsis">More</Heading>
             </div>
@@ -548,7 +558,52 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
           </div>
         </div>
       </div>
+      </div>
     </>
+  );
+}
+
+function ModelInput({ label, hint, value, placeholder, models, onChange }: { label: string; hint: string; value: string; placeholder: string; models: ModelListing[]; onChange: (value: string) => void }) {
+  const anchor = useRef<HTMLDivElement>(null);
+  const [showAll, setShowAll] = useState(false);
+  return (
+    <Field label={label} hint={hint} group="agent-model-label">
+      <Autocomplete.Root
+        items={models}
+        value={value}
+        onValueChange={(next, details) => {
+          if (details.reason !== 'item-press') setShowAll(false);
+          onChange(next.trim());
+        }}
+        onOpenChange={(open) => { if (!open) setShowAll(false); }}
+        itemToStringValue={(item: ModelListing) => item.id}
+        filter={showAll ? null : (item: ModelListing, query: string) => `${item.id} ${item.name}`.toLowerCase().includes(query.toLowerCase())}
+        openOnInputClick
+      >
+        <div className="relative" ref={anchor}>
+          <Autocomplete.Input aria-labelledby="agent-model-label" className="code w-full pr-10" placeholder={placeholder} />
+          <Autocomplete.Trigger aria-label="Show models" className="absolute inset-y-0 right-0 grid w-10 cursor-pointer place-items-center rounded-ctl text-dim hover:text-ink" onClick={() => setShowAll(true)}>
+            <Icon name="chevron-down" size={14} />
+          </Autocomplete.Trigger>
+        </div>
+        <Autocomplete.Portal>
+          <Autocomplete.Positioner anchor={anchor} side="bottom" align="start" sideOffset={5} className="z-96 outline-none" collisionPadding={8}>
+            <Autocomplete.Popup className="glass st-menu w-(--anchor-width) max-w-(--available-width) outline-none empty:hidden has-[>[role=listbox]:empty]:hidden">
+              <Autocomplete.List className="max-h-72 overflow-y-auto">
+                {(item: ModelListing) => (
+                  <Autocomplete.Item key={item.id} value={item} className="st-menu-item">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-mono text-[12px]">{item.id}</span>
+                      <span className="block truncate text-[11.5px] text-dim">{`${item.name}${item.price ? ` · $${item.price.in.toFixed(2)}/$${item.price.out.toFixed(2)} per M` : ''}${item.tools === false ? ' · no tools' : ''}`}</span>
+                    </span>
+                  </Autocomplete.Item>
+                )}
+              </Autocomplete.List>
+            </Autocomplete.Popup>
+          </Autocomplete.Positioner>
+        </Autocomplete.Portal>
+      </Autocomplete.Root>
+    </Field>
   );
 }
 
@@ -580,9 +635,7 @@ function EngineFields({ a, d, set, fit }: {
   const placeholder =
     a.engine === 'claude-code' ? 'sonnet' : a.engine === 'hermes' ? "profile's default" : a.engine === 'openclaw' ? "the OpenClaw agent's model" : a.engine === 'pi' || a.engine === 'omp' ? 'its default (e.g. anthropic/claude-sonnet-5-5)' : 'anthropic/claude-sonnet-5.5';
   const model = (label: string, hint: string) => (
-    <Field label={label} hint={hint}>
-      <input className="code" value={a.model || ''} list="models" placeholder={placeholder} onChange={(e) => set('model', e.target.value.trim())} />
-    </Field>
+    <ModelInput label={label} hint={hint} value={a.model || ''} placeholder={placeholder} models={models} onChange={(value) => set('model', value)} />
   );
   const pick = (label: string, value: string, options: { value: string; label: string }[], onChange: (v: string) => void, hint?: ReactNode) => (
     <Field label={label} hint={hint}>
@@ -689,11 +742,6 @@ function EngineFields({ a, d, set, fit }: {
         (v) => set('effort', v as Agent['effort']),
         'How hard the model thinks before it answers. More effort: better on hard work, but slower and uses more of your plan.',
       )}
-      <datalist id="models">
-        {models.map((m) => (
-          <option key={m.id} value={m.id}>{`${m.name}${m.price ? ` · $${m.price.in.toFixed(2)}/$${m.price.out.toFixed(2)} per M` : ''}${m.tools === false ? ' · no tools' : ''}`}</option>
-        ))}
-      </datalist>
     </div>
   );
 }

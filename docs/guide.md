@@ -41,7 +41,7 @@ pi and oh-my-pi run their own tools (files, shell, edits) without asking, whatev
 
    > Build a small team to review this project's docs. Have one agent find confusing setup steps and another suggest clearer wording. Do not change files yet.
 
-3. **Review the agents and their access.** Check their models, instructions, tools and work folders. You can also add a ready-made agent from the **Agent library** instead of asking the Brain to build one.
+3. **Review the agents and their access.** Check their models, instructions, tools and work folders. In an agent's editor, choose an emoji for its icon or type your own. You can also add a ready-made agent from the **Agent library** instead of asking the Brain to build one.
 4. **Follow the work.** Click a team or agent on the Station to open its panel and chat. Team chats show the conversation and handoffs; individual chats let you work with one agent directly.
 5. **Handle anything waiting on you.** Check **Needs you** for permissions and **Outbox** for agents' questions and outgoing drafts. Results that agents save as artifacts appear in **Artifacts**; files they create stay in their work folders.
 

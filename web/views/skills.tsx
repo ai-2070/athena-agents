@@ -144,7 +144,7 @@ function usedBy(slug: string, d: AppState, teams: TeamListing[]) {
 }
 
 // who has the skill, under its card (skill-use marks them for the tests)
-const USE = 'skill-use inline-flex items-center gap-1.5 py-0.5 px-2.5 rounded-full border text-[12px]';
+const USE = 'skill-use pill-shadow inline-flex items-center gap-1.5 py-0.5 px-2.5 rounded-full border text-[12px]';
 const USE_AGENT = `${USE} border-line text-dim`;
 const USE_PROJ = `${USE} text-accent border-[color-mix(in_srgb,var(--color-accent)_35%,var(--color-line))]`;
 const USE_TEAM = `${USE} text-ink border-[color-mix(in_srgb,var(--c)_45%,var(--color-line))] bg-[color-mix(in_srgb,var(--c)_10%,transparent)]`;

@@ -139,7 +139,7 @@ Claude Code and Codex receive dashboard tools through an MCP bridge; API-model a
 
 1. **Choose a folder.** From the project picker, select **New project**. Start in a new folder, use an existing one, or clone a GitHub repo (with your `gh` login).
 2. **Ask the Brain for a small, concrete job.** Open **Ask the Brain**, press **Ctrl+K** (**⌘K** on macOS), or press **Space** on the Station when you are not typing: *“Build a small team to review this project's docs. Have one agent find confusing setup steps and another suggest clearer wording. Do not change files yet.”*
-3. **Review the agents and their access** — models, instructions, tools, work folders — or add a ready-made agent from the **Agent library**.
+3. **Review the agents and their access** — models, instructions, tools, work folders — or add a ready-made agent from the **Agent library**. In an agent's editor, choose its emoji or type your own.
 4. **Follow the work.** Click a team or agent on the Station to open its panel and chat.
 5. **Handle anything waiting on you:** permissions in **Needs you**, agents' questions and outgoing drafts in **Outbox**, saved results in **Artifacts**.
 

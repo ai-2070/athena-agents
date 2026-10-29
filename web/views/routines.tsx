@@ -37,7 +37,7 @@ function useTeams(): TeamListing[] | null {
 }
 
 // a mention as a chip: a team in its own color (--c), a skill in the accent, crossed out once it's gone
-const CHIP = 'inline-flex items-center gap-1.5 py-0.5 px-2.5 rounded-full border border-line-2 text-[12px] whitespace-nowrap max-w-full overflow-hidden text-ellipsis [&_.ico-svg]:flex-none';
+const CHIP = 'pill-shadow inline-flex items-center gap-1.5 py-0.5 px-2.5 rounded-full border border-line-2 text-[12px] whitespace-nowrap max-w-full overflow-hidden text-ellipsis [&_.ico-svg]:flex-none';
 const CHIP_KIND: Record<RoutineMentionKind, string> = {
   agent: '[&_.ico-svg]:text-dim',
   team: '[&_.ico-svg]:text-dim border-[color-mix(in_srgb,var(--c,var(--color-accent))_45%,var(--color-line))]',
