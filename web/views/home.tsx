@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, attempt, ago, navigate, approvalCard } from '../core.ts';
 import { Avatar, DomNode, Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { SelectControl } from '../ui/select.tsx';
 import type { ActivityEntry, AppState, Chat } from '../../shared/types.ts';
 import { appIconStyle, appIconUrl } from '../appicons.ts';
 
@@ -55,7 +56,7 @@ function HomePage() {
         <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
           {agents.length ? <QuickTask d={d} /> : null}
           {d.approvals.length ? (
-            <div className="panel">
+            <div className="panel glass-plate">
               <div className="panel-head">
                 <h2>Needs you</h2>
               </div>
@@ -67,7 +68,7 @@ function HomePage() {
             </div>
           ) : null}
           {d.runs.length ? (
-            <div className="panel">
+            <div className="panel glass-plate">
               <div className="panel-head">
                 <h2>Working now</h2>
               </div>
@@ -89,7 +90,7 @@ function HomePage() {
             </div>
           ) : null}
           {agents.length ? (
-            <div className="panel">
+            <div className="panel glass-plate">
               <div className="panel-head">
                 <h2>Your agents</h2>
                 <div className="actions">
@@ -98,7 +99,7 @@ function HomePage() {
               </div>
               <div className="cards grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
                 {agents.slice(0, 8).map((a) => (
-                  <a key={a.id} className="card clickable" href={`#/agents/${a.id}`}>
+                  <a key={a.id} className="card glass-plate hover:shadow-none clickable" href={`#/agents/${a.id}`}>
                     <div className="card-top">
                       <Avatar agent={a} />
                       <div className="flex-1 min-w-0">
@@ -118,7 +119,7 @@ function HomePage() {
           ) : null}
         </div>
         <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <h2>Programs</h2>
               <div className="actions">
@@ -142,7 +143,7 @@ function HomePage() {
               <p className="empty">{progs ? 'None of the usual programs found.' : 'Scanning…'}</p>
             )}
           </div>
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <h2>Activity</h2>
             </div>
@@ -174,7 +175,7 @@ const NUM = 'num mt-3.5 text-[28px] leading-none font-semibold tracking-tight te
  *  kind: live (something is running) or hot (it needs you) put a small dot by the caption. */
 function Stat({ label, num, kind = '', href, onClick }: { label: string; num: number; kind?: string; href?: string; onClick?: () => void }) {
   // stat and num stay for the tests
-  const base = 'stat block w-full rounded-box border border-line bg-panel px-5 py-4 text-left text-ink shadow-card [font:inherit]';
+  const base = 'stat glass-plate block w-full rounded-box px-5 py-4 text-left text-ink [font:inherit]';
   const cls = href || onClick ? `${base} cursor-pointer transition-colors hover:bg-panel-2 hover:text-ink` : base;
   const body: ReactNode = (
     <>
@@ -205,16 +206,12 @@ function QuickTask({ d }: { d: AppState }) {
       navigate(`#/agents/${agentId}/${chat.id}`);
     });
   return (
-    <div className="panel">
+    <div className="panel glass-plate">
       <div className="panel-head">
         <h2>Give an agent a task</h2>
       </div>
       <div className="max-w-75">
-        <select aria-label="Agent" value={agentId} onChange={(e) => setAgentId((quick.agentId = e.target.value))}>
-          {agents.map((a) => (
-            <option key={a.id} value={a.id}>{`${a.emoji || ''} ${a.name}`}</option>
-          ))}
-        </select>
+        <SelectControl aria-label="Agent" value={agentId} onChange={(value) => setAgentId((quick.agentId = value))} options={agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` }))} />
       </div>
       <div className="mt-4">
         <textarea

@@ -134,7 +134,7 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
     setRunning(false);
   };
   return (
-    <div className={`card gap-3 ${on ? '' : '[&>:not(:first-child)]:opacity-55'}`}>
+    <div className={`card glass-plate hover:shadow-none gap-3 ${on ? '' : '[&>:not(:first-child)]:opacity-55'}`}>
       <div className="flex items-center gap-3">
         <div className="skill-ico"><Icon name="repeat" size={18} /></div>
         <div className="flex-1 min-w-0">
@@ -298,7 +298,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
       </div>
       <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-6 max-lg:grid-cols-1">
         <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
               <Field label="Name">
                 <input value={name} onChange={(e) => (setName(e.target.value), setDirty(true))} />
@@ -308,7 +308,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
               </Field>
             </div>
           </div>
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <h2>What to do</h2>
               <div className="actions">
@@ -343,7 +343,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
         </div>
         <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
           <RunIt id={id} disabled={isNew || !active} beforeRun={async () => !dirty || (await save())} />
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <h2>Schedule</h2>
               <div className="actions" title={kind === 'none' ? 'Pick Every… or Daily to schedule this routine' : undefined}>
@@ -355,7 +355,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             <DomNode make={() => scheduleEditor(r.current, () => (setDirty(true), setKind(r.current.schedule?.type || 'none')), { inputLabel: 'Extra for scheduled runs (optional)', showToggle: false })} deps={[id]} />
             {kind !== 'none' ? <p className="hint">Runs while the dashboard is open.</p> : null}
           </div>
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <h2>Runs</h2>
             </div>
@@ -383,7 +383,7 @@ function RunIt({ id, beforeRun, disabled = false }: { id: string; beforeRun: () 
     if (out) setInput('');
   };
   return (
-    <div className="panel">
+    <div className="panel glass-plate">
       <div className="panel-head">
         <h2>Run it</h2>
       </div>

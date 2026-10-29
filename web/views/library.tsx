@@ -122,7 +122,7 @@ function LibraryPage() {
     return () => void (live = false);
   }, []);
 
-  if (failed) return <div className="panel"><p className="text-red">Something went wrong: {failed}</p></div>;
+  if (failed) return <div className="panel glass-plate"><p className="text-red">Something went wrong: {failed}</p></div>;
   if (!lib || !data) return <p className="text-dim">Loading library…</p>;
 
   const pick = (t: Tab) => setTab((lastTab = t));
@@ -146,7 +146,7 @@ function LibraryPage() {
     <>
       <p className="lede max-w-[68ch]">Hire a specialist and it joins your team with its instructions already written. You can change anything afterwards.</p>
       {branchParam() ? (
-        <div className="panel mb-6 border-accent/30 bg-accent/5">
+        <div className="panel glass-plate mb-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span>Hiring into a Station team: new hires are added as its next step.</span>
             <a className="btn ghost small" href="#/station">Back to Station</a>
@@ -191,7 +191,7 @@ function HireFoot({ onHire, children }: { onHire: () => Promise<Agent | undefine
 
 function Card({ top, sub, foot }: { top: ReactNode; sub?: ReactNode; foot: ReactNode }) {
   return (
-    <div className="card">
+    <div className="card glass-plate hover:shadow-none">
       <div className="card-top">{top}</div>
       {sub}
       {foot}

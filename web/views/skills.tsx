@@ -75,14 +75,14 @@ function SkillsPage({ open }: { open?: string }) {
     <>
       <p className="lede max-w-[68ch]">Skills are instructions for a kind of work: how you want an email written, your brand voice, a video edit checklist, a research method. Give them to one agent, to a team, or to the whole project. Agents open a skill when the task matches it.</p>
       <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
-      <div className="panel">
+      <div className="panel glass-plate">
         <div className="panel-head">
           <h2 className="flex items-center gap-2.5"><Icon name="folder-open" className="text-faint" />{` Project skills · ${proj?.name || ''}`}</h2>
           <span className="hint">every agent in this project gets these</span>
         </div>
         <DomNode make={() => skillPicker(proj?.skills || [], (s) => saveProject(proj.id, s), { empty: 'None yet. Add skills every agent here should follow, like your brand voice or how files are named.' })} deps={[proj?.id, (proj?.skills || []).join('|')]} />
       </div>
-      <div className="panel">
+      <div className="panel glass-plate">
         <div className="panel-head">
           <h2 className="flex items-center gap-2.5"><Icon name="brain" className="text-faint" /> The Brain's skills</h2>
           <span className="hint">in every project</span>
@@ -174,7 +174,7 @@ function SkillCard({ s, d, teams, reload, loadTeams }: { s: SkillListing; d: App
     ...u.agents.map((a) => <span key={a.id} className={USE_AGENT}>{`${a.emoji || ''} ${a.name}`}</span>),
   ].filter(Boolean);
   return (
-    <div className="skill-card card gap-3">
+    <div className="skill-card card glass-plate hover:shadow-none gap-3">
       <div className="flex items-center gap-3">
         <div className="skill-ico"><Icon name="puzzle" size={18} /></div>
         <div className="flex-1 min-w-0">
@@ -230,7 +230,7 @@ function GiveTo({ s, d, teams, loadTeams }: { s: SkillListing; d: AppState; team
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner className="z-96 outline-none" align="start" sideOffset={6} collisionPadding={8}>
-          <Menu.Popup className="st-menu skp-menu static w-75 max-w-75">
+          <Menu.Popup className="st-menu dd skp-menu static w-75 max-w-75">
             <Menu.Group>
               <Menu.GroupLabel className="st-menu-head">{`Give "${s.name}" to`}</Menu.GroupLabel>
               {item('brain', u.brain, 'The Brain', <Icon name="brain" size={14} />, () => saveBrain(flip(brainList(d), s.slug, u.brain)))}

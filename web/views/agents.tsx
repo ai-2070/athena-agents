@@ -7,6 +7,7 @@ import { historyButton, deletedButton } from '../history.ts';
 import { memoryEditor } from '../memory.ts';
 import { ChipSet, Field, SearchBox, Segmented, Switch } from '../ui/controls.tsx';
 import { Avatar, DomNode, Icon, ProjectScoped, reactPage, useAppState } from '../ui/react.tsx';
+import { SelectControl } from '../ui/select.tsx';
 import { themeColor } from '../theme.ts';
 import type { ModelListing } from '../models.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
@@ -64,7 +65,7 @@ const CAPTION = 'text-[12.5px] leading-none font-medium text-dim';
 /** One number of the overview: what it counts, the figure. live: something is going on (a pulsing dot). */
 function StatTile({ icon, label, value, live = false, valueClass = '' }: { icon: string; label: string; value: number; live?: boolean; valueClass?: string }) {
   return (
-    <div className="rounded-box border border-line bg-panel px-5 py-4 shadow-card">
+    <div className="glass-plate rounded-box px-5 py-4">
       <div className="flex items-center justify-between gap-2">
         <span className={`${CAPTION} truncate`}>{label}</span>
         {live ? <span className="dot busy" aria-hidden="true" /> : <Icon name={icon} size={15} className="text-faint" />}
@@ -99,7 +100,7 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
         <StatTile icon="layout-grid" label={kinds === 1 ? 'Category' : 'Categories'} value={kinds} />
         <StatTile icon="cpu" label="Models" value={new Set(agents.map((a) => agentModel(a, d.settings.defaults).id)).size} />
       </div>
-      <div className="panel grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-x-12 gap-y-8 max-lg:grid-cols-1">
+      <div className="panel glass-plate grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-x-12 gap-y-8 max-lg:grid-cols-1">
         <div className="min-w-0">
           <div className={`${CAPTION} mb-4`}>By category</div>
           <div className="relative">
@@ -120,7 +121,7 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
               ))}
             </div>
             {shown ? (
-              <div className="pointer-events-none absolute bottom-full z-10 mb-3 -translate-x-1/2 rounded-ctl border border-line bg-raise px-3 py-2 text-[12.5px] leading-[1.4] whitespace-nowrap shadow-pop" style={{ left: `${((before + shown.count / 2) / total) * 100}%` }} role="tooltip">
+              <div className="glass pointer-events-none absolute bottom-full z-10 mb-3 -translate-x-1/2 rounded-ctl px-3 py-2 text-[12.5px] leading-[1.4] whitespace-nowrap" style={{ left: `${((before + shown.count / 2) / total) * 100}%` }} role="tooltip">
                 <b className="text-ink">{shown.label}</b>
                 <span className="text-dim tabular-nums">{`  ${shown.count} · ${pct(shown.count)}`}</span>
                 {shown.rest ? <div className="max-w-70 whitespace-normal text-dim">{shown.rest.map((r) => `${r.label} ${r.count}`).join(', ')}</div> : null}
@@ -230,7 +231,7 @@ function AgentsList() {
       {shown.length ? (
         <div className="cards">
           {shown.map((a) => (
-            <div key={a.id} className="card agent-card gap-4">
+            <div key={a.id} className="card glass-plate hover:shadow-none agent-card gap-4">
               <div className="card-top">
                 <Avatar agent={a} lg />
                 <div className="min-w-0 flex-1">
@@ -386,7 +387,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
       </div>
       <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-6 max-lg:grid-cols-1">
         <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <Heading icon="bot">Who it is</Heading>
             </div>
@@ -418,14 +419,14 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
               </Field>
             </div>
           </div>
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <Heading icon="file-text">Knowledge</Heading>
             </div>
             {/* (the agent is saved whole: it takes the knowledge as it is now, so Save doesn't undo a link made here) */}
             <Knowledge id={id} synced={(knowledge) => setA((x) => ({ ...x, knowledge }))} />
           </div>
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <Heading icon="brain">MEMORY.md</Heading>
               <span className="hint">saved on its own</span>
@@ -435,7 +436,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
         </div>
 
         <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <Heading icon="cpu">Brain</Heading>
             </div>
@@ -445,7 +446,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
               <EngineFields a={a} d={d} set={set} fit={(x) => (setA(fit(x)), setDirty(true))} />
             </div>
           </div>
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <Heading icon="shield-check">Autonomy</Heading>
             </div>
@@ -585,11 +586,7 @@ function EngineFields({ a, d, set, fit }: {
   );
   const pick = (label: string, value: string, options: { value: string; label: string }[], onChange: (v: string) => void, hint?: ReactNode) => (
     <Field label={label} hint={hint}>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
+      <SelectControl aria-label={label} value={value} options={options} onChange={onChange} />
     </Field>
   );
   let parts: ReactNode = null;

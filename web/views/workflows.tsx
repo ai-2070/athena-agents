@@ -5,6 +5,7 @@ import { GET, POST, PUT, DEL, attempt, navigate, confirmBox, promptBox, ago, lig
 import { scheduleEditor, scheduleText } from '../schedule.ts';
 import { Field, Switch } from '../ui/controls.tsx';
 import { DomNode, Icon, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { SelectControl } from '../ui/select.tsx';
 import type { AppState, Schedule, Team, TeamStep } from '../../shared/types.ts';
 
 /** One entry of GET /api/tools → tools. */
@@ -116,7 +117,7 @@ function WorkflowsList() {
       {data.list.length ? (
         <div className="cards">
           {data.list.map((wf) => (
-            <a key={wf.id} className="card clickable" href={`#/workflows/${wf.id}`}>
+            <a key={wf.id} className="card glass-plate hover:shadow-none clickable" href={`#/workflows/${wf.id}`}>
               <div className="card-title">{wf.name}</div>
               <div className="card-sub">{wf.description || `${wf.steps.length} steps`}</div>
               <div className="card-foot">
@@ -134,7 +135,7 @@ function WorkflowsList() {
         {data.templates.map((t) => {
           const missing = t.needs.filter((n) => !d.agents.some((a) => a.name.toLowerCase() === n.toLowerCase()));
           return (
-            <div key={t.name} className="card">
+            <div key={t.name} className="card glass-plate hover:shadow-none">
               <div className="card-title">{t.name}</div>
               <div className="card-sub">{t.description}</div>
               <div className="hint">{missing.length ? `Uses: ${t.needs.join(', ')}. Missing ${missing.join(', ')} (add from Agent library > Athena, or pick other agents after).` : `Uses: ${t.needs.join(', ')}`}</div>
@@ -208,7 +209,7 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
       </div>
       <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-6 max-lg:grid-cols-1">
         <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
               <Field label="Name">
                 <input value={name} onChange={(e) => (setName(e.target.value), setDirty(true))} />
@@ -218,7 +219,7 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
               </Field>
             </div>
           </div>
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <h2>Steps</h2>
             </div>
@@ -227,15 +228,11 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
               {steps.map((s, i) => (
                 <li key={s.id || i}>
                   {i ? <div className="py-2 text-center text-[14px] leading-none text-faint" aria-hidden="true">↓</div> : null}
-                  <div className="step relative rounded-box border border-line bg-bg p-4">
+                  <div className="step glass-plate relative rounded-box p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex flex-wrap items-center gap-3">
                         <span className="text-[12.5px] leading-[normal] font-semibold text-dim">{`Step ${i + 1}`}</span>
-                        <select aria-label={`Step ${i + 1}: what it does`} value={s.type} onChange={(e) => setStep(i, { type: e.target.value })}>
-                          {STEP_TYPES.map((t) => (
-                            <option key={t.value} value={t.value}>{t.label}</option>
-                          ))}
-                        </select>
+                        <SelectControl aria-label={`Step ${i + 1}: what it does`} value={s.type} onChange={(value) => setStep(i, { type: value })} options={STEP_TYPES} />
                         <input className="wf-label w-55" aria-label={`Step ${i + 1}: label`} value={s.label || ''} placeholder="Label (optional)" onChange={(e) => setStep(i, { label: e.target.value })} />
                       </div>
                       <div className="flex flex-wrap items-center gap-1">
@@ -259,7 +256,7 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
           </div>
         </div>
         <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <h2>Run it</h2>
             </div>
@@ -268,13 +265,13 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
               <button className="btn" onClick={() => void run()}>Run now</button>
             </div>
           </div>
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <h2>Schedule</h2>
             </div>
             <DomNode make={() => scheduleEditor(sched.current, () => setDirty(true))} deps={[id]} />
           </div>
-          <div className="panel">
+          <div className="panel glass-plate">
             <div className="panel-head">
               <h2>Runs</h2>
             </div>
@@ -299,12 +296,7 @@ function StepFields({ s, set, tools, d }: { s: WorkflowStep; set: (patch: Partia
     return (
       <>
         <Field label="Agent">
-          <select value={s.agentId || ''} onChange={(e) => set({ agentId: e.target.value })}>
-            <option value="">Pick an agent…</option>
-            {d.agents.map((a) => (
-              <option key={a.id} value={a.id}>{`${a.emoji || ''} ${a.name}`}</option>
-            ))}
-          </select>
+          <SelectControl aria-label="Agent" value={s.agentId || ''} onChange={(value) => set({ agentId: value })} options={[{ value: '', label: 'Pick an agent…' }, ...d.agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` }))]} />
         </Field>
         {area('Message', 'prompt', 4, '', 'Use {{input}} for the run input, {{prev}} for the last step, {{step1}}… for any step, {{date}}.')}
       </>
@@ -313,14 +305,7 @@ function StepFields({ s, set, tools, d }: { s: WorkflowStep; set: (patch: Partia
     return (
       <>
         <Field label="Tool">
-          <select value={s.tool || ''} onChange={(e) => set({ tool: e.target.value })}>
-            <option value="">Pick a tool…</option>
-            {tools
-              .filter((t) => t.group !== 'knowledge')
-              .map((t) => (
-                <option key={t.name} value={t.name}>{`${t.name} (${t.group})`}</option>
-              ))}
-          </select>
+          <SelectControl aria-label="Tool" value={s.tool || ''} onChange={(value) => set({ tool: value })} options={[{ value: '', label: 'Pick a tool…' }, ...tools.filter((t) => t.group !== 'knowledge').map((t) => ({ value: t.name, label: `${t.name} (${t.group})` }))]} />
         </Field>
         {s.tool ? <p className="hint">{tools.find((t) => t.name === s.tool)?.description || ''}</p> : null}
         <Field label="Arguments (JSON)" hint={'Placeholders work inside strings, e.g. {"workflow": "imagegen", "prompt": "{{prev}}"}'}>
@@ -333,12 +318,7 @@ function StepFields({ s, set, tools, d }: { s: WorkflowStep; set: (patch: Partia
     return (
       <>
         <Field label="Account">
-          <select value={s.account || ''} onChange={(e) => set({ account: e.target.value })}>
-            <option value="">{d.accounts.x.length ? 'First connected account' : 'No X account connected yet'}</option>
-            {d.accounts.x.map((a) => (
-              <option key={a.username} value={a.username}>{`@${a.username}`}</option>
-            ))}
-          </select>
+          <SelectControl aria-label="Account" value={s.account || ''} onChange={(value) => set({ account: value })} options={[{ value: '', label: d.accounts.x.length ? 'First connected account' : 'No X account connected yet' }, ...d.accounts.x.map((a) => ({ value: a.username, label: `@${a.username}` }))]} />
         </Field>
         {area('Text', 'text', 3, '{{prev}}')}
         <Switch checked={!!s.thread} onChange={(v) => set({ thread: v })}>Thread: split parts on a line with ---</Switch>

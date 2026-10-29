@@ -7,6 +7,8 @@ import { fetchFile } from '../client/http.ts';
 import { fileUrl } from '../client/connection.ts';
 import { openFile } from '../filepreview.ts';
 import { reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { SelectControl } from '../ui/select.tsx';
+import { Section, Sections } from '../ui/controls.tsx';
 import { QuestionCard } from '../questions.tsx';
 import type { AgentQuestion, OutboxPost } from '../../shared/types.ts';
 
@@ -45,26 +47,26 @@ export function Outbox() {
   const done = list.filter((p) => p.status === 'posted' || p.status === 'rejected' || p.status === 'returned');
   const changed = () => (void reload(), refreshSoon(0));
   return (
-    <>
+    <Sections>
       <Questions />
       {data.accounts.x.length ? <Compose accounts={data.accounts.x.map((a) => a.username)} added={() => void reload()} /> : null}
-      <h2 className="section mt-10 first:mt-0">{`Waiting for you (${pending.length})`}</h2>
-      {pending.length ? (
-        <div className="flex flex-col gap-4">
-          {pending.map((p) => <PostCard key={p.id} p={p} changed={changed} />)}
-        </div>
-      ) : (
-        <div className="empty mx-auto max-w-[56ch] py-12">No posts waiting. Agents with the Social tools put their drafts here.</div>
-      )}
+      <Section title={`Waiting for you (${pending.length})`} headingClassName="section" bare>
+        {pending.length ? (
+          <div className="flex flex-col gap-4">
+            {pending.map((p) => <PostCard key={p.id} p={p} changed={changed} />)}
+          </div>
+        ) : (
+          <div className="empty mx-auto max-w-[56ch] py-12">No posts waiting. Agents with the Social tools put their drafts here.</div>
+        )}
+      </Section>
       {done.length ? (
-        <>
-          <h2 className="section mt-10">History</h2>
+        <Section title="History" headingClassName="section" bare>
           <div className="flex flex-col gap-4">
             {done.slice(0, 40).map((p) => <PostCard key={p.id} p={p} changed={changed} />)}
           </div>
-        </>
+        </Section>
       ) : null}
-    </>
+    </Sections>
   );
 }
 
@@ -79,8 +81,7 @@ function Questions() {
   const done = list.filter((q) => q.status !== 'waiting').slice(0, 20);
   const changed = () => void reload().catch(() => {});
   return (
-    <>
-      <h2 className="section">{`Questions from agents (${waiting.length})`}</h2>
+    <Section title={`Questions from agents (${waiting.length})`} headingClassName="section" bare>
       {waiting.length ? (
         <div className="flex flex-col gap-4">
           {waiting.map((q) => <QuestionCard key={q.id} q={q} changed={changed} />)}
@@ -96,8 +97,7 @@ function Questions() {
           </div>
         </details>
       ) : null}
-      <div className="mt-10" />
-    </>
+    </Section>
   );
 }
 
@@ -111,21 +111,16 @@ function Compose({ accounts, added }: { accounts: string[]; added: () => void })
     }
   };
   return (
-    <div className="panel">
-      <div className="panel-head">
-        <h2>New post</h2>
+    <Section title="New post" bare>
+      <div className="panel glass-plate">
+        <textarea rows={3} aria-label="New post" placeholder="Write a post yourself…" value={text} onChange={(e) => setText(e.target.value)} />
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <SelectControl aria-label="Post as" value={account} onChange={setAccount} options={accounts.map((a) => ({ value: a, label: `@${a}` }))} />
+          <span className="hint flex-1 min-w-0" />
+          <button className="btn ghost small" onClick={() => void save()}>Save to Outbox</button>
+        </div>
       </div>
-      <textarea rows={3} aria-label="New post" placeholder="Write a post yourself…" value={text} onChange={(e) => setText(e.target.value)} />
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <select aria-label="Post as" value={account} onChange={(e) => setAccount(e.target.value)}>
-          {accounts.map((a) => (
-            <option key={a} value={a}>{`@${a}`}</option>
-          ))}
-        </select>
-        <span className="hint flex-1 min-w-0" />
-        <button className="btn ghost small" onClick={() => void save()}>Save to Outbox</button>
-      </div>
-    </div>
+    </Section>
   );
 }
 
@@ -188,7 +183,7 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
   const [tone, label] = STATUS[p.status] || ['', p.status];
   const link = p.platform === 'reddit' ? 'View on Reddit' : p.platform === 'x_dm' ? 'Open messages' : 'View on X';
   return (
-    <div className="panel">
+    <div className="panel glass-plate">
       <div className="flex flex-wrap items-center gap-3">
         <span className={`pill${tone ? ` ${tone}` : ''}`}>{label}</span>
         <b>{p.accountLabel}</b>

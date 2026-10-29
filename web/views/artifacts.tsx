@@ -60,7 +60,7 @@ function ArtifactCard({ a, onRemove }: { a: Artifact; onRemove: () => void }) {
   const kindIcon = a.kind === 'folder' ? 'folder' : a.kind === 'file' ? 'file' : 'file-text';
   const who = [a.agentName ? `by ${a.agentName}` : '', a.teamName ? `team ${a.teamName}` : ''].filter(Boolean).join(' · ');
   return (
-    <div className="panel">
+    <div className="panel glass-plate">
       <div className="flex flex-wrap items-center gap-3">
         <Icon name={kindIcon} className="text-faint" />
         <b>{a.title}</b>
