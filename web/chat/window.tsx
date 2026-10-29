@@ -125,7 +125,7 @@ function Row({ id, index, start, seen, measure, children }: { id: string; index:
   const [again] = useState(() => seen.has(id));
   useEffect(() => void seen.add(id), [seen, id]);
   return (
-    <div ref={measure} data-index={index} className={again ? 'msg-row again absolute top-0 left-0 flex w-full flex-col gap-3.5 in-[.ac-list]:gap-2' : 'msg-row absolute top-0 left-0 flex w-full flex-col gap-3.5 in-[.ac-list]:gap-2'} style={{ transform: `translateY(${start}px)` }}>
+    <div ref={measure} data-index={index} className={again ? 'msg-row again absolute top-0 left-0 flex w-full flex-col gap-5 in-[.ac-list]:gap-4' : 'msg-row absolute top-0 left-0 flex w-full flex-col gap-5 in-[.ac-list]:gap-4'} style={{ transform: `translateY(${start}px)` }}>
       {children}
     </div>
   );

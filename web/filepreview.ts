@@ -141,7 +141,7 @@ export function revealButton(path: string): HTMLButtonElement {
 // compact: the floating window, the Station panel, team turns (full width, shorter)
 function card(f: Extract<FileInfo, { ok: true }>, compact: boolean): HTMLElement {
   const url = fileUrl(f.path);
-  const media = `block w-full bg-black object-contain ${compact ? 'max-h-50' : 'max-h-80'}`;
+  const media = `block w-full bg-panel-2 object-contain ${compact ? 'max-h-50' : 'max-h-80'}`;
   const fileBox = `flex items-center gap-2.5 text-ink ${compact ? 'px-3 py-2.5' : 'px-3.5 py-4'}`;
   const preview =
     f.kind === 'image'
@@ -157,7 +157,7 @@ function card(f: Extract<FileInfo, { ok: true }>, compact: boolean): HTMLElement
   const opens = f.kind === 'image' || (f.kind === 'file' && (onDesktop() || previewKind(f.name) !== null));
   return h(
     `div.fp-card.fp-kind-${f.kind}`,
-    { class: `${compact ? 'flex w-full flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2 [&_.fp-model]:max-h-60' : 'flex w-[min(380px,100%)] flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2'}${opens ? ' transition-colors hover:border-accent-dim' : ''}`, title: f.path },
+    { class: `${compact ? 'flex w-full flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2 [&_.fp-model]:max-h-60' : 'flex w-[min(380px,100%)] flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2'}${opens ? ' transition-colors hover:border-line-2' : ''}`, title: f.path },
     preview,
     h(
       'div.fp-bar',

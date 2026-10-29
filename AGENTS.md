@@ -5,7 +5,7 @@ view, read `README.md`; `docs/guide.md` is the long version of it.
 
 ## What this is
 
-**Blacksite**: a local, login-free command center for AI agents. A Bun + TypeScript server
+**Athena Agents** (called Blacksite until the redesign; the repo, package, bundle identifier, data folders and update URL still use that name): a local, login-free command center for AI agents. A Bun + TypeScript server
 (`server/`) on `127.0.0.1:4800` and a browser app (`web/`) bundled into `public/dist`. All user
 state is plain JSON under `data/` (git-ignored). Mainly used on Windows; CI also runs on Linux.
 
@@ -48,7 +48,8 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 | `web/views/` | One module per page (`station.ts` is the 3D map, three.js) |
 | `server/voxel/` | The voxel world (`docs/internal/plans/VOXEL_WORLD_PLAN.md`): worlds on disk (`store.ts`), which world a project shows (`link.ts`), the build steps (`ops.ts`: shapes, shape and region tools, stamping and placing prefabs), building and undo (`build.ts`), prefabs and the prefab library (`prefabs.ts`), WORLD.md (`worldmd.ts`), the agents' tools (`tools.ts`), `world_script`'s sandbox (`script.ts`: QuickJS in WebAssembly, no files or network) |
 | `web/voxel/`, `shared/voxel.ts`, `shared/worldenv.ts` | The world on the Station: voxel data and its encoding, times of day, the mesher and its worker (`mesh.worker.ts`, a second entry in `scripts/build-web.ts`), the voxel look's light and finishing passes (`view.ts`, `post.ts`), the world's objects on the map (`worldlayer.ts`). Loaded only when Settings › Look › Station look is "Voxel world" |
-| `web/styles/` | Tailwind CSS 4. `app.css` is the entry (theme tokens, layers, keyframes), `base.css` styles bare elements, `components.css` has the pieces used everywhere (`btn`, `card`, `pill`, `modal`, `md` for Markdown…). The build writes `public/dist/app.css` |
+| `web/styles/` | Tailwind CSS 4. `app.css` is the entry (theme tokens, layers, keyframes), `base.css` styles bare elements and holds the dark-theme token overrides, `components.css` has the pieces used everywhere (`btn`, `card`, `pill`, `modal`, `md` for Markdown…). The build writes `public/dist/app.css` |
+| `web/theme.ts`, `web/brand.ts`, `web/look.ts` | Light or dark (`isDark()`, `onThemeChange()`, `themeColor()`), the owl mark, and Settings › Look (the accents, each with a light and a dark tone) |
 | `public/` | `index.html`. `public/dist` is build output, never edit it |
 | `skills/` | Skill folders that come with the dashboard (`storytold`, `oomol`, `composio`, `orca`, `subagent-skills`, `hermes`), copied unchanged from GitHub: each folder's `README.md` says from where and which commit. `hermes` keeps Hermes's own category folders (`nested` in `BUNDLED`). `BUNDLED` in `server/skills.ts` lists them; `ensureBuiltinSkills` adds them to the library. Skills the dashboard writes itself (Self-improvement, Start agents in Orca) are in `BUILTIN` there instead |
 | `library/agency-agents/` | The Agency's agent files (the Library's specialists), copied unchanged from GitHub: its `README.md` says from where and which commit. `server/library.ts` reads the folder directly |
@@ -80,6 +81,21 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
   copied in `scripts/build-desktop.ts`. The installed app folder is read-only: write under `DATA` only.
 - Large files exist (`web/views/station.ts`, `server/index.ts`). Edit the relevant part; don't
   reformat or reorganize unrelated code.
+
+## Look
+
+"Linear, but white": quiet white surfaces, hairline borders, one accent, Inter, roomy spacing. The page follows the system:
+`base.css` swaps the `--color-*` tokens under `prefers-color-scheme: dark` (`<html data-theme="dark" | "light">` forces one,
+for checking both; nothing sets it in the app).
+
+- Colour comes from the theme tokens (`bg-bg`, `bg-panel`, `border-line`, `text-ink`, `text-dim`, `text-accent`…), never a
+  hard-coded hex for chrome. Per-agent and per-brand colours are data and stay; make sure they read on white and on near-black.
+- The accent is picked in Settings › Look and has two tones (`ACCENTS` in `web/look.ts`): don't assume a hue. Green means "on"
+  (`text-ok`), amber "waiting", red "failed".
+- Canvases, three.js and the terminal can't use `var()`: read `isDark()` / `themeColor()` and restyle on `onThemeChange()`.
+- Labels, tabs, buttons and captions are sentence case in Inter; mono is for code, paths, URLs, ids and keys. No uppercase
+  letter-spaced captions, no coloured glows, no gradient text. Controls are `rounded-ctl`, cards `rounded-box`; depth is
+  `shadow-card`, `shadow-lift` and `shadow-pop`.
 
 ## Security boundaries (don't weaken these)
 

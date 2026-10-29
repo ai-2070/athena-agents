@@ -78,12 +78,12 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
         <>
           {q.choices.length ? (
             // one row per choice: they are often whole sentences, so they wrap instead of running off the card
-            <div className="grid gap-1.5">
+            <div className="grid gap-2">
               {q.choices.map((c) => (
                 <button
                   key={c}
                   type="button"
-                  className="w-full cursor-pointer rounded-ctl border border-line-2 bg-panel-2 px-3 py-2 text-left text-[13.5px] leading-snug text-ink wrap-anywhere transition-colors enabled:hover:border-accent enabled:hover:bg-accent/8 enabled:hover:text-accent disabled:cursor-not-allowed disabled:opacity-45"
+                  className="w-full cursor-pointer rounded-ctl border border-line-2 bg-panel px-3.5 py-2.5 text-left text-[13.5px] leading-snug text-ink wrap-anywhere transition-colors enabled:hover:bg-panel-2 disabled:cursor-not-allowed disabled:opacity-45"
                   disabled={busy}
                   title={text.trim() ? 'Send this choice with your note' : 'Send this answer'}
                   onClick={() => void answer(c)}

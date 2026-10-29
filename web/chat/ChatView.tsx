@@ -602,7 +602,7 @@ export function ChatView(p: ChatViewProps) {
   const revealRow = useRef<((i: number) => void) | null>(null);
   const find = useFind(list, windowed ? { count: shown.length, text: (i) => searchText(shown[i]), reveal: (i) => revealRow.current?.(i) } : null);
   const rows = windowed ? (
-    <Windowed items={shown} scroller={list} atEnd={near.current} gap={compact ? 8 : 14} estimate={(m, width) => estimateHeight(m, width, compact)} memoKey={(m) => `${agent.id}/${chatId || viewId}/${compact ? 'c' : ''}${m.id}/${messageSig(m)}`} render={row} reveal={revealRow} />
+    <Windowed items={shown} scroller={list} atEnd={near.current} gap={compact ? 16 : 20} estimate={(m, width) => estimateHeight(m, width, compact)} memoKey={(m) => `${agent.id}/${chatId || viewId}/${compact ? 'c' : ''}${m.id}/${messageSig(m)}`} render={row} reveal={revealRow} />
   ) : (
     shown.map(row)
   );
@@ -691,7 +691,7 @@ export function ChatView(p: ChatViewProps) {
               {a.specialty ? <span className="hint">{a.specialty}</span> : null}
             </button>
           ))}
-          {canDelegate ? null : <div className="hint mention-note mt-1 border-t border-line px-2 pt-1.5 pb-1 text-[12px]">To pass work on, {agent.name} needs Delegate turned on in its tools.</div>}
+          {canDelegate ? null : <div className="hint mention-note mt-1 border-t border-line px-2.5 pt-2 pb-1.5 text-[12px]">To pass work on, {agent.name} needs Delegate turned on in its tools.</div>}
         </div>
       ) : null}
     </div>
@@ -761,23 +761,23 @@ export function ChatView(p: ChatViewProps) {
   return (
     <>
       {find}
-      <div ref={list} className={variant === 'mini' ? 'oc-mini-list flex min-h-0 min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto py-1' : compact ? 'ac-list flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-0.5 py-1' : 'messages'} onScroll={onScroll}>
+      <div ref={list} className={variant === 'mini' ? 'oc-mini-list flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto py-2' : compact ? 'ac-list flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 py-2' : 'messages'} onScroll={onScroll}>
         {empty ? (
           variant === 'mini' ? (
             <p className="empty">No messages yet.</p>
           ) : compact ? (
-            <div className="m-auto text-center text-dim">
+            <div className="m-auto py-12 text-center text-dim">
               <Dom make={() => icon('message-circle', 22)} deps={[]} />
-              <p className="mt-1.5 mb-0">Say hi to {agent.name}.</p>
+              <p className="mt-2.5 mb-0">Say hi to {agent.name}.</p>
               <p className="hint mt-1.5 mb-0">{agent.specialty || ''}</p>
             </div>
           ) : (
-            <div className="empty-chat" style={{ margin: 'auto', textAlign: 'center', maxWidth: '560px', color: 'var(--color-dim)' }}>
-              <div style={{ fontSize: '40px' }}>{agent.emoji || '🤖'}</div>
-              <p>
+            <div className="empty-chat m-auto max-w-[560px] py-12 text-center text-dim">
+              <div className="text-[40px] leading-none">{agent.emoji || '🤖'}</div>
+              <p className="mt-4 mb-0">
                 Ask {agent.name} anything{agent.specialty ? `. Good at: ${agent.specialty}` : ''}.
               </p>
-              <div className="chips" style={{ justifyContent: 'center', marginTop: '12px' }}>
+              <div className="chips mt-5 justify-center">
                 {suggestions(agent).map((t) => (
                   <button key={t} className="chip" onClick={() => p.apiRef?.current?.setDraft(t)}>
                     {t}
@@ -791,15 +791,15 @@ export function ChatView(p: ChatViewProps) {
         )}
       </div>
       {variant === 'mini' ? null : (
-        <div className={compact ? 'empty:hidden' : undefined} style={compact ? undefined : { padding: '0 28px' }}>
+        <div className={compact ? 'empty:hidden' : 'px-10 max-md:px-4'}>
           {approvals.map((a) => (
-            <Dom key={a.id} className={compact ? undefined : 'mb-2.5 max-w-[860px]'} make={() => approvalCard(a)} deps={[a.id]} />
+            <Dom key={a.id} className={compact ? undefined : 'mb-3 max-w-[860px]'} make={() => approvalCard(a)} deps={[a.id]} />
           ))}
         </div>
       )}
       {chips}
       {queuedList}
-      <div className={compact ? 'min-h-4 font-mono text-[11.5px] leading-[normal] text-amber' : 'status-line flex min-h-5.5 items-center gap-2 px-7 pt-1 font-mono text-[11.5px] leading-[normal] text-amber max-md:px-4'}>
+      <div className={compact ? 'min-h-5 pt-1 text-[12.5px] leading-[normal] text-dim' : 'status-line flex min-h-6 items-center gap-2 px-10 pt-2 text-[12.5px] leading-[normal] text-dim max-md:px-4'}>
         {statusLine ? (
           compact ? (
             statusLine
@@ -822,7 +822,7 @@ export function ChatView(p: ChatViewProps) {
               {sendBtn}
             </div>
           ) : (
-            <div className="flex items-stretch gap-2">
+            <div className="flex items-stretch gap-2.5">
               {composer}
               {/* the paperclip at the top of the box, Send at its bottom */}
               <div className={COMPOSER_BTNS}>
@@ -838,7 +838,7 @@ export function ChatView(p: ChatViewProps) {
           <div className="mx-auto max-w-[1000px]">
             {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
             <Dom make={() => pastes.el} deps={[pastes]} />
-            <div className="flex items-stretch gap-2.5">
+            <div className="flex items-stretch gap-3">
               {composer}
               {/* the paperclip at the top of the box, Send at its bottom */}
               <div className={COMPOSER_BTNS}>
@@ -847,7 +847,7 @@ export function ChatView(p: ChatViewProps) {
               </div>
             </div>
             {p.footer ? (
-              <div className="mt-1.5">
+              <div className="mt-3">
                 <Dom make={() => p.footer!} deps={[p.footer]} />
               </div>
             ) : null}

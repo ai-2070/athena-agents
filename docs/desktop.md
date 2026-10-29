@@ -41,8 +41,8 @@ When it opens, the app:
 5. After 30 seconds, and every 6 hours after that, looks for an update (below).
 
 Closing the window hides it (`src-tauri/src/tray.rs`): the server and agents keep running, and the tray
-icon brings the window back (a left click, or **Open Blacksite** in its menu; on Linux, only the menu).
-**Quit Blacksite** in the tray's menu quits. If the tray can't be made, closing the window quits as before.
+icon brings the window back (a left click, or **Open Athena Agents** in its menu; on Linux, only the menu).
+**Quit Athena Agents** in the tray's menu quits. If the tray can't be made, closing the window quits as before.
 Some Linux desktops (GNOME without an extension) make the tray but never show it: there, opening the app
 again is the way back.
 A second launch, the macOS Dock icon and a server error also show the hidden window. The window-state

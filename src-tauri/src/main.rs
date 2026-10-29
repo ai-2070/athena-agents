@@ -1,4 +1,4 @@
-// Blacksite desktop app. It starts the dashboard's own server (the bundled Bun runtime running
+// Athena Agents desktop app. It starts the dashboard's own server (the bundled Bun runtime running
 // the bundled server in resources/app), waits for it, and shows it in a window. Nothing else changes:
 // the page talks to its server over 127.0.0.1 exactly as it does in a browser, with no Tauri IPC.
 //
@@ -30,7 +30,7 @@ const MAIN: &str = "main";
 /// same port each time: X and Reddit sign-in only work at the callback address set up in their apps.
 const PREFERRED_PORTS: std::ops::Range<u16> = 14800..14810;
 const START_TIMEOUT: Duration = Duration::from_secs(90);
-const COULD_NOT_START: &str = "Blacksite could not start";
+const COULD_NOT_START: &str = "Athena Agents could not start";
 
 #[derive(Default)]
 struct Server {
@@ -69,7 +69,7 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("could not start Blacksite");
+        .expect("could not start Athena Agents");
 
     app.run(|app, event| match event {
         RunEvent::ExitRequested { .. } => tray::quitting(),
@@ -90,7 +90,7 @@ fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let nav_app = app.clone();
     let popup_app = app.clone();
     WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
-        .title("Blacksite")
+        .title("Athena Agents")
         .inner_size(1440.0, 900.0)
         .min_inner_size(900.0, 600.0)
         .center()
@@ -331,7 +331,7 @@ fn watch_server(app: AppHandle, generation: u64, port: u16) {
         if let Some(status) = exited() {
             return show_error(
                 &app,
-                "Blacksite stopped",
+                "Athena Agents stopped",
                 &format!("The dashboard's server stopped ({status})."),
             );
         }

@@ -613,6 +613,34 @@ describe('Rich answers', () => {
     expect(rich.textContent).not.toContain('root =');
   }, 30_000);
 
+  it('follows the page: the same look, in light or dark (OpenUI makes its own tints from the mode)', async () => {
+    chat.items = [
+      { type: 'user', text: 'compare them' },
+      { type: 'assistant', text: 'root = Card([title])\ntitle = CardHeader("Plan A wins")' },
+    ];
+    const theme = () => [...document.head.querySelectorAll('style[data-openui-theme]')].map((s) => s.textContent || '').join('\n');
+    const tint = (css: string) => /--openui-highlight:\s*([^;]+);/.exec(css)?.[1];
+    document.documentElement.dataset.theme = 'light';
+    try {
+      const el = await open();
+      for (let i = 0; i < 200 && !el.querySelector('.oc-rich')?.textContent?.includes('Plan A wins'); i++) await settle();
+      const light = theme();
+      // (the page's own colours, so they change by themselves with the page; the text on a primary button is the on-accent colour)
+      expect(light).toContain('--openui-text-neutral-primary: var(--color-ink)');
+      expect(light).toContain('--openui-text-accent-primary: var(--color-on-accent)');
+      expect(tint(light)).toBeTruthy();
+      await act(async () => void (document.documentElement.dataset.theme = 'dark'));
+      await settle();
+      const dark = theme();
+      expect(dark).toContain('--openui-text-neutral-primary: var(--color-ink)');
+      // what OpenUI works out for itself is the dark side's now
+      expect(tint(dark)).toBeTruthy();
+      expect(tint(dark)).not.toBe(tint(light));
+    } finally {
+      delete document.documentElement.dataset.theme;
+    }
+  }, 30_000);
+
   it('isRichCode() tells OpenUI Lang from markdown', () => {
     expect(isRichCode('root = Card([t])\nt = TextContent("hi")')).toBe(true);
     expect(isRichCode('Here is the plan:\n\n- one\n- two')).toBe(false);

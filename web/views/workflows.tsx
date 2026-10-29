@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { GET, POST, PUT, DEL, attempt, navigate, confirmBox, promptBox, ago, lightbox } from '../core.ts';
 import { scheduleEditor, scheduleText } from '../schedule.ts';
 import { Field, Switch } from '../ui/controls.tsx';
-import { DomNode, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { DomNode, Icon, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import type { AppState, Schedule, Team, TeamStep } from '../../shared/types.ts';
 
 /** One entry of GET /api/tools → tools. */
@@ -76,7 +76,7 @@ export function moveStep<T>(steps: readonly T[], i: number, by: -1 | 1): T[] {
 }
 
 function Status({ st }: { st: string }) {
-  if (st === 'done') return <span className="text-accent" aria-label="done">✓</span>;
+  if (st === 'done') return <span className="text-ok" aria-label="done">✓</span>;
   if (st === 'failed') return <span className="text-red" aria-label="failed">✕</span>;
   if (st === 'running') return <span className="dot busy" aria-label="running" />;
   if (st === 'needs-you') return <span className="text-amber" aria-label="needs you">!</span>;
@@ -105,10 +105,13 @@ function WorkflowsList() {
   };
   return (
     <>
-      <p className="lede">A workflow is a list of steps that run in order. Each step gets the result of the one before it, so a researcher can hand findings to a writer, then you approve, then it posts.</p>
-      <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3.5">
-        <h2 className="section">Your workflows</h2>
-        <button className="btn" onClick={() => void create()}>+ New workflow</button>
+      <p className="lede max-w-[68ch]">A workflow is a list of steps that run in order. Each step gets the result of the one before it, so a researcher can hand findings to a writer, then you approve, then it posts.</p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="section m-0">Your workflows</h2>
+        <button className="btn" onClick={() => void create()}>
+          <Icon name="plus" size={14} />
+          New workflow
+        </button>
       </div>
       {data.list.length ? (
         <div className="cards">
@@ -124,9 +127,9 @@ function WorkflowsList() {
           ))}
         </div>
       ) : (
-        <div className="empty box">No workflows yet. Start from a template below.</div>
+        <div className="empty py-12">No workflows yet. Start from a template below.</div>
       )}
-      <h2 className="section">Templates</h2>
+      <h2 className="section mt-10 mb-6">Templates</h2>
       <div className="cards">
         {data.templates.map((t) => {
           const missing = t.needs.filter((n) => !d.agents.some((a) => a.name.toLowerCase() === n.toLowerCase()));
@@ -134,7 +137,7 @@ function WorkflowsList() {
             <div key={t.name} className="card">
               <div className="card-title">{t.name}</div>
               <div className="card-sub">{t.description}</div>
-              <div className="hint">{missing.length ? `Uses: ${t.needs.join(', ')}. Missing ${missing.join(', ')} (add from Agent library > Blacksite, or pick other agents after).` : `Uses: ${t.needs.join(', ')}`}</div>
+              <div className="hint">{missing.length ? `Uses: ${t.needs.join(', ')}. Missing ${missing.join(', ')} (add from Agent library > Athena, or pick other agents after).` : `Uses: ${t.needs.join(', ')}`}</div>
               <div className="card-foot">
                 <button className="btn small" onClick={() => void useTemplate(t)}>Use template</button>
               </div>
@@ -197,16 +200,16 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-2.5 mb-4">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <a className="btn ghost small" href="#/workflows">← Workflows</a>
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-3">
           <button className="btn" disabled={!dirty} onClick={() => void save()}>Save</button>
         </div>
       </div>
-      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
-        <div className="flex flex-col gap-4.5">
+      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-6 max-lg:grid-cols-1">
+        <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
           <div className="panel">
-            <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
+            <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
               <Field label="Name">
                 <input value={name} onChange={(e) => (setName(e.target.value), setDirty(true))} />
               </Field>
@@ -219,14 +222,15 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
             <div className="panel-head">
               <h2>Steps</h2>
             </div>
+            {steps.length ? null : <p className="empty py-6">No steps yet. Add the first one below.</p>}
             <ol>
               {steps.map((s, i) => (
                 <li key={s.id || i}>
-                  {i ? <div className="text-center text-faint text-[14px] leading-none py-1" aria-hidden="true">↓</div> : null}
-                  <div className="step border border-line bg-bg p-3.5 relative">
-                    <div className="flex flex-wrap items-center justify-between gap-2.5">
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <span className="font-mono text-[11px] leading-[normal] font-bold text-accent tracking-[0.14em]">{`STEP ${i + 1}`}</span>
+                  {i ? <div className="py-2 text-center text-[14px] leading-none text-faint" aria-hidden="true">↓</div> : null}
+                  <div className="step relative rounded-box border border-line bg-bg p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="text-[12.5px] leading-[normal] font-semibold text-dim">{`Step ${i + 1}`}</span>
                         <select aria-label={`Step ${i + 1}: what it does`} value={s.type} onChange={(e) => setStep(i, { type: e.target.value })}>
                           {STEP_TYPES.map((t) => (
                             <option key={t.value} value={t.value}>{t.label}</option>
@@ -240,27 +244,27 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
                         <button className="icon-btn" title="Remove" aria-label={`Remove step ${i + 1}`} onClick={() => change(steps.filter((_, j) => j !== i))}>✕</button>
                       </div>
                     </div>
-                    <div className="flex flex-col gap-2.5 mt-3.5">
+                    <div className="mt-4 flex flex-col gap-4">
                       <StepFields s={s} set={(patch) => setStep(i, patch)} tools={tools} d={d} />
                     </div>
                   </div>
                 </li>
               ))}
             </ol>
-            <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               {STEP_TYPES.map((t) => (
                 <button key={t.value} className="btn ghost small" onClick={() => change([...steps, { id: Math.random().toString(36).slice(2), type: t.value, prompt: '{{prev}}' }])}>{`+ ${t.label}`}</button>
               ))}
             </div>
           </div>
         </div>
-        <div className="flex flex-col gap-4.5">
+        <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
           <div className="panel">
             <div className="panel-head">
               <h2>Run it</h2>
             </div>
             <textarea rows={2} aria-label="Input for this run" placeholder="Input for this run ({{input}})" value={input} onChange={(e) => setInput(e.target.value)} />
-            <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               <button className="btn" onClick={() => void run()}>Run now</button>
             </div>
           </div>
@@ -276,7 +280,7 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
             </div>
             <Runs id={id} version={runsVersion} />
           </div>
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-3">
             <button className="btn danger small" onClick={() => void del()}>Delete workflow</button>
           </div>
         </div>
@@ -362,13 +366,13 @@ function Runs({ id, version }: { id: string; version: number }) {
   useEffect(() => (load(), () => clearTimeout(timer.current)), [load, version]);
   useServerEvents((ev) => ev.type === 'workflow-run' && load());
   if (!runs) return null;
-  if (!runs.length) return <p className="empty">No runs yet.</p>;
+  if (!runs.length) return <p className="empty py-6">No runs yet.</p>;
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-3">
       {runs.slice(0, 15).map((r, i) => (
         <details key={r.id} open={i === 0}>
-          <summary className="cursor-pointer py-1.5">
-            <span className="inline-flex flex-wrap items-center gap-2.5">
+          <summary className="cursor-pointer py-2">
+            <span className="inline-flex flex-wrap items-center gap-3">
               <Status st={r.status} />
               <b>{r.status}</b>
               <span className="hint">{`${ago(r.createdAt)} · ${r.trigger}`}</span>
@@ -379,7 +383,7 @@ function Runs({ id, version }: { id: string; version: number }) {
           </summary>
           {r.input ? <div className="hint">{`Input: ${r.input}`}</div> : null}
           {r.steps.map((s, j) => (
-            <div key={s.id || j} className="grid grid-cols-[22px_1fr] gap-2.5 py-2 border-b border-line last:border-b-0 [&_pre]:max-h-50">
+            <div key={s.id || j} className="grid grid-cols-[22px_1fr] gap-3 border-b border-line py-3 last:border-b-0 [&_pre]:max-h-50">
               <Status st={s.status} />
               <div>
                 <div>

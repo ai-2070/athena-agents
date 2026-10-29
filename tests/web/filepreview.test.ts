@@ -167,9 +167,9 @@ describe('opening attached files', () => {
     document.body.append(box);
     await settle();
     const [md, pdf, csv] = [...box.querySelectorAll<HTMLElement>('.fp-card')];
-    expect(md.className).toContain('hover:border-accent-dim');
-    expect(pdf.className).toContain('hover:border-accent-dim');
-    expect(csv.className).not.toContain('hover:border-accent-dim');
+    expect(md.className).toContain('hover:border-line-2');
+    expect(pdf.className).toContain('hover:border-line-2');
+    expect(csv.className).not.toContain('hover:border-line-2');
     const link = pdf.querySelector('a.fp-file')!;
     expect(link.getAttribute('href')).toBe('/api/file?path=%2Fw%2Fplan.pdf&view=1');
     expect(link.getAttribute('target')).toBe('_blank');
@@ -206,7 +206,7 @@ describe('in the desktop app', () => {
     await settle();
     const [pdf, csv] = [...box.querySelectorAll<HTMLElement>('.fp-card')];
     expect(box.querySelector('a.fp-file')).toBeNull();
-    expect(csv.className).toContain('hover:border-accent-dim');
+    expect(csv.className).toContain('hover:border-line-2');
     pdf.querySelector<HTMLButtonElement>('button.fp-file')!.click();
     csv.querySelector<HTMLButtonElement>('button.fp-file')!.click();
     await settle();

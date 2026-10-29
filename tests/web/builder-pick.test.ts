@@ -43,9 +43,9 @@ describe('the team builder', () => {
     expect(rows().map((b) => b.title)).toEqual(['Add Scout to the team']);
   });
 
-  it('is mono like the other editors, and shows a box for each part', async () => {
+  it('shows a box for each part, in the same type as the page (only code and ids are mono)', async () => {
     const m = await openBranchBuilder();
-    expect(m.el.classList.contains('mono-fields')).toBe(true);
+    expect(m.el.classList.contains('mono-fields')).toBe(false);
     expect([...m.el.querySelectorAll('section')].map((s) => s.firstElementChild!.textContent?.trim())).toEqual(['Basics', 'Files', 'Members0', 'Access']);
   });
 });

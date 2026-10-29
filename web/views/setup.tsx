@@ -40,7 +40,7 @@ const TABS: Tab[] = [
 
 // What can be found. find = text on the page to jump to; words = extra search words.
 const INDEX: IndexEntry[] = [
-  { tab: 'general', find: 'AI keys', label: 'AI keys', words: 'openrouter key api anthropic token' },
+  { tab: 'general', find: 'API keys', label: 'AI keys', words: 'openrouter key api anthropic token' },
   { tab: 'general', find: 'OpenRouter key', label: 'OpenRouter key', words: 'api key models gpt gemini llama deepseek' },
   { tab: 'general', find: 'Claude Code', label: 'Claude Code', words: 'claude cli login version installed' },
   { tab: 'general', find: 'OpenAI Codex', label: 'OpenAI Codex', words: 'codex chatgpt gpt install sign in login' },
@@ -104,8 +104,8 @@ export function focusText(root: ParentNode, text: string | null, tries = 14): vo
     if (tries > 0) setTimeout(() => focusText(root, text, tries - 1), 150);
     return;
   }
-  // the nearest row (an engine or key in AI keys) before the whole panel
-  const box = el.closest<HTMLElement>('.ai-row, .panel, .list-row, .card') || el;
+  // the nearest row (an engine, a key or a setting) before the whole panel or section
+  const box = el.closest<HTMLElement>('.ai-row, .set-row, .list-row, .card, .panel, .settings-section') || el;
   box.scrollIntoView({ behavior: 'smooth', block: 'center' });
   // flash-find stays as the mark tests look for; the utility next to it is the flash
   box.classList.remove('flash-find', 'animate-[flash-find_2.1s_ease-out]');
@@ -135,7 +135,7 @@ const tabLabel = (id: TabId) => TABS.find((t) => t.id === id)?.label || id;
 type Hit = IndexEntry | { here: string };
 
 // settings-search-hit: tests look for it. on: the highlighted one
-const HIT = 'settings-search-hit flex w-full cursor-pointer items-center gap-2.5 rounded-[8px] border-0 bg-none px-2.5 py-2 text-left text-ink hover:bg-accent/14 [&.on]:bg-accent/14';
+const HIT = 'settings-search-hit flex w-full cursor-pointer items-center gap-2.5 rounded-[8px] border-0 bg-none px-3 py-2.5 text-left text-[13.5px] text-ink hover:bg-panel-2 [&.on]:bg-panel-2';
 
 function SettingsSearch({ onChoose }: { onChoose: (hit: Hit) => void }) {
   const [text, setText] = useState('');
@@ -167,16 +167,16 @@ function SettingsSearch({ onChoose }: { onChoose: (hit: Hit) => void }) {
     >
       {/* the frame lights up on focus (focus-within), so the box inside it needs no outline of its own */}
       <div
-        className="relative mb-1.5 flex w-[min(300px,40vw)] items-center gap-2 rounded-box border border-line bg-panel/70 px-2.5 text-dim transition-[border-color,box-shadow] duration-200 ease-[ease] focus-within:border-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)] max-[761px]:w-auto"
+        className="relative mb-1.5 flex w-[min(300px,40vw)] items-center gap-2 rounded-ctl border border-line-2 bg-bg px-3 text-faint shadow-card transition-[border-color,box-shadow] duration-200 ease-[ease] focus-within:border-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)] max-[761px]:w-auto"
         ref={anchor}
       >
         <Icon name="search" size={15} />
-        <Autocomplete.Input ref={input} className="min-w-0 flex-1 rounded-ctl border-0 bg-transparent px-0 py-2 text-inherit shadow-none focus-visible:outline-none" type="search" placeholder="Search settings…" aria-label="Search settings" />
+        <Autocomplete.Input ref={input} className="min-w-0 flex-1 rounded-ctl border-0 bg-transparent px-0 py-2 text-[13.5px] text-ink shadow-none focus-visible:outline-none" type="search" placeholder="Search settings…" aria-label="Search settings" />
       </div>
       <Autocomplete.Portal>
         {/* placed by its positioner, so no position of its own */}
         <Autocomplete.Positioner anchor={anchor} align="end" sideOffset={6} className="z-60 outline-none">
-          <Autocomplete.Popup className="w-[max(var(--anchor-width),320px)] max-w-(--available-width) rounded-[12px] border border-line bg-panel p-1.5 shadow-[0_18px_50px_rgb(0_0_0/0.45)] outline-none empty:hidden has-[>[role=listbox]:empty]:hidden">
+          <Autocomplete.Popup className="w-[max(var(--anchor-width),320px)] max-w-(--available-width) rounded-box border border-line bg-raise p-1.5 shadow-pop outline-none empty:hidden has-[>[role=listbox]:empty]:hidden">
             <Autocomplete.List>
               {(hit: Hit) => (
                 <Autocomplete.Item
@@ -254,9 +254,8 @@ function SettingsPage() {
       tabs={TABS.map((t) => ({ value: t.id, label: t.label }))}
       value={tab}
       onChange={(t) => go(t)}
-      rowClassName="mb-4.5 flex flex-wrap items-end gap-3.5 border-b border-line max-[761px]:flex-col max-[761px]:items-stretch [&>.tabs]:-mb-px [&>.tabs]:min-w-0 [&>.tabs]:flex-1 [&>.tabs]:border-b-0"
+      rowClassName="mb-8 flex flex-wrap items-end gap-3.5 border-b border-line max-[761px]:flex-col max-[761px]:flex-nowrap max-[761px]:items-stretch [&>.tabs]:-mb-px [&>.tabs]:min-w-0 [&>.tabs]:flex-1 [&>.tabs]:border-b-0"
       aside={<SettingsSearch onChoose={choose} />}
-      panelClassName="mono-fields"
     >
       <TabBody key={`${tab}:${drawn}`} tab={TABS.find((t) => t.id === tab)!} hostRef={(el) => void (panel.current = el)} />
     </Tabs>

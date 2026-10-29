@@ -146,7 +146,99 @@ export function Chips<V extends string>({ options, value, onChange, label, class
   );
 }
 
-/** The search box every list uses: a magnifier, mono text, and a ✕ that clears it. className sizes the whole box. */
+// ---------- Settings layout: sections of rows ----------
+/** A column of settings sections, ten steps apart. */
+export const Sections = ({ children, className = '' }: { children: ReactNode; className?: string }) => <div className={`flex flex-col gap-10 ${className}`.trim()}>{children}</div>;
+
+/** A part of a settings page. Wide: its title and a line about it on the left, its controls in a bordered
+ *  panel of rows on the right. Narrow: the title above the panel. bare: no panel (cards, or a list of its own). */
+export function Section({ title, titleId, description, action, children, bare = false, className = '', id }: {
+  title: ReactNode;
+  titleId?: string;
+  description?: ReactNode;
+  /** A button under the description (Connect, Add…). */
+  action?: ReactNode;
+  children: ReactNode;
+  bare?: boolean;
+  className?: string;
+  id?: string;
+}) {
+  return (
+    <section id={id} className={`settings-section grid grid-cols-[minmax(0,15rem)_minmax(0,1fr)] items-start gap-x-12 gap-y-4 max-lg:grid-cols-1 ${className}`.trim()}>
+      <div className="min-w-0 lg:pt-1">
+        <h2 id={titleId} className="m-0 text-[15px] leading-snug font-semibold tracking-tight text-ink">
+          {title}
+        </h2>
+        {description ? <p className="mt-1.5 mb-0 max-w-[44ch] text-[13px] leading-normal text-dim">{description}</p> : null}
+        {action ? <div className="mt-3.5 flex flex-wrap items-center gap-2">{action}</div> : null}
+      </div>
+      <div className={bare ? 'min-w-0' : 'panel min-w-0 divide-y divide-line p-0'}>{children}</div>
+    </section>
+  );
+}
+
+const ROW = 'set-row px-5 py-4';
+/** One setting in a section's panel: its name and a line about it on the left, its control on the right
+ *  (stack: under them, for a wide control). */
+export function Row({ title, titleId, description, children, stack = false, className = '' }: { title: ReactNode; titleId?: string; description?: ReactNode; children?: ReactNode; stack?: boolean; className?: string }) {
+  return (
+    <div className={`${ROW} flex gap-x-8 gap-y-3 ${stack ? 'flex-col' : 'items-center max-sm:flex-col max-sm:items-stretch'} ${className}`.trim()}>
+      <div className="min-w-0 flex-1">
+        <span id={titleId} className="block text-[14px] leading-snug font-medium text-ink">
+          {title}
+        </span>
+        {description ? <div className="mt-1 max-w-[62ch] text-[13px] leading-normal text-dim">{description}</div> : null}
+      </div>
+      {children ? <div className={stack ? 'min-w-0' : 'flex flex-none items-center gap-2 max-sm:flex-wrap'}>{children}</div> : null}
+    </div>
+  );
+}
+
+const FIELD_WIDTH = { sm: 'grid-cols-[minmax(0,1fr)_minmax(0,11rem)]', md: 'grid-cols-[minmax(0,1fr)_minmax(0,22rem)]', lg: 'grid-cols-[minmax(0,1fr)_minmax(0,32rem)]' } as const;
+/** A labelled box as a row: the label (and its hint) on the left, the box on the right. Drawn like Field
+ *  (label.field, its text the first span), so a label click focuses the box. stack: the box under the label.
+ *  group: a div named by its label instead of a <label>, for a row of buttons. */
+export function FieldRow({ label, hint, children, group, size = 'md', stack = false }: { label: ReactNode; hint?: ReactNode; children: ReactNode; group?: string; size?: keyof typeof FIELD_WIDTH; stack?: boolean }) {
+  const grid = stack ? 'grid-cols-1 gap-y-3' : `${FIELD_WIDTH[size]} items-center gap-y-1 max-sm:grid-cols-1`;
+  const cls = `field ${ROW} grid gap-x-8 ${grid}`;
+  const inner = (
+    <>
+      <span id={group} className="col-start-1 row-start-1 text-[14px] leading-snug font-medium text-ink">
+        {label}
+      </span>
+      {hint ? <span className={`hint col-start-1 row-start-2 max-w-[62ch] ${stack ? '' : 'max-sm:row-start-3'}`}>{hint}</span> : null}
+      <div className={stack ? 'min-w-0' : `col-start-2 row-start-1 min-w-0 max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-2 ${hint ? 'row-span-2' : ''}`}>{children}</div>
+    </>
+  );
+  return group ? (
+    <div className={cls} role="group" aria-labelledby={group}>
+      {inner}
+    </div>
+  ) : (
+    <label className={cls}>{inner}</label>
+  );
+}
+
+/** The buttons at the end of a panel (Save, Send test…), on the right. */
+export const RowActions = ({ children }: { children: ReactNode }) => <div className="flex flex-wrap items-center justify-end gap-2 px-5 py-3.5">{children}</div>;
+
+/** A quiet line of explanation at the end of a panel. */
+export const PanelNote = ({ children }: { children: ReactNode }) => <div className="px-5 py-3.5 text-[13px] leading-normal text-dim [&_a]:text-accent">{children}</div>;
+
+/** A switch as a row: its name on the left, the switch on the right, and a line about it under the name.
+ *  The label is the Switch's own, so its text is just the name and a click on it flips it. */
+export function SwitchRow({ checked, onChange, title, description, disabled }: { checked: boolean; onChange: (on: boolean) => void; title: ReactNode; description?: ReactNode; disabled?: boolean }) {
+  return (
+    <div className={ROW}>
+      <Switch className="w-full flex-row-reverse justify-between gap-6 text-[14px] leading-snug font-medium text-ink" checked={checked} onChange={onChange} disabled={disabled}>
+        {title}
+      </Switch>
+      {description ? <div className="mt-1 max-w-[62ch] pr-16 text-[13px] leading-normal text-dim">{description}</div> : null}
+    </div>
+  );
+}
+
+/** The search box every list uses: a magnifier, the text, and a ✕ that clears it. className sizes the whole box. */
 export function SearchBox({ value, onChange, placeholder, label, className = '', autoFocus }: {
   value: string;
   onChange: (v: string) => void;
@@ -158,7 +250,7 @@ export function SearchBox({ value, onChange, placeholder, label, className = '',
   return (
     <div className={`search-box relative min-w-0 ${className}`.trim()}>
       <Icon name="search" size={14} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
-      <input type="search" className="w-full py-2 pr-8 pl-9 font-mono text-[12.5px]" placeholder={placeholder} aria-label={label} autoFocus={autoFocus} value={value} onChange={(e) => onChange(e.target.value)} />
+      <input type="search" className="w-full py-2 pr-8 pl-9 text-[13.5px]" placeholder={placeholder} aria-label={label} autoFocus={autoFocus} value={value} onChange={(e) => onChange(e.target.value)} />
       {value ? (
         <button type="button" className="absolute top-1/2 right-1.5 grid size-6 -translate-y-1/2 cursor-pointer place-items-center rounded-[5px] border-0 bg-transparent p-0 text-[11px] text-faint hover:bg-panel-2 hover:text-ink" aria-label="Clear the search" title="Clear" onClick={() => onChange('')}>
           ✕

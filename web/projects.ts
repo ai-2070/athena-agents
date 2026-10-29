@@ -209,7 +209,7 @@ export function openProjectMenu(anchor: Element): void {
     'div.st-menu.proj-menu',
     { class: 'z-80', style: { position: 'fixed', left: `${r.left / uiZoom()}px`, top: `${r.bottom / uiZoom() + 6}px`, transform: 'none' } },
     h('div.st-menu-head', 'Projects'),
-    h('div', { class: 'max-w-[260px] px-3.5 pb-2 font-mono text-[10.5px] leading-[1.4] font-normal text-faint' }, 'Drag to reorder, the pencil renames. On the Station, Up and Down switch between them.'),
+    h('div', { class: 'max-w-[260px] px-2.5 pb-2.5 text-[12px] leading-[1.5] font-normal text-faint' }, 'Drag to reorder, the pencil renames. On the Station, Up and Down switch between them.'),
     list,
     h('div.st-menu-sep'),
     h('button.st-menu-item', { onclick: () => (close(), openLauncher({ force: true })) }, icon('folder-open', 15), 'All projects…'),
@@ -228,15 +228,15 @@ export function openProjectMenu(anchor: Element): void {
 
 // From backup: the drop zone (over: a file is dragged onto it), empty or showing the picked backup
 const DROP_EMPTY =
-  'flex min-h-[132px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[12px] border-[1.5px] border-dashed border-line-2 bg-panel-2/70 p-4.5 text-center text-dim [transition:border-color_0.18s,background_0.18s,color_0.18s] hover:border-accent hover:text-ink focus-visible:border-accent focus-visible:text-ink focus-visible:outline-none [&.over]:border-solid [&.over]:border-accent [&.over]:bg-[color-mix(in_srgb,var(--color-accent)_9%,var(--color-panel))] [&.over]:text-ink';
+  'flex min-h-[132px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[12px] border-[1.5px] border-dashed border-line-2 bg-panel-2/70 p-4.5 text-center text-dim [transition:border-color_0.18s,background_0.18s,color_0.18s] hover:border-line-2 hover:bg-panel-2 hover:text-ink focus-visible:border-accent focus-visible:text-ink focus-visible:outline-none [&.over]:border-solid [&.over]:border-accent [&.over]:bg-[color-mix(in_srgb,var(--color-accent)_9%,var(--color-panel))] [&.over]:text-ink';
 const DROP_HAS =
   'flex min-h-0 cursor-pointer flex-row items-start justify-start gap-3.5 rounded-[12px] border-[1.5px] border-solid border-[color-mix(in_srgb,var(--color-accent)_45%,var(--color-line))] bg-panel-2/70 p-4.5 text-left text-dim [transition:border-color_0.18s,background_0.18s,color_0.18s] hover:text-ink focus-visible:text-ink focus-visible:outline-none [&.over]:bg-[color-mix(in_srgb,var(--color-accent)_9%,var(--color-panel))] [&.over]:text-ink';
 const DROP_ICO = 'grid h-11 w-11 flex-none place-items-center rounded-box bg-accent/10 text-accent';
 const DROP_TITLE = 'text-[15px] font-semibold text-ink';
 const DROP_META = 'mt-0.75 text-[12.5px] wrap-anywhere text-dim';
 const BACKUP_ITEM =
-  'flex w-full cursor-pointer items-center gap-2.5 rounded-[9px] border border-line bg-transparent px-2.75 py-2 text-left text-ink [transition:border-color_0.15s,background_0.15s] hover:border-accent hover:bg-[color-mix(in_srgb,var(--color-accent)_6%,var(--color-panel))] focus-visible:border-accent focus-visible:bg-[color-mix(in_srgb,var(--color-accent)_6%,var(--color-panel))] focus-visible:outline-none [&>svg]:flex-none [&>svg]:text-accent';
-const ITEM_META = 'text-[11.5px] whitespace-nowrap text-faint';
+  'flex w-full cursor-pointer items-center gap-3 rounded-[9px] border border-line bg-transparent px-3 py-2.5 text-left text-ink [transition:border-color_0.15s,background_0.15s] hover:bg-panel-2 focus-visible:border-accent focus-visible:bg-panel-2 focus-visible:outline-none [&>svg]:flex-none [&>svg]:text-dim';
+const ITEM_META = 'text-[12px] whitespace-nowrap text-faint';
 
 export async function openNewProject({ mode: startMode = 'new', onDone }: { mode?: NewProjectMode; onDone?: (p: CreatedProject) => unknown } = {}): Promise<void> {
   const info = await GET<ProjectList>('/projects').catch(() => ({ root: '' }));
@@ -250,8 +250,8 @@ export async function openNewProject({ mode: startMode = 'new', onDone }: { mode
   const kickoff = h('input', { type: 'checkbox', checked: true });
   // the project's folder doesn't exist yet: the files wait and go into it once it is created
   const tray = attachTray({ deferred: true });
-  const extra = h('div', { class: 'flex flex-col gap-2.5' });
-  const hint = h('p.hint');
+  const extra = h('div', { class: 'flex flex-col gap-5' });
+  const hint = h('p.hint', { class: 'm-0' });
   // a blank name falls back to the repo's name (GitHub only); otherwise the server asks for one
   const repoName = () => (mode === 'github' && repo.value.trim().split('/').pop()?.replace(/\.git$/, '')) || '';
   const namePlaceholder = name.placeholder;
@@ -329,11 +329,11 @@ export async function openNewProject({ mode: startMode = 'new', onDone }: { mode
     if (picked || !backups?.length) return null;
     return h(
       'div',
-      { class: 'flex flex-col gap-2.5' },
+      { class: 'flex flex-col gap-2' },
       h('div.label', 'In your backups folder'),
       h(
         'div',
-        { class: 'flex max-h-[210px] flex-col gap-1.5 overflow-y-auto p-px' },
+        { class: 'flex max-h-[210px] flex-col gap-2 overflow-y-auto p-px' },
         backups.slice(0, 6).map((b) =>
           h(
             'button',
@@ -454,7 +454,7 @@ Look at the project folder and help me set it up: ask me what you need to know f
   };
   const createBtn = h('button.btn', { onclick: (e) => create(e.currentTarget) }, 'Create project');
   const kickoffRow = h('label', { class: 'flex cursor-pointer flex-wrap items-center gap-2' }, kickoff, h('span', 'Let the Brain set it up (PROJECT.md, teams and agents)'));
-  const filesRow = h('div', h('div.label', 'Files'), h('div', { class: 'mt-3.5 flex flex-col gap-2' }, tray.el, h('div', { class: 'flex flex-wrap items-center gap-2' }, tray.picker, h('span.hint', 'Briefs, docs, assets: drop or paste files or folders anywhere here. They go into the project folder and the Brain reads them.'))));
+  const filesRow = h('div', h('div.label', 'Files'), h('div', { class: 'mt-2 flex flex-col gap-3' }, tray.el, h('div', { class: 'flex flex-wrap items-center gap-2' }, tray.picker, h('span.hint', 'Briefs, docs, assets: drop or paste files or folders anywhere here. They go into the project folder and the Brain reads them.'))));
   const modes = () =>
     seg(
       [
@@ -476,8 +476,8 @@ Look at the project folder and help me set it up: ask me what you need to know f
     narrow: true,
     body: h(
       'div',
-      { class: 'flex flex-col gap-2.5' },
-      h('p.hint', 'A project has its own agents, teams and chats, and a Brain: a folder with all its files and info.'),
+      { class: 'flex flex-col gap-5' },
+      h('p.hint', { class: 'm-0' }, 'A project has its own agents, teams and chats, and a Brain: a folder with all its files and info.'),
       field('Name', name),
       field('What is this project?', about, 'The Brain reads this, looks at the folder and asks you what it needs to know.'),
       modeBox,
@@ -529,10 +529,10 @@ Look at the project folder and help me set it up: ask me what you need to know f
 }
 
 // The start screen's project cards. They rise in one after another (the first few, a little apart).
-const L_LIST = 'flex max-h-[52vh] flex-col gap-2 overflow-y-auto p-0.5';
+const L_LIST = 'flex max-h-[52vh] flex-col gap-2.5 overflow-y-auto p-0.5';
 const L_CARD =
-  'flex w-full cursor-pointer items-center gap-3.5 rounded-[12px] border bg-panel/80 px-3.5 py-3 text-left text-ink [transition:border-color_0.18s,transform_0.18s,background_0.18s] hover:bg-[color-mix(in_srgb,var(--color-accent)_6%,var(--color-panel))] hover:[transform:translateY(-1px)]';
-const L_CARD_PLAIN = 'border-line hover:border-accent';
+  'flex w-full cursor-pointer items-center gap-4 rounded-box border bg-panel px-4 py-3.5 text-left text-ink [transition:border-color_0.18s,background_0.18s] hover:bg-panel-2';
+const L_CARD_PLAIN = 'border-line hover:border-line-2';
 // the project open now: its border stays lit
 const L_CARD_CUR = 'border-[color-mix(in_srgb,var(--color-accent)_45%,var(--color-line))]';
 const L_RISE = [
@@ -545,9 +545,9 @@ const L_RISE = [
 const L_ICO = 'grid h-10 w-10 flex-none place-items-center rounded-box bg-accent/10 text-accent';
 const L_ICO_LOGO = 'grid h-13 w-13 flex-none place-items-center rounded-box bg-ink/5 text-accent [&_.proj-logo]:rounded-[8px]';
 const L_NAME = 'flex items-center gap-2 text-[15px] font-semibold';
-const L_META = 'mt-1.25 flex flex-wrap gap-3 text-[12px] text-dim *:inline-flex *:items-center *:gap-1';
-const L_PATH = 'mt-0.75 max-w-[480px] truncate font-mono text-[11px] leading-[normal] font-normal text-faint';
-const L_ACT = 'grid h-7 w-7 cursor-pointer place-items-center rounded-[6px] border border-line-2 bg-panel p-0 text-dim';
+const L_META = 'mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1 text-[12px] text-dim *:inline-flex *:items-center *:gap-1';
+const L_PATH = 'mt-1 max-w-[480px] truncate font-mono text-[11.5px] leading-[normal] font-normal text-faint';
+const L_ACT = 'grid h-7 w-7 cursor-pointer place-items-center rounded-ctl border border-line-2 bg-panel p-0 text-dim';
 
 // The start screen: pick a project you already have (with its agents and teams), add a project
 // folder found on this PC, or create a new one. Shown once each time the dashboard starts.
@@ -595,7 +595,7 @@ export async function openLauncher({ force = false }: { force?: boolean } = {}):
       void openLauncher({ force: true });
     };
     const btn = (ico: string, title: string, action: (x: ProjectRef) => Promise<boolean>, danger = false) =>
-      h('button', { class: `${L_ACT} ${danger ? 'hover:border-red hover:text-red' : 'hover:border-accent-dim hover:text-accent'}`, type: 'button', title: `${title} ${p.name}`, 'aria-label': `${title} ${p.name}`, onclick: () => void again(action) }, icon(ico, 14));
+      h('button', { class: `${L_ACT} ${danger ? 'hover:border-red hover:text-red' : 'hover:bg-panel-2 hover:text-ink'}`, type: 'button', title: `${title} ${p.name}`, 'aria-label': `${title} ${p.name}`, onclick: () => void again(action) }, icon(ico, 14));
     // the actions show when you point at the card (or tab to them)
     return h(
       'div',
@@ -609,13 +609,13 @@ export async function openLauncher({ force = false }: { force?: boolean } = {}):
     onClose: done,
     body: h(
       'div.launcher',
-      { class: 'flex min-w-[min(620px,86vw)] flex-col gap-2.5' },
-      h('p.hint', 'Each project has its own agents, teams, chats and a Brain folder, and is auto-saved into that folder. Pick one to load it, open a folder you saved before, or start a new one.'),
+      { class: 'flex min-w-[min(620px,86vw)] flex-col gap-4' },
+      h('p.hint', { class: 'm-0' }, 'Each project has its own agents, teams, chats and a Brain folder, and is auto-saved into that folder. Pick one to load it, open a folder you saved before, or start a new one.'),
       h('div', { class: L_LIST }, o.projects.map(row)),
       o.found.length
         ? h(
             'div',
-            { class: 'mt-3.5' },
+            { class: 'mt-2 flex flex-col gap-2.5' },
             h('div.label', 'Found on this PC'),
             h(
               'div',

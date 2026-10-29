@@ -29,7 +29,7 @@ export function compactionMark(item: CompactionItem, o: MarkOptions): HTMLElemen
     item.tokensBefore != null && item.tokensAfter != null ? `about ${kTokens(item.tokensBefore)} → ${kTokens(item.tokensAfter)} tokens` : item.tokensBefore != null ? `was about ${kTokens(item.tokensBefore)} tokens` : '',
     item.editedAt ? 'edited' : '',
   ].filter(Boolean);
-  const body = h('div', { class: 'mt-1.5 mb-1 flex flex-col gap-2 rounded-[8px] border border-line bg-panel-2 px-3 py-2.5 [&_.hint]:m-0' });
+  const body = h('div', { class: 'mt-2 mb-1 flex flex-col gap-3 rounded-ctl border border-line bg-panel-2 px-4 py-3.5 [&_.hint]:m-0' });
   const show = () => {
     if (engine) {
       mount(body, h('p.hint', 'Claude Code compacted its own memory of this chat here. It keeps that summary itself, so there is nothing to show or edit. Everything above is still in this chat.'));
@@ -48,7 +48,7 @@ export function compactionMark(item: CompactionItem, o: MarkOptions): HTMLElemen
       h('pre.cmp-text', { class: `m-0 overflow-auto font-mono text-[11.5px] leading-[1.5] whitespace-pre-wrap wrap-anywhere ${o.compact ? 'max-h-65' : 'max-h-[420px]'}` }, item.text),
       h(
         'div',
-        { class: 'flex flex-wrap items-center gap-1.5' },
+        { class: 'flex flex-wrap items-center gap-2' },
         canEdit ? h('button.btn.tiny', { disabled: o.busy, title: o.busy ? 'Wait until the agent is done' : 'Change what the agent remembers', onclick: edit }, 'Edit') : null,
         h('button.btn.tiny.ghost', { onclick: () => navigator.clipboard?.writeText(item.text).catch(() => {}) }, 'Copy'),
         h('span.hint', `${item.text.length.toLocaleString()} characters`),
@@ -69,14 +69,14 @@ export function compactionMark(item: CompactionItem, o: MarkOptions): HTMLElemen
       body,
       h('p.hint', 'Edit what the agent remembers of the messages above. Its next message works from this text.'),
       ta,
-      h('div', { class: 'flex flex-wrap items-center gap-1.5' }, h('button.btn.tiny', { onclick: save }, 'Save'), h('button.btn.tiny.ghost', { onclick: show }, 'Cancel')),
+      h('div', { class: 'flex flex-wrap items-center gap-2' }, h('button.btn.tiny', { onclick: save }, 'Save'), h('button.btn.tiny.ghost', { onclick: show }, 'Cancel')),
     );
     ta.focus();
   };
   show();
   return h(
     `details.compaction${o.compact ? '.small' : ''}${engine ? '.engine' : ''}`,
-    h('summary', { title: engine ? 'The engine compacted its own memory here' : 'Show what the agent remembers of the messages above' }, h('span', { class: RULE }), h('span.font-bold', 'COMPACTED'), h('span', { class: o.compact ? 'hidden' : 'min-w-0 truncate tracking-[0.02em] text-faint' }, facts.join(' · ')), h('span', { class: RULE })),
+    h('summary', { title: engine ? 'The engine compacted its own memory here' : 'Show what the agent remembers of the messages above' }, h('span', { class: RULE }), h('span.font-medium', 'Compacted'), h('span', { class: o.compact ? 'hidden' : 'min-w-0 truncate text-faint' }, facts.join(' · ')), h('span', { class: RULE })),
     body,
   );
 }

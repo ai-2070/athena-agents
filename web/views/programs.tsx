@@ -1,10 +1,10 @@
 // Programs: what's installed and running on this PC, ComfyUI, and every Start Menu app.
 import { useCallback, useEffect, useState } from 'react';
 import { GET, POST, attempt, lightbox, toast, navigate } from '../core.ts';
-import { Field } from '../ui/controls.tsx';
+import { Field, SearchBox } from '../ui/controls.tsx';
 import { reactPage, useServerEvents } from '../ui/react.tsx';
 import type { Terminal } from '../../shared/types.ts';
-import { appIconUrl } from '../appicons.ts';
+import { appIconStyle, appIconUrl } from '../appicons.ts';
 
 /** One known program as GET /api/programs lists it (server/programs.ts discoverPrograms). */
 interface ProgramInfo {
@@ -141,8 +141,8 @@ export function ProgramsTab() {
   };
   return (
     <>
-      <div className="mb-3.5 flex flex-wrap items-center gap-2.5 justify-between">
-        <p className="lede m-0">{`Found ${progs.filter((p) => p.installed).length} programs. Agents can use the ones with tools; you can start any of them from here.`}</p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <p className="lede m-0 max-w-[68ch]">{`Found ${progs.filter((p) => p.installed).length} programs. Agents can use the ones with tools; you can start any of them from here.`}</p>
         <button className="btn ghost small" onClick={() => void load(true)}>Scan again</button>
       </div>
       {comfy ? <ComfyPanel comfy={comfy} rescan={() => void load(true)} /> : null}
@@ -150,7 +150,7 @@ export function ProgramsTab() {
         const list = progs.filter((p) => p.category === cat && p.installed);
         if (!list.length) return null;
         return (
-          <div key={cat} className="mt-7">
+          <div key={cat} className="mt-10">
             <h2 className="section">{label}</h2>
             <div className="cards">
               {list.map((p) => {
@@ -158,7 +158,7 @@ export function ProgramsTab() {
                 return (
                   <div key={p.id} className="card" data-prog={p.id}>
                     <div className="card-top">
-                      <div className="avatar">{appIconUrl(p.id) ? <img className="inline-block align-middle" src={appIconUrl(p.id)!} width={22} height={22} alt="" /> : p.icon}</div>
+                      <div className="avatar after:hidden">{appIconUrl(p.id) ? <img className="app-icon inline-block align-middle" src={appIconUrl(p.id)!} width={22} height={22} alt="" style={appIconStyle(p.id, 22)} /> : p.icon}</div>
                       <div className="min-w-0 flex-1">
                         <div className="card-title">{p.name}</div>
                         <div className="hint prog-state">{progState(p, isStarting)}</div>
@@ -180,13 +180,13 @@ export function ProgramsTab() {
           </div>
         );
       })}
-      <div className="mt-7">
+      <div className="mt-10">
         <h2 className="section">Not found</h2>
-        <p className="hint">
+        <p className="hint max-w-[68ch]">
           {progs.filter((p) => !p.installed).map((p) => p.name).join(', ') || 'Everything in the catalog was found.'} Set custom paths in Settings.
         </p>
       </div>
-      <div className="mt-7">
+      <div className="mt-10">
         <h2 className="section">All apps (Start Menu)</h2>
         <AllApps />
       </div>
@@ -203,12 +203,10 @@ function AllApps() {
   const shown = apps.filter((a) => !ql || a.name.toLowerCase().includes(ql) || a.folder.toLowerCase().includes(ql)).slice(0, 120);
   return (
     <>
-      <div className="mb-3 max-w-[420px]">
-        <input placeholder={`Search ${apps.length} apps`} aria-label="Search the Start Menu apps" value={query} onChange={(e) => setQuery(e.target.value)} />
-      </div>
-      <div className="cards prog-apps grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
+      <SearchBox className="mb-4 max-w-[420px]" placeholder={`Search ${apps.length} apps`} label="Search the Start Menu apps" value={query} onChange={setQuery} />
+      <div className="cards prog-apps grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
         {shown.map((a) => (
-          <div key={a.shortcut || a.name} className="card flex-row items-center px-3 py-2.5">
+          <div key={a.shortcut || a.name} className="card flex-row items-center gap-3 px-4 py-3">
             <div className="min-w-0 flex-1">
               <div className="prog-app-name text-[14px] font-semibold">{a.name}</div>
               {a.folder ? <div className="hint">{a.folder}</div> : null}
@@ -241,7 +239,7 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
     <div className="panel">
       <div className="panel-head">
         <h2 className="flex items-center gap-2">
-          <img className="app-icon" src={appIconUrl('comfyui')!} width={20} height={20} alt="" /> ComfyUI
+          <img className="app-icon" src={appIconUrl('comfyui')!} width={20} height={20} alt="" style={appIconStyle('comfyui', 20)} /> ComfyUI
         </h2>
         <span className={`pill${st.running ? ' ok' : ''}`}>{st.running ? `running · ${st.url}` : 'not running'}</span>
         {device ? <span className="pill">{`${device.name.replace(/^cuda:\d+\s*/, '').slice(0, 40)} · ${device.vramFreeGB}/${device.vramTotalGB} GB free`}</span> : null}
@@ -254,8 +252,8 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
         </div>
       </div>
       {comfy.workflows.length ? (
-        <div className="flex flex-col gap-2.5">
-          <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
             <Field label="Workflow">
               <select value={workflow} onChange={(e) => setWorkflow(e.target.value)}>
                 {comfy.workflows.map((w) => (
@@ -266,7 +264,7 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
             <div />
           </div>
           <textarea rows={2} aria-label="Prompt" placeholder="Prompt (replaces the positive prompt in the workflow)" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-3">
             <button className="btn" disabled={running} onClick={() => void run()}>{running ? 'Running…' : 'Run'}</button>
             <span className="hint">{st.running ? 'Images appear below. Agents with the ComfyUI tools can do the same.' : 'Start ComfyUI first.'}</span>
           </div>

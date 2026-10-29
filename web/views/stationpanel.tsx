@@ -98,29 +98,29 @@ function Panel({ api, subscribe, version }: { api: StationPanelApi; subscribe: (
 
 // (st-panel-title stays as a mark the tests look for)
 const TITLE = 'st-panel-title font-sans text-[16px] leading-[1.25] font-bold';
-const BODY = 'min-h-0 flex-1 overflow-y-auto px-4 pt-3.5 pb-4.5';
+const BODY = 'min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-5';
 // a row in the connection and team lists (st-conn stays as a mark the tests look for)
 const CONN =
-  'st-conn flex w-full cursor-pointer items-center gap-2.5 rounded-box border border-line bg-bg px-2 py-1.5 text-left text-[13px] text-ink [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] hover:border-line-2';
-const CONNS = 'mt-2 flex flex-col gap-1';
+  'st-conn flex w-full cursor-pointer items-center gap-2.5 rounded-box border border-line bg-bg px-3 py-2.5 text-left text-[13px] text-ink [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] hover:border-line-2';
+const CONNS = 'mt-3 flex flex-col gap-2';
 // a file or folder in the Brain list (st-file stays as a mark the tests look for); one that opens is a button that lights up
 const FILE = 'st-file flex min-w-0 items-center gap-1.5 overflow-hidden py-0.5 text-left text-[12.5px] text-ellipsis whitespace-nowrap text-dim';
 const FILE_OPENS = `${FILE} group cursor-pointer rounded-[4px] border-0 bg-transparent px-0 [transition:color_0.18s_cubic-bezier(0.37,0,0.63,1),translate_0.18s_cubic-bezier(0.37,0,0.63,1)] hover:translate-x-1 hover:text-accent focus-visible:text-accent`;
 const FILE_ICON = 'flex-none text-faint transition-colors duration-180 ease-[cubic-bezier(0.37,0,0.63,1)] group-hover:text-accent group-focus-visible:text-accent';
 // the Brain's three numbers
-const STAT = 'flex flex-col gap-0.75 rounded-box border border-line p-2 font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.1em] text-dim uppercase';
-const STAT_N = 'font-sans text-[20px] leading-[normal] font-bold tracking-normal text-ink';
+const STAT = 'flex flex-col gap-1 rounded-box border border-line p-3 text-[12px] leading-[normal] font-medium text-dim';
+const STAT_N = 'font-sans text-[24px] leading-[normal] font-semibold tabular-nums tracking-tight text-ink';
 // a round face on the team panel (its border colour is added where it's used)
 const FACE =
   'relative grid size-9 cursor-pointer place-items-center rounded-full border bg-bg p-0 [transition:transform_0.15s,border-color_0.15s] hover:[transform:translateY(-2px)] hover:border-accent [&_.avatar]:size-8 [&_.avatar]:rounded-full [&_.avatar]:text-[16px]';
 // the @, ★ and ✕ buttons on a member (the lead's ★ stays gold, even on hover)
-const MEMBER_ACT = 'size-6.5 cursor-pointer rounded-[6px] border border-line font-mono text-[12px] leading-[normal] font-semibold text-dim hover:border-line-2 hover:text-ink';
-const MEMBER_ACT_ON = 'size-6.5 cursor-pointer rounded-[6px] border border-[#ffcc5566] font-mono text-[12px] leading-[normal] font-semibold text-[#ffcc55]';
-const LEAD_STAR = 'absolute -top-1.25 -right-1 text-[12px] text-[#ffcc55] [text-shadow:0_0_6px_rgba(255,204,85,0.7)]';
+const MEMBER_ACT = 'size-7 cursor-pointer rounded-ctl border border-line text-[12px] leading-[normal] font-medium text-dim hover:bg-panel-2 hover:text-ink';
+const MEMBER_ACT_ON = 'size-7 cursor-pointer rounded-ctl border border-amber/40 bg-amber/10 text-[12px] leading-[normal] font-medium text-amber';
+const LEAD_STAR = 'absolute -top-1.25 -right-1 text-[12px] text-amber';
 
 function PanelHead({ api, children }: { api: StationPanelApi; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-3 border-b border-line px-4 py-3.5">
+    <div className="flex items-center gap-3 border-b border-line px-5 py-4">
       {children}
       <button className="icon-btn" onClick={() => api.choose(null)} aria-label="Close">
         ✕
@@ -134,7 +134,8 @@ function Mark({ id, size }: { id: string; size: number }) {
   return <DomNode as="span" className="dom-contents" make={() => toNode(mark(id, size))} deps={[id, size]} />;
 }
 const toNode = (x: Node | string): Node => (typeof x === 'string' ? document.createTextNode(x) : x);
-const badgeStyle = (color: string) => ({ '--c': color }) as CSSProperties;
+// (the badge's mark is its colour mixed toward the text colour, so a pale brand still reads on white)
+const badgeStyle = (color: string) => ({ '--c': color, color: 'color-mix(in srgb, var(--c) 72%, var(--color-ink))' }) as CSSProperties;
 
 /** The connections in ids, each with whether it is set up and running. */
 function ConnectionList({ api, d, ids }: { api: StationPanelApi; d: AppState; ids: Set<string> }) {
@@ -152,8 +153,8 @@ function ConnectionList({ api, d, ids }: { api: StationPanelApi; d: AppState; id
               <Mark id={id} size={12} />
             </span>
             <span className="grow min-w-0 flex-1">{info.label}</span>
-            <span className={`font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.1em] uppercase ${!a ? 'text-red' : a.live ? 'text-accent' : 'text-amber'}`}>
-              {!a ? 'not set up' : a.live ? 'ready' : 'not running'}
+            <span className={`text-[12px] leading-[normal] font-medium ${!a ? 'text-red' : a.live ? 'text-ok' : 'text-amber'}`}>
+              {!a ? 'Not set up' : a.live ? 'Ready' : 'Not running'}
             </span>
           </button>
         );
@@ -267,7 +268,7 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
         {proj.logoAt ? (
           <DomNode as="span" className="grid size-10.5 flex-none place-items-center rounded-box bg-ink/5" make={() => projectMark(proj as Project, 34)} deps={[proj.id, proj.logoAt]} />
         ) : (
-          <span className="st-badge lg" style={badgeStyle('#c4ff3d')}>
+          <span className="st-badge lg" style={badgeStyle('var(--color-accent)')}>
             <Icon name="brain" size={18} />
           </span>
         )}
@@ -953,8 +954,8 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
 /** One boxed part of the team's Setup: an icon and a title, a short line under it, then its content. */
 function SetupBox({ icon, title, hint, children }: { icon: string; title: string; hint?: string; children: ReactNode }) {
   return (
-    <section className="rounded-box border border-line bg-bg/40 p-3.5">
-      <div className="flex items-center gap-2 font-mono text-[11px] font-semibold tracking-[0.16em] text-dim uppercase">
+    <section className="rounded-box border border-line bg-bg p-4">
+      <div className="flex items-center gap-2.5 text-[13px] font-semibold text-ink">
         <span className="grid size-6 flex-none place-items-center rounded-[7px] bg-accent/10 text-accent">
           <Icon name={icon} size={13} />
         </span>
@@ -982,7 +983,7 @@ function SymbolPicker({ api, wf }: { api: StationPanelApi; wf: TeamView }) {
           return (
             <button
               key={e}
-              className={`grid h-11 cursor-pointer place-items-center rounded-ctl border text-[21px] leading-none [transition:border-color_0.15s,background-color_0.15s,transform_0.15s] hover:-translate-y-px hover:border-accent-dim ${on ? 'border-accent bg-accent/10 shadow-[0_0_0_1px_var(--color-accent)]' : 'border-line-2 bg-panel'}`}
+              className={`grid h-11 cursor-pointer place-items-center rounded-ctl border text-[21px] leading-none [transition:border-color_0.15s,background-color_0.15s,transform_0.15s] hover:-translate-y-px hover:border-accent-dim ${on ? 'border-accent bg-accent/10' : 'border-line-2 bg-panel'}`}
               title={e}
               aria-pressed={on}
               onClick={() => void setEmoji(e)}
@@ -1026,7 +1027,7 @@ function ModelSection({ a }: { a: Agent }) {
     }
   };
   return (
-    <div className="mt-3.5 flex flex-col gap-2 rounded-box border border-line bg-[rgba(7,8,7,0.5)] p-3">
+    <div className="mt-4 flex flex-col gap-2 rounded-box border border-line bg-panel-2 p-4">
       <div className="label">Model</div>
       <div className="flex items-center gap-3">
         <DomNode as="span" className="dom-contents" make={() => (mi.brand && logo(mi.brand, 22)) || icon('cpu', 22)} deps={[mi.brand]} />
@@ -1196,7 +1197,7 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
               {connectors.map((c) => {
                 const look = connectorLook(c.name);
                 return (
-                  <span key={c.id || c.name} className="st-badge" style={badgeStyle(c.status === 'connected' ? look.color : '#555850')} title={`${c.name}: ${c.status === 'connected' ? 'connected' : 'needs sign-in'}`}>
+                  <span key={c.id || c.name} className="st-badge" style={badgeStyle(c.status === 'connected' ? look.color : 'var(--color-faint)')} title={`${c.name}: ${c.status === 'connected' ? 'connected' : 'needs sign-in'}`}>
                     <DomNode as="span" className="dom-contents" make={() => appLogo(c.name, 11) || document.createTextNode(look.glyph)} deps={[c.name]} />
                   </span>
                 );

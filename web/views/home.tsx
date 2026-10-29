@@ -2,9 +2,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, attempt, ago, navigate, approvalCard } from '../core.ts';
-import { Avatar, DomNode, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { Avatar, DomNode, Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import type { ActivityEntry, AppState, Chat } from '../../shared/types.ts';
-import { appIconUrl } from '../appicons.ts';
+import { appIconStyle, appIconUrl } from '../appicons.ts';
 
 /** One entry of GET /api/programs (only the fields this page reads). */
 interface ProgramInfo {
@@ -22,7 +22,7 @@ interface LibraryStarters {
 }
 
 const SERVICES = ['comfyui', 'lmstudio', 'ollama', 'netdesk', 'orca', 'blender', 'premiere', 'photoshop'];
-const KIND_ICON: Record<string, string> = { run: '◉', error: '✕', approval: '!', social: '⟁', workflow: '⇢', program: '▣', mcp: '⌁', library: '▤', terminal: '›', system: '·', notify: '✉' };
+const KIND_ICON: Record<string, string> = { run: 'play', error: 'circle-x', approval: 'hand', social: 'send', workflow: 'workflow', program: 'monitor', mcp: 'plug', library: 'store', terminal: 'terminal', system: 'clock', notify: 'bell', skill: 'puzzle' };
 /** The newest activity kept on the page. */
 const KEEP = 200;
 
@@ -44,22 +44,22 @@ function HomePage() {
   const services = (progs || []).filter((p) => p.installed && SERVICES.includes(p.id));
   return (
     <>
-      <div className="stats grid grid-cols-4 gap-3 mb-4.5 max-lg:grid-cols-2">
+      <div className="stats mb-8 grid grid-cols-4 gap-4 max-lg:grid-cols-2">
         <Stat label="Agents" num={agents.length} href="#/agents" />
         <Stat label="Working now" num={d.runs.length} kind={d.runs.length ? 'live' : ''} />
         <Stat label="Needs you" num={needs} kind={needs ? 'hot' : ''} onClick={() => document.getElementById('drawer')!.classList.remove('hidden')} />
         <Stat label="X accounts" num={d.accounts.x.length} href="#/settings?tab=connections" />
       </div>
       {!agents.length ? <Onboarding d={d} /> : null}
-      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
-        <div className="flex flex-col gap-4.5">
+      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-6 max-lg:grid-cols-1">
+        <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
           {agents.length ? <QuickTask d={d} /> : null}
           {d.approvals.length ? (
             <div className="panel">
               <div className="panel-head">
                 <h2>Needs you</h2>
               </div>
-              <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-3">
                 {d.approvals.map((a) => (
                   <DomNode key={a.id} make={() => approvalCard(a)} deps={[JSON.stringify(a)]} />
                 ))}
@@ -117,7 +117,7 @@ function HomePage() {
             </div>
           ) : null}
         </div>
-        <div className="flex flex-col gap-4.5">
+        <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
           <div className="panel">
             <div className="panel-head">
               <h2>Programs</h2>
@@ -129,7 +129,7 @@ function HomePage() {
               <div className="list">
                 {services.map((p) => (
                   <div key={p.id} className="list-row">
-                    <span className="w-5.5 text-center">{appIconUrl(p.id) ? <img className="inline-block align-middle" src={appIconUrl(p.id)!} width={20} height={20} alt="" /> : p.icon}</span>
+                    <span className="w-6 text-center">{appIconUrl(p.id) ? <img className="app-icon inline-block align-middle" src={appIconUrl(p.id)!} width={20} height={20} alt="" style={appIconStyle(p.id)} /> : p.icon}</span>
                     <div className="flex-1 min-w-0">
                       <div className="title">{p.name}</div>
                       <div className="hint">{p.running ? (p.serviceUrl ? `running · ${p.serviceUrl}` : 'running') : p.version ? `v${p.version}` : 'installed'}</div>
@@ -150,9 +150,11 @@ function HomePage() {
               {activity.length ? (
                 activity.slice(0, 40).map((a, i) => (
                   <div key={`${a.ts}:${i}`} className="list-row">
-                    <span className={a.kind === 'error' ? 'font-mono w-4 text-center text-red' : 'font-mono w-4 text-center text-faint'}>{KIND_ICON[a.kind] || '·'}</span>
+                    <span className={`flex-none ${a.kind === 'error' ? 'text-red' : 'text-faint'}`}>
+                      <Icon name={KIND_ICON[a.kind] || 'clock'} size={15} />
+                    </span>
                     <div className="home-activity flex-1 min-w-0 text-[13.5px]">{a.text}</div>
-                    <span className="font-mono text-faint whitespace-nowrap text-[11px]">{ago(a.ts)}</span>
+                    <span className="whitespace-nowrap text-[12px] text-faint tabular-nums">{ago(a.ts)}</span>
                   </div>
                 ))
               ) : (
@@ -166,21 +168,24 @@ function HomePage() {
   );
 }
 
-const NUM = "num font-sans text-[28px] leading-none font-bold [font-feature-settings:'tnum'] mt-2";
+const NUM = 'num mt-3.5 text-[28px] leading-none font-semibold tracking-tight text-ink tabular-nums';
 
-/** A number at the top. With href or onClick it is a link or a button to where that number lives. */
+/** A number at the top. With href or onClick it is a link or a button to where that number lives.
+ *  kind: live (something is running) or hot (it needs you) put a small dot by the caption. */
 function Stat({ label, num, kind = '', href, onClick }: { label: string; num: number; kind?: string; href?: string; onClick?: () => void }) {
   // stat and num stay for the tests
-  const cls = href || onClick ? 'stat bg-panel border border-line rounded-box py-3.5 px-4 block w-full cursor-pointer text-inherit text-left [font:inherit] hover:border-accent-dim' : 'stat bg-panel border border-line rounded-box py-3.5 px-4';
-  const numCls = kind === 'hot' ? `${NUM} text-amber` : kind === 'live' ? `${NUM} text-accent` : NUM;
+  const base = 'stat block w-full rounded-box border border-line bg-panel px-5 py-4 text-left text-ink shadow-card [font:inherit]';
+  const cls = href || onClick ? `${base} cursor-pointer transition-colors hover:bg-panel-2 hover:text-ink` : base;
   const body: ReactNode = (
     <>
-      <div className="label">{label}</div>
-      <div className={numCls}>{num}</div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="label">{label}</div>
+        {kind === 'live' ? <span className="dot busy" aria-hidden="true" /> : kind === 'hot' ? <span className="dot warn" aria-hidden="true" /> : null}
+      </div>
+      <div className={NUM}>{num}</div>
     </>
   );
-  // (a link's text takes the page's link hover color, as links do everywhere)
-  if (href) return <a className={`${cls} hover:text-accent-hover`} href={href}>{body}</a>;
+  if (href) return <a className={cls} href={href}>{body}</a>;
   if (onClick) return <button type="button" className={cls} onClick={onClick}>{body}</button>;
   return <div className={cls}>{body}</div>;
 }
@@ -211,7 +216,7 @@ function QuickTask({ d }: { d: AppState }) {
           ))}
         </select>
       </div>
-      <div className="mt-3.5">
+      <div className="mt-4">
         <textarea
           ref={box}
           rows={3}
@@ -222,7 +227,7 @@ function QuickTask({ d }: { d: AppState }) {
           onKeyDown={(e) => e.key === 'Enter' && (e.ctrlKey || e.metaKey) && void send()}
         />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2.5 mt-3.5">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <span className="hint">Opens a new chat with that agent.</span>
         <button className="btn" onClick={() => void send()}>Send</button>
       </div>
@@ -246,16 +251,16 @@ function Onboarding({ d }: { d: AppState }) {
     { done: false, text: 'Give agents more abilities: browser control, files, GitHub and any MCP server.', href: '#/settings?tab=mcp', cta: 'Tools & MCP' },
   ];
   return (
-    <div className="panel mb-4 border-accent-dim">
+    <div className="panel mb-8">
       <div className="panel-head">
         <h2>Get started</h2>
       </div>
       <ol className="list home-steps">
         {steps.map((s, i) => (
           <li key={s.cta} className="list-row">
-            <span className={s.done ? 'font-mono text-accent' : 'font-mono text-faint'} aria-label={s.done ? 'done' : `step ${i + 1}`}>{s.done ? '✓' : `0${i + 1}`}</span>
+            <span className={`w-6 text-[13px] tabular-nums ${s.done ? 'text-ok' : 'text-faint'}`} aria-label={s.done ? 'done' : `step ${i + 1}`}>{s.done ? '✓' : `0${i + 1}`}</span>
             <div className="flex-1 min-w-0">{s.text}</div>
-            {i === 1 ? <button className="btn small" disabled={adding} onClick={() => void addStarterTeam()}>Add Blacksite team</button> : null}
+            {i === 1 ? <button className="btn small" disabled={adding} onClick={() => void addStarterTeam()}>Add Athena team</button> : null}
             <a className="btn ghost small" href={s.href}>{s.cta}</a>
           </li>
         ))}

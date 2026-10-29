@@ -111,16 +111,16 @@ export function modelInfo(a: ModelTarget): ModelInfo {
 }
 
 // the model chip; model-chip stays as a marker (the Brain chat and the Station panel style it from outside)
-const CHIP = 'inline-flex items-center gap-1.5 py-1 px-2.25 border border-line-2 rounded-full bg-[rgba(7,8,7,0.6)] text-ink font-sans text-[12px] font-semibold leading-[normal] cursor-pointer [transition:border-color_0.18s,background-color_0.18s] hover:border-accent-dim hover:bg-accent/7 [&_.ico-svg]:text-dim';
+const CHIP = 'inline-flex items-center gap-2 whitespace-nowrap py-1.5 px-3 border border-line-2 rounded-full bg-panel text-ink font-sans text-[12.5px] font-medium leading-[normal] cursor-pointer [transition:border-color_0.18s,background-color_0.18s] hover:bg-panel-2 [&_.ico-svg]:text-dim';
 // the search box over a list (the skill picker has one too)
-export const SEARCH = 'model-search mt-1 mb-1.5 px-2.25 py-1.75 text-[13px]';
+export const SEARCH = 'model-search mt-1 mb-2 px-3 py-2 text-[13.5px]';
 const chipIcon = (mi: ModelInfo, engine: string): SVGSVGElement | HTMLSpanElement => (mi.brand && logo(mi.brand, 13)) || (GLYPH[engine] ? h('span', { class: 'text-[13px] leading-[13px]' }, GLYPH[engine]) : icon('cpu', 13));
 
 /** The effort a target runs at, as its engine takes it ('' = the model's default). */
 export const effortOf = (a: ModelTarget): Effort | '' => effortFor(a.engine, a.effort, a.provider);
 const effortTag = (a: ModelTarget) => {
   const e = effortOf(a);
-  return e ? h('span', { class: 'font-sans text-[10px] font-semibold leading-[15px] text-accent border border-accent-dim rounded-full px-1.5', title: `Effort: ${EFFORT_NAMES[e]}` }, EFFORT_NAMES[e]) : null;
+  return e ? h('span', { class: 'font-sans text-[10.5px] font-medium leading-[15px] text-accent border border-accent-dim rounded-full px-1.5', title: `Effort: ${EFFORT_NAMES[e]}` }, EFFORT_NAMES[e]) : null;
 };
 /** "Claude Opus 5.5" or "Claude Opus 5.5 (high effort)" */
 const withEffort = (a: ModelTarget) => {
@@ -245,7 +245,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   // the engine the effort row is for: on Favorites, the one in use
   const tabEngine = (): EngineId => (tab === 'fav' ? cur.engine : tab === 'lmstudio' ? 'openai' : tab);
   const body = h('div.model-body', { class: 'max-h-95 overflow-y-auto' });
-  const effortBox = h('div', { class: 'px-1.5 pb-2 border-b border-line mb-1' });
+  const effortBox = h('div', { class: 'px-2 pb-3 border-b border-line mb-1.5' });
   const pick = (choice: ModelChoice) => (close(), apply({ ...choice, effort: effortFor(choice.engine, effort, choice.provider) }));
   const star = (choice: ModelChoice) => {
     const btn = h('button.model-fav', { class: 'flex-none grid place-items-center size-7 mr-0.5 rounded-[6px] text-faint cursor-pointer opacity-0 [transition:opacity_.15s,color_.15s,background_.15s] group-hover:opacity-100 focus-visible:opacity-100 hover:text-accent hover:bg-panel-2 [&.on]:opacity-100 [&.on]:text-accent [&.on_.ico-svg]:fill-current [@media(hover:none)]:opacity-100', type: 'button' });
@@ -313,7 +313,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
       h(
         `button.model-effort-level${shown === value ? '.on' : ''}`,
         {
-          class: 'flex-1 min-w-0 py-1.25 px-0.5 border border-line rounded-ctl text-dim font-sans text-[11px] font-medium leading-[normal] cursor-pointer whitespace-nowrap [transition:border-color_.15s,color_.15s,background_.15s] hover:text-ink hover:border-line-2 [&.on]:border-accent [&.on]:text-ink [&.on]:bg-accent/10',
+          class: 'flex-1 min-w-0 py-1.5 px-0.5 border border-line rounded-ctl text-dim font-sans text-[12px] font-medium leading-[normal] cursor-pointer whitespace-nowrap [transition:border-color_.15s,color_.15s,background_.15s] hover:text-ink hover:bg-panel-2 [&.on]:border-accent [&.on]:text-accent [&.on]:bg-accent/10',
           type: 'button',
           title: value ? `${EFFORT_NAMES[value]} effort` : "The model's own default",
           'aria-pressed': String(shown === value),
@@ -335,8 +335,8 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
       );
     mount(
       effortBox,
-      h('div', { class: 'flex items-center gap-1.5 px-1 pb-1.25 font-sans text-[11px] font-semibold leading-[normal] text-dim' }, icon('gauge', 13), h('span', 'Effort'), h('span', { class: 'ml-auto font-normal text-faint' }, live ? 'how hard it thinks' : 'for the model you pick here')),
-      h('div', { class: 'flex gap-0.75', role: 'group', 'aria-label': 'Effort' }, level(''), effortLevels(engine, provider).map(level)),
+      h('div', { class: 'flex items-center gap-1.5 px-1 pb-2 font-sans text-[12px] font-medium leading-[normal] text-dim' }, icon('gauge', 13), h('span', 'Effort'), h('span', { class: 'ml-auto font-normal text-faint' }, live ? 'how hard it thinks' : 'for the model you pick here')),
+      h('div', { class: 'flex gap-1', role: 'group', 'aria-label': 'Effort' }, level(''), effortLevels(engine, provider).map(level)),
     );
   };
 
@@ -433,7 +433,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
     mount(body, items);
   };
 
-  const tabs = h('div', { class: 'grid grid-cols-[repeat(auto-fill,minmax(66px,1fr))] gap-1 pt-1 px-1.5 pb-2' });
+  const tabs = h('div', { class: 'grid grid-cols-[repeat(auto-fill,minmax(66px,1fr))] gap-1.5 pt-1 px-2 pb-3' });
   const drawTabs = (): HTMLDivElement => {
     const shown: ModelTab[] = favs().length ? [{ engine: 'fav', label: 'Favorites', brand: null }, ...myTabs] : myTabs;
     return mount(
@@ -442,7 +442,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
         h(
           `button.model-tab${tab === t.engine ? '.on' : ''}${curTab === t.engine ? '.cur' : ''}`,
           {
-            class: "flex flex-col items-center gap-0.75 py-1.75 px-0.5 border border-line rounded-[8px] text-dim font-sans text-[10.5px] font-medium leading-[normal] cursor-pointer [transition:border-color_.15s,color_.15s,background_.15s] hover:text-ink [&.on]:border-accent [&.on]:text-ink [&.on]:bg-accent/10 [&.cur]:after:content-[''] [&.cur]:after:size-1.25 [&.cur]:after:rounded-full [&.cur]:after:bg-accent",
+            class: "flex flex-col items-center gap-1 py-2 px-0.5 border border-line rounded-[8px] text-dim font-sans text-[11.5px] font-medium leading-[normal] cursor-pointer [transition:border-color_.15s,color_.15s,background_.15s] hover:text-ink hover:bg-panel-2 [&.on]:border-accent [&.on]:text-accent [&.on]:bg-accent/10 [&.cur]:after:content-[''] [&.cur]:after:size-1.25 [&.cur]:after:rounded-full [&.cur]:after:bg-accent",
             type: 'button',
             title: curTab === t.engine ? `${t.label} (in use)` : t.label,
             onclick: (e: MouseEvent) => (e.stopPropagation(), (tab = t.engine), drawTabs(), drawEffort(), drawBody()),
@@ -464,6 +464,6 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   const R = { left: r.left / z, top: r.top / z, bottom: r.bottom / z };
   const height = Math.min(600, menu.offsetHeight || 480);
   const below = R.bottom + 6 + height < H - 10;
-  Object.assign(menu.style, { position: 'fixed', left: `${Math.max(10, Math.min(R.left, W - 330))}px`, top: `${below ? R.bottom + 6 : Math.max(10, R.top - 6 - height)}px`, transform: 'none', zIndex: 95 });
+  Object.assign(menu.style, { position: 'fixed', left: `${Math.max(10, Math.min(R.left, W - 350))}px`, top: `${below ? R.bottom + 6 : Math.max(10, R.top - 6 - height)}px`, transform: 'none', zIndex: 95 });
   setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
 }

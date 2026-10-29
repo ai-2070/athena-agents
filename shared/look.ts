@@ -11,7 +11,7 @@ export interface ChatFont {
   stack: string;
 }
 export const CHAT_FONTS: ChatFont[] = [
-  { id: 'sans', label: 'Archivo', like: 'The same font as the rest of the page (the default)', stack: "'Archivo', 'Segoe UI', system-ui, sans-serif" },
+  { id: 'sans', label: 'Inter', like: 'The same font as the rest of the page (the default)', stack: "'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif" },
   { id: 'serif', label: 'Merriweather', like: 'A book-like serif', stack: "'Merriweather', Georgia, 'Times New Roman', serif" },
   { id: 'mono', label: 'JetBrains Mono', like: 'Like Claude Code in a terminal', stack: "'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" },
   { id: 'system', label: 'System font', like: 'Like ChatGPT: your computer’s own font (Segoe UI on Windows, San Francisco on a Mac)', stack: "ui-sans-serif, -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif" },

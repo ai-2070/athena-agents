@@ -31,7 +31,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, attrs: R
 };
 
 export function zoomView(src: string, name: string): ZoomView {
-  const box = el('div', 'zoom-box relative flex h-[calc(100vh-210px)] min-h-50 w-full touch-none items-center justify-center overflow-hidden rounded-[8px] bg-black/40 select-none', { tabindex: '0', 'aria-label': `${name}. Click, scroll or pinch to zoom.` });
+  const box = el('div', 'zoom-box relative flex h-[calc(100vh-210px)] min-h-50 w-full touch-none items-center justify-center overflow-hidden rounded-ctl bg-panel-2 select-none', { tabindex: '0', 'aria-label': `${name}. Click, scroll or pinch to zoom.` });
   const img = el('img', 'block max-h-full max-w-full cursor-zoom-in object-contain will-change-transform', { src, alt: name, draggable: 'false' });
   box.append(img);
 
@@ -41,7 +41,7 @@ export function zoomView(src: string, name: string): ZoomView {
     b.addEventListener('click', onClick);
     return b;
   };
-  const level = el('button', 'btn ghost small min-w-16 font-mono tabular-nums', { type: 'button', title: 'Fit to the window (0)' });
+  const level = el('button', 'btn ghost small min-w-16 tabular-nums', { type: 'button', title: 'Fit to the window (0)' });
   const full = el('a', 'btn ghost small ml-auto gap-1.5 no-underline', { href: src, target: '_blank', rel: 'noopener' });
   full.append(icon('external-link', 14), 'Open full size');
   const bar = el('div', 'mt-3 flex items-center gap-1.5');

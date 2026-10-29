@@ -33,12 +33,12 @@ export function skillPicker(current: readonly string[] | null | undefined, onCha
   const draw = () => {
     const lib = skillsCache();
     const by = new Map(lib.map((s) => [s.slug, s]));
-    const add = h('button', { class: 'inline-flex items-center gap-1.25 py-1 px-2.5 border border-dashed border-line-2 rounded-full text-dim cursor-pointer text-[12.5px] hover:text-accent hover:border-accent', type: 'button', onclick: (e) => openMenu(e.currentTarget) }, icon('plus', 13), 'Add skill');
+    const add = h('button', { class: 'inline-flex items-center gap-1.5 py-1 px-3 border border-dashed border-line-2 rounded-full text-dim cursor-pointer text-[12.5px] hover:text-ink hover:bg-ink/5', type: 'button', onclick: (e) => openMenu(e.currentTarget) }, icon('plus', 13), 'Add skill');
     mount(
       box,
       h(
         'div',
-        { class: 'flex flex-wrap gap-1.5 items-center' },
+        { class: 'flex flex-wrap gap-2 items-center' },
         list.map((slug) =>
           h(
             'span',
@@ -50,10 +50,10 @@ export function skillPicker(current: readonly string[] | null | undefined, onCha
         ),
         inherited
           .filter((x) => !list.includes(x.slug))
-          .map((x) => h('span', { class: 'inline-flex items-center gap-1.5 py-1 px-2.25 border border-dashed border-line-2 rounded-full text-[12.5px] text-dim', title: `${by.get(x.slug)?.description || ''}\nComes from ${x.from}` }, icon('puzzle', 12), by.get(x.slug)?.name || x.slug, h('span', { class: 'text-[10.5px] text-faint font-mono' }, x.from))),
+          .map((x) => h('span', { class: 'inline-flex items-center gap-1.5 py-1 px-2.25 border border-dashed border-line-2 rounded-full text-[12.5px] text-dim', title: `${by.get(x.slug)?.description || ''}\nComes from ${x.from}` }, icon('puzzle', 12), by.get(x.slug)?.name || x.slug, h('span', { class: 'text-[11.5px] text-faint' }, x.from))),
         add,
       ),
-      !list.length && !inherited.length ? h('div.hint', { class: 'mt-1.5' }, empty) : null,
+      !list.length && !inherited.length ? h('div.hint', { class: 'mt-2' }, empty) : null,
     );
   };
   const openMenu = (anchor: Element) => {
@@ -66,7 +66,7 @@ export function skillPicker(current: readonly string[] | null | undefined, onCha
       document.removeEventListener('pointerdown', outside, true);
     };
     const outside = (e: PointerEvent) => !menu.contains(e.target as Node | null) && close();
-    const search = h('input', { class: 'w-full py-1.75 pr-2.5 pl-8 font-mono text-[12.5px]', placeholder: 'Search skills…', 'aria-label': 'Search skills' });
+    const search = h('input', { class: 'w-full py-2 pr-2.5 pl-8 text-[13.5px]', placeholder: 'Search skills…', 'aria-label': 'Search skills' });
     const items = h('div', { class: 'flex max-h-64 flex-col gap-0.5 overflow-y-auto' });
     const fill = () => {
       const q = search.value.toLowerCase();
@@ -77,7 +77,7 @@ export function skillPicker(current: readonly string[] | null | undefined, onCha
           ? shown.map((s) =>
               h(
                 'button.st-menu-item',
-                { class: 'gap-2.5 py-1.75', type: 'button', title: s.description, onclick: () => (close(), (list = [...list, s.slug]), onChange(list), draw()) },
+                { class: 'gap-3 py-2', type: 'button', title: s.description, onclick: () => (close(), (list = [...list, s.slug]), onChange(list), draw()) },
                 h('span', { class: 'grid size-7 flex-none place-items-center rounded-[8px] bg-accent/10 text-accent' }, icon('puzzle', 14)),
                 h('span', { class: 'min-w-0 flex-1' }, h('span', { class: 'block truncate text-[13px] leading-tight font-medium' }, s.name), h('span', { class: 'mt-0.5 block truncate text-[11.5px] leading-tight font-normal text-faint' }, s.description)),
               ),
@@ -106,7 +106,7 @@ export function skillPicker(current: readonly string[] | null | undefined, onCha
       h('div.st-menu-sep'),
       h(
         'div',
-        { class: 'flex gap-1.5' },
+        { class: 'flex gap-2' },
         action('New', 'plus', () => openEditor(null, afterMake)),
         action('From GitHub', 'download', () => openGitHub(afterMake)),
         action('From Claude Code', 'terminal', async () => openImport((await GET<{ claude: ClaudeSkill[] }>('/skills')).claude, afterMake)),

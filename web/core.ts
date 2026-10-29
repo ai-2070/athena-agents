@@ -322,7 +322,7 @@ export function confirmBox(text: Child, { ok = 'Yes', danger = false }: { ok?: s
     m = modal({
       title: 'Are you sure?',
       narrow: true,
-      body: h('p', text),
+      body: h('div', { class: 'text-[14px] leading-[1.65] text-ink [&_p]:mb-3 [&_p:last-child]:mb-0' }, text),
       foot: [h('button.btn.ghost', { onclick: () => done(false) }, 'Cancel'), h(`button.btn${danger ? '.danger' : ''}`, { onclick: () => done(true) }, ok)],
       onClose: () => resolve(false),
     });
@@ -474,14 +474,14 @@ export function approvalCard(a: Approval): HTMLDivElement {
   return h(
     'div.approval',
     h('div.t', a.title),
-    h('div.label', a.kind === 'claude' ? 'Claude Code permission' : a.kind === 'workflow' ? 'Workflow checkpoint' : a.kind === 'setting' ? 'A setting' : a.kind === 'tools' ? 'Asks for tools' : 'Tool call'),
+    h('div.label', { class: 'mb-3' }, a.kind === 'claude' ? 'Claude Code permission' : a.kind === 'workflow' ? 'Workflow checkpoint' : a.kind === 'setting' ? 'A setting' : a.kind === 'tools' ? 'Asks for tools' : 'Tool call'),
     a.brainNote ? h('div.hint', `The Brain passed this to you: ${a.brainNote}`) : null,
     a.detail && !editor ? h('pre', a.detail) : null,
     editor ? h('div', h('div.hint', 'You can edit this before it continues:'), editor) : null,
-    h('div', { class: 'mt-3.5' }, note),
+    h('div', { class: 'mt-4' }, note),
     h(
       'div',
-      { class: 'mt-3.5 flex flex-wrap items-center gap-2.5' },
+      { class: 'mt-4 flex flex-wrap items-center gap-2' },
       // a setting says what its button does ("Turn on the voxel look"); it is asked each time, never always allowed
       h('button.btn.small', { onclick: () => decide(true) }, a.kind === 'setting' && typeof a.data.allow === 'string' ? a.data.allow : editor ? 'Approve' : 'Allow'),
       a.kind !== 'workflow' && a.kind !== 'setting' && a.kind !== 'tools' ? h('button.btn.ghost.small', { onclick: () => decide(true, true), title: 'Allow this tool for this agent from now on' }, 'Always allow') : null,

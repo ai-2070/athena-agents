@@ -269,7 +269,7 @@ function FindBar({ scroller, host, items, focus, onClose }: { scroller: RefObjec
           }
         }}
       />
-      <span className="min-w-12 text-center font-mono text-[11px] text-dim" aria-live="polite">
+      <span className="min-w-12 text-center text-[12px] text-dim tabular-nums" aria-live="polite">
         {query ? (total ? `${at + 1} / ${total}` : 'None') : ''}
       </span>
       <button className="icon-btn" type="button" title="Previous (Shift+Enter)" aria-label="Previous match" disabled={!total} onClick={() => step(-1)}>

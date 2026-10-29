@@ -34,9 +34,9 @@ describe('modelInfo()', () => {
 
 describe('applyLook()', () => {
   it('sets the UI scale and the accent colour', () => {
-    applyLook({ scale: 125, accent: 'ice' });
+    applyLook({ scale: 125, accent: 'olive' });
     expect(document.documentElement.style.zoom).toBe('1.25');
-    expect(document.documentElement.style.getPropertyValue('--color-accent')).toBe(ACCENTS.find((a) => a.id === 'ice')!.c);
+    expect(document.documentElement.style.getPropertyValue('--color-accent')).toBe(ACCENTS.find((a) => a.id === 'olive')!.light.c);
   });
 
   it('keeps the scale within 70–160% and clears it at 100%', () => {

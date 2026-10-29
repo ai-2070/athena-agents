@@ -1,4 +1,4 @@
-// Blacksite: a local, login-free command center for agents, tools, programs, MCP servers and social accounts.
+// Athena Agents: a local, login-free command center for agents, tools, programs, MCP servers and social accounts.
 // Listens on 127.0.0.1 only. Run: node server/index.js [--port 4800] [--no-open]
 import http from 'node:http';
 import fs from 'node:fs';
@@ -990,7 +990,7 @@ del('/api/accounts/reddit/:id', async ({ id }) => {
   reddit.disconnectReddit(id);
   return social.listAccounts();
 });
-post<{ platform?: string }>('/api/social/test', async (_p, body) => ({ message: body.platform === 'discord' ? await social.sendDiscord('Test from Blacksite ✅') : await social.sendTelegram('Test from Blacksite ✅') }));
+post<{ platform?: string }>('/api/social/test', async (_p, body) => ({ message: body.platform === 'discord' ? await social.sendDiscord('Test from Athena Agents ✅') : await social.sendTelegram('Test from Athena Agents ✅') }));
 
 get('/api/artifacts', async () => artifactStore.list().sort((a, b) => b.createdAt! - a.createdAt!));
 del('/api/artifacts/:id', async ({ id }) => {
@@ -1221,7 +1221,7 @@ function page(res: http.ServerResponse, status: number, title: string, text: str
   const esc = (s: unknown) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[c]);
   res.writeHead(status, { 'content-type': 'text/html; charset=utf-8' });
   res.end(
-    `<!doctype html><meta charset="utf-8"><title>${esc(title)}</title><body style="background:#0b0c0b;color:#e6e8e0;font:16px system-ui;display:grid;place-items:center;height:100vh;margin:0"><div style="max-width:520px;padding:24px"><h2 style="color:#c4ff3d">${esc(title)}</h2><p>${esc(text)}</p><p><a style="color:#c4ff3d" href="/#/settings?tab=connections">Back to the dashboard</a></p></div>${close ? '<script>setTimeout(()=>{location.href="/#/settings?tab=connections"},1500)</script>' : ''}`,
+    `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark"><title>${esc(title)}</title><style>body{margin:0;height:100vh;display:grid;place-items:center;background:#fff;color:#1a1a1f;font:15px/1.6 'Inter','Segoe UI Variable Text','Segoe UI',system-ui,sans-serif}main{max-width:520px;padding:24px}h2{margin:0 0 8px;font-size:20px;font-weight:600;letter-spacing:-.012em}p{margin:0 0 12px;color:#5b5b66}a{color:#4f5fd6;text-decoration:none}a:hover{text-decoration:underline}@media (prefers-color-scheme:dark){body{background:#0e0f11;color:#eceef1}p{color:#a3a5b0}a{color:#7f8cf3}}</style><body><main><h2>${esc(title)}</h2><p>${esc(text)}</p><p><a href="/#/settings?tab=connections">Back to the dashboard</a></p></main>${close ? '<script>setTimeout(()=>{location.href="/#/settings?tab=connections"},1500)</script>' : ''}`,
   );
 }
 
@@ -1456,7 +1456,7 @@ programs.startRunningWatch();
 
 server.on('error', (e: NodeJS.ErrnoException) => {
   if (e.code === 'EADDRINUSE') {
-    console.log(`Blacksite is already running at http://localhost:${PORT}`);
+    console.log(`Athena Agents is already running at http://localhost:${PORT}`);
     if (OPEN) openWithShell(`http://localhost:${PORT}`);
     process.exit(0);
   }
@@ -1466,7 +1466,7 @@ server.on('error', (e: NodeJS.ErrnoException) => {
 store.migrateGlobalOutbox();
 server.listen(PORT, '127.0.0.1', () => {
   const url = `http://localhost:${PORT}`;
-  console.log(`\n  Blacksite is running at ${url}\n  Data folder: ${dataPath()}\n  Press Ctrl+C to stop.\n`);
+  console.log(`\n  Athena Agents is running at ${url}\n  Data folder: ${dataPath()}\n  Press Ctrl+C to stop.\n`);
   log('system', 'Dashboard started');
   if (OPEN) void pageReady.then(() => openWithShell(url));
 });

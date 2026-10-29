@@ -646,7 +646,7 @@ function activate(w: Win, key: string, focus = true) {
 function makeTab(w: Win, kind: ChatKind, id: string): ChatTab {
   const key = `${kind}:${id}`;
   const body = document.createElement('div');
-  body.className = 'cw-pane absolute inset-0 flex flex-col pt-2.5 px-3 pb-3 *:flex-1 *:min-h-0 hidden';
+  body.className = 'cw-pane absolute inset-0 flex flex-col pt-3 px-4 pb-4 *:flex-1 *:min-h-0 hidden';
   w.body!.append(body);
   const api: ChatTabApi = kind === 'team' ? renderTeamChat(body, id, { fill: true }) : renderAgentChat(body, id);
   const t: ChatTab = { key, kind, id, body, api };
@@ -685,8 +685,8 @@ const GRIPS: Record<string, string> = {
   se: "absolute z-2 size-4.5 -bottom-1.5 -right-1.5 cursor-nwse-resize after:content-[''] after:absolute after:right-2.25 after:bottom-2.25 after:size-2.5 after:bg-[linear-gradient(135deg,transparent_0_48%,var(--color-line-2)_48%_58%,transparent_58%_70%,var(--color-line-2)_70%_80%,transparent_80%)]",
   sw: 'absolute z-2 size-3.5 -bottom-1 -left-1 cursor-nesw-resize',
 };
-const TAB = 'group/tab relative flex items-center gap-1.75 pt-1.75 pr-2 pb-2 pl-2.25 max-w-[200px] cursor-pointer flex-none border border-b-0 rounded-t-[9px] text-[12.5px] select-none [transition:background_.15s,color_.15s,opacity_.15s]';
-const BTN = 'size-7 rounded-ctl text-dim cursor-pointer grid place-items-center text-[14px] flex-none mb-1.5 hover:bg-panel-2 hover:text-ink';
+const TAB = 'group/tab relative flex items-center gap-2 pt-2 pr-2.5 pb-2.5 pl-3 max-w-[200px] cursor-pointer flex-none border border-b-0 rounded-t-[10px] text-[13px] font-medium select-none [transition:background_.15s,color_.15s,opacity_.15s]';
+const BTN = 'size-7 rounded-ctl text-dim cursor-pointer grid place-items-center text-[14px] flex-none mb-2 hover:bg-panel-2 hover:text-ink';
 /** Where a dragged tab would land: a line in the gap before (or after) a tab. */
 const MARK = 'absolute top-1.5 bottom-1.5 w-0.5 rounded-full bg-accent pointer-events-none';
 
@@ -695,7 +695,7 @@ function tabInfo(t: ChatTab, busyAgents: Set<string>): { label: string; lead: Re
   if (t.kind === 'team') {
     const w = (window.__teams || []).find((x) => x.id === t.id);
     const lead = (
-      <span className="size-5 rounded-[6px] grid place-items-center bg-[color-mix(in_srgb,var(--c)_30%,#111)] text-white" style={{ '--c': w?.color || '#7350c8' } as CSSProperties}>
+      <span className="st-badge size-5" style={{ '--c': w?.color || '#7350c8' } as CSSProperties}>
         <Icon name="users" size={11} />
       </span>
     );
@@ -746,7 +746,7 @@ function ChatWindows() {
           <button
             ref={(el) => void (w.pill = el)}
             // (in the bottom bar, next to Ask the Brain, it sits in line there)
-            className={`cw-pill fixed z-44 right-[84px] bottom-[22px] flex items-center gap-2 py-2.25 px-3.5 border border-line-2 rounded-full bg-panel text-ink cursor-pointer font-sans text-[12.5px] font-medium leading-[normal] shadow-[0_10px_30px_rgba(0,0,0,.45)] animate-[cw-pop_.25s_ease-out] hover:border-accent in-[.bottom-bar]:relative in-[.bottom-bar]:right-auto in-[.bottom-bar]:bottom-auto in-[.bottom-bar]:z-auto in-[.bottom-bar]:py-2.75 in-[.bottom-bar]:px-4 in-[.bottom-bar]:animate-none in-[.bottom-bar]:hover:[transform:translateY(-2px)] ${w.tabs.length && (w.min || w.shrinking) ? '' : ' hidden'}`}
+            className={`cw-pill fixed z-44 right-[84px] bottom-[22px] flex items-center gap-2.5 py-2.5 px-4 border border-line-2 rounded-full bg-glass-strong backdrop-blur-[16px] text-ink cursor-pointer font-sans text-[13px] font-medium leading-[normal] shadow-lift animate-[cw-pop_.25s_ease-out] hover:shadow-pop in-[.bottom-bar]:relative in-[.bottom-bar]:right-auto in-[.bottom-bar]:bottom-auto in-[.bottom-bar]:z-auto in-[.bottom-bar]:animate-none in-[.bottom-bar]:hover:[transform:translateY(-1px)] ${w.tabs.length && (w.min || w.shrinking) ? '' : ' hidden'}`}
             style={w.shrinking ? { opacity: 0 } : undefined}
             onClick={() => setMin(w, false)}
             title={`${w.tabs.length > 1 ? `Open the chats: ${w.tabs.map((t) => tabInfo(t, busyAgents).label).join(', ')}` : 'Open the chats'} (${keys.restore} brings back the last one)`}
@@ -761,7 +761,7 @@ function ChatWindows() {
       {drag && ghost
         ? createPortal(
             <div
-              className="cw-ghost fixed z-100 pointer-events-none flex items-center gap-1.75 pt-1.75 pr-3 pb-2 pl-2.25 max-w-[200px] rounded-[9px] border border-line-2 bg-panel text-ink text-[12.5px] shadow-[0_12px_32px_rgba(0,0,0,.5)] [&_.avatar]:size-5 [&_.avatar]:text-[11px]"
+              className="cw-ghost fixed z-100 pointer-events-none flex items-center gap-2 pt-2 pr-3.5 pb-2 pl-2.5 max-w-[200px] rounded-[10px] border border-line-2 bg-panel text-ink text-[13px] shadow-pop [&_.avatar]:size-5 [&_.avatar]:text-[11px]"
               style={{ left: `${drag.x - drag.offX}px`, top: `${drag.y - drag.offY}px` }}
               aria-hidden="true"
             >
@@ -804,12 +804,12 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
   const others = drag?.target === w ? w.tabs.filter((t) => t.key !== drag!.key) : [];
   const markBefore = drag?.target === w && others.length ? (others[drag.index]?.key ?? null) : undefined;
   const lastOther = others[others.length - 1]?.key;
-  const r = w.max ? 'rounded-[12px]' : 'rounded-[14px]';
+  const r = w.max ? 'rounded-[12px]' : 'rounded-[16px]';
   return (
     <div
       ref={(el) => void (w.el = el)}
       // pop and moving are set by script (pop(), track())
-      className={`cw group/cw fixed pointer-events-auto flex flex-col bg-[color-mix(in_srgb,var(--color-panel)_94%,transparent)] backdrop-blur-[14px] border shadow-[0_24px_80px_rgba(0,0,0,.55),0_0_0_1px_rgba(255,255,255,.02)_inset] overflow-visible [&.pop]:animate-[cw-pop_.28s_cubic-bezier(.2,.9,.25,1.05)] [&.moving]:select-none [&.moving]:transition-none ${r} ${dropping ? 'border-accent' : 'border-line-2'}${merging?.from === w && merging.into ? ' opacity-60' : ''}${!any || (w.min && !w.shrinking) ? ' hidden' : ''}`}
+      className={`cw group/cw fixed pointer-events-auto flex flex-col bg-glass-strong backdrop-blur-[14px] border shadow-pop overflow-visible [&.pop]:animate-[cw-pop_.28s_cubic-bezier(.2,.9,.25,1.05)] [&.moving]:select-none [&.moving]:transition-none ${r} ${dropping ? 'border-accent' : 'border-line'}${merging?.from === w && merging.into ? ' opacity-60' : ''}${!any || (w.min && !w.shrinking) ? ' hidden' : ''}`}
       style={placement(w)}
       role="dialog"
       aria-label="Chats"
@@ -818,7 +818,7 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
       onPointerDownCapture={() => raise(w)}
     >
       <div
-        className={`flex items-center gap-2 pt-1.5 pr-2 pb-0 pl-3 border-b border-line cursor-grab group-[.moving]/cw:cursor-grabbing text-dim min-h-[42px] ${w.max ? 'rounded-t-[12px]' : 'rounded-t-[14px]'}`}
+        className={`flex items-center gap-3 pt-2 pr-2.5 pb-0 pl-4 border-b border-line cursor-grab group-[.moving]/cw:cursor-grabbing text-dim min-h-[46px] ${w.max ? 'rounded-t-[12px]' : 'rounded-t-[16px]'}`}
         data-cw-strip={w.id}
         onPointerDown={(e) => startDrag(e, w)}
         onDoubleClick={(e) => !(e.target as Element).closest('button, .cw-tab') && setMax(w, !w.max)}
@@ -845,7 +845,7 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
                 >
                   {markBefore === t.key ? <span className={`${MARK} -left-0.5`} /> : null}
                   {markBefore === null && t.key === lastOther ? <span className={`${MARK} -right-0.5`} /> : null}
-                  <Tabs.Tab value={t.key} className="flex items-center gap-1.75 min-w-0 cursor-pointer">
+                  <Tabs.Tab value={t.key} className="flex items-center gap-2 min-w-0 cursor-pointer">
                     {lead}
                     <span className="truncate">{label}</span>
                     {busy ? <span className="dot busy" aria-label="working" /> : null}
@@ -873,7 +873,7 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
         </button>
       </div>
       {/* the conversations' own elements go in here (made outside React) */}
-      <div className={`flex-1 min-h-0 relative bg-bg overflow-hidden ${w.max ? 'rounded-b-[12px]' : 'rounded-b-[14px]'}`} ref={(el) => void (w.body = el)} />
+      <div className={`flex-1 min-h-0 relative bg-bg overflow-hidden ${w.max ? 'rounded-b-[12px]' : 'rounded-b-[16px]'}`} ref={(el) => void (w.body = el)} />
       {Object.entries(GRIPS).map(([dir, cls]) => (
         <div key={dir} className={w.max ? `${cls} hidden` : cls} aria-hidden="true" onPointerDown={(e) => startResize(e, w, dir)} />
       ))}
@@ -907,7 +907,7 @@ function LayoutMenu({ w }: { w: Win }) {
                 <Menu.Item key={it.act} className="st-menu-item data-disabled:opacity-40 data-disabled:pointer-events-none" disabled={it.off} onClick={() => (it.act === 'side' ? sideBySide() : runAction(it.act, w))}>
                   <Icon name={it.icon} size={15} />
                   {it.label}
-                  {it.act !== 'side' ? <span className="ml-auto pl-4 font-mono text-[11.5px] text-faint">{keys[it.act]}</span> : null}
+                  {it.act !== 'side' ? <span className="ml-auto pl-4 text-[12px] text-faint">{keys[it.act]}</span> : null}
                 </Menu.Item>,
               ])}
             </Menu.Group>

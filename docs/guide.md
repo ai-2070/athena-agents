@@ -1,4 +1,4 @@
-# Blacksite: the detailed guide
+# Athena Agents: the detailed guide
 
 The [README](../README.md) says what the dashboard is, how to install it, which engines and models it can use, and the everyday commands. This file explains how it behaves once it is running.
 
@@ -21,7 +21,7 @@ The [README](../README.md) says what the dashboard is, how to install it, which 
 
 The [desktop app](../README.md#desktop-app) is the same dashboard in its own window. It starts the dashboard's server when you open it and stops it when you quit. Links to other sites open in your browser.
 
-- **Closing the window keeps it running** in the tray (the notification area on Windows, the menu bar on macOS), so agents keep working. Click the tray icon, or open the app again, to bring the window back. To quit, right-click the tray icon and choose **Quit Blacksite**. On a Linux desktop that hides tray icons (GNOME without an extension), open the app again from the app menu to bring the window back.
+- **Closing the window keeps it running** in the tray (the notification area on Windows, the menu bar on macOS), so agents keep working. Click the tray icon, or open the app again, to bring the window back. To quit, right-click the tray icon and choose **Quit Athena Agents**. On a Linux desktop that hides tray icons (GNOME without an extension), open the app again from the app menu to bring the window back.
 - **Its data is separate** from a checkout's `data/` folder. It lives in `%APPDATA%\com.ai2070.blacksite\data` on Windows, `~/Library/Application Support/com.ai2070.blacksite/data` on macOS and `~/.local/share/com.ai2070.blacksite/data` on Linux. To use another folder, start the app with `DASH_DATA` set to it. Its first project uses the same **My workspace** folder as the browser version: if that folder already has a saved copy (`.dashboard`), the app loads it first instead of saving an empty project over it.
 - **It uses port 14800**, not 4800, so it can run next to the browser version. If 14800 is taken, it uses the next free port. To sign in to X or Reddit from the app, add the callback address its **Connections** page shows (with 14800) to your X or Reddit app.
 - **The installers are not signed yet.** On Windows, choose **More info → Run anyway**. On macOS, Control-click the app in Finder and choose **Open**, or allow it under **System Settings → Privacy & Security**.
@@ -127,7 +127,7 @@ The Station can be a voxel world the Brain and your agents build around themselv
 
 Each project can have its own background picture behind the map: click the Brain and choose **Add background**, use **Settings › Look › Station look › Background**, or ask the Brain (*"use the photo I attached as the background"*). The Brain can use a picture you attached or one in the project folder, and take it away again. In the classic look the picture is dimmed so the map stays easy to read; in the voxel look it takes the sky's place. Under the picture in **Settings › Look**, **Picture opacity** sets how strongly it shows (50% in the classic look and 100% in the voxel look unless you pick one) and **Map dots opacity** fades the dots on the classic map's floor (0% hides them); **Default** puts one back. Both are kept per project, and the Brain can set them too (*"make the background fainter"*, *"hide the map dots"*). Builders' `world_look` pictures still show the world's own sky. The picture is kept in the project folder (`.dashboard/background.*`), so it travels with the folder and goes into backups.
 
-- **Ask the Brain for one.** Describe the world you want. The Brain asks a few questions (theme, mood, era, colours), writes **WORLD.md**, builds the big pieces itself and hands the details to a builder. The **World Builder** (Agent library › Blacksite) comes ready with the **Voxel world** tools and the **Voxel building** skill; you can give the tools to any agent in its editor.
+- **Ask the Brain for one.** Describe the world you want. The Brain asks a few questions (theme, mood, era, colours), writes **WORLD.md**, builds the big pieces itself and hands the details to a builder. The **World Builder** (Agent library › Athena) comes ready with the **Voxel world** tools and the **Voxel building** skill; you can give the tools to any agent in its editor.
 - **WORLD.md** says what the world is: its theme and meaning, look, feel, places, characters, story and rules. Every builder reads it before building and updates it as they go. You can edit it too. Earlier versions are kept.
 - **Nothing comes ready-made.** Builders make big pieces (ground, buildings, rivers) as objects, and the small things there are many of (people, trees, lamps, cars, boats) as **prefabs**: made once, then placed many times, scattered, along a street or in a grid, turned to any angle and recoloured per copy. Hundreds of copies cost the page very little. A builder can turn part of an object into a prefab, and share a good prefab with every project through the **prefab library**.
 - **Agents build near their team.** Builds pinned to a team move with it when you drag its platform. One build call changes at most 250,000 voxels and places 2,000 copies; a world holds up to 4 million voxels and 20,000 copies, and one object or prefab can show at most 20,000 copies, counting copies inside copies.
@@ -216,17 +216,21 @@ By default, compaction starts at **50%** of the context window and keeps up to t
 
 - **Instant compaction** is on by default. It shortens the original text, reduces tool calls to one line and omits tool results without making a model call. Agents can use `recall_history` to retrieve the full entries.
 - Turn instant compaction off to have the Brain's model write a summary instead.
-- Open a **COMPACTED** marker to see what the agent remembers; you can edit the latest one. Use **Compact** or `/compact` to compact by hand, or `/compact summary` to request a summary.
+- Open a **Compacted** mark to see what the agent remembers; you can edit the latest one. Use **Compact** or `/compact` to compact by hand, or `/compact summary` to request a summary.
 - Claude Code, Codex, Hermes, pi, oh-my-pi and OpenClaw compact their own sessions when nearly full, so by default the dashboard compacts their chats only when you ask, or when one says the chat is too long. Turn off **Let Claude Code, Codex… compact on their own** to have the dashboard compact them at the threshold too. API-model agents are always compacted by the dashboard.
 
 The amount retained scales with the context window. Set **Context window** if a model's reported size is wrong.
 
 Very long chats still scroll smoothly: from 50 messages on, the chat page and the floating window only draw the messages near what you see, so the floating window can show the whole chat too. Because of this, your browser's Find (Ctrl+F) only finds text in the messages near where you have scrolled.
 
+## Light and dark
+
+Athena Agents follows your computer: white when the system is set to light, near-black when it is set to dark, and it switches by itself while the app is open. There is nothing to turn on. **Settings → Look → Accent colour** picks the highlight colour (**Aegean**, **Olive**, **Gold**, **Terracotta**, **Amethyst** or **Slate**); each one has a light and a dark version, so it reads well on both. A project saved with an older accent (lime, ice, amber, rose, violet or mint) moves to the closest new one. The Station's classic map follows it too: a pale map on a light system, a night map on a dark one. The voxel world keeps its own sky. The page is set in Inter; the font that chats are written in is still your choice under **Look**.
+
 ## Your Claude and Codex usage limits
 
 - **See them in the sidebar.** Click **Limits** above the list at the bottom of the menu (or pick **Usage limits** under **Settings → Look → Sidebar**). In place of what's set up, it shows how much of your Claude and Codex plans you have used in each window (5 hours, the week) and when each starts again. It reads them again every minute. **Status** brings the list back. Each project remembers which one you picked last.
-- **And at the top right of the Station.** The same numbers as **SESSION** and **WEEK** meters, taking turns every few seconds between Claude, Codex and OpenRouter (credits left) for each one you're signed in to.
+- **And at the top right of the Station.** The same numbers as **Session** and **Week** meters, taking turns every few seconds between Claude, Codex and OpenRouter (credits left) for each one you're signed in to.
 - **Free Codex resets.** When OpenAI has given your Codex account free limit resets, point at **Codex** in the sidebar: a card beside it says how many you have and when the next one runs out. **Reset now** asks first, then uses the one that runs out first and sets your Codex limits back to 0%. If you haven't used any of your limit yet, Codex keeps the reset.
 - **Where the numbers come from.** Claude's come from Anthropic with your Claude Code login; Codex's from the Codex program on this PC (`codex app-server`) with your Codex login. Nothing else is sent anywhere.
 

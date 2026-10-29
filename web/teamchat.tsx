@@ -81,22 +81,22 @@ const PLACEHOLDER = 'Message the team… type @ to mention someone';
 const LOOP_OFF = /^(off|stop|end|cancel)$/i;
 
 // ---------- looks (tc-msg, tc-relay, tc-live, tc-team-av, tc-mention, tc-team stay: tests look them up) ----------
-const MSG = 'tc-msg py-2 px-2.5 border rounded-box animate-[rise-in_0.22s_var(--ease-soft)]';
-const MSG_OTHER = `${MSG} border-line bg-[rgba(7,8,7,0.55)]`;
-const MSG_ME = `${MSG} border-[color-mix(in_srgb,var(--color-accent)_24%,var(--color-line))] bg-[color-mix(in_srgb,var(--color-accent)_7%,#111611)]`;
+const MSG = 'tc-msg py-3 px-4 border rounded-box animate-[rise-in_0.22s_var(--ease-soft)]';
+const MSG_OTHER = `${MSG} border-line bg-panel`;
+const MSG_ME = `${MSG} border-line bg-panel-2`;
 /** from another team (#Team): in that team's color (--team-color) */
-const MSG_RELAY = `${MSG} tc-relay border-[color-mix(in_srgb,var(--team-color,var(--color-ice))_28%,var(--color-line))] bg-[color-mix(in_srgb,var(--team-color,var(--color-ice))_6%,#0d100d)]`;
+const MSG_RELAY = `${MSG} tc-relay border-[color-mix(in_srgb,var(--team-color,var(--color-ice))_28%,var(--color-line))] bg-[color-mix(in_srgb,var(--team-color,var(--color-ice))_6%,var(--color-bg))]`;
 /** an agent working now, its turn streaming in */
-const MSG_LIVE = `${MSG} tc-live border-dashed border-[color-mix(in_srgb,var(--color-accent)_30%,var(--color-line))] bg-[rgba(7,8,7,0.55)]`;
-const WHO = 'flex items-center gap-1.75 mb-2 text-[13px] [&_.avatar]:size-5.5 [&_.avatar]:text-[12px]';
-const TEAM_AV = 'avatar tc-team-av bg-[color-mix(in_srgb,var(--team-color,var(--color-ice))_18%,transparent)] text-[color:var(--team-color,var(--color-ice))] font-mono text-[12px] leading-[normal] font-bold';
+const MSG_LIVE = `${MSG} tc-live border-dashed border-line-2 bg-panel`;
+const WHO = 'flex items-center gap-2.5 mb-2.5 text-[13px] [&_.avatar]:size-6 [&_.avatar]:text-[12px]';
+const TEAM_AV = 'avatar tc-team-av bg-[color-mix(in_srgb,var(--team-color,var(--color-ice))_18%,transparent)] text-[color:var(--team-color,var(--color-ice))] text-[12px] leading-[normal] font-semibold';
 /** a message's text (Markdown) */
-const TEXT = 'font-chat text-[13.5px] leading-[1.55] wrap-anywhere [&_p]:mx-0 [&_p]:mt-0 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_pre]:max-h-[200px]';
-const MENTION = 'tc-mention font-semibold rounded-[4px] px-0.75 text-accent bg-accent/10';
-const MENTION_TEAM = 'tc-mention tc-team font-semibold rounded-[4px] px-0.75 text-ice bg-ice/10';
-const TYPING = 'flex items-center gap-1.75 font-mono text-[11.5px] leading-[normal] font-normal';
+const TEXT = 'font-chat text-[13.5px] leading-[1.6] wrap-anywhere [&_p]:mx-0 [&_p]:mt-0 [&_p]:mb-2.5 [&_p:last-child]:mb-0 [&_pre]:max-h-[200px]';
+const MENTION = 'tc-mention font-medium rounded-[5px] px-1 text-accent bg-accent/10';
+const MENTION_TEAM = 'tc-mention tc-team font-medium rounded-[5px] px-1 text-ice bg-ice/10';
+const TYPING = 'flex items-center gap-2 text-[12.5px] leading-[normal] font-normal';
 /** the steps behind a reply, and a live turn */
-const TURN_BODY = 'mt-1.5 flex flex-col gap-1.5 min-w-0';
+const TURN_BODY = 'mt-2 flex flex-col gap-2 min-w-0';
 const blank = (): TeamChatData => ({ team: null, others: [], messages: [], working: [], queued: [], held: [], loop: null, goal: null, activity: {}, sessions: {}, turning: new Set() });
 const agentOf = (id: string) => state.data?.agents.find((a) => a.id === id);
 
@@ -294,7 +294,7 @@ function Fold({ children }: { children: ReactNode }) {
       {long ? (
         <button
           type="button"
-          className="tc-more mt-2 inline-flex cursor-pointer items-center gap-1 font-mono text-[11px] leading-[normal] text-faint hover:text-accent"
+          className="tc-more mt-2.5 inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] text-faint hover:text-ink"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
@@ -311,8 +311,8 @@ function Work({ m }: { m: TeamMessage }) {
   const [opened, setOpened] = useState(false);
   const turn = m.turn!;
   return (
-    <details className="tc-work mt-2" onToggle={(e) => (e.currentTarget as HTMLDetailsElement).open && setOpened(true)}>
-      <summary className="list-none cursor-pointer inline-flex items-center gap-1.25 font-mono text-[11px] leading-[normal] font-normal text-faint [&::-webkit-details-marker]:hidden hover:text-accent [[open]>&]:text-accent">
+    <details className="tc-work mt-3" onToggle={(e) => (e.currentTarget as HTMLDetailsElement).open && setOpened(true)}>
+      <summary className="list-none cursor-pointer inline-flex items-center gap-1.5 text-[12.5px] leading-[normal] font-normal text-faint [&::-webkit-details-marker]:hidden hover:text-ink [[open]>&]:text-ink">
         <Icon name="wrench" size={12} />
         Show the work
       </summary>
@@ -329,7 +329,7 @@ function Work({ m }: { m: TeamMessage }) {
 
 /** One message. Memo: a message drawn once stays as it is while others arrive or stream in. */
 const Message = memo(function Message({ m, parent, author, team, lead, names, teams, onReply }: { m: TeamMessage; parent: TeamMessage | null; author: Agent | undefined; team: TeamRef | undefined; lead: boolean; names: string; teams: string; onReply: (m: TeamMessage) => void }) {
-  if (m.from === 'system') return <div className="text-center font-mono text-[11.5px] leading-[normal] font-normal text-faint py-0.5">{m.text}</div>;
+  if (m.from === 'system') return <div className="text-center text-[12.5px] leading-[normal] font-normal text-faint py-1">{m.text}</div>;
   const brain = m.from === 'brain';
   // a message from another team (#Team): in that team's colour
   const relay = m.relay;
@@ -339,14 +339,14 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
         {author ? (
           <Avatar agent={author} />
         ) : brain ? (
-          <div className="avatar bg-accent/16 text-accent"><Icon name="brain" size={14} /></div>
+          <div className="avatar bg-accent/10 text-accent"><Icon name="brain" size={14} /></div>
         ) : relay ? (
           <div className={TEAM_AV}>{team?.mark || '#'}</div>
         ) : (
           <div className="avatar text-accent"><Icon name="users" size={14} /></div>
         )}
         <b>{author ? author.name : brain ? 'Brain' : relay ? `#${team?.name || relay.teamName}` : m.from === 'user' ? 'You' : 'Someone'}</b>
-        {relay ? <span className="tc-relay-tag font-mono text-[10.5px] font-medium leading-[normal] text-faint">{relay.answers ? `answered · ${relay.byName}` : `asks this team · ${relay.byName}`}</span> : null}
+        {relay ? <span className="tc-relay-tag text-[12px] font-medium leading-[normal] text-faint">{relay.answers ? `answered · ${relay.byName}` : `asks this team · ${relay.byName}`}</span> : null}
         {lead ? <span className="tc-lead">★ lead</span> : null}
         <Ago ts={m.ts} />
         <span className="flex-1 min-w-0" />
@@ -356,7 +356,7 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
           </button>
         ) : null}
       </div>
-      {parent ? <div className="text-[12px] text-faint mb-1 truncate">{`↪ ${senderName(parent, (id) => agentOf(id)?.name)}: ${String(parent.text).slice(0, 90)}`}</div> : null}
+      {parent ? <div className="text-[12px] text-faint mb-2 truncate">{`↪ ${senderName(parent, (id) => agentOf(id)?.name)}: ${String(parent.text).slice(0, 90)}`}</div> : null}
       {m.text ? (
         <Fold>
           <DomNode className="dom-contents" make={() => textWithMentions(m.text, names ? names.split('\n') : [], teams ? teams.split('\n') : [])} deps={[m.text, names, teams]} />
@@ -374,7 +374,7 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
       />
       {m.turn && m.from !== 'user' && m.from !== 'system' ? <Work m={m} /> : null}
       {m.mentions?.length && m.from !== 'user' ? (
-        <div className="flex items-center gap-1.25 mt-1.5 font-mono text-[10.5px] font-medium leading-[normal] text-ice">
+        <div className="flex items-center gap-1.5 mt-2.5 text-[12px] font-medium leading-[normal] text-ice">
           <Icon name="send" size={11} />
           {`handed to ${m.mentions.map((id) => agentOf(id)?.name).filter(Boolean).join(', ')}`}
         </div>
@@ -718,11 +718,11 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   const turns = [...C.turning].filter((id) => C.sessions[id]);
   const lead = C.team?.lead;
   return (
-    <div className={fill ? 'flex flex-col gap-2 h-full' : 'flex flex-col gap-2'} ref={root}>
+    <div className={fill ? 'flex flex-col gap-3 h-full' : 'flex flex-col gap-3'} ref={root}>
       {find}
       <div
         // (in a scrolling column, an item must keep its height: never squeezed by the list's)
-        className={fill ? 'tc-list overflow-y-auto flex flex-col gap-2 py-1 px-0.5 *:shrink-0 flex-1 min-h-0' : 'tc-list overflow-y-auto flex flex-col gap-2 py-1 px-0.5 *:shrink-0 min-h-[120px]'}
+        className={fill ? 'tc-list overflow-y-auto flex flex-col gap-4 py-2 px-1 *:shrink-0 flex-1 min-h-0' : 'tc-list overflow-y-auto flex flex-col gap-4 py-2 px-1 *:shrink-0 min-h-[120px]'}
         ref={list}
         style={fill ? undefined : { maxHeight: `${height}px` }}
         onScroll={(e) => {
@@ -745,8 +745,8 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
             />
           ))
         ) : (
-          <div className="text-center text-dim py-4.5 px-2 text-[13px]">
-            <Icon name="message-square" size={22} className="text-accent mb-1.5" />
+          <div className="text-center text-dim py-12 px-2 text-[13px]">
+            <Icon name="message-square" size={22} className="text-faint mb-2.5" />
             <p>{lead ? `Write to the team. ${agentOf(lead)?.name} (lead) takes it and brings in the others.` : 'Write to the team. The best fit answers, or @mention someone.'}</p>
           </div>
         )}
@@ -769,16 +769,16 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
         onLost={(_q, text) => keepEdit(text)}
       />
       {/* who is working and who is next */}
-      <div className="tc-status flex flex-col gap-0.75 min-h-0" aria-live="polite">
+      <div className="tc-status flex flex-col gap-1.5 min-h-0" aria-live="polite">
         {uploading ? (
-          <span className={`${TYPING} text-amber`}>
+          <span className={`${TYPING} text-dim`}>
             <span className="dot busy" />
             Uploading files…
           </span>
         ) : (
           <>
             {C.working.map((id) => (
-              <span key={id} className={`${TYPING} text-amber`}>
+              <span key={id} className={`${TYPING} text-dim`}>
                 <span className="dot busy" />
                 {id === 'brain' ? 'The Brain is answering…' : `${agentOf(id)?.name || 'Agent'} is working${C.activity[id] ? ` · ${C.activity[id]}` : '…'}`}
               </span>
@@ -794,7 +794,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
           </>
         )}
       </div>
-      <div className={`flex items-center gap-1.5 text-[12px] text-ice ${replyTo ? '' : ' hidden'}`}>
+      <div className={`flex items-center gap-2 text-[12.5px] text-ice ${replyTo ? '' : ' hidden'}`}>
         {replyTo ? (
           <>
             <Icon name="message-circle" size={12} />
@@ -807,7 +807,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       </div>
       <DomNode className="dom-contents" make={() => tray.el} deps={[tray]} />
       <DomNode className="dom-contents" make={() => pastes.el} deps={[pastes]} />
-      <div className="flex gap-1.5 items-stretch relative">
+      <div className="flex gap-2.5 items-stretch relative">
         <div className="flex-1 min-w-0 relative">
           <textarea className={`${COMPOSER_TEXT} text-[13.5px]`} ref={input} rows={2} aria-label="Message the team" placeholder={busy.length ? 'The team is working… Write to change its course now, or /queue a message for when it is done' : PLACEHOLDER} />          <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">
             {suggest?.opts.map((o, i) => (

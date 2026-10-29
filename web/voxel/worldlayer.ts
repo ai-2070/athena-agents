@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { GET, POST } from '../client/http.ts';
 import { serverUrl } from '../client/connection.ts';
+import { themeColor } from '../theme.ts';
 import { meshObject } from './mesher.ts';
 import type { ObjectPart, RenderClass } from './mesher.ts';
 import { partGeometry, partMatrix } from './view.ts';
@@ -586,7 +587,7 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
         if (fxBox.isEmpty()) continue;
         fxBox.getCenter(fxTo);
         fxTo.y = fxBox.max.y;
-        fx.built(builderAt(b.by, fxFrom), fxTo, b.by?.kind === 'brain' ? '#ffd36e' : '#c4ff3d', now);
+        fx.built(builderAt(b.by, fxFrom), fxTo, b.by?.kind === 'brain' ? '#ffd36e' : themeColor('accent', '#4f5fd6'), now);
       }
       fx.update(now);
     },

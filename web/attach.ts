@@ -275,13 +275,13 @@ export interface AttachTray {
 
 // deferred: hold the files and upload only when ready() is called (a new project: its folder doesn't exist yet).
 // the menu under the paperclip: Files…, A folder…
-const MENU_ITEM = 'flex cursor-pointer items-center gap-2 rounded-ctl px-2.5 py-1.75 text-left text-[13px] whitespace-nowrap text-ink hover:bg-panel-2 hover:text-accent';
+const MENU_ITEM = 'flex cursor-pointer items-center gap-2.5 rounded-ctl px-3 py-2 text-left text-[13px] whitespace-nowrap text-ink hover:bg-panel-2';
 /** A chat box's buttons right of the text: the paperclip at the top, Send at the bottom, both the same
  *  square, and the paperclip's menu opening leftward so it stays on screen. */
-export const COMPOSER_BTNS = 'flex flex-none flex-col justify-between gap-1.5 [&_.btn]:size-8.5 [&_.btn]:px-0 [&_.att-menu]:right-0 [&_.att-menu]:left-auto';
+export const COMPOSER_BTNS = 'flex flex-none flex-col justify-between gap-2 [&_.btn]:size-9 [&_.btn]:px-0 [&_.att-menu]:right-0 [&_.att-menu]:left-auto';
 /** Its text box: never shorter than the two buttons, and growing upward with what you type to about a
  *  fifth of the window before it scrolls. */
-export const COMPOSER_TEXT = 'block field-sizing-content min-h-[74px] max-h-[max(160px,20vh)] resize-none';
+export const COMPOSER_TEXT = 'block field-sizing-content min-h-[80px] max-h-[max(160px,20vh)] resize-none';
 // a place that takes dropped files, while files are dragged over it
 const OVER = 'outline-2 outline-dashed outline-accent -outline-offset-3'.split(' ');
 
@@ -291,7 +291,7 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
   const fileIn = h('input', { type: 'file', multiple: true, hidden: true });
   const dirIn = h('input', { type: 'file', multiple: true, hidden: true, webkitdirectory: true });
   // (att-menu: a box with the paperclip on its right opens it leftward)
-  const menu = h('div.hidden', { class: 'att-menu absolute bottom-[calc(100%+6px)] left-0 z-60 flex min-w-[150px] flex-col rounded-box border border-line-2 bg-glass-strong p-1.25 shadow-pop animate-fade-fast' });
+  const menu = h('div.hidden', { class: 'att-menu absolute bottom-[calc(100%+6px)] left-0 z-60 flex min-w-[150px] flex-col rounded-box border border-line bg-glass-strong p-1.5 shadow-pop animate-fade-fast' });
   const closeMenu = () => {
     menu.classList.add('hidden');
     document.removeEventListener('pointerdown', outside, true);
@@ -336,11 +336,11 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
     const face = [
       it.preview ? h('img', { class: 'size-5.5 flex-none rounded-[4px] object-cover', src: it.preview, alt: '' }) : h('span.att-ico', icon(it.kind === 'folder' ? 'folder' : 'file', 14)),
       h('span.att-name', it.name),
-      h('span', { class: `max-w-[140px] truncate font-mono text-[10.5px] leading-[normal] ${it.state === 'error' ? 'text-red' : it.state === 'uploading' ? 'text-accent' : 'text-faint'}` }, meta),
+      h('span', { class: `max-w-[140px] truncate text-[11.5px] leading-[normal] tabular-nums ${it.state === 'error' ? 'text-red' : it.state === 'uploading' ? 'text-accent' : 'text-faint'}` }, meta),
     ];
     return h(
       `div.att-chip.${it.state}`,
-      { class: open ? 'transition-colors hover:border-accent-dim' : '', title: it.state === 'error' ? it.error || '' : it.path || it.name },
+      { class: open ? 'transition-colors hover:bg-panel-2' : '', title: it.state === 'error' ? it.error || '' : it.path || it.name },
       // a file that can be looked at opens when clicked (the name and size are its button)
       open
         ? h('button.att-open', { class: 'flex min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-inherit [font:inherit] hover:text-accent [&:hover_.att-ico]:text-accent', type: 'button', title: open.title, 'aria-label': open.title, onclick: open.go }, face)
@@ -420,7 +420,7 @@ export function attachTray({ deferred = false, onChange }: { deferred?: boolean;
           oldPosition = zone.style.position;
           zone.style.position = 'relative';
         }
-        overlay = h('div', { class: 'pointer-events-none absolute inset-0.75 z-50 flex animate-[fade_0.12s_ease-out] flex-col items-center justify-center gap-2 rounded-box bg-bg/93 p-3 text-center font-mono text-[12px] leading-[normal] font-semibold tracking-[0.08em] text-accent uppercase backdrop-blur-[3px]' }, icon('upload', 22), h('span', label));
+        overlay = h('div', { class: 'pointer-events-none absolute inset-0.75 z-50 flex animate-[fade_0.12s_ease-out] flex-col items-center justify-center gap-2 rounded-box bg-glass-strong p-4 text-center text-[13px] leading-[normal] font-medium text-accent backdrop-blur-[3px]' }, icon('upload', 22), h('span', label));
         zone.append(overlay);
       } else if (!on && overlay) {
         overlay.remove();
@@ -509,12 +509,12 @@ export function attachmentChips(paths: readonly string[] | undefined | null): HT
   if (!paths?.length) return null;
   return h(
     'div',
-    { class: 'mt-1.5 flex flex-wrap gap-1.5 whitespace-normal first:mt-0' },
+    { class: 'mt-2 flex flex-wrap gap-2 whitespace-normal first:mt-0' },
     paths.map((p) => {
       const name = baseName(p);
       const url = fileUrl(p);
       if (isFolderPath(p)) return h('span.att-chip.sent', { title: p }, h('span.att-ico', icon('folder', 13)), h('span.att-name', `${name}/`));
-      if (IMAGE.test(p)) return h('a.att-img', { class: 'group block leading-[0]', href: url, target: '_blank', rel: 'noopener', title: p }, h('img', { class: 'h-18 w-24 rounded-[8px] border border-line-2 object-cover group-hover:border-accent-dim', src: url, alt: name, loading: 'lazy' }));
+      if (IMAGE.test(p)) return h('a.att-img', { class: 'group block leading-[0]', href: url, target: '_blank', rel: 'noopener', title: p }, h('img', { class: 'h-18 w-24 rounded-[8px] border border-line-2 object-cover group-hover:shadow-lift', src: url, alt: name, loading: 'lazy' }));
       return h('a.att-chip.sent', { href: url, target: '_blank', rel: 'noopener', title: p }, h('span.att-ico', icon('file', 13)), h('span.att-name', name));
     }),
   );

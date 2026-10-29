@@ -72,14 +72,14 @@ describe('the fonts', () => {
       const urls = [...css.matchAll(/url\(\.\/(fonts\/[\w.-]+)\)/g)].map((m) => m[1] ?? '');
       expect(urls.length).toBeGreaterThan(0);
       for (const u of urls) expect(fs.existsSync(path.join(out, u))).toBe(true);
-      expect(fs.existsSync(path.join(out, 'fonts', 'archivo-LICENSE.txt'))).toBe(true);
+      expect(fs.existsSync(path.join(out, 'fonts', 'inter-LICENSE.txt'))).toBe(true);
     } finally {
       fs.rmSync(out, { recursive: true, force: true });
     }
   });
 
   it('include every chat font Settings > Look offers (other than ones on the computer)', () => {
-    const onComputer = new Set(['Segoe UI', 'SF Pro Text', 'Georgia', 'Times New Roman', 'Helvetica', 'Arial', 'Menlo', 'Consolas']);
+    const onComputer = new Set(['Segoe UI', 'Segoe UI Variable Text', 'SF Pro Text', 'Georgia', 'Times New Roman', 'Helvetica', 'Arial', 'Menlo', 'Consolas']);
     const shipped = new Set(FONTS.map((f) => f.family));
     const named = CHAT_FONTS.flatMap((f) => [...f.stack.matchAll(/'([^']+)'/g)].map((m) => m[1] ?? ''));
     expect(named.filter((n) => !onComputer.has(n) && !shipped.has(n))).toEqual([]);

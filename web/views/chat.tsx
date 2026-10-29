@@ -56,7 +56,7 @@ function ChatPage({ agentId, chatId, view }: { agentId: string; chatId?: string;
   if (!loaded) return null;
   if (loaded.kind === 'gone')
     return (
-      <div className="p-7">
+      <div className="p-10">
         <p>That agent no longer exists. </p>
         <a href="#/agents">Back to agents</a>
       </div>
@@ -131,20 +131,20 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
   const how = memory ? (memory.own ? `${ENGINE_LABEL[agent.engine] || 'Its engine'} compacts it by itself when it is nearly full` : memory.auto ? `Compacts by itself at ${kTokens(memory.compactAt)}` : 'Automatic compaction is off') : '';
   return (
     <div className="grid h-[calc(100vh-61px)] grid-cols-[270px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1" ref={page}>
-      <div className="flex min-h-0 flex-col border-r border-line bg-panel max-md:max-h-60 max-md:border-r-0 max-md:border-b">
-        <div className="border-b border-line p-4">
-          <div className="flex items-center gap-2.5">
+      <div className="flex min-h-0 flex-col border-r border-line bg-panel max-md:border-r-0 max-md:border-b">
+        <div className="border-b border-line p-5">
+          <div className="flex items-center gap-3.5">
             <Avatar agent={agent} lg />
             <div className="min-w-0 flex-1">
               <div className="text-[16px] leading-[1.25] font-bold">{agent.name}</div>
               <div className="hint mt-0.5">{agent.specialty || ''}</div>
             </div>
           </div>
-          <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className="pill">{info.name}</span>
             <span className="pill">{info.where}</span>
           </div>
-          <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <button className="btn small" onClick={() => void newChat()}>+ New chat</button>
             <a className="btn ghost small" href={`#/agents/${agent.id}/edit`}>Edit</a>
             <DomNode as="span" make={() => memoryButton(agent.id, agent.name)} deps={[agent.id]} />
@@ -152,26 +152,26 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
               <button className="btn ghost small" title="Open this agent in a live terminal" onClick={() => void openTerminal(agent)}>Terminal</button>
             ) : null}
           </div>
-          <details className="mt-3.5">
+          <details className="mt-4">
             <summary className="label cursor-pointer">{`${tools.length} tools`}</summary>
-            <div className="hint chat-tools mt-1.5 font-mono text-[11px] leading-[1.7]">{tools.join(' · ')}</div>
+            <div className="hint chat-tools mt-2 font-mono text-[11.5px] leading-[1.8]">{tools.join(' · ')}</div>
           </details>
         </div>
-        <nav className="flex-1 overflow-y-auto py-1.5" aria-label="Chats">
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2.5 max-md:max-h-48 max-md:flex-none" aria-label="Chats">
           {chats.map((c) => (
-            <a key={c.id} className={c.id === chat.id ? 'on block border-l-2 border-accent bg-panel-2 px-4 py-2.25 text-[13.5px] text-ink' : 'block border-l-2 border-transparent px-4 py-2.25 text-[13.5px] text-dim hover:bg-panel-2 hover:text-ink'} aria-current={c.id === chat.id ? 'page' : undefined} href={`#/agents/${agent.id}/${c.id}`}>
+            <a key={c.id} className={c.id === chat.id ? 'on block rounded-ctl bg-ink/7 px-3 py-2.5 text-[13.5px] text-ink' : 'block rounded-ctl px-3 py-2.5 text-[13.5px] text-dim hover:bg-ink/5 hover:text-ink'} aria-current={c.id === chat.id ? 'page' : undefined} href={`#/agents/${agent.id}/${c.id}`}>
               <span className="t block truncate">{c.title || 'Chat'}</span>
-              <span className="font-mono text-[10.5px] leading-[normal] text-faint">{`${ago(c.updatedAt)} · ${c.count} items`}</span>
+              <span className="text-[12px] leading-[normal] text-faint">{`${ago(c.updatedAt)} · ${c.count} items`}</span>
             </a>
           ))}
         </nav>
       </div>
       <div className="flex min-h-0 min-w-0 flex-col">
-        <div className="chat-head flex flex-wrap items-center justify-between gap-2.5 border-b border-line px-7 py-2.5">
+        <div className="chat-head flex flex-wrap items-center justify-between gap-3 border-b border-line px-10 py-3 max-md:px-4">
           <div className="min-w-0 flex-1">
-            <span className="chat-title font-mono text-[12px] text-dim">{chat.title || 'Chat'}</span>
+            <span className="chat-title text-[13.5px] font-medium text-ink">{chat.title || 'Chat'}</span>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
             {memory ? (
               <span className={memory.tokens >= memory.compactAt * 0.8 ? 'pill mem warn' : 'pill mem'} title={`About ${kTokens(memory.tokens)} of ${kTokens(memory.window)} tokens. ${how} (Settings > Chat memory).`}>
                 {`Memory ${memory.percent}%`}

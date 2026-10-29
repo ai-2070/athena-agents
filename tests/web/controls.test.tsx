@@ -3,7 +3,7 @@ import { act, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { SearchBox, Segmented, Tabs } from '../../web/ui/controls.tsx';
+import { FieldRow, Row, SearchBox, Section, Segmented, SwitchRow, Tabs } from '../../web/ui/controls.tsx';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -60,5 +60,35 @@ describe('tabs and the segmented switch', () => {
     await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Clear the search"]')!.click());
     expect(seen).toEqual(['seo', '']);
     expect(input.value).toBe('');
+  });
+});
+
+describe('settings sections and rows', () => {
+  it('a section has its title and line beside a panel of rows; a field row keeps the label.field shape; a switch row keeps its label to the name alone', async () => {
+    const seen: boolean[] = [];
+    await act(async () =>
+      root.render(
+        <Section title="Limits" titleId="limits-title" description="Stops a run that goes on too long.">
+          <FieldRow label="Max steps" hint="Tool rounds.">
+            <input defaultValue="5" />
+          </FieldRow>
+          <SwitchRow checked={false} onChange={(on) => seen.push(on)} title="Follow up" description="Checks the work." />
+          <Row title="Autonomy">
+            <button>Auto</button>
+          </Row>
+        </Section>,
+      ),
+    );
+    expect(document.querySelector('.settings-section h2#limits-title')!.textContent).toBe('Limits');
+    const panel = document.querySelector('.settings-section > .panel')!;
+    expect(panel.children).toHaveLength(3);
+    const field = panel.querySelector('label.field')!;
+    expect(field.querySelector('span')!.textContent).toBe('Max steps');
+    expect(field.querySelector('input')!.value).toBe('5');
+    const toggle = panel.querySelector('label.switch-row')!;
+    expect(toggle.textContent).toBe('Follow up');
+    await act(async () => panel.querySelector<HTMLElement>('.toggle-text')!.click());
+    expect(seen).toEqual([true]);
+    expect(panel.querySelector('.set-row button')!.textContent).toBe('Auto');
   });
 });

@@ -77,23 +77,25 @@ const HIDDEN: Route[] = [
 ];
 
 // The page's box: padded, or flush to the edges (view.flush). Every page fades or rises in.
-const VIEW_PADDED = 'min-w-0 px-7 pt-6.5 pb-15 *:animate-rise-in max-md:px-4 max-md:pt-4.5 max-md:pb-12.5';
-const VIEW_FLUSH = 'min-w-0 *:animate-[fade_0.35s_ease-out]';
+const VIEW_PADDED = 'mx-auto w-full max-w-[1400px] min-w-0 px-10 pt-9 pb-20 *:animate-rise-in max-md:px-4 max-md:pt-5 max-md:pb-14';
+const VIEW_FLUSH = 'w-full min-w-0 *:animate-[fade_0.35s_ease-out]';
 
 // The sidebar's links. On the Station (body.station-mode) the bar folds to its icons: on a wide screen it is
 // clipped to the icon strip and its text fades in when it opens (body.nav-wide); on a narrow one a hovered
 // icon shows its name beside it.
 const NAV_LINK =
-  'group flex items-center gap-3 border-l-2 px-5 py-3 font-mono text-[12px] leading-[1.2] font-medium tracking-[0.14em] uppercase [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] in-[.station-mode]:relative max-md:in-[.station-mode]:justify-center max-md:in-[.station-mode]:px-0 max-md:in-[.station-mode.nav-wide]:justify-start max-md:in-[.station-mode.nav-wide]:px-5 md:in-[.station-mode]:justify-start md:in-[.station-mode]:pr-5 md:in-[.station-mode]:pl-4.75';
-const NAV_LINK_OFF = 'border-l-transparent text-dim hover:bg-panel-2 hover:text-ink';
-const NAV_LINK_ON = 'border-l-accent bg-panel-2 text-accent';
-const NAV_ICO = 'grid w-5 place-items-center text-center text-[14px] tracking-[0] in-[.station-mode]:text-[15px] in-[.station-mode]:group-hover:text-accent';
+  'group flex items-center gap-3 rounded-ctl px-3 py-2 text-[14px] leading-[1.3] font-medium [transition:background-color_0.15s,color_0.15s] in-[.station-mode]:relative max-md:in-[.station-mode]:justify-center max-md:in-[.station-mode]:px-0 max-md:in-[.station-mode.nav-wide]:justify-start max-md:in-[.station-mode.nav-wide]:px-3 md:in-[.station-mode]:w-8.5 md:in-[.station-mode]:justify-start md:in-[.station-mode]:px-[7px] md:in-[.station-mode.nav-wide]:w-auto md:in-[.station-mode.nav-wide]:px-3';
+const NAV_LINK_OFF = 'text-dim hover:bg-ink/5 hover:text-ink';
+const NAV_LINK_ON = 'bg-ink/7 text-ink';
+const NAV_ICO = 'grid w-5 flex-none place-items-center text-center in-[.station-mode]:group-hover:text-accent';
+const NAV_ICO_OFF = 'text-faint group-hover:text-dim';
+const NAV_ICO_ON = 'text-accent';
 const NAV_TXT =
-  'in-[.station-mode]:[display:none] in-[.station-mode]:group-hover:absolute in-[.station-mode]:group-hover:left-[58px] in-[.station-mode]:group-hover:z-90 in-[.station-mode]:group-hover:block in-[.station-mode]:group-hover:border in-[.station-mode]:group-hover:border-line-2 in-[.station-mode]:group-hover:bg-panel-2 in-[.station-mode]:group-hover:px-2.5 in-[.station-mode]:group-hover:py-1.5 in-[.station-mode]:group-hover:whitespace-nowrap in-[.station-mode]:group-hover:text-ink in-[.station-mode.nav-wide]:inline in-[.station-mode.nav-wide]:group-hover:static in-[.station-mode.nav-wide]:group-hover:border-0 in-[.station-mode.nav-wide]:group-hover:bg-transparent in-[.station-mode.nav-wide]:group-hover:p-0 in-[.station-mode.nav-wide]:group-hover:text-inherit md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode]:group-hover:static md:in-[.station-mode]:group-hover:border-0 md:in-[.station-mode]:group-hover:bg-transparent md:in-[.station-mode]:group-hover:p-0 md:in-[.station-mode]:group-hover:text-inherit md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
+  'in-[.station-mode]:[display:none] in-[.station-mode]:group-hover:absolute in-[.station-mode]:group-hover:left-[58px] in-[.station-mode]:group-hover:z-90 in-[.station-mode]:group-hover:block in-[.station-mode]:group-hover:rounded-ctl in-[.station-mode]:group-hover:border in-[.station-mode]:group-hover:border-line in-[.station-mode]:group-hover:bg-raise in-[.station-mode]:group-hover:shadow-pop in-[.station-mode]:group-hover:px-3 in-[.station-mode]:group-hover:py-1.5 in-[.station-mode]:group-hover:whitespace-nowrap in-[.station-mode]:group-hover:text-ink in-[.station-mode.nav-wide]:inline in-[.station-mode.nav-wide]:group-hover:static in-[.station-mode.nav-wide]:group-hover:border-0 in-[.station-mode.nav-wide]:group-hover:bg-transparent in-[.station-mode.nav-wide]:group-hover:p-0 in-[.station-mode.nav-wide]:group-hover:shadow-none in-[.station-mode.nav-wide]:group-hover:text-inherit md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode]:group-hover:static md:in-[.station-mode]:group-hover:border-0 md:in-[.station-mode]:group-hover:bg-transparent md:in-[.station-mode]:group-hover:p-0 md:in-[.station-mode]:group-hover:text-inherit md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 const NAV_COUNT =
   'ml-auto in-[.station-mode]:[display:none] in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 // a line of the status list at the bottom left
-const NS_LINE = '-mx-1.5 flex items-center gap-1.75 rounded-[6px] px-1.5 py-0.75 text-[11.5px] text-dim no-underline [transition:background_0.15s,color_0.15s] hover:bg-accent/12 hover:text-ink';
+const NS_LINE = '-mx-2 flex items-center gap-2 rounded-ctl px-2 py-[5px] text-[12.5px] text-dim no-underline [transition:background_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink';
 
 let viewEl = document.getElementById('view')!;
 const titleEl = document.getElementById('page-title')!;
@@ -105,7 +107,7 @@ function renderNav() {
     document.getElementById('nav-links')!,
     NAV.map((n) => {
       const c = n.count?.();
-      return h('a', { class: `${NAV_LINK} ${route === n.path ? NAV_LINK_ON : NAV_LINK_OFF}`, href: `#/${n.path}`, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: NAV_ICO }, icon(n.ico, 18)), h('span', { class: NAV_TXT }, n.label), c ? h('span.badge', { class: NAV_COUNT }, String(c)) : null);
+      return h('a', { class: `${NAV_LINK} ${route === n.path ? NAV_LINK_ON : NAV_LINK_OFF}`, href: `#/${n.path}`, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: `${NAV_ICO} ${route === n.path ? NAV_ICO_ON : NAV_ICO_OFF}` }, icon(n.ico, 18)), h('span', { class: NAV_TXT }, n.label), c ? h('span.badge', { class: NAV_COUNT }, String(c)) : null);
     }),
   );
   const d = state.data;
@@ -123,13 +125,13 @@ function renderNav() {
 
 let about: AboutInfo | null = null;
 let aboutAsked = false;
-// Bottom of the sidebar: the version (opens Settings > About) and a link to star Blacksite on GitHub.
-const NAV_VER = 'flex min-w-0 items-baseline gap-1.5 -ml-1.5 rounded-[6px] px-1.5 py-0.75 font-sans text-[11.5px] leading-[1.3] font-semibold text-dim [transition:background_0.15s,color_0.15s] hover:bg-accent/12 hover:text-ink';
-const NAV_STAR = 'inline-flex h-5.5 flex-none items-center gap-1.25 rounded-ctl border border-line-2 px-2 font-mono text-[10px] leading-none font-medium tracking-[0.08em] uppercase text-ink [transition:border-color_0.15s,color_0.15s] hover:border-accent hover:text-accent [&_svg]:flex-none';
+// Bottom of the sidebar: the version (opens Settings > About) and a link to star Athena Agents on GitHub.
+const NAV_VER = 'flex min-w-0 items-baseline gap-1.5 -ml-2 rounded-ctl px-2 py-1 font-sans text-[12.5px] leading-[1.3] font-medium text-dim [transition:background_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink';
+const NAV_STAR = 'inline-flex h-7 flex-none items-center gap-1.5 rounded-ctl border border-line-2 bg-panel px-2.5 font-sans text-[12px] leading-none font-medium text-ink [transition:background-color_0.15s,border-color_0.15s] hover:bg-panel-2 [&_svg]:flex-none';
 function navAbout() {
   return [
-    h('a', { class: NAV_VER, href: '#/settings?tab=about', title: 'About Blacksite', onclick: () => document.body.classList.remove('nav-open') }, h('span', REPO.name), about ? h('span', { class: 'font-mono text-[10.5px] leading-[1.3] font-normal text-faint tabular-nums' }, `v${about.version}`) : null),
-    h('a', { class: NAV_STAR, href: REPO.url, target: '_blank', rel: 'noopener', title: `${REPO.slug} on GitHub: star it there` }, logo('github', 12, '#e6e8e0'), h('span', 'Star')),
+    h('a', { class: NAV_VER, href: '#/settings?tab=about', title: `About ${REPO.name}`, onclick: () => document.body.classList.remove('nav-open') }, h('span', 'About'), about ? h('span', { class: 'text-[11.5px] leading-[1.3] font-normal text-faint tabular-nums' }, `v${about.version}`) : null),
+    h('a', { class: NAV_STAR, href: REPO.url, target: '_blank', rel: 'noopener', title: `${REPO.slug} on GitHub: star it there` }, logo('github', 13, 'currentColor'), h('span', 'Star')),
   ];
 }
 
@@ -139,7 +141,7 @@ function navStatus(d: AppState) {
   const S = (q: string) => `#/settings?${q}`;
   const ver = (v: string | null | undefined) => (v ? String(v).split(/\s/)[0] : '');
   const line = (dot: string, label: string, value: string, href: string, title?: string) =>
-    h('a', { class: NS_LINE, href, title: title || label, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: `dot ${dot}` }), h('span', { class: 'min-w-0 flex-1 truncate' }, label), value ? h('span', { class: 'text-[10.5px] whitespace-nowrap text-faint' }, value) : null);
+    h('a', { class: NS_LINE, href, title: title || label, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: `dot ${dot}` }), h('span', { class: 'min-w-0 flex-1 truncate' }, label), value ? h('span', { class: 'text-[11.5px] whitespace-nowrap text-faint' }, value) : null);
   const cc: Partial<EngineStatus['claude-code']> = e['claude-code'] || {};
   const cx: Partial<EngineStatus['codex']> = e.codex || {};
   const acc: Partial<AppState['accounts']> = d.accounts || {};

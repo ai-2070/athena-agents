@@ -68,9 +68,9 @@ describe('the Outbox', () => {
     expect([...el.querySelectorAll('h2.section')].map((h) => h.textContent)).toEqual(['Waiting for you (1)', 'History']);
     const text = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Text"]')!;
     await type(text, 'x'.repeat(281));
-    const count = text.parentElement!.querySelector('.mono')!;
+    const count = text.parentElement!.querySelector('.tabular-nums')!;
     expect(count.textContent).toBe('281/280');
-    expect(count.classList.contains('red')).toBe(true);
+    expect(count.classList.contains('text-red')).toBe(true);
   });
 
   it('approves with your edits and without the image you took off', async () => {

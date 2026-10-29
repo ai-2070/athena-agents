@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appIcon, appIconUrl } from '../../web/appicons.ts';
+import { appIcon, appIconStyle, appIconUrl } from '../../web/appicons.ts';
 import { appLogo, mark } from '../../web/views/stationdata.ts';
 
 describe('program icons', () => {
@@ -32,6 +32,13 @@ describe('program icons', () => {
   it('finds LM Studio by its program id and its name, and the Station uses it', () => {
     for (const name of ['lmstudio', 'LM Studio', 'lm-studio']) expect(appIconUrl(name)).toBe('/app-icons/lmstudio.png');
     expect((mark('lmstudio', 15) as HTMLImageElement).getAttribute('src')).toBe('/app-icons/lmstudio.png');
+  });
+
+  it("puts ComfyUI's yellow, too light for a white page, on a dark tile; LM Studio's purple needs none", () => {
+    expect(appIconStyle('comfyui', 20)).toMatchObject({ boxSizing: 'border-box' });
+    expect(appIcon('comfyui', 20)!.style.background).not.toBe('');
+    expect(appIconStyle('lmstudio')).toBeUndefined();
+    expect(appIcon('lmstudio')!.getAttribute('style')).toBeNull();
   });
 
   it('still prefers a brand logo when there is one', () => {

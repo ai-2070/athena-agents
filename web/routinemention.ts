@@ -111,7 +111,7 @@ function openMenu(ta: HTMLTextAreaElement, start: number, query: string, kind: R
       { class: 'max-h-[280px]' },
       groups.length
         ? groups.map((g) => [
-            groups.length > 1 || !kind ? h('div', { class: 'px-2.5 pt-2 pb-0.75 font-mono text-[10px] leading-[normal] font-semibold tracking-[0.14em] text-faint uppercase' }, KIND_LABEL[g.k]) : null,
+            groups.length > 1 || !kind ? h('div', { class: 'px-2.5 pt-2.5 pb-1 text-[12px] leading-[normal] font-medium text-faint' }, KIND_LABEL[g.k]) : null,
             g.list.map((c) => h('button.st-menu-item.rt-menu-item', { class: '[&.active]:bg-panel-2 [&.active]:text-accent [&.active_.ico-svg]:text-accent', type: 'button', onclick: () => pick(c) }, c.lead, h('span', { class: 'min-w-0 flex-1' }, c.name, c.sub ? h('span.model-sub', c.sub.slice(0, 90)) : null))),
           ])
         : h('div.hint', { style: { padding: '8px 10px' } }, kind ? `No ${KIND_LABEL[kind].toLowerCase()} match.` : 'Nothing matches. Agents, teams and skills show here.'),

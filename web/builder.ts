@@ -29,7 +29,7 @@ export interface BranchBuilderOptions {
 }
 
 // a member's ★ (lead) and ✕ buttons
-const STEP_BTN = 'size-5.5 p-0 border cursor-pointer text-[11px] hover:enabled:text-accent hover:enabled:border-accent disabled:opacity-30 disabled:cursor-default';
+const STEP_BTN = 'size-7 rounded-ctl p-0 border cursor-pointer text-[12px] hover:enabled:text-ink hover:enabled:bg-panel-2 disabled:opacity-30 disabled:cursor-default';
 
 const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a', '#4f7fa8', '#5a9a3a', '#a84a5a', '#2f8fa0'];
 
@@ -40,8 +40,8 @@ function section(title: string, ico: string, ...content: (Node | null)[]): HTMLE
   const end = last instanceof HTMLElement && last.classList.contains('pill') ? content.pop() : null;
   return h(
     'section',
-    { class: 'flex flex-col gap-3 rounded-box border border-line bg-panel/50 p-4' },
-    h('div', { class: 'flex items-center gap-2 font-mono text-[11px] font-semibold tracking-[0.16em] text-dim uppercase' }, icon(ico, 14), title, end),
+    { class: 'flex flex-col gap-4 rounded-box border border-line bg-panel p-5' },
+    h('div', { class: 'flex items-center gap-2.5 text-[14px] font-semibold text-ink' }, icon(ico, 15, 'text-faint'), title, end),
     ...content,
   );
 }
@@ -70,7 +70,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   name.addEventListener('input', () => (b.name = name.value));
   desc.addEventListener('input', () => (b.description = desc.value));
 
-  const listEl = h('div', { class: 'flex flex-col gap-1.5' });
+  const listEl = h('div', { class: 'flex flex-col gap-2' });
   const count = h('span.pill');
   const drawMembers = () => {
     const agents = byId();
@@ -81,7 +81,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       listEl.append(
         h(
           'div',
-          { class: 'flex items-center gap-2.5 py-2 px-2.5 border border-line bg-bg rounded-box [&_.avatar]:size-8.5 [&_.avatar]:text-[17px]' },
+          { class: 'flex items-center gap-3 p-3 border border-line bg-bg rounded-box [&_.avatar]:size-8.5 [&_.avatar]:text-[17px]' },
           a ? avatar(a) : h('div.avatar', m.newAgent?.emoji || '🤖'),
           h(
             'div',
@@ -91,7 +91,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
           ),
           h(
             'div',
-            { class: 'flex gap-0.5 flex-none' },
+            { class: 'flex gap-1 flex-none' },
             h('button', { class: `${STEP_BTN} ${isLead ? 'text-amber border-amber' : 'text-dim border-line-2'}`, title: isLead ? 'Remove as lead' : 'Make lead: your messages go to them first', onclick: () => ((b.lead = isLead ? null : m), drawMembers()) }, '★'),
             h('button', { class: `${STEP_BTN} text-dim border-line-2`, title: 'Remove', onclick: () => (b.members.splice(j, 1), isLead && (b.lead = null), drawMembers()) }, '✕'),
           ),
@@ -104,8 +104,8 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   };
 
   // the agents you can add: a short list to search and click, each with its badge (not a dropdown, which can't show it)
-  const pickSearch = h('input', { placeholder: 'Search your agents…', 'aria-label': 'Search your agents', class: 'font-mono text-[12.5px]' });
-  const pickList = h('div', { class: 'flex max-h-52 flex-col gap-1 overflow-y-auto' });
+  const pickSearch = h('input', { placeholder: 'Search your agents…', 'aria-label': 'Search your agents' });
+  const pickList = h('div', { class: 'flex max-h-56 flex-col gap-1.5 overflow-y-auto' });
   const drawPick = () => {
     const q = pickSearch.value.toLowerCase();
     const left = d.agents.filter((a) => !b.members.some((m) => m.agentId === a.id) && (!q || `${a.name} ${a.specialty || ''}`.toLowerCase().includes(q)));
@@ -117,20 +117,20 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
               'button',
               {
                 type: 'button',
-                class: 'flex w-full cursor-pointer items-center gap-2.5 rounded-ctl border border-line bg-bg px-2.5 py-1.5 text-left text-ink [transition:border-color_0.15s] hover:border-accent [&_.avatar]:size-7 [&_.avatar]:text-[14px]',
+                class: 'flex w-full cursor-pointer items-center gap-3 rounded-ctl border border-line bg-bg px-3 py-2 text-left text-ink [transition:background-color_0.15s] hover:bg-panel-2 [&_.avatar]:size-7 [&_.avatar]:text-[14px]',
                 title: `Add ${a.name} to the team`,
                 onclick: () => (b.members.push({ agentId: a.id }), drawMembers()),
               },
               avatar(a),
               h('span', { class: 'min-w-0 flex-1' }, h('span', { class: 'block truncate text-[13px] leading-tight font-medium' }, a.name), a.specialty ? h('span', { class: 'mt-0.5 block truncate text-[11.5px] leading-tight text-faint' }, a.specialty) : null),
-              h('span', { class: 'flex flex-none items-center gap-1 font-mono text-[10.5px] tracking-[0.1em] text-dim uppercase' }, icon('plus', 12), 'Add'),
+              h('span', { class: 'flex flex-none items-center gap-1.5 text-[12.5px] font-medium text-dim' }, icon('plus', 12), 'Add'),
             ),
           )
         : h('p.hint', d.agents.length ? (q ? 'No agent matches.' : 'Everyone is already on the team.') : 'You have no agents yet: Auto-build can create them.'),
     );
   };
   pickSearch.addEventListener('input', drawPick);
-  const addRow = h('div', { class: 'mt-3.5 flex flex-col gap-2' }, d.agents.length ? pickSearch : null, pickList);
+  const addRow = h('div', { class: 'mt-3 flex flex-col gap-3' }, d.agents.length ? pickSearch : null, pickList);
 
   const accessEl = h('div');
   const drawAccess = () =>
@@ -138,8 +138,8 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       accessEl,
       h('div.label', 'Programs & tools'),
       h('div', { class: 'mt-3' }, chipSet(state.data!.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description })), b.access.toolGroups, (v) => (b.access.toolGroups = v))),
-      Object.keys(mcp.servers).length ? [h('div.label', { class: 'mt-3.5' }, 'MCP servers'), h('div', { class: 'mt-3.5' }, chipSet(mcpOptions(Object.keys(mcp.servers), state.data?.mcpInfo), b.access.mcpServers, (v) => (b.access.mcpServers = v)))] : null,
-      h('p.hint', { class: 'mt-3.5' }, 'While working for this team, every member gets these on top of its own tools.'),
+      Object.keys(mcp.servers).length ? [h('div.label', { class: 'mt-5' }, 'MCP servers'), h('div', { class: 'mt-3' }, chipSet(mcpOptions(Object.keys(mcp.servers), state.data?.mcpInfo), b.access.mcpServers, (v) => (b.access.mcpServers = v)))] : null,
+      h('p.hint', { class: 'mt-4' }, 'While working for this team, every member gets these on top of its own tools.'),
     );
 
   // the team's files: reference material every member is told about (briefs, brand guides, assets)
@@ -160,7 +160,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       ),
     );
   };
-  const filesBody = [keptEl, tray.el, h('div', { class: 'flex flex-wrap items-center gap-2' }, tray.picker, h('span.hint', 'Briefs, brand guides, assets: drop or paste files or folders anywhere here. Auto-build reads them, and every member is told where they are.'))];
+  const filesBody = [keptEl, tray.el, h('div', { class: 'flex flex-wrap items-center gap-3' }, tray.picker, h('span.hint', 'Briefs, brand guides, assets: drop or paste files or folders anywhere here. Auto-build reads them, and every member is told where they are.'))];
   const allFiles = async () => {
     const fresh = await tray.ready();
     return fresh ? [...new Set([...b.files, ...fresh])] : null;
@@ -259,11 +259,11 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
     title: wf ? `Edit ${wf.name}` : 'New team',
     body: h(
       'div',
-      { class: 'flex flex-col gap-4' },
+      { class: 'flex flex-col gap-5' },
       h('p.hint', { class: 'm-0' }, 'A team is a group chat of agents. You write to the team, the lead (or the best fit) takes it, and they hand work to each other with @mentions.'),
-      section('Basics', 'users', h('label.field', h('span', 'Name'), name), h('label.field', h('span', 'Goal'), desc), h('div', { class: 'flex flex-wrap items-center gap-2.5' }, autoBtn, status)),
+      section('Basics', 'users', h('label.field', h('span', 'Name'), name), h('label.field', h('span', 'Goal'), desc), h('div', { class: 'flex flex-wrap items-center gap-3' }, autoBtn, status)),
       section('Files', 'paperclip', ...filesBody),
-      section('Members', 'bot', h('div', { class: 'flex flex-col gap-3' }, listEl, h('div.label', { class: 'mt-1' }, 'Add an agent'), addRow), count),
+      section('Members', 'bot', h('div', { class: 'flex flex-col gap-3' }, listEl, h('div.label', { class: 'mt-2' }, 'Add an agent'), addRow), count),
       section('Access', 'wrench', accessEl),
     ),
     foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), saveBtn],
@@ -274,7 +274,6 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       if (!savedOk && !saving) tray.discard();
     },
   });
-  m.el.classList.add('mono-fields');
   tray.dropZone(m.el.querySelector<HTMLElement>('.modal')!, 'Drop files or folders for the team');
   drawMembers();
   drawAccess();

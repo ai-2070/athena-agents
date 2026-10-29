@@ -228,10 +228,10 @@ describe('looking at attached files before sending', () => {
     ]);
     await frame();
     expect(chip(tray, 'notes.md').querySelector('.att-open')).not.toBeNull();
-    expect(chip(tray, 'notes.md').className).toContain('hover:border-accent-dim');
+    expect(chip(tray, 'notes.md').className).toContain('hover:bg-panel-2');
     expect(chip(tray, 'brief.pdf').querySelector('.att-open')).toBeNull();
     expect(chip(tray, 'data.csv').querySelector('.att-open')).toBeNull();
-    expect(chip(tray, 'data.csv').className).not.toContain('hover:border-accent-dim');
+    expect(chip(tray, 'data.csv').className).not.toContain('hover:bg-panel-2');
 
     chip(tray, 'notes.md').querySelector<HTMLButtonElement>('.att-open')!.click();
     await frame();

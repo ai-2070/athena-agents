@@ -7,8 +7,9 @@ import { RadioGroup } from '@base-ui/react/radio-group';
 import { Slider } from '@base-ui/react/slider';
 import { PUT, attempt, state } from '../core.ts';
 import { rememberSidebarPanel } from '../navlimits.ts';
-import { ACCENTS, CHAT_FONTS, DEFAULT_LOOK, STATION_QUALITY, applyLook, stationLevel } from '../look.ts';
-import { Segmented } from '../ui/controls.tsx';
+import { ACCENTS, CHAT_FONTS, DEFAULT_LOOK, STATION_QUALITY, accentFor, accentTone, applyLook, stationLevel } from '../look.ts';
+import { onThemeChange } from '../theme.ts';
+import { Row, Section, Segmented } from '../ui/controls.tsx';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { backgroundUrl, pickBackground, removeBackground } from '../projectlogo.ts';
 import { BACKGROUND_OPACITY, backgroundOpacity, mapDotsOpacity } from '../../shared/look.ts';
@@ -16,10 +17,13 @@ import type { LookSetting, Project } from '../../shared/types.ts';
 
 const SCALES = [80, 90, 100, 110, 125, 150];
 const SAVE_AFTER = 350;
-// an accent colour to pick, in its own colour (--sw); on: the picked one
-const SWATCH = 'flex cursor-pointer items-center gap-2.25 rounded-box border border-line bg-none px-3 py-2.5 text-ink transition-[border-color,background] duration-150 ease-[ease] hover:border-(--sw) [&.on]:border-(--sw) [&.on]:bg-[color-mix(in_srgb,var(--sw)_12%,transparent)]';
+// an accent colour to pick, in its own colour (--sw): a round dot and its name; on: the picked one gets a ring in that colour
+const SWATCH = 'flex cursor-pointer items-center gap-3 rounded-box border border-line-2 bg-bg px-4 py-3.5 text-[14px] font-medium text-ink transition-[border-color,background-color,box-shadow] duration-150 ease-[ease] hover:bg-panel-2 [&.on]:border-(--sw) [&.on]:ring-2 [&.on]:ring-(--sw)';
 // a chat font to pick: its name in that font, and whose look it matches
-const FONT = 'look-font flex cursor-pointer flex-col items-start gap-0.5 rounded-box border border-line bg-none px-3 py-2.5 text-left text-ink transition-[border-color,background] duration-150 ease-[ease] hover:border-line-2 [&.on]:border-accent [&.on]:bg-accent/8';
+const FONT = 'look-font flex cursor-pointer flex-col items-start gap-1 rounded-box border border-line-2 bg-bg px-4 py-3.5 text-left text-ink transition-[border-color,background-color,box-shadow] duration-150 ease-[ease] hover:bg-panel-2 [&.on]:border-accent [&.on]:ring-2 [&.on]:ring-accent';
+// a slider: a slim track, the part up to the thumb in the accent, a thumb with a ring of the page colour around it
+const TRACK = 'relative h-1 flex-1 rounded-full bg-line-2';
+const THUMB = 'size-4.5 rounded-full border-2 border-bg bg-accent shadow-lift has-focus-visible:outline has-focus-visible:outline-offset-3 has-focus-visible:outline-accent';
 
 type OpacityKey = 'backgroundOpacity' | 'mapDotsOpacity';
 
@@ -41,9 +45,8 @@ function OpacitySlider({ project, field, label, value, hint }: { project: Projec
     setDragging(null);
   };
   return (
-    <div className="field mt-3">
-      <span>{label}</span>
-      <div className="flex items-center gap-3">
+    <Row title={label} description={hint}>
+      <div className="flex w-72 max-w-full items-center gap-3 max-sm:w-full">
         <Slider.Root
           className="flex-1"
           min={0}
@@ -59,21 +62,20 @@ function OpacitySlider({ project, field, label, value, hint }: { project: Projec
           onValueCommitted={(v) => void save(Array.isArray(v) ? v[0] : v)}
         >
           <Slider.Control className="flex h-5.5 cursor-pointer touch-none items-center">
-            <Slider.Track className="relative h-1 flex-1 rounded-[2px] bg-line-2">
-              <Slider.Indicator className="rounded-[2px] bg-accent" />
-              <Slider.Thumb className="size-4 rounded-full bg-accent shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_25%,transparent)] has-focus-visible:outline has-focus-visible:outline-offset-3 has-focus-visible:outline-accent" aria-label={label} />
+            <Slider.Track className={TRACK}>
+              <Slider.Indicator className="rounded-full bg-accent" />
+              <Slider.Thumb className={THUMB} aria-label={label} />
             </Slider.Track>
           </Slider.Control>
         </Slider.Root>
-        <b className="look-opacity min-w-11 text-right font-mono text-[13px] leading-[normal] font-semibold text-accent">{`${shown}%`}</b>
+        <b className="look-opacity min-w-10 text-right text-[13px] leading-[normal] font-medium text-ink tabular-nums">{`${shown}%`}</b>
         {project[field] !== undefined ? (
           <button type="button" className="btn ghost tiny" onClick={() => void save(null)}>
             Default
           </button>
         ) : null}
       </div>
-      <p className="hint mt-1.5">{hint}</p>
-    </div>
+    </Row>
   );
 }
 
@@ -86,10 +88,9 @@ function StationBackground({ look }: { look: LookSetting['stationLook'] }) {
   const ref = { id: proj.id, name: proj.name };
   return (
     <>
-      <div className="field mt-3.5">
-        <span>Background</span>
-        <div className="flex flex-wrap items-center gap-2.5">
-          {url ? <img className="look-background h-16 w-28 flex-none rounded-ctl border border-line object-cover" src={url} alt="" /> : null}
+      <Row title="Background" description={`A picture behind the map, for ${proj.name} only. Dimmed in the classic look; in the voxel world it takes the sky's place. You can also ask the Brain to set one.`}>
+        <div className="flex flex-wrap items-center justify-end gap-2.5">
+          {url ? <img className="look-background h-14 w-24 flex-none rounded-ctl border border-line object-cover" src={url} alt="" /> : null}
           <button type="button" className="btn ghost small" onClick={() => void pickBackground(ref)}>
             <Icon name="image" size={13} />
             {url ? 'Change picture' : 'Add a picture'}
@@ -100,8 +101,7 @@ function StationBackground({ look }: { look: LookSetting['stationLook'] }) {
             </button>
           ) : null}
         </div>
-        <p className="hint mt-1.5">{`A picture behind the map, for ${proj.name} only. Dimmed in the classic look; in the voxel world it takes the sky's place. You can also ask the Brain to set one.`}</p>
-      </div>
+      </Row>
       {url ? (
         <OpacitySlider
           project={proj}
@@ -123,6 +123,9 @@ export function LookTab() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // the change waiting to be saved: leaving the tab saves it now rather than dropping it
   const unsaved = useRef<LookSetting | null>(null);
+  // the swatches are drawn in the colours for the page's light or dark: draw them again when it switches
+  const [, redraw] = useState(0);
+  useEffect(() => onThemeChange(() => redraw((n) => n + 1)), []);
   const save = () => {
     clearTimeout(timer.current ?? undefined);
     timer.current = null;
@@ -147,15 +150,11 @@ export function LookTab() {
   const scale = dragging ?? look.scale;
 
   return (
-    <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
-      <div className="flex flex-col gap-2.5">
-        <div className="panel">
-          <div className="panel-head">
-            <h2>UI scale</h2>
-          </div>
-          <p className="hint">Makes everything bigger or smaller: text, buttons, panels and the Station. Your browser zoom (Ctrl + / Ctrl −) still works on top of this.</p>
-          <div className="mt-3.5 flex items-center gap-3">
-            <span className="hint" aria-hidden="true">A</span>
+    <div className="flex flex-col gap-10">
+      <Section title="UI scale" description="Makes everything bigger or smaller: text, buttons, panels and the Station. Your browser zoom (Ctrl + / Ctrl −) still works on top of this.">
+        <div className="px-5 py-5">
+          <div className="flex items-center gap-3.5">
+            <span className="text-[12px] text-faint" aria-hidden="true">A</span>
             <Slider.Root
               className="flex-1"
               min={70}
@@ -171,16 +170,16 @@ export function LookTab() {
               onValueCommitted={(v) => set({ scale: Array.isArray(v) ? v[0] : v })}
             >
               <Slider.Control className="flex h-5.5 cursor-pointer touch-none items-center">
-                <Slider.Track className="relative h-1 flex-1 rounded-[2px] bg-line-2">
-                  <Slider.Indicator className="rounded-[2px] bg-accent" />
-                  <Slider.Thumb className="size-4 rounded-full bg-accent shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_25%,transparent)] has-focus-visible:outline has-focus-visible:outline-offset-3 has-focus-visible:outline-accent" aria-label="UI scale" />
+                <Slider.Track className={TRACK}>
+                  <Slider.Indicator className="rounded-full bg-accent" />
+                  <Slider.Thumb className={THUMB} aria-label="UI scale" />
                 </Slider.Track>
               </Slider.Control>
             </Slider.Root>
-            <span className="text-[20px] text-dim" aria-hidden="true">A</span>
-            <b className="look-pct min-w-13 text-right font-mono text-[15px] leading-[normal] font-semibold text-accent">{`${scale}%`}</b>
+            <span className="text-[20px] text-faint" aria-hidden="true">A</span>
+            <b className="look-pct min-w-13 text-right text-[15px] leading-[normal] font-semibold text-ink tabular-nums">{`${scale}%`}</b>
           </div>
-          <div className="look-presets mt-3.5 flex flex-wrap items-center gap-1.5">
+          <div className="look-presets mt-4 flex flex-wrap items-center gap-2">
             {SCALES.map((v) => (
               <button key={v} className={`btn tiny${look.scale === v ? '' : ' ghost'}`} aria-pressed={look.scale === v} onClick={() => set({ scale: v })}>
                 {v === 100 ? '100% (default)' : `${v}%`}
@@ -188,81 +187,11 @@ export function LookTab() {
             ))}
           </div>
         </div>
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Animations</h2>
-          </div>
-          <p className="hint">Panels sliding in, glows and pulses. Reduced keeps the Station moving but turns off most interface motion.</p>
-          <div className="field mt-3.5">
-            <span id="look-motion">Motion</span>
-            <Segmented
-              label="Motion"
-              options={[
-                { value: 'full', label: 'Full' },
-                { value: 'reduced', label: 'Reduced' },
-              ]}
-              value={look.motion}
-              onChange={(v) => set({ motion: v })}
-            />
-          </div>
-        </div>
-        <div className="panel">
-          <div className="panel-head">
-            <h2 id="look-chat-font">Chat font</h2>
-          </div>
-          <p className="hint">What the messages in chats are written in: yours, your agents’ and the Brain’s. Names, buttons and code keep their own fonts.</p>
-          <RadioGroup className="mt-3.5 grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2" aria-labelledby="look-chat-font" value={look.chatFont} onValueChange={(v) => set({ chatFont: String(v) })}>
-            {CHAT_FONTS.map((f) => (
-              <Radio.Root key={f.id} value={f.id} nativeButton render={<button type="button" />} className={(s) => (s.checked ? `${FONT} on` : FONT)}>
-                <span className="text-[15px] leading-[1.4]" style={{ fontFamily: f.stack }}>{f.label}</span>
-                <span className="text-[12px] leading-[1.4] text-dim">{f.like}</span>
-              </Radio.Root>
-            ))}
-          </RadioGroup>
-        </div>
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Station look</h2>
-          </div>
-          <p className="hint">Voxel world lights the Station like the world your agents will build: a sky, a sun with soft shadows, glow around bright things and a miniature blur at the edges. Classic is the dark map.</p>
-          <div className="field mt-3.5">
-            <span>Look</span>
-            <Segmented
-              label="Station look"
-              options={[
-                { value: 'classic', label: 'Classic' },
-                { value: 'world', label: 'Voxel world' },
-              ]}
-              value={look.stationLook}
-              onChange={(v) => set({ stationLook: v })}
-            />
-          </div>
-          {look.stationLook === 'world' ? (
-            <div className="field mt-3">
-              <span>Quality</span>
-              <Segmented
-                label="Voxel world quality"
-                options={[
-                  { value: 'low', label: 'Low' },
-                  { value: 'medium', label: 'Medium' },
-                  { value: 'high', label: 'High' },
-                ]}
-                value={look.worldQuality}
-                onChange={(v) => set({ worldQuality: v })}
-              />
-              <p className="hint mt-1.5">Low has no shadows or glow, for older computers. High adds softer creases and smoother edges.</p>
-            </div>
-          ) : null}
-          <StationBackground look={look.stationLook} />
-        </div>
-      </div>
-      <div className="flex flex-col gap-2.5">
-        <div className="panel">
-          <div className="panel-head">
-            <h2 id="look-accent">Accent colour</h2>
-          </div>
-          <p className="hint">The highlight colour for buttons, active tabs, the status dots and focus rings.</p>
-          <RadioGroup className="mt-3.5 grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2" aria-labelledby="look-accent" value={look.accent} onValueChange={(v) => set({ accent: v as LookSetting['accent'] })}>
+      </Section>
+
+      <Section title="Accent colour" titleId="look-accent" description="The highlight colour for buttons, active tabs, the status dots and focus rings.">
+        <div className="px-5 py-5">
+          <RadioGroup className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-3" aria-labelledby="look-accent" value={accentFor(look.accent).id} onValueChange={(v) => set({ accent: v as LookSetting['accent'] })}>
             {ACCENTS.map((a) => (
               <Radio.Root
                 key={a.id}
@@ -270,70 +199,117 @@ export function LookTab() {
                 nativeButton
                 render={<button type="button" />}
                 className={(s) => (s.checked ? `${SWATCH} on` : SWATCH)}
-                style={{ '--sw': a.c } as CSSProperties}
+                style={{ '--sw': accentTone(a).c } as CSSProperties}
                 title={a.label}
               >
-                <span className="size-4 rounded-full bg-(--sw) shadow-[0_0_10px_var(--sw)]" aria-hidden="true" />
+                <span className="size-5 flex-none rounded-full bg-(--sw)" aria-hidden="true" />
                 <span>{a.label}</span>
               </Radio.Root>
             ))}
           </RadioGroup>
         </div>
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Station quality</h2>
-          </div>
-          <p className="hint">How hard the 3D map works. Lower it if your fans spin up, your battery drains or the map stutters with many agents.</p>
-          <div className="field mt-3.5">
-            <span id="look-station">Quality</span>
-            <Segmented label="Station quality" options={STATION_QUALITY.map((q) => ({ value: q.id, label: q.label }))} value={look.station} onChange={(v) => set({ station: v })} />
-          </div>
-          <p className="look-station-hint hint mt-2 mb-0">{stationLevel(look.station).hint}</p>
+      </Section>
+
+      <Section title="Animations" description="Panels sliding in and pulses. Reduced keeps the Station moving but turns off most interface motion.">
+        <Row title="Motion" titleId="look-motion">
+          <Segmented
+            label="Motion"
+            options={[
+              { value: 'full', label: 'Full' },
+              { value: 'reduced', label: 'Reduced' },
+            ]}
+            value={look.motion}
+            onChange={(v) => set({ motion: v })}
+          />
+        </Row>
+      </Section>
+
+      <Section title="Chat font" titleId="look-chat-font" description="What the messages in chats are written in: yours, your agents’ and the Brain’s. Names, buttons and code keep their own fonts.">
+        <div className="px-5 py-5">
+          <RadioGroup className="grid grid-cols-[repeat(auto-fill,minmax(12.5rem,1fr))] gap-3" aria-labelledby="look-chat-font" value={look.chatFont} onValueChange={(v) => set({ chatFont: String(v) })}>
+            {CHAT_FONTS.map((f) => (
+              <Radio.Root key={f.id} value={f.id} nativeButton render={<button type="button" />} className={(s) => (s.checked ? `${FONT} on` : FONT)}>
+                <span className="text-[15px] leading-[1.4]" style={{ fontFamily: f.stack }}>{f.label}</span>
+                <span className="text-[12.5px] leading-[1.4] text-dim">{f.like}</span>
+              </Radio.Root>
+            ))}
+          </RadioGroup>
         </div>
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Sidebar</h2>
-          </div>
-          <p className="hint">What the bottom of the menu shows: what’s set up, or how much of your Claude and Codex plans you’ve used, with Codex’s free limit resets. The Status / Limits switch there does the same.</p>
-          <div className="field mt-3.5">
-            <span id="look-sidebar">Shows</span>
+      </Section>
+
+      <Section title="Station look" description="Voxel world lights the Station like the world your agents will build: a sky, a sun with soft shadows, glow around bright things and a miniature blur at the edges. Classic is the flat map.">
+        <Row title="Look" titleId="look-station-look">
+          <Segmented
+            label="Station look"
+            options={[
+              { value: 'classic', label: 'Classic' },
+              { value: 'world', label: 'Voxel world' },
+            ]}
+            value={look.stationLook}
+            onChange={(v) => set({ stationLook: v })}
+          />
+        </Row>
+        {look.stationLook === 'world' ? (
+          <Row title="Quality" description="Low has no shadows or glow, for older computers. High adds softer creases and smoother edges.">
             <Segmented
-              label="Sidebar shows"
+              label="Voxel world quality"
               options={[
-                { value: 'status', label: 'Status' },
-                { value: 'limits', label: 'Usage limits' },
+                { value: 'low', label: 'Low' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'high', label: 'High' },
               ]}
-              value={state.data?.project?.sidebar || look.sidebar}
-              onChange={(v) => {
-                // the menu reads it from here, so it switches now rather than after the save
-                if (state.data?.settings) state.data.settings.look = { ...state.data.settings.look, sidebar: v };
-                // the open project remembers it too, or its own last choice would win over this
-                rememberSidebarPanel(v);
-                set({ sidebar: v });
-              }}
+              value={look.worldQuality}
+              onChange={(v) => set({ worldQuality: v })}
             />
-          </div>
-        </div>
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Preview</h2>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+          </Row>
+        ) : null}
+        <StationBackground look={look.stationLook} />
+      </Section>
+
+      <Section title="Station quality" description="How hard the 3D map works. Lower it if your fans spin up, your battery drains or the map stutters with many agents.">
+        <Row title="Quality" titleId="look-station" description={<span className="look-station-hint">{stationLevel(look.station).hint}</span>}>
+          <Segmented label="Station quality" options={STATION_QUALITY.map((q) => ({ value: q.id, label: q.label }))} value={look.station} onChange={(v) => set({ station: v })} />
+        </Row>
+      </Section>
+
+      <Section title="Sidebar" description="What the bottom of the menu shows: what’s set up, or how much of your Claude and Codex plans you’ve used, with Codex’s free limit resets. The Status / Limits switch there does the same.">
+        <Row title="Shows" titleId="look-sidebar">
+          <Segmented
+            label="Sidebar shows"
+            options={[
+              { value: 'status', label: 'Status' },
+              { value: 'limits', label: 'Usage limits' },
+            ]}
+            value={state.data?.project?.sidebar || look.sidebar}
+            onChange={(v) => {
+              // the menu reads it from here, so it switches now rather than after the save
+              if (state.data?.settings) state.data.settings.look = { ...state.data.settings.look, sidebar: v };
+              // the open project remembers it too, or its own last choice would win over this
+              rememberSidebarPanel(v);
+              set({ sidebar: v });
+            }}
+          />
+        </Row>
+      </Section>
+
+      <Section title="Preview" description="How the buttons, labels and chat text look with these choices.">
+        <div className="flex flex-col gap-4 px-5 py-5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button className="btn small">Button</button>
             <button className="btn ghost small">Ghost</button>
             <span className="pill ok">ready</span>
-            <span>
+            <span className="inline-flex items-center gap-2 text-[13px] text-dim">
               <span className="dot on" /> running
             </span>
           </div>
-          <p className="look-sample mt-3.5 mb-0 rounded-box border border-line bg-panel-2 px-3 py-2.5 font-chat text-[14px] leading-[1.55]">
+          <p className="look-sample m-0 rounded-box border border-line bg-panel-2 px-4 py-3 font-chat text-[14px] leading-[1.6]">
             Done. I read the three reports and put a one-page summary in <code>notes/summary.md</code>.
           </p>
-          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-            <button className="btn ghost small" onClick={() => set({ ...DEFAULT_LOOK })}>Reset to default</button>
-          </div>
         </div>
-      </div>
+        <div className="flex items-center justify-end px-5 py-3.5">
+          <button className="btn ghost small" onClick={() => set({ ...DEFAULT_LOOK })}>Reset to default</button>
+        </div>
+      </Section>
     </div>
   );
 }

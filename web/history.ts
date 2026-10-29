@@ -35,8 +35,8 @@ export function diffLines(a: string, b: string): DiffLine[] {
 }
 
 // a version's text, in a box of its own
-const TEXT_BOX = 'm-0 max-h-[58vh] overflow-auto rounded-ctl border border-line bg-bg px-3.5 py-3 font-mono text-[12.5px] leading-[1.55] font-normal whitespace-pre-wrap wrap-anywhere';
-const LINE = { kept: '-mx-1.5 px-1.5 text-dim', del: '-mx-1.5 bg-red/12 px-1.5 text-red', add: '-mx-1.5 bg-accent/10 px-1.5 text-accent' };
+const TEXT_BOX = 'm-0 max-h-[58vh] overflow-auto rounded-ctl border border-line bg-bg px-4 py-3.5 font-mono text-[12.5px] leading-[1.55] font-normal whitespace-pre-wrap wrap-anywhere';
+const LINE = { kept: '-mx-1.5 px-1.5 text-dim', del: '-mx-1.5 bg-red/12 px-1.5 text-red', add: '-mx-1.5 bg-ok/10 px-1.5 text-ok' };
 
 function diffView(older: string, newer: string): HTMLElement {
   const lines = diffLines(older, newer);
@@ -56,8 +56,8 @@ export async function openHistory(kind: VersionKind, id: string, { onRestored }:
   let m: ModalHandle;
   let picked: VersionDetail | null = null;
   let compare = true;
-  const listEl = h('div', { class: 'flex max-h-[62vh] flex-col gap-1 overflow-auto pr-1 max-[761px]:max-h-[30vh]' });
-  const view = h('div', { class: 'flex min-w-0 flex-col gap-2.5' });
+  const listEl = h('div', { class: 'flex max-h-[62vh] flex-col gap-2 overflow-auto pr-1 max-[761px]:max-h-[30vh]' });
+  const view = h('div', { class: 'flex min-w-0 flex-col gap-3' });
 
   const pick = async (vid: string) => {
     const d = await attempt(() => GET<VersionDetail>(`/versions/${kind}/${encodeURIComponent(id)}/${vid}`));
@@ -79,7 +79,7 @@ export async function openHistory(kind: VersionKind, id: string, { onRestored }:
     h(
       'button',
       {
-        class: `block w-full cursor-pointer rounded-ctl border px-2.75 py-2.25 text-left text-ink enabled:hover:border-[color-mix(in_srgb,var(--color-accent)_35%,var(--color-line))] disabled:cursor-default ${on ? 'border-accent bg-accent/8' : 'border-line bg-transparent'}`,
+        class: `block w-full cursor-pointer rounded-ctl border px-3.5 py-3 text-left text-ink enabled:hover:bg-panel-2 disabled:cursor-default ${on ? 'border-accent bg-accent/8' : 'border-line bg-transparent'}`,
         onclick,
         disabled: !onclick,
       },
@@ -124,7 +124,7 @@ export async function openHistory(kind: VersionKind, id: string, { onRestored }:
   const restoreBtn = h('button.btn', { onclick: restore, disabled: true }, 'Restore this version');
   m = modal({
     title: `History · ${hist.name}`,
-    body: h('div', { class: 'grid min-h-[360px] grid-cols-[minmax(200px,260px)_1fr] gap-3.5 max-[761px]:grid-cols-[1fr]' }, listEl, view),
+    body: h('div', { class: 'grid min-h-[360px] grid-cols-[minmax(200px,260px)_1fr] gap-5 max-[761px]:grid-cols-[1fr]' }, listEl, view),
     foot: [h('span.hint', { class: 'min-w-0 flex-1' }, `${hist.versions.length} earlier version${hist.versions.length === 1 ? '' : 's'} kept`), h('button.btn.ghost', { onclick: () => m.close() }, 'Close'), restoreBtn],
   });
   m.el.classList.add('wide');

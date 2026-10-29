@@ -90,8 +90,8 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
   };
   const chip = agent ? <DomNode as="span" make={() => modelChip(agent, { compact: true })} deps={[agent.id, agent.model, agent.engine, agent.provider]} /> : <span />;
   return (
-    <div className="flex flex-col gap-2 h-full" ref={root}>
-      <div className="flex items-center gap-1.5">
+    <div className="flex flex-col gap-3 h-full" ref={root}>
+      <div className="flex items-center gap-2">
         {chip}
         <span className="flex-1 min-w-0" />
         <button className="btn tiny ghost" title="Start a fresh conversation" onClick={() => void fresh()}>

@@ -83,11 +83,11 @@ export async function openEditor(slug: string | null, reload: () => unknown): Pr
   });
   const askBox = h(
     'div.skill-ask',
-    { class: 'flex flex-col gap-2 py-3 px-3.5 border border-[color-mix(in_srgb,var(--color-accent)_30%,var(--color-line))] rounded-[12px] bg-[color-mix(in_srgb,var(--color-accent)_5%,var(--color-panel))]' },
+    { class: 'flex flex-col gap-3 p-4 border border-[color-mix(in_srgb,var(--color-accent)_30%,var(--color-line))] rounded-box bg-[color-mix(in_srgb,var(--color-accent)_5%,var(--color-panel))]' },
     h('div.label', { class: 'flex items-center gap-1.5 text-accent' }, icon('sparkles', 13), slug ? ' Change it in plain words' : ' Write it in plain words'),
     ask,
     tray.el,
-    h('div', { class: 'flex flex-wrap items-center gap-2' }, askBtn, tray.picker, undoBtn, askStatus),
+    h('div', { class: 'flex flex-wrap items-center gap-3' }, askBtn, tray.picker, undoBtn, askStatus),
     h('p.hint', { class: 'm-0' }, `${slug ? 'The Brain rewrites the fields below as you ask (what you typed there counts too).' : 'The Brain fills in the fields below.'} Drop examples or notes to learn from. Nothing is saved until you press ${slug ? 'Save' : 'Add skill'}. Ctrl+Enter sends.`),
   );
   let m: ModalHandle;
@@ -104,12 +104,12 @@ export async function openEditor(slug: string | null, reload: () => unknown): Pr
     title: slug ? `Edit skill · ${s?.name || slug}` : 'New skill',
     body: h(
       'div',
-      { class: 'flex flex-col gap-2.5' },
+      { class: 'flex flex-col gap-5' },
       askBox,
       field('Name', name),
       field('When to use it', desc, 'Agents decide from this line whether the skill fits, so be specific.'),
       field('Instructions', body, 'Markdown. Steps, rules, examples, what good output looks like. The agent reads this when it uses the skill.'),
-      s?.files?.length ? h('div', h('div.label', `Files with this skill (${s.files.length})`), h('div', { class: 'flex flex-wrap gap-1.25 mt-1.5' }, s.files.map((f) => h('span.pill', f.path)))) : null,
+      s?.files?.length ? h('div', h('div.label', `Files with this skill (${s.files.length})`), h('div', { class: 'mt-2 flex flex-wrap gap-2' }, s.files.map((f) => h('span.pill', f.path)))) : null,
       s ? h('p.hint', `Saved as data/skills/${s.slug}/SKILL.md, in the same format Claude Code uses. Every change keeps the version from before it (History).`) : null,
     ),
     foot: [
@@ -121,7 +121,6 @@ export async function openEditor(slug: string | null, reload: () => unknown): Pr
     // the files were only for the Brain to read: they go with the dialog
     onClose: () => tray.discard(),
   });
-  m.el.classList.add('mono-fields');
   tray.dropZone(m.el.querySelector<HTMLElement>('.modal')!, 'Drop examples or notes for the Brain');
   setTimeout(() => ask.focus(), 40);
 }
@@ -130,7 +129,7 @@ export async function openEditor(slug: string | null, reload: () => unknown): Pr
 export function openGitHub(reload: () => unknown): void {
   let m: ModalHandle;
   const url = h('input', { placeholder: 'https://github.com/owner/repo/tree/main/skills/my-skill' });
-  const out = h('div', { class: 'flex flex-col gap-2.5' });
+  const out = h('div', { class: 'flex flex-col gap-3' });
   const go = async (btn: HTMLButtonElement) => {
     if (!url.value.trim()) return url.focus();
     btn.disabled = true;
@@ -152,7 +151,7 @@ export function openGitHub(reload: () => unknown): void {
     title: 'Install skills from GitHub',
     body: h(
       'div',
-      { class: 'flex flex-col gap-2.5' },
+      { class: 'flex flex-col gap-4' },
       field('GitHub link', url, 'A repo, a folder or a SKILL.md. Every folder with a SKILL.md at or under the link is installed, with its files (up to 20 skills). Installing from the same place again updates them; the old version stays in History.'),
       h('p.hint', 'Skills are instructions your agents follow: install them only from people you trust. Private repos work once you sign in with the GitHub CLI (gh auth login).'),
       out,
@@ -194,5 +193,5 @@ export function openImport(claude: ClaudeSkill[], reload: () => unknown): void {
       ),
     );
   drawRows();
-  m = modal({ title: 'Import from Claude Code', body: h('div', { class: 'flex flex-col gap-2.5' }, h('p.hint', 'Your Claude Code skills (~/.claude/skills). Importing copies the skill and its files into the dashboard library; the original stays where it is.'), rows), foot: [h('button.btn', { onclick: () => m.close() }, 'Done')] });
+  m = modal({ title: 'Import from Claude Code', body: h('div', { class: 'flex flex-col gap-4' }, h('p.hint', 'Your Claude Code skills (~/.claude/skills). Importing copies the skill and its files into the dashboard library; the original stays where it is.'), rows), foot: [h('button.btn', { onclick: () => m.close() }, 'Done')] });
 }

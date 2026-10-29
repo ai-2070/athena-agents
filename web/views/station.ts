@@ -20,6 +20,8 @@ import { teamMarkUrl, DEFAULT_TEAM_MARK } from '../teammark.ts';
 import { neighbours, stepIndex, floorDirection, shortName } from '../projectnav.ts';
 import { slideIn, slideOut } from '../motion.ts';
 import { icon, logo, brandPath } from '../icons.ts';
+import { brandMark } from '../brand.ts';
+import { pal, refreshPalette, watchPalette, brandTone, mutedTone, mix, alpha, INK } from './stationpalette.ts';
 import { appIconImage } from '../appicons.ts';
 import { engineKey } from '../agentstats.ts';
 import { openProjectMenu } from '../projects.ts';
@@ -156,10 +158,12 @@ type StationNode = PodNode | PedestalNode;
 /** Anything a wire can run to: team nodes and Bench desks. */
 type MapNode = StationNode | AgentNode;
 
-/** A material whose opacity follows the team's activity. */
+/** A line or ring whose opacity follows the team's activity (and, on white, whose colour goes from quiet to the accent while it is live). */
 interface Rail {
-  material: THREE.Material;
+  material: THREE.Material & { color: THREE.Color };
   base: number;
+  rest?: THREE.Color;
+  live?: THREE.Color;
 }
 /** A team pod on the map. */
 interface Branch {
@@ -174,6 +178,8 @@ interface Branch {
   card: HTMLDivElement;
   agentCount: number;
   rails: Rail[];
+  /** the rails are drawn in their live colour */
+  lit?: boolean;
   link: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
   hub: { holo: THREE.Object3D; holo2: THREE.Object3D; hubGlow: THREE.Sprite };
   spin: number;
@@ -284,8 +290,11 @@ interface Cam {
 }
 interface Brain {
   group: THREE.Group;
-  cloud: THREE.Points;
-  ico: THREE.LineSegments;
+  base: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshStandardMaterial>;
+  shadow: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  baseEdge: THREE.LineSegments<THREE.EdgesGeometry, THREE.LineBasicMaterial>;
+  cloud: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  ico: THREE.LineSegments<THREE.EdgesGeometry, THREE.LineBasicMaterial>;
   halo: THREE.Sprite;
   beam: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshBasicMaterial>;
   star: THREE.Sprite;
@@ -308,6 +317,10 @@ interface StationState {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.OrthographicCamera;
+  /** the classic map's lights (coloured again when the theme changes) */
+  lights: { ambient: THREE.AmbientLight; sun: THREE.DirectionalLight; rim: THREE.DirectionalLight };
+  /** stops watching the page's light or dark and its accent */
+  offPalette?: () => void;
   world: THREE.Group | null;
   desks: Desk[];
   nodes: StationNode[];
@@ -399,7 +412,7 @@ interface StationState {
   /** the classic map's floor dots: their opacity is the project's (Settings › Look › Station look) */
   mapDots: THREE.PointsMaterial;
   /** the project's background picture (tex once loaded), and the background it took over (the voxel look's sky) */
-  backdrop?: { url: string; tex: THREE.Texture | null; prev: THREE.Scene['background'] } | null;
+  backdrop?: { url: string; tex: THREE.Texture | null; prev: THREE.Scene['background']; baked?: THREE.CanvasTexture; bakedFor?: { w: number; h: number; k: number; floor: string } } | null;
   /** the voxel look (web/voxel), while it is on */
   view?: WorldView | null;
   /** the project's voxel world on the map, while the voxel look is on */
@@ -471,13 +484,6 @@ export const title = () => 'Station';
 
 let S: StationState | null = null;
 
-const STEP_LOOK: Record<string, { glyph: string; label: string; color: string }> = {
-  tool: { glyph: '⚙', label: 'Tool', color: '#a9d3e2' },
-  approval: { glyph: '✋', label: 'Your OK', color: '#f0b04a' },
-  x_post: { glyph: '𝕏', label: 'Post to X', color: '#e6e8e0' },
-  notify: { glyph: '✉', label: 'Notify you', color: '#5fe3a0' },
-};
-
 // ---------- textures ----------
 function canvasTex(w: number, hgt: number, draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void): CanvasTex {
   const c = document.createElement('canvas');
@@ -511,7 +517,7 @@ function glyphTex(glyph: string, color: string): THREE.Texture {
   const key = glyph + color;
   if (glyphCache.has(key)) return glyphCache.get(key)!;
   const t = canvasTex(128, 128, (ctx) => {
-    ctx.fillStyle = '#0d100d';
+    ctx.fillStyle = pal.disc;
     ctx.beginPath();
     ctx.arc(64, 64, 58, 0, Math.PI * 2);
     ctx.fill();
@@ -540,7 +546,7 @@ function describeTool(name: unknown, args: ToolArgs = {}): ToolDesc {
     }
   };
   const base = (p: unknown) => String(p || '').split(/[\\/]/).pop();
-  const A = (app: string, action: string, detail: unknown = '', brand: string | null = null, color = '#c4ff3d'): ToolDesc => ({ app, action, detail: String(detail || '').replace(/\s+/g, ' ').slice(0, 60), brand, color });
+  const A = (app: string, action: string, detail: unknown = '', brand: string | null = null, color = ''): ToolDesc => ({ app, action, detail: String(detail || '').replace(/\s+/g, ' ').slice(0, 60), brand, color });
   if (n === 'world_build') return A('World', 'building', args.object, null, '#f3b6cf');
   if (n === 'world_object') return A('World', args.delete === true ? 'removing' : 'arranging', args.object, null, '#f3b6cf');
   if (n === 'world_undo') return A('World', 'undoing a change', '', null, '#f3b6cf');
@@ -571,29 +577,29 @@ function describeTool(name: unknown, args: ToolArgs = {}): ToolDesc {
   if (n === 'fetch_url' || n === 'WebFetch') return A('Browser', 'reading', host(args.url), 'chrome', '#a9d3e2');
   if (n === 'open_url') return A('Browser', 'opening', host(args.url), 'chrome', '#a9d3e2');
   if (n === 'WebSearch') return A('Web search', 'searching', args.query || '', 'chrome', '#a9d3e2');
-  if (n === 'x_draft_post') return A('X', 'drafting a post', args.text || (args.thread || [])[0] || '', 'x', '#e6e8e0');
-  if (n === 'x_draft_dm') return A('X', `drafting a DM to @${String(args.to || '').replace(/^@/, '')}`, args.text || '', 'x', '#e6e8e0');
-  if (n === 'x_recent_posts' || n === 'x_mentions') return A('X', 'reading', n === 'x_mentions' ? 'mentions' : 'recent posts', 'x', '#e6e8e0');
+  if (n === 'x_draft_post') return A('X', 'drafting a post', args.text || (args.thread || [])[0] || '', 'x', INK);
+  if (n === 'x_draft_dm') return A('X', `drafting a DM to @${String(args.to || '').replace(/^@/, '')}`, args.text || '', 'x', INK);
+  if (n === 'x_recent_posts' || n === 'x_mentions') return A('X', 'reading', n === 'x_mentions' ? 'mentions' : 'recent posts', 'x', INK);
   if (n === 'telegram_send') return A('Telegram', 'sending a message', args.text || '', 'telegram', '#4fb3f6');
   if (n === 'reddit_draft_post') return A('Reddit', `drafting a post for r/${String(args.subreddit || '').replace(/^\/?r\//, '')}`, args.title || '', 'reddit', '#ff4500');
   if (n === 'reddit_draft_comment') return A('Reddit', 'drafting a comment', args.text || '', 'reddit', '#ff4500');
   if (n === 'reddit_read' || n === 'reddit_search' || n === 'reddit_comments') return A('Reddit', n === 'reddit_search' ? 'searching' : 'reading', args.subreddit ? `r/${args.subreddit}` : args.query || args.post || '', 'reddit', '#ff4500');
   if (n === 'discord_send') return A('Discord', 'posting', args.text || '', 'discord', '#7d86ff');
-  if (n === 'Bash' || n === 'run_command') return A('Terminal', 'running', args.command || '', null, '#c4ff3d');
+  if (n === 'Bash' || n === 'run_command') return A('Terminal', 'running', args.command || '', null, '');
   if (['Read', 'read_file', 'knowledge_read'].includes(n)) return A('Files', 'reading', base(args.file_path || args.path || args.file), null, '#a9d3e2');
   if (['Write', 'Edit', 'write_file', 'NotebookEdit'].includes(n)) return A('Files', 'writing', base(args.file_path || args.path), null, '#a9d3e2');
   if (['Glob', 'Grep', 'list_files', 'knowledge_search'].includes(n)) return A('Files', 'searching', args.pattern || args.query || args.path || '', null, '#a9d3e2');
-  if (n === 'ask_agent') return A('Team', `asking ${args.agent || 'a teammate'}`, args.message || '', null, '#c4ff3d');
-  if (n === 'await_agent') return A('Team', args.handle ? 'waiting for a teammate' : 'checking handoffs', '', null, '#c4ff3d');
+  if (n === 'ask_agent') return A('Team', `asking ${args.agent || 'a teammate'}`, args.message || '', null, '');
+  if (n === 'await_agent') return A('Team', args.handle ? 'waiting for a teammate' : 'checking handoffs', '', null, '');
   if (n === 'hermes_ask') return A('Hermes', `asking ${args.profile || 'Hermes'}`, args.message || '', null, '#d8c25a');
-  if (n === 'launch_program') return A(String(args.program || 'Program'), 'starting', base(args.file), String(args.program || '').toLowerCase(), '#c4ff3d');
+  if (n === 'launch_program') return A(String(args.program || 'Program'), 'starting', base(args.file), String(args.program || '').toLowerCase(), '');
   if (n === 'orca') return A('Orca', (args.args || []).join(' '), '', null, '#7ab8ff');
   const m = /^mcp__(.+?)__(.+)$/.exec(n) || /^(.+?)__(.+)$/.exec(n);
   if (m) {
     const server = m[1].replace(/^claude_ai_/, '').replace(/_/g, ' ');
     return A(server.replace(/\b\w/g, (c) => c.toUpperCase()), m[2].replace(/[_-]/g, ' ').slice(0, 40), args.url ? host(args.url) : args.query || args.q || '', server.toLowerCase(), '#a9d3e2');
   }
-  return A(n.replace(/_/g, ' '), 'working', '', null, '#c4ff3d');
+  return A(n.replace(/_/g, ' '), 'working', '', null, '');
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, hh: number, r: number): void {
@@ -613,7 +619,9 @@ function fitText(ctx: CanvasRenderingContext2D, text: unknown, max: number): str
   return t + '…';
 }
 
-// The little monitor on each desk.
+// The little monitor on each desk. Its colours come from the palette, so it is drawn again when the theme changes.
+const SCREEN_SANS = '"Inter", "Segoe UI", system-ui, sans-serif';
+const SCREEN_MONO = '"JetBrains Mono", Consolas, monospace';
 function drawScreen(desk: Desk, tick = 0): void {
   const { ctx, canvas } = desk.screen;
   const W = canvas.width;
@@ -621,71 +629,72 @@ function drawScreen(desk: Desk, tick = 0): void {
   const st = desk.status;
   const a = desk.agent;
   const act = desk.act;
+  const sc = pal.screen;
   ctx.textBaseline = 'middle';
   if (st === 'idle') {
-    ctx.fillStyle = '#e4e8dd';
+    ctx.fillStyle = sc.idleBg;
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#cdd2c6';
+    ctx.fillStyle = sc.idleBar;
     ctx.fillRect(0, 0, W, 40);
-    ['#ff6b6b', '#f0b04a', '#5fe3a0'].forEach((c, i) => {
-      ctx.fillStyle = c;
+    [pal.red, pal.amber, pal.ok].forEach((c, i) => {
+      ctx.fillStyle = mix(c, sc.idleBar, 0.4);
       ctx.beginPath();
       ctx.arc(24 + i * 24, 20, 7, 0, Math.PI * 2);
       ctx.fill();
     });
-    ctx.fillStyle = '#3a3f37';
-    ctx.font = 'bold 20px Consolas, monospace';
+    ctx.fillStyle = sc.idleDim;
+    ctx.font = `600 20px ${SCREEN_SANS}`;
     ctx.textAlign = 'right';
-    ctx.fillText(desk.stepNo && desk.stepNo !== '-' ? String(desk.stepNo) : 'BENCH', W - 20, 21);
+    ctx.fillText(desk.stepNo && desk.stepNo !== '-' ? String(desk.stepNo) : 'Bench', W - 20, 21);
     ctx.textAlign = 'left';
     ctx.font = '84px "Segoe UI Emoji", sans-serif';
     ctx.fillText(a.emoji || '🤖', 28, 140);
-    ctx.fillStyle = '#16190f';
-    ctx.font = 'bold 40px "Segoe UI", sans-serif';
+    ctx.fillStyle = sc.idleTitle;
+    ctx.font = `600 40px ${SCREEN_SANS}`;
     ctx.fillText(fitText(ctx, a.name, W - 160), 140, 118);
-    ctx.fillStyle = '#5f6559';
-    ctx.font = '26px Consolas, monospace';
-    ctx.fillText(fitText(ctx, `○ ready · ${shortModel(a)}`, W - 160), 140, 162);
+    ctx.fillStyle = sc.idleDim;
+    ctx.font = `26px ${SCREEN_SANS}`;
+    ctx.fillText(fitText(ctx, `Ready · ${shortModel(a)}`, W - 160), 140, 162);
     for (let i = 0; i < 4; i++) {
-      ctx.fillStyle = i === 0 ? desk.color : '#c3c8bc';
+      ctx.fillStyle = i === 0 ? brandTone(desk.color) : sc.idleLine;
       roundRect(ctx, 28, 214 + i * 24, 80 + ((i * 97) % 300), 10, 5);
       ctx.fill();
     }
   } else if (st === 'needs') {
-    ctx.fillStyle = '#21180a';
+    ctx.fillStyle = sc.needsBg;
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = Math.sin(tick * 6) > 0 ? '#f0b04a' : '#7a5a24';
-    ctx.font = 'bold 120px "Segoe UI Symbol", sans-serif';
+    ctx.fillStyle = Math.sin(tick * 6) > 0 ? sc.needsHi : sc.needsLo;
+    ctx.font = `bold 120px ${SCREEN_SANS}`;
     ctx.textAlign = 'center';
     ctx.fillText('!', 90, H / 2 + 6);
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#f0b04a';
-    ctx.font = 'bold 40px "Segoe UI", sans-serif';
+    ctx.fillStyle = sc.needsTitle;
+    ctx.font = `600 40px ${SCREEN_SANS}`;
     ctx.fillText('Waiting for you', 170, 120);
-    ctx.fillStyle = '#e6e8e0';
-    ctx.font = '24px "Segoe UI", sans-serif';
+    ctx.fillStyle = sc.needsText;
+    ctx.font = `24px ${SCREEN_SANS}`;
     const ap = (state.data?.approvals || []).find((x) => x.agentId === a.id);
     // (no approval: it asked you a question, in the Outbox)
     const asks = ap ? null : (state.data?.questions || []).find((x) => x.agentId === a.id);
     ctx.fillText(fitText(ctx, asks ? asks.question : (ap?.title || 'needs your OK').replace(`${a.name} wants to `, ''), W - 190), 170, 168);
-    ctx.fillStyle = '#9a8a6a';
-    ctx.font = '22px Consolas, monospace';
-    ctx.fillText(asks ? 'answer it in the Outbox' : 'open Needs you to answer', 170, 214);
+    ctx.fillStyle = sc.needsDim;
+    ctx.font = `22px ${SCREEN_SANS}`;
+    ctx.fillText(asks ? 'Answer it in the Outbox' : 'Open Needs you to answer', 170, 214);
   } else {
     // working
-    ctx.fillStyle = '#0b130a';
+    ctx.fillStyle = sc.workBg;
     ctx.fillRect(0, 0, W, H);
     const isTool = act?.kind === 'tool';
-    const color = isTool ? act.color : '#c4ff3d';
+    const color = isTool ? brandTone(act.color) : pal.accent;
     // logo disc
     const cx = 86;
     const cy = 150;
     const g = ctx.createRadialGradient(cx, cy, 10, cx, cy, 90);
-    g.addColorStop(0, color + '55');
-    g.addColorStop(1, color + '00');
+    g.addColorStop(0, alpha(color, pal.dark ? 0.33 : 0.16));
+    g.addColorStop(1, alpha(color, 0));
     ctx.fillStyle = g;
     ctx.fillRect(0, 50, 200, 200);
-    ctx.fillStyle = '#121a11';
+    ctx.fillStyle = sc.workDisc;
     ctx.beginPath();
     ctx.arc(cx, cy, 54, 0, Math.PI * 2);
     ctx.fill();
@@ -701,7 +710,7 @@ function drawScreen(desk: Desk, tick = 0): void {
       ctx.save();
       ctx.translate(cx - 30, cy - 30);
       ctx.scale(2.5, 2.5);
-      ctx.fillStyle = bp.hex;
+      ctx.fillStyle = brandTone(bp.hex);
       ctx.fill(new Path2D(bp.d));
       ctx.restore();
     } else if (pic) {
@@ -709,25 +718,25 @@ function drawScreen(desk: Desk, tick = 0): void {
     } else {
       ctx.fillStyle = color;
       ctx.textAlign = 'center';
-      ctx.font = isTool ? 'bold 44px "Segoe UI", sans-serif' : '56px "Segoe UI Emoji", sans-serif';
-      ctx.fillText(isTool ? act.app.slice(0, 2).toUpperCase() : a.emoji || '🤖', cx, cy + 3);
+      ctx.font = isTool ? `600 44px ${SCREEN_SANS}` : '56px "Segoe UI Emoji", sans-serif';
+      ctx.fillText(isTool ? act.app.slice(0, 2) : a.emoji || '🤖', cx, cy + 3);
       ctx.textAlign = 'left';
     }
     // words
-    ctx.fillStyle = '#e6e8e0';
-    ctx.font = 'bold 40px "Segoe UI", sans-serif';
+    ctx.fillStyle = sc.workTitle;
+    ctx.font = `600 40px ${SCREEN_SANS}`;
     ctx.fillText(fitText(ctx, isTool ? act.app : act?.kind === 'writing' ? 'Writing reply' : 'Thinking', W - 190), 170, 104);
     ctx.fillStyle = color;
-    ctx.font = '28px "Segoe UI", sans-serif';
+    ctx.font = `500 28px ${SCREEN_SANS}`;
     const dots = '.'.repeat(1 + (Math.floor(tick * 2) % 3));
     ctx.fillText(fitText(ctx, isTool ? act.action : `${dots}`, W - 190), 170, 150);
     if (isTool && act.detail) {
-      ctx.fillStyle = '#8f968a';
-      ctx.font = '22px Consolas, monospace';
+      ctx.fillStyle = sc.workDim;
+      ctx.font = `22px ${SCREEN_MONO}`;
       ctx.fillText(fitText(ctx, act.detail, W - 190), 170, 192);
     }
     // bottom: moving progress + time
-    ctx.fillStyle = '#1c2a18';
+    ctx.fillStyle = sc.workTrack;
     roundRect(ctx, 28, 262, W - 160, 10, 5);
     ctx.fill();
     const pw = 120;
@@ -739,27 +748,31 @@ function drawScreen(desk: Desk, tick = 0): void {
     ctx.fillRect(px, 262, pw, 10);
     ctx.restore();
     const secs = act?.since ? Math.max(0, Math.round((Date.now() - act.since) / 1000)) : 0;
-    ctx.fillStyle = '#8f968a';
-    ctx.font = 'bold 22px Consolas, monospace';
+    ctx.fillStyle = sc.workDim;
+    ctx.font = `600 22px ${SCREEN_SANS}`;
     ctx.textAlign = 'right';
     ctx.fillText(secs >= 60 ? `${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, '0')}` : `${secs}s`, W - 22, 268);
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#5a6455';
-    ctx.font = 'bold 18px Consolas, monospace';
-    ctx.fillText(fitText(ctx, `${a.name.toUpperCase()} · ${shortModel(a)}`, W - 60), 28, 26);
+    ctx.fillStyle = sc.workDim;
+    ctx.font = `600 18px ${SCREEN_SANS}`;
+    ctx.fillText(fitText(ctx, `${a.name} · ${shortModel(a)}`, W - 60), 28, 26);
   }
   desk.screen.tex.needsUpdate = true;
 }
 
 // ---------- mount ----------
 export async function render(el: HTMLElement): Promise<void> {
-  const root = h('div.st-root', { class: 'group/root relative h-screen overflow-hidden bg-[#070807] select-none' });
+  // the colours of the map for this theme (the page's tokens, worked out once; watchPalette below redoes them when they change)
+  refreshPalette();
+  glyphCache.clear();
+  furniture = null;
+  const root = h('div.st-root', { class: 'group/root relative h-screen overflow-hidden bg-floor select-none' });
   const host = h('div', { class: 'absolute inset-0 block [&_canvas]:absolute [&_canvas]:inset-0 [&_canvas]:block' });
   // the labels are moved every frame by script (transform): their classes only change with their state
   const labels = h('div', { class: 'group/labels absolute inset-0 pointer-events-none overflow-hidden *:absolute *:left-0 *:top-0 *:pointer-events-auto *:will-change-transform' });
   const hud = h('div', { class: 'absolute inset-0 pointer-events-none' });
   const panel = h('aside.st-panel.hidden', {
-    class: 'absolute top-16 right-3.5 bottom-3.5 w-95 max-w-[calc(100%-28px)] z-5 flex flex-col bg-glass backdrop-blur-[16px] backdrop-saturate-140 border border-line-2 rounded-box shadow-pop select-text max-md:top-auto max-md:left-0 max-md:right-0 max-md:bottom-0 max-md:h-[60vh] max-md:w-auto max-md:max-w-none',
+    class: 'absolute top-18 right-4 bottom-4 w-100 max-w-[calc(100%-32px)] z-5 flex flex-col bg-panel border border-line rounded-box shadow-pop select-text max-md:top-auto max-md:left-0 max-md:right-0 max-md:bottom-0 max-md:h-[60vh] max-md:w-auto max-md:max-w-none',
   });
   const wires = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   wires.setAttribute('class', 'st-wires absolute inset-0 w-full h-full pointer-events-none overflow-visible');
@@ -772,22 +785,22 @@ export async function render(el: HTMLElement): Promise<void> {
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(pixelRatioFor(stationLevel(currentLook().station).pixelRatio));
-  renderer.setClearColor(0x070807, 1);
+  renderer.setClearColor(pal.clear, 1);
   host.append(renderer.domElement);
   const scene = new THREE.Scene();
   // renderStation updates the scene's positions once a frame, before the glows read them
   scene.matrixWorldAutoUpdate = false;
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -600, 1200);
-  const ambient = new THREE.AmbientLight(0xbfc8ff, 0.55);
+  const ambient = new THREE.AmbientLight(pal.ambient, pal.ambientK);
   scene.add(ambient);
-  const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+  const sun = new THREE.DirectionalLight(pal.sun, pal.sunK);
   sun.position.set(30, 60, 20);
   scene.add(sun);
-  const rim = new THREE.DirectionalLight(0x7fb6ff, 0.35);
+  const rim = new THREE.DirectionalLight(pal.rim, pal.rimK);
   rim.position.set(-40, 20, -30);
   scene.add(rim);
   const classic: THREE.Object3D[] = [ambient, sun, rim];
-  const mapDots = new THREE.PointsMaterial({ color: 0x262b24, size: 2, sizeAttenuation: false, transparent: true, depthWrite: false });
+  const mapDots = new THREE.PointsMaterial({ color: pal.dots, size: 2, sizeAttenuation: false, transparent: true, depthWrite: false });
   {
     const pts: number[] = [];
     for (let x = -150; x <= 150; x += 3) for (let z = -150; z <= 150; z += 3) pts.push(x, -0.01, z);
@@ -807,6 +820,7 @@ export async function render(el: HTMLElement): Promise<void> {
     renderer,
     scene,
     camera,
+    lights: { ambient, sun, rim },
     world: null,
     desks: [],
     nodes: [],
@@ -833,6 +847,7 @@ export async function render(el: HTMLElement): Promise<void> {
     mapDots,
   } as Partial<StationState> as StationState; // the rest is filled in below
   S.wireDots = wireDots;
+  S.offPalette = watchPalette(restyle);
   S.panelView = mountStationPanel(panel, panelApi);
   const menuHost = h('div.dom-contents');
   root.append(menuHost);
@@ -949,6 +964,7 @@ export function unmount(): void {
   if (!S) return;
   S.alive = false;
   S.offState?.();
+  S.offPalette?.();
   S.ro?.disconnect();
   clearInterval(S.progTimer);
   clearInterval(S.headTimer);
@@ -1028,12 +1044,14 @@ async function applyStationLook(): Promise<void> {
   S.worldLayer = null;
   S.view?.dispose();
   S.view = null;
+  syncShadows();
   if (!want) return;
   const [{ createWorldView }, { createWorldLayer }] = await Promise.all([import('../voxel/view.ts'), import('../voxel/worldlayer.ts')]);
   if (!S || S.lookShown !== want) return;
   S.view = createWorldView({ renderer: S.renderer, scene: S.scene, camera: S.camera, quality: want, classic: S.classic, w: S.w, h: S.h, onSlow: S.lookForced ? undefined : () => void stepLookDown(want) });
   if (S.world) S.view.adopt(S.world, S.radius || 40);
   S.worldLayer = createWorldLayer(S.view, anchorAt, skinHost);
+  syncShadows();
 }
 
 // Frames stayed slow: one quality level down for this visit (Settings keep what you chose).
@@ -1142,59 +1160,158 @@ async function voxelBench(opts: VoxelBenchOptions | null = {}): Promise<unknown>
 }
 
 // ---------- the Brain ----------
+// The painted shadows are for the white classic map; the voxel look casts its own.
+const shadowsOn = (): boolean => !pal.dark && !S?.view;
+function syncShadows(): void {
+  if (!S) return;
+  const on = shadowsOn();
+  S.scene.traverse((o) => {
+    if (o.userData.shadow) o.visible = on;
+  });
+}
+
+/** A soft shadow lying on the ground (white map only: a dark one has the glow instead). Never picked. */
+function groundShadow(w: number, d: number, opacity: number): THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({ map: glow(), color: pal.shadow, transparent: true, opacity, depthWrite: false }));
+  m.userData.shadow = true;
+  m.visible = shadowsOn();
+  m.rotation.x = -Math.PI / 2;
+  // the light comes from the front right, so it falls a little back and to the left
+  m.position.set(-0.8, 0.03, -1.1);
+  m.raycast = () => {};
+  return m;
+}
+
+// The globe's looks (colours, how its lights are laid on) come from styleBrain, so the same objects follow the theme.
+const GLOBE_POINTS = 2200;
 function buildBrain(): void {
   assertMounted(S);
   const g = new THREE.Group();
-  const ped = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 4.4, 0.8, 6), new THREE.MeshStandardMaterial({ color: 0x121612, roughness: 0.8, metalness: 0.3 }));
+  const ped = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 4.4, 0.8, 6), new THREE.MeshStandardMaterial({ roughness: 0.8 }));
   ped.position.y = 0.4;
   g.add(ped);
-  const pedEdges = new THREE.LineSegments(new THREE.EdgesGeometry(ped.geometry), new THREE.LineBasicMaterial({ color: 0x7a9a2c, transparent: true, opacity: 0.6 }));
+  const pedEdges = new THREE.LineSegments(new THREE.EdgesGeometry(ped.geometry), new THREE.LineBasicMaterial({ transparent: true }));
   pedEdges.position.copy(ped.position);
   ped.userData.part = pedEdges.userData.part = 'base';
   g.add(pedEdges);
-  const N = 2200;
+  const shadow = groundShadow(15, 13, 0.2);
+  g.add(shadow);
+  const N = GLOBE_POINTS;
   const pos = new Float32Array(N * 3);
-  const col = new Float32Array(N * 3);
-  const c1 = new THREE.Color(0x7fb6ff);
-  const c2 = new THREE.Color(0xe6f2ff);
+  // how far along the globe's two colours each point is (kept, so the points can be coloured again)
+  const along = new Float32Array(N);
   for (let i = 0; i < N; i++) {
     const r = 2.6 * Math.pow(Math.random(), 0.35);
     const th = Math.random() * Math.PI * 2;
     const ph = Math.acos(2 * Math.random() - 1);
     pos.set([r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph) * 0.8, r * Math.sin(ph) * Math.sin(th)], i * 3);
-    const c = c1.clone().lerp(c2, Math.random());
-    col.set([c.r, c.g, c.b], i * 3);
+    along[i] = Math.random();
   }
   const pg = new THREE.BufferGeometry();
   pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  pg.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  const cloud = new THREE.Points(pg, new THREE.PointsMaterial({ size: 0.11, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+  pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+  const cloud = new THREE.Points(pg, new THREE.PointsMaterial({ size: 0.11, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false }));
+  cloud.userData.along = along;
   cloud.position.y = 3.2;
   g.add(cloud);
-  const ico = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(3.1, 1)), new THREE.LineBasicMaterial({ color: 0xc4ff3d, transparent: true, opacity: 0.18 }));
+  const ico = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(3.1, 1)), new THREE.LineBasicMaterial({ transparent: true }));
   ico.position.y = 3.2;
   g.add(ico);
-  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: 0x6fa8ff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), transparent: true, opacity: 0.7, depthWrite: false }));
   halo.scale.set(11, 11, 1);
   halo.position.y = 3.2;
   g.add(halo);
-  const beam = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.18, 0.7, 16, 24, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0xffd36e, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
-  );
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.7, 16, 24, 1, true), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }));
   beam.position.y = 12;
   g.add(beam);
-  const star = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: 0xffcc55, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const star = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), transparent: true, opacity: 0.9, depthWrite: false }));
   star.scale.set(6, 6, 1);
   star.position.y = 7.4;
   g.add(star);
-  const light = new THREE.PointLight(0x9fd0ff, 30, 40, 1.6);
+  const light = new THREE.PointLight(0xffffff, 30, 40, 1.6);
   light.position.y = 4;
   g.add(light);
   g.traverse((o) => (o.userData.pick = { type: 'brain' }));
   S.scene.add(g);
-  S.brain = { group: g, cloud, ico, halo, beam, star, light, logo: null, logoKey: '', model: null, modelLight: null };
+  S.brain = { group: g, base: ped, shadow, baseEdge: pedEdges, cloud, ico, halo, beam, star, light, logo: null, logoKey: '', model: null, modelLight: null };
+  styleBrain();
   setBrainLogo();
+}
+
+/** Colours the Brain for the theme: pale and quiet on white, a soft night glow on dark. */
+const globeColor = new THREE.Color();
+function styleBrain(): void {
+  const b = S?.brain;
+  if (!b) return;
+  b.base.material.color.set(pal.base);
+  b.base.material.metalness = pal.dark ? 0.3 : 0;
+  b.base.material.needsUpdate = true;
+  b.shadow.visible = shadowsOn();
+  b.shadow.material.color.set(pal.shadow);
+  b.baseEdge.material.color.set(pal.baseEdge);
+  b.baseEdge.material.opacity = pal.dark ? 0.6 : 0.9;
+  const along = b.cloud.userData.along as Float32Array;
+  const col = b.cloud.geometry.attributes.color as THREE.BufferAttribute;
+  for (let i = 0; i < along.length; i++) {
+    globeColor.copy(pal.globeA).lerp(pal.globeB, along[i]);
+    col.setXYZ(i, globeColor.r, globeColor.g, globeColor.b);
+  }
+  col.needsUpdate = true;
+  b.cloud.material.blending = pal.blend;
+  b.cloud.material.opacity = pal.dark ? 0.9 : 0.85;
+  b.cloud.material.needsUpdate = true;
+  b.ico.material.color.copy(pal.globeA);
+  b.ico.material.opacity = pal.dark ? 0.2 : 0.35;
+  for (const [sp, c] of [[b.halo, pal.halo], [b.star, pal.star]] as const) {
+    sp.material.color.copy(c);
+    sp.material.blending = pal.blend;
+    sp.material.needsUpdate = true;
+  }
+  b.beam.material.color.copy(pal.beam);
+  b.beam.material.blending = pal.blend;
+  b.beam.material.needsUpdate = true;
+  b.light.color.copy(pal.lamp);
+}
+
+/** The page's colours changed (light or dark, or the accent): the map, its monitors and its symbols are drawn again in the new ones. */
+function restyle(): void {
+  if (!S) return;
+  refreshPalette();
+  S.renderer.setClearColor(pal.clear, 1);
+  const { ambient, sun, rim } = S.lights;
+  ambient.color.setHex(pal.ambient);
+  ambient.intensity = pal.ambientK;
+  sun.color.setHex(pal.sun);
+  sun.intensity = pal.sunK;
+  rim.color.setHex(pal.rim);
+  rim.intensity = pal.rimK;
+  S.mapDots.color.setHex(pal.dots);
+  const batch = S.glows?.mesh.material as THREE.ShaderMaterial | undefined;
+  if (batch) {
+    batch.blending = pal.blend;
+    batch.needsUpdate = true;
+  }
+  styleBrain();
+  // what was drawn once in the old colours: the team symbols' discs, the desks' furniture (its colours are in its shape)
+  for (const t of glyphCache.values()) t.dispose();
+  glyphCache.clear();
+  furniture?.geo.dispose();
+  furniture = null;
+  for (const m of S.meshBatches?.values() || []) {
+    m.mesh.removeFromParent();
+    (m.mesh.material as THREE.Material).dispose();
+    m.mesh.dispose();
+  }
+  S.meshBatches = undefined;
+  // the map is built again (desks keep what they were doing), so every material takes the new colours
+  const doing = new Map(S.desks.map((d) => [`${d.agent.id}@${d.wfId || ''}`, { act: d.act, activity: d.activity }]));
+  rebuild();
+  for (const d of S.desks) {
+    const was = doing.get(`${d.agent.id}@${d.wfId || ''}`);
+    if (was) Object.assign(d, was);
+    drawScreen(d, S.clock.elapsedTime);
+  }
+  drawHud();
 }
 
 // ---------- the project's background picture ----------
@@ -1238,27 +1355,66 @@ function fitBackdrop(): void {
   tex.offset.set((1 - tex.repeat.x) / 2, (1 - tex.repeat.y) / 2);
 }
 
+// The classic map's picture is cropped to fill the screen and faded into the map's floor colour as far as the project wants
+// (so on a white map it goes pale, on a dark one dim), and drawn once for each size and strength.
+function bakedBackdrop(b: NonNullable<StationState['backdrop']>, img: CanvasImageSource & { width: number; height: number }, k: number): THREE.CanvasTexture | null {
+  if (!S) return null;
+  const scale = Math.min(1, 1600 / Math.max(S.w, S.h));
+  const cw = Math.max(1, Math.round(S.w * scale));
+  const ch = Math.max(1, Math.round(S.h * scale));
+  const was = b.bakedFor;
+  if (b.baked && was && was.w === cw && was.h === ch && was.k === k && was.floor === pal.floor) return b.baked;
+  let tex = b.baked;
+  if (!tex || tex.image.width !== cw || tex.image.height !== ch) {
+    tex?.dispose();
+    const c = document.createElement('canvas');
+    c.width = cw;
+    c.height = ch;
+    tex = b.baked = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+  }
+  const ctx = (tex.image as HTMLCanvasElement).getContext('2d')!;
+  ctx.fillStyle = pal.floor;
+  ctx.fillRect(0, 0, cw, ch);
+  // the picture's biggest part that fits the screen's shape, in the middle
+  const cover = Math.max(cw / img.width, ch / img.height);
+  const sw = cw / cover;
+  const sh = ch / cover;
+  ctx.globalAlpha = k;
+  ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, cw, ch);
+  ctx.globalAlpha = 1;
+  tex.needsUpdate = true;
+  b.bakedFor = { w: cw, h: ch, k, floor: pal.floor };
+  return tex;
+}
+
 // Each frame, before drawing: the picture is the background (the voxel look may have set its sky since),
 // as strong as the project wants it, and so are the map's dots.
 function applyBackdrop(): void {
   if (!S) return;
   const proj = state.data?.project;
   S.mapDots.opacity = mapDotsOpacity(proj) / 100;
-  const tex = S.backdrop?.tex;
-  if (!tex) return;
-  if (S.scene.background !== tex) {
-    S.backdrop!.prev = S.scene.background;
-    S.scene.background = tex;
+  const b = S.backdrop;
+  const tex = b?.tex;
+  if (!b || !tex) return;
+  const k = backgroundOpacity(proj, S.view ? 'world' : 'classic') / 100;
+  const img = tex.image as (CanvasImageSource & { width: number; height: number }) | undefined;
+  // (the voxel look takes the picture as it is, in place of its sky)
+  const want = S.view || !img?.width ? tex : bakedBackdrop(b, img, k) || tex;
+  if (S.scene.background !== want) {
+    if (S.scene.background !== tex && S.scene.background !== b.baked) b.prev = S.scene.background;
+    S.scene.background = want;
   }
-  S.scene.backgroundIntensity = backgroundOpacity(proj, S.view ? 'world' : 'classic') / 100;
+  S.scene.backgroundIntensity = want === tex ? k : 1;
 }
 
 function dropBackdrop(): void {
   const b = S?.backdrop;
   if (!S || !b) return;
-  if (b.tex && S.scene.background === b.tex) S.scene.background = b.prev;
+  if ((b.tex && S.scene.background === b.tex) || (b.baked && S.scene.background === b.baked)) S.scene.background = b.prev;
   S.scene.backgroundIntensity = 1;
   b.tex?.dispose();
+  b.baked?.dispose();
   S.backdrop = null;
 }
 
@@ -1413,7 +1569,7 @@ function rebuild(): void {
     id: 'brain',
     obj: S.brain.group,
     offset: new THREE.Vector3(0, 9.5, 0),
-    el: h('div.st-brain-label', { class: BRAIN_LABEL, onclick: () => choose({ type: 'brain' }), title: 'Click for the project Brain · drop files here (or paste them on the Station) to give them to it', ondragenter: brainDragOver, ondragover: brainDragOver, ondrop: brainDrop }, icon('brain', 14), 'THE BRAIN', h('span', { class: 'text-dim font-normal tracking-[0.06em]' }, `${d.project?.name || ''} · ${wfs.length} team${wfs.length === 1 ? '' : 's'} · ${d.agents.length} agent${d.agents.length === 1 ? '' : 's'}`)),
+    el: h('div.st-brain-label', { class: BRAIN_LABEL, onclick: () => choose({ type: 'brain' }), title: 'Click for the project Brain · drop files here (or paste them on the Station) to give them to it', ondragenter: brainDragOver, ondragover: brainDragOver, ondrop: brainDrop }, icon('brain', 14), 'The Brain', h('span', { class: 'text-dim font-normal' }, `${d.project?.name || ''} · ${wfs.length} team${wfs.length === 1 ? '' : 's'} · ${d.agents.length} agent${d.agents.length === 1 ? '' : 's'}`)),
   });
   // A branch added or removed: make sure the whole station still fits.
   const shape = `${wfs.length}:${bench.length}`;
@@ -1482,23 +1638,25 @@ function loadTeamMark(wf: TeamView, hub: THREE.Group, mark: THREE.Sprite): void 
 // The map labels move every frame (inline transform), so only their colors animate. The script marks their
 // state with classes (sel, hot, live, needs, att-target) and data-status; the parent marks focus and data-zoom.
 const CHIP =
-  'group/chip flex items-center gap-1.25 py-0.75 px-1.75 whitespace-nowrap cursor-pointer bg-[rgba(10,12,10,0.88)] border border-line-2 rounded-ctl font-mono text-[9.5px] leading-[normal] font-semibold tracking-[0.08em] uppercase text-ink transition-[opacity,box-shadow,border-color] duration-200 ease-[ease] hover:border-accent hover:text-accent [&.sel]:border-accent [&.sel]:text-accent [&:is([data-status=running],[data-status=needs-you],[data-status=working])]:border-accent-dim group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent group-[.focus]/labels:[&.hot]:shadow-[0_0_0_1px_var(--color-accent),0_0_18px_color-mix(in_srgb,var(--color-accent)_45%,transparent)]';
+  'group/chip flex items-center gap-1.5 py-1 px-2.5 whitespace-nowrap cursor-pointer bg-glass-strong backdrop-blur-[12px] border border-line-2 rounded-full shadow-card text-[12px] leading-[normal] font-medium text-ink transition-[opacity,box-shadow,border-color] duration-200 ease-[ease] hover:border-accent-dim hover:shadow-lift [&.sel]:border-accent [&:is([data-status=running],[data-status=needs-you],[data-status=working])]:border-accent-dim group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent group-[.focus]/labels:[&.hot]:shadow-lift';
 const CHIP_DOT =
-  'size-1.5 rounded-full bg-faint group-data-[status=working]/chip:bg-accent group-data-[status=running]/chip:bg-accent group-data-[status=working]/chip:shadow-[0_0_6px_var(--color-accent)] group-data-[status=running]/chip:shadow-[0_0_6px_var(--color-accent)] group-data-[status=needs]/chip:bg-red group-data-[status=needs-you]/chip:bg-red group-data-[status=needs]/chip:animate-[pulse_0.8s_infinite] group-data-[status=needs-you]/chip:animate-[pulse_0.8s_infinite]';
+  'size-1.5 rounded-full bg-faint group-data-[status=working]/chip:bg-accent group-data-[status=running]/chip:bg-accent group-data-[status=needs]/chip:bg-amber group-data-[status=needs-you]/chip:bg-amber group-data-[status=needs]/chip:animate-[pulse_0.8s_infinite] group-data-[status=needs-you]/chip:animate-[pulse_0.8s_infinite]';
 // the model shows only when zoomed in
-const CHIP_MODEL = "[display:none] ml-0.5 text-faint font-medium normal-case tracking-[0.02em] group-data-[zoom=near]/labels:inline group-data-[zoom=near]/labels:before:content-['·_']";
+const CHIP_MODEL = "[display:none] ml-0.5 text-faint font-normal group-data-[zoom=near]/labels:inline group-data-[zoom=near]/labels:before:content-['·_']";
 const CARD =
-  'py-2.75 px-3.25 cursor-pointer shadow-[0_10px_30px_rgba(0,0,0,0.45)] bg-glass backdrop-blur-[16px] backdrop-saturate-140 border border-[color-mix(in_srgb,var(--c,#555850)_45%,var(--color-line))] rounded-box transition-[opacity,box-shadow,border-color] duration-200 ease-[ease]';
-const BRANCH = `group/card w-53.5 ${CARD} hover:border-(--c) [&.sel]:border-(--c) [&.live]:shadow-[0_0_0_1px_var(--color-accent-dim),0_0_24px_rgba(196,255,61,0.18)] [&.needs]:shadow-[0_0_0_1px_var(--color-amber),0_0_24px_rgba(240,176,74,0.25)] [&:hover]:shadow-[0_0_0_1px_var(--c),0_14px_34px_rgba(0,0,0,0.5)] group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:shadow-[0_0_0_1px_var(--color-accent),0_0_22px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]`;
-const BENCH = `[--c:#555850] w-50 ${CARD} group-[.focus]/labels:opacity-18`;
-const BRANCH_NAME = 'flex items-center gap-1.75 font-mono text-[10.5px] leading-[normal] font-bold tracking-[0.16em] text-ink';
+  'py-4 px-4.5 cursor-pointer shadow-card bg-glass-strong backdrop-blur-[16px] backdrop-saturate-140 border border-[color-mix(in_srgb,var(--c,var(--color-faint))_30%,var(--color-line))] rounded-box transition-[opacity,box-shadow,border-color] duration-200 ease-[ease]';
+const BRANCH = `group/card w-58 ${CARD} hover:border-(--c) hover:shadow-lift [&.sel]:border-(--c) [&.live]:border-accent-dim [&.needs]:border-amber group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent group-[.focus]/labels:[&.hot]:shadow-lift`;
+const BENCH = `[--c:var(--color-faint)] w-52 ${CARD} group-[.focus]/labels:opacity-18`;
+const BRANCH_NAME = 'flex items-center gap-2 text-[13px] leading-[1.3] font-semibold text-ink';
 const BRAIN_LABEL =
-  'flex items-center gap-2 py-1.5 px-2.75 cursor-pointer whitespace-nowrap bg-glass backdrop-blur-[16px] backdrop-saturate-140 border border-accent-dim rounded-box font-mono text-[10.5px] leading-[normal] font-bold tracking-[0.2em] transition-[opacity,box-shadow,border-color] duration-200 ease-[ease] [&.att-target]:border-accent [&.att-target]:text-accent [&.att-target]:shadow-[0_0_0_1px_var(--color-accent),0_0_30px_color-mix(in_srgb,var(--color-accent)_40%,transparent)] group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:shadow-[0_0_0_1px_var(--color-accent),0_0_22px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]';
+  'flex items-center gap-2 py-2 px-3.5 cursor-pointer whitespace-nowrap bg-glass-strong backdrop-blur-[16px] backdrop-saturate-140 border border-line-2 rounded-full shadow-card text-[13px] leading-[normal] font-semibold text-ink transition-[opacity,box-shadow,border-color] duration-200 ease-[ease] hover:border-accent-dim [&.att-target]:border-accent [&.att-target]:text-accent [&.att-target]:shadow-lift group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent group-[.focus]/labels:[&.hot]:shadow-lift';
 
 function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<string, Agent>): number {
   assertMounted(S);
   const color = new THREE.Color(wfColor(wf, i));
-  const light = color.clone().lerp(new THREE.Color(0xffffff), 0.4);
+  // the team's colour as it shows on this theme: deepened when it is pale on white, lifted when it is dark on black
+  const tint = new THREE.Color(brandTone(wfColor(wf, i)));
+  const light = pal.dark ? color.clone().lerp(new THREE.Color(0xffffff), 0.4) : tint.clone();
   const members = (wf.members || []).filter((id) => agentsById.get(id));
   const R = spot.radius;
   const pod = new THREE.Group();
@@ -1511,36 +1669,48 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
 
   // the round floor
   const floor = new THREE.Group();
-  const slab = new THREE.Mesh(new THREE.CylinderGeometry(R, R + 0.25, 0.5, 64), new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.42), roughness: 0.55, metalness: 0.15, emissive: color, emissiveIntensity: 0.1 }));
+  const slab = new THREE.Mesh(
+    new THREE.CylinderGeometry(R, R + 0.25, 0.5, 64),
+    pal.dark ? new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.42), roughness: 0.55, metalness: 0.15, emissive: color, emissiveIntensity: 0.1 }) : new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.podSide).lerp(tint, 0.42), roughness: 0.85 }),
+  );
   slab.position.y = 0.25;
   floor.add(slab);
-  const top = new THREE.Mesh(new THREE.CircleGeometry(R - 0.15, 64), new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.62), roughness: 0.75, emissive: color, emissiveIntensity: 0.07 }));
+  const top = new THREE.Mesh(
+    new THREE.CircleGeometry(R - 0.15, 64),
+    pal.dark ? new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.62), roughness: 0.75, emissive: color, emissiveIntensity: 0.07 }) : new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.podTop).lerp(tint, 0.2), roughness: 0.9 }),
+  );
   top.rotation.x = -Math.PI / 2;
   top.position.y = 0.51;
   floor.add(top);
-  const rim = new THREE.LineSegments(new THREE.EdgesGeometry(slab.geometry, 30), new THREE.LineBasicMaterial({ color: light, transparent: true, opacity: 0.7 }));
+  const rim = new THREE.LineSegments(new THREE.EdgesGeometry(slab.geometry, 30), new THREE.LineBasicMaterial({ color: light, transparent: true, opacity: pal.dark ? 0.7 : 0.55 }));
   rim.position.copy(slab.position);
   floor.add(rim);
   // an inner ring where the conversation runs
-  const track = new THREE.Mesh(new THREE.RingGeometry(R * 0.42, R * 0.42 + 0.08, 64), new THREE.MeshBasicMaterial({ color: light, transparent: true, opacity: 0.35, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const track = new THREE.Mesh(new THREE.RingGeometry(R * 0.42, R * 0.42 + 0.08, 64), new THREE.MeshBasicMaterial({ color: light, transparent: true, opacity: pal.dark ? 0.35 : 0.5, side: THREE.DoubleSide, blending: pal.blend, depthWrite: false }));
   track.rotation.x = -Math.PI / 2;
   track.position.y = 0.53;
   floor.add(track);
-  const under = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color, transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false }));
-  under.scale.set(R * 3, R * 2.2, 1);
-  under.position.y = -0.2;
-  floor.add(under);
+  // under it: a glow in the team's colour at night, a soft shadow on white
+  if (pal.dark) {
+    const under = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color, transparent: true, opacity: 0.14, blending: pal.blend, depthWrite: false }));
+    under.scale.set(R * 3, R * 2.2, 1);
+    under.position.y = -0.2;
+    floor.add(under);
+  } else floor.add(groundShadow(R * 3.1, R * 2.7, 0.2));
   floor.traverse((o) => (o.userData.pick = { type: 'branch', id: wf.id }));
   floor.userData.part = 'floor';
   pod.add(floor);
 
   // the chat hub in the middle: everyone talks through it
   const hub = new THREE.Group();
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.2, 0.55, 6), new THREE.MeshStandardMaterial({ color: 0x141714, roughness: 0.5, metalness: 0.3, emissive: color, emissiveIntensity: 0.35 }));
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.95, 1.2, 0.55, 6),
+    pal.dark ? new THREE.MeshStandardMaterial({ color: pal.base, roughness: 0.5, metalness: 0.3, emissive: color, emissiveIntensity: 0.35 }) : new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.base).lerp(tint, 0.18), roughness: 0.6 }),
+  );
   base.position.y = 0.8;
   base.userData.part = 'hub-base';
   hub.add(base);
-  const holo = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.05, 8, 48), new THREE.MeshBasicMaterial({ color: light, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const holo = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.05, 8, 48), new THREE.MeshBasicMaterial({ color: light, transparent: true, opacity: 0.8, blending: pal.blend, depthWrite: false }));
   holo.rotation.x = Math.PI / 2;
   holo.position.y = 2.1;
   hub.add(holo);
@@ -1548,12 +1718,12 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
   holo2.position.y = 2.1;
   hub.add(holo2);
   // the team's symbol: its emoji (💬 unless it chose another), or its own picture or 3D model once that has loaded
-  const mark = new THREE.Sprite(new THREE.SpriteMaterial({ map: glyphTex(wf.mark || DEFAULT_TEAM_MARK, '#' + light.getHexString()), transparent: true, depthWrite: false }));
+  const mark = new THREE.Sprite(new THREE.SpriteMaterial({ map: glyphTex(wf.mark || DEFAULT_TEAM_MARK, '#' + tint.getHexString()), transparent: true, depthWrite: false }));
   mark.scale.set(1.3, 1.3, 1);
   mark.position.y = 2.1;
   hub.add(mark);
   if (wf.markFile) loadTeamMark(wf, hub, mark);
-  const hubGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const hubGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: pal.dark ? color : tint, transparent: true, opacity: 0.45, blending: pal.blend, depthWrite: false }));
   hubGlow.scale.set(4.5, 4.5, 1);
   hubGlow.position.y = 1.8;
   hub.add(hubGlow);
@@ -1564,7 +1734,8 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
 
   // where the Brain is, seen from the pod (the lead's desk is on that side: spot.desks are in that order)
   const toBrain = pod.worldToLocal(new THREE.Vector3(0, 0, 0)).setY(0);
-  const rails: Rail[] = [{ material: track.material, base: 0.35 }];
+  // (quiet teams are in their own colour or muted grey; while a team works its lines turn the accent on white)
+  const rails: Rail[] = [{ material: track.material, base: pal.dark ? 0.35 : 0.5, rest: light.clone(), live: pal.dark ? light.clone() : pal.working.clone() }];
   const branchNodes: PodNode[] = [];
   const branchLinks = new Set<string>();
   spot.desks.forEach(({ agentId, local }, k) => {
@@ -1574,7 +1745,7 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
     const step: TeamStep = { type: 'agent', agentId };
     const links = stepLinks(step, agentsById, wf);
     links.forEach((l) => branchLinks.add(l));
-    const desk = makeDesk(agent, wfColor(wf, i), isLead ? 'LEAD' : 'TEAM');
+    const desk = makeDesk(agent, wfColor(wf, i), isLead ? 'Lead' : 'Team');
     desk.group.position.copy(pos).setY(0.5);
     desk.group.traverse((o) => (o.userData.pick = { type: 'agent', id: agent.id, wf: wf.id, step: k }));
     pod.add(desk.group);
@@ -1582,7 +1753,7 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
     S!.desks.push(desk);
     // the lead's seat gets a gold ring
     if (isLead) {
-      const seat = new THREE.Mesh(new THREE.RingGeometry(1.75, 1.95, 48), new THREE.MeshBasicMaterial({ color: 0xffcc55, transparent: true, opacity: 0.75, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const seat = new THREE.Mesh(new THREE.RingGeometry(1.75, 1.95, 48), new THREE.MeshBasicMaterial({ color: pal.lead, transparent: true, opacity: 0.75, side: THREE.DoubleSide, blending: pal.blend, depthWrite: false }));
       seat.rotation.x = -Math.PI / 2;
       seat.position.copy(pos).setY(0.56);
       seat.userData.part = 'seat';
@@ -1591,11 +1762,11 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
     // spoke from the desk to the hub
     const spoke = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([pos.clone().setY(0.6), HUB.clone().setY(0.6)]),
-      new THREE.LineBasicMaterial({ color: light, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.LineBasicMaterial({ color: pal.dark ? light : pal.wire, transparent: true, opacity: pal.dark ? 0.3 : 0.55, blending: pal.blend, depthWrite: false }),
     );
     spoke.userData.part = 'spoke';
     pod.add(spoke);
-    rails.push({ material: spoke.material, base: 0.3 });
+    rails.push({ material: spoke.material, base: pal.dark ? 0.3 : 0.55, rest: spoke.material.color.clone(), live: pal.dark ? light.clone() : pal.working.clone() });
     const node: PodNode = { kind: 'agent', pos, obj: desk.group, wfId: wf.id, index: k, links, desk, agentId: agent.id };
     S!.nodes.push(node);
     branchNodes.push(node);
@@ -1609,7 +1780,7 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
     });
   });
   // the conversation gently circles the hub
-  for (let k = 0; k < 3; k++) spawn({ parent: pod, path: (t: number) => new THREE.Vector3(Math.cos(t * Math.PI * 2) * R * 0.42, 0.62, Math.sin(t * Math.PI * 2) * R * 0.42), t: k / 3, speed: 0.06, color: light, size: 0.45, loop: true, opacity: 0.55 });
+  for (let k = 0; k < 3; k++) spawn({ parent: pod, path: (t: number) => new THREE.Vector3(Math.cos(t * Math.PI * 2) * R * 0.42, 0.62, Math.sin(t * Math.PI * 2) * R * 0.42), t: k / 3, speed: 0.06, color: light, size: 0.45, loop: true, opacity: pal.dark ? 0.55 : 0.9 });
 
   // the team card, on the far side from the Brain
   const away = toBrain.lengthSq() > 0.01 ? toBrain.clone().normalize().multiplyScalar(-(R + 2.6)) : new THREE.Vector3(R + 2.6, 0, 0);
@@ -1625,15 +1796,15 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
   addLabel({ kind: 'branch', id: wf.id, obj: anchor, from: pod, offset: new THREE.Vector3(0, 0.5, 0), el: card });
 
   // the link to the Brain (redrawn when the team moves)
-  const link = new THREE.Line(new THREE.BufferGeometry().setFromPoints(new Array(33).fill(0).map(() => new THREE.Vector3())), new THREE.LineBasicMaterial({ color: light, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const link = new THREE.Line(new THREE.BufferGeometry().setFromPoints(new Array(33).fill(0).map(() => new THREE.Vector3())), new THREE.LineBasicMaterial({ color: pal.dark ? light : pal.wire, transparent: true, opacity: pal.dark ? 0.45 : 0.6, blending: pal.blend, depthWrite: false }));
   S.world!.add(link);
-  rails.push({ material: link.material, base: 0.45 });
+  rails.push({ material: link.material, base: pal.dark ? 0.45 : 0.6, rest: link.material.color.clone(), live: pal.dark ? light.clone() : pal.working.clone() });
   const b: Branch = { wf, index: i, color, group: pod, center: new THREE.Vector3(), radius: R, nodes: branchNodes, links: branchLinks, card, agentCount: members.length, rails, link, hub: { holo, holo2, hubGlow }, spin, flash: 0, home };
   b.along = (t: number) => linkPoint(b, t);
   S.branches.set(wf.id, b);
   updateLink(b);
   // a slow stream of light from the Brain to the team
-  for (let k = 0; k < 2; k++) spawn({ path: (t: number) => linkPoint(b, t), t: k / 2, speed: 0.07 + Math.random() * 0.03, color: light, size: 0.5, loop: true, opacity: 0.45 });
+  for (let k = 0; k < 2; k++) spawn({ path: (t: number) => linkPoint(b, t), t: k / 2, speed: 0.07 + Math.random() * 0.03, color: pal.dark ? light : pal.working, size: 0.5, loop: true, opacity: pal.dark ? 0.45 : 0.9 });
   drawBranchCard(wf.id);
   return pod.position.length() + R + 16; // room for the team card too
 }
@@ -1672,7 +1843,7 @@ function pulseHandoff(teamId: string, fromId: string, toId: string, count = 6): 
   if (!A || !B) return;
   const hub = new THREE.Vector3(0, 1.9, 0);
   const path = polyline([A.pos.clone().setY(1.9), hub, B.pos.clone().setY(1.9)]);
-  for (let k = 0; k < count; k++) spawn({ parent: b.group, path, t: -k * 0.07, speed: 0.8, color: new THREE.Color(0xfff2b0), size: 0.8, loop: false });
+  for (let k = 0; k < count; k++) spawn({ parent: b.group, path, t: -k * 0.07, speed: 0.8, color: pal.pulse, size: 0.8, loop: false });
   b.flash = 1;
 }
 // The hub hands a message to one teammate (they start working on it).
@@ -1681,7 +1852,7 @@ function pulseToDesk(teamId: string, agentId: string, count = 4): void {
   const N = b?.nodes.find((n) => n.agentId === agentId);
   if (!N) return;
   const path = polyline([new THREE.Vector3(0, 1.9, 0), N.pos.clone().setY(1.9)]);
-  for (let k = 0; k < count; k++) spawn({ parent: b!.group, path, t: -k * 0.08, speed: 0.9, color: new THREE.Color(0xfff2b0), size: 0.7, loop: false });
+  for (let k = 0; k < count; k++) spawn({ parent: b!.group, path, t: -k * 0.08, speed: 0.9, color: pal.pulse, size: 0.7, loop: false });
   b!.flash = Math.max(b!.flash, 0.6);
 }
 
@@ -1698,16 +1869,21 @@ function buildBench(agents: Agent[]): void {
   const [w, dd] = spot.size;
   const slabG = new THREE.Group();
   slabG.rotation.y = -Math.PI / 4;
-  const slab = new THREE.Mesh(new THREE.BoxGeometry(dd, 0.4, w), new THREE.MeshStandardMaterial({ color: 0x1b1f1b, roughness: 0.8, emissive: 0x2a3028, emissiveIntensity: 0.3 }));
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(dd, 0.4, w), new THREE.MeshStandardMaterial({ color: pal.benchTop, roughness: 0.85 }));
   slab.position.y = 0.2;
   slabG.add(slab);
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(slab.geometry), new THREE.LineBasicMaterial({ color: 0x555850, transparent: true, opacity: 0.8 }));
+  if (!pal.dark) {
+    const shadow = groundShadow(dd * 1.5, w * 1.5, 0.18);
+    shadow.position.y = 0.02;
+    slabG.add(shadow);
+  }
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(slab.geometry), new THREE.LineBasicMaterial({ color: pal.benchEdge, transparent: true, opacity: 0.8 }));
   edges.position.copy(slab.position);
   slabG.add(edges);
   slabG.traverse((o) => (o.userData.pick = { type: 'bench' }));
   bench.add(slabG);
   agents.forEach((ag, j) => {
-    const desk = makeDesk(ag, ag.color || '#6b7066', 0);
+    const desk = makeDesk(ag, ag.color || pal.faint, 0);
     desk.group.position.set(spot.desks[j].local[0], 0.4, spot.desks[j].local[1]);
     desk.group.traverse((o) => (o.userData.pick = { type: 'agent', id: ag.id }));
     bench.add(desk.group);
@@ -1725,7 +1901,7 @@ function buildBench(agents: Agent[]): void {
     id: 'bench',
     obj: anchor,
     offset: new THREE.Vector3(0, 0, 0),
-    el: h('div', { class: BENCH, onclick: () => choose({ type: 'bench' }), title: 'Drag the Bench platform to move it' }, h('div', { class: BRANCH_NAME }, icon('move', 12), 'BENCH'), h('div.hint', `${agents.length} agent${agents.length === 1 ? '' : 's'} not on a team yet`)),
+    el: h('div', { class: BENCH, onclick: () => choose({ type: 'bench' }), title: 'Drag the Bench platform to move it' }, h('div', { class: BRANCH_NAME }, icon('move', 12), 'Bench'), h('div.hint', { class: 'mt-1.5' }, `${agents.length} agent${agents.length === 1 ? '' : 's'} not on a team yet`)),
   });
 }
 
@@ -1764,7 +1940,7 @@ function stepT(branch: { path: THREE.Vector3[] }, j: number): number {
 }
 
 // A box (or any shape) moved into place and painted one colour, to merge with others into one mesh.
-function painted(geo: THREE.BufferGeometry, x: number, y: number, z: number, hex: number | THREE.Color): THREE.BufferGeometry {
+function painted(geo: THREE.BufferGeometry, x: number, y: number, z: number, hex: THREE.ColorRepresentation): THREE.BufferGeometry {
   geo.translate(x, y, z);
   const c = new THREE.Color(hex);
   const n = geo.attributes.position.count;
@@ -1779,15 +1955,15 @@ function painted(geo: THREE.BufferGeometry, x: number, y: number, z: number, hex
 let furniture: { geo: THREE.BufferGeometry; mat: THREE.MeshStandardMaterial } | null = null;
 function deskFurniture(): { geo: THREE.BufferGeometry; mat: THREE.MeshStandardMaterial } {
   if (furniture) return furniture;
-  const dark = 0x1a1e1a;
+  const leg = pal.deskLeg;
   const geo = mergeGeometries([
-    painted(new THREE.BoxGeometry(2.6, 0.12, 1.3), 0, 0.9, 0, 0x2a2f29),
-    painted(new THREE.BoxGeometry(0.1, 0.9, 1.1), -1.15, 0.45, 0, dark),
-    painted(new THREE.BoxGeometry(0.1, 0.9, 1.1), 1.15, 0.45, 0, dark),
-    painted(new THREE.BoxGeometry(1.7, 1.08, 0.08), 0, 1.68, -0.38, 0x0e100e),
-    painted(new THREE.BoxGeometry(0.12, 0.3, 0.12), 0, 1.05, -0.38, dark),
-    painted(new THREE.BoxGeometry(0.75, 0.12, 0.7), 0, 0.6, 0.75, dark),
-    painted(new THREE.BoxGeometry(0.75, 0.7, 0.1), 0, 0.98, 1.08, dark),
+    painted(new THREE.BoxGeometry(2.6, 0.12, 1.3), 0, 0.9, 0, pal.desk),
+    painted(new THREE.BoxGeometry(0.1, 0.9, 1.1), -1.15, 0.45, 0, leg),
+    painted(new THREE.BoxGeometry(0.1, 0.9, 1.1), 1.15, 0.45, 0, leg),
+    painted(new THREE.BoxGeometry(1.7, 1.08, 0.08), 0, 1.68, -0.38, pal.frame),
+    painted(new THREE.BoxGeometry(0.12, 0.3, 0.12), 0, 1.05, -0.38, leg),
+    painted(new THREE.BoxGeometry(0.75, 0.12, 0.7), 0, 0.6, 0.75, pal.chair),
+    painted(new THREE.BoxGeometry(0.75, 0.7, 0.1), 0, 0.98, 1.08, pal.chair),
   ]);
   furniture = { geo, mat: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62 }) };
   return furniture;
@@ -1869,7 +2045,7 @@ function drawMeshBatches(): void {
 
 function makeDesk(agent: Agent, colorHex: string, stepNo: string | number): Desk {
   const g = new THREE.Group();
-  const color = new THREE.Color(colorHex);
+  const color = new THREE.Color(pal.dark ? colorHex : brandTone(colorHex));
   const { geo, mat } = deskFurniture();
   const furn = new THREE.Mesh(geo, mat);
   g.add(furn);
@@ -1878,7 +2054,7 @@ function makeDesk(agent: Agent, colorHex: string, stepNo: string | number): Desk
   const scr = new THREE.Mesh(new THREE.PlaneGeometry(1.58, 0.98), new THREE.MeshBasicMaterial({ map: screen.tex, toneMapped: false }));
   scr.position.set(0, 1.68, -0.33);
   g.add(scr);
-  const screenGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: 0xdfe3d8, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const screenGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: pal.idle, transparent: true, opacity: 0.12, blending: pal.blend, depthWrite: false }));
   screenGlow.scale.set(3.2, 2.4, 1);
   screenGlow.position.set(0, 1.7, -0.2);
   g.add(screenGlow);
@@ -1886,28 +2062,28 @@ function makeDesk(agent: Agent, colorHex: string, stepNo: string | number): Desk
   const person = new THREE.Group();
   const body = new THREE.Mesh(SHAPES.body, new THREE.MeshStandardMaterial({ color: color.clone().lerp(new THREE.Color(0xffffff), 0.15), roughness: 0.6 }));
   body.position.y = 0.98;
-  const head = new THREE.Mesh(SHAPES.head, new THREE.MeshStandardMaterial({ color: 0xe6e8e0, roughness: 0.5 }));
+  const head = new THREE.Mesh(SHAPES.head, new THREE.MeshStandardMaterial({ color: pal.head, roughness: 0.5 }));
   head.position.y = 1.5;
   person.add(body, head);
   person.position.z = 0.62;
   g.add(person);
   batchMesh('body', body, () => new THREE.MeshStandardMaterial({ roughness: 0.6 }));
   batchMesh('head', head, () => new THREE.MeshStandardMaterial({ roughness: 0.5 }));
-  const orb = new THREE.Mesh(SHAPES.orb, new THREE.MeshBasicMaterial({ color: 0x6b7066 }));
+  const orb = new THREE.Mesh(SHAPES.orb, new THREE.MeshBasicMaterial({ color: pal.idle }));
   batchMesh('orb', orb, () => new THREE.MeshBasicMaterial());
   orb.position.set(0.95, 2.45, -0.38);
   g.add(orb);
-  const orbGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: 0xc4ff3d, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const orbGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: pal.working, transparent: true, opacity: 0, blending: pal.blend, depthWrite: false }));
   orbGlow.scale.set(1.4, 1.4, 1);
   orbGlow.position.copy(orb.position);
   orbGlow.visible = false;
   g.add(orbGlow);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.07, 8, 48), new THREE.MeshBasicMaterial({ color: 0xc4ff3d, transparent: true, opacity: 0 }));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.07, 8, 48), new THREE.MeshBasicMaterial({ color: pal.working, transparent: true, opacity: 0 }));
   ring.rotation.x = Math.PI / 2;
   ring.position.y = 0.08;
   ring.visible = false;
   g.add(ring);
-  const focusRing = new THREE.Mesh(new THREE.RingGeometry(1.55, 2.25, 48), new THREE.MeshBasicMaterial({ color: 0xc4ff3d, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const focusRing = new THREE.Mesh(new THREE.RingGeometry(1.55, 2.25, 48), new THREE.MeshBasicMaterial({ color: pal.working, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: pal.blend, depthWrite: false }));
   focusRing.rotation.x = -Math.PI / 2;
   focusRing.position.y = 0.06;
   g.add(focusRing);
@@ -1956,7 +2132,7 @@ function glowBatch(size: number): GlowBatch {
   const tint = new THREE.InstancedBufferAttribute(new Float32Array(size * 4), 4);
   tint.setUsage(THREE.DynamicDrawUsage);
   geo.setAttribute('tint', tint);
-  const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: glow() } }, vertexShader: GLOW_VERTEX, fragmentShader: GLOW_FRAGMENT, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: glow() } }, vertexShader: GLOW_VERTEX, fragmentShader: GLOW_FRAGMENT, transparent: true, depthWrite: false, blending: pal.blend });
   const mesh = new THREE.InstancedMesh(geo, mat, size);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   mesh.frustumCulled = false;
@@ -1975,7 +2151,7 @@ function batchGlow(sp: THREE.Sprite): void {
   S.glows.sprites.push(sp);
 }
 
-const isGlow = (o: THREE.Object3D): o is THREE.Sprite => o instanceof THREE.Sprite && !!glowTex && o.material.map === glowTex && o.material.blending === THREE.AdditiveBlending;
+const isGlow = (o: THREE.Object3D): o is THREE.Sprite => o instanceof THREE.Sprite && !!glowTex && o.material.map === glowTex;
 
 function drawGlows(): void {
   assertMounted(S);
@@ -2014,7 +2190,7 @@ function drawGlows(): void {
     const m = sp.material;
     if (!shown || m.opacity < 0.004) continue;
     b.mesh.setMatrixAt(n, sp.matrixWorld);
-    tints.set([m.color.r, m.color.g, m.color.b, m.opacity], n * 4);
+    tints.set([m.color.r, m.color.g, m.color.b, m.opacity * pal.glowK], n * 4);
     n++;
   }
   b.sprites = keep;
@@ -2037,7 +2213,7 @@ function renderStation(): void {
 
 function spawn(p: ParticleSpec): void {
   assertMounted(S);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: p.color, transparent: true, opacity: p.opacity ?? 1, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: p.color, transparent: true, opacity: p.opacity ?? 1, blending: pal.blend, depthWrite: false }));
   sp.scale.set(p.size, p.size, 1);
   sp.visible = false;
   (p.parent || S.world!).add(sp);
@@ -2050,17 +2226,15 @@ function spawn(p: ParticleSpec): void {
 function pulseAlong(wfId: string, from = 0, to = 1, count = 5): void {
   const b = S?.branches.get(wfId);
   if (!b) return;
-  for (let i = 0; i < count; i++) spawn({ path: (t: number) => linkPoint(b, from + (to - from) * t), t: -i * 0.08, speed: 0.7, color: new THREE.Color(0xfff2b0), size: 0.9, loop: false });
+  for (let i = 0; i < count; i++) spawn({ path: (t: number) => linkPoint(b, from + (to - from) * t), t: -i * 0.08, speed: 0.7, color: pal.pulse, size: 0.9, loop: false });
   b.flash = Math.max(b.flash || 0, 0.5);
 }
 
 function pulseIntegration(intId: string, node: MapNode | null): void {
   if (!S) return;
   const tile = S.tileEls?.get(intId);
-  if (tile) {
-    tile.classList.remove('flash');
-    void tile.offsetWidth;
-    tile.classList.add('flash');
+  if (tile && !REDUCED_MOTION() && typeof tile.animate === 'function') {
+    tile.animate([{ boxShadow: '0 0 0 0 color-mix(in srgb, var(--c) 50%, transparent)' }, { boxShadow: '0 0 0 6px color-mix(in srgb, var(--c) 0%, transparent)' }], { duration: 900, easing: 'ease-out' });
   }
   // light both the desk's own wire and its team's combined wire (whichever is showing runs the light)
   for (const l of [...(S.links2d || []), ...(S.links2dAll || [])]) {
@@ -2086,9 +2260,9 @@ function updateStatuses(): void {
         desk.activity = '';
         desk.act = null;
       }
-      desk.orb.material.color.set(st === 'needs' ? 0xff5a5a : st === 'working' ? 0xc4ff3d : 0x6b7066);
-      desk.orbGlow.material.color.set(st === 'needs' ? 0xff5a5a : 0xc4ff3d);
-      desk.screenGlow.material.color.set(st === 'working' ? 0xc4ff3d : st === 'needs' ? 0xf0b04a : 0xdfe3d8);
+      desk.orb.material.color.copy(st === 'needs' ? pal.waiting : st === 'working' ? pal.working : pal.idle);
+      desk.orbGlow.material.color.copy(st === 'needs' ? pal.waiting : pal.working);
+      desk.screenGlow.material.color.copy(st === 'working' ? pal.working : st === 'needs' ? pal.waiting : pal.idle);
       drawScreen(desk, S.clock.elapsedTime);
     }
   }
@@ -2098,7 +2272,7 @@ function updateStatuses(): void {
     const st = (ts?.working?.includes(node.agentId!) ? 'running' : ts?.queued?.includes(node.agentId!) ? 'needs-you' : null) as RunStatus | null;
     node.runStatus = st || null;
     const ring = node.kind === 'agent' ? node.desk.ring : node.ring;
-    ring.material.color.set(st === 'needs-you' ? 0xf0b04a : st === 'failed' ? 0xff5a5a : st === 'done' ? 0x7a9a2c : 0xc4ff3d);
+    ring.material.color.copy(st === 'needs-you' ? pal.waiting : st === 'failed' ? pal.failed : st === 'done' ? pal.done : pal.working);
     ring.material.opacity = st === 'running' || st === 'needs-you' ? 0.9 : st === 'done' ? 0.35 : st === 'failed' ? 0.7 : 0;
     ring.visible = ring.material.opacity > 0;
   }
@@ -2143,23 +2317,23 @@ function drawBranchCard(wfId: string): void {
   b.card.classList.toggle('needs', false);
   mount(
     b.card,
-    h('div', { class: BRANCH_NAME }, h('span.st-dot'), wf.name.toUpperCase()),
+    h('div', { class: BRANCH_NAME }, h('span.st-dot'), wf.name),
     h(
       'div',
-      { class: 'flex items-baseline gap-1.5 mt-1.5 mb-0.5' },
-      h('b', { class: 'font-sans text-[28px] leading-none font-bold' }, String(wf.members.length)),
-      h('span', { class: 'font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.16em] text-dim' }, wf.members.length === 1 ? 'AGENT' : 'AGENTS'),
-      lead ? h('span', { class: 'ml-auto font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.06em] normal-case text-dim' }, `★ ${lead}`) : null,
+      { class: 'flex items-baseline gap-1.5 mt-3 mb-0.5' },
+      h('b', { class: 'font-sans text-[28px] leading-none font-semibold tabular-nums tracking-tight text-ink' }, String(wf.members.length)),
+      h('span', { class: 'text-[12px] leading-[normal] font-medium text-dim' }, wf.members.length === 1 ? 'agent' : 'agents'),
+      lead ? h('span', { class: 'ml-auto text-[12px] leading-[normal] text-dim' }, `★ ${lead}`) : null,
     ),
-    wf.description ? h('div', { class: 'text-[12px] leading-[1.4] text-dim mt-1 mb-1.5 line-clamp-2 group-data-[zoom=far]/labels:hidden' }, wf.description) : null,
-    b.links.size ? h('div', { class: 'flex gap-1 flex-wrap my-1.5' }, [...b.links].slice(0, 7).map(badge)) : null,
-    last ? h('div', { class: 'text-[11.5px] text-dim leading-[1.4] mt-1 mb-0.5 line-clamp-2' }, h('b', { class: 'text-ink font-semibold' }, nameOf(last.from) || 'Team'), ' ', String(last.text).replace(/\s+/g, ' ').slice(0, 90), h('span.hint', ` · ${ago(last.ts)}`)) : null,
+    wf.description ? h('div', { class: 'text-[12.5px] leading-[1.45] text-dim mt-1.5 mb-1 line-clamp-2 group-data-[zoom=far]/labels:hidden' }, wf.description) : null,
+    b.links.size ? h('div', { class: 'flex gap-1.5 flex-wrap my-2.5' }, [...b.links].slice(0, 7).map(badge)) : null,
+    last ? h('div', { class: 'text-[12px] text-dim leading-[1.45] mt-1.5 mb-0.5 line-clamp-2' }, h('b', { class: 'text-ink font-semibold' }, nameOf(last.from) || 'Team'), ' ', String(last.text).replace(/\s+/g, ' ').slice(0, 90), h('span.hint', ` · ${ago(last.ts)}`)) : null,
     h(
       'div',
-      { class: 'mt-1.75 font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.1em] text-dim uppercase' },
+      { class: 'mt-3 text-[12px] leading-[normal] font-medium text-faint' },
       ts.working.length
         ? h('span', { class: 'text-accent group-[.needs]/card:text-amber' }, `● ${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} next` : ''}`)
-        : h('span', wf.enabled && wf.schedule?.type !== 'none' ? `⏱ ${scheduleText(wf.schedule)}` : last ? 'quiet' : 'say hi to the team'),
+        : h('span', wf.enabled && wf.schedule?.type !== 'none' ? `⏱ ${scheduleText(wf.schedule)}` : last ? 'Quiet' : 'Say hi to the team'),
     ),
   );
 }
@@ -2230,7 +2404,7 @@ function applyHover(): void {
     const on = !!lit && ((l.kind === 'agent' && lit.has(l.id)) || (l.kind === 'branch' && teamsLit.has(l.id)) || (l.kind === 'brain' && !!f?.brain));
     l.el.classList.toggle('hot', on);
   }
-  const c = new THREE.Color(f?.color || '#c4ff3d');
+  const c = new THREE.Color(f?.color ? brandTone(f.color) : pal.accent);
   for (const d of S.desks) d.focusRing.material.color.copy(c);
 }
 
@@ -2316,15 +2490,15 @@ function loop(): void {
   const pulse = 0.5 + 0.5 * Math.sin(t * (busy ? 4 : 1.4));
   b.halo.material.opacity = 0.45 + pulse * (busy ? 0.45 : 0.15);
   b.halo.scale.setScalar(10 + pulse * (busy ? 3 : 1));
-  b.beam.material.opacity = 0.1 + (busy ? 0.12 + pulse * 0.12 : 0.04);
+  b.beam.material.opacity = (0.1 + (busy ? 0.12 + pulse * 0.12 : 0.04)) * pal.glowK;
   b.star.scale.setScalar(5 + pulse * (busy ? 3 : 0.8));
-  b.light.intensity = 25 + pulse * (busy ? 40 : 8);
+  b.light.intensity = (25 + pulse * (busy ? 40 : 8)) * pal.lampK;
   // files held over the Brain: it opens up to take them
   if (S.fileDrag === 'brain') {
     const grab = 0.5 + 0.5 * Math.sin(t * 7);
     b.halo.material.opacity = 0.95;
     b.halo.scale.setScalar(15 + grab * 2.5);
-    b.light.intensity = 90 + grab * 30;
+    b.light.intensity = (90 + grab * 30) * pal.lampK;
     b.cloud.rotation.y += dt * 1.6;
   }
   if (b.logo) {
@@ -2402,6 +2576,10 @@ function loop(): void {
   for (const [id, br] of S.branches) {
     const live = S.active.has(id) || br.nodes.some((n) => n.kind === 'agent' && n.desk.status !== 'idle') || (S.teamState?.[id]?.working || []).length > 0;
     if (br.flash > 0) br.flash = Math.max(0, br.flash - dt * 0.9);
+    if (live !== !!br.lit) {
+      br.lit = live;
+      for (const r of br.rails) if (r.rest && r.live) r.material.color.copy(live ? r.live : r.rest);
+    }
     for (const r of br.rails) r.material.opacity = live ? Math.min(1, r.base + 0.35 + 0.2 * Math.sin(t * 6)) : r.base + br.flash * 0.4;
     if (br.hub) {
       br.hub.holo.rotation.z += dt * (live ? 1.6 : 0.35);
@@ -2641,8 +2819,9 @@ function drawWires(dt: number): void {
     const mine = !!l.node && !!focus?.nodes.has(l.node) && (!focus.only || focus.links.has(l.intId));
     // a combined wire is a little thicker the more agents it stands for
     const weight = l.members ? Math.min(1.6, (l.members.length - 1) * 0.3) : 0;
-    const live = focus && !mine ? 0.03 : tile!.classList.contains('off') ? 0.12 : mine ? 0.7 : 0.32;
-    const color = info?.color || '#8f968a';
+    const live = (focus && !mine ? 0.03 : tile!.classList.contains('off') ? 0.12 : mine ? 0.7 : 0.32) * pal.wireK;
+    // (on white every wire in its brand colour would be a rainbow: the ones nobody is looking at are muted)
+    const color = info?.color ? (pal.dark || mine || l.flash > 0.05 ? brandTone(info.color) : mutedTone(info.color)) : pal.wire;
     const opacity = Math.min(1, live + l.flash * 0.6);
     const width = (mine ? 1.5 : 1) + weight + l.flash * 1.2;
     // the dashes flow down from the program to the agents; faster on the wires you are looking at or that just carried a call,
@@ -2681,7 +2860,7 @@ function drawWires(dt: number): void {
     const by = u * u * u * c[1] + 3 * u * u * t * c[3] + 3 * u * t * t * c[5] + t * t * t * c[7];
     el.setAttribute('cx', bx.toFixed(1));
     el.setAttribute('cy', by.toFixed(1));
-    el.setAttribute('fill', intInfo(d.link.intId)?.color || '#fff');
+    el.setAttribute('fill', brandTone(intInfo(d.link.intId)?.color));
     el.setAttribute('opacity', '0.95');
   });
 }
@@ -2876,7 +3055,7 @@ function setFileDrag(mode: 'map' | 'brain' | null): void {
   }
   if (!S.dropHint) {
     S.dropHint = h('div', {
-      class: 'absolute left-1/2 bottom-21 [transform:translateX(-50%)] z-30 flex items-center gap-2 py-2.25 px-3.5 pointer-events-none bg-glass-strong border border-line-2 rounded-[999px] text-dim font-mono text-[11px] leading-[normal] font-semibold tracking-[0.08em] uppercase animate-[fade_0.15s_ease-out] [&.on]:text-accent [&.on]:border-accent',
+      class: 'absolute left-1/2 bottom-21 [transform:translateX(-50%)] z-30 flex items-center gap-2.5 py-2.5 px-4 pointer-events-none bg-glass-strong backdrop-blur-[12px] border border-line-2 rounded-full shadow-pop text-dim text-[13px] leading-[normal] font-medium animate-[fade_0.15s_ease-out] [&.on]:text-accent [&.on]:border-accent',
     });
     S.root.append(S.dropHint);
   }
@@ -2960,10 +3139,10 @@ function startAgentDrag(p: MapPick, copy = false): boolean {
   assertMounted(S);
   const desk = S.desks.find((d) => d.agent.id === p.id && (p.wf ? d.wfId === p.wf && d.stepIndex === p.step : !d.wfId));
   if (!desk) return false;
-  const marker = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.09, 8, 48), new THREE.MeshBasicMaterial({ color: 0xc4ff3d, transparent: true, opacity: 0 }));
+  const marker = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.09, 8, 48), new THREE.MeshBasicMaterial({ color: pal.working, transparent: true, opacity: 0 }));
   marker.rotation.x = Math.PI / 2;
   S.world!.add(marker);
-  const hint = h('div', { class: 'absolute left-0 top-0 z-20 pointer-events-none py-1.25 px-2.25 whitespace-nowrap bg-[rgba(13,16,13,0.95)] border border-accent-dim font-mono text-[11px] leading-[normal] font-semibold text-accent' });
+  const hint = h('div', { class: 'absolute left-0 top-0 z-20 pointer-events-none py-2 px-3 whitespace-nowrap bg-glass-strong backdrop-blur-[12px] border border-line-2 rounded-ctl shadow-pop text-[12.5px] leading-[normal] font-medium text-ink' });
   S.root.append(hint);
   desk.group.traverse((o) => (o.userData.dragging = true));
   S.agentDrag = { desk, home: desk.group.position.clone(), marker, hint, target: null, copy };
@@ -2997,7 +3176,7 @@ function moveAgentDrag(g: THREE.Vector3, e: MouseEvent): void {
     st.marker.position.copy(target.at).setY(0.6);
     st.marker.scale.setScalar((target.radius + 0.6) / 2.1);
     st.marker.material.opacity = 0.9;
-    st.marker.material.color.set(target.bench ? 0xf0b04a : 0xc4ff3d);
+    st.marker.material.color.copy(target.bench ? pal.waiting : pal.working);
   } else st.marker.material.opacity = 0;
   const wf = target?.wfId ? S.workflows.find((w) => w.id === target.wfId) : null;
   const from = st.desk.wfId ? S.workflows.find((w) => w.id === st.desk.wfId) : null;
@@ -3299,11 +3478,11 @@ function projectWrapParts(): HTMLElement[] {
   const shown = (floorPick && list[idx]) || d.project;
   const { above, below } = neighbours(list, idx);
   const ghost = (p: { name: string } | null, where: string) =>
-    h(`span.st-project-ghost.${where}`, { class: 'flex-1 min-w-0 h-3 pl-0 truncate font-mono text-[9.5px] leading-[normal] font-semibold tracking-[0.12em] uppercase text-dim opacity-40 transition-opacity duration-200 ease-[ease] pointer-events-none group-hover/proj:opacity-65', 'aria-hidden': 'true' }, p ? shortName(p.name) : '');
+    h(`span.st-project-ghost.${where}`, { class: 'flex-1 min-w-0 h-3.5 pl-0 truncate text-[11px] leading-[normal] font-medium text-faint opacity-70 transition-opacity duration-200 ease-[ease] pointer-events-none group-hover/proj:opacity-100', 'aria-hidden': 'true' }, p ? shortName(p.name) : '');
   // the arrow keys, drawn as small keys: they show what the keyboard does, and can be clicked too
   const key = (dir: 1 | -1, enabled: boolean) => {
     const k = h(`button.st-floor-key.${dir < 0 ? 'up' : 'down'}`, {
-      class: 'flex-none grid place-items-center w-4 h-3.75 p-0 border border-line-2 border-b-2 rounded-[4px] bg-transparent text-dim cursor-pointer opacity-55 transition-[opacity,color,border-color] duration-150 ease-[ease] hover:not-disabled:opacity-100 hover:not-disabled:text-accent hover:not-disabled:border-accent-dim disabled:opacity-18 disabled:cursor-default',
+      class: 'flex-none grid place-items-center w-4.5 h-4 p-0 border border-line-2 border-b-2 rounded-[4px] bg-transparent text-dim cursor-pointer opacity-70 transition-[opacity,color,border-color] duration-150 ease-[ease] hover:not-disabled:opacity-100 hover:not-disabled:text-ink hover:not-disabled:border-faint disabled:opacity-25 disabled:cursor-default',
       type: 'button',
       title: dir < 0 ? 'The project above (Up arrow)' : 'The project below (Down arrow)',
       'aria-label': dir < 0 ? 'Previous project' : 'Next project',
@@ -3316,7 +3495,7 @@ function projectWrapParts(): HTMLElement[] {
   const button = h(
     `button.st-project${floorPick ? '.pending' : ''}`,
     {
-      class: 'flex items-center gap-2.25 py-1.75 pr-2.75 pl-2.25 flex-none max-w-65 bg-glass border border-line-2 rounded-ctl text-ink cursor-pointer font-mono text-[13px] leading-[normal] font-bold tracking-[0.1em] uppercase hover:border-accent-dim [&.pending]:border-accent-dim [&.pending_.st-project-name]:text-accent [&_.ico-svg]:text-dim',
+      class: 'flex items-center gap-2.5 py-2 pr-3 pl-2.5 flex-none max-w-65 bg-glass-strong backdrop-blur-[16px] border border-line-2 rounded-ctl shadow-card text-ink cursor-pointer text-[14px] leading-[normal] font-semibold hover:border-accent-dim [&.pending]:border-accent-dim [&.pending_.st-project-name]:text-accent [&_.ico-svg]:text-dim',
       title: `${name} · Switch or create a project (the Up and Down keys move between them)`,
       onclick: (e) => openProjectMenu(e.currentTarget),
     },
@@ -3331,7 +3510,7 @@ function projectWrapParts(): HTMLElement[] {
     icon('chevron-down', 14),
   );
   // the key and the faint name take the button's width and never set it (width 0, then stretched to the button)
-  const row = (...kids: HTMLElement[]) => h('div', { class: 'flex items-center gap-1.5 w-0 min-w-full box-border' }, ...kids);
+  const row = (...kids: HTMLElement[]) => h('div', { class: 'flex items-center gap-2 w-0 min-w-full box-border' }, ...kids);
   // the arrow rows make the bar tall enough on their own; a lone button gets its padding back
   S?.hudTop?.classList.toggle('py-3.5', list.length <= 1);
   return list.length > 1 ? [row(key(-1, !!above), ghost(above, 'above')), button, row(key(1, !!below), ghost(below, 'below'))] : [button];
@@ -3340,7 +3519,7 @@ function projectWrapParts(): HTMLElement[] {
 /** The project's logo, or the Station mark, at the start of the project button. */
 function projectMarkEl(p: Project | null | undefined): HTMLSpanElement {
   const cls = 'inline-grid place-items-center w-4.5 flex-none text-accent';
-  return p?.logoAt ? h('span.st-mark', { class: cls }, projectMark(p, 18)) : h('span.st-mark', { class: cls }, '◢');
+  return h('span.st-mark', { class: cls }, p?.logoAt ? projectMark(p, 18) : brandMark(18));
 }
 
 /** The text in the middle of the roll: one element changes its words by sliding the old ones out and the new ones in from the other side. */
@@ -3485,20 +3664,25 @@ function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
 // ---------- HUD ----------
 // buttons that press in and lift on hover
 const TRANSITION = '[transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s]';
-const CONN_LABEL = 'inline-flex items-center gap-1.5 mr-1 whitespace-nowrap font-mono text-[10px] leading-[normal] font-medium tracking-[0.2em] text-dim';
-// a header tile; off and missing are marked by class, hot and the row's focus / soft by the script
-const INT_TILE = `grid place-items-center flex-none size-6 p-0 cursor-pointer rounded-ctl border border-[color-mix(in_srgb,var(--c)_55%,transparent)] bg-[color-mix(in_srgb,var(--c)_10%,#0d100d)] text-(--c) font-sans text-[10px] leading-[normal] font-bold shadow-[0_0_12px_color-mix(in_srgb,var(--c)_25%,transparent)] ${TRANSITION} [&_.logo-svg]:size-3.5 [&_.craft-icon]:size-5 active:[transform:scale(0.96)] [&:hover]:[transform:translateY(-1px)] [&.off]:bg-transparent [&.off]:text-faint [&.off]:border-line-2 [&.off]:shadow-none [&.off_.logo-svg_path]:fill-[#5d6359] [&.off_.craft-icon]:grayscale [&_.app-icon]:size-3.5 [&.off_.app-icon]:[filter:grayscale(1)_brightness(0.55)] [&.missing]:border-dashed [&.flash]:animate-[st-flash_1.2s_ease-out] group-[.focus]/conn:[&:not(.hot)]:opacity-15 group-[.focus]/conn:[&:not(.hot)]:grayscale group-[.focus]/conn:[&:not(.hot)]:shadow-none group-[.focus.soft]/conn:[&:not(.hot)]:opacity-62 group-[.focus.soft]/conn:[&:not(.hot)]:[filter:none] group-[.focus]/conn:[&.hot]:[transform:translateY(-1px)] group-[.focus]/conn:[&.hot]:bg-[color-mix(in_srgb,var(--c)_18%,#0d100d)] group-[.focus]/conn:[&.hot]:shadow-[0_0_0_1px_var(--c),0_0_16px_color-mix(in_srgb,var(--c)_55%,transparent)]`;
+// the header's two groups sit on glass, so their writing is readable on any map (the voxel look's sky is dark whatever the theme is)
+const CAPSULE = 'bg-glass-strong backdrop-blur-[16px] backdrop-saturate-140 border border-line rounded-ctl shadow-card';
+const CONN_LABEL = 'inline-flex items-center gap-2 mr-1.5 whitespace-nowrap text-[12px] leading-[normal] font-medium text-dim';
+// a header tile; off and missing are marked by class, hot and the row's focus / soft by the script. The brand colour (--c) tints it;
+// its glyph is mixed toward the text colour so a pale brand still reads on white
+const INT_TILE = `grid place-items-center flex-none size-7 p-0 cursor-pointer rounded-ctl border border-[color-mix(in_srgb,var(--c)_32%,var(--color-line-2))] bg-[color-mix(in_srgb,var(--c)_8%,var(--color-raise))] text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[10px] leading-[normal] font-semibold shadow-card ${TRANSITION} [&_.logo-svg]:size-3.5 [&_.craft-icon]:size-5 active:[transform:scale(0.96)] hover:bg-[color-mix(in_srgb,var(--c)_14%,var(--color-raise))] [&.off]:bg-transparent [&.off]:text-faint [&.off]:border-line [&.off]:shadow-none [&.off_.logo-svg_path]:fill-faint [&.off_.craft-icon]:grayscale [&_.app-icon]:size-3.5 [&.off_.app-icon]:[filter:grayscale(1)_opacity(0.5)] [&.missing]:border-dashed group-[.focus]/conn:[&:not(.hot)]:opacity-25 group-[.focus]/conn:[&:not(.hot)]:grayscale group-[.focus.soft]/conn:[&:not(.hot)]:opacity-70 group-[.focus.soft]/conn:[&:not(.hot)]:[filter:none] group-[.focus]/conn:[&.hot]:border-(--c) group-[.focus]/conn:[&.hot]:bg-[color-mix(in_srgb,var(--c)_16%,var(--color-raise))]`;
 const ENGINE =
-  'group/eng relative grid place-items-center size-6 p-0 border-0 bg-transparent rounded-[6px] cursor-pointer text-(--c) font-sans text-[14px] leading-[normal] font-bold text-shadow-[0_0_10px_var(--c)] [transition:transform_0.15s,opacity_0.2s,filter_0.2s] hover:[transform:translateY(-1px)] hover:bg-[color-mix(in_srgb,var(--c)_18%,transparent)] [&.off]:text-[#5b5e57] [&.off]:text-shadow-none [&.off]:grayscale [&.off]:opacity-55 [&.off]:hover:opacity-90 [&.busy]:animate-[st-engine-pulse_1.4s_ease-in-out_infinite] [&_.app-icon]:size-4 [&_.app-icon]:[filter:drop-shadow(0_0_6px_var(--c))]';
-const STAT = 'flex items-baseline gap-1.5 px-2.5 py-1.5 border bg-glass backdrop-blur-[16px] backdrop-saturate-140 rounded-ctl font-mono text-[10px] leading-[normal] font-medium tracking-[0.14em] uppercase text-dim';
-const STAT_N = 'font-sans text-[15px] leading-[normal] font-bold tracking-normal';
-const ZOOM_BTN = `grid place-items-center size-9.5 rounded-full border border-line-2 bg-[rgba(13,16,13,0.9)] text-ink text-[17px] cursor-pointer ${TRANSITION} hover:border-accent hover:text-accent`;
-const FEED_ITEM = 'flex gap-2 py-0.75 whitespace-nowrap overflow-hidden text-ellipsis text-shadow-[0_1px_4px_#000]';
+  'group/eng relative grid place-items-center size-7 p-0 border-0 bg-transparent rounded-ctl cursor-pointer text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[14px] leading-[normal] font-semibold [transition:background-color_0.15s,opacity_0.2s,filter_0.2s] hover:bg-ink/5 [&.off]:text-faint [&.off]:grayscale [&.off]:opacity-60 [&.off]:hover:opacity-90 [&.busy]:animate-[pulse_1.4s_ease-in-out_infinite] [&_.app-icon]:size-4';
+const STAT = 'flex items-baseline gap-2 px-3 py-2 border bg-glass-strong backdrop-blur-[16px] backdrop-saturate-140 rounded-ctl shadow-card text-[12.5px] leading-[normal] font-medium text-dim';
+const STAT_N = 'font-sans text-[15px] leading-[normal] font-semibold tabular-nums tracking-normal';
+const ZOOM_BTN = `grid place-items-center size-9.5 rounded-full border border-line-2 bg-glass-strong backdrop-blur-[12px] text-dim shadow-card cursor-pointer ${TRANSITION} hover:text-ink hover:bg-raise hover:shadow-lift`;
+const FEED_ITEM = 'flex gap-3 py-1 whitespace-nowrap overflow-hidden text-ellipsis';
+/** "WEEK" or "week" as "Week". */
+const sentence = (t: string): string => (t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : t);
 
 function badge(id: string): HTMLSpanElement | null {
   const it = intInfo(id);
   if (!it) return null;
-  return h('span.st-badge', { style: { '--c': it.color }, title: it.label }, mark(id, 11));
+  return h('span.st-badge', { style: { '--c': it.color, color: 'color-mix(in srgb, var(--c) 72%, var(--color-ink))' }, title: it.label }, mark(id, 11));
 }
 
 /** A tile in the header's CONNECTED TO row. */
@@ -3522,14 +3706,14 @@ function drawHud(): void {
   const needs = d.approvals.length + d.outboxPending + (d.questions?.length || 0);
   if (!S.hudBuilt) {
     S.hudBuilt = true;
-    S.hudTop = h('div', { class: 'absolute top-0 left-0 right-0 flex items-center gap-3.5 px-4.5 bg-[linear-gradient(#070807_40%,transparent)] pointer-events-auto' });
-    S.feedEl = h('div', { class: 'absolute left-4 bottom-4 w-[min(380px,40vw)] font-mono text-[11.5px] leading-[1.45] font-normal pointer-events-auto' });
+    S.hudTop = h('div', { class: 'absolute top-0 left-0 right-0 flex items-center gap-4 px-5 pointer-events-none *:pointer-events-auto' });
+    S.feedEl = h('div', { class: 'absolute left-4 bottom-4 w-[min(380px,40vw)] max-md:w-[min(380px,calc(100%-96px))] max-md:bottom-20 p-4 bg-glass-strong backdrop-blur-[16px] backdrop-saturate-140 border border-line rounded-box shadow-card text-[12.5px] leading-[1.45] font-normal pointer-events-auto' });
     // moves left of the side panel while it is open, and glides back as the panel slides out (.closing)
     S.zoomEl = h(
       'div',
-      { class: 'absolute right-4 bottom-4 flex flex-col gap-1.5 pointer-events-auto [transition:right_0.32s_var(--ease-soft)] motion-reduce:transition-none group-has-[.st-panel:not(.hidden):not(.closing)]/root:right-101.5' },
+      { class: 'absolute right-4 bottom-4 flex flex-col gap-2 pointer-events-auto [transition:right_0.32s_var(--ease-soft)] motion-reduce:transition-none group-has-[.st-panel:not(.hidden):not(.closing)]/root:right-105' },
       // the World panel (voxel look only: shown or hidden on each drawHud)
-      h('button.st-world-btn', { class: `${ZOOM_BTN} mb-1.5`, hidden: true, title: 'World: WORLD.md, what is built, the look, which world', 'aria-label': 'World', onclick: () => choose(S?.selected?.type === 'world' ? null : { type: 'world' }) }, icon('globe', 17)),
+      h('button.st-world-btn', { class: `${ZOOM_BTN} mb-2`, hidden: true, title: 'World: WORLD.md, what is built, the look, which world', 'aria-label': 'World', onclick: () => choose(S?.selected?.type === 'world' ? null : { type: 'world' }) }, icon('globe', 17)),
       h('button', { class: ZOOM_BTN, title: 'Zoom in (+)', onclick: () => zoomAt(1.3) }, icon('zoom-in', 17)),
       h('button', { class: ZOOM_BTN, title: 'Zoom out (−)', onclick: () => zoomAt(0.77) }, icon('zoom-out', 17)),
       h('button', { class: ZOOM_BTN, title: 'Whole station (0)', onclick: () => resetView() }, icon('house', 17)),
@@ -3537,8 +3721,8 @@ function drawHud(): void {
     // the empty-state note sits at the side, not over the map
     // (so do the zoom and home buttons)
     S.zoomEl.addEventListener('pointerdown', minimizeMaximizedChats);
-    S.emptyEl = h('div', { class: 'absolute left-4.5 top-18.5 pointer-events-none' });
-    S.statsEl = h('div', { class: 'absolute top-14.5 right-4.5 pointer-events-auto group-has-[.st-panel:not(.hidden)]/root:hidden' });
+    S.emptyEl = h('div', { class: 'absolute left-5 top-22 pointer-events-none' });
+    S.statsEl = h('div', { class: 'absolute top-16 right-5 pointer-events-auto group-has-[.st-panel:not(.hidden)]/root:hidden' });
     S.hud.append(S.hudTop, S.statsEl, S.feedEl, S.zoomEl, S.emptyEl);
   }
   // the World button only in the voxel look (the panel closes when the look goes classic)
@@ -3562,7 +3746,7 @@ function drawHud(): void {
     !(d.accounts.reddit || []).length && { glyph: logo('reddit', 13) || 'r/', title: 'Reddit · not connected (Settings > Connections)', href: '#/settings?tab=connections' },
     !d.accounts.discord.configured && { glyph: logo('discord', 13) || 'D', title: 'Discord · not set up (Connections)', href: '#/settings?tab=connections' },
   ].filter(Boolean) as { glyph: SVGSVGElement | string; title: string; href: string }[];
-  for (const m of missing) tiles.push({ key: m.title, glyph: m.glyph, color: '#555850', on: false, missing: true, title: m.title, onclick: () => navigate(m.href) });
+  for (const m of missing) tiles.push({ key: m.title, glyph: m.glyph, color: 'var(--color-faint)', on: false, missing: true, title: m.title, onclick: () => navigate(m.href) });
   const seen = new Set<string>();
   // Every engine an agent (or the Brain) can run on: lit when ready, grey with a setup link when not.
   const brainP = d.settings?.brain?.provider || 'claude';
@@ -3574,11 +3758,11 @@ function drawHud(): void {
     ? [{ id: 'openai', uses: onLmStudio, brain: '', name: 'LM Studio', glyph: mark('lmstudio', 15), color: '#6a72ed', ready: !!lm?.live, why: lm ? 'its server is not running (LM Studio > Developer > Start server)' : 'not installed', find: 'LM Studio server' }]
     : [];
   const engines = [
-    { id: 'claude-code', brain: 'claude', name: 'Claude Code', glyph: logo('claude', 15) || '✳', color: '#d97757', ready: d.engines['claude-code'].installed, why: d.engines['claude-code'].installed ? '' : 'not installed', find: 'Claude Code' },
-    { id: 'openai', uses: (a: Agent) => a.engine === 'openai' && !onLmStudio(a), brain: 'openrouter', name: 'OpenRouter', glyph: logo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
+    { id: 'claude-code', brain: 'claude', name: 'Claude Code', glyph: appLogo('claude', 15) || '✳', color: '#d97757', ready: d.engines['claude-code'].installed, why: d.engines['claude-code'].installed ? '' : 'not installed', find: 'Claude Code' },
+    { id: 'openai', uses: (a: Agent) => a.engine === 'openai' && !onLmStudio(a), brain: 'openrouter', name: 'OpenRouter', glyph: appLogo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
     ...lmStudio,
     { id: 'hermes', brain: 'hermes', name: 'Hermes', glyph: '☤', color: '#d8c25a', ready: d.engines.hermes.installed, why: d.engines.hermes.installed ? '' : 'not installed', find: 'Hermes' },
-    { id: 'codex', brain: 'codex', name: 'OpenAI Codex', glyph: logo('openai', 14) || '◎', color: '#e6e8e0', ready: !!(d.engines.codex?.installed && d.engines.codex.loggedIn), why: !d.engines.codex?.installed ? 'not installed' : d.engines.codex.loggedIn ? '' : 'not signed in', find: 'OpenAI Codex' },
+    { id: 'codex', brain: 'codex', name: 'OpenAI Codex', glyph: appLogo('openai', 14) || '◎', color: INK, ready: !!(d.engines.codex?.installed && d.engines.codex.loggedIn), why: !d.engines.codex?.installed ? 'not installed' : d.engines.codex.loggedIn ? '' : 'not signed in', find: 'OpenAI Codex' },
     // pi, oh-my-pi and OpenClaw: always shown, like the model picker's tabs (grey with a setup link until installed)
     ...([
       { id: 'pi', name: 'pi', glyph: 'π', color: '#9fd3a8', find: 'pi coding agent' },
@@ -3594,15 +3778,15 @@ function drawHud(): void {
     const toAgents = e.ready && users.length ? `#/agents?uses=${engineKey(users[0])}` : '';
     return { ...e, uses, n: users.length + (brainP === e.brain ? 1 : 0), busy, toAgents, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${toAgents ? ' (click to see its agents)' : e.ready ? '' : ' (click to set up)'}` };
   });
-  S.clockEl ||= h('span', { class: 'min-w-23 text-right font-mono text-[17px] leading-[normal] font-medium tracking-[0.02em] text-ink' });
+  S.clockEl ||= h('span', { class: 'min-w-24 text-right text-[15px] leading-[normal] font-medium tabular-nums text-dim max-md:hidden' });
   S.tileEls = new Map();
   mount(
     S.hudTop,
     h('div.st-project-wrap', { class: 'group/proj flex flex-col items-stretch gap-0.75 flex-none' }, ...projectWrapParts()),
     h(
       'div.st-connected',
-      { class: 'group/conn flex items-center gap-1 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' },
-      h('span', { class: CONN_LABEL }, h('span.dot.on'), 'CONNECTED TO'),
+      { class: `${CAPSULE} group/conn flex items-center gap-1.5 flex-1 min-w-0 px-3 py-1 max-md:hidden overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden` },
+      h('span', { class: CONN_LABEL }, h('span.dot.on'), 'Connected to'),
       tiles
         .filter((t) => !seen.has(t.title.split(' · ')[0].toLowerCase()) && seen.add(t.title.split(' · ')[0].toLowerCase()))
         .sort((a, b) => +b.on - +a.on || +!!a.missing - +!!b.missing)
@@ -3619,11 +3803,11 @@ function drawHud(): void {
     ),
     h(
       'div',
-      { class: 'flex items-center gap-4 flex-none' },
+      { class: `${CAPSULE} flex items-center gap-5 flex-none px-3 py-1 max-md:min-w-0 max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden` },
       h(
         'div',
         { class: 'flex items-center gap-1.5' },
-        h('span', { class: `${CONN_LABEL} max-[1501px]:hidden` }, h(`span.dot${engines.some((e) => e.busy) ? '.busy' : '.on'}`), 'AI ENGINES'),
+        h('span', { class: `${CONN_LABEL} max-[1501px]:hidden` }, h(`span.dot${engines.some((e) => e.busy) ? '.busy' : '.on'}`), 'AI engines'),
         engines.map((e) =>
           h(
             `button${e.ready ? '' : '.off'}${e.busy ? '.busy' : ''}`,
@@ -3636,7 +3820,7 @@ function drawHud(): void {
               onpointerleave: () => S && (S.hover = null),
             },
             e.glyph,
-            e.n ? h('span', { class: 'absolute -right-1.25 -bottom-1 min-w-3.25 h-3.25 px-0.75 rounded-[7px] bg-[#141713] border border-[color-mix(in_srgb,var(--c)_55%,#333)] text-ink font-mono text-[8.5px] leading-[11px] font-semibold text-shadow-none group-[.off]/eng:border-[#444] group-[.off]/eng:text-[#888]' }, String(e.n)) : null,
+            e.n ? h('span', { class: 'absolute -right-1.25 -bottom-1 min-w-3.5 h-3.5 px-1 rounded-full bg-raise border border-line-2 text-ink font-sans text-[9px] leading-3 font-semibold tabular-nums group-[.off]/eng:text-faint' }, String(e.n)) : null,
           ),
         ),
       ),
@@ -3651,22 +3835,21 @@ function drawHud(): void {
     S.statsEl,
     h(
       'div',
-      { class: 'ml-auto flex items-center gap-1.5' },
+      { class: 'ml-auto flex items-center gap-2' },
       // on small screens only the buttons stay
       d.runs.length || S.active.size ? h('div', { class: `${STAT} border-line-2 max-md:hidden` }, h('b', { class: `${STAT_N} text-accent` }, String(d.runs.length + S.active.size)), 'working') : null,
-      needs ? h('button', { class: `${STAT} border-amber cursor-pointer`, onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: `${STAT_N} text-amber` }, String(needs)), 'needs you') : null,
+      needs ? h('button', { class: `${STAT} border-amber cursor-pointer hover:bg-raise`, onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: `${STAT_N} text-amber` }, String(needs)), 'needs you') : null,
       d.agents.length
-        ? h('button', { class: 'inline-flex items-center gap-1.5 px-3 py-2 border-0 rounded-ctl bg-accent text-on-accent cursor-pointer font-mono text-[10.5px] leading-[normal] font-bold tracking-[0.14em] uppercase hover:bg-accent-hover active:[transform:scale(0.96)]', onclick: newBranch }, icon('git-branch', 14), 'team')
+        ? h('button.btn.small', { onclick: newBranch }, icon('git-branch', 14), 'New team')
         : null,
     ),
   );
 }
 
 // What to do first, when there is nothing on the map yet.
-const EMPTY = 'pointer-events-auto w-80 py-4 px-4.5 bg-glass backdrop-blur-[16px] backdrop-saturate-140 border border-accent-dim rounded-box shadow-[0_20px_60px_rgba(0,0,0,0.55)] animate-[in-up_0.45s_var(--ease-soft)]';
-const EMPTY_TITLE = 'font-sans text-[15px] leading-[1.3] font-bold mb-1.5';
-const EMPTY_P = 'text-dim text-[13px] mb-3';
-const EMPTY_BTN = 'h-7.5 px-2.75 text-[10.5px]';
+const EMPTY = 'pointer-events-auto w-84 p-5 bg-glass-strong backdrop-blur-[16px] backdrop-saturate-140 border border-line rounded-box shadow-pop animate-[in-up_0.45s_var(--ease-soft)]';
+const EMPTY_TITLE = 'font-sans text-[16px] leading-[1.3] font-semibold mb-2';
+const EMPTY_P = 'text-dim text-[13.5px] leading-[1.55] mb-4';
 function drawEmpty(d: AppState): void {
   if (!S?.emptyEl) return;
   let card: HTMLDivElement | null = null;
@@ -3678,11 +3861,10 @@ function drawEmpty(d: AppState): void {
       h('p', { class: EMPTY_P }, 'Tell the Brain what you need, e.g. "make me a social media team", and it builds the team from the library. Or hire and create agents yourself.'),
       h(
         'div',
-        { class: 'flex flex-wrap items-center gap-2.5' },
-        h('button.btn', { class: EMPTY_BTN, onclick: () => openDock('auto', 'Make me a team for ') }, 'Ask the Brain'),
-        h('a.btn.ghost', { class: EMPTY_BTN, href: '#/library' }, 'Agent library'),
-        h('button.btn.ghost', {
-          class: EMPTY_BTN,
+        { class: 'flex flex-wrap items-center gap-3' },
+        h('button.btn.small', { onclick: () => openDock('auto', 'Make me a team for ') }, 'Ask the Brain'),
+        h('a.btn.small.ghost', { href: '#/library' }, 'Agent library'),
+        h('button.btn.small.ghost', {
           onclick: async () => {
             const a = await attempt(() => POST<Agent>('/agents', { name: 'New agent' }));
             if (a) navigate(`#/agents/${a.id}/edit`);
@@ -3696,7 +3878,7 @@ function drawEmpty(d: AppState): void {
       { class: EMPTY },
       h('div', { class: EMPTY_TITLE }, `${d.agents.length} agent${d.agents.length === 1 ? '' : 's'} ready`),
       h('p', { class: EMPTY_P }, 'Ask any of them something in the Brain chat, or group them into a team: a workflow where each one hands its result to the next.'),
-      h('div', { class: 'flex flex-wrap items-center gap-2.5' }, h('button.btn', { class: EMPTY_BTN, onclick: newBranch }, '+ New team'), h('button.btn.ghost', { class: EMPTY_BTN, onclick: () => openDock() }, 'Open Brain chat')),
+      h('div', { class: 'flex flex-wrap items-center gap-3' }, h('button.btn.small', { onclick: newBranch }, '+ New team'), h('button.btn.small.ghost', { onclick: () => openDock() }, 'Open Brain chat')),
     );
   mount(S.emptyEl, card);
 }
@@ -3724,36 +3906,36 @@ function buildWires(): void {
   if (S.bench && S.benchNodes?.length) bundle(S.benchNodes, S.bench, 1.4);
 }
 
-const USAGE_LOOK: Record<string, { brand?: string; glyph: string; color: string }> = { claude: { brand: 'claude', glyph: '✳', color: '#d97757' }, openrouter: { brand: 'openrouter', glyph: '◇', color: '#94a3b8' }, codex: { brand: 'openai', glyph: '◎', color: '#e6e8e0' } };
+const USAGE_LOOK: Record<string, { brand?: string; glyph: string; color: string }> = { claude: { brand: 'claude', glyph: '✳', color: '#d97757' }, openrouter: { brand: 'openrouter', glyph: '◇', color: '#94a3b8' }, codex: { brand: 'openai', glyph: '◎', color: INK } };
 function drawUsage(animate: boolean): void {
   const list = S?.headbar?.usages || [];
   if (!S?.usageEl || !list.length) return;
   const u = list[(S.usageIdx || 0) % list.length];
-  const look = USAGE_LOOK[u.id] || { glyph: '•', color: '#aaa' };
+  const look = USAGE_LOOK[u.id] || { glyph: '•', color: 'var(--color-faint)' };
   const meter = (m: UsageMeter) =>
     h(
       'div',
       {
-        class: 'flex items-center gap-1.75 font-mono text-[9.5px] leading-[normal] font-medium tracking-[0.16em] text-dim',
+        class: 'flex items-center gap-2 text-[12px] leading-[normal] font-medium text-dim',
         title: m.resetsAt ? `resets ${new Date(m.resetsAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}` : m.text || '',
       },
-      h('span', m.label),
-      m.percent != null ? h('div', { class: 'relative w-11.5 h-1 bg-line-2' }, h('i', { class: 'absolute left-0 top-0 bottom-0', style: { width: `${m.percent}%`, background: m.percent >= 80 ? 'var(--color-amber)' : 'var(--color-accent)' } })) : null,
-      h('b', { class: 'min-w-7.5 font-sans text-[12px] leading-[normal] font-bold tracking-normal text-ink' }, m.percent != null ? `${m.percent}%` : m.text || '–'),
+      h('span', sentence(m.label)),
+      m.percent != null ? h('div', { class: 'relative w-12 h-1 rounded-full overflow-hidden bg-line-2' }, h('i', { class: 'absolute left-0 top-0 bottom-0 rounded-full', style: { width: `${m.percent}%`, background: m.percent >= 80 ? 'var(--color-amber)' : 'var(--color-accent)' } })) : null,
+      h('b', { class: 'min-w-8 font-sans text-[12.5px] leading-[normal] font-semibold tabular-nums tracking-normal text-ink' }, m.percent != null ? `${m.percent}%` : m.text || '–'),
     );
   mount(
     S.usageEl,
     h(
       'div',
       // slides in when it switches to the next provider
-      { class: animate ? 'flex items-center gap-3.5 animate-[st-usage-in_0.55s_cubic-bezier(0.2,0.8,0.2,1)_both]' : 'flex items-center gap-3.5' },
-      h('span', { class: 'w-5.5 grid place-items-center text-(--c) text-shadow-[0_0_10px_var(--c)] font-sans text-[14px] leading-[normal] font-bold', style: { '--c': look.color }, title: `${u.name} usage${list.length > 1 ? ' · switches every 6 s' : ''}` }, (look.brand && logo(look.brand, 14)) || look.glyph),
+      { class: animate ? 'flex items-center gap-4 animate-[rise-in_0.4s_var(--ease-soft)_both]' : 'flex items-center gap-4' },
+      h('span', { class: 'w-6 grid place-items-center text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[14px] leading-[normal] font-semibold', style: { '--c': look.color }, title: `${u.name} usage${list.length > 1 ? ' · switches every 6 s' : ''}` }, (look.brand && appLogo(look.brand, 14)) || look.glyph),
       u.meters.map(meter),
       list.length > 1
         ? h(
             'span',
             { class: 'flex flex-col gap-0.75' },
-            list.map((_, i) => h('i', { class: i === (S!.usageIdx || 0) % list.length ? 'size-1 rounded-full transition-[background] duration-300 ease-[ease] bg-accent' : 'size-1 rounded-full transition-[background] duration-300 ease-[ease] bg-[#3a3d37]' })),
+            list.map((_, i) => h('i', { class: i === (S!.usageIdx || 0) % list.length ? 'size-1 rounded-full transition-[background] duration-300 ease-[ease] bg-accent' : 'size-1 rounded-full transition-[background] duration-300 ease-[ease] bg-line-2' })),
           )
         : null,
     ),
@@ -3786,8 +3968,8 @@ function drawFeed(): void {
   S.feedEl.classList.toggle('hidden', !S.feed.length);
   mount(
     S.feedEl,
-    h('div', { class: 'flex items-center gap-1.5 mb-1.5 text-amber tracking-[0.2em] text-[10px]' }, h('span.dot.busy'), 'LIVE'),
-    S.feed.map((f, i) => h('div', { style: { opacity: String(1 - i * 0.12) }, class: f.kind === 'error' ? `${FEED_ITEM} text-red` : `${FEED_ITEM} text-ink` }, h('span', { class: 'flex-none w-13.5 text-faint' }, ago(f.ts)), f.text)),
+    h('div', { class: 'flex items-center gap-2 mb-2 text-[12px] leading-[normal] font-medium text-dim' }, h('span.dot.busy'), 'Live'),
+    S.feed.map((f, i) => h('div', { style: { opacity: String(1 - i * 0.12) }, class: f.kind === 'error' ? `${FEED_ITEM} text-red` : `${FEED_ITEM} text-ink` }, h('span', { class: 'flex-none w-14 text-faint' }, ago(f.ts)), f.text)),
   );
 }
 

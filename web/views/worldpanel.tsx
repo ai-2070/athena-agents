@@ -46,7 +46,7 @@ interface ExportAnswer {
 type Tab = 'md' | 'built' | 'look' | 'world';
 
 const WORLD_EVENTS = new Set(['world', 'world-md', 'project']);
-const SECTION = 'mt-4 mb-1.5 font-mono text-[10px] leading-[normal] font-medium tracking-[0.14em] text-dim uppercase';
+const SECTION = 'mt-6 mb-2 text-[12px] leading-[normal] font-medium text-dim';
 const ROW = 'flex items-center gap-2 rounded-box border border-line bg-bg px-2.5 py-1.75 text-[13px]';
 const ROW_META = 'text-[11.5px] text-faint';
 const ICON_BTN = 'icon-btn size-7 flex-none';
@@ -482,7 +482,7 @@ function LookSlider({ label, value, max, step, onCommit }: { label: string; valu
           </Slider.Track>
         </Slider.Control>
       </Slider.Root>
-      <span className="w-9 flex-none text-right font-mono text-[11px] text-dim">{v.toFixed(2)}</span>
+      <span className="w-9 flex-none text-right text-[12px] tabular-nums text-dim">{v.toFixed(2)}</span>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-// Agent library: ready-made agents. Blacksite's own (made for this dashboard's tools), The Agency (msitarzewski/agency-agents), Hermes profiles, Claude Code subagents,
+// Agent library: ready-made agents. Athena's own (made for this dashboard's tools), The Agency (msitarzewski/agency-agents), Hermes profiles, Claude Code subagents,
 // and your presets. A React page on Base UI controls.
 import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
@@ -95,6 +95,16 @@ async function preview(a: AgencyListing, doHire: () => unknown) {
   });
 }
 
+/** A tab with nothing in it: one line, and what to do about it. */
+function Empty({ children, action }: { children: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="flex flex-col items-center gap-4 py-12 text-center">
+      <p className="m-0 max-w-[48ch] text-dim">{children}</p>
+      {action}
+    </div>
+  );
+}
+
 // ---------- the page ----------
 function LibraryPage() {
   const data = useAppState();
@@ -117,7 +127,7 @@ function LibraryPage() {
 
   const pick = (t: Tab) => setTab((lastTab = t));
   const tabs = [
-    { value: 'starters' as const, label: `Blacksite (${lib.starters.length})` },
+    { value: 'starters' as const, label: `Athena (${lib.starters.length})` },
     { value: 'agency' as const, label: `The Agency (${lib.agency.agents.length})` },
     { value: 'hermes' as const, label: `Hermes profiles (${lib.hermes.length})` },
     { value: 'claude' as const, label: `Claude Code subagents (${lib.claude.length})` },
@@ -125,7 +135,7 @@ function LibraryPage() {
   ];
   const runsOn =
     tab === 'agency' || tab === 'starters' ? (
-      <div className="flex flex-wrap items-center gap-2.5">
+      <div className="ml-auto flex flex-wrap items-center gap-3">
         <span className="label">Runs on</span>
         <Segmented label="Runs on" options={data.engineList.map((e) => ({ value: e.id, label: e.label }))} value={engine} onChange={setEngine} />
       </div>
@@ -134,18 +144,18 @@ function LibraryPage() {
 
   return (
     <>
-      <p className="lede">Hire a specialist and it joins your team with its instructions already written. You can change anything afterwards.</p>
+      <p className="lede max-w-[68ch]">Hire a specialist and it joins your team with its instructions already written. You can change anything afterwards.</p>
       {branchParam() ? (
-        <div className="panel mb-3.5 border-accent-dim">
-          <div className="flex flex-wrap items-center gap-2.5 justify-between">
+        <div className="panel mb-6 border-accent/30 bg-accent/5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <span>Hiring into a Station team: new hires are added as its next step.</span>
             <a className="btn ghost small" href="#/station">Back to Station</a>
           </div>
         </div>
       ) : null}
-      <Tabs label="Agent library" tabs={tabs} value={tab} onChange={pick} aside={runsOn} rowClassName="mb-1.5 [&_.tabs]:mb-0 [&_.tabs]:border-b-0" panelClassName="border-t border-line pt-4.5">
-        {tab === 'starters' ? <Starters lib={lib} overrides={ov} /> : null}
-        {tab === 'agency' ? <Agency lib={lib} overrides={ov} /> : null}
+      <Tabs label="Agent library" tabs={tabs} value={tab} onChange={pick} rowClassName="[&_.tabs]:flex-1">
+        {tab === 'starters' ? <Starters lib={lib} overrides={ov} runsOn={runsOn} /> : null}
+        {tab === 'agency' ? <Agency lib={lib} overrides={ov} runsOn={runsOn} /> : null}
         {tab === 'hermes' ? <Hermes lib={lib} data={data} /> : null}
         {tab === 'claude' ? <Claude lib={lib} /> : null}
         {tab === 'presets' ? <Presets presets={presets} reload={() => GET<PresetListing[]>('/presets').then(setPresets)} /> : null}
@@ -189,9 +199,11 @@ function Card({ top, sub, foot }: { top: ReactNode; sub?: ReactNode; foot: React
   );
 }
 
-function Starters({ lib, overrides: ov }: { lib: LibraryIndex; overrides: () => Overrides }) {
+function Starters({ lib, overrides: ov, runsOn }: { lib: LibraryIndex; overrides: () => Overrides; runsOn: ReactNode }) {
   return (
-    <div className="cards">
+    <>
+      <div className="mb-6 flex flex-wrap items-center gap-3">{runsOn}</div>
+      <div className="cards">
       {lib.starters.map((s) => (
         <Card
           key={s.name}
@@ -207,11 +219,12 @@ function Starters({ lib, overrides: ov }: { lib: LibraryIndex; overrides: () => 
           foot={<HireFoot onHire={() => hire({ source: 'starter', name: s.name, overrides: ov() }, s.name)}>{(go) => <button className="btn small" onClick={go}>Add</button>}</HireFoot>}
         />
       ))}
-    </div>
+      </div>
+    </>
   );
 }
 
-function Agency({ lib, overrides: ov }: { lib: LibraryIndex; overrides: () => Overrides }) {
+function Agency({ lib, overrides: ov, runsOn }: { lib: LibraryIndex; overrides: () => Overrides; runsOn: ReactNode }) {
   const [query, setQuery] = useState(lastQuery);
   const [division, setDivision] = useState(lastDivision);
   const divisions = [...new Map(lib.agency.agents.map((a) => [a.division, a.divisionLabel])).entries()];
@@ -219,16 +232,19 @@ function Agency({ lib, overrides: ov }: { lib: LibraryIndex; overrides: () => Ov
   const list = lib.agency.agents.filter((a) => (!division || a.division === division) && (!q || `${a.name} ${a.description} ${a.vibe}`.toLowerCase().includes(q)));
   return (
     <>
-      <SearchBox className="max-w-140" autoFocus label="Search the specialists" placeholder={'Search 270+ specialists: "tiktok", "unity", "seo", "security"…'} value={query} onChange={(v) => setQuery((lastQuery = v))} />
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchBox className="w-[min(400px,100%)]" autoFocus label="Search the specialists" placeholder={'Search 270+ specialists: "tiktok", "unity", "seo", "security"…'} value={query} onChange={(v) => setQuery((lastQuery = v))} />
+        {runsOn}
+      </div>
       {/* (a toggle's value can't be empty, so All is 'all') */}
       <Chips
         label="Division"
-        className="mt-3.5"
+        className="mt-4"
         options={[{ value: 'all', label: 'All' }, ...divisions.map(([value, label]) => ({ value, label }))]}
         value={division || 'all'}
         onChange={(d) => setDivision((lastDivision = d === 'all' ? '' : d))}
       />
-      <div className="mt-3.5">
+      <div className="mt-6">
         <div className="cards">
           {list.slice(0, SHOWN).map((a) => {
             const doHire = () => hire({ source: 'agency', slug: a.slug, overrides: ov() }, a.name);
@@ -259,7 +275,7 @@ function Agency({ lib, overrides: ov }: { lib: LibraryIndex; overrides: () => Ov
             );
           })}
           {list.length > SHOWN ? <p className="hint">Showing {SHOWN} of {list.length}. Search to narrow down.</p> : null}
-          {!list.length ? <div className="empty box">No agent matches.</div> : null}
+          {!list.length ? <div className="empty col-span-full py-12">No agent matches.</div> : null}
         </div>
       </div>
     </>
@@ -267,11 +283,11 @@ function Agency({ lib, overrides: ov }: { lib: LibraryIndex; overrides: () => Ov
 }
 
 function Hermes({ lib, data }: { lib: LibraryIndex; data: AppState }) {
-  if (!lib.hermes.length) return <div className="empty box">{data.engines.hermes.installed ? 'No Hermes profiles found.' : 'Hermes is not installed on this PC.'}</div>;
+  if (!lib.hermes.length) return <Empty>{data.engines.hermes.installed ? 'No Hermes profiles found.' : 'Hermes is not installed on this PC.'}</Empty>;
   const have = new Set(data.agents.filter((a) => a.engine === 'hermes').map((a) => a.hermesProfile || 'default'));
   return (
     <>
-      <p className="hint mb-3.5">Each Hermes profile keeps its own memory, skills and tools. Add one to chat with it here, use it in workflows, or let other agents ask it for help.</p>
+      <p className="hint mb-6 max-w-[68ch]">Each Hermes profile keeps its own memory, skills and tools. Add one to chat with it here, use it in workflows, or let other agents ask it for help.</p>
       <div className="cards">
         {lib.hermes.map((p) => (
           <Card
@@ -302,7 +318,7 @@ function Hermes({ lib, data }: { lib: LibraryIndex; data: AppState }) {
 function Claude({ lib }: { lib: LibraryIndex }) {
   return (
     <>
-      <p className="hint mb-3.5">Subagents saved in ~/.claude/agents. Import one as a dashboard agent, or go the other way with "Install in Claude Code" on any agent.</p>
+      <p className="hint mb-6 max-w-[68ch]">Subagents saved in ~/.claude/agents. Import one as a dashboard agent, or go the other way with "Install in Claude Code" on any agent.</p>
       {lib.claude.length ? (
         <div className="cards">
           {lib.claude.map((s) => (
@@ -322,7 +338,7 @@ function Claude({ lib }: { lib: LibraryIndex }) {
           ))}
         </div>
       ) : (
-        <div className="empty box">No Claude Code subagents found.</div>
+        <Empty>No Claude Code subagents found.</Empty>
       )}
     </>
   );
@@ -350,9 +366,9 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
       top={
         <>
           {p.kind === 'team' ? (
-            <div className="avatar text-white" style={{ background: p.color || '#7350c8' }}><Icon name="users" size={18} /></div>
+            <div className="avatar" style={{ '--agent-color': p.color || 'var(--color-accent)', color: p.color || 'var(--color-accent)' } as CSSProperties}><Icon name="users" size={18} /></div>
           ) : (
-            <div className="avatar text-white">{p.emoji || '🤖'}</div>
+            <div className="avatar">{p.emoji || '🤖'}</div>
           )}
           <div className="flex-1 min-w-0">
             <div className="card-title">{p.name}</div>
@@ -363,7 +379,7 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
       sub={
         <>
           {p.description ? <div className="card-sub">{p.description}</div> : null}
-          {p.kind === 'team' ? <div className="flex flex-wrap gap-1.25 my-1">{p.members!.map((m) => <span key={m.name} className="pill">{`${m.emoji || ''} ${m.name}`}</span>)}</div> : null}
+          {p.kind === 'team' ? <div className="my-1 flex flex-wrap gap-2">{p.members!.map((m) => <span key={m.name} className="pill">{`${m.emoji || ''} ${m.name}`}</span>)}</div> : null}
           {p.skills?.length ? <div className="hint">{`${p.skills.length} skill${p.skills.length === 1 ? '' : 's'}`}</div> : null}
         </>
       }
@@ -385,17 +401,17 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
   const agentsP = presets.filter((p) => p.kind === 'agent');
   return (
     <>
-      <p className="hint mb-3.5">Save any agent or team as a preset (its panel on the Station, or right-click it). Presets work in every project: each use makes fresh copies here.</p>
-      {!presets.length ? <p className="empty">No presets yet.</p> : null}
+      <p className="hint mb-6 max-w-[68ch]">Save any agent or team as a preset (its panel on the Station, or right-click it). Presets work in every project: each use makes fresh copies here.</p>
+      {!presets.length ? <p className="empty py-12">No presets yet.</p> : null}
       {teamsP.length ? (
         <>
-          <h2 className="section">{`Teams (${teamsP.length})`}</h2>
+          <h2 className="section mt-2">{`Teams (${teamsP.length})`}</h2>
           <div className="cards">{teamsP.map(card)}</div>
         </>
       ) : null}
       {agentsP.length ? (
         <>
-          <h2 className="section">{`Agents (${agentsP.length})`}</h2>
+          <h2 className="section mt-10">{`Agents (${agentsP.length})`}</h2>
           <div className="cards">{agentsP.map(card)}</div>
         </>
       ) : null}

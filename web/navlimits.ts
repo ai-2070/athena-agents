@@ -97,7 +97,7 @@ function load(redraw: () => void): void {
   });
 }
 
-const ROW = '-mx-1.5 flex items-center gap-1.75 rounded-[6px] px-1.5 py-0.75 text-[11.5px] text-dim no-underline [transition:background_0.15s,color_0.15s] hover:bg-accent/12 hover:text-ink';
+const ROW = '-mx-2 flex items-center gap-2 rounded-ctl px-2 py-[5px] text-[12.5px] text-dim no-underline [transition:background_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink';
 const close = () => document.body.classList.remove('nav-open');
 
 function head(name: string, brand: string, color: string | undefined, p: ProviderLimits, href: string, right: string) {
@@ -107,7 +107,7 @@ function head(name: string, brand: string, color: string | undefined, p: Provide
     { class: ROW, href, title: p.ready ? `${name} plan limits` : `${name}: ${p.why}`, onclick: close },
     h('span', { class: `dot ${dot}` }),
     h('span', { class: 'flex min-w-0 flex-1 items-center gap-1.5 truncate' }, logo(brand, 11, color), h('span', { class: 'truncate' }, name)),
-    right ? h('span', { class: 'text-[10.5px] whitespace-nowrap text-faint' }, right) : null,
+    right ? h('span', { class: 'text-[11.5px] whitespace-nowrap text-faint' }, right) : null,
   );
 }
 
@@ -115,17 +115,17 @@ function meter(w: LimitWindow) {
   const hot = w.percent >= 90 ? 'bg-red' : w.percent >= 75 ? 'bg-amber' : 'bg-accent';
   return h(
     'div',
-    { class: 'limit-row flex items-center gap-1.5 py-0.5 pl-3.5 text-[10.5px] text-dim', title: w.resetsAt ? `${w.label}: ${w.percent}% used · starts again ${when(w.resetsAt)}` : `${w.label}: ${w.percent}% used` },
-    h('span', { class: 'w-7.5 flex-none text-faint' }, w.label),
-    h('span', { class: 'relative h-1 min-w-4 flex-1 overflow-hidden rounded-full bg-line-2' }, h('i', { class: `absolute inset-y-0 left-0 rounded-full ${hot}`, style: { width: `${w.percent}%` } })),
-    h('b', { class: 'w-8 flex-none text-right font-medium text-ink tabular-nums' }, `${w.percent}%`),
+    { class: 'limit-row flex items-center gap-2 py-1 pl-4 text-[11.5px] text-dim', title: w.resetsAt ? `${w.label}: ${w.percent}% used · starts again ${when(w.resetsAt)}` : `${w.label}: ${w.percent}% used` },
+    h('span', { class: 'w-8 flex-none text-faint' }, w.label),
+    h('span', { class: 'relative h-1 min-w-4 flex-1 overflow-hidden rounded-full bg-ink/10' }, h('i', { class: `absolute inset-y-0 left-0 rounded-full ${hot}`, style: { width: `${w.percent}%` } })),
+    h('b', { class: 'w-9 flex-none text-right font-medium text-ink tabular-nums' }, `${w.percent}%`),
     h('span', { class: 'w-11 flex-none text-right text-faint tabular-nums' }, w.resetsAt ? timeUntil(w.resetsAt) : ''),
   );
 }
 
 function windowsOf(p: ProviderLimits) {
   if (!p.ready) return [];
-  if (!p.windows.length) return [h('div', { class: 'py-0.5 pl-3.5 text-[10.5px] text-faint' }, failed ? "couldn't read the limits" : limits ? 'no numbers yet' : 'reading…')];
+  if (!p.windows.length) return [h('div', { class: 'py-1 pl-4 text-[11.5px] text-faint' }, failed ? "couldn't read the limits" : limits ? 'no numbers yet' : 'reading…')];
   return p.windows.map(meter);
 }
 
@@ -173,7 +173,7 @@ let pop: HTMLElement | null = null;
 let anchor: HTMLElement | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
 // (above the sidebar, which is z-80 on the Station)
-const POP = 'codex-resets fixed z-[85] flex w-56 flex-col gap-0.5 rounded-box border border-line-2 bg-panel px-3 py-2.5 font-mono shadow-pop animate-[fade_0.15s_ease-out]';
+const POP = 'codex-resets fixed z-[85] flex w-60 flex-col gap-1 rounded-box border border-line bg-raise px-4 py-3.5 shadow-pop animate-[fade_0.15s_ease-out]';
 
 const hasResets = () => !!(limits?.codex.ready && limits.codex.resets?.available);
 
@@ -201,8 +201,8 @@ function drawPop(redraw: () => void): void {
   const next = r.credits[0];
   mount(
     pop,
-    h('span', { class: 'font-sans text-[12px] font-semibold text-ink' }, `${r.available} rate-limit reset${r.available === 1 ? '' : 's'} available`),
-    next?.expiresAt ? h('span', { class: 'text-[11px] text-faint', title: `Runs out ${when(next.expiresAt)}` }, `Next expires in ${timeUntil(next.expiresAt)}`) : null,
+    h('span', { class: 'text-[13px] font-semibold text-ink' }, `${r.available} rate-limit reset${r.available === 1 ? '' : 's'} available`),
+    next?.expiresAt ? h('span', { class: 'text-[12px] text-faint', title: `Runs out ${when(next.expiresAt)}` }, `Next expires in ${timeUntil(next.expiresAt)}`) : null,
     h('button', { class: 'btn ghost tiny mt-1.5 self-start', disabled: resetting, onclick: () => void useReset(redraw) }, resetting ? 'Resetting…' : 'Reset now'),
   );
   // beside the sidebar, level with Codex, kept on screen (the sidebar is as tall as the window)
@@ -247,7 +247,7 @@ export function navLimits(redraw: () => void): HTMLElement[] {
   const codex: HTMLElement = h(
     'div',
     { class: 'codex-limits flex flex-col', onmouseenter: () => showPop(codex, redraw), onfocusin: () => showPop(codex, redraw) },
-    head('Codex', 'openai', '#e6e8e0', cx, S('tab=general&find=OpenAI Codex'), cx.ready ? (cx.blocked ? 'limit reached' : plan(cx.plan)) : cx.why || ''),
+    head('Codex', 'openai', 'currentColor', cx, S('tab=general&find=OpenAI Codex'), cx.ready ? (cx.blocked ? 'limit reached' : plan(cx.plan)) : cx.why || ''),
     windowsOf(cx),
   );
   // the sidebar was drawn again under an open card: keep it next to the new rows
@@ -258,7 +258,7 @@ export function navLimits(redraw: () => void): HTMLElement[] {
   return [
     head('Claude', 'claude', undefined, cc, S('tab=general&find=Claude Code'), cc.ready ? '' : cc.why || ''),
     ...windowsOf(cc),
-    h('div', { class: 'h-1.5' }),
+    h('div', { class: 'h-2' }),
     codex,
   ];
 }
@@ -269,10 +269,10 @@ export function panelSwitch(redraw: () => void): HTMLElement {
   const tab = (p: SidebarPanel, label: string, title: string) =>
     h(
       'button',
-      { type: 'button', class: `sidebar-panel-tab relative cursor-pointer border-0 bg-transparent p-0 font-mono text-[9.5px] tracking-[0.14em] uppercase transition-colors duration-200 ${now === p ? 'on text-accent' : 'text-faint hover:text-ink'}`, title, 'aria-pressed': String(now === p), onclick: () => now !== p && setSidebarPanel(p, redraw) },
+      { type: 'button', class: `sidebar-panel-tab relative cursor-pointer border-0 bg-transparent px-0 py-1 text-[12px] font-medium transition-colors duration-200 ${now === p ? 'on text-ink' : 'text-faint hover:text-ink'}`, title, 'aria-pressed': String(now === p), onclick: () => now !== p && setSidebarPanel(p, redraw) },
       label,
       // the line under the tab that's on (it glides to the other tab on a switch)
-      now === p ? h('span.sidebar-panel-mark', { class: 'pointer-events-none absolute -bottom-1 left-0 h-px w-full bg-accent', 'aria-hidden': 'true' }) : null,
+      now === p ? h('span.sidebar-panel-mark', { class: 'pointer-events-none absolute -bottom-px left-0 h-0.5 w-full rounded-full bg-accent', 'aria-hidden': 'true' }) : null,
     );
-  return h('div', { class: 'mb-1 flex items-center gap-3' }, tab('status', 'Status', "What's set up"), tab('limits', 'Limits', 'How much of your Claude and Codex plans is used'));
+  return h('div', { class: 'mb-1.5 flex items-center gap-4' }, tab('status', 'Status', "What's set up"), tab('limits', 'Limits', 'How much of your Claude and Codex plans is used'));
 }

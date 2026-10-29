@@ -61,10 +61,10 @@ export function TurnView({ agentId, chatId, live, from, to, empty, onEnd, onSend
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!messages.length) return loaded && empty ? <div className="hint text-[11.5px]">{empty}</div> : null;
+  if (!messages.length) return loaded && empty ? <div className="hint">{empty}</div> : null;
   const lastId = messages[messages.length - 1]?.id;
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
+    <div className="flex min-w-0 flex-col gap-2">
       {messages.map((m) => (
         <MessageView key={m.id} m={m} variant="mini" busy={streaming} streaming={streaming && m.id === lastId} dim={false} onSend={(t) => onSend?.(t)} owner={owner} />
       ))}
