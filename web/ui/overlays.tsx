@@ -205,7 +205,7 @@ function Toasts({ container }: { container: HTMLElement | null }) {
       <Toast.Viewport className="flex flex-col gap-2 outline-none">
         {/* oldest first, newest at the bottom of the stack, as before */}
         {[...list].reverse().map((t) => (
-          <Toast.Root key={t.id} toast={t} className={`toast${t.type && t.type !== 'info' ? ` ${t.type}` : ''}`}>
+          <Toast.Root key={t.id} toast={t} className={`toast glass${t.type && t.type !== 'info' ? ` ${t.type}` : ''}`}>
             {t.data ? <ToastText nodes={t.data.nodes} /> : null}
           </Toast.Root>
         ))}

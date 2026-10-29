@@ -33,7 +33,7 @@
         </div>
       </aside>
       <main id="main" class="flex min-w-0 flex-col md:in-[.station-mode]:col-2">
-        <header id="topbar" class="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-line bg-bg/85 px-10 backdrop-blur-md max-md:px-4 in-[.station-mode]:[display:none]">
+        <header id="topbar" class="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-line bg-bg px-10 max-md:px-4 in-[.station-mode]:[display:none]">
           <button id="nav-toggle" class="icon-btn md:hidden" aria-label="Menu">☰</button>
           <h1 id="page-title" class="m-0 font-sans text-[15px] leading-[1.2] font-semibold tracking-[-0.01em]"></h1>
           <div class="top-actions ml-auto flex items-center gap-3">
@@ -44,7 +44,7 @@
         <section id="view" class="mx-auto w-full max-w-[1400px] min-w-0 px-10 pt-9 pb-20 *:animate-rise-in max-md:px-4 max-md:pt-5 max-md:pb-14"></section>
       </main>
     </div>
-    <aside id="drawer" class="hidden fixed top-0 right-0 bottom-0 z-50 flex w-[min(540px,100vw)] flex-col border-l border-line bg-glass-strong shadow-pop backdrop-blur-[16px] backdrop-saturate-[140%] not-[.hidden]:animate-in-right" aria-label="Needs you">
+    <aside id="drawer" class="glass hidden fixed top-0 right-0 bottom-0 z-50 flex w-[min(540px,100vw)] flex-col not-[.hidden]:animate-in-right" aria-label="Needs you">
       <div class="flex items-center border-b border-line px-6 py-5">
         <h2 class="m-0 flex-1 text-[15px]">Needs you</h2>
         <button class="icon-btn" id="drawer-close" aria-label="Close">✕</button>

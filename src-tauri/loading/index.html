@@ -46,9 +46,9 @@
         user-select: none;
         -webkit-user-select: none;
       }
-      main { max-width: 520px; text-align: center; }
+      main { width: min(520px, 100%); padding: 28px; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
       .mark { width: 56px; height: 56px; margin: 0 auto 24px; display: block; }
-      h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.012em; margin: 0 0 8px; }
+      h1 { font-size: 18px; font-weight: 600; margin: 0 0 8px; }
       p { margin: 0; color: var(--dim); }
       .bar { width: 160px; height: 3px; margin: 28px auto 0; background: var(--line); border-radius: 3px; overflow: hidden; }
       .bar i { display: block; width: 40%; height: 100%; background: var(--accent); border-radius: 3px; animation: slide 1.1s ease-in-out infinite alternate; }

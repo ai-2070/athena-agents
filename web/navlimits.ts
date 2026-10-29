@@ -173,7 +173,7 @@ let pop: HTMLElement | null = null;
 let anchor: HTMLElement | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
 // (above the sidebar, which is z-80 on the Station)
-const POP = 'codex-resets fixed z-[85] flex w-60 flex-col gap-1 rounded-box border border-line bg-raise px-4 py-3.5 shadow-pop animate-[fade_0.15s_ease-out]';
+const POP = 'codex-resets glass fixed z-[85] flex w-60 flex-col gap-1 rounded-box px-4 py-3.5 animate-[fade_0.15s_ease-out]';
 
 const hasResets = () => !!(limits?.codex.ready && limits.codex.resets?.available);
 

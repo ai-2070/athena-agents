@@ -81,6 +81,9 @@ a:hover { color: var(--color-accent-hover); }
 
 /* thin, quiet scrollbars */
 * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--color-ink) 20%, transparent) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--color-ink) 20%, transparent); border: 2px solid transparent; border-radius: 999px; background-clip: padding-box; }
 
 /* headings are semibold (their size and margins come from where they're used) */
 h1, h2, h3, h4, h5, h6, optgroup { font-weight: 600; letter-spacing: -0.006em; }

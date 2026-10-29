@@ -877,7 +877,7 @@ function DockView({ bar }: { bar: HTMLElement }) {
       {createPortal(
         <button
           ref={(el) => void (D.launcher = el)}
-          className={`dock-launcher relative flex items-center gap-2.5 py-2.5 pr-3 pl-3.5 whitespace-nowrap cursor-pointer bg-glass-strong backdrop-blur-[16px] border border-line-2 rounded-full text-ink font-sans text-[14px] font-medium leading-[normal] shadow-lift [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] hover:shadow-pop hover:[transform:translateY(-1px)] in-[.in-chat]:hidden max-md:in-[.nav-open]:hidden ${D.launcherHidden ? ' hidden' : ''}`}
+          className={`dock-launcher glass relative flex items-center gap-2.5 py-2.5 pr-3 pl-3.5 whitespace-nowrap cursor-pointer rounded-full text-ink font-sans text-[14px] font-medium leading-[normal] [transition:transform_0.18s_var(--ease-soft),opacity_0.2s] hover:[transform:translateY(-1px)] in-[.in-chat]:hidden max-md:in-[.nav-open]:hidden ${D.launcherHidden ? ' hidden' : ''}`}
           style={D.launcherFaded ? { opacity: 0 } : undefined}
           title={brainKeyTitle()}
           onClick={() => toggle(true)}
