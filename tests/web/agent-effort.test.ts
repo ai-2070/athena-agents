@@ -47,18 +47,21 @@ afterEach(() => {
   state.data = null;
 });
 
-const effortSelect = () => [...document.querySelectorAll<HTMLLabelElement>('label.field')].find((l) => l.textContent?.startsWith('Effort'))!.querySelector('select')!;
+const effortSelect = () => document.querySelector<HTMLButtonElement>('button[aria-label="Effort"]')!;
 
 describe('agent editor: effort', () => {
   it("shows the engine's levels and saves the nearest one after switching engines", async () => {
     const el = document.getElementById('view')!;
     await act(async () => render(el, ['a1', 'edit']));
     await settle();
-    expect(effortSelect().value).toBe('max');
-    expect([...effortSelect().options].map((o) => o.value)).toEqual(['', 'low', 'medium', 'high', 'xhigh', 'max']);
+    expect(effortSelect().textContent).toContain('Max');
+    await act(async () => effortSelect().click());
+    await settle();
+    expect([...document.querySelectorAll('[role="option"]')].map((o) => o.textContent?.trim())).toEqual(["Model's default", 'Low', 'Medium', 'High', 'Extra high', 'Max']);
+    await act(async () => effortSelect().click());
     // Codex has no "max"
     await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'Codex')!.click());
-    expect(effortSelect().value).toBe('xhigh');
+    expect(effortSelect().textContent).toContain('Extra high');
     await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'Save')!.click());
     await settle();
     expect(saved).toMatchObject({ engine: 'codex', effort: 'xhigh' });

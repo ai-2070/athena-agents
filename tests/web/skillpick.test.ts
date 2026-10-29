@@ -14,11 +14,13 @@ beforeEach(async () => {
     { slug: 'house-style', name: 'House style', description: 'How we write.' },
     { slug: 'seo', name: 'SEO', description: 'Search basics.' },
   ];
+  vi.stubGlobal('matchMedia', () => ({ matches: false }));
   vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(String(url).includes('/skills') ? { skills, claude: [] } : { ok: true })));
   forgetSkills();
   await loadSkills(true);
 });
 afterEach(() => {
+  document.documentElement.classList.remove('reduce-motion');
   document.querySelectorAll('.skp-menu').forEach((m) => m.remove());
   vi.unstubAllGlobals();
 });
@@ -35,6 +37,10 @@ describe('skillPicker() menu', () => {
     const saved: string[][] = [];
     open(saved);
     const menu = document.querySelector('.skp-menu')!;
+    let finish!: () => void;
+    const finished = new Promise<void>((resolve) => (finish = resolve));
+    const animate = vi.fn(() => ({ finished, cancel: vi.fn() }) as unknown as Animation);
+    Object.defineProperty(menu, 'animate', { value: animate });
     expect([...menu.querySelectorAll('.st-menu-item')].map((b) => b.textContent)).toEqual(['House styleHow we write.', 'SEOSearch basics.']);
     const search = menu.querySelector<HTMLInputElement>('input')!;
     search.value = 'seo';
@@ -42,7 +48,26 @@ describe('skillPicker() menu', () => {
     expect(menu.querySelectorAll('.st-menu-item')).toHaveLength(1);
     menu.querySelector<HTMLButtonElement>('.st-menu-item')!.click();
     expect(saved).toEqual([['seo']]);
+    expect(document.querySelector('.skp-menu')).toBe(menu);
+    expect(menu.getAttribute('aria-hidden')).toBe('true');
+    expect((menu as HTMLElement).style.pointerEvents).toBe('none');
+    expect(animate).toHaveBeenCalledOnce();
+    finish();
+    await tick();
     expect(document.querySelector('.skp-menu')).toBeNull();
+  });
+
+  it('removes the menu immediately when motion is reduced', () => {
+    document.documentElement.classList.add('reduce-motion');
+    const saved: string[][] = [];
+    open(saved);
+    const menu = document.querySelector<HTMLElement>('.skp-menu')!;
+    const animate = vi.fn();
+    Object.defineProperty(menu, 'animate', { value: animate });
+    menu.querySelector<HTMLButtonElement>('.st-menu-item')!.click();
+    expect(saved).toEqual([['house-style']]);
+    expect(document.querySelector('.skp-menu')).toBeNull();
+    expect(animate).not.toHaveBeenCalled();
   });
 
   it('New opens the skill editor right here, and a skill made there is added too', async () => {

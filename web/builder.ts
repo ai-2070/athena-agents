@@ -1,5 +1,5 @@
 // Team builder: name it, give it a goal, pick its agents and lead (or let the Brain build it), choose its access.
-import { h, mount, clear, state, GET, POST, PUT, attempt, modal, chipSet, select, toast, refreshSoon, avatar } from './core.ts';
+import { h, mount, clear, state, GET, POST, PUT, attempt, modal, chipSet, toast, refreshSoon, avatar } from './core.ts';
 import type { ModalHandle } from './core.ts';
 import { teamSteps } from '../shared/teams.ts';
 import { mcpOptions } from './mcpcopies.ts';
@@ -40,7 +40,7 @@ function section(title: string, ico: string, ...content: (Node | null)[]): HTMLE
   const end = last instanceof HTMLElement && last.classList.contains('pill') ? content.pop() : null;
   return h(
     'section',
-    { class: 'flex flex-col gap-4 rounded-box border border-line bg-panel p-5' },
+    { class: 'glass-plate flex flex-col gap-4 rounded-box p-5' },
     h('div', { class: 'flex items-center gap-2.5 text-[14px] font-semibold text-ink' }, icon(ico, 15, 'text-faint'), title, end),
     ...content,
   );

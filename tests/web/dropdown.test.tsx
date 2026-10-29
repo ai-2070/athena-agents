@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Dropdown, DropdownContent, DropdownGroup, DropdownItem, DropdownLabel, DropdownRadioGroup, DropdownRadioItem, DropdownSeparator, DropdownTrigger } from '../../web/ui/dropdown.tsx';
+import { SelectControl } from '../../web/ui/select.tsx';
 import { attachTray } from '../../web/attach.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -81,6 +82,17 @@ describe('the dropdown', () => {
     await click(rows('menuitemradio')[0]);
     expect(picked).toEqual(['a']);
     expect(menu()).toBeNull();
+  });
+});
+
+describe('the select control', () => {
+  it('offers the empty option and returns its value when selected', async () => {
+    const picked: string[] = [];
+    await act(async () => root.render(<SelectControl aria-label="Service" value="work" onChange={(value) => picked.push(value)} options={[{ value: '', label: 'Its own service' }, { value: 'work', label: 'Work' }]} />));
+    await click(document.querySelector('button[aria-label="Service"]')!);
+    expect(rows('option').map((row) => row.textContent?.trim())).toEqual(['Its own service', 'Work']);
+    await click(rows('option')[0]);
+    expect(picked).toEqual(['']);
   });
 });
 

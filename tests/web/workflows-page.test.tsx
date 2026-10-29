@@ -67,11 +67,9 @@ describe('the workflow editor', () => {
 
   it("shows a step's fields for its type", async () => {
     await open();
-    const type = el.querySelector<HTMLSelectElement>('select[aria-label="Step 2: what it does"]')!;
-    await act(async () => {
-      type.value = 'tool';
-      type.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Step 2: what it does"]')!.click());
+    await settle();
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent?.trim() === 'Use a tool')!.click());
     const step = el.querySelectorAll('.step')[1];
     expect([...step.querySelectorAll('label.field > span:first-child')].map((s) => s.textContent)).toEqual(['Tool', 'Arguments (JSON)']);
   });

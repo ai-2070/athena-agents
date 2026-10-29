@@ -3,6 +3,7 @@
 import { h, mount } from './core.ts';
 import type { Child } from './core.ts';
 import { uiZoom } from './look.ts';
+import { dismissMenu } from './menuclose.ts';
 import { mentionQuery } from '../shared/routines.ts';
 import type { RoutineMention, RoutineMentionKind } from '../shared/types.ts';
 
@@ -28,7 +29,7 @@ interface MenuState {
 let menu: MenuState | null = null;
 
 export function closeMenu(): void {
-  menu?.el.remove();
+  if (menu) dismissMenu(menu.el);
   menu = null;
 }
 

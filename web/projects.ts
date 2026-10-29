@@ -4,6 +4,7 @@ import { icon } from './icons.ts';
 import { projectMark } from './projectlogo.ts';
 import { moveId } from './projectnav.ts';
 import { uiZoom } from './look.ts';
+import { dismissMenu } from './menuclose.ts';
 import { askBrain } from './dock.tsx';
 import { BACKUP_EXT, backupProject, backupAgo, fileSize, listBackups, readBackupSummary, restoreBackup, restoredText, summaryLine } from './backup.ts';
 import type { BackupListing, BackupSummary } from './backup.ts';
@@ -85,14 +86,30 @@ const ROW =
   "group relative flex items-center [&.dragging]:opacity-40 [&.drop-above]:before:absolute [&.drop-above]:before:-top-px [&.drop-above]:before:right-2.5 [&.drop-above]:before:left-2.5 [&.drop-above]:before:h-0.5 [&.drop-above]:before:rounded-[1px] [&.drop-above]:before:bg-accent [&.drop-below]:after:absolute [&.drop-below]:after:right-2.5 [&.drop-below]:after:-bottom-px [&.drop-below]:after:left-2.5 [&.drop-below]:after:h-0.5 [&.drop-below]:after:rounded-[1px] [&.drop-below]:after:bg-accent";
 const RENAME_BTN =
   'mr-1 grid h-6.5 w-6.5 flex-none cursor-pointer place-items-center rounded-[6px] border-0 bg-transparent p-0 text-faint opacity-0 [transition:opacity_0.15s] group-hover:opacity-100 hover:bg-panel-2 hover:text-accent focus-visible:opacity-100';
+let closeProjectMenu: (() => void) | null = null;
+
 
 export function openProjectMenu(anchor: Element): void {
-  document.querySelector('.proj-menu')?.remove();
+  closeProjectMenu?.();
+  document.querySelectorAll('.proj-menu').forEach((old) => old.remove());
   const d = state.data!;
   const r = anchor.getBoundingClientRect();
+  let closed = false;
   const close = () => {
-    menu.remove();
+    if (closed) return;
+    closed = true;
+    if (closeProjectMenu === close) closeProjectMenu = null;
     document.removeEventListener('pointerdown', outside, true);
+    document.removeEventListener('keydown', escape, true);
+    dismissMenu(menu);
+  };
+  closeProjectMenu = close;
+  const escape = (e: KeyboardEvent) => {
+    if (e.key !== 'Escape' || e.defaultPrevented || (e.target instanceof Element && e.target.closest('.proj-rename-row'))) return;
+    e.preventDefault();
+    e.stopPropagation();
+    close();
+    if (anchor instanceof HTMLElement) anchor.focus();
   };
   const outside = (e: PointerEvent) => !menu.contains(e.target as Node) && !anchor.contains(e.target as Node) && close();
   const switchTo = async (p: Project) => {
@@ -223,7 +240,11 @@ export function openProjectMenu(anchor: Element): void {
     h('button.st-menu-item.danger', { onclick: () => (close(), void deleteProject(d.project)) }, icon('trash-2', 15), 'Delete this project…'),
   );
   document.body.append(menu);
-  setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
+  setTimeout(() => {
+    if (closed) return;
+    document.addEventListener('pointerdown', outside, true);
+    document.addEventListener('keydown', escape, true);
+  }, 0);
 }
 
 // From backup: the drop zone (over: a file is dragged onto it), empty or showing the picked backup

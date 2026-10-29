@@ -6,7 +6,7 @@ import { h, mount, state, GET, PUT, attempt, refreshSoon, toast, navigate } from
 import { icon, logo } from './icons.ts';
 import { appIcon } from './appicons.ts';
 import { uiZoom } from './look.ts';
-import { reducedMotion, slideOut } from './motion.ts';
+import { dismissMenu } from './menuclose.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../shared/effort.ts';
 import type { Agent, BrainSetting, Effort, EngineId, EngineStatus, FavoriteModel } from '../shared/types.ts';
 import type { Child } from './core.ts';
@@ -224,22 +224,30 @@ export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: 
 // (apply returns, or resolves to, false when that failed: the row goes back to what it was).
 // local: offer models on this PC (LM Studio, Ollama, a custom server); the Brain can't use them.
 // engines: only these engines' tabs and favorites (the Brain's picker); all when left out.
+let closeModelMenu: (() => void) | null = null;
+
 export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch: ModelPatch) => unknown, { title = 'Model', local = true, engines }: { title?: string; local?: boolean; engines?: readonly EngineId[] } = {}): void {
   const usable = (e: EngineId) => !engines || engines.includes(e);
-  document.querySelector('.model-menu')?.remove();
+  closeModelMenu?.();
+  document.querySelectorAll('.model-menu').forEach((old) => old.remove());
   const r = anchor.getBoundingClientRect();
   const menu = h('div.st-menu.model-menu');
   let closing = false;
   const close = () => {
-    document.removeEventListener('pointerdown', outside, true);
     if (closing) return;
     closing = true;
-    // it fades out and shrinks a little before it goes (at once with Motion set to Reduced, or where there are no animations)
-    if (reducedMotion() || typeof menu.animate !== 'function') return menu.remove();
-    menu.style.pointerEvents = 'none';
-    void slideOut(menu, { scale: 0.97, duration: 110 }).then(() => menu.remove());
-    // (the animation never ending must not leave it on screen)
-    setTimeout(() => menu.remove(), 500);
+    if (closeModelMenu === close) closeModelMenu = null;
+    document.removeEventListener('pointerdown', outside, true);
+    document.removeEventListener('keydown', escape, true);
+    dismissMenu(menu);
+  };
+  closeModelMenu = close;
+  const escape = (e: KeyboardEvent) => {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    e.preventDefault();
+    e.stopPropagation();
+    close();
+    if (anchor instanceof HTMLElement) anchor.focus();
   };
   const outside = (e: PointerEvent) => !menu.contains(e.target as Node | null) && close();
   // the effort asked for (kept as asked: each engine sends its nearest level)
@@ -476,5 +484,9 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   Object.assign(menu.style, { position: 'fixed', left: `${Math.max(10, Math.min(R.left, W - 350))}px`, top: `${below ? R.bottom + 6 : Math.max(10, R.top - 6 - height)}px`, transform: 'none', zIndex: 95, transformOrigin: below ? 'top left' : 'bottom left' });
   // it settles in from the side of the chip it opened from
   menu.style.setProperty('--menu-dy', below ? '-3px' : '3px');
-  setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
+  setTimeout(() => {
+    if (closing) return;
+    document.addEventListener('pointerdown', outside, true);
+    document.addEventListener('keydown', escape, true);
+  }, 0);
 }

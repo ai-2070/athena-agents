@@ -74,7 +74,10 @@ describe('the Terminals page', () => {
     await act(async () => terminals.render(el, []));
     await settle();
     expect([...el.querySelectorAll('button.term-card .card-title')].map((t) => t.textContent)).toEqual(['PowerShell', 'Claude Code', 'Orca']);
-    expect([...el.querySelectorAll('select[aria-label="Agent"] option')].map((o) => o.textContent)).toEqual(['🧑‍💻 Coder']);
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Agent"]')!.click());
+    await settle();
+    expect([...document.querySelectorAll('[role="option"]')].map((o) => o.textContent)).toEqual(['🧑‍💻 Coder']);
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Agent"]')!.click());
     expect(el.querySelector('nav[aria-label="Terminals"] a[aria-current="page"]')!.textContent).toBe('+ New');
     await act(async () => el.querySelector<HTMLButtonElement>('button.term-card')!.click());
     await settle();

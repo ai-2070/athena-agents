@@ -3,6 +3,7 @@
 import { h, mount, GET } from './core.ts';
 import { icon } from './icons.ts';
 import { uiZoom } from './look.ts';
+import { dismissMenu } from './menuclose.ts';
 import { openEditor, openGitHub, openImport } from './skilldialogs.ts';
 import type { ClaudeSkill, SkillListing } from '../shared/types.ts';
 
@@ -25,6 +26,7 @@ export async function loadSkills(force = false): Promise<SkillListing[]> {
 }
 export const skillsCache = (): SkillListing[] => cache || [];
 export const forgetSkills = (): null => (cache = null);
+let closeSkillMenu: (() => void) | null = null;
 
 // current: slugs. onChange(slugs) saves. inherited: [{ slug, from: 'project' | 'team name' }] shown greyed.
 export function skillPicker(current: readonly string[] | null | undefined, onChange: (slugs: string[]) => void, { inherited = [], empty = 'No skills yet.' }: { inherited?: InheritedSkill[]; empty?: string } = {}): HTMLDivElement {
@@ -57,13 +59,27 @@ export function skillPicker(current: readonly string[] | null | undefined, onCha
     );
   };
   const openMenu = (anchor: Element) => {
-    document.querySelector('.skp-menu')?.remove();
+    closeSkillMenu?.();
+    document.querySelectorAll('.skp-picker-menu').forEach((old) => old.remove());
     const lib = skillsCache().filter((s) => !list.includes(s.slug));
     const r = anchor.getBoundingClientRect();
     const z = uiZoom();
+    let closed = false;
     const close = () => {
-      menu.remove();
+      if (closed) return;
+      closed = true;
+      if (closeSkillMenu === close) closeSkillMenu = null;
       document.removeEventListener('pointerdown', outside, true);
+      document.removeEventListener('keydown', escape, true);
+      dismissMenu(menu);
+    };
+    closeSkillMenu = close;
+    const escape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+      if (anchor instanceof HTMLElement) anchor.focus();
     };
     const outside = (e: PointerEvent) => !menu.contains(e.target as Node | null) && close();
     const search = h('input', { class: 'w-full py-2 pr-2.5 pl-8 text-[13.5px]', placeholder: 'Search skills…', 'aria-label': 'Search skills' });
@@ -96,9 +112,9 @@ export function skillPicker(current: readonly string[] | null | undefined, onCha
       draw();
     };
     const action = (label: string, ico: string, run: () => unknown) => h('button.btn.ghost.tiny', { class: 'flex-1 justify-center', type: 'button', onclick: () => (close(), void run()) }, icon(ico, 12), label);
-    // (skp-menu marks it, so opening another closes this one)
+    // The picker marker keeps an earlier closing popup from covering a newly opened one.
     const menu = h(
-      'div.st-menu.skp-menu',
+      'div.st-menu.skp-menu.skp-picker-menu',
       { class: 'max-w-none' },
       h('div.st-menu-head', 'Add a skill'),
       h('div', { class: 'relative mb-1.5 px-0.5' }, icon('search', 14, 'pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint'), search),
@@ -115,7 +131,12 @@ export function skillPicker(current: readonly string[] | null | undefined, onCha
     document.body.append(menu);
     fill();
     Object.assign(menu.style, { position: 'fixed', left: `${Math.min(r.left / z, window.innerWidth / z - 360)}px`, top: `${Math.min(r.bottom / z + 6, window.innerHeight / z - 420)}px`, transform: 'none', zIndex: 96, width: '340px' });
-    setTimeout(() => (document.addEventListener('pointerdown', outside, true), search.focus()), 0);
+    setTimeout(() => {
+      if (closed) return;
+      document.addEventListener('pointerdown', outside, true);
+      document.addEventListener('keydown', escape, true);
+      search.focus();
+    }, 0);
   };
   draw();
   loadSkills().then(draw);
