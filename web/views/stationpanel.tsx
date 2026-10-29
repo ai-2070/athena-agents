@@ -20,6 +20,7 @@ import { modelChip, modelInfo } from '../models.ts';
 import { Avatar, DomNode, HoverScroll, Icon, IconWeightProvider, useAppState } from '../ui/react.tsx';
 import { ChipSet, Segmented, Tabs } from '../ui/controls.tsx';
 import { AgentSelect } from '../ui/agentselect.tsx';
+import { SelectControl } from '../ui/select.tsx';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { WorldPanel } from './worldpanel.tsx';
 import { fileManager, previewFile, previewTitle } from '../filepreview.ts';
@@ -106,7 +107,7 @@ const TITLE = 'st-panel-title font-sans text-[16px] leading-[1.25] font-semibold
 const BODY = 'min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-18px),transparent_100%)]';
 // a row in the connection and team lists (st-conn stays as a mark the tests look for)
 const CONN =
-  'st-conn flex w-full cursor-pointer items-center gap-2.5 rounded-box border border-line bg-bg px-3 py-2.5 text-left text-[13px] text-ink [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] hover:border-line-2';
+  'st-conn glass-plate flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-[13px] text-ink [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] hover:border-line-2 hover:bg-panel-2';
 const CONNS = 'mt-3 flex flex-col gap-2';
 // a file or folder in the Brain list (st-file stays as a mark the tests look for); one that opens is a button that lights up
 const FILE = 'st-file flex min-w-0 items-center gap-1.5 overflow-hidden py-0.5 text-left text-[12.5px] text-ellipsis whitespace-nowrap text-dim';
@@ -728,7 +729,7 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
           return (
             <div
               key={a.id}
-              className={`st-member ${st} flex items-start gap-2.5 rounded-box border bg-bg px-2.5 py-2.25 [transition:border-color_0.2s] ${st === 'working' ? 'border-[color-mix(in_srgb,var(--color-accent)_45%,var(--color-line))]' : st === 'queued' ? 'border-[color-mix(in_srgb,var(--color-amber)_40%,var(--color-line))]' : 'border-line'}`}
+              className={`st-member ${st} glass-plate flex items-start gap-2.5 rounded-[10px] px-2.5 py-2.25 [transition:border-color_0.2s] ${st === 'working' ? 'border-[color-mix(in_srgb,var(--color-accent)_45%,var(--color-line))]' : st === 'queued' ? 'border-[color-mix(in_srgb,var(--color-amber)_40%,var(--color-line))]' : ''}`}
             >
               <div className="relative flex-none [&_.avatar]:size-8.5 [&_.avatar]:text-[17px]">
                 <Avatar agent={a} />
@@ -1034,7 +1035,7 @@ function ModelSection({ a }: { a: Agent }) {
     }
   };
   return (
-    <div className="mt-4 flex flex-col gap-2 rounded-box border border-line bg-panel-2 p-4">
+    <div className="glass-plate mt-4 flex flex-col gap-2 rounded-[10px] p-4">
       <div className="label">Model</div>
       <div className="flex items-center gap-3">
         <DomNode as="span" className="dom-contents" make={() => (mi.brand && logo(mi.brand, 22)) || icon('cpu', 22)} deps={[mi.brand]} />
@@ -1053,13 +1054,7 @@ function ModelSection({ a }: { a: Agent }) {
       {a.engine === 'claude-code' ? (
         <div className="grid grid-cols-[90px_1fr] items-center gap-2">
           <span className="hint">Sign in with</span>
-          <select className="py-1.5 text-[13px]" aria-label="Sign in with" value={a.claudeAuth || 'login'} onChange={(e) => void setAuth(e.target.value)}>
-            {Object.entries(AUTH_NAMES).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <SelectControl className="py-1.5 text-[13px]" aria-label="Sign in with" value={a.claudeAuth || 'login'} onChange={(value) => void setAuth(value)} options={Object.entries(AUTH_NAMES).map(([value, label]) => ({ value, label }))} />
         </div>
       ) : null}
       {a.lastModel ? (
@@ -1182,13 +1177,7 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
         {others.length ? (
           <div className="mt-3.5 flex items-center gap-2.5">
             <div className="min-w-0 flex-1">
-              <select aria-label="Team to add it to" value={addTo} onChange={(e) => setPick(e.target.value)}>
-                {others.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
+              <SelectControl aria-label="Team to add it to" value={addTo} onChange={setPick} options={others.map((w) => ({ value: w.id, label: w.name }))} />
             </div>
             <button className="btn small" onClick={() => void addToTeam()}>
               Add to team

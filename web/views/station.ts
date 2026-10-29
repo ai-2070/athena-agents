@@ -1638,18 +1638,18 @@ function loadTeamMark(wf: TeamView, hub: THREE.Group, mark: THREE.Sprite): void 
 // The map labels move every frame (inline transform), so only their colors animate. The script marks their
 // state with classes (sel, hot, live, needs, att-target) and data-status; the parent marks focus and data-zoom.
 const CHIP =
-  'group/chip flex items-center gap-1.5 py-1 px-2.5 whitespace-nowrap cursor-pointer bg-glass-strong backdrop-blur-[12px] border border-line-2 rounded-full shadow-card text-[12px] leading-[normal] font-medium text-ink transition-[opacity,box-shadow,border-color] duration-200 ease-[ease] hover:border-accent-dim hover:shadow-lift [&.sel]:border-accent [&:is([data-status=running],[data-status=needs-you],[data-status=working])]:border-accent-dim group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent group-[.focus]/labels:[&.hot]:shadow-lift';
+  'glass group/chip flex items-center gap-1.5 py-1 px-2.5 whitespace-nowrap cursor-pointer rounded-full text-[12px] leading-[normal] font-medium text-ink transition-[opacity,border-color] duration-200 ease-[ease] hover:border-accent-dim [&.sel]:border-accent [&:is([data-status=running],[data-status=needs-you],[data-status=working])]:border-accent-dim group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent';
 const CHIP_DOT =
   'size-1.5 rounded-full bg-faint group-data-[status=working]/chip:bg-accent group-data-[status=running]/chip:bg-accent group-data-[status=needs]/chip:bg-amber group-data-[status=needs-you]/chip:bg-amber group-data-[status=needs]/chip:animate-[pulse_0.8s_infinite] group-data-[status=needs-you]/chip:animate-[pulse_0.8s_infinite]';
 // the model shows only when zoomed in
 const CHIP_MODEL = "[display:none] ml-0.5 text-faint font-normal group-data-[zoom=near]/labels:inline group-data-[zoom=near]/labels:before:content-['·_']";
 const CARD =
-  'py-4 px-4.5 cursor-pointer shadow-card bg-glass-strong backdrop-blur-[16px] backdrop-saturate-140 border border-[color-mix(in_srgb,var(--c,var(--color-faint))_30%,var(--color-line))] rounded-box transition-[opacity,box-shadow,border-color] duration-200 ease-[ease]';
-const BRANCH = `group/card w-58 ${CARD} hover:border-(--c) hover:shadow-lift [&.sel]:border-(--c) [&.live]:border-accent-dim [&.needs]:border-amber group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent group-[.focus]/labels:[&.hot]:shadow-lift`;
+  'glass py-4 px-4.5 cursor-pointer rounded-box transition-[opacity,border-color] duration-200 ease-[ease]';
+const BRANCH = `group/card w-58 ${CARD} hover:border-(--c) [&.sel]:border-(--c) [&.live]:border-accent-dim [&.needs]:border-amber group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent`;
 const BENCH = `[--c:var(--color-faint)] w-52 ${CARD} group-[.focus]/labels:opacity-18`;
 const BRANCH_NAME = 'flex items-center gap-2 text-[13px] leading-[1.3] font-semibold text-ink';
 const BRAIN_LABEL =
-  'flex items-center gap-2 py-2 px-3.5 cursor-pointer whitespace-nowrap bg-glass-strong backdrop-blur-[16px] backdrop-saturate-140 border border-line-2 rounded-full shadow-card text-[13px] leading-[normal] font-semibold text-ink transition-[opacity,box-shadow,border-color] duration-200 ease-[ease] hover:border-accent-dim [&.att-target]:border-accent [&.att-target]:text-accent [&.att-target]:shadow-lift group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent group-[.focus]/labels:[&.hot]:shadow-lift';
+  'glass flex items-center gap-2 py-2 px-3.5 cursor-pointer whitespace-nowrap rounded-full text-[13px] leading-[normal] font-semibold text-ink transition-[opacity,border-color] duration-200 ease-[ease] hover:border-accent-dim [&.att-target]:border-accent [&.att-target]:text-accent group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent';
 
 function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<string, Agent>): number {
   assertMounted(S);
@@ -3055,7 +3055,7 @@ function setFileDrag(mode: 'map' | 'brain' | null): void {
   }
   if (!S.dropHint) {
     S.dropHint = h('div', {
-      class: 'absolute left-1/2 bottom-21 [transform:translateX(-50%)] z-30 flex items-center gap-2.5 py-2.5 px-4 pointer-events-none bg-glass-strong backdrop-blur-[12px] border border-line-2 rounded-full shadow-pop text-dim text-[13px] leading-[normal] font-medium animate-[fade_0.15s_ease-out] [&.on]:text-accent [&.on]:border-accent',
+      class: 'glass absolute left-1/2 bottom-21 [transform:translateX(-50%)] z-30 flex items-center gap-2.5 py-2.5 px-4 pointer-events-none rounded-full text-dim text-[13px] leading-[normal] font-medium animate-[fade_0.15s_ease-out] [&.on]:text-accent [&.on]:border-accent',
     });
     S.root.append(S.dropHint);
   }
@@ -3142,7 +3142,7 @@ function startAgentDrag(p: MapPick, copy = false): boolean {
   const marker = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.09, 8, 48), new THREE.MeshBasicMaterial({ color: pal.working, transparent: true, opacity: 0 }));
   marker.rotation.x = Math.PI / 2;
   S.world!.add(marker);
-  const hint = h('div', { class: 'absolute left-0 top-0 z-20 pointer-events-none py-2 px-3 whitespace-nowrap bg-glass-strong backdrop-blur-[12px] border border-line-2 rounded-ctl shadow-pop text-[12.5px] leading-[normal] font-medium text-ink' });
+  const hint = h('div', { class: 'glass absolute left-0 top-0 z-20 pointer-events-none py-2 px-3 whitespace-nowrap rounded-ctl text-[12.5px] leading-[normal] font-medium text-ink' });
   S.root.append(hint);
   desk.group.traverse((o) => (o.userData.dragging = true));
   S.agentDrag = { desk, home: desk.group.position.clone(), marker, hint, target: null, copy };
@@ -3495,7 +3495,7 @@ function projectWrapParts(): HTMLElement[] {
   const button = h(
     `button.st-project${floorPick ? '.pending' : ''}`,
     {
-      class: 'flex items-center gap-2.5 py-2 pr-3 pl-2.5 flex-none max-w-65 bg-glass-strong backdrop-blur-[16px] border border-line-2 rounded-ctl shadow-card text-ink cursor-pointer text-[14px] leading-[normal] font-semibold hover:border-accent-dim [&.pending]:border-accent-dim [&.pending_.st-project-name]:text-accent [&_.ico-svg]:text-dim',
+      class: 'glass flex items-center gap-2.5 py-2 pr-3 pl-2.5 flex-none max-w-65 rounded-ctl text-ink cursor-pointer text-[14px] leading-[normal] font-semibold hover:border-accent-dim [&.pending]:border-accent-dim [&.pending_.st-project-name]:text-accent [&_.ico-svg]:text-dim',
       title: `${name} · Switch or create a project (the Up and Down keys move between them)`,
       onclick: (e) => openProjectMenu(e.currentTarget),
     },
@@ -3665,16 +3665,16 @@ function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
 // buttons that press in and lift on hover
 const TRANSITION = '[transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s]';
 // the header's two groups sit on glass, so their writing is readable on any map (the voxel look's sky is dark whatever the theme is)
-const CAPSULE = 'bg-glass-strong backdrop-blur-[16px] backdrop-saturate-140 border border-line rounded-ctl shadow-card';
+const CAPSULE = 'glass rounded-ctl';
 const CONN_LABEL = 'inline-flex items-center gap-2 mr-1.5 whitespace-nowrap text-[12px] leading-[normal] font-medium text-dim';
 // a header tile; off and missing are marked by class, hot and the row's focus / soft by the script. The brand colour (--c) tints it;
 // its glyph is mixed toward the text colour so a pale brand still reads on white
 const INT_TILE = `grid place-items-center flex-none size-7 p-0 cursor-pointer rounded-ctl border border-[color-mix(in_srgb,var(--c)_32%,var(--color-line-2))] bg-[color-mix(in_srgb,var(--c)_8%,var(--color-raise))] text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[10px] leading-[normal] font-semibold shadow-card ${TRANSITION} [&_.logo-svg]:size-3.5 [&_.craft-icon]:size-5 active:[transform:scale(0.96)] hover:bg-[color-mix(in_srgb,var(--c)_14%,var(--color-raise))] [&.off]:bg-transparent [&.off]:text-faint [&.off]:border-line [&.off]:shadow-none [&.off_.logo-svg_path]:fill-faint [&.off_.craft-icon]:grayscale [&_.app-icon]:size-3.5 [&.off_.app-icon]:[filter:grayscale(1)_opacity(0.5)] [&.missing]:border-dashed group-[.focus]/conn:[&:not(.hot)]:opacity-25 group-[.focus]/conn:[&:not(.hot)]:grayscale group-[.focus.soft]/conn:[&:not(.hot)]:opacity-70 group-[.focus.soft]/conn:[&:not(.hot)]:[filter:none] group-[.focus]/conn:[&.hot]:border-(--c) group-[.focus]/conn:[&.hot]:bg-[color-mix(in_srgb,var(--c)_16%,var(--color-raise))]`;
 const ENGINE =
   'group/eng relative grid place-items-center size-7 p-0 border-0 bg-transparent rounded-ctl cursor-pointer text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[14px] leading-[normal] font-semibold [transition:background-color_0.15s,opacity_0.2s,filter_0.2s] hover:bg-ink/5 [&.off]:text-faint [&.off]:grayscale [&.off]:opacity-60 [&.off]:hover:opacity-90 [&.busy]:animate-[pulse_1.4s_ease-in-out_infinite] [&_.app-icon]:size-4';
-const STAT = 'flex items-baseline gap-2 px-3 py-2 border bg-glass-strong backdrop-blur-[16px] backdrop-saturate-140 rounded-ctl shadow-card text-[12.5px] leading-[normal] font-medium text-dim';
+const STAT = 'glass flex items-baseline gap-2 px-3 py-2 rounded-ctl text-[12.5px] leading-[normal] font-medium text-dim';
 const STAT_N = 'font-sans text-[15px] leading-[normal] font-semibold tabular-nums tracking-normal';
-const ZOOM_BTN = `grid place-items-center size-9.5 rounded-full border border-line-2 bg-glass-strong backdrop-blur-[12px] text-dim shadow-card cursor-pointer ${TRANSITION} hover:text-ink hover:bg-raise hover:shadow-lift`;
+const ZOOM_BTN = `glass grid place-items-center size-9.5 rounded-full text-dim cursor-pointer ${TRANSITION} hover:text-ink`;
 const FEED_ITEM = 'flex gap-3 py-1 whitespace-nowrap overflow-hidden text-ellipsis';
 /** "WEEK" or "week" as "Week". */
 const sentence = (t: string): string => (t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : t);
@@ -3707,7 +3707,7 @@ function drawHud(): void {
   if (!S.hudBuilt) {
     S.hudBuilt = true;
     S.hudTop = h('div', { class: 'absolute top-0 left-0 right-0 flex items-center gap-4 px-5 pointer-events-none *:pointer-events-auto' });
-    S.feedEl = h('div', { class: 'absolute left-4 bottom-4 w-[min(380px,40vw)] max-md:w-[min(380px,calc(100%-96px))] max-md:bottom-20 p-4 bg-glass-strong backdrop-blur-[16px] backdrop-saturate-140 border border-line rounded-box shadow-card text-[12.5px] leading-[1.45] font-normal pointer-events-auto' });
+    S.feedEl = h('div', { class: 'glass absolute left-4 bottom-4 w-[min(380px,40vw)] max-md:w-[min(380px,calc(100%-96px))] max-md:bottom-20 p-4 rounded-box text-[12.5px] leading-[1.45] font-normal pointer-events-auto' });
     // moves left of the side panel while it is open, and glides back as the panel slides out (.closing)
     S.zoomEl = h(
       'div',
@@ -3837,8 +3837,8 @@ function drawHud(): void {
       'div',
       { class: 'ml-auto flex items-center gap-2' },
       // on small screens only the buttons stay
-      d.runs.length || S.active.size ? h('div', { class: `${STAT} border-line-2 max-md:hidden` }, h('b', { class: `${STAT_N} text-accent` }, String(d.runs.length + S.active.size)), 'working') : null,
-      needs ? h('button', { class: `${STAT} border-amber cursor-pointer hover:bg-raise`, onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: `${STAT_N} text-amber` }, String(needs)), 'needs you') : null,
+      d.runs.length || S.active.size ? h('div', { class: `${STAT} max-md:hidden` }, h('b', { class: `${STAT_N} text-accent` }, String(d.runs.length + S.active.size)), 'working') : null,
+      needs ? h('button', { class: `${STAT} border-amber cursor-pointer`, onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: `${STAT_N} text-amber` }, String(needs)), 'needs you') : null,
       d.agents.length
         ? h('button.btn.small', { onclick: newBranch }, icon('git-branch', 14), 'New team')
         : null,
@@ -3847,7 +3847,7 @@ function drawHud(): void {
 }
 
 // What to do first, when there is nothing on the map yet.
-const EMPTY = 'pointer-events-auto w-84 p-5 bg-glass-strong backdrop-blur-[16px] backdrop-saturate-140 border border-line rounded-box shadow-pop animate-[in-up_0.45s_var(--ease-soft)]';
+const EMPTY = 'glass pointer-events-auto w-84 max-w-[calc(100vw-32px)] p-5 rounded-box animate-[in-up_0.45s_var(--ease-soft)]';
 const EMPTY_TITLE = 'font-sans text-[16px] leading-[1.3] font-semibold mb-2';
 const EMPTY_P = 'text-dim text-[13.5px] leading-[1.55] mb-4';
 function drawEmpty(d: AppState): void {

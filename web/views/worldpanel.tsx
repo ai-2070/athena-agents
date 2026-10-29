@@ -47,7 +47,7 @@ type Tab = 'md' | 'built' | 'look' | 'world';
 
 const WORLD_EVENTS = new Set(['world', 'world-md', 'project']);
 const SECTION = 'mt-6 mb-2 text-[12px] leading-[normal] font-medium text-dim';
-const ROW = 'flex items-center gap-2 rounded-box border border-line bg-bg px-2.5 py-1.75 text-[13px]';
+const ROW = 'glass-plate flex items-center gap-2 rounded-[10px] px-2.5 py-1.75 text-[13px]';
 const ROW_META = 'text-[11.5px] text-faint';
 const ICON_BTN = 'icon-btn size-7 flex-none';
 const BY: Record<string, string> = { you: 'you', brain: 'the Brain', agent: 'an agent' };
@@ -120,12 +120,12 @@ export function WorldPanel({ onClose, teamName }: { onClose: () => void; teamNam
   const w = shown?.world || null;
   return (
     <>
-      <div className="flex items-center gap-3 border-b border-line px-4 py-3.5">
-        <span className="grid size-8 flex-none place-items-center rounded-box border border-line text-accent">
+      <div className="flex items-center gap-3 px-5 pt-5 pb-2">
+        <span className="glass-plate grid size-8 flex-none place-items-center rounded-[10px] text-accent">
           <Icon name="globe" size={16} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="st-panel-title font-sans text-[16px] leading-[1.25] font-bold">{w?.name || 'World'}</div>
+          <div className="st-panel-title font-sans text-[16px] leading-[1.25] font-semibold">{w?.name || 'World'}</div>
           <div className="hint truncate">{shown ? howText(shown) : 'Loading…'}</div>
         </div>
         {w && canTakePicture() ? (
@@ -134,10 +134,10 @@ export function WorldPanel({ onClose, teamName }: { onClose: () => void; teamNam
           </button>
         ) : null}
         <button className="icon-btn" onClick={onClose} aria-label="Close">
-          ✕
+          <Icon name="x" size={15} />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-4.5">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-18px),transparent_100%)]">
         <Tabs
           label="World"
           value={tab}

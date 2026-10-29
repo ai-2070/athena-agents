@@ -49,7 +49,7 @@ export function mountStationMenu(host: HTMLElement): StationMenu {
       <Menu.Root open={m.open} onOpenChange={(open) => !open && set({ open: false })} modal={false}>
         <Menu.Portal>
           <Menu.Positioner className="z-96 outline-none" anchor={anchor} side="bottom" align="start" sideOffset={2} collisionPadding={8}>
-            <Menu.Popup className="st-menu static" ref={(el: HTMLDivElement | null) => void (popup = el)}>
+            <Menu.Popup className="st-menu dd static" ref={(el: HTMLDivElement | null) => void (popup = el)}>
               {groups.map((g, i) => (
                 <Group key={i} entries={g} divider={i > 0} />
               ))}
