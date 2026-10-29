@@ -746,7 +746,7 @@ function ChatWindows() {
           <button
             ref={(el) => void (w.pill = el)}
             // (in the bottom bar, next to Ask the Brain, it sits in line there)
-            className={`cw-pill fixed z-44 right-[84px] bottom-[22px] flex items-center gap-2.5 py-2.5 px-4 border border-line-2 rounded-full bg-glass-strong backdrop-blur-[16px] text-ink cursor-pointer font-sans text-[13px] font-medium leading-[normal] shadow-lift animate-[cw-pop_.25s_ease-out] hover:shadow-pop in-[.bottom-bar]:relative in-[.bottom-bar]:right-auto in-[.bottom-bar]:bottom-auto in-[.bottom-bar]:z-auto in-[.bottom-bar]:animate-none in-[.bottom-bar]:hover:[transform:translateY(-1px)] ${w.tabs.length && (w.min || w.shrinking) ? '' : ' hidden'}`}
+            className={`cw-pill glass fixed z-44 right-[84px] bottom-[22px] flex items-center gap-2.5 py-2.5 px-4 rounded-full text-ink cursor-pointer font-sans text-[13px] font-medium leading-[normal] animate-[cw-pop_.25s_ease-out] in-[.bottom-bar]:relative in-[.bottom-bar]:right-auto in-[.bottom-bar]:bottom-auto in-[.bottom-bar]:z-auto in-[.bottom-bar]:animate-none in-[.bottom-bar]:hover:[transform:translateY(-1px)] ${w.tabs.length && (w.min || w.shrinking) ? '' : ' hidden'}`}
             style={w.shrinking ? { opacity: 0 } : undefined}
             onClick={() => setMin(w, false)}
             title={`${w.tabs.length > 1 ? `Open the chats: ${w.tabs.map((t) => tabInfo(t, busyAgents).label).join(', ')}` : 'Open the chats'} (${keys.restore} brings back the last one)`}
@@ -761,7 +761,7 @@ function ChatWindows() {
       {drag && ghost
         ? createPortal(
             <div
-              className="cw-ghost fixed z-100 pointer-events-none flex items-center gap-2 pt-2 pr-3.5 pb-2 pl-2.5 max-w-[200px] rounded-[10px] border border-line-2 bg-panel text-ink text-[13px] shadow-pop [&_.avatar]:size-5 [&_.avatar]:text-[11px]"
+              className="cw-ghost glass fixed z-100 pointer-events-none flex items-center gap-2 pt-2 pr-3.5 pb-2 pl-2.5 max-w-[200px] rounded-[10px] text-ink text-[13px] [&_.avatar]:size-5 [&_.avatar]:text-[11px]"
               style={{ left: `${drag.x - drag.offX}px`, top: `${drag.y - drag.offY}px` }}
               aria-hidden="true"
             >
@@ -809,7 +809,7 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
     <div
       ref={(el) => void (w.el = el)}
       // pop and moving are set by script (pop(), track())
-      className={`cw group/cw fixed pointer-events-auto flex flex-col bg-glass-strong backdrop-blur-[14px] border shadow-pop overflow-visible [&.pop]:animate-[cw-pop_.28s_cubic-bezier(.2,.9,.25,1.05)] [&.moving]:select-none [&.moving]:transition-none ${r} ${dropping ? 'border-accent' : 'border-line'}${merging?.from === w && merging.into ? ' opacity-60' : ''}${!any || (w.min && !w.shrinking) ? ' hidden' : ''}`}
+      className={`cw glass group/cw fixed pointer-events-auto flex flex-col overflow-visible [&.pop]:animate-[cw-pop_.28s_cubic-bezier(.2,.9,.25,1.05)] [&.moving]:select-none [&.moving]:transition-none ${r}${dropping ? ' border-accent outline-2 outline-accent' : ''}${merging?.from === w && merging.into ? ' opacity-60' : ''}${!any || (w.min && !w.shrinking) ? ' hidden' : ''}`}
       style={placement(w)}
       role="dialog"
       aria-label="Chats"
@@ -899,7 +899,7 @@ function LayoutMenu({ w }: { w: Win }) {
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner className="z-96 outline-none" side="bottom" align="end" sideOffset={4} collisionPadding={8}>
-          <Menu.Popup className="cw-layout st-menu static min-w-60 max-w-80">
+          <Menu.Popup className="cw-layout st-menu dd static min-w-60 max-w-80">
             <Menu.Group>
               <Menu.GroupLabel className="st-menu-head">Arrange</Menu.GroupLabel>
               {items.map((it) => [

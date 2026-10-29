@@ -158,7 +158,7 @@ export function useFind(scroller: RefObject<HTMLElement | null>, items?: FindIte
 
 // ---------- the box ----------
 type Hit = { item: number; nth: number };
-const bar = 'absolute right-5 z-30 flex items-center gap-1 rounded-box border border-line-2 bg-glass-strong py-1 pr-1 pl-2.5 shadow-pop backdrop-blur-[12px]';
+const bar = 'glass absolute right-5 z-30 flex items-center gap-1 rounded-box py-1 pr-1 pl-2.5';
 
 function FindBar({ scroller, host, items, focus, onClose }: { scroller: RefObject<HTMLElement | null>; host: HTMLElement; items: FindItems | null; focus: number; onClose: () => void }) {
   const [query, setQuery] = useState('');

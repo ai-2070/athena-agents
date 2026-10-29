@@ -81,13 +81,13 @@ const PLACEHOLDER = 'Message the team… type @ to mention someone';
 const LOOP_OFF = /^(off|stop|end|cancel)$/i;
 
 // ---------- looks (tc-msg, tc-relay, tc-live, tc-team-av, tc-mention, tc-team stay: tests look them up) ----------
-const MSG = 'tc-msg py-3 px-4 border rounded-box animate-[rise-in_0.22s_var(--ease-soft)]';
-const MSG_OTHER = `${MSG} border-line bg-panel`;
-const MSG_ME = `${MSG} border-line bg-panel-2`;
+const MSG = 'tc-msg text-[14px] leading-[1.6] animate-[rise-in_0.22s_var(--ease-soft)]';
+const MSG_OTHER = MSG;
+const MSG_ME = `${MSG} self-end max-w-[85%] py-2.5 px-3.5 border border-line rounded-[12px] bg-panel-2`;
 /** from another team (#Team): in that team's color (--team-color) */
-const MSG_RELAY = `${MSG} tc-relay border-[color-mix(in_srgb,var(--team-color,var(--color-ice))_28%,var(--color-line))] bg-[color-mix(in_srgb,var(--team-color,var(--color-ice))_6%,var(--color-bg))]`;
+const MSG_RELAY = `${MSG} tc-relay`;
 /** an agent working now, its turn streaming in */
-const MSG_LIVE = `${MSG} tc-live border-dashed border-line-2 bg-panel`;
+const MSG_LIVE = `${MSG} tc-live`;
 const WHO = 'flex items-center gap-2.5 mb-2.5 text-[13px] [&_.avatar]:size-6 [&_.avatar]:text-[12px]';
 const TEAM_AV = 'avatar tc-team-av bg-[color-mix(in_srgb,var(--team-color,var(--color-ice))_18%,transparent)] text-[color:var(--team-color,var(--color-ice))] text-[12px] leading-[normal] font-semibold';
 /** a message's text (Markdown) */
@@ -807,9 +807,9 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       </div>
       <DomNode className="dom-contents" make={() => tray.el} deps={[tray]} />
       <DomNode className="dom-contents" make={() => pastes.el} deps={[pastes]} />
-      <div className="flex gap-2.5 items-stretch relative">
+      <div className="dock-composer relative">
         <div className="flex-1 min-w-0 relative">
-          <textarea className={`${COMPOSER_TEXT} text-[13.5px]`} ref={input} rows={2} aria-label="Message the team" placeholder={busy.length ? 'The team is working… Write to change its course now, or /queue a message for when it is done' : PLACEHOLDER} />          <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">
+          <textarea className={`${COMPOSER_TEXT} dock-input w-full text-[13.5px]`} ref={input} rows={2} aria-label="Message the team" placeholder={busy.length ? 'The team is working… Write to change its course now, or /queue a message for when it is done' : PLACEHOLDER} />          <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">
             {suggest?.opts.map((o, i) => (
               <button
                 key={`${o.t ? '#' : '@'}${o.label}`}
@@ -833,16 +833,15 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
           </div>
           {slash ? <DomNode as="span" className="dom-contents" make={() => slash.el} deps={[slash]} /> : null}
         </div>
-        {/* the paperclip at the top of the box, Send at its bottom (Stop there while the team works and the box is empty) */}
-        <div className={COMPOSER_BTNS}>
+        <div className={`${COMPOSER_BTNS} items-center px-2 pt-1 pb-2`} style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
           <DomNode as="span" className="dom-contents" make={() => tray.picker} deps={[tray]} />
           {busy.length && !filled ? (
-            <button className="btn danger" title="Stop the whole team" aria-label="Stop" onClick={() => void stop()}>
+            <button className="btn danger rounded-full" title="Stop the whole team" aria-label="Stop" onClick={() => void stop()}>
               <Icon name="square" size={14} />
             </button>
           ) : (
-            <button className="btn" title={busy.length ? 'Send now: whoever is working stops and takes this up (Enter)' : 'Send (Enter)'} aria-label="Send" onClick={() => void send()}>
-              <Icon name="send" size={15} />
+            <button className="btn rounded-full" title={busy.length ? 'Send now: whoever is working stops and takes this up (Enter)' : 'Send (Enter)'} aria-label="Send" onClick={() => void send()}>
+              <Icon name="arrow-up" size={16} />
             </button>
           )}
         </div>

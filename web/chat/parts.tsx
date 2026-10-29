@@ -33,7 +33,7 @@ class RichGuard extends Component<{ fallback: ReactNode; children: ReactNode }, 
 // A message's look in the floating window (compact) and the Station panel / team turns (mini); the chat
 // page's messages are the shared msg pieces. A message drawn again (scrolled back to) doesn't rise in again.
 const AC = 'max-w-[88%] rounded-[12px] px-4 py-3 text-[14px] leading-[1.6] animate-[rise-in_0.2s_ease-out] in-[.again]:animate-none';
-const AC_AGENT = `${AC} font-chat self-start border border-line bg-panel`;
+const AC_AGENT = 'font-chat self-start text-[14px] leading-[1.6] animate-[rise-in_0.2s_ease-out] in-[.again]:animate-none';
 const AC_USER = `${AC} font-chat self-end border border-line bg-panel-2 whitespace-pre-wrap`;
 const AC_ERR = `${AC} self-stretch border border-[color-mix(in_srgb,var(--color-red)_40%,var(--color-line))] text-red`;
 // (Markdown: no space above the first block or below the last)

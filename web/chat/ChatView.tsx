@@ -60,7 +60,7 @@ export interface ChatViewProps {
   compact?: boolean;
   /** Files for the next message (the host owns it, so it can make the whole page a drop zone). */
   tray?: AttachTray | null;
-  /** Shown under the composer (the model chip). */
+  /** Shown in the composer footer (the model chip). */
   footer?: HTMLElement | null;
   /** The chat as it was (re)loaded, or made by the first message. */
   onChat?: (chat: Chat) => void;
@@ -618,7 +618,7 @@ export function ChatView(p: ChatViewProps) {
     <div className="relative flex min-w-0 flex-1">
       <textarea
         ref={input}
-        className={variant === 'mini' ? 'max-h-50 min-h-11.5 flex-1 resize-none' : `flex-1 ${COMPOSER_TEXT}`}
+        className={variant === 'mini' ? 'max-h-50 min-h-11.5 flex-1 resize-none' : `dock-input w-full ${COMPOSER_TEXT}`}
         rows={variant === 'mini' ? 1 : 2}
         placeholder={helping ? `${agent.name} is working for a team or another agent… /queue a message for when it is done` : busy ? `${agent.name} is working… Write to change course now, or /queue a message for when it is done` : compact ? `Message ${agent.name}…  (Enter to send, @ for another agent)` : `Message ${agent.name}…`}
         onKeyDown={(e) => {
@@ -700,12 +700,12 @@ export function ChatView(p: ChatViewProps) {
   const working = streaming || serverRunning;
   const sendBtn =
     working && !filled ? (
-      <button key="stop" className={variant === 'mini' ? 'btn danger small' : 'btn danger'} onClick={() => void stop()} title={`Stop ${agent.name}`} aria-label="Stop">
+      <button key="stop" className={variant === 'mini' ? 'btn danger small' : 'btn danger rounded-full'} onClick={() => void stop()} title={`Stop ${agent.name}`} aria-label="Stop">
         <Dom make={() => icon('square', variant === 'mini' ? 13 : 14)} deps={[]} />
       </button>
     ) : (
-      <button key="send" className={variant === 'mini' ? 'btn small' : 'btn'} onClick={submit} disabled={compacting} title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
-        <Dom make={() => icon('send', variant === 'mini' ? 14 : 15)} deps={[]} />
+      <button key="send" className={variant === 'mini' ? 'btn small' : 'btn rounded-full'} onClick={submit} disabled={compacting} title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
+        <Dom make={() => icon(variant === 'mini' ? 'send' : 'arrow-up', variant === 'mini' ? 14 : 16)} deps={[]} />
       </button>
     );
 
@@ -822,11 +822,11 @@ export function ChatView(p: ChatViewProps) {
               {sendBtn}
             </div>
           ) : (
-            <div className="flex items-stretch gap-2.5">
+            <div className="dock-composer relative">
               {composer}
-              {/* the paperclip at the top of the box, Send at its bottom */}
-              <div className={COMPOSER_BTNS}>
-                {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : <span />}
+              <div className={`${COMPOSER_BTNS} items-center px-2 pt-1 pb-2`} style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                {p.footer ? <span className="mr-auto min-w-0"><Dom make={() => p.footer!} deps={[p.footer]} /></span> : null}
+                {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
                 {sendBtn}
               </div>
             </div>
@@ -838,19 +838,14 @@ export function ChatView(p: ChatViewProps) {
           <div className="mx-auto max-w-[1000px]">
             {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
             <Dom make={() => pastes.el} deps={[pastes]} />
-            <div className="flex items-stretch gap-3">
+            <div className="dock-composer relative">
               {composer}
-              {/* the paperclip at the top of the box, Send at its bottom */}
-              <div className={COMPOSER_BTNS}>
-                {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : <span />}
+              <div className={`${COMPOSER_BTNS} items-center px-2 pt-1 pb-2`} style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                {p.footer ? <span className="mr-auto min-w-0"><Dom make={() => p.footer!} deps={[p.footer]} /></span> : null}
+                {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
                 {sendBtn}
               </div>
             </div>
-            {p.footer ? (
-              <div className="mt-3">
-                <Dom make={() => p.footer!} deps={[p.footer]} />
-              </div>
-            ) : null}
           </div>
         </div>
       )}
