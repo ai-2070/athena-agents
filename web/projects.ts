@@ -490,6 +490,7 @@ Look at the project folder and help me set it up: ask me what you need to know f
     // closed after the project was made but before its files went: it is still open in the dashboard
     onClose: () => created && refreshSoon(0),
   });
+  m.el.classList.add('glass');
   // Dropped files go to the tray, except a backup: in "From backup" anything dropped is taken as the
   // backup, and a lone .dashbackup dropped in another mode switches to "From backup".
   const modalEl = m.el.querySelector<HTMLElement>('.modal')!;
