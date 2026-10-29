@@ -1,0 +1,29 @@
+web/views/about.tsx
+  s_8892bfc24ba38a::t_4af4ce821ee791 47
+web/views/connections.tsx
+  s_8892bfc24ba38a::t_1b3c96aaf78a7d 123
+web/views/look.tsx
+  s_8892bfc24ba38a::t_722a092618ca4a 20-21,23
+web/views/mcp.tsx
+  s_8892bfc24ba38a::t_899b1573f0bec2 7,113,166,359
+web/views/setup.tsx
+  s_8892bfc24ba38a::t_6af05c9dad7403 179
+web/views/terminals.tsx
+  s_8892bfc24ba38a::t_c954c4db2c691e 10,110,129,136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9806799d6c49c5fdd57d9be9f4044ef310a477fc",
+  "prompts": {},
+  "sessions": {
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
