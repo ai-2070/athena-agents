@@ -1,0 +1,42 @@
+web/styles/app.css
+  s_8892bfc24ba38a::t_eec7d4fda439f0 53
+  s_8892bfc24ba38a::t_6e696cab532e44 56
+  s_8892bfc24ba38a::t_c45bf94dea6099 1
+AGENTS.md
+  s_8892bfc24ba38a::t_948c3f21d0b580 96
+  s_8892bfc24ba38a::t_6ce78aec05f390 87
+shared/look.ts
+  s_8892bfc24ba38a::t_c322cf480eb42a 14
+web/views/station.ts
+  s_8892bfc24ba38a::t_4300c7796b6c7f 623
+docs/guide.md
+  s_8892bfc24ba38a::t_f0ef9dff763627 228
+server/index.ts
+  s_8892bfc24ba38a::t_3c7726b9fe75a1 1224
+scripts/build-fonts.ts
+  s_8892bfc24ba38a::t_aa0e6c2c78e8b4 12
+tests/server/styles.test.ts
+  s_8892bfc24ba38a::t_cf795788f3069f 75
+src-tauri/loading/index.html
+  s_8892bfc24ba38a::t_e4e6c885ec4642 21
+bun.lock
+  s_8892bfc24ba38a::t_3c85b1785f1550 10,108-109
+package.json
+  s_8892bfc24ba38a::t_42adad6994a9f4 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3a7489f91016424e254fa8cd204b06f0042e7a7c",
+  "prompts": {},
+  "sessions": {
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
