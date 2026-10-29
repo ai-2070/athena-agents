@@ -1,0 +1,44 @@
+AGENTS.md
+  s_8892bfc24ba38a::t_1caf7fe2fa91f9 96
+  s_8892bfc24ba38a::t_dde229edd0db97 87
+scripts/build-fonts.ts
+  s_8892bfc24ba38a::t_df63b090440fea 12
+web/styles/app.css
+  s_8892bfc24ba38a::t_e347862d6f3eef 56
+  s_8892bfc24ba38a::t_f96088995f4322 1
+  s_8892bfc24ba38a::t_588b92715852b5 53
+package.json
+  s_8892bfc24ba38a::t_c30c11f810ad90 56
+tests/server/styles.test.ts
+  s_8892bfc24ba38a::t_09ceaa06532db7 87
+  s_8892bfc24ba38a::t_dadafd643f3b3d 76
+src-tauri/loading/index.html
+  s_8892bfc24ba38a::t_cd7999c590d13d 21
+web/styles/base.css
+  s_8892bfc24ba38a::t_6b54ccb7e33616 73
+  s_8892bfc24ba38a::t_722a2937dc4178 86
+web/views/station.ts
+  s_8892bfc24ba38a::t_f05e5a7131153c 623
+docs/guide.md
+  s_8892bfc24ba38a::t_42888a6b865475 228
+shared/look.ts
+  s_8892bfc24ba38a::t_6978bda824a414 14
+bun.lock
+  s_8892bfc24ba38a::t_93ef7263b4b309 11,111-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bbb2d35c2d7ea9a46909c9ed22a776d93cd9bf73",
+  "prompts": {},
+  "sessions": {
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "unknown"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
