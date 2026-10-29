@@ -1,5 +1,6 @@
 // Settings > General & keys: keys, the Brain, defaults, local model servers, program paths, limits.
 // Switches about the Brain save at once; the rest is saved with "Save settings", which sends only what changed.
+import { Button } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, PUT, attempt, toast, refreshSoon, navigate } from '../core.ts';
@@ -216,7 +217,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
 
       {/* what isn't saved on its own: stays at the bottom right of the window while you scroll */}
       <div className="pointer-events-none sticky bottom-20 z-10 flex justify-end">
-        <button className="btn pointer-events-auto shadow-lift" onClick={() => void save()}>Save settings</button>
+        <Button className="pointer-events-auto shadow-lift" onClick={() => void save()}>Save settings</Button>
       </div>
     </div>
   );
@@ -286,10 +287,10 @@ function InstallCmd({ cmd }: { cmd: string }) {
   return (
     <span className="ai-cmd inline-flex max-w-full items-center gap-2 self-start rounded-ctl border border-line bg-panel-2 py-1 pr-1 pl-3">
       <code className="min-w-0 overflow-x-auto border-0 bg-transparent p-0 font-mono text-[12px] leading-normal whitespace-nowrap text-ink select-all">{cmd}</code>
-      <button type="button" className="btn ghost tiny flex-none" onClick={copy} aria-label={`Copy ${cmd}`}>
+      <Button type="button" variant="ghost" size="tiny" className="flex-none" onClick={copy} aria-label={`Copy ${cmd}`}>
         <Icon name="copy" size={12} />
         Copy
-      </button>
+      </Button>
     </span>
   );
 }
@@ -323,18 +324,18 @@ function SecretField({ k, secrets, reload, label, placeholder, hint, mark, optio
         </div>
         <div className="flex items-stretch gap-2 max-[561px]:flex-wrap">
           <input className="code min-w-0 flex-1 max-[561px]:basis-full" id={id} type="password" autoComplete="off" value={value} placeholder={saved.set ? 'Paste a new key to replace it' : placeholder} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void store()} />
-          <button className="btn small h-auto min-h-9.5" disabled={!value.trim()} onClick={() => void store()}>
+          <Button size="small" className="h-auto min-h-9.5" disabled={!value.trim()} onClick={() => void store()}>
             Save
-          </button>
+          </Button>
           {k === 'openrouterKey' && saved.set ? (
-            <button className="btn ghost small h-auto min-h-9.5" onClick={() => void test()}>
+            <Button variant="ghost" size="small" className="h-auto min-h-9.5" onClick={() => void test()}>
               Test
-            </button>
+            </Button>
           ) : null}
           {saved.set ? (
-            <button className="btn ghost small h-auto min-h-9.5" onClick={() => void remove()}>
+            <Button variant="ghost" size="small" className="h-auto min-h-9.5" onClick={() => void remove()}>
               Remove
-            </button>
+            </Button>
           ) : null}
         </div>
         {hint ? <div className={AI_NOTE}>{hint}</div> : null}
@@ -377,19 +378,19 @@ function Engines({ data, reload }: { data: AppState; reload: () => Promise<unkno
         note={!cx.installed ? 'Installs the official CLI with npm (npm install -g @openai/codex). Then sign in with your ChatGPT account.' : cx.loggedIn ? 'Agents set to Codex use your ChatGPT login.' : 'Sign in opens a terminal running "codex login": follow the link, then press Recheck.'}
       >
         {!cx.installed ? (
-          <button className="btn small" disabled={installing} onClick={() => void install()}>
+          <Button size="small" disabled={installing} onClick={() => void install()}>
             {installing ? 'Installing…' : 'Install Codex'}
-          </button>
+          </Button>
         ) : (
           <>
             {cx.loggedIn ? null : (
-              <button className="btn small" onClick={() => void signIn()}>
+              <Button size="small" onClick={() => void signIn()}>
                 Sign in
-              </button>
+              </Button>
             )}
-            <button className="btn ghost small" onClick={() => void recheck()}>
+            <Button variant="ghost" size="small" onClick={() => void recheck()}>
               Recheck
-            </button>
+            </Button>
           </>
         )}
       </AiRow>

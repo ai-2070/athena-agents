@@ -1,5 +1,7 @@
 // Artifacts: what the teams finished that isn't an outgoing post (a written result, a file, a folder),
 // with a preview of each (images, video, audio, 3D models) and a search for when there are many.
+import { Plate } from '../ui/surface.tsx';
+import { Button, ButtonLink } from '../ui/button.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import { GET, DEL, attempt, md, copy, confirmBox } from '../core.ts';
 import { filePreviews } from '../filepreview.ts';
@@ -60,7 +62,7 @@ function ArtifactCard({ a, onRemove }: { a: Artifact; onRemove: () => void }) {
   const kindIcon = a.kind === 'folder' ? 'folder' : a.kind === 'file' ? 'file' : 'file-text';
   const who = [a.agentName ? `by ${a.agentName}` : '', a.teamName ? `team ${a.teamName}` : ''].filter(Boolean).join(' · ');
   return (
-    <div className="panel glass-plate">
+    <Plate className="panel">
       <div className="flex flex-wrap items-center gap-3">
         <Icon name={kindIcon} className="text-faint" />
         <b>{a.title}</b>
@@ -80,13 +82,13 @@ function ArtifactCard({ a, onRemove }: { a: Artifact; onRemove: () => void }) {
         </details>
       ) : null}
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        {a.kind === 'file' && a.path ? <a className="btn ghost small" href={fileUrl(a.path)} target="_blank" rel="noopener">Open</a> : null}
-        {a.path ? <button className="btn ghost small" onClick={() => copy(a.path!)}>Copy path</button> : null}
-        {a.text ? <button className="btn ghost small" onClick={() => copy(a.text!)}>Copy text</button> : null}
+        {a.kind === 'file' && a.path ? <ButtonLink variant="ghost" size="small" href={fileUrl(a.path)} target="_blank" rel="noopener">Open</ButtonLink> : null}
+        {a.path ? <Button variant="ghost" size="small" onClick={() => copy(a.path!)}>Copy path</Button> : null}
+        {a.text ? <Button variant="ghost" size="small" onClick={() => copy(a.text!)}>Copy text</Button> : null}
         <span className="flex-1 min-w-0" />
-        <button className="btn danger small" onClick={onRemove}>Remove</button>
+        <Button variant="danger" size="small" onClick={onRemove}>Remove</Button>
       </div>
-    </div>
+    </Plate>
   );
 }
 

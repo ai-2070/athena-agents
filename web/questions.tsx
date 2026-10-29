@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { POST, DEL, attempt, ago, md, refreshSoon } from './core.ts';
 import { DomNode, mountReact, useAppState } from './ui/react.tsx';
+import { Button } from './ui/button.tsx';
 import type { AgentQuestion } from '../shared/types.ts';
 
 const STATUS: Record<AgentQuestion['status'], [string, string]> = {
@@ -103,9 +104,9 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
             onKeyDown={(e) => e.key === 'Enter' && (e.ctrlKey || e.metaKey) && text.trim() && void answer()}
           />
           <div className="flex flex-wrap items-center gap-2.5">
-            <button className={`btn small${text.trim() ? '' : ' ghost'}`} disabled={busy || !text.trim()} title="Send what you wrote (Ctrl+Enter)" onClick={() => void answer()}>Send answer</button>
+            <Button size="small" variant={text.trim() ? 'primary' : 'ghost'} disabled={busy || !text.trim()} title="Send what you wrote (Ctrl+Enter)" onClick={() => void answer()}>Send answer</Button>
             <span className="min-w-0 flex-1" />
-            <button className="btn ghost small" disabled={busy} title={`Close it without answering: ${who} hears you passed`} onClick={() => void dismiss()}>Dismiss</button>
+            <Button variant="ghost" size="small" disabled={busy} title={`Close it without answering: ${who} hears you passed`} onClick={() => void dismiss()}>Dismiss</Button>
           </div>
         </>
       ) : (
@@ -119,7 +120,7 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
           {after ? <p className="hint">{after}</p> : null}
           {place !== 'outbox' ? null : (
             <div className="flex flex-wrap items-center gap-2.5">
-              <button className="btn tiny ghost" onClick={() => void remove()}>Remove</button>
+              <Button size="tiny" variant="ghost" onClick={() => void remove()}>Remove</Button>
             </div>
           )}
         </>

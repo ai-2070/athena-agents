@@ -1,10 +1,8 @@
 // Project switcher and "New project" dialog.
 import { h, mount, state, GET, POST, PUT, attempt, promptBox, confirmBox, modal, seg, field, toast, refreshSoon, ago } from './core.ts';
 import { icon } from './icons.ts';
+import { mountProjectMenu } from './projectmenu.tsx';
 import { projectMark } from './projectlogo.ts';
-import { moveId } from './projectnav.ts';
-import { uiZoom } from './look.ts';
-import { dismissMenu } from './menuclose.ts';
 import { askBrain } from './dock.tsx';
 import { BACKUP_EXT, backupProject, backupAgo, fileSize, listBackups, readBackupSummary, restoreBackup, restoredText, summaryLine } from './backup.ts';
 import type { BackupListing, BackupSummary } from './backup.ts';
@@ -82,169 +80,25 @@ export async function deleteProject(p: ProjectRef): Promise<boolean> {
   return !!r;
 }
 
-const ROW =
-  "group relative flex items-center [&.dragging]:opacity-40 [&.drop-above]:before:absolute [&.drop-above]:before:-top-px [&.drop-above]:before:right-2.5 [&.drop-above]:before:left-2.5 [&.drop-above]:before:h-0.5 [&.drop-above]:before:rounded-[1px] [&.drop-above]:before:bg-accent [&.drop-below]:after:absolute [&.drop-below]:after:right-2.5 [&.drop-below]:after:-bottom-px [&.drop-below]:after:left-2.5 [&.drop-below]:after:h-0.5 [&.drop-below]:after:rounded-[1px] [&.drop-below]:after:bg-accent";
-const RENAME_BTN =
-  'mr-1 grid h-6.5 w-6.5 flex-none cursor-pointer place-items-center rounded-[6px] border-0 bg-transparent p-0 text-faint opacity-0 [transition:opacity_0.15s] group-hover:opacity-100 hover:bg-panel-2 hover:text-accent focus-visible:opacity-100';
 let closeProjectMenu: (() => void) | null = null;
-
 
 export function openProjectMenu(anchor: Element): void {
   closeProjectMenu?.();
-  document.querySelectorAll('.proj-menu').forEach((old) => old.remove());
   const d = state.data!;
-  const r = anchor.getBoundingClientRect();
-  let closed = false;
-  const close = () => {
-    if (closed) return;
-    closed = true;
-    if (closeProjectMenu === close) closeProjectMenu = null;
-    document.removeEventListener('pointerdown', outside, true);
-    document.removeEventListener('keydown', escape, true);
-    dismissMenu(menu);
-  };
-  closeProjectMenu = close;
-  const escape = (e: KeyboardEvent) => {
-    if (e.key !== 'Escape' || e.defaultPrevented || (e.target instanceof Element && e.target.closest('.proj-rename-row'))) return;
-    e.preventDefault();
-    e.stopPropagation();
-    close();
-    if (anchor instanceof HTMLElement) anchor.focus();
-  };
-  const outside = (e: PointerEvent) => !menu.contains(e.target as Node) && !anchor.contains(e.target as Node) && close();
-  const switchTo = async (p: Project) => {
-    close();
-    if (p.id === d.project.id) return;
-    await attempt(() => POST(`/projects/${p.id}/activate`), `Opened ${p.name}`);
-    refreshSoon(0);
-  };
-  // the projects in their order (the floors): drag one, or Alt+Up / Alt+Down on it, to move it; the pencil (or F2) renames it
-  const list = h('div', { class: 'flex flex-col' });
-  const rows = new Map<string, HTMLElement>();
-  const order = () => [...list.children].map((c) => (c as HTMLElement).dataset.id!);
-  const save = (ids: string[]) => {
-    for (const id of ids) list.append(rows.get(id)!);
-    void attempt(() => POST('/projects/order', { ids })).then(() => refreshSoon(0));
-  };
-  let dragId = '';
-  const clearMarks = () => list.querySelectorAll('.drop-above, .drop-below, .dragging').forEach((el) => el.classList.remove('drop-above', 'drop-below', 'dragging'));
-  // the name turns into a box: Enter or leaving it saves, Esc keeps the old name
-  const startRename = (p: Project, row: HTMLElement, item: HTMLElement, label: HTMLElement) => {
-    if (row.querySelector('.proj-rename-row')) return;
-    // (the same height and left edge as the item it replaces, so nothing below it moves)
-    const input = h('input', { class: 'h-7 min-w-0 flex-1 px-2 py-0 text-[13.5px] leading-none', value: p.name, maxlength: 80, 'aria-label': `New name for ${p.name}` });
-    const box = h('div.proj-rename-row', { class: 'flex min-h-8.75 min-w-0 flex-1 items-center gap-2.5 px-2.5' }, h('span', { class: 'w-[13px] flex-none' }), projectMark(p, 16), input);
-    let done = false;
-    const finish = (commit: boolean) => {
-      if (done) return;
-      done = true;
-      box.remove();
-      item.classList.remove('hidden');
-      row.draggable = true;
-      const next = input.value.trim();
-      if (!commit || !next || next === p.name) return;
-      label.textContent = next;
-      p.name = next;
-      void attempt(() => PUT(`/projects/${encodeURIComponent(p.id)}`, { name: next }), `Renamed to ${next}`).then(() => refreshSoon(0));
-    };
-    input.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        finish(true);
-        setTimeout(() => item.focus(), 0);
-      } else if (e.key === 'Escape') {
-        e.preventDefault(); // (the menu itself stays open)
-        finish(false);
-        setTimeout(() => item.focus(), 0);
-      }
-    });
-    input.addEventListener('blur', () => finish(true));
-    row.draggable = false;
-    item.classList.add('hidden');
-    row.prepend(box);
-    input.focus();
-    input.select();
-  };
-  for (const p of d.projects || []) {
-    const label = h('span', { class: 'min-w-0 flex-1' }, p.name);
-    const item = h(
-      `button.st-menu-item${p.id === d.project.id ? '.on' : ''}`,
-      { class: 'min-w-0 flex-1', title: 'Drag to change the order (or Alt+Up / Alt+Down)', onclick: () => switchTo(p) },
-      // the grip: stays faint, even when the item lights up
-      icon('grip-vertical', 13, 'flex-none cursor-grab text-faint'),
-      projectMark(p, 16),
-      label,
-      p.id === d.project.id ? icon('check', 14) : null,
-    );
-    // dragging and drop-above / drop-below are set while you drag: a faded row, a line where it will land
-    const row = h('div', { class: ROW, draggable: 'true', 'data-id': p.id }, item);
-    // the rename pencil: there when you point at the project (or tab to it)
-    row.append(h('button', { class: RENAME_BTN, title: `Rename ${p.name} (F2)`, 'aria-label': `Rename ${p.name}`, onclick: () => startRename(p, row, item, label) }, icon('pencil', 13)));
-    row.addEventListener('dragstart', (e) => {
-      dragId = p.id;
-      e.dataTransfer?.setData('text/plain', p.id);
-      if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
-      setTimeout(() => row.classList.add('dragging'), 0);
-    });
-    row.addEventListener('dragend', clearMarks);
-    row.addEventListener('dragover', (e) => {
-      if (!dragId || dragId === p.id) return;
-      e.preventDefault();
-      const r2 = row.getBoundingClientRect();
-      const below = e.clientY > r2.top + r2.height / 2;
-      list.querySelectorAll('.drop-above, .drop-below').forEach((el) => el.classList.remove('drop-above', 'drop-below'));
-      row.classList.add(below ? 'drop-below' : 'drop-above');
-    });
-    row.addEventListener('drop', (e) => {
-      e.preventDefault();
-      const below = row.classList.contains('drop-below');
-      clearMarks();
-      const dragged = dragId;
-      dragId = '';
-      if (!dragged || dragged === p.id) return;
-      const without = order().filter((x) => x !== dragged);
-      const at = without.indexOf(p.id) + (below ? 1 : 0);
-      save([...without.slice(0, at), dragged, ...without.slice(at)]);
-    });
-    row.addEventListener('keydown', (e) => {
-      if (e.key === 'F2') {
-        e.preventDefault();
-        return startRename(p, row, item, label);
-      }
-      if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
-      e.preventDefault();
-      const ids = order();
-      const i = ids.indexOf(p.id);
-      save(moveId(ids, p.id, e.key === 'ArrowUp' ? i - 1 : i + 1));
-      setTimeout(() => item.focus(), 0);
-    });
-    rows.set(p.id, row);
-    list.append(row);
-  }
-  const menu = h(
-    'div.st-menu.proj-menu',
-    { class: 'z-80', style: { position: 'fixed', left: `${r.left / uiZoom()}px`, top: `${r.bottom / uiZoom() + 6}px`, transform: 'none' } },
-    h('div.st-menu-head', 'Projects'),
-    h('div', { class: 'max-w-[260px] px-2.5 pb-2.5 text-[12px] leading-[1.5] font-normal text-faint' }, 'Drag to reorder, the pencil renames. On the Station, Up and Down switch between them.'),
-    list,
-    h('div.st-menu-sep'),
-    h('button.st-menu-item', { onclick: () => (close(), openLauncher({ force: true })) }, icon('folder-open', 15), 'All projects…'),
-    h('button.st-menu-item', { onclick: () => (close(), openNewProject()) }, icon('plus', 15), 'New project'),
-    h('button.st-menu-item', { onclick: () => (close(), void cloneProject(d.project)) }, icon('copy', 15), 'Clone this project…'),
-    h('button.st-menu-item', { onclick: () => (close(), void import('./views/worldpanel.tsx').then((m) => m.openWorldPicker())) }, icon('globe', 15), 'Voxel world…'),
-    h('div.st-menu-sep'),
-    h('button.st-menu-item', { onclick: () => (close(), backupProject(d.project)) }, icon('archive', 15), 'Back up this project'),
-    h('button.st-menu-item', { onclick: () => (close(), openNewProject({ mode: 'backup' })) }, icon('upload', 15), 'Restore a backup…'),
-    h('div.st-menu-sep'),
-    h('button.st-menu-item.danger', { onclick: () => (close(), void deleteProject(d.project)) }, icon('trash-2', 15), 'Delete this project…'),
-  );
-  document.body.append(menu);
-  setTimeout(() => {
-    if (closed) return;
-    document.addEventListener('pointerdown', outside, true);
-    document.addEventListener('keydown', escape, true);
-  }, 0);
+  closeProjectMenu = mountProjectMenu({
+    anchor,
+    projects: d.projects || [],
+    active: d.project,
+    actions: [
+      { label: 'All projects…', icon: 'folder-open', separator: true, run: () => openLauncher({ force: true }) },
+      { label: 'New project', icon: 'plus', run: () => openNewProject() },
+      { label: 'Clone this project…', icon: 'copy', run: () => cloneProject(d.project) },
+      { label: 'Voxel world…', icon: 'globe', run: () => import('./views/worldpanel.tsx').then((m) => m.openWorldPicker()) },
+      { label: 'Back up this project', icon: 'archive', separator: true, run: () => backupProject(d.project) },
+      { label: 'Restore a backup…', icon: 'upload', run: () => openNewProject({ mode: 'backup' }) },
+      { label: 'Delete this project…', icon: 'trash-2', danger: true, separator: true, run: () => deleteProject(d.project) },
+    ],
+  });
 }
 
 // From backup: the drop zone (over: a file is dragged onto it), empty or showing the picked backup

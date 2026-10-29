@@ -1,5 +1,7 @@
 // Settings > About: which Athena Agents this is, where it lives on GitHub (with a star button), and this PC's
 // address and data folder.
+import { ButtonLink } from '../ui/button.tsx';
+import { Plate } from '../ui/surface.tsx';
 import { useEffect, useState } from 'react';
 import { GET } from '../core.ts';
 import { MARK_SHAPES } from '../brand.ts';
@@ -18,11 +20,11 @@ export const BrandMark = ({ size = 48 }: { size?: number }) => (
 /** "Star on GitHub", with the count when GitHub gave one. */
 export function StarButton({ stars, small = false }: { stars: number | null; small?: boolean }) {
   return (
-    <a className={`btn${small ? ' tiny' : ' small'} star-btn`} href={REPO.url} target="_blank" rel="noopener" title={`Star ${REPO.slug} on GitHub`}>
+    <ButtonLink size={small ? 'tiny' : 'small'} className="star-btn" href={REPO.url} target="_blank" rel="noopener" title={`Star ${REPO.slug} on GitHub`}>
       <Icon name="star" size={small ? 12 : 14} />
       <span>{small ? 'Star' : 'Star on GitHub'}</span>
       {stars != null ? <span className="ml-0.5 border-l border-[color-mix(in_srgb,currentColor_35%,transparent)] pl-2 tabular-nums">{stars.toLocaleString()}</span> : null}
-    </a>
+    </ButtonLink>
   );
 }
 
@@ -44,7 +46,7 @@ export function AboutTab() {
   const version = about ? `v${about.version}` : '…';
   return (
     <div className="flex flex-col gap-10">
-      <div className="glass-plate flex flex-wrap items-center gap-x-6 gap-y-5 rounded-box p-7">
+      <Plate className="flex flex-wrap items-center gap-x-6 gap-y-5 rounded-box p-7">
         <BrandMark size={56} />
         <div className="min-w-0 flex-1 basis-80">
           <div className="about-title flex flex-wrap items-baseline gap-2.5">
@@ -55,12 +57,12 @@ export function AboutTab() {
         </div>
         <div className="flex flex-wrap gap-2 [&_.btn]:gap-1.75">
           <StarButton stars={about?.stars ?? null} />
-          <a className="btn ghost small" href={REPO.url} target="_blank" rel="noopener">
+          <ButtonLink variant="ghost" size="small" href={REPO.url} target="_blank" rel="noopener">
             <DomNode as="span" className="inline-flex" make={() => logo('github', 14, 'currentColor')} deps={[]} />
             <span>{REPO.slug}</span>
-          </a>
+          </ButtonLink>
         </div>
-      </div>
+      </Plate>
 
       <Section title="Version" description="What is installed, where it lives, and where to get help.">
         <Row title="Version">

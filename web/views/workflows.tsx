@@ -1,4 +1,6 @@
 // Workflows: chain agents, tools, approvals and posts. Run by hand or on a schedule.
+import { Plate, PlateLink } from '../ui/surface.tsx';
+import { Button, ButtonLink, IconButton } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, PUT, DEL, attempt, navigate, confirmBox, promptBox, ago, lightbox } from '../core.ts';
@@ -109,22 +111,22 @@ function WorkflowsList() {
       <p className="lede max-w-[68ch]">A workflow is a list of steps that run in order. Each step gets the result of the one before it, so a researcher can hand findings to a writer, then you approve, then it posts.</p>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="section m-0">Your workflows</h2>
-        <button className="btn" onClick={() => void create()}>
+        <Button  onClick={() => void create()}>
           <Icon name="plus" size={14} />
           New workflow
-        </button>
+        </Button>
       </div>
       {data.list.length ? (
         <div className="cards">
           {data.list.map((wf) => (
-            <a key={wf.id} className="card glass-plate hover:shadow-none clickable" href={`#/workflows/${wf.id}`}>
+            <PlateLink key={wf.id} className="card hover:shadow-none clickable" href={`#/workflows/${wf.id}`}>
               <div className="card-title">{wf.name}</div>
               <div className="card-sub">{wf.description || `${wf.steps.length} steps`}</div>
               <div className="card-foot">
                 <span className="pill">{`${wf.steps.length} steps`}</span>
                 {wf.schedule?.type !== 'none' ? <span className={`pill${wf.enabled ? ' ok' : ''}`}>{wf.enabled ? scheduleText(wf.schedule) : 'schedule off'}</span> : null}
               </div>
-            </a>
+            </PlateLink>
           ))}
         </div>
       ) : (
@@ -135,14 +137,14 @@ function WorkflowsList() {
         {data.templates.map((t) => {
           const missing = t.needs.filter((n) => !d.agents.some((a) => a.name.toLowerCase() === n.toLowerCase()));
           return (
-            <div key={t.name} className="card glass-plate hover:shadow-none">
+            <Plate key={t.name} className="card hover:shadow-none">
               <div className="card-title">{t.name}</div>
               <div className="card-sub">{t.description}</div>
               <div className="hint">{missing.length ? `Uses: ${t.needs.join(', ')}. Missing ${missing.join(', ')} (add from Agent library > Athena, or pick other agents after).` : `Uses: ${t.needs.join(', ')}`}</div>
               <div className="card-foot">
-                <button className="btn small" onClick={() => void useTemplate(t)}>Use template</button>
+                <Button size="small" onClick={() => void useTemplate(t)}>Use template</Button>
               </div>
-            </div>
+            </Plate>
           );
         })}
       </div>
@@ -202,14 +204,14 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
   return (
     <>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <a className="btn ghost small" href="#/workflows">← Workflows</a>
+        <ButtonLink variant="ghost" size="small" href="#/workflows">← Workflows</ButtonLink>
         <div className="flex flex-wrap items-center gap-3">
-          <button className="btn" disabled={!dirty} onClick={() => void save()}>Save</button>
+          <Button  disabled={!dirty} onClick={() => void save()}>Save</Button>
         </div>
       </div>
       <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-6 max-lg:grid-cols-1">
         <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
-          <div className="panel glass-plate">
+          <Plate className="panel">
             <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
               <Field label="Name">
                 <input value={name} onChange={(e) => (setName(e.target.value), setDirty(true))} />
@@ -218,8 +220,8 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
                 <input value={description} onChange={(e) => (setDescription(e.target.value), setDirty(true))} />
               </Field>
             </div>
-          </div>
-          <div className="panel glass-plate">
+          </Plate>
+          <Plate className="panel">
             <div className="panel-head">
               <h2>Steps</h2>
             </div>
@@ -228,7 +230,7 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
               {steps.map((s, i) => (
                 <li key={s.id || i}>
                   {i ? <div className="py-2 text-center text-[14px] leading-none text-faint" aria-hidden="true">↓</div> : null}
-                  <div className="step glass-plate relative rounded-box p-4">
+                  <Plate className="step relative rounded-box p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex flex-wrap items-center gap-3">
                         <span className="text-[12.5px] leading-[normal] font-semibold text-dim">{`Step ${i + 1}`}</span>
@@ -236,49 +238,49 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
                         <input className="wf-label w-55" aria-label={`Step ${i + 1}: label`} value={s.label || ''} placeholder="Label (optional)" onChange={(e) => setStep(i, { label: e.target.value })} />
                       </div>
                       <div className="flex flex-wrap items-center gap-1">
-                        <button className="icon-btn" title="Move up" aria-label={`Move step ${i + 1} up`} disabled={i === 0} onClick={() => change(moveStep(steps, i, -1))}>↑</button>
-                        <button className="icon-btn" title="Move down" aria-label={`Move step ${i + 1} down`} disabled={i === steps.length - 1} onClick={() => change(moveStep(steps, i, 1))}>↓</button>
-                        <button className="icon-btn" title="Remove" aria-label={`Remove step ${i + 1}`} onClick={() => change(steps.filter((_, j) => j !== i))}>✕</button>
+                        <IconButton title="Move up" aria-label={`Move step ${i + 1} up`} disabled={i === 0} onClick={() => change(moveStep(steps, i, -1))}>↑</IconButton>
+                        <IconButton title="Move down" aria-label={`Move step ${i + 1} down`} disabled={i === steps.length - 1} onClick={() => change(moveStep(steps, i, 1))}>↓</IconButton>
+                        <IconButton title="Remove" aria-label={`Remove step ${i + 1}`} onClick={() => change(steps.filter((_, j) => j !== i))}>✕</IconButton>
                       </div>
                     </div>
                     <div className="mt-4 flex flex-col gap-4">
                       <StepFields s={s} set={(patch) => setStep(i, patch)} tools={tools} d={d} />
                     </div>
-                  </div>
+                  </Plate>
                 </li>
               ))}
             </ol>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               {STEP_TYPES.map((t) => (
-                <button key={t.value} className="btn ghost small" onClick={() => change([...steps, { id: Math.random().toString(36).slice(2), type: t.value, prompt: '{{prev}}' }])}>{`+ ${t.label}`}</button>
+                <Button key={t.value} variant="ghost" size="small" onClick={() => change([...steps, { id: Math.random().toString(36).slice(2), type: t.value, prompt: '{{prev}}' }])}>{`+ ${t.label}`}</Button>
               ))}
             </div>
-          </div>
+          </Plate>
         </div>
         <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
-          <div className="panel glass-plate">
+          <Plate className="panel">
             <div className="panel-head">
               <h2>Run it</h2>
             </div>
             <textarea rows={2} aria-label="Input for this run" placeholder="Input for this run ({{input}})" value={input} onChange={(e) => setInput(e.target.value)} />
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <button className="btn" onClick={() => void run()}>Run now</button>
+              <Button  onClick={() => void run()}>Run now</Button>
             </div>
-          </div>
-          <div className="panel glass-plate">
+          </Plate>
+          <Plate className="panel">
             <div className="panel-head">
               <h2>Schedule</h2>
             </div>
             <DomNode make={() => scheduleEditor(sched.current, () => setDirty(true))} deps={[id]} />
-          </div>
-          <div className="panel glass-plate">
+          </Plate>
+          <Plate className="panel">
             <div className="panel-head">
               <h2>Runs</h2>
             </div>
             <Runs id={id} version={runsVersion} />
-          </div>
+          </Plate>
           <div className="flex flex-wrap items-center gap-3">
-            <button className="btn danger small" onClick={() => void del()}>Delete workflow</button>
+            <Button variant="danger" size="small" onClick={() => void del()}>Delete workflow</Button>
           </div>
         </div>
       </div>
@@ -357,7 +359,7 @@ function Runs({ id, version }: { id: string; version: number }) {
               <b>{r.status}</b>
               <span className="hint">{`${ago(r.createdAt)} · ${r.trigger}`}</span>
               {r.status === 'running' ? (
-                <button className="btn tiny danger" onClick={(e) => (e.preventDefault(), void attempt(() => POST(`/workflow-runs/${r.id}/stop`)))}>Stop</button>
+                <Button variant="danger" size="tiny" onClick={(e) => (e.preventDefault(), void attempt(() => POST(`/workflow-runs/${r.id}/stop`)))}>Stop</Button>
               ) : null}
             </span>
           </summary>

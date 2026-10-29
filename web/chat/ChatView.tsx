@@ -19,6 +19,7 @@ import type { Variant } from './parts.tsx';
 import { beforeTurn, searchText, toUIMessages, userParts } from './messages.ts';
 import { WINDOW_FROM, Windowed } from './window.tsx';
 import { useFind } from '../ui/find.tsx';
+import { Button } from '../ui/button.tsx';
 import { estimateHeight, messageSig } from './estimate.ts';
 import { chatTransport } from './transport.ts';
 import { agentMentions, insertMention } from './mention.ts';
@@ -700,13 +701,13 @@ export function ChatView(p: ChatViewProps) {
   const working = streaming || serverRunning;
   const sendBtn =
     working && !filled ? (
-      <button key="stop" className={variant === 'mini' ? 'btn danger small' : compact ? 'btn danger rounded-full' : 'btn danger size-8! px-0'} onClick={() => void stop()} title={`Stop ${agent.name}`} aria-label="Stop">
+      <Button key="stop" variant="danger" size={variant === 'mini' ? 'small' : 'default'} className={variant === 'mini' ? undefined : compact ? 'rounded-full' : 'size-8! px-0'} onClick={() => void stop()} title={`Stop ${agent.name}`} aria-label="Stop">
         <Dom make={() => icon('square', variant === 'mini' ? 13 : 14)} deps={[]} />
-      </button>
+      </Button>
     ) : (
-      <button key="send" className={variant === 'mini' ? 'btn small' : compact ? 'btn rounded-full' : 'btn size-8! px-0'} onClick={submit} disabled={compacting} title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
+      <Button key="send" size={variant === 'mini' ? 'small' : 'default'} className={variant === 'mini' ? undefined : compact ? 'rounded-full' : 'size-8! px-0'} onClick={submit} disabled={compacting} title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
         <Dom make={() => icon(variant === 'mini' ? 'send' : 'arrow-up', variant === 'mini' ? 14 : 16)} deps={[]} />
-      </button>
+      </Button>
     );
 
   // your /goal and /loop here (× ends one)

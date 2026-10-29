@@ -19,6 +19,8 @@ import { icon, logo } from '../icons.ts';
 import { modelChip, modelInfo } from '../models.ts';
 import { Avatar, DomNode, HoverScroll, Icon, IconWeightProvider, useAppState } from '../ui/react.tsx';
 import { ChipSet, Segmented, Tabs } from '../ui/controls.tsx';
+import { Button, ButtonLink, IconButton } from '../ui/button.tsx';
+import { Plate } from '../ui/surface.tsx';
 import { AgentSelect } from '../ui/agentselect.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
@@ -126,9 +128,9 @@ function PanelHead({ api, children }: { api: StationPanelApi; children: ReactNod
   return (
     <div className="flex items-center gap-3 px-5 pt-5 pb-2">
       {children}
-      <button className="icon-btn" onClick={() => api.choose(null)} aria-label="Close">
+      <IconButton onClick={() => api.choose(null)} aria-label="Close">
         <Icon name="x" size={15} />
-      </button>
+      </IconButton>
     </div>
   );
 }
@@ -232,12 +234,12 @@ function BenchPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
           ))}
         </div>
         <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-          <a className="btn ghost small" href="#/library">
+          <ButtonLink variant="ghost" size="small" href="#/library">
             Hire more
-          </a>
-          <button className="btn ghost small" onClick={() => void newAgent()}>
+          </ButtonLink>
+          <Button variant="ghost" size="small" onClick={() => void newAgent()}>
             + New agent
-          </button>
+          </Button>
         </div>
       </div>
     </>
@@ -309,15 +311,15 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
         </button>
         <div className="mt-6 mb-2 flex items-center gap-0.5">
           <div className="label flex-1">Brain folder</div>
-          <button className="icon-btn plain" title="Open the folder" aria-label="Open folder" onClick={() => void attempt(() => POST('/brain/open', {}))}>
+          <IconButton className="plain" title="Open the folder" aria-label="Open folder" onClick={() => void attempt(() => POST('/brain/open', {}))}>
             <FolderIcon size={16} />
-          </button>
-          <button className="icon-btn plain" title="Open in VS Code" aria-label="VS Code" onClick={() => void attempt(() => POST('/brain/open', { app: 'vscode' }))}>
+          </IconButton>
+          <IconButton className="plain" title="Open in VS Code" aria-label="VS Code" onClick={() => void attempt(() => POST('/brain/open', { app: 'vscode' }))}>
             <VSCodeIcon size={16} />
-          </button>
-          <button className="icon-btn plain" title="Add a note" aria-label="Add note" onClick={() => void addNote()}>
+          </IconButton>
+          <IconButton className="plain" title="Add a note" aria-label="Add note" onClick={() => void addNote()}>
             <Icon name="pen-line" size={14} />
-          </button>
+          </IconButton>
         </div>
         <div className="overflow-hidden rounded-[10px] border border-line bg-panel shadow-[inset_0_1px_0_var(--glass-spec)]">
           <div className="border-b border-line px-3 py-2 font-mono text-[11.5px] leading-[1.5] text-dim wrap-anywhere">{proj.brainPath || ''}</div>
@@ -343,9 +345,9 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
                       </div>
                       <div className="hint">{`${info.git.branch} · ${info.git.last}${info.git.changes ? ` · ${info.git.changes} changed` : ''}`}</div>
                     </div>
-                    <button className="btn tiny ghost" onClick={() => void attempt(() => POST<{ message: string }>('/brain/pull'), (r) => r.message)}>
+                    <Button variant="ghost" size="tiny" onClick={() => void attempt(() => POST<{ message: string }>('/brain/pull'), (r) => r.message)}>
                       Pull
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
                 <div className="hint">{`${info.files} files · ${info.sizeMB} MB`}</div>
@@ -360,10 +362,10 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
         </div>
         <div className="mt-6 mb-2 flex items-center">
           <div className="label flex-1">Teams</div>
-          <button className="btn plain tiny" onClick={api.newTeam}>
+          <Button variant="plain" size="tiny" onClick={api.newTeam}>
             <Icon name="plus" size={12} />
             New team
-          </button>
+          </Button>
         </div>
         <div className="list">
           {teams.map((wf, i) => (
@@ -460,12 +462,12 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
             <div className="flex flex-col gap-2.5">
               <textarea className="w-full" rows={4} autoFocus aria-label="What this project is about" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="What is this project? Who is it for, what should come out of it?" />
               <div className="flex flex-wrap items-center gap-1.5">
-                <button className="btn small" onClick={() => void save()}>
+                <Button size="small" onClick={() => void save()}>
                   Save
-                </button>
-                <button className="btn ghost small" onClick={() => setEditing(false)}>
+                </Button>
+                <Button variant="ghost" size="small" onClick={() => setEditing(false)}>
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           ) : text ? (
@@ -494,40 +496,40 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
       </div>
       {editing ? null : (
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          <button className="btn ghost tiny" onClick={edit}>
+          <Button variant="ghost" size="tiny" onClick={edit}>
             <Icon name="pencil" size={12} />
             {text ? 'Edit description' : 'Add a description'}
-          </button>
-          <button className="btn ghost tiny" title="Change the name of this project (its folder keeps its name)" onClick={() => void rename()}>
+          </Button>
+          <Button variant="ghost" size="tiny" title="Change the name of this project (its folder keeps its name)" onClick={() => void rename()}>
             <Icon name="pencil" size={12} />
             Rename
-          </button>
-          <button className="btn ghost tiny" onClick={() => ref && void pickLogo(ref)}>
+          </Button>
+          <Button variant="ghost" size="tiny" onClick={() => ref && void pickLogo(ref)}>
             <Icon name="image" size={12} />
             {proj.logoAt ? 'Change logo' : 'Add logo'}
-          </button>
+          </Button>
           {proj.logoAt ? (
-            <button className="btn ghost tiny" onClick={() => ref && void removeLogo(ref)}>
+            <Button variant="ghost" size="tiny" onClick={() => ref && void removeLogo(ref)}>
               Remove logo
-            </button>
+            </Button>
           ) : null}
-          <button className="btn ghost tiny" title="A 3D model (.glb, .obj, .stl, .ply, .fbx) that replaces the logo inside the Brain" onClick={() => ref && void pickModel(ref)}>
+          <Button variant="ghost" size="tiny" title="A 3D model (.glb, .obj, .stl, .ply, .fbx) that replaces the logo inside the Brain" onClick={() => ref && void pickModel(ref)}>
             <Icon name="box" size={12} />
             {proj.modelAt ? 'Change 3D model' : 'Add 3D model'}
-          </button>
+          </Button>
           {proj.modelAt ? (
-            <button className="btn ghost tiny" onClick={() => ref && void removeModel(ref)}>
+            <Button variant="ghost" size="tiny" onClick={() => ref && void removeModel(ref)}>
               Remove 3D model
-            </button>
+            </Button>
           ) : null}
-          <button className="btn ghost tiny" title="A picture behind the map, in this project only" onClick={() => ref && void pickBackground(ref)}>
+          <Button variant="ghost" size="tiny" title="A picture behind the map, in this project only" onClick={() => ref && void pickBackground(ref)}>
             <Icon name="image" size={12} />
             {proj.backgroundAt ? 'Change background' : 'Add background'}
-          </button>
+          </Button>
           {proj.backgroundAt ? (
-            <button className="btn ghost tiny" onClick={() => ref && void removeBackground(ref)}>
+            <Button variant="ghost" size="tiny" onClick={() => ref && void removeBackground(ref)}>
               Remove background
-            </button>
+            </Button>
           ) : null}
         </div>
       )}
@@ -585,29 +587,29 @@ function ConnectionPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id
         </div>
         <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
           {prog && !prog.cli && (prog.exe || prog.shortcut) ? (
-            <button className="btn small" onClick={() => void attempt(() => POST<{ message: string }>('/programs/launch', { program: prog.id }), (r) => r.message)}>
+            <Button size="small" onClick={() => void attempt(() => POST<{ message: string }>('/programs/launch', { program: prog.id }), (r) => r.message)}>
               Start
-            </button>
+            </Button>
           ) : null}
           {prog?.serviceUrl ? (
-            <a className="btn ghost small" href={prog.serviceUrl} target="_blank" rel="noreferrer">
+            <ButtonLink variant="ghost" size="small" href={prog.serviceUrl} target="_blank" rel="noreferrer">
               Open
-            </a>
+            </ButtonLink>
           ) : null}
           {['x', 'telegram', 'discord'].includes(it.id) ? (
-            <a className="btn ghost small" href="#/settings?tab=connections">
+            <ButtonLink variant="ghost" size="small" href="#/settings?tab=connections">
               Connections
-            </a>
+            </ButtonLink>
           ) : null}
           {it.mcp ? (
-            <a className="btn ghost small" href="#/settings?tab=mcp">
+            <ButtonLink variant="ghost" size="small" href="#/settings?tab=mcp">
               Tools &amp; MCP
-            </a>
+            </ButtonLink>
           ) : null}
           {['openrouter', 'lmstudio', 'ollama'].includes(it.id) ? (
-            <a className="btn ghost small" href="#/settings">
+            <ButtonLink variant="ghost" size="small" href="#/settings">
               Settings
-            </a>
+            </ButtonLink>
           ) : null}
         </div>
       </div>
@@ -683,10 +685,10 @@ function TeamPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id: stri
               <Icon name="user-plus" size={14} />
             </button>
           </div>
-          <button className="btn small shrink-0" onClick={() => openChat('team', id)}>
+          <Button size="small" className="shrink-0" onClick={() => openChat('team', id)}>
             <Icon name="message-square" size={14} />
             Open the team chat
-          </button>
+          </Button>
         </div>
         <Tabs
           label="Team"
@@ -790,23 +792,23 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
           <div className="min-w-0 flex-1">
             <AgentSelect agents={others} value={addId} onChange={setPick} />
           </div>
-          <button className="btn small" onClick={() => addId && void api.saveTeam(withMembers(wf, [...wf.members, addId]))}>
+          <Button size="small" onClick={() => addId && void api.saveTeam(withMembers(wf, [...wf.members, addId]))}>
             <Icon name="user-plus" size={14} />
             Add
-          </button>
+          </Button>
         </div>
       ) : (
         <p className="hint">Every agent in this project is already on it.</p>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <button className="btn ghost small" onClick={() => navigate(`#/library?branch=${encodeURIComponent(id)}`)}>
+        <Button variant="ghost" size="small" onClick={() => navigate(`#/library?branch=${encodeURIComponent(id)}`)}>
           <Icon name="store" size={14} />
           Hire from the Agent library
-        </button>
-        <button className="btn ghost small" onClick={() => openDock('auto', `For the team "${wf.name}": add `)}>
+        </Button>
+        <Button variant="ghost" size="small" onClick={() => openDock('auto', `For the team "${wf.name}": add `)}>
           <Icon name="brain" size={14} />
           Ask the Brain
-        </button>
+        </Button>
       </div>
       <p className="hint mt-4">Tip: drag an agent onto this team on the map to add it (hold Ctrl to also keep it on its other team).</p>
     </>
@@ -914,47 +916,47 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
       </SetupBox>
       <SetupBox icon="move" title="On the map" hint="Drag the team to move it anywhere. Shift+drag spins it.">
         <div className="flex flex-wrap items-center gap-1.5">
-          <button className="btn ghost small" onClick={() => void api.spinTeam(id)}>
+          <Button variant="ghost" size="small" onClick={() => void api.spinTeam(id)}>
             <Icon name="rotate-cw" size={14} />
             Spin 45°
-          </button>
+          </Button>
           {wf.pos || wf.rot ? (
-            <button className="btn ghost small" onClick={() => void api.saveTeam({ ...wf, pos: null, rot: null, angle: null })}>
+            <Button variant="ghost" size="small" onClick={() => void api.saveTeam({ ...wf, pos: null, rot: null, angle: null })}>
               <Icon name="rotate-ccw" size={14} />
               Put back next to the Brain
-            </button>
+            </Button>
           ) : null}
-          <button className="btn ghost small" onClick={() => api.zoomToTeam(id)}>
+          <Button variant="ghost" size="small" onClick={() => api.zoomToTeam(id)}>
             <Icon name="zoom-in" size={14} />
             Zoom to it
-          </button>
+          </Button>
         </div>
       </SetupBox>
       <SetupBox icon="workflow" title="Team builder and copies">
         <div className="flex flex-wrap items-center gap-1.5">
-          <button className="btn ghost small" onClick={() => openBranchBuilder({ wf, onSaved: () => void api.reloadTeams() })}>
+          <Button variant="ghost" size="small" onClick={() => openBranchBuilder({ wf, onSaved: () => void api.reloadTeams() })}>
             <Icon name="workflow" size={14} />
             Open the team builder
-          </button>
-          <button className="btn ghost small" title="A new team with the same members and settings" onClick={() => void cloneTeam(false)}>
+          </Button>
+          <Button variant="ghost" size="small" title="A new team with the same members and settings" onClick={() => void cloneTeam(false)}>
             <Icon name="copy" size={14} />
             Clone team
-          </button>
-          <button className="btn ghost small" title="A new team with copies of every member" onClick={() => void cloneTeam(true)}>
+          </Button>
+          <Button variant="ghost" size="small" title="A new team with copies of every member" onClick={() => void cloneTeam(true)}>
             <Icon name="copy" size={14} />
             Clone with its agents
-          </button>
-          <button className="btn ghost small" title="Keep the team and its agents as a template for any project" onClick={() => void presetTeam(wf)}>
+          </Button>
+          <Button variant="ghost" size="small" title="Keep the team and its agents as a template for any project" onClick={() => void presetTeam(wf)}>
             <Icon name="bookmark-plus" size={14} />
             Save as preset
-          </button>
+          </Button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
           <DomNode as="span" className="dom-contents" make={() => historyButton('team', id, () => void api.reloadTeams())} deps={[id]} />
-          <button className="btn danger tiny ml-auto" onClick={() => void remove()}>
+          <Button variant="danger" size="tiny" className="ml-auto" onClick={() => void remove()}>
             <Icon name="trash-2" size={12} />
             Delete team
-          </button>
+          </Button>
         </div>
       </SetupBox>
     </div>
@@ -1005,17 +1007,17 @@ function SymbolPicker({ api, wf }: { api: StationPanelApi; wf: TeamView }) {
       </div>
       <div className="mt-3 flex items-center gap-2">
         <input aria-label="Your own emoji" placeholder="Type or paste an emoji" maxLength={16} className="min-w-0 flex-1" ref={committed<HTMLInputElement>((el) => el.value.trim() && void setEmoji(el.value.trim()))} />
-        <button className="btn ghost small flex-none" onClick={() => void pickTeamMark({ id: wf.id, name: wf.name }).then((ok) => void (ok && api.reloadTeams()))}>
+        <Button variant="ghost" size="small" className="flex-none" onClick={() => void pickTeamMark({ id: wf.id, name: wf.name }).then((ok) => void (ok && api.reloadTeams()))}>
           <Icon name="image" size={14} />
           Picture or 3D model…
-        </button>
+        </Button>
       </div>
       {own ? (
         <div className="mt-3 flex flex-wrap items-center gap-2.5">
           <p className="hint m-0">{`Showing your ${own} (a .glb turns, a picture stays flat).`}</p>
-          <button className="btn ghost tiny" onClick={() => void setEmoji(wf.mark || '')}>
+          <Button variant="ghost" size="tiny" onClick={() => void setEmoji(wf.mark || '')}>
             Back to the emoji
-          </button>
+          </Button>
         </div>
       ) : null}
     </div>
@@ -1037,7 +1039,7 @@ function ModelSection({ a }: { a: Agent }) {
     }
   };
   return (
-    <div className="glass-plate mt-4 flex flex-col gap-2 rounded-[10px] p-4">
+    <Plate className="mt-4 flex flex-col gap-2 rounded-[10px] p-4">
       <div className="label">Model</div>
       <div className="flex items-center gap-3">
         <DomNode as="span" className="dom-contents" make={() => (mi.brand && logo(mi.brand, 22)) || icon('cpu', 22)} deps={[mi.brand]} />
@@ -1068,7 +1070,7 @@ function ModelSection({ a }: { a: Agent }) {
       ) : (
         <div className="hint">Not run yet. After the first run you see the exact model it used.</div>
       )}
-    </div>
+    </Plate>
   );
 }
 
@@ -1117,29 +1119,29 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
         </div>
         <ModelSection a={a} />
         <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
-          <button className="btn small" onClick={() => openChat('agent', id)}>
+          <Button size="small" onClick={() => openChat('agent', id)}>
             <Icon name="message-square" size={14} />
             Chat
-          </button>
-          <button className="btn ghost small" onClick={() => navigate(`#/agents/${id}`)}>
+          </Button>
+          <Button variant="ghost" size="small" onClick={() => navigate(`#/agents/${id}`)}>
             Full page
-          </button>
+          </Button>
           {a.engine !== 'openai' ? (
-            <button className="btn ghost small" onClick={() => openTerminal(a)}>
+            <Button variant="ghost" size="small" onClick={() => openTerminal(a)}>
               Terminal
-            </button>
+            </Button>
           ) : null}
-          <button className="btn ghost small" onClick={() => navigate(`#/agents/${id}/edit`)}>
+          <Button variant="ghost" size="small" onClick={() => navigate(`#/agents/${id}/edit`)}>
             Edit
-          </button>
-          <button className="btn ghost small" title="Make a copy of this agent" onClick={() => void clone()}>
+          </Button>
+          <Button variant="ghost" size="small" title="Make a copy of this agent" onClick={() => void clone()}>
             <Icon name="copy" size={13} />
             Clone
-          </button>
-          <button className="btn ghost small" title="Keep it as a template for any project" onClick={() => void presetAgent(a)}>
+          </Button>
+          <Button variant="ghost" size="small" title="Keep it as a template for any project" onClick={() => void presetAgent(a)}>
             <Icon name="bookmark-plus" size={13} />
             Preset
-          </button>
+          </Button>
         </div>
         <div className="label mt-7">Skills</div>
         <DomNode
@@ -1161,17 +1163,17 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
                 {w.name}
                 <span className="hint">{w.lead === id ? ' · ★ lead' : ' · member'}</span>
               </span>
-              <button className="btn tiny ghost" title={`Open ${w.name}'s chat with @${a.name}`} onClick={() => openChat('team', w.id).mention?.(a.name)}>
+              <Button variant="ghost" size="tiny" title={`Open ${w.name}'s chat with @${a.name}`} onClick={() => openChat('team', w.id).mention?.(a.name)}>
                 Chat
-              </button>
+              </Button>
               {w.lead !== id ? (
-                <button className="btn tiny ghost" title="Make lead of this team" aria-label={`Make ${a.name} lead of ${w.name}`} onClick={() => void api.saveTeam({ ...w, lead: id })}>
+                <Button variant="ghost" size="tiny" title="Make lead of this team" aria-label={`Make ${a.name} lead of ${w.name}`} onClick={() => void api.saveTeam({ ...w, lead: id })}>
                   ★
-                </button>
+                </Button>
               ) : null}
-              <button className="btn tiny ghost" title={`Take ${a.name} off this team`} onClick={() => void removeFrom(w)}>
+              <Button variant="ghost" size="tiny" title={`Take ${a.name} off this team`} onClick={() => void removeFrom(w)}>
                 Remove
-              </button>
+              </Button>
             </div>
           ))}
           {!onTeams.length ? <p className="hint">On the Bench: not in any team yet. Add it to one below, or drag it onto a team on the map.</p> : null}
@@ -1181,9 +1183,9 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
             <div className="min-w-0 flex-1">
               <SelectControl aria-label="Team to add it to" value={addTo} onChange={setPick} options={others.map((w) => ({ value: w.id, label: w.name }))} />
             </div>
-            <button className="btn small" onClick={() => void addToTeam()}>
+            <Button size="small" onClick={() => void addToTeam()}>
               Add to team
-            </button>
+            </Button>
           </div>
         ) : null}
         <div className="label mt-7">Connections it can use</div>

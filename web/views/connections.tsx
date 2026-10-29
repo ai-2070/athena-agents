@@ -1,4 +1,5 @@
 // Settings > Connections: X and Reddit accounts, Telegram, Discord, and the Outbox where posts wait for you.
+import { Button, ButtonLink } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, PUT, DEL, attempt, copy, ago, confirmBox } from '../core.ts';
@@ -108,7 +109,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
     <div className="flex flex-col gap-10">
       {/* col gap-lg: the mark tests find the groups by */}
       <Sections className="col gap-lg">
-        <Section title="X accounts" description="The accounts your agents can post from." action={accounts.xAppConfigured ? <a className="btn small" href={serverUrl('/oauth/x/start')}>+ Connect an account</a> : null}>
+        <Section title="X accounts" description="The accounts your agents can post from." action={accounts.xAppConfigured ? <ButtonLink size="small" href={serverUrl('/oauth/x/start')}>+ Connect an account</ButtonLink> : null}>
           {accounts.x.length ? (
             accounts.x.map((a) => <XAccount key={a.id} a={a} reload={reload} />)
           ) : (
@@ -125,8 +126,8 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
             <input className="code" defaultValue={settings.telegram.chatId} placeholder="Your chat ID (message @userinfobot to get it)" onChange={(e) => (tg.current.chatId = e.target.value)} />
           </FieldRow>
           <RowActions>
-            <button className="btn ghost small" onClick={() => test('telegram')}>Send test</button>
-            <button className="btn small" onClick={() => void saveTelegram()}>Save</button>
+            <Button variant="ghost" size="small" onClick={() => test('telegram')}>Send test</Button>
+            <Button size="small" onClick={() => void saveTelegram()}>Save</Button>
           </RowActions>
         </Section>
 
@@ -135,8 +136,8 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
             <input className="code" type="password" autoComplete="off" placeholder={saved(secrets.discordWebhook, 'https://discord.com/api/webhooks/…')} onChange={(e) => (dc.current = e.target.value)} />
           </FieldRow>
           <RowActions>
-            <button className="btn ghost small" onClick={() => test('discord')}>Send test</button>
-            <button className="btn small" onClick={() => void saveDiscord()}>Save</button>
+            <Button variant="ghost" size="small" onClick={() => test('discord')}>Send test</Button>
+            <Button size="small" onClick={() => void saveDiscord()}>Save</Button>
           </RowActions>
         </Section>
 
@@ -170,12 +171,12 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
             <input className="code" type="password" autoComplete="off" placeholder={saved(secrets.xClientSecret, 'Client Secret (only for confidential apps)')} onChange={(e) => (x.current.secret = e.target.value)} />
           </FieldRow>
           <RowActions>
-            <button className="btn small" onClick={() => void saveX()}>Save</button>
+            <Button size="small" onClick={() => void saveX()}>Save</Button>
           </RowActions>
           <PanelNote>{`Open the dashboard at the same address you registered (${location.host}). localhost and 127.0.0.1 count as different addresses for X.`}</PanelNote>
         </Section>
 
-        <Section title="Reddit accounts" description="The accounts your agents can read and post with." action={accounts.redditAppConfigured ? <a className="btn small" href={serverUrl('/oauth/reddit/start')}>+ Connect an account</a> : null}>
+        <Section title="Reddit accounts" description="The accounts your agents can read and post with." action={accounts.redditAppConfigured ? <ButtonLink size="small" href={serverUrl('/oauth/reddit/start')}>+ Connect an account</ButtonLink> : null}>
           {(accounts.reddit || []).length ? (
             accounts.reddit.map((a) => (
               <div key={a.id} className="list-row flex-wrap gap-4 px-5 py-4">
@@ -190,7 +191,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
                   ask={`Let agents post to Reddit as u/${a.username} without asking you?`}
                   save={(v) => POST(`/accounts/reddit/${a.id}`, { autopost: v })}
                 />
-                <button className="btn tiny danger" onClick={() => void disconnect(`u/${a.username}`, `/accounts/reddit/${a.id}`, reload)}>Disconnect</button>
+                <Button variant="danger" size="tiny" onClick={() => void disconnect(`u/${a.username}`, `/accounts/reddit/${a.id}`, reload)}>Disconnect</Button>
               </div>
             ))
           ) : (
@@ -226,7 +227,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
             <input defaultValue={settings.reddit?.username || ''} placeholder="Your Reddit username" onChange={(e) => (rd.current.username = e.target.value)} />
           </FieldRow>
           <RowActions>
-            <button className="btn small" onClick={() => void saveReddit()}>Save</button>
+            <Button size="small" onClick={() => void saveReddit()}>Save</Button>
           </RowActions>
         </Section>
       </Sections>
@@ -237,7 +238,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
 const CopyCode = ({ text }: { text: string }) => (
   <>
     <code className="break-all text-ink">{text}</code>{' '}
-    <button className="btn tiny ghost ml-1 align-middle" onClick={() => copy(text)}>Copy</button>
+    <Button variant="ghost" size="tiny" className="ml-1 align-middle" onClick={() => copy(text)}>Copy</Button>
   </>
 );
 
@@ -279,7 +280,7 @@ function XAccount({ a, reload }: { a: Accounts['x'][number]; reload: () => Promi
           {p.text}
           <div className="hint">{`♥ ${p.metrics?.like_count ?? 0} · ↻ ${p.metrics?.retweet_count ?? 0} · 💬 ${p.metrics?.reply_count ?? 0} · ${ago(Date.parse(p.createdAt))}`}</div>
         </div>
-        <a className="btn tiny ghost" href={p.url} target="_blank" rel="noopener">Open</a>
+        <ButtonLink variant="ghost" size="tiny" href={p.url} target="_blank" rel="noopener">Open</ButtonLink>
       </div>
     ));
   return (
@@ -293,9 +294,9 @@ function XAccount({ a, reload }: { a: Accounts['x'][number]; reload: () => Promi
         <AutoPost initial={a.autopost} title="Publish agent posts right away, without the Outbox" ask={`Let agents publish to @${a.username} without asking you? Posts will go out immediately.`} save={(v) => POST(`/accounts/x/${a.id}`, { autopost: v })} />
       </div>
       <div className="mt-3.5 flex flex-wrap items-center gap-2">
-        <button className="btn tiny ghost" onClick={() => void recent()}>Recent posts</button>
-        <a className="btn tiny ghost" href={serverUrl('/oauth/x/start')}>Reconnect</a>
-        <button className="btn tiny danger" onClick={() => void disconnect(`@${a.username}`, `/accounts/x/${a.id}`, reload)}>Disconnect</button>
+        <Button variant="ghost" size="tiny" onClick={() => void recent()}>Recent posts</Button>
+        <ButtonLink variant="ghost" size="tiny" href={serverUrl('/oauth/x/start')}>Reconnect</ButtonLink>
+        <Button variant="danger" size="tiny" onClick={() => void disconnect(`@${a.username}`, `/accounts/x/${a.id}`, reload)}>Disconnect</Button>
       </div>
       <div aria-live="polite">{shown}</div>
     </div>

@@ -24,6 +24,7 @@ import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import { chatWindowKeys, chatWindowShortcut } from './shortcuts.ts';
 import type { ChatWindowAction } from './shortcuts.ts';
 import { Avatar, Icon, IconWeightProvider, useAppState } from './ui/react.tsx';
+import { IconButton } from './ui/button.tsx';
 import type { TeamListing } from '../shared/types.ts';
 
 declare global {
@@ -874,15 +875,15 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
         </Tabs.Root>
         <span className="flex-1 min-w-0" />
         <LayoutMenu w={w} />
-        <button className={BTN} title={`Minimize (${chatWindowKeys().minimize})`} aria-label="Minimize the chats" onClick={() => setMin(w, true)}>
+        <IconButton className="plain flex-none" title={`Minimize (${chatWindowKeys().minimize})`} aria-label="Minimize the chats" onClick={() => setMin(w, true)}>
           –
-        </button>
-        <button className={BTN} title="Maximize / restore" aria-label={w.max ? 'Restore the chats' : 'Maximize the chats'} onClick={() => setMax(w, !w.max)}>
+        </IconButton>
+        <IconButton className="plain flex-none" title="Maximize / restore" aria-label={w.max ? 'Restore the chats' : 'Maximize the chats'} onClick={() => setMax(w, !w.max)}>
           <Icon name="maximize-2" size={13} />
-        </button>
-        <button className="icon-btn flex-none" title="Close this window's chats" aria-label="Close all chats in this window" onClick={() => closeWin(w)}>
+        </IconButton>
+        <IconButton className="flex-none" title="Close this window's chats" aria-label="Close all chats in this window" onClick={() => closeWin(w)}>
           <Icon name="x" size={15} />
-        </button>
+        </IconButton>
       </div>
       {/* the conversations' own elements go in here (made outside React) */}
       <div className={`flex-1 min-h-0 relative overflow-hidden ${w.max ? 'rounded-b-[12px]' : 'rounded-b-[16px]'}`} ref={(el) => void (w.body = el)} />

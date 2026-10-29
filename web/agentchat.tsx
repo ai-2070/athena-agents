@@ -9,6 +9,7 @@ import { modelChip } from './models.ts';
 import { attachTray } from './attach.ts';
 import { memoryButton } from './memory.ts';
 import { DomNode, Icon, useAppState } from './ui/react.tsx';
+import { Button, ButtonLink } from './ui/button.tsx';
 import type { ChatViewApi } from './chat/ChatView.tsx';
 import type { Chat, ChatSummary } from '../shared/types.ts';
 
@@ -93,15 +94,15 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
     <div className="flex flex-col gap-3 h-full" ref={root}>
       <div className="flex items-center gap-2 pt-1">
         <span className="flex-1 min-w-0" />
-        <button className="btn tiny ghost" title="Start a fresh conversation" onClick={() => void fresh()}>
+        <Button size="tiny" variant="ghost" title="Start a fresh conversation" onClick={() => void fresh()}>
           <Icon name="plus" size={13} />
           New chat
-        </button>
+        </Button>
         <DomNode as="span" make={() => memoryButton(agentId, agent?.name, 'button.btn.tiny.ghost')} deps={[agentId]} />
-        <a className="btn tiny ghost" title="Open the full chat page" href={chatId ? `#/agents/${agentId}/${chatId}` : `#/agents/${agentId}`}>
+        <ButtonLink size="tiny" variant="ghost" title="Open the full chat page" href={chatId ? `#/agents/${agentId}/${chatId}` : `#/agents/${agentId}`}>
           <Icon name="maximize-2" size={13} />
           Full page
-        </a>
+        </ButtonLink>
       </div>
       <div className="contents">
         {agent && pick ? (

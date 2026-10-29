@@ -1,5 +1,7 @@
 // Live terminals: PowerShell, Claude Code, Hermes, Orca, or any Claude Code / Hermes agent.
 // The page is React; each terminal is xterm, talking to the server over a WebSocket.
+import { Button } from '../ui/button.tsx';
+import { Plate } from '../ui/surface.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import type { ITheme } from '@xterm/xterm';
@@ -126,7 +128,7 @@ function Launcher() {
           {card('Orca', 'Orca CLI: status, worktrees, agent sessions.', { kind: 'command', command: 'orca', args: ['status'], title: 'Orca' })}
         </div>
         {agents.length ? (
-          <div className="glass-plate mt-8 rounded-box p-6">
+          <Plate className="mt-8 rounded-box p-6">
             <div className="panel-head">
               <h2>Open an agent in a terminal</h2>
             </div>
@@ -135,9 +137,9 @@ function Launcher() {
               <div className="w-75">
                 <SelectControl aria-label="Agent" value={agentId} onChange={setAgentId} options={agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` }))} />
               </div>
-              <button className="btn" onClick={() => void open({ kind: 'agent', agentId })}>Open</button>
+              <Button onClick={() => void open({ kind: 'agent', agentId })}>Open</Button>
             </div>
-          </div>
+          </Plate>
         ) : null}
       </div>
     </div>

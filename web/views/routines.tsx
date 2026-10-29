@@ -1,5 +1,7 @@
 // Routines: instructions you run again and again. Type @ in the text to mention who does it (agents,
 // teams) and which skills they use. Run it by hand or on a schedule.
+import { Plate, PlateSection } from '../ui/surface.tsx';
+import { Button, ButtonLink } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { h, md, GET, POST, PUT, DEL, attempt, navigate, confirmBox, ago, state, toast } from '../core.ts';
@@ -90,10 +92,10 @@ function RoutinesList() {
       <p className="lede max-w-[68ch]">A routine is work you want done again and again: a morning news check, a weekly report, a content plan. Write it once, @mention the agents and teams who do it and the skills they should use, then run it by hand or on a schedule.</p>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
         <h2 className="section m-0">{`Your routines${list.length ? ` (${list.length})` : ''}`}</h2>
-        <button className="btn" onClick={() => void create()}>
+        <Button  onClick={() => void create()}>
           <Icon name="plus" size={14} />
           New routine
-        </button>
+        </Button>
       </div>
       {list.length ? (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-3">
@@ -105,10 +107,10 @@ function RoutinesList() {
         <div className="flex flex-col items-center gap-3 py-12 text-center">
           <p className="m-0 text-dim">No routines yet.</p>
           <p className="hint m-0 max-w-130">Example: "Every morning, @Researcher finds the 3 biggest AI stories, then @Content Team turns them into a post using @Brand voice."</p>
-          <button className="btn" onClick={() => void create()}>
+          <Button  onClick={() => void create()}>
             <Icon name="plus" size={14} />
             Write your first routine
-          </button>
+          </Button>
         </div>
       )}
     </>
@@ -156,10 +158,10 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
         <span className="hint">Nobody mentioned yet</span>
       )}
       <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-line pt-3">
-        <button className="btn small" disabled={running || !on} title={on ? undefined : 'Switch the routine on to run it'} onClick={() => void run()}>
+        <Button size="small" disabled={running || !on} title={on ? undefined : 'Switch the routine on to run it'} onClick={() => void run()}>
           <Icon name="play" size={13} />
           Run
-        </button>
+        </Button>
         <span className="flex-1 min-w-0" />
         {last ? (
           <span className="hint">
@@ -284,27 +286,27 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
     </div>
   );
   const insert = (kind: RoutineMentionKind, label: string, ico: string) => (
-    <button className="btn ghost tiny" type="button" title={`Mention ${label.toLowerCase()}`} onClick={() => startMention(ta.current!, kind)}>
+    <Button variant="ghost" size="tiny" type="button" title={`Mention ${label.toLowerCase()}`} onClick={() => startMention(ta.current!, kind)}>
       <Icon name={ico} size={12} />
       {label}
-    </button>
+    </Button>
   );
 
   return (
     <div className="mx-auto max-w-6xl">
       <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
-        <a className="btn ghost small" href="#/routines">← Routines</a>
+        <ButtonLink variant="ghost" size="small" href="#/routines">← Routines</ButtonLink>
         <div className="flex flex-wrap items-center gap-4">
           {isNew ? null : (
             <Switch checked={active} onChange={switchActive}>
               <span className="text-[13px] font-medium text-dim">{active ? 'Routine on' : 'Routine off'}</span>
             </Switch>
           )}
-          <button className="btn ghost" disabled={running || isNew || !active} title={isNew || !active ? 'Save the routine first, and switch it on, to run it' : undefined} onClick={() => void run()}>
+          <Button variant="ghost" disabled={running || isNew || !active} title={isNew || !active ? 'Save the routine first, and switch it on, to run it' : undefined} onClick={() => void run()}>
             <Icon name="play" size={14} />
             Run now
-          </button>
-          <button className="btn" disabled={!canSave} title={!text.trim() ? 'Write what the routine should do first' : undefined} onClick={() => void save()}>Save</button>
+          </Button>
+          <Button  disabled={!canSave} title={!text.trim() ? 'Write what the routine should do first' : undefined} onClick={() => void save()}>Save</Button>
         </div>
       </div>
       <div className="mb-7">
@@ -312,7 +314,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
         <p className="hint mt-2 mb-0">Set the work, who does it and when it runs.</p>
       </div>
       <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(300px,1fr)] items-start gap-5 max-lg:grid-cols-1">
-        <div className="glass-plate min-w-0 rounded-box p-5 sm:p-6">
+        <Plate className="min-w-0 rounded-box p-5 sm:p-6">
           <div>
             <div className="panel-head !mb-4"><h2>Details</h2></div>
             <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
@@ -356,9 +358,9 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
               ) : null}
             </div>
           </div>
-        </div>
+        </Plate>
         <aside className="flex min-w-0 flex-col gap-5">
-          <section className="panel glass-plate !m-0 !p-5 sm:!p-6">
+          <PlateSection className="panel !m-0 !p-5 sm:!p-6">
             <div className="panel-head !mb-3">
               <h2>Schedule</h2>
               <div className="actions" title={kind === 'none' ? 'Pick Every… or Daily to schedule this routine' : undefined}>
@@ -369,19 +371,19 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             </div>
             <DomNode make={() => scheduleEditor(r.current, () => (setDirty(true), setKind(r.current.schedule?.type || 'none')), { inputLabel: 'Extra for scheduled runs (optional)', showToggle: false })} deps={[id]} />
             {kind !== 'none' ? <p className="hint">Runs while the dashboard is open.</p> : null}
-          </section>
+          </PlateSection>
         </aside>
-        <section className="glass-plate col-span-2 rounded-box p-5 sm:p-6 max-lg:col-span-1">
+        <PlateSection className="col-span-2 rounded-box p-5 sm:p-6 max-lg:col-span-1">
             <div className="panel-head !mb-3">
               <h2>Runs</h2>
             </div>
             <Runs id={id} />
             {isNew ? null : (
               <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-5">
-                <button className="btn danger small" onClick={() => void del()}>Delete routine</button>
+                <Button variant="danger" size="small" onClick={() => void del()}>Delete routine</Button>
               </div>
             )}
-          </section>
+          </PlateSection>
       </div>
     </div>
   );
@@ -436,7 +438,7 @@ function Runs({ id }: { id: string }) {
           </div>
         </details>
         {run.status === 'running' ? (
-          <button className="btn tiny danger absolute top-3 right-8" onClick={() => void attempt(() => POST(`/routine-runs/${run.id}/stop`))}>Stop</button>
+          <Button variant="danger" size="tiny" className="absolute top-3 right-8" onClick={() => void attempt(() => POST(`/routine-runs/${run.id}/stop`))}>Stop</Button>
         ) : null}
         </div>
       ))}
@@ -453,15 +455,15 @@ function TargetRow({ t }: { t: RoutineRunTarget }) {
         <span className="hint capitalize">{t.kind === 'team' ? `team · ${t.status}` : t.status}</span>
         <span className="flex-1 min-w-0" />
         {t.kind === 'team' ? (
-          <button className="btn ghost tiny" onClick={() => openChat('team', t.id)}>
+          <Button variant="ghost" size="tiny" onClick={() => openChat('team', t.id)}>
             <Icon name="message-square" size={12} />
             Team chat
-          </button>
+          </Button>
         ) : t.chatId ? (
-          <a className="btn ghost tiny" href={`#/agents/${t.id}/${t.chatId}`}>
+          <ButtonLink variant="ghost" size="tiny" href={`#/agents/${t.id}/${t.chatId}`}>
             <Icon name="message-square" size={12} />
             Chat
-          </a>
+          </ButtonLink>
         ) : null}
       </div>
       {t.output ? (

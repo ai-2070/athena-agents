@@ -19,6 +19,7 @@ import { parseCommand } from '../shared/commands.ts';
 import { commandChips, slashMenu } from './chatcommands.ts';
 import type { SlashMenu } from './chatcommands.ts';
 import { Avatar, DomNode, Icon, IconWeightProvider, mountReact, useAppState } from './ui/react.tsx';
+import { Button } from './ui/button.tsx';
 import type { Agent, BrainBrief, LoopInfo, QueuedMessage, RunEvent, Team, TeamMessage, TeamRef, TeamState } from '../shared/types.ts';
 
 // A working agent's turn (and the work behind a reply): the AI SDK pieces load when first needed.
@@ -868,13 +869,13 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
           <div className="flex flex-none items-center gap-1">
             <DomNode as="span" className="dom-contents" make={() => tray.picker} deps={[tray]} />
             {busy.length && !filled ? (
-              <button className="btn danger size-8 px-0" title="Stop the whole team" aria-label="Stop" onClick={() => void stop()}>
+              <Button variant="danger" className="size-8 px-0" title="Stop the whole team" aria-label="Stop" onClick={() => void stop()}>
                 <Icon name="square" size={14} />
-              </button>
+              </Button>
             ) : (
-              <button className="btn size-8 px-0" title={busy.length ? 'Send now: whoever is working stops and takes this up (Enter)' : 'Send (Enter)'} aria-label="Send" onClick={() => void send()}>
+              <Button className="size-8 px-0" title={busy.length ? 'Send now: whoever is working stops and takes this up (Enter)' : 'Send (Enter)'} aria-label="Send" onClick={() => void send()}>
                 <Icon name="arrow-up" size={16} />
-              </button>
+              </Button>
             )}
           </div>
         </div>

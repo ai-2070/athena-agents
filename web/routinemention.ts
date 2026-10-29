@@ -3,7 +3,8 @@
 import { h, mount } from './core.ts';
 import type { Child } from './core.ts';
 import { uiZoom } from './look.ts';
-import { dismissMenu } from './menuclose.ts';
+import { openMentionPopup } from './routinementionmenu.tsx';
+import type { MentionPopup } from './routinementionmenu.tsx';
 import { mentionQuery } from '../shared/routines.ts';
 import type { RoutineMention, RoutineMentionKind } from '../shared/types.ts';
 
@@ -17,7 +18,10 @@ export interface Candidate extends RoutineMention {
 export const KIND_LABEL: Record<RoutineMentionKind, string> = { agent: 'Agents', team: 'Teams', skill: 'Skills' };
 
 interface MenuState {
-  el: HTMLElement;
+  el: HTMLElement | null;
+  popup: MentionPopup | null;
+  id: string;
+  aria: Map<string, string | null>;
   ta: HTMLTextAreaElement;
   start: number;
   kind: RoutineMentionKind | null;
@@ -27,10 +31,19 @@ interface MenuState {
   candidates: () => Candidate[];
 }
 let menu: MenuState | null = null;
+let nextMenuId = 0;
+const mentionAria = ['aria-autocomplete', 'aria-controls', 'aria-activedescendant'] as const;
 
 export function closeMenu(): void {
-  if (menu) dismissMenu(menu.el);
+  const current = menu;
   menu = null;
+  if (current) {
+    for (const [name, value] of current.aria) {
+      if (value === null) current.ta.removeAttribute(name);
+      else current.ta.setAttribute(name, value);
+    }
+  }
+  current?.popup?.close();
 }
 
 /** Watches a textarea for "@…" and offers what it can mention. Returns how to stop. */
@@ -95,15 +108,33 @@ function openMenu(ta: HTMLTextAreaElement, start: number, query: string, kind: R
   // names that start with what you typed first, then names that contain it
   const items = [...all.filter((c) => c.name.toLowerCase().startsWith(q)), ...all.filter((c) => q && !c.name.toLowerCase().startsWith(q) && `${c.name} ${c.sub}`.toLowerCase().includes(q))].slice(0, 30);
   if (!items.length && q.includes(' ')) return closeMenu(); // typing on past a name: not a mention
-  // (sized as the skill picker's menu, skp-menu)
-  const el = menu?.ta === ta ? menu.el : h('div.st-menu.skp-menu.rt-menu', { class: 'static w-[300px] max-w-[300px]' });
-  if (!el.isConnected) document.body.append(el);
-  // keep the menu's own scroll and clicks from moving focus out of the text
-  el.onmousedown = (e) => e.preventDefault();
-  menu = { el, ta, start, kind, items, active: 0, onPick, candidates };
+  if (menu && menu.ta !== ta) closeMenu();
   const groups = (['agent', 'team', 'skill'] as const).map((k) => ({ k, list: items.filter((c) => c.kind === k) })).filter((g) => g.list.length);
-  // the order on screen is the order for the arrow keys
-  menu.items = groups.flatMap((g) => g.list);
+  // The order on screen is the order for the arrow keys.
+  const ordered = groups.flatMap((g) => g.list);
+  if (menu) {
+    Object.assign(menu, { start, kind, items: ordered, active: 0, onPick, candidates });
+  } else {
+    const id = `routine-mention-${++nextMenuId}`;
+    const aria = new Map<string, string | null>(mentionAria.map((name) => [name, ta.getAttribute(name)]));
+    ta.setAttribute('aria-autocomplete', 'list');
+    ta.setAttribute('aria-controls', id);
+    menu = { el: null, popup: null, id, aria, ta, start, kind, items: ordered, active: 0, onPick, candidates };
+    const state = menu;
+    state.popup = openMentionPopup(ta, id, () => caretRect(ta, state.start), (el) => {
+      if (menu !== state) return;
+      state.el = el;
+      paintMenu();
+    }, () => { if (menu === state) closeMenu(); });
+  }
+  paintMenu();
+  menu?.popup?.update();
+}
+
+function paintMenu() {
+  if (!menu?.el) return;
+  const { el, kind, items } = menu;
+  const groups = (['agent', 'team', 'skill'] as const).map((k) => ({ k, list: items.filter((c) => c.kind === k) })).filter((g) => g.list.length);
   mount(
     el,
     h('div.st-menu-head', kind ? `Mention ${KIND_LABEL[kind].slice(0, -1).toLowerCase()}` : 'Mention'),
@@ -119,13 +150,19 @@ function openMenu(ta: HTMLTextAreaElement, start: number, query: string, kind: R
     ),
   );
   paintActive();
-  placeMenu(el, ta, start);
 }
 
 function paintActive() {
-  if (!menu) return;
+  if (!menu?.el) return;
   const buttons = menu.el.querySelectorAll<HTMLElement>('.rt-menu-item');
-  buttons.forEach((b, i) => b.classList.toggle('active', i === menu!.active));
+  buttons.forEach((b, i) => {
+    b.classList.toggle('active', i === menu!.active);
+    b.id = `${menu!.id}-option-${i}`;
+    b.setAttribute('role', 'option');
+    b.setAttribute('aria-selected', String(i === menu!.active));
+  });
+  if (buttons[menu.active]) menu.ta.setAttribute('aria-activedescendant', buttons[menu.active].id);
+  else menu.ta.removeAttribute('aria-activedescendant');
   buttons[menu.active]?.scrollIntoView({ block: 'nearest' });
 }
 
@@ -142,7 +179,7 @@ function pick(c: Candidate) {
 }
 
 // Put the menu under the caret: measure where it is with a hidden copy of the textarea.
-function placeMenu(el: HTMLElement, ta: HTMLTextAreaElement, pos: number) {
+function caretRect(ta: HTMLTextAreaElement, pos: number): DOMRect {
   const z = uiZoom();
   const cs = getComputedStyle(ta);
   const copy = document.createElement('div');
@@ -157,11 +194,7 @@ function placeMenu(el: HTMLElement, ta: HTMLTextAreaElement, pos: number) {
   const y = mark.offsetTop - ta.scrollTop + (parseFloat(cs.lineHeight) || 20);
   copy.remove();
   const r = ta.getBoundingClientRect();
-  const w = 320;
-  const left = Math.max(8, Math.min(r.left / z + x, window.innerWidth / z - w - 8));
-  let top = r.top / z + Math.min(y, ta.clientHeight) + 4;
-  const room = window.innerHeight / z - top;
-  // no room below: open above the caret
-  if (room < 220) top = Math.max(8, r.top / z + y - (parseFloat(cs.lineHeight) || 20) - Math.min(320, el.offsetHeight || 320) - 6);
-  Object.assign(el.style, { position: 'fixed', left: `${left}px`, top: `${top}px`, transform: 'none', zIndex: '96', width: `${w}px` });
+  const lineHeight = parseFloat(cs.lineHeight) || 20;
+  const bottom = r.top + Math.min(y, ta.clientHeight) * z;
+  return new DOMRect(r.left + x * z, bottom - lineHeight * z, 0, lineHeight * z);
 }

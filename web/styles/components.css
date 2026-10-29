@@ -35,10 +35,12 @@ h2.section .label { font-weight: 400; }
 .btn:hover { background: var(--color-accent-hover); }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
-.btn.ghost { background: var(--color-panel); color: var(--color-ink); border-color: var(--color-line-2); }
-.btn.ghost:hover { background: var(--color-panel-2); border-color: color-mix(in srgb, var(--color-ink) 22%, var(--color-line-2)); color: var(--color-ink); }
+.btn.ghost { background: light-dark(rgb(20 22 40 / 0.03), rgb(255 255 255 / 0.04)); color: var(--color-ink); border-color: var(--color-line-2); }
+.btn.ghost:hover { background: light-dark(rgb(20 22 40 / 0.06), rgb(255 255 255 / 0.09)); border-color: color-mix(in srgb, var(--color-ink) 22%, var(--color-line-2)); color: var(--color-ink); }
 .btn.danger { background: var(--color-panel); color: var(--color-red); border-color: color-mix(in srgb, var(--color-red) 38%, var(--color-line-2)); }
 .btn.danger:hover { background: color-mix(in srgb, var(--color-red) 9%, var(--color-panel)); border-color: color-mix(in srgb, var(--color-red) 60%, var(--color-line-2)); }
+.btn.ghost.danger { background: light-dark(rgb(20 22 40 / 0.03), rgb(255 255 255 / 0.04)); }
+.btn.ghost.danger:hover { background: light-dark(rgb(20 22 40 / 0.06), rgb(255 255 255 / 0.09)); }
 .btn.small { height: 30px; padding: 0 12px; font-size: 13px; }
 .btn.tiny { height: 26px; padding: 0 9px; font-size: 12px; gap: 6px; }
 .btn .ico-svg { margin: 0 -2px 0 -3px; }
@@ -62,7 +64,7 @@ label.field, div.field { display: flex; flex-direction: column; gap: 8px; }
 label.field > span:first-child, div.field > span:first-child { font: 500 13px/1.3 var(--font-sans); color: var(--color-dim); }
 
 /* a switch between a few choices: one soft track, the picked one lifted out of it */
-.seg { display: inline-flex; flex-wrap: wrap; gap: 2px; width: fit-content; max-width: 100%; padding: 3px; background: var(--color-panel-2); border: 1px solid var(--color-line); border-radius: calc(var(--radius-ctl) + 3px); }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 2px; width: fit-content; max-width: 100%; padding: 3px; background: light-dark(rgb(20 22 40 / 0.035), rgb(255 255 255 / 0.035)); border: 1px solid var(--color-line); border-radius: calc(var(--radius-ctl) + 3px); }
 .seg button {
   position: relative; isolation: isolate; background: transparent; border: 0; border-radius: var(--radius-ctl); padding: 6px 14px; cursor: pointer; color: var(--color-dim);
   font: 500 13px/1.3 var(--font-sans); white-space: nowrap;
@@ -403,10 +405,10 @@ details.compaction .hint.warn { color: var(--color-amber); }
 .approval.question textarea { min-height: 0; margin: 0; }
 
 /* ---------- dialogs and toasts (web/ui/overlays.tsx) ---------- */
-.modal-back { position: fixed; inset: 0; z-index: 60; background: var(--color-scrim); display: grid; place-items: center; padding: 24px; backdrop-filter: blur(4px); animation: var(--animate-fade); }
+.modal-back { position: fixed; inset: 0; z-index: 60; background: var(--color-scrim); display: grid; place-items: center; padding: 24px; backdrop-filter: none; animation: var(--animate-fade); }
 .modal {
   width: min(880px, 100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column;
-  background: var(--color-glass-strong); backdrop-filter: blur(18px); border: 1px solid var(--color-line); border-radius: 16px; box-shadow: var(--shadow-pop);
+  border-radius: 16px;
   animation: var(--animate-pop);
 }
 /* the way out (a dialog opened with exit: true), the opening backwards */
@@ -490,8 +492,6 @@ body:not(.station-mode) #view .glass-plate {
     0 0 0 1px light-dark(rgb(20 22 40 / 0.06), rgb(0 0 0 / 0.7)),
     0 24px 60px -18px light-dark(rgb(20 22 40 / 0.3), rgb(0 0 0 / 0.9));
 }
-/* The dialog blurs the page itself; the backdrop must not create a backdrop root. */
-.modal-back { backdrop-filter: none; }
 .modal {
   box-shadow:
     inset 0 1px 0 var(--glass-spec),
@@ -513,11 +513,6 @@ body:not(.station-mode) #view .glass-plate {
 :is(.st-panel, .modal) :is(input:not([type='checkbox'], [type='radio'], [type='range']), textarea, select):not(:focus) { box-shadow: inset 0 1px 0 var(--glass-spec); }
 /* A gentler sheen keeps the dialog header quiet. */
 .modal { --glass-sheen: light-dark(rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.045)); }
-/* the Cancel button is a soft plate, the main one gets a lit top edge so it has some body */
-.btn.ghost { background: light-dark(rgb(20 22 40 / 0.03), rgb(255 255 255 / 0.04)); }
-.btn.ghost:hover { background: light-dark(rgb(20 22 40 / 0.06), rgb(255 255 255 / 0.09)); }
-/* the choice between a few things: a faint track, and the picked one a lit plate instead of a grey block */
-.seg { background: light-dark(rgb(20 22 40 / 0.035), rgb(255 255 255 / 0.035)); border-color: var(--color-line); }
 /* a checkbox drawn by us (the browser's own is a stock blue square) */
 input[type='checkbox'] {
   appearance: none; -webkit-appearance: none; flex: none; display: inline-grid; place-content: center;

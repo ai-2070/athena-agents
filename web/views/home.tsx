@@ -1,4 +1,6 @@
 // Home (Overview): what's happening, what needs you, and a quick way to give any agent a task.
+import { Plate, PlateLink } from '../ui/surface.tsx';
+import { Button, ButtonLink } from '../ui/button.tsx';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, attempt, ago, navigate, approvalCard } from '../core.ts';
@@ -56,7 +58,7 @@ function HomePage() {
         <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
           {agents.length ? <QuickTask d={d} /> : null}
           {d.approvals.length ? (
-            <div className="panel glass-plate">
+            <Plate className="panel">
               <div className="panel-head">
                 <h2>Needs you</h2>
               </div>
@@ -65,10 +67,10 @@ function HomePage() {
                   <DomNode key={a.id} make={() => approvalCard(a)} deps={[JSON.stringify(a)]} />
                 ))}
               </div>
-            </div>
+            </Plate>
           ) : null}
           {d.runs.length ? (
-            <div className="panel glass-plate">
+            <Plate className="panel">
               <div className="panel-head">
                 <h2>Working now</h2>
               </div>
@@ -82,24 +84,24 @@ function HomePage() {
                         <div className="title">{r.agentName}</div>
                         <div className="hint">{`started ${ago(r.startedAt)}`}</div>
                       </div>
-                      <a className="btn ghost small" href={`#/agents/${r.agentId}/${r.chatId}`}>Watch</a>
+                      <ButtonLink variant="ghost" size="small" href={`#/agents/${r.agentId}/${r.chatId}`}>Watch</ButtonLink>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </Plate>
           ) : null}
           {agents.length ? (
-            <div className="panel glass-plate">
+            <Plate className="panel">
               <div className="panel-head">
                 <h2>Your agents</h2>
                 <div className="actions">
-                  <a className="btn ghost small" href="#/agents">All agents</a>
+                  <ButtonLink variant="ghost" size="small" href="#/agents">All agents</ButtonLink>
                 </div>
               </div>
               <div className="cards grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
                 {agents.slice(0, 8).map((a) => (
-                  <a key={a.id} className="card glass-plate hover:shadow-none clickable" href={`#/agents/${a.id}`}>
+                  <PlateLink key={a.id} className="card hover:shadow-none clickable" href={`#/agents/${a.id}`}>
                     <div className="card-top">
                       <Avatar agent={a} />
                       <div className="flex-1 min-w-0">
@@ -112,18 +114,18 @@ function HomePage() {
                         <span className="dot busy" />
                       </span>
                     ) : null}
-                  </a>
+                  </PlateLink>
                 ))}
               </div>
-            </div>
+            </Plate>
           ) : null}
         </div>
         <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
-          <div className="panel glass-plate">
+          <Plate className="panel">
             <div className="panel-head">
               <h2>Programs</h2>
               <div className="actions">
-                <a className="btn ghost small" href="#/settings?tab=programs">All programs</a>
+                <ButtonLink variant="ghost" size="small" href="#/settings?tab=programs">All programs</ButtonLink>
               </div>
             </div>
             {services.length ? (
@@ -142,8 +144,8 @@ function HomePage() {
             ) : (
               <p className="empty">{progs ? 'None of the usual programs found.' : 'Scanning…'}</p>
             )}
-          </div>
-          <div className="panel glass-plate">
+          </Plate>
+          <Plate className="panel">
             <div className="panel-head">
               <h2>Activity</h2>
             </div>
@@ -162,7 +164,7 @@ function HomePage() {
                 <p className="empty">Nothing yet.</p>
               )}
             </div>
-          </div>
+          </Plate>
         </div>
       </div>
     </>
@@ -206,7 +208,7 @@ function QuickTask({ d }: { d: AppState }) {
       navigate(`#/agents/${agentId}/${chat.id}`);
     });
   return (
-    <div className="panel glass-plate">
+    <Plate className="panel">
       <div className="panel-head">
         <h2>Give an agent a task</h2>
       </div>
@@ -226,9 +228,9 @@ function QuickTask({ d }: { d: AppState }) {
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <span className="hint">Opens a new chat with that agent.</span>
-        <button className="btn" onClick={() => void send()}>Send</button>
+        <Button  onClick={() => void send()}>Send</Button>
       </div>
-    </div>
+    </Plate>
   );
 }
 
@@ -257,8 +259,8 @@ function Onboarding({ d }: { d: AppState }) {
           <li key={s.cta} className="list-row">
             <span className={`w-6 text-[13px] tabular-nums ${s.done ? 'text-ok' : 'text-faint'}`} aria-label={s.done ? 'done' : `step ${i + 1}`}>{s.done ? '✓' : `0${i + 1}`}</span>
             <div className="flex-1 min-w-0">{s.text}</div>
-            {i === 1 ? <button className="btn small" disabled={adding} onClick={() => void addStarterTeam()}>Add Athena team</button> : null}
-            <a className="btn ghost small" href={s.href}>{s.cta}</a>
+            {i === 1 ? <Button size="small" disabled={adding} onClick={() => void addStarterTeam()}>Add Athena team</Button> : null}
+            <ButtonLink variant="ghost" size="small" href={s.href}>{s.cta}</ButtonLink>
           </li>
         ))}
       </ol>

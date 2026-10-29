@@ -7,6 +7,7 @@ import { ToggleGroup } from '@base-ui/react/toggle-group';
 import { useLayoutEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Icon } from './react.tsx';
+import { Plate } from './surface.tsx';
 import { slideSegment } from '../segmotion.ts';
 
 export interface Choice<V extends string> {
@@ -182,7 +183,7 @@ export function Section({ title, titleId, headingClassName = '', description, ac
         {description ? <p className="mt-1.5 mb-0 max-w-[44ch] text-[13px] leading-normal text-dim">{description}</p> : null}
         {action ? <div className="mt-3.5 flex flex-wrap items-center gap-2">{action}</div> : null}
       </div>
-      <div className={bare ? 'min-w-0' : 'panel glass-plate min-w-0 divide-y divide-line rounded-box p-0'}>{children}</div>
+      {bare ? <div className="min-w-0">{children}</div> : <Plate className="panel min-w-0 divide-y divide-line rounded-box p-0">{children}</Plate>}
     </section>
   );
 }

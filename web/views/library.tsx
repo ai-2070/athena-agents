@@ -1,5 +1,7 @@
 // Agent library: ready-made agents. Athena's own (made for this dashboard's tools), The Agency (msitarzewski/agency-agents), Hermes profiles, Claude Code subagents,
 // and your presets. A React page on Base UI controls.
+import { Plate } from '../ui/surface.tsx';
+import { Button, ButtonLink } from '../ui/button.tsx';
 import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { h, GET, POST, PUT, DEL, attempt, navigate, md, modal, toast, refreshSoon, confirmBox } from '../core.ts';
@@ -122,7 +124,7 @@ function LibraryPage() {
     return () => void (live = false);
   }, []);
 
-  if (failed) return <div className="panel glass-plate"><p className="text-red">Something went wrong: {failed}</p></div>;
+  if (failed) return <Plate className="panel"><p className="text-red">Something went wrong: {failed}</p></Plate>;
   if (!lib || !data) return <p className="text-dim">Loading library…</p>;
 
   const pick = (t: Tab) => setTab((lastTab = t));
@@ -146,12 +148,12 @@ function LibraryPage() {
     <>
       <p className="lede max-w-[68ch]">Hire a specialist and it joins your team with its instructions already written. You can change anything afterwards.</p>
       {branchParam() ? (
-        <div className="panel glass-plate mb-6">
+        <Plate className="panel mb-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span>Hiring into a Station team: new hires are added as its next step.</span>
-            <a className="btn ghost small" href="#/station">Back to Station</a>
+            <ButtonLink variant="ghost" size="small" href="#/station">Back to Station</ButtonLink>
           </div>
-        </div>
+        </Plate>
       ) : null}
       <Tabs label="Agent library" tabs={tabs} value={tab} onChange={pick} rowClassName="[&_.tabs]:flex-1">
         {tab === 'starters' ? <Starters lib={lib} overrides={ov} runsOn={runsOn} /> : null}
@@ -179,8 +181,8 @@ function HireFoot({ onHire, children }: { onHire: () => Promise<Agent | undefine
     <div className="card-foot">
       {hired ? (
         <>
-          <button className="btn small" onClick={() => navigate(`#/agents/${hired.id}`)}>Chat</button>
-          <button className="btn ghost small" onClick={() => navigate(`#/agents/${hired.id}/edit`)}>Edit</button>
+          <Button size="small" onClick={() => navigate(`#/agents/${hired.id}`)}>Chat</Button>
+          <Button variant="ghost" size="small" onClick={() => navigate(`#/agents/${hired.id}/edit`)}>Edit</Button>
         </>
       ) : (
         children(go)
@@ -191,11 +193,11 @@ function HireFoot({ onHire, children }: { onHire: () => Promise<Agent | undefine
 
 function Card({ top, sub, foot }: { top: ReactNode; sub?: ReactNode; foot: ReactNode }) {
   return (
-    <div className="card glass-plate hover:shadow-none">
+    <Plate className="card hover:shadow-none">
       <div className="card-top">{top}</div>
       {sub}
       {foot}
-    </div>
+    </Plate>
   );
 }
 
@@ -216,7 +218,7 @@ function Starters({ lib, overrides: ov, runsOn }: { lib: LibraryIndex; overrides
               </div>
             </>
           }
-          foot={<HireFoot onHire={() => hire({ source: 'starter', name: s.name, overrides: ov() }, s.name)}>{(go) => <button className="btn small" onClick={go}>Add</button>}</HireFoot>}
+          foot={<HireFoot onHire={() => hire({ source: 'starter', name: s.name, overrides: ov() }, s.name)}>{(go) => <Button size="small" onClick={go}>Add</Button>}</HireFoot>}
         />
       ))}
       </div>
@@ -265,8 +267,8 @@ function Agency({ lib, overrides: ov, runsOn }: { lib: LibraryIndex; overrides: 
                   <HireFoot onHire={doHire}>
                     {(go) => (
                       <>
-                        <button className="btn small" onClick={go}>Hire</button>
-                        <button className="btn ghost small" onClick={() => void preview(a, go)}>Read</button>
+                        <Button size="small" onClick={go}>Hire</Button>
+                        <Button variant="ghost" size="small" onClick={() => void preview(a, go)}>Read</Button>
                       </>
                     )}
                   </HireFoot>
@@ -305,7 +307,7 @@ function Hermes({ lib, data }: { lib: LibraryIndex; data: AppState }) {
               have.has(p.name) ? (
                 <div className="card-foot"><span className="pill ok">on your team</span></div>
               ) : (
-                <HireFoot onHire={() => hire({ source: 'hermes', profile: p.name }, p.name)}>{(go) => <button className="btn small" onClick={go}>Add as agent</button>}</HireFoot>
+                <HireFoot onHire={() => hire({ source: 'hermes', profile: p.name }, p.name)}>{(go) => <Button size="small" onClick={go}>Add as agent</Button>}</HireFoot>
               )
             }
           />
@@ -333,7 +335,7 @@ function Claude({ lib }: { lib: LibraryIndex }) {
                   </div>
                 </>
               }
-              foot={<HireFoot onHire={() => hire({ source: 'claude', slug: s.slug }, s.name)}>{(go) => <button className="btn small" onClick={go}>Import</button>}</HireFoot>}
+              foot={<HireFoot onHire={() => hire({ source: 'claude', slug: s.slug }, s.name)}>{(go) => <Button size="small" onClick={go}>Import</Button>}</HireFoot>}
             />
           ))}
         </div>
@@ -385,14 +387,14 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
       }
       foot={
         <div className="card-foot">
-          <button className="btn small" disabled={busy === p.id} onClick={() => void use(p)}>
+          <Button size="small" disabled={busy === p.id} onClick={() => void use(p)}>
             <Icon name="plus" size={13} />
             {p.kind === 'team' ? 'Create this team' : 'Create this agent'}
-          </button>
+          </Button>
           <span className="flex-1 min-w-0" />
-          <button className="btn ghost tiny danger" title="Delete preset" aria-label={`Delete the preset ${p.name}`} onClick={() => void del(p)}>
+          <Button variant="danger" size="tiny" className="ghost" title="Delete preset" aria-label={`Delete the preset ${p.name}`} onClick={() => void del(p)}>
             <Icon name="trash-2" size={13} />
-          </button>
+          </Button>
         </div>
       }
     />

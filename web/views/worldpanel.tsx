@@ -9,6 +9,8 @@ import { Slider } from '@base-ui/react/slider';
 import { GET, POST, PUT, DEL, ago, attempt, confirmBox, md, modal, promptBox, refreshSoon, state, toast } from '../core.ts';
 import { DomNode, Icon, mountReact, useServerEvents } from '../ui/react.tsx';
 import { Chips, SearchBox, Tabs } from '../ui/controls.tsx';
+import { Button, IconButton } from '../ui/button.tsx';
+import { Plate } from '../ui/surface.tsx';
 import { canTakePicture, takePicture } from '../voxel/picture.ts';
 import type { ServerEvent, ShownWorld, VoxelObjectMeta, VoxelPrefabMeta, WorldEnvironment, WorldListing, WorldMdInfo, WorldSkins } from '../../shared/types.ts';
 
@@ -47,9 +49,9 @@ type Tab = 'md' | 'built' | 'look' | 'world';
 
 const WORLD_EVENTS = new Set(['world', 'world-md', 'project']);
 const SECTION = 'mt-6 mb-2 text-[12px] leading-[normal] font-medium text-dim';
-const ROW = 'glass-plate flex items-center gap-2 rounded-[10px] px-2.5 py-1.75 text-[13px]';
+const ROW = 'flex items-center gap-2 rounded-[10px] px-2.5 py-1.75 text-[13px]';
 const ROW_META = 'text-[11.5px] text-faint';
-const ICON_BTN = 'icon-btn size-7 flex-none';
+const ICON_BTN = 'size-7 flex-none';
 const BY: Record<string, string> = { you: 'you', brain: 'the Brain', agent: 'an agent' };
 
 /** GET /world, again whenever the world changes. */
@@ -94,18 +96,18 @@ function ExportButtons({ what, id, name }: { what: 'object' | 'prefab'; id: stri
   const [open, setOpen] = useState(false);
   if (!open)
     return (
-      <button className={ICON_BTN} title={`Export ${name}`} aria-label={`Export ${name}`} onClick={() => setOpen(true)}>
+      <IconButton className={ICON_BTN} title={`Export ${name}`} aria-label={`Export ${name}`} onClick={() => setOpen(true)}>
         <Icon name="download" size={13} />
-      </button>
+      </IconButton>
     );
   return (
     <span className="flex flex-none items-center gap-1">
-      <button className="btn ghost tiny" title="A 3D model for Blender, game engines and the web" onClick={() => (setOpen(false), void exportIt(what, 'glb', `"${name}"`, id))}>
+      <Button variant="ghost" size="tiny" title="A 3D model for Blender, game engines and the web" onClick={() => (setOpen(false), void exportIt(what, 'glb', `"${name}"`, id))}>
         3D model
-      </button>
-      <button className="btn ghost tiny" title="A MagicaVoxel file" onClick={() => (setOpen(false), void exportIt(what, 'vox', `"${name}"`, id))}>
+      </Button>
+      <Button variant="ghost" size="tiny" title="A MagicaVoxel file" onClick={() => (setOpen(false), void exportIt(what, 'vox', `"${name}"`, id))}>
         .vox
-      </button>
+      </Button>
     </span>
   );
 }
@@ -129,13 +131,13 @@ export function WorldPanel({ onClose, teamName }: { onClose: () => void; teamNam
           <div className="hint truncate">{shown ? howText(shown) : 'Loading…'}</div>
         </div>
         {w && canTakePicture() ? (
-          <button className="icon-btn world-picture" onClick={() => void savePicture(w.name)} title="Save a picture of what you see to Artifacts" aria-label="Save a picture">
+          <IconButton className="world-picture" onClick={() => void savePicture(w.name)} title="Save a picture of what you see to Artifacts" aria-label="Save a picture">
             <Icon name="image" size={15} />
-          </button>
+          </IconButton>
         ) : null}
-        <button className="icon-btn" onClick={onClose} aria-label="Close">
+        <IconButton onClick={onClose} aria-label="Close">
           <Icon name="x" size={15} />
-        </button>
+        </IconButton>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-18px),transparent_100%)]">
         <Tabs
@@ -218,8 +220,8 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
       {editing === null ? (
         <>
           <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              className="btn small"
+            <Button
+              size="small"
               onClick={() => {
                 setDraftOf(info?.worldId || '');
                 setEditing(info?.text || '');
@@ -227,27 +229,27 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
               disabled={!info}
             >
               <Icon name="pencil" size={13} /> Edit
-            </button>
-            <button className="btn ghost small" onClick={() => void showVersions()} aria-pressed={!!versions}>
+            </Button>
+            <Button variant="ghost" size="small" onClick={() => void showVersions()} aria-pressed={!!versions}>
               <Icon name="history" size={13} /> History
-            </button>
+            </Button>
             {info?.updatedAt ? <span className={ROW_META}>changed {ago(info.updatedAt)}</span> : null}
           </div>
           {versions ? (
             <div className="flex flex-col gap-1">
               {versions.length ? null : <p className="hint">No earlier versions yet.</p>}
               {versions.map((v) => (
-                <div key={v.id} className={ROW}>
+                <Plate key={v.id} className={ROW}>
                   <span className="min-w-0 flex-1">
                     {new Date(v.at).toLocaleString()} <span className={ROW_META}>by {BY[v.by] || v.by} · {fmt(v.chars)} characters</span>
                   </span>
-                  <button className="btn ghost tiny" onClick={() => void view(v)}>
+                  <Button variant="ghost" size="tiny" onClick={() => void view(v)}>
                     View
-                  </button>
-                  <button className="btn ghost tiny" onClick={() => void restore(v)}>
+                  </Button>
+                  <Button variant="ghost" size="tiny" onClick={() => void restore(v)}>
                     Restore
-                  </button>
-                </div>
+                  </Button>
+                </Plate>
               ))}
             </div>
           ) : null}
@@ -270,12 +272,12 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
             }}
           />
           <div className="flex items-center gap-1.5">
-            <button className="btn small" onClick={() => void save()} disabled={editing === info?.text || otherWorld}>
+            <Button size="small" onClick={() => void save()} disabled={editing === info?.text || otherWorld}>
               Save
-            </button>
-            <button className="btn ghost small" onClick={() => setEditing(null)}>
+            </Button>
+            <Button variant="ghost" size="small" onClick={() => setEditing(null)}>
               Cancel
-            </button>
+            </Button>
             <span className={`ml-auto ${ROW_META}`}>
               {fmt(editing.length)} / {fmt(info?.max || 50000)}
             </span>
@@ -331,45 +333,45 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
         <span className="hint flex-1">
           {fmt(w.objects.length)} objects · {fmt(w.objects.reduce((n, o) => n + voxels(o), 0))} voxels · {fmt(w.objects.reduce((n, o) => n + (o.instances || 0), 0))} placed copies
         </span>
-        <button className="btn ghost small" onClick={() => void undo()} disabled={!changes.length}>
+        <Button variant="ghost" size="small" onClick={() => void undo()} disabled={!changes.length}>
           <Icon name="rotate-ccw" size={13} /> Undo the last change
-        </button>
+        </Button>
       </div>
       {[...groups].map(([who, list]) => (
         <div key={who}>
           <div className={SECTION}>Built by {who}</div>
           <div className="flex flex-col gap-1">
             {list.map((o) => (
-              <div key={o.id} className={`${ROW} ${o.hidden ? 'opacity-55' : ''}`}>
+              <Plate key={o.id} className={`${ROW} ${o.hidden ? 'opacity-55' : ''}`}>
                 <span className="min-w-0 flex-1 truncate">
                   {o.name}{' '}
                   <span className={ROW_META}>
                     {fmt(voxels(o))} voxels{o.instances ? ` · ${fmt(o.instances)} copies` : ''} · {ago(o.updatedAt)}
                   </span>
                 </span>
-                <button className="btn ghost tiny" onClick={() => void hide(o)}>
+                <Button variant="ghost" size="tiny" onClick={() => void hide(o)}>
                   {o.hidden ? 'Show' : 'Hide'}
-                </button>
+                </Button>
                 <ExportButtons what="object" id={o.id} name={o.name} />
-                <button className={ICON_BTN} title={`Delete ${o.name}`} aria-label={`Delete ${o.name}`} onClick={() => void remove(o)}>
+                <IconButton className={ICON_BTN} title={`Delete ${o.name}`} aria-label={`Delete ${o.name}`} onClick={() => void remove(o)}>
                   <Icon name="trash-2" size={13} />
-                </button>
-              </div>
+                </IconButton>
+              </Plate>
             ))}
           </div>
         </div>
       ))}
       <div className="flex items-center">
         <div className={`${SECTION} flex-1`}>Prefabs</div>
-        <button className="btn ghost tiny mt-3" onClick={() => setLibrary(!library)} aria-pressed={library}>
+        <Button variant="ghost" size="tiny" className="mt-3" onClick={() => setLibrary(!library)} aria-pressed={library}>
           <Icon name="library-big" size={12} /> Library
-        </button>
+        </Button>
       </div>
       {library ? <LibraryView onTaken={load} /> : null}
       {prefabs.length ? null : <p className="hint">No prefabs yet. Builders make the small things there are many of (people, trees, lamps) once, then place copies.</p>}
       <div className="flex flex-col gap-1">
         {prefabs.map((p) => (
-          <div key={p.id} className={ROW}>
+          <Plate key={p.id} className={ROW}>
             <span className="min-w-0 flex-1">
               <span className="block truncate">
                 {p.name} <span className={ROW_META}>by {p.by.name}</span>
@@ -378,16 +380,16 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
                 {p.description || 'no description'} · {p.size.join('×')} · {p.uses ? `${fmt(p.uses.copies)} copies in ${p.uses.in.join(', ')}` : 'not placed'}
               </span>
             </span>
-            <button className={ICON_BTN} title="Share to the library: every project can take it" aria-label={`Share ${p.name} to the library`} onClick={() => void publish(p)}>
+            <IconButton className={ICON_BTN} title="Share to the library: every project can take it" aria-label={`Share ${p.name} to the library`} onClick={() => void publish(p)}>
               <Icon name="upload" size={13} />
-            </button>
+            </IconButton>
             <ExportButtons what="prefab" id={p.id} name={p.name} />
             {p.uses ? null : (
-              <button className={ICON_BTN} title={`Delete ${p.name}`} aria-label={`Delete ${p.name}`} onClick={() => void removePrefab(p)}>
+              <IconButton className={ICON_BTN} title={`Delete ${p.name}`} aria-label={`Delete ${p.name}`} onClick={() => void removePrefab(p)}>
                 <Icon name="trash-2" size={13} />
-              </button>
+              </IconButton>
             )}
-          </div>
+          </Plate>
         ))}
       </div>
       <div className={SECTION}>Recent changes</div>
@@ -431,7 +433,7 @@ function LibraryView({ onTaken }: { onTaken: () => void }) {
       <SearchBox placeholder="Search the library" label="Search the library" value={q} onChange={setQ} />
       {!rows ? <p className="hint">Loading…</p> : rows.length ? null : <p className="hint">{q ? 'Nothing matches.' : 'The library is empty. Share a prefab to it with its upload button.'}</p>}
       {(rows || []).map((r) => (
-        <div key={r.id} className={ROW}>
+        <Plate key={r.id} className={ROW}>
           <span className="min-w-0 flex-1">
             <span className="block truncate">
               {r.name} <span className={ROW_META}>by {r.by} · from {r.fromWorld}</span>
@@ -440,10 +442,10 @@ function LibraryView({ onTaken }: { onTaken: () => void }) {
               {r.description || 'no description'} · {r.size.join('×')} · {fmt(r.voxels)} voxels
             </span>
           </span>
-          <button className="btn ghost tiny" onClick={() => void take(r)}>
+          <Button variant="ghost" size="tiny" onClick={() => void take(r)}>
             Take into this world
-          </button>
-        </div>
+          </Button>
+        </Plate>
       ))}
     </div>
   );
@@ -506,29 +508,29 @@ function LookTab({ shown, teamName }: { shown: WorldAnswer; teamName?: (id: stri
       {w.lights.length ? null : <p className="hint">None put up. Glowing things (lanterns, windows, signs) light their surroundings by themselves.</p>}
       <div className="flex flex-col gap-1">
         {w.lights.map((l) => (
-          <div key={l.id} className={ROW}>
+          <Plate key={l.id} className={ROW}>
             <span className="size-3 flex-none rounded-full" style={{ background: l.color, boxShadow: `0 0 8px ${l.color}` }} />
             <span className="min-w-0 flex-1 truncate">
               {l.name} <span className={ROW_META}>{l.kind} · by {l.by.name}</span>
             </span>
-            <button className={ICON_BTN} title={`Take ${l.name} away`} aria-label={`Take ${l.name} away`} onClick={() => void removeLight(l.id, l.name)}>
+            <IconButton className={ICON_BTN} title={`Take ${l.name} away`} aria-label={`Take ${l.name} away`} onClick={() => void removeLight(l.id, l.name)}>
               <Icon name="trash-2" size={13} />
-            </button>
-          </div>
+            </IconButton>
+          </Plate>
         ))}
       </div>
       <div className={SECTION}>Effects</div>
       {w.effects.length ? null : <p className="hint">No petals, fireflies, smoke or birds yet.</p>}
       <div className="flex flex-col gap-1">
         {w.effects.map((e) => (
-          <div key={e.id} className={ROW}>
+          <Plate key={e.id} className={ROW}>
             <span className="min-w-0 flex-1 truncate">
               {e.name} <span className={ROW_META}>{e.kind} · by {e.by.name}</span>
             </span>
-            <button className={ICON_BTN} title={`Take ${e.name} away`} aria-label={`Take ${e.name} away`} onClick={() => void removeEffect(e.id, e.name)}>
+            <IconButton className={ICON_BTN} title={`Take ${e.name} away`} aria-label={`Take ${e.name} away`} onClick={() => void removeEffect(e.id, e.name)}>
               <Icon name="trash-2" size={13} />
-            </button>
-          </div>
+            </IconButton>
+          </Plate>
         ))}
       </div>
       <Dressed skins={w.skins} teamName={teamName} />
@@ -550,19 +552,19 @@ function Dressed({ skins, teamName }: { skins: WorldSkins; teamName?: (id: strin
       {rows.length ? null : <p className="hint">Everyone looks classic. Builders can give agents a form of their own (a person, an animal, a tree…) and dress team platforms and the Brain.</p>}
       <div className="flex flex-col gap-1">
         {rows.map((r) => (
-          <div key={r.key} className={ROW}>
+          <Plate key={r.key} className={ROW}>
             <span className="min-w-0 flex-1 truncate">
               {r.name} <span className={ROW_META}>{r.hidden ? 'off the map' : 'dressed'}{r.noLabel ? ' · no name label' : ''}</span>
             </span>
             {r.hidden || r.noLabel ? (
-              <button className="btn ghost tiny" onClick={() => void set(r, { hidden: false, label: true }, `${r.name} is back on the map`)}>
+              <Button variant="ghost" size="tiny" onClick={() => void set(r, { hidden: false, label: true }, `${r.name} is back on the map`)}>
                 Show on the map
-              </button>
+              </Button>
             ) : null}
-            <button className="btn ghost tiny" onClick={() => void set(r, { clear: true }, `${r.name} looks classic again`)}>
+            <Button variant="ghost" size="tiny" onClick={() => void set(r, { clear: true }, `${r.name} looks classic again`)}>
               Look classic again
-            </button>
-          </div>
+            </Button>
+          </Plate>
         ))}
       </div>
     </>
@@ -605,21 +607,21 @@ export function WorldPicker({ shown, reload }: { shown: WorldAnswer; reload: () 
       <p className="text-[13px]">{howText(shown)}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {shown.world && shown.how !== 'carried' ? (
-          <button className="btn ghost small" onClick={() => void rename()}>
+          <Button variant="ghost" size="small" onClick={() => void rename()}>
             <Icon name="pencil" size={13} /> Rename it
-          </button>
+          </Button>
         ) : null}
-        <button className="btn ghost small" onClick={() => void newWorld()}>
+        <Button variant="ghost" size="small" onClick={() => void newWorld()}>
           <Icon name="plus" size={13} /> New empty world
-        </button>
+        </Button>
         {shown.world?.built ? (
-          <button className="btn ghost small" onClick={() => void exportIt('world', 'glb', `"${shown.world!.name}"`)} title="The whole world as a 3D model (.glb), saved to Artifacts">
+          <Button variant="ghost" size="small" onClick={() => void exportIt('world', 'glb', `"${shown.world!.name}"`)} title="The whole world as a 3D model (.glb), saved to Artifacts">
             <Icon name="download" size={13} /> Export the whole world
-          </button>
+          </Button>
         ) : null}
-        <button className="btn ghost small" onClick={() => void choose('auto', undefined, 'Back to its own world, or the carried-over one')} title="Forget the world picked for this project: its own world when it has one built, else the default or the most recently built world">
+        <Button variant="ghost" size="small" onClick={() => void choose('auto', undefined, 'Back to its own world, or the carried-over one')} title="Forget the world picked for this project: its own world when it has one built, else the default or the most recently built world">
           Back to carry-over
-        </button>
+        </Button>
       </div>
       <div className={SECTION}>Every world</div>
       {!worlds ? <p className="hint">Loading…</p> : worlds.length ? null : <p className="hint">No worlds yet.</p>}
@@ -640,21 +642,21 @@ export function WorldPicker({ shown, reload }: { shown: WorldAnswer; reload: () 
               <div className="flex flex-wrap gap-1">
                 {here && shown.how !== 'carried' ? null : (
                   <>
-                    <button className="btn tiny" onClick={() => void choose('share', l.id, `This project now builds in "${l.name}" too`)} title="Both projects build in the same world">
+                    <Button size="tiny" onClick={() => void choose('share', l.id, `This project now builds in "${l.name}" too`)} title="Both projects build in the same world">
                       Share it
-                    </button>
-                    <button className="btn ghost tiny" onClick={() => void choose('copy', l.id, `This project now has its own copy of "${l.name}"`)} title="A new world of this project's own, starting as a copy">
+                    </Button>
+                    <Button variant="ghost" size="tiny" onClick={() => void choose('copy', l.id, `This project now has its own copy of "${l.name}"`)} title="A new world of this project's own, starting as a copy">
                       Start from a copy
-                    </button>
+                    </Button>
                   </>
                 )}
-                <button className="btn ghost tiny" onClick={() => void setDefault(l.isDefault ? null : l.id)} title="The world projects with nothing built of their own show">
+                <Button variant="ghost" size="tiny" onClick={() => void setDefault(l.isDefault ? null : l.id)} title="The world projects with nothing built of their own show">
                   {l.isDefault ? 'No default' : 'Make it the default'}
-                </button>
+                </Button>
                 {l.usedBy.length ? null : (
-                  <button className="btn ghost tiny danger" onClick={() => void remove(l)}>
+                  <Button variant="ghost" size="tiny" className="danger" onClick={() => void remove(l)}>
                     Delete
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>

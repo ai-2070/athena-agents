@@ -139,6 +139,9 @@ check on the chosen item. It is dressed in this app's tokens and glass instead o
 keeps scrolling), the popup is placed against its trigger with an offset of 6px and 8px of collision padding, and it flips
 to the other side when there is no room.
 
+`web/ui/popover.tsx` supplies the same surface and collision handling to anchored pickers, including the routine
+mention menu's caret anchor. The project menu uses Base UI's menu while preserving drag and keyboard reordering.
+
 - **To menu** (`TargetMenu` in `dock.tsx`): a radio menu opening upward, `min-w-52`, `max-h-96`. Choices: *The Brain*, *New
   agent from this*, *New team from this*, then an **Agents** group (each with its real badge, not a small emoji) and a
   **Teams** group. The button shows the choice (with the agent's badge) and a thin chevron. The Brain's one-line description
@@ -178,8 +181,8 @@ Measured in a real browser (frame by frame): each popup goes from opacity 0 to 1
 spends 5 frames fading out before it is removed 100 to 120ms later.
 
 Base UI popups get the class `dd` (set in `DropdownContent`), which turns off the `menu-pop` keyframe and uses the
-`data-starting-style` / `data-ending-style` transitions instead. Other `.st-menu` popups (the project menu, the Station
-right-click menu, skill pickers) get the `menu-pop` entrance but still leave instantly.
+`data-starting-style` / `data-ending-style` transitions instead. Plain-DOM menus use `menu-pop` on entry and their
+shared dismissal animation on exit.
 
 ## Behaviour that goes with the look
 
@@ -224,6 +227,8 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
   the switch stays at the bottom, and the project and address do not need horizontal scrolling. X and Reddit remain in
   Connections, not in the sidebar.
 - Settings sections share the Section and Row layout. Programs and Outbox use the same layout.
+- React actions use `Button`, `ButtonLink` and `IconButton` from `web/ui/button.tsx`; flat surfaces use `Plate`,
+  `PlateSection` or `PlateLink` from `web/ui/surface.tsx`. Their classes also serve the remaining plain-DOM controls.
 - In Connections > Accounts, Reddit accounts and their one-time setup appear together at the end.
 - The agent editor groups identity and model before knowledge and memory; knowledge and MEMORY.md share a plate with a
   divider. Clicking the agent's avatar opens an offline emoji picker. Model suggestions use the shared glass menu.
@@ -246,7 +251,8 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
   buttons and the flat composer model control keep no shadow.
 - Choice controls use the shared Base UI select and glass menu rather than native select popups. Checkboxes and segmented
   controls share the same treatment on pages and in dialogs.
-- Plain-DOM project, skill, mention and model menus and Base UI menus use exit motion; reduced-motion settings still apply.
+- Skill and routine mention pickers use the shared Base UI popover. The plain-DOM model menu and Base UI popups use
+  exit motion; reduced-motion settings still apply.
 
 
 ## Decisions and what was rejected

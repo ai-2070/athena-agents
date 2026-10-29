@@ -1,6 +1,8 @@
 // Skills: reusable instructions (Claude Code's SKILL.md format) you give to agents three ways:
 // per agent, per team (every member while it works for the team) or per project (every agent).
 // The Brain has skills too: it follows them in every turn (Self-improvement: it records workflows itself).
+import { Plate } from '../ui/surface.tsx';
+import { Button } from '../ui/button.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Menu } from '@base-ui/react/menu';
@@ -66,23 +68,23 @@ function SkillsPage({ open }: { open?: string }) {
   const brain = brainList(d);
   const newSkill = () => void openEditor(null, reload);
   const importButton = (label: string) => (
-    <button className="btn ghost" onClick={() => openImport(data.claude, reload)}>
+    <Button variant="ghost" onClick={() => openImport(data.claude, reload)}>
       <Icon name="download" size={14} />
       {label}
-    </button>
+    </Button>
   );
   return (
     <>
       <p className="lede max-w-[68ch]">Skills are instructions for a kind of work: how you want an email written, your brand voice, a video edit checklist, a research method. Give them to one agent, to a team, or to the whole project. Agents open a skill when the task matches it.</p>
       <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
-      <div className="panel glass-plate">
+      <Plate className="panel">
         <div className="panel-head">
           <h2 className="flex items-center gap-2.5"><Icon name="folder-open" className="text-faint" />{` Project skills · ${proj?.name || ''}`}</h2>
           <span className="hint">every agent in this project gets these</span>
         </div>
         <DomNode make={() => skillPicker(proj?.skills || [], (s) => saveProject(proj.id, s), { empty: 'None yet. Add skills every agent here should follow, like your brand voice or how files are named.' })} deps={[proj?.id, (proj?.skills || []).join('|')]} />
-      </div>
-      <div className="panel glass-plate">
+      </Plate>
+      <Plate className="panel">
         <div className="panel-head">
           <h2 className="flex items-center gap-2.5"><Icon name="brain" className="text-faint" /> The Brain's skills</h2>
           <span className="hint">in every project</span>
@@ -93,22 +95,22 @@ function SkillsPage({ open }: { open?: string }) {
             ? 'With Self-improvement the Brain keeps your skills up to date by itself: after an agent finishes a sizeable job, it records the workflow as a skill or improves one, and says so in the Brain chat. Take the skill away to stop that.'
             : 'Give the Brain Self-improvement and it records workflows as skills by itself after agents finish sizeable jobs. You can also ask it in the Brain chat: "save how we did that as a skill".'}
         </p>
-      </div>
+      </Plate>
       </div>
       <h2 className="section mt-10 mb-4">{`Library (${data.skills.length})`}</h2>
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <SearchBox className="w-[min(360px,100%)]" placeholder="Search skills" label="Search skills" value={query} onChange={(v) => setQuery((lastQuery = v))} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DomNode as="span" make={() => deletedButton(['skill'], () => void reload())} deps={[]} />
-          <button className="btn ghost" onClick={() => openGitHub(reload)}>
+          <Button variant="ghost" onClick={() => openGitHub(reload)}>
             <DomNode as="span" className="inline-flex" make={() => logo('github', 14)} deps={[]} />
             From GitHub
-          </button>
+          </Button>
           {toImport.length ? importButton(`Import from Claude Code (${toImport.length})`) : null}
-          <button className="btn" onClick={newSkill}>
+          <Button  onClick={newSkill}>
             <Icon name="plus" size={14} />
             New skill
-          </button>
+          </Button>
         </div>
       </div>
       {shown.length ? (
@@ -121,10 +123,10 @@ function SkillsPage({ open }: { open?: string }) {
         <div className="flex flex-col items-center gap-4 py-12 text-center">
           <p className="m-0 text-dim">{data.skills.length ? 'No skill matches.' : 'No skills yet.'}</p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <button className="btn" onClick={newSkill}>
+            <Button  onClick={newSkill}>
               <Icon name="plus" size={14} />
               Write your first skill
-            </button>
+            </Button>
             {toImport.length ? importButton('Import from Claude Code') : null}
           </div>
         </div>
@@ -174,7 +176,7 @@ function SkillCard({ s, d, teams, reload, loadTeams }: { s: SkillListing; d: App
     ...u.agents.map((a) => <span key={a.id} className={USE_AGENT}>{`${a.emoji || ''} ${a.name}`}</span>),
   ].filter(Boolean);
   return (
-    <div className="skill-card card glass-plate hover:shadow-none gap-3">
+    <Plate className="skill-card card hover:shadow-none gap-3">
       <div className="flex items-center gap-3">
         <div className="skill-ico"><Icon name="puzzle" size={18} /></div>
         <div className="flex-1 min-w-0">
@@ -194,22 +196,22 @@ function SkillCard({ s, d, teams, reload, loadTeams }: { s: SkillListing; d: App
       <div className="skill-uses flex flex-wrap gap-1.5">{uses.length ? uses : <span className="hint">Not given to anyone yet</span>}</div>
       <div className="skill-foot mt-auto flex items-center gap-2 border-t border-line pt-4">
         <GiveTo s={s} d={d} teams={teams} loadTeams={loadTeams} />
-        <button className="btn ghost small" onClick={() => void openEditor(s.slug, reload)}>
+        <Button variant="ghost" size="small" onClick={() => void openEditor(s.slug, reload)}>
           <Icon name="pencil" size={13} />
           Edit
-        </button>
+        </Button>
         {s.origin ? (
-          <button className="btn ghost small" disabled={updating} title={`Download it again from ${s.origin.repo} (the current version is kept in History)`} onClick={() => void update()}>
+          <Button variant="ghost" size="small" disabled={updating} title={`Download it again from ${s.origin.repo} (the current version is kept in History)`} onClick={() => void update()}>
             <Icon name="rotate-cw" size={13} />
             Update
-          </button>
+          </Button>
         ) : null}
         <span className="flex-1 min-w-0" />
-        <button className="btn ghost tiny danger" title="Delete the skill" aria-label={`Delete the skill ${s.name}`} onClick={() => void remove()}>
+        <Button variant="danger" size="tiny" className="ghost" title="Delete the skill" aria-label={`Delete the skill ${s.name}`} onClick={() => void remove()}>
           <Icon name="trash-2" size={13} />
-        </button>
+        </Button>
       </div>
-    </div>
+    </Plate>
   );
 }
 

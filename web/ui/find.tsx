@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { Icon } from './react.tsx';
+import { IconButton } from './button.tsx';
 
 /** What a list that draws only the items near the screen lets the search know. Its drawn items are
  *  elements with data-index = the item's number. */
@@ -272,15 +273,15 @@ function FindBar({ scroller, host, items, focus, onClose }: { scroller: RefObjec
       <span className="min-w-12 text-center text-[12px] text-dim tabular-nums" aria-live="polite">
         {query ? (total ? `${at + 1} / ${total}` : 'None') : ''}
       </span>
-      <button className="icon-btn" type="button" title="Previous (Shift+Enter)" aria-label="Previous match" disabled={!total} onClick={() => step(-1)}>
+      <IconButton type="button" title="Previous (Shift+Enter)" aria-label="Previous match" disabled={!total} onClick={() => step(-1)}>
         <Icon name="arrow-up" size={14} />
-      </button>
-      <button className="icon-btn" type="button" title="Next (Enter)" aria-label="Next match" disabled={!total} onClick={() => step(1)}>
+      </IconButton>
+      <IconButton type="button" title="Next (Enter)" aria-label="Next match" disabled={!total} onClick={() => step(1)}>
         <Icon name="arrow-down" size={14} />
-      </button>
-      <button className="icon-btn" type="button" title="Close (Esc)" aria-label="Close find" onClick={onClose}>
+      </IconButton>
+      <IconButton type="button" title="Close (Esc)" aria-label="Close find" onClick={onClose}>
         <Icon name="x" size={14} />
-      </button>
+      </IconButton>
     </div>
   );
 }

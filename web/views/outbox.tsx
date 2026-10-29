@@ -1,6 +1,8 @@
 // The Outbox: questions agents asked you, and posts, comments and DMs they drafted, waiting for you to
 // answer, or to approve, edit, discuss or reject.
 // A page of its own (the left menu) and a tab in Settings > Connections.
+import { Plate } from '../ui/surface.tsx';
+import { Button, ButtonLink } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GET, POST, PUT, DEL, attempt, toast, ago, refreshSoon } from '../core.ts';
 import { fetchFile } from '../client/http.ts';
@@ -112,14 +114,14 @@ function Compose({ accounts, added }: { accounts: string[]; added: () => void })
   };
   return (
     <Section title="New post" bare>
-      <div className="panel glass-plate">
+      <Plate className="panel">
         <textarea rows={3} aria-label="New post" placeholder="Write a post yourself…" value={text} onChange={(e) => setText(e.target.value)} />
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <SelectControl aria-label="Post as" value={account} onChange={setAccount} options={accounts.map((a) => ({ value: a, label: `@${a}` }))} />
           <span className="hint flex-1 min-w-0" />
-          <button className="btn ghost small" onClick={() => void save()}>Save to Outbox</button>
+          <Button variant="ghost" size="small" onClick={() => void save()}>Save to Outbox</Button>
         </div>
-      </div>
+      </Plate>
     </Section>
   );
 }
@@ -183,13 +185,13 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
   const [tone, label] = STATUS[p.status] || ['', p.status];
   const link = p.platform === 'reddit' ? 'View on Reddit' : p.platform === 'x_dm' ? 'Open messages' : 'View on X';
   return (
-    <div className="panel glass-plate">
+    <Plate className="panel">
       <div className="flex flex-wrap items-center gap-3">
         <span className={`pill${tone ? ` ${tone}` : ''}`}>{label}</span>
         <b>{p.accountLabel}</b>
         <span className="hint">{`by ${p.agentName || 'you'}${p.teamName ? ` · team ${p.teamName}` : ''} · ${ago(p.createdAt)}`}</span>
         {p.parts.length > 1 ? <span className="pill info">{`thread of ${p.parts.length}`}</span> : null}
-        {p.url ? <a className="btn tiny ghost ml-auto" href={p.url} target="_blank" rel="noopener">{link}</a> : null}
+        {p.url ? <ButtonLink variant="ghost" size="tiny" className="ml-auto" href={p.url} target="_blank" rel="noopener">{link}</ButtonLink> : null}
       </div>
       {p.platform === 'reddit' ? <div className="hint mt-4">{p.reddit?.kind === 'comment' ? `Comment replying to ${p.reddit.parent}` : `Post in r/${p.reddit?.subreddit}${p.reddit?.link ? ` · link: ${p.reddit.link}` : ''}`}</div> : null}
       {title !== null ? (
@@ -210,15 +212,15 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
                 <div className="relative">
                   <img className="max-h-30 max-w-45 rounded-[8px] block" src={url} alt={name} title={f} />
                   {editable ? (
-                    <button className="btn tiny ghost absolute top-1 right-1" title="Take this image off the post" aria-label={`Take ${name} off the post`} onClick={() => setImages(images.filter((x) => x !== f))}>
+                    <Button variant="ghost" size="tiny" className="absolute top-1 right-1" title="Take this image off the post" aria-label={`Take ${name} off the post`} onClick={() => setImages(images.filter((x) => x !== f))}>
                       ✕
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <button className="btn ghost tiny" title="Copy the image, to paste it into a post yourself" onClick={() => void copyImage(url)}>Copy</button>
-                  <a className="btn ghost tiny" href={url} download={name} title="Save the image file">Save</a>
-                  {desktop ? <button className="btn ghost tiny" title={`Open ${name}`} onClick={() => openFile(f)}>Open</button> : null}
+                  <Button variant="ghost" size="tiny" title="Copy the image, to paste it into a post yourself" onClick={() => void copyImage(url)}>Copy</Button>
+                  <ButtonLink variant="ghost" size="tiny" href={url} download={name} title="Save the image file">Save</ButtonLink>
+                  {desktop ? <Button variant="ghost" size="tiny" title={`Open ${name}`} onClick={() => openFile(f)}>Open</Button> : null}
                 </div>
               </div>
             );
@@ -252,28 +254,28 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
       {editable ? (
         <>
           <div className="flex flex-wrap items-center gap-3 mt-4">
-            <button className="btn small" disabled={busy} onClick={() => void approve()}>{p.platform === 'x' ? 'Approve & post' : 'Approve & send'}</button>
-            <button className="btn ghost small" onClick={() => void attempt(() => PUT(`/outbox/${p.id}`, edits()), 'Saved').then((r) => r && (edited.current = false))}>Save edits</button>
-            <button className="btn ghost small" aria-expanded={discussing} title="Talk it over with the team that wrote it: your note goes into their chat and the draft is sent back" onClick={() => setDiscussing(!discussing)}>Discuss with team</button>
-            <button className="btn danger small" onClick={() => void attempt(() => POST(`/outbox/${p.id}/reject`, {})).then(changed)}>Reject</button>
+            <Button size="small" disabled={busy} onClick={() => void approve()}>{p.platform === 'x' ? 'Approve & post' : 'Approve & send'}</Button>
+            <Button variant="ghost" size="small" onClick={() => void attempt(() => PUT(`/outbox/${p.id}`, edits()), 'Saved').then((r) => r && (edited.current = false))}>Save edits</Button>
+            <Button variant="ghost" size="small" aria-expanded={discussing} title="Talk it over with the team that wrote it: your note goes into their chat and the draft is sent back" onClick={() => setDiscussing(!discussing)}>Discuss with team</Button>
+            <Button variant="danger" size="small" onClick={() => void attempt(() => POST(`/outbox/${p.id}/reject`, {})).then(changed)}>Reject</Button>
           </div>
           {/* what should change: goes to the team's chat as a message to the agent who wrote it, and the draft leaves the Outbox */}
           {discussing ? (
             <div className="flex flex-col gap-3 mt-4">
               <textarea rows={3} aria-label="What should change" placeholder={`What should change? This goes to ${p.agentName || 'the team'}${p.teamName ? ` in the ${p.teamName} chat` : ''}.`} value={note} onChange={(e) => setNote(e.target.value)} />
               <div className="flex flex-wrap items-center gap-3">
-                <button className="btn small" disabled={busy} onClick={() => void discuss()}>Send to team</button>
-                <button className="btn ghost small" onClick={() => setDiscussing(false)}>Cancel</button>
+                <Button size="small" disabled={busy} onClick={() => void discuss()}>Send to team</Button>
+                <Button variant="ghost" size="small" onClick={() => setDiscussing(false)}>Cancel</Button>
               </div>
             </div>
           ) : null}
         </>
       ) : (
         <div className="flex flex-wrap items-center gap-3 mt-4">
-          <button className="btn tiny ghost" onClick={() => void attempt(() => DEL(`/outbox/${p.id}`)).then(changed)}>Remove</button>
+          <Button variant="ghost" size="tiny" onClick={() => void attempt(() => DEL(`/outbox/${p.id}`)).then(changed)}>Remove</Button>
         </div>
       )}
-    </div>
+    </Plate>
   );
 }
 

@@ -1,4 +1,6 @@
 // Tools & MCP: built-in tools, MCP servers (presets, custom, imported), and sharing dashboard tools with Hermes / other apps.
+import { Button } from '../ui/button.tsx';
+import { Plate } from '../ui/surface.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import { GET, POST, DEL, attempt, confirmBox, copy, refreshSoon } from '../core.ts';
 import { Field, PanelNote, Row, SearchBox, Section, Segmented } from '../ui/controls.tsx';
@@ -110,7 +112,7 @@ export function McpTab() {
     [],
   );
   useEffect(() => void reload(), [reload]);
-  if (failed) return <div className="glass-plate rounded-box p-6"><p className="text-red">Something went wrong: {failed}</p></div>;
+  if (failed) return <Plate className="rounded-box p-6"><p className="text-red">Something went wrong: {failed}</p></Plate>;
   if (!data || !tools) return null;
 
   const servers = Object.entries(data.servers);
@@ -130,7 +132,7 @@ export function McpTab() {
   return (
     <div className="flex flex-col gap-10">
       <p className="lede mb-0">Tools are what agents can do. Built-in tools are turned on per agent in its Tools section. MCP servers add more: a real browser, GitHub, live Blender, and thousands of others.</p>
-      <Section title="Your MCP servers" description="The servers your agents can use." action={<button className="btn small" onClick={() => edit()}>+ Add server</button>}>
+      <Section title="Your MCP servers" description="The servers your agents can use." action={<Button size="small" onClick={() => edit()}>+ Add server</Button>}>
         {servers.length ? (
           servers.map(([name, cfg]) => <ServerRow key={name} name={name} cfg={cfg} info={info[name]} onEdit={() => edit(name, cfg)} reload={reload} />)
         ) : (
@@ -150,9 +152,9 @@ export function McpTab() {
                 <div className="hint mt-0.5">{sg.description}</div>
                 {sg.needs ? <div className="hint mt-0.5 text-amber">{sg.needs.replace(/^needs /, 'Needs ').replace(/; setup: /, '. Then: ').replace(/^setup: /, 'First: ')}</div> : null}
               </div>
-              <button className="btn small" onClick={() => void attempt(() => POST('/mcp-preset', { name: sg.name }), `Added ${sg.title}${sg.needs ? '. See what it needs below it.' : ''}`).then(reload)}>
+              <Button size="small" onClick={() => void attempt(() => POST('/mcp-preset', { name: sg.name }), `Added ${sg.title}${sg.needs ? '. See what it needs below it.' : ''}`).then(reload)}>
                 Add
-              </button>
+              </Button>
             </div>
           ))}
           <PanelNote>Nothing is added until you click Add: each one runs a program from its maker.</PanelNote>
@@ -163,7 +165,7 @@ export function McpTab() {
         {!shown.length ? <p className="empty m-0">{`No preset matches "${find.trim()}".`}</p> : null}
         <div className="cards">
           {shown.map((p) => (
-            <div key={p.name} className="glass-plate flex min-w-0 flex-col gap-2.5 rounded-box p-5">
+            <Plate key={p.name} className="flex min-w-0 flex-col gap-2.5 rounded-box p-5">
               <div className="card-title">{p.title}</div>
               <div className="card-sub">{p.description}</div>
               <div className="hint font-mono text-[11.5px] wrap-anywhere">{p.type === 'stdio' ? `${p.command} ${p.args.join(' ')}` : p.url}</div>
@@ -171,15 +173,15 @@ export function McpTab() {
                 {p.installed ? (
                   <>
                     <span className="pill ok">{(p.copies?.length || 1) > 1 ? `${p.copies!.length} added` : 'added'}</span>
-                    <button className="btn small ghost" title="Another account of the same service, with its own label and keys" onClick={() => addAnother(p)}>Add another</button>
+                    <Button variant="ghost" size="small" title="Another account of the same service, with its own label and keys" onClick={() => addAnother(p)}>Add another</Button>
                   </>
                 ) : (
-                  <button className="btn small" onClick={() => void attempt(() => POST('/mcp-preset', { name: p.name }), `Added ${p.title}`).then(reload)}>Add</button>
+                  <Button size="small" onClick={() => void attempt(() => POST('/mcp-preset', { name: p.name }), `Added ${p.title}`).then(reload)}>Add</Button>
                 )}
                 {!p.ready ? <span className="pill warn">{`needs ${p.command}`}</span> : null}
                 {!p.installed && needsKey(p) ? <span className="pill info" title="After adding, put your key in the settings of the added server below">needs your key</span> : null}
               </div>
-            </div>
+            </Plate>
           ))}
         </div>
       </Section>
@@ -192,7 +194,7 @@ export function McpTab() {
                 <div className="title">{s.name}</div>
                 <div className="hint wrap-anywhere">{`${s.source} · ${s.type === 'stdio' ? `${s.command} ${s.args.join(' ')}` : s.url}`}</div>
               </div>
-              {data.servers[s.name] ? <span className="pill ok">added</span> : <button className="btn tiny" onClick={() => void attempt(() => POST('/mcp-import', { name: s.name, source: s.source }), 'Imported').then(reload)}>Import</button>}
+              {data.servers[s.name] ? <span className="pill ok">added</span> : <Button size="tiny" onClick={() => void attempt(() => POST('/mcp-import', { name: s.name, source: s.source }), 'Imported').then(reload)}>Import</Button>}
             </div>
           ))}
         </Section>
@@ -201,10 +203,10 @@ export function McpTab() {
       <Section title="Share the dashboard tools" description="Let other apps use the tools in this dashboard.">
         <Row title="Claude Code and Codex" description="Agents here get the dashboard tools automatically. Hermes, pi, oh-my-pi and other MCP apps can have them too: ComfyUI, Blender, Adobe, programs, X drafts, your other agents." stack>
           <div className="flex flex-wrap items-center gap-2">
-            <button className="btn small" onClick={() => void attempt(() => POST('/hermes/add-bridge'), 'Hermes now has the dashboard tools (restart Hermes sessions to see them)')}>Give Hermes the dashboard tools</button>
-            <button className="btn small" onClick={() => void attempt(() => POST<{ message: string }>('/pi/add-bridge'), (r) => r.message)}>Give pi and oh-my-pi the dashboard tools</button>
+            <Button size="small" onClick={() => void attempt(() => POST('/hermes/add-bridge'), 'Hermes now has the dashboard tools (restart Hermes sessions to see them)')}>Give Hermes the dashboard tools</Button>
+            <Button size="small" onClick={() => void attempt(() => POST<{ message: string }>('/pi/add-bridge'), (r) => r.message)}>Give pi and oh-my-pi the dashboard tools</Button>
             {/* (the page is shown the config without its token: the copy gets the real one) */}
-            <button className="btn ghost small" onClick={() => void attempt(() => POST<McpData['bridge']>('/mcp-bridge')).then((b) => b && copy(JSON.stringify({ mcpServers: { dashboard: b } }, null, 2)))}>Copy MCP config for other apps</button>
+            <Button variant="ghost" size="small" onClick={() => void attempt(() => POST<McpData['bridge']>('/mcp-bridge')).then((b) => b && copy(JSON.stringify({ mcpServers: { dashboard: b } }, null, 2)))}>Copy MCP config for other apps</Button>
           </div>
         </Row>
         <div className="px-5 py-4">
@@ -272,9 +274,9 @@ function ServerRow({ name, cfg, info, onEdit, reload }: { name: string; cfg: Mcp
           {cfg.useFor ? <div className="hint mcp-use-for">{`Use for: ${cfg.useFor}`}</div> : copies ? <div className="hint mcp-use-for text-amber">{`No "use for" yet: an agent with several ${info!.service} accounts can't tell this one apart. Edit it to say what it is for.`}</div> : null}
           {cfg.description && !copies ? <div className="hint">{cfg.description}</div> : null}
         </div>
-        <button className="btn tiny ghost" disabled={test === 'running'} onClick={() => void run()}>Test</button>
-        <button className="btn tiny ghost" onClick={onEdit}>Edit</button>
-        <button className="btn tiny danger" onClick={() => void remove()}>Remove</button>
+        <Button variant="ghost" size="tiny" disabled={test === 'running'} onClick={() => void run()}>Test</Button>
+        <Button variant="ghost" size="tiny" onClick={onEdit}>Edit</Button>
+        <Button variant="danger" size="tiny" onClick={() => void remove()}>Remove</Button>
       </div>
       <div aria-live="polite">
         {test === 'running' ? <p className="hint">Starting it and listing tools… (first run of npx/uvx servers can take a minute)</p> : null}
@@ -363,8 +365,8 @@ function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved 
         </div>
       </div>
       <div className="modal-foot">
-        <button className="btn ghost" onClick={close}>Cancel</button>
-        <button className="btn" onClick={() => void save()}>Save</button>
+        <Button variant="ghost" onClick={close}>Cancel</Button>
+        <Button onClick={() => void save()}>Save</Button>
       </div>
     </>
   );
@@ -414,8 +416,8 @@ function CopyForm({ preset, servers, close, saved }: { preset: McpPresetListing;
         </div>
       </div>
       <div className="modal-foot">
-        <button className="btn ghost" onClick={close}>Cancel</button>
-        <button className="btn" disabled={!mine.label.trim()} onClick={() => void save()}>Add</button>
+        <Button variant="ghost" onClick={close}>Cancel</Button>
+        <Button disabled={!mine.label.trim()} onClick={() => void save()}>Add</Button>
       </div>
     </>
   );

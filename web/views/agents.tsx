@@ -1,4 +1,6 @@
 // Agents: your team, and the editor for one agent.
+import { Plate } from '../ui/surface.tsx';
+import { Button, ButtonLink } from '../ui/button.tsx';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Autocomplete } from '@base-ui/react/autocomplete';
 import type { ReactNode } from 'react';
@@ -68,13 +70,13 @@ const CAPTION = 'text-[12.5px] leading-none font-medium text-dim';
 /** One number of the overview: what it counts, the figure. live: something is going on (a pulsing dot). */
 function StatTile({ icon, label, value, live = false, valueClass = '' }: { icon: string; label: string; value: number; live?: boolean; valueClass?: string }) {
   return (
-    <div className="glass-plate rounded-box px-5 py-4">
+    <Plate className="rounded-box px-5 py-4">
       <div className="flex items-center justify-between gap-2">
         <span className={`${CAPTION} truncate`}>{label}</span>
         {live ? <span className="dot busy" aria-hidden="true" /> : <Icon name={icon} size={15} className="text-faint" />}
       </div>
       <b className={`${valueClass} mt-3.5 block text-[28px] leading-none font-semibold tracking-tight text-ink tabular-nums`}>{value}</b>
-    </div>
+    </Plate>
   );
 }
 
@@ -103,7 +105,7 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
         <StatTile icon="layout-grid" label={kinds === 1 ? 'Category' : 'Categories'} value={kinds} />
         <StatTile icon="cpu" label="Models" value={new Set(agents.map((a) => agentModel(a, d.settings.defaults).id)).size} />
       </div>
-      <div className="panel glass-plate grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-x-12 gap-y-8 max-lg:grid-cols-1">
+      <Plate className="panel grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-x-12 gap-y-8 max-lg:grid-cols-1">
         <div className="min-w-0">
           <div className={`${CAPTION} mb-4`}>By category</div>
           <div className="relative">
@@ -176,7 +178,7 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
             ))}
           </ul>
         </div>
-      </div>
+      </Plate>
     </section>
   );
 }
@@ -221,20 +223,20 @@ function AgentsList() {
         ) : null}
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DomNode as="span" make={() => deletedButton(['agent', 'team'], () => refreshSoon(0))} deps={[]} />
-          <a className="btn ghost" href="#/library">
+          <ButtonLink variant="ghost" href="#/library">
             <Icon name="store" size={14} />
             Hire from Agent library
-          </a>
-          <button className="btn" onClick={() => void create()}>
+          </ButtonLink>
+          <Button  onClick={() => void create()}>
             <Icon name="plus" size={14} />
             New agent
-          </button>
+          </Button>
         </div>
       </div>
       {shown.length ? (
         <div className="cards">
           {shown.map((a) => (
-            <div key={a.id} className="card glass-plate hover:shadow-none agent-card gap-4">
+            <Plate key={a.id} className="card hover:shadow-none agent-card gap-4">
               <div className="card-top">
                 <Avatar agent={a} lg />
                 <div className="min-w-0 flex-1">
@@ -261,22 +263,22 @@ function AgentsList() {
                 </span>
               </div>
               <div className="card-foot border-t border-line pt-4">
-                <a className="btn small" href={`#/agents/${a.id}`}>
+                <ButtonLink size="small" href={`#/agents/${a.id}`}>
                   <Icon name="message-square" size={13} />
                   Chat
-                </a>
-                <a className="btn ghost small" href={`#/agents/${a.id}/edit`}>
+                </ButtonLink>
+                <ButtonLink variant="ghost" size="small" href={`#/agents/${a.id}/edit`}>
                   <Icon name="pencil" size={13} />
                   Edit
-                </a>
+                </ButtonLink>
                 {a.engine !== 'openai' ? (
-                  <button className="btn ghost small ml-auto" title="Open a terminal for this agent" aria-label={`Terminal for ${a.name}`} onClick={() => void openTerminal(a)}>
+                  <Button variant="ghost" size="small" className="ml-auto" title="Open a terminal for this agent" aria-label={`Terminal for ${a.name}`} onClick={() => void openTerminal(a)}>
                     <Icon name="terminal" size={13} />
                     Terminal
-                  </button>
+                  </Button>
                 ) : null}
               </div>
-            </div>
+            </Plate>
           ))}
         </div>
       ) : d.agents.length ? (
@@ -284,10 +286,10 @@ function AgentsList() {
       ) : (
         <div className="flex flex-col items-center gap-4 py-12 text-center">
           <p className="m-0 max-w-[44ch] text-dim">No agents yet. Hire a specialist from the Agent library, or start with a blank one.</p>
-          <a className="btn" href="#/library">
+          <ButtonLink  href="#/library">
             <Icon name="store" size={14} />
             Hire from Agent library
-          </a>
+          </ButtonLink>
         </div>
       )}
     </>
@@ -383,10 +385,10 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
     <>
       <div className="mx-auto max-w-5xl">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <a className="btn ghost small" href="#/agents">← Agents</a>
+        <ButtonLink variant="ghost" size="small" href="#/agents">← Agents</ButtonLink>
         <div className="flex flex-wrap items-center gap-3">
-          <button className="btn ghost" onClick={() => (dirty ? void save(true) : navigate(`#/agents/${id}`))}>Chat</button>
-          <button className="btn" disabled={!dirty} onClick={() => void save()}>Save</button>
+          <Button variant="ghost" onClick={() => (dirty ? void save(true) : navigate(`#/agents/${id}`))}>Chat</Button>
+          <Button  disabled={!dirty} onClick={() => void save()}>Save</Button>
         </div>
       </div>
       <div className="mb-6">
@@ -395,7 +397,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
       </div>
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-6 [&>.panel]:mt-0">
-          <div className="panel glass-plate">
+          <Plate className="panel">
             <div className="panel-head">
               <Heading icon="bot">Identity and instructions</Heading>
             </div>
@@ -426,8 +428,8 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
                 <textarea className="code" rows={12} value={a.systemPrompt} placeholder="How this agent thinks, works and talks. Its process, rules, what good output looks like." onChange={(e) => set('systemPrompt', e.target.value)} />
               </Field>
             </div>
-          </div>
-          <div className="panel glass-plate">
+          </Plate>
+          <Plate className="panel">
             <div className="panel-head">
               <Heading icon="cpu">Brain</Heading>
             </div>
@@ -436,8 +438,8 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
             <div className="mt-4">
               <EngineFields a={a} d={d} set={set} fit={(x) => (setA(fit(x)), setDirty(true))} />
             </div>
-          </div>
-          <div className="glass-plate overflow-hidden rounded-box">
+          </Plate>
+          <Plate className="overflow-hidden rounded-box">
             <section className="p-5 sm:p-6">
               <div className="panel-head">
                 <Heading icon="file-text">Knowledge</Heading>
@@ -452,10 +454,10 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
               </div>
               <DomNode make={() => (memory.current = memoryEditor(id, { rows: 10 })).el} deps={[id]} />
             </section>
-          </div>
+          </Plate>
         </div>
 
-        <div className="glass-plate overflow-hidden rounded-box [&_.panel-head]:mb-4">
+        <Plate className="overflow-hidden rounded-box [&_.panel-head]:mb-4">
           <div className="p-5 sm:p-6">
             <div className="panel-head">
               <Heading icon="shield-check">Autonomy</Heading>
@@ -470,7 +472,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
                     <span key={t} className="pill">{t}</span>
                   ))}
                 </div>
-                <button className="btn tiny ghost mt-4" onClick={() => (set('alwaysAllow', []), toast('Cleared; save to apply'))}>Clear</button>
+                <Button variant="ghost" size="tiny" className="mt-4" onClick={() => (set('alwaysAllow', []), toast('Cleared; save to apply'))}>Clear</Button>
               </div>
             ) : null}
           </div>
@@ -525,7 +527,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
               <input className="code" value={a.workspace || ''} placeholder={agent.workspacePath} onChange={(e) => set('workspace', e.target.value.trim())} />
             </Field>
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <button className="btn ghost small" onClick={() => void attempt(() => POST(`/agents/${id}/open-workspace`))}>Open folder</button>
+              <Button variant="ghost" size="small" onClick={() => void attempt(() => POST(`/agents/${id}/open-workspace`))}>Open folder</Button>
             </div>
           </div>
           <div className="border-t border-line p-5 sm:p-6">
@@ -533,30 +535,30 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
               <Heading icon="ellipsis">More</Heading>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <button className="btn ghost small" onClick={pin}>
+              <Button variant="ghost" size="small" onClick={pin}>
                 <Icon name="star" size={13} />
                 {a.pinned ? 'Unpin' : 'Pin to top'}
-              </button>
-              <button className="btn ghost small" onClick={() => void clone()}>
+              </Button>
+              <Button variant="ghost" size="small" onClick={() => void clone()}>
                 <Icon name="copy" size={13} />
                 Clone
-              </button>
+              </Button>
               {/* put back: show it as it is now (changes not saved yet are dropped) */}
               <DomNode as="span" make={() => historyButton('agent', id, () => (setDirty(false), reload()))} deps={[id]} />
-              <button className="btn ghost small" title="Keep it as a template you can create again in any project (Agent library > Your presets)" onClick={() => void attempt(() => POST(`/presets/agent/${id}`), `Saved ${a.name} as a preset`)}><Icon name="bookmark-plus" size={13} />
+              <Button variant="ghost" size="small" title="Keep it as a template you can create again in any project (Agent library > Your presets)" onClick={() => void attempt(() => POST(`/presets/agent/${id}`), `Saved ${a.name} as a preset`)}><Icon name="bookmark-plus" size={13} />
                 Save as preset
-              </button>
-              <button className="btn ghost small" title="Write it to ~/.claude/agents so any Claude Code session can use it" onClick={() => void attempt(() => POST<{ file: string }>(`/agents/${id}/export-claude`), (r) => `Saved as ${r.file}`)}><Icon name="terminal" size={13} />
+              </Button>
+              <Button variant="ghost" size="small" title="Write it to ~/.claude/agents so any Claude Code session can use it" onClick={() => void attempt(() => POST<{ file: string }>(`/agents/${id}/export-claude`), (r) => `Saved as ${r.file}`)}><Icon name="terminal" size={13} />
                 Install in Claude Code
-              </button>
-              <button className="btn danger small ml-auto" onClick={() => void del()}>
+              </Button>
+              <Button variant="danger" size="small" className="ml-auto" onClick={() => void del()}>
                 <Icon name="trash-2" size={13} />
                 Delete
-              </button>
+              </Button>
             </div>
             <p className="hint mt-4">{`Id: ${a.id}${a.source?.type && a.source.type !== 'custom' ? ` · from ${a.source.type}${a.source.slug ? ` (${a.source.slug})` : ''}` : ''}`}</p>
           </div>
-        </div>
+        </Plate>
       </div>
       </div>
     </>
@@ -803,7 +805,7 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
         <div key={f} className="list-row">
           <span aria-hidden="true">📁</span>
           <div className="flex-1 min-w-0 font-mono text-[12.5px] wrap-anywhere">{f}</div>
-          <button className="btn tiny ghost" onClick={() => void attempt(() => DEL(`/agents/${id}/knowledge?folder=${encodeURIComponent(f)}`)).then(load)}>Unlink</button>
+          <Button variant="ghost" size="tiny" onClick={() => void attempt(() => DEL(`/agents/${id}/knowledge?folder=${encodeURIComponent(f)}`)).then(load)}>Unlink</Button>
         </div>
       ))}
       {info.files
@@ -815,17 +817,17 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
               {f.label}
               <span className="hint">{` · ${Math.max(1, Math.round(f.size / 1024))} KB`}</span>
             </div>
-            <button className="btn tiny ghost" onClick={() => void attempt(() => DEL(`/agents/${id}/knowledge?label=${encodeURIComponent(f.label)}`)).then(load)}>Remove</button>
+            <Button variant="ghost" size="tiny" onClick={() => void attempt(() => DEL(`/agents/${id}/knowledge?label=${encodeURIComponent(f.label)}`)).then(load)}>Remove</Button>
           </div>
         ))}
       <div className="mt-1 flex flex-wrap items-center gap-3">
-        <button className="btn ghost small" onClick={() => void addNote()}>+ Write a note</button>
+        <Button variant="ghost" size="small" onClick={() => void addNote()}>+ Write a note</Button>
         <label className="btn ghost small">
           + Upload files
           <input type="file" multiple hidden onChange={(e) => void upload(e.target.files)} />
         </label>
-        <button className="btn ghost small" onClick={() => void addFolder()}>+ Link a folder</button>
-        <button className="btn ghost small" onClick={() => void addUrl()}>+ From a web page</button>
+        <Button variant="ghost" size="small" onClick={() => void addFolder()}>+ Link a folder</Button>
+        <Button variant="ghost" size="small" onClick={() => void addUrl()}>+ From a web page</Button>
       </div>
     </div>
   );

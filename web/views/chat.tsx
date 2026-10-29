@@ -8,6 +8,7 @@ import { modelChip, modelInfo } from '../models.ts';
 import { kTokens } from '../../shared/compaction.ts';
 import { attachTray } from '../attach.ts';
 import { Avatar, DomNode, Icon, reactPage } from '../ui/react.tsx';
+import { Button, ButtonLink } from '../ui/button.tsx';
 import type { PageContext } from '../ui/react.tsx';
 import type { AgentDetail } from './agents.tsx';
 import type { ChatViewApi } from '../chat/ChatView.tsx';
@@ -143,11 +144,11 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
             <span className="text-faint">{info.where}</span>
           </div>
           <div className="mt-5 flex flex-col gap-2">
-            <button className="btn small w-full justify-center" onClick={() => void newChat()}>+ New chat</button>
+            <Button size="small" className="w-full justify-center" onClick={() => void newChat()}>+ New chat</Button>
             <div className="grid grid-cols-2 gap-2">
-              <a className={`btn ghost tiny justify-center ${agent.engine === 'openai' ? 'col-span-2' : ''}`} href={`#/agents/${agent.id}/edit`}>Edit</a>
+              <ButtonLink variant="ghost" size="tiny" className={`justify-center ${agent.engine === 'openai' ? 'col-span-2' : ''}`} href={`#/agents/${agent.id}/edit`}>Edit</ButtonLink>
               {agent.engine !== 'openai' ? (
-                <button className="btn ghost tiny justify-center" title="Open this agent in a live terminal" onClick={() => void openTerminal(agent)}><Icon name="terminal" size={13} />Terminal</button>
+                <Button variant="ghost" size="tiny" className="justify-center" title="Open this agent in a live terminal" onClick={() => void openTerminal(agent)}><Icon name="terminal" size={13} />Terminal</Button>
               ) : null}
               <DomNode as="span" className="col-span-2 [&_button]:w-full [&_button]:justify-center" make={() => memoryButton(agent.id, agent.name, 'button.btn.ghost.tiny')} deps={[agent.id]} />
             </div>
@@ -179,10 +180,10 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
                 <span className="relative">{`Memory ${memory.percent}%`}</span>
               </span>
             ) : null}
-            <button className="btn tiny ghost" title="Compact the agent’s memory of this chat now: older messages become a short history, the latest stay in full (or type /compact)" onClick={() => void api.current?.compact()}>Compact</button>
-            <button className="btn tiny ghost" onClick={() => void rename()}>Rename</button>
-            <button className="btn tiny ghost" title="Keep the messages here but start the agent fresh" onClick={() => void resetMemory()}>Clear memory</button>
-            <button className="btn tiny danger" onClick={() => void removeChat()}>Delete</button>
+            <Button size="tiny" variant="ghost" title="Compact the agent’s memory of this chat now: older messages become a short history, the latest stay in full (or type /compact)" onClick={() => void api.current?.compact()}>Compact</Button>
+            <Button size="tiny" variant="ghost" onClick={() => void rename()}>Rename</Button>
+            <Button size="tiny" variant="ghost" title="Keep the messages here but start the agent fresh" onClick={() => void resetMemory()}>Clear memory</Button>
+            <Button size="tiny" variant="danger" onClick={() => void removeChat()}>Delete</Button>
           </div>
         </div>
         <div className="chat-body contents">

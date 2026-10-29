@@ -1,4 +1,6 @@
 // Programs: what's installed and running on this PC, ComfyUI, and every Start Menu app.
+import { Button, ButtonLink } from '../ui/button.tsx';
+import { Plate } from '../ui/surface.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import { GET, POST, attempt, lightbox, toast, navigate } from '../core.ts';
 import { Field, Row, SearchBox, Section } from '../ui/controls.tsx';
@@ -132,7 +134,7 @@ export function ProgramsTab() {
     }).catch(() => {});
   });
 
-  if (failed) return <div className="glass-plate rounded-box p-6"><p className="text-red">Something went wrong: {failed}</p></div>;
+  if (failed) return <Plate className="rounded-box p-6"><p className="text-red">Something went wrong: {failed}</p></Plate>;
   if (!progs) return <p className="text-dim">Looking around this PC…</p>;
 
   const start = async (p: ProgramInfo) => {
@@ -144,7 +146,7 @@ export function ProgramsTab() {
     <>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <p className="lede m-0 max-w-[68ch]">{`Found ${progs.filter((p) => p.installed).length} programs. Agents can use the ones with tools; you can start any of them from here.`}</p>
-        <button className="btn ghost small" onClick={() => void load(true)}>Scan again</button>
+        <Button variant="ghost" size="small" onClick={() => void load(true)}>Scan again</Button>
       </div>
       {comfy ? <ComfyPanel comfy={comfy} rescan={() => void load(true)} /> : null}
       {CATS.map(([cat, label]) => {
@@ -160,9 +162,9 @@ export function ProgramsTab() {
                     title={<span className="flex flex-wrap items-center gap-2.5"><span className="avatar size-8 after:hidden">{appIconUrl(p.id) ? <img className="app-icon inline-block align-middle" src={appIconUrl(p.id)!} width={20} height={20} alt="" style={appIconStyle(p.id, 20)} /> : p.icon}</span><span>{p.name}</span><span className={`dot${p.running ? ' on' : isStarting ? ' busy' : ''}`} /></span>}
                     description={<><span className="hint prog-state">{progState(p, isStarting)}</span>{ABOUT[p.id] ? <span className="block mt-1">{ABOUT[p.id]}</span> : null}</>}
                   >
-                    {p.actions.includes('launch') || (!p.cli && p.exe) ? <button className="btn small" onClick={() => void start(p)}>Start</button> : null}
-                    {p.serviceUrl ? <a className="btn ghost small" href={p.serviceUrl} target="_blank" rel="noopener">Open</a> : null}
-                    {p.actions.includes('terminal') ? <button className="btn ghost small" onClick={() => void openCli(p)}>Terminal</button> : null}
+                    {p.actions.includes('launch') || (!p.cli && p.exe) ? <Button size="small" onClick={() => void start(p)}>Start</Button> : null}
+                    {p.serviceUrl ? <ButtonLink variant="ghost" size="small" href={p.serviceUrl} target="_blank" rel="noopener">Open</ButtonLink> : null}
+                    {p.actions.includes('terminal') ? <Button variant="ghost" size="small" onClick={() => void openCli(p)}>Terminal</Button> : null}
                   </Row>
                 </div>
               );
@@ -195,7 +197,7 @@ function AllApps() {
       <div className="divide-y divide-line border-t border-line">
         {shown.map((a) => (
           <Row key={a.shortcut || a.name} title={<span className="prog-app-name">{a.name}</span>} description={a.folder || undefined}>
-            <button className="btn tiny ghost" onClick={() => void attempt(() => POST<{ message: string }>('/programs/launch', { program: a.name }), (r) => r.message)}>Start</button>
+            <Button variant="ghost" size="tiny" onClick={() => void attempt(() => POST<{ message: string }>('/programs/launch', { program: a.name }), (r) => r.message)}>Start</Button>
           </Row>
         ))}
       </div>
@@ -221,9 +223,9 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
   const device = st.devices?.[0];
   return (
     <Section title={<span className="flex items-center gap-2"><img className="app-icon" src={appIconUrl('comfyui')!} width={20} height={20} alt="" style={appIconStyle('comfyui', 20)} /> ComfyUI</span>} action={!st.running ? (
-      <button className="btn small" onClick={() => void attempt(() => POST('/comfyui/start'), 'Starting ComfyUI… give it a minute').then(() => setTimeout(rescan, 20000))}>Start ComfyUI</button>
+      <Button size="small" onClick={() => void attempt(() => POST('/comfyui/start'), 'Starting ComfyUI… give it a minute').then(() => setTimeout(rescan, 20000))}>Start ComfyUI</Button>
     ) : (
-      <a className="btn ghost small" href={st.url} target="_blank" rel="noopener">Open ComfyUI</a>
+      <ButtonLink variant="ghost" size="small" href={st.url} target="_blank" rel="noopener">Open ComfyUI</ButtonLink>
     )}>
       <div className="flex flex-wrap gap-2 px-5 py-4">
         <span className={`pill${st.running ? ' ok' : ''}`}>{st.running ? `running · ${st.url}` : 'not running'}</span>
@@ -239,7 +241,7 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
           </div>
           <textarea rows={2} aria-label="Prompt" placeholder="Prompt (replaces the positive prompt in the workflow)" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
           <div className="flex flex-wrap items-center gap-3">
-            <button className="btn" disabled={running} onClick={() => void run()}>{running ? 'Running…' : 'Run'}</button>
+            <Button disabled={running} onClick={() => void run()}>{running ? 'Running…' : 'Run'}</Button>
             <span className="hint">{st.running ? 'Images appear below. Agents with the ComfyUI tools can do the same.' : 'Start ComfyUI first.'}</span>
           </div>
           <div className="tool-images">

@@ -1,5 +1,6 @@
 // Settings > Look: UI scale, accent colour, animations, chat font, Station quality. Changes apply right away and are saved a moment later.
 // The Station's background picture and its opacities belong to the open project (not the settings).
+import { Button } from '../ui/button.tsx';
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Radio } from '@base-ui/react/radio';
@@ -70,9 +71,9 @@ function OpacitySlider({ project, field, label, value, hint }: { project: Projec
         </Slider.Root>
         <b className="look-opacity min-w-10 text-right text-[13px] leading-[normal] font-medium text-ink tabular-nums">{`${shown}%`}</b>
         {project[field] !== undefined ? (
-          <button type="button" className="btn ghost tiny" onClick={() => void save(null)}>
+          <Button type="button" variant="ghost" size="tiny" onClick={() => void save(null)}>
             Default
-          </button>
+          </Button>
         ) : null}
       </div>
     </Row>
@@ -91,14 +92,14 @@ function StationBackground({ look }: { look: LookSetting['stationLook'] }) {
       <Row title="Background" description={`A picture behind the map, for ${proj.name} only. Dimmed in the classic look; in the voxel world it takes the sky's place. You can also ask the Brain to set one.`}>
         <div className="flex flex-wrap items-center justify-end gap-2.5">
           {url ? <img className="look-background h-14 w-24 flex-none rounded-ctl border border-line object-cover" src={url} alt="" /> : null}
-          <button type="button" className="btn ghost small" onClick={() => void pickBackground(ref)}>
+          <Button type="button" variant="ghost" size="small" onClick={() => void pickBackground(ref)}>
             <Icon name="image" size={13} />
             {url ? 'Change picture' : 'Add a picture'}
-          </button>
+          </Button>
           {url ? (
-            <button type="button" className="btn ghost small" onClick={() => void removeBackground(ref)}>
+            <Button type="button" variant="ghost" size="small" onClick={() => void removeBackground(ref)}>
               Remove
-            </button>
+            </Button>
           ) : null}
         </div>
       </Row>
@@ -181,9 +182,9 @@ export function LookTab() {
           </div>
           <div className="look-presets mt-4 flex flex-wrap items-center gap-2">
             {SCALES.map((v) => (
-              <button key={v} className={`btn tiny${look.scale === v ? '' : ' ghost'}`} aria-pressed={look.scale === v} onClick={() => set({ scale: v })}>
+              <Button key={v} size="tiny" variant={look.scale === v ? 'primary' : 'ghost'} aria-pressed={look.scale === v} onClick={() => set({ scale: v })}>
                 {v === 100 ? '100% (default)' : `${v}%`}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -295,8 +296,8 @@ export function LookTab() {
       <Section title="Preview" description="How the buttons, labels and chat text look with these choices.">
         <div className="flex flex-col gap-4 px-5 py-5">
           <div className="flex flex-wrap items-center gap-2.5">
-            <button className="btn small">Button</button>
-            <button className="btn ghost small">Ghost</button>
+            <Button size="small">Button</Button>
+            <Button variant="ghost" size="small">Ghost</Button>
             <span className="pill ok">ready</span>
             <span className="inline-flex items-center gap-2 text-[13px] text-dim">
               <span className="dot on" /> running
@@ -307,7 +308,7 @@ export function LookTab() {
           </p>
         </div>
         <div className="flex items-center justify-end px-5 py-3.5">
-          <button className="btn ghost small" onClick={() => set({ ...DEFAULT_LOOK })}>Reset to default</button>
+          <Button variant="ghost" size="small" onClick={() => set({ ...DEFAULT_LOOK })}>Reset to default</Button>
         </div>
       </Section>
     </div>
