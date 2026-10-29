@@ -152,9 +152,10 @@ export const Sections = ({ children, className = '' }: { children: ReactNode; cl
 
 /** A part of a settings page. Wide: its title and a line about it on the left, its controls in a bordered
  *  panel of rows on the right. Narrow: the title above the panel. bare: no panel (cards, or a list of its own). */
-export function Section({ title, titleId, description, action, children, bare = false, className = '', id }: {
+export function Section({ title, titleId, headingClassName = '', description, action, children, bare = false, className = '', id }: {
   title: ReactNode;
   titleId?: string;
+  headingClassName?: string;
   description?: ReactNode;
   /** A button under the description (Connect, Add…). */
   action?: ReactNode;
@@ -166,13 +167,13 @@ export function Section({ title, titleId, description, action, children, bare = 
   return (
     <section id={id} className={`settings-section grid grid-cols-[minmax(0,15rem)_minmax(0,1fr)] items-start gap-x-12 gap-y-4 max-lg:grid-cols-1 ${className}`.trim()}>
       <div className="min-w-0 lg:pt-1">
-        <h2 id={titleId} className="m-0 text-[15px] leading-snug font-semibold tracking-tight text-ink">
+        <h2 id={titleId} className={`m-0 text-[15px] leading-snug font-semibold tracking-tight text-ink ${headingClassName}`.trim()}>
           {title}
         </h2>
         {description ? <p className="mt-1.5 mb-0 max-w-[44ch] text-[13px] leading-normal text-dim">{description}</p> : null}
         {action ? <div className="mt-3.5 flex flex-wrap items-center gap-2">{action}</div> : null}
       </div>
-      <div className={bare ? 'min-w-0' : 'panel min-w-0 divide-y divide-line p-0'}>{children}</div>
+      <div className={bare ? 'min-w-0' : 'panel glass-plate min-w-0 divide-y divide-line rounded-box p-0'}>{children}</div>
     </section>
   );
 }

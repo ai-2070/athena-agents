@@ -207,6 +207,19 @@ Tests: `tests/web/dock.test.tsx` (example prompts, the To menu, Esc), `dock-rese
 dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, including waiting for its exit),
 `iconweight.test.tsx`.
 
+## Glass across the app
+
+- Floating dialogs, menus, chat windows, toasts, the approvals drawer and Station overlays use the shared glass material.
+  Dialog backdrops do not blur: the dialog itself needs to see the page behind it.
+- Flat pages and the attached sidebar use plates instead of blur. `.glass-plate` gives them a panel fill, hairline edge and
+  inset highlight; the glass tokens are available at the root for plates outside floating surfaces.
+- Settings sections share the Section and Row layout. Programs and Outbox use the same layout.
+- Agent and team chats use one composer with controls below the text; answers sit directly on the window.
+- Choice controls use the shared Base UI select and glass menu rather than native select popups. Checkboxes and segmented
+  controls share the same treatment on pages and in dialogs.
+- Plain-DOM project, skill, mention and model menus and Base UI menus use exit motion; reduced-motion settings still apply.
+
+
 ## Decisions and what was rejected
 
 - **To and the model moved from the header to under the text box.** The header was crowded (title, "To", a select, a
@@ -220,7 +233,6 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
 
 ## Not done yet
 
-- The project menu, Station right-click menu and skill pickers do not animate out (they do animate in).
 - Agent and team replies share the answer container and follow the same plain style, but were not rendered with live
   content during the remake (only the Brain's own messages were).
 - No visible focus indicator on the text box is a trade-off for keyboard users; a very faint border change on

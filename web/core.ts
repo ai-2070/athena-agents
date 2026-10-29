@@ -424,19 +424,6 @@ export function field(label: Child, control: Child, hint?: Child): HTMLLabelElem
   return h('label.field', h('span', label), control, hint ? h('span.hint', hint) : null);
 }
 
-// onChange gets the picked option's value (the select's .value).
-export function select<V extends string>(options: OptionList<V>, value: V | null | undefined, onChange: (v: V) => void): HTMLSelectElement {
-  const el = h(
-    'select',
-    options.map((o) => {
-      const opt: Option<V> = typeof o === 'string' ? { value: o, label: o } : o;
-      return h('option', { value: opt.value, selected: opt.value === value }, opt.label);
-    }),
-  );
-  el.value = value ?? '';
-  el.addEventListener('change', () => onChange(el.value as V));
-  return el;
-}
 
 export function ago(ts: number | null | undefined): string {
   if (!ts) return '';
