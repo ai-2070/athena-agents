@@ -100,7 +100,7 @@ export function icon(name: string, size: number | string = 16, cls = ''): SVGSVG
   s.setAttribute('height', String(size));
   s.setAttribute('fill', 'none');
   s.setAttribute('stroke', 'currentColor');
-  s.setAttribute('stroke-width', '1.75');
+  s.setAttribute('stroke-width', '1.5');
   s.setAttribute('stroke-linecap', 'round');
   s.setAttribute('stroke-linejoin', 'round');
   s.setAttribute('class', \`ico-svg \${cls}\`.trim());

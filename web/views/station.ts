@@ -772,7 +772,7 @@ export async function render(el: HTMLElement): Promise<void> {
   const labels = h('div', { class: 'group/labels absolute inset-0 pointer-events-none overflow-hidden *:absolute *:left-0 *:top-0 *:pointer-events-auto *:will-change-transform' });
   const hud = h('div', { class: 'absolute inset-0 pointer-events-none' });
   const panel = h('aside.st-panel.hidden', {
-    class: 'absolute top-18 right-4 bottom-4 w-100 max-w-[calc(100%-32px)] z-5 flex flex-col bg-panel border border-line rounded-box shadow-pop select-text max-md:top-auto max-md:left-0 max-md:right-0 max-md:bottom-0 max-md:h-[60vh] max-md:w-auto max-md:max-w-none',
+    class: 'absolute top-18 right-4 bottom-4 w-100 max-w-[calc(100%-32px)] z-5 flex flex-col select-text max-md:top-auto max-md:left-0 max-md:right-0 max-md:bottom-0 max-md:h-[60vh] max-md:rounded-b-none max-md:w-auto max-md:max-w-none',
   });
   const wires = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   wires.setAttribute('class', 'st-wires absolute inset-0 w-full h-full pointer-events-none overflow-visible');

@@ -8,6 +8,8 @@ import { GET, POST, PUT, DEL, attempt, navigate, approvalCard, ago, toast, promp
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.ts';
 import { openDock } from '../dock.tsx';
+import { brainKeyLabel } from '../shortcuts.ts';
+import { FileIcon, FolderIcon, VSCodeIcon } from '../ui/fileicons.tsx';
 import { openChat } from '../chatwin.tsx';
 import { skillPicker } from '../skillpick.ts';
 import { historyButton } from '../history.ts';
@@ -20,7 +22,7 @@ import { ChipSet, Segmented, Tabs } from '../ui/controls.tsx';
 import { AgentSelect } from '../ui/agentselect.tsx';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { WorldPanel } from './worldpanel.tsx';
-import { fileManager, previewFile, previewKind, previewTitle } from '../filepreview.ts';
+import { fileManager, previewFile, previewTitle } from '../filepreview.ts';
 import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, connectorLook } from './stationdata.ts';
 import type { AvailableIntegration, Connector, MapPick, Program, TeamView } from './stationdata.ts';
 import type { Agent, AppState, Project, Team, TeamAccess, TeamState } from '../../shared/types.ts';
@@ -97,8 +99,9 @@ function Panel({ api, subscribe, version }: { api: StationPanelApi; subscribe: (
 }
 
 // (st-panel-title stays as a mark the tests look for)
-const TITLE = 'st-panel-title font-sans text-[16px] leading-[1.25] font-bold';
-const BODY = 'min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-5';
+const TITLE = 'st-panel-title font-sans text-[16px] leading-[1.25] font-semibold tracking-[-0.015em]';
+// (the soft fade at both ends lets what scrolls past the head and the foot melt into the glass instead of being cut off)
+const BODY = 'min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-18px),transparent_100%)]';
 // a row in the connection and team lists (st-conn stays as a mark the tests look for)
 const CONN =
   'st-conn flex w-full cursor-pointer items-center gap-2.5 rounded-box border border-line bg-bg px-3 py-2.5 text-left text-[13px] text-ink [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] hover:border-line-2';
@@ -106,10 +109,9 @@ const CONNS = 'mt-3 flex flex-col gap-2';
 // a file or folder in the Brain list (st-file stays as a mark the tests look for); one that opens is a button that lights up
 const FILE = 'st-file flex min-w-0 items-center gap-1.5 overflow-hidden py-0.5 text-left text-[12.5px] text-ellipsis whitespace-nowrap text-dim';
 const FILE_OPENS = `${FILE} group cursor-pointer rounded-[4px] border-0 bg-transparent px-0 [transition:color_0.18s_cubic-bezier(0.37,0,0.63,1),translate_0.18s_cubic-bezier(0.37,0,0.63,1)] hover:translate-x-1 hover:text-accent focus-visible:text-accent`;
-const FILE_ICON = 'flex-none text-faint transition-colors duration-180 ease-[cubic-bezier(0.37,0,0.63,1)] group-hover:text-accent group-focus-visible:text-accent';
 // the Brain's three numbers
-const STAT = 'flex flex-col gap-1 rounded-box border border-line p-3 text-[12px] leading-[normal] font-medium text-dim';
-const STAT_N = 'font-sans text-[24px] leading-[normal] font-semibold tabular-nums tracking-tight text-ink';
+const STAT = 'flex flex-col gap-1 rounded-[10px] border border-line bg-panel p-3 text-[12px] leading-[normal] font-medium text-dim shadow-[inset_0_1px_0_var(--glass-spec)]';
+const STAT_N = 'font-sans text-[22px] leading-[1.1] font-semibold tabular-nums tracking-[-0.02em] text-ink';
 // a round face on the team panel (its border colour is added where it's used)
 const FACE =
   'relative grid size-9 cursor-pointer place-items-center rounded-full border bg-bg p-0 [transition:transform_0.15s,border-color_0.15s] hover:[transform:translateY(-2px)] hover:border-accent [&_.avatar]:size-8 [&_.avatar]:rounded-full [&_.avatar]:text-[16px]';
@@ -120,10 +122,10 @@ const LEAD_STAR = 'absolute -top-1.25 -right-1 text-[12px] text-amber';
 
 function PanelHead({ api, children }: { api: StationPanelApi; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-3 border-b border-line px-5 py-4">
+    <div className="flex items-center gap-3 px-5 pt-5 pb-2">
       {children}
       <button className="icon-btn" onClick={() => api.choose(null)} aria-label="Close">
-        ✕
+        <Icon name="x" size={15} />
       </button>
     </div>
   );
@@ -266,7 +268,7 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
     <>
       <PanelHead api={api}>
         {proj.logoAt ? (
-          <DomNode as="span" className="grid size-10.5 flex-none place-items-center rounded-box bg-ink/5" make={() => projectMark(proj as Project, 34)} deps={[proj.id, proj.logoAt]} />
+          <DomNode as="span" className="grid size-10 flex-none place-items-center overflow-hidden rounded-[10px] border border-line bg-ink/5" make={() => projectMark(proj as Project, 40)} deps={[proj.id, proj.logoAt]} />
         ) : (
           <span className="st-badge lg" style={badgeStyle('var(--color-accent)')}>
             <Icon name="brain" size={18} />
@@ -283,7 +285,7 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
           summary={proj.description ? { text: proj.description, from: 'description' } : info?.summary?.text ? info.summary : null}
           fromPath={info?.entries.find((e) => !e.dir && e.name === info.summary?.from)?.path}
         />
-        <div className="grid grid-cols-[repeat(3,1fr)] gap-1.5">
+        <div className="grid grid-cols-[repeat(3,1fr)] gap-2">
           <div className={STAT}>
             <b className={STAT_N}>{d.agents.length}</b>agents
           </div>
@@ -294,63 +296,73 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
             <b className={STAT_N}>{d.runs.length + api.busyTeams()}</b>working
           </div>
         </div>
-        <button className="btn small mt-3 w-full justify-center" onClick={() => openDock()}>
-          <Icon name="sparkles" size={14} />
-          Ask the Brain
+        <button
+          type="button"
+          className="mt-3 flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-ctl border border-line-2 bg-panel px-3 text-left text-[13px] text-dim shadow-[inset_0_1px_0_var(--glass-spec)] [transition:background-color_0.15s,border-color_0.15s,color_0.15s] hover:bg-panel-2 hover:text-ink"
+          onClick={() => openDock()}
+        >
+          <Icon name="sparkles" size={14} className="text-accent" />
+          <span className="flex-1">Ask the Brain…</span>
+          <kbd className="rounded-[5px] border border-line px-1.5 py-px font-sans text-[11px] leading-[normal] text-faint">{brainKeyLabel(true)}</kbd>
         </button>
-        <div className="label mt-7">Brain folder</div>
-        <div className="hint mt-1.5 font-mono wrap-anywhere">{proj.brainPath || ''}</div>
-        <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
-          <button className="btn ghost small" onClick={() => void attempt(() => POST('/brain/open', {}))}>
-            <Icon name="folder" size={14} />
-            Open folder
+        <div className="mt-6 mb-2 flex items-center gap-0.5">
+          <div className="label flex-1">Brain folder</div>
+          <button className="icon-btn plain" title="Open the folder" aria-label="Open folder" onClick={() => void attempt(() => POST('/brain/open', {}))}>
+            <FolderIcon size={16} />
           </button>
-          <button className="btn ghost small" onClick={() => void attempt(() => POST('/brain/open', { app: 'vscode' }))}>
-            <Icon name="external-link" size={14} />
-            VS Code
+          <button className="icon-btn plain" title="Open in VS Code" aria-label="VS Code" onClick={() => void attempt(() => POST('/brain/open', { app: 'vscode' }))}>
+            <VSCodeIcon size={16} />
           </button>
-          <button className="btn ghost small" onClick={() => void addNote()}>
+          <button className="icon-btn plain" title="Add a note" aria-label="Add note" onClick={() => void addNote()}>
             <Icon name="pen-line" size={14} />
-            Add note
           </button>
         </div>
-        <div>
-          {error ? (
-            <p className="hint">{error}</p>
-          ) : !info ? (
-            <p className="hint">Reading the Brain folder…</p>
-          ) : (
-            <>
-              {info.git ? (
-                <div className={`${CONN} mt-3.5`}>
-                  <DomNode as="span" className="dom-contents" make={() => logo('github', 16) || icon('git-branch', 16)} deps={[]} />
-                  <div className="min-w-0 flex-1">
-                    <div>
-                      {info.git.url ? (
-                        <a href={info.git.url} target="_blank" rel="noreferrer">
-                          {info.git.url.replace('https://github.com/', '')}
-                        </a>
-                      ) : (
-                        'Local git repo'
-                      )}
+        <div className="overflow-hidden rounded-[10px] border border-line bg-panel shadow-[inset_0_1px_0_var(--glass-spec)]">
+          <div className="border-b border-line px-3 py-2 font-mono text-[11.5px] leading-[1.5] text-dim wrap-anywhere">{proj.brainPath || ''}</div>
+          <div className="px-3 py-2.5">
+            {error ? (
+              <p className="hint m-0">{error}</p>
+            ) : !info ? (
+              <p className="hint m-0">Reading the Brain folder…</p>
+            ) : (
+              <>
+                {info.git ? (
+                  <div className={`${CONN} mb-2.5`}>
+                    <DomNode as="span" className="dom-contents" make={() => logo('github', 16) || icon('git-branch', 16)} deps={[]} />
+                    <div className="min-w-0 flex-1">
+                      <div>
+                        {info.git.url ? (
+                          <a href={info.git.url} target="_blank" rel="noreferrer">
+                            {info.git.url.replace('https://github.com/', '')}
+                          </a>
+                        ) : (
+                          'Local git repo'
+                        )}
+                      </div>
+                      <div className="hint">{`${info.git.branch} · ${info.git.last}${info.git.changes ? ` · ${info.git.changes} changed` : ''}`}</div>
                     </div>
-                    <div className="hint">{`${info.git.branch} · ${info.git.last}${info.git.changes ? ` · ${info.git.changes} changed` : ''}`}</div>
+                    <button className="btn tiny ghost" onClick={() => void attempt(() => POST<{ message: string }>('/brain/pull'), (r) => r.message)}>
+                      Pull
+                    </button>
                   </div>
-                  <button className="btn tiny ghost" onClick={() => void attempt(() => POST<{ message: string }>('/brain/pull'), (r) => r.message)}>
-                    Pull
-                  </button>
+                ) : null}
+                <div className="hint">{`${info.files} files · ${info.sizeMB} MB`}</div>
+                <div className="mt-1.5 grid grid-cols-[1fr_1fr] gap-x-2.5 gap-y-0.5">
+                  {info.entries.map((e) => (
+                    <BrainEntry key={e.path || e.name} entry={e} />
+                  ))}
                 </div>
-              ) : null}
-              <div className="hint mt-3.5">{`${info.files} files · ${info.sizeMB} MB`}</div>
-              <div className="mt-2 grid grid-cols-[1fr_1fr] gap-x-2.5 gap-y-0.5">
-                {info.entries.map((e) => (
-                  <BrainEntry key={e.path || e.name} entry={e} />
-                ))}
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
-        <div className="label mt-7">Teams</div>
+        <div className="mt-6 mb-2 flex items-center">
+          <div className="label flex-1">Teams</div>
+          <button className="btn plain tiny" onClick={api.newTeam}>
+            <Icon name="plus" size={12} />
+            New team
+          </button>
+        </div>
         <div className="list">
           {teams.map((wf, i) => (
             <Pick key={wf.id} onClick={() => api.choose({ type: 'branch', id: wf.id })}>
@@ -374,12 +386,6 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
             </div>
           </>
         ) : null}
-        <div className="mt-7 flex flex-wrap items-center gap-2.5">
-          <button className="btn ghost small" onClick={api.newTeam}>
-            <Icon name="git-branch" size={14} />
-            New team
-          </button>
-        </div>
       </div>
     </>
   );
@@ -388,19 +394,18 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
 // A row in the Brain folder list: a folder opens in Finder / Explorer, a picture, Markdown file or PDF
 // opens the way it does in a chat (in the desktop app any file opens), anything else is just its name.
 function BrainEntry({ entry: e }: { entry: BrainInfo['entries'][number] }) {
-  const kind = e.dir ? null : previewKind(e.name);
   const title = e.dir ? `Open ${e.name} in ${fileManager()}` : previewTitle(e.name);
   if (!title)
     return (
       <div className={FILE}>
-        <Icon name="pen-line" size={13} className="flex-none text-faint" />
+        {e.dir ? <FolderIcon size={16} /> : <FileIcon name={e.name} size={16} />}
         <span className="min-w-0 truncate">{e.name}</span>
       </div>
     );
   const go = () => (e.dir ? void attempt(() => POST('/brain/open', { path: e.path })) : previewFile(e.path, e.name));
   return (
     <button type="button" className={FILE_OPENS} title={title} aria-label={title} onClick={go}>
-      <Icon name={e.dir ? 'folder' : kind === 'image' ? 'image' : 'file-text'} size={13} className={FILE_ICON} />
+      {e.dir ? <FolderIcon size={16} /> : <FileIcon name={e.name} size={16} />}
       <span className="min-w-0 truncate">{e.name}</span>
     </button>
   );
@@ -431,16 +436,16 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
     if (await attempt(() => PUT(`/projects/${encodeURIComponent(proj.id!)}`, { name }), `Renamed to ${name}`)) refreshSoon(0);
   };
   return (
-    <div className="mb-3.5 rounded-[12px] border border-line bg-bg p-3">
+    <div className="mb-3 rounded-[10px] border border-line bg-panel p-3 shadow-[inset_0_1px_0_var(--glass-spec)]">
       <div className="flex items-start gap-3">
         <button
           type="button"
-          className="grid size-18 flex-none cursor-pointer place-items-center rounded-[12px] border border-line bg-ink/4 [transition:border-color_0.15s,transform_0.15s] hover:[transform:translateY(-1px)] hover:border-accent"
+          className="grid size-16 flex-none cursor-pointer place-items-center overflow-hidden rounded-[10px] border border-line bg-ink/4 [transition:border-color_0.15s] hover:border-line-2"
           title={proj.logoAt ? 'Change the logo' : 'Add a logo'}
           onClick={() => ref && void pickLogo(ref)}
         >
           {proj.logoAt ? (
-            <DomNode as="span" className="dom-contents" make={() => projectMark(proj as Project, 64)} deps={[proj.id, proj.logoAt]} />
+            <DomNode as="span" className="dom-contents" make={() => projectMark(proj as Project, 56)} deps={[proj.id, proj.logoAt]} />
           ) : (
             <span className="flex flex-col items-center gap-1 text-[11px] text-dim">
               <Icon name="image" size={20} />
