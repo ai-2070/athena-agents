@@ -73,6 +73,7 @@ describe('the fonts', () => {
       expect(urls.length).toBeGreaterThan(0);
       for (const u of urls) expect(fs.existsSync(path.join(out, u))).toBe(true);
       expect(fs.existsSync(path.join(out, 'fonts', 'archivo-LICENSE.txt'))).toBe(true);
+      expect(fs.existsSync(path.join(out, 'fonts', 'geist-LICENSE.txt'))).toBe(true);
     } finally {
       fs.rmSync(out, { recursive: true, force: true });
     }
@@ -83,7 +84,7 @@ describe('the fonts', () => {
     const shipped = new Set(FONTS.map((f) => f.family));
     const named = CHAT_FONTS.flatMap((f) => [...f.stack.matchAll(/'([^']+)'/g)].map((m) => m[1] ?? ''));
     expect(named.filter((n) => !onComputer.has(n) && !shipped.has(n))).toEqual([]);
-    for (const n of ['Google Sans', 'Roboto', 'Inter']) expect(shipped).toContain(n);
+    for (const n of ['Geist', 'Google Sans', 'Roboto', 'Inter']) expect(shipped).toContain(n);
   });
 
   it('are not fetched from outside', () => {

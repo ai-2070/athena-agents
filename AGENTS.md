@@ -84,7 +84,7 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 
 ## Look
 
-"Linear, but white": quiet white surfaces, hairline borders, one accent, Archivo, roomy spacing. The page follows the system:
+"Linear, but white": quiet white surfaces, hairline borders, one accent, Geist, roomy spacing. The page follows the system:
 `base.css` swaps the `--color-*` tokens under `prefers-color-scheme: dark` (`<html data-theme="dark" | "light">` forces one,
 for checking both; nothing sets it in the app).
 
@@ -93,7 +93,7 @@ for checking both; nothing sets it in the app).
 - The accent is picked in Settings › Look and has two tones (`ACCENTS` in `web/look.ts`): don't assume a hue. Green means "on"
   (`text-ok`), amber "waiting", red "failed".
 - Canvases, three.js and the terminal can't use `var()`: read `isDark()` / `themeColor()` and restyle on `onThemeChange()`.
-- Labels, tabs, buttons and captions are sentence case in Archivo; mono is for code, paths, URLs, ids and keys. No uppercase
+- Labels, tabs, buttons and captions are sentence case in Geist; mono is for code, paths, URLs, ids and keys. No uppercase
   letter-spaced captions, no coloured glows, no gradient text. Controls are `rounded-ctl`, cards `rounded-box`; depth is
   `shadow-card`, `shadow-lift` and `shadow-pop`.
 

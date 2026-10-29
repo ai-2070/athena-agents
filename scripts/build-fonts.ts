@@ -9,6 +9,7 @@ const PKGS = path.resolve(import.meta.dirname, '..', 'node_modules', '@fontsourc
 
 // Family names stay the plain ones web/styles/app.css and the terminal ask for.
 export const FONTS = [
+  { pkg: 'geist', family: 'Geist', sheets: ['wght.css', 'wght-italic.css'] },
   { pkg: 'archivo', family: 'Archivo', sheets: ['wght.css'] },
   { pkg: 'inter', family: 'Inter', sheets: ['wght.css', 'wght-italic.css'] },
   { pkg: 'jetbrains-mono', family: 'JetBrains Mono', sheets: ['wght.css'] },
