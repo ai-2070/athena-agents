@@ -1,0 +1,22 @@
+docs/internal/plans/TEAM_ORCHESTRATION_FIXES_2026-10-31.md
+  s_7daa4bf644d295::t_f2e887b3d5f7af 1,6-10,15-17,19,39-47,50-53,57,80-130,157-161,163-165,171-181,186,201-204,206,208-209,212-215,217-221,225-226,228-230,232-237
+  s_7daa4bf644d295::t_3fdd8448d576ff 37,145
+  s_7daa4bf644d295::t_c4d774c0c65fdc 241-242,252-256,260-270,274-279
+  s_7daa4bf644d295::t_5f9ecc1fee8b7f 210-211
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "871ff8c4463e80fea1d2578c749941297ea58131",
+  "prompts": {},
+  "sessions": {
+    "s_7daa4bf644d295": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1909a-0e49-7540-af35-65ce95355b59",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
