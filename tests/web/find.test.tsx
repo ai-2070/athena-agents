@@ -109,7 +109,10 @@ describe('Ctrl+F in a huge Markdown file', () => {
       return tops.get(this) ?? 0;
     });
     vi.spyOn(Element.prototype, 'scrollTop', 'set').mockImplementation(function (this: Element, v: number) {
+      const was = tops.get(this) ?? 0;
       tops.set(this, v);
+      // (a real scroll fires 'scroll'; the virtualizer only hears the new offset from it)
+      if (v !== was) this.dispatchEvent(new Event('scroll'));
     });
     vi.spyOn(Element.prototype, 'scrollTo').mockImplementation(function (this: Element, a?: ScrollToOptions | number) {
       if (typeof a === 'object' && a.top != null) {

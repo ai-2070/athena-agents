@@ -157,19 +157,23 @@ sightings inside `dock.tsx` and `web/chat/ChatView.tsx`. That is the tail left f
 Before: `tests/server/brain-chat.test.ts` (Windows temp-dir EPERM), `tests/web/bigmarkdown.test.tsx`,
 `tests/web/find.test.tsx` and `tests/server/api.test.ts` failed.
 
-After: `bigmarkdown.test.tsx` passes — its mocks stubbed `offsetHeight`, but `@tanstack/react-virtual`
-reads the scroller's `clientHeight`/`clientWidth`, so nothing was ever measured. Added those two spies.
-`find.test.tsx`'s "finds a word that is far from the screen" still fails: `scrollToIndex()` returns
-early for an index the virtualizer has not measured (`measurementsCache[index]` is undefined), so
-Ctrl+F cannot reveal a match that is far away. That is a real behaviour change in the current
-`@tanstack/react-virtual` and is **not fixed here** — it needs a decision about how to jump to an
-unmeasured piece. The other two failures are unrelated (server temp-dir permission, and a routine
-endpoint answering 404 where the test wants 400).
+After: both Markdown tests pass, and the whole web suite is green.
+
+- `bigmarkdown.test.tsx` stubbed `offsetHeight`, but `@tanstack/react-virtual` reads the scroller's
+  `clientHeight`/`clientWidth`, so nothing was ever measured. Added those two spies.
+- `find.test.tsx`'s "finds a word that is far from the screen" exposed a real bug: `scrollToIndex()`
+  returns early when it has not measured the index asked for, so Ctrl+F could not reveal a match that
+  was far away. `web/ui/bigmarkdown.tsx` now scrolls the box itself to the summed estimate, and the
+  test's `scrollTop` mock fires `scroll` the way a browser does (its `scrollTo` mock already did).
+
+Left failing, both server-side and unrelated to this work: `brain-chat.test.ts` (a Windows temp-dir
+`EPERM`) and `api.test.ts` (a routine endpoint answering 404 where the test wants 400).
 
 ## Still open
 
-- The `find.test.tsx` case above.
-- The `h()` tail listed under "What was done".
+- An `h()` tail: `skillpick.ts`, `pastes.ts`, `chatcommands.ts`, `routinemention.ts`, `compactmark.ts`,
+  `projectlogo.ts`, `teammark.ts`, `modelviewer.ts`, plus sightings inside `dock.tsx` and
+  `web/chat/ChatView.tsx`.
 - `web/builder.tsx` kept `STEP_BTN` for its ★/✕ step buttons, and `web/projectmenu.tsx` kept
   `RENAME_BTN`: both are 26–28px row affordances whose size, radius or reveal differ from the shared
   `quiet` icon button, so folding them in would have changed how they look.
