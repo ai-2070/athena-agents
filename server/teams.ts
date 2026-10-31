@@ -14,6 +14,7 @@ import { askAgent, stopChat, stopChildren, forgetChat, RunStopped } from './engi
 import { isStepList, teamSteps, parseTeamRefs, teamFrom, fromTeam } from '../shared/teams.ts';
 import { attachmentNames, cleanAttachments } from './uploads.ts';
 import { soleHolder, servicesOf } from './services.ts';
+import { teamDigest, teamMessage } from './teamdigest.ts';
 import type { Agent, LoopInfo, QueuedMessage, Team, TeamMessage, TeamRef, TeamRelay, TeamState } from '../shared/types.ts';
 import type { LoopRequest } from '../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../shared/queue.ts';
@@ -22,7 +23,6 @@ import { queuedEdit, reorderQueued } from '../shared/queue.ts';
 // where agents only talk (no tool used, a short reply), like two agents thanking each other forever.
 export const MAX_CHATTER = 8;
 const CHATTER_CHARS = 600; // a reply this long is work in itself (a draft, a plan), even without tools
-const CONTEXT_CHARS = 9000; // new group messages handed to an agent per turn
 const KEEP_MESSAGES = 500;
 const MAX_BRAIN_REPLIES = 4; // times the Brain answers @Brain per message you send
 const MAX_RELAYS = 4; // times a team asks other teams per message you send
@@ -261,6 +261,7 @@ async function routeMessage(teamId: string, from: string, text: string | null | 
   const named = from === 'user' ? teamsNamed(team, text) : [];
   const asked = named.length ? askTeams(team, msg, named, from) : [];
   let targets = mentions;
+  let assignedTeam = team;
   let why = '';
   if (!targets.length && (askBrain || asked.length || named.length)) {
     log('team', `You → ${askBrain ? 'the Brain' : asked.map((id) => `#${getTeam(id)?.name}`).join(', ') || 'other teams'} in ${team.name}: ${text.slice(0, 100)}`);
@@ -293,10 +294,25 @@ async function routeMessage(teamId: string, from: string, text: string | null | 
       throw new RunStopped();
     }
     if (r.epoch !== epoch || r.stopped) return msg;
-    targets = [pick && team.members.includes(pick) ? pick : team.members[0]];
-    why = pick ? 'best fit' : 'first member';
+    // The roster may have changed while the router was choosing.
+    const current = getTeam(team.id);
+    if (!current?.members.length) return msg;
+    assignedTeam = current;
+    if (pick && current.members.includes(pick)) {
+      targets = [pick];
+      why = 'best fit';
+    } else {
+      const free = current.members.find((id) => !r.running.has(id));
+      const id = free || current.members[0];
+      targets = [id];
+      why = free ? 'first member free' : 'everyone busy';
+      const name = agents.get(id)?.name || 'someone';
+      post(team, { from: 'system', text: free
+        ? `No routing match: asked @${name}, the first member free.`
+        : `No routing match: queued this for @${name}; everyone is busy.` });
+    }
   }
-  for (const id of targets) enqueue(team, id, msg.id, true, false, skills);
+  enqueueMany(assignedTeam, targets, msg.id, true, false, skills);
   if (why) emit('team', { teamId: team.id, event: { kind: 'routed', to: targets, why } });
   log('team', `${relay ? `#${relay.teamName}` : from === BRAIN ? 'The Brain' : 'You'} → ${team.name}: ${(text || attachmentNames(attachments)).slice(0, 100)}`);
   return msg;
@@ -477,7 +493,7 @@ async function brainTurn(team: Team, msg: TeamMessage): Promise<void> {
     const fresh = getTeam(team.id) || team;
     const mentions = parseMentions(fresh, reply);
     const out = post(fresh, { from: BRAIN, text: reply, mentions, replyTo: msg.id });
-    for (const id of mentions) enqueue(fresh, id, out.id, false, false);
+    enqueueMany(fresh, mentions, out.id);
     if (!mentions.length && fresh.members.includes(msg.from)) enqueue(fresh, msg.from, out.id, false, true);
   }
   state(team);
@@ -508,14 +524,25 @@ function settled(teamId: string, stopped = false) {
 // returning: this is a finished handoff coming back (the receiver's own reply won't bounce back again)
 // skills: extra skills for the work this message is about (merged when a queued turn takes on more messages)
 function enqueue(team: Team, agentId: string, msgId: string, priority = false, returning = false, skills: readonly string[] = []) {
+  enqueueMany(team, [agentId], msgId, priority, returning, skills);
+}
+
+// Queue the whole assignment before starting anyone, so even the first prompt knows its peers.
+function enqueueMany(team: Team, agentIds: readonly string[], msgId: string, priority = false, returning = false, skills: readonly string[] = []) {
+  if (!agentIds.length) return;
   const r = runtime(team.id);
-  const existing = r.queue.find((q) => q.agentId === agentId);
-  if (existing) {
-    existing.msgIds.push(msgId);
-    existing.returning = existing.returning && returning;
-    existing.skills = [...new Set([...existing.skills, ...skills])];
-  } else if (priority) r.queue.unshift({ agentId, msgIds: [msgId], returning, skills: [...skills] });
-  else r.queue.push({ agentId, msgIds: [msgId], returning, skills: [...skills] });
+  const added: QueueItem[] = [];
+  for (const agentId of new Set(agentIds)) {
+    if (!team.members.includes(agentId)) continue;
+    const existing = r.queue.find((q) => q.agentId === agentId);
+    if (existing) {
+      if (!existing.msgIds.includes(msgId)) existing.msgIds.push(msgId);
+      existing.returning = existing.returning && returning;
+      existing.skills = [...new Set([...existing.skills, ...skills])];
+    } else added.push({ agentId, msgIds: [msgId], returning, skills: [...skills] });
+  }
+  if (priority) r.queue.unshift(...added);
+  else r.queue.push(...added);
   state(team);
   pump(team.id);
 }
@@ -628,14 +655,8 @@ async function runTurn(team: Team, item: QueueItem) {
     if (m.relay) return m.relay.answers ? `#${m.relay.teamName} answered (${m.relay.byName} there)` : `#${m.relay.teamName} asks your team (${m.relay.byName} there)`;
     return id === 'user' ? 'You (the user)' : id === 'system' ? 'System' : id === BRAIN ? 'The Brain (overseer)' : `@${agents.get(id)?.name || 'someone'}`;
   };
-  // files attached to a message: named in the line, their paths come at the end of the prompt
-  const said = (m: TeamMessage) => `${name(m)}: ${String(m.text).slice(0, 2500)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`;
-  let digest = '';
-  for (const m of fresh.slice().reverse()) {
-    const line = said(m);
-    if (digest.length + line.length > CONTEXT_CHARS) break;
-    digest = `${line}\n\n${digest}`;
-  }
+  const said = (m: TeamMessage) => teamMessage(m, name);
+  const digest = teamDigest(fresh, name);
   const forYou = c.messages.filter((m) => item.msgIds.includes(m.id)).map(said).join('\n\n');
   // the team's files go to the engine once per agent (so models that can't open files get them too), new ones when added;
   // plus what the user attached since this agent last read
@@ -650,7 +671,10 @@ async function runTurn(team: Team, item: QueueItem) {
   const filesNote = newTeamFiles.length
     ? `The team's reference files from the user (${attachmentNames(newTeamFiles)}) are attached at the end.\n\n`
     : teamFiles.length ? `The team's files: ${teamFiles.join(', ')}\n\n` : '';
-  const prompt = `${first ? `${briefing(team, agent)}\n\n` : ''}${filesNote}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\n${TURN_ASK}`;
+  const assigned = [...(runtime(team.id).current?.values() || []), ...runtime(team.id).queue];
+  const peers = [...new Set(assigned.filter((q) => q.agentId !== agent.id && team.members.includes(q.agentId) && q.msgIds.some((id) => item.msgIds.includes(id))).map((q) => q.agentId))];
+  const peersNote = peers.length ? `Other members assigned this message: ${peers.map((id) => `@${agents.get(id)?.name || 'someone'}`).join(', ')}. Do your own part; avoid duplicating theirs.\n\n` : '';
+  const prompt = `${first ? `${briefing(team, agent)}\n\n` : ''}${filesNote}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\n${peersNote}${TURN_ASK}`;
   // (where this turn starts in the agent's session: the team chat shows its work, live and afterwards)
   const from = chats.get(agent.id, chatId)?.items.length ?? 0;
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'start', chatId } });
@@ -687,7 +711,7 @@ async function runTurn(team: Team, item: QueueItem) {
   // its own reply is left out of that by itself)
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'end' } });
   if (stopped) return;
-  for (const id of mentions) if (team.members.includes(id)) enqueue(team, id, msg.id, false, false, item.skills);
+  enqueueMany(team, mentions, msg.id, false, false, item.skills);
   // it asked the Brain: the Brain's answer comes back to it
   const askedBrain = mentionsBrain(text);
   if (askedBrain) void brainTurn(team, msg);

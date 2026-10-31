@@ -141,8 +141,12 @@ describe('API', () => {
     const post = async (p: string, body: unknown) => (await req(p, { method: 'POST', headers: json, body: JSON.stringify(body) })).json();
     const a = await post('/api/agents', { name: 'Routine Tester' });
     await post('/api/workflows', { name: 'Routine Crew', members: [a.id], lead: a.id });
-    const r = await (await req('/api/routines', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Daily' }) })).json();
-    // nobody mentioned yet: running it is a clear 400, not a server fault
+    const empty = await req('/api/routines', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Daily' }) });
+    expect(empty.status).toBe(400);
+    const created = await req('/api/routines', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Daily', text: 'Check the launch.' }) });
+    expect(created.status).toBe(200);
+    const r = await created.json();
+    // A valid routine with nobody mentioned cannot run yet.
     expect((await req(`/api/routines/${r.id}/run`, { method: 'POST', headers: json, body: '{}' })).status).toBe(400);
     const saved = await (await req(`/api/routines/${r.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ text: 'Have @Routine Tester and @Routine Crew check in.' }) })).json();
     expect(saved.mentions.map((m: { kind: string; name: string }) => `${m.kind}:${m.name}`)).toEqual(['agent:Routine Tester', 'team:Routine Crew']);

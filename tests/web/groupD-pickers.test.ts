@@ -320,11 +320,12 @@ describe('team builder: saving', () => {
     await openBranchBuilder({ prefill: { name: 'Crew', members: [draft('A'), draft('B')], leadIndex: 0 } });
     failHire = 'B';
     saveBtn().click();
-    await settle();
+    await expect.poll(() => hires()).toEqual(['A', 'B']);
+    await expect.poll(() => saveBtn().disabled).toBe(false);
     expect(teamBody()).toBeUndefined();
     failHire = null;
     saveBtn().click();
-    await settle();
+    await expect.poll(() => teamBody()?.members.length).toBe(2);
     expect(hires()).toEqual(['A', 'B', 'B']);
     const body = teamBody()!;
     expect(body.members).toHaveLength(2);
@@ -335,10 +336,11 @@ describe('team builder: saving', () => {
     await openBranchBuilder({ prefill: { name: 'Crew', members: [draft('A')], leadIndex: 0 } });
     failTeam = true;
     saveBtn().click();
-    await settle();
+    await expect.poll(() => calls.filter((c) => c.path === '/workflows').length).toBe(1);
+    await expect.poll(() => saveBtn().disabled).toBe(false);
     failTeam = false;
     saveBtn().click();
-    await settle();
+    await expect.poll(() => calls.filter((c) => c.path === '/workflows').length).toBe(2);
     expect(hires()).toEqual(['A']);
     const posts = calls.filter((c) => c.path === '/workflows');
     expect(posts).toHaveLength(2);

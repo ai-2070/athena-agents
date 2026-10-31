@@ -11,6 +11,8 @@ import type { ServerEvent, Team } from '../../shared/types.ts';
 let server: http.Server;
 // the last message each agent was sent, by name
 const lastAsk: Record<string, string> = {};
+const asks: Record<string, string[]> = {};
+const heldReplies = new Set<() => void>();
 beforeAll(async () => {
   server = http.createServer(async (req, res) => {
     if (req.url?.endsWith('/models')) return res.end(JSON.stringify({ data: [{ id: 'mock' }] }));
@@ -20,8 +22,21 @@ beforeAll(async () => {
     const system = j.messages[0].content;
     const last = j.messages.at(-1)!.content;
     const who = /You are (\w+)/.exec(system)?.[1];
-    if (who) lastAsk[who] = last;
+    if (who) {
+      lastAsk[who] = last;
+      (asks[who] ||= []).push(last);
+    }
+    if (who?.startsWith('Hold')) {
+      let release!: () => void;
+      await new Promise<void>((r) => {
+        release = r;
+        heldReplies.add(r);
+        res.once('close', r);
+      });
+      heldReplies.delete(release);
+    }
     let reply = 'Okay.';
+    if (who === 'Dispatcher') reply = '@HoldOne and @HoldTwo, do your parts.';
     // Slow works on and on (until it is stopped), except on a change of plan
     if (system.includes('You are Slow') && !/Change of plan/.test(last)) {
       res.writeHead(200, { 'content-type': 'text/event-stream' });
@@ -260,5 +275,131 @@ describe('queued messages: changed and put in order', () => {
     expect(orderQueuedTeam(team.id, [ids[2], 'nope', ids[0]]).map((q) => q.text)).toEqual(['three', 'one', 'two, changed']);
     expect(teamState(team.id).held?.map((q) => q.id)).toEqual([ids[2], ids[0], ids[1]]);
     stopTeam(team.id);
+  });
+});
+
+describe('fallback routing and concurrent assignments', () => {
+  const until = async (done: () => boolean) => {
+    await expect.poll(done).toBe(true);
+  };
+  const setup = (dispatcher = false) => {
+    asks.HoldOne = [];
+    asks.HoldTwo = [];
+    const one = agent('HoldOne');
+    const two = agent('HoldTwo');
+    const lead = dispatcher ? agent('Dispatcher') : null;
+    const team = workflows.save({ name: 'Assignments', members: [one.id, two.id, ...(lead ? [lead.id] : [])], lead: lead?.id || null, steps: [] } as Partial<Team>);
+    return { one, two, team };
+  };
+  const cleanup = async (team: Team) => {
+    stopTeam(team.id);
+    for (const release of heldReplies) release();
+    await until(() => teamState(team.id).working.length === 0);
+  };
+  const notes = (team: Team) => getThread(team.id).messages.filter((m) => m.from === 'system');
+  const assignment = (prompt: string) => prompt.split('Other members assigned this message: ')[1]?.split('\n')[0];
+
+  it.each(['missing', 'null', 'error', 'invalid'])('discloses a %s routing fallback before the turn starts', async (mode) => {
+    const { one, team } = setup();
+    try {
+      const route = mode === 'missing' ? undefined : async () => {
+        if (mode === 'error') throw new Error('Router unavailable');
+        return mode === 'invalid' ? 'non-member' : null;
+      };
+      await postUserMessage(team.id, 'Please help', { route });
+      await until(() => asks.HoldOne.length === 1);
+      expect(teamState(team.id).working).toEqual([one.id]);
+      expect(notes(team).map((m) => m.text)).toEqual(['No routing match: asked @HoldOne, the first member free.']);
+      expect(asks.HoldOne[0]).toContain('System: No routing match: asked @HoldOne');
+    } finally { await cleanup(team); }
+  });
+
+  it('skips a busy member on fallback and describes queued work when everyone is busy', async () => {
+    const { one, two, team } = setup();
+    try {
+      await postUserMessage(team.id, '@HoldOne take the first request');
+      await until(() => asks.HoldOne.length === 1);
+      await postUserMessage(team.id, 'Take another request', { route: async () => null });
+      await until(() => asks.HoldTwo.length === 1);
+      expect(notes(team)[0].text).toBe('No routing match: asked @HoldTwo, the first member free.');
+      expect(assignment(asks.HoldTwo[0])).toBeUndefined();
+      await postUserMessage(team.id, 'And another', { route: async () => null });
+      expect(teamState(team.id).working).toEqual([one.id, two.id]);
+      expect(teamState(team.id).queued).toEqual([one.id]);
+      expect(notes(team)[1].text).toBe('No routing match: queued this for @HoldOne; everyone is busy.');
+    } finally { await cleanup(team); }
+  });
+
+  it('keeps valid picks, mentions and reply-to routing even when that member is busy', async () => {
+    const { one, team } = setup();
+    try {
+      const first = await postUserMessage(team.id, '@HoldOne first');
+      await until(() => asks.HoldOne.length === 1);
+      await postUserMessage(team.id, 'Best fit', { route: async () => one.id });
+      // A reply to a user message has no agent author, so the valid router still applies.
+      await postUserMessage(team.id, 'Reply', { replyTo: first.id, route: async () => one.id });
+      await postUserMessage(team.id, '@HoldOne another');
+      expect(notes(team)).toEqual([]);
+      expect(teamState(team.id).queued).toEqual([one.id]);
+    } finally { await cleanup(team); }
+  });
+
+  it('rechecks the roster after the router waits instead of losing work for a removed member', async () => {
+    const { one, two, team } = setup();
+    try {
+      await postUserMessage(team.id, 'Pick someone', { route: async () => {
+        workflows.save({ ...team, members: [two.id] });
+        return one.id;
+      } });
+      await until(() => asks.HoldTwo.length === 1);
+      expect(notes(team)[0].text).toBe('No routing match: asked @HoldTwo, the first member free.');
+    } finally { await cleanup(team); }
+  });
+
+  it('routes a reply to its agent author without a fallback note', async () => {
+    const { one, team } = setup();
+    try {
+      await postUserMessage(team.id, '@HoldOne first');
+      await until(() => asks.HoldOne.length === 1);
+      for (const release of heldReplies) release();
+      await until(() => !teamState(team.id).working.length);
+      const answer = getThread(team.id).messages.find((m) => m.from === one.id)!;
+      await postUserMessage(team.id, 'Please expand', { replyTo: answer.id, route: async () => { throw new Error('Must not route'); } });
+      await until(() => asks.HoldOne.length === 2);
+      expect(notes(team)).toEqual([]);
+    } finally { await cleanup(team); }
+  });
+
+  it.each([false, true])('discloses every peer in initial prompts (agent handoff: %s)', async (handoff) => {
+    const { one, two, team } = setup(handoff);
+    try {
+      const starts: string[] = [];
+      const listen = (ev: ServerEvent) => {
+        const e = ev.event as { kind?: string; state?: string; agentId?: string };
+        if (ev.type === 'team' && ev.teamId === team.id && e.kind === 'turn' && e.state === 'start' && e.agentId) starts.push(e.agentId);
+      };
+      bus.on('event', listen);
+      try {
+        await postUserMessage(team.id, handoff ? 'Split the work' : '@HoldOne and @HoldTwo, do your parts');
+        await until(() => asks.HoldOne.length === 1 && asks.HoldTwo.length === 1);
+      } finally { bus.off('event', listen); }
+      expect(starts.slice(handoff ? 1 : 0)).toEqual([one.id, two.id]);
+      expect(assignment(asks.HoldOne[0])).toBe('@HoldTwo. Do your own part; avoid duplicating theirs.');
+      expect(assignment(asks.HoldTwo[0])).toBe('@HoldOne. Do your own part; avoid duplicating theirs.');
+      expect(teamState(team.id).working).toEqual([one.id, two.id]);
+      expect(asks.HoldOne[0].endsWith(TURN_ASK)).toBe(true);
+    } finally { await cleanup(team); }
+  });
+
+  it('does not claim another agent is assigned to a solo or unrelated turn', async () => {
+    const { team } = setup();
+    try {
+      await postUserMessage(team.id, '@HoldOne first job');
+      await until(() => asks.HoldOne.length === 1);
+      await postUserMessage(team.id, '@HoldTwo different job');
+      await until(() => asks.HoldTwo.length === 1);
+      expect(assignment(asks.HoldOne[0])).toBeUndefined();
+      expect(assignment(asks.HoldTwo[0])).toBeUndefined();
+    } finally { await cleanup(team); }
   });
 });

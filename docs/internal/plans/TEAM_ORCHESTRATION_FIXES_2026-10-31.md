@@ -3,6 +3,31 @@
 Plan, 31 October 2026. Follows the comparison in
 [`docs/internal/GROK_BOT_ORCHESTRATION_2026-10-31.md`](../GROK_BOT_ORCHESTRATION_2026-10-31.md).
 
+**Implementation, 31 October 2026.** All four follow-ups are implemented on
+`fix/team-orchestration-2026-10-31`:
+
+- Clone tests cover team running turns, queues, Stop, reply storage and handoff ownership.
+- `server/teamdigest.ts` builds bounded recent context and older previews, reserves the oldest preview,
+  counts omissions, and marks clipped message text in both context and addressed messages.
+- Fallback routing explains a free or queued choice. It also rechecks the roster after the router returns:
+  removing a member during selection previously dropped the request without starting a replacement.
+- Initial routing, agent handoffs and Brain replies enqueue known targets together. Turn prompts disclose
+  current and queued peers assigned overlapping messages, including the first member started.
+- README, guide and comparison note describe the resulting behavior and its remaining limits.
+
+The regression tests for new behavior failed before implementation; the clone guards passed already.
+Validation includes `bun run check`, `bun run build`, and a real HTTP server with disposable project data
+and fake model responses: the persisted fallback note, older previews, omission counts, clipping markers
+and both members' assignment prompts were checked. The browser visual pass could not run because the
+browser access host was unavailable; no visual or layout changes are included.
+The final check passed all 193 test files: 1 592 tests passed and 21 were skipped. The production build
+and `git diff --check` passed too.
+
+Validation also exposed test issues outside the team changes: an API test tried to create an empty routine
+that is now rejected; Brain chat and library/model tests launched real local CLIs; and preview/builder
+tests relied on short fixed waits. Their fixtures now match the API, mock unrelated CLI calls and wait for
+observable UI state. Installing the existing frozen lockfile restored the missing Cinzel dependency.
+
 This covers four selected follow-ups from that comparison, checked against the current code. Cross-project
 guards already exist and need regression coverage. The digest needs explicit, bounded previews and omission
 counts. Routing and concurrent assignments need clearer disclosure. The last three reduce the reported

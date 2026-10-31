@@ -8,6 +8,11 @@ import { agents, saveSettings, setSecret, workflows } from '../../server/store.t
 import { newAgent } from '../../server/library.ts';
 import { listVersions } from '../../server/versions.ts';
 
+vi.mock('../../server/engines/hermes.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/engines/hermes.ts')>()),
+  listProfiles: async () => [],
+}));
+
 const answers: string[] = [];
 const asked: { system: string; user: string }[] = [];
 vi.mock('../../server/brain.ts', async (orig) => ({
