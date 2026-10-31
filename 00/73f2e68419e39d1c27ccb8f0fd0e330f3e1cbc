@@ -1,0 +1,43 @@
+tests/web/chatview.test.tsx
+  s_8892bfc24ba38a::t_fed45f9fcd95af 10
+tests/web/filepreview.test.ts
+  s_8892bfc24ba38a::t_c850cd867268e5 3
+web/backup.tsx
+  s_8892bfc24ba38a::t_2a3fbef6a0fddf 2-7,122-150,152-153
+web/chat/parts.tsx
+  s_8892bfc24ba38a::t_4069a82219cc15 11
+web/filepreview.tsx
+  s_8892bfc24ba38a::t_0ee4a05c5d823e 5-8,17-18,22,148-156,158,163-173,176-189,195-203,206-211,213-221,223-263,269-270,273
+web/navlimits.tsx
+  s_8892bfc24ba38a::t_9e4ca9d201d250 3-11,54-62,120-127,131,133-139,143-195,203,230,232-233,243-244,246-249,262,264-271,273-279,306-312,315,317-319,323-329,332-333,335,338-340,343-351,353-365
+web/teamchat.tsx
+  s_8892bfc24ba38a::t_92a0e3ad8012ad 13
+web/views/agents.tsx
+  s_8892bfc24ba38a::t_8bd57db2a49806 9-10
+web/views/look.tsx
+  s_8892bfc24ba38a::t_3e8f95a8e8d655 11
+web/views/outbox.tsx
+  s_8892bfc24ba38a::t_8751f88481faba 10
+web/views/settings.tsx
+  s_8892bfc24ba38a::t_c5829dbd2eaefb 9
+web/dock.tsx
+  s_8892bfc24ba38a::t_0ff26cce555b33 19-20
+web/views/stationpanel.tsx
+  s_8892bfc24ba38a::t_433784283bf242 15,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0073f2e68419e39d1c27ccb8f0fd0e330f3e1cbc",
+  "prompts": {},
+  "sessions": {
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
