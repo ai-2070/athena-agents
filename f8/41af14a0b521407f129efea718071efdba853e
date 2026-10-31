@@ -1,0 +1,14 @@
+docs/internal/plans/TEAM_ORCHESTRATION_FIXES_2026-10-31.md
+  h_64425bc75e3f3d 1-219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f841af14a0b521407f129efea718071efdba853e",
+  "prompts": {},
+  "humans": {
+    "h_64425bc75e3f3d": {
+      "author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
