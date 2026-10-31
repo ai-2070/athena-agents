@@ -65,11 +65,9 @@ describe('the Overview page', () => {
 
   it('gives the picked agent a task in a new chat with Ctrl+Enter', async () => {
     await open();
-    const select = el.querySelector<HTMLSelectElement>('select[aria-label="Agent"]')!;
-    await act(async () => {
-      select.value = 'a2';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Agent"]')!.click());
+    await settle();
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent?.includes('Coder'))!.click());
     const box = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Task"]')!;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(box, 'Fix the build');

@@ -241,12 +241,11 @@ describe('several accounts of one service', () => {
     mcpMore = { presets: [{ ...oomolPreset, installed: true, copies: ['my-oomol'] }], info: { 'my-oomol': info('my-oomol', 'my-oomol', '', '', 1) } };
     await open();
     await act(async () => btn(el.querySelector('.mcp-server') as HTMLElement, 'Edit').click());
-    const select = document.querySelector<HTMLSelectElement>('#modal-root select')!;
-    expect(select.value).toBe('oomol');
-    await act(async () => {
-      select.value = '';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    const select = document.querySelector<HTMLButtonElement>('#modal-root button[aria-label="Same service as"]')!;
+    expect(select.textContent?.trim()).toBe('OOMOL');
+    await act(async () => select.click());
+    await settle();
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent?.includes('Its own service'))!.click());
     await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
     await settle();
     expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({ name: 'my-oomol', kind: 'my-oomol' });
@@ -278,7 +277,7 @@ describe('several accounts of one service', () => {
     await act(async () => btn(rows[1] as HTMLElement, 'Edit').click());
     expect(document.querySelector('#modal-root .modal h2')!.textContent).toBe('Edit OOMOL: Home');
     expect(field('Label').value).toBe('Home');
-    expect(document.querySelector<HTMLSelectElement>('#modal-root select')!.value).toBe('oomol');
+    expect(document.querySelector<HTMLButtonElement>('#modal-root button[aria-label="Same service as"]')!.textContent?.trim()).toBe('OOMOL');
     await type(field('Use this one for'), 'family calendar');
     await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
     await settle();

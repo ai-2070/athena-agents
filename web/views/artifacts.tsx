@@ -1,8 +1,11 @@
 // Artifacts: what the teams finished that isn't an outgoing post (a written result, a file, a folder),
 // with a preview of each (images, video, audio, 3D models) and a search for when there are many.
+import { Plate } from '../ui/surface.tsx';
+import { Button, ButtonLink } from '../ui/button.tsx';
+import { Pill } from '../ui/marks.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import { GET, DEL, attempt, md, copy, confirmBox } from '../core.ts';
-import { filePreviews } from '../filepreview.ts';
+import { filePreviews } from '../filepreview.tsx';
 import { fileUrl } from '../client/connection.ts';
 import { DomNode, Icon, reactPage, useServerEvents } from '../ui/react.tsx';
 import { SearchBox } from '../ui/controls.tsx';
@@ -41,15 +44,15 @@ function ArtifactsPage() {
   };
   return (
     <>
-      <div className="art-search flex flex-wrap items-center gap-3 mb-3.5">
-        <SearchBox className="flex-1" placeholder="Search by name, note, team, who made it, file name…" label="Search artifacts" value={query} onChange={(v) => setQuery((lastQuery = v))} />
-        <span className="hint">{query.trim() ? `${list.length} of ${total}` : total ? `${total}` : ''}</span>
+      <div className="art-search mb-6 flex flex-wrap items-center gap-3">
+        <SearchBox className="w-[min(480px,100%)]" placeholder="Search by name, note, team, who made it, file name…" label="Search artifacts" value={query} onChange={(v) => setQuery((lastQuery = v))} />
+        <span className="hint ml-auto tabular-nums">{query.trim() ? `${list.length} of ${total}` : total ? `${total}` : ''}</span>
       </div>
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-4">
         {all === null ? null : list.length ? (
           list.map((a) => <ArtifactCard key={a.id} a={a} onRemove={() => void remove(a)} />)
         ) : (
-          <div className="empty box">{total ? `Nothing matches "${query.trim()}".` : 'Nothing yet. When a team finishes a result that is not a post or email, an agent saves it here with save_artifact.'}</div>
+          <div className="empty mx-auto max-w-[56ch] py-12">{total ? `Nothing matches "${query.trim()}".` : 'Nothing yet. When a team finishes a result that is not a post or email, an agent saves it here with save_artifact.'}</div>
         )}
       </div>
     </>
@@ -60,33 +63,33 @@ function ArtifactCard({ a, onRemove }: { a: Artifact; onRemove: () => void }) {
   const kindIcon = a.kind === 'folder' ? 'folder' : a.kind === 'file' ? 'file' : 'file-text';
   const who = [a.agentName ? `by ${a.agentName}` : '', a.teamName ? `team ${a.teamName}` : ''].filter(Boolean).join(' · ');
   return (
-    <div className="panel">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <Icon name={kindIcon} />
+    <Plate className="panel">
+      <div className="flex flex-wrap items-center gap-3">
+        <Icon name={kindIcon} className="text-faint" />
         <b>{a.title}</b>
-        <span className="pill">{a.kind}</span>
+        <Pill>{a.kind}</Pill>
         <span className="flex-1 min-w-0" />
         <span className="hint" title={when(a.createdAt)}>{`done ${when(a.createdAt)}`}</span>
       </div>
-      {who ? <div className="hint mt-3.5">{who}</div> : null}
-      {a.note ? <p className="hint mt-3.5">{a.note}</p> : null}
-      {a.path ? <div className="hint font-mono mt-3.5 break-all">{a.path}</div> : null}
+      {who ? <div className="hint mt-4">{who}</div> : null}
+      {a.note ? <p className="hint mt-4 max-w-[68ch]">{a.note}</p> : null}
+      {a.path ? <div className="hint mt-4 font-mono break-all">{a.path}</div> : null}
       {/* the same preview the chats show: image, video, audio, a 3D model you can turn, or a card for other files and folders */}
-      {a.path ? <DomNode className="mt-3.5" make={() => filePreviews([a.path!])} deps={[a.path]} /> : null}
+      {a.path ? <DomNode className="mt-4" make={() => filePreviews([a.path!])} deps={[a.path]} /> : null}
       {a.kind === 'text' && a.text ? (
-        <details className="mt-3.5">
+        <details className="mt-4">
           <summary>Show the result</summary>
           <DomNode make={() => md(a.text!)} deps={[a.text]} />
         </details>
       ) : null}
-      <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
-        {a.kind === 'file' && a.path ? <a className="btn ghost small" href={fileUrl(a.path)} target="_blank" rel="noopener">Open</a> : null}
-        {a.path ? <button className="btn ghost small" onClick={() => copy(a.path!)}>Copy path</button> : null}
-        {a.text ? <button className="btn ghost small" onClick={() => copy(a.text!)}>Copy text</button> : null}
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        {a.kind === 'file' && a.path ? <ButtonLink variant="ghost" size="small" href={fileUrl(a.path)} target="_blank" rel="noopener">Open</ButtonLink> : null}
+        {a.path ? <Button variant="ghost" size="small" onClick={() => copy(a.path!)}>Copy path</Button> : null}
+        {a.text ? <Button variant="ghost" size="small" onClick={() => copy(a.text!)}>Copy text</Button> : null}
         <span className="flex-1 min-w-0" />
-        <button className="btn danger small" onClick={onRemove}>Remove</button>
+        <Button variant="danger" size="small" onClick={onRemove}>Remove</Button>
       </div>
-    </div>
+    </Plate>
   );
 }
 

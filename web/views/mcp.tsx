@@ -1,13 +1,18 @@
 // Tools & MCP: built-in tools, MCP servers (presets, custom, imported), and sharing dashboard tools with Hermes / other apps.
+import { Button } from '../ui/button.tsx';
+import { CHIPS_CLASS, chipClass } from '../ui/classes.ts';
+import { Pill } from '../ui/marks.tsx';
+import { Plate } from '../ui/surface.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import { GET, POST, DEL, attempt, confirmBox, copy, refreshSoon } from '../core.ts';
-import { Field, SearchBox, Segmented } from '../ui/controls.tsx';
+import { Field, PanelNote, Row, SearchBox, Section, Segmented } from '../ui/controls.tsx';
 import { openModal } from '../ui/overlays.tsx';
 import { reactPage } from '../ui/react.tsx';
+import { SelectControl } from '../ui/select.tsx';
 import type { McpServerInfo, McpSuggestion, ToolGroup } from '../../shared/types.ts';
 
 // why a server is suggested ("on this PC" gets the accent and a dot); mcp-why stays for the tests
-const WHY = 'mcp-why font-mono text-[11px] leading-[1.4] font-medium';
+const WHY = 'mcp-why text-[12px] leading-[1.4] font-medium';
 
 /** One saved MCP server (server/mcp.ts McpServerConfig). */
 interface McpServerConfig {
@@ -109,7 +114,7 @@ export function McpTab() {
     [],
   );
   useEffect(() => void reload(), [reload]);
-  if (failed) return <div className="panel"><p className="text-red">Something went wrong: {failed}</p></div>;
+  if (failed) return <Plate className="rounded-box p-6"><p className="text-red">Something went wrong: {failed}</p></Plate>;
   if (!data || !tools) return null;
 
   const servers = Object.entries(data.servers);
@@ -127,136 +132,107 @@ export function McpTab() {
     openModal(`Add another ${serviceOf(p)} account`, (close) => <CopyForm preset={p} servers={data.servers} close={close} saved={() => (void reload(), refreshSoon())} />);
 
   return (
-    <>
-      <p className="lede">Tools are what agents can do. Built-in tools are turned on per agent in its Tools section. MCP servers add more: a real browser, GitHub, live Blender, and thousands of others.</p>
-      <div className="panel">
-        <div className="panel-head">
-          <h2>Your MCP servers</h2>
-          <div className="actions">
-            <button className="btn small" onClick={() => edit()}>+ Add server</button>
-          </div>
-        </div>
+    <div className="flex flex-col gap-10">
+      <p className="lede mb-0">Tools are what agents can do. Built-in tools are turned on per agent in its Tools section. MCP servers add more: a real browser, GitHub, live Blender, and thousands of others.</p>
+      <Section title="Your MCP servers" description="The servers your agents can use." action={<Button size="small" onClick={() => edit()}>+ Add server</Button>}>
         {servers.length ? (
-          <div className="list">
-            {servers.map(([name, cfg]) => (
-              <ServerRow key={name} name={name} cfg={cfg} info={info[name]} onEdit={() => edit(name, cfg)} reload={reload} />
-            ))}
-          </div>
+          servers.map(([name, cfg]) => <ServerRow key={name} name={name} cfg={cfg} info={info[name]} onEdit={() => edit(name, cfg)} reload={reload} />)
         ) : (
-          <p className="empty">None yet. Add a preset below.</p>
+          <p className="empty m-0 px-5">None yet. Add a preset below.</p>
         )}
-        <p className="hint mt-3.5">Give an agent a server in its Edit page &gt; Tools &gt; MCP servers. Claude Code agents also get the connectors on your Claude account (Gmail, Notion, Drive, Calendar, Higgsfield…) when they are signed in.</p>
-      </div>
+        <PanelNote>Give an agent a server in its Edit page &gt; Tools &gt; MCP servers. Claude Code agents also get the connectors on your Claude account (Gmail, Notion, Drive, Calendar, Higgsfield…) when they are signed in.</PanelNote>
+      </Section>
 
       {suggested.length ? (
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Suggested for this PC</h2>
-          </div>
-          <p className="hint">Ready-made servers for programs found on this PC, and a few that help most agents. Nothing is added until you click Add: each one runs a program from its maker.</p>
-          <div className="list mt-3.5">
-            {suggested.map((sg) => (
-              <div key={sg.name} className="list-row mcp-suggest">
-                <div className="min-w-0 flex-1">
-                  <div className="title flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                    {sg.title} <span className={sg.program ? `${WHY} on text-accent before:mr-1.5 before:inline-block before:size-1.5 before:rounded-full before:bg-current before:align-[1px] before:content-['']` : `${WHY} text-dim`}>{sg.reason}</span>
-                  </div>
-                  <div className="hint mt-0.5">{sg.description}</div>
-                  {sg.needs ? <div className="hint mt-0.5 text-amber">{sg.needs.replace(/^needs /, 'Needs ').replace(/; setup: /, '. Then: ').replace(/^setup: /, 'First: ')}</div> : null}
+        <Section title="Suggested for this PC" description="Ready-made servers for programs found on this PC, and a few that help most agents.">
+          {suggested.map((sg) => (
+            <div key={sg.name} className="list-row mcp-suggest gap-4 px-5 py-4">
+              <div className="min-w-0 flex-1">
+                <div className="title flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                  {sg.title} <span className={sg.program ? `${WHY} on text-accent before:mr-1.5 before:inline-block before:size-1.5 before:rounded-full before:bg-current before:align-[1px] before:content-['']` : `${WHY} text-dim`}>{sg.reason}</span>
                 </div>
-                <button className="btn small" onClick={() => void attempt(() => POST('/mcp-preset', { name: sg.name }), `Added ${sg.title}${sg.needs ? '. See what it needs below it.' : ''}`).then(reload)}>
-                  Add
-                </button>
+                <div className="hint mt-0.5">{sg.description}</div>
+                {sg.needs ? <div className="hint mt-0.5 text-amber">{sg.needs.replace(/^needs /, 'Needs ').replace(/; setup: /, '. Then: ').replace(/^setup: /, 'First: ')}</div> : null}
               </div>
-            ))}
-          </div>
-        </div>
+              <Button size="small" onClick={() => void attempt(() => POST('/mcp-preset', { name: sg.name }), `Added ${sg.title}${sg.needs ? '. See what it needs below it.' : ''}`).then(reload)}>
+                Add
+              </Button>
+            </div>
+          ))}
+          <PanelNote>Nothing is added until you click Add: each one runs a program from its maker.</PanelNote>
+        </Section>
       ) : null}
 
-      <div className="panel">
-        <div className="panel-head">
-          <h2>Presets</h2>
-          <div className="actions">
-            <SearchBox className="w-[min(300px,100%)]" placeholder="Search presets" label="Search presets" value={find} onChange={setFind} />
-          </div>
-        </div>
-        {!shown.length ? <p className="empty">{`No preset matches "${find.trim()}".`}</p> : null}
+      <Section bare title="Presets" description="Ready-made MCP servers. Add one with a click." action={<SearchBox className="w-full" placeholder="Search presets" label="Search presets" value={find} onChange={setFind} />}>
+        {!shown.length ? <p className="empty m-0">{`No preset matches "${find.trim()}".`}</p> : null}
         <div className="cards">
           {shown.map((p) => (
-            <div key={p.name} className="card">
+            <Plate key={p.name} className="flex min-w-0 flex-col gap-2.5 rounded-box p-5">
               <div className="card-title">{p.title}</div>
               <div className="card-sub">{p.description}</div>
               <div className="hint font-mono text-[11.5px] wrap-anywhere">{p.type === 'stdio' ? `${p.command} ${p.args.join(' ')}` : p.url}</div>
               <div className="card-foot">
                 {p.installed ? (
                   <>
-                    <span className="pill ok">{(p.copies?.length || 1) > 1 ? `${p.copies!.length} added` : 'added'}</span>
-                    <button className="btn small ghost" title="Another account of the same service, with its own label and keys" onClick={() => addAnother(p)}>Add another</button>
+                    <Pill tone="ok">{(p.copies?.length || 1) > 1 ? `${p.copies!.length} added` : 'added'}</Pill>
+                    <Button variant="ghost" size="small" title="Another account of the same service, with its own label and keys" onClick={() => addAnother(p)}>Add another</Button>
                   </>
                 ) : (
-                  <button className="btn small" onClick={() => void attempt(() => POST('/mcp-preset', { name: p.name }), `Added ${p.title}`).then(reload)}>Add</button>
+                  <Button size="small" onClick={() => void attempt(() => POST('/mcp-preset', { name: p.name }), `Added ${p.title}`).then(reload)}>Add</Button>
                 )}
-                {!p.ready ? <span className="pill warn">{`needs ${p.command}`}</span> : null}
-                {!p.installed && needsKey(p) ? <span className="pill info" title="After adding, put your key in the settings of the added server below">needs your key</span> : null}
+                {!p.ready ? <Pill tone="warn">{`needs ${p.command}`}</Pill> : null}
+                {!p.installed && needsKey(p) ? <Pill tone="info" title="After adding, put your key in the settings of the added server below">needs your key</Pill> : null}
               </div>
-            </div>
+            </Plate>
           ))}
         </div>
-      </div>
+      </Section>
 
       {data.importable.length ? (
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Found in your Claude configs</h2>
-          </div>
-          <div className="list">
-            {data.importable.map((s) => (
-              <div key={`${s.source}:${s.name}`} className="list-row">
-                <div className="min-w-0 flex-1">
-                  <div className="title">{s.name}</div>
-                  <div className="hint">{`${s.source} · ${s.type === 'stdio' ? `${s.command} ${s.args.join(' ')}` : s.url}`}</div>
-                </div>
-                {data.servers[s.name] ? <span className="pill ok">added</span> : <button className="btn tiny" onClick={() => void attempt(() => POST('/mcp-import', { name: s.name, source: s.source }), 'Imported').then(reload)}>Import</button>}
+        <Section title="Found in your Claude configs" description="Servers already set up for Claude on this PC. Import the ones you want here.">
+          {data.importable.map((s) => (
+            <div key={`${s.source}:${s.name}`} className="list-row gap-4 px-5 py-4">
+              <div className="min-w-0 flex-1">
+                <div className="title">{s.name}</div>
+                <div className="hint wrap-anywhere">{`${s.source} · ${s.type === 'stdio' ? `${s.command} ${s.args.join(' ')}` : s.url}`}</div>
               </div>
-            ))}
-          </div>
-        </div>
+              {data.servers[s.name] ? <Pill tone="ok">added</Pill> : <Button size="tiny" onClick={() => void attempt(() => POST('/mcp-import', { name: s.name, source: s.source }), 'Imported').then(reload)}>Import</Button>}
+            </div>
+          ))}
+        </Section>
       ) : null}
 
-      <div className="panel">
-        <div className="panel-head">
-          <h2>Share the dashboard tools</h2>
+      <Section title="Share the dashboard tools" description="Let other apps use the tools in this dashboard.">
+        <Row title="Claude Code and Codex" description="Agents here get the dashboard tools automatically. Hermes, pi, oh-my-pi and other MCP apps can have them too: ComfyUI, Blender, Adobe, programs, X drafts, your other agents." stack>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="small" onClick={() => void attempt(() => POST('/hermes/add-bridge'), 'Hermes now has the dashboard tools (restart Hermes sessions to see them)')}>Give Hermes the dashboard tools</Button>
+            <Button size="small" onClick={() => void attempt(() => POST<{ message: string }>('/pi/add-bridge'), (r) => r.message)}>Give pi and oh-my-pi the dashboard tools</Button>
+            {/* (the page is shown the config without its token: the copy gets the real one) */}
+            <Button variant="ghost" size="small" onClick={() => void attempt(() => POST<McpData['bridge']>('/mcp-bridge')).then((b) => b && copy(JSON.stringify({ mcpServers: { dashboard: b } }, null, 2)))}>Copy MCP config for other apps</Button>
+          </div>
+        </Row>
+        <div className="px-5 py-4">
+          <details>
+            <summary className="label cursor-pointer">Show config</summary>
+            <pre>{bridgeJson}</pre>
+            <p className="hint">The token is hidden here; Copy puts the real one in. Paste into Claude Desktop, Cursor, or any MCP client. They act as "External MCP client": everything except shell, and they ask you first. The dashboard must be running.</p>
+          </details>
         </div>
-        <p>Claude Code and Codex agents here get the dashboard tools automatically. Hermes, pi, oh-my-pi and other MCP apps can have them too: ComfyUI, Blender, Adobe, programs, X drafts, your other agents.</p>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button className="btn small" onClick={() => void attempt(() => POST('/hermes/add-bridge'), 'Hermes now has the dashboard tools (restart Hermes sessions to see them)')}>Give Hermes the dashboard tools</button>
-          <button className="btn small" onClick={() => void attempt(() => POST<{ message: string }>('/pi/add-bridge'), (r) => r.message)}>Give pi and oh-my-pi the dashboard tools</button>
-          {/* (the page is shown the config without its token: the copy gets the real one) */}
-          <button className="btn ghost small" onClick={() => void attempt(() => POST<McpData['bridge']>('/mcp-bridge')).then((b) => b && copy(JSON.stringify({ mcpServers: { dashboard: b } }, null, 2)))}>Copy MCP config for other apps</button>
-        </div>
-        <details className="mt-3.5">
-          <summary className="label cursor-pointer">Show config</summary>
-          <pre>{bridgeJson}</pre>
-          <p className="hint">The token is hidden here; Copy puts the real one in. Paste into Claude Desktop, Cursor, or any MCP client. They act as "External MCP client": everything except shell, and they ask you first. The dashboard must be running.</p>
-        </details>
-        <p className="hint">pi and oh-my-pi keep it in their own mcp.json (pi needs version 0.99 or newer); an agent's first run on either adds it there. Their agents here then use the dashboard tools as themselves; when you run pi on your own, it acts as "External MCP client".</p>
-      </div>
+        <PanelNote>pi and oh-my-pi keep it in their own mcp.json (pi needs version 0.99 or newer); an agent's first run on either adds it there. Their agents here then use the dashboard tools as themselves; when you run pi on your own, it acts as "External MCP client".</PanelNote>
+      </Section>
 
-      <div className="panel">
-        <div className="panel-head">
-          <h2>{`Built-in tools (${tools.tools.length})`}</h2>
-        </div>
+      <Section title={`Built-in tools (${tools.tools.length})`} description="What agents can do without an MCP server.">
         {tools.groups.map((g) => (
-          <div key={g.id} className="mb-3.5">
-            <div className="flex flex-wrap items-center gap-2.5">
+          <div key={g.id} className="px-5 py-4">
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <b>{g.label}</b>
               <span className="hint">{g.description}</span>
             </div>
-            <div className="chips mt-3.5">
+            <div className={`${CHIPS_CLASS} mt-3`}>
               {tools.tools
                 .filter((t) => t.group === g.id)
                 .map((t) => (
-                  <span key={t.name} className="chip mcp-tool cursor-help" title={t.description}>
+                  <span key={t.name} className={chipClass(false, 'mcp-tool cursor-help')} title={t.description}>
                     {t.name}
                     {t.risk === 'high' ? <span className="text-amber"> ●</span> : t.risk === 'low' ? <span className="text-faint"> ●</span> : t.risk === 'varies' ? <span className="text-faint"> ◐</span> : null}
                   </span>
@@ -264,11 +240,11 @@ export function McpTab() {
             </div>
           </div>
         ))}
-        <p className="hint">
+        <PanelNote>
           <span className="text-amber">●</span> asks you unless the agent is on Full · <span className="text-faint">●</span> asks only agents on "Ask first" · <span className="text-faint">◐</span> depends on what it is asked to do · none: never asks
-        </p>
-      </div>
-    </>
+        </PanelNote>
+      </Section>
+    </div>
   );
 }
 
@@ -288,28 +264,28 @@ function ServerRow({ name, cfg, info, onEdit, reload }: { name: string; cfg: Mcp
   };
   const copies = (info?.copies || 1) > 1;
   return (
-    <div className="mcp-server border-b border-line py-2.5">
-      <div className="flex flex-wrap items-center gap-2.5">
+    <div className="mcp-server px-5 py-4">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1">
           <div className="title flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
             {info?.title || name}
             {info && info.title !== name ? <span className="hint font-mono text-[11px]">{name}</span> : null}
-            {copies ? <span className="pill info" title={`${info!.service} is added ${info!.copies} times, one per account`}>{`${info!.service} account`}</span> : null}
+            {copies ? <Pill tone="info" title={`${info!.service} is added ${info!.copies} times, one per account`}>{`${info!.service} account`}</Pill> : null}
           </div>
           <div className="hint font-mono text-[11.5px] wrap-anywhere">{cfg.type === 'stdio' ? `${cfg.command} ${(cfg.args || []).join(' ')}` : cfg.url}</div>
           {cfg.useFor ? <div className="hint mcp-use-for">{`Use for: ${cfg.useFor}`}</div> : copies ? <div className="hint mcp-use-for text-amber">{`No "use for" yet: an agent with several ${info!.service} accounts can't tell this one apart. Edit it to say what it is for.`}</div> : null}
           {cfg.description && !copies ? <div className="hint">{cfg.description}</div> : null}
         </div>
-        <button className="btn tiny ghost" disabled={test === 'running'} onClick={() => void run()}>Test</button>
-        <button className="btn tiny ghost" onClick={onEdit}>Edit</button>
-        <button className="btn tiny danger" onClick={() => void remove()}>Remove</button>
+        <Button variant="ghost" size="tiny" disabled={test === 'running'} onClick={() => void run()}>Test</Button>
+        <Button variant="ghost" size="tiny" onClick={onEdit}>Edit</Button>
+        <Button variant="danger" size="tiny" onClick={() => void remove()}>Remove</Button>
       </div>
       <div aria-live="polite">
         {test === 'running' ? <p className="hint">Starting it and listing tools… (first run of npx/uvx servers can take a minute)</p> : null}
         {test === 'failed' ? <p className="hint">It did not start. Check the command, and that npx/uvx works in a terminal.</p> : null}
         {Array.isArray(test) ? (
           <div className="mt-3.5">
-            <span className="pill ok">{`${test.length} tools`}</span>
+            <Pill tone="ok">{`${test.length} tools`}</Pill>
             <div className="hint mcp-tools mt-1.5 font-mono text-[11px]">{test.join(' · ')}</div>
           </div>
         ) : null}
@@ -344,7 +320,7 @@ function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved 
   return (
     <>
       <div className="modal-body">
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-5">
           <Field label="Name">
             <input value={newName} placeholder="e.g. playwright" disabled={!!name} onChange={(e) => setNewName(e.target.value)} />
           </Field>
@@ -357,7 +333,7 @@ function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved 
             value={c.type === 'http' ? 'http' : 'stdio'}
             onChange={(v) => setC({ ...c, type: v })}
           />
-          <div className="flex flex-col gap-2.5">
+          <div className="flex flex-col gap-5">
             {c.type === 'stdio' ? (
               <>
                 <Field label="Command">
@@ -384,24 +360,15 @@ function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved 
               <input value={c.description || ''} onChange={(e) => setC({ ...c, description: e.target.value })} />
             </Field>
             <Field label="Same service as" hint="Pick one when this is another account of a service you already have (a second OOMOL or Gmail), so agents and the Brain treat them as accounts of one service.">
-              <select value={c.kind || ''} onChange={(e) => (setOwnPicked(true), setC({ ...c, kind: e.target.value }))}>
-                <option value="">Its own service</option>
-                {services
-                  .filter(([k]) => k !== (name || newName))
-                  .map(([k, t]) => (
-                    <option key={k} value={k}>
-                      {t}
-                    </option>
-                  ))}
-              </select>
+              <SelectControl aria-label="Same service as" value={c.kind || ''} onChange={(value) => (setOwnPicked(true), setC({ ...c, kind: value }))} options={[{ value: '', label: 'Its own service' }, ...services.filter(([k]) => k !== (name || newName)).map(([value, label]) => ({ value, label }))]} />
             </Field>
             <CopyFields label={c.label || ''} useFor={c.useFor || ''} onChange={(v) => setC({ ...c, ...v })} />
           </div>
         </div>
       </div>
       <div className="modal-foot">
-        <button className="btn ghost" onClick={close}>Cancel</button>
-        <button className="btn" onClick={() => void save()}>Save</button>
+        <Button variant="ghost" onClick={close}>Cancel</Button>
+        <Button onClick={() => void save()}>Save</Button>
       </div>
     </>
   );
@@ -438,12 +405,12 @@ function CopyForm({ preset, servers, close, saved }: { preset: McpPresetListing;
   return (
     <>
       <div className="modal-body">
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-5">
           <p className="hint">{`A second ${serviceOf(preset)} with its own keys, for another account. Give each one a label and say what it is for: an agent or team can have one account or several, and picks by these lines.`}</p>
           <div className="label">The new one</div>
           <CopyFields label={mine.label} useFor={mine.useFor} onChange={(v) => setMine({ ...mine, ...v })} />
           {copies.map((n) => (
-            <div key={n} className="flex flex-col gap-2.5">
+            <div key={n} className="flex flex-col gap-5">
               <div className="label mt-3.5">{`The one you have: ${n}`}</div>
               <CopyFields label={others[n].label} useFor={others[n].useFor} onChange={(v) => setOthers({ ...others, [n]: { ...others[n], ...v } })} />
             </div>
@@ -451,8 +418,8 @@ function CopyForm({ preset, servers, close, saved }: { preset: McpPresetListing;
         </div>
       </div>
       <div className="modal-foot">
-        <button className="btn ghost" onClick={close}>Cancel</button>
-        <button className="btn" disabled={!mine.label.trim()} onClick={() => void save()}>Add</button>
+        <Button variant="ghost" onClick={close}>Cancel</Button>
+        <Button disabled={!mine.label.trim()} onClick={() => void save()}>Add</Button>
       </div>
     </>
   );

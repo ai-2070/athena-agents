@@ -3,13 +3,16 @@
 import { useState } from 'react';
 import { POST, DEL, attempt, ago, md, refreshSoon } from './core.ts';
 import { DomNode, mountReact, useAppState } from './ui/react.tsx';
+import { pillClass } from './ui/classes.ts';
+import type { PillTone } from './ui/classes.ts';
+import { Button } from './ui/button.tsx';
 import type { AgentQuestion } from '../shared/types.ts';
 
-const STATUS: Record<AgentQuestion['status'], [string, string]> = {
+const STATUS: Record<AgentQuestion['status'], [PillTone, string]> = {
   waiting: ['warn', 'asks you'],
   answered: ['ok', 'answered'],
-  dismissed: ['', 'dismissed'],
-  closed: ['', 'closed'],
+  dismissed: ['dim', 'dismissed'],
+  closed: ['dim', 'closed'],
 };
 
 /** Where your answer went, in plain words. */
@@ -63,12 +66,12 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
   const remove = async () => {
     if (await attempt(() => DEL(`/questions/${q.id}`))) changed?.();
   };
-  const [tone, label] = STATUS[q.status] || ['', q.status];
+  const [tone, label] = STATUS[q.status] || ['dim', q.status];
   const after = q.status === 'answered' ? deliveredText(q) : q.note || '';
   return (
     <div className={`${CARD[place]}${waiting ? ' waiting' : ''}`} role="group" aria-label={`Question from ${who}`}>
       <div className="flex flex-wrap items-center gap-2.5">
-        <span className={`pill${tone ? ` ${tone}` : ''}`}>{label}</span>
+        <span className={pillClass(tone)}>{label}</span>
         {inChat ? <span className="hint">Also in your Outbox</span> : <b>{q.agentName || 'An agent'}</b>}
         {inChat ? null : <span className="hint">{`${q.teamName ? `team ${q.teamName} · ` : ''}${ago(q.createdAt)}`}</span>}
       </div>
@@ -78,12 +81,12 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
         <>
           {q.choices.length ? (
             // one row per choice: they are often whole sentences, so they wrap instead of running off the card
-            <div className="grid gap-1.5">
+            <div className="grid gap-2">
               {q.choices.map((c) => (
                 <button
                   key={c}
                   type="button"
-                  className="w-full cursor-pointer rounded-ctl border border-line-2 bg-panel-2 px-3 py-2 text-left text-[13.5px] leading-snug text-ink wrap-anywhere transition-colors enabled:hover:border-accent enabled:hover:bg-accent/8 enabled:hover:text-accent disabled:cursor-not-allowed disabled:opacity-45"
+                  className="w-full cursor-pointer rounded-ctl border border-line-2 bg-panel px-3.5 py-2.5 text-left text-[13.5px] leading-snug text-ink wrap-anywhere transition-colors enabled:hover:bg-panel-2 disabled:cursor-not-allowed disabled:opacity-45"
                   disabled={busy}
                   title={text.trim() ? 'Send this choice with your note' : 'Send this answer'}
                   onClick={() => void answer(c)}
@@ -103,9 +106,9 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
             onKeyDown={(e) => e.key === 'Enter' && (e.ctrlKey || e.metaKey) && text.trim() && void answer()}
           />
           <div className="flex flex-wrap items-center gap-2.5">
-            <button className={`btn small${text.trim() ? '' : ' ghost'}`} disabled={busy || !text.trim()} title="Send what you wrote (Ctrl+Enter)" onClick={() => void answer()}>Send answer</button>
+            <Button size="small" variant={text.trim() ? 'primary' : 'ghost'} disabled={busy || !text.trim()} title="Send what you wrote (Ctrl+Enter)" onClick={() => void answer()}>Send answer</Button>
             <span className="min-w-0 flex-1" />
-            <button className="btn ghost small" disabled={busy} title={`Close it without answering: ${who} hears you passed`} onClick={() => void dismiss()}>Dismiss</button>
+            <Button variant="ghost" size="small" disabled={busy} title={`Close it without answering: ${who} hears you passed`} onClick={() => void dismiss()}>Dismiss</Button>
           </div>
         </>
       ) : (
@@ -119,7 +122,7 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
           {after ? <p className="hint">{after}</p> : null}
           {place !== 'outbox' ? null : (
             <div className="flex flex-wrap items-center gap-2.5">
-              <button className="btn tiny ghost" onClick={() => void remove()}>Remove</button>
+              <Button size="tiny" variant="ghost" onClick={() => void remove()}>Remove</Button>
             </div>
           )}
         </>

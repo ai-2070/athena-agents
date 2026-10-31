@@ -1,10 +1,14 @@
 // Home (Overview): what's happening, what needs you, and a quick way to give any agent a task.
+import { Plate, PlateLink } from '../ui/surface.tsx';
+import { Button, ButtonLink } from '../ui/button.tsx';
+import { Dot } from '../ui/marks.tsx';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, attempt, ago, navigate, approvalCard } from '../core.ts';
-import { Avatar, DomNode, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { Avatar, DomNode, Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { SelectControl } from '../ui/select.tsx';
 import type { ActivityEntry, AppState, Chat } from '../../shared/types.ts';
-import { appIconUrl } from '../appicons.ts';
+import { appIconStyle, appIconUrl } from '../appicons.ts';
 
 /** One entry of GET /api/programs (only the fields this page reads). */
 interface ProgramInfo {
@@ -22,7 +26,7 @@ interface LibraryStarters {
 }
 
 const SERVICES = ['comfyui', 'lmstudio', 'ollama', 'netdesk', 'orca', 'blender', 'premiere', 'photoshop'];
-const KIND_ICON: Record<string, string> = { run: '◉', error: '✕', approval: '!', social: '⟁', workflow: '⇢', program: '▣', mcp: '⌁', library: '▤', terminal: '›', system: '·', notify: '✉' };
+const KIND_ICON: Record<string, string> = { run: 'play', error: 'circle-x', approval: 'hand', social: 'send', workflow: 'workflow', program: 'monitor', mcp: 'plug', library: 'store', terminal: 'terminal', system: 'clock', notify: 'bell', skill: 'puzzle' };
 /** The newest activity kept on the page. */
 const KEEP = 200;
 
@@ -44,30 +48,30 @@ function HomePage() {
   const services = (progs || []).filter((p) => p.installed && SERVICES.includes(p.id));
   return (
     <>
-      <div className="stats grid grid-cols-4 gap-3 mb-4.5 max-lg:grid-cols-2">
+      <div className="stats mb-8 grid grid-cols-4 gap-4 max-lg:grid-cols-2">
         <Stat label="Agents" num={agents.length} href="#/agents" />
         <Stat label="Working now" num={d.runs.length} kind={d.runs.length ? 'live' : ''} />
         <Stat label="Needs you" num={needs} kind={needs ? 'hot' : ''} onClick={() => document.getElementById('drawer')!.classList.remove('hidden')} />
         <Stat label="X accounts" num={d.accounts.x.length} href="#/settings?tab=connections" />
       </div>
       {!agents.length ? <Onboarding d={d} /> : null}
-      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
-        <div className="flex flex-col gap-4.5">
+      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-6 max-lg:grid-cols-1">
+        <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
           {agents.length ? <QuickTask d={d} /> : null}
           {d.approvals.length ? (
-            <div className="panel">
+            <Plate className="panel">
               <div className="panel-head">
                 <h2>Needs you</h2>
               </div>
-              <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-3">
                 {d.approvals.map((a) => (
                   <DomNode key={a.id} make={() => approvalCard(a)} deps={[JSON.stringify(a)]} />
                 ))}
               </div>
-            </div>
+            </Plate>
           ) : null}
           {d.runs.length ? (
-            <div className="panel">
+            <Plate className="panel">
               <div className="panel-head">
                 <h2>Working now</h2>
               </div>
@@ -81,24 +85,24 @@ function HomePage() {
                         <div className="title">{r.agentName}</div>
                         <div className="hint">{`started ${ago(r.startedAt)}`}</div>
                       </div>
-                      <a className="btn ghost small" href={`#/agents/${r.agentId}/${r.chatId}`}>Watch</a>
+                      <ButtonLink variant="ghost" size="small" href={`#/agents/${r.agentId}/${r.chatId}`}>Watch</ButtonLink>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </Plate>
           ) : null}
           {agents.length ? (
-            <div className="panel">
+            <Plate className="panel">
               <div className="panel-head">
                 <h2>Your agents</h2>
                 <div className="actions">
-                  <a className="btn ghost small" href="#/agents">All agents</a>
+                  <ButtonLink variant="ghost" size="small" href="#/agents">All agents</ButtonLink>
                 </div>
               </div>
               <div className="cards grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
                 {agents.slice(0, 8).map((a) => (
-                  <a key={a.id} className="card clickable" href={`#/agents/${a.id}`}>
+                  <PlateLink key={a.id} className="card hover:shadow-none clickable" href={`#/agents/${a.id}`}>
                     <div className="card-top">
                       <Avatar agent={a} />
                       <div className="flex-1 min-w-0">
@@ -108,41 +112,41 @@ function HomePage() {
                     </div>
                     {d.runs.some((r) => r.agentId === a.id) ? (
                       <span className="corner" aria-label="working">
-                        <span className="dot busy" />
+                        <Dot tone="busy" />
                       </span>
                     ) : null}
-                  </a>
+                  </PlateLink>
                 ))}
               </div>
-            </div>
+            </Plate>
           ) : null}
         </div>
-        <div className="flex flex-col gap-4.5">
-          <div className="panel">
+        <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
+          <Plate className="panel">
             <div className="panel-head">
               <h2>Programs</h2>
               <div className="actions">
-                <a className="btn ghost small" href="#/settings?tab=programs">All programs</a>
+                <ButtonLink variant="ghost" size="small" href="#/settings?tab=programs">All programs</ButtonLink>
               </div>
             </div>
             {services.length ? (
               <div className="list">
                 {services.map((p) => (
                   <div key={p.id} className="list-row">
-                    <span className="w-5.5 text-center">{appIconUrl(p.id) ? <img className="inline-block align-middle" src={appIconUrl(p.id)!} width={20} height={20} alt="" /> : p.icon}</span>
+                    <span className="w-6 text-center">{appIconUrl(p.id) ? <img className="app-icon inline-block align-middle" src={appIconUrl(p.id)!} width={20} height={20} alt="" style={appIconStyle(p.id)} /> : p.icon}</span>
                     <div className="flex-1 min-w-0">
                       <div className="title">{p.name}</div>
                       <div className="hint">{p.running ? (p.serviceUrl ? `running · ${p.serviceUrl}` : 'running') : p.version ? `v${p.version}` : 'installed'}</div>
                     </div>
-                    <span className={`dot${p.running ? ' on' : ''}`} />
+                    <Dot tone={p.running ? 'on' : 'off'} />
                   </div>
                 ))}
               </div>
             ) : (
               <p className="empty">{progs ? 'None of the usual programs found.' : 'Scanning…'}</p>
             )}
-          </div>
-          <div className="panel">
+          </Plate>
+          <Plate className="panel">
             <div className="panel-head">
               <h2>Activity</h2>
             </div>
@@ -150,37 +154,42 @@ function HomePage() {
               {activity.length ? (
                 activity.slice(0, 40).map((a, i) => (
                   <div key={`${a.ts}:${i}`} className="list-row">
-                    <span className={a.kind === 'error' ? 'font-mono w-4 text-center text-red' : 'font-mono w-4 text-center text-faint'}>{KIND_ICON[a.kind] || '·'}</span>
+                    <span className={`flex-none ${a.kind === 'error' ? 'text-red' : 'text-faint'}`}>
+                      <Icon name={KIND_ICON[a.kind] || 'clock'} size={15} />
+                    </span>
                     <div className="home-activity flex-1 min-w-0 text-[13.5px]">{a.text}</div>
-                    <span className="font-mono text-faint whitespace-nowrap text-[11px]">{ago(a.ts)}</span>
+                    <span className="whitespace-nowrap text-[12px] text-faint tabular-nums">{ago(a.ts)}</span>
                   </div>
                 ))
               ) : (
                 <p className="empty">Nothing yet.</p>
               )}
             </div>
-          </div>
+          </Plate>
         </div>
       </div>
     </>
   );
 }
 
-const NUM = "num font-sans text-[28px] leading-none font-bold [font-feature-settings:'tnum'] mt-2";
+const NUM = 'num mt-3.5 text-[28px] leading-none font-semibold tracking-tight text-ink tabular-nums';
 
-/** A number at the top. With href or onClick it is a link or a button to where that number lives. */
+/** A number at the top. With href or onClick it is a link or a button to where that number lives.
+ *  kind: live (something is running) or hot (it needs you) put a small dot by the caption. */
 function Stat({ label, num, kind = '', href, onClick }: { label: string; num: number; kind?: string; href?: string; onClick?: () => void }) {
   // stat and num stay for the tests
-  const cls = href || onClick ? 'stat bg-panel border border-line rounded-box py-3.5 px-4 block w-full cursor-pointer text-inherit text-left [font:inherit] hover:border-accent-dim' : 'stat bg-panel border border-line rounded-box py-3.5 px-4';
-  const numCls = kind === 'hot' ? `${NUM} text-amber` : kind === 'live' ? `${NUM} text-accent` : NUM;
+  const base = 'stat glass-plate block w-full rounded-box px-5 py-4 text-left text-ink [font:inherit]';
+  const cls = href || onClick ? `${base} cursor-pointer transition-colors hover:bg-panel-2 hover:text-ink` : base;
   const body: ReactNode = (
     <>
-      <div className="label">{label}</div>
-      <div className={numCls}>{num}</div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="label">{label}</div>
+        {kind === 'live' ? <Dot tone="busy" /> : kind === 'hot' ? <Dot tone="warn" /> : null}
+      </div>
+      <div className={NUM}>{num}</div>
     </>
   );
-  // (a link's text takes the page's link hover color, as links do everywhere)
-  if (href) return <a className={`${cls} hover:text-accent-hover`} href={href}>{body}</a>;
+  if (href) return <a className={cls} href={href}>{body}</a>;
   if (onClick) return <button type="button" className={cls} onClick={onClick}>{body}</button>;
   return <div className={cls}>{body}</div>;
 }
@@ -200,18 +209,14 @@ function QuickTask({ d }: { d: AppState }) {
       navigate(`#/agents/${agentId}/${chat.id}`);
     });
   return (
-    <div className="panel">
+    <Plate className="panel">
       <div className="panel-head">
         <h2>Give an agent a task</h2>
       </div>
       <div className="max-w-75">
-        <select aria-label="Agent" value={agentId} onChange={(e) => setAgentId((quick.agentId = e.target.value))}>
-          {agents.map((a) => (
-            <option key={a.id} value={a.id}>{`${a.emoji || ''} ${a.name}`}</option>
-          ))}
-        </select>
+        <SelectControl aria-label="Agent" value={agentId} onChange={(value) => setAgentId((quick.agentId = value))} options={agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` }))} />
       </div>
-      <div className="mt-3.5">
+      <div className="mt-4">
         <textarea
           ref={box}
           rows={3}
@@ -222,11 +227,11 @@ function QuickTask({ d }: { d: AppState }) {
           onKeyDown={(e) => e.key === 'Enter' && (e.ctrlKey || e.metaKey) && void send()}
         />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2.5 mt-3.5">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <span className="hint">Opens a new chat with that agent.</span>
-        <button className="btn" onClick={() => void send()}>Send</button>
+        <Button  onClick={() => void send()}>Send</Button>
       </div>
-    </div>
+    </Plate>
   );
 }
 
@@ -246,17 +251,17 @@ function Onboarding({ d }: { d: AppState }) {
     { done: false, text: 'Give agents more abilities: browser control, files, GitHub and any MCP server.', href: '#/settings?tab=mcp', cta: 'Tools & MCP' },
   ];
   return (
-    <div className="panel mb-4 border-accent-dim">
+    <div className="panel mb-8">
       <div className="panel-head">
         <h2>Get started</h2>
       </div>
       <ol className="list home-steps">
         {steps.map((s, i) => (
           <li key={s.cta} className="list-row">
-            <span className={s.done ? 'font-mono text-accent' : 'font-mono text-faint'} aria-label={s.done ? 'done' : `step ${i + 1}`}>{s.done ? '✓' : `0${i + 1}`}</span>
+            <span className={`w-6 text-[13px] tabular-nums ${s.done ? 'text-ok' : 'text-faint'}`} aria-label={s.done ? 'done' : `step ${i + 1}`}>{s.done ? '✓' : `0${i + 1}`}</span>
             <div className="flex-1 min-w-0">{s.text}</div>
-            {i === 1 ? <button className="btn small" disabled={adding} onClick={() => void addStarterTeam()}>Add Blacksite team</button> : null}
-            <a className="btn ghost small" href={s.href}>{s.cta}</a>
+            {i === 1 ? <Button size="small" disabled={adding} onClick={() => void addStarterTeam()}>Add Athena team</Button> : null}
+            <ButtonLink variant="ghost" size="small" href={s.href}>{s.cta}</ButtonLink>
           </li>
         ))}
       </ol>

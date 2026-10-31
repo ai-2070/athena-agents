@@ -4,7 +4,7 @@ import { act } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UIMessageChunk } from 'ai';
 import { connectEvents, state } from '../../web/core.ts';
-import { forgetFiles } from '../../web/filepreview.ts';
+import { forgetFiles } from '../../web/filepreview.tsx';
 import { clock, renderTeamChat } from '../../web/teamchat.tsx';
 import type { TeamChatApi } from '../../web/teamchat.tsx';
 import type { AppState, Chat, ChatItem } from '../../shared/types.ts';
@@ -106,6 +106,24 @@ describe('team chat box', () => {
     const box = el.querySelector('textarea')!;
     expect(box.value).toBe('@Maker ');
     expect(document.activeElement).toBe(box);
+  });
+
+  it('changes the team lead model from the composer', async () => {
+    const lead = state.data!.agents[0];
+    lead.engine = 'claude-code';
+    lead.model = 'sonnet';
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    await act(async () => el.querySelector<HTMLButtonElement>('.model-chip')!.click());
+    const haiku = [...document.querySelectorAll<HTMLButtonElement>('.model-menu .st-menu-item')]
+      .find((button) => button.textContent?.includes('Haiku (latest)'));
+    expect(haiku).toBeDefined();
+    await act(async () => haiku!.click());
+    await settle();
+    expect(requests).toContain('PUT /api/agents/lead');
+    expect(bodies['/api/agents/lead']).toMatchObject({ engine: 'claude-code', model: 'haiku' });
   });
 
   it('every "5m ago" shares one timer', () => {

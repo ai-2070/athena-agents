@@ -1,21 +1,21 @@
-# Blacksite
+# Athena Agents
 
 **Run AI agents and teams from one local workspace.** Give each agent a role, a model and the tools it needs. Talk to them directly, let them work together, and keep their work with the project it belongs to.
 
 <p align="center">
-  <img src="docs/images/hero.png" alt="Blacksite working on a game project: the Brain builds an art team of 3D artists and a historian from one sentence, while the agents on the live 3D map work at their desks and lines light up from the connected programs" width="100%">
+  <img src="docs/images/hero.png" alt="Athena Agents working on a game project: the Brain builds an art team of 3D artists and a historian from one sentence, while the agents on the live 3D map work at their desks and lines light up from the connected programs" width="100%">
   <br><sub>The Brain setting up an art team for a game project, Rose &amp; Blade, while its agents get to work.</sub>
 </p>
 
 <p align="center">
-  <img alt="License: MIT or Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-c4ff3d?style=flat-square">
-  <img alt="Runs locally, no account" src="https://img.shields.io/badge/runs-locally%2C%20no%20account-1f2a14?style=flat-square">
-  <img alt="Desktop app for Windows, macOS and Linux" src="https://img.shields.io/badge/desktop-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-1f2a14?style=flat-square">
-  <img alt="Built with Bun, TypeScript and Tauri" src="https://img.shields.io/badge/built%20with-Bun%20%C2%B7%20TypeScript%20%C2%B7%20Tauri-1f2a14?style=flat-square">
-  <img alt="MCP: Model Context Protocol" src="https://img.shields.io/badge/MCP-ready-1f2a14?style=flat-square">
+  <img alt="License: MIT or Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-4f5fd6?style=flat-square">
+  <img alt="Runs locally, no account" src="https://img.shields.io/badge/runs-locally%2C%20no%20account-2b2e3b?style=flat-square">
+  <img alt="Desktop app for Windows, macOS and Linux" src="https://img.shields.io/badge/desktop-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-2b2e3b?style=flat-square">
+  <img alt="Built with Bun, TypeScript and Tauri" src="https://img.shields.io/badge/built%20with-Bun%20%C2%B7%20TypeScript%20%C2%B7%20Tauri-2b2e3b?style=flat-square">
+  <img alt="MCP: Model Context Protocol" src="https://img.shields.io/badge/MCP-ready-2b2e3b?style=flat-square">
 </p>
 
-Blacksite is a local-first **AI agent dashboard**: build teams of agents, give each one its own model, tools, skills and memory, and watch them work on a live 3D map. It works with **Claude Code, OpenAI Codex, Hermes, pi, oh-my-pi, OpenClaw, Ollama, LM Studio** and any **OpenAI-compatible API**, and connects to programs and services through the **Model Context Protocol (MCP)**: browsers, Blender, Maya, Houdini, Substance 3D Painter, ComfyUI, ffmpeg, FreeCAD, Rhino, OpenSCAD, 3D printers, Unity, Unreal Engine, Godot, GitHub, Notion, Linear and more.
+Athena Agents is a local-first **AI agent dashboard**: build teams of agents, give each one its own model, tools, skills and memory, and watch them work on a live 3D map. It works with **Claude Code, OpenAI Codex, Hermes, pi, oh-my-pi, OpenClaw, Ollama, LM Studio** and any **OpenAI-compatible API**, and connects to programs and services through the **Model Context Protocol (MCP)**: browsers, Blender, Maya, Houdini, Substance 3D Painter, ComfyUI, ffmpeg, FreeCAD, Rhino, OpenSCAD, 3D printers, Unity, Unreal Engine, Godot, GitHub, Notion, Linear and more.
 
 The dashboard runs at **http://localhost:4800**, with no dashboard account or login. Its server and saved state stay on your computer. **Local does not mean offline:** hosted models and connected services receive the requests you send them. You can also use local models through LM Studio or Ollama.
 
@@ -37,6 +37,8 @@ The screenshots below use made-up demo data.
 ### The Station: your agents, teams and tools on one live map
 
 Each team is a pod with its agents at their desks. The Brain sits in the middle and sets up teams, skills and routines when you ask. Lines run from the programs and services at the top to the agents that use them, and light up when an agent makes a call.
+
+The Station's activity feed shows **Live** in green while live updates are connected, and **Reconnecting…** if the connection drops.
 
 ![The Station, a live 3D map with three teams, the Brain, and the programs connected to the agents](docs/images/station.png)
 
@@ -87,7 +89,7 @@ Each project has its own agents, teams, chats and Brain folder. Drag projects in
 
 ### Desktop app
 
-Install **Blacksite** like any other app; it needs no Bun and no terminal. Installers are on this repository's **Releases** page:
+Install **Athena Agents** like any other app; it needs no Bun and no terminal. Installers are on this repository's **Releases** page:
 
 | System | Download |
 |---|---|
@@ -137,7 +139,7 @@ Claude Code and Codex receive dashboard tools through an MCP bridge; API-model a
 
 1. **Choose a folder.** From the project picker, select **New project**. Start in a new folder, use an existing one, or clone a GitHub repo (with your `gh` login).
 2. **Ask the Brain for a small, concrete job.** Open **Ask the Brain**, press **Ctrl+K** (**⌘K** on macOS), or press **Space** on the Station when you are not typing: *“Build a small team to review this project's docs. Have one agent find confusing setup steps and another suggest clearer wording. Do not change files yet.”*
-3. **Review the agents and their access** — models, instructions, tools, work folders — or add a ready-made agent from the **Agent library**.
+3. **Review the agents and their access** — models, instructions, tools, work folders — or add a ready-made agent from the **Agent library**. In an agent's editor, choose its emoji or type your own.
 4. **Follow the work.** Click a team or agent on the Station to open its panel and chat.
 5. **Handle anything waiting on you:** permissions in **Needs you**, agents' questions and outgoing drafts in **Outbox**, saved results in **Artifacts**.
 
@@ -150,12 +152,14 @@ Projects keep separate agents, teams and chats. The project name at the top left
 | **Station** | The live 3D view of the project: the Brain in the middle, agents grouped into team pods, each with a symbol in the middle (an emoji, or your own picture or 3D model, set in the team's Setup tab). Click to open panels and chats. Projects are like floors: the project menu (top left) lists them in an order you can drag to change, and the Up and Down keys on the Station switch between them. From the menu or the All projects screen you can rename a project, clone it, or delete it (a delete first makes a backup and checks it; the project's own folder is never touched). Click the Brain to give the project a logo or a 3D model (`.glb`, `.obj`, `.stl`, `.ply`, `.fbx`, up to 15 MB) that turns inside its globe, or a background picture behind the map (in the classic look and the voxel look, where it takes the sky's place). You can also ask the Brain to set or remove the background, or to make it or the map's dots fainter. |
 | **Brain chat** | Project-wide questions, building teams, changing skills, routines and MCP servers, switching models, stopping work and handing work on. On every page. |
 | **Agents** | Instructions, knowledge, MEMORY.md, model and effort, autonomy, tools, MCP servers, skills and workspace. Above the list: how many agents the project has (also next to **Agents** in the sidebar), how many are working, and charts of their categories (Agent library division, or your own, made by the Brain…) and their models; click a category or model to show only those agents. On the Station, an AI engine at the top right that is set up and used by agents opens its agents here. |
-| **Agent library** | **Blacksite** agents (made for this dashboard and its tools: a Coordinator, X Writer, Image Maker, World Builder…), The Agency's 270+ specialists (they come with the dashboard), Hermes profiles, Claude Code subagents and your presets. |
+| **Agent library** | **Athena** agents (made for this dashboard and its tools: a Coordinator, X Writer, Image Maker, World Builder…), The Agency's 270+ specialists (they come with the dashboard), Hermes profiles, Claude Code subagents and your presets. |
 | **Skills** | Reusable instructions, their assignments, earlier versions and recently deleted ones. |
-| **Routines** | Repeatable jobs, their schedules and the results of each run. |
+| **Routines** | Repeatable jobs, their schedules and the results of each run. **Run now** uses the routine's saved instructions. |
 | **Outbox** | Questions from agents (click a choice or write an answer), and X and Reddit drafts waiting to be approved, edited or rejected. |
 | **Artifacts** | Written results, files and folders that agents have saved, each with a preview (images, video, audio, 3D models you can turn) and a search box. Chats show the same previews for files agents mention; in the desktop app any of them opens in its own program. |
-| **Settings** | Engines and keys, accounts and connections, MCP servers, programs, and the look: UI scale, accent colour, motion, the Station's look (the classic dark map, or the voxel world's light: sky, sun and soft shadows, glow) and the open project's background picture, with sliders for how strongly the picture and the map's dots show, the font chats are written in (the page's own font by default, a serif, a terminal font like Claude Code, your system font like ChatGPT, Google Sans like Gemini, Roboto like Android, or San Francisco like iPhone), how hard the Station map works (**Smooth**, **Balanced** or **Battery saver**), and whether the bottom of the sidebar shows what's set up or your Claude and Codex usage limits (point at Codex to see its free limit resets and a **Reset now** button; the **Status / Limits** switch there does the same). **About** shows the version, the GitHub link with a star button, and this PC's address and data folder; the version and a Star link are also at the bottom of the sidebar. |
+| **Settings** | Engines and keys, accounts and connections, MCP servers, programs, and the look: UI scale, colour scheme (System, Light or Dark), accent colour (each with a light and a dark tone), motion, the Station's look (the classic map, pale on a light system and dark on a dark one, or the voxel world's light: sky, sun and soft shadows, glow) and the open project's background picture, with sliders for how strongly the picture and the map's dots show, the font chats are written in (the page's own font by default, a serif, a terminal font like Claude Code, your system font like ChatGPT, Google Sans like Gemini, Roboto like Android, or San Francisco like iPhone), how hard the Station map works (**Smooth**, **Balanced** or **Battery saver**), and whether the bottom of the sidebar shows what's set up or your Claude and Codex usage limits (point at Codex to see its free limit resets and a **Reset now** button; the **Status / Limits** switch there does the same). **About** shows the version, the GitHub link with a star button, and this PC's address and data folder; the version and a Star link are also at the bottom of the sidebar. |
+
+**Esc** takes you back to the Station from any other page. What is open closes first — a dialog, a dropdown, the Brain chat, a chat's find box — and a field you are typing in just loses the cursor. On the Station itself there is nowhere to go back to, so **Esc** opens the menu sidebar, and **Esc** again closes it.
 
 In any agent, team or Brain chat, **/** lists the commands (`/queue`, `/stop`, `/resume`, `/resend`, `/loop`, `/goal`, `/compact`, `/clear`), **@** picks another agent, and **#** in a team chat picks another team. What each one does, and how files and long chats are handled: [Chats and files](docs/guide.md#chats-and-files).
 
@@ -219,7 +223,7 @@ bun run desktop:build   # make installers in src-tauri/target/release/bundle
 | Path | Contents |
 |---|---|
 | [`server/`](server/) | HTTP and WebSocket server, agent engines, tools, the Brain and JSON storage. |
-| [`web/`](web/) | Browser app: mostly plain DOM; React for agent chats; three.js for the Station. |
+| [`web/`](web/) | Browser app: React on Base UI, with the page shell and the Station's map in plain DOM; three.js for the Station. |
 | [`shared/`](shared/) | Shared types and logic. Data shapes start in `shared/types.ts`. |
 | [`public/`](public/) | HTML and styles. `public/dist/` is generated build output; do not edit it. |
 | [`tests/`](tests/) | Vitest server and browser tests, on temporary data and home folders. |
@@ -238,7 +242,7 @@ Run `bun run check` and `bun run build` before submitting changes. See [`AGENTS.
 
 ## License
 
-Blacksite is yours to use under either the [MIT license](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), whichever you prefer. Unless you say otherwise, anything you contribute is offered under the same two licenses.
+Athena Agents is yours to use under either the [MIT license](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), whichever you prefer. Unless you say otherwise, anything you contribute is offered under the same two licenses.
 
 Some bundled pieces keep their own licenses: the skills in `skills/` and The Agency's agents in `library/agency-agents/` (each folder's `README.md` says where it's from), the Crafting App icons in `public/craft-icons/` (MIT OR Apache-2.0), Lucide icons (ISC) and Simple Icons logos (CC0). Brand names and logos stay their owners' trademarks.
 

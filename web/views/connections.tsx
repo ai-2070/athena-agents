@@ -1,9 +1,11 @@
 // Settings > Connections: X and Reddit accounts, Telegram, Discord, and the Outbox where posts wait for you.
+import { Button, ButtonLink } from '../ui/button.tsx';
+import { Badge, Pill } from '../ui/marks.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, PUT, DEL, attempt, copy, ago, confirmBox } from '../core.ts';
 import { serverUrl } from '../client/connection.ts';
-import { Field, Switch, Tabs } from '../ui/controls.tsx';
+import { FieldRow, PanelNote, Row, RowActions, Section, Sections, Switch, Tabs } from '../ui/controls.tsx';
 import { reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { Outbox } from './outbox.tsx';
 import type { Accounts, SecretStatus, Settings } from '../../shared/types.ts';
@@ -38,10 +40,11 @@ export function ConnectionsTab() {
       label="Connections"
       tabs={[
         { value: 'accounts' as const, label: 'Accounts' },
-        { value: 'outbox' as const, label: <>Outbox {pending ? <span className="badge hot">{pending}</span> : null}</> },
+        { value: 'outbox' as const, label: <>Outbox {pending ? <Badge hot>{pending}</Badge> : null}</> },
       ]}
       value={sub}
       onChange={(s) => setSub((lastSub = s))}
+      rowClassName="[&>.tabs]:flex-1"
     >
       {sub === 'outbox' ? <Outbox /> : <AccountsPanel />}
     </Tabs>
@@ -104,173 +107,139 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
   const test = (platform: string) => void attempt(() => POST<{ message: string }>('/social/test', { platform }), (r) => r.message);
 
   return (
-    <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
-      {/* col gap-lg: the mark tests find the right column by */}
-      <div className="col gap-lg flex flex-col gap-4.5">
-        <div className="panel">
-          <div className="panel-head">
-            <h2>X accounts</h2>
-            <div className="actions">{accounts.xAppConfigured ? <a className="btn small" href={serverUrl('/oauth/x/start')}>+ Connect an account</a> : null}</div>
-          </div>
+    <div className="flex flex-col gap-10">
+      {/* col gap-lg: the mark tests find the groups by */}
+      <Sections className="col gap-lg">
+        <Section title="X accounts" description="The accounts your agents can post from." action={accounts.xAppConfigured ? <ButtonLink size="small" href={serverUrl('/oauth/x/start')}>+ Connect an account</ButtonLink> : null}>
           {accounts.x.length ? (
-            <div className="list">
-              {accounts.x.map((a) => (
-                <XAccount key={a.id} a={a} reload={reload} />
-              ))}
-            </div>
+            accounts.x.map((a) => <XAccount key={a.id} a={a} reload={reload} />)
           ) : (
-            <p className="hint">{accounts.xAppConfigured ? 'No account connected yet. Click Connect, sign in to X, and approve.' : 'First set up your X app on the right (one time).'}</p>
+            <Row title="No account connected yet" description={accounts.xAppConfigured ? 'Click Connect, sign in to X, and approve.' : 'First set up your X app below (one time).'} />
           )}
-          <p className="hint mt-3.5">Agents with the Social tools draft posts into the Outbox; you approve each one. X bills API use per request on your developer account.</p>
-        </div>
+          <PanelNote>Agents with the Social tools draft posts into the Outbox; you approve each one. X bills API use per request on your developer account.</PanelNote>
+        </Section>
 
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Reddit accounts</h2>
-            <div className="actions">{accounts.redditAppConfigured ? <a className="btn small" href={serverUrl('/oauth/reddit/start')}>+ Connect an account</a> : null}</div>
+        <Section title="Telegram" description="Agents and workflows can message you, e.g. when a long task is done.">
+          <FieldRow label="Bot token" size="lg">
+            <input className="code" type="password" autoComplete="off" placeholder={saved(secrets.telegramBotToken, 'Bot token from @BotFather')} onChange={(e) => (tg.current.token = e.target.value)} />
+          </FieldRow>
+          <FieldRow label="Chat ID" size="lg">
+            <input className="code" defaultValue={settings.telegram.chatId} placeholder="Your chat ID (message @userinfobot to get it)" onChange={(e) => (tg.current.chatId = e.target.value)} />
+          </FieldRow>
+          <RowActions>
+            <Button variant="ghost" size="small" onClick={() => test('telegram')}>Send test</Button>
+            <Button size="small" onClick={() => void saveTelegram()}>Save</Button>
+          </RowActions>
+        </Section>
+
+        <Section title="Discord" description="Post to a channel through a webhook.">
+          <FieldRow label="Channel webhook URL" hint="Channel settings > Integrations > Webhooks > New webhook > Copy URL." size="lg">
+            <input className="code" type="password" autoComplete="off" placeholder={saved(secrets.discordWebhook, 'https://discord.com/api/webhooks/…')} onChange={(e) => (dc.current = e.target.value)} />
+          </FieldRow>
+          <RowActions>
+            <Button variant="ghost" size="small" onClick={() => test('discord')}>Send test</Button>
+            <Button size="small" onClick={() => void saveDiscord()}>Save</Button>
+          </RowActions>
+        </Section>
+
+        <Section title="Everything else" description="Gmail, Calendar, Drive, Notion, Slack and more.">
+          <Row title="Other services" description="Claude Code agents can also use the connectors on your Claude account (Gmail, Calendar, Drive, Notion, Higgsfield) once each is signed in there. For other services (Slack, LinkedIn, YouTube…) add their MCP server under MCP servers." />
+        </Section>
+      </Sections>
+
+      <Sections className="col gap-lg">
+        <Section title="Your X app (one-time setup)" description="X needs an app of yours to sign accounts in." action={accounts.xAppConfigured ? <Pill tone="ok">ready</Pill> : <Pill tone="warn">not set</Pill>}>
+          <div className="px-5 py-4">
+            <ol className="conn-steps m-0 list-decimal pl-5 text-[13.5px] leading-relaxed text-dim marker:text-faint [&>li+li]:mt-2">
+              <li>
+                Open <a href="https://developer.x.com/en/portal/dashboard" target="_blank" rel="noopener">developer.x.com</a> and create a Project and App (or use an existing one).
+              </li>
+              <li>
+                In the app, open User authentication settings: permissions <b className="text-ink">Read and write</b>, type <b className="text-ink">Web App / Native App</b>.
+              </li>
+              <li>
+                Add this Callback URL exactly: <CopyCode text={callback} />
+              </li>
+              <li>
+                Website URL can be anything (e.g. your site). Save, then copy the OAuth 2.0 <b className="text-ink">Client ID</b> here.
+              </li>
+            </ol>
           </div>
+          <FieldRow label="Client ID" size="lg">
+            <input className="code" defaultValue={settings.x.clientId} placeholder="Client ID from your X app" onChange={(e) => (x.current.clientId = e.target.value)} />
+          </FieldRow>
+          <FieldRow label="Client Secret" hint="Only if X shows one (confidential client). Stored on this PC only." size="lg">
+            <input className="code" type="password" autoComplete="off" placeholder={saved(secrets.xClientSecret, 'Client Secret (only for confidential apps)')} onChange={(e) => (x.current.secret = e.target.value)} />
+          </FieldRow>
+          <RowActions>
+            <Button size="small" onClick={() => void saveX()}>Save</Button>
+          </RowActions>
+          <PanelNote>{`Open the dashboard at the same address you registered (${location.host}). localhost and 127.0.0.1 count as different addresses for X.`}</PanelNote>
+        </Section>
+
+        <Section title="Reddit accounts" description="The accounts your agents can read and post with." action={accounts.redditAppConfigured ? <ButtonLink size="small" href={serverUrl('/oauth/reddit/start')}>+ Connect an account</ButtonLink> : null}>
           {(accounts.reddit || []).length ? (
-            <div className="list">
-              {accounts.reddit.map((a) => (
-                <div key={a.id} className="list-row">
-                  {a.icon ? <img className="h-8 rounded-full" src={a.icon} width={32} height={32} alt="" /> : <div className="avatar">r/</div>}
-                  <div className="min-w-0 flex-1">
-                    <div className="title">{`u/${a.username}`}</div>
-                    <div className="hint">{`connected ${ago(a.connectedAt)}`}</div>
-                  </div>
-                  <AutoPost
-                    initial={a.autopost}
-                    title="Publish agent posts and comments right away, without the Outbox"
-                    ask={`Let agents post to Reddit as u/${a.username} without asking you?`}
-                    save={(v) => POST(`/accounts/reddit/${a.id}`, { autopost: v })}
-                  />
-                  <button className="btn tiny danger" onClick={() => void disconnect(`u/${a.username}`, `/accounts/reddit/${a.id}`, reload)}>Disconnect</button>
+            accounts.reddit.map((a) => (
+              <div key={a.id} className="list-row flex-wrap gap-4 px-5 py-4">
+                {a.icon ? <img className="size-8 rounded-full" src={a.icon} width={32} height={32} alt="" /> : <div className="avatar size-8 rounded-full text-[12px]">r/</div>}
+                <div className="min-w-0 flex-1">
+                  <div className="title">{`u/${a.username}`}</div>
+                  <div className="hint">{`connected ${ago(a.connectedAt)}`}</div>
                 </div>
-              ))}
-            </div>
+                <AutoPost
+                  initial={a.autopost}
+                  title="Publish agent posts and comments right away, without the Outbox"
+                  ask={`Let agents post to Reddit as u/${a.username} without asking you?`}
+                  save={(v) => POST(`/accounts/reddit/${a.id}`, { autopost: v })}
+                />
+                <Button variant="danger" size="tiny" onClick={() => void disconnect(`u/${a.username}`, `/accounts/reddit/${a.id}`, reload)}>Disconnect</Button>
+              </div>
+            ))
           ) : (
-            <p className="hint">{accounts.redditAppConfigured ? 'No account connected yet. Click Connect, sign in to Reddit and allow access.' : 'First set up your Reddit app on the right (one time).'}</p>
+            <Row title="No account connected yet" description={accounts.redditAppConfigured ? 'Click Connect, sign in to Reddit and allow access.' : 'First set up your Reddit app below (one time).'} />
           )}
-          <p className="hint mt-3.5">Agents read subreddits and search freely. Posts and comments they write wait in the Outbox for you.</p>
-        </div>
+          <PanelNote>Agents read subreddits and search freely. Posts and comments they write wait in the Outbox for you.</PanelNote>
+        </Section>
 
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Telegram</h2>
+        <Section title="Your Reddit app (one-time setup)" description="Reddit needs an app of yours to sign accounts in." action={accounts.redditAppConfigured ? <Pill tone="ok">ready</Pill> : <Pill tone="warn">not set</Pill>}>
+          <div className="px-5 py-4">
+            <ol className="conn-steps m-0 list-decimal pl-5 text-[13.5px] leading-relaxed text-dim marker:text-faint [&>li+li]:mt-2">
+              <li>
+                Open <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener">reddit.com/prefs/apps</a> and click <b className="text-ink">create another app</b>.
+              </li>
+              <li>
+                Pick type <b className="text-ink">web app</b>, any name.
+              </li>
+              <li>
+                Redirect URI exactly: <CopyCode text={rdCallback} />
+              </li>
+              <li>
+                Create it, then copy the <b className="text-ink">Client ID</b> (under the app name) and the <b className="text-ink">secret</b> here.
+              </li>
+            </ol>
           </div>
-          <p className="hint">Agents and workflows can message you, e.g. when a long task is done.</p>
-          <div className="mt-3.5 grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
-            <Field label="Bot token">
-              <input type="password" autoComplete="off" placeholder={saved(secrets.telegramBotToken, 'Bot token from @BotFather')} onChange={(e) => (tg.current.token = e.target.value)} />
-            </Field>
-            <Field label="Chat ID">
-              <input className="code" defaultValue={settings.telegram.chatId} placeholder="Your chat ID (message @userinfobot to get it)" onChange={(e) => (tg.current.chatId = e.target.value)} />
-            </Field>
-          </div>
-          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-            <button className="btn small" onClick={() => void saveTelegram()}>Save</button>
-            <button className="btn ghost small" onClick={() => test('telegram')}>Send test</button>
-          </div>
-        </div>
-
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Discord</h2>
-          </div>
-          <Field label="Channel webhook URL" hint="Channel settings > Integrations > Webhooks > New webhook > Copy URL.">
-            <input type="password" autoComplete="off" placeholder={saved(secrets.discordWebhook, 'https://discord.com/api/webhooks/…')} onChange={(e) => (dc.current = e.target.value)} />
-          </Field>
-          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-            <button className="btn small" onClick={() => void saveDiscord()}>Save</button>
-            <button className="btn ghost small" onClick={() => test('discord')}>Send test</button>
-          </div>
-        </div>
-
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Everything else</h2>
-          </div>
-          <p className="hint">Claude Code agents can also use the connectors on your Claude account (Gmail, Calendar, Drive, Notion, Higgsfield) once each is signed in there. For other services (Slack, LinkedIn, YouTube…) add their MCP server under MCP servers.</p>
-        </div>
-      </div>
-
-      <div className="col gap-lg flex flex-col gap-4.5">
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Your X app (one-time setup)</h2>
-            {accounts.xAppConfigured ? <span className="pill ok">ready</span> : <span className="pill warn">not set</span>}
-          </div>
-          <ol className="conn-steps mb-3.5 list-decimal pl-4.5 text-[14px] text-dim">
-            <li>
-              Open <a href="https://developer.x.com/en/portal/dashboard" target="_blank" rel="noopener">developer.x.com</a> and create a Project and App (or use an existing one).
-            </li>
-            <li>
-              In the app, open User authentication settings: permissions <b>Read and write</b>, type <b>Web App / Native App</b>.
-            </li>
-            <li>
-              Add this Callback URL exactly: <CopyCode text={callback} />
-            </li>
-            <li>
-              Website URL can be anything (e.g. your site). Save, then copy the OAuth 2.0 <b>Client ID</b> here.
-            </li>
-          </ol>
-          <div className="flex flex-col gap-2.5">
-            <Field label="Client ID">
-              <input className="code" defaultValue={settings.x.clientId} placeholder="Client ID from your X app" onChange={(e) => (x.current.clientId = e.target.value)} />
-            </Field>
-            <Field label="Client Secret" hint="Only if X shows one (confidential client). Stored on this PC only.">
-              <input type="password" autoComplete="off" placeholder={saved(secrets.xClientSecret, 'Client Secret (only for confidential apps)')} onChange={(e) => (x.current.secret = e.target.value)} />
-            </Field>
-          </div>
-          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-            <button className="btn small" onClick={() => void saveX()}>Save</button>
-          </div>
-          <p className="hint mt-3.5">{`Open the dashboard at the same address you registered (${location.host}). localhost and 127.0.0.1 count as different addresses for X.`}</p>
-        </div>
-
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Your Reddit app (one-time setup)</h2>
-            {accounts.redditAppConfigured ? <span className="pill ok">ready</span> : <span className="pill warn">not set</span>}
-          </div>
-          <ol className="conn-steps mb-3.5 list-decimal pl-4.5 text-[14px] text-dim">
-            <li>
-              Open <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener">reddit.com/prefs/apps</a> and click <b>create another app</b>.
-            </li>
-            <li>
-              Pick type <b>web app</b>, any name.
-            </li>
-            <li>
-              Redirect URI exactly: <CopyCode text={rdCallback} />
-            </li>
-            <li>
-              Create it, then copy the <b>Client ID</b> (under the app name) and the <b>secret</b> here.
-            </li>
-          </ol>
-          <div className="flex flex-col gap-2.5">
-            <Field label="Client ID">
-              <input className="code" defaultValue={settings.reddit?.clientId || ''} placeholder="Client ID (under the app name)" onChange={(e) => (rd.current.clientId = e.target.value)} />
-            </Field>
-            <Field label="Secret" hint="Stored on this PC only.">
-              <input type="password" autoComplete="off" placeholder={saved(secrets.redditClientSecret, 'Secret')} onChange={(e) => (rd.current.secret = e.target.value)} />
-            </Field>
-            <Field label="Your Reddit username">
-              <input defaultValue={settings.reddit?.username || ''} placeholder="Your Reddit username (Reddit asks apps to say who runs them)" onChange={(e) => (rd.current.username = e.target.value)} />
-            </Field>
-          </div>
-          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-            <button className="btn small" onClick={() => void saveReddit()}>Save</button>
-          </div>
-        </div>
-      </div>
+          <FieldRow label="Client ID" size="lg">
+            <input className="code" defaultValue={settings.reddit?.clientId || ''} placeholder="Client ID (under the app name)" onChange={(e) => (rd.current.clientId = e.target.value)} />
+          </FieldRow>
+          <FieldRow label="Secret" hint="Stored on this PC only." size="lg">
+            <input className="code" type="password" autoComplete="off" placeholder={saved(secrets.redditClientSecret, 'Secret')} onChange={(e) => (rd.current.secret = e.target.value)} />
+          </FieldRow>
+          <FieldRow label="Your Reddit username" hint="Reddit asks apps to say who runs them." size="lg">
+            <input defaultValue={settings.reddit?.username || ''} placeholder="Your Reddit username" onChange={(e) => (rd.current.username = e.target.value)} />
+          </FieldRow>
+          <RowActions>
+            <Button size="small" onClick={() => void saveReddit()}>Save</Button>
+          </RowActions>
+        </Section>
+      </Sections>
     </div>
   );
 }
 
 const CopyCode = ({ text }: { text: string }) => (
   <>
-    <code>{text}</code>{' '}
-    <button className="btn tiny ghost" onClick={() => copy(text)}>Copy</button>
+    <code className="break-all text-ink">{text}</code>{' '}
+    <Button variant="ghost" size="tiny" className="ml-1 align-middle" onClick={() => copy(text)}>Copy</Button>
   </>
 );
 
@@ -312,23 +281,23 @@ function XAccount({ a, reload }: { a: Accounts['x'][number]; reload: () => Promi
           {p.text}
           <div className="hint">{`♥ ${p.metrics?.like_count ?? 0} · ↻ ${p.metrics?.retweet_count ?? 0} · 💬 ${p.metrics?.reply_count ?? 0} · ${ago(Date.parse(p.createdAt))}`}</div>
         </div>
-        <a className="btn tiny ghost" href={p.url} target="_blank" rel="noopener">Open</a>
+        <ButtonLink variant="ghost" size="tiny" href={p.url} target="_blank" rel="noopener">Open</ButtonLink>
       </div>
     ));
   return (
-    <div className="conn-account border-b border-line py-2.5">
-      <div className="flex flex-wrap items-center gap-2.5">
-        {a.avatar ? <img className="h-9 border border-line-2" src={a.avatar} width={36} height={36} alt="" /> : <div className="avatar">𝕏</div>}
+    <div className="conn-account px-5 py-4">
+      <div className="flex flex-wrap items-center gap-4">
+        {a.avatar ? <img className="size-9 rounded-full border border-line-2" src={a.avatar} width={36} height={36} alt="" /> : <div className="avatar size-9 rounded-full">𝕏</div>}
         <div className="min-w-0 flex-1">
           <div className="title">{`@${a.username}`}</div>
           <div className="hint">{`${a.name} · connected ${ago(a.connectedAt)}`}</div>
         </div>
         <AutoPost initial={a.autopost} title="Publish agent posts right away, without the Outbox" ask={`Let agents publish to @${a.username} without asking you? Posts will go out immediately.`} save={(v) => POST(`/accounts/x/${a.id}`, { autopost: v })} />
       </div>
-      <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-        <button className="btn tiny ghost" onClick={() => void recent()}>Recent posts</button>
-        <a className="btn tiny ghost" href={serverUrl('/oauth/x/start')}>Reconnect</a>
-        <button className="btn tiny danger" onClick={() => void disconnect(`@${a.username}`, `/accounts/x/${a.id}`, reload)}>Disconnect</button>
+      <div className="mt-3.5 flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="tiny" onClick={() => void recent()}>Recent posts</Button>
+        <ButtonLink variant="ghost" size="tiny" href={serverUrl('/oauth/x/start')}>Reconnect</ButtonLink>
+        <Button variant="danger" size="tiny" onClick={() => void disconnect(`@${a.username}`, `/accounts/x/${a.id}`, reload)}>Disconnect</Button>
       </div>
       <div aria-live="polite">{shown}</div>
     </div>

@@ -2,7 +2,7 @@
 // and the Status / Limits switch.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, state } from '../../web/core.ts';
-import { navLimits, panelSwitch, placeFixed, resetLimitsCache, sidebarPanel, timeUntil } from '../../web/navlimits.ts';
+import { navLimits, panelSwitch, placeFixed, resetLimitsCache, sidebarPanel, timeUntil } from '../../web/navlimits.tsx';
 import type { AppState, UsageLimits } from '../../shared/types.ts';
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));

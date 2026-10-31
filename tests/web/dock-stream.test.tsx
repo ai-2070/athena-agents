@@ -49,11 +49,11 @@ describe('the Brain chat', () => {
     expect(asked).toEqual({ text: 'make me a thumbnail team', project: 'p1', attachments: [] });
     const list = document.querySelector('.dock-list')!;
     expect(list.textContent).toContain('The Brain is looking at the project…');
-    // the button in the bottom bar says the Brain is working, with the shimmer, while it answers
+    // the button in the bottom bar says the Brain is working, with a busy dot, while it answers
     const button = document.querySelector('.bottom-bar .dock-launcher')!;
     expect(button.textContent).toContain('Brain is working…');
     expect(button.textContent).not.toContain('Ask the Brain');
-    expect(button.querySelector('.brain-working')!.className).toContain('animate-shimmer');
+    expect(button.querySelector('.brain-working .dot.busy')).not.toBeNull();
     // no flicker: your message stays the same node, in the list, while the answer streams in
     const mine = list.querySelector('.dock-msg.user')!.parentElement!;
     const removed: Node[] = [];

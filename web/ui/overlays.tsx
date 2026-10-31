@@ -9,12 +9,16 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { Dialog } from '@base-ui/react/dialog';
 import { Toast } from '@base-ui/react/toast';
+import { iconButtonClass } from './classes.ts';
+import { Icon } from './icon.tsx';
 
 /** Ready-made DOM nodes to put inside a part of a dialog or toast. */
 export type Nodes = readonly Node[];
 
 export interface DialogSpec {
   title: Nodes;
+  /** React content for the title, instead of `title`'s ready-made nodes (openModal's title). */
+  titleNode?: ReactNode;
   body: Nodes;
   /** The buttons at the bottom; none leaves the row out. */
   foot: Nodes | null;
@@ -142,9 +146,9 @@ function DialogView({ entry, container, children }: { entry: Entry; container: H
         <Dialog.Viewport className={`modal-back${spec.exit !== false ? ' exit' : ''}`} ref={(el: HTMLDivElement | null) => void (entry.view.current = el || entry.view.current)}>
           <Dialog.Popup ref={popup} className={`modal${spec.narrow ? ' narrow' : ''}`} initialFocus={firstFocus}>
             <div className="modal-head">
-              <Dialog.Title ref={title} />
-              <Dialog.Close className="icon-btn" aria-label="Close">
-                ✕
+              {spec.titleNode ? <Dialog.Title>{spec.titleNode}</Dialog.Title> : <Dialog.Title ref={title} />}
+              <Dialog.Close className={iconButtonClass()} aria-label="Close">
+                <Icon name="x" size={15} />
               </Dialog.Close>
             </div>
             {spec.content ?? (
@@ -175,10 +179,10 @@ export function openDialog(spec: DialogSpec): OpenDialog {
 
 /** A dialog with React content, for React pages. content gets close(); it draws <div className="modal-body">
  *  and, if it has buttons, <div className="modal-foot">. It stacks with every other dialog. */
-export function openModal(title: string, content: (close: () => void) => ReactNode, { narrow = false, onClose }: { narrow?: boolean; onClose?: () => void } = {}): OpenDialog {
+export function openModal(title: ReactNode, content: (close: () => void) => ReactNode, { narrow = false, onClose }: { narrow?: boolean; onClose?: () => void } = {}): OpenDialog {
   let handle: OpenDialog | null = null;
   const close = () => handle?.close();
-  handle = openDialog({ title: [document.createTextNode(title)], body: [], foot: null, narrow, onClose, content: <ModalContent render={() => content(close)} /> });
+  handle = openDialog({ title: [], titleNode: title, body: [], foot: null, narrow, onClose, content: <ModalContent render={() => content(close)} /> });
   return handle;
 }
 // (a component, so the content's hooks belong to it)
@@ -205,7 +209,7 @@ function Toasts({ container }: { container: HTMLElement | null }) {
       <Toast.Viewport className="flex flex-col gap-2 outline-none">
         {/* oldest first, newest at the bottom of the stack, as before */}
         {[...list].reverse().map((t) => (
-          <Toast.Root key={t.id} toast={t} className={`toast${t.type && t.type !== 'info' ? ` ${t.type}` : ''}`}>
+          <Toast.Root key={t.id} toast={t} className={`toast glass${t.type && t.type !== 'info' ? ` ${t.type}` : ''}`}>
             {t.data ? <ToastText nodes={t.data.nodes} /> : null}
           </Toast.Root>
         ))}

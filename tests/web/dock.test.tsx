@@ -77,6 +77,21 @@ describe('the Brain chat', () => {
     expect(panel().classList.contains('hidden')).toBe(true);
   });
 
+  it('offers a few things to ask while the chat is empty, and one goes into the box when clicked', async () => {
+    await act(async () => launcher().click());
+    await settle();
+    const offered = [...panel().querySelectorAll<HTMLButtonElement>('.dock-suggest')];
+    expect(offered.map((b) => b.textContent)).toEqual(['What is everyone working on?', 'Make me a social media team', 'Write PROJECT.md for this project']);
+    await act(async () => offered[1].click());
+    expect(input().value).toBe('Make me a social media team');
+    expect(document.activeElement).toBe(input());
+    // (leave the box as it was)
+    input().value = '';
+    await act(async () => void input().dispatchEvent(new Event('input', { bubbles: true })));
+    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
+    await settle();
+  });
+
   it('Ctrl+F (⌘F) opens a search box in the chat, and Esc closes only the box', async () => {
     await act(async () => launcher().click());
     await settle();
@@ -96,24 +111,46 @@ describe('the Brain chat', () => {
   it('sends to the Brain, an agent or a team, and shows whose model answers', async () => {
     await act(async () => launcher().click());
     await settle();
-    const sel = document.querySelector<HTMLSelectElement>('.dock-target')!;
-    expect([...sel.options].map((o) => o.value)).toEqual(['auto', 'new-agent', 'new-branch', 'a:a1', 'b:t1']);
-    expect(sel.value).toBe('auto');
-    await act(async () => {
-      sel.value = 'a:a1';
-      sel.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    expect(sel.value).toBe('a:a1');
+    // the "To" button opens a menu with one choice checked
+    const trigger = () => document.querySelector<HTMLButtonElement>('button.dock-target')!;
+    const choices = () => [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')];
+    const open = async () => {
+      await act(async () => trigger().click());
+      await settle();
+    };
+    const pick = async (label: string) => {
+      await open();
+      await act(async () => choices().find((c) => c.textContent!.trim().endsWith(label))!.click());
+      await settle();
+    };
+    await open();
+    // (an agent's row starts with its badge)
+    expect(choices().map((c) => c.textContent!.trim())).toEqual(['The Brain', 'New agent from this', 'New team from this', '🔭Scout', 'Thumbs']);
+    expect(choices().map((c) => c.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false', 'false']);
+    await act(async () => choices()[0].click());
+    await settle();
+    expect(document.querySelector('.st-menu')).toBeNull();
+    await pick('Scout');
+    expect(trigger().textContent).toContain('Scout');
     expect(document.querySelector('.dock-model .model-chip')).not.toBeNull();
-    await act(async () => {
-      sel.value = 'b:t1';
-      sel.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    await pick('Thumbs');
+    expect(trigger().textContent).toContain('Thumbs');
     expect(document.querySelector('.dock-model')!.textContent).toContain('★');
-    await act(async () => {
-      sel.value = 'auto';
-      sel.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    await pick('The Brain');
+    expect(trigger().textContent).toContain('The Brain');
+  });
+
+  it('Esc closes a menu that is open and leaves the chat open', async () => {
+    await act(async () => launcher().click());
+    await settle();
+    await act(async () => document.querySelector<HTMLButtonElement>('button.dock-target')!.click());
+    await settle();
+    const popup = document.querySelector('.st-menu')!;
+    expect(popup).not.toBeNull();
+    await act(async () => void popup.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
+    await settle();
+    expect(document.querySelector('.st-menu')).toBeNull();
+    expect(panel().classList.contains('hidden')).toBe(false);
   });
 
   it('/queue waits while the Brain is answering, and × takes it back', async () => {

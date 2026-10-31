@@ -1,6 +1,6 @@
-// Where Blacksite lives on GitHub. The sidebar, Settings > About and the server use these.
+// The app's name, and where it lives on GitHub. The sidebar, Settings > About and the server use these.
 export const REPO = {
-  name: 'Blacksite',
+  name: 'Athena Agents',
   slug: 'ai-2070/blacksite',
   url: 'https://github.com/ai-2070/blacksite',
 } as const;

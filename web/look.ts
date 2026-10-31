@@ -2,26 +2,39 @@
 // remembered in this browser so the page opens at the right size straight away.
 import type { LookSetting } from '../shared/types.ts';
 import { chatFont } from '../shared/look.ts';
+import { applyTheme, isDark, onThemeChange } from './theme.ts';
 export { CHAT_FONTS, chatFont, STATION_QUALITY, stationLevel } from '../shared/look.ts';
 export type { ChatFont } from '../shared/look.ts';
 
-export interface Accent {
-  id: string;
-  label: string;
+/** One tone of an accent: the colour, its hover, a quieter one for borders and small text, and the text on top of it. */
+export interface AccentTone {
   c: string;
   hover: string;
   dim: string;
   on: string;
 }
+/** An accent has a tone for each scheme: dark text on a light colour on dark pages, white on a deeper one on white. */
+export interface Accent {
+  id: string;
+  label: string;
+  light: AccentTone;
+  dark: AccentTone;
+}
 export const ACCENTS: Accent[] = [
-  { id: 'lime', label: 'Lime', c: '#c4ff3d', hover: '#d4ff6e', dim: '#7a9a2c', on: '#0b0c0b' },
-  { id: 'ice', label: 'Ice', c: '#7fd6f0', hover: '#a6e4f6', dim: '#4a8597', on: '#071014' },
-  { id: 'amber', label: 'Amber', c: '#f5b54a', hover: '#f8ca78', dim: '#9a7130', on: '#120c03' },
-  { id: 'rose', label: 'Rose', c: '#ff7a9a', hover: '#ff9cb4', dim: '#a04d61', on: '#14070a' },
-  { id: 'violet', label: 'Violet', c: '#b69cff', hover: '#cbb8ff', dim: '#6f5fa3', on: '#0c0814' },
-  { id: 'mint', label: 'Mint', c: '#5fe3c0', hover: '#89ecd2', dim: '#3a8c77', on: '#04110d' },
+  { id: 'aegean', label: 'Aegean', light: { c: '#4f5fd6', hover: '#3f4ec0', dim: '#7482dc', on: '#ffffff' }, dark: { c: '#7f8cf3', hover: '#98a3f7', dim: '#5a65b8', on: '#0b0d1e' } },
+  { id: 'olive', label: 'Olive', light: { c: '#5a7d2b', hover: '#496624', dim: '#86a45a', on: '#ffffff' }, dark: { c: '#a3c45d', hover: '#b8d37b', dim: '#738f3f', on: '#10170a' } },
+  { id: 'gold', label: 'Gold', light: { c: '#9a6410', hover: '#82530b', dim: '#c0913f', on: '#ffffff' }, dark: { c: '#e8b95f', hover: '#f0cb84', dim: '#a9833b', on: '#1a1204' } },
+  { id: 'terracotta', label: 'Terracotta', light: { c: '#c0502f', hover: '#a7421f', dim: '#d98369', on: '#ffffff' }, dark: { c: '#f19272', hover: '#f5ab8f', dim: '#b2674d', on: '#1c0b05' } },
+  { id: 'amethyst', label: 'Amethyst', light: { c: '#7c4dcc', hover: '#6a3ab8', dim: '#a283dd', on: '#ffffff' }, dark: { c: '#b69cff', hover: '#cbb8ff', dim: '#7f69c2', on: '#120c24' } },
+  { id: 'slate', label: 'Slate', light: { c: '#33343c', hover: '#1f2026', dim: '#6e6f7a', on: '#ffffff' }, dark: { c: '#d5d7de', hover: '#ffffff', dim: '#8a8c97', on: '#111216' } },
 ];
-export const DEFAULT_LOOK: LookSetting = { scale: 100, accent: 'lime', motion: 'full', chatFont: 'sans', station: 'balanced', sidebar: 'status', stationLook: 'classic', worldQuality: 'medium' };
+// Settings saved before the redesign named their accent after the old colours: they keep their closest hue
+const OLD_ACCENTS: Record<string, string> = { lime: 'aegean', ice: 'aegean', amber: 'gold', rose: 'terracotta', violet: 'amethyst', mint: 'olive' };
+/** The accent for a saved id (an old id counts as its closest new one; anything else is the default). */
+export const accentFor = (id: string | undefined): Accent => ACCENTS.find((x) => x.id === (OLD_ACCENTS[id ?? ''] ?? id)) || ACCENTS[0];
+/** The accent's tone for light or dark pages. */
+export const accentTone = (a: Accent, dark = isDark()): AccentTone => (dark ? a.dark : a.light);
+export const DEFAULT_LOOK: LookSetting = { theme: 'system', scale: 100, accent: 'aegean', motion: 'full', chatFont: 'sans', station: 'balanced', sidebar: 'status', stationLook: 'classic', worldQuality: 'medium' };
 let current: LookSetting = DEFAULT_LOOK;
 /** The look in use now (the Station reads its quality from here every frame). */
 export const currentLook = (): LookSetting => current;
@@ -31,17 +44,26 @@ const KEY = 'dash-look';
 // divide by this when placing a popup at the mouse or next to a button.
 export const uiZoom = (): number => parseFloat(document.documentElement.style.zoom) || 1;
 
+// The four accent tokens for the scheme the page is in now (inline, so they beat the stylesheet's own).
+function paintAccent(id: string | undefined): void {
+  const t = accentTone(accentFor(id));
+  const root = document.documentElement;
+  root.style.setProperty('--color-accent', t.c);
+  root.style.setProperty('--color-accent-hover', t.hover);
+  root.style.setProperty('--color-accent-dim', t.dim);
+  root.style.setProperty('--color-on-accent', t.on);
+}
+// the system switches between light and dark: the accent takes the other tone
+onThemeChange(() => paintAccent(current.accent));
+
 export function applyLook(look: Partial<LookSetting> = {}): LookSetting {
   const l: LookSetting = { ...DEFAULT_LOOK, ...look };
   current = l;
+  applyTheme(l.theme);
   const root = document.documentElement;
   const scale = Math.max(70, Math.min(160, Number(l.scale) || 100));
   root.style.zoom = scale === 100 ? '' : String(scale / 100);
-  const a = ACCENTS.find((x) => x.id === l.accent) || ACCENTS[0];
-  root.style.setProperty('--color-accent', a.c);
-  root.style.setProperty('--color-accent-hover', a.hover);
-  root.style.setProperty('--color-accent-dim', a.dim);
-  root.style.setProperty('--color-on-accent', a.on);
+  paintAccent(l.accent);
   root.classList.toggle('reduce-motion', l.motion === 'reduced');
   const font = chatFont(l.chatFont);
   // the default is the stylesheet's own --font-chat

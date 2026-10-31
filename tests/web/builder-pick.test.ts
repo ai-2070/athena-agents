@@ -1,7 +1,7 @@
 // The team builder's "Add an agent" list: search, click to add, and it leaves the list once on the team.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
-import { openBranchBuilder } from '../../web/builder.ts';
+import { openBranchBuilder } from '../../web/builder.tsx';
 import type { AppState } from '../../shared/types.ts';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -43,9 +43,9 @@ describe('the team builder', () => {
     expect(rows().map((b) => b.title)).toEqual(['Add Scout to the team']);
   });
 
-  it('is mono like the other editors, and shows a box for each part', async () => {
+  it('shows a box for each part, in the same type as the page (only code and ids are mono)', async () => {
     const m = await openBranchBuilder();
-    expect(m.el.classList.contains('mono-fields')).toBe(true);
+    expect(m.el.classList.contains('mono-fields')).toBe(false);
     expect([...m.el.querySelectorAll('section')].map((s) => s.firstElementChild!.textContent?.trim())).toEqual(['Basics', 'Files', 'Members0', 'Access']);
   });
 });

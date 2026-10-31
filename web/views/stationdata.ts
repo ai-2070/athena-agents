@@ -2,8 +2,9 @@
 // programs, MCP servers, connectors on your Claude account), teams as the map draws them, and what a
 // click on the map points at.
 import { state } from '../core.ts';
-import { logo } from '../icons.ts';
+import { logo, brandColor } from '../icons.ts';
 import { craftIcon, craftColor } from '../crafticons.ts';
+import { INK, brandTone } from './stationpalette.ts';
 import { appIcon } from '../appicons.ts';
 import type { Agent, AppState, ProviderUsage, Team, TeamListing, TeamStep } from '../../shared/types.ts';
 
@@ -20,7 +21,6 @@ export interface Program {
   id: string;
   name: string;
   category?: string;
-  icon?: string;
   installed: boolean;
   optional?: boolean;
   exe: string | null;
@@ -60,6 +60,8 @@ export type MapPick =
   | { type: 'branch' | 'int'; id: string; wf?: undefined; step?: number }
   | { type: 'bench' | 'brain' | 'world'; id?: undefined; wf?: undefined; step?: undefined };
 
+/** Brands that are black or white take the page's text colour (INK), so they show on light and dark alike; the other brand colours are data. */
+export { INK };
 export const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a', '#4f7fa8', '#5a9a3a', '#a84a5a', '#2f8fa0'];
 export const wfColor = (wf: Pick<Team, 'color'>, i: number): string => (/^#[0-9a-f]{6}$/i.test(wf.color || '') ? wf.color! : PALETTE[i % PALETTE.length]);
 
@@ -71,12 +73,12 @@ export const setClaudeConnectors = (list: Connector[]): void => void (claudeConn
 export const INTEGRATIONS: Integration[] = [
   { id: 'claude', label: 'Claude Code', glyph: '✳', color: '#d97757' },
   { id: 'hermes', label: 'Hermes', glyph: '☤', color: '#d8c25a' },
-  { id: 'codex', label: 'OpenAI Codex', glyph: '◎', color: '#e6e8e0' },
+  { id: 'codex', label: 'OpenAI Codex', glyph: '◎', color: INK },
   { id: 'reddit', label: 'Reddit', glyph: 'r/', color: '#ff4500' },
   { id: 'openrouter', label: 'OpenRouter', glyph: '⇄', color: '#94a3b8' },
   { id: 'lmstudio', label: 'LM Studio', glyph: 'LM', color: '#6a72ed' },
-  { id: 'ollama', label: 'Ollama', glyph: 'OL', color: '#e6e8e0' },
-  { id: 'x', label: 'X', glyph: '𝕏', color: '#e6e8e0' },
+  { id: 'ollama', label: 'Ollama', glyph: 'OL', color: INK },
+  { id: 'x', label: 'X', glyph: '𝕏', color: INK },
   { id: 'telegram', label: 'Telegram', glyph: '✈', color: '#4fb3f6' },
   { id: 'discord', label: 'Discord', glyph: 'D', color: '#7d86ff' },
   { id: 'comfyui', label: 'ComfyUI', glyph: '🧩', color: '#f2ff59' },
@@ -94,9 +96,14 @@ export const INTEGRATIONS: Integration[] = [
   { id: 'orca', label: 'Orca', glyph: '🐋', color: '#7ab8ff' },
   { id: 'browser', label: 'Browser', glyph: '🌐', color: '#a9d3e2' },
 ];
-const BRAND_OF: Record<string, string> = { codex: 'openai', reddit: 'reddit', claude: 'claude', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', maya: 'maya', houdini: 'houdini', cad: 'openscad', nvidia: 'nvidia', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
+const BRAND_OF: Record<string, string> = { codex: 'openai', reddit: 'reddit', claude: 'claude code', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', maya: 'maya', houdini: 'houdini', cad: 'openscad', nvidia: 'nvidia', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
 // A brand logo, a Craft app's own icon (PhotoCraft…), or a program's own icon (ComfyUI), for a connector or MCP server name.
-export const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null => logo(name, size) || craftIcon(name, size) || appIcon(name, size);
+// (a brand logo is drawn in its colour, deepened or lifted when that colour would not show on the page: OpenAI's dark purple on black, say)
+const logoFill = (name: string): string | null => {
+  const c = brandColor(name);
+  return c ? brandTone(c) : null;
+};
+export const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null => logo(name, size, logoFill(name)) || craftIcon(name, size) || appIcon(name, size);
 // The brand logo for an integration (or connector name), falling back to its glyph.
 export function mark(id: string, size = 14): SVGSVGElement | HTMLImageElement | string {
   const key = id.startsWith('mcp:') ? id.slice(4) : id.startsWith('cc:') ? id.slice(3) : BRAND_OF[id] || id;
@@ -216,15 +223,15 @@ export function connectorLook(name: string): { glyph: string; color: string } {
     [/gmail/, 'M', '#ea4335'],
     [/calendar/, '31', '#4285f4'],
     [/drive/, '▲', '#34a853'],
-    [/notion/, 'N', '#e6e8e0'],
-    [/higgsfield/, 'H', '#c4ff3d'],
+    [/notion/, 'N', INK],
+    [/higgsfield/, 'H', '#9bd61e'],
     [/claude docs|docs/, 'CD', '#d97757'],
     [/slack/, '#', '#e01e5a'],
     [/linear/, 'L', '#5e6ad2'],
     [/atlassian|jira|confluence/, 'A', '#2684ff'],
     [/intercom/, 'I', '#1f8ded'],
     [/figma/, 'F', '#f24e1e'],
-    [/github/, 'GH', '#e6e8e0'],
+    [/github/, 'GH', INK],
     [/stripe/, 'S', '#635bff'],
     [/canva/, 'C', '#00c4cc'],
   ];

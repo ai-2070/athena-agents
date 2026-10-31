@@ -1,5 +1,9 @@
 // App shell: navigation, routing, the "Needs you" drawer and live notifications.
 import { h, mount, clear, freshElement, state, onState, onEvent, refreshState, refreshSoon, connectEvents, toast, navigate, approvalCard, ago, GET } from './core.ts';
+import { backdropEscape } from './shortcuts.ts';
+import { domBadge, domButton, domDot } from './ui/dom.ts';
+import { badgeClass, buttonClass, iconButtonClass, pillClass } from './ui/classes.ts';
+import type { DotTone } from './ui/classes.ts';
 import * as home from './views/home.tsx';
 import * as station from './views/station.ts';
 import * as artifactsView from './views/artifacts.tsx';
@@ -17,14 +21,14 @@ import * as skillsView from './views/skills.tsx';
 import * as routinesView from './views/routines.tsx';
 import { initDock } from './dock.tsx';
 import { mountDrawerQuestions } from './questions.tsx';
-import { guardPageDrops } from './attach.ts';
+import { guardPageDrops } from './attach.tsx';
 import { applyLook, applySavedLook } from './look.ts';
-import { navLimits, panelSwitch, sidebarPanel } from './navlimits.ts';
+import { navLimits, panelSwitch, sidebarPanel } from './navlimits.tsx';
 
 applySavedLook();
 import { icon, logo } from './icons.ts';
 import { REPO } from '../shared/about.ts';
-import { openProjectMenu, openLauncher } from './projects.ts';
+import { openProjectMenu, openLauncher } from './projects.tsx';
 import { projectMark } from './projectlogo.ts';
 import type { AboutInfo, AppState, EngineStatus, RunEvent, ServerEvent } from '../shared/types.ts';
 
@@ -61,7 +65,7 @@ const NAV: NavLink[] = [
   { path: 'artifacts', label: 'Artifacts', ico: 'archive', view: artifactsView },
   // how many agents this project has
   { path: 'agents', label: 'Agents', ico: 'bot', view: agents, count: () => state.data?.agents?.length || 0 },
-  { path: 'library', label: 'Agent library', ico: 'library-big', view: library },
+  { path: 'library', label: 'Agent Library', ico: 'library-big', view: library },
   { path: 'skills', label: 'Skills', ico: 'puzzle', view: skillsView },
   { path: 'routines', label: 'Routines', ico: 'repeat', view: routinesView },
   { path: 'settings', label: 'Settings', ico: 'settings', view: setup },
@@ -77,23 +81,26 @@ const HIDDEN: Route[] = [
 ];
 
 // The page's box: padded, or flush to the edges (view.flush). Every page fades or rises in.
-const VIEW_PADDED = 'min-w-0 px-7 pt-6.5 pb-15 *:animate-rise-in max-md:px-4 max-md:pt-4.5 max-md:pb-12.5';
-const VIEW_FLUSH = 'min-w-0 *:animate-[fade_0.35s_ease-out]';
+const VIEW_PADDED = 'mx-auto w-full max-w-[1400px] min-w-0 px-10 pt-9 pb-20 *:animate-rise-in max-md:px-4 max-md:pt-5 max-md:pb-14';
+const VIEW_FLUSH = 'w-full min-w-0 *:animate-[fade_0.35s_ease-out]';
 
 // The sidebar's links. On the Station (body.station-mode) the bar folds to its icons: on a wide screen it is
 // clipped to the icon strip and its text fades in when it opens (body.nav-wide); on a narrow one a hovered
 // icon shows its name beside it.
 const NAV_LINK =
-  'group flex items-center gap-3 border-l-2 px-5 py-3 font-mono text-[12px] leading-[1.2] font-medium tracking-[0.14em] uppercase [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] in-[.station-mode]:relative max-md:in-[.station-mode]:justify-center max-md:in-[.station-mode]:px-0 max-md:in-[.station-mode.nav-wide]:justify-start max-md:in-[.station-mode.nav-wide]:px-5 md:in-[.station-mode]:justify-start md:in-[.station-mode]:pr-5 md:in-[.station-mode]:pl-4.75';
-const NAV_LINK_OFF = 'border-l-transparent text-dim hover:bg-panel-2 hover:text-ink';
-const NAV_LINK_ON = 'border-l-accent bg-panel-2 text-accent';
-const NAV_ICO = 'grid w-5 place-items-center text-center text-[14px] tracking-[0] in-[.station-mode]:text-[15px] in-[.station-mode]:group-hover:text-accent';
+  'group flex items-center gap-3 rounded-ctl px-3 py-2 text-[14px] leading-[1.3] font-semibold [transition:background-color_0.15s,color_0.15s] in-[.station-mode]:relative max-md:in-[.station-mode]:justify-center max-md:in-[.station-mode]:px-0 max-md:in-[.station-mode.nav-wide]:justify-start max-md:in-[.station-mode.nav-wide]:px-3 md:in-[.station-mode]:w-8.5 md:in-[.station-mode]:justify-start md:in-[.station-mode]:px-[7px] md:in-[.station-mode.nav-wide]:w-auto md:in-[.station-mode.nav-wide]:px-3';
+const NAV_LINK_OFF = 'text-dim hover:bg-ink/5 hover:text-ink';
+const NAV_LINK_ON = 'bg-ink/7 text-ink';
+const NAV_ICO = 'grid w-5 flex-none place-items-center text-center in-[.station-mode]:group-hover:text-accent';
+const NAV_ICO_OFF = 'text-icon group-hover:text-ink';
+const NAV_ICO_ON = 'text-accent';
+// the menu's own labels read in capitals (the text stays as written, so lookups and screen readers are unmoved)
 const NAV_TXT =
-  'in-[.station-mode]:[display:none] in-[.station-mode]:group-hover:absolute in-[.station-mode]:group-hover:left-[58px] in-[.station-mode]:group-hover:z-90 in-[.station-mode]:group-hover:block in-[.station-mode]:group-hover:border in-[.station-mode]:group-hover:border-line-2 in-[.station-mode]:group-hover:bg-panel-2 in-[.station-mode]:group-hover:px-2.5 in-[.station-mode]:group-hover:py-1.5 in-[.station-mode]:group-hover:whitespace-nowrap in-[.station-mode]:group-hover:text-ink in-[.station-mode.nav-wide]:inline in-[.station-mode.nav-wide]:group-hover:static in-[.station-mode.nav-wide]:group-hover:border-0 in-[.station-mode.nav-wide]:group-hover:bg-transparent in-[.station-mode.nav-wide]:group-hover:p-0 in-[.station-mode.nav-wide]:group-hover:text-inherit md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode]:group-hover:static md:in-[.station-mode]:group-hover:border-0 md:in-[.station-mode]:group-hover:bg-transparent md:in-[.station-mode]:group-hover:p-0 md:in-[.station-mode]:group-hover:text-inherit md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
+  'uppercase in-[.station-mode]:[display:none] in-[.station-mode]:group-hover:absolute in-[.station-mode]:group-hover:left-[58px] in-[.station-mode]:group-hover:z-90 in-[.station-mode]:group-hover:block in-[.station-mode]:group-hover:rounded-ctl in-[.station-mode]:group-hover:border in-[.station-mode]:group-hover:border-line in-[.station-mode]:group-hover:bg-raise in-[.station-mode]:group-hover:shadow-pop in-[.station-mode]:group-hover:px-3 in-[.station-mode]:group-hover:py-1.5 in-[.station-mode]:group-hover:whitespace-nowrap in-[.station-mode]:group-hover:text-ink in-[.station-mode.nav-wide]:inline in-[.station-mode.nav-wide]:group-hover:static in-[.station-mode.nav-wide]:group-hover:border-0 in-[.station-mode.nav-wide]:group-hover:bg-transparent in-[.station-mode.nav-wide]:group-hover:p-0 in-[.station-mode.nav-wide]:group-hover:shadow-none in-[.station-mode.nav-wide]:group-hover:text-inherit md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode]:group-hover:static md:in-[.station-mode]:group-hover:border-0 md:in-[.station-mode]:group-hover:bg-transparent md:in-[.station-mode]:group-hover:p-0 md:in-[.station-mode]:group-hover:text-inherit md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 const NAV_COUNT =
   'ml-auto in-[.station-mode]:[display:none] in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 // a line of the status list at the bottom left
-const NS_LINE = '-mx-1.5 flex items-center gap-1.75 rounded-[6px] px-1.5 py-0.75 text-[11.5px] text-dim no-underline [transition:background_0.15s,color_0.15s] hover:bg-accent/12 hover:text-ink';
+const NS_LINE = 'group flex min-w-0 w-full items-center gap-2.5 rounded-ctl px-2 py-1 text-[12.5px] leading-5 text-dim no-underline [transition:background-color_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
 
 let viewEl = document.getElementById('view')!;
 const titleEl = document.getElementById('page-title')!;
@@ -105,13 +112,13 @@ function renderNav() {
     document.getElementById('nav-links')!,
     NAV.map((n) => {
       const c = n.count?.();
-      return h('a', { class: `${NAV_LINK} ${route === n.path ? NAV_LINK_ON : NAV_LINK_OFF}`, href: `#/${n.path}`, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: NAV_ICO }, icon(n.ico, 18)), h('span', { class: NAV_TXT }, n.label), c ? h('span.badge', { class: NAV_COUNT }, String(c)) : null);
+      return h('a', { class: `${NAV_LINK} ${route === n.path ? NAV_LINK_ON : NAV_LINK_OFF}`, href: `#/${n.path}`, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: `${NAV_ICO} ${route === n.path ? NAV_ICO_ON : NAV_ICO_OFF}` }, icon(n.ico, 18)), h('span', { class: NAV_TXT }, n.label), c ? domBadge({ class: NAV_COUNT }, String(c)) : null);
     }),
   );
   const d = state.data;
   if (d) {
     // the status list, or (Status / Limits switch) your Claude and Codex usage limits
-    mount(document.getElementById('nav-status')!, panelSwitch(renderNav), sidebarPanel() === 'limits' ? navLimits(renderNav) : navStatus(d));
+    mount(document.getElementById('nav-status')!, sidebarPanel() === 'limits' ? navLimits(renderNav) : navStatus(d), panelSwitch(renderNav));
   }
   // the version is asked for once (no GitHub call here: the star count is only fetched in Settings > About)
   if (!aboutAsked) {
@@ -123,13 +130,13 @@ function renderNav() {
 
 let about: AboutInfo | null = null;
 let aboutAsked = false;
-// Bottom of the sidebar: the version (opens Settings > About) and a link to star Blacksite on GitHub.
-const NAV_VER = 'flex min-w-0 items-baseline gap-1.5 -ml-1.5 rounded-[6px] px-1.5 py-0.75 font-sans text-[11.5px] leading-[1.3] font-semibold text-dim [transition:background_0.15s,color_0.15s] hover:bg-accent/12 hover:text-ink';
-const NAV_STAR = 'inline-flex h-5.5 flex-none items-center gap-1.25 rounded-ctl border border-line-2 px-2 font-mono text-[10px] leading-none font-medium tracking-[0.08em] uppercase text-ink [transition:border-color_0.15s,color_0.15s] hover:border-accent hover:text-accent [&_svg]:flex-none';
+// Bottom of the sidebar: the version (opens Settings > About) and a link to star Athena Agents on GitHub.
+const NAV_VER = 'flex min-w-0 items-baseline gap-1.5 -ml-2 rounded-ctl px-2 py-1 font-sans text-[12.5px] leading-[1.3] font-medium text-dim [transition:background_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink';
+const NAV_STAR = 'inline-flex h-7 flex-none items-center gap-1.5 rounded-ctl border border-line-2 bg-panel px-2.5 font-sans text-[12px] leading-none font-medium text-ink [transition:background-color_0.15s,border-color_0.15s] hover:bg-panel-2 [&_svg]:flex-none';
 function navAbout() {
   return [
-    h('a', { class: NAV_VER, href: '#/settings?tab=about', title: 'About Blacksite', onclick: () => document.body.classList.remove('nav-open') }, h('span', REPO.name), about ? h('span', { class: 'font-mono text-[10.5px] leading-[1.3] font-normal text-faint tabular-nums' }, `v${about.version}`) : null),
-    h('a', { class: NAV_STAR, href: REPO.url, target: '_blank', rel: 'noopener', title: `${REPO.slug} on GitHub: star it there` }, logo('github', 12, '#e6e8e0'), h('span', 'Star')),
+    h('a', { class: NAV_VER, href: '#/settings?tab=about', title: `About ${REPO.name}`, onclick: () => document.body.classList.remove('nav-open') }, h('span', 'About'), about ? h('span', { class: 'text-[11.5px] leading-[1.3] font-normal text-faint tabular-nums' }, `v${about.version}`) : null),
+    h('a', { class: NAV_STAR, href: REPO.url, target: '_blank', rel: 'noopener', title: `${REPO.slug} on GitHub: star it there` }, logo('github', 13, 'currentColor'), h('span', 'Star')),
   ];
 }
 
@@ -138,36 +145,39 @@ function navStatus(d: AppState) {
   const e: Partial<EngineStatus> = d.engines;
   const S = (q: string) => `#/settings?${q}`;
   const ver = (v: string | null | undefined) => (v ? String(v).split(/\s/)[0] : '');
-  const line = (dot: string, label: string, value: string, href: string, title?: string) =>
-    h('a', { class: NS_LINE, href, title: title || label, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: `dot ${dot}` }), h('span', { class: 'min-w-0 flex-1 truncate' }, label), value ? h('span', { class: 'text-[10.5px] whitespace-nowrap text-faint' }, value) : null);
+  const line = (dot: DotTone | '', label: string, value: string, href: string, title?: string) =>
+    h('a', { class: NS_LINE, href, title: title || label, onclick: () => document.body.classList.remove('nav-open') }, domDot(dot, { class: 'size-1.5 [box-shadow:none]' }), h('span', { class: 'min-w-0 flex-1 truncate text-ink' }, label), value ? h('span', { class: 'max-w-[48%] min-w-0 truncate text-right text-[11.5px] text-faint tabular-nums', title: value }, value) : null);
   const cc: Partial<EngineStatus['claude-code']> = e['claude-code'] || {};
   const cx: Partial<EngineStatus['codex']> = e.codex || {};
   const acc: Partial<AppState['accounts']> = d.accounts || {};
-  const x = acc.x || [];
-  const rd = acc.reddit || [];
   const b = d.settings?.brain || { provider: 'claude', model: 'haiku' };
   const brainName = String(b.model || 'haiku').replace(/^anthropic\/claude-/, '').replace(/^./, (c) => c.toUpperCase());
-  const lines = [
+  const heading = 'mt-3 px-2 pb-1 text-[11px] leading-4 font-medium text-faint';
+  const sv = d.projectSaved;
+  const savedLine = sv ? (sv.error ? `not saved: ${sv.error}` : `auto-saved ${ago(sv.at)}`) : 'auto-save on';
+  const footer = 'flex min-w-0 w-full items-start gap-2.5 rounded-ctl px-2 py-1.5 text-[11.5px] leading-4 text-faint hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
+  return [
+    h('div', { class: heading }, 'Engines'),
     line(cc.installed ? (cc.loggedIn ? 'on' : 'warn') : '', 'Claude Code', cc.installed ? (cc.loggedIn ? ver(cc.version) || 'ready' : 'not signed in') : 'not found', S('tab=general&find=Claude Code')),
     line(cx.installed ? (cx.loggedIn ? 'on' : 'warn') : '', 'Codex', cx.installed ? (cx.loggedIn ? ver(cx.version) || 'ready' : 'sign in') : 'not installed', S('tab=general&find=OpenAI Codex')),
     line(e.hermes?.installed ? 'on' : '', 'Hermes', e.hermes?.installed ? 'found' : 'not found', S('tab=general&find=Hermes')),
-    // always listed, like the Station's engine tiles: grey with a link to how to install until found
     line(e.pi?.installed ? 'on' : '', 'pi coding agent', e.pi?.installed ? ver(e.pi.version) || 'found' : 'not installed', S('tab=general&find=pi coding agent')),
     line(e.omp?.installed ? 'on' : '', 'oh-my-pi', e.omp?.installed ? ver(e.omp.version) || 'found' : 'not installed', S('tab=general&find=oh-my-pi')),
     line(e.openclaw?.installed ? 'on' : '', 'OpenClaw', e.openclaw?.installed ? ver(e.openclaw.version) || 'found' : 'not installed', S('tab=general&find=OpenClaw')),
+    h('div', { class: heading }, 'Models and connections'),
     line(e.openai?.openrouter ? 'on' : '', 'OpenRouter', e.openai?.openrouter ? 'key set' : 'no key', S('tab=general&find=OpenRouter key')),
     line('on', 'Brain', `${brainName}${b.provider === 'openrouter' ? ' · OR' : ''}`, S("tab=general&find=The Brain's model"), "The Brain's model"),
-    line(x.length ? 'on' : '', 'X', x.length ? (x.length === 1 ? `@${x[0].username}` : `${x.length} accounts`) : 'not connected', S('tab=connections&sub=accounts&find=X accounts')),
-    line(rd.length ? 'on' : '', 'Reddit', rd.length ? (rd.length === 1 ? `u/${rd[0].username}` : `${rd.length} accounts`) : 'not connected', S('tab=connections&sub=accounts&find=Reddit accounts')),
     line(acc.telegram?.configured ? 'on' : '', 'Telegram', acc.telegram?.configured ? 'ready' : 'off', S('tab=connections&sub=accounts&find=Telegram')),
     line(acc.discord?.configured ? 'on' : '', 'Discord', acc.discord?.configured ? 'ready' : 'off', S('tab=connections&sub=accounts&find=Discord')),
     line((d.mcpServers || []).length ? 'on' : '', 'MCP servers', String((d.mcpServers || []).length), S('tab=mcp&find=Your MCP servers')),
     d.outboxPending || d.questions?.length ? line('busy', 'Outbox', `${d.outboxPending + (d.questions?.length || 0)} waiting`, '#/outbox') : null,
+    h('div', { class: 'mt-2 border-t border-line pt-2' },
+      h('a', { class: footer, href: S('tab=about&find=This PC'), title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}` },
+        icon('folder-open', 13), h('span', { class: 'flex min-w-0 flex-1 flex-col gap-0.5' },
+          h('span', { class: 'truncate text-dim' }, d.project?.name || 'Project'),
+          h('span', { class: 'truncate', title: savedLine }, savedLine))),
+      h('a', { class: footer, href: S('tab=about&find=This PC'), title: 'Address' }, icon('globe', 13), h('span', { class: 'min-w-0 truncate' }, `localhost:${d.port} · no login`))),
   ];
-  const sv = d.projectSaved;
-  const savedLine = sv ? (sv.error ? `not saved: ${sv.error}` : `auto-saved ${ago(sv.at)}`) : 'auto-save on';
-  const foot = 'min-w-0 flex-1 truncate text-faint';
-  return [...lines, h('a', { class: NS_LINE, href: S('tab=about&find=This PC'), title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}` }, h('span', { class: foot }, `${d.project?.name || 'Project'} · ${savedLine}`)), h('a', { class: NS_LINE, href: S('tab=about&find=This PC'), title: 'Address' }, h('span', { class: foot }, `localhost:${d.port} · no login`))];
 }
 
 async function route() {
@@ -213,7 +223,7 @@ function renderApprovals() {
   const n = list.length + (state.data?.outboxPending || 0) + asked.length;
   const count = document.getElementById('needs-count')!;
   count.textContent = String(n);
-  count.classList.toggle('hot', n > 0);
+  count.className = badgeClass(n > 0);
   const drawn = JSON.stringify([list, state.data?.outboxPending || 0, asked.map((q) => q.id)]);
   if (drawn === drawnApprovals) return;
   drawnApprovals = drawn;
@@ -235,7 +245,7 @@ function renderApprovals() {
   }
   if (state.data?.outboxPending) {
     drawerBody.append(
-      h('div.approval', h('div.t', `${state.data.outboxPending} post${state.data.outboxPending > 1 ? 's' : ''} waiting in the Outbox`), h('button.btn.small', { onclick: toOutbox }, 'Review posts')),
+      h('div.approval', h('div.t', `${state.data.outboxPending} post${state.data.outboxPending > 1 ? 's' : ''} waiting in the Outbox`), domButton({ size: 'small', onclick: toOutbox }, 'Review posts')),
     );
   }
   for (const c of approvalCards.values()) drawerBody.append(c.el);
@@ -260,13 +270,19 @@ function renderRunning() {
   const pill = document.getElementById('running-pill')!;
   const runs = state.data?.runs || [];
   pill.classList.toggle('hidden', !runs.length);
-  mount(pill, h('span.dot.busy'), runs.length === 1 ? `${runs[0].agentName} working` : `${runs.length} agents working`);
-  pill.className = `pill warn${runs.length ? '' : ' hidden'}`;
+  mount(pill, domDot('busy'), runs.length === 1 ? `${runs[0].agentName} working` : `${runs.length} agents working`);
+  pill.className = pillClass('warn', runs.length ? '' : 'hidden');
 }
 
-document.getElementById('needs-btn')!.onclick = () => drawer.classList.toggle('hidden');
+// the controls that live in public/index.html: they keep their names there, and get their look here
+const needsBtn = document.getElementById('needs-btn')!;
+needsBtn.className = buttonClass('ghost', 'small');
+document.getElementById('drawer-close')!.className = iconButtonClass();
+document.getElementById('nav-toggle')!.className = iconButtonClass('default', 'md:hidden');
+document.getElementById('needs-count')!.className = badgeClass();
+needsBtn.onclick = () => drawer.classList.toggle('hidden');
 // project switcher in the top bar (pages other than the Station)
-const projBtn = h('button.btn.ghost.small', { class: 'gap-1.5 [&_.proj-logo]:mr-0.5', onclick: (e) => openProjectMenu(e.currentTarget) });
+const projBtn = domButton({ variant: 'ghost', size: 'small', class: 'gap-1.5 [&_.proj-logo]:mr-0.5', onclick: (e) => openProjectMenu(e.currentTarget) });
 document.querySelector('.top-actions')!.prepend(projBtn);
 onState((d) => mount(projBtn, projectMark(d.project, 15), d.project?.name || 'Project', icon('chevron-down', 13)));
 document.getElementById('drawer-close')!.onclick = () => drawer.classList.add('hidden');
@@ -305,7 +321,8 @@ connectEvents();
 initDock();
 openLauncher();
 // Esc: whatever is open closes first (dialogs, menus, the Brain chat, Station panels handle it
-// themselves). With nothing open, Esc opens the big sidebar, and Esc again closes it.
+// themselves). With nothing open it goes back to the Station, and there it opens the big sidebar
+// instead, and Esc again closes it. See backdropEscape for the order.
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   // let the open thing take it first, then decide
@@ -316,9 +333,19 @@ window.addEventListener('keydown', (e) => {
     const target = e.target as HTMLElement;
     if (target.closest?.('input, textarea, select')) return target.blur();
     const body = document.body;
-    if (body.classList.contains('nav-open')) return body.classList.remove('nav-open'); // phone menu
-    if (body.classList.contains('nav-wide')) return body.classList.remove('nav-wide');
-    if (body.classList.contains('station-mode')) body.classList.add('nav-wide');
+    switch (backdropEscape(document)) {
+      case 'phone-menu':
+        return body.classList.remove('nav-open');
+      case 'close-sidebar':
+        return body.classList.remove('nav-wide');
+      case 'open-sidebar':
+        return body.classList.add('nav-wide');
+      // a page: back to the Station
+      case 'station':
+        return navigate('#/station');
+      default:
+        return;
+    }
   }, 0);
 });
 // Station: the sidebar is a thin icon bar; hovering it opens it to full width, leaving folds it back.

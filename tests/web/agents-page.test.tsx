@@ -42,6 +42,7 @@ beforeEach(() => {
       return json({ ok: true });
     }
     if (url === '/api/mcp') return json({ servers: { github: {} } });
+    if (url.startsWith('/api/models')) return json([{ id: 'openai/gpt-example', name: 'GPT example', tools: true }, { id: 'anthropic/claude-example', name: 'Claude example', tools: true }]);
     if (url.startsWith('/api/memory')) return json({ text: '', updatedAt: 0 });
     return json(url.includes('/hermes') || url.includes('/workflows') || url.includes('/openclaw') || url.includes('/models') ? [] : { ok: true });
   });
@@ -141,6 +142,34 @@ describe('the agent editor', () => {
     await settle();
     expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body).toMatchObject({ name: 'Writer Pro', systemPrompt: 'Be brief.' });
     expect(btn(el, 'Save').disabled).toBe(true);
+  });
+
+  it('picks an emoji and saves it with the agent', async () => {
+    await open(['a1', 'edit']);
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Choose emoji"]')!.click());
+    await settle();
+    await type(document.querySelector<HTMLInputElement>('input[aria-label="Search emoji"]')!, 'fox');
+    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Fox"]')!.click());
+    expect(el.querySelector<HTMLButtonElement>('button[aria-label="Choose emoji"]')!.textContent).toContain('🦊');
+    await act(async () => btn(el, 'Save').click());
+    await settle();
+    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body).toMatchObject({ emoji: '🦊' });
+  });
+
+  it('lets you search listed models or enter an id of your own', async () => {
+    await open(['a1', 'edit']);
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Show models"]')!.click());
+    await settle();
+    expect(document.body.textContent).toContain('openai/gpt-example');
+    const input = el.querySelector<HTMLInputElement>('input[aria-labelledby="agent-model-label"]')!;
+    await type(input, 'gpt');
+    await settle();
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.includes('openai/gpt-example'))!.click());
+    expect(input.value).toBe('openai/gpt-example');
+    await type(input, 'custom/model');
+    await act(async () => btn(el, 'Save').click());
+    await settle();
+    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body).toMatchObject({ model: 'custom/model' });
   });
 
   it('opening another project loads the editor again from it (the old unsaved form is gone)', async () => {

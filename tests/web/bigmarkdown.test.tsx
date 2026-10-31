@@ -1,7 +1,7 @@
 // A very long Markdown file: cut between its blocks, and only the pieces near the screen are drawn.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { md, mdChunks } from '../../web/core.ts';
-import { MAX_MARKDOWN_BYTES, markdownTooBig, previewMarkdown, showMarkdown } from '../../web/filepreview.ts';
+import { MAX_MARKDOWN_BYTES, markdownTooBig, previewMarkdown, showMarkdown } from '../../web/filepreview.tsx';
 import { BIG_MARKDOWN } from '../../web/ui/bigmarkdown.tsx';
 
 // (the dialog draws outside act, as in the page)
@@ -96,6 +96,13 @@ describe('a Markdown file preview', () => {
       return isBody(this) ? VIEW : this.hasAttribute('data-index') ? PIECE : 0;
     });
     vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return isBody(this) ? 800 : 0;
+    });
+    // (the virtualizer reads the scroller's client size for the window it can see)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return isBody(this) ? VIEW : 0;
+    });
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
       return isBody(this) ? 800 : 0;
     });
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {

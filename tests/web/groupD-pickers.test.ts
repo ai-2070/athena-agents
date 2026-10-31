@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
-import { brainModelChip, openModelPicker } from '../../web/models.ts';
-import { openBranchBuilder } from '../../web/builder.ts';
-import type { ModelPatch } from '../../web/models.ts';
+import { brainModelChip, openModelPicker } from '../../web/models.tsx';
+import { openBranchBuilder } from '../../web/builder.tsx';
+import type { ModelPatch } from '../../web/models.tsx';
 import type { AppState } from '../../shared/types.ts';
 
 type Reply = { status?: number; body: unknown };
@@ -25,6 +25,8 @@ function serve(route: Route) {
 }
 const settle = () => new Promise((r) => setTimeout(r, 20));
 const buttons = (root: ParentNode, text: string) => [...root.querySelectorAll('button')].filter((b) => b.textContent?.includes(text));
+// the team builder's member and step remove buttons carry the app's x icon, so they are found by their title
+const removeButtons = (root: ParentNode) => [...root.querySelectorAll<HTMLButtonElement>('button[title="Remove"]')];
 
 beforeEach(() => {
   calls.length = 0;
@@ -155,7 +157,8 @@ describe('model picker: effort', () => {
     await vi.waitFor(() => expect(buttons(document.querySelector('.model-menu')!, 'gpt-6-astra').length).toBe(1));
     buttons(document.querySelector('.model-menu')!, 'gpt-6-astra')[0].click();
     expect(picked).toEqual([{ engine: 'codex', model: 'gpt-6-astra', effort: 'xhigh' }]);
-    expect(document.querySelector('.model-menu')).toBeNull();
+    // (it fades out first, and is gone when that is done)
+    await vi.waitFor(() => expect(document.querySelector('.model-menu')).toBeNull());
   });
 
   it("lists the models Codex has, not a fixed few", async () => {
@@ -295,7 +298,7 @@ describe('team builder: saving', () => {
 
   it('keeps a new-agent lead after removing a member above it', async () => {
     await openBranchBuilder({ prefill: { name: 'Crew', members: [draft('A'), draft('B'), draft('C')], leadIndex: 1 } });
-    buttons(document, '✕').filter((b) => b.title === 'Remove')[0].click();
+    removeButtons(document)[0].click();
     saveBtn().click();
     await settle();
     expect(hires()).toEqual(['B', 'C']);
@@ -351,7 +354,7 @@ describe('team builder: saving', () => {
     const stepList = [{ type: 'agent', agentId: 'a1' }, { type: 'approval' }, { type: 'agent', agentId: 'a2' }, { type: 'x_post' }];
     const wf = { id: 'w1', name: 'Posting', members: ['a1', 'a2'], steps: [{ type: 'agent', agentId: 'a1' }, { type: 'agent', agentId: 'a2' }], stepList };
     await openBranchBuilder({ wf: wf as never });
-    buttons(document, '✕').filter((b) => b.title === 'Remove')[1].click();
+    removeButtons(document)[1].click();
     buttons(document, 'Save team')[0].click();
     await settle();
     const put = calls.find((c) => c.method === 'PUT')!.body as { steps: { type: string; agentId?: string }[]; stepList?: unknown };

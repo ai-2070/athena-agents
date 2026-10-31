@@ -82,12 +82,14 @@ const say = async (text: string) => {
   input().value = text;
   await act(async () => void input().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
 };
-const pick = (value: string) =>
-  act(async () => {
-    const sel = document.querySelector<HTMLSelectElement>('.dock-target')!;
-    sel.value = value;
-    sel.dispatchEvent(new Event('change', { bubbles: true }));
-  });
+// who the message goes to: open the "To" menu and pick one by its name
+const pick = async (label: string) => {
+  await act(async () => document.querySelector<HTMLButtonElement>('button.dock-target')!.click());
+  await settle();
+  // (an agent's row starts with its badge, so match the end of the text)
+  await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((c) => c.textContent!.trim().endsWith(label))!.click());
+  await settle();
+};
 const newConversation = async () => {
   await act(async () => document.querySelector<HTMLButtonElement>('.dock button[aria-label="New conversation"]')!.click());
   await settle();
@@ -111,12 +113,12 @@ describe('the Brain chat after a new conversation', () => {
 
   it('an agent designed for the conversation before does not show up in the new one', async () => {
     holding = new Set(['/api/assist/agent']);
-    await pick('new-agent');
+    await pick('New agent from this');
     await say('a researcher');
     for (let i = 0; i < 50 && !held.has('/api/assist/agent'); i++) await settle();
     expect(list()).toContain('Designing an agent for this…');
     await newConversation();
-    await pick('a:a1');
+    await pick('Scout');
     await say('hello Scout');
     await settle();
     expect(list()).toContain('hello Scout');
@@ -131,7 +133,7 @@ describe('the Brain chat after a new conversation', () => {
 
   it('an agent card follows the turn a /resume starts in its chat', async () => {
     await newConversation();
-    await pick('a:a1');
+    await pick('Scout');
     scout = [{ type: 'user', text: 'look into it' }];
     await say('look into it');
     await settle();
@@ -147,14 +149,14 @@ describe('the Brain chat after a new conversation', () => {
 
   it('a message to the Brain goes to the Brain, even if another recipient is picked while its answer stops', async () => {
     await newConversation();
-    await pick('auto');
+    await pick('The Brain');
     await say('first question');
     for (let i = 0; i < 50 && asked().at(-1) !== 'first question'; i++) await settle();
     holding = new Set(['/api/brain/steer']);
     const before = calls.filter((c) => c.url === '/api/agents/a1/chats').length;
     await say('second question');
     for (let i = 0; i < 50 && !held.has('/api/brain/steer'); i++) await settle();
-    await pick('a:a1');
+    await pick('Scout');
     await act(async () => held.get('/api/brain/steer')!());
     for (let i = 0; i < 50 && asked().at(-1) !== 'second question'; i++) await settle();
     expect(asked().at(-1)).toBe('second question');

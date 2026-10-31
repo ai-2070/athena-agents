@@ -1,5 +1,6 @@
 // A dropdown of agents, with each one's badge. (A plain <select> can only show the emoji as small text.)
 import { Select } from '@base-ui/react/select';
+import { fieldTriggerClass } from './classes.ts';
 import { Avatar, Icon } from './react.tsx';
 import type { Agent } from '../../shared/types.ts';
 
@@ -10,7 +11,8 @@ export function AgentSelect({ agents, value, onChange }: { agents: Agent[]; valu
   const picked = agents.find((a) => a.id === value);
   return (
     <Select.Root value={value} onValueChange={(v) => v && onChange(String(v))}>
-      <Select.Trigger aria-label="Agent to add" className="flex w-full cursor-pointer items-center gap-2.5 rounded-ctl border border-line-2 bg-panel px-2.5 py-1.5 text-left text-[13.5px] text-ink outline-none focus-visible:border-accent data-popup-open:border-accent">
+      {/* h-9 (36px): the height of the app's other fields and buttons, so it lines up beside them */}
+      <Select.Trigger aria-label="Agent to add" className={fieldTriggerClass('panel', 'text-ink')}>
         <span className={`${row} flex-1`}>
           {picked ? <Avatar agent={picked} /> : null}
           <span className="min-w-0 truncate">{picked?.name}</span>
@@ -21,7 +23,7 @@ export function AgentSelect({ agents, value, onChange }: { agents: Agent[]; valu
       </Select.Trigger>
       <Select.Portal>
         <Select.Positioner className="z-96 outline-none" alignItemWithTrigger={false} side="bottom" align="start" sideOffset={4} collisionPadding={8}>
-          <Select.Popup className="st-menu static max-h-72 min-w-(--anchor-width) max-w-none">
+          <Select.Popup className="st-menu dd static max-h-72 min-w-(--anchor-width) max-w-none">
             <Select.List>
               {agents.map((a) => (
                 <Select.Item key={a.id} value={a.id} className="st-menu-item">

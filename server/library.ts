@@ -100,7 +100,8 @@ export async function libraryIndex() {
 }
 
 // ---------- agents ----------
-const COLORS = ['#c4ff3d', '#a9d3e2', '#f0b04a', '#ff7a90', '#b69cff', '#5fe3c0', '#ffd36e', '#7ab8ff'];
+// mid-tone, so a new agent's colour shows on white pages and on near-black ones
+const COLORS = ['#6b7bff', '#2fa57a', '#d6803b', '#c4568f', '#3d8fd1', '#8a63d2', '#c99a1a', '#2aa5a0', '#d9534f'];
 
 export function newAgent(fields: Partial<Agent> = {}): Agent {
   const d = getSettings().defaults;

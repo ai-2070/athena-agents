@@ -12,7 +12,7 @@ describe('settings and secrets', () => {
     const after = getSettings();
     expect(after.look.scale).toBe(125);
     // the rest of the nested object is kept
-    expect(after.look.accent).toBe('lime');
+    expect(after.look.accent).toBe('aegean');
     expect(after.defaults.engine).toBe('claude-code');
   });
 

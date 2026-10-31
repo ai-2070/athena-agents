@@ -72,8 +72,8 @@ function frame(THREE: Three, model: Object3D, camera: PerspectiveCamera, control
 /** The viewer for one model file. Says so in words when the file can't be drawn (no 3D support, or a .gltf that is not self-contained). */
 export function modelViewer(url: string, name: string, bytes = 0): HTMLElement {
   const ext = (/\.([a-z]+)$/i.exec(name)?.[1] || '').toLowerCase();
-  const note = h('div.fp-model-note', { class: 'absolute inset-0 grid place-items-center p-4 text-center font-mono text-[12px] leading-[normal] text-dim' }, 'Loading the model…');
-  const box = h('div.fp-model', { class: 'relative aspect-[4/3] max-h-90 w-full overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#2a2f2b,#0b0d0b)]', role: 'img', 'aria-label': `3D model ${name}` }, note);
+  const note = h('div.fp-model-note', { class: 'absolute inset-0 grid place-items-center p-4 text-center text-[12.5px] leading-[normal] text-dim' }, 'Loading the model…');
+  const box = h('div.fp-model', { class: 'relative aspect-[4/3] max-h-90 w-full overflow-hidden bg-panel-2', role: 'img', 'aria-label': `3D model ${name}` }, note);
   if (bytes > MODEL_MAX_BYTES) {
     note.textContent = `This model is ${(bytes / 1048576).toFixed(0)} MB, too big to show here. Download it to open it.`;
     return box;

@@ -1,18 +1,27 @@
 // Agents: your team, and the editor for one agent.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Plate } from '../ui/surface.tsx';
+import { Button, ButtonLink } from '../ui/button.tsx';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Autocomplete } from '@base-ui/react/autocomplete';
 import type { ReactNode } from 'react';
 import { GET, POST, PUT, DEL, attempt, refreshSoon, navigate, toast, confirmBox, promptBox, isRunning, ENGINE_LABEL } from '../core.ts';
 import { skillPicker } from '../skillpick.ts';
-import { historyButton, deletedButton } from '../history.ts';
-import { memoryEditor } from '../memory.ts';
+import { historyButton, deletedButton } from '../history.tsx';
+import { memoryEditor } from '../memory.tsx';
 import { ChipSet, Field, SearchBox, Segmented, Switch } from '../ui/controls.tsx';
+import { buttonClass, chipClass } from '../ui/classes.ts';
+import { Dot, Pill } from '../ui/marks.tsx';
 import { Avatar, DomNode, Icon, ProjectScoped, reactPage, useAppState } from '../ui/react.tsx';
-import type { ModelListing } from '../models.ts';
+import { SelectControl } from '../ui/select.tsx';
+import { themeColor } from '../theme.ts';
+import type { ModelListing } from '../models.tsx';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { ENGINE_NAMES, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
 import type { Slice } from '../agentstats.ts';
 import type { Agent, AppState, Autonomy, EngineStatus, McpServerInfo, Team, Terminal } from '../../shared/types.ts';
+
+const EmojiPicker = lazy(() => import('../ui/emojipicker.tsx').then((m) => ({ default: m.EmojiPicker })));
 
 /** GET /api/agents/:id: the agent plus its knowledge files and resolved workspace. */
 export interface AgentDetail extends Agent {
@@ -57,20 +66,19 @@ interface ChartPick {
   kind: 'category' | 'model' | 'engine';
   slice: Slice;
 }
-const MICRO = 'font-mono text-[10.5px] leading-none tracking-[0.14em] uppercase text-faint';
+/** The small caption over a figure or a chart. */
+const CAPTION = 'text-[12.5px] leading-none font-medium text-dim';
 
-/** One number of the overview: an icon, the figure, what it counts. hot: something is going on (the accent). */
-function StatTile({ icon, label, value, hot = false, valueClass = '' }: { icon: string; label: string; value: number; hot?: boolean; valueClass?: string }) {
+/** One number of the overview: what it counts, the figure. live: something is going on (a pulsing dot). */
+function StatTile({ icon, label, value, live = false, valueClass = '' }: { icon: string; label: string; value: number; live?: boolean; valueClass?: string }) {
   return (
-    <div className={`flex items-center gap-3 rounded-box border px-3.5 py-3 ${hot ? 'border-accent-dim bg-accent/6' : 'border-line bg-bg/40'}`}>
-      <span className={`grid size-9 flex-none place-items-center rounded-[10px] ${hot ? 'bg-accent/15 text-accent' : 'bg-panel-2 text-dim'}`}>
-        <Icon name={icon} size={17} />
-      </span>
-      <div className="min-w-0">
-        <b className={`${valueClass} block font-mono text-[26px] leading-none font-semibold tracking-[-0.02em] ${hot ? 'text-accent' : 'text-ink'}`}>{value}</b>
-        <span className={`${MICRO} mt-1.5 block truncate`}>{label}</span>
+    <Plate className="rounded-box px-5 py-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className={`${CAPTION} truncate`}>{label}</span>
+        {live ? <Dot tone="busy" /> : <Icon name={icon} size={15} className="text-faint" />}
       </div>
-    </div>
+      <b className={`${valueClass} mt-3.5 block text-[28px] leading-none font-semibold tracking-tight text-ink tabular-nums`}>{value}</b>
+    </Plate>
   );
 }
 
@@ -92,23 +100,23 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
   const shown = cats.find((s) => s.id === hot);
   const before = shown ? cats.slice(0, cats.indexOf(shown)).reduce((n, s) => n + s.count, 0) : 0;
   return (
-    <section className="agents-overview panel mb-4" aria-label="Your agents at a glance">
-      <div className="grid grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-x-10 gap-y-7 max-lg:grid-cols-1">
+    <section className="agents-overview mb-8 flex flex-col gap-4" aria-label="Your agents at a glance">
+      <div className="grid grid-cols-4 gap-4 max-lg:grid-cols-2">
+        <StatTile icon="bot" label="Agents" value={total} valueClass="agents-total" />
+        <StatTile icon="radio" label="Working now" value={working} live={working > 0} />
+        <StatTile icon="layout-grid" label={kinds === 1 ? 'Category' : 'Categories'} value={kinds} />
+        <StatTile icon="cpu" label="Models" value={new Set(agents.map((a) => agentModel(a, d.settings.defaults).id)).size} />
+      </div>
+      <Plate className="panel grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-x-12 gap-y-8 max-lg:grid-cols-1">
         <div className="min-w-0">
-          <div className="grid grid-cols-4 gap-2.5 max-sm:grid-cols-2">
-            <StatTile icon="bot" label="agents" value={total} valueClass="agents-total" />
-            <StatTile icon="radio" label="working now" value={working} hot={working > 0} />
-            <StatTile icon="layout-grid" label={kinds === 1 ? 'category' : 'categories'} value={kinds} />
-            <StatTile icon="cpu" label="models" value={new Set(agents.map((a) => agentModel(a, d.settings.defaults).id)).size} />
-          </div>
-          <div className={`${MICRO} mt-6 mb-2.5`}>By category</div>
+          <div className={`${CAPTION} mb-4`}>By category</div>
           <div className="relative">
-            <div className="agents-cat-bar flex h-3.5 gap-0.75" onMouseLeave={() => setHot(null)}>
+            <div className="agents-cat-bar flex h-2.5 gap-0.5" onMouseLeave={() => setHot(null)}>
               {cats.map((s) => (
                 <button
                   key={s.id}
                   type="button"
-                  className={`h-full min-w-1 cursor-pointer transition-[opacity,filter] duration-150 first:rounded-l-full last:rounded-r-full hover:brightness-125 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${catFocus && catFocus !== s.id ? 'opacity-30' : ''}`}
+                  className={`h-full min-w-1 cursor-pointer transition-opacity duration-150 first:rounded-l-full last:rounded-r-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${catFocus && catFocus !== s.id ? 'opacity-30' : ''}`}
                   style={{ flexGrow: s.count, flexBasis: 0, background: s.color }}
                   aria-label={`${s.label}: ${s.count} of ${total} agents`}
                   aria-pressed={picked('category', s)}
@@ -120,40 +128,40 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
               ))}
             </div>
             {shown ? (
-              <div className="pointer-events-none absolute bottom-full z-10 mb-2.5 -translate-x-1/2 rounded-ctl border border-line-2 bg-panel-2 px-2.5 py-1.75 text-[12.5px] leading-[1.4] whitespace-nowrap shadow-pop" style={{ left: `${((before + shown.count / 2) / total) * 100}%` }} role="tooltip">
+              <div className="glass pointer-events-none absolute bottom-full z-10 mb-3 -translate-x-1/2 rounded-ctl px-3 py-2 text-[12.5px] leading-[1.4] whitespace-nowrap" style={{ left: `${((before + shown.count / 2) / total) * 100}%` }} role="tooltip">
                 <b className="text-ink">{shown.label}</b>
-                <span className="font-mono text-dim">{`  ${shown.count} · ${pct(shown.count)}`}</span>
+                <span className="text-dim tabular-nums">{`  ${shown.count} · ${pct(shown.count)}`}</span>
                 {shown.rest ? <div className="max-w-70 whitespace-normal text-dim">{shown.rest.map((r) => `${r.label} ${r.count}`).join(', ')}</div> : null}
               </div>
             ) : null}
           </div>
-          <ul className="agents-cat-legend mt-4 flex flex-wrap gap-x-5 gap-y-2.5">
+          <ul className="agents-cat-legend mt-4 -ml-2 flex flex-wrap gap-x-1 gap-y-1">
             {cats.map((s) => (
               <li key={s.id}>
                 <button
                   type="button"
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-ctl text-[13px] leading-none text-ink transition-opacity duration-150 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-accent ${catFocus && catFocus !== s.id ? 'opacity-45' : ''} ${picked('category', s) ? 'underline decoration-accent decoration-2 underline-offset-5' : ''}`}
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-ctl px-2 py-1.5 text-[13px] leading-none text-ink transition-[background,opacity] duration-150 hover:bg-ink/5 focus-visible:outline-2 focus-visible:outline-accent ${catFocus && catFocus !== s.id ? 'opacity-45' : ''} ${picked('category', s) ? 'bg-ink/7' : ''}`}
                   aria-pressed={picked('category', s)}
                   onMouseEnter={() => setHot(s.id)}
                   onMouseLeave={() => setHot(null)}
                   onClick={() => toggle('category', s)}
                 >
-                  <span className="size-2.5 flex-none rounded-[3px]" style={{ background: s.color }} aria-hidden="true" />
+                  <span className="size-2.5 flex-none rounded-full" style={{ background: s.color }} aria-hidden="true" />
                   {s.label}
-                  <span className="font-mono text-[11.5px] text-dim">{s.count}</span>
+                  <span className="text-[12px] text-dim tabular-nums">{s.count}</span>
                 </button>
               </li>
             ))}
           </ul>
         </div>
         <div className="min-w-0">
-          <div className={`${MICRO} mb-2.5`}>By model</div>
-          <ul className="agents-models flex flex-col gap-0.5">
+          <div className={`${CAPTION} mb-3`}>By model</div>
+          <ul className="agents-models -mx-2 flex flex-col">
             {models.map((m) => (
               <li key={m.id}>
                 <button
                   type="button"
-                  className={`group grid w-full cursor-pointer grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_1.75rem] items-center gap-3 rounded-ctl px-1.5 py-1.5 text-left transition-[background,opacity] duration-150 hover:bg-panel-2 focus-visible:outline-2 focus-visible:outline-accent ${pick?.kind === 'model' && !picked('model', m) ? 'opacity-45' : ''} ${picked('model', m) ? 'bg-panel-2' : ''}`}
+                  className={`group grid w-full cursor-pointer grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_1.5rem] items-center gap-3 rounded-ctl px-2 py-2 text-left transition-[background,opacity] duration-150 hover:bg-ink/5 focus-visible:outline-2 focus-visible:outline-accent ${pick?.kind === 'model' && !picked('model', m) ? 'opacity-45' : ''} ${picked('model', m) ? 'bg-ink/7' : ''}`}
                   title={m.rest ? m.rest.map((r) => `${r.label} (${r.sub}) ${r.count}`).join('\n') : `${m.label} · ${m.sub}`}
                   aria-label={`${m.label}${m.sub ? ` on ${m.sub}` : ''}: ${m.count} of ${total} agents`}
                   aria-pressed={picked('model', m)}
@@ -161,18 +169,18 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
                 >
                   <span className="min-w-0 truncate text-[13px] leading-[1.3]">
                     <span className="text-ink">{m.label}</span>
-                    <span className="ml-1.5 text-[11px] text-faint">{m.rest ? `${m.rest.length} more` : m.sub}</span>
+                    <span className="ml-2 text-[12px] text-faint">{m.rest ? `${m.rest.length} more` : m.sub}</span>
                   </span>
-                  <span className="h-2 overflow-hidden rounded-[4px] bg-line" aria-hidden="true">
-                    <span className="block h-full rounded-[4px] bg-accent-dim transition-colors duration-150 group-hover:bg-accent" style={{ width: `${(m.count / topModel) * 100}%` }} />
+                  <span className="h-1.5 overflow-hidden rounded-full bg-panel-2" aria-hidden="true">
+                    <span className="block h-full rounded-full bg-accent/80 transition-colors duration-150 group-hover:bg-accent" style={{ width: `${(m.count / topModel) * 100}%` }} />
                   </span>
-                  <span className="text-right font-mono text-[12px] text-dim">{m.count}</span>
+                  <span className="text-right text-[12.5px] text-dim tabular-nums">{m.count}</span>
                 </button>
               </li>
             ))}
           </ul>
         </div>
-      </div>
+      </Plate>
     </section>
   );
 }
@@ -207,78 +215,85 @@ function AgentsList() {
   return (
     <>
       {d.agents.length > 1 ? <AgentsOverview agents={d.agents} d={d} pick={pick} setPick={setPick} /> : null}
-      <div className="flex flex-wrap items-center gap-2.5 justify-between mb-4">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="w-[min(360px,100%)]">
-            <input placeholder="Search agents" aria-label="Search agents" value={filter} onChange={(e) => setFilter((lastFilter = e.target.value))} />
-          </div>
-          {pick ? (
-            <button type="button" className="agents-pick btn ghost small" onClick={() => setPick(null)} title="Show every agent">
-              {pick.kind === 'model' ? `Model: ${pick.slice.label}` : pick.kind === 'engine' ? `On ${pick.slice.label}` : pick.slice.label}
-              <span aria-hidden="true">✕</span>
-            </button>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <SearchBox className="w-[min(360px,100%)]" label="Search agents" placeholder="Search agents" value={filter} onChange={(v) => setFilter((lastFilter = v))} />
+        {pick ? (
+          <button type="button" className={chipClass(true, "agents-pick")} onClick={() => setPick(null)} title="Show every agent">
+            {pick.kind === 'model' ? `Model: ${pick.slice.label}` : pick.kind === 'engine' ? `On ${pick.slice.label}` : pick.slice.label}
+            <span aria-hidden="true">✕</span>
+          </button>
+        ) : null}
+        <div className="ml-auto flex flex-wrap items-center gap-3">
           <DomNode as="span" make={() => deletedButton(['agent', 'team'], () => refreshSoon(0))} deps={[]} />
-          <a className="btn ghost" href="#/library">
+          <ButtonLink variant="ghost" href="#/library">
             <Icon name="store" size={14} />
             Hire from Agent library
-          </a>
-          <button className="btn" onClick={() => void create()}>
+          </ButtonLink>
+          <Button  onClick={() => void create()}>
             <Icon name="plus" size={14} />
             New agent
-          </button>
+          </Button>
         </div>
       </div>
-      <div className="cards">
-        {shown.map((a) => (
-          <div key={a.id} className="card agent-card gap-3 border-t-2" style={{ borderTopColor: `color-mix(in srgb, ${a.color || 'var(--color-accent)'} 75%, var(--color-line))` }}>
-            <div className="card-top">
-              <Avatar agent={a} lg />
-              <div className="min-w-0 flex-1">
-                <div className="card-title pr-14 text-[15.5px]">{a.name}</div>
-                <div className="card-sub mt-1 text-[12.5px]">{a.specialty || a.description || 'No specialty yet'}</div>
+      {shown.length ? (
+        <div className="cards">
+          {shown.map((a) => (
+            <Plate key={a.id} className="card hover:shadow-none agent-card gap-4">
+              <div className="card-top">
+                <Avatar agent={a} lg />
+                <div className="min-w-0 flex-1">
+                  <div className="card-title pr-16 text-[15.5px]">{a.name}</div>
+                  <div className="card-sub mt-1 text-[13px]">{a.specialty || a.description || 'No specialty yet'}</div>
+                </div>
               </div>
-            </div>
-            {isRunning(a.id) ? (
-              <span className="corner pill warn">
-                <span className="dot busy" />
-                working
-              </span>
-            ) : a.pinned ? (
-              <span className="corner text-faint" aria-label="pinned">★</span>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="pill inline-flex items-center gap-1.25">
-                <Icon name="cpu" size={11} />
-                {engineLabel(a)}
-              </span>
-              <span className="pill inline-flex items-center gap-1.25">
-                <Icon name={a.autonomy === 'full' ? 'zap' : a.autonomy === 'ask' ? 'hand' : 'shield-check'} size={11} />
-                {a.autonomy === 'full' ? 'full autonomy' : a.autonomy === 'ask' ? 'asks first' : 'auto'}
-              </span>
-            </div>
-            <div className="card-foot border-t border-line pt-3">
-              <a className="btn small" href={`#/agents/${a.id}`}>
-                <Icon name="message-square" size={13} />
-                Chat
-              </a>
-              <a className="btn ghost small" href={`#/agents/${a.id}/edit`}>
-                <Icon name="pencil" size={13} />
-                Edit
-              </a>
-              {a.engine !== 'openai' ? (
-                <button className="btn ghost small ml-auto" title="Open a terminal for this agent" aria-label={`Terminal for ${a.name}`} onClick={() => void openTerminal(a)}>
-                  <Icon name="terminal" size={13} />
-                  Terminal
-                </button>
+              {isRunning(a.id) ? (
+                <Pill tone="warn" className="corner items-center">
+                  <Dot tone="busy" />
+                  working
+                </Pill>
+              ) : a.pinned ? (
+                <span className="corner text-faint" aria-label="pinned">★</span>
               ) : null}
-            </div>
-          </div>
-        ))}
-        {!shown.length ? <div className="empty box">{d.agents.length ? 'No agent matches.' : 'No agents yet. Create one, or hire from the Agent library.'}</div> : null}
-      </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill className="inline-flex items-center gap-1.5">
+                  <Icon name="cpu" size={11} />
+                  {engineLabel(a)}
+                </Pill>
+                <Pill className="inline-flex items-center gap-1.5">
+                  <Icon name={a.autonomy === 'full' ? 'zap' : a.autonomy === 'ask' ? 'hand' : 'shield-check'} size={11} />
+                  {a.autonomy === 'full' ? 'full autonomy' : a.autonomy === 'ask' ? 'asks first' : 'auto'}
+                </Pill>
+              </div>
+              <div className="card-foot border-t border-line pt-4">
+                <ButtonLink size="small" href={`#/agents/${a.id}`}>
+                  <Icon name="message-square" size={13} />
+                  Chat
+                </ButtonLink>
+                <ButtonLink variant="ghost" size="small" href={`#/agents/${a.id}/edit`}>
+                  <Icon name="pencil" size={13} />
+                  Edit
+                </ButtonLink>
+                {a.engine !== 'openai' ? (
+                  <Button variant="ghost" size="small" className="ml-auto" title="Open a terminal for this agent" aria-label={`Terminal for ${a.name}`} onClick={() => void openTerminal(a)}>
+                    <Icon name="terminal" size={13} />
+                    Terminal
+                  </Button>
+                ) : null}
+              </div>
+            </Plate>
+          ))}
+        </div>
+      ) : d.agents.length ? (
+        <div className="empty py-12">No agent matches.</div>
+      ) : (
+        <div className="flex flex-col items-center gap-4 py-12 text-center">
+          <p className="m-0 max-w-[44ch] text-dim">No agents yet. Hire a specialist from the Agent library, or start with a blank one.</p>
+          <ButtonLink  href="#/library">
+            <Icon name="store" size={14} />
+            Hire from Agent library
+          </ButtonLink>
+        </div>
+      )}
     </>
   );
 }
@@ -318,12 +333,13 @@ function AgentEditor({ id }: { id: string }) {
 /** A panel's title, with its icon. */
 const Heading = ({ icon, children }: { icon: string; children: ReactNode }) => (
   <h2 className="flex items-center gap-2.5">
-    <span className="grid size-7 flex-none place-items-center rounded-[8px] bg-accent/10 text-accent">
-      <Icon name={icon} size={15} />
-    </span>
+    <Icon name={icon} size={16} className="text-faint" />
     {children}
   </h2>
 );
+
+/** The colour box takes #rrggbb: an agent without a colour starts on the accent. */
+const colorValue = (c?: string): string => (c && /^#[0-9a-f]{6}$/i.test(c) ? c : /^#[0-9a-f]{6}$/i.test(themeColor('accent')) ? themeColor('accent') : '#4f5fd6');
 
 function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload: () => void }) {
   const { agent, servers, info, teams } = data;
@@ -369,118 +385,125 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2.5 justify-between mb-4">
-        <a className="btn ghost small" href="#/agents">← Agents</a>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button className="btn ghost" onClick={() => (dirty ? void save(true) : navigate(`#/agents/${id}`))}>Chat</button>
-          <button className="btn" disabled={!dirty} onClick={() => void save()}>Save</button>
+      <div className="mx-auto max-w-5xl">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <ButtonLink variant="ghost" size="small" href="#/agents">← Agents</ButtonLink>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="ghost" onClick={() => (dirty ? void save(true) : navigate(`#/agents/${id}`))}>Chat</Button>
+          <Button  disabled={!dirty} onClick={() => void save()}>Save</Button>
         </div>
       </div>
-      <div className="mono-fields grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
-        <div className="flex flex-col gap-4.5">
-          <div className="panel">
+      <div className="mb-6">
+        <h1 className="m-0 text-[22px] leading-[1.2] font-semibold text-ink">Edit agent</h1>
+        <p className="hint mt-2 mb-0">Set its instructions, model and access.</p>
+      </div>
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 [&>.panel]:mt-0">
+          <Plate className="panel">
             <div className="panel-head">
-              <Heading icon="bot">Who it is</Heading>
+              <Heading icon="bot">Identity and instructions</Heading>
             </div>
-            <div className="flex items-end gap-3 [&>label.field]:flex-none max-sm:flex-wrap">
-              {/* how it shows up everywhere else, as you change it */}
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-4">
               <div className="flex-none [&_.avatar]:size-15 [&_.avatar]:rounded-[14px] [&_.avatar]:text-[30px]">
-                <Avatar agent={a} lg />
+                <Suspense fallback={<Avatar agent={a} lg />}>
+                  <EmojiPicker value={a.emoji} onChange={(emoji) => set('emoji', emoji)}><Avatar agent={a} lg /></EmojiPicker>
+                </Suspense>
               </div>
-              <Field label="Icon">
-                <input className="h-9.5 w-16 text-center text-[20px] leading-none" value={a.emoji} aria-label="Icon" onChange={(e) => set('emoji', e.target.value)} />
-              </Field>
-              <Field label="Color">
-                <input className="h-9.5 w-12 cursor-pointer p-1" type="color" value={a.color || '#c4ff3d'} aria-label="Color" onChange={(e) => set('color', e.target.value)} />
-              </Field>
-              <div className="flex-1 min-w-0">
-                <Field label="Name">
-                  <input value={a.name} onChange={(e) => set('name', e.target.value)} />
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+                <div className="min-w-0">
+                  <Field label="Name">
+                    <input value={a.name} onChange={(e) => set('name', e.target.value)} />
+                  </Field>
+                </div>
+                <Field label="Color">
+                  <input type="color" value={colorValue(a.color)} aria-label="Color" onChange={(e) => set('color', e.target.value)} />
                 </Field>
               </div>
             </div>
-            <div className="mt-3.5">
+            <div className="mt-4">
               <Field label="Specialty" hint="One line. Other agents see it when deciding who to ask.">
                 <input value={a.specialty} placeholder="e.g. writes punchy X threads about AI" onChange={(e) => set('specialty', e.target.value)} />
               </Field>
             </div>
-            <div className="mt-3.5">
+            <div className="mt-4">
               <Field label="Instructions">
-                <textarea className="code" rows={16} value={a.systemPrompt} placeholder="How this agent thinks, works and talks. Its process, rules, what good output looks like." onChange={(e) => set('systemPrompt', e.target.value)} />
+                <textarea className="code" rows={12} value={a.systemPrompt} placeholder="How this agent thinks, works and talks. Its process, rules, what good output looks like." onChange={(e) => set('systemPrompt', e.target.value)} />
               </Field>
             </div>
-          </div>
-          <div className="panel">
-            <div className="panel-head">
-              <Heading icon="file-text">Knowledge</Heading>
-            </div>
-            {/* (the agent is saved whole: it takes the knowledge as it is now, so Save doesn't undo a link made here) */}
-            <Knowledge id={id} synced={(knowledge) => setA((x) => ({ ...x, knowledge }))} />
-          </div>
-          <div className="panel">
-            <div className="panel-head">
-              <Heading icon="brain">MEMORY.md</Heading>
-              <span className="hint">saved on its own</span>
-            </div>
-            <DomNode make={() => (memory.current = memoryEditor(id, { rows: 10 })).el} deps={[id]} />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4.5">
-          <div className="panel">
+          </Plate>
+          <Plate className="panel">
             <div className="panel-head">
               <Heading icon="cpu">Brain</Heading>
             </div>
             <Segmented label="Brain" options={d.engineList.map((e) => ({ value: e.id, label: e.label, title: e.description }))} value={a.engine} onChange={pickEngine} />
-            <p className="hint mt-3.5">{d.engineList.find((e) => e.id === a.engine)?.description || ''}</p>
-            <div className="mt-3.5">
+            <p className="hint mt-4">{d.engineList.find((e) => e.id === a.engine)?.description || ''}</p>
+            <div className="mt-4">
               <EngineFields a={a} d={d} set={set} fit={(x) => (setA(fit(x)), setDirty(true))} />
             </div>
-          </div>
-          <div className="panel">
+          </Plate>
+          <Plate className="overflow-hidden rounded-box">
+            <section className="p-5 sm:p-6">
+              <div className="panel-head">
+                <Heading icon="file-text">Knowledge</Heading>
+              </div>
+              {/* Save keeps any knowledge linked while editing. */}
+              <Knowledge id={id} synced={(knowledge) => setA((x) => ({ ...x, knowledge }))} />
+            </section>
+            <section className="border-t border-line p-5 sm:p-6">
+              <div className="panel-head">
+                <Heading icon="brain">MEMORY.md</Heading>
+                <span className="hint">saved on its own</span>
+              </div>
+              <DomNode make={() => (memory.current = memoryEditor(id, { rows: 10 })).el} deps={[id]} />
+            </section>
+          </Plate>
+        </div>
+
+        <Plate className="overflow-hidden rounded-box [&_.panel-head]:mb-4">
+          <div className="p-5 sm:p-6">
             <div className="panel-head">
               <Heading icon="shield-check">Autonomy</Heading>
             </div>
             <Segmented label="Autonomy" options={AUTONOMY} value={a.autonomy || 'auto'} onChange={(v) => set('autonomy', v)} />
-            <p className="hint mt-3.5">Ask first: you approve anything that changes something. Auto: asks only for risky actions (running code or scripts in Blender, Photoshop, After Effects, ffmpeg, shell, sending messages); click Always allow to stop being asked for a tool. Full: never asks. X posts always wait in the Outbox unless you turn on auto-post for that account.</p>
+            <p className="hint mt-4">Ask first: you approve anything that changes something. Auto: asks only for risky actions (running code or scripts in Blender, Photoshop, After Effects, ffmpeg, shell, sending messages); click Always allow to stop being asked for a tool. Full: never asks. X posts always wait in the Outbox unless you turn on auto-post for that account.</p>
             {a.alwaysAllow?.length ? (
-              <div className="mt-3.5">
+              <div className="mt-4">
                 <div className="label">Always allowed</div>
-                <div className="flex flex-wrap items-center gap-1.5 mt-3.5">
+                <div className="mt-4 flex flex-wrap items-center gap-2">
                   {a.alwaysAllow.map((t) => (
-                    <span key={t} className="pill">{t}</span>
+                    <Pill key={t}>{t}</Pill>
                   ))}
                 </div>
-                <button className="btn tiny ghost mt-3.5" onClick={() => (set('alwaysAllow', []), toast('Cleared; save to apply'))}>Clear</button>
+                <Button variant="ghost" size="tiny" className="mt-4" onClick={() => (set('alwaysAllow', []), toast('Cleared; save to apply'))}>Clear</Button>
               </div>
             ) : null}
           </div>
-          <div className="panel">
+          <div className="border-t border-line p-5 sm:p-6">
             <div className="panel-head">
               <Heading icon="sparkles">Answers</Heading>
             </div>
             <Switch checked={!!a.richAnswers} onChange={(v) => set('richAnswers', v)}>Rich answers</Switch>
-            <p className="hint mt-3.5">In your own chats with this agent it answers with live components (cards, tables, charts, forms with buttons) instead of plain text. Good for research, comparisons, reports and plans. Off for coding agents and team chats: it adds about 13k tokens of instructions to every message, and smaller or local models often get it wrong. Team chats, routines and other agents always get plain text.</p>
+            <p className="hint mt-4">In your own chats with this agent it answers with live components (cards, tables, charts, forms with buttons) instead of plain text. Good for research, comparisons, reports and plans. Off for coding agents and team chats: it adds about 13k tokens of instructions to every message, and smaller or local models often get it wrong. Team chats, routines and other agents always get plain text.</p>
           </div>
-          <div className="panel">
+          <div className="border-t border-line p-5 sm:p-6">
             <div className="panel-head">
               <Heading icon="wrench">Tools</Heading>
             </div>
             <ChipSet label="Tools" options={d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description }))} value={a.toolGroups} onChange={(v) => set('toolGroups', v)} />
-            <p className="hint mt-3.5">Hover a tool for what it does. Claude Code and Hermes agents also keep their own built-in tools.</p>
-            <div className="label mt-7">MCP servers</div>
+            <p className="hint mt-4">Hover a tool for what it does. Claude Code and Hermes agents also keep their own built-in tools.</p>
+            <div className="label mt-8">MCP servers</div>
             {servers.length ? (
-              <div className="mt-3.5">
+              <div className="mt-4">
                 <ChipSet label="MCP servers" options={mcpOptions(servers, info)} value={a.mcpServers} onChange={(v) => set('mcpServers', v)} />
                 {copiesWarning(a.mcpServers, info) ? <p className="hint mcp-copies-warning mt-2 text-amber">{copiesWarning(a.mcpServers, info)}</p> : null}
               </div>
             ) : (
-              <p className="hint mt-3.5">
+              <p className="hint mt-4">
                 No MCP servers yet. <a href="#/settings?tab=mcp">Add one</a> (browser control, GitHub, Blender live…).
               </p>
             )}
           </div>
-          <div className="panel">
+          <div className="border-t border-line p-5 sm:p-6">
             <div className="panel-head">
               <Heading icon="puzzle">Skills</Heading>
             </div>
@@ -496,50 +519,95 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
               }
               deps={[id]}
             />
-            <p className="hint mt-3.5">Skills given to this agent. It also gets the project's skills and, while working for a team, that team's skills (both greyed). Save to apply. Manage the library under Skills.</p>
+            <p className="hint mt-4">Skills given to this agent. It also gets the project's skills and, while working for a team, that team's skills (both greyed). Save to apply. Manage the library under Skills.</p>
           </div>
-          <div className="panel">
+          <div className="border-t border-line p-5 sm:p-6">
             <div className="panel-head">
               <Heading icon="folder">Workspace</Heading>
             </div>
             <Field label="Working folder" hint="Where it saves files and runs commands. Empty = its own folder in the dashboard data.">
-              <input value={a.workspace || ''} placeholder={agent.workspacePath} onChange={(e) => set('workspace', e.target.value.trim())} />
+              <input className="code" value={a.workspace || ''} placeholder={agent.workspacePath} onChange={(e) => set('workspace', e.target.value.trim())} />
             </Field>
-            <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
-              <button className="btn ghost small" onClick={() => void attempt(() => POST(`/agents/${id}/open-workspace`))}>Open folder</button>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Button variant="ghost" size="small" onClick={() => void attempt(() => POST(`/agents/${id}/open-workspace`))}>Open folder</Button>
             </div>
           </div>
-          <div className="panel">
+          <div className="border-t border-line p-5 sm:p-6">
             <div className="panel-head">
               <Heading icon="ellipsis">More</Heading>
             </div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button className="btn ghost small" onClick={pin}>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="ghost" size="small" onClick={pin}>
                 <Icon name="star" size={13} />
                 {a.pinned ? 'Unpin' : 'Pin to top'}
-              </button>
-              <button className="btn ghost small" onClick={() => void clone()}>
+              </Button>
+              <Button variant="ghost" size="small" onClick={() => void clone()}>
                 <Icon name="copy" size={13} />
                 Clone
-              </button>
+              </Button>
               {/* put back: show it as it is now (changes not saved yet are dropped) */}
               <DomNode as="span" make={() => historyButton('agent', id, () => (setDirty(false), reload()))} deps={[id]} />
-              <button className="btn ghost small" title="Keep it as a template you can create again in any project (Agent library > Your presets)" onClick={() => void attempt(() => POST(`/presets/agent/${id}`), `Saved ${a.name} as a preset`)}><Icon name="bookmark-plus" size={13} />
+              <Button variant="ghost" size="small" title="Keep it as a template you can create again in any project (Agent library > Your presets)" onClick={() => void attempt(() => POST(`/presets/agent/${id}`), `Saved ${a.name} as a preset`)}><Icon name="bookmark-plus" size={13} />
                 Save as preset
-              </button>
-              <button className="btn ghost small" title="Write it to ~/.claude/agents so any Claude Code session can use it" onClick={() => void attempt(() => POST<{ file: string }>(`/agents/${id}/export-claude`), (r) => `Saved as ${r.file}`)}><Icon name="terminal" size={13} />
+              </Button>
+              <Button variant="ghost" size="small" title="Write it to ~/.claude/agents so any Claude Code session can use it" onClick={() => void attempt(() => POST<{ file: string }>(`/agents/${id}/export-claude`), (r) => `Saved as ${r.file}`)}><Icon name="terminal" size={13} />
                 Install in Claude Code
-              </button>
-              <button className="btn danger small ml-auto" onClick={() => void del()}>
+              </Button>
+              <Button variant="danger" size="small" className="ml-auto" onClick={() => void del()}>
                 <Icon name="trash-2" size={13} />
                 Delete
-              </button>
+              </Button>
             </div>
-            <p className="hint mt-3.5">{`Id: ${a.id}${a.source?.type && a.source.type !== 'custom' ? ` · from ${a.source.type}${a.source.slug ? ` (${a.source.slug})` : ''}` : ''}`}</p>
+            <p className="hint mt-4">{`Id: ${a.id}${a.source?.type && a.source.type !== 'custom' ? ` · from ${a.source.type}${a.source.slug ? ` (${a.source.slug})` : ''}` : ''}`}</p>
           </div>
-        </div>
+        </Plate>
+      </div>
       </div>
     </>
+  );
+}
+
+function ModelInput({ label, hint, value, placeholder, models, onChange }: { label: string; hint: string; value: string; placeholder: string; models: ModelListing[]; onChange: (value: string) => void }) {
+  const anchor = useRef<HTMLDivElement>(null);
+  const [showAll, setShowAll] = useState(false);
+  return (
+    <Field label={label} hint={hint} group="agent-model-label">
+      <Autocomplete.Root
+        items={models}
+        value={value}
+        onValueChange={(next, details) => {
+          if (details.reason !== 'item-press') setShowAll(false);
+          onChange(next.trim());
+        }}
+        onOpenChange={(open) => { if (!open) setShowAll(false); }}
+        itemToStringValue={(item: ModelListing) => item.id}
+        filter={showAll ? null : (item: ModelListing, query: string) => `${item.id} ${item.name}`.toLowerCase().includes(query.toLowerCase())}
+        openOnInputClick
+      >
+        <div className="relative" ref={anchor}>
+          <Autocomplete.Input aria-labelledby="agent-model-label" className="code w-full pr-10" placeholder={placeholder} />
+          <Autocomplete.Trigger aria-label="Show models" className="absolute inset-y-0 right-0 grid w-10 cursor-pointer place-items-center rounded-ctl text-dim hover:text-ink" onClick={() => setShowAll(true)}>
+            <Icon name="chevron-down" size={14} />
+          </Autocomplete.Trigger>
+        </div>
+        <Autocomplete.Portal>
+          <Autocomplete.Positioner anchor={anchor} side="bottom" align="start" sideOffset={5} className="z-96 outline-none" collisionPadding={8}>
+            <Autocomplete.Popup className="glass st-menu w-(--anchor-width) max-w-(--available-width) outline-none empty:hidden has-[>[role=listbox]:empty]:hidden">
+              <Autocomplete.List className="max-h-72 overflow-y-auto">
+                {(item: ModelListing) => (
+                  <Autocomplete.Item key={item.id} value={item} className="st-menu-item">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-mono text-[12px]">{item.id}</span>
+                      <span className="block truncate text-[11.5px] text-dim">{`${item.name}${item.price ? ` · $${item.price.in.toFixed(2)}/$${item.price.out.toFixed(2)} per M` : ''}${item.tools === false ? ' · no tools' : ''}`}</span>
+                    </span>
+                  </Autocomplete.Item>
+                )}
+              </Autocomplete.List>
+            </Autocomplete.Popup>
+          </Autocomplete.Positioner>
+        </Autocomplete.Portal>
+      </Autocomplete.Root>
+    </Field>
   );
 }
 
@@ -571,23 +639,17 @@ function EngineFields({ a, d, set, fit }: {
   const placeholder =
     a.engine === 'claude-code' ? 'sonnet' : a.engine === 'hermes' ? "profile's default" : a.engine === 'openclaw' ? "the OpenClaw agent's model" : a.engine === 'pi' || a.engine === 'omp' ? 'its default (e.g. anthropic/claude-sonnet-5-5)' : 'anthropic/claude-sonnet-5.5';
   const model = (label: string, hint: string) => (
-    <Field label={label} hint={hint}>
-      <input value={a.model || ''} list="models" placeholder={placeholder} onChange={(e) => set('model', e.target.value.trim())} />
-    </Field>
+    <ModelInput label={label} hint={hint} value={a.model || ''} placeholder={placeholder} models={models} onChange={(value) => set('model', value)} />
   );
   const pick = (label: string, value: string, options: { value: string; label: string }[], onChange: (v: string) => void, hint?: ReactNode) => (
     <Field label={label} hint={hint}>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
+      <SelectControl aria-label={label} value={value} options={options} onChange={onChange} />
     </Field>
   );
   let parts: ReactNode = null;
   if (a.engine === 'claude-code')
     parts = (
-      <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
+      <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
         {model('Model', 'sonnet, opus, haiku, fable, or a full model id.')}
         {pick(
           'Sign in with',
@@ -605,7 +667,7 @@ function EngineFields({ a, d, set, fit }: {
   else if (a.engine === 'openai')
     parts = (
       <>
-        <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
+        <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
           {pick(
             'Provider',
             a.provider || 'openrouter',
@@ -629,7 +691,7 @@ function EngineFields({ a, d, set, fit }: {
     const cx: Partial<EngineStatus['codex']> = d.engines.codex || {};
     parts = (
       <>
-        <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
+        <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
           {model('Model', "Empty = Codex's default. Pick one of the models Codex lists, or type an id.")}
           <div>
             <div className="label">Codex</div>
@@ -642,7 +704,7 @@ function EngineFields({ a, d, set, fit }: {
   } else if (a.engine === 'hermes')
     parts = (
       <>
-        <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
+        <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
           {pick('Hermes profile', a.hermesProfile || '', [{ value: '', label: 'default' }, ...profiles.filter((p) => p.name !== 'default').map((p) => ({ value: p.name, label: `${p.name} (${p.model})` }))], (v) => set('hermesProfile', v), 'The profile brings its own memory, skills and tools.')}
           {model('Model override', "Leave empty to use the profile's model.")}
         </div>
@@ -654,7 +716,7 @@ function EngineFields({ a, d, set, fit }: {
     const st: Partial<EngineStatus['pi']> = d.engines[a.engine] || {};
     parts = (
       <>
-        <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
+        <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
           {model('Model', `Empty = ${name}'s default. Ids are provider/model, e.g. anthropic/claude-sonnet-5-5.`)}
           <div>
             <div className="label">{name}</div>
@@ -667,7 +729,7 @@ function EngineFields({ a, d, set, fit }: {
   } else if (a.engine === 'openclaw')
     parts = (
       <>
-        <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
+        <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
           {pick('OpenClaw agent', a.openclawAgent || '', [{ value: '', label: 'its default agent' }, ...clawAgents.map((x) => ({ value: x.id, label: `${x.id}${x.model ? ` (${x.model})` : ''}${x.isDefault ? ' · default' : ''}` }))], (v) => set('openclawAgent', v), 'It brings its own memory, skills and tools.')}
           {model('Model override', "Leave empty to use the OpenClaw agent's model.")}
         </div>
@@ -675,7 +737,7 @@ function EngineFields({ a, d, set, fit }: {
       </>
     );
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-4">
       {parts}
       {pick(
         'Effort',
@@ -684,11 +746,6 @@ function EngineFields({ a, d, set, fit }: {
         (v) => set('effort', v as Agent['effort']),
         'How hard the model thinks before it answers. More effort: better on hard work, but slower and uses more of your plan.',
       )}
-      <datalist id="models">
-        {models.map((m) => (
-          <option key={m.id} value={m.id}>{`${m.name}${m.price ? ` · $${m.price.in.toFixed(2)}/$${m.price.out.toFixed(2)} per M` : ''}${m.tools === false ? ' · no tools' : ''}`}</option>
-        ))}
-      </datalist>
     </div>
   );
 }
@@ -741,7 +798,7 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
     await load();
   };
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-3">
       <p className="hint">
         {total <= 24000 ? 'Small knowledge is given to the agent in full with every message.' : 'Large knowledge: the agent searches it when needed (knowledge_search).'}
         {` ${info.files.length} file${info.files.length === 1 ? '' : 's'} · ${Math.round(total / 1024)} KB`}
@@ -750,7 +807,7 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
         <div key={f} className="list-row">
           <span aria-hidden="true">📁</span>
           <div className="flex-1 min-w-0 font-mono text-[12.5px] wrap-anywhere">{f}</div>
-          <button className="btn tiny ghost" onClick={() => void attempt(() => DEL(`/agents/${id}/knowledge?folder=${encodeURIComponent(f)}`)).then(load)}>Unlink</button>
+          <Button variant="ghost" size="tiny" onClick={() => void attempt(() => DEL(`/agents/${id}/knowledge?folder=${encodeURIComponent(f)}`)).then(load)}>Unlink</Button>
         </div>
       ))}
       {info.files
@@ -762,17 +819,17 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
               {f.label}
               <span className="hint">{` · ${Math.max(1, Math.round(f.size / 1024))} KB`}</span>
             </div>
-            <button className="btn tiny ghost" onClick={() => void attempt(() => DEL(`/agents/${id}/knowledge?label=${encodeURIComponent(f.label)}`)).then(load)}>Remove</button>
+            <Button variant="ghost" size="tiny" onClick={() => void attempt(() => DEL(`/agents/${id}/knowledge?label=${encodeURIComponent(f.label)}`)).then(load)}>Remove</Button>
           </div>
         ))}
-      <div className="flex flex-wrap items-center gap-2.5">
-        <button className="btn ghost small" onClick={() => void addNote()}>+ Write a note</button>
-        <label className="btn ghost small">
+      <div className="mt-1 flex flex-wrap items-center gap-3">
+        <Button variant="ghost" size="small" onClick={() => void addNote()}>+ Write a note</Button>
+        <label className={buttonClass('ghost', 'small')}>
           + Upload files
           <input type="file" multiple hidden onChange={(e) => void upload(e.target.files)} />
         </label>
-        <button className="btn ghost small" onClick={() => void addFolder()}>+ Link a folder</button>
-        <button className="btn ghost small" onClick={() => void addUrl()}>+ From a web page</button>
+        <Button variant="ghost" size="small" onClick={() => void addFolder()}>+ Link a folder</Button>
+        <Button variant="ghost" size="small" onClick={() => void addUrl()}>+ From a web page</Button>
       </div>
     </div>
   );

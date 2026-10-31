@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanSummary, readBackupSummary, summaryLine } from '../../web/backup.ts';
+import { cleanSummary, readBackupSummary, summaryLine } from '../../web/backup.tsx';
 
 const file = (head: string, rest = 'gzip bytes') => new Blob([head, rest]);
 
@@ -36,7 +36,7 @@ describe('reading what a backup holds', () => {
 
 describe('earlier versions in a backup', () => {
   it('counts them in the summary and in what a restore brought back, and reads old summaries without them', async () => {
-    const { cleanSummary, summaryLine, restoredText } = await import('../../web/backup.ts');
+    const { cleanSummary, summaryLine, restoredText } = await import('../../web/backup.tsx');
     const s = cleanSummary({ app: 'my-dashboard', agents: 1, teams: 0, skills: 2, versions: 14 })!;
     expect(s.versions).toBe(14);
     expect(summaryLine(s)).toContain('14 earlier versions');
@@ -48,7 +48,7 @@ describe('earlier versions in a backup', () => {
 
 describe('library prefabs in a backup', () => {
   it('the summary line and the restore message mention them', async () => {
-    const { restoredText } = await import('../../web/backup.ts');
+    const { restoredText } = await import('../../web/backup.tsx');
     expect(summaryLine(cleanSummary({ app: 'my-dashboard', agents: 1, teams: 0, skills: 0, libraryPrefabs: 3 })!)).toBe('1 agent · 0 teams · 0 skills · 3 library prefabs');
     expect(restoredText('X', { agents: 1, teams: 0, routines: 0, chats: 0, knowledgeFiles: 0, brainFiles: 0, skills: { added: 0, same: 0, renamed: [] }, presets: { added: 0, same: 0 }, libraryPrefabs: { added: 2, same: 1 }, paused: 0, logo: false })).toBe('Restored "X": 1 agent, 0 teams and 2 library prefabs.');
   });

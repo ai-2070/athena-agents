@@ -193,7 +193,7 @@ function QueuedEditor({ q, hasPrev, onFinish, onLost }: { q: QueuedMessage; hasP
   return (
     <textarea
       ref={ref}
-      className="queued-edit field-sizing-content max-h-40 min-h-0 min-w-0 flex-1 resize-none px-1.5 py-0.5 text-[12.5px]"
+      className="queued-edit field-sizing-content max-h-40 min-h-0 min-w-0 flex-1 resize-none px-2 py-1 text-[12.5px]"
       rows={1}
       defaultValue={q.text}
       aria-label="Change this queued message"

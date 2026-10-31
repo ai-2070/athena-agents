@@ -17,13 +17,22 @@ const PX_PER_CHAR = 0.32;
 type Chunks = ReturnType<typeof mdChunks>;
 
 function Pieces({ chunks, scroller, reveal }: { chunks: Chunks; scroller: () => HTMLElement | null; reveal: MutableRefObject<((i: number) => void) | null> }) {
+  const pxOf = (i: number) => Math.max(80, chunks[i].raw.length * PX_PER_CHAR);
   const v = useVirtualizer({
     count: chunks.length,
     getScrollElement: scroller,
-    estimateSize: (i) => Math.max(80, chunks[i].raw.length * PX_PER_CHAR),
+    estimateSize: pxOf,
     overscan: 2,
   });
-  reveal.current = (i) => v.scrollToIndex(i, { align: 'start' });
+  // (scrollToIndex() can only jump to a piece it has already measured, so scroll the box itself:
+  //  the offset adds up the estimates, and whatever lands there is drawn and measured for real)
+  reveal.current = (i) => {
+    const el = scroller();
+    if (!el) return;
+    let top = 0;
+    for (let n = 0; n < i; n++) top += pxOf(n);
+    el.scrollTop = top;
+  };
   return (
     <div className="md-window relative w-full" style={{ height: v.getTotalSize() }}>
       {v.getVirtualItems().map((row) => (

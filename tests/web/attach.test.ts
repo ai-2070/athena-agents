@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attachmentChips, baseName, filesFromDrop, filesFromInput, filesFromPaste, isFolderPath, namePasted } from '../../web/attach.ts';
+import { attachmentChips, baseName, filesFromDrop, filesFromInput, filesFromPaste, isFolderPath, namePasted } from '../../web/attach.tsx';
 
 // A stand-in for the browser's FileSystemEntry tree (happy-dom has no drag and drop).
 type Fake = { name: string; children?: Fake[] };

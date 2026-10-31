@@ -1,16 +1,19 @@
 // Skills: reusable instructions (Claude Code's SKILL.md format) you give to agents three ways:
 // per agent, per team (every member while it works for the team) or per project (every agent).
 // The Brain has skills too: it follows them in every turn (Self-improvement: it records workflows itself).
+import { Plate } from '../ui/surface.tsx';
+import { Button } from '../ui/button.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Menu } from '@base-ui/react/menu';
 import { GET, POST, PUT, DEL, attempt, refreshSoon, confirmBox, state } from '../core.ts';
 import { logo } from '../icons.ts';
 import { skillPicker, loadSkills, forgetSkills } from '../skillpick.ts';
-import { deletedButton } from '../history.ts';
-import { openEditor, openGitHub, openImport } from '../skilldialogs.ts';
+import { deletedButton } from '../history.tsx';
+import { openEditor, openGitHub, openImport } from '../skilldialogs.tsx';
 import { DomNode, Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { SearchBox } from '../ui/controls.tsx';
+import { buttonClass } from '../ui/classes.ts';
 import type { Agent, AppState, ClaudeSkill, ServerEvent, SkillInstallResult, SkillListing, TeamListing } from '../../shared/types.ts';
 
 interface SkillsData {
@@ -66,66 +69,65 @@ function SkillsPage({ open }: { open?: string }) {
   const brain = brainList(d);
   const newSkill = () => void openEditor(null, reload);
   const importButton = (label: string) => (
-    <button className="btn ghost small" onClick={() => openImport(data.claude, reload)}>
+    <Button variant="ghost" onClick={() => openImport(data.claude, reload)}>
       <Icon name="download" size={14} />
       {label}
-    </button>
+    </Button>
   );
   return (
     <>
-      <p className="lede">Skills are instructions for a kind of work: how you want an email written, your brand voice, a video edit checklist, a research method. Give them to one agent, to a team, or to the whole project. Agents open a skill when the task matches it.</p>
-      <div className="panel mt-3.5">
+      <p className="lede max-w-[68ch]">Skills are instructions for a kind of work: how you want an email written, your brand voice, a video edit checklist, a research method. Give them to one agent, to a team, or to the whole project. Agents open a skill when the task matches it.</p>
+      <div className="flex flex-col gap-6 [&>.panel]:mt-0 [&>.panel>:last-child]:mb-0">
+      <Plate className="panel">
         <div className="panel-head">
-          <h2><Icon name="folder-open" />{` Project skills · ${proj?.name || ''}`}</h2>
+          <h2 className="flex items-center gap-2.5"><Icon name="folder-open" className="text-faint" />{` Project skills · ${proj?.name || ''}`}</h2>
           <span className="hint">every agent in this project gets these</span>
         </div>
         <DomNode make={() => skillPicker(proj?.skills || [], (s) => saveProject(proj.id, s), { empty: 'None yet. Add skills every agent here should follow, like your brand voice or how files are named.' })} deps={[proj?.id, (proj?.skills || []).join('|')]} />
-      </div>
-      {/* (right after the panel above, so .panel + .panel spaces it) */}
-      <div className="panel">
+      </Plate>
+      <Plate className="panel">
         <div className="panel-head">
-          <h2><Icon name="brain" /> The Brain's skills</h2>
+          <h2 className="flex items-center gap-2.5"><Icon name="brain" className="text-faint" /> The Brain's skills</h2>
           <span className="hint">in every project</span>
         </div>
         <DomNode make={() => skillPicker(brain, saveBrain, { empty: 'None. The Brain still makes and edits skills when you ask it to.' })} deps={[brain.join('|')]} />
-        <p className="hint">
+        <p className="hint mt-4 max-w-[68ch]">
           {brain.includes('self-improvement')
             ? 'With Self-improvement the Brain keeps your skills up to date by itself: after an agent finishes a sizeable job, it records the workflow as a skill or improves one, and says so in the Brain chat. Take the skill away to stop that.'
             : 'Give the Brain Self-improvement and it records workflows as skills by itself after agents finish sizeable jobs. You can also ask it in the Brain chat: "save how we did that as a skill".'}
         </p>
+      </Plate>
       </div>
-      <div className="flex flex-wrap items-center gap-2.5 justify-between mt-7">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="section m-0">{`Library (${data.skills.length})`}</h2>
-          <SearchBox className="w-[min(300px,100%)]" placeholder="Search skills" label="Search skills" value={query} onChange={(v) => setQuery((lastQuery = v))} />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <h2 className="section mt-10 mb-4">{`Library (${data.skills.length})`}</h2>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <SearchBox className="w-[min(360px,100%)]" placeholder="Search skills" label="Search skills" value={query} onChange={(v) => setQuery((lastQuery = v))} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
           <DomNode as="span" make={() => deletedButton(['skill'], () => void reload())} deps={[]} />
-          <button className="btn ghost small" onClick={() => openGitHub(reload)}>
+          <Button variant="ghost" onClick={() => openGitHub(reload)}>
             <DomNode as="span" className="inline-flex" make={() => logo('github', 14)} deps={[]} />
             From GitHub
-          </button>
+          </Button>
           {toImport.length ? importButton(`Import from Claude Code (${toImport.length})`) : null}
-          <button className="btn small" onClick={newSkill}>
+          <Button  onClick={newSkill}>
             <Icon name="plus" size={14} />
             New skill
-          </button>
+          </Button>
         </div>
       </div>
       {shown.length ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3 mt-3.5">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {shown.map((s) => (
             <SkillCard key={s.slug} s={s} d={d} teams={teams} reload={reload} loadTeams={loadTeams} />
           ))}
         </div>
       ) : (
-        <div className="panel mt-3.5">
-          <p className="empty">{data.skills.length ? 'No skill matches.' : 'No skills yet.'}</p>
-          <div className="flex flex-wrap items-center gap-2 justify-center">
-            <button className="btn small" onClick={newSkill}>
+        <div className="flex flex-col items-center gap-4 py-12 text-center">
+          <p className="m-0 text-dim">{data.skills.length ? 'No skill matches.' : 'No skills yet.'}</p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Button  onClick={newSkill}>
               <Icon name="plus" size={14} />
               Write your first skill
-            </button>
+            </Button>
             {toImport.length ? importButton('Import from Claude Code') : null}
           </div>
         </div>
@@ -145,10 +147,10 @@ function usedBy(slug: string, d: AppState, teams: TeamListing[]) {
 }
 
 // who has the skill, under its card (skill-use marks them for the tests)
-const USE = 'skill-use inline-flex items-center gap-1 py-0.5 px-2 rounded-full border text-[11.5px]';
+const USE = 'skill-use pill-shadow inline-flex items-center gap-1.5 py-0.5 px-2.5 rounded-full border text-[12px]';
 const USE_AGENT = `${USE} border-line text-dim`;
 const USE_PROJ = `${USE} text-accent border-[color-mix(in_srgb,var(--color-accent)_35%,var(--color-line))]`;
-const USE_TEAM = `${USE} text-ink border-[color-mix(in_srgb,var(--c)_55%,var(--color-line))] bg-[color-mix(in_srgb,var(--c)_14%,transparent)]`;
+const USE_TEAM = `${USE} text-ink border-[color-mix(in_srgb,var(--c)_45%,var(--color-line))] bg-[color-mix(in_srgb,var(--c)_10%,transparent)]`;
 
 function SkillCard({ s, d, teams, reload, loadTeams }: { s: SkillListing; d: AppState; teams: TeamListing[]; reload: () => Promise<unknown>; loadTeams: () => Promise<unknown> }) {
   const u = usedBy(s.slug, d, teams);
@@ -167,7 +169,7 @@ function SkillCard({ s, d, teams, reload, loadTeams }: { s: SkillListing; d: App
     u.brain ? <span key="brain" className={USE_PROJ}><Icon name="brain" size={11} />The Brain</span> : null,
     u.project ? <span key="project" className={USE_PROJ}><Icon name="folder-open" size={11} />Project</span> : null,
     ...u.teams.map((t) => (
-      <span key={t.id} className={USE_TEAM} style={{ '--c': t.color || '#7350c8' } as CSSProperties}>
+      <span key={t.id} className={USE_TEAM} style={{ '--c': t.color || 'var(--color-accent)' } as CSSProperties}>
         <Icon name="users" size={11} />
         {t.name}
       </span>
@@ -175,8 +177,8 @@ function SkillCard({ s, d, teams, reload, loadTeams }: { s: SkillListing; d: App
     ...u.agents.map((a) => <span key={a.id} className={USE_AGENT}>{`${a.emoji || ''} ${a.name}`}</span>),
   ].filter(Boolean);
   return (
-    <div className="skill-card flex flex-col gap-2.5 p-3.5 border border-line rounded-[12px] bg-panel [transition:border-color_.18s,transform_.18s] animate-[rise-in_.25s_ease-out_both] hover:border-line-2 hover:[transform:translateY(-1px)]">
-      <div className="flex gap-3 items-center">
+    <Plate className="skill-card card hover:shadow-none gap-3">
+      <div className="flex items-center gap-3">
         <div className="skill-ico"><Icon name="puzzle" size={18} /></div>
         <div className="flex-1 min-w-0">
           <div className="skill-name font-semibold text-[15px]">{s.name}</div>
@@ -192,25 +194,25 @@ function SkillCard({ s, d, teams, reload, loadTeams }: { s: SkillListing; d: App
         </div>
       </div>
       <p className="m-0 text-dim text-[13px] leading-[1.45] line-clamp-3">{s.description}</p>
-      <div className="skill-uses flex flex-wrap gap-1.25">{uses.length ? uses : <span className="hint">Not given to anyone yet</span>}</div>
-      <div className="skill-foot flex items-center gap-1.5 mt-auto">
+      <div className="skill-uses flex flex-wrap gap-1.5">{uses.length ? uses : <span className="hint">Not given to anyone yet</span>}</div>
+      <div className="skill-foot mt-auto flex items-center gap-2 border-t border-line pt-4">
         <GiveTo s={s} d={d} teams={teams} loadTeams={loadTeams} />
-        <button className="btn ghost small" onClick={() => void openEditor(s.slug, reload)}>
+        <Button variant="ghost" size="small" onClick={() => void openEditor(s.slug, reload)}>
           <Icon name="pencil" size={13} />
           Edit
-        </button>
+        </Button>
         {s.origin ? (
-          <button className="btn ghost small" disabled={updating} title={`Download it again from ${s.origin.repo} (the current version is kept in History)`} onClick={() => void update()}>
+          <Button variant="ghost" size="small" disabled={updating} title={`Download it again from ${s.origin.repo} (the current version is kept in History)`} onClick={() => void update()}>
             <Icon name="rotate-cw" size={13} />
             Update
-          </button>
+          </Button>
         ) : null}
         <span className="flex-1 min-w-0" />
-        <button className="btn ghost tiny danger" title="Delete the skill" aria-label={`Delete the skill ${s.name}`} onClick={() => void remove()}>
+        <Button variant="danger" size="small" title="Delete the skill" aria-label={`Delete the skill ${s.name}`} onClick={() => void remove()}>
           <Icon name="trash-2" size={13} />
-        </button>
+        </Button>
       </div>
-    </div>
+    </Plate>
   );
 }
 
@@ -225,13 +227,13 @@ function GiveTo({ s, d, teams, loadTeams }: { s: SkillListing; d: AppState; team
   );
   return (
     <Menu.Root>
-      <Menu.Trigger className="btn small">
+      <Menu.Trigger className={buttonClass(undefined, 'small')}>
         <Icon name="plus" size={13} />
         Give to…
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner className="z-96 outline-none" align="start" sideOffset={6} collisionPadding={8}>
-          <Menu.Popup className="st-menu skp-menu static w-75 max-w-75">
+          <Menu.Popup className="st-menu dd skp-menu static w-75 max-w-75">
             <Menu.Group>
               <Menu.GroupLabel className="st-menu-head">{`Give "${s.name}" to`}</Menu.GroupLabel>
               {item('brain', u.brain, 'The Brain', <Icon name="brain" size={14} />, () => saveBrain(flip(brainList(d), s.slug, u.brain)))}

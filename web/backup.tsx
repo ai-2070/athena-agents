@@ -1,7 +1,10 @@
 // Backups on the page: back up the open project (with every skill and preset) into the backups
-// folder, read what a backup file holds, and restore one as a new project.
-import { h, GET, POST, api, attempt, modal, copy, ago } from './core.ts';
-import { icon } from './icons.ts';
+// folder, read what a backup file holds, and restore one as a new project. The "Backup saved" window is
+// React now (openModal() with React content); the rest is unchanged.
+import { GET, POST, api, attempt, copy, ago } from './core.ts';
+import { Button, IconButton } from './ui/button.tsx';
+import { Icon } from './ui/react.tsx';
+import { openModal } from './ui/overlays.tsx';
 import type { Project } from '../shared/types.ts';
 
 export const BACKUP_EXT = '.dashbackup';
@@ -116,21 +119,38 @@ export function cleanSummary(v: unknown): BackupSummary | null {
 export async function backupProject(p: Pick<Project, 'id' | 'name'>): Promise<void> {
   const r = await attempt(() => POST<{ file: string; name: string; size: number; summary: BackupSummary }>(`/projects/${encodeURIComponent(p.id)}/backup`));
   if (!r) return;
-  const m = modal({
-    title: 'Backup saved',
-    narrow: true,
-    body: h(
-      'div',
-      { class: 'flex flex-col gap-2.5' },
-      h('p', `${p.name}: ${summaryLine(r.summary)}, in one file (${fileSize(r.size)}). No keys or passwords are in it.`),
-      r.summary.omitted
-        ? h('p', { class: 'm-0 flex items-start gap-1.5 rounded-[8px] border border-[color-mix(in_srgb,var(--color-amber)_30%,var(--color-line))] bg-amber/10 px-2.5 py-2 text-[13px] text-amber' }, icon('triangle-alert', 14, 'mt-0.5 flex-none'), ` ${r.summary.omitted} file${r.summary.omitted === 1 ? ' was' : 's were'} too big to fit and left out (limits: chats 200 MB, knowledge 50 MB, MEMORY.md files 20 MB, skills 50 MB, earlier versions 50 MB, PROJECT.md and notes 20 MB).`)
-        : null,
-      h('div', { class: 'flex items-center gap-2 rounded-[8px] border border-line bg-panel-2 px-2.5 py-2' }, h('code', { class: 'min-w-0 flex-1 font-mono text-[12px] leading-[normal] font-normal wrap-anywhere text-ink' }, r.file), h('button.icon-btn', { title: 'Copy the path', 'aria-label': 'Copy the path', onclick: () => copy(r.file) }, icon('copy', 14))),
-      h('p.hint', 'To bring it back, here or on another PC: New project > From backup, and drop this file in.'),
+  openModal(
+    'Backup saved',
+    (close) => (
+      <>
+        <div className="modal-body">
+          <div className="flex flex-col gap-4 [&_p]:m-0">
+            <p>{`${p.name}: ${summaryLine(r.summary)}, in one file (${fileSize(r.size)}). No keys or passwords are in it.`}</p>
+            {r.summary.omitted ? (
+              <p className="m-0 flex items-start gap-2 rounded-ctl border border-[color-mix(in_srgb,var(--color-amber)_30%,var(--color-line))] bg-amber/10 px-3 py-2.5 text-[13px] text-amber">
+                <Icon name="triangle-alert" size={14} className="mt-0.5 flex-none" />{' '}
+                {`${r.summary.omitted} file${r.summary.omitted === 1 ? ' was' : 's were'} too big to fit and left out (limits: chats 200 MB, knowledge 50 MB, MEMORY.md files 20 MB, skills 50 MB, earlier versions 50 MB, PROJECT.md and notes 20 MB).`}
+              </p>
+            ) : null}
+            <div className="flex items-center gap-2 rounded-ctl border border-line bg-panel-2 py-1.5 pr-1.5 pl-3">
+              <code className="min-w-0 flex-1 font-mono text-[12px] leading-[normal] font-normal wrap-anywhere text-ink">{r.file}</code>
+              <IconButton title="Copy the path" aria-label="Copy the path" onClick={() => copy(r.file)}>
+                <Icon name="copy" size={14} />
+              </IconButton>
+            </div>
+            <p className="hint">To bring it back, here or on another PC: New project &gt; From backup, and drop this file in.</p>
+          </div>
+        </div>
+        <div className="modal-foot">
+          <Button variant="ghost" onClick={() => void attempt(() => POST('/backups/open'))}>
+            <Icon name="folder-open" size={15} /> Show in folder
+          </Button>
+          <Button onClick={close}>Done</Button>
+        </div>
+      </>
     ),
-    foot: [h('button.btn.ghost', { onclick: () => void attempt(() => POST('/backups/open')) }, icon('folder-open', 15), ' Show in folder'), h('button.btn', { onclick: () => m.close() }, 'Done')],
-  });
+    { narrow: true },
+  );
 }
 
 /** Restore a backup as a new project: a dropped file, or the name of one in the backups folder. */

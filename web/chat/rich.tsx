@@ -1,12 +1,13 @@
 // "Rich answers": an answer written in OpenUI Lang (an agent with Rich answers on) rendered as live
 // components (cards, tables, charts, forms) with OpenUI's chat component library. Loaded only when an
 // answer needs it: the library (charts, forms…) is big.
-import { useCallback } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { BuiltinActionType, Renderer } from '@openuidev/react-lang';
 import type { ActionEvent } from '@openuidev/react-lang';
 // (from the package root, not its subpaths: the component library and the theme must be the same copy,
 // or the components never see the theme — genui-lib and ThemeProvider/ each bundle their own)
 import { ThemeProvider, createTheme, openuiChatLibrary } from '@openuidev/react-ui';
+import { isDark, onThemeChange } from '../theme.ts';
 
 // OpenUI's stylesheet (copied next to the bundle by scripts/build-web.ts), linked once.
 function linkStyles(): void {
@@ -18,15 +19,18 @@ function linkStyles(): void {
   document.head.append(link);
 }
 
-// The dashboard's look, as OpenUI theme tokens (its colors come from the page's own variables).
-const dark = createTheme({
+// The dashboard's look, as OpenUI theme tokens. Its colors come from the page's own variables, which flip with
+// the page (light or dark) by themselves. background is the page behind a card (chart dots and tracks take it)
+// and foreground is a card's own surface. textAccentPrimary is the text on an accent fill (a primary button).
+const look = createTheme({
   background: 'var(--color-bg)',
   foreground: 'var(--color-panel)',
   popoverBackground: 'var(--color-panel-2)',
   textNeutralPrimary: 'var(--color-ink)',
   textNeutralSecondary: 'var(--color-dim)',
   textNeutralTertiary: 'var(--color-faint)',
-  textAccentPrimary: 'var(--color-accent)',
+  textAccentPrimary: 'var(--color-on-accent)',
+  textBrand: 'var(--color-accent)',
   textNeutralLink: 'var(--color-accent)',
   interactiveAccentDefault: 'var(--color-accent)',
   interactiveAccentHover: 'var(--color-accent-hover)',
@@ -50,8 +54,13 @@ export function actionMessage(event: ActionEvent): string | null {
   return `${event.humanFriendlyMessage || 'Continue'}${form}${about}`;
 }
 
+/** Light or dark as the page is now. OpenUI needs the mode too: the tints it computes itself (hover washes, sunken
+ *  fills) are made from black in light and from white in dark. */
+const useDark = (): boolean => useSyncExternalStore(onThemeChange, isDark);
+
 export default function RichAnswer({ code, streaming, onSend }: { code: string; streaming: boolean; onSend: (text: string) => void }) {
   linkStyles();
+  const dark = useDark();
   const onAction = useCallback(
     (event: ActionEvent) => {
       if (event.type === BuiltinActionType.OpenUrl) {
@@ -65,7 +74,7 @@ export default function RichAnswer({ code, streaming, onSend }: { code: string; 
     [onSend],
   );
   return (
-    <ThemeProvider mode="dark" darkTheme={dark} cssSelector=".oc-rich">
+    <ThemeProvider mode={dark ? 'dark' : 'light'} lightTheme={look} darkTheme={look} cssSelector=".oc-rich">
       <div className="oc-rich text-[14px]">
         <Renderer response={code} library={openuiChatLibrary} isStreaming={streaming} onAction={onAction} />
       </div>

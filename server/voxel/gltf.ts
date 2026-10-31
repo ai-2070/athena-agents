@@ -168,7 +168,7 @@ export function toGlb(w: VoxelWorld, target: GltfTarget): Uint8Array {
   }
 
   const json: Json = {
-    asset: { version: '2.0', generator: 'Blacksite voxel world' },
+    asset: { version: '2.0', generator: 'Athena Agents voxel world' },
     scene: 0,
     scenes: [{ name: w.name, nodes: roots }],
     nodes,

@@ -1,7 +1,7 @@
 // The attachment tray's upload queue, with fake requests: limits, failures, files added mid-send, retries.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { attachTray, restoreDraft, MAX_ATTACHMENTS } from '../../web/attach.ts';
-import type { PickedFile } from '../../web/attach.ts';
+import { attachTray, restoreDraft, MAX_ATTACHMENTS } from '../../web/attach.tsx';
+import type { PickedFile } from '../../web/attach.tsx';
 import { state } from '../../web/core.ts';
 import type { AppState } from '../../shared/types.ts';
 
@@ -228,10 +228,10 @@ describe('looking at attached files before sending', () => {
     ]);
     await frame();
     expect(chip(tray, 'notes.md').querySelector('.att-open')).not.toBeNull();
-    expect(chip(tray, 'notes.md').className).toContain('hover:border-accent-dim');
+    expect(chip(tray, 'notes.md').className).toContain('hover:bg-panel-2');
     expect(chip(tray, 'brief.pdf').querySelector('.att-open')).toBeNull();
     expect(chip(tray, 'data.csv').querySelector('.att-open')).toBeNull();
-    expect(chip(tray, 'data.csv').className).not.toContain('hover:border-accent-dim');
+    expect(chip(tray, 'data.csv').className).not.toContain('hover:bg-panel-2');
 
     chip(tray, 'notes.md').querySelector<HTMLButtonElement>('.att-open')!.click();
     await frame();

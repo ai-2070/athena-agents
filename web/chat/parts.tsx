@@ -2,11 +2,13 @@
 // markdown (or a Rich answer as live components), tool calls you can open (input, result, images),
 // file previews with Show in Explorer / Finder, and our own rows (COMPACTED marks, errors, notes).
 // Sizes: full (the chat page), compact (the floating window), mini (the Station panel, team turns).
-import { Suspense, lazy, memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Component, Suspense, lazy, memo, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { DynamicToolUIPart } from 'ai';
 import { md, lightbox } from '../core.ts';
+import { Dot } from '../ui/marks.tsx';
 import { compactionMark } from '../compactmark.ts';
-import { filePreviews } from '../filepreview.ts';
+import { filePreviews } from '../filepreview.tsx';
 import { findFileMentions } from '../mentions.ts';
 import { readOutput, readUser } from './messages.ts';
 import { useAppState } from '../ui/react.tsx';
@@ -17,19 +19,31 @@ import type { CompactionItem } from '../../shared/types.ts';
 
 const RichAnswer = lazy(() => import('./rich.tsx'));
 
+/** The Rich answers' library is big and loads on its own: if it can't (or throws), the answer's own text shows
+ *  in its place, instead of the whole chat going blank. */
+class RichGuard extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  override render(): ReactNode {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
 // A message's look in the floating window (compact) and the Station panel / team turns (mini); the chat
 // page's messages are the shared msg pieces. A message drawn again (scrolled back to) doesn't rise in again.
-const AC = 'max-w-[88%] rounded-[12px] px-3 py-2.25 text-[14px] leading-[1.5] animate-[rise-in_0.2s_ease-out] in-[.again]:animate-none';
-const AC_AGENT = `${AC} font-chat self-start border border-line bg-panel`;
-const AC_USER = `${AC} font-chat self-end border border-[color-mix(in_srgb,var(--color-accent)_25%,var(--color-line))] bg-[color-mix(in_srgb,var(--color-accent)_14%,var(--color-panel-2))] whitespace-pre-wrap`;
+const AC = 'max-w-[88%] rounded-[12px] px-4 py-3 text-[14px] leading-[1.6] animate-[rise-in_0.2s_ease-out] in-[.again]:animate-none';
+const AC_AGENT = 'font-chat self-start text-[14px] leading-[1.6] animate-[rise-in_0.2s_ease-out] in-[.again]:animate-none';
+const AC_USER = `${AC} font-chat self-end border border-line bg-panel-2 whitespace-pre-wrap`;
 const AC_ERR = `${AC} self-stretch border border-[color-mix(in_srgb,var(--color-red)_40%,var(--color-line))] text-red`;
 // (Markdown: no space above the first block or below the last)
 const AC_TEXT = '[&>:first-child]:mt-0 [&>:last-child]:mb-0';
-const ST = 'st-msg text-[13.5px] leading-[1.5] wrap-anywhere';
-const ST_ASSISTANT = `${ST} assistant font-chat [&_p]:mb-1.5 [&_pre]:max-h-45`;
-const ST_USER = `${ST} user font-chat self-end max-w-[90%] border border-line-2 bg-panel-2 px-2.5 py-1.5 whitespace-pre-wrap`;
+const ST = 'st-msg text-[13.5px] leading-[1.6] wrap-anywhere';
+const ST_ASSISTANT = `${ST} assistant font-chat [&_p]:mb-2 [&_pre]:max-h-45`;
+const ST_USER = `${ST} user font-chat self-end max-w-[90%] border border-line bg-panel-2 rounded-[12px] px-3 py-2 whitespace-pre-wrap`;
 const ST_ERR = `${ST} text-red`;
-const ST_CMP = 'st-msg cmp self-stretch border-t border-dashed border-accent/35 pt-1 text-center font-mono text-[10.5px] leading-[normal] tracking-[0.08em] text-accent-dim wrap-anywhere';
+const ST_CMP = 'st-msg cmp self-stretch border-t border-dashed border-line-2 pt-2 text-center text-[12px] leading-[normal] text-faint wrap-anywhere';
 
 export type Variant = 'full' | 'compact' | 'mini';
 
@@ -96,7 +110,7 @@ export function ToolCard({ part, variant, busy, owner }: { part: DynamicToolUIPa
   const out = part.state === 'output-available' ? readOutput(part.output) : null;
   const images = out?.images || [];
   const running = !done && busy;
-  const mark = running ? <span className="dot busy" /> : failed ? <span className="text-red">✕</span> : done ? <span className="text-accent">✓</span> : <span className="text-faint">·</span>;
+  const mark = running ? <Dot tone="busy" /> : failed ? <span className="text-red">✕</span> : done ? <span className="text-ok">✓</span> : <span className="text-faint">·</span>;
   let input = '';
   try {
     input = typeof part.input === 'string' ? part.input : JSON.stringify(part.input ?? {}, null, 2);
@@ -108,10 +122,10 @@ export function ToolCard({ part, variant, busy, owner }: { part: DynamicToolUIPa
   const asked = useAppState()?.questions;
   const question = part.toolName === 'ask_user' && !done ? questionFor(asked, part.input, owner) : null;
   return (
-    <div className={small ? 'flex flex-col gap-1' : 'flex flex-col gap-1.5'}>
+    <div className={small ? 'flex flex-col gap-1.5' : 'flex flex-col gap-2'}>
       {question ? <QuestionCard q={question} place="chat" /> : null}
       <details
-        className={`tool${failed ? ' error' : ''}${small ? ' small' : ''}`}
+        className={`tool${failed ? ' error' : ''}${small ? ' small [&>summary]:px-3 [&>summary]:py-2' : ''}`}
         open={open}
         onToggle={(e) => {
           const now = e.currentTarget.open;
@@ -139,7 +153,7 @@ export function ToolCard({ part, variant, busy, owner }: { part: DynamicToolUIPa
         </div>
       </details>
       {images.length ? (
-        <div className={small ? 'flex w-full gap-1 [&_img]:size-20 [&_img]:border [&_img]:border-line-2 [&_img]:object-cover' : 'tool-images'}>
+        <div className={small ? 'flex w-full gap-2 [&_img]:size-20 [&_img]:rounded-ctl [&_img]:border [&_img]:border-line-2 [&_img]:object-cover' : 'tool-images'}>
           {images.slice(0, small ? 6 : 24).map((src, i) => (
             <ZoomImg key={src} src={src} label={`${part.toolName} image ${i + 1}`} />
           ))}
@@ -158,9 +172,11 @@ function TextPart({ text, variant, streaming, dim, onSend }: { text: string; var
     <>
       {rich ? (
         <div className={`${variant === 'compact' ? AC_AGENT : variant === 'mini' ? ST_ASSISTANT : 'msg assistant'} rich${cls}`}>
-          <Suspense fallback={<pre className="hint">{text}</pre>}>
-            <RichAnswer code={text} streaming={streaming} onSend={onSend} />
-          </Suspense>
+          <RichGuard fallback={<pre className="hint">{text}</pre>}>
+            <Suspense fallback={<pre className="hint">{text}</pre>}>
+              <RichAnswer code={text} streaming={streaming} onSend={onSend} />
+            </Suspense>
+          </RichGuard>
         </div>
       ) : variant === 'compact' ? (
         <div className={`${AC_AGENT}${cls}`}>
@@ -219,7 +235,7 @@ export function MessageView({ m, variant, busy, streaming, dim, onSend, chatPath
         if (p.type === 'dynamic-tool') return <ToolCard key={key} part={p} variant={variant} busy={busy} owner={owner} />;
         if (p.type === 'data-compaction') {
           const it = p.data as CompactionItem;
-          if (variant === 'mini') return <div key={key} className={ST_CMP} title="The agent’s memory of the messages above was compacted. Open the full chat to see or edit it.">— COMPACTED —</div>;
+          if (variant === 'mini') return <div key={key} className={ST_CMP} title="The agent’s memory of the messages above was compacted. Open the full chat to see or edit it.">Compacted</div>;
           return <Dom key={key} make={() => compactionMark(it, { chatPath, latest: latestCompaction === it.id, busy, compact: variant === 'compact', onSaved: onCompactionSaved })} deps={[it.id, it.text, latestCompaction, busy, chatPath]} />;
         }
         if (p.type === 'data-error') return <div key={key} className={variant === 'full' ? 'msg error' : variant === 'compact' ? AC_ERR : ST_ERR}>{(p.data as { text: string }).text}</div>;

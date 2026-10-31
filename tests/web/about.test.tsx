@@ -23,7 +23,7 @@ function serve(about: AboutInfo) {
     }),
   );
 }
-const info = (stars: number | null): AboutInfo => ({ name: 'Blacksite', version: '1.2.3', repo: REPO.slug, url: REPO.url, license: 'MIT OR Apache-2.0', stars });
+const info = (stars: number | null): AboutInfo => ({ name: 'Athena Agents', version: '1.2.3', repo: REPO.slug, url: REPO.url, license: 'MIT OR Apache-2.0', stars });
 
 beforeEach(() => {
   asked.length = 0;

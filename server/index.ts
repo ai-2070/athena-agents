@@ -1,4 +1,4 @@
-// Blacksite: a local, login-free command center for agents, tools, programs, MCP servers and social accounts.
+// Athena Agents: a local, login-free command center for agents, tools, programs, MCP servers and social accounts.
 // Listens on 127.0.0.1 only. Run: node server/index.js [--port 4800] [--no-open]
 import http from 'node:http';
 import fs from 'node:fs';
@@ -990,7 +990,7 @@ del('/api/accounts/reddit/:id', async ({ id }) => {
   reddit.disconnectReddit(id);
   return social.listAccounts();
 });
-post<{ platform?: string }>('/api/social/test', async (_p, body) => ({ message: body.platform === 'discord' ? await social.sendDiscord('Test from Blacksite ✅') : await social.sendTelegram('Test from Blacksite ✅') }));
+post<{ platform?: string }>('/api/social/test', async (_p, body) => ({ message: body.platform === 'discord' ? await social.sendDiscord('Test from Athena Agents ✅') : await social.sendTelegram('Test from Athena Agents ✅') }));
 
 get('/api/artifacts', async () => artifactStore.list().sort((a, b) => b.createdAt! - a.createdAt!));
 del('/api/artifacts/:id', async ({ id }) => {
@@ -1221,7 +1221,7 @@ function page(res: http.ServerResponse, status: number, title: string, text: str
   const esc = (s: unknown) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[c]);
   res.writeHead(status, { 'content-type': 'text/html; charset=utf-8' });
   res.end(
-    `<!doctype html><meta charset="utf-8"><title>${esc(title)}</title><body style="background:#0b0c0b;color:#e6e8e0;font:16px system-ui;display:grid;place-items:center;height:100vh;margin:0"><div style="max-width:520px;padding:24px"><h2 style="color:#c4ff3d">${esc(title)}</h2><p>${esc(text)}</p><p><a style="color:#c4ff3d" href="/#/settings?tab=connections">Back to the dashboard</a></p></div>${close ? '<script>setTimeout(()=>{location.href="/#/settings?tab=connections"},1500)</script>' : ''}`,
+    `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark"><title>${esc(title)}</title><link rel="stylesheet" href="/dist/app.css"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}main{width:min(520px,100%);padding:24px;border:1px solid var(--color-line);border-radius:12px;background:var(--color-panel);box-shadow:inset 0 1px 0 var(--glass-spec)}h2{margin:0 0 8px;font-size:18px;font-weight:600}p{margin:0 0 12px;color:var(--color-dim)}p:last-child{margin-bottom:0}a:hover{text-decoration:underline}</style><body><main><h2>${esc(title)}</h2><p>${esc(text)}</p><p><a href="/#/settings?tab=connections">Back to the dashboard</a></p></main>${close ? '<script>setTimeout(()=>{location.href="/#/settings?tab=connections"},1500)</script>' : ''}`,
   );
 }
 
@@ -1302,7 +1302,7 @@ function serveStatic(url: URL, res: http.ServerResponse): boolean {
   if (!file.startsWith(PUBLIC + path.sep) || !exists(file) || !fs.statSync(file).isFile()) return false;
   const headers: Record<string, string> = { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' };
   // Agent output is shown as markdown: no outside scripts, and images only from here (nothing leaks out).
-  if (file.endsWith('.html'))
+  if (file.endsWith('.html')) {
     headers['content-security-policy'] = [
       "default-src 'self'",
       "script-src 'self'",
@@ -1312,6 +1312,14 @@ function serveStatic(url: URL, res: http.ServerResponse): boolean {
       `connect-src 'self' ws://localhost:${PORT} ws://127.0.0.1:${PORT}`,
       "frame-ancestors 'none'",
     ].join('; ');
+    // The page opens in the scheme picked in Settings > Look, before anything is drawn: the saved theme goes onto
+    // <html> ("system" leaves it off, for the stylesheet to follow the computer). The page does the same on a change.
+    const theme = getSettings().look.theme;
+    const html = fs.readFileSync(file, 'utf8');
+    res.writeHead(200, headers);
+    res.end(theme === 'light' || theme === 'dark' ? html.replace('<html lang="en"', `<html lang="en" data-theme="${theme}"`) : html);
+    return true;
+  }
   res.writeHead(200, headers);
   fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
   return true;
@@ -1456,7 +1464,7 @@ programs.startRunningWatch();
 
 server.on('error', (e: NodeJS.ErrnoException) => {
   if (e.code === 'EADDRINUSE') {
-    console.log(`Blacksite is already running at http://localhost:${PORT}`);
+    console.log(`Athena Agents is already running at http://localhost:${PORT}`);
     if (OPEN) openWithShell(`http://localhost:${PORT}`);
     process.exit(0);
   }
@@ -1466,7 +1474,7 @@ server.on('error', (e: NodeJS.ErrnoException) => {
 store.migrateGlobalOutbox();
 server.listen(PORT, '127.0.0.1', () => {
   const url = `http://localhost:${PORT}`;
-  console.log(`\n  Blacksite is running at ${url}\n  Data folder: ${dataPath()}\n  Press Ctrl+C to stop.\n`);
+  console.log(`\n  Athena Agents is running at ${url}\n  Data folder: ${dataPath()}\n  Press Ctrl+C to stop.\n`);
   log('system', 'Dashboard started');
   if (OPEN) void pageReady.then(() => openWithShell(url));
 });

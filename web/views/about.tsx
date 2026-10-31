@@ -1,30 +1,36 @@
-// Settings > About: which Blacksite this is, where it lives on GitHub (with a star button), and this PC's
+// Settings > About: which Athena Agents this is, where it lives on GitHub (with a star button), and this PC's
 // address and data folder.
+import { ButtonLink } from '../ui/button.tsx';
+import { Plate } from '../ui/surface.tsx';
 import { useEffect, useState } from 'react';
 import { GET } from '../core.ts';
+import { MARK_SHAPES } from '../brand.ts';
 import { logo } from '../icons.ts';
+import { PanelNote, Row, Section } from '../ui/controls.tsx';
 import { DomNode, Icon, useAppState } from '../ui/react.tsx';
 import { REPO, repoLink } from '../../shared/about.ts';
 import type { AboutInfo } from '../../shared/types.ts';
 import { AI_VERSION } from './settings.tsx';
 
-/** The Blacksite mark (public/icon.svg): a lime wedge. */
+/** The Athena Agents mark (public/icon.svg): an owl, in the accent colour. */
 export const BrandMark = ({ size = 48 }: { size?: number }) => (
-  <svg className="flex-none rounded-box border border-line bg-bg p-2 text-accent" viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
-    <path d="M14 50 L50 14 L50 50 Z" fill="currentColor" />
-  </svg>
+  <svg className="brand-mark flex-none" viewBox="0 0 64 64" width={size} height={size} aria-hidden="true" dangerouslySetInnerHTML={{ __html: MARK_SHAPES }} />
 );
 
 /** "Star on GitHub", with the count when GitHub gave one. */
 export function StarButton({ stars, small = false }: { stars: number | null; small?: boolean }) {
   return (
-    <a className={`btn${small ? ' tiny' : ' small'} star-btn`} href={REPO.url} target="_blank" rel="noopener" title={`Star ${REPO.slug} on GitHub`}>
+    <ButtonLink size={small ? 'tiny' : 'small'} className="star-btn gap-1.75" href={REPO.url} target="_blank" rel="noopener" title={`Star ${REPO.slug} on GitHub`}>
       <Icon name="star" size={small ? 12 : 14} />
       <span>{small ? 'Star' : 'Star on GitHub'}</span>
       {stars != null ? <span className="ml-0.5 border-l border-[color-mix(in_srgb,currentColor_35%,transparent)] pl-2 tabular-nums">{stars.toLocaleString()}</span> : null}
-    </a>
+    </ButtonLink>
   );
 }
+
+// a value on the right of a row: it may be long (a folder), so it wraps and reads from the right
+const VALUE = 'max-w-[30rem] text-[13.5px] text-ink wrap-anywhere';
+const RIGHT = `${VALUE} text-right max-sm:text-left`;
 
 export function AboutTab() {
   const data = useAppState();
@@ -39,60 +45,60 @@ export function AboutTab() {
   }, []);
   const version = about ? `v${about.version}` : '…';
   return (
-    <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1">
-      <div className="flex flex-col gap-4.5">
-        <div className="panel">
-          <div className="flex items-center gap-4">
-            <BrandMark size={52} />
-            <div className="about-title flex flex-wrap items-baseline gap-2.5">
-              <h2 className="m-0 font-sans text-[26px] leading-[1.1] font-bold tracking-[-0.01em]">{REPO.name}</h2>
-              <span className={`${AI_VERSION} text-[13px]`}>{version}</span>
-            </div>
+    <div className="flex flex-col gap-10">
+      <Plate className="flex flex-wrap items-center gap-x-6 gap-y-5 rounded-box p-7">
+        <BrandMark size={56} />
+        <div className="min-w-0 flex-1 basis-80">
+          <div className="about-title flex flex-wrap items-baseline gap-2.5">
+            <h2 className="m-0 font-sans text-[24px] leading-[1.15] font-semibold tracking-tight">{REPO.name}</h2>
+            <span className={`${AI_VERSION} text-[13px]`}>{version}</span>
           </div>
-          <p className="mt-3.5 mb-0 max-w-[62ch] text-[14px] leading-[1.55] text-dim">Run AI agents and teams from one local workspace. A live 3D map, team chats, Claude Code, Codex and local models, MCP tools, an approval Outbox and Artifacts. No account, runs on your computer.</p>
-          <div className="mt-4 flex flex-wrap gap-2 [&_.btn]:gap-1.75">
-            <StarButton stars={about?.stars ?? null} />
-            <a className="btn ghost small font-mono tracking-normal normal-case" href={REPO.url} target="_blank" rel="noopener">
-              <DomNode as="span" className="inline-flex" make={() => logo('github', 14, '#e6e8e0')} deps={[]} />
-              <span>{REPO.slug}</span>
-            </a>
-          </div>
-          <div className="kv mt-7">
-            <span>Version</span>
-            <span className="font-mono">{version}</span>
-            <span>GitHub</span>
-            <span>
-              <a className="font-mono wrap-anywhere" href={REPO.url} target="_blank" rel="noopener">
-                {REPO.url.replace(/^https:\/\//, '')}
-              </a>
-            </span>
-            <span>Licence</span>
-            <span>{about?.license ? about.license.replace(/ OR /g, ' or ') : '…'}</span>
-            <span>Help</span>
-            <span>
-              <a href={repoLink('issues')} target="_blank" rel="noopener">Report a problem</a> · <a href={repoLink('releases')} target="_blank" rel="noopener">What's new</a>
-            </span>
-          </div>
+          <p className="mt-2 mb-0 max-w-[62ch] text-[14px] leading-[1.6] text-dim">Run AI agents and teams from one local workspace. A live 3D map, team chats, Claude Code, Codex and local models, MCP tools, an approval Outbox and Artifacts. No account, runs on your computer.</p>
         </div>
-      </div>
-      <div className="flex flex-col gap-4.5">
-        {data ? (
-          <div className="panel">
-            <div className="panel-head">
-              <h2>This PC</h2>
-            </div>
-            <div className="kv">
-              <span>Address</span>
-              <span className="font-mono">{`http://localhost:${data.port}`}</span>
-              <span>Login</span>
-              <span>None. Only this PC can open it (it listens on 127.0.0.1).</span>
-              <span>Data</span>
-              <span className="font-mono wrap-anywhere">{data.dataDir}</span>
-            </div>
-            <p className="hint mt-3.5">Keys and account tokens are stored in that data folder on this PC and never sent to the browser.</p>
-          </div>
-        ) : null}
-      </div>
+        <div className="flex flex-wrap gap-2">
+          <StarButton stars={about?.stars ?? null} />
+          <ButtonLink variant="ghost" size="small" className="gap-1.75" href={REPO.url} target="_blank" rel="noopener">
+            <DomNode as="span" className="inline-flex" make={() => logo('github', 14, 'currentColor')} deps={[]} />
+            <span>{REPO.slug}</span>
+          </ButtonLink>
+        </div>
+      </Plate>
+
+      <Section title="Version" description="What is installed, where it lives, and where to get help.">
+        <Row title="Version">
+          <span className="font-mono text-[13px] text-ink">{version}</span>
+        </Row>
+        <Row title="GitHub">
+          <span className={RIGHT}>
+            <a className="font-mono text-[13px]" href={REPO.url} target="_blank" rel="noopener">
+              {REPO.url.replace(/^https:\/\//, '')}
+            </a>
+          </span>
+        </Row>
+        <Row title="Licence">
+          <span className={RIGHT}>{about?.license ? about.license.replace(/ OR /g, ' or ') : '…'}</span>
+        </Row>
+        <Row title="Help">
+          <span className={RIGHT}>
+            <a href={repoLink('issues')} target="_blank" rel="noopener">Report a problem</a> · <a href={repoLink('releases')} target="_blank" rel="noopener">What's new</a>
+          </span>
+        </Row>
+      </Section>
+
+      {data ? (
+        <Section title="This PC" description="Where the dashboard runs and keeps what you set up.">
+          <Row title="Address">
+            <span className={`${RIGHT} font-mono text-[13px]`}>{`http://localhost:${data.port}`}</span>
+          </Row>
+          <Row title="Login">
+            <span className={RIGHT}>None. Only this PC can open it (it listens on 127.0.0.1).</span>
+          </Row>
+          <Row title="Data">
+            <span className={`${VALUE} font-mono text-[13px]`}>{data.dataDir}</span>
+          </Row>
+          <PanelNote>Keys and account tokens are stored in that data folder on this PC and never sent to the browser.</PanelNote>
+        </Section>
+      ) : null}
     </div>
   );
 }

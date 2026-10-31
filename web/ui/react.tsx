@@ -3,7 +3,6 @@ import { Fragment, StrictMode, useCallback, useEffect, useMemo, useRef, useSyncE
 import type { CSSProperties, DependencyList, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { h, mount, onEvent, onState, state } from '../core.ts';
-import { icon } from '../icons.ts';
 import type { AppState, ServerEvent } from '../../shared/types.ts';
 
 /** Draws a React page into the router's page element. unmount() when you leave the page. */
@@ -138,22 +137,7 @@ export function HoverScroll({ children, className = '', host }: { children: Reac
   );
 }
 
-/** One of the app's icons (web/icons.ts). */
-export function Icon({ name, size = 16, className = '' }: { name: string; size?: number; className?: string }) {
-  const markup = useMemo(() => ({ __html: icon(name).innerHTML }), [name]);
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={`ico-svg ${className}`.trim()}
-      aria-hidden="true"
-      dangerouslySetInnerHTML={markup}
-    />
-  );
-}
+// Icons live in web/ui/icon.tsx (so a dialog can draw one without coming through here); re-exported so the
+// pages keep asking this module for them.
+export { Icon, IconWeightProvider, useIconWeight } from './icon.tsx';
+export type { IconWeight } from './icon.tsx';

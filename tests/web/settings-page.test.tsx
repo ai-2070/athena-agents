@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
+import { DEFAULT_LOOK } from '../../web/look.ts';
 import * as settings from '../../web/views/setup.tsx';
 import { searchSettings } from '../../web/views/setup.tsx';
 import { ViewHost, mountReact } from '../../web/ui/react.tsx';
@@ -135,13 +136,13 @@ describe('the Look tab', () => {
     expect(group.getAttribute('aria-labelledby')).toBe('look-accent');
     const radios = [...group.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
     expect(radios.length).toBeGreaterThan(3);
-    const rose = radios.find((r) => r.textContent === 'Rose')!;
-    await act(async () => rose.click());
-    expect(rose.getAttribute('aria-checked')).toBe('true');
-    expect(rose.classList.contains('on')).toBe(true);
+    const swatch = radios.find((r) => r.textContent === 'Terracotta')!;
+    await act(async () => swatch.click());
+    expect(swatch.getAttribute('aria-checked')).toBe('true');
+    expect(swatch.classList.contains('on')).toBe(true);
     expect(puts).toEqual([]);
     await act(() => new Promise((r) => setTimeout(r, 400)));
-    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full', chatFont: 'sans', station: 'balanced', sidebar: 'status', stationLook: 'classic', worldQuality: 'medium' } }]);
+    expect(puts).toEqual([{ look: { ...DEFAULT_LOOK, accent: 'terracotta' } }]);
   });
 
   it('a change made just before leaving the tab is still saved', async () => {
@@ -153,12 +154,12 @@ describe('the Look tab', () => {
     location.hash = '#/settings?tab=look';
     await act(async () => settings.render(el));
     await settle();
-    const rose = [...el.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((r) => r.textContent === 'Rose')!;
-    await act(async () => rose.click());
+    const swatch = [...el.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((r) => r.textContent === 'Terracotta')!;
+    await act(async () => swatch.click());
     // (off to another page at once, before the save was due)
     act(() => settings.unmount());
     await settle();
-    expect(puts).toEqual([{ look: { scale: 100, accent: 'rose', motion: 'full', chatFont: 'sans', station: 'balanced', sidebar: 'status', stationLook: 'classic', worldQuality: 'medium' } }]);
+    expect(puts).toEqual([{ look: { ...DEFAULT_LOOK, accent: 'terracotta' } }]);
     await act(() => new Promise((r) => setTimeout(r, 400)));
     expect(puts).toHaveLength(1);
   });
@@ -177,7 +178,7 @@ describe('the Look tab', () => {
     await act(async () => button('Voxel world')!.click());
     await act(async () => button('High')!.click());
     await act(() => new Promise((r) => setTimeout(r, 400)));
-    expect(puts).toEqual([{ look: { scale: 100, accent: 'lime', motion: 'full', chatFont: 'sans', station: 'balanced', sidebar: 'status', stationLook: 'world', worldQuality: 'high' } }]);
+    expect(puts).toEqual([{ look: { ...DEFAULT_LOOK, stationLook: 'world', worldQuality: 'high' } }]);
   });
 
   it('has a UI scale slider screen readers read as a percentage, and preset sizes', async () => {

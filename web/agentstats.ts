@@ -14,11 +14,13 @@ export interface Slice {
   rest?: Slice[];
 }
 
-// The app's own hues (lime, rose, ice, amber, violet, mint), stepped darker so they read as fills on the dark
-// panels, in an order where neighbours stay apart for colour-blind eyes too (checked with the data-viz
-// palette validator). A seventh category and beyond fold into Other, in grey.
-export const CATEGORY_COLORS = ['#7ca605', '#bf4064', '#0ba2c3', '#aa7401', '#765ab7', '#0dae8d'];
-export const OTHER_COLOR = '#4a5347';
+// One hue, the accent picked in Settings > Look: the biggest category is the strongest and each next one steps
+// lighter (the slices come biggest first), so the chart is quiet on white and on near-black and follows the
+// accent. They are CSS colours, so the page's theme swaps them. A seventh category and beyond fold into Other,
+// in a neutral grey.
+const tint = (pct: number): string => `color-mix(in srgb, var(--color-accent) ${pct}%, var(--color-panel))`;
+export const CATEGORY_COLORS = [100, 74, 56, 42, 32, 24].map(tint);
+export const OTHER_COLOR = 'color-mix(in srgb, var(--color-ink) 30%, var(--color-panel))';
 
 const UPPER = new Set(['gis', 'ai', 'ui', 'ux', 'qa', 'seo', 'xr', 'vr', 'ar']);
 /** "game-development" → "Game Development", "gis" → "GIS". */
@@ -29,7 +31,7 @@ export const divisionLabel = (id: string): string =>
     .map((w) => (UPPER.has(w.toLowerCase()) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)))
     .join(' ');
 
-const FROM: Record<string, string> = { brain: 'Made by the Brain', hermes: 'From Hermes', openclaw: 'From OpenClaw', claude: 'From Claude Code', starter: 'Blacksite agents', preset: 'Ready-made teams' };
+const FROM: Record<string, string> = { brain: 'Made by the Brain', hermes: 'From Hermes', openclaw: 'From OpenClaw', claude: 'From Claude Code', starter: 'Athena agents', preset: 'Ready-made teams' };
 
 /** An agent's category: its Library division, else where it came from ("Your own" when you made it). */
 export function agentCategory(a: Pick<Agent, 'source'>): { id: string; label: string } {

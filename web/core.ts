@@ -6,7 +6,10 @@ import { GET, POST } from './client/http.ts';
 import { openSocket, setPageProject } from './client/connection.ts';
 import { openDialog, showToast } from './ui/overlays.tsx';
 import type { ToastKind } from './ui/overlays.tsx';
+// (the class functions, not web/ui/dom.ts: that module builds on h() from here)
+import { CHIPS_CLASS, buttonClass, chipClass, pillClass } from './ui/classes.ts';
 import { zoomView } from './zoomview.ts';
+import { slideSegment } from './segmotion.ts';
 
 // ---------- API ----------
 // Requests live in web/client/; pages keep importing them from here.
@@ -49,6 +52,21 @@ export function onReconnect(fn: () => void): () => void {
 }
 let connectedOnce = false;
 
+let eventsConnected = false;
+const connectionListeners = new Set<(connected: boolean) => void>();
+/** Watch whether live events are connected; the current state is sent immediately. */
+export function onEventConnection(fn: (connected: boolean) => void): () => void {
+  connectionListeners.add(fn);
+  fn(eventsConnected);
+  return () => connectionListeners.delete(fn);
+}
+
+function setEventConnection(connected: boolean): void {
+  if (eventsConnected === connected) return;
+  eventsConnected = connected;
+  for (const fn of connectionListeners) fn(connected);
+}
+
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 export async function refreshState(): Promise<void> {
   try {
@@ -86,8 +104,12 @@ export function connectEvents(): void {
       }
     }
   };
-  socket.onclose = () => setTimeout(connectEvents, 1500);
+  socket.onclose = () => {
+    setEventConnection(false);
+    setTimeout(connectEvents, 1500);
+  };
   socket.onopen = () => {
+    setEventConnection(true);
     refreshSoon(0);
     if (connectedOnce) for (const fn of reconnectListeners) fn();
     connectedOnce = true;
@@ -322,8 +344,11 @@ export function confirmBox(text: Child, { ok = 'Yes', danger = false }: { ok?: s
     m = modal({
       title: 'Are you sure?',
       narrow: true,
-      body: h('p', text),
-      foot: [h('button.btn.ghost', { onclick: () => done(false) }, 'Cancel'), h(`button.btn${danger ? '.danger' : ''}`, { onclick: () => done(true) }, ok)],
+      body: h('div', { class: 'text-[14px] leading-[1.65] text-ink [&_p]:mb-3 [&_p:last-child]:mb-0' }, text),
+      foot: [
+        h('button', { class: buttonClass('ghost'), onclick: () => done(false) }, 'Cancel'),
+        h('button', { class: buttonClass(danger ? 'danger' : 'primary'), onclick: () => done(true) }, ok),
+      ],
       onClose: () => resolve(false),
     });
   });
@@ -348,7 +373,10 @@ export function promptBox(title: Child, { label = '', value = '', multiline = fa
       title,
       narrow: !multiline,
       body: h('label.field', label ? h('span', label) : null, input),
-      foot: [h('button.btn.ghost', { onclick: () => done(null) }, 'Cancel'), h('button.btn', { onclick: () => done(input.value) }, ok)],
+      foot: [
+        h('button', { class: buttonClass('ghost'), onclick: () => done(null) }, 'Cancel'),
+        h('button', { class: buttonClass(), onclick: () => done(input.value) }, ok),
+      ],
       onClose: () => resolve(null),
     });
     setTimeout(() => input.focus(), 30);
@@ -375,27 +403,32 @@ export type OptionList<V extends string = string> = readonly (V | Option<V>)[];
 
 export function seg<V extends string>(options: OptionList<V>, value: V | null | undefined, onChange: (v: V) => void): HTMLDivElement {
   const wrap = h('div.seg');
-  const render = (v: V | null | undefined) => {
-    clear(wrap);
-    for (const o of options) {
-      const opt: Option<V> = typeof o === 'string' ? { value: o, label: o } : o;
-      wrap.append(h(`button${opt.value === v ? '.on' : ''}`, { type: 'button', title: opt.title || '', onclick: () => (render(opt.value), onChange(opt.value)) }, opt.label));
-    }
-  };
-  render(value);
+  for (const o of options) {
+    const opt: Option<V> = typeof o === 'string' ? { value: o, label: o } : o;
+    const button = h(`button${opt.value === value ? '.on' : ''}`, {
+      type: 'button', title: opt.title || '', onclick: () => {
+        const previous = wrap.querySelector<HTMLButtonElement>('button.on');
+        previous?.classList.remove('on');
+        button.classList.add('on');
+        slideSegment(previous, button);
+        onChange(opt.value);
+      },
+    }, opt.label);
+    wrap.append(button);
+  }
   return wrap;
 }
 
 export function chipSet<V extends string>(options: OptionList<V>, selected: readonly V[] | null | undefined, onChange: (v: V[]) => void): HTMLDivElement {
   const set = new Set<V>(selected || []);
-  const wrap = h('div.chips');
+  const wrap = h('div', { class: CHIPS_CLASS });
   for (const o of options) {
     const opt: Option<V> = typeof o === 'string' ? { value: o, label: o } : o;
-    const chip = h(`label.chip${set.has(opt.value) ? '.on' : ''}`, { title: opt.title || '' }, opt.label);
+    const chip = h('label', { class: chipClass(set.has(opt.value)), title: opt.title || '' }, opt.label);
     chip.addEventListener('click', () => {
       if (set.has(opt.value)) set.delete(opt.value);
       else set.add(opt.value);
-      chip.classList.toggle('on', set.has(opt.value));
+      chip.className = chipClass(set.has(opt.value));
       onChange([...set]);
     });
     wrap.append(chip);
@@ -424,19 +457,6 @@ export function field(label: Child, control: Child, hint?: Child): HTMLLabelElem
   return h('label.field', h('span', label), control, hint ? h('span.hint', hint) : null);
 }
 
-// onChange gets the picked option's value (the select's .value).
-export function select<V extends string>(options: OptionList<V>, value: V | null | undefined, onChange: (v: V) => void): HTMLSelectElement {
-  const el = h(
-    'select',
-    options.map((o) => {
-      const opt: Option<V> = typeof o === 'string' ? { value: o, label: o } : o;
-      return h('option', { value: opt.value, selected: opt.value === value }, opt.label);
-    }),
-  );
-  el.value = value ?? '';
-  el.addEventListener('change', () => onChange(el.value as V));
-  return el;
-}
 
 export function ago(ts: number | null | undefined): string {
   if (!ts) return '';
@@ -451,7 +471,7 @@ export const ENGINE_LABEL: Partial<Record<string, string>> = { 'claude-code': 'C
 export function engineBadge(agent: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'provider' | 'hermesProfile' | 'openclawAgent'>>): HTMLSpanElement {
   const label = ENGINE_LABEL[agent.engine] || agent.engine;
   const extra = agent.engine === 'openai' ? ` · ${agent.provider}` : agent.engine === 'hermes' && agent.hermesProfile ? ` · ${agent.hermesProfile}` : agent.engine === 'openclaw' && agent.openclawAgent ? ` · ${agent.openclawAgent}` : '';
-  return h('span.pill', `${label}${extra}`);
+  return h('span', { class: pillClass('dim') }, `${label}${extra}`);
 }
 
 export function avatar(agent: Partial<Pick<Agent, 'color' | 'emoji'>>, lg = false): HTMLDivElement {
@@ -474,18 +494,18 @@ export function approvalCard(a: Approval): HTMLDivElement {
   return h(
     'div.approval',
     h('div.t', a.title),
-    h('div.label', a.kind === 'claude' ? 'Claude Code permission' : a.kind === 'workflow' ? 'Workflow checkpoint' : a.kind === 'setting' ? 'A setting' : a.kind === 'tools' ? 'Asks for tools' : 'Tool call'),
+    h('div.label', { class: 'mb-3' }, a.kind === 'claude' ? 'Claude Code permission' : a.kind === 'workflow' ? 'Workflow checkpoint' : a.kind === 'setting' ? 'A setting' : a.kind === 'tools' ? 'Asks for tools' : 'Tool call'),
     a.brainNote ? h('div.hint', `The Brain passed this to you: ${a.brainNote}`) : null,
     a.detail && !editor ? h('pre', a.detail) : null,
     editor ? h('div', h('div.hint', 'You can edit this before it continues:'), editor) : null,
-    h('div', { class: 'mt-3.5' }, note),
+    h('div', { class: 'mt-4' }, note),
     h(
       'div',
-      { class: 'mt-3.5 flex flex-wrap items-center gap-2.5' },
+      { class: 'mt-4 flex flex-wrap items-center gap-2' },
       // a setting says what its button does ("Turn on the voxel look"); it is asked each time, never always allowed
-      h('button.btn.small', { onclick: () => decide(true) }, a.kind === 'setting' && typeof a.data.allow === 'string' ? a.data.allow : editor ? 'Approve' : 'Allow'),
-      a.kind !== 'workflow' && a.kind !== 'setting' && a.kind !== 'tools' ? h('button.btn.ghost.small', { onclick: () => decide(true, true), title: 'Allow this tool for this agent from now on' }, 'Always allow') : null,
-      h('button.btn.danger.small', { onclick: () => decide(false) }, a.kind === 'setting' ? 'Not now' : editor ? 'Stop' : 'Deny'),
+      h('button', { class: buttonClass('primary', 'small'), onclick: () => decide(true) }, a.kind === 'setting' && typeof a.data.allow === 'string' ? a.data.allow : editor ? 'Approve' : 'Allow'),
+      a.kind !== 'workflow' && a.kind !== 'setting' && a.kind !== 'tools' ? h('button', { class: buttonClass('ghost', 'small'), onclick: () => decide(true, true), title: 'Allow this tool for this agent from now on' }, 'Always allow') : null,
+      h('button', { class: buttonClass('danger', 'small'), onclick: () => decide(false) }, a.kind === 'setting' ? 'Not now' : editor ? 'Stop' : 'Deny'),
     ),
   );
 }

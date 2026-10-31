@@ -221,7 +221,7 @@ describe("a team's tools follow its work", () => {
   });
 });
 
-describe('the Blacksite agents', () => {
+describe('the Athena agents', () => {
   it("our coordinator isn't named like the Agency's Chief of Staff", async () => {
     const { STARTERS } = await import('../../server/library.ts');
     expect(STARTERS.map((x) => x.name)).toContain('Coordinator');
