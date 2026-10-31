@@ -94,7 +94,7 @@ the attribute off, and `base.css` then swaps the `--color-*` tokens under `prefe
 - The accent is picked in Settings › Look and has two tones (`ACCENTS` in `web/look.ts`): don't assume a hue. Green means "on"
   (`text-ok`), amber "waiting", red "failed".
 - Canvases, three.js and the terminal can't use `var()`: read `isDark()` / `themeColor()` and restyle on `onThemeChange()`.
-- The sidebar and About page wordmarks use Cinzel (`font-brand`); all other page text keeps Geist.
+- The sidebar and About page wordmarks and the Station's clock use Cinzel (`font-brand`); other page text keeps Geist.
 - Labels, tabs, buttons and captions are sentence case in Geist; mono is for code, paths, URLs, ids and keys. The one
   exception is the sidebar's own menu, whose items read in capitals (CSS `uppercase`; the text stays as written). No
   uppercase letter-spaced captions, no coloured glows, no gradient text. Controls are `rounded-ctl`, cards

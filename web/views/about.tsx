@@ -48,7 +48,7 @@ export function AboutTab() {
   return (
     <div className="flex flex-col gap-10">
       <Plate className="flex flex-wrap items-center gap-x-6 gap-y-5 rounded-box p-7">
-        <BrandMark size={56} />
+        <BrandMark size={112} />
         <div className="min-w-0 flex-1 basis-80">
           <div className="about-title flex flex-wrap items-baseline gap-2.5">
             <h2 className="m-0 font-brand text-[24px] leading-[1.15] font-semibold tracking-tight">{REPO.name}</h2>

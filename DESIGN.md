@@ -68,7 +68,7 @@ dialog the same surface. It remaps the page's colour tokens to see-through ones 
 
 ## Typography
 
-The supplied Aegean-blue Athena helmet is the app logo in every theme, including desktop icons and the startup screen. Original images live in `public/brand`; `public/icon.png` is the shared compact mark. Only the sidebar and About page wordmarks use locally bundled Cinzel (`font-brand`), inspired by Roman lettering. The rest of the page keeps Geist, chat fonts remain selectable, and code keeps JetBrains Mono.
+The supplied Aegean-blue Athena helmet is the app logo in every theme, including desktop icons and the startup screen. Original images live in `public/brand`; `public/icon.png` is the shared compact mark. The sidebar and About page wordmarks and the Station's clock use locally bundled Cinzel (`font-brand`), inspired by Roman lettering. The rest of the page keeps Geist, chat fonts remain selectable, and code keeps JetBrains Mono.
 
 Geist (the page font) at normal letter-spacing. Chat text uses `font-chat`, which follows Settings > Look.
 
@@ -224,8 +224,8 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
 - The Station's integration and engine bars have no surrounding fill or border. Every active integration tile sits on
   the same plate (`bg-ghost`, what the top bar's own controls use) with the brand colour kept for its glyph; a tile
   that is off has no plate at all, and the tile a hovered wire points at takes the brand tint.
-- The top bar ends with the usage readout and the clock: the time is set in Archivo, the locale's day period in Geist
-  (11px, medium). The field the map sits on is pure black in the dark theme (`--color-floor`, `#000`), so the dot grid
+- The top bar ends with the usage readout and the clock: the time is set in Cinzel (20px, medium), with the locale's
+  day period in the same face (14px, medium). The field the map sits on is pure black in the dark theme (`--color-floor`, `#000`), so the dot grid
   stands on black rather than near-black; light keeps the pale map.
 - The team panel groups members into one inset list instead of stacking separate cards. Member actions sit beside the
   model, leaving names and status more room; Setup uses flat sections separated by hairlines.
