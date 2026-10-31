@@ -177,7 +177,8 @@ export function Section({ title, titleId, headingClassName = '', description, ac
 }) {
   return (
     <section id={id} className={`settings-section grid grid-cols-[minmax(0,15rem)_minmax(0,1fr)] items-start gap-x-12 gap-y-4 max-lg:grid-cols-1 ${className}`.trim()}>
-      <div className="min-w-0 lg:pt-1">
+      {/* (the title follows the scroll, under the sticky top bar, so a long panel keeps it in view) */}
+      <div className="min-w-0 lg:sticky lg:top-18 lg:pt-1">
         <h2 id={titleId} className={`m-0 text-[15px] leading-snug font-semibold tracking-tight text-ink ${headingClassName}`.trim()}>
           {title}
         </h2>

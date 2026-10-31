@@ -215,3 +215,8 @@ Three alignment faults, found by looking at the running page and measured in it 
   paperclip (`variant: 'plain'`, 32px); every other chat box fell through to `mountAttachMenu`'s `ghost`
   default and drew a boxed one. A bare icon is what an icon-only action should be, so the quiet plate is
   the default now (`PICKER_BUTTON`) and the dock no longer passes its own copy.
+- **Section titles** — `web/ui/controls.tsx`. On a long page (Tools & MCP, Settings) the left-hand title
+  scrolled away while its panel was still being read. The title column is `lg:sticky lg:top-18` now, so it
+  stays 16px under the sticky top bar (`h-14`) until its own section has gone past. Measured: the "Presets"
+  title holds at y 76 while the section scrolls from 1200 to 2400. Narrow screens keep the single-column
+  layout, where the title is above the panel and does not stick.
