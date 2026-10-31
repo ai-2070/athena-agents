@@ -220,3 +220,17 @@ Three alignment faults, found by looking at the running page and measured in it 
   stays 16px under the sticky top bar (`h-14`) until its own section has gone past. Measured: the "Presets"
   title holds at y 76 while the section scrolls from 1200 to 2400. Narrow screens keep the single-column
   layout, where the title is above the panel and does not stick.
+- **A message cut off at the bottom of a chat** — `web/chat/ChatView.tsx`. Reported as clipped text; it was
+  a scroll position, not an unreachable line (the report confirmed scrolling revealed it). The list only
+  returned to the newest message when its *content* changed (a MutationObserver and a `load` listener) or
+  when ChatView re-rendered. Making the window shorter — resizing it, or maximizing — changes the list's own
+  height with no mutation to see, so the view stayed where it was: reproduced at 953×595, shrinking the
+  viewport took the list from 358px to 204px and left the last row 166px below its bottom edge. A
+  `ResizeObserver` on the list now keeps to the newest message the same way. After: `scrollHeight −
+  scrollTop − clientHeight` is 0 through a shrink (358 → 209) and a grow (→ 509), and the same holds in a
+  chat window when it is maximized (list 148 → 385). No unit test: happy-dom's `ResizeObserver` never
+  fires (measured — it was also why the big-Markdown test was failing), so such a test would exercise a
+  stub rather than the behaviour.
+- **5px of dead space under the chat and terminal pages** — `web/views/chat.tsx`, `web/views/terminals.tsx`.
+  Both were `h-[calc(100vh-61px)]` while the top bar is 56px. Measured after: the page's bottom lands
+  exactly on the window's bottom (674/674, 520/520, 820/820).
