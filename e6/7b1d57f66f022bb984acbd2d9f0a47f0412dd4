@@ -1,0 +1,16 @@
+bun.lock
+  h_64425bc75e3f3d 8,20,22,25,27,31,34,42,45,49-50,60,62,64,66,68,152,154,160,320,324,374,384,454,750,756,1008
+package.json
+  h_64425bc75e3f3d 53,65,67,70,72,76,79,87,90,94-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e67b1d57f66f022bb984acbd2d9f0a47f0412dd4",
+  "prompts": {},
+  "humans": {
+    "h_64425bc75e3f3d": {
+      "author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
