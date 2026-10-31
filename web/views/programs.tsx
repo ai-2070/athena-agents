@@ -1,5 +1,6 @@
 // Programs: what's installed and running on this PC, ComfyUI, and every Start Menu app.
 import { Button, ButtonLink } from '../ui/button.tsx';
+import { Dot, Pill } from '../ui/marks.tsx';
 import { Plate } from '../ui/surface.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import { GET, POST, attempt, lightbox, toast, navigate } from '../core.ts';
@@ -159,7 +160,7 @@ export function ProgramsTab() {
               return (
                 <div key={p.id} data-prog={p.id}>
                   <Row
-                    title={<span className="flex flex-wrap items-center gap-2.5"><span className="avatar size-8 after:hidden">{appIconUrl(p.id) ? <img className="app-icon inline-block align-middle" src={appIconUrl(p.id)!} width={20} height={20} alt="" style={appIconStyle(p.id, 20)} /> : p.icon}</span><span>{p.name}</span><span className={`dot${p.running ? ' on' : isStarting ? ' busy' : ''}`} /></span>}
+                    title={<span className="flex flex-wrap items-center gap-2.5"><span className="avatar size-8 after:hidden">{appIconUrl(p.id) ? <img className="app-icon inline-block align-middle" src={appIconUrl(p.id)!} width={20} height={20} alt="" style={appIconStyle(p.id, 20)} /> : p.icon}</span><span>{p.name}</span><Dot tone={p.running ? 'on' : isStarting ? 'busy' : 'off'} /></span>}
                     description={<><span className="hint prog-state">{progState(p, isStarting)}</span>{ABOUT[p.id] ? <span className="block mt-1">{ABOUT[p.id]}</span> : null}</>}
                   >
                     {p.actions.includes('launch') || (!p.cli && p.exe) ? <Button size="small" onClick={() => void start(p)}>Start</Button> : null}
@@ -228,8 +229,8 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
       <ButtonLink variant="ghost" size="small" href={st.url} target="_blank" rel="noopener">Open ComfyUI</ButtonLink>
     )}>
       <div className="flex flex-wrap gap-2 px-5 py-4">
-        <span className={`pill${st.running ? ' ok' : ''}`}>{st.running ? `running · ${st.url}` : 'not running'}</span>
-        {device ? <span className="pill">{`${device.name.replace(/^cuda:\d+\s*/, '').slice(0, 40)} · ${device.vramFreeGB}/${device.vramTotalGB} GB free`}</span> : null}
+        <Pill tone={st.running ? 'ok' : 'dim'}>{st.running ? `running · ${st.url}` : 'not running'}</Pill>
+        {device ? <Pill>{`${device.name.replace(/^cuda:\d+\s*/, '').slice(0, 40)} · ${device.vramFreeGB}/${device.vramTotalGB} GB free`}</Pill> : null}
       </div>
       {comfy.workflows.length ? (
         <div className="flex flex-col gap-4 px-5 py-4">

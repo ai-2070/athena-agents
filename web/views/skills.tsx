@@ -13,6 +13,7 @@ import { deletedButton } from '../history.ts';
 import { openEditor, openGitHub, openImport } from '../skilldialogs.ts';
 import { DomNode, Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { SearchBox } from '../ui/controls.tsx';
+import { buttonClass } from '../ui/classes.ts';
 import type { Agent, AppState, ClaudeSkill, ServerEvent, SkillInstallResult, SkillListing, TeamListing } from '../../shared/types.ts';
 
 interface SkillsData {
@@ -226,7 +227,7 @@ function GiveTo({ s, d, teams, loadTeams }: { s: SkillListing; d: AppState; team
   );
   return (
     <Menu.Root>
-      <Menu.Trigger className="btn small">
+      <Menu.Trigger className={buttonClass(undefined, 'small')}>
         <Icon name="plus" size={13} />
         Give to…
       </Menu.Trigger>

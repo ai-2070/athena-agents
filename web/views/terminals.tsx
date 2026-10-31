@@ -1,6 +1,7 @@
 // Live terminals: PowerShell, Claude Code, Hermes, Orca, or any Claude Code / Hermes agent.
 // The page is React; each terminal is xterm, talking to the server over a WebSocket.
 import { Button } from '../ui/button.tsx';
+import { Dot } from '../ui/marks.tsx';
 import { Plate } from '../ui/surface.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
@@ -85,7 +86,7 @@ function TerminalsPage({ asked }: { asked?: string }) {
         {list.map((t) => (
           <div key={t.id} className={t.id === current ? TAB_ON : TAB}>
             <a className="flex items-center gap-2 text-inherit" href={`#/terminals/${t.id}`} aria-current={t.id === current ? 'page' : undefined}>
-              <span className={`dot${t.exited ? '' : ' on'}`} />
+              <Dot tone={t.exited ? 'off' : 'on'} />
               {t.title}
             </a>
             <button className="text-faint cursor-pointer px-1 hover:text-red" title="Close" aria-label={`Close ${t.title}`} onClick={() => void close(t.id)}>

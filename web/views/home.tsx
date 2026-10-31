@@ -1,6 +1,7 @@
 // Home (Overview): what's happening, what needs you, and a quick way to give any agent a task.
 import { Plate, PlateLink } from '../ui/surface.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
+import { Dot } from '../ui/marks.tsx';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, attempt, ago, navigate, approvalCard } from '../core.ts';
@@ -111,7 +112,7 @@ function HomePage() {
                     </div>
                     {d.runs.some((r) => r.agentId === a.id) ? (
                       <span className="corner" aria-label="working">
-                        <span className="dot busy" />
+                        <Dot tone="busy" />
                       </span>
                     ) : null}
                   </PlateLink>
@@ -137,7 +138,7 @@ function HomePage() {
                       <div className="title">{p.name}</div>
                       <div className="hint">{p.running ? (p.serviceUrl ? `running · ${p.serviceUrl}` : 'running') : p.version ? `v${p.version}` : 'installed'}</div>
                     </div>
-                    <span className={`dot${p.running ? ' on' : ''}`} />
+                    <Dot tone={p.running ? 'on' : 'off'} />
                   </div>
                 ))}
               </div>
@@ -183,7 +184,7 @@ function Stat({ label, num, kind = '', href, onClick }: { label: string; num: nu
     <>
       <div className="flex items-center justify-between gap-2">
         <div className="label">{label}</div>
-        {kind === 'live' ? <span className="dot busy" aria-hidden="true" /> : kind === 'hot' ? <span className="dot warn" aria-hidden="true" /> : null}
+        {kind === 'live' ? <Dot tone="busy" /> : kind === 'hot' ? <Dot tone="warn" /> : null}
       </div>
       <div className={NUM}>{num}</div>
     </>

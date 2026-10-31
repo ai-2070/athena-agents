@@ -4,7 +4,7 @@
 // same menu on a point instead of a button: web/views/stationmenu.tsx.)
 //
 //   <Dropdown>
-//     <DropdownTrigger className="btn ghost">Options</DropdownTrigger>
+//     <DropdownTrigger className={buttonClass('ghost')}>Options</DropdownTrigger>
 //     <DropdownContent>
 //       <DropdownItem icon="user" onClick={…}>Profile</DropdownItem>
 //     </DropdownContent>

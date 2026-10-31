@@ -9,6 +9,7 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { Dialog } from '@base-ui/react/dialog';
 import { Toast } from '@base-ui/react/toast';
+import { iconButtonClass } from './classes.ts';
 
 /** Ready-made DOM nodes to put inside a part of a dialog or toast. */
 export type Nodes = readonly Node[];
@@ -143,7 +144,7 @@ function DialogView({ entry, container, children }: { entry: Entry; container: H
           <Dialog.Popup ref={popup} className={`modal${spec.narrow ? ' narrow' : ''}`} initialFocus={firstFocus}>
             <div className="modal-head">
               <Dialog.Title ref={title} />
-              <Dialog.Close className="icon-btn" aria-label="Close">
+              <Dialog.Close className={iconButtonClass()} aria-label="Close">
                 ✕
               </Dialog.Close>
             </div>

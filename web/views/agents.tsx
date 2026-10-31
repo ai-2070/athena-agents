@@ -9,6 +9,8 @@ import { skillPicker } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.ts';
 import { memoryEditor } from '../memory.ts';
 import { ChipSet, Field, SearchBox, Segmented, Switch } from '../ui/controls.tsx';
+import { buttonClass, chipClass } from '../ui/classes.ts';
+import { Dot, Pill } from '../ui/marks.tsx';
 import { Avatar, DomNode, Icon, ProjectScoped, reactPage, useAppState } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { themeColor } from '../theme.ts';
@@ -73,7 +75,7 @@ function StatTile({ icon, label, value, live = false, valueClass = '' }: { icon:
     <Plate className="rounded-box px-5 py-4">
       <div className="flex items-center justify-between gap-2">
         <span className={`${CAPTION} truncate`}>{label}</span>
-        {live ? <span className="dot busy" aria-hidden="true" /> : <Icon name={icon} size={15} className="text-faint" />}
+        {live ? <Dot tone="busy" /> : <Icon name={icon} size={15} className="text-faint" />}
       </div>
       <b className={`${valueClass} mt-3.5 block text-[28px] leading-none font-semibold tracking-tight text-ink tabular-nums`}>{value}</b>
     </Plate>
@@ -216,7 +218,7 @@ function AgentsList() {
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <SearchBox className="w-[min(360px,100%)]" label="Search agents" placeholder="Search agents" value={filter} onChange={(v) => setFilter((lastFilter = v))} />
         {pick ? (
-          <button type="button" className="agents-pick chip on" onClick={() => setPick(null)} title="Show every agent">
+          <button type="button" className={chipClass(true, "agents-pick")} onClick={() => setPick(null)} title="Show every agent">
             {pick.kind === 'model' ? `Model: ${pick.slice.label}` : pick.kind === 'engine' ? `On ${pick.slice.label}` : pick.slice.label}
             <span aria-hidden="true">✕</span>
           </button>
@@ -245,22 +247,22 @@ function AgentsList() {
                 </div>
               </div>
               {isRunning(a.id) ? (
-                <span className="corner pill warn">
-                  <span className="dot busy" />
+                <Pill tone="warn" className="corner items-center">
+                  <Dot tone="busy" />
                   working
-                </span>
+                </Pill>
               ) : a.pinned ? (
                 <span className="corner text-faint" aria-label="pinned">★</span>
               ) : null}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="pill inline-flex items-center gap-1.5">
+                <Pill className="inline-flex items-center gap-1.5">
                   <Icon name="cpu" size={11} />
                   {engineLabel(a)}
-                </span>
-                <span className="pill inline-flex items-center gap-1.5">
+                </Pill>
+                <Pill className="inline-flex items-center gap-1.5">
                   <Icon name={a.autonomy === 'full' ? 'zap' : a.autonomy === 'ask' ? 'hand' : 'shield-check'} size={11} />
                   {a.autonomy === 'full' ? 'full autonomy' : a.autonomy === 'ask' ? 'asks first' : 'auto'}
-                </span>
+                </Pill>
               </div>
               <div className="card-foot border-t border-line pt-4">
                 <ButtonLink size="small" href={`#/agents/${a.id}`}>
@@ -469,7 +471,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
                 <div className="label">Always allowed</div>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   {a.alwaysAllow.map((t) => (
-                    <span key={t} className="pill">{t}</span>
+                    <Pill key={t}>{t}</Pill>
                   ))}
                 </div>
                 <Button variant="ghost" size="tiny" className="mt-4" onClick={() => (set('alwaysAllow', []), toast('Cleared; save to apply'))}>Clear</Button>
@@ -822,7 +824,7 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
         ))}
       <div className="mt-1 flex flex-wrap items-center gap-3">
         <Button variant="ghost" size="small" onClick={() => void addNote()}>+ Write a note</Button>
-        <label className="btn ghost small">
+        <label className={buttonClass('ghost', 'small')}>
           + Upload files
           <input type="file" multiple hidden onChange={(e) => void upload(e.target.files)} />
         </label>

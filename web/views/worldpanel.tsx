@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import { Slider } from '@base-ui/react/slider';
 import { GET, POST, PUT, DEL, ago, attempt, confirmBox, md, modal, promptBox, refreshSoon, state, toast } from '../core.ts';
 import { DomNode, Icon, mountReact, useServerEvents } from '../ui/react.tsx';
+import { Pill } from '../ui/marks.tsx';
 import { Chips, SearchBox, Tabs } from '../ui/controls.tsx';
 import { Button, IconButton } from '../ui/button.tsx';
 import { Plate } from '../ui/surface.tsx';
@@ -51,7 +52,7 @@ const WORLD_EVENTS = new Set(['world', 'world-md', 'project']);
 const SECTION = 'mt-6 mb-2 text-[12px] leading-[normal] font-medium text-dim';
 const ROW = 'flex items-center gap-2 rounded-[10px] px-2.5 py-1.75 text-[13px]';
 const ROW_META = 'text-[11.5px] text-faint';
-const ICON_BTN = 'size-7 flex-none';
+const ICON_BTN = 'flex-none';
 const BY: Record<string, string> = { you: 'you', brain: 'the Brain', agent: 'an agent' };
 
 /** GET /world, again whenever the world changes. */
@@ -96,7 +97,7 @@ function ExportButtons({ what, id, name }: { what: 'object' | 'prefab'; id: stri
   const [open, setOpen] = useState(false);
   if (!open)
     return (
-      <IconButton className={ICON_BTN} title={`Export ${name}`} aria-label={`Export ${name}`} onClick={() => setOpen(true)}>
+      <IconButton variant="inset" className={ICON_BTN} title={`Export ${name}`} aria-label={`Export ${name}`} onClick={() => setOpen(true)}>
         <Icon name="download" size={13} />
       </IconButton>
     );
@@ -131,11 +132,11 @@ export function WorldPanel({ onClose, teamName }: { onClose: () => void; teamNam
           <div className="hint truncate">{shown ? howText(shown) : 'Loading…'}</div>
         </div>
         {w && canTakePicture() ? (
-          <IconButton className="world-picture" onClick={() => void savePicture(w.name)} title="Save a picture of what you see to Artifacts" aria-label="Save a picture">
+          <IconButton variant="inset" className="world-picture" onClick={() => void savePicture(w.name)} title="Save a picture of what you see to Artifacts" aria-label="Save a picture">
             <Icon name="image" size={15} />
           </IconButton>
         ) : null}
-        <IconButton onClick={onClose} aria-label="Close">
+        <IconButton variant="inset" onClick={onClose} aria-label="Close">
           <Icon name="x" size={15} />
         </IconButton>
       </div>
@@ -353,7 +354,7 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
                   {o.hidden ? 'Show' : 'Hide'}
                 </Button>
                 <ExportButtons what="object" id={o.id} name={o.name} />
-                <IconButton className={ICON_BTN} title={`Delete ${o.name}`} aria-label={`Delete ${o.name}`} onClick={() => void remove(o)}>
+                <IconButton variant="inset" className={ICON_BTN} title={`Delete ${o.name}`} aria-label={`Delete ${o.name}`} onClick={() => void remove(o)}>
                   <Icon name="trash-2" size={13} />
                 </IconButton>
               </Plate>
@@ -380,12 +381,12 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
                 {p.description || 'no description'} · {p.size.join('×')} · {p.uses ? `${fmt(p.uses.copies)} copies in ${p.uses.in.join(', ')}` : 'not placed'}
               </span>
             </span>
-            <IconButton className={ICON_BTN} title="Share to the library: every project can take it" aria-label={`Share ${p.name} to the library`} onClick={() => void publish(p)}>
+            <IconButton variant="inset" className={ICON_BTN} title="Share to the library: every project can take it" aria-label={`Share ${p.name} to the library`} onClick={() => void publish(p)}>
               <Icon name="upload" size={13} />
             </IconButton>
             <ExportButtons what="prefab" id={p.id} name={p.name} />
             {p.uses ? null : (
-              <IconButton className={ICON_BTN} title={`Delete ${p.name}`} aria-label={`Delete ${p.name}`} onClick={() => void removePrefab(p)}>
+              <IconButton variant="inset" className={ICON_BTN} title={`Delete ${p.name}`} aria-label={`Delete ${p.name}`} onClick={() => void removePrefab(p)}>
                 <Icon name="trash-2" size={13} />
               </IconButton>
             )}
@@ -513,7 +514,7 @@ function LookTab({ shown, teamName }: { shown: WorldAnswer; teamName?: (id: stri
             <span className="min-w-0 flex-1 truncate">
               {l.name} <span className={ROW_META}>{l.kind} · by {l.by.name}</span>
             </span>
-            <IconButton className={ICON_BTN} title={`Take ${l.name} away`} aria-label={`Take ${l.name} away`} onClick={() => void removeLight(l.id, l.name)}>
+            <IconButton variant="inset" className={ICON_BTN} title={`Take ${l.name} away`} aria-label={`Take ${l.name} away`} onClick={() => void removeLight(l.id, l.name)}>
               <Icon name="trash-2" size={13} />
             </IconButton>
           </Plate>
@@ -527,7 +528,7 @@ function LookTab({ shown, teamName }: { shown: WorldAnswer; teamName?: (id: stri
             <span className="min-w-0 flex-1 truncate">
               {e.name} <span className={ROW_META}>{e.kind} · by {e.by.name}</span>
             </span>
-            <IconButton className={ICON_BTN} title={`Take ${e.name} away`} aria-label={`Take ${e.name} away`} onClick={() => void removeEffect(e.id, e.name)}>
+            <IconButton variant="inset" className={ICON_BTN} title={`Take ${e.name} away`} aria-label={`Take ${e.name} away`} onClick={() => void removeEffect(e.id, e.name)}>
               <Icon name="trash-2" size={13} />
             </IconButton>
           </Plate>
@@ -632,8 +633,8 @@ export function WorldPicker({ shown, reload }: { shown: WorldAnswer; reload: () 
             <div key={l.id} className={`world-row flex flex-col gap-1.5 rounded-box border px-2.75 py-2 ${here ? 'border-accent-dim' : 'border-line'} bg-bg`}>
               <div className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold">{l.name}</span>
-                {l.isDefault ? <span className="pill">default</span> : null}
-                {here ? <span className="pill ok">shown here</span> : null}
+                {l.isDefault ? <Pill>default</Pill> : null}
+                {here ? <Pill tone="ok">shown here</Pill> : null}
               </div>
               <span className={ROW_META}>
                 {l.built ? `${fmt(l.objects)} objects · ${fmt(l.voxels)} voxels` : 'nothing built'} · made for {projectName(l.homeProject)}

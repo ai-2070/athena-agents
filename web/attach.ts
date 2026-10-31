@@ -8,6 +8,7 @@ import { icon } from './icons.ts';
 import { mountAttachMenu } from './attachmenu.tsx';
 import { markdownTooBig, onDesktop, openFile, openPdf, previewKind, showMarkdown } from './filepreview.ts';
 import type { IconWeight } from './ui/react.tsx';
+import type { ButtonSize, ButtonVariant } from './ui/classes.ts';
 import type { UploadedFile } from '../shared/types.ts';
 
 /** A file to upload. rel: its path inside a dropped folder ('docs/a.md'), or just its name. */
@@ -285,14 +286,14 @@ const OVER = 'outline-2 outline-dashed outline-accent -outline-offset-3'.split('
 
 // deferred: hold the files and upload only when ready() is called (a new project: its folder doesn't exist yet).
 // iconWeight: the weight the chat around it draws its icons in (the paperclip is drawn apart from it).
-export function attachTray({ deferred = false, onChange, iconWeight }: { deferred?: boolean; onChange?: () => void; iconWeight?: IconWeight } = {}): AttachTray {
+export function attachTray({ deferred = false, onChange, iconWeight, pickerButton }: { deferred?: boolean; onChange?: () => void; iconWeight?: IconWeight; pickerButton?: { variant?: ButtonVariant; size?: ButtonSize; class?: string } } = {}): AttachTray {
   let items: Item[] = [];
   const el = h('div.att-tray.hidden');
   const fileIn = h('input', { type: 'file', multiple: true, hidden: true });
   const dirIn = h('input', { type: 'file', multiple: true, hidden: true, webkitdirectory: true });
   // the paperclip and its menu (Files…, A folder…) are the app's dropdown, drawn into this host
   const menuHost = h('span', { class: 'inline-flex' });
-  mountAttachMenu(menuHost, { files: () => fileIn.click(), folder: () => dirIn.click(), weight: iconWeight });
+  mountAttachMenu(menuHost, { files: () => fileIn.click(), folder: () => dirIn.click(), weight: iconWeight, button: pickerButton });
   const picker = h('span', { class: 'relative inline-flex flex-none' }, menuHost, fileIn, dirIn);
   fileIn.addEventListener('change', () => (add(filesFromInput(fileIn.files)), (fileIn.value = '')));
   dirIn.addEventListener('change', () => (add(filesFromInput(dirIn.files)), (dirIn.value = '')));

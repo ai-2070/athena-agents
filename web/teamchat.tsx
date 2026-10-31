@@ -19,6 +19,7 @@ import { parseCommand } from '../shared/commands.ts';
 import { commandChips, slashMenu } from './chatcommands.ts';
 import type { SlashMenu } from './chatcommands.ts';
 import { Avatar, DomNode, Icon, IconWeightProvider, mountReact, useAppState } from './ui/react.tsx';
+import { Dot } from './ui/marks.tsx';
 import { Button } from './ui/button.tsx';
 import type { Agent, BrainBrief, LoopInfo, QueuedMessage, RunEvent, Team, TeamMessage, TeamRef, TeamState } from '../shared/types.ts';
 
@@ -787,14 +788,14 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       <div className="tc-status flex flex-col gap-1.5 min-h-0" aria-live="polite">
         {uploading ? (
           <span className={`${TYPING} text-dim`}>
-            <span className="dot busy" />
+            <Dot tone="busy" />
             Uploading files…
           </span>
         ) : (
           <>
             {C.working.map((id) => (
               <span key={id} className={`${TYPING} text-dim`}>
-                <span className="dot busy" />
+                <Dot tone="busy" />
                 {id === 'brain' ? 'The Brain is answering…' : `${agentOf(id)?.name || 'Agent'} is working${C.activity[id] ? ` · ${C.activity[id]}` : '…'}`}
               </span>
             ))}
@@ -869,11 +870,11 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
           <div className="flex flex-none items-center gap-1">
             <DomNode as="span" className="dom-contents" make={() => tray.picker} deps={[tray]} />
             {busy.length && !filled ? (
-              <Button variant="danger" className="size-8 px-0" title="Stop the whole team" aria-label="Stop" onClick={() => void stop()}>
+              <Button variant="danger" className="size-8! px-0!" title="Stop the whole team" aria-label="Stop" onClick={() => void stop()}>
                 <Icon name="square" size={14} />
               </Button>
             ) : (
-              <Button className="size-8 px-0" title={busy.length ? 'Send now: whoever is working stops and takes this up (Enter)' : 'Send (Enter)'} aria-label="Send" onClick={() => void send()}>
+              <Button className="size-8! px-0!" title={busy.length ? 'Send now: whoever is working stops and takes this up (Enter)' : 'Send (Enter)'} aria-label="Send" onClick={() => void send()}>
                 <Icon name="arrow-up" size={16} />
               </Button>
             )}

@@ -6,6 +6,8 @@ import { GET, POST } from './client/http.ts';
 import { openSocket, setPageProject } from './client/connection.ts';
 import { openDialog, showToast } from './ui/overlays.tsx';
 import type { ToastKind } from './ui/overlays.tsx';
+// (the class functions, not web/ui/dom.ts: that module builds on h() from here)
+import { CHIPS_CLASS, buttonClass, chipClass, pillClass } from './ui/classes.ts';
 import { zoomView } from './zoomview.ts';
 import { slideSegment } from './segmotion.ts';
 
@@ -343,7 +345,10 @@ export function confirmBox(text: Child, { ok = 'Yes', danger = false }: { ok?: s
       title: 'Are you sure?',
       narrow: true,
       body: h('div', { class: 'text-[14px] leading-[1.65] text-ink [&_p]:mb-3 [&_p:last-child]:mb-0' }, text),
-      foot: [h('button.btn.ghost', { onclick: () => done(false) }, 'Cancel'), h(`button.btn${danger ? '.danger' : ''}`, { onclick: () => done(true) }, ok)],
+      foot: [
+        h('button', { class: buttonClass('ghost'), onclick: () => done(false) }, 'Cancel'),
+        h('button', { class: buttonClass(danger ? 'danger' : 'primary'), onclick: () => done(true) }, ok),
+      ],
       onClose: () => resolve(false),
     });
   });
@@ -368,7 +373,10 @@ export function promptBox(title: Child, { label = '', value = '', multiline = fa
       title,
       narrow: !multiline,
       body: h('label.field', label ? h('span', label) : null, input),
-      foot: [h('button.btn.ghost', { onclick: () => done(null) }, 'Cancel'), h('button.btn', { onclick: () => done(input.value) }, ok)],
+      foot: [
+        h('button', { class: buttonClass('ghost'), onclick: () => done(null) }, 'Cancel'),
+        h('button', { class: buttonClass(), onclick: () => done(input.value) }, ok),
+      ],
       onClose: () => resolve(null),
     });
     setTimeout(() => input.focus(), 30);
@@ -413,14 +421,14 @@ export function seg<V extends string>(options: OptionList<V>, value: V | null | 
 
 export function chipSet<V extends string>(options: OptionList<V>, selected: readonly V[] | null | undefined, onChange: (v: V[]) => void): HTMLDivElement {
   const set = new Set<V>(selected || []);
-  const wrap = h('div.chips');
+  const wrap = h('div', { class: CHIPS_CLASS });
   for (const o of options) {
     const opt: Option<V> = typeof o === 'string' ? { value: o, label: o } : o;
-    const chip = h(`label.chip${set.has(opt.value) ? '.on' : ''}`, { title: opt.title || '' }, opt.label);
+    const chip = h('label', { class: chipClass(set.has(opt.value)), title: opt.title || '' }, opt.label);
     chip.addEventListener('click', () => {
       if (set.has(opt.value)) set.delete(opt.value);
       else set.add(opt.value);
-      chip.classList.toggle('on', set.has(opt.value));
+      chip.className = chipClass(set.has(opt.value));
       onChange([...set]);
     });
     wrap.append(chip);
@@ -463,7 +471,7 @@ export const ENGINE_LABEL: Partial<Record<string, string>> = { 'claude-code': 'C
 export function engineBadge(agent: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'provider' | 'hermesProfile' | 'openclawAgent'>>): HTMLSpanElement {
   const label = ENGINE_LABEL[agent.engine] || agent.engine;
   const extra = agent.engine === 'openai' ? ` · ${agent.provider}` : agent.engine === 'hermes' && agent.hermesProfile ? ` · ${agent.hermesProfile}` : agent.engine === 'openclaw' && agent.openclawAgent ? ` · ${agent.openclawAgent}` : '';
-  return h('span.pill', `${label}${extra}`);
+  return h('span', { class: pillClass('dim') }, `${label}${extra}`);
 }
 
 export function avatar(agent: Partial<Pick<Agent, 'color' | 'emoji'>>, lg = false): HTMLDivElement {
@@ -495,9 +503,9 @@ export function approvalCard(a: Approval): HTMLDivElement {
       'div',
       { class: 'mt-4 flex flex-wrap items-center gap-2' },
       // a setting says what its button does ("Turn on the voxel look"); it is asked each time, never always allowed
-      h('button.btn.small', { onclick: () => decide(true) }, a.kind === 'setting' && typeof a.data.allow === 'string' ? a.data.allow : editor ? 'Approve' : 'Allow'),
-      a.kind !== 'workflow' && a.kind !== 'setting' && a.kind !== 'tools' ? h('button.btn.ghost.small', { onclick: () => decide(true, true), title: 'Allow this tool for this agent from now on' }, 'Always allow') : null,
-      h('button.btn.danger.small', { onclick: () => decide(false) }, a.kind === 'setting' ? 'Not now' : editor ? 'Stop' : 'Deny'),
+      h('button', { class: buttonClass('primary', 'small'), onclick: () => decide(true) }, a.kind === 'setting' && typeof a.data.allow === 'string' ? a.data.allow : editor ? 'Approve' : 'Allow'),
+      a.kind !== 'workflow' && a.kind !== 'setting' && a.kind !== 'tools' ? h('button', { class: buttonClass('ghost', 'small'), onclick: () => decide(true, true), title: 'Allow this tool for this agent from now on' }, 'Always allow') : null,
+      h('button', { class: buttonClass('danger', 'small'), onclick: () => decide(false) }, a.kind === 'setting' ? 'Not now' : editor ? 'Stop' : 'Deny'),
     ),
   );
 }

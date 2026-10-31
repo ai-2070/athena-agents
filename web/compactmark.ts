@@ -1,6 +1,7 @@
 // The "— COMPACTED —" marker in a chat: opens to show what the agent now remembers of the messages
 // above it (the compacted history), and lets you edit the latest one.
 import { h, mount, PUT, attempt } from './core.ts';
+import { domButton } from './ui/dom.ts';
 import { kTokens } from '../shared/compaction.ts';
 import type { CompactionItem } from '../shared/types.ts';
 
@@ -49,8 +50,8 @@ export function compactionMark(item: CompactionItem, o: MarkOptions): HTMLElemen
       h(
         'div',
         { class: 'flex flex-wrap items-center gap-2' },
-        canEdit ? h('button.btn.tiny', { disabled: o.busy, title: o.busy ? 'Wait until the agent is done' : 'Change what the agent remembers', onclick: edit }, 'Edit') : null,
-        h('button.btn.tiny.ghost', { onclick: () => navigator.clipboard?.writeText(item.text).catch(() => {}) }, 'Copy'),
+        canEdit ? domButton({ size: 'tiny', disabled: o.busy, title: o.busy ? 'Wait until the agent is done' : 'Change what the agent remembers', onclick: edit }, 'Edit') : null,
+        domButton({ variant: 'ghost', size: 'tiny', onclick: () => navigator.clipboard?.writeText(item.text).catch(() => {}) }, 'Copy'),
         h('span.hint', `${item.text.length.toLocaleString()} characters`),
       ),
     );
@@ -69,7 +70,7 @@ export function compactionMark(item: CompactionItem, o: MarkOptions): HTMLElemen
       body,
       h('p.hint', 'Edit what the agent remembers of the messages above. Its next message works from this text.'),
       ta,
-      h('div', { class: 'flex flex-wrap items-center gap-2' }, h('button.btn.tiny', { onclick: save }, 'Save'), h('button.btn.tiny.ghost', { onclick: show }, 'Cancel')),
+      h('div', { class: 'flex flex-wrap items-center gap-2' }, domButton({ size: 'tiny', onclick: save }, 'Save'), domButton({ variant: 'ghost', size: 'tiny', onclick: show }, 'Cancel')),
     );
     ta.focus();
   };

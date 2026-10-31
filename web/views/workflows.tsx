@@ -7,6 +7,7 @@ import { GET, POST, PUT, DEL, attempt, navigate, confirmBox, promptBox, ago, lig
 import { scheduleEditor, scheduleText } from '../schedule.ts';
 import { Field, Switch } from '../ui/controls.tsx';
 import { DomNode, Icon, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { Dot, Pill } from '../ui/marks.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import type { AppState, Schedule, Team, TeamStep } from '../../shared/types.ts';
 
@@ -81,7 +82,7 @@ export function moveStep<T>(steps: readonly T[], i: number, by: -1 | 1): T[] {
 function Status({ st }: { st: string }) {
   if (st === 'done') return <span className="text-ok" aria-label="done">✓</span>;
   if (st === 'failed') return <span className="text-red" aria-label="failed">✕</span>;
-  if (st === 'running') return <span className="dot busy" aria-label="running" />;
+  if (st === 'running') return <Dot tone="busy" aria-label="running" />;
   if (st === 'needs-you') return <span className="text-amber" aria-label="needs you">!</span>;
   return <span className="text-faint">·</span>;
 }
@@ -123,8 +124,8 @@ function WorkflowsList() {
               <div className="card-title">{wf.name}</div>
               <div className="card-sub">{wf.description || `${wf.steps.length} steps`}</div>
               <div className="card-foot">
-                <span className="pill">{`${wf.steps.length} steps`}</span>
-                {wf.schedule?.type !== 'none' ? <span className={`pill${wf.enabled ? ' ok' : ''}`}>{wf.enabled ? scheduleText(wf.schedule) : 'schedule off'}</span> : null}
+                <Pill>{`${wf.steps.length} steps`}</Pill>
+                {wf.schedule?.type !== 'none' ? <Pill tone={wf.enabled ? 'ok' : 'dim'}>{wf.enabled ? scheduleText(wf.schedule) : 'schedule off'}</Pill> : null}
               </div>
             </PlateLink>
           ))}

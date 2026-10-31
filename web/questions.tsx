@@ -3,14 +3,16 @@
 import { useState } from 'react';
 import { POST, DEL, attempt, ago, md, refreshSoon } from './core.ts';
 import { DomNode, mountReact, useAppState } from './ui/react.tsx';
+import { pillClass } from './ui/classes.ts';
+import type { PillTone } from './ui/classes.ts';
 import { Button } from './ui/button.tsx';
 import type { AgentQuestion } from '../shared/types.ts';
 
-const STATUS: Record<AgentQuestion['status'], [string, string]> = {
+const STATUS: Record<AgentQuestion['status'], [PillTone, string]> = {
   waiting: ['warn', 'asks you'],
   answered: ['ok', 'answered'],
-  dismissed: ['', 'dismissed'],
-  closed: ['', 'closed'],
+  dismissed: ['dim', 'dismissed'],
+  closed: ['dim', 'closed'],
 };
 
 /** Where your answer went, in plain words. */
@@ -64,12 +66,12 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
   const remove = async () => {
     if (await attempt(() => DEL(`/questions/${q.id}`))) changed?.();
   };
-  const [tone, label] = STATUS[q.status] || ['', q.status];
+  const [tone, label] = STATUS[q.status] || ['dim', q.status];
   const after = q.status === 'answered' ? deliveredText(q) : q.note || '';
   return (
     <div className={`${CARD[place]}${waiting ? ' waiting' : ''}`} role="group" aria-label={`Question from ${who}`}>
       <div className="flex flex-wrap items-center gap-2.5">
-        <span className={`pill${tone ? ` ${tone}` : ''}`}>{label}</span>
+        <span className={pillClass(tone)}>{label}</span>
         {inChat ? <span className="hint">Also in your Outbox</span> : <b>{q.agentName || 'An agent'}</b>}
         {inChat ? null : <span className="hint">{`${q.teamName ? `team ${q.teamName} · ` : ''}${ago(q.createdAt)}`}</span>}
       </div>

@@ -3,6 +3,7 @@
 // the file in its own program). Only files the dashboard may show
 // (inside the project's folders, see server/files.ts) get one; anything else is left as plain text.
 import { h, mount, POST, attempt, lightbox, toast, state } from './core.ts';
+import { domButton } from './ui/dom.ts';
 import { icon } from './icons.ts';
 import { isMac } from './shortcuts.ts';
 import { findFileMentions } from './mentions.ts';
@@ -131,11 +132,11 @@ export function previewTitle(name: string): string | null {
 
 /** Open, in the desktop app: the file in its own program. */
 export function openButton(path: string, name: string): HTMLButtonElement {
-  return h('button.btn.tiny.ghost.fp-open', { class: 'flex-none gap-1.25', type: 'button', title: `Open ${name}`, onclick: () => openFile(path) }, icon('external-link', 13), 'Open');
+  return domButton({ variant: 'ghost', size: 'tiny', class: 'fp-open flex-none gap-1.25', type: 'button', title: `Open ${name}`, onclick: () => openFile(path) }, icon('external-link', 13), 'Open');
 }
 
 export function revealButton(path: string): HTMLButtonElement {
-  return h('button.btn.tiny.ghost.fp-reveal', { class: 'flex-none gap-1.25', type: 'button', title: path, onclick: () => attempt(() => POST('/files/reveal', { path })) }, icon('folder-open', 13), revealLabel());
+  return domButton({ variant: 'ghost', size: 'tiny', class: 'fp-reveal flex-none gap-1.25', type: 'button', title: path, onclick: () => attempt(() => POST('/files/reveal', { path })) }, icon('folder-open', 13), revealLabel());
 }
 
 // compact: the floating window, the Station panel, team turns (full width, shorter)

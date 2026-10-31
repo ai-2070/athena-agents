@@ -8,6 +8,7 @@ import { useLayoutEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Icon } from './react.tsx';
 import { Plate } from './surface.tsx';
+import { CHIPS_CLASS, chipClass } from './classes.ts';
 import { slideSegment } from '../segmotion.ts';
 
 export interface Choice<V extends string> {
@@ -127,9 +128,9 @@ export function ChipSet<V extends string>({ options, value, onChange, label }: {
   label: string;
 }) {
   return (
-    <ToggleGroup multiple className="chips" aria-label={label} value={[...value]} onValueChange={(v) => onChange(v as V[])}>
+    <ToggleGroup multiple className={CHIPS_CLASS} aria-label={label} value={[...value]} onValueChange={(v) => onChange(v as V[])}>
       {options.map((o) => (
-        <Toggle key={o.value} value={o.value} title={o.title} className={(s) => on(s.pressed, 'chip')}>
+        <Toggle key={o.value} value={o.value} title={o.title} className={(s) => chipClass(s.pressed)}>
           {o.label}
         </Toggle>
       ))}
@@ -146,9 +147,9 @@ export function Chips<V extends string>({ options, value, onChange, label, class
   className?: string;
 }) {
   return (
-    <ToggleGroup className={`chips ${className}`.trim()} aria-label={label} value={[value]} onValueChange={(v) => v[0] !== undefined && onChange(v[0] as V)}>
+    <ToggleGroup className={`${CHIPS_CLASS} ${className}`.trim()} aria-label={label} value={[value]} onValueChange={(v) => v[0] !== undefined && onChange(v[0] as V)}>
       {options.map((o) => (
-        <Toggle key={o.value} value={o.value} title={o.title} className={(s) => on(s.pressed, 'chip')}>
+        <Toggle key={o.value} value={o.value} title={o.title} className={(s) => chipClass(s.pressed)}>
           {o.label}
         </Toggle>
       ))}

@@ -24,7 +24,8 @@ import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import { chatWindowKeys, chatWindowShortcut } from './shortcuts.ts';
 import type { ChatWindowAction } from './shortcuts.ts';
 import { Avatar, Icon, IconWeightProvider, useAppState } from './ui/react.tsx';
-import { IconButton } from './ui/button.tsx';
+import { Dot } from './ui/marks.tsx';
+import { IconButton, iconButtonClass } from './ui/button.tsx';
 import type { TeamListing } from '../shared/types.ts';
 
 declare global {
@@ -701,7 +702,7 @@ const GRIPS: Record<string, string> = {
   sw: 'absolute z-2 size-3.5 -bottom-1 -left-1 cursor-nesw-resize',
 };
 const TAB = 'group/tab relative flex h-10 max-w-[220px] flex-none cursor-pointer items-center gap-2 bg-[linear-gradient(145deg,var(--glass-sheen),transparent_70%)] px-3 text-[13px] font-medium select-none rounded-t-[10px] rounded-b-none [transition:background-color_.15s,color_.15s,opacity_.15s]';
-const BTN = 'icon-btn plain flex-none';
+const BTN = iconButtonClass('plain', 'flex-none');
 /** Where a dragged tab would land: a line in the gap before (or after) a tab. */
 const MARK = 'absolute top-1.5 bottom-1.5 w-0.5 rounded-full bg-accent pointer-events-none';
 
@@ -861,7 +862,7 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
                   <Tabs.Tab value={t.key} className="flex items-center gap-2 min-w-0 cursor-pointer">
                     {lead}
                     <span className="truncate">{label}</span>
-                    {busy ? <span className="dot busy" aria-label="working" /> : null}
+                    {busy ? <Dot tone="busy" aria-label="working" /> : null}
                   </Tabs.Tab>
                   <button
                     className={`cw-x text-faint cursor-pointer px-0.5 text-[11px] [transition:opacity_.15s,color_.15s] hover:text-ink ${on ? 'opacity-100' : 'opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100'}`}
@@ -875,13 +876,13 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
         </Tabs.Root>
         <span className="flex-1 min-w-0" />
         <LayoutMenu w={w} />
-        <IconButton className="plain flex-none" title={`Minimize (${chatWindowKeys().minimize})`} aria-label="Minimize the chats" onClick={() => setMin(w, true)}>
+        <IconButton variant="plain" className="flex-none" title={`Minimize (${chatWindowKeys().minimize})`} aria-label="Minimize the chats" onClick={() => setMin(w, true)}>
           –
         </IconButton>
-        <IconButton className="plain flex-none" title="Maximize / restore" aria-label={w.max ? 'Restore the chats' : 'Maximize the chats'} onClick={() => setMax(w, !w.max)}>
+        <IconButton variant="plain" className="flex-none" title="Maximize / restore" aria-label={w.max ? 'Restore the chats' : 'Maximize the chats'} onClick={() => setMax(w, !w.max)}>
           <Icon name="maximize-2" size={13} />
         </IconButton>
-        <IconButton className="flex-none" title="Close this window's chats" aria-label="Close all chats in this window" onClick={() => closeWin(w)}>
+        <IconButton variant="inset" className="flex-none" title="Close this window's chats" aria-label="Close all chats in this window" onClick={() => closeWin(w)}>
           <Icon name="x" size={15} />
         </IconButton>
       </div>

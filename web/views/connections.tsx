@@ -1,5 +1,6 @@
 // Settings > Connections: X and Reddit accounts, Telegram, Discord, and the Outbox where posts wait for you.
 import { Button, ButtonLink } from '../ui/button.tsx';
+import { Badge, Pill } from '../ui/marks.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, PUT, DEL, attempt, copy, ago, confirmBox } from '../core.ts';
@@ -39,7 +40,7 @@ export function ConnectionsTab() {
       label="Connections"
       tabs={[
         { value: 'accounts' as const, label: 'Accounts' },
-        { value: 'outbox' as const, label: <>Outbox {pending ? <span className="badge hot">{pending}</span> : null}</> },
+        { value: 'outbox' as const, label: <>Outbox {pending ? <Badge hot>{pending}</Badge> : null}</> },
       ]}
       value={sub}
       onChange={(s) => setSub((lastSub = s))}
@@ -147,7 +148,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
       </Sections>
 
       <Sections className="col gap-lg">
-        <Section title="Your X app (one-time setup)" description="X needs an app of yours to sign accounts in." action={accounts.xAppConfigured ? <span className="pill ok">ready</span> : <span className="pill warn">not set</span>}>
+        <Section title="Your X app (one-time setup)" description="X needs an app of yours to sign accounts in." action={accounts.xAppConfigured ? <Pill tone="ok">ready</Pill> : <Pill tone="warn">not set</Pill>}>
           <div className="px-5 py-4">
             <ol className="conn-steps m-0 list-decimal pl-5 text-[13.5px] leading-relaxed text-dim marker:text-faint [&>li+li]:mt-2">
               <li>
@@ -200,7 +201,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
           <PanelNote>Agents read subreddits and search freely. Posts and comments they write wait in the Outbox for you.</PanelNote>
         </Section>
 
-        <Section title="Your Reddit app (one-time setup)" description="Reddit needs an app of yours to sign accounts in." action={accounts.redditAppConfigured ? <span className="pill ok">ready</span> : <span className="pill warn">not set</span>}>
+        <Section title="Your Reddit app (one-time setup)" description="Reddit needs an app of yours to sign accounts in." action={accounts.redditAppConfigured ? <Pill tone="ok">ready</Pill> : <Pill tone="warn">not set</Pill>}>
           <div className="px-5 py-4">
             <ol className="conn-steps m-0 list-decimal pl-5 text-[13.5px] leading-relaxed text-dim marker:text-faint [&>li+li]:mt-2">
               <li>

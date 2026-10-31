@@ -1,6 +1,7 @@
 // Backups on the page: back up the open project (with every skill and preset) into the backups
 // folder, read what a backup file holds, and restore one as a new project.
 import { h, GET, POST, api, attempt, modal, copy, ago } from './core.ts';
+import { domButton, domIconButton } from './ui/dom.ts';
 import { icon } from './icons.ts';
 import type { Project } from '../shared/types.ts';
 
@@ -126,10 +127,10 @@ export async function backupProject(p: Pick<Project, 'id' | 'name'>): Promise<vo
       r.summary.omitted
         ? h('p', { class: 'm-0 flex items-start gap-2 rounded-ctl border border-[color-mix(in_srgb,var(--color-amber)_30%,var(--color-line))] bg-amber/10 px-3 py-2.5 text-[13px] text-amber' }, icon('triangle-alert', 14, 'mt-0.5 flex-none'), ` ${r.summary.omitted} file${r.summary.omitted === 1 ? ' was' : 's were'} too big to fit and left out (limits: chats 200 MB, knowledge 50 MB, MEMORY.md files 20 MB, skills 50 MB, earlier versions 50 MB, PROJECT.md and notes 20 MB).`)
         : null,
-      h('div', { class: 'flex items-center gap-2 rounded-ctl border border-line bg-panel-2 py-1.5 pr-1.5 pl-3' }, h('code', { class: 'min-w-0 flex-1 font-mono text-[12px] leading-[normal] font-normal wrap-anywhere text-ink' }, r.file), h('button.icon-btn', { title: 'Copy the path', 'aria-label': 'Copy the path', onclick: () => copy(r.file) }, icon('copy', 14))),
+      h('div', { class: 'flex items-center gap-2 rounded-ctl border border-line bg-panel-2 py-1.5 pr-1.5 pl-3' }, h('code', { class: 'min-w-0 flex-1 font-mono text-[12px] leading-[normal] font-normal wrap-anywhere text-ink' }, r.file), domIconButton({ title: 'Copy the path', 'aria-label': 'Copy the path', onclick: () => copy(r.file) }, icon('copy', 14))),
       h('p.hint', 'To bring it back, here or on another PC: New project > From backup, and drop this file in.'),
     ),
-    foot: [h('button.btn.ghost', { onclick: () => void attempt(() => POST('/backups/open')) }, icon('folder-open', 15), ' Show in folder'), h('button.btn', { onclick: () => m.close() }, 'Done')],
+    foot: [domButton({ variant: 'ghost', onclick: () => void attempt(() => POST('/backups/open')) }, icon('folder-open', 15), ' Show in folder'), domButton({ onclick: () => m.close() }, 'Done')],
   });
 }
 

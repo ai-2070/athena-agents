@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, onEventConnection, ago, toast, promptBox, confirmBox, refreshSoon, modal } from '../core.ts';
+import { domButton, domButtonLink, domDot } from '../ui/dom.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.ts';
 import { openDock, attachToBrain } from '../dock.tsx';
@@ -3793,7 +3794,7 @@ function drawHud(): void {
     h(
       'div.st-connected',
       { class: 'group/conn flex items-center gap-1.5 flex-1 min-w-0 px-3 py-1 max-md:hidden overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' },
-      h('span', { class: CONN_LABEL }, h('span.dot.on'), 'Connected to'),
+      h('span', { class: CONN_LABEL }, domDot('on'), 'Connected to'),
       tiles
         .filter((t) => !seen.has(t.title.split(' · ')[0].toLowerCase()) && seen.add(t.title.split(' · ')[0].toLowerCase()))
         .sort((a, b) => +b.on - +a.on || +!!a.missing - +!!b.missing)
@@ -3814,7 +3815,7 @@ function drawHud(): void {
       h(
         'div',
         { class: 'flex items-center gap-1.5' },
-        h('span', { class: `${CONN_LABEL} max-[1501px]:hidden` }, h(`span.dot${engines.some((e) => e.busy) ? '.busy' : '.on'}`), 'AI engines'),
+        h('span', { class: `${CONN_LABEL} max-[1501px]:hidden` }, domDot(engines.some((e) => e.busy) ? 'busy' : 'on'), 'AI engines'),
         engines.map((e) =>
           h(
             `button${e.ready ? '' : '.off'}${e.busy ? '.busy' : ''}`,
@@ -3847,7 +3848,7 @@ function drawHud(): void {
       d.runs.length || S.active.size ? h('div', { class: `${STAT} max-md:hidden` }, h('b', { class: `${STAT_N} text-accent` }, String(d.runs.length + S.active.size)), 'working') : null,
       needs ? h('button', { class: `${STAT} border-amber cursor-pointer`, onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: `${STAT_N} text-amber` }, String(needs)), 'needs you') : null,
       d.agents.length
-        ? h('button.btn.small', { onclick: newBranch }, icon('git-branch', 14), 'New team')
+        ? domButton({ size: 'small', onclick: newBranch }, icon('git-branch', 14), 'New team')
         : null,
     ),
   );
@@ -3869,14 +3870,12 @@ function drawEmpty(d: AppState): void {
       h(
         'div',
         { class: 'flex flex-wrap items-center gap-3' },
-        h('button.btn.small', { onclick: () => openDock('auto', 'Make me a team for ') }, 'Ask the Brain'),
-        h('a.btn.small.ghost', { href: '#/library' }, 'Agent library'),
-        h('button.btn.small.ghost', {
-          onclick: async () => {
-            const a = await attempt(() => POST<Agent>('/agents', { name: 'New agent' }));
-            if (a) navigate(`#/agents/${a.id}/edit`);
-          },
-        }, 'Create your own'),
+        domButton({ size: 'small', onclick: () => openDock('auto', 'Make me a team for ') }, 'Ask the Brain'),
+        domButtonLink({ variant: 'ghost', size: 'small', href: '#/library' }, 'Agent library'),
+        domButton({ variant: 'ghost', size: 'small', onclick: async () => {
+          const a = await attempt(() => POST<Agent>('/agents', { name: 'New agent' }));
+          if (a) navigate(`#/agents/${a.id}/edit`);
+        } }, 'Create your own'),
       ),
     );
   else if (!S.workflows.length)
@@ -3885,7 +3884,7 @@ function drawEmpty(d: AppState): void {
       { class: EMPTY },
       h('div', { class: EMPTY_TITLE }, `${d.agents.length} agent${d.agents.length === 1 ? '' : 's'} ready`),
       h('p', { class: EMPTY_P }, 'Ask any of them something in the Brain chat, or group them into a team: a workflow where each one hands its result to the next.'),
-      h('div', { class: 'flex flex-wrap items-center gap-3' }, h('button.btn.small', { onclick: newBranch }, '+ New team'), h('button.btn.small.ghost', { onclick: () => openDock() }, 'Open Brain chat')),
+      h('div', { class: 'flex flex-wrap items-center gap-3' }, domButton({ size: 'small', onclick: newBranch }, '+ New team'), domButton({ variant: 'ghost', size: 'small', onclick: () => openDock() }, 'Open Brain chat')),
     );
   mount(S.emptyEl, card);
 }
@@ -3980,7 +3979,7 @@ function drawFeed(): void {
   if (!S?.feedEl) return;
   mount(
     S.feedEl,
-    h('div', { class: 'flex items-center gap-2 mb-2 text-[12px] leading-[normal] font-medium text-dim', role: 'status' }, h('span', { class: `dot ${S.liveConnected ? 'on' : 'warn'} [box-shadow:none]`, 'aria-hidden': 'true' }), S.liveConnected ? 'Live' : 'Reconnecting…'),
+    h('div', { class: 'flex items-center gap-2 mb-2 text-[12px] leading-[normal] font-medium text-dim', role: 'status' }, domDot(S.liveConnected ? 'on' : 'warn', { class: '[box-shadow:none]' }), S.liveConnected ? 'Live' : 'Reconnecting…'),
     S.feed.map((f, i) => h('div', { style: { opacity: String(1 - i * 0.12) }, class: f.kind === 'error' ? `${FEED_ITEM} text-red` : `${FEED_ITEM} text-ink` }, h('span', { class: 'flex-none w-14 text-faint' }, ago(f.ts)), f.text)),
   );
 }

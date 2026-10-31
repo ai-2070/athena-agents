@@ -1,5 +1,6 @@
 // Team builder: name it, give it a goal, pick its agents and lead (or let the Brain build it), choose its access.
 import { h, mount, clear, state, GET, POST, PUT, attempt, modal, chipSet, toast, refreshSoon, avatar } from './core.ts';
+import { domButton, domPill } from './ui/dom.ts';
 import type { ModalHandle } from './core.ts';
 import { teamSteps } from '../shared/teams.ts';
 import { mcpOptions } from './mcpcopies.ts';
@@ -71,7 +72,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   desc.addEventListener('input', () => (b.description = desc.value));
 
   const listEl = h('div', { class: 'flex flex-col gap-2' });
-  const count = h('span.pill');
+  const count = domPill();
   const drawMembers = () => {
     const agents = byId();
     clear(listEl);
@@ -86,7 +87,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
           h(
             'div',
             { class: 'flex-1 min-w-0' },
-            h('div', { class: 'flex flex-wrap items-center gap-1.5' }, h('b', a ? a.name : m.newAgent?.name || 'Agent'), m.newAgent ? h('span.pill.ok', 'new agent') : null, isLead ? h('span.tc-lead', '★ lead') : null),
+            h('div', { class: 'flex flex-wrap items-center gap-1.5' }, h('b', a ? a.name : m.newAgent?.name || 'Agent'), m.newAgent ? domPill('ok', {}, 'new agent') : null, isLead ? h('span.tc-lead', '★ lead') : null),
             h('div.hint', a ? a.specialty || '' : m.newAgent?.specialty || ''),
           ),
           h(
@@ -167,7 +168,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   };
 
   const status = h('span.hint');
-  const autoBtn = h('button.btn.small', {
+  const autoBtn = domButton({ size: 'small',
     onclick: async () => {
       const text = [b.name, b.description].filter(Boolean).join(': ').trim();
       if (!text && !tray.count() && !b.files.length) return toast("Describe the team's goal first.", 'warn');
@@ -204,8 +205,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   // closed while saving: if nothing was saved yet, stop there (and the files go)
   let closed = false;
   // one save at a time, or a double click hires everyone twice
-  const saveBtn = h(
-    'button.btn',
+  const saveBtn = domButton(
     {
       onclick: async () => {
         if (saving) return;
@@ -266,7 +266,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
       section('Members', 'bot', h('div', { class: 'flex flex-col gap-3' }, listEl, h('div.label', { class: 'mt-2' }, 'Add an agent'), addRow), count),
       section('Access', 'wrench', accessEl),
     ),
-    foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), saveBtn],
+    foot: [domButton({ variant: 'ghost', onclick: () => m.close() }, 'Cancel'), saveBtn],
     // closed without saving: the files dropped here go too
     // (a save already under way finishes, with its files; one still waiting for uploads stops)
     onClose: () => {

@@ -95,7 +95,16 @@ for checking both; nothing sets it in the app).
 - Canvases, three.js and the terminal can't use `var()`: read `isDark()` / `themeColor()` and restyle on `onThemeChange()`.
 - Labels, tabs, buttons and captions are sentence case in Geist; mono is for code, paths, URLs, ids and keys. No uppercase
   letter-spaced captions, no coloured glows, no gradient text. Controls are `rounded-ctl`, cards `rounded-box`; depth is
-  `shadow-card`, `shadow-lift` and `shadow-pop`.
+  `shadow-card`, `shadow-lift`, `shadow-raised` (what buttons, chips, pills and badges lift with) and `shadow-pop`.
+- **Controls are components, not class strings.** Use `Button`, `ButtonLink`, `IconButton` (`web/ui/button.tsx`), `Pill`,
+  `Badge`, `Dot`, `Chip` (`web/ui/marks.tsx`) and `Plate`, `PlateSection`, `PlateLink` (`web/ui/surface.tsx`). A page that
+  still builds its own DOM uses `domButton`, `domButtonLink`, `domIconButton`, `domPill`, `domBadge`, `domDot`, `domChip`
+  from `web/ui/dom.ts`; a Base UI trigger takes `buttonClass(...)` / `iconButtonClass(...)`. Their look lives in
+  `web/ui/classes.ts` as utilities — don't restyle a control from the outside or add a `.btn`-style rule.
+  The old names (`btn ghost small`, `pill ok`, `dot busy`, `chip`, `badge`, `icon-btn`) stay on the elements as bare
+  markers for tests and lookups; nothing styles them.
+- Markdown, the chat messages and tool calls, the Station and the glass material (`web/styles/components.css`) stay CSS:
+  they are document and canvas styling, not controls.
 
 `DESIGN.md` records the Brain chat's styling and motion (the glass material, the dropdown, the composer, every animation with its timing) and why each choice was made.
 

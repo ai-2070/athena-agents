@@ -3,6 +3,7 @@
 // oh-my-pi and OpenClaw,
 // and how hard the model thinks (effort).
 import { h, mount, state, GET, PUT, attempt, refreshSoon, toast, navigate } from './core.ts';
+import { domButton } from './ui/dom.ts';
 import { icon, logo } from './icons.ts';
 import { appIcon } from './appicons.ts';
 import { uiZoom } from './look.ts';
@@ -302,7 +303,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
     return input;
   };
   const missing = (text: string, settingsFind: string) =>
-    h('div', { class: 'flex items-center gap-2 mx-1.5 mb-1.5 px-2.25 py-1.75 rounded-[8px] text-[12px] text-amber bg-amber/10' }, icon('triangle-alert', 14), h('span', { class: 'flex-1 min-w-0' }, text), h('button.btn.tiny', { onclick: () => (close(), navigate(`#/settings?tab=general&find=${encodeURIComponent(settingsFind)}`)) }, 'Set up'));
+    h('div', { class: 'flex items-center gap-2 mx-1.5 mb-1.5 px-2.25 py-1.75 rounded-[8px] text-[12px] text-amber bg-amber/10' }, icon('triangle-alert', 14), h('span', { class: 'flex-1 min-w-0' }, text), domButton({ size: 'tiny', onclick: () => (close(), navigate(`#/settings?tab=general&find=${encodeURIComponent(settingsFind)}`)) }, 'Set up'));
   const same = (engine: EngineId, model: string) => cur.engine === engine && String(cur.model || '') === model;
   // The models a server on this PC offers (LM Studio, Ollama, a custom one). It needs one of its own model ids:
   // an empty model would fall back to the OpenRouter default.

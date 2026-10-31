@@ -1,5 +1,8 @@
 // App shell: navigation, routing, the "Needs you" drawer and live notifications.
 import { h, mount, clear, freshElement, state, onState, onEvent, refreshState, refreshSoon, connectEvents, toast, navigate, approvalCard, ago, GET } from './core.ts';
+import { domBadge, domButton, domDot } from './ui/dom.ts';
+import { badgeClass, buttonClass, iconButtonClass, pillClass } from './ui/classes.ts';
+import type { DotTone } from './ui/classes.ts';
 import * as home from './views/home.tsx';
 import * as station from './views/station.ts';
 import * as artifactsView from './views/artifacts.tsx';
@@ -107,7 +110,7 @@ function renderNav() {
     document.getElementById('nav-links')!,
     NAV.map((n) => {
       const c = n.count?.();
-      return h('a', { class: `${NAV_LINK} ${route === n.path ? NAV_LINK_ON : NAV_LINK_OFF}`, href: `#/${n.path}`, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: `${NAV_ICO} ${route === n.path ? NAV_ICO_ON : NAV_ICO_OFF}` }, icon(n.ico, 18)), h('span', { class: NAV_TXT }, n.label), c ? h('span.badge', { class: NAV_COUNT }, String(c)) : null);
+      return h('a', { class: `${NAV_LINK} ${route === n.path ? NAV_LINK_ON : NAV_LINK_OFF}`, href: `#/${n.path}`, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: `${NAV_ICO} ${route === n.path ? NAV_ICO_ON : NAV_ICO_OFF}` }, icon(n.ico, 18)), h('span', { class: NAV_TXT }, n.label), c ? domBadge({ class: NAV_COUNT }, String(c)) : null);
     }),
   );
   const d = state.data;
@@ -140,8 +143,8 @@ function navStatus(d: AppState) {
   const e: Partial<EngineStatus> = d.engines;
   const S = (q: string) => `#/settings?${q}`;
   const ver = (v: string | null | undefined) => (v ? String(v).split(/\s/)[0] : '');
-  const line = (dot: string, label: string, value: string, href: string, title?: string) =>
-    h('a', { class: NS_LINE, href, title: title || label, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: `dot ${dot} size-1.5 [box-shadow:none]` }), h('span', { class: 'min-w-0 flex-1 truncate text-ink' }, label), value ? h('span', { class: 'max-w-[48%] min-w-0 truncate text-right text-[11.5px] text-faint tabular-nums', title: value }, value) : null);
+  const line = (dot: DotTone | '', label: string, value: string, href: string, title?: string) =>
+    h('a', { class: NS_LINE, href, title: title || label, onclick: () => document.body.classList.remove('nav-open') }, domDot(dot, { class: 'size-1.5 [box-shadow:none]' }), h('span', { class: 'min-w-0 flex-1 truncate text-ink' }, label), value ? h('span', { class: 'max-w-[48%] min-w-0 truncate text-right text-[11.5px] text-faint tabular-nums', title: value }, value) : null);
   const cc: Partial<EngineStatus['claude-code']> = e['claude-code'] || {};
   const cx: Partial<EngineStatus['codex']> = e.codex || {};
   const acc: Partial<AppState['accounts']> = d.accounts || {};
@@ -218,7 +221,7 @@ function renderApprovals() {
   const n = list.length + (state.data?.outboxPending || 0) + asked.length;
   const count = document.getElementById('needs-count')!;
   count.textContent = String(n);
-  count.classList.toggle('hot', n > 0);
+  count.className = badgeClass(n > 0);
   const drawn = JSON.stringify([list, state.data?.outboxPending || 0, asked.map((q) => q.id)]);
   if (drawn === drawnApprovals) return;
   drawnApprovals = drawn;
@@ -240,7 +243,7 @@ function renderApprovals() {
   }
   if (state.data?.outboxPending) {
     drawerBody.append(
-      h('div.approval', h('div.t', `${state.data.outboxPending} post${state.data.outboxPending > 1 ? 's' : ''} waiting in the Outbox`), h('button.btn.small', { onclick: toOutbox }, 'Review posts')),
+      h('div.approval', h('div.t', `${state.data.outboxPending} post${state.data.outboxPending > 1 ? 's' : ''} waiting in the Outbox`), domButton({ size: 'small', onclick: toOutbox }, 'Review posts')),
     );
   }
   for (const c of approvalCards.values()) drawerBody.append(c.el);
@@ -265,13 +268,19 @@ function renderRunning() {
   const pill = document.getElementById('running-pill')!;
   const runs = state.data?.runs || [];
   pill.classList.toggle('hidden', !runs.length);
-  mount(pill, h('span.dot.busy'), runs.length === 1 ? `${runs[0].agentName} working` : `${runs.length} agents working`);
-  pill.className = `pill warn${runs.length ? '' : ' hidden'}`;
+  mount(pill, domDot('busy'), runs.length === 1 ? `${runs[0].agentName} working` : `${runs.length} agents working`);
+  pill.className = pillClass('warn', runs.length ? '' : 'hidden');
 }
 
-document.getElementById('needs-btn')!.onclick = () => drawer.classList.toggle('hidden');
+// the controls that live in public/index.html: they keep their names there, and get their look here
+const needsBtn = document.getElementById('needs-btn')!;
+needsBtn.className = buttonClass('ghost', 'small');
+document.getElementById('drawer-close')!.className = iconButtonClass();
+document.getElementById('nav-toggle')!.className = iconButtonClass('default', 'md:hidden');
+document.getElementById('needs-count')!.className = badgeClass();
+needsBtn.onclick = () => drawer.classList.toggle('hidden');
 // project switcher in the top bar (pages other than the Station)
-const projBtn = h('button.btn.ghost.small', { class: 'gap-1.5 [&_.proj-logo]:mr-0.5', onclick: (e) => openProjectMenu(e.currentTarget) });
+const projBtn = domButton({ variant: 'ghost', size: 'small', class: 'gap-1.5 [&_.proj-logo]:mr-0.5', onclick: (e) => openProjectMenu(e.currentTarget) });
 document.querySelector('.top-actions')!.prepend(projBtn);
 onState((d) => mount(projBtn, projectMark(d.project, 15), d.project?.name || 'Project', icon('chevron-down', 13)));
 document.getElementById('drawer-close')!.onclick = () => drawer.classList.add('hidden');

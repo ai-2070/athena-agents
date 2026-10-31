@@ -1,6 +1,7 @@
 // Versions of skills, agents, teams and MEMORY.md files: the History window (every kept version, what it changed,
 // compared with the current one, and Restore) and Recently deleted (bring one back).
 import { h, mount, GET, POST, attempt, modal, ago, confirmBox } from './core.ts';
+import { domButton } from './ui/dom.ts';
 import { icon } from './icons.ts';
 import type { Child, ModalHandle } from './core.ts';
 import type { DeletedItem, VersionDetail, VersionHistory, VersionKind } from '../shared/types.ts';
@@ -121,11 +122,11 @@ export async function openHistory(kind: VersionKind, id: string, { onRestored }:
     restoreBtn.textContent = hist.current === null ? 'Bring back this version' : 'Restore this version';
   };
 
-  const restoreBtn = h('button.btn', { onclick: restore, disabled: true }, 'Restore this version');
+  const restoreBtn = domButton({ onclick: restore, disabled: true }, 'Restore this version');
   m = modal({
     title: `History · ${hist.name}`,
     body: h('div', { class: 'grid min-h-[360px] grid-cols-[minmax(200px,260px)_1fr] gap-5 max-[761px]:grid-cols-[1fr]' }, listEl, view),
-    foot: [h('span.hint', { class: 'min-w-0 flex-1' }, `${hist.versions.length} earlier version${hist.versions.length === 1 ? '' : 's'} kept`), h('button.btn.ghost', { onclick: () => m.close() }, 'Close'), restoreBtn],
+    foot: [h('span.hint', { class: 'min-w-0 flex-1' }, `${hist.versions.length} earlier version${hist.versions.length === 1 ? '' : 's'} kept`), domButton({ variant: 'ghost', onclick: () => m.close() }, 'Close'), restoreBtn],
   });
   m.el.classList.add('wide');
   draw();
@@ -133,7 +134,7 @@ export async function openHistory(kind: VersionKind, id: string, { onRestored }:
 
 /** A History button for a skill, agent, team or MEMORY.md. */
 export function historyButton(kind: VersionKind, id: string, onRestored?: () => void, label = 'History'): HTMLButtonElement {
-  return h('button.btn.ghost.small', { type: 'button', title: 'Earlier versions: compare and restore', onclick: () => openHistory(kind, id, { onRestored }) }, icon('history', 13), label);
+  return domButton({ variant: 'ghost', size: 'small', type: 'button', title: 'Earlier versions: compare and restore', onclick: () => openHistory(kind, id, { onRestored }) }, icon('history', 13), label);
 }
 
 // ---------- Recently deleted ----------
@@ -153,7 +154,7 @@ export async function openDeleted(kinds: VersionKind[], { onRestored }: { onRest
             'div.list-row',
             icon('triangle-alert', 14),
             h('div', { class: 'min-w-0 flex-1' }, h('div.title', `Couldn't load the deleted ${failed.map((f) => `${KIND_NAME[f.kind]}s`).join(' and ')}`), h('div.hint', failed.map((f) => f.error).join('; '))),
-            h('button.btn.ghost.small', { onclick: () => load() }, icon('rotate-cw', 13), 'Retry'),
+            domButton({ variant: 'ghost', size: 'small', onclick: () => load() }, icon('rotate-cw', 13), 'Retry'),
           )
         : null,
       items.length
@@ -162,8 +163,8 @@ export async function openDeleted(kinds: VersionKind[], { onRestored }: { onRest
               'div.list-row',
               h('div.skill-ico', icon(it.kind === 'skill' ? 'puzzle' : it.kind === 'team' ? 'users' : 'bot', 16)),
               h('div', { class: 'min-w-0 flex-1' }, h('div.title', it.name), h('div.hint', `${KIND_NAME[it.kind]} · deleted ${ago(it.at)} by ${byName(it.by)}`)),
-              h('button.btn.ghost.small', { onclick: () => openHistory(it.kind, it.id, { onRestored: () => (load(), onRestored?.()) }) }, icon('history', 13), 'History'),
-              h('button.btn.small', {
+              domButton({ variant: 'ghost', size: 'small', onclick: () => openHistory(it.kind, it.id, { onRestored: () => (load(), onRestored?.()) }) }, icon('history', 13), 'History'),
+              domButton({ size: 'small',
                 onclick: async (e: MouseEvent) => {
                   // (the button, kept: the event forgets it once this awaits)
                   const btn = e.currentTarget as HTMLButtonElement;
@@ -184,11 +185,11 @@ export async function openDeleted(kinds: VersionKind[], { onRestored }: { onRest
   m = modal({
     title: 'Recently deleted',
     body: h('div', { class: 'flex flex-col gap-2.5' }, h('p.hint', kinds.includes('skill') ? 'Deleted skills come back with their extra files. Bring one back and give it to whoever should have it again.' : 'An agent comes back without its teams (add it back to them); a team comes back with the members that still exist, so bring back its agents first.'), box),
-    foot: [h('button.btn', { onclick: () => m.close() }, 'Done')],
+    foot: [domButton({ onclick: () => m.close() }, 'Done')],
   });
   await load();
 }
 
 export function deletedButton(kinds: VersionKind[], onRestored?: () => void): HTMLButtonElement {
-  return h('button.btn.ghost.small', { type: 'button', onclick: () => openDeleted(kinds, { onRestored }) }, icon('archive-restore', 14), 'Recently deleted');
+  return domButton({ variant: 'ghost', size: 'small', type: 'button', onclick: () => openDeleted(kinds, { onRestored }) }, icon('archive-restore', 14), 'Recently deleted');
 }

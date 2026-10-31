@@ -227,8 +227,16 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
   the switch stays at the bottom, and the project and address do not need horizontal scrolling. X and Reddit remain in
   Connections, not in the sidebar.
 - Settings sections share the Section and Row layout. Programs and Outbox use the same layout.
-- React actions use `Button`, `ButtonLink` and `IconButton` from `web/ui/button.tsx`; flat surfaces use `Plate`,
-  `PlateSection` or `PlateLink` from `web/ui/surface.tsx`. Their classes also serve the remaining plain-DOM controls.
+- Actions, marks and surfaces are components, not class strings: `Button`, `ButtonLink`, `IconButton`
+  (`web/ui/button.tsx`), `Pill`, `Badge`, `Dot`, `Chip` (`web/ui/marks.tsx`), `Plate`, `PlateSection`, `PlateLink`
+  (`web/ui/surface.tsx`), and `domButton`, `domButtonLink`, `domIconButton`, `domPill`, `domBadge`, `domDot`, `domChip`
+  (`web/ui/dom.ts`) where a page still builds its own DOM. Their look lives in `web/ui/classes.ts` as utilities, beside
+  the theme's new `shadow-raised` token.
+- The old names (`btn ghost small`, `pill ok`, `dot busy`, `chip`, `badge`, `icon-btn`) stay on the elements as bare
+  markers — nothing styles them — so tests and code that find elements by them keep working. Styling a control from the
+  outside is what the components exist to stop.
+- Markdown, chat messages and tool calls, the Station and the glass material stay CSS: they set out documents and
+  canvases, not controls.
 - In Connections > Accounts, Reddit accounts and their one-time setup appear together at the end.
 - The agent editor groups identity and model before knowledge and memory; knowledge and MEMORY.md share a plate with a
   divider. Clicking the agent's avatar opens an offline emoji picker. Model suggestions use the shared glass menu.

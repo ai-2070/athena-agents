@@ -14,6 +14,7 @@ import type { Candidate } from '../routinemention.ts';
 import { findMentions } from '../../shared/routines.ts';
 import { Field, Switch } from '../ui/controls.tsx';
 import { DomNode, Icon, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { Dot } from '../ui/marks.tsx';
 import type { AppState, Routine, RoutineListing, RoutineMention, RoutineMentionKind, RoutineRun, RoutineRunTarget, TeamListing } from '../../shared/types.ts';
 
 /** Agents, teams and skills a routine can mention. Agents first: on a name clash they win (the server does the same). */
@@ -69,7 +70,7 @@ function MentionChip({ m, teams, extra }: { m: RoutineMention; teams: readonly T
 function StatusIcon({ status }: { status: string }) {
   if (status === 'done' || status === 'sent') return <span className="text-ok" aria-label="done">✓</span>;
   if (status === 'failed') return <span className="text-red" aria-label="failed">✕</span>;
-  if (status === 'running') return <span className="dot busy" aria-label="running" />;
+  if (status === 'running') return <Dot tone="busy" aria-label="running" />;
   if (status === 'stopped') return <span className="text-amber" aria-label="stopped">■</span>;
   return <span className="text-faint">·</span>;
 }

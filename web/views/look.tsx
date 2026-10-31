@@ -1,6 +1,7 @@
 // Settings > Look: UI scale, accent colour, animations, chat font, Station quality. Changes apply right away and are saved a moment later.
 // The Station's background picture and its opacities belong to the open project (not the settings).
 import { Button } from '../ui/button.tsx';
+import { Dot, Pill } from '../ui/marks.tsx';
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Radio } from '@base-ui/react/radio';
@@ -298,9 +299,9 @@ export function LookTab() {
           <div className="flex flex-wrap items-center gap-2.5">
             <Button size="small">Button</Button>
             <Button variant="ghost" size="small">Ghost</Button>
-            <span className="pill ok">ready</span>
+            <Pill tone="ok">ready</Pill>
             <span className="inline-flex items-center gap-2 text-[13px] text-dim">
-              <span className="dot on" /> running
+              <Dot tone="on" /> running
             </span>
           </div>
           <p className="look-sample m-0 rounded-box border border-line bg-panel-2 px-4 py-3 font-chat text-[14px] leading-[1.6]">

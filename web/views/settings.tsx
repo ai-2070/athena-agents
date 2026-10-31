@@ -1,6 +1,7 @@
 // Settings > General & keys: keys, the Brain, defaults, local model servers, program paths, limits.
 // Switches about the Brain save at once; the rest is saved with "Save settings", which sends only what changed.
 import { Button } from '../ui/button.tsx';
+import { Pill } from '../ui/marks.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, PUT, attempt, toast, refreshSoon, navigate } from '../core.ts';
@@ -274,7 +275,7 @@ function AiRow({ mark, name, status, note, below, children }: { mark: ReactNode;
 /** "found 2.1.311": the pill, and the version when there is one. */
 const Found = ({ label = 'found', version }: { label?: string; version?: string | null }) => (
   <>
-    <span className="pill ok">{label}</span>
+    <Pill tone="ok">{label}</Pill>
     {version ? <span className={AI_VERSION}>{shortVersion(version)}</span> : null}
   </>
 );
@@ -320,20 +321,20 @@ function SecretField({ k, secrets, reload, label, placeholder, hint, mark, optio
       <div className={AI_MAIN}>
         <div className={AI_HEAD}>
           <label className={AI_NAME} htmlFor={id}>{label}</label>
-          {saved.set ? <Found label="saved" version={saved.hint} /> : <span className="pill">{optional ? 'optional' : 'not set'}</span>}
+          {saved.set ? <Found label="saved" version={saved.hint} /> : <Pill>{optional ? 'optional' : 'not set'}</Pill>}
         </div>
         <div className="flex items-stretch gap-2 max-[561px]:flex-wrap">
           <input className="code min-w-0 flex-1 max-[561px]:basis-full" id={id} type="password" autoComplete="off" value={value} placeholder={saved.set ? 'Paste a new key to replace it' : placeholder} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void store()} />
-          <Button size="small" className="h-auto min-h-9.5" disabled={!value.trim()} onClick={() => void store()}>
+          <Button size="small" className="h-auto! min-h-9.5" disabled={!value.trim()} onClick={() => void store()}>
             Save
           </Button>
           {k === 'openrouterKey' && saved.set ? (
-            <Button variant="ghost" size="small" className="h-auto min-h-9.5" onClick={() => void test()}>
+            <Button variant="ghost" size="small" className="h-auto! min-h-9.5" onClick={() => void test()}>
               Test
             </Button>
           ) : null}
           {saved.set ? (
-            <Button variant="ghost" size="small" className="h-auto min-h-9.5" onClick={() => void remove()}>
+            <Button variant="ghost" size="small" className="h-auto! min-h-9.5" onClick={() => void remove()}>
               Remove
             </Button>
           ) : null}
@@ -370,11 +371,11 @@ function Engines({ data, reload }: { data: AppState; reload: () => Promise<unkno
     attempt(() => POST<EngineStatus['codex']>('/codex/refresh'), (r) => (r.loggedIn ? 'Codex is signed in' : r.installed ? 'Installed, not signed in yet' : 'Not installed')).then(() => (refreshSoon(0), later(300)));
   return (
     <div className={AI_LIST}>
-      <AiRow mark={<Mark brand="claude" />} name="Claude Code" status={cc.installed ? <Found version={cc.version} /> : <span className="pill bad">not installed</span>} note={cc.installed ? 'Agents on "My Claude login" use your Claude subscription. Nothing to paste.' : 'Install Claude Code to run agents on your Claude subscription.'} />
+      <AiRow mark={<Mark brand="claude" />} name="Claude Code" status={cc.installed ? <Found version={cc.version} /> : <Pill tone="bad">not installed</Pill>} note={cc.installed ? 'Agents on "My Claude login" use your Claude subscription. Nothing to paste.' : 'Install Claude Code to run agents on your Claude subscription.'} />
       <AiRow
         mark={<Mark brand="openai" />}
         name="OpenAI Codex"
-        status={!cx.installed ? <span className="pill">not installed</span> : cx.loggedIn ? <Found label="signed in" version={cx.version} /> : <><span className="pill warn">not signed in</span>{cx.version ? <span className={AI_VERSION}>{cx.version}</span> : null}</>}
+        status={!cx.installed ? <Pill>not installed</Pill> : cx.loggedIn ? <Found label="signed in" version={cx.version} /> : <><Pill tone="warn">not signed in</Pill>{cx.version ? <span className={AI_VERSION}>{cx.version}</span> : null}</>}
         note={!cx.installed ? 'Installs the official CLI with npm (npm install -g @openai/codex). Then sign in with your ChatGPT account.' : cx.loggedIn ? 'Agents set to Codex use your ChatGPT login.' : 'Sign in opens a terminal running "codex login": follow the link, then press Recheck.'}
       >
         {!cx.installed ? (
@@ -394,10 +395,10 @@ function Engines({ data, reload }: { data: AppState; reload: () => Promise<unkno
           </>
         )}
       </AiRow>
-      <AiRow mark={<Mark glyph="☤" />} name="Hermes" status={data.engines.hermes.installed ? <Found /> : <span className="pill">not installed</span>} note={data.engines.hermes.installed ? 'Agents can run on your Hermes profiles.' : null} />
+      <AiRow mark={<Mark glyph="☤" />} name="Hermes" status={data.engines.hermes.installed ? <Found /> : <Pill>not installed</Pill>} note={data.engines.hermes.installed ? 'Agents can run on your Hermes profiles.' : null} />
       {CLIS.map(({ id, label, glyph, cmd, then }) => {
         const st: Partial<EngineStatus['pi']> = data.engines[id] || {};
-        return <AiRow key={id} mark={<Mark glyph={glyph} />} name={label} status={st.installed ? <Found version={st.version} /> : <span className="pill">not installed</span>} note={st.installed ? null : then} below={st.installed ? null : <InstallCmd cmd={cmd} />} />;
+        return <AiRow key={id} mark={<Mark glyph={glyph} />} name={label} status={st.installed ? <Found version={st.version} /> : <Pill>not installed</Pill>} note={st.installed ? null : then} below={st.installed ? null : <InstallCmd cmd={cmd} />} />;
       })}
     </div>
   );

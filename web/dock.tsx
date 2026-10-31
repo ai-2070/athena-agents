@@ -21,6 +21,7 @@ import { mentionPreviews } from './filepreview.ts';
 import { useFind } from './ui/find.tsx';
 import { brainKeyLabel, brainKeyTitle, brainShortcut } from './shortcuts.ts';
 import { Avatar, DomNode, Icon, IconWeightProvider, useAppState } from './ui/react.tsx';
+import { Dot } from './ui/marks.tsx';
 import { ChipSet } from './ui/controls.tsx';
 import { Button, IconButton } from './ui/button.tsx';
 import { Dropdown, DropdownContent, DropdownGroup, DropdownLabel, DropdownRadioGroup, DropdownRadioItem, DropdownTrigger } from './ui/dropdown.tsx';
@@ -154,7 +155,8 @@ function draw() {
 }
 
 export function initDock(): void {
-  D.tray = attachTray({ onChange: draw, iconWeight: 'regular' });
+  // (the composer's paperclip is a quiet 32px plate, not the composer's other controls)
+  D.tray = attachTray({ onChange: draw, iconWeight: 'regular', pickerButton: { variant: 'plain', class: 'size-8! px-0!' } });
   D.pastes = pasteBox();
   // the bottom bar holds the "Ask the Brain" button (and the minimized chats, web/chatwin.tsx)
   const bar = h('div.bottom-bar', { class: 'fixed z-45 left-1/2 bottom-4.5 [transform:translateX(-50%)] flex items-center gap-2.5 pointer-events-none *:pointer-events-auto' });
@@ -410,7 +412,7 @@ function StepCard({ st }: { st: BrainStep }) {
   return (
     <details className={`tool small${st.state === 'error' ? ' error' : ''}`}>
       <summary>
-        {st.state === 'running' ? <span className="dot busy" /> : st.state === 'error' ? <span className="text-red">✕</span> : <span className="text-accent">✓</span>}
+        {st.state === 'running' ? <Dot tone="busy" /> : st.state === 'error' ? <span className="text-red">✕</span> : <span className="text-accent">✓</span>}
         <span className="tname">{st.name}</span>
         <span className="targ">{brief}</span>
       </summary>
@@ -478,7 +480,7 @@ function BrainMessage({ it, settings }: { it: BrainItem; settings: AppState['set
       {/* (still streaming: what it has written so far; nothing yet: it is looking at the project) */}
       {it.live && !it.answer ? (
         <div className={NOTE}>
-          <span className="dot busy" />
+          <Dot tone="busy" />
           The Brain is looking at the project…
         </div>
       ) : (
@@ -532,7 +534,7 @@ function AgentMessage({ it }: { it: AgentItem }) {
       )}
       {!it.done ? (
         <div className={NOTE}>
-          <span className="dot busy" />
+          <Dot tone="busy" />
           {it.status || 'Working…'}
         </div>
       ) : null}
@@ -583,12 +585,12 @@ function TeamMessageView({ it }: { it: BranchItem }) {
       ))}
       {it.working?.length ? (
         <div className={NOTE}>
-          <span className="dot busy" />
+          <Dot tone="busy" />
           {`${it.working.map((id) => nameOf(id) || 'Agent').join(', ')} working…`}
         </div>
       ) : !it.messages?.length ? (
         <div className={NOTE}>
-          <span className="dot busy" />
+          <Dot tone="busy" />
           Sent to the team…
         </div>
       ) : null}
@@ -658,7 +660,7 @@ function Item({ it, settings }: { it: DockItem; settings: AppState['settings'] |
   if (it.kind === 'note')
     return (
       <div className={it.error ? NOTE_ERR : NOTE}>
-        {it.busy ? <span className="dot busy" /> : null}
+        {it.busy ? <Dot tone="busy" /> : null}
         {it.text}
         {it.action ? (
           <Button size="tiny" onClick={it.action.run}>
@@ -888,7 +890,7 @@ function DockView({ bar }: { bar: HTMLElement }) {
           <Icon name="sparkles" size={17} className="text-dim" />
           {brainBusy ? (
             <span className="brain-working flex items-center gap-2 text-dim" role="status">
-              <span className="dot busy" />
+              <Dot tone="busy" />
               Brain is working…
             </span>
           ) : (
@@ -908,13 +910,13 @@ function DockView({ bar }: { bar: HTMLElement }) {
             Brain chat
           </b>
           <span className="flex-1 min-w-0" />
-          <IconButton className="plain" onClick={() => openMemory(BRAIN)} title="The Brain's MEMORY.md: what it remembers across conversations" aria-label="The Brain's MEMORY.md">
+          <IconButton variant="plain" onClick={() => openMemory(BRAIN)} title="The Brain's MEMORY.md: what it remembers across conversations" aria-label="The Brain's MEMORY.md">
             <Icon name="file-text" size={16} />
           </IconButton>
-          <IconButton className="plain" onClick={() => void newConversation()} title="New conversation (the Brain forgets this chat)" aria-label="New conversation">
+          <IconButton variant="plain" onClick={() => void newConversation()} title="New conversation (the Brain forgets this chat)" aria-label="New conversation">
             <Icon name="rotate-ccw" size={16} />
           </IconButton>
-          <IconButton onClick={() => toggle(false)} aria-label="Close">
+          <IconButton variant="inset" onClick={() => toggle(false)} aria-label="Close">
             <Icon name="x" size={15} />
           </IconButton>
         </div>
@@ -963,11 +965,11 @@ function DockView({ bar }: { bar: HTMLElement }) {
                 <DomNode as="span" className="dom-contents" make={() => D.tray!.picker} deps={[]} />
                 {/* (Stop in Send's place while something works and the box is empty) */}
                 {stopInstead ? (
-                  <Button variant="danger" className="size-8 px-0" onClick={() => void brainStop()} title="Stop the Brain and the work it handed on" aria-label="Stop">
+                  <Button variant="danger" className="size-8! px-0!" onClick={() => void brainStop()} title="Stop the Brain and the work it handed on" aria-label="Stop">
                     <Icon name="square" size={14} />
                   </Button>
                 ) : (
-                  <Button className="size-8 px-0" onClick={() => void send()} title={idle ? 'Send (Enter)' : 'Send now: the Brain stops the answer it is writing and takes this up (Enter)'} aria-label="Send">
+                  <Button className="size-8! px-0!" onClick={() => void send()} title={idle ? 'Send (Enter)' : 'Send now: the Brain stops the answer it is writing and takes this up (Enter)'} aria-label="Send">
                     <Icon name="arrow-up" size={16} />
                   </Button>
                 )}

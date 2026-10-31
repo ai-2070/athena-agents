@@ -20,7 +20,7 @@ export const BrandMark = ({ size = 48 }: { size?: number }) => (
 /** "Star on GitHub", with the count when GitHub gave one. */
 export function StarButton({ stars, small = false }: { stars: number | null; small?: boolean }) {
   return (
-    <ButtonLink size={small ? 'tiny' : 'small'} className="star-btn" href={REPO.url} target="_blank" rel="noopener" title={`Star ${REPO.slug} on GitHub`}>
+    <ButtonLink size={small ? 'tiny' : 'small'} className="star-btn gap-1.75" href={REPO.url} target="_blank" rel="noopener" title={`Star ${REPO.slug} on GitHub`}>
       <Icon name="star" size={small ? 12 : 14} />
       <span>{small ? 'Star' : 'Star on GitHub'}</span>
       {stars != null ? <span className="ml-0.5 border-l border-[color-mix(in_srgb,currentColor_35%,transparent)] pl-2 tabular-nums">{stars.toLocaleString()}</span> : null}
@@ -55,9 +55,9 @@ export function AboutTab() {
           </div>
           <p className="mt-2 mb-0 max-w-[62ch] text-[14px] leading-[1.6] text-dim">Run AI agents and teams from one local workspace. A live 3D map, team chats, Claude Code, Codex and local models, MCP tools, an approval Outbox and Artifacts. No account, runs on your computer.</p>
         </div>
-        <div className="flex flex-wrap gap-2 [&_.btn]:gap-1.75">
+        <div className="flex flex-wrap gap-2">
           <StarButton stars={about?.stars ?? null} />
-          <ButtonLink variant="ghost" size="small" href={REPO.url} target="_blank" rel="noopener">
+          <ButtonLink variant="ghost" size="small" className="gap-1.75" href={REPO.url} target="_blank" rel="noopener">
             <DomNode as="span" className="inline-flex" make={() => logo('github', 14, 'currentColor')} deps={[]} />
             <span>{REPO.slug}</span>
           </ButtonLink>

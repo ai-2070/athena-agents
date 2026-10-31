@@ -1,6 +1,7 @@
 // The Skills page's dialogs (plain DOM in Base UI dialogs): write or edit a skill, with the Brain's help
 // in plain words; install from GitHub; import from Claude Code. Each takes the page's reload().
 import { h, mount, GET, POST, PUT, attempt, modal, field, toast } from './core.ts';
+import { domButton, domPill } from './ui/dom.ts';
 import { icon } from './icons.ts';
 import { historyButton } from './history.ts';
 import { attachTray } from './attach.ts';
@@ -28,7 +29,7 @@ export async function openEditor(slug: string | null, reload: () => unknown): Pr
   const tray = attachTray();
   const askStatus = h('span.hint', { class: 'flex-1 min-w-0 wrap-anywhere' });
   let before: { name: string; description: string; body: string } | null = null;
-  const undoBtn = h('button.btn.ghost.small.hidden', {
+  const undoBtn = domButton({ variant: 'ghost', size: 'small', class: 'hidden',
     type: 'button',
     title: 'Put back what the fields said before',
     onclick: () => {
@@ -74,7 +75,7 @@ export async function openEditor(slug: string | null, reload: () => unknown): Pr
       asking = askBtn.disabled = false;
     }
   };
-  const askBtn = h('button.btn.small', { type: 'button', onclick: () => void runAsk() }, icon('sparkles', 13), slug ? 'Change it' : 'Write it');
+  const askBtn = domButton({ size: 'small', type: 'button', onclick: () => void runAsk() }, icon('sparkles', 13), slug ? 'Change it' : 'Write it');
   ask.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
@@ -91,7 +92,7 @@ export async function openEditor(slug: string | null, reload: () => unknown): Pr
     h('p.hint', { class: 'm-0' }, `${slug ? 'The Brain rewrites the fields below as you ask (what you typed there counts too).' : 'The Brain fills in the fields below.'} Drop examples or notes to learn from. Nothing is saved until you press ${slug ? 'Save' : 'Add skill'}. Ctrl+Enter sends.`),
   );
   let m: ModalHandle;
-  const saveBtn: HTMLButtonElement = h('button.btn', { onclick: (e: MouseEvent) => save(e.currentTarget as HTMLButtonElement) }, slug ? 'Save' : 'Add skill');
+  const saveBtn: HTMLButtonElement = domButton({ onclick: (e: MouseEvent) => save(e.currentTarget as HTMLButtonElement) }, slug ? 'Save' : 'Add skill');
   const save = async (btn: HTMLButtonElement) => {
     btn.disabled = true;
     const r = await attempt(() => (slug ? PUT(`/skills/${slug}`, { name: name.value, description: desc.value, body: body.value }) : POST('/skills', { name: name.value, description: desc.value, body: body.value })), slug ? 'Saved' : 'Skill added');
@@ -109,13 +110,13 @@ export async function openEditor(slug: string | null, reload: () => unknown): Pr
       field('Name', name),
       field('When to use it', desc, 'Agents decide from this line whether the skill fits, so be specific.'),
       field('Instructions', body, 'Markdown. Steps, rules, examples, what good output looks like. The agent reads this when it uses the skill.'),
-      s?.files?.length ? h('div', h('div.label', `Files with this skill (${s.files.length})`), h('div', { class: 'mt-2 flex flex-wrap gap-2' }, s.files.map((f) => h('span.pill', f.path)))) : null,
+      s?.files?.length ? h('div', h('div.label', `Files with this skill (${s.files.length})`), h('div', { class: 'mt-2 flex flex-wrap gap-2' }, s.files.map((f) => domPill('dim', {}, f.path)))) : null,
       s ? h('p.hint', `Saved as data/skills/${s.slug}/SKILL.md, in the same format Claude Code uses. Every change keeps the version from before it (History).`) : null,
     ),
     foot: [
       slug ? historyButton('skill', slug, () => (m.close(), void reload(), void openEditor(slug, reload))) : null,
       h('span', { class: 'flex-1 min-w-0' }),
-      h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'),
+      domButton({ variant: 'ghost', onclick: () => m.close() }, 'Cancel'),
       saveBtn,
     ],
     // the files were only for the Brain to read: they go with the dialog
@@ -156,7 +157,7 @@ export function openGitHub(reload: () => unknown): void {
       h('p.hint', 'Skills are instructions your agents follow: install them only from people you trust. Private repos work once you sign in with the GitHub CLI (gh auth login).'),
       out,
     ),
-    foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Close'), h('button.btn.gh-install', { onclick: (e) => go(e.currentTarget) }, 'Install')],
+    foot: [domButton({ variant: 'ghost', onclick: () => m.close() }, 'Close'), domButton({ class: 'gh-install', onclick: (e) => go(e.currentTarget) }, 'Install')],
   });
   setTimeout(() => url.focus(), 40);
 }
@@ -174,8 +175,8 @@ export function openImport(claude: ClaudeSkill[], reload: () => unknown): void {
           h('div.skill-ico', icon('puzzle', 16)),
           h('div', { class: 'flex-1 min-w-0' }, h('div.title', c.name), h('div.hint', c.description.slice(0, 160))),
           c.inLibrary
-            ? h('span.pill.ok', 'in library')
-            : h('button.btn.small', {
+            ? domPill('ok', {}, 'in library')
+            : domButton({ size: 'small',
                 onclick: async (e) => {
                   const btn = e.currentTarget;
                   btn.disabled = true;
@@ -193,5 +194,5 @@ export function openImport(claude: ClaudeSkill[], reload: () => unknown): void {
       ),
     );
   drawRows();
-  m = modal({ title: 'Import from Claude Code', body: h('div', { class: 'flex flex-col gap-4' }, h('p.hint', 'Your Claude Code skills (~/.claude/skills). Importing copies the skill and its files into the dashboard library; the original stays where it is.'), rows), foot: [h('button.btn', { onclick: () => m.close() }, 'Done')] });
+  m = modal({ title: 'Import from Claude Code', body: h('div', { class: 'flex flex-col gap-4' }, h('p.hint', 'Your Claude Code skills (~/.claude/skills). Importing copies the skill and its files into the dashboard library; the original stays where it is.'), rows), foot: [domButton({ onclick: () => m.close() }, 'Done')] });
 }

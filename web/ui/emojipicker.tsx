@@ -3,6 +3,7 @@ import data from '@emoji-mart/data/sets/15/native.json';
 import type { EmojiMartData } from '@emoji-mart/data';
 import { useMemo, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
+import { buttonClass } from './classes.ts';
 
 const emojiData: EmojiMartData = data;
 const categories: Record<string, string> = {
@@ -45,7 +46,7 @@ export function EmojiPicker({ value, onChange, children }: { value: string; onCh
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-        <Popover.Trigger className="btn ghost size-15! rounded-[14px] p-0!" aria-label="Choose emoji" title="Choose emoji">{children}</Popover.Trigger>
+        <Popover.Trigger className={buttonClass('ghost', undefined, 'size-15! rounded-[14px] p-0!')} aria-label="Choose emoji" title="Choose emoji">{children}</Popover.Trigger>
         <Popover.Portal>
           <Popover.Positioner className="z-96 outline-none" side="bottom" align="start" sideOffset={6} collisionPadding={8}>
             <Popover.Popup aria-label="Choose emoji" className="st-menu dd static w-[min(320px,calc(100vw-16px))] max-w-none p-2">

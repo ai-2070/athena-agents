@@ -22,8 +22,9 @@ describe('the stylesheet', () => {
     // tokens look.ts swaps at runtime
     expect(css).toContain('--color-accent:');
     expect(css).toContain('--color-on-accent:');
-    // a shared piece, Markdown defaults, a utility found in web/
-    expect(css).toMatch(/\.btn\s*\{/);
+    // the raised token the control components lift with, a shared piece, Markdown defaults, a utility found in web/
+    expect(css).toContain('--shadow-raised:');
+    expect(css).toMatch(/\.st-menu\s*\{/);
     expect(css).toContain(':where(.md)');
     expect(css).toMatch(/\.text-dim\s*\{/);
     // the hidden class beats display utilities

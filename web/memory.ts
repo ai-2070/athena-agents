@@ -1,6 +1,8 @@
 // MEMORY.md on the page: read and edit what an agent (or the Brain) remembers across its chats.
 // The same editor sits in the agent editor and opens as a window from chats and the Brain chat.
 import { h, mount, GET, PUT, attempt, modal, ago, onEvent, onState, state, confirmBox } from './core.ts';
+import { domButton } from './ui/dom.ts';
+import { buttonClass } from './ui/classes.ts';
 import { icon } from './icons.ts';
 import { historyButton } from './history.ts';
 import type { MemoryInfo } from '../shared/types.ts';
@@ -48,8 +50,8 @@ export function memoryEditor(owner: string, { rows = 12 }: { rows?: number } = {
   });
   const status = h('div.hint.memory-status', { class: '[&.warn]:text-amber' });
   const note = h('div', { class: 'empty:hidden' });
-  const saveBtn = h('button.btn.small', { type: 'button', onclick: () => save() }, 'Save');
-  const undoBtn = h('button.btn.ghost.small', { type: 'button', onclick: () => ((area.value = base), draw()) }, 'Undo changes');
+  const saveBtn = domButton({ size: 'small', type: 'button', onclick: () => save() }, 'Save');
+  const undoBtn = domButton({ variant: 'ghost', size: 'small', type: 'button', onclick: () => ((area.value = base), draw()) }, 'Undo changes');
   const dirty = () => !!loaded && area.value !== base;
 
   const draw = () => {
@@ -68,7 +70,7 @@ export function memoryEditor(owner: string, { rows = 12 }: { rows?: number } = {
       gone
         ? h('p', { class: WARN }, icon('triangle-alert', 14, 'mt-0.5 flex-none'), ' You opened another project. This MEMORY.md belongs to the one before, so it can’t be saved here.')
         : changedElsewhere
-          ? h('p', { class: WARN }, icon('triangle-alert', 14, 'mt-0.5 flex-none'), ` ${brain ? 'The Brain' : 'The agent'} changed it while you were editing. Save keeps your text; `, h('button.btn.tiny.ghost', { type: 'button', onclick: () => load(true) }, 'Show its version'), ' drops your changes.')
+          ? h('p', { class: WARN }, icon('triangle-alert', 14, 'mt-0.5 flex-none'), ` ${brain ? 'The Brain' : 'The agent'} changed it while you were editing. Save keeps your text; `, domButton({ variant: 'ghost', size: 'tiny', type: 'button', onclick: () => load(true) }, 'Show its version'), ' drops your changes.')
           : null,
     );
   };
@@ -152,12 +154,12 @@ export function openMemory(owner: string, name = owner === BRAIN ? 'The Brain' :
     if (ed.dirty() && !(await confirmBox('Close without saving your changes to MEMORY.md?', { ok: 'Close', danger: true }))) return;
     m.close();
   };
-  m = modal({ title: h('span', icon('file-text', 16), ` ${name} · MEMORY.md`), body: ed.el, foot: [h('button.btn.ghost', { onclick: close }, 'Close')] });
+  m = modal({ title: h('span', icon('file-text', 16), ` ${name} · MEMORY.md`), body: ed.el, foot: [domButton({ variant: 'ghost', onclick: close }, 'Close')] });
   m.el.classList.add('[&_.modal]:w-[min(760px,100%)]');
   setTimeout(() => ed.el.querySelector('textarea')?.focus(), 30);
 }
 
 /** A button that opens it. */
-export function memoryButton(owner: string, name?: string, cls = 'button.btn.ghost.small'): HTMLButtonElement {
-  return h(cls, { type: 'button', title: 'What it remembers across chats: read and edit', onclick: () => openMemory(owner, name) }, icon('file-text', 13), 'MEMORY.md') as HTMLButtonElement;
+export function memoryButton(owner: string, name?: string, cls = buttonClass('ghost', 'small')): HTMLButtonElement {
+  return domButton({ class: cls, type: 'button', title: 'What it remembers across chats: read and edit', onclick: () => openMemory(owner, name) }, icon('file-text', 13), 'MEMORY.md');
 }

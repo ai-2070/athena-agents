@@ -1,5 +1,7 @@
 // The schedule editor (Manual / Every… / Daily) used by workflows and routines.
 import { h, mount, field, seg, toggle } from './core.ts';
+import { domChip } from './ui/dom.ts';
+import { CHIPS_CLASS } from './ui/classes.ts';
 import { scheduleText, DAY_NAMES as DAYS } from '../shared/routines.ts';
 import type { Schedule } from '../shared/types.ts';
 
@@ -38,10 +40,11 @@ export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean },
             { class: 'flex flex-col gap-4' },
             field('Time', h('input', { type: 'time', value: s.time || '09:00', oninput: (e) => ((s.time = e.target.value), mark()) })),
             h(
-              'div.chips',
+              'div',
+              { class: CHIPS_CLASS },
               DAYS.map((d, i) => {
                 const days = s.days?.length ? s.days : EVERY_DAY;
-                return h(`button.chip${days.includes(i) ? '.on' : ''}`, {
+                return domChip(days.includes(i), {
                   onclick: () => {
                     const cur = new Set(s.days?.length ? s.days : EVERY_DAY);
                     cur.has(i) ? cur.delete(i) : cur.add(i);

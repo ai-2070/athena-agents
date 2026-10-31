@@ -2,10 +2,12 @@
 // and your presets. A React page on Base UI controls.
 import { Plate } from '../ui/surface.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
+import { Pill } from '../ui/marks.tsx';
 import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { h, GET, POST, PUT, DEL, attempt, navigate, md, modal, toast, refreshSoon, confirmBox } from '../core.ts';
 import { Chips, SearchBox, Segmented, Tabs } from '../ui/controls.tsx';
+import { domButton } from '../ui/dom.ts';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
 import type { Agent, AppState, EngineId, PresetListing, Team } from '../../shared/types.ts';
 
@@ -93,7 +95,7 @@ async function preview(a: AgencyListing, doHire: () => unknown) {
   const m = modal({
     title: `${a.emoji} ${a.name}`,
     body: h('div.msg.assistant', md(full.body.replace(/^---[\s\S]*?---/, ''))),
-    foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Close'), h('button.btn', { onclick: () => (m.close(), doHire()) }, 'Hire')],
+    foot: [domButton({ variant: 'ghost', onclick: () => m.close() }, 'Close'), domButton({ onclick: () => (m.close(), doHire()) }, 'Hire')],
   });
 }
 
@@ -305,7 +307,7 @@ function Hermes({ lib, data }: { lib: LibraryIndex; data: AppState }) {
             }
             foot={
               have.has(p.name) ? (
-                <div className="card-foot"><span className="pill ok">on your team</span></div>
+                <div className="card-foot"><Pill tone="ok">on your team</Pill></div>
               ) : (
                 <HireFoot onHire={() => hire({ source: 'hermes', profile: p.name }, p.name)}>{(go) => <Button size="small" onClick={go}>Add as agent</Button>}</HireFoot>
               )
@@ -381,7 +383,7 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
       sub={
         <>
           {p.description ? <div className="card-sub">{p.description}</div> : null}
-          {p.kind === 'team' ? <div className="my-1 flex flex-wrap gap-2">{p.members!.map((m) => <span key={m.name} className="pill">{`${m.emoji || ''} ${m.name}`}</span>)}</div> : null}
+          {p.kind === 'team' ? <div className="my-1 flex flex-wrap gap-2">{p.members!.map((m) => <Pill key={m.name}>{`${m.emoji || ''} ${m.name}`}</Pill>)}</div> : null}
           {p.skills?.length ? <div className="hint">{`${p.skills.length} skill${p.skills.length === 1 ? '' : 's'}`}</div> : null}
         </>
       }

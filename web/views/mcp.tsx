@@ -1,5 +1,7 @@
 // Tools & MCP: built-in tools, MCP servers (presets, custom, imported), and sharing dashboard tools with Hermes / other apps.
 import { Button } from '../ui/button.tsx';
+import { CHIPS_CLASS, chipClass } from '../ui/classes.ts';
+import { Pill } from '../ui/marks.tsx';
 import { Plate } from '../ui/surface.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import { GET, POST, DEL, attempt, confirmBox, copy, refreshSoon } from '../core.ts';
@@ -172,14 +174,14 @@ export function McpTab() {
               <div className="card-foot">
                 {p.installed ? (
                   <>
-                    <span className="pill ok">{(p.copies?.length || 1) > 1 ? `${p.copies!.length} added` : 'added'}</span>
+                    <Pill tone="ok">{(p.copies?.length || 1) > 1 ? `${p.copies!.length} added` : 'added'}</Pill>
                     <Button variant="ghost" size="small" title="Another account of the same service, with its own label and keys" onClick={() => addAnother(p)}>Add another</Button>
                   </>
                 ) : (
                   <Button size="small" onClick={() => void attempt(() => POST('/mcp-preset', { name: p.name }), `Added ${p.title}`).then(reload)}>Add</Button>
                 )}
-                {!p.ready ? <span className="pill warn">{`needs ${p.command}`}</span> : null}
-                {!p.installed && needsKey(p) ? <span className="pill info" title="After adding, put your key in the settings of the added server below">needs your key</span> : null}
+                {!p.ready ? <Pill tone="warn">{`needs ${p.command}`}</Pill> : null}
+                {!p.installed && needsKey(p) ? <Pill tone="info" title="After adding, put your key in the settings of the added server below">needs your key</Pill> : null}
               </div>
             </Plate>
           ))}
@@ -194,7 +196,7 @@ export function McpTab() {
                 <div className="title">{s.name}</div>
                 <div className="hint wrap-anywhere">{`${s.source} · ${s.type === 'stdio' ? `${s.command} ${s.args.join(' ')}` : s.url}`}</div>
               </div>
-              {data.servers[s.name] ? <span className="pill ok">added</span> : <Button size="tiny" onClick={() => void attempt(() => POST('/mcp-import', { name: s.name, source: s.source }), 'Imported').then(reload)}>Import</Button>}
+              {data.servers[s.name] ? <Pill tone="ok">added</Pill> : <Button size="tiny" onClick={() => void attempt(() => POST('/mcp-import', { name: s.name, source: s.source }), 'Imported').then(reload)}>Import</Button>}
             </div>
           ))}
         </Section>
@@ -226,11 +228,11 @@ export function McpTab() {
               <b>{g.label}</b>
               <span className="hint">{g.description}</span>
             </div>
-            <div className="chips mt-3">
+            <div className={`${CHIPS_CLASS} mt-3`}>
               {tools.tools
                 .filter((t) => t.group === g.id)
                 .map((t) => (
-                  <span key={t.name} className="chip mcp-tool cursor-help" title={t.description}>
+                  <span key={t.name} className={chipClass(false, 'mcp-tool cursor-help')} title={t.description}>
                     {t.name}
                     {t.risk === 'high' ? <span className="text-amber"> ●</span> : t.risk === 'low' ? <span className="text-faint"> ●</span> : t.risk === 'varies' ? <span className="text-faint"> ◐</span> : null}
                   </span>
@@ -268,7 +270,7 @@ function ServerRow({ name, cfg, info, onEdit, reload }: { name: string; cfg: Mcp
           <div className="title flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
             {info?.title || name}
             {info && info.title !== name ? <span className="hint font-mono text-[11px]">{name}</span> : null}
-            {copies ? <span className="pill info" title={`${info!.service} is added ${info!.copies} times, one per account`}>{`${info!.service} account`}</span> : null}
+            {copies ? <Pill tone="info" title={`${info!.service} is added ${info!.copies} times, one per account`}>{`${info!.service} account`}</Pill> : null}
           </div>
           <div className="hint font-mono text-[11.5px] wrap-anywhere">{cfg.type === 'stdio' ? `${cfg.command} ${(cfg.args || []).join(' ')}` : cfg.url}</div>
           {cfg.useFor ? <div className="hint mcp-use-for">{`Use for: ${cfg.useFor}`}</div> : copies ? <div className="hint mcp-use-for text-amber">{`No "use for" yet: an agent with several ${info!.service} accounts can't tell this one apart. Edit it to say what it is for.`}</div> : null}
@@ -283,7 +285,7 @@ function ServerRow({ name, cfg, info, onEdit, reload }: { name: string; cfg: Mcp
         {test === 'failed' ? <p className="hint">It did not start. Check the command, and that npx/uvx works in a terminal.</p> : null}
         {Array.isArray(test) ? (
           <div className="mt-3.5">
-            <span className="pill ok">{`${test.length} tools`}</span>
+            <Pill tone="ok">{`${test.length} tools`}</Pill>
             <div className="hint mcp-tools mt-1.5 font-mono text-[11px]">{test.join(' · ')}</div>
           </div>
         ) : null}

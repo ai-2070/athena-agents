@@ -26,6 +26,9 @@
   --color-panel: #fcfcfd;
   --color-panel-2: #f3f3f6;
   --color-raise: #ffffff;
+  /* a ghost control's fill: a hint of ink on white, a hint of white on black */
+  --color-ghost: light-dark(rgb(20 22 40 / 0.03), rgb(255 255 255 / 0.04));
+  --color-ghost-hover: light-dark(rgb(20 22 40 / 0.06), rgb(255 255 255 / 0.09));
   /* hairlines: between things, and around fields and buttons */
   --color-line: #ebebef;
   --color-line-2: #dcdce3;
@@ -63,6 +66,10 @@
   --radius-box: 12px;
   --shadow-pop: 0 18px 44px -10px rgb(20 22 40 / 0.2), 0 4px 14px rgb(20 22 40 / 0.08), 0 0 0 1px rgb(20 22 40 / 0.05);
   --shadow-card: 0 1px 2px rgb(20 22 40 / 0.04);
+  /* what buttons, chips, pills and badges lift off the page with: a lit top edge, a shaded bottom, two casts */
+  --shadow-raised:
+    inset 0 1px 0 var(--glass-spec), inset 0 -1px 0 light-dark(rgb(20 22 40 / 0.04), rgb(0 0 0 / 0.18)),
+    0 1px 2px light-dark(rgb(20 22 40 / 0.12), rgb(0 0 0 / 0.3)), 0 3px 6px -3px light-dark(rgb(20 22 40 / 0.12), rgb(0 0 0 / 0.35));
   --shadow-lift: 0 8px 24px -8px rgb(20 22 40 / 0.14), 0 1px 3px rgb(20 22 40 / 0.06);
   --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
   --spacing-nav: 248px;

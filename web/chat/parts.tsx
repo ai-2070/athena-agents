@@ -6,6 +6,7 @@ import { Component, Suspense, lazy, memo, useEffect, useMemo, useRef, useState }
 import type { ReactNode } from 'react';
 import type { DynamicToolUIPart } from 'ai';
 import { md, lightbox } from '../core.ts';
+import { Dot } from '../ui/marks.tsx';
 import { compactionMark } from '../compactmark.ts';
 import { filePreviews } from '../filepreview.ts';
 import { findFileMentions } from '../mentions.ts';
@@ -109,7 +110,7 @@ export function ToolCard({ part, variant, busy, owner }: { part: DynamicToolUIPa
   const out = part.state === 'output-available' ? readOutput(part.output) : null;
   const images = out?.images || [];
   const running = !done && busy;
-  const mark = running ? <span className="dot busy" /> : failed ? <span className="text-red">✕</span> : done ? <span className="text-ok">✓</span> : <span className="text-faint">·</span>;
+  const mark = running ? <Dot tone="busy" /> : failed ? <span className="text-red">✕</span> : done ? <span className="text-ok">✓</span> : <span className="text-faint">·</span>;
   let input = '';
   try {
     input = typeof part.input === 'string' ? part.input : JSON.stringify(part.input ?? {}, null, 2);

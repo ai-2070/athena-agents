@@ -11,6 +11,8 @@ import { openFile } from '../filepreview.ts';
 import { reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { Section, Sections } from '../ui/controls.tsx';
+import { Pill } from '../ui/marks.tsx';
+import type { PillTone } from '../ui/marks.tsx';
 import { QuestionCard } from '../questions.tsx';
 import type { AgentQuestion, OutboxPost } from '../../shared/types.ts';
 
@@ -126,12 +128,12 @@ function Compose({ accounts, added }: { accounts: string[]; added: () => void })
   );
 }
 
-const STATUS: Record<string, [string, string]> = {
+const STATUS: Record<string, [PillTone, string]> = {
   pending: ['warn', 'waiting'],
   failed: ['bad', 'failed'],
   posting: ['info', 'posting…'],
   posted: ['ok', 'posted'],
-  rejected: ['', 'rejected'],
+  rejected: ['dim', 'rejected'],
   returned: ['info', 'sent back'],
 };
 
@@ -182,15 +184,15 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
     setBusy(false);
     if (r) changed();
   };
-  const [tone, label] = STATUS[p.status] || ['', p.status];
+  const [tone, label]: [PillTone, string] = STATUS[p.status] || ['dim', p.status];
   const link = p.platform === 'reddit' ? 'View on Reddit' : p.platform === 'x_dm' ? 'Open messages' : 'View on X';
   return (
     <Plate className="panel">
       <div className="flex flex-wrap items-center gap-3">
-        <span className={`pill${tone ? ` ${tone}` : ''}`}>{label}</span>
+        <Pill tone={tone}>{label}</Pill>
         <b>{p.accountLabel}</b>
         <span className="hint">{`by ${p.agentName || 'you'}${p.teamName ? ` · team ${p.teamName}` : ''} · ${ago(p.createdAt)}`}</span>
-        {p.parts.length > 1 ? <span className="pill info">{`thread of ${p.parts.length}`}</span> : null}
+        {p.parts.length > 1 ? <Pill tone="info">{`thread of ${p.parts.length}`}</Pill> : null}
         {p.url ? <ButtonLink variant="ghost" size="tiny" className="ml-auto" href={p.url} target="_blank" rel="noopener">{link}</ButtonLink> : null}
       </div>
       {p.platform === 'reddit' ? <div className="hint mt-4">{p.reddit?.kind === 'comment' ? `Comment replying to ${p.reddit.parent}` : `Post in r/${p.reddit?.subreddit}${p.reddit?.link ? ` · link: ${p.reddit.link}` : ''}`}</div> : null}

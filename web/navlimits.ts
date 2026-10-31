@@ -1,6 +1,8 @@
 // The sidebar's usage view, in place of the status list (the Status / Limits switch below it, or Settings > Look):
 // how much of your Claude and Codex plans is used, when each limit starts again, and Codex's free limit resets.
 import { h, mount, GET, POST, PUT, state, confirmBox, toast } from './core.ts';
+import { domButton, domDot } from './ui/dom.ts';
+import type { DotTone } from './ui/classes.ts';
 import { DEFAULT_LOOK, applyLook, currentLook, uiZoom } from './look.ts';
 import { logo } from './icons.ts';
 import { EASE, flipFrom, reducedMotion, slideOut } from './motion.ts';
@@ -105,7 +107,7 @@ function head(name: string, brand: string, color: string | undefined, p: Provide
   return h(
     'a',
     { class: ROW, href, title: p.ready ? `${name} plan limits` : `${name}: ${p.why}`, onclick: close },
-    h('span', { class: `dot ${dot} size-1.5 [box-shadow:none]` }),
+    domDot(dot, { class: 'size-1.5 [box-shadow:none]' }),
     h('span', { class: 'flex min-w-0 flex-1 items-center gap-1.5 text-ink' }, logo(brand, 12, color), h('span', { class: 'min-w-0 truncate' }, name)),
     right ? h('span', { class: 'max-w-[48%] min-w-0 truncate text-right text-[11.5px] text-faint', title: right }, right) : null,
   );
@@ -203,7 +205,7 @@ function drawPop(redraw: () => void): void {
     pop,
     h('span', { class: 'text-[13px] font-semibold text-ink' }, `${r.available} rate-limit reset${r.available === 1 ? '' : 's'} available`),
     next?.expiresAt ? h('span', { class: 'text-[12px] text-faint', title: `Runs out ${when(next.expiresAt)}` }, `Next expires in ${timeUntil(next.expiresAt)}`) : null,
-    h('button', { class: 'btn ghost tiny mt-1.5 self-start', disabled: resetting, onclick: () => void useReset(redraw) }, resetting ? 'Resetting…' : 'Reset now'),
+    domButton({ variant: 'ghost', size: 'tiny', class: 'mt-1.5 self-start', disabled: resetting, onclick: () => void useReset(redraw) }, resetting ? 'Resetting…' : 'Reset now'),
   );
   // beside the sidebar, level with Codex, kept on screen (the sidebar is as tall as the window)
   const a = anchor.getBoundingClientRect();

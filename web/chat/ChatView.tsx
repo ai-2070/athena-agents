@@ -13,6 +13,7 @@ import type { AttachTray } from '../attach.ts';
 import { COMPOSER_BTNS, COMPOSER_TEXT } from '../attach.ts';
 import { pasteBox } from '../pastes.ts';
 import { icon } from '../icons.ts';
+import { Dot } from '../ui/marks.tsx';
 import { latestCompaction, memoryStart } from '../../shared/compaction.ts';
 import { Dom, MessageView, isRichCode } from './parts.tsx';
 import type { Variant } from './parts.tsx';
@@ -807,7 +808,7 @@ export function ChatView(p: ChatViewProps) {
             statusLine
           ) : (
             <>
-              <span className="dot busy" />
+              <Dot tone="busy" />
               {statusLine}
             </>
           )

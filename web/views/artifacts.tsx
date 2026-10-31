@@ -2,6 +2,7 @@
 // with a preview of each (images, video, audio, 3D models) and a search for when there are many.
 import { Plate } from '../ui/surface.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
+import { Pill } from '../ui/marks.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import { GET, DEL, attempt, md, copy, confirmBox } from '../core.ts';
 import { filePreviews } from '../filepreview.ts';
@@ -66,7 +67,7 @@ function ArtifactCard({ a, onRemove }: { a: Artifact; onRemove: () => void }) {
       <div className="flex flex-wrap items-center gap-3">
         <Icon name={kindIcon} className="text-faint" />
         <b>{a.title}</b>
-        <span className="pill">{a.kind}</span>
+        <Pill>{a.kind}</Pill>
         <span className="flex-1 min-w-0" />
         <span className="hint" title={when(a.createdAt)}>{`done ${when(a.createdAt)}`}</span>
       </div>

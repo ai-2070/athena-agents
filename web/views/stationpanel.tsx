@@ -18,6 +18,7 @@ import { pickTeamMark, EMOJI_CHOICES, DEFAULT_TEAM_MARK } from '../teammark.ts';
 import { icon, logo } from '../icons.ts';
 import { modelChip, modelInfo } from '../models.ts';
 import { Avatar, DomNode, HoverScroll, Icon, IconWeightProvider, useAppState } from '../ui/react.tsx';
+import { Dot, Pill } from '../ui/marks.tsx';
 import { ChipSet, Segmented, Tabs } from '../ui/controls.tsx';
 import { Button, ButtonLink, IconButton } from '../ui/button.tsx';
 import { Plate } from '../ui/surface.tsx';
@@ -128,7 +129,7 @@ function PanelHead({ api, children }: { api: StationPanelApi; children: ReactNod
   return (
     <div className="flex items-center gap-3 px-5 pt-5 pb-2">
       {children}
-      <IconButton onClick={() => api.choose(null)} aria-label="Close">
+      <IconButton variant="inset" onClick={() => api.choose(null)} aria-label="Close">
         <Icon name="x" size={15} />
       </IconButton>
     </div>
@@ -311,13 +312,13 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
         </button>
         <div className="mt-6 mb-2 flex items-center gap-0.5">
           <div className="label flex-1">Brain folder</div>
-          <IconButton className="plain" title="Open the folder" aria-label="Open folder" onClick={() => void attempt(() => POST('/brain/open', {}))}>
+          <IconButton variant="plain" title="Open the folder" aria-label="Open folder" onClick={() => void attempt(() => POST('/brain/open', {}))}>
             <FolderIcon size={16} />
           </IconButton>
-          <IconButton className="plain" title="Open in VS Code" aria-label="VS Code" onClick={() => void attempt(() => POST('/brain/open', { app: 'vscode' }))}>
+          <IconButton variant="plain" title="Open in VS Code" aria-label="VS Code" onClick={() => void attempt(() => POST('/brain/open', { app: 'vscode' }))}>
             <VSCodeIcon size={16} />
           </IconButton>
-          <IconButton className="plain" title="Add a note" aria-label="Add note" onClick={() => void addNote()}>
+          <IconButton variant="plain" title="Add a note" aria-label="Add note" onClick={() => void addNote()}>
             <Icon name="pen-line" size={14} />
           </IconButton>
         </div>
@@ -370,12 +371,12 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
         <div className="list">
           {teams.map((wf, i) => (
             <Pick key={wf.id} onClick={() => api.choose({ type: 'branch', id: wf.id })}>
-              <span className="st-dot" style={badgeStyle(wfColor(wf, i))} />
+              <Dot tone="color" style={badgeStyle(wfColor(wf, i))} />
               <div className="min-w-0 flex-1">
                 <div className="title">{wf.name}</div>
                 <div className="hint">{wf.description || `${(wf.members || []).length} members`}</div>
               </div>
-              {api.teamBusy(wf.id) ? <span className="dot busy" /> : null}
+              {api.teamBusy(wf.id) ? <Dot tone="busy" /> : null}
             </Pick>
           ))}
           {!teams.length ? <p className="empty">No teams yet.</p> : null}
@@ -565,7 +566,7 @@ function ConnectionPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id
       </PanelHead>
       <div className={BODY}>
         <p>
-          <span className={`pill ${it.live ? 'ok' : it.missing ? 'bad' : ''}`}>{status}</span>
+          <Pill tone={it.live ? 'ok' : it.missing ? 'bad' : 'dim'}>{status}</Pill>
           {prog?.version ? <span className="hint">{` v${prog.version}`}</span> : null}
         </p>
         <div className="label mt-3.5">{`Teams using it (${teamsUsing.length})`}</div>
@@ -650,14 +651,14 @@ function TeamPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id: stri
   return (
     <>
       <PanelHead api={api}>
-        <span className="st-dot" style={badgeStyle(c)} />
+        <Dot tone="color" style={badgeStyle(c)} />
         <div className="min-w-0 flex-1">
           <div className="label">Team · group chat</div>
           <div className={TITLE}>{wf.name}</div>
           <div className="st-team-status mt-0.75 text-[12px]">
             {ts.working.length ? (
               <span className="inline-flex items-center gap-1.5 text-[12px] text-accent">
-                <span className="dot busy" />
+                <Dot tone="busy" />
                 {`${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} waiting` : ''}`}
               </span>
             ) : (
@@ -749,13 +750,13 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
                 <HoverScroll host=".st-member" className={`st-member-now mt-1 text-[12px] ${st === 'working' ? 'text-accent' : 'text-dim'}`}>
                   {st === 'working' ? (
                     <>
-                      <span className="dot busy" /> {now.text || 'Working…'}
+                      <Dot tone="busy" /> {now.text || 'Working…'}
                     </>
                   ) : st === 'queued' ? (
                     'Up next'
                   ) : st === 'needs' ? (
                     <>
-                      <span className="dot warn" /> Waiting for your OK
+                      <Dot tone="warn" /> Waiting for your OK
                     </>
                   ) : (
                     a.specialty || 'Ready'
@@ -1114,7 +1115,7 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
         <div
           className={`st-agent-now flex items-center gap-2 rounded-box border bg-bg px-2.5 py-2 text-[12.5px] ${now.st === 'working' ? 'border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-line))] text-accent' : now.st === 'needs' ? 'border-[color-mix(in_srgb,var(--color-amber)_40%,var(--color-line))] text-amber' : 'border-line text-dim'}`}
         >
-          <span className={`dot ${now.st === 'working' ? 'busy' : now.st === 'needs' ? 'warn' : 'on'}`} />
+          <Dot tone={now.st === 'working' ? 'busy' : now.st === 'needs' ? 'warn' : 'on'} />
           <span className="min-w-0 flex-1">{now.st === 'working' ? now.text : now.st === 'needs' ? 'Waiting for your OK (see below)' : 'Ready'}</span>
         </div>
         <ModelSection a={a} />
@@ -1158,7 +1159,7 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
         <div className={CONNS}>
           {onTeams.map((w) => (
             <div key={w.id} className={`${CONN} ok`}>
-              <span className="st-dot" style={badgeStyle(wfColor(w, teams.indexOf(w)))} />
+              <Dot tone="color" style={badgeStyle(wfColor(w, teams.indexOf(w)))} />
               <span className="grow min-w-0 flex-1 cursor-pointer" role="button" tabIndex={0} onClick={() => api.choose({ type: 'branch', id: w.id })} onKeyDown={(e) => e.key === 'Enter' && api.choose({ type: 'branch', id: w.id })}>
                 {w.name}
                 <span className="hint">{w.lead === id ? ' · ★ lead' : ' · member'}</span>

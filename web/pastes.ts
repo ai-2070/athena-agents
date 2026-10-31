@@ -2,6 +2,7 @@
 // "[Pasted text #1 · 52 lines]", so the box stays readable. A chip above the box (or a click on the
 // marker) opens what was pasted; the full text goes back in the marker's place when the message is sent.
 import { h, mount, modal, copy } from './core.ts';
+import { domButton } from './ui/dom.ts';
 import { icon } from './icons.ts';
 import { pasteHasFiles, restoreDraft } from './attach.ts';
 
@@ -78,10 +79,10 @@ export function pasteBox(): PasteBox {
       title: p.marker.slice(1, -1),
       body: h('pre.paste-view', { class: 'm-0 max-h-[60vh] overflow-auto rounded-ctl border border-line bg-bg px-4 py-3.5 font-mono text-[12.5px] leading-[1.55] whitespace-pre-wrap wrap-anywhere' }, p.text),
       foot: [
-        h('button.btn.ghost', { onclick: () => (m.close(), remove(p)) }, icon('x', 13), 'Remove'),
-        h('button.btn.ghost', { onclick: () => copy(p.text) }, icon('copy', 13), 'Copy'),
-        h('button.btn.ghost', { title: 'Put the whole text in the message box, to change it', onclick: () => (m.close(), unfold(p)) }, 'Edit in the box'),
-        h('button.btn', { onclick: () => m.close() }, 'Close'),
+        domButton({ variant: 'ghost', onclick: () => (m.close(), remove(p)) }, icon('x', 13), 'Remove'),
+        domButton({ variant: 'ghost', onclick: () => copy(p.text) }, icon('copy', 13), 'Copy'),
+        domButton({ variant: 'ghost', title: 'Put the whole text in the message box, to change it', onclick: () => (m.close(), unfold(p)) }, 'Edit in the box'),
+        domButton({ onclick: () => m.close() }, 'Close'),
       ],
     });
   };

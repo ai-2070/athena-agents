@@ -2,6 +2,7 @@
 // click, out again with the next one), the − / + buttons and the + − 0 keys. Zoomed in, drag to move around.
 // Plain DOM without core.ts, so the lightbox in core.ts can use it.
 import { icon } from './icons.ts';
+import { buttonClass } from './ui/classes.ts';
 
 const MAX = 8;
 const STEP = 1.5;
@@ -36,13 +37,13 @@ export function zoomView(src: string, name: string): ZoomView {
   box.append(img);
 
   const btn = (label: string, child: Node | string, onClick: () => void) => {
-    const b = el('button', 'btn ghost small', { type: 'button', title: label, 'aria-label': label });
+    const b = el('button', buttonClass('ghost', 'small'), { type: 'button', title: label, 'aria-label': label });
     b.append(child);
     b.addEventListener('click', onClick);
     return b;
   };
-  const level = el('button', 'btn ghost small min-w-16 tabular-nums', { type: 'button', title: 'Fit to the window (0)' });
-  const full = el('a', 'btn ghost small ml-auto gap-1.5 no-underline', { href: src, target: '_blank', rel: 'noopener' });
+  const level = el('button', buttonClass('ghost', 'small', 'min-w-16 tabular-nums'), { type: 'button', title: 'Fit to the window (0)' });
+  const full = el('a', buttonClass('ghost', 'small', 'ml-auto gap-1.5 no-underline'), { href: src, target: '_blank', rel: 'noopener' });
   full.append(icon('external-link', 14), 'Open full size');
   const bar = el('div', 'mt-3 flex items-center gap-1.5');
   bar.append(btn('Zoom out (−)', icon('zoom-out', 15), () => zoomBy(1 / STEP)), level, btn('Zoom in (+)', icon('zoom-in', 15), () => zoomBy(STEP)), full);

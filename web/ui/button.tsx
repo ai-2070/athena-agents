@@ -1,24 +1,27 @@
 import type { ComponentPropsWithoutRef } from 'react';
+import { buttonClass, iconButtonClass } from './classes.ts';
+import type { ButtonSize, ButtonVariant, IconButtonVariant } from './classes.ts';
 
-type Variant = 'primary' | 'ghost' | 'danger' | 'plain';
-type Size = 'default' | 'small' | 'tiny';
-type Appearance = { variant?: Variant; size?: Size; className?: string };
+export { buttonClass, iconButtonClass } from './classes.ts';
+export type { ButtonSize, ButtonVariant, IconButtonVariant } from './classes.ts';
 
-function buttonClasses({ variant = 'primary', size = 'default', className = '' }: Appearance) {
-  return ['btn', variant !== 'primary' && variant, size !== 'default' && size, className].filter(Boolean).join(' ');
+interface Appearance {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  className?: string;
 }
 
-/** An action using the app's shared button sizes and states. */
+/** An action in the app's shared style. */
 export function Button({ variant, size, className, ...props }: Appearance & ComponentPropsWithoutRef<'button'>) {
-  return <button className={buttonClasses({ variant, size, className })} {...props} />;
+  return <button className={buttonClass(variant, size, className)} {...props} />;
+}
+
+/** A navigation link that looks like a button. */
+export function ButtonLink({ variant, size, className, ...props }: Appearance & ComponentPropsWithoutRef<'a'>) {
+  return <a className={buttonClass(variant, size, className)} {...props} />;
 }
 
 /** An icon-only action. Callers supply an accessible name. */
-export function IconButton({ className = '', ...props }: ComponentPropsWithoutRef<'button'>) {
-  return <button className={`icon-btn ${className}`.trim()} {...props} />;
-}
-
-/** A navigation link with the same appearance as a button. */
-export function ButtonLink({ variant, size, className, ...props }: Appearance & ComponentPropsWithoutRef<'a'>) {
-  return <a className={buttonClasses({ variant, size, className })} {...props} />;
+export function IconButton({ variant, className = '', ...props }: { variant?: IconButtonVariant } & ComponentPropsWithoutRef<'button'>) {
+  return <button className={iconButtonClass(variant, className)} {...props} />;
 }

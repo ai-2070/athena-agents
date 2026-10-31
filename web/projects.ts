@@ -1,5 +1,7 @@
 // Project switcher and "New project" dialog.
 import { h, mount, state, GET, POST, PUT, attempt, promptBox, confirmBox, modal, seg, field, toast, refreshSoon, ago } from './core.ts';
+import { domButton, domPill } from './ui/dom.ts';
+import { buttonClass } from './ui/classes.ts';
 import { icon } from './icons.ts';
 import { mountProjectMenu } from './projectmenu.tsx';
 import { projectMark } from './projectlogo.ts';
@@ -194,7 +196,7 @@ export async function openNewProject({ mode: startMode = 'new', onDone }: { mode
               pickedSummary.agentList.length ? h('div', { class: 'mt-1.5 flex flex-wrap gap-x-2.5 gap-y-1 text-[12px] text-ink' }, pickedSummary.agentList.map((a) => h('span', { title: a.name }, a.emoji, ' ', a.name))) : null,
               h('div', { class: DROP_META }, `Backed up ${ago(pickedSummary.createdAt)} · ${pickedLabel}`),
             ),
-            h('span.btn.tiny.ghost', 'Change'),
+            h('span', { class: buttonClass('ghost', 'tiny') }, 'Change'),
           ]
         : [h('div', { class: DROP_ICO }, icon('upload', 24)), h('div', { class: DROP_TITLE }, 'Drop a backup here'), h('div.hint', `or click to choose a ${BACKUP_EXT} file`)],
     );
@@ -327,7 +329,7 @@ Look at the project folder and help me set it up: ask me what you need to know f
         600,
       );
   };
-  const createBtn = h('button.btn', { onclick: (e) => create(e.currentTarget) }, 'Create project');
+  const createBtn = domButton({ onclick: (e) => create(e.currentTarget) }, 'Create project');
   const kickoffRow = h('label', { class: 'flex cursor-pointer flex-wrap items-center gap-2' }, kickoff, h('span', 'Let the Brain set it up (PROJECT.md, teams and agents)'));
   const filesRow = h('div', h('div.label', 'Files'), h('div', { class: 'mt-2 flex flex-col gap-3' }, tray.el, h('div', { class: 'flex flex-wrap items-center gap-2' }, tray.picker, h('span.hint', 'Briefs, docs, assets: drop or paste files or folders anywhere here. They go into the project folder and the Brain reads them.'))));
   const modes = () =>
@@ -361,7 +363,7 @@ Look at the project folder and help me set it up: ask me what you need to know f
       filesRow,
       kickoffRow,
     ),
-    foot: [h('button.btn.ghost', { onclick: () => m.close() }, 'Cancel'), createBtn],
+    foot: [domButton({ variant: 'ghost', onclick: () => m.close() }, 'Cancel'), createBtn],
     // closed after the project was made but before its files went: it is still open in the dashboard
     onClose: () => created && refreshSoon(0),
   });
@@ -456,7 +458,7 @@ export async function openLauncher({ force = false }: { force?: boolean } = {}):
       h(
         'div',
         { class: 'min-w-0 flex-1' },
-        h('div', { class: L_NAME }, p.name, p.id === o.active ? h('span.pill.ok', 'last open') : null),
+        h('div', { class: L_NAME }, p.name, p.id === o.active ? domPill('ok', {}, 'last open') : null),
         p.description ? h('div', { class: 'mt-0.5 text-[13px] text-dim' }, p.description.length > 120 ? `${p.description.slice(0, 120)}…` : p.description) : null,
         h('div', { class: L_META }, h('span', icon('bot', 12), plural(p.agents, 'agent')), h('span', icon('users', 12), plural(p.teams, 'team')), p.hasProjectMd ? h('span', icon('file-text', 12), 'PROJECT.md') : null, p.openedAt || p.createdAt ? h('span', icon('clock', 12), ago(p.openedAt || p.createdAt)) : null),
         h('div', { class: L_PATH }, p.brainPath),
@@ -502,7 +504,7 @@ export async function openLauncher({ force = false }: { force?: boolean } = {}):
                   { class: `${L_CARD} ${L_CARD_PLAIN} border-dashed ${(i < 4 && L_RISE[i]) || L_RISE[0]}`, type: 'button', onclick: () => addFound(f) },
                   h('div', { class: L_ICO }, icon('folder', 20)),
                   h('div', { class: 'min-w-0 flex-1' }, h('div', { class: L_NAME }, f.name), h('div', { class: L_META }, f.saved ? [h('span', icon('bot', 12), plural(f.saved.agents, 'agent')), h('span', icon('users', 12), plural(f.saved.teams, 'team')), h('span', icon('clock', 12), `saved ${ago(f.saved.savedAt)}`)] : null, f.brief ? h('span', icon('file-text', 12), f.brief) : null), h('div', { class: L_PATH }, f.folder)),
-                  h('span.btn.tiny', 'Add'),
+                  h('span', { class: buttonClass('primary', 'tiny') }, 'Add'),
                 ),
               ),
             ),
@@ -510,9 +512,9 @@ export async function openLauncher({ force = false }: { force?: boolean } = {}):
         : null,
     ),
     foot: [
-      h('button.btn.ghost', { onclick: () => (m.close(), openNewProject({ mode: 'backup' })) }, icon('upload', 15), ' Restore a backup…'),
-      h('button.btn.ghost', { onclick: () => (m.close(), openNewProject({ mode: 'existing' })) }, icon('folder-open', 15), ' Open a folder…'),
-      h('button.btn', { onclick: () => (m.close(), openNewProject()) }, icon('plus', 15), ' New project'),
+      domButton({ variant: 'ghost', onclick: () => (m.close(), openNewProject({ mode: 'backup' })) }, icon('upload', 15), ' Restore a backup…'),
+      domButton({ variant: 'ghost', onclick: () => (m.close(), openNewProject({ mode: 'existing' })) }, icon('folder-open', 15), ' Open a folder…'),
+      domButton({ onclick: () => (m.close(), openNewProject()) }, icon('plus', 15), ' New project'),
     ],
   });
 }
