@@ -10,7 +10,7 @@ import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, onReconnect, con
 import { attachTray } from './attach.ts';
 import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
-import { mentionPreviews } from './filepreview.ts';
+import { mentionPreviews } from './filepreview.tsx';
 import { modelChip } from './models.ts';
 import { slideIn } from './motion.ts';
 import { useFind } from './ui/find.tsx';

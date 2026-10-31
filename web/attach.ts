@@ -6,7 +6,7 @@ import { upload } from './client/http.ts';
 import { fileUrl } from './client/connection.ts';
 import { icon } from './icons.ts';
 import { mountAttachMenu } from './attachmenu.tsx';
-import { markdownTooBig, onDesktop, openFile, openPdf, previewKind, showMarkdown } from './filepreview.ts';
+import { markdownTooBig, onDesktop, openFile, openPdf, previewKind, showMarkdown } from './filepreview.tsx';
 import type { IconWeight } from './ui/react.tsx';
 import type { ButtonSize, ButtonVariant } from './ui/classes.ts';
 import type { UploadedFile } from '../shared/types.ts';

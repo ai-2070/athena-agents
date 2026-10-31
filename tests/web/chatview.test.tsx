@@ -7,7 +7,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { UIMessageChunk } from 'ai';
 import { connectEvents, state } from '../../web/core.ts';
 import { attachTray } from '../../web/attach.ts';
-import { forgetFiles } from '../../web/filepreview.ts';
+import { forgetFiles } from '../../web/filepreview.tsx';
 import { mountChat } from '../../web/chat/mount.tsx';
 import { isRichCode } from '../../web/chat/ChatView.tsx';
 import type { MountedChat } from '../../web/chat/mount.tsx';

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, PUT, attempt, toast, refreshSoon, navigate } from '../core.ts';
 import { brainModelChip } from '../models.ts';
-import { memoryButton, BRAIN } from '../memory.ts';
+import { memoryButton, BRAIN } from '../memory.tsx';
 import { FieldRow, Row, Section, Segmented, SwitchRow } from '../ui/controls.tsx';
 import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { logo } from '../icons.ts';

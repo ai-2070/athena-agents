@@ -1,6 +1,6 @@
 // Previews of the files a chat mentions, each with Show in Explorer / Finder below it.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { filePreviews, forgetFiles, mentionPreviews, previewFile, previewKind, previewTitle, revealLabel } from '../../web/filepreview.ts';
+import { filePreviews, forgetFiles, mentionPreviews, previewFile, previewKind, previewTitle, revealLabel } from '../../web/filepreview.tsx';
 import { state } from '../../web/core.ts';
 import type { AppState } from '../../shared/types.ts';
 

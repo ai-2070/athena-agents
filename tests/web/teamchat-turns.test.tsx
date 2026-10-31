@@ -4,7 +4,7 @@ import { act } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UIMessageChunk } from 'ai';
 import { connectEvents, state } from '../../web/core.ts';
-import { forgetFiles } from '../../web/filepreview.ts';
+import { forgetFiles } from '../../web/filepreview.tsx';
 import { clock, renderTeamChat } from '../../web/teamchat.tsx';
 import type { TeamChatApi } from '../../web/teamchat.tsx';
 import type { AppState, Chat, ChatItem } from '../../shared/types.ts';

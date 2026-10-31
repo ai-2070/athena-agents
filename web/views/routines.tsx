@@ -7,7 +7,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { h, md, GET, POST, PUT, DEL, attempt, navigate, confirmBox, ago, state, toast } from '../core.ts';
 import { icon } from '../icons.ts';
 import { loadSkills, skillsCache } from '../skillpick.ts';
-import { scheduleEditor, scheduleText } from '../schedule.ts';
+import { scheduleEditor, scheduleText } from '../schedule.tsx';
 import { openChat } from '../chatwin.tsx';
 import { attachMentions, startMention, KIND_LABEL } from '../routinemention.ts';
 import type { Candidate } from '../routinemention.ts';

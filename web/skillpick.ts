@@ -2,7 +2,7 @@
 // Used for an agent, a team and the project.
 import { h, mount, GET } from './core.ts';
 import { icon } from './icons.ts';
-import { openEditor, openGitHub, openImport } from './skilldialogs.ts';
+import { openEditor, openGitHub, openImport } from './skilldialogs.tsx';
 import { openSkillPickerMenu } from './skillpickmenu.tsx';
 import type { ClaudeSkill, SkillListing } from '../shared/types.ts';
 

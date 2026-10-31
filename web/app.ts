@@ -23,7 +23,7 @@ import { initDock } from './dock.tsx';
 import { mountDrawerQuestions } from './questions.tsx';
 import { guardPageDrops } from './attach.ts';
 import { applyLook, applySavedLook } from './look.ts';
-import { navLimits, panelSwitch, sidebarPanel } from './navlimits.ts';
+import { navLimits, panelSwitch, sidebarPanel } from './navlimits.tsx';
 
 applySavedLook();
 import { icon, logo } from './icons.ts';

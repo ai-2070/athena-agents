@@ -2,7 +2,10 @@
 // as a card, each with a "Show in Explorer / Finder" button below (and in the desktop app an Open button:
 // the file in its own program). Only files the dashboard may show
 // (inside the project's folders, see server/files.ts) get one; anything else is left as plain text.
-import { h, mount, POST, attempt, lightbox, toast, state } from './core.ts';
+// React now: the boxes are drawn with createRoot into the detached element the caller gets (as schedule.tsx does).
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { POST, attempt, lightbox, toast, state } from './core.ts';
 import { domButton } from './ui/dom.ts';
 import { icon } from './icons.ts';
 import { isMac } from './shortcuts.ts';
@@ -11,9 +14,12 @@ import { modelViewer } from './modelviewer.ts';
 import { fileUrl, pdfViewUrl } from './client/connection.ts';
 import { fetchFile } from './client/http.ts';
 import { showMarkdownDialog } from './ui/bigmarkdown.tsx';
+import { Plate } from './ui/surface.tsx';
+import { DomNode, Icon } from './ui/react.tsx';
 
 /** POST /api/files/info, one entry per path. */
 export type FileInfo = { path: string; ok: false } | { path: string; ok: true; kind: 'image' | 'video' | 'audio' | 'model' | 'file' | 'folder'; name: string; size: number; modified: number };
+type OkFile = Extract<FileInfo, { ok: true }>;
 
 const isWindows = (): boolean => /win/i.test((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || navigator.platform || '');
 /** What the button says on this computer. */
@@ -139,66 +145,132 @@ export function revealButton(path: string): HTMLButtonElement {
   return domButton({ variant: 'ghost', size: 'tiny', class: 'fp-reveal flex-none gap-1.25', type: 'button', title: path, onclick: () => attempt(() => POST('/files/reveal', { path })) }, icon('folder-open', 13), revealLabel());
 }
 
+/** An image the box owns that opens big (zoomable adds the button role, focus and keys to it). */
+function ZoomImage({ src, name, className }: { src: string; name: string; className: string }) {
+  const ref = useRef<HTMLImageElement>(null);
+  useLayoutEffect(() => {
+    if (ref.current) zoomable(ref.current, src, name);
+  }, [src, name]);
+  return <img ref={ref} className={className} src={src} alt={name} loading="lazy" />;
+}
+
 // compact: the floating window, the Station panel, team turns (full width, shorter)
-function card(f: Extract<FileInfo, { ok: true }>, compact: boolean): HTMLElement {
+function Card({ f, compact }: { f: OkFile; compact: boolean }) {
   const url = fileUrl(f.path);
   const media = `block w-full bg-panel-2 object-contain ${compact ? 'max-h-50' : 'max-h-80'}`;
   const fileBox = `flex items-center gap-2.5 text-ink ${compact ? 'px-3 py-2.5' : 'px-3.5 py-4'}`;
   const preview =
-    f.kind === 'image'
-      ? zoomable(h('img', { class: `${media} cursor-zoom-in`, src: url, alt: f.name, loading: 'lazy' }), url, f.name)
-      : f.kind === 'video'
-        ? h('video', { class: media, src: url, controls: true, preload: 'metadata', playsinline: true })
-        : f.kind === 'audio'
-          ? h('audio', { class: 'mx-2.5 mt-3 mb-2 block w-[calc(100%-20px)]', src: url, controls: true, preload: 'metadata' })
-          : f.kind === 'model'
-            ? modelViewer(url, f.name, f.size)
-            : fileCard(f, fileBox);
+    f.kind === 'image' ? (
+      <ZoomImage src={url} name={f.name} className={`${media} cursor-zoom-in`} />
+    ) : f.kind === 'video' ? (
+      <video className={media} src={url} controls preload="metadata" playsInline />
+    ) : f.kind === 'audio' ? (
+      <audio className="mx-2.5 mt-3 mb-2 block w-[calc(100%-20px)]" src={url} controls preload="metadata" />
+    ) : f.kind === 'model' ? (
+      <DomNode make={() => modelViewer(url, f.name, f.size)} deps={[url]} />
+    ) : (
+      <FileCard f={f} fileBox={fileBox} />
+    );
   // a card that opens bigger when clicked says so when the mouse is over it
   const opens = f.kind === 'image' || (f.kind === 'file' && (onDesktop() || previewKind(f.name) !== null));
-  return h(
-    `div.fp-card.fp-kind-${f.kind}`,
-    { class: `${compact ? 'flex w-full flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2 [&_.fp-model]:max-h-60' : 'flex w-[min(380px,100%)] flex-col overflow-hidden rounded-[10px] border border-line bg-panel-2'}${opens ? ' transition-colors hover:border-line-2' : ''}`, title: f.path },
-    preview,
-    h(
-      'div.fp-bar',
-      { class: 'flex min-w-0 items-center gap-2 border-t border-line py-1.5 pr-2 pl-3 font-mono text-[11.5px] leading-[normal] text-dim' },
-      h('span.fp-name', { class: 'min-w-0 truncate' }, f.name),
-      f.kind !== 'folder' && f.size ? h('span.fp-size', { class: 'whitespace-nowrap text-faint' }, size(f.size)) : null,
-      h('span', { class: 'min-w-0 flex-1' }),
-      onDesktop() && f.kind !== 'folder' ? openButton(f.path, f.name) : null,
-      revealButton(f.path),
-    ),
+  return (
+    <Plate
+      className={`fp-card fp-kind-${f.kind} ${compact ? 'flex w-full flex-col overflow-hidden rounded-box [&_.fp-model]:max-h-60' : 'flex w-[min(380px,100%)] flex-col overflow-hidden rounded-box'}${opens ? ' transition-colors hover:border-line-2' : ''}`}
+      title={f.path}
+    >
+      {preview}
+      <div className="fp-bar flex min-w-0 items-center gap-2 border-t border-line py-1.5 pr-2 pl-3 font-mono text-[11.5px] leading-[normal] text-dim">
+        <span className="fp-name min-w-0 truncate">{f.name}</span>
+        {f.kind !== 'folder' && f.size ? <span className="fp-size whitespace-nowrap text-faint">{size(f.size)}</span> : null}
+        <span className="min-w-0 flex-1" />
+        {onDesktop() && f.kind !== 'folder' ? <DomNode as="span" className="contents" make={() => openButton(f.path, f.name)} deps={[f.path]} /> : null}
+        <DomNode as="span" className="contents" make={() => revealButton(f.path)} deps={[f.path]} />
+      </div>
+    </Plate>
   );
 }
 
 // A file without a picture of its own: Markdown opens to read, a PDF in a new tab, the rest download.
 // In the desktop app a PDF and the rest open in their own programs.
-function fileCard(f: Extract<FileInfo, { ok: true }>, fileBox: string): HTMLElement {
-  const label = h('span', { class: 'min-w-0 truncate text-[13.5px]' }, f.kind === 'folder' ? `${f.name}/` : f.name);
-  if (f.kind === 'folder') return h('div.fp-file', { class: fileBox }, icon('folder', 22), label);
+function FileCard({ f, fileBox }: { f: OkFile; fileBox: string }) {
+  const label = <span className="min-w-0 truncate text-[13.5px]">{f.kind === 'folder' ? `${f.name}/` : f.name}</span>;
+  if (f.kind === 'folder')
+    return (
+      <div className={`fp-file ${fileBox}`}>
+        <Icon name="folder" size={22} />
+        {label}
+      </div>
+    );
   const kind = previewKind(f.name);
   if (kind === 'markdown')
-    return h('button.fp-file', { class: `${fileBox} w-full cursor-pointer border-0 bg-transparent text-left hover:bg-panel hover:text-accent`, type: 'button', title: `Read ${f.name}`, onclick: () => void previewMarkdown(f.path, f.name) }, icon('file-text', 22), label);
+    return (
+      <button type="button" className={`fp-file ${fileBox} w-full cursor-pointer border-0 bg-transparent text-left hover:bg-panel hover:text-accent`} title={`Read ${f.name}`} onClick={() => void previewMarkdown(f.path, f.name)}>
+        <Icon name="file-text" size={22} />
+        {label}
+      </button>
+    );
   if (onDesktop())
-    return h('button.fp-file', { class: `${fileBox} w-full cursor-pointer border-0 bg-transparent text-left hover:bg-panel hover:text-accent`, type: 'button', title: `Open ${f.name}`, onclick: () => openFile(f.path) }, icon('file-text', 22), label, h('span', { class: 'ml-auto flex-none text-faint' }, icon('external-link', 14)));
+    return (
+      <button type="button" className={`fp-file ${fileBox} w-full cursor-pointer border-0 bg-transparent text-left hover:bg-panel hover:text-accent`} title={`Open ${f.name}`} onClick={() => openFile(f.path)}>
+        <Icon name="file-text" size={22} />
+        {label}
+        <span className="ml-auto flex-none text-faint">
+          <Icon name="external-link" size={14} />
+        </span>
+      </button>
+    );
   if (kind === 'pdf')
-    return h('a.fp-file', { class: `${fileBox} hover:bg-panel hover:text-accent`, href: pdfViewUrl(f.path), target: '_blank', rel: 'noopener', title: `Open ${f.name} in a new tab` }, icon('file-text', 22), label, h('span', { class: 'ml-auto flex-none text-faint' }, icon('external-link', 14)));
-  return h('a.fp-file', { class: `${fileBox} hover:text-accent`, href: fileUrl(f.path), target: '_blank', rel: 'noopener', title: `Download ${f.name}` }, icon('file-text', 22), label);
+    return (
+      <a className={`fp-file ${fileBox} hover:bg-panel hover:text-accent`} href={pdfViewUrl(f.path)} target="_blank" rel="noopener" title={`Open ${f.name} in a new tab`}>
+        <Icon name="file-text" size={22} />
+        {label}
+        <span className="ml-auto flex-none text-faint">
+          <Icon name="external-link" size={14} />
+        </span>
+      </a>
+    );
+  return (
+    <a className={`fp-file ${fileBox} hover:text-accent`} href={fileUrl(f.path)} target="_blank" rel="noopener" title={`Download ${f.name}`}>
+      <Icon name="file-text" size={22} />
+      {label}
+    </a>
+  );
+}
+
+// Looks the files up and draws a card for each one the dashboard may show (nothing until then).
+function Previews({ paths, compact, onReady }: { paths: readonly string[]; compact: boolean; onReady: () => void }) {
+  const [files, setFiles] = useState<OkFile[]>([]);
+  useEffect(() => {
+    let live = true;
+    lookupFiles(paths).then((infos) => {
+      if (!live) return;
+      const ok = infos.filter((i): i is OkFile => i.ok);
+      if (!ok.length) return;
+      setFiles(ok);
+      onReady();
+    });
+    return () => {
+      live = false;
+    };
+    // paths is fixed for this box and onReady only shows it, so neither needs a dependency
+  }, [paths, compact]);
+  return (
+    <>
+      {files.map((f) => (
+        <Card key={f.path} f={f} compact={compact} />
+      ))}
+    </>
+  );
 }
 
 /** Previews for these paths. Returns its box right away (empty and hidden until the files are looked
  *  up; it stays hidden when none of them may be shown). */
 export function filePreviews(paths: readonly string[], { compact = false }: { compact?: boolean } = {}): HTMLDivElement {
-  const box = h('div.hidden', { class: compact ? 'flex w-full max-w-[860px] flex-wrap gap-1.5' : 'flex w-full max-w-[860px] flex-wrap gap-2.5' });
+  const box = document.createElement('div');
+  box.className = `hidden ${compact ? 'flex w-full max-w-[860px] flex-wrap gap-1.5' : 'flex w-full max-w-[860px] flex-wrap gap-2.5'}`;
   const list = [...new Set(paths)].filter(Boolean);
   if (!list.length) return box;
-  lookupFiles(list).then((infos) => {
-    const ok = infos.filter((i): i is Extract<FileInfo, { ok: true }> => i.ok);
-    if (!ok.length) return;
-    mount(box, ok.map((f) => card(f, compact)));
-    box.classList.remove('hidden');
-  });
+  createRoot(box).render(<Previews paths={list} compact={compact} onReady={() => box.classList.remove('hidden')} />);
   return box;
 }
 

@@ -3,7 +3,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GET, POST, PUT, DEL, attempt, navigate, ago, confirmBox, promptBox, ENGINE_LABEL } from '../core.ts';
 import { openTerminal } from './agents.tsx';
-import { memoryButton } from '../memory.ts';
+import { memoryButton } from '../memory.tsx';
 import { buttonClass } from '../ui/classes.ts';
 import { modelChip, modelInfo } from '../models.ts';
 import { kTokens } from '../../shared/compaction.ts';

@@ -7,7 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { GET, POST, attempt } from './core.ts';
 import { modelChip } from './models.ts';
 import { attachTray } from './attach.ts';
-import { memoryButton } from './memory.ts';
+import { memoryButton } from './memory.tsx';
 import { buttonClass } from './ui/classes.ts';
 import { DomNode, Icon, useAppState } from './ui/react.tsx';
 import { Button, ButtonLink } from './ui/button.tsx';

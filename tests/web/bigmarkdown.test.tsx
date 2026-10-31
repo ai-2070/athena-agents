@@ -1,7 +1,7 @@
 // A very long Markdown file: cut between its blocks, and only the pieces near the screen are drawn.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { md, mdChunks } from '../../web/core.ts';
-import { MAX_MARKDOWN_BYTES, markdownTooBig, previewMarkdown, showMarkdown } from '../../web/filepreview.ts';
+import { MAX_MARKDOWN_BYTES, markdownTooBig, previewMarkdown, showMarkdown } from '../../web/filepreview.tsx';
 import { BIG_MARKDOWN } from '../../web/ui/bigmarkdown.tsx';
 
 // (the dialog draws outside act, as in the page)

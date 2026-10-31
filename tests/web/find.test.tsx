@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { searchText } from '../../web/chat/messages.ts';
-import { showMarkdown } from '../../web/filepreview.ts';
+import { showMarkdown } from '../../web/filepreview.tsx';
 import { countIn, textRanges, useFind } from '../../web/ui/find.tsx';
 
 // (the dialog draws outside act, as in the page)

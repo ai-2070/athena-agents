@@ -1,6 +1,6 @@
 // The History window's line diff, and Recently deleted when a list can't load.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { diffLines, openDeleted } from '../../web/history.ts';
+import { diffLines, openDeleted } from '../../web/history.tsx';
 
 describe('diffLines', () => {
   it('marks lines kept, removed and added', () => {

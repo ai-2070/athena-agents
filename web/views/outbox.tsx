@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { GET, POST, PUT, DEL, attempt, toast, ago, refreshSoon } from '../core.ts';
 import { fetchFile } from '../client/http.ts';
 import { fileUrl } from '../client/connection.ts';
-import { openFile } from '../filepreview.ts';
+import { openFile } from '../filepreview.tsx';
 import { reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { Section, Sections } from '../ui/controls.tsx';

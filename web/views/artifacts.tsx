@@ -5,7 +5,7 @@ import { Button, ButtonLink } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import { GET, DEL, attempt, md, copy, confirmBox } from '../core.ts';
-import { filePreviews } from '../filepreview.ts';
+import { filePreviews } from '../filepreview.tsx';
 import { fileUrl } from '../client/connection.ts';
 import { DomNode, Icon, reactPage, useServerEvents } from '../ui/react.tsx';
 import { SearchBox } from '../ui/controls.tsx';

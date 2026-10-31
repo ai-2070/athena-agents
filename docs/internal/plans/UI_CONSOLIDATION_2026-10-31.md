@@ -121,9 +121,12 @@ assertions across ten files still look elements up by them:
 `mcp.test.tsx`, `overlays.test.ts`, `programs.test.tsx`, `skills-page.test.tsx`,
 `station-panel.test.tsx`, `world-panel.test.tsx`.
 
-**Options:** leave the markers (cheap, harmless), or move those assertions to role/attribute queries and
-drop the markers nothing reads. A marker whose only reader is a test is a test pinning an implementation
-detail — revisit while doing item 2.
+**Decision: keep the markers.** `web/ui/classes.ts:5-7` states the intent — they are hooks kept on purpose
+"the same way the dock and the Station keep their markers", and ten test files use them. Moving those
+assertions to role/attribute queries would be churn for no gain, and dropping markers that only tests
+read would break the very lookups they exist for. The one thing that was wrong here was that a marker
+was *styled* (`.pill.mem`); that is fixed above. The only code that reads a marker is still
+`web/builder.ts:41` (`classList.contains('pill')`), which its own module owns.
 
 ---
 

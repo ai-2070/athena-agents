@@ -4,7 +4,7 @@ import { Button, ButtonLink, IconButton } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, PUT, DEL, attempt, navigate, confirmBox, promptBox, ago, lightbox } from '../core.ts';
-import { scheduleEditor, scheduleText } from '../schedule.ts';
+import { scheduleEditor, scheduleText } from '../schedule.tsx';
 import { Field, Switch } from '../ui/controls.tsx';
 import { DomNode, Icon, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { Dot, Pill } from '../ui/marks.tsx';

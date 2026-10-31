@@ -8,7 +8,7 @@ import { Radio } from '@base-ui/react/radio';
 import { RadioGroup } from '@base-ui/react/radio-group';
 import { Slider } from '@base-ui/react/slider';
 import { PUT, attempt, state } from '../core.ts';
-import { rememberSidebarPanel } from '../navlimits.ts';
+import { rememberSidebarPanel } from '../navlimits.tsx';
 import { ACCENTS, CHAT_FONTS, DEFAULT_LOOK, STATION_QUALITY, accentFor, accentTone, applyLook, stationLevel } from '../look.ts';
 import { onThemeChange } from '../theme.ts';
 import { Row, Section, Segmented } from '../ui/controls.tsx';

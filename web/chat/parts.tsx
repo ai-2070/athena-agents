@@ -8,7 +8,7 @@ import type { DynamicToolUIPart } from 'ai';
 import { md, lightbox } from '../core.ts';
 import { Dot } from '../ui/marks.tsx';
 import { compactionMark } from '../compactmark.ts';
-import { filePreviews } from '../filepreview.ts';
+import { filePreviews } from '../filepreview.tsx';
 import { findFileMentions } from '../mentions.ts';
 import { readOutput, readUser } from './messages.ts';
 import { useAppState } from '../ui/react.tsx';

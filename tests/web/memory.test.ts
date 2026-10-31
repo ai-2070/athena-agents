@@ -2,7 +2,7 @@
 // doesn't throw away what you typed when it does.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { connectEvents } from '../../web/core.ts';
-import { memoryEditor, openMemory } from '../../web/memory.ts';
+import { memoryEditor, openMemory } from '../../web/memory.tsx';
 import type { MemoryInfo } from '../../shared/types.ts';
 
 const tick = () => new Promise((r) => setTimeout(r, 10));
