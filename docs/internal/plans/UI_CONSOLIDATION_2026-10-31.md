@@ -301,3 +301,7 @@ Three alignment faults, found by looking at the running page and measured in it 
   resolves to a brand, a PNG or a mapped line icon, none to the box; the live page shows 31 rows, no emoji
   text in any of them, every avatar an `<svg>` or `<img>`. `tests/web/programicons.test.ts` guards the
   Claude Code mark, the line-icon and PNG paths, and the never-nothing fallback.
+  The same confusion was in the Station: its usage strip's "**Claude Code usage**" row (SESSION/WEEK, straight
+  from `/headbar`) wore the *Claude* starburst — an X-shaped mark, read as the wrong icon — as did the engines
+  row and the Claude Code integration. All three now ask for `claude code`; rows that mean the Claude *model*
+  (model picker, engine tiles by provider) keep the starburst.
