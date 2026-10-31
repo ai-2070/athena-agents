@@ -41,7 +41,7 @@ describe('filePreviews()', () => {
     const box = filePreviews(['/w/shot.png', '/w/clip.mp4', '/w/song.mp3', '/w/plan.pdf', '/w/renders', '/w/missing.png']);
     document.body.append(box);
     expect(box.classList.contains('hidden')).toBe(true);
-    await settle();
+    await expect.poll(() => box.querySelectorAll('.fp-card').length).toBe(5);
     expect(calls.filter((c) => c.url === '/api/files/info')).toHaveLength(1);
     expect(box.classList.contains('hidden')).toBe(false);
     const cards = [...box.querySelectorAll('.fp-card')];
@@ -63,7 +63,7 @@ describe('filePreviews()', () => {
   it('shows a 3D model in a viewer box, and only offers a download when it is too big', async () => {
     const box = filePreviews(['/w/ship.glb', '/w/huge.glb']);
     document.body.append(box);
-    await settle();
+    await expect.poll(() => box.querySelectorAll('.fp-card').length).toBe(2);
     const cards = [...box.querySelectorAll('.fp-card')];
     expect(cards.map((c) => c.className.split(' ').find((x) => x.startsWith('fp-kind-')))).toEqual(['fp-kind-model', 'fp-kind-model']);
     expect(cards[0].querySelector('.fp-model')).not.toBeNull();
@@ -76,7 +76,7 @@ describe('filePreviews()', () => {
   it('Show in Explorer / Finder asks the server to reveal that file', async () => {
     const box = filePreviews(['/w/plan.pdf']);
     document.body.append(box);
-    await settle();
+    await expect.poll(() => box.querySelector('.fp-reveal')).not.toBeNull();
     (box.querySelector('.fp-reveal') as HTMLButtonElement).click();
     await settle();
     expect(calls.at(-1)).toEqual({ url: '/api/files/reveal', body: { path: '/w/plan.pdf' } });
@@ -101,7 +101,7 @@ describe('filePreviews()', () => {
 describe('mentionPreviews()', () => {
   it('previews the files a message mentions and the ones sent with it', async () => {
     const box = mentionPreviews('Saved to /w/clip.mp4', ['/w/shot.png'])!;
-    await settle();
+    await expect.poll(() => box.querySelectorAll('.fp-name').length).toBe(2);
     expect([...box.querySelectorAll('.fp-name')].map((n) => n.textContent)).toEqual(['shot.png', 'clip.mp4']);
   });
 
@@ -119,7 +119,7 @@ describe('keyboard and later files', () => {
     document.body.append(Object.assign(document.createElement('div'), { id: 'modal-root' }));
     const box = filePreviews(['/w/shot.png']);
     document.body.append(box);
-    await settle();
+    await expect.poll(() => box.querySelector('img')).not.toBeNull();
     const img = box.querySelector('img')!;
     expect(img.getAttribute('role')).toBe('button');
     expect(img.tabIndex).toBe(0);
@@ -139,7 +139,7 @@ describe('keyboard and later files', () => {
     now.mockReturnValue(t0 + 16_000);
     const again = mentionPreviews('see /w/later.png', [], { key: 'dock:m9' })!;
     expect(again).not.toBe(first);
-    await settle();
+    await expect.poll(() => again.classList.contains('hidden')).toBe(false);
     expect(again.classList.contains('hidden')).toBe(false);
     now.mockRestore();
     delete FILES['/w/later.png'];
@@ -165,7 +165,7 @@ describe('opening attached files', () => {
   it('Markdown opens to read, a PDF in a new tab, anything else downloads; only the ones that open light up', async () => {
     const box = filePreviews(['/w/notes.md', '/w/plan.pdf', '/w/data.csv']);
     document.body.append(box);
-    await settle();
+    await expect.poll(() => box.querySelectorAll('.fp-card').length).toBe(3);
     const [md, pdf, csv] = [...box.querySelectorAll<HTMLElement>('.fp-card')];
     expect(md.className).toContain('hover:border-line-2');
     expect(pdf.className).toContain('hover:border-line-2');
@@ -177,7 +177,7 @@ describe('opening attached files', () => {
     const read = md.querySelector<HTMLButtonElement>('button.fp-file')!;
     expect(read.className).toContain('cursor-pointer');
     read.click();
-    await settle();
+    await expect.poll(() => document.querySelector('.modal-body .md.md-doc')?.textContent).toContain('Hello');
     expect(document.querySelector('.modal-head h2')!.textContent).toBe('notes.md');
     expect(document.querySelector('.modal-body .md.md-doc')!.textContent).toContain('Hello');
   });
@@ -185,7 +185,7 @@ describe('opening attached files', () => {
   it('opens no file in another program outside the desktop app', async () => {
     const box = filePreviews(['/w/data.csv', '/w/shot.png']);
     document.body.append(box);
-    await settle();
+    await expect.poll(() => box.querySelectorAll('.fp-card').length).toBe(2);
     expect(box.querySelector('.fp-open')).toBeNull();
     expect(previewTitle('data.csv')).toBeNull();
   });
@@ -203,7 +203,7 @@ describe('in the desktop app', () => {
   it('a PDF or any other file opens in its own program instead of a tab or a download', async () => {
     const box = filePreviews(['/w/plan.pdf', '/w/data.csv']);
     document.body.append(box);
-    await settle();
+    await expect.poll(() => box.querySelectorAll('.fp-card').length).toBe(2);
     const [pdf, csv] = [...box.querySelectorAll<HTMLElement>('.fp-card')];
     expect(box.querySelector('a.fp-file')).toBeNull();
     expect(csv.className).toContain('hover:border-line-2');
@@ -216,7 +216,7 @@ describe('in the desktop app', () => {
   it('every file gets an Open button next to Show in Explorer / Finder; folders do not', async () => {
     const box = filePreviews(['/w/shot.png', '/w/clip.mp4', '/w/renders']);
     document.body.append(box);
-    await settle();
+    await expect.poll(() => box.querySelectorAll('.fp-card').length).toBe(3);
     const [img, vid, dir] = [...box.querySelectorAll<HTMLElement>('.fp-card')];
     expect(dir.querySelector('.fp-open')).toBeNull();
     img.querySelector<HTMLButtonElement>('.fp-open')!.click();

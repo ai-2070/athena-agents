@@ -1,10 +1,16 @@
 // The Agency comes with the dashboard (library/agency-agents in the repo): no download, no data folder needed.
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as library from '../../server/library.ts';
 import { agents } from '../../server/store.ts';
 import { ROOT, parseFrontmatter } from '../../server/util.ts';
+
+// The bundled library test must not wait on an installed Hermes CLI.
+vi.mock('../../server/engines/hermes.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/engines/hermes.ts')>()),
+  listProfiles: async () => [],
+}));
 
 const bundled = path.join(ROOT, 'library', 'agency-agents');
 

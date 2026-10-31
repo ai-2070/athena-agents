@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { activeProject, agents, chats, outbox, routineRuns, runs, saveSettings, setActiveProject, setSecret, withProject } from '../../server/store.ts';
+import { activeProject, agents, chats, outbox, routineRuns, runs, saveSettings, setActiveProject, setSecret, withProject, workflows } from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
 import { newAgent } from '../../server/library.ts';
 import { cloneProject } from '../../server/backup.ts';
@@ -15,8 +15,9 @@ import { awaitHandoff, listHandoffs, startHandoff } from '../../server/handoffs.
 import { approvePost } from '../../server/social.ts';
 import { markInterruptedRuns } from '../../server/workflows.ts';
 import { markInterruptedRoutines } from '../../server/routines.ts';
+import { getThread, postUserMessage, queueUserMessage, stopTeam, teamState } from '../../server/teams.ts';
 import type { WorkflowRun } from '../../server/store.ts';
-import type { Chat, ChatItem, OutboxPost, RoutineRun } from '../../shared/types.ts';
+import type { Chat, ChatItem, OutboxPost, RoutineRun, Team } from '../../shared/types.ts';
 
 // A fake model and webhook. Each chat request waits until the test releases it and answers "re: <last>".
 // The requests' messages are kept (sent); /models waits too while holdModels is on.
@@ -212,12 +213,53 @@ describe('handoffs', () => {
     const a = await createProject({ name: 'Hand A', mode: 'new', folder: folder('hand-a') });
     const helper = apiAgent('Helper');
     const h = await startHandoff({ id: 'boss-1', name: 'Boss' }, helper, 'count', { depth: 1 });
-    await createProject({ name: 'Hand B', mode: 'new', folder: folder('hand-b') });
+    const b = (await cloneProject(a.id, 'Hand B')).project;
+    setActiveProject(b.id);
     expect(listHandoffs('boss-1')).toMatch(/no handoffs/);
     expect((await awaitHandoff(h.id, 'boss-1', 1)).text).toMatch(/^No handoff/);
     await releaseUntil(() => !!h.endedAt);
     await h.done;
     withProject(a, () => expect(listHandoffs('boss-1')).toMatch(/done, answer ready/));
+  });
+});
+
+describe('a cloned team', () => {
+  it('keeps running turns, queued work and Stop in their own project', async () => {
+    const a = await createProject({ name: 'Team A', mode: 'new', folder: folder('team-a') });
+    const member = apiAgent('Team twin');
+    const team = workflows.save({ name: 'Twins', members: [member.id], lead: member.id, steps: [] } as Partial<Team>);
+    const b = (await cloneProject(a.id, 'Team B')).project;
+    setActiveProject(a.id);
+    try {
+      await postUserMessage(team.id, 'Original private request');
+      await until(() => held.length > 0);
+      await postUserMessage(team.id, 'Original next turn');
+      await queueUserMessage(team.id, 'Original held message');
+      const original = teamState(team.id);
+      expect(original.working).toEqual([member.id]);
+      expect(original.queued).toEqual([member.id]);
+      setActiveProject(b.id);
+      expect(teamState(team.id).working).toEqual([]);
+      expect(teamState(team.id).queued).toEqual([]);
+      expect(teamState(team.id).held).toEqual([]);
+      await postUserMessage(team.id, 'Clone private request');
+      await until(() => held.length > 1);
+      await postUserMessage(team.id, 'Clone next turn');
+      stopTeam(team.id);
+      await until(() => !teamState(team.id).working.length);
+      withProject(a, () => expect(teamState(team.id)).toEqual(original));
+      expect(withProject(a, () => getThread(team.id).messages.some((m) => m.text.includes('Clone')))).toBe(false);
+      await releaseUntil(() => !withProject(a, () => teamState(team.id).working.length));
+      const messages = withProject(a, () => getThread(team.id).messages);
+      expect(messages.some((m) => m.from === member.id && m.text.startsWith('re:'))).toBe(true);
+      expect(getThread(team.id).messages.some((m) => m.from === member.id)).toBe(false);
+      // Original queued turns are suspended while the clone is open.
+      expect(withProject(a, () => teamState(team.id).resumable)).toBe(true);
+    } finally {
+      withProject(a, () => stopTeam(team.id));
+      withProject(b, () => stopTeam(team.id));
+      await releaseUntil(() => !activeRuns().length);
+    }
   });
 });
 

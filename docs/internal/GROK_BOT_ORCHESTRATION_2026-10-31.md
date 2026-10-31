@@ -216,13 +216,13 @@ flowchart TD
   RT --> A1["@mentioned members"]
   RT --> A2["the agent you replied to"]
   RT --> A3["the only member holding the needed service"]
-  RT --> A4["team lead, else route() pick, else first member"]
+  RT --> A4["team lead, else route() pick, else first free member (queue if all busy)"]
   A1 --> Q["enqueue(agentId, msgId) - one item per agent, msgIds merged"]
   A2 --> Q
   A3 --> Q
   A4 --> Q
   Q --> PUMP["pump: start a turn for every free agent, one at a time per agent"]
-  PUMP --> TR["runTurn: briefing on the first turn only, thread digest up to 9000 chars, Addressed-to-you block"]
+  PUMP --> TR["runTurn: first-turn briefing, recent digest up to 9000 chars + older previews up to 2000, Addressed-to-you and shared assignments"]
   TR --> AF["after a turn: its @mentions enqueue, @Brain, #Team relay, else the answer returns to the lead or asker once"]
   AF --> CH{"8 replies in a row that only talk?"}
   CH -->|yes| PAUSE["pause the team and post a system note"]
@@ -235,6 +235,7 @@ flowchart TD
 | `MAX_CHATTER` | 8 | The only brake: consecutive talk-only turns |
 | `CHATTER_CHARS` | 600 | A reply ≥ this counts as work even with no tool call |
 | `CONTEXT_CHARS` | 9000 | Thread digest cap per turn |
+| `EARLIER_BUDGET` | 2000 | Older previews, including heading and omission counts |
 | `KEEP_MESSAGES` | 500 | Thread retention |
 | `MAX_BRAIN_REPLIES` | 4 | `@Brain` answers per user message |
 | `MAX_RELAYS` / `MAX_RELAY_DEPTH` | 4 / 3 | Team-to-team asks per message, and nesting |
@@ -248,8 +249,13 @@ Structural facts:
 - **Roles are data**: `members`, `lead`, `access` (extra tool groups / MCP for the run), `skills`, `files`,
   `schedule`, `pos` on the Station map.
 - **Routing is a priority ladder** (`routeMessage`): mentions → replied-to author → sole service holder
-  (`soleHolder`) → lead → `route()` / `pickMember` → first member, with the `why` emitted to the UI as
-  `kind: 'routed'`.
+  (`soleHolder`) → lead → `route()` / `pickMember` → first free member, or queued for the first member if
+  all are busy. The fallback posts a persisted system note before the turn; `kind: 'routed'` is still
+  emitted, but is not itself rendered by the UI.
+- **Shared assignments are disclosed before work starts.** A known fan-out is queued as a batch. Each
+  prompt names other current or queued members assigned overlapping source messages. This includes the
+  first member started, and excludes a member working on an unrelated message. It is a snapshot, not a
+  lock or a live progress feed.
 - **Control**: `steerTeam` (a message while working stops the running turns and re-routes after
   `STEER_WAIT_MS = 10_000`), `/queue` (hold until idle), `/loop`, `/resume`, `/goal`.
 - **Chatter damping is a counter, not a budget**: `r.episode.chatter` resets to 0 on any turn that used a
@@ -280,13 +286,13 @@ bounded follow-up budget**.
 |---|---|---|
 | Unit of co-work | A **room** (group chat) plus a peer mailbox (`SendToAgent`) | A **team thread** plus a peer handoff (`ask_agent`) |
 | Turn scheduling | **Deterministic bounded round-robin** (`GroupChatOrchestrator`) | **Event-driven queue pump**; any agent can enqueue any other |
-| Who speaks | `resolveResponders`: mentions collected from the last user message, else all; rotating order | Priority ladder: mentions → replied-to → sole service holder → lead → Brain pick → first member |
+| Who speaks | `resolveResponders`: mentions collected from the last user message, else all; rotating order | Priority ladder: mentions → replied-to → sole service holder → lead → Brain pick → first free member, else queue for first |
 | Silence | **First-class**: `(pass)` posts nothing, and a round that says nothing ends the room turn | Not a move; an empty reply is posted as `(no answer)` |
 | Brake on runaway loops | Hard caps: 3 rounds / 10 member turns / 2 messages per turn | Counter: 8 consecutive talk-only turns → pause; plus team-relay depth 3 |
 | Cost ceiling per user message | Bounded by construction | Unbounded by design ("no limit on turns") |
 | Peer messaging | Fire-and-forget; no handle, no await; reply arrives as an `[agent]` wake | Handle + `await_agent` (up to 30 min per call), depth 3, stopping the asker stops descendants |
 | Fan-out policy | **Requires** explicit user say-so or a widget first; never while blocked on the user | Not gated by policy; gated by tool risk (`request_tool` → approvals) and the Outbox for outbound posts |
-| Context per participant | One unified conversation carrying DMs and room turns (tagged); sees "since I last spoke" | Shared thread file + per-agent session per team + a `seen` read mark; digest ≤ 9 000 chars |
+| Context per participant | One unified conversation carrying DMs and room turns (tagged); sees "since I last spoke" | Shared thread + per-agent session and `seen`; recent digest ≤ 9 000 chars + older previews ≤ 2 000, with explicit shortening and omission counts |
 | Authority over the roster | Can `CreateAgent` / `UpdateAgent`; **only the user deletes** | The Brain creates and edits agents and teams; deletion is a user action, with version history |
 | Nesting | Groups **cannot** contain groups (throws) | Teams can ask teams, depth ≤ 3, with cycle detection |
 | Overseer | A *primary Bot* that chats and coordinates | The **Brain**: `reviewWork` verdicts, ≤2 follow-ups, `/goal` briefs |
@@ -330,7 +336,7 @@ Almost every advantage on one side is the mirror of a disadvantage on the other.
 | Advantage | Why |
 |---|---|
 | Unbounded, goal-directed work | "No limit on turns" means a team can finish a multi-stage job without the user babysitting every hop. |
-| Real routing | mentions → replied-to author → the only member holding the service → lead → Brain pick → first member, capability-aware and told to the UI as `kind: 'routed'`. |
+| Real routing | mentions → replied-to author → sole service holder → lead → Brain pick → first free member, else queue for first. Arbitrary fallback is explained in a persisted chat note. |
 | Ownership and aggregation are in the data | `lead` exists, the briefing says one owner per stage, and a finished non-lead turn returns its answer to the lead or asker once. |
 | Teams compose | `#Team Name` with depth ≤3, `waitsOn` cycle detection, and an 8 000-char answer cap. |
 | Something checks the result | The Brain reviews: `reviewWork` → done / follow-up (≤2) / stuck, with `/goal` as a standing objective. |
@@ -345,11 +351,11 @@ Almost every advantage on one side is the mirror of a disadvantage on the other.
 | The only brake is a chatter counter, and it is gameable | `MAX_CHATTER = 8` counts *talk-only* turns (no tool, <600 chars). An agent that calls one tool per turn — `read_file`, a shell probe — resets the counter every time and can run indefinitely. |
 | No cost ceiling at all | Nothing bounds turns × agents × model. The user's Stop and the Brain's follow-ups are the floor. |
 | Silence is not a move | An empty reply is posted as `(no answer)`: noise instead of a clean pass, and every turn costs a model call. |
-| Weak fallback when nothing matches | With no mention, no service match and no lead we take `route()`/`pickMember`, else the first member — an arbitrary pick, where Grok Bot would at least ask everyone. |
-| Order is emergent, so duplicates are possible | Agents are told to start their own part without waiting (deliberately), and "don't give the same task to two people" is prose. Nothing detects a duplicate. |
+| Fallback remains arbitrary | When `route()`/`pickMember` has no valid match, the first free member answers, or work queues for the first when all are busy. The choice is explained in the thread, but availability does not establish suitability. |
+| Order is emergent, so duplicates are possible | Prompts disclose other members assigned the same messages, including queued peers, before a batch starts. Agents still split their own work; there is no duplicate detector or enforced ownership. |
 | Cross-project state is *guarded*, not eliminated | The team runtime and the handoff map are still process-global keyed by id, with a project check at each access (`runtime(teamId, pid)`, `h.projectId === activeProject().id`, `teamRunId` = `team:<project>/<team>`). The 2026-10-28 review's findings here are fixed in code; the residual risk is a new call site that forgets the check. |
 | Fan-out is ungated | A team can enqueue every member and spend accordingly; there is no "ask first" policy as with `SendToAgent`. |
-| The thread digest truncates, silently and permanently | `CONTEXT_CHARS = 9000` caps the per-turn digest, and the read mark is then advanced to the whole thread (`c.seen[agent.id] = c.messages.length`), so a message dropped by the cap is **never** delivered on a later turn. The agent loses it with no signal that it lost anything. See §8. |
+| The thread digest still loses detail | The 9 000-character recent block now has up to 2 000 characters of older previews, reserving the oldest unread preview and counting omitted messages. Text clipped at 2 500 characters is marked too, including addressed text. Prefixes can still miss instructions, and omitted text is not replayed after `seen` advances. |
 
 ### Where each one breaks
 

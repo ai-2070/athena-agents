@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { bus, workflows } from '../../server/store.ts';
-import { postUserMessage } from '../../server/teams.ts';
+import { getThread, postUserMessage } from '../../server/teams.ts';
 import { servicesOf, soleHolder } from '../../server/services.ts';
 import type { Agent, ServerEvent, Team } from '../../shared/types.ts';
 
@@ -60,5 +60,6 @@ describe('in a team chat', () => {
       { kind: 'routed', to: [artist.id], why: 'the only one with Blender' },
       { kind: 'routed', to: [lead.id], why: 'the lead' },
     ]);
+    expect(getThread(team.id).messages.filter((m) => m.from === 'system')).toEqual([]);
   });
 });

@@ -161,6 +161,10 @@ When the Brain hands work to a team, it writes in the team chat as **Brain**, so
 
 **Who answers in a team chat.** Agents you **@mention** answer. Otherwise: the agent whose message you replied to; else the only member with what the message needs (Blender, Maya, Houdini, Substance 3D, CAD and 3D printing, NVIDIA, ComfyUI, Adobe, FFmpeg, posting on X or Reddit, Orca, or one of its MCP servers such as GitHub); else the team's lead; else the member who fits best. Agents see who has what in the team roster and hand such work to that member.
 
+If there is no match, the first free member answers. If everyone is busy, the message waits for the first member. A note in the chat names who was chosen and says when the work is queued. A match, a lead, a reply or an @mention still goes to that member even when they are busy.
+
+When several members are assigned the same message, each is told who else has it, including the member who starts first. This helps them divide the work, but does not assign each part for them. Each turn includes recent unread messages and, when the conversation is long, short previews of older ones. Shortened text is marked; counts say how many older messages have previews and how many are not shown. These previews can miss details, and text left out is not automatically sent later.
+
 **Team members finish their part.** Each agent in a team is told to finish the work it's given rather than decline it or stop partway, to start its own part without waiting for teammates, to install what it needs, and to ask for missing tools (see **Agents ask for tools**) or ask you for access and keys.
 
 **How long a team keeps going.** Agents keep handing work to each other until the work is done or you press **Stop**. There is no limit on turns. Only chatter pauses a team: when 8 replies in a row are only talk (no tool used, a short reply), like two agents passing the work back and forth, the team stops and says so. Reply, mention someone or use `/resume` to keep going.

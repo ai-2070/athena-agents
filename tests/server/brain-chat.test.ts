@@ -5,6 +5,12 @@ import { activeProject, bus, listProjects, saveProjects, setActiveProject, workf
 import { ask, brainChatLine, clearHistory, history, steerAsks } from '../../server/overseer.ts';
 import type { ServerEvent } from '../../shared/types.ts';
 
+// Delegation metadata is real, but these chat tests must not launch a local CLI agent.
+vi.mock('../../server/engines/index.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/engines/index.ts')>()),
+  askAgent: async () => 'Finished.',
+}));
+
 // the "model" answers only when the test says so (and tells what it does as it thinks through thinking's onPart)
 const pending: ((text: string) => void)[] = [];
 const thinking: (((p: unknown) => void) | undefined)[] = [];
