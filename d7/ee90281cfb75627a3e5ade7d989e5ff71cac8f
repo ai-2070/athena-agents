@@ -1,0 +1,51 @@
+tests/web/settings-page.test.tsx
+  s_8892bfc24ba38a::t_2ad2664e7a7e0d 5,145,162,181
+web/teamchat.tsx
+  s_8892bfc24ba38a::t_c7c408ed2a03bd 299-309,321
+web/theme.ts
+  s_47ad87c4406da7::t_4bec4cf9f240c2 1-5,8,11-18
+web/views/library.tsx
+  s_8892bfc24ba38a::t_b43559dfdcd8f8 397
+web/views/look.tsx
+  s_8892bfc24ba38a::t_64ab40ddc43a3a 156-170
+web/views/setup.tsx
+  s_8892bfc24ba38a::t_3e4c48968d828f 78
+AGENTS.md
+  s_8892bfc24ba38a::t_79362ba9cff8fd 87-90,97-101
+DESIGN.md
+  s_8892bfc24ba38a::t_bd82129440b952 222-227,253-256
+docs/guide.md
+  s_8892bfc24ba38a::t_d84795d7b94ec4 50-51,235
+scripts/build-fonts.ts
+  s_8892bfc24ba38a::t_62adddf3d72943 26
+web/styles/base.css
+  s_8892bfc24ba38a::t_2ee5289b20ec12 11-12,42
+web/views/station.ts
+  s_8892bfc24ba38a::t_f793ec9fb01387 3345,3678-3682,3791,3853
+web/views/stationpanel.tsx
+  s_8892bfc24ba38a::t_e0f1dc0ef98744 796
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d7ee90281cfb75627a3e5ade7d989e5ff71cac8f",
+  "prompts": {},
+  "sessions": {
+    "s_47ad87c4406da7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "85994f0b-18b4-4897-8573-8fd1c21f2e51",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
