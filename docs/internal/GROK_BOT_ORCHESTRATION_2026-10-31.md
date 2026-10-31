@@ -293,28 +293,112 @@ bounded follow-up budget**.
 | Where delegation lands | Executor subagents and Cursor cloud agents | Local engines: Claude Code, Codex, Hermes, pi, omp, OpenClaw, any OpenAI-compatible API |
 | Isolation between coworkers | Strict between users; **none between your own Bots** (one shared box) | Strict between **projects**: separate agents, teams, chats, files, worlds |
 
-## 7. What each design buys
+## 7. What each design buys, and what it costs
 
-- **Grok Bot's bounded round-robin** makes a room turn *predictable and cheap* — 10 member turns maximum, a
-  roster rotated so no bot monopolizes, and `(pass)` to stop a room spinning. The cost is expressiveness: a
-  room cannot keep working past three rounds, and a bot must be invited back by a mention.
-- **Our event-driven pump** makes a team *persistent and goal-directed* — work propagates by mention or lead
-  with no turn limit, `#Team` lets teams subcontract to depth 3, and a chatter counter cuts only the
-  pathological "thanks / acknowledged" loop. The cost is that runaway work is bounded by a counter and by
-  user intervention (Stop, or the Brain's follow-ups), not by a structural cap.
+Grok Bot optimises for **predictable, supervised spend**; we optimise for **open-ended autonomous work**.
+Almost every advantage on one side is the mirror of a disadvantage on the other.
+
+### Grok Bot — bounded round-robin rooms plus a fire-and-forget mailbox
+
+**Advantages**
+
+| Advantage | Why |
+|---|---|
+| Cost per room turn is capped by construction | ≤3 rounds × ≤10 posted turns × ≤2 messages each. A six-bot room cannot spend a week of quota answering one message. |
+| Anti-spin is built in, twice | `(pass)` is a legitimate outcome, and a round where nobody posts ends the turn — the loop terminates on silence, not on a counter. |
+| No monopolist | `orderRoundSpeakers` rotates the start each round; there is no lead to become a bottleneck or a tyrant. |
+| Turn isolation is clean | Each turn re-derives responders from history and runs under an epoch; a new user message cancels the in-flight turn instead of racing it. |
+| Rooms and direct messages don't contaminate each other | A peer ping wakes you on its own turn; it cannot hijack the room turn you are in the middle of. |
+| Silence is cheap and legible | Nothing posted reads as "nothing to add", not as a failure. |
+
+**Disadvantages**
+
+| Disadvantage | Concretely |
+|---|---|
+| It cannot finish long work | Three rounds hard-stops. A five-stage pipeline needs the user to re-prompt, or the bots to leave the room for `SendToAgent` and lose the shared context. |
+| No ownership, no aggregation | "One owner at each stage" is prose, not a mechanism, and nobody is accountable for combining the result. |
+| Routing is binary | Responders are "the mentioned" or "everyone": no capability routing, no service matching, no lead. |
+| Ambiguity is maximally expensive | Mention nobody and *every* member speaks, up to the 10-turn cap. The cheapest and most expensive paths are one message apart. |
+| Autonomy is gated to protect the bill | An agent may not assemble a team on its own; fan-out needs explicit user say-so or a widget first. Right for spend, limiting for capability. |
+| Rooms don't compose | Six members maximum, no nested groups, no team-to-team. Cross-team work has to leave the room. |
+| A silent member is invisible | `(pass)` and "didn't get to it" look identical in the transcript. |
+
+### Ours — an event-driven pump with a routing ladder
+
+**Advantages**
+
+| Advantage | Why |
+|---|---|
+| Unbounded, goal-directed work | "No limit on turns" means a team can finish a multi-stage job without the user babysitting every hop. |
+| Real routing | mentions → replied-to author → the only member holding the service → lead → Brain pick → first member, capability-aware and told to the UI as `kind: 'routed'`. |
+| Ownership and aggregation are in the data | `lead` exists, the briefing says one owner per stage, and a finished non-lead turn returns its answer to the lead or asker once. |
+| Teams compose | `#Team Name` with depth ≤3, `waitsOn` cycle detection, and an 8 000-char answer cap. |
+| Something checks the result | The Brain reviews: `reviewWork` → done / follow-up (≤2) / stuck, with `/goal` as a standing objective. |
+| Rendezvous instead of a mailbox | `ask_agent` returns a handle and `await_agent` collects (up to 30 min per call, 6 h retention) — necessary because the asker is a local CLI or MCP call with a timeout. |
+| Steering | A new message stops the running turns and re-routes *with what each agent already did* (`STEER_WAIT_MS = 10 s`); `/queue`, `/loop` and `/resume` add scheduling. |
+| Blast radius is a project | Agents, teams, chats, files and worlds are per-project; Grok Bot isolates between *users* but not between your own Bots on the shared box. |
+
+**Disadvantages**
+
+| Disadvantage | Concretely |
+|---|---|
+| The only brake is a chatter counter, and it is gameable | `MAX_CHATTER = 8` counts *talk-only* turns (no tool, <600 chars). An agent that calls one tool per turn — `read_file`, a shell probe — resets the counter every time and can run indefinitely. |
+| No cost ceiling at all | Nothing bounds turns × agents × model. The user's Stop and the Brain's follow-ups are the floor. |
+| Silence is not a move | An empty reply is posted as `(no answer)`: noise instead of a clean pass, and every turn costs a model call. |
+| Weak fallback when nothing matches | With no mention, no service match and no lead we take `route()`/`pickMember`, else the first member — an arbitrary pick, where Grok Bot would at least ask everyone. |
+| Order is emergent, so duplicates are possible | Agents are told to start their own part without waiting (deliberately), and "don't give the same task to two people" is prose. Nothing detects a duplicate. |
+| Runtime state is fragile across projects | Team runtime is keyed by team id in-process, and our own review notes record cloned projects sharing stop/queue state and handoffs keyed by agent id leaking across copies. |
+| Fan-out is ungated | A team can enqueue every member and spend accordingly; there is no "ask first" policy as with `SendToAgent`. |
+| The thread digest truncates | `CONTEXT_CHARS = 9000` per turn: later agents can silently miss early context. |
+
+### Where each one breaks
+
+| Situation | Grok Bot | Ours |
+|---|---|---|
+| Two agents kept thanking each other | Stops immediately (`(pass)`, empty round) | Stops after 8, but one tool call per turn resets the counter |
+| Nobody is named and three bots could help | All three speak, bounded at 10 turns | One member is picked — possibly the wrong one |
+| A 12-step pipeline across four specialists | Needs user re-prompts or leaves the room | Runs to completion; billing is unbounded |
+| Need a teammate's answer to continue | Wait for an `[agent]` wake on a later turn | `await_agent` blocks with a handle, up to 30 min |
+| One team asks another | Not available | `#Team`, depth 3, cycle-checked |
+| "Is the work actually done?" | No reviewer; the user judges | Brain verdict with ≤2 follow-ups |
+| A runaway agent mid-task | Structurally capped in a room | Only the user's Stop |
+
+### The shape of the trade-off
+
+```mermaid
+quadrantChart
+  title Where each coordinator sits: cost predictability against how far work can run unattended
+  x-axis Low cost predictability --> High cost predictability
+  y-axis Low reach and autonomy --> High reach and autonomy
+  quadrant-1 Predictable and far-reaching (nobody is here today)
+  quadrant-2 Autonomous but unpriced
+  quadrant-3 Limited, and unpriced
+  quadrant-4 Cheap, but on a short leash
+  "Grok Bot rooms": [0.85, 0.30]
+  "Grok Bot peer messaging": [0.60, 0.55]
+  "Our ask_agent handoffs": [0.55, 0.50]
+  "Our team pump": [0.15, 0.85]
+```
 
 The sharpest single difference: **Grok Bot separates coordination styles by surface** — rooms are scheduled
 and bounded; mailbox messages are unbounded but gated on human intent. **We use one surface for both** — the
 team thread is the coordination medium, and `ask_agent` is a second, quieter channel with its own
 handle/await semantics.
 
-Two smaller observations worth keeping in mind if we ever tighten ours:
+Grok Bot's worst day is "it stopped too early"; ours is "it never stopped".
 
-1. **Explicit silence.** `(pass)` as a first-class outcome is a cheap, legible brake that we don't have; our
-   equivalent is the opaque `(no answer)` post plus a counter.
-2. **Escalation ladder in the prompt.** Grok Bot tells the agent *where to look, in order* (context/files →
-   connector → web → browser → desktop → user). Our team briefing covers handoff etiquette well but says
+### If we ever tighten ours
+
+1. **Explicit silence.** Make a pass a first-class reply instead of posting the opaque `(no answer)`, and
+   end a round when nobody actually posts.
+2. **Count all turns, not just talk.** A budget that a single tool call cannot reset — Grok Bot's cap is
+   structural, ours is behavioural.
+3. **An escalation ladder in the briefing.** Grok Bot tells the agent where to look, in order (context/files
+   → connector → web → browser → desktop → user). Our team briefing covers handoff etiquette well but says
    less about which source to prefer.
+
+The thing *not* to copy is the three-round cap: it would break the long-running team work this product is
+built around.
 
 ## Sources
 
