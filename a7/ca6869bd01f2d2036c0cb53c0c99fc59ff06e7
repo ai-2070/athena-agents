@@ -1,0 +1,68 @@
+tests/web/filepreview.test.ts
+  s_7daa4bf644d295::t_2b25bfa8721ebf 66,122
+  s_7daa4bf644d295::t_6bc02faf5d2b29 44,79,104,142,168,180,188,206,219
+tests/server/brain-models.test.ts
+  s_7daa4bf644d295::t_2b25bfa8721ebf 11-15
+tests/server/brain-chat.test.ts
+  s_7daa4bf644d295::t_a32d714ec1f455 8-13
+tests/server/library.test.ts
+  s_7daa4bf644d295::t_2b25bfa8721ebf 4,9-13
+  s_c7c122eb863b9a::t_ebe740ec6612ac 14
+tests/server/teams.test.ts
+  s_7daa4bf644d295::t_fff7e64d42ca83 347-372
+  s_7daa4bf644d295::t_feeb5957e1b459 14-15,25-37,39,280-346,373-404
+  s_7daa4bf644d295::t_362fb91bdf5a67 405
+docs/internal/GROK_BOT_ORCHESTRATION_2026-10-31.md
+  s_7daa4bf644d295::t_e3b22e65c31afd 219,225,238,252-258,289,295,339,354-355,358
+tests/server/services.test.ts
+  s_7daa4bf644d295::t_02da35e725008d 5,63
+tests/server/project-isolation.test.ts
+  s_7daa4bf644d295::t_1fe13b95f61fb2 9,18,20,216-217,226-262
+  s_7daa4bf644d295::t_ca0de0e4d9c868 263-265
+server/teamdigest.ts
+  s_7daa4bf644d295::t_47eb8788d4c06b 1-13,15-31,33-54
+  s_7daa4bf644d295::t_91e2f1b5e36925 14,32
+tests/server/api.test.ts
+  s_7daa4bf644d295::t_a32d714ec1f455 144-149
+tests/web/groupD-pickers.test.ts
+  s_7daa4bf644d295::t_2b25bfa8721ebf 323-324,328,339-340,343
+docs/internal/plans/TEAM_ORCHESTRATION_FIXES_2026-10-31.md
+  s_7daa4bf644d295::t_3a0db62dc8bf97 6-22,25-30
+  s_7daa4bf644d295::t_c341b755d058e9 23-24
+tests/server/team-digest.test.ts
+  s_7daa4bf644d295::t_91e2f1b5e36925 112,117-119,122
+  s_7daa4bf644d295::t_47eb8788d4c06b 96
+  s_7daa4bf644d295::t_3a0db62dc8bf97 9,107-111,113-116,120-121,123
+  s_7daa4bf644d295::t_bb043d39c50e93 1-8,10-95,97-106,124-125
+README.md
+  s_7daa4bf644d295::t_02da35e725008d 57-58
+docs/guide.md
+  s_7daa4bf644d295::t_02da35e725008d 164-167
+server/teams.ts
+  s_7daa4bf644d295::t_47eb8788d4c06b 17,302-304,307-313,496,527-532,534-545,658-659,674-677,714
+  s_7daa4bf644d295::t_2276f55a6910cc 264,297-301,305-306,315
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a7ca6869bd01f2d2036c0cb53c0c99fc59ff06e7",
+  "prompts": {},
+  "sessions": {
+    "s_7daa4bf644d295": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1909a-0e49-7540-af35-65ce95355b59",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_c7c122eb863b9a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a193aa-16db-7380-9ebe-b2bd11f07fcd",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
