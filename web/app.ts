@@ -21,14 +21,14 @@ import * as skillsView from './views/skills.tsx';
 import * as routinesView from './views/routines.tsx';
 import { initDock } from './dock.tsx';
 import { mountDrawerQuestions } from './questions.tsx';
-import { guardPageDrops } from './attach.ts';
+import { guardPageDrops } from './attach.tsx';
 import { applyLook, applySavedLook } from './look.ts';
 import { navLimits, panelSwitch, sidebarPanel } from './navlimits.tsx';
 
 applySavedLook();
 import { icon, logo } from './icons.ts';
 import { REPO } from '../shared/about.ts';
-import { openProjectMenu, openLauncher } from './projects.ts';
+import { openProjectMenu, openLauncher } from './projects.tsx';
 import { projectMark } from './projectlogo.ts';
 import type { AboutInfo, AppState, EngineStatus, RunEvent, ServerEvent } from '../shared/types.ts';
 

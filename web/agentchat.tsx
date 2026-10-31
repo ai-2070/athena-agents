@@ -5,8 +5,8 @@
 import { StrictMode, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GET, POST, attempt } from './core.ts';
-import { modelChip } from './models.ts';
-import { attachTray } from './attach.ts';
+import { modelChip } from './models.tsx';
+import { attachTray } from './attach.tsx';
 import { memoryButton } from './memory.tsx';
 import { buttonClass } from './ui/classes.ts';
 import { DomNode, Icon, useAppState } from './ui/react.tsx';

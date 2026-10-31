@@ -2,7 +2,7 @@ import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppState, Project } from '../../shared/types.ts';
 import { state } from '../../web/core.ts';
-import { openProjectMenu } from '../../web/projects.ts';
+import { openProjectMenu } from '../../web/projects.tsx';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 30)));

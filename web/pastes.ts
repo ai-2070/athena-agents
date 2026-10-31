@@ -4,7 +4,7 @@
 import { h, mount, modal, copy } from './core.ts';
 import { domButton } from './ui/dom.ts';
 import { icon } from './icons.ts';
-import { pasteHasFiles, restoreDraft } from './attach.ts';
+import { pasteHasFiles, restoreDraft } from './attach.tsx';
 
 /** A paste longer than this (in lines or characters) is folded into a marker. */
 export const LONG_LINES = 10;

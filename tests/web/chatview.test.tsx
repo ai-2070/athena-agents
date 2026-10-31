@@ -6,7 +6,7 @@ import { act } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UIMessageChunk } from 'ai';
 import { connectEvents, state } from '../../web/core.ts';
-import { attachTray } from '../../web/attach.ts';
+import { attachTray } from '../../web/attach.tsx';
 import { forgetFiles } from '../../web/filepreview.tsx';
 import { mountChat } from '../../web/chat/mount.tsx';
 import { isRichCode } from '../../web/chat/ChatView.tsx';

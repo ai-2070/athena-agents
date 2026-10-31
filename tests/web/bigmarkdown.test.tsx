@@ -98,6 +98,13 @@ describe('a Markdown file preview', () => {
     vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
       return isBody(this) ? 800 : 0;
     });
+    // (the virtualizer reads the scroller's client size for the window it can see)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return isBody(this) ? VIEW : 0;
+    });
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return isBody(this) ? 800 : 0;
+    });
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
       const height = isBody(this) ? VIEW : this.hasAttribute('data-index') ? PIECE : 0;
       return { width: isBody(this) ? 800 : 0, height, top: 0, left: 0, right: 0, bottom: height, x: 0, y: 0, toJSON: () => ({}) };

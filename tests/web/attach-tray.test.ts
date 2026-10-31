@@ -1,7 +1,7 @@
 // The attachment tray's upload queue, with fake requests: limits, failures, files added mid-send, retries.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { attachTray, restoreDraft, MAX_ATTACHMENTS } from '../../web/attach.ts';
-import type { PickedFile } from '../../web/attach.ts';
+import { attachTray, restoreDraft, MAX_ATTACHMENTS } from '../../web/attach.tsx';
+import type { PickedFile } from '../../web/attach.tsx';
 import { state } from '../../web/core.ts';
 import type { AppState } from '../../shared/types.ts';
 

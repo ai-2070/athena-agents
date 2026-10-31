@@ -223,7 +223,7 @@ bun run desktop:build   # make installers in src-tauri/target/release/bundle
 | Path | Contents |
 |---|---|
 | [`server/`](server/) | HTTP and WebSocket server, agent engines, tools, the Brain and JSON storage. |
-| [`web/`](web/) | Browser app: mostly plain DOM; React for agent chats; three.js for the Station. |
+| [`web/`](web/) | Browser app: React on Base UI, with the page shell and the Station's map in plain DOM; three.js for the Station. |
 | [`shared/`](shared/) | Shared types and logic. Data shapes start in `shared/types.ts`. |
 | [`public/`](public/) | HTML and styles. `public/dist/` is generated build output; do not edit it. |
 | [`tests/`](tests/) | Vitest server and browser tests, on temporary data and home folders. |

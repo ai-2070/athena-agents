@@ -130,25 +130,67 @@ was *styled* (`.pill.mem`); that is fixed above. The only code that reads a mark
 
 ---
 
-## Suggested order
+## What was done (2026-10-31)
 
-1. **Items 2–5 in one pass** — widen the icon-button variants, add `fieldTriggerClass`, fold the two
-   switches, delete `.pill.mem` and fix the comment. No behaviour change; verify with `bun run check`
-   plus a look at the Station and a settings page.
-2. **Item 1, one page at a time** — start with `projects.ts`; delete its `draw()` loop and `L_ACT` in
-   the same change, seeding the pattern for the rest.
-3. **Item 6** — only if we want the marker hooks gone; do it while inside the affected pages.
+All six findings are addressed, each in its own commit.
+
+- **Finding 2, 3, 4, 5** — one commit: `fieldTriggerClass` in `web/ui/classes.ts` now draws the box a
+  select's trigger and the agent picker share; `.toggle` and `.switch` share their declarations in
+  `components.css`; the chat header's memory meter is a `<Pill>` (it had never had the pill's own
+  utilities); `iconButtonClass` gained a `quiet` variant for the small borderless actions in a panel
+  row, and the Station panel's member actions are `IconButton`s. `openModal` now takes a `ReactNode`
+  title.
+- **Finding 1** — eleven modules moved to React, in one commit, each keeping its exported signatures so
+  no caller's logic changed: `history`, `schedule`, `memory`, `backup`, `skilldialogs`, `filepreview`,
+  `navlimits`, `models`, `builder`, `projects`, `attach`. They are `.tsx` and no longer build DOM with
+  `h()` or redraw with their own loops; the dialogs use `openModal` with React content. `web/projects.tsx`
+  lost `L_ACT` and `web/builder.tsx` lost its page-local control constants.
+- **Finding 6** — the markers stay, as decided above.
+
+What still builds its own DOM with `h()`: the page shell (`web/app.ts`), the Station's map and header
+(`web/views/station.ts`), and the small helpers `skillpick.ts`, `pastes.ts`, `chatcommands.ts`,
+`routinemention.ts`, `compactmark.ts`, `projectlogo.ts`, `teammark.ts`, `modelviewer.ts` and a few
+sightings inside `dock.tsx` and `web/chat/ChatView.tsx`. That is the tail left for later.
+
+### Test suite before and after
+
+Before: `tests/server/brain-chat.test.ts` (Windows temp-dir EPERM), `tests/web/bigmarkdown.test.tsx`,
+`tests/web/find.test.tsx` and `tests/server/api.test.ts` failed.
+
+After: `bigmarkdown.test.tsx` passes — its mocks stubbed `offsetHeight`, but `@tanstack/react-virtual`
+reads the scroller's `clientHeight`/`clientWidth`, so nothing was ever measured. Added those two spies.
+`find.test.tsx`'s "finds a word that is far from the screen" still fails: `scrollToIndex()` returns
+early for an index the virtualizer has not measured (`measurementsCache[index]` is undefined), so
+Ctrl+F cannot reveal a match that is far away. That is a real behaviour change in the current
+`@tanstack/react-virtual` and is **not fixed here** — it needs a decision about how to jump to an
+unmeasured piece. The other two failures are unrelated (server temp-dir permission, and a routine
+endpoint answering 404 where the test wants 400).
+
+## Still open
+
+- The `find.test.tsx` case above.
+- The `h()` tail listed under "What was done".
+- `web/builder.tsx` kept `STEP_BTN` for its ★/✕ step buttons, and `web/projectmenu.tsx` kept
+  `RENAME_BTN`: both are 26–28px row affordances whose size, radius or reveal differ from the shared
+  `quiet` icon button, so folding them in would have changed how they look.
 
 ## Not in scope
 
-- No design/visual change. Structure only; the "Linear, but white" look is unaffected.
+- No design/visual change. Structure only; the "Linear, but white" look is unaffected. (Two small
+  deltas came with the migrations: the project launcher's row actions now use the shared `inset` icon
+  plate, and `deleteProject`'s confirm is an `openModal` instead of `confirmBox` — same DOM and copy.)
 - The voxel/three.js and terminal surfaces (canvas colours, `web/voxel/`, `web/views/terminals.tsx`)
   are correct as written and excluded.
+- No JSX was added to `web/core.ts`, `web/ui/dom.ts`, or anywhere the page shell still owns.
 
 ## Verification notes
 
-- Facts gathered by reading source and counting matches; no test run and no browser was used, because
-  nothing was changed.
-- Line numbers are from the working tree at 2026-10-31 and will shift as the above lands.
-- If these edits proceed, each should run `bun run check` (typecheck + Vitest) and be eyeballed on the
-  Station and a settings page before it is called done.
+- The findings were gathered by reading source and counting matches. The first version of finding 5 was
+  wrong (it called `.pill.mem` dead CSS); it is corrected above, which is a reminder that a grep for
+  `'pill` misses `\`pill mem …\`` in a template literal.
+- Line numbers are from the working tree at 2026-10-31 and have shifted where modules were migrated.
+- After the work: `bun run typecheck` is clean, `bun run build` is clean, and the test suite is down to
+  the two known failures above. The page was also driven in a real browser against a throwaway data
+  folder: the sidebar's Limits panel and Status/Limits switch, the project launcher, the New project
+  window, the model picker (tabs, effort levels, model rows) and the Station all render with no console
+  errors.

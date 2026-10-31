@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
-import { brainModelChip, openModelPicker } from '../../web/models.ts';
-import { openBranchBuilder } from '../../web/builder.ts';
-import type { ModelPatch } from '../../web/models.ts';
+import { brainModelChip, openModelPicker } from '../../web/models.tsx';
+import { openBranchBuilder } from '../../web/builder.tsx';
+import type { ModelPatch } from '../../web/models.tsx';
 import type { AppState } from '../../shared/types.ts';
 
 type Reply = { status?: number; body: unknown };

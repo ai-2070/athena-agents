@@ -2,7 +2,7 @@
 // dialog's blur is the one that shows the page behind it. Other dialogs stay solid.
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { modal, state } from '../../web/core.ts';
-import { openNewProject } from '../../web/projects.ts';
+import { openNewProject } from '../../web/projects.tsx';
 import type { AppState } from '../../shared/types.ts';
 
 beforeEach(() => {

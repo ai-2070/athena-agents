@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brainAsAgent, modelInfo } from '../../web/models.ts';
+import { brainAsAgent, modelInfo } from '../../web/models.tsx';
 import { ACCENTS, applyLook } from '../../web/look.ts';
 
 describe('modelInfo()', () => {

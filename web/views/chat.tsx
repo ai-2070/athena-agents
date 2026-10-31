@@ -5,9 +5,9 @@ import { GET, POST, PUT, DEL, attempt, navigate, ago, confirmBox, promptBox, ENG
 import { openTerminal } from './agents.tsx';
 import { memoryButton } from '../memory.tsx';
 import { buttonClass } from '../ui/classes.ts';
-import { modelChip, modelInfo } from '../models.ts';
+import { modelChip, modelInfo } from '../models.tsx';
 import { kTokens } from '../../shared/compaction.ts';
-import { attachTray } from '../attach.ts';
+import { attachTray } from '../attach.tsx';
 import { Avatar, DomNode, Icon, reactPage } from '../ui/react.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';

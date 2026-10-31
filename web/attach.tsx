@@ -1,12 +1,18 @@
 // Attaching files and folders: drop or paste them on a chat (or the Brain on the map), or pick them with the
 // paperclip. They upload straight away into the project's Brain folder (uploads/…), and the message
 // then carries their paths. A tray shows each one as a chip with its progress.
-import { h, mount, POST, DEL, toast, lightbox } from './core.ts';
+// The chips are React now (rendered into the tray's element with createRoot); the upload queue, drag and drop
+// and pasting under them stay plain JavaScript.
+import { flushSync } from 'react-dom';
+import { createRoot } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
+import type { CSSProperties } from 'react';
+import { POST, DEL, toast, lightbox } from './core.ts';
 import { upload } from './client/http.ts';
 import { fileUrl } from './client/connection.ts';
-import { icon } from './icons.ts';
 import { mountAttachMenu } from './attachmenu.tsx';
 import { markdownTooBig, onDesktop, openFile, openPdf, previewKind, showMarkdown } from './filepreview.tsx';
+import { Icon } from './ui/react.tsx';
 import type { IconWeight } from './ui/react.tsx';
 import type { ButtonSize, ButtonVariant } from './ui/classes.ts';
 import type { UploadedFile } from '../shared/types.ts';
@@ -284,67 +290,99 @@ export const COMPOSER_TEXT = 'block field-sizing-content min-h-[80px] max-h-[max
 // a place that takes dropped files, while files are dragged over it
 const OVER = 'outline-2 outline-dashed outline-accent -outline-offset-3'.split(' ');
 
+// How a chip's file opens: pictures and Markdown straight from the computer (no need to wait for the
+// upload), a PDF in a new tab once it is uploaded (the desktop app: any file, in its own program).
+// null: it can't be looked at.
+function opener(it: Item): { title: string; go: () => void } | null {
+  if (it.kind !== 'file') return null;
+  const file = it.picked[0]?.file;
+  const kind = previewKind(it.name);
+  if (kind === 'image' && (it.preview || it.path)) return { title: `Show ${it.name} bigger`, go: () => lightbox(it.preview || fileUrl(it.path!), it.name) };
+  if (kind === 'markdown' && file) return { title: `Read ${it.name}`, go: () => void (markdownTooBig(it.name, file.size) || file.text().then((t) => showMarkdown(it.name, t), () => toast(`${it.name} couldn’t be read.`, 'error'))) };
+  // in the desktop app any file opens in its own program once it is uploaded
+  if (onDesktop() && it.path && it.state === 'done') return { title: `Open ${it.name}`, go: () => openFile(it.path!) };
+  if (kind === 'pdf' && it.path && it.state === 'done') return { title: `Open ${it.name} in a new tab`, go: () => openPdf(it.path!) };
+  return null;
+}
+
+/** One chip: a thumbnail or icon, its name, how far it has got, and its ✕. */
+function Chip({ it, onRemove }: { it: Item; onRemove: (it: Item) => void }) {
+  const pct = it.bytes ? Math.min(100, Math.round((it.sent / it.bytes) * 100)) : 100;
+  const meta = it.state === 'error' ? it.error : it.state === 'uploading' ? `${pct}%` : it.kind === 'folder' ? `${it.picked.length} file${it.picked.length === 1 ? '' : 's'} · ${size(it.bytes)}` : size(it.bytes);
+  const open = it.state === 'error' ? null : opener(it);
+  const face = (
+    <>
+      {it.preview ? <img className="size-5.5 flex-none rounded-[4px] object-cover" src={it.preview} alt="" /> : <span className="att-ico"><Icon name={it.kind === 'folder' ? 'folder' : 'file'} size={14} /></span>}
+      <span className="att-name">{it.name}</span>
+      <span className={`max-w-[140px] truncate text-[11.5px] leading-[normal] tabular-nums ${it.state === 'error' ? 'text-red' : it.state === 'uploading' ? 'text-accent' : 'text-faint'}`}>{meta}</span>
+    </>
+  );
+  return (
+    <div className={`att-chip ${it.state}${open ? ' transition-colors hover:bg-panel-2' : ''}`} title={it.state === 'error' ? it.error || '' : it.path || it.name}>
+      {/* a file that can be looked at opens when clicked (the name and size are its button) */}
+      {open ? (
+        <button className="att-open flex min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-inherit [font:inherit] hover:text-accent [&:hover_.att-ico]:text-accent" type="button" title={open.title} aria-label={open.title} onClick={open.go}>
+          {face}
+        </button>
+      ) : (
+        face
+      )}
+      {it.state === 'uploading' ? <span className="absolute bottom-0 left-0 h-0.5 w-full origin-left bg-accent [transform:scaleX(var(--p,0))] transition-transform duration-150 ease-linear" style={{ '--p': String(pct / 100) } as CSSProperties} /> : null}
+      <button className="att-x" type="button" title="Remove" aria-label={`Remove ${it.name}`} onClick={() => onRemove(it)}>
+        <Icon name="x" size={12} />
+      </button>
+    </div>
+  );
+}
+
+/** What a dragged-over drop zone shows. */
+const OVERLAY_CLASS = 'pointer-events-none absolute inset-0.75 z-50 flex animate-[fade_0.12s_ease-out] flex-col items-center justify-center gap-2 rounded-box bg-glass-strong p-4 text-center text-[13px] leading-[normal] font-medium text-accent backdrop-blur-[3px]';
+
 // deferred: hold the files and upload only when ready() is called (a new project: its folder doesn't exist yet).
 // iconWeight: the weight the chat around it draws its icons in (the paperclip is drawn apart from it).
 export function attachTray({ deferred = false, onChange, iconWeight, pickerButton }: { deferred?: boolean; onChange?: () => void; iconWeight?: IconWeight; pickerButton?: { variant?: ButtonVariant; size?: ButtonSize; class?: string } } = {}): AttachTray {
   let items: Item[] = [];
-  const el = h('div.att-tray.hidden');
-  const fileIn = h('input', { type: 'file', multiple: true, hidden: true });
-  const dirIn = h('input', { type: 'file', multiple: true, hidden: true, webkitdirectory: true });
+  const el = document.createElement('div');
+  el.className = 'att-tray hidden';
+  // React draws the chips into this element; the queue below stays plain JS
+  const root = createRoot(el);
+  const fileIn = document.createElement('input');
+  fileIn.type = 'file';
+  fileIn.multiple = true;
+  fileIn.hidden = true;
+  const dirIn = document.createElement('input');
+  dirIn.type = 'file';
+  dirIn.multiple = true;
+  dirIn.hidden = true;
+  dirIn.setAttribute('webkitdirectory', '');
   // the paperclip and its menu (Files…, A folder…) are the app's dropdown, drawn into this host
-  const menuHost = h('span', { class: 'inline-flex' });
+  const menuHost = document.createElement('span');
+  menuHost.className = 'inline-flex';
   mountAttachMenu(menuHost, { files: () => fileIn.click(), folder: () => dirIn.click(), weight: iconWeight, button: pickerButton });
-  const picker = h('span', { class: 'relative inline-flex flex-none' }, menuHost, fileIn, dirIn);
+  const picker = document.createElement('span');
+  picker.className = 'relative inline-flex flex-none';
+  picker.append(menuHost, fileIn, dirIn);
   fileIn.addEventListener('change', () => (add(filesFromInput(fileIn.files)), (fileIn.value = '')));
   dirIn.addEventListener('change', () => (add(filesFromInput(dirIn.files)), (dirIn.value = '')));
 
   const listeners = new Set<() => void>();
   let frame = false;
-  const draw = () => {
+  // the chips into the tray element, right after the work that changed them
+  const paint = () => {
+    el.classList.toggle('hidden', !items.length);
+    flushSync(() => root.render(items.map((it) => <Chip key={it.key} it={it} onRemove={remove} />)));
+  };
+  const redraw = () => {
     if (frame) return;
     frame = true;
     requestAnimationFrame(() => {
       frame = false;
-      el.classList.toggle('hidden', !items.length);
-      mount(el, items.map(chip));
+      paint();
     });
     onChange?.();
     for (const fn of listeners) fn();
   };
-  const chip = (it: Item) => {
-    const pct = it.bytes ? Math.min(100, Math.round((it.sent / it.bytes) * 100)) : 100;
-    const meta = it.state === 'error' ? it.error : it.state === 'uploading' ? `${pct}%` : it.kind === 'folder' ? `${it.picked.length} file${it.picked.length === 1 ? '' : 's'} · ${size(it.bytes)}` : size(it.bytes);
-    const open = it.state === 'error' ? null : opener(it);
-    const face = [
-      it.preview ? h('img', { class: 'size-5.5 flex-none rounded-[4px] object-cover', src: it.preview, alt: '' }) : h('span.att-ico', icon(it.kind === 'folder' ? 'folder' : 'file', 14)),
-      h('span.att-name', it.name),
-      h('span', { class: `max-w-[140px] truncate text-[11.5px] leading-[normal] tabular-nums ${it.state === 'error' ? 'text-red' : it.state === 'uploading' ? 'text-accent' : 'text-faint'}` }, meta),
-    ];
-    return h(
-      `div.att-chip.${it.state}`,
-      { class: open ? 'transition-colors hover:bg-panel-2' : '', title: it.state === 'error' ? it.error || '' : it.path || it.name },
-      // a file that can be looked at opens when clicked (the name and size are its button)
-      open
-        ? h('button.att-open', { class: 'flex min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-inherit [font:inherit] hover:text-accent [&:hover_.att-ico]:text-accent', type: 'button', title: open.title, 'aria-label': open.title, onclick: open.go }, face)
-        : face,
-      it.state === 'uploading' ? h('span', { class: 'absolute bottom-0 left-0 h-0.5 w-full origin-left bg-accent [transform:scaleX(var(--p,0))] transition-transform duration-150 ease-linear', style: { '--p': String(pct / 100) } }) : null,
-      h('button.att-x', { type: 'button', title: 'Remove', 'aria-label': `Remove ${it.name}`, onclick: () => remove(it) }, icon('x', 12)),
-    );
-  };
-  // How a chip's file opens: pictures and Markdown straight from the computer (no need to wait for the
-  // upload), a PDF in a new tab once it is uploaded (the desktop app: any file, in its own program).
-  // null: it can't be looked at.
-  const opener = (it: Item): { title: string; go: () => void } | null => {
-    if (it.kind !== 'file') return null;
-    const file = it.picked[0]?.file;
-    const kind = previewKind(it.name);
-    if (kind === 'image' && (it.preview || it.path)) return { title: `Show ${it.name} bigger`, go: () => lightbox(it.preview || fileUrl(it.path!), it.name) };
-    if (kind === 'markdown' && file) return { title: `Read ${it.name}`, go: () => void (markdownTooBig(it.name, file.size) || file.text().then((t) => showMarkdown(it.name, t), () => toast(`${it.name} couldn’t be read.`, 'error'))) };
-    // in the desktop app any file opens in its own program once it is uploaded
-    if (onDesktop() && it.path && it.state === 'done') return { title: `Open ${it.name}`, go: () => openFile(it.path!) };
-    if (kind === 'pdf' && it.path && it.state === 'done') return { title: `Open ${it.name} in a new tab`, go: () => openPdf(it.path!) };
-    return null;
-  };
+
   const forget = (p: string) => DEL(`/uploads?path=${encodeURIComponent(p)}`).catch(() => {});
   const remove = (it: Item) => {
     it.removed = true;
@@ -353,7 +391,7 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
     if (it.state !== 'uploading' && it.path) forget(it.path);
     if (it.preview) URL.revokeObjectURL(it.preview);
     items = items.filter((x) => x !== it);
-    draw();
+    redraw();
   };
   const add = (picked: PickedFile[]) => {
     if (!picked.length) return;
@@ -366,8 +404,8 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
       if (!fresh.length) return;
     }
     items = [...items, ...fresh];
-    draw();
-    if (!deferred) void uploadItems(fresh, draw);
+    redraw();
+    if (!deferred) void uploadItems(fresh, redraw);
   };
   // a failed chip gets another go: its partial upload goes, it starts over in a new batch
   const retry = (it: Item) => {
@@ -378,7 +416,7 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
     items.filter((it) => it.state === 'error').forEach(retry);
     // until nothing is left to upload: files added while waiting are included too
     for (;;) {
-      void uploadItems(items.filter((it) => it.state === 'waiting'), draw);
+      void uploadItems(items.filter((it) => it.state === 'waiting'), redraw);
       const pending = items.filter((it) => it.state === 'uploading');
       if (!pending.length) break;
       await Promise.all(pending.map((it) => it.done));
@@ -393,6 +431,7 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
 
   const dropZone = (zone: HTMLElement, label = 'Drop files or folders to attach') => {
     let overlay: HTMLDivElement | null = null;
+    let overlayRoot: Root | null = null;
     // the overlay needs a positioned zone; put back what was there once it goes
     let oldPosition: string | null = null;
     const show = (on: boolean) => {
@@ -402,9 +441,19 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
           oldPosition = zone.style.position;
           zone.style.position = 'relative';
         }
-        overlay = h('div', { class: 'pointer-events-none absolute inset-0.75 z-50 flex animate-[fade_0.12s_ease-out] flex-col items-center justify-center gap-2 rounded-box bg-glass-strong p-4 text-center text-[13px] leading-[normal] font-medium text-accent backdrop-blur-[3px]' }, icon('upload', 22), h('span', label));
+        overlay = document.createElement('div');
+        overlay.className = OVERLAY_CLASS;
+        overlayRoot = createRoot(overlay);
+        overlayRoot.render(
+          <>
+            <Icon name="upload" size={22} />
+            <span>{label}</span>
+          </>,
+        );
         zone.append(overlay);
       } else if (!on && overlay) {
+        overlayRoot?.unmount();
+        overlayRoot = null;
         overlay.remove();
         overlay = null;
         if (oldPosition !== null) zone.style.position = oldPosition;
@@ -463,17 +512,17 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
     take: () => {
       const out = items.filter((it) => it.state === 'done');
       items = items.filter((it) => it.state !== 'done');
-      draw();
+      redraw();
       return out;
     },
     put: (back) => {
       items = [...back, ...items];
-      draw();
+      redraw();
     },
     clear: () => {
       for (const it of items) if (it.preview) URL.revokeObjectURL(it.preview);
       items = [];
-      draw();
+      redraw();
     },
     discard: () => [...items].forEach(remove),
   };
@@ -486,20 +535,44 @@ export function restoreDraft(input: HTMLTextAreaElement, text: string): void {
   input.value = !now ? text : now.startsWith(text) ? input.value : `${text}\n${input.value}`;
 }
 
+/** The files a sent message carries: a chip each (images as thumbnails, folders by name). Files open in a new tab. */
+function SentChips({ paths }: { paths: readonly string[] }) {
+  return (
+    <>
+      {paths.map((p, i) => {
+        const name = baseName(p);
+        const url = fileUrl(p);
+        if (isFolderPath(p))
+          return (
+            <span key={`${p}:${i}`} className="att-chip sent" title={p}>
+              <span className="att-ico"><Icon name="folder" size={13} /></span>
+              <span className="att-name">{`${name}/`}</span>
+            </span>
+          );
+        if (IMAGE.test(p))
+          return (
+            <a key={`${p}:${i}`} className="att-img group block leading-[0]" href={url} target="_blank" rel="noopener" title={p}>
+              <img className="h-18 w-24 rounded-[8px] border border-line-2 object-cover group-hover:shadow-lift" src={url} alt={name} loading="lazy" />
+            </a>
+          );
+        return (
+          <a key={`${p}:${i}`} className="att-chip sent" href={url} target="_blank" rel="noopener" title={p}>
+            <span className="att-ico"><Icon name="file" size={13} /></span>
+            <span className="att-name">{name}</span>
+          </a>
+        );
+      })}
+    </>
+  );
+}
+
 // The files a sent message carries, as chips (images as thumbnails). Files open in a new tab.
 export function attachmentChips(paths: readonly string[] | undefined | null): HTMLDivElement | null {
   if (!paths?.length) return null;
-  return h(
-    'div',
-    { class: 'mt-2 flex flex-wrap gap-2 whitespace-normal first:mt-0' },
-    paths.map((p) => {
-      const name = baseName(p);
-      const url = fileUrl(p);
-      if (isFolderPath(p)) return h('span.att-chip.sent', { title: p }, h('span.att-ico', icon('folder', 13)), h('span.att-name', `${name}/`));
-      if (IMAGE.test(p)) return h('a.att-img', { class: 'group block leading-[0]', href: url, target: '_blank', rel: 'noopener', title: p }, h('img', { class: 'h-18 w-24 rounded-[8px] border border-line-2 object-cover group-hover:shadow-lift', src: url, alt: name, loading: 'lazy' }));
-      return h('a.att-chip.sent', { href: url, target: '_blank', rel: 'noopener', title: p }, h('span.att-ico', icon('file', 13)), h('span.att-name', name));
-    }),
-  );
+  const box = document.createElement('div');
+  box.className = 'mt-2 flex flex-wrap gap-2 whitespace-normal first:mt-0';
+  flushSync(() => createRoot(box).render(<SentChips paths={paths} />));
+  return box;
 }
 
 // Dropping files anywhere that doesn't take them must not open them in the tab (and lose the dashboard).

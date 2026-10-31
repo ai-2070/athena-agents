@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { GET, POST, PUT, attempt, toast } from './core.ts';
 import { historyButton } from './history.tsx';
-import { attachTray } from './attach.ts';
-import type { AttachTray } from './attach.ts';
+import { attachTray } from './attach.tsx';
+import type { AttachTray } from './attach.tsx';
 import { Button } from './ui/button.tsx';
 import { Field } from './ui/controls.tsx';
 import { Pill } from './ui/marks.tsx';

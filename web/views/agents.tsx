@@ -14,7 +14,7 @@ import { Dot, Pill } from '../ui/marks.tsx';
 import { Avatar, DomNode, Icon, ProjectScoped, reactPage, useAppState } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { themeColor } from '../theme.ts';
-import type { ModelListing } from '../models.ts';
+import type { ModelListing } from '../models.tsx';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { ENGINE_NAMES, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
