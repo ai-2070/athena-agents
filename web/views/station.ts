@@ -3788,7 +3788,7 @@ function drawHud(): void {
     const toAgents = e.ready && users.length ? `#/agents?uses=${engineKey(users[0])}` : '';
     return { ...e, uses, n: users.length + (brainP === e.brain ? 1 : 0), busy, toAgents, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${toAgents ? ' (click to see its agents)' : e.ready ? '' : ' (click to set up)'}` };
   });
-  S.clockEl ||= h('span.st-clock', { class: 'min-w-28 text-right text-[14px] leading-[normal] font-normal tabular-nums text-dim max-md:hidden [font-family:Archivo,sans-serif]' });
+  S.clockEl ||= h('span.st-clock', { class: 'min-w-28 text-right text-[14px] leading-[normal] font-normal tabular-nums text-dim max-md:hidden font-mono' });
   S.tileEls = new Map();
   mount(
     S.hudTop,
@@ -3955,7 +3955,7 @@ function tickClock(): void {
   if (!S?.clockEl) return;
   S.clockEl.replaceChildren(...clockFormat.formatToParts(new Date()).map((part) =>
     part.type === 'dayPeriod'
-      ? h('span', { class: 'font-sans text-[11px] font-medium' }, part.value)
+      ? h('span', { class: 'font-mono text-[11px] font-medium' }, part.value)
       : document.createTextNode(part.value),
   ));
 }

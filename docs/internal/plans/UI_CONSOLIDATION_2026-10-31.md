@@ -242,3 +242,11 @@ Three alignment faults, found by looking at the running page and measured in it 
   **`--font-weight-bold: 600`** (`web/styles/app.css:62`), so in this codebase `font-bold` and
   `font-semibold` are the *same* weight — the first attempt with `font-bold` changed nothing. Use an
   explicit `font-[700]`, or raise that token deliberately (it would move every `font-bold` in the app).
+- **The Station's clock** — `web/views/station.ts:3791` (and the day period at ~3958). It carried
+  `[font-family:Archivo,sans-serif]`, a leftover from before the redesign: Archivo is still copied into
+  `public/dist` by `scripts/build-fonts.ts`, so the clock really did render in it rather than falling back.
+  It is `font-mono` now — the app's JetBrains Mono token, which is what the numbers/ids convention asks for
+  — measured `"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace` at 14px with `tabular-nums`, the
+  AM at 11px in the same family. Archivo is now referenced by nothing but `build-fonts.ts` and the test that
+  checks its licence file is copied; dropping it (and that line of `tests/server/styles.test.ts`) is the
+  obvious follow-up.
