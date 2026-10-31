@@ -291,3 +291,13 @@ Three alignment faults, found by looking at the running page and measured in it 
   colour inputs, with a swatch rule under it (`height: 40px; width: 48px; flex: none; padding: 4px`) and both
   call sites drop their class string. Measured: agent editor Name 40px / Color 40px, same 1px
   `rgb(49, 50, 58)` border, 7px radius and card shadow; the team Setup swatch likewise 40px.
+- **Programs: an emoji per program became the program's own mark** — `web/views/programs.tsx`, the new
+  `web/programicons.ts`, `scripts/build-icons.ts` (which generates `web/icons.ts`) and `web/phosphor.ts`.
+  The page drew `p.icon`, an emoji from the catalog, so Claude Code was "✳️" and Blender an orange circle.
+  It now asks `programIcon(id, name)`: the program's brand logo where Simple Icons has one (26 brands added,
+  Claude Code among them — `claudecode`, so the Claude Code row no longer wears the Claude model's mark),
+  the app's PNG where `appicons.ts` has one (ComfyUI, LM Studio), else a line icon from a curated map of ~70
+  ids (the box is only a last resort). All 122 catalog ids were walked in a throwaway Vitest run: every one
+  resolves to a brand, a PNG or a mapped line icon, none to the box; the live page shows 31 rows, no emoji
+  text in any of them, every avatar an `<svg>` or `<img>`. `tests/web/programicons.test.ts` guards the
+  Claude Code mark, the line-icon and PNG paths, and the never-nothing fallback.

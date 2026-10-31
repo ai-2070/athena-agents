@@ -5,10 +5,12 @@ import { Plate } from '../ui/surface.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import { GET, POST, attempt, lightbox, toast, navigate } from '../core.ts';
 import { Field, Row, SearchBox, Section } from '../ui/controls.tsx';
-import { reactPage, useServerEvents } from '../ui/react.tsx';
+import { reactPage, useServerEvents, DomNode } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import type { Terminal } from '../../shared/types.ts';
 import { appIconStyle, appIconUrl } from '../appicons.ts';
+import { programIcon } from '../programicons.ts';
+import { onThemeChange } from '../theme.ts';
 
 /** One known program as GET /api/programs lists it (server/programs.ts discoverPrograms). */
 interface ProgramInfo {
@@ -118,6 +120,9 @@ export function ProgramsTab() {
   const [failed, setFailed] = useState<string | null>(null);
   // programs asked to start and not seen open yet
   const [starting, setStarting] = useState<Set<string>>(new Set());
+  // brand marks are drawn in their own colour, so they are redrawn when the page changes between light and dark
+  const [themeTick, setThemeTick] = useState(0);
+  useEffect(() => onThemeChange(() => setThemeTick((n) => n + 1)), []);
   const load = useCallback(
     (force = false) =>
       Promise.all([GET<ProgramInfo[]>(`/programs${force ? '?force=1' : ''}`), GET<ComfyInfo>('/comfyui').catch(() => null)])
@@ -160,7 +165,7 @@ export function ProgramsTab() {
               return (
                 <div key={p.id} data-prog={p.id}>
                   <Row
-                    title={<span className="flex flex-wrap items-center gap-2.5"><span className="avatar size-8 after:hidden">{appIconUrl(p.id) ? <img className="app-icon inline-block align-middle" src={appIconUrl(p.id)!} width={20} height={20} alt="" style={appIconStyle(p.id, 20)} /> : p.icon}</span><span>{p.name}</span><Dot tone={p.running ? 'on' : isStarting ? 'busy' : 'off'} /></span>}
+                    title={<span className="flex flex-wrap items-center gap-2.5"><span className="avatar size-8 after:hidden"><DomNode as="span" className="dom-contents" make={() => programIcon(p.id, p.name, 20)} deps={[p.id, themeTick]} /></span><span>{p.name}</span><Dot tone={p.running ? 'on' : isStarting ? 'busy' : 'off'} /></span>}
                     description={<><span className="hint prog-state">{progState(p, isStarting)}</span>{ABOUT[p.id] ? <span className="block mt-1">{ABOUT[p.id]}</span> : null}</>}
                   >
                     {p.actions.includes('launch') || (!p.cli && p.exe) ? <Button size="small" onClick={() => void start(p)}>Start</Button> : null}

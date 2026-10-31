@@ -20,6 +20,13 @@ const BRANDS: Record<string, string> = {
   openscad: 'openscad', kicad: 'kicad', obs: 'obsstudio', sketchup: 'sketchup', autocad: 'autocad', autodesk: 'autodesk', rhino: 'rhinoceros',
   'bambu lab': 'bambulab', bambu: 'bambulab', octoprint: 'octoprint', creality: 'creality', kdenlive: 'kdenlive', krita: 'krita',
   vscode: 'vscodium', zed: 'zedindustries', gimp: 'gimp', python: 'python', git: 'git', docker: 'docker', node: 'nodedotjs',
+  // the programs in Settings › Programs (server/programs.ts) that have a logo of their own
+  'claude code': 'claudecode', uv: 'uv', vlc: 'vlcmediaplayer', 'obs studio': 'obsstudio',
+  unity: 'unity', unreal: 'unrealengine', 'unreal engine': 'unrealengine', godot: 'godotengine', opera: 'opera', inkscape: 'inkscape',
+  sharex: 'sharex', aseprite: 'aseprite', audacity: 'audacity', lmms: 'lmms', revit: 'autodeskrevit', inventor: 'autodesk',
+  'autodesk fusion': 'autodesk', fusion360: 'autodesk', 'bambu studio': 'bambulab', 'creality print': 'creality',
+  'vs code': 'vscodium', 'github cli': 'github', 'after effects': 'adobeaftereffects', 'premiere pro': 'adobepremierepro',
+  vegas: 'vegas', 'rtx remix': 'nvidia', nsight: 'nvidia',
 };
 
 interface SimpleIcon {

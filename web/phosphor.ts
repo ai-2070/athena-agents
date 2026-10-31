@@ -3,6 +3,7 @@
 // Each icon is imported from its own file: the package's index pulls in all 1,500 of them, which slows every test.
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { ApertureIcon } from '@phosphor-icons/react/dist/csr/Aperture';
 import { ArchiveIcon } from '@phosphor-icons/react/dist/csr/Archive';
 import { ArrowClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowClockwise';
 import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowCounterClockwise';
@@ -12,11 +13,16 @@ import { ArrowUpIcon } from '@phosphor-icons/react/dist/csr/ArrowUp';
 import { ArrowsOutCardinalIcon } from '@phosphor-icons/react/dist/csr/ArrowsOutCardinal';
 import { ArrowsOutSimpleIcon } from '@phosphor-icons/react/dist/csr/ArrowsOutSimple';
 import { AtIcon } from '@phosphor-icons/react/dist/csr/At';
+import { AtomIcon } from '@phosphor-icons/react/dist/csr/Atom';
 import { BellIcon } from '@phosphor-icons/react/dist/csr/Bell';
+import { BoneIcon } from '@phosphor-icons/react/dist/csr/Bone';
 import { BookmarkSimpleIcon } from '@phosphor-icons/react/dist/csr/BookmarkSimple';
 import { BooksIcon } from '@phosphor-icons/react/dist/csr/Books';
 import { BrainIcon } from '@phosphor-icons/react/dist/csr/Brain';
 import { BroadcastIcon } from '@phosphor-icons/react/dist/csr/Broadcast';
+import { BrowserIcon } from '@phosphor-icons/react/dist/csr/Browser';
+import { CameraIcon } from '@phosphor-icons/react/dist/csr/Camera';
+import { CameraRotateIcon } from '@phosphor-icons/react/dist/csr/CameraRotate';
 import { CaretDownIcon } from '@phosphor-icons/react/dist/csr/CaretDown';
 import { CaretRightIcon } from '@phosphor-icons/react/dist/csr/CaretRight';
 import { ChatCircleIcon } from '@phosphor-icons/react/dist/csr/ChatCircle';
@@ -25,18 +31,27 @@ import { CheckIcon } from '@phosphor-icons/react/dist/csr/Check';
 import { CheckCircleIcon } from '@phosphor-icons/react/dist/csr/CheckCircle';
 import { ClockIcon } from '@phosphor-icons/react/dist/csr/Clock';
 import { ClockCounterClockwiseIcon } from '@phosphor-icons/react/dist/csr/ClockCounterClockwise';
+import { CodeIcon } from '@phosphor-icons/react/dist/csr/Code';
 import { ColumnsIcon } from '@phosphor-icons/react/dist/csr/Columns';
+import { CompassToolIcon } from '@phosphor-icons/react/dist/csr/CompassTool';
 import { CopyIcon } from '@phosphor-icons/react/dist/csr/Copy';
 import { CpuIcon } from '@phosphor-icons/react/dist/csr/Cpu';
 import { CubeIcon } from '@phosphor-icons/react/dist/csr/Cube';
+import { CubeTransparentIcon } from '@phosphor-icons/react/dist/csr/CubeTransparent';
 import { CursorClickIcon } from '@phosphor-icons/react/dist/csr/CursorClick';
+import { DeviceMobileIcon } from '@phosphor-icons/react/dist/csr/DeviceMobile';
 import { DotsSixVerticalIcon } from '@phosphor-icons/react/dist/csr/DotsSixVertical';
 import { DotsThreeIcon } from '@phosphor-icons/react/dist/csr/DotsThree';
 import { DownloadSimpleIcon } from '@phosphor-icons/react/dist/csr/DownloadSimple';
 import { EnvelopeSimpleIcon } from '@phosphor-icons/react/dist/csr/EnvelopeSimple';
+import { ExportIcon } from '@phosphor-icons/react/dist/csr/Export';
+import { FadersIcon } from '@phosphor-icons/react/dist/csr/Faders';
 import { FileIcon } from '@phosphor-icons/react/dist/csr/File';
+import { FilePdfIcon } from '@phosphor-icons/react/dist/csr/FilePdf';
 import { FileTextIcon } from '@phosphor-icons/react/dist/csr/FileText';
+import { FilmSlateIcon } from '@phosphor-icons/react/dist/csr/FilmSlate';
 import { FilmStripIcon } from '@phosphor-icons/react/dist/csr/FilmStrip';
+import { FlaskIcon } from '@phosphor-icons/react/dist/csr/Flask';
 import { FolderOpenIcon } from '@phosphor-icons/react/dist/csr/FolderOpen';
 import { FolderSimpleIcon } from '@phosphor-icons/react/dist/csr/FolderSimple';
 import { GaugeIcon } from '@phosphor-icons/react/dist/csr/Gauge';
@@ -47,48 +62,69 @@ import { HandIcon } from '@phosphor-icons/react/dist/csr/Hand';
 import { HardDrivesIcon } from '@phosphor-icons/react/dist/csr/HardDrives';
 import { HouseIcon } from '@phosphor-icons/react/dist/csr/House';
 import { ImageIcon } from '@phosphor-icons/react/dist/csr/Image';
+import { ImageSquareIcon } from '@phosphor-icons/react/dist/csr/ImageSquare';
 import { IntersectIcon } from '@phosphor-icons/react/dist/csr/Intersect';
 import { KeyIcon } from '@phosphor-icons/react/dist/csr/Key';
 import { LightningIcon } from '@phosphor-icons/react/dist/csr/Lightning';
 import { ListChecksIcon } from '@phosphor-icons/react/dist/csr/ListChecks';
+import { MagicWandIcon } from '@phosphor-icons/react/dist/csr/MagicWand';
 import { MagnifyingGlassIcon } from '@phosphor-icons/react/dist/csr/MagnifyingGlass';
 import { MagnifyingGlassMinusIcon } from '@phosphor-icons/react/dist/csr/MagnifyingGlassMinus';
 import { MagnifyingGlassPlusIcon } from '@phosphor-icons/react/dist/csr/MagnifyingGlassPlus';
+import { MaskHappyIcon } from '@phosphor-icons/react/dist/csr/MaskHappy';
 import { MonitorIcon } from '@phosphor-icons/react/dist/csr/Monitor';
+import { MusicNotesIcon } from '@phosphor-icons/react/dist/csr/MusicNotes';
+import { NewspaperIcon } from '@phosphor-icons/react/dist/csr/Newspaper';
+import { NotepadIcon } from '@phosphor-icons/react/dist/csr/Notepad';
+import { PaintBrushIcon } from '@phosphor-icons/react/dist/csr/PaintBrush';
+import { PaintBucketIcon } from '@phosphor-icons/react/dist/csr/PaintBucket';
 import { PaletteIcon } from '@phosphor-icons/react/dist/csr/Palette';
 import { PaperPlaneTiltIcon } from '@phosphor-icons/react/dist/csr/PaperPlaneTilt';
 import { PaperclipIcon } from '@phosphor-icons/react/dist/csr/Paperclip';
 import { PauseCircleIcon } from '@phosphor-icons/react/dist/csr/PauseCircle';
+import { PenNibIcon } from '@phosphor-icons/react/dist/csr/PenNib';
 import { PencilLineIcon } from '@phosphor-icons/react/dist/csr/PencilLine';
 import { PencilSimpleIcon } from '@phosphor-icons/react/dist/csr/PencilSimple';
 import { PlanetIcon } from '@phosphor-icons/react/dist/csr/Planet';
 import { PlayIcon } from '@phosphor-icons/react/dist/csr/Play';
 import { PlugsIcon } from '@phosphor-icons/react/dist/csr/Plugs';
 import { PlusIcon } from '@phosphor-icons/react/dist/csr/Plus';
+import { PolygonIcon } from '@phosphor-icons/react/dist/csr/Polygon';
+import { PrinterIcon } from '@phosphor-icons/react/dist/csr/Printer';
 import { ProhibitIcon } from '@phosphor-icons/react/dist/csr/Prohibit';
 import { PuzzlePieceIcon } from '@phosphor-icons/react/dist/csr/PuzzlePiece';
 import { RepeatIcon } from '@phosphor-icons/react/dist/csr/Repeat';
 import { RobotIcon } from '@phosphor-icons/react/dist/csr/Robot';
 import { RocketIcon } from '@phosphor-icons/react/dist/csr/Rocket';
+import { RulerIcon } from '@phosphor-icons/react/dist/csr/Ruler';
+import { ScissorsIcon } from '@phosphor-icons/react/dist/csr/Scissors';
+import { ShapesIcon } from '@phosphor-icons/react/dist/csr/Shapes';
 import { ShareNetworkIcon } from '@phosphor-icons/react/dist/csr/ShareNetwork';
 import { ShieldCheckIcon } from '@phosphor-icons/react/dist/csr/ShieldCheck';
 import { SidebarSimpleIcon } from '@phosphor-icons/react/dist/csr/SidebarSimple';
+import { SlidersHorizontalIcon } from '@phosphor-icons/react/dist/csr/SlidersHorizontal';
 import { SparkleIcon } from '@phosphor-icons/react/dist/csr/Sparkle';
+import { SpiralIcon } from '@phosphor-icons/react/dist/csr/Spiral';
 import { SquareIcon } from '@phosphor-icons/react/dist/csr/Square';
 import { SquaresFourIcon } from '@phosphor-icons/react/dist/csr/SquaresFour';
 import { StackIcon } from '@phosphor-icons/react/dist/csr/Stack';
 import { StarIcon } from '@phosphor-icons/react/dist/csr/Star';
 import { StorefrontIcon } from '@phosphor-icons/react/dist/csr/Storefront';
+import { SunDimIcon } from '@phosphor-icons/react/dist/csr/SunDim';
+import { SunHorizonIcon } from '@phosphor-icons/react/dist/csr/SunHorizon';
+import { SwapIcon } from '@phosphor-icons/react/dist/csr/Swap';
 import { TargetIcon } from '@phosphor-icons/react/dist/csr/Target';
 import { TerminalWindowIcon } from '@phosphor-icons/react/dist/csr/TerminalWindow';
 import { TrashIcon } from '@phosphor-icons/react/dist/csr/Trash';
 import { TrayArrowUpIcon } from '@phosphor-icons/react/dist/csr/TrayArrowUp';
 import { TreeStructureIcon } from '@phosphor-icons/react/dist/csr/TreeStructure';
+import { TriangleIcon } from '@phosphor-icons/react/dist/csr/Triangle';
 import { UploadSimpleIcon } from '@phosphor-icons/react/dist/csr/UploadSimple';
 import { UserPlusIcon } from '@phosphor-icons/react/dist/csr/UserPlus';
 import { UsersIcon } from '@phosphor-icons/react/dist/csr/Users';
 import { VideoCameraIcon } from '@phosphor-icons/react/dist/csr/VideoCamera';
 import { WarningIcon } from '@phosphor-icons/react/dist/csr/Warning';
+import { WaveformIcon } from '@phosphor-icons/react/dist/csr/Waveform';
 import { WrenchIcon } from '@phosphor-icons/react/dist/csr/Wrench';
 import { XIcon } from '@phosphor-icons/react/dist/csr/X';
 import { XCircleIcon } from '@phosphor-icons/react/dist/csr/XCircle';
@@ -188,6 +224,42 @@ export const PHOSPHOR: Record<string, PhosphorIcon> = {
   'columns-2': ColumnsIcon,
   'layout-grid': SquaresFourIcon,
   combine: IntersectIcon,
+  ruler: RulerIcon,
+  'paint-brush': PaintBrushIcon,
+  flask: FlaskIcon,
+  camera: CameraIcon,
+  shapes: ShapesIcon,
+  'mask-happy': MaskHappyIcon,
+  bone: BoneIcon,
+  'pen-nib': PenNibIcon,
+  newspaper: NewspaperIcon,
+  aperture: ApertureIcon,
+  'sun-dim': SunDimIcon,
+  'file-pdf': FilePdfIcon,
+  code: CodeIcon,
+  notepad: NotepadIcon,
+  waveform: WaveformIcon,
+  sliders: SlidersHorizontalIcon,
+  'sun-horizon': SunHorizonIcon,
+  triangle: TriangleIcon,
+  'image-square': ImageSquareIcon,
+  'magic-wand': MagicWandIcon,
+  'film-slate': FilmSlateIcon,
+  spiral: SpiralIcon,
+  'paint-bucket': PaintBucketIcon,
+  'cube-transparent': CubeTransparentIcon,
+  'camera-rotate': CameraRotateIcon,
+  faders: FadersIcon,
+  'music-notes': MusicNotesIcon,
+  export: ExportIcon,
+  atom: AtomIcon,
+  scissors: ScissorsIcon,
+  browser: BrowserIcon,
+  swap: SwapIcon,
+  'compass-tool': CompassToolIcon,
+  polygon: PolygonIcon,
+  'device-mobile': DeviceMobileIcon,
+  printer: PrinterIcon,
 };
 
 /** The Phosphor icon for a name; an unknown (or inherited, like "constructor") name is the box. */
