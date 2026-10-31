@@ -347,9 +347,9 @@ Almost every advantage on one side is the mirror of a disadvantage on the other.
 | Silence is not a move | An empty reply is posted as `(no answer)`: noise instead of a clean pass, and every turn costs a model call. |
 | Weak fallback when nothing matches | With no mention, no service match and no lead we take `route()`/`pickMember`, else the first member — an arbitrary pick, where Grok Bot would at least ask everyone. |
 | Order is emergent, so duplicates are possible | Agents are told to start their own part without waiting (deliberately), and "don't give the same task to two people" is prose. Nothing detects a duplicate. |
-| Runtime state is fragile across projects | Team runtime is keyed by team id in-process, and our own review notes record cloned projects sharing stop/queue state and handoffs keyed by agent id leaking across copies. |
+| Cross-project state is *guarded*, not eliminated | The team runtime and the handoff map are still process-global keyed by id, with a project check at each access (`runtime(teamId, pid)`, `h.projectId === activeProject().id`, `teamRunId` = `team:<project>/<team>`). The 2026-10-28 review's findings here are fixed in code; the residual risk is a new call site that forgets the check. |
 | Fan-out is ungated | A team can enqueue every member and spend accordingly; there is no "ask first" policy as with `SendToAgent`. |
-| The thread digest truncates | `CONTEXT_CHARS = 9000` per turn: later agents can silently miss early context. |
+| The thread digest truncates, silently and permanently | `CONTEXT_CHARS = 9000` caps the per-turn digest, and the read mark is then advanced to the whole thread (`c.seen[agent.id] = c.messages.length`), so a message dropped by the cap is **never** delivered on a later turn. The agent loses it with no signal that it lost anything. See §8. |
 
 ### Where each one breaks
 
