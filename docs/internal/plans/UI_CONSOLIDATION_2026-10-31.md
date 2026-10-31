@@ -250,3 +250,12 @@ Three alignment faults, found by looking at the running page and measured in it 
   AM at 11px in the same family. Archivo is now referenced by nothing but `build-fonts.ts` and the test that
   checks its licence file is copied; dropping it (and that line of `tests/server/styles.test.ts`) is the
   obvious follow-up.
+- **The message box floating in the middle of a chat page** — `web/views/chat.tsx`. Two links in the chain
+  were content-sized rather than filling: the page grid's single row (a short chat left it 651px inside a
+  761px page) and `.chat-body`, which had no `flex-1`. The composer therefore stopped **110px** above the
+  bottom with an empty chat, and 134px with the row already fixed. Now `grid-rows-[minmax(0,1fr)]` on the
+  page and `flex-1` on the body: measured on an empty chat, the page fills 56→817 with the body 120→817 and
+  the box ending 24px (its own padding) above the bottom; on a 60-message chat the page does not overflow,
+  the list scrolls inside itself (clientHeight 505 against scrollHeight 6428, pinned to the newest) and the
+  box still ends 24px from the bottom. The narrow layout is untouched — it is `h-auto` there, where a `1fr`
+  row resolves to the content either way.

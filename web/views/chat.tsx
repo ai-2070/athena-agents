@@ -133,7 +133,7 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
   const info = modelInfo(agent);
   const how = memory ? (memory.own ? `${ENGINE_LABEL[agent.engine] || 'Its engine'} compacts it by itself when it is nearly full` : memory.auto ? `Compacts by itself at ${kTokens(memory.compactAt)}` : 'Automatic compaction is off') : '';
   return (
-    <div className="grid h-[calc(100vh-56px)] grid-cols-[260px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1" ref={page}>
+    <div className="grid h-[calc(100vh-56px)] grid-rows-[minmax(0,1fr)] grid-cols-[260px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1" ref={page}>
       <aside className="flex min-h-0 flex-col border-r border-line bg-bg max-md:border-r-0 max-md:border-b">
         <div className="border-b border-line px-5 pt-6 pb-5">
           <div className="flex items-center gap-3">
@@ -193,7 +193,7 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
           </div>
         </div>
         {/* the reading column: the messages and the composer below them sit here, centred on the page */}
-        <div className="chat-body mx-auto flex min-h-0 w-full max-w-[760px] flex-col">
+        <div className="chat-body mx-auto flex min-h-0 w-full max-w-[760px] flex-1 flex-col">
           <Suspense fallback={null}>
             <ChatView agent={{ id: agent.id, name: agent.name, emoji: agent.emoji, specialty: agent.specialty, tools: agent.tools }} chatId={chat.id} tray={tray} footer={footer} onChat={onChat} apiRef={api} />
           </Suspense>
