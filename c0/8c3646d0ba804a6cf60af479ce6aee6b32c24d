@@ -1,0 +1,23 @@
+docs/internal/plans/UI_CONSOLIDATION_2026-10-31.md
+  s_7daa4bf644d295::t_c9b27dcda5abf8 286-293
+web/styles/base.css
+  s_7daa4bf644d295::t_aa0b329bd13c18 112,121-122
+web/views/agents.tsx
+  s_7daa4bf644d295::t_c83571cf8148fe 419
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c08c3646d0ba804a6cf60af479ce6aee6b32c24d",
+  "prompts": {},
+  "sessions": {
+    "s_7daa4bf644d295": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1909a-0e49-7540-af35-65ce95355b59",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
