@@ -198,3 +198,20 @@ Left failing, both server-side and unrelated to this work: `brain-chat.test.ts` 
   folder: the sidebar's Limits panel and Status/Limits switch, the project launcher, the New project
   window, the model picker (tabs, effort levels, model rows) and the Station all render with no console
   errors.
+
+## Follow-up review, same day
+
+Three alignment faults, found by looking at the running page and measured in it rather than by eye.
+
+- **Station panel, a team's head** — `web/views/stationpanel.tsx`. `PanelHead` centres its close button on
+  whatever the caller passes as the heading, and the team was the only caller that passed a *third* line
+  (the status). Measured: the close button sat at y-centre 122 for a team against 111 for the Brain and a
+  project. The status now sits under the head, indented to the name, so the button is back at 111.
+- **Chat window title bar** — `web/chatwin.tsx`. The strip was `min-h-[52px] pt-3` with the tab list
+  `self-end`, so the tabs' bottoms rested on the bottom rule (about 1px). It is `pt-3 pb-2` now — 9px,
+  matching the 8px the dock's own header leaves under its content. The four window buttons stayed centred
+  on the tabs, which is where they were already right.
+- **The paperclip in chat composers** — `web/attach.tsx`, `web/dock.tsx`. Only the dock asked for a quiet
+  paperclip (`variant: 'plain'`, 32px); every other chat box fell through to `mountAttachMenu`'s `ghost`
+  default and drew a boxed one. A bare icon is what an icon-only action should be, so the quiet plate is
+  the default now (`PICKER_BUTTON`) and the dock no longer passes its own copy.
