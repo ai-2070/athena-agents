@@ -237,3 +237,8 @@ Three alignment faults, found by looking at the running page and measured in it 
 - **The sidebar's menu reads a step stronger** — `web/app.ts`'s `NAV_LINK`. `font-medium` → `font-semibold`
   (Geist ships as a variable font from `wght.css`, so 600 is a real cut, not a synthesis); measured in the
   page: the link and its label both compute to `font-weight: 600`.
+- **The wordmark too** — `public/index.html`. "Athena" `font-semibold` → `font-[700]`, "Agents" `font-medium`
+  → `font-semibold`; measured 700 / 600. Note for anyone else reaching for this: the app's `@theme` sets
+  **`--font-weight-bold: 600`** (`web/styles/app.css:62`), so in this codebase `font-bold` and
+  `font-semibold` are the *same* weight — the first attempt with `font-bold` changed nothing. Use an
+  explicit `font-[700]`, or raise that token deliberately (it would move every `font-bold` in the app).
