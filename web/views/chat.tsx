@@ -133,7 +133,7 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
   const info = modelInfo(agent);
   const how = memory ? (memory.own ? `${ENGINE_LABEL[agent.engine] || 'Its engine'} compacts it by itself when it is nearly full` : memory.auto ? `Compacts by itself at ${kTokens(memory.compactAt)}` : 'Automatic compaction is off') : '';
   return (
-    <div className="grid h-[calc(100vh-61px)] grid-cols-[260px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1" ref={page}>
+    <div className="grid h-[calc(100vh-56px)] grid-cols-[260px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1" ref={page}>
       <aside className="flex min-h-0 flex-col border-r border-line bg-bg max-md:border-r-0 max-md:border-b">
         <div className="border-b border-line px-5 pt-6 pb-5">
           <div className="flex items-center gap-3">
