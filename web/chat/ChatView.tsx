@@ -493,10 +493,15 @@ export function ChatView(p: ChatViewProps) {
     };
     const watch = new MutationObserver(stick);
     watch.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    // (the list itself gets shorter when the window is resized or the box below it grows, which is no
+    //  mutation to see: without this the newest message ends up cut off at the bottom)
+    const size = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(stick);
+    size?.observe(el);
     el.addEventListener('load', stick, true);
     el.addEventListener('loadedmetadata', stick, true);
     return () => {
       watch.disconnect();
+      size?.disconnect();
       el.removeEventListener('load', stick, true);
       el.removeEventListener('loadedmetadata', stick, true);
     };
