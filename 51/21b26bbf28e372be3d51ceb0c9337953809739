@@ -1,0 +1,19 @@
+web/phosphor.ts
+  s_8892bfc24ba38a::t_15e9dd3b9bc8f3 6,16,18,23-25,34,36,40,42,47-48,50,52,54,65,70,74,76-80,85,92-93,99-101,105,107,113-115,121,127,227-262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5121b26bbf28e372be3d51ceb0c9337953809739",
+  "prompts": {},
+  "sessions": {
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "unknown"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
