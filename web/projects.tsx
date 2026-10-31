@@ -149,9 +149,9 @@ const MODE_OPTIONS: readonly Choice<NewProjectMode>[] = [
   { value: 'github', label: 'From GitHub' },
   { value: 'backup', label: 'From backup' },
 ];
-const NAME_PLACEHOLDER = 'e.g. NET launch, Client X, My game';
+const NAME_PLACEHOLDER = 'e.g. Product tour, Spring campaign, My channel';
 const ABOUT_PLACEHOLDER =
-  'What is it, who is it for, what should come out of it? e.g. "Launch campaign for my app NET: X and Reddit posts, a 30s promo video and thumbnails, in a calm, technical voice."';
+  'What is it, who is it for, what should come out of it? e.g. "A landing page, three short videos and the thumbnails to go with them, for my coffee subscription, in a warm, simple voice."';
 
 /** A picked backup: a dropped file, or one from the backups folder. */
 type PickSrc = { file: File } | { listed: string };

@@ -291,7 +291,7 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
                             })
                           }
                         >
-                          ✕
+                          <Icon name="x" size={12} />
                         </button>
                       </div>
                     </div>
