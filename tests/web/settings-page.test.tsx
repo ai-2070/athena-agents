@@ -44,7 +44,7 @@ describe('the Settings page', () => {
   it('opens the tab a link names, with labelled tabs', async () => {
     await open('#/settings?tab=look');
     const on = el.querySelector('[role="tab"].on')!;
-    expect(on.textContent).toBe('Look');
+    expect(on.textContent).toBe('Appearance');
     expect(el.querySelector('[role="tablist"]')!.getAttribute('aria-label')).toBe('Settings');
     expect(el.textContent).toContain('Accent colour');
   });
@@ -59,7 +59,7 @@ describe('the Settings page', () => {
     });
     await settle();
     const hits = [...document.querySelectorAll<HTMLElement>('.settings-search-hit')];
-    expect(hits.map((h) => h.textContent!.trim())).toEqual(['Accent colourLook']);
+    expect(hits.map((h) => h.textContent!.trim())).toEqual(['Accent colourAppearance']);
     expect(input.getAttribute('role')).toBe('combobox');
     await act(async () => hits[0].click());
     await settle();
@@ -122,7 +122,7 @@ describe('ViewHost', () => {
   });
 });
 
-describe('the Look tab', () => {
+describe('the Appearance tab', () => {
   it('picks an accent from labelled radios, applies it at once and saves it a moment later', async () => {
     const puts: unknown[] = [];
     vi.stubGlobal('fetch', async (_url: string, init: RequestInit = {}) => {

@@ -412,7 +412,7 @@ interface StationState {
   panelView?: { update: () => void; unmount: () => void };
   /** the classic map's lights and floor dots (hidden in the voxel look) */
   classic: THREE.Object3D[];
-  /** the classic map's floor dots: their opacity is the project's (Settings › Look › Station look) */
+  /** the classic map's floor dots: their opacity is the project's (Settings › Appearance › Station look) */
   mapDots: THREE.PointsMaterial;
   /** the project's background picture (tex once loaded), and the background it took over (the voxel look's sky) */
   backdrop?: { url: string; tex: THREE.Texture | null; prev: THREE.Scene['background']; baked?: THREE.CanvasTexture; bakedFor?: { w: number; h: number; k: number; floor: string } } | null;
@@ -1041,7 +1041,7 @@ function signature(): string {
 }
 
 // ---------- the voxel look (web/voxel, loaded the first time it is turned on) ----------
-/** Turns the voxel look on, off, or to another quality, to match Settings › Look. Cheap when nothing changed. */
+/** Turns the voxel look on, off, or to another quality, to match Settings › Appearance. Cheap when nothing changed. */
 async function applyStationLook(): Promise<void> {
   if (!S) return;
   const look = { ...DEFAULT_LOOK, ...(state.data?.settings?.look || {}) };
@@ -1070,7 +1070,7 @@ async function stepLookDown(from: WorldQuality): Promise<void> {
   const next = lowerQuality(from);
   if (!S || !next || S.lookShown !== from) return;
   S.lookCap = next;
-  toast(`The Station was slow here, so the voxel world now draws at ${next === 'low' ? 'Low' : 'Medium'} quality. You can change it in Settings › Look.`);
+  toast(`The Station was slow here, so the voxel world now draws at ${next === 'low' ? 'Low' : 'Medium'} quality. You can change it in Settings › Appearance.`);
   await applyStationLook();
 }
 
@@ -1328,7 +1328,7 @@ function restyle(): void {
 // Drawn as the scene's background, cropped to fill the screen. In the voxel look it takes the sky's place:
 // the voxel look sets its sky as the background, so the picture takes over each frame and gives the sky
 // back when it is removed. Dimmed in the classic look so the map's lines and names stay easy to read; each
-// project can pick how strong it is (and how strong the map's dots are) in Settings › Look.
+// project can pick how strong it is (and how strong the map's dots are) in Settings › Appearance.
 
 // Load the project's picture when it changed. Cheap to call often.
 function setBackdrop(): void {
@@ -2463,7 +2463,7 @@ const pixelRatioFor = (max: number): number => Math.min(window.devicePixelRatio 
 function loop(): void {
   if (!S?.alive) return;
   requestAnimationFrame(loop);
-  // Station quality (Settings > Look): skip frames to stay at its frame rate. Fewer while nothing moves
+  // Station quality (Settings > Appearance): skip frames to stay at its frame rate. Fewer while nothing moves
   // and while the window is in the back; all of them while you move around the map.
   const level = stationLevel(currentLook().station);
   const now = performance.now();

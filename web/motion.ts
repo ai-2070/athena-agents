@@ -1,5 +1,5 @@
 // Small motion helpers for windows and panels. Everything animates transform and opacity only
-// (no layout work per frame), and nothing moves when Settings › Look › Motion is Reduced.
+// (no layout work per frame), and nothing moves when Settings › Appearance › Motion is Reduced.
 import { uiZoom } from './look.ts';
 
 export const EASE = 'cubic-bezier(.2,.9,.25,1)';

@@ -1,4 +1,4 @@
-// Settings > Look choices both sides use: the chat fonts (here so the build's font test can check they all ship)
+// Settings > Appearance choices both sides use: the chat fonts (here so the build's font test can check they all ship)
 // how hard the Station's map works, and how strong a project's background picture and map dots are.
 import type { StationQuality } from './types.ts';
 

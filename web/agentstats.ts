@@ -14,7 +14,7 @@ export interface Slice {
   rest?: Slice[];
 }
 
-// One hue, the accent picked in Settings > Look: the biggest category is the strongest and each next one steps
+// One hue, the accent picked in Settings > Appearance: the biggest category is the strongest and each next one steps
 // lighter (the slices come biggest first), so the chart is quiet on white and on near-black and follows the
 // accent. They are CSS colours, so the page's theme swaps them. A seventh category and beyond fold into Other,
 // in a neutral grey.

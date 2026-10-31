@@ -1,6 +1,6 @@
 // The Station's colours for what CSS can't reach: the three.js map and the pictures drawn on canvases (monitors, the
 // team symbols). Everything is worked out from the page's own tokens (--color-*) for light or dark, once, and again only
-// when the system switches theme or Settings > Look changes the accent: never per frame. The labels, buttons and panels
+// when the system switches theme or Settings > Appearance changes the accent: never per frame. The labels, buttons and panels
 // around the map use the tokens in CSS and follow by themselves.
 import * as THREE from 'three';
 import { isDark, onThemeChange, themeColor } from '../theme.ts';

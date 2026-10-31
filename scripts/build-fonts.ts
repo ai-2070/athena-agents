@@ -13,7 +13,7 @@ export const FONTS = [
   { pkg: 'inter', family: 'Inter', sheets: ['wght.css', 'wght-italic.css'] },
   { pkg: 'jetbrains-mono', family: 'JetBrains Mono', sheets: ['wght.css'] },
   { pkg: 'merriweather', family: 'Merriweather', sheets: ['wght.css', 'wght-italic.css'] },
-  // more chat fonts to pick in Settings > Look (web/look.ts CHAT_FONTS); a font's files download only when text uses it
+  // more chat fonts to pick in Settings > Appearance (web/look.ts CHAT_FONTS); a font's files download only when text uses it
   { pkg: 'google-sans', family: 'Google Sans', sheets: ['wght.css', 'wght-italic.css'] },
   { pkg: 'roboto', family: 'Roboto', sheets: ['wght.css', 'wght-italic.css'] },
 ];

@@ -1312,7 +1312,7 @@ function serveStatic(url: URL, res: http.ServerResponse): boolean {
       `connect-src 'self' ws://localhost:${PORT} ws://127.0.0.1:${PORT}`,
       "frame-ancestors 'none'",
     ].join('; ');
-    // The page opens in the scheme picked in Settings > Look, before anything is drawn: the saved theme goes onto
+    // The page opens in the scheme picked in Settings > Appearance, before anything is drawn: the saved theme goes onto
     // <html> ("system" leaves it off, for the stylesheet to follow the computer). The page does the same on a change.
     const theme = getSettings().look.theme;
     const html = fs.readFileSync(file, 'utf8');

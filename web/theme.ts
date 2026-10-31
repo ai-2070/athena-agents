@@ -1,4 +1,4 @@
-// Light or dark: Settings > Look > Colour scheme picks one, or "System" to follow the computer. The stylesheet
+// Light or dark: Settings > Appearance > Colour scheme picks one, or "System" to follow the computer. The stylesheet
 // swaps its own tokens from <html data-theme> (base.css); this is also for what CSS can't reach: the accent's two
 // tones (look.ts), the Station's map and the terminal.
 import type { ThemeChoice } from '../shared/types.ts';

@@ -70,7 +70,7 @@ dialog the same surface. It remaps the page's colour tokens to see-through ones 
 
 The supplied Aegean-blue Athena helmet is the app logo in every theme, including desktop icons and the startup screen. Original images live in `public/brand`; `public/icon.png` is the shared compact mark. The sidebar and About page wordmarks and the Station's clock use locally bundled Cinzel (`font-brand`), inspired by Roman lettering. The rest of the page keeps Geist, chat fonts remain selectable, and code keeps JetBrains Mono.
 
-Geist (the page font) at normal letter-spacing. Chat text uses `font-chat`, which follows Settings > Look.
+Geist (the page font) at normal letter-spacing. Chat text uses `font-chat`, which follows Settings > Appearance.
 
 | Where | Size / weight |
 |---|---|
@@ -163,7 +163,7 @@ the weight. Chevrons are 12px (To button, model chip); header and menu icons 15 
 
 ## Motion
 
-All motion uses transform and opacity only. Settings > Look > Motion: Reduced (and the system's reduced-motion setting)
+All motion uses transform and opacity only. Settings > Appearance > Motion: Reduced (and the system's reduced-motion setting)
 turns it off; the programmatic animations check `reducedMotion()` (`web/motion.ts`) and base styles collapse CSS
 animations and transitions to about 0ms.
 

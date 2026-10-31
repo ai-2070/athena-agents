@@ -1,4 +1,4 @@
-// The sidebar's usage view, in place of the status list (the Status / Limits switch below it, or Settings > Look):
+// The sidebar's usage view, in place of the status list (the Status / Limits switch below it, or Settings > Appearance):
 // how much of your Claude and Codex plans is used, when each limit starts again, and Codex's free limit resets.
 // Rendered with React (createRoot) into the element app.ts mounts; the view's lines and the Codex reset card are components.
 import { createRoot } from 'react-dom/client';
@@ -34,7 +34,7 @@ export function resetLimitsCache(): void {
   hidePop();
 }
 
-// each project remembers what it last showed; one that never switched follows Settings > Look
+// each project remembers what it last showed; one that never switched follows Settings > Appearance
 export const sidebarPanel = (): SidebarPanel => state.data?.project?.sidebar || state.data?.settings?.look?.sidebar || currentLook().sidebar || 'status';
 
 /** Remembers the choice for the open project too (here now, on the server in the background). */
@@ -61,7 +61,7 @@ const lines = (host: Element | null): HTMLElement[] => {
     .filter((el): el is HTMLElement => el instanceof HTMLElement && !el.classList.contains('sidebar-panel-switch'));
 };
 
-/** Switches what the sidebar shows, here and in Settings > Look. */
+/** Switches what the sidebar shows, here and in Settings > Appearance. */
 export function setSidebarPanel(p: SidebarPanel, redraw: () => void): void {
   if (switching) return;
   const host = document.getElementById('nav-status');

@@ -1,7 +1,7 @@
 /* Element styles on top of Tailwind's reset (preflight). Imported into the base layer by app.css. */
 :root { color-scheme: light dark; }
 
-/* The system is dark: the same tokens, near-black. (The accent picked in Settings > Look is set by look.ts,
+/* The system is dark: the same tokens, near-black. (The accent picked in Settings > Appearance is set by look.ts,
    which follows the system too.) <html data-theme="dark"> or "light" forces one, for checking both. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
@@ -142,7 +142,7 @@ button, input, select, optgroup, textarea { letter-spacing: normal; }
 input[type='checkbox'], input[type='radio'] { margin: 3px 3px 3px 4px; accent-color: var(--color-accent); }
 ::placeholder { color: var(--color-faint); opacity: 0.85; }
 
-/* Settings > Look > Animations: Reduced, or the system setting */
+/* Settings > Appearance > Animations: Reduced, or the system setting */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
 }

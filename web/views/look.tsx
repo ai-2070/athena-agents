@@ -1,4 +1,4 @@
-// Settings > Look: UI scale, accent colour, animations, chat font, Station quality. Changes apply right away and are saved a moment later.
+// Settings > Appearance: UI scale, accent colour, animations, chat font, Station quality. Changes apply right away and are saved a moment later.
 // The Station's background picture and its opacities belong to the open project (not the settings).
 import { Button } from '../ui/button.tsx';
 import { Dot, Pill } from '../ui/marks.tsx';
@@ -331,5 +331,5 @@ export function LookTab() {
   );
 }
 
-export const title = () => 'Look';
+export const title = () => 'Appearance';
 export const { render, unmount } = reactPage(() => <LookTab />);

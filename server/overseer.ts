@@ -1644,7 +1644,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         if (look !== 'world' && look !== 'classic') throw new Error('"look" is "world" or "classic"');
         saveSettings({ look: { stationLook: look } });
         log('settings', `The Brain turned the Station's ${look === 'world' ? 'voxel look on' : 'voxel look off (classic)'}`);
-        done.push({ kind: 'note', text: look === 'world' ? 'Turned on the voxel look (Settings › Look › Station look)' : 'Put the Station back to the classic look' });
+        done.push({ kind: 'note', text: look === 'world' ? 'Turned on the voxel look (Settings › Appearance › Station look)' : 'Put the Station back to the classic look' });
       } else if (kind === 'background') {
         if (auto) throw new Error('only when the user asks');
         // how strong the picture and the map's dots are: a percent, or "default"

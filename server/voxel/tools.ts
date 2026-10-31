@@ -62,7 +62,7 @@ function askForVoxelLook(agent: ToolAgent): Promise<boolean> {
   askingForLook ??= requestApproval({
     kind: 'setting',
     title: `${agent.name} wants to see the voxel world`,
-    detail: 'The Station is in the classic look, which doesn\'t draw the world your agents build. Turn on the voxel look (Settings › Look › Station look) so they can look at their work? It shows the world on the Station in every project and uses more graphics power; Settings › Look switches it back.',
+    detail: 'The Station is in the classic look, which doesn\'t draw the world your agents build. Turn on the voxel look (Settings › Appearance › Station look) so they can look at their work? It shows the world on the Station in every project and uses more graphics power; Settings › Appearance switches it back.',
     agentId: agent.id,
     agentName: agent.name,
     data: { setting: 'stationLook', value: 'world', allow: 'Turn on the voxel look' },
@@ -453,7 +453,7 @@ Example: use("dark wood"); for (let i = 0; i < 6; i++) { const h = 2 + random() 
         // no picture: why, so the user can be asked for the right thing, and the next best thing
         const why =
           getSettings().look.stationLook !== 'world'
-            ? 'the Station is in the classic look, which doesn\'t draw the voxel world. Ask the user to turn on Settings › Look › Station look › Voxel world.'
+            ? 'the Station is in the classic look, which doesn\'t draw the voxel world. Ask the user to turn on Settings › Appearance › Station look › Voxel world.'
             : r.note === 'no page is open'
               ? 'the dashboard isn\'t open in any window. Ask the user to open the Station.'
               : `no open Station could draw it (${r.note || 'no answer'}). Ask the user to open the Station with this project open.`;

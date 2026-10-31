@@ -1,4 +1,4 @@
-// Settings: everything you set up once, in tabs. General · Connections · MCP servers · Programs · Look · About.
+// Settings: everything you set up once, in tabs. General · Connections · MCP servers · Programs · Appearance · About.
 // A search box finds any setting: it switches to its tab, scrolls to it and flashes it.
 // Links can do the same with #/settings?tab=general&find=OpenAI Codex
 // React and Base UI: the tabs, the search (an autocomplete) and every tab's page.
@@ -34,7 +34,7 @@ const TABS: Tab[] = [
   { id: 'connections', label: 'Connections', Page: ConnectionsTab },
   { id: 'mcp', label: 'MCP servers', Page: McpTab },
   { id: 'programs', label: 'Programs', Page: ProgramsTab },
-  { id: 'look', label: 'Look', Page: LookTab },
+  { id: 'look', label: 'Appearance', Page: LookTab },
   { id: 'about', label: 'About', Page: AboutTab },
 ];
 
