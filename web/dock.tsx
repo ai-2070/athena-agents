@@ -155,8 +155,7 @@ function draw() {
 }
 
 export function initDock(): void {
-  // (the composer's paperclip is a quiet 32px plate, not the composer's other controls)
-  D.tray = attachTray({ onChange: draw, iconWeight: 'regular', pickerButton: { variant: 'plain', class: 'size-8! px-0!' } });
+  D.tray = attachTray({ onChange: draw, iconWeight: 'regular' });
   D.pastes = pasteBox();
   // the bottom bar holds the "Ask the Brain" button (and the minimized chats, web/chatwin.tsx)
   const bar = h('div.bottom-bar', { class: 'fixed z-45 left-1/2 bottom-4.5 [transform:translateX(-50%)] flex items-center gap-2.5 pointer-events-none *:pointer-events-auto' });
