@@ -208,9 +208,12 @@ Three alignment faults, found by looking at the running page and measured in it 
   (the status). Measured: the close button sat at y-centre 122 for a team against 111 for the Brain and a
   project. The status now sits under the head, indented to the name, so the button is back at 111.
 - **Chat window title bar** — `web/chatwin.tsx`. The strip was `min-h-[52px] pt-3` with the tab list
-  `self-end`, so the tabs' bottoms rested on the bottom rule (about 1px). It is `pt-3 pb-2` now — 9px,
-  matching the 8px the dock's own header leaves under its content. The four window buttons stayed centred
-  on the tabs, which is where they were already right.
+  `self-end`, so the tabs' bottoms rested on the bottom rule (about 1px) and the window's four buttons sat
+  only 6px above it. First pass gave the strip `pb-2`, which pushed the rule away from the buttons but left
+  the tab floating 9px above it — not what a tab should look like. Final state: the strip keeps `pb-2` (the
+  buttons are 11px above the rule) and the tab list carries `-mb-2` so the tab still meets that rule (1px),
+  plus `ml-1.5` for room from the window's own icon (6px → 12px). Measured on the live window: strip 53px
+  tall, plate bottom 1px above the rule, buttons 11px above it, icon-to-plate 12px.
 - **The paperclip in chat composers** — `web/attach.tsx`, `web/dock.tsx`. Only the dock asked for a quiet
   paperclip (`variant: 'plain'`, 32px); every other chat box fell through to `mountAttachMenu`'s `ghost`
   default and drew a boxed one. A bare icon is what an icon-only action should be, so the quiet plate is

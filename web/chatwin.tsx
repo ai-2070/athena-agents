@@ -842,7 +842,9 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
         <Icon name="message-square" size={15} />
         {/* Let tabs scroll instead of pushing past the window's buttons. */}
         <Tabs.Root className="flex min-w-0" value={w.active} onValueChange={(v) => activate(w, String(v))}>
-          <Tabs.List ref={listRef} className="relative flex gap-0.5 self-end overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0" aria-label="Open chats">
+          {/* ml-1.5: room from the window's own icon; -mb-2: the tab meets the rule under the bar
+              (the bar keeps pb-2 so the buttons above it are not crowded against that rule) */}
+          <Tabs.List ref={listRef} className="relative ml-1.5 -mb-2 flex gap-0.5 self-end overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0" aria-label="Open chats">
             {w.tabs.map((t) => {
               const { label, lead, busy } = tabInfo(t, busyAgents);
               const on = t.key === w.active;
