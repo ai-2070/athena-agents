@@ -1,0 +1,45 @@
+web/chat/parts.tsx
+  s_8892bfc24ba38a::t_46cdf48bcac2c3 9,113
+web/questions.tsx
+  s_8892bfc24ba38a::t_957a55b306c686 6-7,11,14-15,69,74
+web/teamchat.tsx
+  s_8892bfc24ba38a::t_4f950bcafe55d0 22,791,798,873,877
+web/ui/controls.tsx
+  s_8892bfc24ba38a::t_2f880a80701936 11,131,133,150,152
+web/views/about.tsx
+  s_8892bfc24ba38a::t_c0c1a7a1ed39c2 23,58,60
+web/views/agents.tsx
+  s_8892bfc24ba38a::t_0bf9327d24654e 12-13,78,221,250-251,253,258,261-262,265,474,827
+web/views/connections.tsx
+  s_8892bfc24ba38a::t_7c69acfa26483f 3,43,151,204
+web/views/library.tsx
+  s_8892bfc24ba38a::t_3c1fc9e34dc436 5,10,98,310,386
+web/views/look.tsx
+  s_8892bfc24ba38a::t_f8ad71534aae42 4,302,304
+web/views/mcp.tsx
+  s_8892bfc24ba38a::t_66bef360ffe9cb 3-4,177,183-184,199,231,235,273,288
+web/views/outbox.tsx
+  s_8892bfc24ba38a::t_b27dc4d31f1755 14-15,131,136,187,192,195
+web/views/settings.tsx
+  s_8892bfc24ba38a::t_fcff044841953c 4,278,324,328,332,337,374,378,398,401
+web/views/terminals.tsx
+  s_8892bfc24ba38a::t_1b6f2f54a4f3a8 4,89
+web/zoomview.ts
+  s_8892bfc24ba38a::t_9ffc53b781e9f2 5,40,45-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c744663984326ca648acf8be188761510fa9338",
+  "prompts": {},
+  "sessions": {
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
