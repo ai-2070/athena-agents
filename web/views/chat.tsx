@@ -10,6 +10,7 @@ import { kTokens } from '../../shared/compaction.ts';
 import { attachTray } from '../attach.ts';
 import { Avatar, DomNode, Icon, reactPage } from '../ui/react.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
+import { Pill } from '../ui/marks.tsx';
 import type { PageContext } from '../ui/react.tsx';
 import type { AgentDetail } from './agents.tsx';
 import type { ChatViewApi } from '../chat/ChatView.tsx';
@@ -176,10 +177,14 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {memory ? (
-              <span className={`pill mem relative overflow-hidden ${memory.tokens >= memory.compactAt * 0.8 ? 'warn' : ''}`} title={`About ${kTokens(memory.tokens)} of ${kTokens(memory.window)} tokens. ${how} (Settings > Chat memory).`}>
+              <Pill
+                tone={memory.tokens >= memory.compactAt * 0.8 ? 'warn' : 'dim'}
+                className="mem relative cursor-default overflow-hidden tabular-nums"
+                title={`About ${kTokens(memory.tokens)} of ${kTokens(memory.window)} tokens. ${how} (Settings > Chat memory).`}
+              >
                 <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--color-accent)_26%,transparent),color-mix(in_srgb,var(--color-accent)_9%,transparent))]" style={{ width: `${Math.max(0, Math.min(100, memory.percent))}%` }} />
                 <span className="relative">{`Memory ${memory.percent}%`}</span>
-              </span>
+              </Pill>
             ) : null}
             <Button size="tiny" variant="ghost" title="Compact the agent’s memory of this chat now: older messages become a short history, the latest stay in full (or type /compact)" onClick={() => void api.current?.compact()}>Compact</Button>
             <Button size="tiny" variant="ghost" onClick={() => void rename()}>Rename</Button>

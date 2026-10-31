@@ -63,6 +63,7 @@ similar-but-not-identical utilities, so they drift from the real controls:
 - `web/builder.ts:33` — `STEP_BTN` (inline users at `builder.ts:96-97`)
 - `web/projects.ts:428` — `L_ACT` (used at `projects.ts:476`)
 - `web/projectmenu.tsx:13` — `RENAME_BTN`
+- `web/views/chat.tsx:179` — the memory meter, written as `pill mem …` by hand
 - `web/views/stationpanel.tsx:124-125` — `MEMBER_ACT`, `MEMBER_ACT_ON`
 - `web/skillpick.ts:34` — the "Add skill" dashed-pill button, written inline
 - `web/views/station.ts:1651` (chip), `:1662` (launcher pill), `:3682` (`INT_TILE`)
@@ -93,14 +94,22 @@ variant argument. The plain text inputs in `base.css` should share the same toke
 so there is one switch in the stylesheet. Behaviour is identical; plain-DOM users (`schedule.ts`) keep
 working unchanged.
 
-### 5. Dead CSS, and a comment that no longer tells the truth — low
+### 5. The memory meter wears a pill's name without its look — medium
 
-- `web/styles/components.css:70` — `.pill.mem { … }` ("how full the agent's memory is (chat header)").
-  No `.ts`/`.tsx` applies a `mem` class any more; the rule is dead.
-- `web/ui/classes.ts:6-7` — the comment says "nothing styles them any more" about the legacy markers,
-  but `.pill.mem` *is* a rule on a legacy marker. Delete the rule and the sentence becomes true.
+The first version of this note called `.pill.mem` dead CSS. It is not: `web/views/chat.tsx:179` builds
+the chat header's memory meter as `className={\`pill mem … ${… ? 'warn' : ''}\`}` by hand. Because it
+never goes through `pillClass()`, it is missing every pill utility — the padding, the border, the
+rounded ends, the background and the `--tone` the border and text colour read — so the meter renders as
+bare text with no pill around it. It is also the one thing in the codebase that reads a marker class:
+`web/styles/components.css:70` styles `.pill.mem`.
 
-**Recommended:** delete `.pill.mem`; keep the marker-hook comment, corrected.
+- `web/views/chat.tsx:179` — the hand-written pill
+- `web/styles/components.css:70` — `.pill.mem { font: 12px …; font-variant-numeric: tabular-nums; cursor: default; }`
+- `web/ui/classes.ts:6-7` — the comment saying "nothing styles them any more" was untrue because of it
+
+**Recommended:** render it with `Pill` (`web/ui/marks.tsx`) and the `mem` marker as its className, carry
+`tabular-nums cursor-default` in the utilities, and delete the `.pill.mem` rule. The comment then tells
+the truth, and the meter gets the pill look the test already assumes.
 
 ### 6. Legacy markers are pinned by tests — low, taste call
 

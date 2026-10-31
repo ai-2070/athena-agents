@@ -40,24 +40,42 @@ export function buttonClass(variant: ButtonVariant = 'primary', size: ButtonSize
   return [...markers, BTN_BASE, BTN_SIZES[size], BTN_VARIANTS[variant], className].filter(Boolean).join(' ');
 }
 
-/** Where an icon button sits: on the page, or a quiet or bordered one inside a glass surface. */
-export type IconButtonVariant = 'default' | 'plain' | 'inset';
+/** Where an icon button sits: on the page, a quiet one, one inside a glass surface, or a small quiet
+ *  action in a row of a panel. Each states its own border width, so one can be borderless. */
+export type IconButtonVariant = 'default' | 'plain' | 'inset' | 'quiet';
 
-const ICON_BTN_BASE = 'icon-btn inline-grid cursor-pointer place-items-center rounded-ctl border ' +
+const ICON_BTN_BASE = 'icon-btn inline-grid cursor-pointer place-items-center rounded-ctl ' +
   '[transition:transform_0.18s_var(--ease-soft),background-color_0.15s,border-color_0.15s,color_0.15s,box-shadow_0.2s,opacity_0.2s] ' +
   'hover:bg-panel-2 hover:text-ink active:scale-[0.96]';
 
 const ICON_BTN_VARIANTS: Record<IconButtonVariant, string> = {
-  default: 'size-[34px] border-transparent bg-transparent text-icon',
+  default: 'size-[34px] border border-transparent bg-transparent text-icon',
   // inside a glass surface: quieter and a touch smaller
-  plain: 'size-[26px] border-transparent bg-transparent text-icon shadow-none',
+  plain: 'size-[26px] border border-transparent bg-transparent text-icon shadow-none',
   // inside a glass surface: a plate like the fields beside it
-  inset: 'size-7 border-line bg-panel text-icon shadow-raised',
+  inset: 'size-7 border border-line bg-panel text-icon shadow-raised',
+  // a small, borderless action in a row of a panel (a team member's remove, a project's rename)
+  quiet: 'size-7 border-0 bg-transparent text-dim',
 };
 
 /** The classes for an icon-only action. */
 export function iconButtonClass(variant: IconButtonVariant = 'default', className: ClassName = '') {
   return [ICON_BTN_BASE, ICON_BTN_VARIANTS[variant], variant === 'plain' && 'plain', className].filter(Boolean).join(' ');
+}
+
+/** Where a field that opens something sits: on a page (`field`), or in a panel, where it stands in a
+ *  row beside the app's other controls (`panel`). */
+export type FieldTriggerKind = 'field' | 'panel';
+
+/** The classes for a box you click to open something: a select's trigger, the agent picker. The shape of
+ *  the app's fields, so a dropdown lines up with the text inputs beside it. */
+export function fieldTriggerClass(kind: FieldTriggerKind = 'field', className: ClassName = '') {
+  return [
+    'field-trigger',
+    'flex w-full cursor-pointer items-center gap-2.5 rounded-ctl border border-line-2 text-left outline-none focus-visible:border-accent data-popup-open:border-accent',
+    kind === 'field' ? 'bg-bg px-3 py-2 text-[13.5px]' : 'h-9 bg-panel px-3 text-[13px]',
+    className,
+  ].filter(Boolean).join(' ');
 }
 
 /** A pill's tone, as the token its colour comes from. */

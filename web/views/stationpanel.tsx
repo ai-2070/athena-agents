@@ -21,6 +21,7 @@ import { Avatar, DomNode, HoverScroll, Icon, IconWeightProvider, useAppState } f
 import { Dot, Pill } from '../ui/marks.tsx';
 import { ChipSet, Segmented, Tabs } from '../ui/controls.tsx';
 import { Button, ButtonLink, IconButton } from '../ui/button.tsx';
+import { fieldTriggerClass } from '../ui/classes.ts';
 import { Plate } from '../ui/surface.tsx';
 import { AgentSelect } from '../ui/agentselect.tsx';
 import { SelectControl } from '../ui/select.tsx';
@@ -121,8 +122,9 @@ const STAT_N = 'font-sans text-[22px] leading-[1.1] font-semibold tabular-nums t
 // Quick actions stay quiet until hovered; the lead remains visible.
 const FACE =
   'relative grid size-8 cursor-pointer place-items-center rounded-full border border-line bg-panel p-0 [transition:transform_0.15s,border-color_0.15s] hover:-translate-y-0.5 hover:border-accent [&_.avatar]:size-7 [&_.avatar]:rounded-full [&_.avatar]:text-[14px]';
-const MEMBER_ACT = 'grid size-7 cursor-pointer place-items-center rounded-ctl border-0 bg-transparent text-[12px] leading-[normal] font-medium text-dim hover:bg-panel-2 hover:text-ink';
-const MEMBER_ACT_ON = 'grid size-7 cursor-pointer place-items-center rounded-ctl border-0 bg-transparent text-[12px] leading-[normal] font-medium text-amber hover:bg-panel-2';
+// the small actions beside a member (write, make lead, take off): quiet until hovered
+const MEMBER_ACT = 'text-[12px] leading-[normal] font-medium';
+const MEMBER_ACT_ON = `${MEMBER_ACT} text-amber hover:text-amber`;
 const LEAD_STAR = 'absolute -top-1.25 -right-1 text-[12px] text-amber';
 
 function PanelHead({ api, children }: { api: StationPanelApi; children: ReactNode }) {
@@ -303,7 +305,7 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
         </div>
         <button
           type="button"
-          className="mt-3 flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-ctl border border-line-2 bg-panel px-3 text-left text-[13px] text-dim shadow-[inset_0_1px_0_var(--glass-spec)] [transition:background-color_0.15s,border-color_0.15s,color_0.15s] hover:bg-panel-2 hover:text-ink"
+          className={fieldTriggerClass('panel', 'mt-3 text-dim shadow-[inset_0_1px_0_var(--glass-spec)] [transition:background-color_0.15s,border-color_0.15s,color_0.15s] hover:bg-panel-2 hover:text-ink')}
           onClick={() => openDock()}
         >
           <Icon name="sparkles" size={14} className="text-accent" />
@@ -765,20 +767,22 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-1">
                   <DomNode make={() => modelChip(a, { compact: true })} deps={[a]} />
                   <div className="flex gap-1">
-                    <button className={MEMBER_ACT} title={`Write to ${a.name} in the team chat`} aria-label={`Write to ${a.name} in the team chat`} onClick={() => mention(a)}>
+                    <IconButton variant="quiet" className={MEMBER_ACT} type="button" title={`Write to ${a.name} in the team chat`} aria-label={`Write to ${a.name} in the team chat`} onClick={() => mention(a)}>
                       @
-                    </button>
-                    <button
+                    </IconButton>
+                    <IconButton
+                      variant="quiet"
+                      type="button"
                       title={isLead ? 'Remove as lead' : 'Make lead: your messages go to them first'}
                       aria-label={isLead ? `Remove ${a.name} as lead` : `Make ${a.name} lead`}
                       className={isLead ? MEMBER_ACT_ON : MEMBER_ACT}
                       onClick={() => void api.saveTeam({ ...wf, lead: isLead ? null : a.id })}
                     >
                       ★
-                    </button>
-                    <button className={MEMBER_ACT} title="Take off this team (stays in the project)" aria-label={`Take ${a.name} off this team`} onClick={() => void api.saveTeam(withMembers(wf, wf.members.filter((x) => x !== a.id)))}>
+                    </IconButton>
+                    <IconButton variant="quiet" className={MEMBER_ACT} type="button" title="Take off this team (stays in the project)" aria-label={`Take ${a.name} off this team`} onClick={() => void api.saveTeam(withMembers(wf, wf.members.filter((x) => x !== a.id)))}>
                       ✕
-                    </button>
+                    </IconButton>
                   </div>
                 </div>
               </div>

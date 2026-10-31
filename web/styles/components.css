@@ -51,23 +51,23 @@ label.field > span:first-child, div.field > span:first-child { font: 500 13px/1.
 .seg button:not(.on):not([data-checked]):not([data-pressed]):hover { color: var(--color-ink); }
 .seg button:focus-visible { outline-offset: 1px; }
 
-/* on/off: a checkbox in a label (.toggle), or Base UI's Switch (web/ui/controls.tsx) */
-.toggle { position: relative; width: 36px; height: 20px; flex: none; }
+/* on/off: a checkbox in a label (.toggle), or Base UI's Switch (web/ui/controls.tsx) — one look, two markups */
+.toggle, .switch {
+  position: relative; display: inline-block; width: 36px; height: 20px; flex: none; border-radius: 999px;
+  background: var(--color-line-2); cursor: pointer; transition: background 0.15s;
+}
 .toggle input { opacity: 0; width: 0; height: 0; }
-.toggle span { position: absolute; inset: 0; border-radius: 999px; background: var(--color-line-2); cursor: pointer; transition: background 0.15s; }
-.toggle span::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); transition: transform 0.18s var(--ease-soft); }
-.toggle input:checked + span { background: var(--color-accent); }
-.toggle input:checked + span::after { transform: translateX(16px); }
-.switch { position: relative; display: inline-block; width: 36px; height: 20px; flex: none; border-radius: 999px; background: var(--color-line-2); cursor: pointer; transition: background 0.15s; }
-.switch-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); transition: transform 0.18s var(--ease-soft); }
-.switch[data-checked] { background: var(--color-accent); }
-.switch[data-checked] .switch-thumb { transform: translateX(16px); }
+.toggle span { position: absolute; inset: 0; }
+.toggle span::after, .switch-thumb {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); transition: transform 0.18s var(--ease-soft);
+}
+.toggle:has(input:checked), .switch[data-checked] { background: var(--color-accent); }
+.toggle:has(input:checked) span::after, .switch[data-checked] .switch-thumb { transform: translateX(16px); }
 .switch[data-disabled] { opacity: 0.5; cursor: default; }
 .switch-row { cursor: pointer; }
 
 /* ---------- small labels ---------- */
-/* how full the agent's memory is (chat header) */
-.pill.mem { font: 12px var(--font-sans); font-variant-numeric: tabular-nums; cursor: default; }
 .st-badge {
   display: inline-grid; place-items: center; width: 22px; height: 22px; flex: none; border-radius: var(--radius-ctl);
   background: color-mix(in srgb, var(--c) 10%, var(--color-bg)); border: 1px solid color-mix(in srgb, var(--c) 40%, var(--color-line)); color: var(--c); font: 600 11px var(--font-sans);

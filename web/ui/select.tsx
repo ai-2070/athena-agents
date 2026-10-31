@@ -1,5 +1,6 @@
 // A compact, keyboard-accessible select using the same glass popup as the app's menus.
 import { Select } from '@base-ui/react/select';
+import { fieldTriggerClass } from './classes.ts';
 import { Icon } from './react.tsx';
 
 export interface SelectOption {
@@ -17,7 +18,7 @@ export function SelectControl({ options, value, onChange, 'aria-label': ariaLabe
   const picked = options.find((option) => option.value === value);
   return (
     <Select.Root value={value} onValueChange={(next) => { if (next !== null) onChange(String(next)); }}>
-      <Select.Trigger aria-label={ariaLabel} className={`flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-ctl border border-line-2 bg-bg px-3 py-2 text-left text-[13.5px] text-ink focus-visible:border-accent data-popup-open:border-accent ${className}`}>
+      <Select.Trigger aria-label={ariaLabel} className={fieldTriggerClass('field', `min-w-0 text-ink ${className}`)}>
         <span className="min-w-0 flex-1 truncate">{picked?.label}</span>
         <Select.Icon className="flex flex-none text-dim"><Icon name="chevron-down" size={16} /></Select.Icon>
       </Select.Trigger>
