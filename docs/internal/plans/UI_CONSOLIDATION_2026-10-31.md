@@ -259,3 +259,13 @@ Three alignment faults, found by looking at the running page and measured in it 
   the list scrolls inside itself (clientHeight 505 against scrollHeight 6428, pinned to the newest) and the
   box still ends 24px from the bottom. The narrow layout is untouched — it is `h-auto` there, where a `1fr`
   row resolves to the content either way.
+- **The MEMORY.md button, nearly invisible** — `web/memory.tsx` and its three callers. It was the last place
+  that handed a *pre-built* `buttonClass(...)` string to a `dom*` factory, so `domButton` added its own
+  defaults on top: the element carried **two** full class sets, and the stylesheet's order decided the
+  colour — `text-on-accent` (`#0b0d1e`) won over `text-ink` while `bg-ghost` won over `bg-accent`, giving
+  dark navy on a dark plate. Measured before: `color: rgb(11, 13, 30)`, class list containing both
+  `text-on-accent` and `text-ink`; after: `color: rgb(236, 238, 241)` with only `bg-ghost text-ink`, and the
+  duplicated-class check comes back empty. `memoryButton` now takes `{ variant, size, class }` like the other
+  controls, and `tests/web/memory.test.ts` guards it (the old mistake shows up as `text-on-accent` on the
+  element). Note it would have been invisible in the light theme too — white on a light plate — so it was
+  broken everywhere, not just on dark.

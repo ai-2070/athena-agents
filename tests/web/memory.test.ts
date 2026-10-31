@@ -2,7 +2,7 @@
 // doesn't throw away what you typed when it does.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { connectEvents } from '../../web/core.ts';
-import { memoryEditor, openMemory } from '../../web/memory.tsx';
+import { memoryButton, memoryEditor, openMemory } from '../../web/memory.tsx';
 import type { MemoryInfo } from '../../shared/types.ts';
 
 const tick = () => new Promise((r) => setTimeout(r, 10));
@@ -107,5 +107,26 @@ describe('the MEMORY.md editor', () => {
     expect(win.textContent).toContain('The Brain · MEMORY.md');
     expect(win.textContent).toContain('PROJECT.md');
     expect(win.querySelector('textarea')!.value).toBe('- Short answers.\n');
+  });
+});
+
+describe('the MEMORY.md button', () => {
+  it('wears one button, not a primary one with the quiet classes added on', () => {
+    const b = memoryButton('a1');
+    expect(b.classList.contains('btn')).toBe(true);
+    expect(b.classList.contains('ghost')).toBe(true);
+    expect(b.classList.contains('text-ink')).toBe(true);
+    // (the caller's class string used to be added to the classes of a primary button, and "on accent"
+    //  won for the colour: the label was invisible on a dark page)
+    expect(b.classList.contains('text-on-accent')).toBe(false);
+    expect(b.classList.contains('bg-accent')).toBe(false);
+    expect(b.getAttribute('title')).toBeTruthy();
+  });
+
+  it('takes the size and the extra classes it is given, once', () => {
+    const b = memoryButton('a1', 'Writer', { size: 'tiny', class: 'w-full' });
+    expect(b.classList.contains('h-[26px]')).toBe(true);
+    expect(b.classList.contains('h-9')).toBe(false);
+    expect(b.classList.contains('w-full')).toBe(true);
   });
 });

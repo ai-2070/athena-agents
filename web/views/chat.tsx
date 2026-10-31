@@ -152,7 +152,7 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
               {agent.engine !== 'openai' ? (
                 <Button variant="ghost" size="tiny" className="justify-center" title="Open this agent in a live terminal" onClick={() => void openTerminal(agent)}><Icon name="terminal" size={13} />Terminal</Button>
               ) : null}
-              <DomNode as="span" className="col-span-2 [&_button]:w-full [&_button]:justify-center" make={() => memoryButton(agent.id, agent.name, buttonClass('ghost', 'tiny', 'w-full justify-center'))} deps={[agent.id]} />
+              <DomNode as="span" className="col-span-2" make={() => memoryButton(agent.id, agent.name, { size: 'tiny', class: 'w-full justify-center' })} deps={[agent.id]} />
             </div>
           </div>
           <details className="mt-4">

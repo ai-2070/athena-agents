@@ -6,7 +6,7 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { GET, PUT, attempt, ago, onEvent, onState, state, confirmBox } from './core.ts';
 import { domButton } from './ui/dom.ts';
-import { buttonClass } from './ui/classes.ts';
+import type { ButtonSize, ButtonVariant } from './ui/classes.ts';
 import { Button } from './ui/button.tsx';
 import { icon } from './icons.ts';
 import { historyButton } from './history.tsx';
@@ -249,6 +249,6 @@ export function openMemory(owner: string, name = owner === BRAIN ? 'The Brain' :
 }
 
 /** A button that opens it. */
-export function memoryButton(owner: string, name?: string, cls = buttonClass('ghost', 'small')): HTMLButtonElement {
-  return domButton({ class: cls, type: 'button', title: 'What it remembers across chats: read and edit', onclick: () => openMemory(owner, name) }, icon('file-text', 13), 'MEMORY.md');
+export function memoryButton(owner: string, name?: string, { variant = 'ghost', size = 'small', class: cls = '' }: { variant?: ButtonVariant; size?: ButtonSize; class?: string } = {}): HTMLButtonElement {
+  return domButton({ variant, size, class: cls, type: 'button', title: 'What it remembers across chats: read and edit', onclick: () => openMemory(owner, name) }, icon('file-text', 13), 'MEMORY.md');
 }

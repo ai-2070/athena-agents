@@ -99,7 +99,7 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
           <Icon name="plus" size={13} />
           New chat
         </Button>
-        <DomNode as="span" make={() => memoryButton(agentId, agent?.name, buttonClass('ghost', 'tiny'))} deps={[agentId]} />
+        <DomNode as="span" make={() => memoryButton(agentId, agent?.name, { size: 'tiny' })} deps={[agentId]} />
         <ButtonLink size="tiny" variant="ghost" title="Open the full chat page" href={chatId ? `#/agents/${agentId}/${chatId}` : `#/agents/${agentId}`}>
           <Icon name="maximize-2" size={13} />
           Full page
