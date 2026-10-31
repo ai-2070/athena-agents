@@ -1,0 +1,68 @@
+web/attach.ts
+  s_8892bfc24ba38a::t_d96e7646f485e2 8,10
+  s_8892bfc24ba38a::t_79c5c5b54bf496 278-279
+  s_8892bfc24ba38a::t_0b3e9cfc307213 286-288,293-296
+tests/web/dropdown.test.tsx
+  s_8892bfc24ba38a::t_54b7364945c3ff 1-90,93-107
+  s_8892bfc24ba38a::t_6ef46d8255927f 91-92
+tests/web/dock-reset.test.tsx
+  s_8892bfc24ba38a::t_0aa7f8883defb7 159
+  s_8892bfc24ba38a::t_ebd7f343254a02 116
+  s_8892bfc24ba38a::t_a7d72b3bd8e787 121
+  s_8892bfc24ba38a::t_a735eef7f9bd02 152
+  s_8892bfc24ba38a::t_a4c669471e130f 85-88,91-92
+  s_8892bfc24ba38a::t_66756867e1d710 89-90
+  s_8892bfc24ba38a::t_3917e3dec8f508 136
+tests/web/groupD-pickers.test.ts
+  s_8892bfc24ba38a::t_5c57e2d1f979d3 158-159
+web/dock.tsx
+  s_8892bfc24ba38a::t_2bdcd92d418ce4 754
+  s_8892bfc24ba38a::t_d7a7df50fb52a4 950,954
+  s_8892bfc24ba38a::t_aefa23222b59cb 956
+  s_8892bfc24ba38a::t_0db6d6855e80b4 25
+  s_8892bfc24ba38a::t_3e0ed8ef0f24cf 156
+  s_8892bfc24ba38a::t_bec7f1f5f90c48 186-187
+  s_8892bfc24ba38a::t_fee38290e2155a 735-753,755-796
+tests/web/dock.test.tsx
+  s_8892bfc24ba38a::t_a4b59a2badfc3e 114-122,124-126,129-134,136-137,139-140
+  s_8892bfc24ba38a::t_db1a72553e5313 123,127-128
+  s_8892bfc24ba38a::t_d1afcac64f709f 143-153
+  s_8892bfc24ba38a::t_a006798bf06c25 141-142
+web/attachmenu.tsx
+  s_8892bfc24ba38a::t_be6f019eaca906 1-30
+web/ui/dropdown.tsx
+  s_8892bfc24ba38a::t_e4e3735a9df7bc 1-28,30-68
+  s_8892bfc24ba38a::t_56640fc5865a42 29
+web/styles/app.css
+  s_8892bfc24ba38a::t_97d69d9964f35a 82
+  s_8892bfc24ba38a::t_0fd457148b7760 98
+  s_8892bfc24ba38a::t_24d321ae764308 97
+web/styles/components.css
+  s_8892bfc24ba38a::t_e30224e8ed964a 484,487
+  s_8892bfc24ba38a::t_2c9cb8a18ab365 532-533,537
+  s_8892bfc24ba38a::t_d05206747453de 534-535
+  s_8892bfc24ba38a::t_4183550af9936b 200,202-208
+  s_8892bfc24ba38a::t_5e694f0ec50e60 426,430
+  s_8892bfc24ba38a::t_7ebfcae47adb0e 195-196,198-199,209,211-212,215-217,220-222,224
+  s_8892bfc24ba38a::t_ad656d0381d3a2 466-467
+web/models.ts
+  s_8892bfc24ba38a::t_a3c89497e3193d 9
+  s_8892bfc24ba38a::t_4b7d1cfffdda93 476-478
+  s_8892bfc24ba38a::t_65504ffc17907b 232,235-242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fef547bd3530bc7225e727feb66c350efd9716ca",
+  "prompts": {},
+  "sessions": {
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

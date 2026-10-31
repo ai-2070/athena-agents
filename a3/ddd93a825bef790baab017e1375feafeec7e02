@@ -1,0 +1,45 @@
+tests/web/connections.test.tsx
+  s_8892bfc24ba38a::t_8a927619b43be5 170-176
+web/navlimits.ts
+  s_8892bfc24ba38a::t_38b8567fd76a5c 1,42,45,100,108-110,266,272-275,277
+web/teamchat.tsx
+  s_8892bfc24ba38a::t_41251e3de71640 10,14-15,21,340,432-442,449,733,739,826-827,851-879,888
+web/ui/controls.tsx
+  s_8892bfc24ba38a::t_08862ea48645f4 7,10,64-70,72
+web/views/connections.tsx
+  s_8892bfc24ba38a::t_a8009b14f6b7bb 178-201
+web/views/settings.tsx
+  s_8892bfc24ba38a::t_50fc3b6b1a05d4 76,241,247,249,251
+web/views/setup.tsx
+  s_8892bfc24ba38a::t_20e4755453d634 170,257
+DESIGN.md
+  s_8892bfc24ba38a::t_1698127baa883f 174,217-223,225,227-234
+docs/guide.md
+  s_8892bfc24ba38a::t_ba199c3824bfb1 50-52
+public/index.html
+  s_8892bfc24ba38a::t_da02074a541d76 31
+scripts/build-fonts.ts
+  s_8892bfc24ba38a::t_3b920d3fc1f127 1-2,18,27-29,36
+web/styles/base.css
+  s_8892bfc24ba38a::t_86f07a88132519 10,40,77-87,123-124
+web/styles/components.css
+  s_8892bfc24ba38a::t_2ee9c229d1de71 25,33,35,62,66-71,446-448,474,504-508
+web/views/station.ts
+  s_8892bfc24ba38a::t_c3321992d44c60 7,342,362,843,871-875,975,3717,3788,3795,3812-3813,3952,3954-3959,3983
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a3ddd93a825bef790baab017e1375feafeec7e02",
+  "prompts": {},
+  "sessions": {
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

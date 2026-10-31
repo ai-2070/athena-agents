@@ -1,0 +1,28 @@
+web/views/stationpanel.tsx
+  s_8892bfc24ba38a::t_6812cff0afa2fb 20
+  s_8892bfc24ba38a::t_77d07c0c869595 75-77
+web/ui/react.tsx
+  s_8892bfc24ba38a::t_67865b4995ab25 141-147,150
+  s_8892bfc24ba38a::t_6703839b5e4b7d 2
+web/ui/fileicons.tsx
+  s_8892bfc24ba38a::t_f11d5124a48b45 40,46,49,51,53
+  s_8892bfc24ba38a::t_de71d8b3eadd0a 28
+tests/web/iconweight.test.tsx
+  s_8892bfc24ba38a::t_923bf4a18069dd 1-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "68f470c192cd9faa249e5c6509e1f3c2989b3c9a",
+  "prompts": {},
+  "sessions": {
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

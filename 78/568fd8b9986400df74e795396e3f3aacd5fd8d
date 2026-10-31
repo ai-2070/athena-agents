@@ -1,0 +1,27 @@
+DESIGN.md
+  s_8892bfc24ba38a::t_be49d47411ac1b 167
+  s_8892bfc24ba38a::t_dff47135c69fb8 116-117
+  s_8892bfc24ba38a::t_621bcc46c552e0 1-63,65-115,118-166,168-169,171-227
+  s_8892bfc24ba38a::t_30c52a4fdb8fdf 170
+  s_8892bfc24ba38a::t_acfc5fed170034 64
+AGENTS.md
+  s_8892bfc24ba38a::t_daa69edb261a13 100
+  s_8892bfc24ba38a::t_22e18dae83de72 46
+  s_8892bfc24ba38a::t_08dafa3b8e5607 101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "78568fd8b9986400df74e795396e3f3aacd5fd8d",
+  "prompts": {},
+  "sessions": {
+    "s_8892bfc24ba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4c53326-e1b8-4690-801b-4e5995327eb0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
