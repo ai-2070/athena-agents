@@ -416,7 +416,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
                   </Field>
                 </div>
                 <Field label="Color">
-                  <input className="h-9.5 w-12 cursor-pointer p-1" type="color" value={colorValue(a.color)} aria-label="Color" onChange={(e) => set('color', e.target.value)} />
+                  <input type="color" value={colorValue(a.color)} aria-label="Color" onChange={(e) => set('color', e.target.value)} />
                 </Field>
               </div>
             </div>

@@ -109,7 +109,7 @@ pre {
 }
 
 /* text boxes look the same everywhere */
-input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='button'], [type='submit'], [type='reset'], [type='image'], [type='hidden']), select, textarea {
+input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='button'], [type='submit'], [type='reset'], [type='image'], [type='hidden']), select, textarea {
   width: 100%;
   background: var(--color-bg); border: 1px solid var(--color-line-2); color: var(--color-ink);
   padding: 9px 12px; outline: none;
@@ -118,6 +118,8 @@ input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [ty
   font-size: 14px; line-height: 20px;
   transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
 }
+/* a colour swatch: a text box with the colour filling it, as tall as the field beside it */
+input[type='color'] { height: 40px; width: 48px; flex: none; padding: 4px; cursor: pointer; }
 input, select, textarea { border-radius: var(--radius-ctl); }
 input:hover, select:hover, textarea:hover { border-color: color-mix(in srgb, var(--color-ink) 22%, var(--color-line-2)); }
 input:focus, select:focus, textarea:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent); }

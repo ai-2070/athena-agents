@@ -283,3 +283,11 @@ Three alignment faults, found by looking at the running page and measured in it 
   light page the same mark is still its own `#181717`. Slack `#4A154B` and OBS `#302E31` go the same way on
   dark; no brand in the set is light enough to change on the light theme. `tests/web/groupE-icons-skills.test.ts`
   guards both branches (on the old rule it fails with `expected '#181717' to be 'currentColor'`).
+- **The colour swatch was shorter than the field beside it** — `web/styles/base.css`, the agent editor
+  (`web/views/agents.tsx`) and the team's Setup tab (`web/views/stationpanel.tsx`). `base.css` deliberately
+  took `[type='color']` out of the "text boxes look the same everywhere" rule, so a colour input had no
+  border, no background, no shadow and its own intrinsic 38px height, and both call sites patched it with
+  `h-9.5 w-12 cursor-pointer p-1` — 38px against the text fields' 40px, and no border. The rule now includes
+  colour inputs, with a swatch rule under it (`height: 40px; width: 48px; flex: none; padding: 4px`) and both
+  call sites drop their class string. Measured: agent editor Name 40px / Color 40px, same 1px
+  `rgb(49, 50, 58)` border, 7px radius and card shadow; the team Setup swatch likewise 40px.

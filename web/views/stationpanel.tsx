@@ -865,7 +865,6 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
             type="color"
             aria-label="Team colour"
             defaultValue={color}
-            className="h-9.5 w-12 cursor-pointer p-1"
             ref={committed<HTMLInputElement>((el) => void api.saveTeam({ ...latest.current, color: el.value }))}
           />
         </div>
