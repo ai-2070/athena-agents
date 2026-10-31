@@ -68,6 +68,8 @@ dialog the same surface. It remaps the page's colour tokens to see-through ones 
 
 ## Typography
 
+The supplied Aegean-blue Athena helmet is the app logo in every theme, including desktop icons and the startup screen. Original images live in `public/brand`; `public/icon.png` is the shared compact mark. Only the sidebar and About page wordmarks use locally bundled Cinzel (`font-brand`), inspired by Roman lettering. The rest of the page keeps Geist, chat fonts remain selectable, and code keeps JetBrains Mono.
+
 Geist (the page font) at normal letter-spacing. Chat text uses `font-chat`, which follows Settings > Look.
 
 | Where | Size / weight |

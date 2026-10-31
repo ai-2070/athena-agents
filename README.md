@@ -1,5 +1,7 @@
 # Athena Agents
 
+<img src="public/brand/athena-wordmark.png" alt="Athena Agents" width="320" />
+
 **Run AI agents and teams from one local workspace.** Give each agent a role, a model and the tools it needs. Talk to them directly, let them work together, and keep their work with the project it belongs to.
 
 <p align="center">
@@ -16,6 +18,8 @@
 </p>
 
 Athena Agents is a local-first **AI agent dashboard**: build teams of agents, give each one its own model, tools, skills and memory, and watch them work on a live 3D map. It works with **Claude Code, OpenAI Codex, Hermes, pi, oh-my-pi, OpenClaw, Ollama, LM Studio** and any **OpenAI-compatible API**, and connects to programs and services through the **Model Context Protocol (MCP)**: browsers, Blender, Maya, Houdini, Substance 3D Painter, ComfyUI, ffmpeg, FreeCAD, Rhino, OpenSCAD, 3D printers, Unity, Unreal Engine, Godot, GitHub, Notion, Linear and more.
+
+The Athena helmet marks the app, with Cinzel lettering on the sidebar and About page wordmarks, served locally so it works offline. Brand images are in [`public/brand`](public/brand).
 
 The dashboard runs at **http://localhost:4800**, with no dashboard account or login. Its server and saved state stay on your computer. **Local does not mean offline:** hosted models and connected services receive the requests you send them. You can also use local models through LM Studio or Ollama.
 

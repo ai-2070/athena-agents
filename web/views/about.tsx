@@ -4,7 +4,8 @@ import { ButtonLink } from '../ui/button.tsx';
 import { Plate } from '../ui/surface.tsx';
 import { useEffect, useState } from 'react';
 import { GET } from '../core.ts';
-import { MARK_SHAPES } from '../brand.ts';
+import { BRAND_IMAGE } from '../brand.ts';
+import { serverUrl } from '../client/connection.ts';
 import { logo } from '../icons.ts';
 import { PanelNote, Row, Section } from '../ui/controls.tsx';
 import { DomNode, Icon, useAppState } from '../ui/react.tsx';
@@ -12,9 +13,9 @@ import { REPO, repoLink } from '../../shared/about.ts';
 import type { AboutInfo } from '../../shared/types.ts';
 import { AI_VERSION } from './settings.tsx';
 
-/** The Athena Agents mark (public/icon.svg): an owl, in the accent colour. */
+/** The supplied Athena helmet, shared with the sidebar and desktop app. */
 export const BrandMark = ({ size = 48 }: { size?: number }) => (
-  <svg className="brand-mark flex-none" viewBox="0 0 64 64" width={size} height={size} aria-hidden="true" dangerouslySetInnerHTML={{ __html: MARK_SHAPES }} />
+  <img className="brand-mark flex-none" src={serverUrl(BRAND_IMAGE)} width={size} height={size} alt="" aria-hidden="true" />
 );
 
 /** "Star on GitHub", with the count when GitHub gave one. */
@@ -50,7 +51,7 @@ export function AboutTab() {
         <BrandMark size={56} />
         <div className="min-w-0 flex-1 basis-80">
           <div className="about-title flex flex-wrap items-baseline gap-2.5">
-            <h2 className="m-0 font-sans text-[24px] leading-[1.15] font-semibold tracking-tight">{REPO.name}</h2>
+            <h2 className="m-0 font-brand text-[24px] leading-[1.15] font-semibold tracking-tight">{REPO.name}</h2>
             <span className={`${AI_VERSION} text-[13px]`}>{version}</span>
           </div>
           <p className="mt-2 mb-0 max-w-[62ch] text-[14px] leading-[1.6] text-dim">Run AI agents and teams from one local workspace. A live 3D map, team chats, Claude Code, Codex and local models, MCP tools, an approval Outbox and Artifacts. No account, runs on your computer.</p>

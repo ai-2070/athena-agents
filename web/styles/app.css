@@ -53,6 +53,7 @@
   --color-glass-strong: rgb(255 255 255 / 0.94);
   --color-scrim: rgb(20 22 34 / 0.34);
 
+  --font-brand: 'Cinzel', Georgia, 'Times New Roman', serif;
   --font-sans: 'Geist', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
   /* what agents, the Brain and you write in a chat (font-chat); names, labels and code keep sans and mono */

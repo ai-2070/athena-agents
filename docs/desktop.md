@@ -119,7 +119,7 @@ silicon Macs say a downloaded app is "damaged".
 
 The app updates itself with [Tauri's updater](https://tauri.app/plugin/updater/) (`src-tauri/src/updater.rs`).
 It reads `latest.json` from the newest **published** release
-(`https://github.com/ai-2070/blacksite/releases/latest/download/latest.json`), so a draft release
+(`https://github.com/ai-2070/athena-agents/releases/latest/download/latest.json`), so a draft release
 reaches nobody until you publish it. The repository must be public for apps to download it.
 
 When `latest.json` has a newer version, the app asks with a native dialog (the page plays no part: there is

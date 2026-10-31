@@ -9,8 +9,8 @@ Seven prioritized findings follow. P1 findings affect authorization or can direc
 ## 1. [P1] Active runs write into whichever project becomes active
 
 **Locations:**
-- [server/engines/index.ts:188–192](https://github.com/ai-2070/ai-dashboard/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/engines/index.ts#L188-L192)
-- [server/tools.ts:86–101](https://github.com/ai-2070/ai-dashboard/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/tools.ts#L86-L101)
+- [server/engines/index.ts:188–192](https://github.com/ai-2070/athena-agents/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/engines/index.ts#L188-L192)
+- [server/tools.ts:86–101](https://github.com/ai-2070/athena-agents/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/tools.ts#L86-L101)
 
 ### Problem
 
@@ -43,7 +43,7 @@ Capture project identity and workspace for the entire run. Carry that context th
 
 ## 2. [P1] Filesystem authorization follows symlinks outside allowed folders
 
-**Location:** [server/tools.ts:97–101](https://github.com/ai-2070/ai-dashboard/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/tools.ts#L97-L101)
+**Location:** [server/tools.ts:97–101](https://github.com/ai-2070/athena-agents/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/tools.ts#L97-L101)
 
 ### Problem
 
@@ -76,7 +76,7 @@ Authorize canonical filesystem targets rather than unresolved paths. For writes 
 
 ## 3. [P1] Claude “Ask first” mode automatically permits native edits
 
-**Location:** [server/engines/claude.ts:105–109](https://github.com/ai-2070/ai-dashboard/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/engines/claude.ts#L105-L109)
+**Location:** [server/engines/claude.ts:105–109](https://github.com/ai-2070/athena-agents/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/engines/claude.ts#L105-L109)
 
 ### Problem
 
@@ -100,9 +100,9 @@ Use prompting permissions for ask-mode agents, with explicit permission rules wh
 
 ## 4. [P1] Queued Brain commands can execute against a different project
 
-**Location:** [web/dock.ts:278–295](https://github.com/ai-2070/ai-dashboard/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/web/dock.ts#L278-L295)
+**Location:** [web/dock.ts:278–295](https://github.com/ai-2070/athena-agents/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/web/dock.ts#L278-L295)
 
-**Related server path:** [server/overseer.ts:452–468](https://github.com/ai-2070/ai-dashboard/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/overseer.ts#L452-L468)
+**Related server path:** [server/overseer.ts:452–468](https://github.com/ai-2070/athena-agents/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/overseer.ts#L452-L468)
 
 ### Problem
 
@@ -128,8 +128,8 @@ Bind queued commands to their submission project. Reject or invalidate queued wo
 ## 5. [P2] Project snapshots omit agent conversations
 
 **Locations:**
-- [server/projectsync.ts:148–160](https://github.com/ai-2070/ai-dashboard/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/projectsync.ts#L148-L160)
-- [server/projectsync.ts:204–220](https://github.com/ai-2070/ai-dashboard/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/projectsync.ts#L204-L220)
+- [server/projectsync.ts:148–160](https://github.com/ai-2070/athena-agents/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/projectsync.ts#L148-L160)
+- [server/projectsync.ts:204–220](https://github.com/ai-2070/athena-agents/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/projectsync.ts#L204-L220)
 
 ### Problem
 
@@ -162,7 +162,7 @@ Include agent chats in snapshot save/restore and trigger autosaving when those c
 
 ## 6. [P2] A late Brain response restores cleared history
 
-**Location:** [server/overseer.ts:452–471](https://github.com/ai-2070/ai-dashboard/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/overseer.ts#L452-L471)
+**Location:** [server/overseer.ts:452–471](https://github.com/ai-2070/athena-agents/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/overseer.ts#L452-L471)
 
 ### Problem
 
@@ -201,9 +201,9 @@ Use a conversation generation or cancellation mechanism so clearing history prev
 
 ## 7. [P2] Stopping the final workflow agent step records success
 
-**Location:** [server/workflows.ts:126–166](https://github.com/ai-2070/ai-dashboard/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/workflows.ts#L126-L166)
+**Location:** [server/workflows.ts:126–166](https://github.com/ai-2070/athena-agents/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/workflows.ts#L126-L166)
 
-**Related agent cancellation path:** [server/engines/index.ts:245–253](https://github.com/ai-2070/ai-dashboard/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/engines/index.ts#L245-L253)
+**Related agent cancellation path:** [server/engines/index.ts:245–253](https://github.com/ai-2070/athena-agents/blob/1f3004521ef92d5f473f7a66f34b7c8f6e5ec6fd/server/engines/index.ts#L245-L253)
 
 ### Problem
 
