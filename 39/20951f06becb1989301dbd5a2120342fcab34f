@@ -1,0 +1,16 @@
+docs/internal/plans/UI_CONSOLIDATION_2026-10-31.md
+  h_64425bc75e3f3d 211-216
+web/chatwin.tsx
+  h_64425bc75e3f3d 845-847
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3920951f06becb1989301dbd5a2120342fcab34f",
+  "prompts": {},
+  "humans": {
+    "h_64425bc75e3f3d": {
+      "author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
