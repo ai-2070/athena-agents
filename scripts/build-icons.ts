@@ -66,8 +66,18 @@ interface Brand {
 }
 const BRANDS: Record<string, Brand | undefined> = ${JSON.stringify(brands)};
 const NS = 'http://www.w3.org/2000/svg';
-// marks that are black in their owners' colours (X, GitHub…) are drawn in the page's text colour instead
+// A mark whose own colour is too close to the page to read is drawn in the page's text colour: GitHub's
+// #181717 and Anthropic's #191919 vanish on a near-black page, a near-white mark would on a white one.
+const readable = (hex: string): boolean => {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return true;
+  const n = parseInt(m[1], 16);
+  const ch = (v: number): number => (v / 255) ** 2.2;
+  const lum = 0.2126 * ch((n >> 16) & 255) + 0.7152 * ch((n >> 8) & 255) + 0.0722 * ch(n & 255);
+  return isDark() ? lum > 0.025 : lum < 0.85;
+};
 const neutral = (): string => (isDark() ? '#e6e8e0' : '#1a1a1f');
+const markInk = (hex: string): string => (readable(hex) ? hex : neutral());
 // own keys only, so names like "constructor" don't hit Object.prototype
 const brand = (key: string): Brand | undefined => (Object.hasOwn(BRANDS, key) ? BRANDS[key] : undefined);
 
@@ -97,7 +107,7 @@ export function logo(name: string | null | undefined, size: number | string = 16
   s.setAttribute('class', 'logo-svg');
   const p = document.createElementNS(NS, 'path');
   p.setAttribute('d', b.d);
-  p.setAttribute('fill', color || (b.hex === '#000000' ? 'currentColor' : b.hex));
+  p.setAttribute('fill', color || (readable(b.hex) ? b.hex : 'currentColor'));
   s.append(p);
   return s;
 }
@@ -105,12 +115,12 @@ export function logo(name: string | null | undefined, size: number | string = 16
 // Raw logo path for drawing on a canvas (the agent monitors): { d, hex } or null.
 export function brandPath(name: string | null | undefined): { d: string; hex: string } | null {
   const b = brand(String(name || '').toLowerCase());
-  return b ? { d: b.d, hex: b.hex === '#000000' ? neutral() : b.hex } : null;
+  return b ? { d: b.d, hex: markInk(b.hex) } : null;
 }
 
 export const brandColor = (name: string | null | undefined): string | null => {
   const b = brand(String(name || '').toLowerCase());
-  return b ? (b.hex === '#000000' ? neutral() : b.hex) : null;
+  return b ? markInk(b.hex) : null;
 };
 `;
 fs.writeFileSync(path.join(root, 'web', 'icons.ts'), out);

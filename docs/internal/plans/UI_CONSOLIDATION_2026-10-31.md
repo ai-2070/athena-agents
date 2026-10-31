@@ -272,3 +272,14 @@ Three alignment faults, found by looking at the running page and measured in it 
   controls, and `tests/web/memory.test.ts` guards it (the old mistake shows up as `text-on-accent` on the
   element). Note it would have been invisible in the light theme too — white on a light plate — so it was
   broken everywhere, not just on dark.
+- **Brand marks that were invisible on dark** — `scripts/build-icons.ts` (which generates `web/icons.ts`).
+  `logo()` drew a mark in its owner's colour and only fell back to the page's text colour for an exact
+  `#000000`, so GitHub's `#181717` and Anthropic's `#191919` were painted near-black on a near-black page: the
+  GitHub mark in the Station panel's Brain folder card, next to "LZLO/dashboard", was not there at all (nor
+  on the Skills page's "from GitHub" line). `readable()` now measures the colour's luminance and keeps it only
+  when it reads on the page it is drawn on — dark: above 0.025, light: below 0.85 — and otherwise `logo()`
+  draws in `currentColor` while the canvas helpers (`brandPath`, `brandColor`) use `neutral()`. Measured on
+  the dark page: `fill="currentColor"` → `rgb(236, 238, 241)` on a card at `rgb(19, 20, 23)`, visible; on the
+  light page the same mark is still its own `#181717`. Slack `#4A154B` and OBS `#302E31` go the same way on
+  dark; no brand in the set is light enough to change on the light theme. `tests/web/groupE-icons-skills.test.ts`
+  guards both branches (on the old rule it fails with `expected '#181717' to be 'currentColor'`).
