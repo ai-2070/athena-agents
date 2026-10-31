@@ -1,0 +1,18 @@
+docs/internal/plans/UI_CONSOLIDATION_2026-10-31.md
+  h_64425bc75e3f3d 160-170,174-176
+tests/web/find.test.tsx
+  h_64425bc75e3f3d 112,114-115
+web/ui/bigmarkdown.tsx
+  h_64425bc75e3f3d 20,24,27-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5f7d630469c91f7b6c87aa0f6b3fd01a53967b5b",
+  "prompts": {},
+  "humans": {
+    "h_64425bc75e3f3d": {
+      "author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
