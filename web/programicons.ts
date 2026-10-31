@@ -13,7 +13,6 @@ const LINE: Record<string, string> = {
   // AI tools
   omp: 'terminal',
   hermes: 'sparkles',
-  pi: 'terminal',
   openclaw: 'bot',
   orca: 'rocket',
   netdesk: 'radio',
@@ -66,7 +65,6 @@ const LINE: Record<string, string> = {
   capcut: 'scissors',
   shotcut: 'film',
   openshot: 'film',
-  filmora: 'sparkles',
   mediacomposer: 'film-slate',
   clipchamp: 'browser',
   handbrake: 'swap',

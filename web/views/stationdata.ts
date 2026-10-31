@@ -96,7 +96,7 @@ export const INTEGRATIONS: Integration[] = [
   { id: 'orca', label: 'Orca', glyph: '🐋', color: '#7ab8ff' },
   { id: 'browser', label: 'Browser', glyph: '🌐', color: '#a9d3e2' },
 ];
-const BRAND_OF: Record<string, string> = { codex: 'openai', reddit: 'reddit', claude: 'claude', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', maya: 'maya', houdini: 'houdini', cad: 'openscad', nvidia: 'nvidia', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
+const BRAND_OF: Record<string, string> = { codex: 'openai', reddit: 'reddit', claude: 'claude code', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', maya: 'maya', houdini: 'houdini', cad: 'openscad', nvidia: 'nvidia', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
 // A brand logo, a Craft app's own icon (PhotoCraft…), or a program's own icon (ComfyUI), for a connector or MCP server name.
 // (a brand logo is drawn in its colour, deepened or lifted when that colour would not show on the page: OpenAI's dark purple on black, say)
 const logoFill = (name: string): string | null => {

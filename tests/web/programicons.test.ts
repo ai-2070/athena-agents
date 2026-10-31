@@ -20,4 +20,9 @@ describe('programIcon', () => {
   it('never draws nothing, even for a name it has not seen', () => {
     expect(path(programIcon('nope', 'No Such Program'))).toBe(path(icon('box')));
   });
+
+  it('uses a brand mark where Simple Icons has one, even for a short id', () => {
+    // Simple Icons' "Pi" is the pi coding agent (pi.dev), so the program wears it rather than a line icon.
+    expect(programIcon('pi', 'pi')?.getAttribute('aria-label')).toBe('Pi');
+  });
 });

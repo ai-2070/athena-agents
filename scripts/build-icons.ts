@@ -26,7 +26,7 @@ const BRANDS: Record<string, string> = {
   sharex: 'sharex', aseprite: 'aseprite', audacity: 'audacity', lmms: 'lmms', revit: 'autodeskrevit', inventor: 'autodesk',
   'autodesk fusion': 'autodesk', fusion360: 'autodesk', 'bambu studio': 'bambulab', 'creality print': 'creality',
   'vs code': 'vscodium', 'github cli': 'github', 'after effects': 'adobeaftereffects', 'premiere pro': 'adobepremierepro',
-  vegas: 'vegas', 'rtx remix': 'nvidia', nsight: 'nvidia',
+  vegas: 'vegas', 'rtx remix': 'nvidia', nsight: 'nvidia', pi: 'pi', filmora: 'wondersharefilmora',
 };
 
 interface SimpleIcon {
