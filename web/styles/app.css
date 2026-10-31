@@ -39,9 +39,9 @@
   /* line icons (nav, icon buttons, menus): a step softer than the text beside them */
   --color-icon: #71727e;
   /* the accent: look.ts swaps these four for the colour picked in Settings > Appearance */
-  --color-accent: #4f5fd6;
-  --color-accent-hover: #3f4ec0;
-  --color-accent-dim: #7482dc;
+  --color-accent: #18688e;
+  --color-accent-hover: #125574;
+  --color-accent-dim: #347a9a;
   --color-on-accent: #ffffff;
   --color-amber: #b4690e;
   /* "on" status: stays green whatever accent colour is picked */

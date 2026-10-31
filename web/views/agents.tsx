@@ -339,7 +339,7 @@ const Heading = ({ icon, children }: { icon: string; children: ReactNode }) => (
 );
 
 /** The colour box takes #rrggbb: an agent without a colour starts on the accent. */
-const colorValue = (c?: string): string => (c && /^#[0-9a-f]{6}$/i.test(c) ? c : /^#[0-9a-f]{6}$/i.test(themeColor('accent')) ? themeColor('accent') : '#4f5fd6');
+const colorValue = (c?: string): string => (c && /^#[0-9a-f]{6}$/i.test(c) ? c : /^#[0-9a-f]{6}$/i.test(themeColor('accent')) ? themeColor('accent') : '#18688e');
 
 function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload: () => void }) {
   const { agent, servers, info, teams } = data;

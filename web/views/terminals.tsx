@@ -40,7 +40,7 @@ const withAlpha = (hex: string, alpha: number): string => (/^#[0-9a-f]{6}$/i.tes
 /** The terminal's colors for the page as it is now: the page's own background and ink, the picked accent for
  *  the cursor and the selection. */
 export function terminalTheme(dark: boolean = isDark()): ITheme {
-  const accent = themeColor('accent', dark ? '#7f8cf3' : '#4f5fd6');
+  const accent = themeColor('accent', dark ? '#7cbad5' : '#18688e');
   const background = themeColor('bg', dark ? '#0e0f11' : '#ffffff');
   return { ...(dark ? ANSI_DARK : ANSI_LIGHT), background, foreground: themeColor('ink', dark ? '#eceef1' : '#1a1a1f'), cursor: accent, cursorAccent: background, selectionBackground: withAlpha(accent, dark ? 0.35 : 0.22) };
 }

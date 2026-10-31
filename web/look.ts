@@ -21,7 +21,7 @@ export interface Accent {
   dark: AccentTone;
 }
 export const ACCENTS: Accent[] = [
-  { id: 'aegean', label: 'Aegean', light: { c: '#4f5fd6', hover: '#3f4ec0', dim: '#7482dc', on: '#ffffff' }, dark: { c: '#7f8cf3', hover: '#98a3f7', dim: '#5a65b8', on: '#0b0d1e' } },
+  { id: 'aegean', label: 'Aegean', light: { c: '#18688e', hover: '#125574', dim: '#347a9a', on: '#ffffff' }, dark: { c: '#7cbad5', hover: '#9dcfe3', dim: '#4289a9', on: '#061923' } },
   { id: 'olive', label: 'Olive', light: { c: '#5a7d2b', hover: '#496624', dim: '#86a45a', on: '#ffffff' }, dark: { c: '#a3c45d', hover: '#b8d37b', dim: '#738f3f', on: '#10170a' } },
   { id: 'gold', label: 'Gold', light: { c: '#9a6410', hover: '#82530b', dim: '#c0913f', on: '#ffffff' }, dark: { c: '#e8b95f', hover: '#f0cb84', dim: '#a9833b', on: '#1a1204' } },
   { id: 'terracotta', label: 'Terracotta', light: { c: '#c0502f', hover: '#a7421f', dim: '#d98369', on: '#ffffff' }, dark: { c: '#f19272', hover: '#f5ab8f', dim: '#b2674d', on: '#1c0b05' } },

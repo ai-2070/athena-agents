@@ -587,7 +587,7 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
         if (fxBox.isEmpty()) continue;
         fxBox.getCenter(fxTo);
         fxTo.y = fxBox.max.y;
-        fx.built(builderAt(b.by, fxFrom), fxTo, b.by?.kind === 'brain' ? '#ffd36e' : themeColor('accent', '#4f5fd6'), now);
+        fx.built(builderAt(b.by, fxFrom), fxTo, b.by?.kind === 'brain' ? '#ffd36e' : themeColor('accent', '#18688e'), now);
       }
       fx.update(now);
     },

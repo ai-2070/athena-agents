@@ -306,7 +306,7 @@ describe('the Station look', () => {
     expect(await snapshot()).toMatch(/Station look: classic \(the Station does NOT draw the voxel world/);
     expect(applyActions([{ do: 'station_look', look: 'world' }], undefined, { auto: true }).done[0]).toMatchObject({ kind: 'error' });
     expect(getSettings().look.stationLook).toBe('classic');
-    expect(applyActions([{ do: 'station_look', look: 'world' }]).done).toEqual([{ kind: 'note', text: 'Turned on the voxel look (Settings › Look › Station look)' }]);
+    expect(applyActions([{ do: 'station_look', look: 'world' }]).done).toEqual([{ kind: 'note', text: 'Turned on the voxel look (Settings › Appearance › Station look)' }]);
     expect(getSettings().look.stationLook).toBe('world');
     expect(await snapshot()).toMatch(/Station look: voxel world/);
     expect(applyActions([{ do: 'station_look', look: 'purple' }]).done[0]).toMatchObject({ kind: 'error' });

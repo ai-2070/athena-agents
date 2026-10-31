@@ -31,6 +31,16 @@ describe('isDark()', () => {
 });
 
 describe('the accent', () => {
+  it('defaults to Aegean blue and keeps it readable when the theme switches', async () => {
+    expect(applyLook().accent).toBe('aegean');
+    expect(root.style.getPropertyValue('--color-accent')).toBe('#18688e');
+    expect(root.style.getPropertyValue('--color-on-accent')).toBe('#ffffff');
+    root.dataset.theme = 'dark';
+    await new Promise((r) => setTimeout(r, 0));
+    expect(root.style.getPropertyValue('--color-accent')).toBe('#7cbad5');
+    expect(root.style.getPropertyValue('--color-on-accent')).toBe('#061923');
+  });
+
   it('has a light and a dark tone, and dark text on the dark one', () => {
     for (const a of ACCENTS) {
       expect(a.light.c).toMatch(/^#[0-9a-f]{6}$/);

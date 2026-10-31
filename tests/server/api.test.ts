@@ -251,7 +251,7 @@ describe('local-only security', () => {
   it('serves the page in the colour scheme you picked, and leaves it to the computer on System', async () => {
     const page = async () => (await req('/')).text();
     expect(await page()).toContain('<html lang="en">');
-    // Settings > Look > Colour scheme
+    // Settings > Appearance > Colour scheme
     const save = (theme: string) => req('/api/settings', { method: 'PUT', headers: json, body: JSON.stringify({ look: { theme } }) });
     expect((await save('dark')).status).toBe(200);
     expect(await page()).toContain('<html lang="en" data-theme="dark">');

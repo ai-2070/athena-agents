@@ -1,4 +1,4 @@
-// Settings > Look: the chat font (picking one changes --font-chat and saves it) and the Station quality.
+// Settings > Appearance: the chat font (picking one changes --font-chat and saves it) and the Station quality.
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
@@ -66,7 +66,7 @@ describe('Station quality', () => {
   });
 });
 
-describe('Settings > Look', () => {
+describe('Settings > Appearance', () => {
   let el: HTMLElement;
   let root: Root;
   const puts: unknown[] = [];

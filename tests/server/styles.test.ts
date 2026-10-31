@@ -81,7 +81,7 @@ describe('the fonts', () => {
     }
   });
 
-  it('include every chat font Settings > Look offers (other than ones on the computer)', () => {
+  it('include every chat font Settings > Appearance offers (other than ones on the computer)', () => {
     const onComputer = new Set(['Segoe UI', 'Segoe UI Variable Text', 'SF Pro Text', 'Georgia', 'Times New Roman', 'Helvetica', 'Arial', 'Menlo', 'Consolas']);
     const shipped = new Set(FONTS.map((f) => f.family));
     const named = CHAT_FONTS.flatMap((f) => [...f.stack.matchAll(/'([^']+)'/g)].map((m) => m[1] ?? ''));

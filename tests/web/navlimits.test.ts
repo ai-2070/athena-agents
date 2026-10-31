@@ -155,7 +155,7 @@ describe('sidebar usage limits', () => {
     expect(requests.at(-1)).toMatchObject({ method: 'PUT', url: '/api/settings', body: { look: { sidebar: 'status' } } });
   });
 
-  it('each project remembers its own choice; one that never switched follows Settings > Look', async () => {
+  it('each project remembers its own choice; one that never switched follows Settings > Appearance', async () => {
     const one = { id: 'p1', name: 'One', sidebar: 'limits' };
     const two = { id: 'p2', name: 'Two' };
     state.data = { ...state.data, settings: { look: { sidebar: 'status' } }, project: one, projects: [one, two] } as unknown as AppState;

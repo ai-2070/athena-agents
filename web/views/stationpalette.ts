@@ -122,7 +122,7 @@ export interface StationPalette {
   disc: string;
 }
 
-const FALLBACK = { ink: '#1a1a1f', dim: '#5b5b66', faint: '#747480', line: '#ebebef', 'line-2': '#dcdce3', bg: '#ffffff', floor: '#f3f3f6', raise: '#ffffff', accent: '#4f5fd6', 'on-accent': '#ffffff', amber: '#b4690e', red: '#d3303f', ok: '#1c8a53' };
+const FALLBACK = { ink: '#1a1a1f', dim: '#5b5b66', faint: '#747480', line: '#ebebef', 'line-2': '#dcdce3', bg: '#ffffff', floor: '#f3f3f6', raise: '#ffffff', accent: '#18688e', 'on-accent': '#ffffff', amber: '#b4690e', red: '#d3303f', ok: '#1c8a53' };
 const get = (name: keyof typeof FALLBACK): string => themeColor(name, FALLBACK[name]);
 
 export const pal: StationPalette = {
