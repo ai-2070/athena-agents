@@ -657,18 +657,19 @@ function TeamPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id: stri
         <div className="min-w-0 flex-1">
           <div className="label">Team · group chat</div>
           <div className={TITLE}>{wf.name}</div>
-          <div className="st-team-status mt-0.75 text-[12px]">
-            {ts.working.length ? (
-              <span className="inline-flex items-center gap-1.5 text-[12px] text-accent">
-                <Dot tone="busy" />
-                {`${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} waiting` : ''}`}
-              </span>
-            ) : (
-              <span className="hint">{members.length ? 'Quiet · waiting for a message' : 'No members yet'}</span>
-            )}
-          </div>
         </div>
       </PanelHead>
+      {/* (under the heading, not in it: a status line inside the head would pull the close button down to its middle) */}
+      <div className="st-team-status -mt-1.5 pr-5 pb-2 pl-10 text-[12px]">
+        {ts.working.length ? (
+          <span className="inline-flex items-center gap-1.5 text-[12px] text-accent">
+            <Dot tone="busy" />
+            {`${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} waiting` : ''}`}
+          </span>
+        ) : (
+          <span className="hint">{members.length ? 'Quiet · waiting for a message' : 'No members yet'}</span>
+        )}
+      </div>
       <div className={BODY}>
         {wf.description ? <p className="st-team-goal mb-4 text-[13px] leading-[1.5] text-dim">{wf.description}</p> : null}
         <div className="mb-4 flex items-center justify-between gap-3">
