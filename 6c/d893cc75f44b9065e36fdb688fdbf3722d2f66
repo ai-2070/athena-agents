@@ -1,0 +1,14 @@
+server/programs.ts
+  h_64425bc75e3f3d 147-151,201,228-233,242,259,261,269,277-279,287-289,301-312,322-329,338-340,342-344,381-386,394-395,405-406,415-426,442-448,450-451,459-462,486-492,494
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6cd893cc75f44b9065e36fdb688fdbf3722d2f66",
+  "prompts": {},
+  "humans": {
+    "h_64425bc75e3f3d": {
+      "author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
