@@ -21,7 +21,6 @@ export interface Program {
   id: string;
   name: string;
   category?: string;
-  icon?: string;
   installed: boolean;
   optional?: boolean;
   exe: string | null;
