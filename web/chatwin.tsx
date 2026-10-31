@@ -834,7 +834,7 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
       onPointerDownCapture={() => raise(w)}
     >
       <div
-        className={`flex items-center gap-1.5 border-b border-line px-5 pt-3 max-sm:px-4 cursor-grab group-[.moving]/cw:cursor-grabbing text-dim min-h-[52px] ${w.max ? 'rounded-t-[12px]' : 'rounded-t-[16px]'}`}
+        className={`flex items-center gap-1.5 border-b border-line px-5 pt-3 pb-2 max-sm:px-4 cursor-grab group-[.moving]/cw:cursor-grabbing text-dim min-h-[52px] ${w.max ? 'rounded-t-[12px]' : 'rounded-t-[16px]'}`}
         data-cw-strip={w.id}
         onPointerDown={(e) => startDrag(e, w)}
         onDoubleClick={(e) => !(e.target as Element).closest('button, .cw-tab') && setMax(w, !w.max)}
