@@ -1,0 +1,14 @@
+web/chat/ChatView.tsx
+  h_64425bc75e3f3d 496-499,504
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f895aac2bde13e809308e3870871025cc7c007b4",
+  "prompts": {},
+  "humans": {
+    "h_64425bc75e3f3d": {
+      "author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
