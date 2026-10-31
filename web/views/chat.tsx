@@ -187,7 +187,8 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
             <Button size="tiny" variant="danger" onClick={() => void removeChat()}>Delete</Button>
           </div>
         </div>
-        <div className="chat-body contents">
+        {/* the reading column: the messages and the composer below them sit here, centred on the page */}
+        <div className="chat-body mx-auto flex min-h-0 w-full max-w-[760px] flex-col">
           <Suspense fallback={null}>
             <ChatView agent={{ id: agent.id, name: agent.name, emoji: agent.emoji, specialty: agent.specialty, tools: agent.tools }} chatId={chat.id} tray={tray} footer={footer} onChat={onChat} apiRef={api} />
           </Suspense>

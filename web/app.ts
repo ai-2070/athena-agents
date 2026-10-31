@@ -1,5 +1,6 @@
 // App shell: navigation, routing, the "Needs you" drawer and live notifications.
 import { h, mount, clear, freshElement, state, onState, onEvent, refreshState, refreshSoon, connectEvents, toast, navigate, approvalCard, ago, GET } from './core.ts';
+import { backdropEscape } from './shortcuts.ts';
 import { domBadge, domButton, domDot } from './ui/dom.ts';
 import { badgeClass, buttonClass, iconButtonClass, pillClass } from './ui/classes.ts';
 import type { DotTone } from './ui/classes.ts';
@@ -93,8 +94,9 @@ const NAV_LINK_ON = 'bg-ink/7 text-ink';
 const NAV_ICO = 'grid w-5 flex-none place-items-center text-center in-[.station-mode]:group-hover:text-accent';
 const NAV_ICO_OFF = 'text-icon group-hover:text-ink';
 const NAV_ICO_ON = 'text-accent';
+// the menu's own labels read in capitals (the text stays as written, so lookups and screen readers are unmoved)
 const NAV_TXT =
-  'in-[.station-mode]:[display:none] in-[.station-mode]:group-hover:absolute in-[.station-mode]:group-hover:left-[58px] in-[.station-mode]:group-hover:z-90 in-[.station-mode]:group-hover:block in-[.station-mode]:group-hover:rounded-ctl in-[.station-mode]:group-hover:border in-[.station-mode]:group-hover:border-line in-[.station-mode]:group-hover:bg-raise in-[.station-mode]:group-hover:shadow-pop in-[.station-mode]:group-hover:px-3 in-[.station-mode]:group-hover:py-1.5 in-[.station-mode]:group-hover:whitespace-nowrap in-[.station-mode]:group-hover:text-ink in-[.station-mode.nav-wide]:inline in-[.station-mode.nav-wide]:group-hover:static in-[.station-mode.nav-wide]:group-hover:border-0 in-[.station-mode.nav-wide]:group-hover:bg-transparent in-[.station-mode.nav-wide]:group-hover:p-0 in-[.station-mode.nav-wide]:group-hover:shadow-none in-[.station-mode.nav-wide]:group-hover:text-inherit md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode]:group-hover:static md:in-[.station-mode]:group-hover:border-0 md:in-[.station-mode]:group-hover:bg-transparent md:in-[.station-mode]:group-hover:p-0 md:in-[.station-mode]:group-hover:text-inherit md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
+  'uppercase in-[.station-mode]:[display:none] in-[.station-mode]:group-hover:absolute in-[.station-mode]:group-hover:left-[58px] in-[.station-mode]:group-hover:z-90 in-[.station-mode]:group-hover:block in-[.station-mode]:group-hover:rounded-ctl in-[.station-mode]:group-hover:border in-[.station-mode]:group-hover:border-line in-[.station-mode]:group-hover:bg-raise in-[.station-mode]:group-hover:shadow-pop in-[.station-mode]:group-hover:px-3 in-[.station-mode]:group-hover:py-1.5 in-[.station-mode]:group-hover:whitespace-nowrap in-[.station-mode]:group-hover:text-ink in-[.station-mode.nav-wide]:inline in-[.station-mode.nav-wide]:group-hover:static in-[.station-mode.nav-wide]:group-hover:border-0 in-[.station-mode.nav-wide]:group-hover:bg-transparent in-[.station-mode.nav-wide]:group-hover:p-0 in-[.station-mode.nav-wide]:group-hover:shadow-none in-[.station-mode.nav-wide]:group-hover:text-inherit md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode]:group-hover:static md:in-[.station-mode]:group-hover:border-0 md:in-[.station-mode]:group-hover:bg-transparent md:in-[.station-mode]:group-hover:p-0 md:in-[.station-mode]:group-hover:text-inherit md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 const NAV_COUNT =
   'ml-auto in-[.station-mode]:[display:none] in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 // a line of the status list at the bottom left
@@ -319,7 +321,8 @@ connectEvents();
 initDock();
 openLauncher();
 // Esc: whatever is open closes first (dialogs, menus, the Brain chat, Station panels handle it
-// themselves). With nothing open, Esc opens the big sidebar, and Esc again closes it.
+// themselves). With nothing open it goes back to the Station, and there it opens the big sidebar
+// instead, and Esc again closes it. See backdropEscape for the order.
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   // let the open thing take it first, then decide
@@ -330,9 +333,19 @@ window.addEventListener('keydown', (e) => {
     const target = e.target as HTMLElement;
     if (target.closest?.('input, textarea, select')) return target.blur();
     const body = document.body;
-    if (body.classList.contains('nav-open')) return body.classList.remove('nav-open'); // phone menu
-    if (body.classList.contains('nav-wide')) return body.classList.remove('nav-wide');
-    if (body.classList.contains('station-mode')) body.classList.add('nav-wide');
+    switch (backdropEscape(document)) {
+      case 'phone-menu':
+        return body.classList.remove('nav-open');
+      case 'close-sidebar':
+        return body.classList.remove('nav-wide');
+      case 'open-sidebar':
+        return body.classList.add('nav-wide');
+      // a page: back to the Station
+      case 'station':
+        return navigate('#/station');
+      default:
+        return;
+    }
   }, 0);
 });
 // Station: the sidebar is a thin icon bar; hovering it opens it to full width, leaving folds it back.

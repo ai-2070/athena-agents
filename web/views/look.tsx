@@ -153,6 +153,21 @@ export function LookTab() {
 
   return (
     <div className="flex flex-col gap-10">
+      <Section title="Colour scheme" description="Light or dark pages. System follows your computer, and changes when it does.">
+        <Row title="Theme" titleId="look-theme">
+          <Segmented
+            label="Theme"
+            options={[
+              { value: 'system', label: 'System' },
+              { value: 'light', label: 'Light' },
+              { value: 'dark', label: 'Dark' },
+            ]}
+            value={look.theme}
+            onChange={(v) => set({ theme: v })}
+          />
+        </Row>
+      </Section>
+
       <Section title="UI scale" description="Makes everything bigger or smaller: text, buttons, panels and the Station. Your browser zoom (Ctrl + / Ctrl −) still works on top of this.">
         <div className="px-5 py-5">
           <div className="flex items-center gap-3.5">

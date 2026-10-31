@@ -1302,7 +1302,7 @@ function serveStatic(url: URL, res: http.ServerResponse): boolean {
   if (!file.startsWith(PUBLIC + path.sep) || !exists(file) || !fs.statSync(file).isFile()) return false;
   const headers: Record<string, string> = { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' };
   // Agent output is shown as markdown: no outside scripts, and images only from here (nothing leaks out).
-  if (file.endsWith('.html'))
+  if (file.endsWith('.html')) {
     headers['content-security-policy'] = [
       "default-src 'self'",
       "script-src 'self'",
@@ -1312,6 +1312,14 @@ function serveStatic(url: URL, res: http.ServerResponse): boolean {
       `connect-src 'self' ws://localhost:${PORT} ws://127.0.0.1:${PORT}`,
       "frame-ancestors 'none'",
     ].join('; ');
+    // The page opens in the scheme picked in Settings > Look, before anything is drawn: the saved theme goes onto
+    // <html> ("system" leaves it off, for the stylesheet to follow the computer). The page does the same on a change.
+    const theme = getSettings().look.theme;
+    const html = fs.readFileSync(file, 'utf8');
+    res.writeHead(200, headers);
+    res.end(theme === 'light' || theme === 'dark' ? html.replace('<html lang="en"', `<html lang="en" data-theme="${theme}"`) : html);
+    return true;
+  }
   res.writeHead(200, headers);
   fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
   return true;

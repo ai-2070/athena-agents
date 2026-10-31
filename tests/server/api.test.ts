@@ -248,6 +248,20 @@ describe('local-only security', () => {
     expect(csp).not.toContain('googleapis');
   });
 
+  it('serves the page in the colour scheme you picked, and leaves it to the computer on System', async () => {
+    const page = async () => (await req('/')).text();
+    expect(await page()).toContain('<html lang="en">');
+    // Settings > Look > Colour scheme
+    const save = (theme: string) => req('/api/settings', { method: 'PUT', headers: json, body: JSON.stringify({ look: { theme } }) });
+    expect((await save('dark')).status).toBe(200);
+    expect(await page()).toContain('<html lang="en" data-theme="dark">');
+    const settings = (await (await req('/api/settings')).json()) as { settings: { look: { theme: string } } };
+    expect(settings.settings.look.theme).toBe('dark');
+    // System: nothing on <html>, so the stylesheet follows the computer's own light or dark
+    expect((await save('system')).status).toBe(200);
+    expect(await page()).toContain('<html lang="en">');
+  });
+
   it('accepts the live-events socket only from its own page', async () => {
     const open = (origin: string) =>
       new Promise<string>((resolve) => {

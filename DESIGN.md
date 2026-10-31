@@ -219,8 +219,12 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
   inset highlight; the glass tokens are available at the root for plates outside floating surfaces.
 - Outside the Station, dark pages sit on true black with a faint neutral gradient and near-black plates; the sidebar is
   true black in dark mode. Light pages retain their white surfaces. The Station keeps its own map palette.
-- The Station's integration and engine bars have no surrounding fill or border. Its clock uses a locally bundled
-  seven-segment font, with the locale's day period in Geist.
+- The Station's integration and engine bars have no surrounding fill or border. Every active integration tile sits on
+  the same plate (`bg-ghost`, what the top bar's own controls use) with the brand colour kept for its glyph; a tile
+  that is off has no plate at all, and the tile a hovered wire points at takes the brand tint.
+- The top bar ends with the usage readout and the clock: the time is set in Archivo, the locale's day period in Geist
+  (11px, medium). The field the map sits on is pure black in the dark theme (`--color-floor`, `#000`), so the dot grid
+  stands on black rather than near-black; light keeps the pale map.
 - The team panel groups members into one inset list instead of stacking separate cards. Member actions sit beside the
   model, leaving names and status more room; Setup uses flat sections separated by hairlines.
 - The sidebar groups engine and connection status above a compact Status / Limits switch. Its list scrolls vertically;
@@ -246,6 +250,10 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
 - The full agent chat keeps the agent and conversation list in a quiet attached sidebar. Its empty state offers
   suggestions as soft rows, while the composer sits on the page without a ruled footer. The model picker and square Send
   button follow the Brain composer's compact controls.
+- The full agent chat reads in a centred 760px column: the messages and the composer below them share that width (680px
+  of text inside their 40px padding), so lines stay readable on a wide screen and the box under the text lines up with
+  it. The header row (title, Memory, Compact…) keeps the whole pane's width, and the window and panel variants are
+  untouched.
 - The chat memory percentage has a static accent-tinted fill proportional to the context used; it does not measure
   the separate `MEMORY.md` file.
 - Team chat windows use the same gentle glass sheen and shadow as the Brain, with a transparent conversation area.

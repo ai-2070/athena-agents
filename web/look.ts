@@ -2,7 +2,7 @@
 // remembered in this browser so the page opens at the right size straight away.
 import type { LookSetting } from '../shared/types.ts';
 import { chatFont } from '../shared/look.ts';
-import { isDark, onThemeChange } from './theme.ts';
+import { applyTheme, isDark, onThemeChange } from './theme.ts';
 export { CHAT_FONTS, chatFont, STATION_QUALITY, stationLevel } from '../shared/look.ts';
 export type { ChatFont } from '../shared/look.ts';
 
@@ -34,7 +34,7 @@ const OLD_ACCENTS: Record<string, string> = { lime: 'aegean', ice: 'aegean', amb
 export const accentFor = (id: string | undefined): Accent => ACCENTS.find((x) => x.id === (OLD_ACCENTS[id ?? ''] ?? id)) || ACCENTS[0];
 /** The accent's tone for light or dark pages. */
 export const accentTone = (a: Accent, dark = isDark()): AccentTone => (dark ? a.dark : a.light);
-export const DEFAULT_LOOK: LookSetting = { scale: 100, accent: 'aegean', motion: 'full', chatFont: 'sans', station: 'balanced', sidebar: 'status', stationLook: 'classic', worldQuality: 'medium' };
+export const DEFAULT_LOOK: LookSetting = { theme: 'system', scale: 100, accent: 'aegean', motion: 'full', chatFont: 'sans', station: 'balanced', sidebar: 'status', stationLook: 'classic', worldQuality: 'medium' };
 let current: LookSetting = DEFAULT_LOOK;
 /** The look in use now (the Station reads its quality from here every frame). */
 export const currentLook = (): LookSetting => current;
@@ -59,6 +59,7 @@ onThemeChange(() => paintAccent(current.accent));
 export function applyLook(look: Partial<LookSetting> = {}): LookSetting {
   const l: LookSetting = { ...DEFAULT_LOOK, ...look };
   current = l;
+  applyTheme(l.theme);
   const root = document.documentElement;
   const scale = Math.max(70, Math.min(160, Number(l.scale) || 100));
   root.style.zoom = scale === 100 ? '' : String(scale / 100);

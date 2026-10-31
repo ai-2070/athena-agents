@@ -75,6 +75,7 @@ const INDEX: IndexEntry[] = [
   { tab: 'mcp', find: 'Found in your Claude configs', label: 'MCP servers from Claude configs', words: 'import claude desktop config mcp' },
   { tab: 'mcp', find: 'Built-in tools', label: 'Built-in tools', words: 'tools risk approval dashboard' },
   { tab: 'mcp', find: 'Share the dashboard tools', label: 'Share the dashboard tools', words: 'bridge external claude desktop mcp' },
+  { tab: 'look', find: 'Colour scheme', label: 'Colour scheme (light or dark)', words: 'look theme dark light night system appearance colour scheme mode' },
   { tab: 'look', find: 'UI scale', label: 'UI scale', words: 'look zoom size bigger smaller text font scale display' },
   { tab: 'look', find: 'Accent colour', label: 'Accent colour', words: 'look color colour theme highlight lime' },
   { tab: 'look', find: 'Animations', label: 'Animations', words: 'look motion reduce animation effects' },

@@ -14,6 +14,8 @@ const fontVar = () => document.documentElement.style.getPropertyValue('--font-ch
 
 beforeEach(() => {
   document.documentElement.removeAttribute('style');
+  // (a test that picks light or dark leaves it on <html>; the next one starts from the system's own setting)
+  document.documentElement.removeAttribute('data-theme');
   localStorage.clear();
 });
 
@@ -105,6 +107,29 @@ describe('Settings > Look', () => {
     expect(fontVar()).toContain("'Roboto'");
     await act(async () => vi.advanceTimersByTime(400));
     expect(puts).toEqual([{ look: { ...DEFAULT_LOOK, chatFont: 'roboto' } }]);
+  });
+
+  it('picks light, dark or the computer’s own setting, and saves it', async () => {
+    await act(async () => root.render(<LookTab />));
+    const seg = el.querySelector<HTMLElement>('[aria-label="Theme"]')!;
+    const choices = [...seg.querySelectorAll<HTMLButtonElement>('button')];
+    expect(choices.map((b) => b.textContent)).toEqual(['System', 'Light', 'Dark']);
+    const picked = () => choices.filter((b) => b.classList.contains('on')).map((b) => b.textContent);
+    expect(picked()).toEqual(['System']);
+    // nothing on <html> while System is picked: the stylesheet follows the computer
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+
+    await act(async () => choices[2].click());
+    expect(picked()).toEqual(['Dark']);
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(currentLook().theme).toBe('dark');
+    await act(async () => vi.advanceTimersByTime(400));
+    expect(puts).toEqual([{ look: { ...DEFAULT_LOOK, theme: 'dark' } }]);
+
+    await act(async () => choices[1].click());
+    expect(document.documentElement.dataset.theme).toBe('light');
+    await act(async () => choices[0].click());
+    expect(document.documentElement.dataset.theme).toBeUndefined();
   });
 
   it('sets the Station quality, says what it does, and saves it', async () => {

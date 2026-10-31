@@ -533,6 +533,8 @@ export interface CompactionSetting {
 }
 
 export interface LookSetting {
+  /** Light, dark, or whatever the computer is set to (see ThemeChoice). */
+  theme: ThemeChoice;
   scale: number;
   accent: string;
   motion: 'full' | 'reduced';
@@ -547,6 +549,8 @@ export interface LookSetting {
   /** How much the voxel world draws: shadows, glow and the miniature blur cost graphics power. */
   worldQuality: WorldQuality;
 }
+/** Light or dark pages, or following the computer's own setting (the default). */
+export type ThemeChoice = 'system' | 'light' | 'dark';
 export type StationLook = 'classic' | 'world';
 export type WorldQuality = 'low' | 'medium' | 'high';
 

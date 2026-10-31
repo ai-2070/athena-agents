@@ -1,9 +1,20 @@
-// Light or dark: the page follows the system. The stylesheet does it by itself (base.css); this is for what CSS
-// can't reach: the accent's two tones (look.ts), the Station's map and the terminal.
+// Light or dark: Settings > Look > Colour scheme picks one, or "System" to follow the computer. The stylesheet
+// swaps its own tokens from <html data-theme> (base.css); this is also for what CSS can't reach: the accent's two
+// tones (look.ts), the Station's map and the terminal.
+import type { ThemeChoice } from '../shared/types.ts';
+
 const media = typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: dark)') : null;
 
-// <html data-theme="dark"> or "light" (base.css) forces one whatever the system says; nothing sets it but a person checking both.
+// <html data-theme="dark"> or "light" (base.css) forces one whatever the system says.
 const forced = (): string | undefined => document.documentElement.dataset.theme;
+
+/** Light, dark, or the computer's own setting: writes it onto <html> so base.css and everything watching follow. */
+export function applyTheme(choice: ThemeChoice): void {
+  const root = document.documentElement;
+  // "system" leaves the attribute off, the way the system's own setting works
+  if (choice === 'light' || choice === 'dark') root.dataset.theme = choice;
+  else root.removeAttribute('data-theme');
+}
 
 /** True while the page is dark: the system is set to dark. */
 export const isDark = (): boolean => (forced() === 'dark' ? true : forced() === 'light' ? false : !!media?.matches);

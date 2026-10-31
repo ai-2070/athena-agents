@@ -296,15 +296,17 @@ function Fold({ children }: { children: ReactNode }) {
         <div ref={inner}>{children}</div>
       </div>
       {long ? (
-        <button
-          type="button"
-          className="tc-more mt-2.5 inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] text-faint hover:text-ink"
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-        >
-          <Icon name="chevron-down" size={12} className={open ? 'rotate-180' : undefined} />
-          {open ? 'Show less' : 'Show more'}
-        </button>
+        <div className="mt-2.5 flex w-full justify-center">
+          <button
+            type="button"
+            className="tc-more inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint hover:text-ink"
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+          >
+            <Icon name="chevron-down" size={12} className={open ? 'rotate-180' : undefined} />
+            {open ? 'Show less' : 'Show more'}
+          </button>
+        </div>
       ) : null}
     </>
   );
@@ -316,7 +318,7 @@ function Work({ m }: { m: TeamMessage }) {
   const turn = m.turn!;
   return (
     <details className="tc-work mt-3" onToggle={(e) => (e.currentTarget as HTMLDetailsElement).open && setOpened(true)}>
-      <summary className="list-none cursor-pointer inline-flex items-center gap-1.5 text-[12.5px] leading-[normal] font-normal text-faint [&::-webkit-details-marker]:hidden hover:text-ink [[open]>&]:text-ink">
+      <summary className="list-none cursor-pointer inline-flex items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint [&::-webkit-details-marker]:hidden hover:text-ink [[open]>&]:text-ink">
         <Icon name="wrench" size={12} />
         Show the work
       </summary>

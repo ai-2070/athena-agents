@@ -10,7 +10,8 @@ export function AgentSelect({ agents, value, onChange }: { agents: Agent[]; valu
   const picked = agents.find((a) => a.id === value);
   return (
     <Select.Root value={value} onValueChange={(v) => v && onChange(String(v))}>
-      <Select.Trigger aria-label="Agent to add" className="flex w-full cursor-pointer items-center gap-2.5 rounded-ctl border border-line-2 bg-panel px-2.5 py-1.5 text-left text-[13.5px] text-ink outline-none focus-visible:border-accent data-popup-open:border-accent">
+      {/* h-9 (36px): the height of the app's other fields and buttons, so it lines up beside them */}
+      <Select.Trigger aria-label="Agent to add" className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-ctl border border-line-2 bg-panel px-2.5 text-left text-[13.5px] text-ink outline-none focus-visible:border-accent data-popup-open:border-accent">
         <span className={`${row} flex-1`}>
           {picked ? <Avatar agent={picked} /> : null}
           <span className="min-w-0 truncate">{picked?.name}</span>

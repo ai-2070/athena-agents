@@ -3342,7 +3342,7 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
     if (S.layout?.bench) item('Put the Bench back', () => saveLayout({ bench: null }).then(() => rebuild()), '', 'rotate-ccw');
   } else {
     head('Station');
-    item('New team', newBranch, '', 'git-branch');
+    item('New team', newBranch, '', 'users');
     item('New agent', newAgent, '', 'bot');
     item('Hire from the library', () => navigate('#/library'), '', 'library-big');
     item('Ask the Brain', () => openDock(), '', 'sparkles');
@@ -3675,9 +3675,11 @@ function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
 // buttons that press in and lift on hover
 const TRANSITION = '[transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s]';
 const CONN_LABEL = 'inline-flex items-center gap-2 mr-1.5 whitespace-nowrap text-[12px] leading-[normal] font-medium text-dim';
-// a header tile; off and missing are marked by class, hot and the row's focus / soft by the script. The brand colour (--c) tints it;
-// its glyph is mixed toward the text colour so a pale brand still reads on white
-const INT_TILE = `grid place-items-center flex-none size-7 p-0 cursor-pointer rounded-ctl border border-[color-mix(in_srgb,var(--c)_32%,var(--color-line-2))] bg-[color-mix(in_srgb,var(--c)_8%,var(--color-raise))] text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[10px] leading-[normal] font-semibold shadow-card ${TRANSITION} [&_.logo-svg]:size-3.5 [&_.craft-icon]:size-5 active:[transform:scale(0.96)] hover:bg-[color-mix(in_srgb,var(--c)_14%,var(--color-raise))] [&.off]:bg-transparent [&.off]:text-faint [&.off]:border-line [&.off]:shadow-none [&.off_.logo-svg_path]:fill-faint [&.off_.craft-icon]:grayscale [&_.app-icon]:size-3.5 [&.off_.app-icon]:[filter:grayscale(1)_opacity(0.5)] [&.missing]:border-dashed group-[.focus]/conn:[&:not(.hot)]:opacity-25 group-[.focus]/conn:[&:not(.hot)]:grayscale group-[.focus.soft]/conn:[&:not(.hot)]:opacity-70 group-[.focus.soft]/conn:[&:not(.hot)]:[filter:none] group-[.focus]/conn:[&.hot]:border-(--c) group-[.focus]/conn:[&.hot]:bg-[color-mix(in_srgb,var(--c)_16%,var(--color-raise))]`;
+// a header tile; off and missing are marked by class, hot and the row's focus / soft by the script. Every active
+// tile sits on the same plate (bg-ghost, the top bar's own controls) so the row reads as one; the brand colour
+// (--c) is kept for the glyph, mixed toward the text colour so a pale brand still reads on white, and comes back
+// on the tile a hovered wire points at (.hot)
+const INT_TILE = `grid place-items-center flex-none size-7 p-0 cursor-pointer rounded-ctl border border-line-2 bg-ghost text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[10px] leading-[normal] font-semibold shadow-card ${TRANSITION} [&_.logo-svg]:size-3.5 [&_.craft-icon]:size-5 active:[transform:scale(0.96)] hover:bg-ghost-hover [&.off]:bg-transparent [&.off]:text-faint [&.off]:border-line [&.off]:shadow-none [&.off_.logo-svg_path]:fill-faint [&.off_.craft-icon]:grayscale [&_.app-icon]:size-3.5 [&.off_.app-icon]:[filter:grayscale(1)_opacity(0.5)] [&.missing]:border-dashed group-[.focus]/conn:[&:not(.hot)]:opacity-25 group-[.focus]/conn:[&:not(.hot)]:grayscale group-[.focus.soft]/conn:[&:not(.hot)]:opacity-70 group-[.focus.soft]/conn:[&:not(.hot)]:[filter:none] group-[.focus]/conn:[&.hot]:border-(--c) group-[.focus]/conn:[&.hot]:bg-[color-mix(in_srgb,var(--c)_16%,var(--color-raise))]`;
 const ENGINE =
   'group/eng relative grid place-items-center size-7 p-0 border-0 bg-transparent rounded-ctl cursor-pointer text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[14px] leading-[normal] font-semibold [transition:background-color_0.15s,opacity_0.2s,filter_0.2s] hover:bg-ink/5 [&.off]:text-faint [&.off]:grayscale [&.off]:opacity-60 [&.off]:hover:opacity-90 [&.busy]:animate-[pulse_1.4s_ease-in-out_infinite] [&_.app-icon]:size-4';
 const STAT = 'glass flex items-baseline gap-2 px-3 py-2 rounded-ctl text-[12.5px] leading-[normal] font-medium text-dim';
@@ -3786,7 +3788,7 @@ function drawHud(): void {
     const toAgents = e.ready && users.length ? `#/agents?uses=${engineKey(users[0])}` : '';
     return { ...e, uses, n: users.length + (brainP === e.brain ? 1 : 0), busy, toAgents, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${toAgents ? ' (click to see its agents)' : e.ready ? '' : ' (click to set up)'}` };
   });
-  S.clockEl ||= h('span.st-clock', { class: 'min-w-28 text-right text-[14px] leading-[normal] font-normal tabular-nums text-dim max-md:hidden [font-family:"DSEG7_Classic",sans-serif]' });
+  S.clockEl ||= h('span.st-clock', { class: 'min-w-28 text-right text-[14px] leading-[normal] font-normal tabular-nums text-dim max-md:hidden [font-family:Archivo,sans-serif]' });
   S.tileEls = new Map();
   mount(
     S.hudTop,
@@ -3848,7 +3850,7 @@ function drawHud(): void {
       d.runs.length || S.active.size ? h('div', { class: `${STAT} max-md:hidden` }, h('b', { class: `${STAT_N} text-accent` }, String(d.runs.length + S.active.size)), 'working') : null,
       needs ? h('button', { class: `${STAT} border-amber cursor-pointer`, onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: `${STAT_N} text-amber` }, String(needs)), 'needs you') : null,
       d.agents.length
-        ? domButton({ size: 'small', onclick: newBranch }, icon('git-branch', 14), 'New team')
+        ? domButton({ size: 'small', onclick: newBranch }, icon('users', 14), 'New team')
         : null,
     ),
   );

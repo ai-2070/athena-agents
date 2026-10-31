@@ -1,6 +1,7 @@
-// Opening the Brain chat from the keyboard: Ctrl+K / ⌘K anywhere, Space on the Station.
+// The keyboard away from the page's own controls: the Brain chat (Ctrl+K / ⌘K anywhere, Space on the
+// Station), the chat windows, and what Esc does once nothing has taken it.
 import { afterEach, describe, expect, it } from 'vitest';
-import { brainKeyLabel, brainKeyTitle, brainShortcut, chatWindowKeys, chatWindowShortcut } from '../../web/shortcuts.ts';
+import { backdropEscape, brainKeyLabel, brainKeyTitle, brainShortcut, chatWindowKeys, chatWindowShortcut } from '../../web/shortcuts.ts';
 
 /** Presses a key on el (the page itself by default) and says what it does to the Brain chat. */
 function press(init: KeyboardEventInit, ctx: { open?: boolean; onStation?: boolean } = {}, el: Element = document.body) {
@@ -59,6 +60,53 @@ describe('brainShortcut()', () => {
   it('other keys do nothing', () => {
     expect(press({ key: 'k' })).toBeNull();
     expect(press({ key: 'Enter' })).toBeNull();
+  });
+});
+
+describe('backdropEscape()', () => {
+  const page = (classes: string, extra = '') => {
+    document.body.className = classes;
+    document.body.innerHTML = extra;
+  };
+  afterEach(() => {
+    document.body.className = '';
+  });
+
+  it('goes back to the Station from any other page', () => {
+    page('');
+    expect(backdropEscape(document)).toBe('station');
+    // an agent chat, the Outbox, Settings: all of them
+    page('chat-open');
+    expect(backdropEscape(document)).toBe('station');
+  });
+
+  it('on the Station it opens the wide sidebar instead, and closes it again', () => {
+    page('station-mode');
+    expect(backdropEscape(document)).toBe('open-sidebar');
+    page('station-mode nav-wide');
+    expect(backdropEscape(document)).toBe('close-sidebar');
+  });
+
+  it('the phone menu closes first, and nothing goes anywhere while it does', () => {
+    page('nav-open station-mode');
+    expect(backdropEscape(document)).toBe('phone-menu');
+    page('nav-open');
+    expect(backdropEscape(document)).toBe('phone-menu');
+  });
+
+  it('a dialog, a dropdown or the Needs you drawer that is still up keeps its own Esc', () => {
+    page('', '<div class="modal-back"></div>');
+    expect(backdropEscape(document)).toBe(null);
+    page('', '<div class="st-menu dd"></div>');
+    expect(backdropEscape(document)).toBe(null);
+    page('', '<aside id="drawer" class="glass"></aside>');
+    expect(backdropEscape(document)).toBe(null);
+    // a closed drawer is not in the way
+    page('', '<aside id="drawer" class="glass hidden"></aside>');
+    expect(backdropEscape(document)).toBe('station');
+    // …and once it is gone, the page goes back
+    page('');
+    expect(backdropEscape(document)).toBe('station');
   });
 });
 

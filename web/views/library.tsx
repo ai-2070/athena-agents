@@ -394,7 +394,7 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
             {p.kind === 'team' ? 'Create this team' : 'Create this agent'}
           </Button>
           <span className="flex-1 min-w-0" />
-          <Button variant="danger" size="tiny" className="ghost" title="Delete preset" aria-label={`Delete the preset ${p.name}`} onClick={() => void del(p)}>
+          <Button variant="danger" size="small" title="Delete preset" aria-label={`Delete the preset ${p.name}`} onClick={() => void del(p)}>
             <Icon name="trash-2" size={13} />
           </Button>
         </div>

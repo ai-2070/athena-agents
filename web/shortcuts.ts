@@ -27,6 +27,24 @@ export function brainShortcut(e: KeyboardEvent, { open, onStation }: { open: boo
   return 'open';
 }
 
+/** What Esc does once nothing else has taken it (see backdropEscape). */
+export type BackdropEscape = 'phone-menu' | 'close-sidebar' | 'open-sidebar' | 'station' | null;
+
+/**
+ * What Esc does when nothing else wanted it — the Brain chat, a dialog, a menu and a Station panel all
+ * take it first, and they say so. Closer things come first here too: the phone's menu drawer, the Station's
+ * wide sidebar, then (on any other page) back to the Station. On the Station itself there is nowhere to go
+ * back to, so Esc opens that wide sidebar. An open dialog, dropdown or drawer keeps its own Esc (null): it
+ * has had no Esc of its own until now, and going somewhere behind it would be a surprise.
+ */
+export function backdropEscape(doc: Document): BackdropEscape {
+  const body = doc.body.classList;
+  if (body.contains('nav-open')) return 'phone-menu';
+  if (body.contains('nav-wide')) return 'close-sidebar';
+  if (doc.querySelector('.modal-back, .st-menu, #drawer:not(.hidden)')) return null;
+  return body.contains('station-mode') ? 'open-sidebar' : 'station';
+}
+
 /** What a chat window key does (see chatWindowShortcut). */
 export type ChatWindowAction = 'minimize' | 'restore' | 'left' | 'right' | 'separate' | 'combine';
 

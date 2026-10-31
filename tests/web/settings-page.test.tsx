@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
+import { DEFAULT_LOOK } from '../../web/look.ts';
 import * as settings from '../../web/views/setup.tsx';
 import { searchSettings } from '../../web/views/setup.tsx';
 import { ViewHost, mountReact } from '../../web/ui/react.tsx';
@@ -141,7 +142,7 @@ describe('the Look tab', () => {
     expect(swatch.classList.contains('on')).toBe(true);
     expect(puts).toEqual([]);
     await act(() => new Promise((r) => setTimeout(r, 400)));
-    expect(puts).toEqual([{ look: { scale: 100, accent: 'terracotta', motion: 'full', chatFont: 'sans', station: 'balanced', sidebar: 'status', stationLook: 'classic', worldQuality: 'medium' } }]);
+    expect(puts).toEqual([{ look: { ...DEFAULT_LOOK, accent: 'terracotta' } }]);
   });
 
   it('a change made just before leaving the tab is still saved', async () => {
@@ -158,7 +159,7 @@ describe('the Look tab', () => {
     // (off to another page at once, before the save was due)
     act(() => settings.unmount());
     await settle();
-    expect(puts).toEqual([{ look: { scale: 100, accent: 'terracotta', motion: 'full', chatFont: 'sans', station: 'balanced', sidebar: 'status', stationLook: 'classic', worldQuality: 'medium' } }]);
+    expect(puts).toEqual([{ look: { ...DEFAULT_LOOK, accent: 'terracotta' } }]);
     await act(() => new Promise((r) => setTimeout(r, 400)));
     expect(puts).toHaveLength(1);
   });
@@ -177,7 +178,7 @@ describe('the Look tab', () => {
     await act(async () => button('Voxel world')!.click());
     await act(async () => button('High')!.click());
     await act(() => new Promise((r) => setTimeout(r, 400)));
-    expect(puts).toEqual([{ look: { scale: 100, accent: 'aegean', motion: 'full', chatFont: 'sans', station: 'balanced', sidebar: 'status', stationLook: 'world', worldQuality: 'high' } }]);
+    expect(puts).toEqual([{ look: { ...DEFAULT_LOOK, stationLook: 'world', worldQuality: 'high' } }]);
   });
 
   it('has a UI scale slider screen readers read as a percentage, and preset sizes', async () => {

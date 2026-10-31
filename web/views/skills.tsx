@@ -208,7 +208,7 @@ function SkillCard({ s, d, teams, reload, loadTeams }: { s: SkillListing; d: App
           </Button>
         ) : null}
         <span className="flex-1 min-w-0" />
-        <Button variant="danger" size="tiny" className="ghost" title="Delete the skill" aria-label={`Delete the skill ${s.name}`} onClick={() => void remove()}>
+        <Button variant="danger" size="small" title="Delete the skill" aria-label={`Delete the skill ${s.name}`} onClick={() => void remove()}>
           <Icon name="trash-2" size={13} />
         </Button>
       </div>

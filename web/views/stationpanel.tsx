@@ -793,7 +793,7 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
           <div className="min-w-0 flex-1">
             <AgentSelect agents={others} value={addId} onChange={setPick} />
           </div>
-          <Button size="small" onClick={() => addId && void api.saveTeam(withMembers(wf, [...wf.members, addId]))}>
+          <Button onClick={() => addId && void api.saveTeam(withMembers(wf, [...wf.members, addId]))}>
             <Icon name="user-plus" size={14} />
             Add
           </Button>

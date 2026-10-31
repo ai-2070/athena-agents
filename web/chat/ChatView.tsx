@@ -837,8 +837,8 @@ export function ChatView(p: ChatViewProps) {
         </>
       ) : (
         <div className="composer">
-          {/* files, the box and its buttons, and the model: one column in the middle of the page */}
-          <div className="mx-auto max-w-[1000px]">
+          {/* files, the box and its buttons, and the model: the width comes from the column the page puts this in */}
+          <div>
             {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
             <Dom make={() => pastes.el} deps={[pastes]} />
             <div className="dock-composer relative">

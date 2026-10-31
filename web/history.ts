@@ -191,5 +191,6 @@ export async function openDeleted(kinds: VersionKind[], { onRestored }: { onRest
 }
 
 export function deletedButton(kinds: VersionKind[], onRestored?: () => void): HTMLButtonElement {
-  return domButton({ variant: 'ghost', size: 'small', type: 'button', onclick: () => openDeleted(kinds, { onRestored }) }, icon('archive-restore', 14), 'Recently deleted');
+  // (the size the toolbar's other buttons use: this sits in the same row on the Agents and Skills pages)
+  return domButton({ variant: 'ghost', type: 'button', onclick: () => openDeleted(kinds, { onRestored }) }, icon('archive-restore', 14), 'Recently deleted');
 }

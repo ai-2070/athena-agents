@@ -84,18 +84,21 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 
 ## Look
 
-"Linear, but white": quiet white surfaces, hairline borders, one accent, Geist, roomy spacing. The page follows the system:
-`base.css` swaps the `--color-*` tokens under `prefers-color-scheme: dark` (`<html data-theme="dark" | "light">` forces one,
-for checking both; nothing sets it in the app).
+"Linear, but white": quiet white surfaces, hairline borders, one accent, Geist, roomy spacing. Light or dark is
+`settings.look.theme` (Settings › Look › Colour scheme: System, Light, Dark), written onto `<html data-theme>` — by the
+server as it serves the page, so the first paint is already right, and by `web/theme.ts` when it changes. System leaves
+the attribute off, and `base.css` then swaps the `--color-*` tokens under `prefers-color-scheme: dark`.
 
 - Colour comes from the theme tokens (`bg-bg`, `bg-panel`, `border-line`, `text-ink`, `text-dim`, `text-accent`…), never a
   hard-coded hex for chrome. Per-agent and per-brand colours are data and stay; make sure they read on white and on near-black.
 - The accent is picked in Settings › Look and has two tones (`ACCENTS` in `web/look.ts`): don't assume a hue. Green means "on"
   (`text-ok`), amber "waiting", red "failed".
 - Canvases, three.js and the terminal can't use `var()`: read `isDark()` / `themeColor()` and restyle on `onThemeChange()`.
-- Labels, tabs, buttons and captions are sentence case in Geist; mono is for code, paths, URLs, ids and keys. No uppercase
-  letter-spaced captions, no coloured glows, no gradient text. Controls are `rounded-ctl`, cards `rounded-box`; depth is
-  `shadow-card`, `shadow-lift`, `shadow-raised` (what buttons, chips, pills and badges lift with) and `shadow-pop`.
+- Labels, tabs, buttons and captions are sentence case in Geist; mono is for code, paths, URLs, ids and keys. The one
+  exception is the sidebar's own menu, whose items read in capitals (CSS `uppercase`; the text stays as written). No
+  uppercase letter-spaced captions, no coloured glows, no gradient text. Controls are `rounded-ctl`, cards
+  `rounded-box`; depth is `shadow-card`, `shadow-lift`, `shadow-raised` (what buttons, chips, pills and badges lift
+  with) and `shadow-pop`.
 - **Controls are components, not class strings.** Use `Button`, `ButtonLink`, `IconButton` (`web/ui/button.tsx`), `Pill`,
   `Badge`, `Dot`, `Chip` (`web/ui/marks.tsx`) and `Plate`, `PlateSection`, `PlateLink` (`web/ui/surface.tsx`). A page that
   still builds its own DOM uses `domButton`, `domButtonLink`, `domIconButton`, `domPill`, `domBadge`, `domDot`, `domChip`
