@@ -234,3 +234,6 @@ Three alignment faults, found by looking at the running page and measured in it 
 - **5px of dead space under the chat and terminal pages** — `web/views/chat.tsx`, `web/views/terminals.tsx`.
   Both were `h-[calc(100vh-61px)]` while the top bar is 56px. Measured after: the page's bottom lands
   exactly on the window's bottom (674/674, 520/520, 820/820).
+- **The sidebar's menu reads a step stronger** — `web/app.ts`'s `NAV_LINK`. `font-medium` → `font-semibold`
+  (Geist ships as a variable font from `wght.css`, so 600 is a real cut, not a synthesis); measured in the
+  page: the link and its label both compute to `font-weight: 600`.
