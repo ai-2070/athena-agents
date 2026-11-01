@@ -2,6 +2,8 @@
 
 Research note, 31 October 2026. Written for the team; nothing here changes our code.
 
+**Athena revision, 1 November 2026.** Ordinary agent/team assignments now get automatic completion checks. The Brain continues unfinished work while results advance and reports blockers separately from success. See [Automatic work completion](plans/WORK_COMPLETION_2026-11-01.md) for the implementation and validation.
+
 **What this covers.** xAI's **Grok Bot** — the agent product bundled with The X Subscription, *not*
 the `@grok` bot on X. Three passes: what the subscription is, what its system prompts actually say
 (they leaked), and a deep comparison of how its bots orchestrate each other against our Teams,
@@ -237,7 +239,7 @@ flowchart TD
 | Team transcript limits | No fixed character or message-count cap | Full originals retained until cleared or deleted; engine context managed by compaction |
 | `MAX_BRAIN_REPLIES` | 4 | `@Brain` answers per user message |
 | `MAX_RELAYS` / `MAX_RELAY_DEPTH` | 4 / 3 | Team-to-team asks per message, and nesting |
-| `FOLLOW_UPS_MAX` | 2 | Brain re-asks before declaring the work stuck |
+| `NO_PROGRESS_LIMIT` | 3 | Consecutive completion checks without new progress before requesting user action; productive work has no fixed turn cap |
 
 Structural facts:
 
@@ -275,10 +277,10 @@ out. This is the closest analogue to `SendToAgent` — but with a **rendezvous**
 
 [`server/irc.ts`](../../server/irc.ts): `@Brain` in a team chat is answered in-thread (`brainTurn`), and a
 delegate becomes a **brief** (`BrainBrief`) the Brain checks on — `reviewWork` → `settle` → done / follow-up
-(≤2) / stuck, reported in Brain chat; `/goal` keeps a standing objective for an agent or a team. Grok Bot's
+ / blocked / stuck, reported in Brain chat or the original direct chat; ordinary assignments become standing objectives automatically, and `/goal` can supply an explicit condition. Grok Bot's
 analogue is the **primary Bot**, which "checks in on its own and coordinates work with your other Bots" — but
 that is an agent persona writing messages, while our Brain is an **explicit reviewer with a verdict and a
-bounded follow-up budget**.
+stop for repeated lack of progress**.
 
 ## 6. Side by side
 
@@ -295,7 +297,7 @@ bounded follow-up budget**.
 | Context per participant | One unified conversation carrying DMs and room turns (tagged); sees "since I last spoke" | Full shared messages enter each member's session; model-aware compaction, retained originals and conversation search/read tools |
 | Authority over the roster | Can `CreateAgent` / `UpdateAgent`; **only the user deletes** | The Brain creates and edits agents and teams; deletion is a user action, with version history |
 | Nesting | Groups **cannot** contain groups (throws) | Teams can ask teams, depth ≤ 3, with cycle detection |
-| Overseer | A *primary Bot* that chats and coordinates | The **Brain**: `reviewWork` verdicts, ≤2 follow-ups, `/goal` briefs |
+| Overseer | A *primary Bot* that chats and coordinates | The **Brain**: automatic completion checks, continuation while work advances, separate blockers and actionable user questions |
 | Where delegation lands | Executor subagents and Cursor cloud agents | Local engines: Claude Code, Codex, Hermes, pi, omp, OpenClaw, any OpenAI-compatible API |
 | Isolation between coworkers | Strict between users; **none between your own Bots** (one shared box) | Strict between **projects**: separate agents, teams, chats, files, worlds |
 
@@ -339,7 +341,7 @@ Almost every advantage on one side is the mirror of a disadvantage on the other.
 | Real routing | mentions → replied-to author → sole service holder → lead → Brain pick → first free member, else queue for first. Arbitrary fallback is explained in a persisted chat note. |
 | Ownership and aggregation are in the data | `lead` exists, the briefing says one owner per stage, and a finished non-lead turn returns its answer to the lead or asker once. |
 | Teams compose | `#Team Name` with depth ≤3, `waitsOn` cycle detection, and an 8 000-char answer cap. |
-| Something checks the result | The Brain reviews: `reviewWork` → done / follow-up (≤2) / stuck, with `/goal` as a standing objective. |
+| Something checks the result | The Brain reviews: `reviewWork` → done / follow-up / blocked / stuck, with ordinary assignments becoming standing objectives automatically. |
 | Rendezvous instead of a mailbox | `ask_agent` returns a handle and `await_agent` collects (up to 30 min per call, 6 h retention) — necessary because the asker is a local CLI or MCP call with a timeout. |
 | Steering | A new message stops the running turns and re-routes *with what each agent already did* (`STEER_WAIT_MS = 10 s`); `/queue`, `/loop` and `/resume` add scheduling. |
 | Blast radius is a project | Agents, teams, chats, files and worlds are per-project; Grok Bot isolates between *users* but not between your own Bots on the shared box. |
@@ -366,7 +368,7 @@ Almost every advantage on one side is the mirror of a disadvantage on the other.
 | A 12-step pipeline across four specialists | Needs user re-prompts or leaves the room | Runs to completion; billing is unbounded |
 | Need a teammate's answer to continue | Wait for an `[agent]` wake on a later turn | `await_agent` blocks with a handle, up to 30 min |
 | One team asks another | Not available | `#Team`, depth 3, cycle-checked |
-| "Is the work actually done?" | No reviewer; the user judges | Brain verdict with ≤2 follow-ups |
+| "Is the work actually done?" | No reviewer; the user judges | Brain checks saved evidence after each turn, continues missing work, and separates completion from blockers |
 | A runaway agent mid-task | Structurally capped in a room | Only the user's Stop |
 
 ### The shape of the trade-off

@@ -464,6 +464,8 @@ export interface Approval {
 /** A question an agent asked you with ask_user: a choice to make, something only you know, a place it is stuck.
  *  It waits in the Outbox with its choices as buttons and a box for an answer in your own words. */
 export interface AgentQuestion {
+  /** A completion check that stopped for user action. */
+  briefId?: string;
   id: string;
   question: string;
   /** what you need to know to answer (Markdown) */
@@ -623,7 +625,7 @@ export interface Settings {
   brainSkills: string[];
   /** The Brain may install skills from any GitHub link, not only from repos you named in the chat. */
   brainAnyGitHub: boolean;
-  /** The Brain checks the work it handed out when it's finished, follows up when something is missing, and tells you how it went. */
+  /** The Brain checks ordinary assignments after each turn and continues until delivered or blocked. */
   brainFollowsUp: boolean;
   look: LookSetting;
   telegram: { chatId: string };
@@ -876,11 +878,20 @@ export interface BrainBrief {
   messageId?: string;
   chatId?: string;
   followUps: number;
-  /** open: working on it. done: finished (or needs you). stuck: not done after the follow-ups. stopped: you stopped it. replaced: a newer brief went to the same team or agent. cleared: you dropped the goal. */
-  status: 'open' | 'done' | 'stuck' | 'stopped' | 'replaced' | 'cleared';
-  /** your /goal: the Brain judges the work against it, and follows up more times */
+  /** open: working. done: delivered. blocked: needs the user. stuck: no progress. */
+  status: 'open' | 'done' | 'blocked' | 'stuck' | 'stopped' | 'replaced' | 'cleared';
+  /** Created from an ordinary assignment; no command is needed. */
+  automatic?: boolean;
+  revision?: number;
+  stalled?: number;
+  /** Evidence of the last advance, for detecting repeated claims of progress. */
+  progress?: string;
+  workStamp?: string;
+  failures?: number;
+  userAction?: string;
+  /** Completion condition: the original user request, or an explicit /goal. */
   goal?: string;
-  /** chat: set with /goal in the agent's or team's own chat (the Brain reports there, not in the Brain chat) */
+  /** chat: assigned directly in this chat; completion reports there. */
   origin?: 'chat';
   /** the Brain's last word on it, for you */
   summary?: string;

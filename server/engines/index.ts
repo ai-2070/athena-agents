@@ -20,6 +20,7 @@ import * as compaction from '../compaction.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { richFor, richSection } from '../richanswers.ts';
+import { clearWork, stopChatWork } from '../briefs.ts';
 import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent, TeamContextMessage } from '../../shared/types.ts';
 import type { LoopRequest } from '../../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../../shared/queue.ts';
@@ -76,6 +77,10 @@ export interface RunEntry {
   chat: Chat;
   depth: number;
   parentRunId: string | null;
+  /** The top-level chat, even after its run has ended while children still work. */
+  ownerChatId: string;
+  ownerAgentId: string;
+  ancestors: string[];
   startedAt: number;
   agentName: string;
   /** the project the run started in: its chat, tools and files stay there */
@@ -220,6 +225,7 @@ export function chatRunId(agentId: string, chatId: string, projectId: string = h
 /** Clear memory: the agent starts fresh after this. While a run goes, its memory is cleared again when it
  *  ends (what it answers now came from the memory you cleared). */
 export function resetMemory(chat: Chat, projectId: string = here()): void {
+  if (projectId === here()) clearWork('agent', chat.agentId, chat.id);
   chat.items.push({ type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', reset: true, ts: Date.now() });
   if (runsIn(projectId, chat.id).length) resets.add(chatKey(projectId, chat.id));
   clearMemory(chat);
@@ -275,11 +281,13 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   // agent.engine comes from a JSON file, so it may be something unknown.
   const engine: Engine | undefined = (ENGINES as Partial<Record<string, Engine>>)[agent.engine];
   if (!engine) throw new Error(`Unknown engine "${agent.engine}".`);
+  if (!from && depth === 0 && !parentRunId) userWorkHook?.(agent, chat, text || `Work on the attached files: ${attachmentNames(attachments)}`);
   const runId = uid('r');
   const controller = new AbortController();
   const started = Date.now();
   const inProject = <T>(fn: () => T): T => withProject(project, fn);
-  const entry: RunEntry = { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, startedAt: started, agentName: agent.name, project, projectId: project.id, agent };
+  const parent = parentRunId ? active.get(parentRunId) : null;
+  const entry: RunEntry = { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, ownerChatId: parent?.ownerChatId || chat.id, ownerAgentId: parent?.ownerAgentId || agent.id, ancestors: [...(parent?.ancestors || []), ...(parentRunId ? [parentRunId] : [])], startedAt: started, agentName: agent.name, project, projectId: project.id, agent };
   active.set(runId, entry);
   // Saving skips chats deleted while the run was going.
   const persist = () =>
@@ -488,7 +496,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       // stopped for a new message from you: that message is next, and a /goal is checked after it instead
       const steered = stopped && !!entry.steered;
       try {
-        if (!steered) runEndHook?.({ agentId: agent.id, chatId: chat.id, runId, answer, stopped, failed });
+        if (!steered) runEndHook?.({ agentId: agent.id, chatId: chat.id, runId, parentRunId, ownerChatId: entry.ownerChatId, ownerAgentId: entry.ownerAgentId, answer, stopped, failed });
       } catch {
         /* a listener's problem is not the run's */
       }
@@ -593,6 +601,7 @@ const told = (id: string, runId: string | null) => {
 const chatBusy = (projectId: string, chatId: string) => runsIn(projectId, chatId).length > 0 || compacting.has(chatKey(projectId, chatId)) || steering.has(chatKey(projectId, chatId));
 /** Something is going in this chat: a run, or a compaction. */
 export const isChatBusy = (chatId: string, projectId: string = here()): boolean => chatBusy(projectId, chatId);
+export const hasBackgroundWork = (chatId: string, projectId: string = here()): boolean => [...active.values()].some((r) => r.projectId === projectId && r.ownerChatId === chatId && r.chatId !== chatId);
 const emitQueue = (agentId: string, chatId: string, projectId: string) => emit('queue', { agentId, chatId, queued: queuedMessages(chatId, projectId) });
 
 export function queuedMessages(chatId: string, projectId: string = here()): QueuedMessage[] {
@@ -700,11 +709,18 @@ export interface RunEnd {
   agentId: string;
   chatId: string;
   runId: string;
+  parentRunId?: string | null;
+  ownerChatId?: string;
+  ownerAgentId?: string;
   answer: string;
   stopped: boolean;
   failed: boolean;
 }
 let runEndHook: ((e: RunEnd) => void) | null = null;
+let userWorkHook: ((agent: Agent, chat: Chat, text: string) => void) | null = null;
+export function onUserWork(fn: typeof userWorkHook): void {
+  userWorkHook = fn;
+}
 /** Called (in the run's project) whenever a run ends. One listener. */
 export function onRunEnd(fn: ((e: RunEnd) => void) | null): void {
   runEndHook = fn;
@@ -827,6 +843,7 @@ export function stopRun(runId: string): boolean {
 }
 
 let closing = false;
+export const isStopping = (): boolean => closing;
 /** The server is stopping: stop every run (an agent's CLI and everything it started with it), start no
  *  new ones, and wait up to `ms` for them to end, so nothing keeps working in a project after we're gone. */
 export async function stopAllRuns(ms = 3000): Promise<void> {
@@ -837,16 +854,18 @@ export async function stopAllRuns(ms = 3000): Promise<void> {
 }
 
 export function stopChildren(parentRunId: string) {
-  for (const [id, r] of active) if (r.parentRunId === parentRunId) stopRun(id);
+  for (const [id, r] of active) if (r.ancestors.includes(parentRunId)) stopRun(id);
 }
 
 export function stopChat(chatId: string, projectId: string = here()) {
-  for (const [id] of runsIn(projectId, chatId)) stopRun(id);
+  stopChatWork(chatId, projectId);
+  for (const [id, run] of active) if (run.projectId === projectId && (run.chatId === chatId || run.ownerChatId === chatId)) stopRun(id);
 }
 
 // A chat deleted while running: stop it and make sure nothing writes it back.
 export function forgetChat(chatId: string, projectId: string = here()) {
   const live = liveChat(chatId, projectId);
+  if (live && projectId === here()) clearWork('agent', live.agentId, chatId);
   if (live) live._deleted = true;
   resets.delete(chatKey(projectId, chatId));
   unqueue(chatId, undefined, projectId);

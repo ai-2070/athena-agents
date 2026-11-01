@@ -106,11 +106,11 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
         <SavedSwitch
           field="brainFollowsUp"
           initial={s.brainFollowsUp !== false}
-          on="The Brain checks on the work it hands out"
-          off="The Brain hands work out and leaves it to them"
+          on="The Brain keeps assigned work going"
+          off="Only explicit goals get completion checks"
           reload={reload}
           title="The Brain follows up"
-          description="When a team or agent finishes work the Brain handed them, it checks the result. Something missing: it asks them for it (twice at most). Done, stuck, or they need you: it tells you in the Brain chat. Off: it only hands the work out, and stops checking on work it handed out before."
+          description="The Brain checks agent and team assignments after each turn and follows up while work advances. When the result is verified, it reports completion. Missing access, a decision, an error, or repeated lack of progress: it stops and tells you what is needed. No command is required. Off: only /goal requests get these checks."
         />
         <SavedSwitch
           field="brainAnyGitHub"

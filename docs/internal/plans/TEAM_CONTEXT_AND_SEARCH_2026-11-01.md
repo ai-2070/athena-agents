@@ -1,5 +1,7 @@
 # Full team context and conversation search
 
+Follow-up: [Automatic work completion](WORK_COMPLETION_2026-11-01.md) adds completion checks to ordinary assignments, continuation while work advances, and separate user-action blockers.
+
 1 November 2026. Replaces item 2 of [the team orchestration follow-ups](TEAM_ORCHESTRATION_FIXES_2026-10-31.md).
 
 The previous change made omitted text visible, but still removed information before agents could use it.

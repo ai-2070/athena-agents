@@ -8,13 +8,14 @@
 // Teams talk to each other like IRC channels: a message that names #Other Team goes to that team's chat
 // too, and once that team is done, its last reply comes back here to whoever asked.
 import { BUILD_ORDER, DIORAMA } from './voxel/diorama.ts';
-import { workflows as teamStore, agents, chats, emit, log, activeProject, openProject, withProject } from './store.ts';
+import { workflows as teamStore, agents, chats, emit, log, activeProject, openProject, getSettings, withProject } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath, settledWithin } from './util.ts';
-import { askAgent, stopChat, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
+import { askAgent, hasBackgroundWork, stopChat, stopChildren, forgetChat, RunStopped } from './engines/index.ts';
 import { isStepList, teamSteps, parseTeamRefs, teamFrom, fromTeam } from '../shared/teams.ts';
 import { attachmentNames, cleanAttachments } from './uploads.ts';
 import { soleHolder, servicesOf } from './services.ts';
 import { teamMessage } from './teamcontext.ts';
+import { clearWork, openBrief, stopTeamWork } from './briefs.ts';
 import type { Agent, LoopInfo, QueuedMessage, Team, TeamMessage, TeamRef, TeamRelay, TeamState } from '../shared/types.ts';
 import type { LoopRequest } from '../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../shared/queue.ts';
@@ -107,6 +108,7 @@ export interface BrainHandlers {
   reply(team: Team, msg: TeamMessage): Promise<string | null>;
   idle(teamId: string, opts: { stopped: boolean }): void;
   route?: RouteFn;
+  assigned?(team: Team, msg: TeamMessage): void;
 }
 let brainHandlers: BrainHandlers | null = null;
 export function setBrainHandlers(h: BrainHandlers | null): void {
@@ -173,6 +175,12 @@ export function teamState(teamId: string): TeamState {
   return { working: [...r.running], queued: [...new Set(r.queue.map((q) => q.agentId))], held: [...r.held], loop: loopInfo(r.loop), resumable: !!r.interrupted?.length };
 }
 
+/** Includes outstanding questions to other teams, not just local turns. */
+export function isTeamBusy(teamId: string): boolean {
+  const r = runtime(teamId);
+  return !!(r.running.size || r.queue.length || r.held.length || r.steering || r.releasing || r.brainQueue?.length || Object.values(loadChat(teamId).sessions).some((id) => hasBackgroundWork(id)) || relays.some((x) => x.pid === activeProject().id && x.from === teamId));
+}
+
 export function getThread(teamId: string, limit = 200): TeamState & { messages: TeamMessage[]; sessions: Record<string, string> } {
   const c = loadChat(teamId);
   // (each agent's own session for this team: where a working agent's turn streams from)
@@ -214,6 +222,8 @@ export function parseMentions(team: Team, text: unknown, exclude: string | null 
 
 // ---------- you (or the Brain) write in the team chat ----------
 interface PostOptions {
+  /** Internal goals and loops already have their own owner. */
+  track?: boolean;
   replyTo?: string | null;
   route?: RouteFn | null;
   /** given to every member for the work this message starts (a routine's skills) */
@@ -240,7 +250,7 @@ function postAndRoute(teamId: string, from: string, text: string | null | undefi
   return here(() => routeMessage(teamId, from, text, opts));
 }
 
-async function routeMessage(teamId: string, from: string, text: string | null | undefined, { replyTo = null, route = null, skills = [], attachments = [], relay, to = [], signal }: PostOptions & { relay?: TeamRelay }): Promise<TeamMessage> {
+async function routeMessage(teamId: string, from: string, text: string | null | undefined, { replyTo = null, route = null, skills = [], attachments = [], relay, to = [], signal, track = true }: PostOptions & { relay?: TeamRelay }): Promise<TeamMessage> {
   if (signal?.aborted) throw new RunStopped();
   const team = getTeam(teamId);
   if (!team) throw new Error('No such team.');
@@ -249,6 +259,7 @@ async function routeMessage(teamId: string, from: string, text: string | null | 
   if (!text && !attachments.length) throw new Error('Write something first.');
   const mentions = parseMentions(team, text);
   const msg = post(team, { from, text, mentions, replyTo, ...(attachments.length ? { attachments } : {}), ...(relay ? { relay } : {}) });
+  if (track && ((from === 'user' && !mentionsBrain(text)) || fromTeam(from))) brainHandlers?.assigned?.(team, msg);
   const r = runtime(team.id);
   r.episode = { turns: 0 }; // a new message from you gives the team a fresh budget
   r.stopped = false;
@@ -389,6 +400,7 @@ function askTeams(team: Team, msg: TeamMessage, ids: string[], by: string, { ret
       .catch((e: unknown) => {
         if (!joins && relays.includes(open)) relays.splice(relays.indexOf(open), 1);
         post(team, { from: 'system', text: `Couldn't ask #${to.name}: ${errText(e)}` });
+        settled(team.id);
       });
   }
   if (refused.length) {
@@ -419,6 +431,9 @@ function waitsOn(pid: string, a: string, b: string): boolean {
 function answerRelays(teamId: string, stopped: boolean) {
   // (a question still on its way there isn't in its chat yet)
   const pid = activeProject().id;
+  if (!stopped && Object.values(loadChat(teamId).sessions).some((id) => hasBackgroundWork(id))) return;
+  const brief = openBrief('team', teamId);
+  if (!stopped && brief && (getSettings().brainFollowsUp !== false || !brief.automatic)) return;
   const waiting = relays.filter((x) => x.pid === pid && x.to === teamId && x.postedId);
   if (!waiting.length || (!stopped && relays.some((x) => x.pid === pid && x.from === teamId))) return;
   const team = getTeam(teamId);
@@ -426,12 +441,13 @@ function answerRelays(teamId: string, stopped: boolean) {
   for (const x of waiting) {
     relays.splice(relays.indexOf(x), 1);
     const asker = getTeam(x.from);
-    // (its project isn't open now)
-    if (!team || !asker || openProject().id !== pid) continue;
+    // Each relay stays in the project that owns both teams.
+    if (!team || !asker) continue;
     const at = thread.findIndex((m) => m.id === x.postedId);
     const answer = at < 0 ? undefined : thread.slice(at + 1).findLast((m) => m.from === BRAIN || team.members.includes(m.from));
     if (stopped || !answer) {
       post(asker, { from: 'system', text: `#${team.name} ${stopped ? 'was stopped before it answered' : 'finished without an answer'}.` });
+      settled(asker.id);
       continue;
     }
     const text = answer.text.length > ANSWER_CHARS ? `${answer.text.slice(0, ANSWER_CHARS)}…` : answer.text;
@@ -445,6 +461,7 @@ function answerRelays(teamId: string, stopped: boolean) {
     log('team', `${team.name} answered ${asker.name}`);
     // the agent that asked picks it up (you read it yourself)
     if (asker.members.includes(x.by)) enqueue(asker, x.by, out.id, false, x.returning, x.skills);
+    else settled(asker.id);
   }
 }
 
@@ -456,7 +473,10 @@ function dropRelays(teamId: string, { cleared }: { cleared: boolean }) {
     if (x.pid !== pid || (x.from !== teamId && !(cleared && x.to === teamId))) continue;
     relays.splice(relays.indexOf(x), 1);
     const asker = x.to === teamId ? getTeam(x.from) : null;
-    if (asker) post(asker, { from: 'system', text: `#${getTeam(teamId)?.name || 'That team'}'s chat was cleared before it answered.` });
+    if (asker) {
+      post(asker, { from: 'system', text: `#${getTeam(teamId)?.name || 'That team'}'s chat was cleared before it answered.` });
+      settled(asker.id);
+    }
   }
 }
 
@@ -487,8 +507,8 @@ async function brainTurn(team: Team, msg: TeamMessage): Promise<void> {
   } finally {
     r.running.delete(BRAIN);
   }
-  // stopped, cleared or another project opened meanwhile: the answer is no longer wanted here
-  if (reply && r.epoch === epoch && !r.stopped && openProject().id === pid) {
+  // Stop and Clear invalidate the answer; opening another project does not.
+  if (reply && r.epoch === epoch && !r.stopped) {
     const fresh = getTeam(team.id) || team;
     const mentions = parseMentions(fresh, reply);
     const out = post(fresh, { from: BRAIN, text: reply, mentions, replyTo: msg.id });
@@ -507,7 +527,7 @@ async function brainTurn(team: Team, msg: TeamMessage): Promise<void> {
 // Nobody works and nothing waits: the Brain may look at what the team did.
 function settled(teamId: string, stopped = false) {
   const r = runtime(teamId);
-  if (r.running.size || r.queue.length || r.steering) return;
+  if (r.running.size || r.queue.length || r.steering || r.brainQueue?.length) return;
   // teams that asked this one get its answer
   answerRelays(teamId, stopped || !!r.stopped);
   try {
@@ -518,6 +538,10 @@ function settled(teamId: string, stopped = false) {
   // your next /queue message goes now (the Brain's check of the work then waits for it), then the loop's
   releaseHeld(teamId);
   loopSettled(teamId);
+}
+
+export function teamBackgroundFinished(teamId: string, blocked = false): void {
+  settled(teamId, blocked);
 }
 
 // returning: this is a finished handoff coming back (the receiver's own reply won't bounce back again)
@@ -551,12 +575,6 @@ function pump(teamId: string) {
   const r = runtime(teamId);
   if (r.stopped || r.steering) return;
   const project = activeProject();
-  if (r.queue.length && openProject().id !== project.id) {
-    // another project is open now: nothing new starts here (/resume picks it up once you're back)
-    r.interrupted = [...(r.interrupted || []), ...r.queue];
-    r.queue = [];
-    return;
-  }
   for (const item of [...r.queue]) {
     if (r.running.has(item.agentId)) continue;
     r.queue.splice(r.queue.indexOf(item), 1);
@@ -704,14 +722,6 @@ async function runTurn(team: Team, item: QueueItem) {
     if (loadChat(team.id, pid).sessions[agent.id] !== chatId) chats.remove(agent.id, chatId);
     return;
   }
-  if (openProject().id !== pid) {
-    // you switched projects while it worked: keep the reply in its own project, start nothing new there
-    const back = loadChat(team.id, pid);
-    const to = chats.get(agent.id, chatId)?.items.length ?? from;
-    back.messages.push({ id: uid('m'), ts: Date.now(), from: agent.id, text: text || '(no answer)', mentions: [], ...(to > from ? { turn: { chatId, from, to } } : {}) });
-    saveChat(team.id, back, pid);
-    return;
-  }
   const mentions = parseMentions(team, text, agent.id);
   const to = chats.get(agent.id, chatId)?.items.length ?? from;
   const msg = post(team, { from: agent.id, text: text || '(no answer)', mentions, ...(to > from ? { turn: { chatId, from, to } } : {}) });
@@ -848,8 +858,8 @@ function releaseHeld(teamId: string) {
   const r = runtime(teamId);
   if (!r.held.length || !idle(r) || r.stopped) return;
   const team = getTeam(teamId);
-  // (typed in another project: that project's thread isn't open now)
-  if (!team || r.heldIn !== openProject().id) {
+  // The queue belongs to the project where it was typed.
+  if (!team || r.heldIn !== activeProject().id) {
     r.held = [];
     if (team) state(team);
     return;
@@ -945,7 +955,7 @@ function fireLoop(teamId: string) {
   l.posted = true;
   l.next = null;
   r.releasing = true;
-  postUserMessage(team.id, l.text, { route: l.route, attachments: l.attachments })
+  postUserMessage(team.id, l.text, { route: l.route, attachments: l.attachments, track: false })
     .catch((e: unknown) => stopTeamLoop(teamId, `Loop ended: ${e instanceof Error ? e.message : String(e)}`))
     .finally(() => {
       r.releasing = false;
@@ -1002,6 +1012,7 @@ export function dropQueuedTurns(agentId: string): number {
 }
 
 export function stopTeam(teamId: string) {
+  stopTeamWork(teamId);
   const team = getTeam(teamId);
   const r = runtime(teamId);
   r.stopped = true;
@@ -1024,6 +1035,7 @@ export function stopTeam(teamId: string) {
 
 export function clearThread(teamId: string) {
   if (!getTeam(teamId)) throw new Error('No such team.');
+  clearWork('team', teamId);
   // drop queued work and turns still running, so nothing late lands in the empty thread
   const r = runtime(teamId);
   r.epoch++;

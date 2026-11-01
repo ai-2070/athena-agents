@@ -50,8 +50,8 @@ export function slashSuggestions(text: string, kind: ChatKind, extra: readonly {
   return [...ours, ...theirs].slice(0, 40);
 }
 
-/** Follow-ups on your /goal before the Brain says it isn't reached (the Brain's own hand-offs get 2). */
-export const GOAL_FOLLOW_UPS = 5;
+/** Consecutive completion checks without new progress before asking the user for help. */
+export const NO_PROGRESS_LIMIT = 3;
 
 // ---------- /loop ----------
 export const LOOP_TIMES = 10;

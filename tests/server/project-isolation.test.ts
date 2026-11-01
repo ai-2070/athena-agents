@@ -254,8 +254,9 @@ describe('a cloned team', () => {
       const messages = withProject(a, () => getThread(team.id).messages);
       expect(messages.some((m) => m.from === member.id && m.text.startsWith('re:'))).toBe(true);
       expect(getThread(team.id).messages.some((m) => m.from === member.id)).toBe(false);
-      // Original queued turns are suspended while the clone is open.
-      expect(withProject(a, () => teamState(team.id).resumable)).toBe(true);
+      // Original queued turns finish in the original while the clone is open.
+      expect(messages.some((m) => m.text === 'Original held message')).toBe(true);
+      expect(withProject(a, () => teamState(team.id).resumable)).toBe(false);
     } finally {
       withProject(a, () => stopTeam(team.id));
       withProject(b, () => stopTeam(team.id));

@@ -2,7 +2,7 @@
 // "/", and the loop and goal chips above the box. (The agent chat is React: web/chat/ChatView.tsx.)
 import { h, mount } from './core.ts';
 import { icon } from './icons.ts';
-import { GOAL_FOLLOW_UPS, loopPace, slashSuggestions } from '../shared/commands.ts';
+import { loopPace, slashSuggestions } from '../shared/commands.ts';
 import type { ChatKind, SlashOption } from '../shared/commands.ts';
 import type { BrainBrief, LoopInfo } from '../shared/types.ts';
 
@@ -76,9 +76,9 @@ export function loopLine(l: LoopInfo): string {
   return `${loopPace(l.every)} · ${l.done} of ${l.times} sent${next}`;
 }
 
-/** "the Brain checks each turn" / "2 of 5 follow-ups" */
-export function goalLine(g: BrainBrief, max = GOAL_FOLLOW_UPS): string {
-  return g.followUps ? `${g.followUps} of ${max} follow-ups` : 'the Brain checks the work after each turn';
+/** Completion checks continue while work advances. */
+export function goalLine(g: BrainBrief): string {
+  return g.followUps ? `${g.followUps} follow-up${g.followUps === 1 ? '' : 's'}` : 'the Brain checks the work after each turn';
 }
 
 const CHIP_TEXT = 'min-w-0 flex-1 truncate';

@@ -1,5 +1,7 @@
 # Team orchestration: four follow-ups
 
+**Completion follow-up, 1 November 2026.** [Automatic work completion](WORK_COMPLETION_2026-11-01.md) adds default completion checks, continuation while work advances, actionable blockers and startup recovery. Team queues now continue in their owning project when another project is opened; project switches no longer require `/resume`.
+
 Plan, 31 October 2026. Follows the comparison in
 [`docs/internal/GROK_BOT_ORCHESTRATION_2026-10-31.md`](../GROK_BOT_ORCHESTRATION_2026-10-31.md).
 

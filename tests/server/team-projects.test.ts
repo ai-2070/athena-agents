@@ -95,11 +95,12 @@ describe('picking who answers', () => {
     picked.resolve(b.id);
     await sent;
     await new Promise((r) => setTimeout(r, 150));
-    // nothing started in the project open now, and the work waits in its own project for /resume
-    expect(calls).toBe(n);
+    // Work continues in its own project without changing the project open now.
+    await wait(() => calls > n && texts(src.id, team.id).includes('Late answer.'));
+    expect(calls).toBe(n + 1);
     expect(fs.existsSync(dataPath('projects', 'other-2', 'teamchats', `${team.id}.json`))).toBe(false);
     expect(teamState(team.id)).toMatchObject({ working: [], queued: [], resumable: false });
-    withProject(src, () => expect(teamState(team.id)).toMatchObject({ working: [], queued: [], resumable: true }));
+    withProject(src, () => expect(teamState(team.id)).toMatchObject({ working: [], queued: [], resumable: false }));
   });
 
   it('starts nobody when a routine was stopped meanwhile', async () => {

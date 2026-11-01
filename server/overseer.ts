@@ -1956,7 +1956,7 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
   if (delegate) {
     try {
       const { sendBrief } = await import('./irc.ts');
-      await sendBrief(delegate, goal ? { goal: text } : {});
+      await sendBrief(delegate, { objective: text, completed: done.filter((d) => d.kind !== 'error').map((d) => d.text), ...(goal ? { goal: text } : {}) });
     } catch (e) {
       done.push({ kind: 'error', text: `Couldn't hand it to ${delegate.name}: ${(e as Error).message}` });
       delegate = null;

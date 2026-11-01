@@ -33,7 +33,7 @@ import { isEffort } from '../shared/effort.ts';
 import { queuedText } from '../shared/queue.ts';
 import { savedOpacity } from '../shared/look.ts';
 import * as commands from './commands.ts';
-import { openGoal } from './briefs.ts';
+import { openGoal, clearWork } from './briefs.ts';
 import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
@@ -491,6 +491,7 @@ post('/api/agents/:id/chats', async ({ id }) => chats.create(need(agents.get(id)
 get('/api/agents/:id/chats/:cid', async ({ id, cid }) => ({ ...need(chats.get(id, cid)), queued: engines.queuedMessages(cid), loop: engines.loopOf(cid), goal: openGoal('agent', id, cid) }));
 del('/api/agents/:id/chats/:cid', async ({ id, cid }) => {
   engines.forgetChat(cid);
+  clearWork('agent', id, cid);
   chats.remove(id, cid);
   return { ok: true };
 });
@@ -1456,6 +1457,7 @@ wfs.startScheduler();
 skills.ensureBuiltinSkills();
 learning.startLearning();
 irc.startIrc();
+void irc.recoverWork().catch((e: unknown) => store.log('error', `Couldn't resume saved work: ${e instanceof Error ? e.message : String(e)}`));
 routinesMod.markInterruptedRoutines();
 routinesMod.startRoutineScheduler();
 projectSync.startAutoSave();
