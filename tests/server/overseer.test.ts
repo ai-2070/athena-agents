@@ -27,6 +27,16 @@ describe('parseActions()', () => {
 });
 
 describe('applyActions()', () => {
+  it('keeps task ids in metadata and out of task activity text', () => {
+    const created = applyActions([{ do: 'TaskCreate', subject: 'Check the report [phase 2]', description: 'Verify the report.' }]).done[0];
+    expect(created).toMatchObject({ kind: 'task', text: 'Created task: Check the report [phase 2]', taskId: expect.any(String) });
+    for (const status of ['in_progress', 'completed', 'deleted']) {
+      const result = applyActions([{ do: 'TaskUpdate', taskId: created.taskId, status }]).done[0];
+      expect(result.taskId).toBe(created.taskId);
+      expect(result.text).toBe(`${status === 'deleted' ? 'Removed' : 'Updated'} task: Check the report [phase 2]`);
+    }
+  });
+
   it('builds a team from existing and new agents, with a lead', () => {
     const writer = newAgent({ name: 'Writer' });
     const before = agents.list().length;

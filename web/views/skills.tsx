@@ -115,7 +115,7 @@ function SkillsPage({ open }: { open?: string }) {
         </div>
       </div>
       {shown.length ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {shown.map((s) => (
             <SkillCard key={s.slug} s={s} d={d} teams={teams} reload={reload} loadTeams={loadTeams} />
           ))}

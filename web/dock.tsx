@@ -435,6 +435,8 @@ function StepCard({ st }: { st: BrainStep }) {
 const DONE_ICONS: Record<string, string> = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', model: 'cpu', mcp: 'plug', stop: 'square', memory: 'file-text', error: 'triangle-alert', note: 'check' };
 // What the Brain did, with where to see it.
 function DoneAction({ d }: { d: BrainDone }) {
+  const suffix = d.kind === 'task' && d.taskId ? ` [${d.taskId}]` : '';
+  const text = suffix && d.text.endsWith(suffix) ? d.text.slice(0, -suffix.length) : d.text;
   const open = d.teamId
     ? { label: 'Show', go: () => navigate(`#/station?team=${d.teamId}`) }
     : d.routineId
@@ -449,7 +451,7 @@ function DoneAction({ d }: { d: BrainDone }) {
   return (
     <div className={d.kind === 'error' ? ACT_ERR : ACT_OK}>
       <Icon name={DONE_ICONS[d.kind] || 'check'} size={13} />
-      <span className="flex-1">{d.text}</span>
+      <span className="flex-1">{text}</span>
       {open ? (
         <Button size="tiny" variant="ghost" onClick={open.go}>
           {open.label}

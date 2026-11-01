@@ -958,8 +958,8 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
           <DomNode as="span" className="dom-contents" make={() => historyButton('team', id, () => void api.reloadTeams())} deps={[id]} />
-          <Button variant="danger" size="tiny" className="ml-auto" onClick={() => void remove()}>
-            <Icon name="trash-2" size={12} />
+          <Button variant="danger" size="small" className="ml-auto" onClick={() => void remove()}>
+            <Icon name="trash-2" size={13} />
             Delete team
           </Button>
         </div>

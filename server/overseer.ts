@@ -1318,7 +1318,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         for (const result of results) {
           if (!result.success) { done.push({ kind: 'error', text: `${kind} item ${result.index + 1}: ${result.error}` }); continue; }
           const task = saved.get(result.taskId)!;
-          done.push({ kind: 'task', taskId: task.id, text: `${kind === 'TaskCreate' ? 'Created' : task.status === 'deleted' ? 'Removed' : 'Updated'} task: ${task.subject} [${task.id}]` });
+          done.push({ kind: 'task', taskId: task.id, text: `${kind === 'TaskCreate' ? 'Created' : task.status === 'deleted' ? 'Removed' : 'Updated'} task: ${task.subject}` });
         }
         continue;
       }
