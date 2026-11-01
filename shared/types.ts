@@ -8,6 +8,20 @@ export type Autonomy = 'ask' | 'auto' | 'full';
 export type ProviderId = 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'custom';
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
 
+/** An API model's advertised limits. Missing capabilities mean the provider did not say. */
+export interface ApiModelInfo {
+  id: string;
+  name: string;
+  context: number | null;
+  tools?: boolean;
+  vision?: boolean;
+  multipleImages?: boolean;
+  reasoningEfforts?: Effort[];
+  offline?: boolean;
+  /** USD per million tokens, already normalized across providers. */
+  price: { in: number; out: number; cached?: number } | null;
+}
+
 // ---------- agents ----------
 export interface AgentSource {
   type: 'custom' | 'agency' | 'starter' | 'hermes' | 'openclaw' | 'claude' | 'brain' | 'preset' | string;

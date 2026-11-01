@@ -14,7 +14,7 @@ import { EFFORT_NAMES, effortFor, effortLevels } from '../shared/effort.ts';
 import { Button } from './ui/button.tsx';
 import { PopoverContent, PopoverRoot } from './ui/popover.tsx';
 import { DomNode, Icon } from './ui/react.tsx';
-import type { Agent, BrainSetting, Effort, EngineId, EngineStatus, FavoriteModel } from '../shared/types.ts';
+import type { Agent, ApiModelInfo, BrainSetting, Effort, EngineId, EngineStatus, FavoriteModel } from '../shared/types.ts';
 
 /** What modelInfo() needs: an agent, or the Brain dressed up as one (brainAsAgent). */
 export interface ModelTarget {
@@ -44,12 +44,8 @@ export interface ModelInfo {
   where: string;
 }
 /** One entry of GET /api/models (engine=openai, codex, pi…). */
-export interface ModelListing {
+export interface ModelListing extends Partial<Omit<ApiModelInfo, 'id'>> {
   id: string;
-  name?: string;
-  context?: number | null;
-  tools?: boolean;
-  price?: { in: number; out: number } | null;
   /** Codex: what the model is for */
   description?: string;
 }

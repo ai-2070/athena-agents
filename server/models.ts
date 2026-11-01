@@ -99,6 +99,7 @@ export interface FoundModel {
   name: string;
   /** price, context, tool use… */
   note?: string;
+  offline?: boolean;
 }
 
 // The lists are fetched over the network for API providers: kept for a few minutes.
@@ -128,11 +129,12 @@ export async function availableModels(p: ModelProvider): Promise<FoundModel[]> {
     }
   } else if (p === 'pi' || p === 'omp') list = (await piModels(p).catch(() => [])).map((m) => ({ id: m.id, name: m.name, ...(m.context ? { note: `${Math.round(m.context / 1000)}k context` } : {}) }));
   else if (p === 'openclaw') list = (await openclawModels().catch(() => [])).map((m) => ({ id: m.id, name: m.name }));
-  else if (!providerProblem(p)) {
+  else if (p === 'venice' || !providerProblem(p)) {
     list = (await listModels(MODEL_PROVIDERS[p].provider!)).map((m) => ({
       id: m.id,
       name: m.name,
-      note: [m.price ? `$${m.price.in.toFixed(2)} in / $${m.price.out.toFixed(2)} out per M tokens` : '', m.context ? `${Math.round(m.context / 1000)}k context` : '', p === 'openrouter' && !m.tools ? 'no tool use' : ''].filter(Boolean).join(', ') || undefined,
+      note: [m.price ? `$${m.price.in.toFixed(2)} in / $${m.price.out.toFixed(2)} out per M tokens` : '', m.context ? `${Math.round(m.context / 1000)}k context` : '', m.tools === false ? 'no tool use' : '', m.offline ? 'temporarily unavailable' : ''].filter(Boolean).join(', ') || undefined,
+      ...(m.offline ? { offline: true } : {}),
     }));
   }
   // an empty list may be a server that isn't running yet: ask again next time
@@ -210,7 +212,9 @@ export function checkModelNow(p: ModelProvider, model: string): string | null {
   const hit = cache.get(cacheKey(p));
   const all = hit && Date.now() - hit.at < CACHE_MS ? hit.list : [];
   // can't list them (server not running): take the id as given
-  if (!all.length || all.some((m) => m.id === id)) return null;
+  const found = all.find((m) => m.id === id);
+  if (found?.offline) return `${MODEL_PROVIDERS[p].label} model "${id}" is temporarily unavailable`;
+  if (!all.length || found) return null;
   const like = closeModels(all, id);
   return `${MODEL_PROVIDERS[p].label} has no model "${id}"${like.length ? ` (close: ${like.map((m) => m.id).join(', ')})` : ''}`;
 }

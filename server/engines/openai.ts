@@ -11,8 +11,9 @@ import { checkpointSection, compactAt, compactionSettings, contextWindow, estima
 import type { FetchError } from '../util.ts';
 import { effortFor } from '../../shared/effort.ts';
 import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
+import { normalizeApiModels } from '../apimodels.ts';
 import { cacheFields } from '../promptcache.ts';
-import type { Agent, EngineStatus, ProviderId, RunEvent } from '../../shared/types.ts';
+import type { Agent, ApiModelInfo, EngineStatus, ProviderId, RunEvent } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 
 export interface ProviderDef {
@@ -30,22 +31,7 @@ interface Provider {
 }
 
 /** A model as GET /api/models lists it. price is USD per million tokens. */
-export interface ModelInfo {
-  id: string;
-  name: string;
-  context: number | null;
-  tools: boolean;
-  price: { in: number; out: number } | null;
-}
-
-/** A row of an OpenAI-compatible /models answer (OpenRouter adds the extra fields). */
-interface ApiModel {
-  id: string;
-  name?: string;
-  context_length?: number;
-  supported_parameters?: string[];
-  pricing?: { prompt: string; completion: string };
-}
+export type ModelInfo = ApiModelInfo;
 
 export interface ToolCall {
   id: string;
@@ -135,15 +121,12 @@ export async function listModels(providerId: string): Promise<ModelInfo[]> {
   const base = (p.base() || '').replace(/\/$/, '');
   if (!base) return [];
   try {
-    const res = await fetch(`${base}/models`, { headers: { authorization: `Bearer ${p.key() || ''}` }, signal: AbortSignal.timeout(8000) });
-    const j = (await res.json()) as { data?: ApiModel[] };
-    return (j.data || []).map((m) => ({
-      id: m.id,
-      name: m.name || m.id,
-      context: m.context_length || null,
-      tools: providerId === 'openrouter' ? (m.supported_parameters || []).includes('tools') : true,
-      price: m.pricing ? { in: +m.pricing.prompt * 1e6, out: +m.pricing.completion * 1e6 } : null,
-    }));
+    const res = await fetch(`${base}/models${providerId === 'venice' ? '?type=text' : ''}`, {
+      headers: providerId === 'venice' ? {} : { authorization: `Bearer ${p.key() || ''}` }, signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const json: unknown = await res.json();
+    return normalizeApiModels(json, providerId);
   } catch {
     return [];
   }
