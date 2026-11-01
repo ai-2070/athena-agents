@@ -1,0 +1,121 @@
+server/overseer.ts
+  s_7daa4bf644d295::t_27b1f4b7f7c793 1959
+tests/web/chatview.test.tsx
+  s_7daa4bf644d295::t_1d9dda3aa45a1e 500
+docs/internal/plans/WORK_COMPLETION_2026-11-01.md
+  s_7daa4bf644d295::t_65fbde92ec5cda 1-31,33-46
+  s_7daa4bf644d295::t_bb4f722d253839 32,47-51
+server/briefs.ts
+  s_7daa4bf644d295::t_de2479cb4e5470 2,63,66,74-81
+  s_7daa4bf644d295::t_27a4f1155129ba 6,15
+  s_7daa4bf644d295::t_b7763e9d5fe5a2 83-84,95
+  s_7daa4bf644d295::t_5a78eac1e2c97b 85-94
+  s_7daa4bf644d295::t_e45532b7ea196c 23,25,64,70-71
+  s_7daa4bf644d295::t_dc18e7feedeca0 60-62,65,67-69,72-73,82
+tests/server/irc.test.ts
+  s_7daa4bf644d295::t_e45532b7ea196c 9-10,101,110,169,183-185
+  s_7daa4bf644d295::t_4c06b7d9b32a40 256
+  s_7daa4bf644d295::t_4aaf536dbc10f4 111,153
+tests/web/chatcommands.test.ts
+  s_7daa4bf644d295::t_4aaf536dbc10f4 65
+server/index.ts
+  s_7daa4bf644d295::t_ab31a304f6646f 36,494
+  s_7daa4bf644d295::t_b7763e9d5fe5a2 1460
+tests/server/team-projects.test.ts
+  s_7daa4bf644d295::t_8ffbb250fcd0f9 98-100,103
+docs/guide.md
+  s_7daa4bf644d295::t_65fbde92ec5cda 81-82,180
+tests/server/project-isolation.test.ts
+  s_7daa4bf644d295::t_8ffbb250fcd0f9 257-259
+docs/internal/plans/TEAM_CONTEXT_AND_SEARCH_2026-11-01.md
+  s_7daa4bf644d295::t_65fbde92ec5cda 3-4
+server/irc.ts
+  s_7daa4bf644d295::t_53ce1ce9691792 6,448
+  s_7daa4bf644d295::t_8ffbb250fcd0f9 173,182-185
+  s_7daa4bf644d295::t_5a78eac1e2c97b 221,266,449-451
+  s_7daa4bf644d295::t_1d9dda3aa45a1e 116-119,193,261
+  s_7daa4bf644d295::t_4c06b7d9b32a40 386
+  s_7daa4bf644d295::t_2ff4bfa62258c1 9,163,196,210,239,415,418
+  s_7daa4bf644d295::t_24c2d936154c78 22,63,213,258,349-351
+  s_7daa4bf644d295::t_27a4f1155129ba 69,107,405
+  s_7daa4bf644d295::t_de2479cb4e5470 4,55,125-129
+  s_7daa4bf644d295::t_2ff8813b219718 5,90,93,110,146,192,262-263
+  s_7daa4bf644d295::t_b7763e9d5fe5a2 3,10,162,188,191,407-414,416-417,422-433,435-436,441,453-463
+  s_7daa4bf644d295::t_503d08a3b467f5 229
+  s_7daa4bf644d295::t_2985e7ce88ac32 443-446,452
+  s_7daa4bf644d295::t_e45532b7ea196c 2,57-60,70,75,98,109,140,151,200-201,269,276-277,387
+  s_7daa4bf644d295::t_27b1f4b7f7c793 46,51-52,176,219,223,240-247
+  s_7daa4bf644d295::t_3d36d7a4b3f70e 8,14,18,78,87-89,97,99-103,105-106,108,115,120-121,123-124,131,135-138,142,147-148,156
+  s_7daa4bf644d295::t_8028ece79bc4c5 122,368-371
+  s_7daa4bf644d295::t_bdf24b86dc7313 232-238,248-253,419-421,434,437-440,442
+  s_7daa4bf644d295::t_350f4b915ae681 174,186,195,197,204,209,220,222,230-231,254-255,259-260,280,398,400-402
+  s_7daa4bf644d295::t_8549a454e4d094 130,143,447
+  s_7daa4bf644d295::t_0dc9784e15656b 23,177-181,224-228,399,403
+server/questions.ts
+  s_7daa4bf644d295::t_de2479cb4e5470 28-29,44,49,53
+docs/internal/plans/TEAM_ORCHESTRATION_FIXES_2026-10-31.md
+  s_7daa4bf644d295::t_27a4f1155129ba 3-4
+server/teams.ts
+  s_7daa4bf644d295::t_ab31a304f6646f 445,511,862,1038
+  s_7daa4bf644d295::t_8549a454e4d094 11,262,435-436,543-544
+  s_7daa4bf644d295::t_5a78eac1e2c97b 18,1015
+  s_7daa4bf644d295::t_2985e7ce88ac32 13,181
+  s_7daa4bf644d295::t_dc18e7feedeca0 111
+  s_7daa4bf644d295::t_8ffbb250fcd0f9 178-180,182-183,464,545
+  s_7daa4bf644d295::t_53ce1ce9691792 403,434,450,476-479
+  s_7daa4bf644d295::t_24c2d936154c78 225-226,253,530,958
+  s_7daa4bf644d295::t_27a4f1155129ba 444,510,861
+  s_7daa4bf644d295::t_259a0f45c1072f 546
+server/engines/index.ts
+  s_7daa4bf644d295::t_503d08a3b467f5 80-81,289,862
+  s_7daa4bf644d295::t_ab31a304f6646f 228,868
+  s_7daa4bf644d295::t_2985e7ce88ac32 82-83,290,499,604,713-714,857
+  s_7daa4bf644d295::t_b7763e9d5fe5a2 23,712,861
+  s_7daa4bf644d295::t_dc18e7feedeca0 284,720-723
+  s_7daa4bf644d295::t_2ff4bfa62258c1 846
+tests/server/goals.test.ts
+  s_7daa4bf644d295::t_8549a454e4d094 271-288
+  s_7daa4bf644d295::t_503d08a3b467f5 14,51,116-134,160-173,198-206,228-241
+  s_7daa4bf644d295::t_24c2d936154c78 15
+  s_7daa4bf644d295::t_cf2e7efdc8e4b4 7-8,11-13,19,28-30,38-39,46,49-50,52-54,57-62,93-115,135-159,174-197,207-227,242-243,289-348
+  s_7daa4bf644d295::t_2ff4bfa62258c1 244-270
+  s_7daa4bf644d295::t_4aaf536dbc10f4 365,369,372-373
+server/commands.ts
+  s_7daa4bf644d295::t_8028ece79bc4c5 162,167,172
+  s_7daa4bf644d295::t_503d08a3b467f5 164
+  s_7daa4bf644d295::t_2985e7ce88ac32 146
+README.md
+  s_7daa4bf644d295::t_65fbde92ec5cda 172-173
+docs/internal/GROK_BOT_ORCHESTRATION_2026-10-31.md
+  s_7daa4bf644d295::t_27a4f1155129ba 5-6,242,280,283,300,344,371
+shared/commands.ts
+  s_7daa4bf644d295::t_350f4b915ae681 53-54
+web/views/settings.tsx
+  s_7daa4bf644d295::t_24c2d936154c78 109-110,113
+shared/types.ts
+  s_7daa4bf644d295::t_2ff8813b219718 889
+  s_7daa4bf644d295::t_0dc9784e15656b 628,892
+  s_7daa4bf644d295::t_dc18e7feedeca0 881-888,891
+  s_7daa4bf644d295::t_bdf24b86dc7313 890
+  s_7daa4bf644d295::t_27a4f1155129ba 894
+  s_7daa4bf644d295::t_de2479cb4e5470 467-468
+web/chatcommands.ts
+  s_7daa4bf644d295::t_0dc9784e15656b 79
+  s_7daa4bf644d295::t_350f4b915ae681 5,80-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "045411ec49c5bb782aa905198e06fea424be07b8",
+  "prompts": {},
+  "sessions": {
+    "s_7daa4bf644d295": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1909a-0e49-7540-af35-65ce95355b59",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
