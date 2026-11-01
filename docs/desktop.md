@@ -57,6 +57,13 @@ A second launch shows and focuses the open window. Size and position are remembe
 
 ### Keep in mind when changing the server
 
+The staged app also includes the experimental Eve runtime in `app/runtime/eve/`, its attachment
+filesystem templates in `app/runtime/eve-sandbox-cache/`, and Node 24.19.0 in `app/runtime/`.
+Node downloads are checked against the release checksums and include their license. These files
+support the API-engine replacement; the normal agent engine has not switched to Eve yet.
+`desktop:smoke` exercises the staged Eve server with the bundled Node, a fake model and throwaway
+state before checking the dashboard. Builds need Node.js 24 or newer; installed users do not.
+
 - Everything the server imports must bundle with `Bun.build` (`target: 'bun'`). Native modules can't be
   bundled: add them to `external` in `build-desktop.ts` and copy them like node-pty.
 - Files the server reads relative to `ROOT` must be copied into the app by `copyStatic()`. `VENDOR` paths in

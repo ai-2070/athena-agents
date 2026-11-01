@@ -43,6 +43,11 @@ jobs:
       - name: Build web bundle
         run: bun run build
 
+      - name: Build and exercise the Eve runtime
+        run: |
+          bun run eve:build
+          bun run eve:smoke
+
   desktop:
     name: Desktop app (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -57,6 +62,10 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
 
       - name: Install Linux libraries for Tauri
         if: runner.os == 'Linux'

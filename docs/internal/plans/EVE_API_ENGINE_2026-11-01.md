@@ -1,6 +1,34 @@
 # Replace the built-in API agent with Eve
 
-*Plan, 1 November 2026. Not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
+*Plan, 1 November 2026. Runtime proof implemented; API-engine cutover is not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
+
+## Progress
+
+Phase 1 now has a pinned Eve 1.0.0-rc.1 application, dynamic model/instructions/tool definitions,
+private token authentication, an attachment-only virtual filesystem and a repeatable smoke check.
+`eve:build` uses supported Node output. Desktop staging includes that output, its filesystem
+templates and checksum-verified Node 24.19.0; the dashboard continues to use its existing engines.
+The Bun server will supervise the private Node process in the next phase, keeping Tauri's single
+dashboard-child ownership model rather than adding a second independent Rust supervisor.
+
+Windows checks prove the model/tool round trip, rejection of unauthenticated input, idle-session
+restart, image bytes and PDF input without Docker, and relocation into the staged desktop app.
+Models and tool execution in these checks are protocol fixtures: no live paid model, user key or
+local model installation is used. Linux CI runs the same proof; that result is still pending.
+The measured runtime output is about 16.2 MB plus a 92.8 MB Windows Node executable and a small
+filesystem template. Startup measured about 0.7 seconds in the source proof and 2.1 seconds in
+the first staged proof; these are local observations, not performance guarantees.
+
+Two findings constrain the next phases:
+
+- Eve 1.0.0-rc.1 ignores `WORKFLOW_LOCAL_DATA_DIR` for its managed local world and derives state
+  from the process working directory. The supervisor must use a private working directory under
+  `DATA` and copy the prepared attachment templates there. Compiler output alone is insufficient.
+- A reply's delivery event can precede its Workflow checkpoint. On Windows, forcibly stopping
+  immediately after that event left a resumed turn stalled in the proof; an idle restart after
+  the checkpoint passes. The smoke check explicitly waits for the checkpoint rather than claiming
+  interrupted-run recovery. Phase 3 must resolve and test that boundary before cutover. Do not
+  work around it in the product with a fixed sleep or silently restart a side-effecting turn.
 
 ## Goal and scope
 

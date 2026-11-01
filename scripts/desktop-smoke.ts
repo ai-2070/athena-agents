@@ -19,6 +19,11 @@ for (const f of [bun, path.join(app, 'server', 'index.js'), path.join(app, 'serv
   if (!fs.existsSync(f)) throw new Error(`Missing ${f}. Run: bun scripts/build-desktop.ts`);
 }
 
+const eve = Bun.spawn([bun, path.join(root, 'scripts/eve-smoke.ts'), path.join(app, 'runtime/eve/server/index.mjs'), path.join(app, 'runtime', `node${t.exe}`), path.join(app, 'runtime/eve-sandbox-cache')], {
+  stdout: 'inherit', stderr: 'inherit',
+});
+if (await eve.exited !== 0) throw new Error('The staged Eve runtime failed its smoke check.');
+
 const freePort = (): Promise<number> =>
   new Promise((resolve, reject) => {
     const s = net.createServer();

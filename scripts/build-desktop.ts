@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import zlib from 'node:zlib';
 import { desktopTarget, hostTriple, shasumFor } from './desktop-target.ts';
 import type { DesktopTarget } from './desktop-target.ts';
+import { stageNode } from './node-runtime.ts';
 
 const root = path.resolve(import.meta.dirname, '..');
 const tauriDir = path.join(root, 'src-tauri');
@@ -174,4 +175,8 @@ await bundleServer();
 copyStatic();
 copyTerminalModule(target);
 await bunRuntime(target, host);
+sh([process.execPath, path.join(root, 'scripts/build-eve.ts')]);
+copyDir(path.join(root, 'runtime/eve/.output'), path.join(stage, 'runtime/eve'));
+copyDir(path.join(root, 'runtime/eve/.eve/sandbox-cache'), path.join(stage, 'runtime/eve-sandbox-cache'));
+await stageNode(target, cache, path.join(stage, 'runtime', `node${target.exe}`));
 step(`ready in ${((performance.now() - started) / 1000).toFixed(1)} s → src-tauri/app, src-tauri/binaries`);
