@@ -22,6 +22,13 @@ export interface ApiModelInfo {
   price: { in: number; out: number; cached?: number } | null;
 }
 
+/** Reported debits stay separate from the USD-equivalent amount used for a run's budget. */
+export interface RunBilling {
+  source: 'reported' | 'estimated' | 'unavailable';
+  chargedUsd?: number;
+  chargedDiem?: number;
+}
+
 // ---------- agents ----------
 export interface AgentSource {
   type: 'custom' | 'agency' | 'starter' | 'hermes' | 'openclaw' | 'claude' | 'brain' | 'preset' | string;
@@ -294,7 +301,7 @@ export type ChatItem =
   | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number }
   | { type: 'error'; text: string; ts?: number }
   /** reset: "Clear memory" (the agent starts fresh after it) */
-  | { type: 'meta'; text: string; ts?: number; reset?: boolean }
+  | { type: 'meta'; text: string; ts?: number; reset?: boolean; billing?: RunBilling }
   | CompactionItem;
 
 /** Full messages imported from the team's shared transcript before a member answers. */
@@ -435,7 +442,7 @@ export type RunEvent =
   | { kind: 'tool_result'; id: string; text?: string; isError?: boolean; images?: string[] }
   | { kind: 'status'; text: string }
   | { kind: 'model'; model: string }
-  | { kind: 'done'; text: string; cost?: number; seconds?: number }
+  | { kind: 'done'; text: string; cost?: number; seconds?: number; billing?: RunBilling }
   /** the engine compacted its own memory (Claude Code): marked in the chat, never sent on as a run event */
   | { kind: 'compacted'; trigger?: string; tokensBefore?: number }
   | { kind: 'error'; text: string };

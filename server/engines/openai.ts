@@ -6,29 +6,18 @@ import { attachedImages } from '../uploads.ts';
 import { inlineToolImages, keepToolImages } from '../toolimages.ts';
 import { callTool as callBuiltin, toolDefs, gate } from '../tools.ts';
 import * as mcp from '../mcp.ts';
-import { PORT } from '../util.ts';
 import { checkpointSection, compactAt, compactionSettings, contextWindow, estimateTokens, isOverflowError } from '../compaction.ts';
 import type { FetchError } from '../util.ts';
 import { effortFor } from '../../shared/effort.ts';
 import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
-import { normalizeApiModels } from '../apimodels.ts';
-import { cacheFields } from '../promptcache.ts';
-import type { Agent, ApiModelInfo, EngineStatus, ProviderId, RunEvent } from '../../shared/types.ts';
+import { apiModelInfo, apiRequestOptions, resolveApiProvider } from '../apiproviders.ts';
+import { apiErrorMessage, numberOf, objectOf } from '../apiresponse.ts';
+import { completionBilling } from '../apibilling.ts';
+import type { ApiProvider } from '../apiproviders.ts';
+export { PROVIDERS, listApiModels as listModels } from '../apiproviders.ts';
+export type { ProviderDef } from '../apiproviders.ts';
+import type { Agent, ApiModelInfo, EngineStatus, RunBilling, RunEvent } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
-
-export interface ProviderDef {
-  label: string;
-  base: () => string;
-  key: () => string | undefined;
-  needsKey?: boolean;
-}
-
-/** A provider ready to call: base URL without the trailing slash, and the request headers. */
-interface Provider {
-  id: string;
-  base: string;
-  headers: Record<string, string>;
-}
 
 /** A model as GET /api/models lists it. price is USD per million tokens. */
 export type ModelInfo = ApiModelInfo;
@@ -68,7 +57,9 @@ interface Usage {
 /** One `data:` line of a streamed chat completion. */
 interface StreamChunk {
   /** an error sent inside the stream (OpenRouter puts the HTTP status in code) */
-  error?: { message?: string; code?: number | string };
+  error?: string | { message?: string; code?: number | string };
+  code?: number | string;
+  cost?: { usd?: number; diem?: number };
   usage?: Usage;
   choices?: {
     finish_reason?: string | null;
@@ -81,6 +72,7 @@ interface Completion {
   calls: ToolCall[];
   usage: Usage | null;
   finish: string | null;
+  cost: { usd?: number; diem?: number } | null;
 }
 
 /** What a tool call hands back to the model (built-in or MCP). */
@@ -90,46 +82,8 @@ interface ToolOutput {
   isError?: boolean;
 }
 
-export const PROVIDERS: Record<ProviderId, ProviderDef> = {
-  openrouter: { label: 'OpenRouter', base: () => 'https://openrouter.ai/api/v1', key: () => getSecrets().openrouterKey, needsKey: true },
-  venice: { label: 'Venice', base: () => 'https://api.venice.ai/api/v1', key: () => getSecrets().veniceKey, needsKey: true },
-  lmstudio: { label: 'LM Studio (local)', base: () => getSettings().providers.lmstudio.baseUrl, key: () => 'lm-studio' },
-  ollama: { label: 'Ollama (local)', base: () => getSettings().providers.ollama.baseUrl, key: () => 'ollama' },
-  custom: { label: 'Custom', base: () => getSettings().providers.custom.baseUrl, key: () => getSecrets().customKey || 'none' },
-};
-
 export function status(): EngineStatus['openai'] {
   return { openrouter: !!getSecrets().openrouterKey, venice: !!getSecrets().veniceKey, custom: !!getSettings().providers.custom.baseUrl };
-}
-
-function providerOf(agent: Agent): Provider {
-  const id = agent.provider || 'openrouter';
-  const p: ProviderDef | undefined = (PROVIDERS as Partial<Record<string, ProviderDef>>)[id];
-  if (!p) throw new Error(`Unknown provider ${id}`);
-  const base = (p.base() || '').replace(/\/$/, '');
-  const key = p.key();
-  if (!base) throw new Error(`${p.label} has no address. Set it in Settings.`);
-  if (p.needsKey && !key) throw new Error(`Add your ${p.label} key in Settings first.`);
-  const headers: Record<string, string> = { 'content-type': 'application/json', authorization: `Bearer ${key}` };
-  if (id === 'openrouter') Object.assign(headers, { 'HTTP-Referer': `http://localhost:${PORT}`, 'X-Title': 'Athena Agents' });
-  return { id, base, headers };
-}
-
-export async function listModels(providerId: string): Promise<ModelInfo[]> {
-  const p: ProviderDef | undefined = (PROVIDERS as Partial<Record<string, ProviderDef>>)[providerId];
-  if (!p) return [];
-  const base = (p.base() || '').replace(/\/$/, '');
-  if (!base) return [];
-  try {
-    const res = await fetch(`${base}/models${providerId === 'venice' ? '?type=text' : ''}`, {
-      headers: providerId === 'venice' ? {} : { authorization: `Bearer ${p.key() || ''}` }, signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return [];
-    const json: unknown = await res.json();
-    return normalizeApiModels(json, providerId);
-  } catch {
-    return [];
-  }
 }
 
 const safeName = (s: string): string => s.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
@@ -168,13 +122,13 @@ async function gatherTools(agent: Agent, onEvent: (ev: RunEvent) => void): Promi
 /** An error from the model server; midStream: part of the answer had come already. */
 type StreamError = FetchError & { midStream?: boolean };
 
-async function streamCompletion({ provider, body, signal, onEvent }: { provider: Provider; body: Record<string, unknown>; signal: AbortSignal; onEvent: (ev: RunEvent) => void }): Promise<Completion> {
+async function streamCompletion({ provider, body, signal, onEvent }: { provider: ApiProvider; body: Record<string, unknown>; signal: AbortSignal; onEvent: (ev: RunEvent) => void }): Promise<Completion> {
   const res = await fetch(`${provider.base}/chat/completions`, { method: 'POST', headers: provider.headers, body: JSON.stringify(body), signal });
   if (!res.ok) {
     const t = await res.text();
     let msg = t;
     try {
-      msg = (JSON.parse(t) as StreamChunk).error?.message || t;
+      msg = apiErrorMessage(JSON.parse(t) as unknown, t);
     } catch {
       /* not json */
     }
@@ -182,56 +136,79 @@ async function streamCompletion({ provider, body, signal, onEvent }: { provider:
     e.status = res.status;
     throw e;
   }
-  const reader = res.body!.getReader();
+  if (!res.body) throw new Error(`${provider.label} returned an empty response.`);
+  const reader = res.body.getReader();
   const dec = new TextDecoder();
   let buf = '';
   let content = '';
   const calls: ToolCall[] = [];
   let usage: Usage | null = null;
   let finish: string | null = null;
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let nl;
-    while ((nl = buf.indexOf('\n')) !== -1) {
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
-      if (!line.startsWith('data:')) continue;
-      const data = line.slice(5).trim();
-      if (data === '[DONE]') continue;
-      let j: StreamChunk;
-      try {
-        j = JSON.parse(data) as StreamChunk;
-      } catch {
-        continue;
+  let cost: Completion['cost'] = null;
+  const lineOf = (line: string) => {
+    if (!line.startsWith('data:')) return;
+    const data = line.slice(5).trim();
+    if (data === '[DONE]') return;
+    let j: StreamChunk;
+    try {
+      j = JSON.parse(data) as StreamChunk;
+    } catch {
+      return;
+    }
+    if (j.error) {
+      const e: StreamError = new Error(apiErrorMessage(j, `${provider.label} failed.`));
+      const status = numberOf(objectOf(j.error).code ?? j.code);
+      if (status != null) e.status = status;
+      // after part of the answer was shown, asking again would show it twice
+      e.midStream = !!content || calls.length > 0;
+      throw e;
+    }
+    if (j.usage) usage = { ...usage, ...j.usage };
+    if (j.cost) {
+      const usd = numberOf(j.cost.usd);
+      const diem = numberOf(j.cost.diem);
+      cost = { ...cost, ...(usd != null ? { usd } : {}), ...(diem != null ? { diem } : {}) };
+    }
+    const ch = j.choices?.[0];
+    if (!ch) return;
+    if (ch.finish_reason) finish = ch.finish_reason;
+    const d = ch.delta || {};
+    if (d.content) {
+      content += d.content;
+      onEvent({ kind: 'text', text: d.content });
+    }
+    for (const tc of d.tool_calls || []) {
+      const i = tc.index ?? calls.length;
+      calls[i] ||= { id: '', type: 'function', function: { name: '', arguments: '' } };
+      if (tc.id) calls[i].id = tc.id;
+      if (tc.function?.name) calls[i].function.name += tc.function.name;
+      if (tc.function?.arguments) calls[i].function.arguments += tc.function.arguments;
+    }
+  };
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      buf += done ? dec.decode() : dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) !== -1) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        lineOf(line);
       }
-      if (j.error) {
-        const e: StreamError = new Error(j.error.message || JSON.stringify(j.error));
-        if (typeof j.error.code === 'number') e.status = j.error.code;
-        // after part of the answer was shown, asking again would show it twice
-        e.midStream = !!content || calls.length > 0;
-        throw e;
-      }
-      if (j.usage) usage = j.usage;
-      const ch = j.choices?.[0];
-      if (!ch) continue;
-      if (ch.finish_reason) finish = ch.finish_reason;
-      const d = ch.delta || {};
-      if (d.content) {
-        content += d.content;
-        onEvent({ kind: 'text', text: d.content });
-      }
-      for (const tc of d.tool_calls || []) {
-        const i = tc.index ?? calls.length;
-        calls[i] ||= { id: '', type: 'function', function: { name: '', arguments: '' } };
-        if (tc.id) calls[i].id = tc.id;
-        if (tc.function?.name) calls[i].function.name += tc.function.name;
-        if (tc.function?.arguments) calls[i].function.arguments += tc.function.arguments;
+      if (done) {
+        if (buf.trim()) lineOf(buf.trim());
+        break;
       }
     }
+  } catch (error) {
+    const e: StreamError = error instanceof Error ? error : new Error(String(error));
+    e.midStream = !!content || calls.length > 0;
+    await reader.cancel().catch(() => {});
+    throw e;
+  } finally {
+    reader.releaseLock();
   }
-  return { content, calls: calls.filter(Boolean), usage, finish };
+  return { content, calls: calls.filter(Boolean), usage, finish, cost };
 }
 
 const FILE_URL = 'dash-file:';
@@ -301,20 +278,26 @@ async function toolPictures(agentId: string, chatId: string, images: readonly st
 const hasImages = (msgs: LlmMessage[]) => msgs.some((m) => m.role === 'user' && Array.isArray(m.content) && m.content.some((x) => x.type === 'image_url'));
 
 export async function run({ agent, chat, text, signal, onEvent, depth, runId, systemPrompt, attachments = [], compact }: EngineRunArgs): Promise<EngineResult> {
-  const provider = providerOf(agent);
+  const provider = resolveApiProvider(agent.provider || 'openrouter');
   const settings = getSettings();
   const model = agent.model || defaultModelForEngine('openai', settings.defaults, provider.id);
-  if (!model) throw new Error(`Choose a ${PROVIDERS[provider.id as ProviderId].label} model in Settings or for this agent first.`);
+  if (!model) throw new Error(`Choose a ${provider.label} model in Settings or for this agent first.`);
+  const info = await apiModelInfo(provider.id, model);
+  if (info?.offline) throw new Error(`${provider.label} model "${model}" is temporarily unavailable. Choose another model.`);
+  if (signal.aborted) throw new Error('Stopped.');
   chat.llm ||= [];
   const images = imageParts(attachments);
   chat.llm.push({ role: 'user', content: images.length ? [{ type: 'text', text }, ...images] : text });
   // off once the model says it can't take images
-  let vision = true;
+  let vision = info?.vision !== false;
+  const maxImages = info?.multipleImages === false ? 1 : MAX_IMAGES;
   onEvent({ kind: 'model', model });
-  let { defs, route } = await gatherTools(agent, onEvent);
+  let { defs, route } = info?.tools === false ? { defs: [] as ToolDef[], route: new Map<string, ToolRoute>() } : await gatherTools(agent, onEvent);
   // how hard it thinks: OpenRouter takes reasoning.effort, other OpenAI-compatible servers reasoning_effort
-  let effort = effortFor('openai', agent.effort, provider.id);
+  let effort = effortFor('openai', agent.effort, provider.id, info?.reasoningEfforts);
   let cost = 0;
+  const billing: RunBilling | undefined = provider.id === 'venice' ? { source: 'reported' } : undefined;
+  let budgetWarning = false;
   let tokens = 0;
   let cached = 0;
   let finalText = '';
@@ -348,18 +331,16 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
     const body = {
       model,
       // (the compacted history, if any, goes with the instructions: an edit to it counts from the next request)
-      messages: [{ role: 'system', content: systemPrompt + checkpointSection(chat.items) }, ...expandImages(history(), vision)],
-      stream: true,
+      messages: [{ role: 'system', content: systemPrompt + checkpointSection(chat.items) }, ...expandImages(history(), vision, maxImages)],
       ...(defs.length ? { tools: defs } : {}),
-      ...(provider.id === 'openrouter' ? { usage: { include: true } } : { stream_options: { include_usage: true } }),
       ...(agent.temperature != null && agent.temperature !== '' ? { temperature: Number(agent.temperature) } : {}),
-      ...(effort ? (provider.id === 'openrouter' ? { reasoning: { effort } } : { reasoning_effort: effort }) : {}),
-      ...cacheFields(provider.id, model, chat.id),
+      ...apiRequestOptions(provider.id, model, effort, chat.id),
     };
     let r: Completion;
     try {
       r = await streamCompletion({ provider, body, signal, onEvent });
     } catch (e) {
+      if ((e as StreamError).midStream) throw e;
       // too long for the model: compact once and ask again (first: such an error can mention tools or images)
       if (cs.auto && !overflowRetried && isOverflowError(e)) {
         overflowRetried = true;
@@ -397,10 +378,22 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
     // and the messages since then are estimated)
     let context = 0;
     if (r.usage) {
-      cost += Number(r.usage.cost || 0);
-      tokens += Number(r.usage.total_tokens || 0);
-      cached += Number(r.usage.prompt_tokens_details?.cached_tokens || 0);
-      context = Number(r.usage.total_tokens || 0) || Number(r.usage.prompt_tokens || 0) + Number(r.usage.completion_tokens || 0);
+      if (!billing) cost += numberOf(r.usage.cost) || 0;
+      context = numberOf(r.usage.total_tokens) || (numberOf(r.usage.prompt_tokens) || 0) + (numberOf(r.usage.completion_tokens) || 0);
+      tokens += context;
+      cached += numberOf(r.usage.prompt_tokens_details?.cached_tokens) || 0;
+    }
+    if (billing) {
+      const stepBilling = completionBilling(r.usage, r.cost, info?.price || null);
+      cost += stepBilling.cost || 0;
+      if (stepBilling.billing.source === 'unavailable') billing.source = 'unavailable';
+      else if (stepBilling.billing.source === 'estimated' && billing.source !== 'unavailable') billing.source = 'estimated';
+      if (stepBilling.billing.chargedUsd != null) billing.chargedUsd = (billing.chargedUsd || 0) + stepBilling.billing.chargedUsd;
+      if (stepBilling.billing.chargedDiem != null) billing.chargedDiem = (billing.chargedDiem || 0) + stepBilling.billing.chargedDiem;
+      if (billing.source === 'unavailable' && !budgetWarning) {
+        budgetWarning = true;
+        onEvent({ kind: 'status', text: 'Venice did not report enough cost information. The monetary limit cannot be measured for this run; the tool-step limit still applies.' });
+      }
     }
     // Cut off (out of tokens) or stopped by the provider: not a finished answer, and a half-written tool call
     // must not run with whatever arguments survived. What it wrote stays, and /resume carries on from there.
@@ -480,7 +473,7 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
     if (step === maxSteps - 1) onEvent({ kind: 'text', text: `\n\n_Stopped after ${maxSteps} tool steps (Settings > Max tool steps)._` });
   }
   // (not measured, or compacted since: say nothing and let the estimate do)
-  return { text: finalText, cost, tokens, ...(cached ? { cached } : {}), ...(measured ? { context: used() } : {}) };
+  return { text: finalText, ...(billing?.source === 'unavailable' ? {} : { cost }), ...(billing ? { billing } : {}), tokens, ...(cached ? { cached } : {}), ...(measured ? { context: used() } : {}) };
 }
 
 // Keep the conversation under a rough size budget, cutting oldest turns at a user message boundary.
