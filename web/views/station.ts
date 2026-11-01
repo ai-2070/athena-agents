@@ -3492,7 +3492,7 @@ function projectWrapParts(): HTMLElement[] {
   // the arrow keys, drawn as small keys: they show what the keyboard does, and can be clicked too
   const key = (dir: 1 | -1, enabled: boolean) => {
     const k = h(`button.st-floor-key.${dir < 0 ? 'up' : 'down'}`, {
-      class: 'flex-none grid place-items-center w-4.5 h-4 p-0 border border-line-2 border-b-2 rounded-[4px] bg-transparent text-dim cursor-pointer opacity-70 transition-[opacity,color,border-color] duration-150 ease-[ease] hover:not-disabled:opacity-100 hover:not-disabled:text-ink hover:not-disabled:border-faint disabled:opacity-25 disabled:cursor-default',
+      class: `${enabled ? 'glass ' : ''}flex-none grid place-items-center w-4.5 h-4 p-0 border border-line-2 border-b-2 rounded-[4px] text-dim cursor-pointer transition-[opacity,color,border-color] duration-150 ease-[ease] hover:not-disabled:text-ink hover:not-disabled:border-accent-dim disabled:bg-transparent disabled:opacity-25 disabled:cursor-default`,
       type: 'button',
       title: dir < 0 ? 'The project above (Up arrow)' : 'The project below (Down arrow)',
       'aria-label': dir < 0 ? 'Previous project' : 'Next project',
@@ -3579,8 +3579,14 @@ function paintFloorPick(dir: 1 | -1 | 0 = 0): void {
   if (belowEl) rollText(belowEl, shortName(below?.name || ''), dir);
   const upKey = wrap.querySelector<HTMLButtonElement>('.st-floor-key.up');
   const downKey = wrap.querySelector<HTMLButtonElement>('.st-floor-key.down');
-  if (upKey) upKey.disabled = !above;
-  if (downKey) downKey.disabled = !below;
+  if (upKey) {
+    upKey.disabled = !above;
+    upKey.classList.toggle('glass', !!above);
+  }
+  if (downKey) {
+    downKey.disabled = !below;
+    downKey.classList.toggle('glass', !!below);
+  }
   button.title = `${shown?.name || 'Project'} · Switch or create a project (the Up and Down keys move between them)`;
   // the logo changes with the project (no roll: it is small)
   const mark = button.querySelector('.st-mark');
@@ -3676,10 +3682,10 @@ function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
 const TRANSITION = '[transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s]';
 const CONN_LABEL = 'inline-flex items-center gap-2 mr-1.5 whitespace-nowrap text-[12px] leading-[normal] font-medium text-dim';
 // a header tile; off and missing are marked by class, hot and the row's focus / soft by the script. Every active
-// tile sits on the same plate (bg-ghost, the top bar's own controls) so the row reads as one; the brand colour
+// tile uses the project picker’s glass surface so the header reads as one; the brand colour
 // (--c) is kept for the glyph, mixed toward the text colour so a pale brand still reads on white, and comes back
 // on the tile a hovered wire points at (.hot)
-const INT_TILE = `grid place-items-center flex-none size-7 p-0 cursor-pointer rounded-ctl border border-line-2 bg-ghost text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[10px] leading-[normal] font-semibold shadow-card ${TRANSITION} [&_.logo-svg]:size-3.5 [&_.craft-icon]:size-5 active:[transform:scale(0.96)] hover:bg-ghost-hover [&.off]:bg-transparent [&.off]:text-faint [&.off]:border-line [&.off]:shadow-none [&.off_.logo-svg_path]:fill-faint [&.off_.craft-icon]:grayscale [&_.app-icon]:size-3.5 [&.off_.app-icon]:[filter:grayscale(1)_opacity(0.5)] [&.missing]:border-dashed group-[.focus]/conn:[&:not(.hot)]:opacity-25 group-[.focus]/conn:[&:not(.hot)]:grayscale group-[.focus.soft]/conn:[&:not(.hot)]:opacity-70 group-[.focus.soft]/conn:[&:not(.hot)]:[filter:none] group-[.focus]/conn:[&.hot]:border-(--c) group-[.focus]/conn:[&.hot]:bg-[color-mix(in_srgb,var(--c)_16%,var(--color-raise))]`;
+const INT_TILE = `grid place-items-center flex-none size-7 p-0 cursor-pointer rounded-ctl border border-line-2 text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[10px] leading-[normal] font-semibold shadow-card ${TRANSITION} [&_.logo-svg]:size-3.5 [&_.craft-icon]:size-5 active:[transform:scale(0.96)] hover:border-accent-dim [&.off]:bg-transparent [&.off]:text-faint [&.off]:border-line [&.off]:shadow-none [&.off_.logo-svg_path]:fill-faint [&.off_.craft-icon]:grayscale [&_.app-icon]:size-3.5 [&.off_.app-icon]:[filter:grayscale(1)_opacity(0.5)] [&.missing]:border-dashed group-[.focus]/conn:[&:not(.hot)]:opacity-25 group-[.focus]/conn:[&:not(.hot)]:grayscale group-[.focus.soft]/conn:[&:not(.hot)]:opacity-70 group-[.focus.soft]/conn:[&:not(.hot)]:[filter:none] group-[.focus]/conn:[&.hot]:border-(--c) group-[.focus]/conn:[&.hot]:bg-[color-mix(in_srgb,var(--c)_16%,var(--color-raise))]`;
 const ENGINE =
   'group/eng relative grid place-items-center size-7 p-0 border-0 bg-transparent rounded-ctl cursor-pointer text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[14px] leading-[normal] font-semibold [transition:background-color_0.15s,opacity_0.2s,filter_0.2s] hover:bg-ink/5 [&.off]:text-faint [&.off]:grayscale [&.off]:opacity-60 [&.off]:hover:opacity-90 [&.busy]:animate-[pulse_1.4s_ease-in-out_infinite] [&_.app-icon]:size-4';
 const STAT = 'glass flex items-baseline gap-2 px-3 py-2 rounded-ctl text-[12.5px] leading-[normal] font-medium text-dim';
@@ -3789,7 +3795,7 @@ function drawHud(): void {
     const toAgents = e.ready && users.length ? `#/agents?uses=${engineKey(users[0])}` : '';
     return { ...e, uses, n: users.length + (brainP === e.brain ? 1 : 0), busy, toAgents, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${toAgents ? ' (click to see its agents)' : e.ready ? '' : ' (click to set up)'}` };
   });
-  S.clockEl ||= h('span.st-clock', { class: 'min-w-36 flex-none text-right text-[20px] leading-[normal] font-medium tabular-nums text-dim max-md:hidden font-brand' });
+  S.clockEl ||= h('span.st-clock', { class: 'flex-none whitespace-nowrap text-right text-[24px] leading-[normal] font-medium tabular-nums text-[color:light-dark(var(--color-black),var(--color-white))] max-md:hidden font-brand' });
   S.tileEls = new Map();
   mount(
     S.hudTop,
@@ -3802,7 +3808,7 @@ function drawHud(): void {
         .filter((t) => !seen.has(t.title.split(' · ')[0].toLowerCase()) && seen.add(t.title.split(' · ')[0].toLowerCase()))
         .sort((a, b) => +b.on - +a.on || +!!a.missing - +!!b.missing)
         .map((t) => {
-          const el = h(`button${t.on ? '' : '.off'}${t.missing ? '.missing' : ''}`, { class: INT_TILE, style: { '--c': t.color }, title: t.title, onclick: t.onclick }, t.glyph);
+          const el = h(`button${t.on ? '' : '.off'}${t.missing ? '.missing' : ''}`, { class: `${INT_TILE}${t.on ? ' glass' : ''}`, style: { '--c': t.color }, title: t.title, onclick: t.onclick }, t.glyph);
           if (t.int) {
             S!.tileEls.set(t.int, el);
             const id = t.int;
@@ -3814,7 +3820,7 @@ function drawHud(): void {
     ),
     h(
       'div.st-engine-bar',
-      { class: 'flex items-center gap-5 flex-none px-3 py-1 max-md:min-w-0 max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden' },
+      { class: 'flex items-center gap-3 flex-none px-3 py-1 max-md:min-w-0 max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden' },
       h(
         'div',
         { class: 'flex items-center gap-1.5' },
@@ -3956,7 +3962,7 @@ function tickClock(): void {
   if (!S?.clockEl) return;
   S.clockEl.replaceChildren(...clockFormat.formatToParts(new Date()).map((part) =>
     part.type === 'dayPeriod'
-      ? h('span', { class: 'text-[14px] font-medium' }, part.value)
+      ? h('span', { class: 'text-[16px] font-medium' }, part.value)
       : document.createTextNode(part.value),
   ));
 }
