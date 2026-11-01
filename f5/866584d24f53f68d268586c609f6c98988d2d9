@@ -1,0 +1,29 @@
+web/views/skills.tsx
+  s_57c675cb3340e9::t_8fc1ce2bba27c3 118
+server/overseer.ts
+  s_57c675cb3340e9::t_2268d9cea0be41 1321
+tests/server/overseer.test.ts
+  s_57c675cb3340e9::t_9df9a01739be43 30-39
+tests/web/dock-history.test.tsx
+  s_57c675cb3340e9::t_3c079afc6464b3 19-22,74-75
+web/dock.tsx
+  s_57c675cb3340e9::t_b6cb18020803b5 438-439,454
+web/views/stationpanel.tsx
+  s_57c675cb3340e9::t_be99e4b14ffbe2 961-962
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f5866584d24f53f68d268586c609f6c98988d2d9",
+  "prompts": {},
+  "sessions": {
+    "s_57c675cb3340e9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19923-964d-73a1-aa94-f5a5587530e9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
