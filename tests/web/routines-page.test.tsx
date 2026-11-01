@@ -10,7 +10,7 @@ const settle = (ms = 30) => act(() => new Promise((r) => setTimeout(r, ms)));
 
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
-const routine = { id: 'r1', name: 'Morning news', description: '', text: 'Find news.', schedule: { type: 'none' }, enabled: false, mentions: [] };
+const routine = { id: 'r1', name: 'Morning news', description: '', text: 'Find news.', schedule: { type: 'none' }, enabled: true, mentions: [] };
 const run = { id: 'run1', routineId: 'r1', status: 'done', trigger: 'manual', createdAt: Date.now(), skills: [], targets: [{ kind: 'agent', id: 'a1', name: 'Writer', status: 'done', chatId: 'c1', output: '**Three stories.**' }] };
 
 let runsData: unknown[];
@@ -27,7 +27,7 @@ beforeEach(() => {
     const json = (v: unknown) => new Response(JSON.stringify(v));
     if (url === '/api/routines/r1' && method === 'GET') return json(routine);
     if (url === '/api/routines/r1' && method === 'PUT') return json({ ...routine, ...body, mentions: [] });
-    if (url === '/api/routines' && method === 'GET') return json([{ ...routine, schedule: { type: 'daily', time: '09:00' }, enabled: false }, { ...routine, id: 'r3', name: 'By hand' }]);
+    if (url === '/api/routines' && method === 'GET') return json([{ ...routine, schedule: { type: 'daily', times: ['09:00', '15:30'], days: [1, 3] }, enabled: true }, { ...routine, id: 'r3', name: 'By hand' }]);
     if (url === '/api/routines' && method === 'POST') return json({ ...routine, ...body, id: 'r2', mentions: [] });
     if (url.startsWith('/api/routine-runs')) return json(runsData);
     if (url.startsWith('/api/skills')) return json({ skills: [], claude: [] });
@@ -99,23 +99,31 @@ describe('the routine editor', () => {
     expect(location.hash).toBe('#/routines/r2');
   });
 
-  it('a sliding switch turns the schedule on and off, and saves just that', async () => {
+  it('has one routine switch and saves daily times without a separate schedule switch', async () => {
     await open();
-    const sw = () => el.querySelector<HTMLElement>('.panel-head [role="switch"]')!;
-    // Manual: nothing to switch
-    expect(sw().hasAttribute('data-disabled')).toBe(true);
+    expect(el.querySelectorAll('[role="switch"]')).toHaveLength(1);
     const daily = [...el.querySelectorAll<HTMLButtonElement>('.seg button')].find((b) => b.textContent === 'Daily')!;
-    daily.focus();
     await act(async () => daily.click());
-    expect(document.activeElement).toBe(daily);
-    expect(el.querySelector('input[type="time"]')).not.toBeNull();
-    expect(sw().hasAttribute('data-disabled')).toBe(false);
-    expect(sw().getAttribute('aria-checked')).toBe('false');
-    await act(async () => el.querySelector<HTMLElement>('.panel .toggle-text')!.click());
+    expect(el.querySelector('[data-time-picker]')).not.toBeNull();
+    expect(el.querySelectorAll('[role="switch"]')).toHaveLength(1);
+    await act(async () => btn('Add time').click());
+    expect(el.querySelectorAll('[data-time-picker]')).toHaveLength(2);
+    await act(async () => btn('Save').click());
     await settle();
-    expect(sw().getAttribute('aria-checked')).toBe('true');
-    const put = requests.filter((r) => r.method === 'PUT');
-    expect(put.at(-1)!.body).toEqual({ enabled: true });
+    expect(requests.filter((r) => r.method === 'PUT').at(-1)!.body).toMatchObject({ enabled: true, schedule: { type: 'daily', times: ['09:00', '10:00'] } });
+  });
+
+  it('can remove a daily time while keeping the other time', async () => {
+    await open();
+    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('.seg button')].find((b) => b.textContent === 'Daily')!.click());
+    await act(async () => btn('Add time').click());
+    await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Remove time 1"]')!.click());
+    expect(el.querySelectorAll('[data-time-picker]')).toHaveLength(1);
+    expect(el.querySelector('[data-time-picker]')!.textContent).toContain('10:00 AM');
+    expect(el.querySelector<HTMLButtonElement>('[aria-label="Remove time 1"]')!.disabled).toBe(true);
+    await act(async () => btn('Save').click());
+    await settle();
+    expect(requests.filter((r) => r.method === 'PUT').at(-1)!.body).toMatchObject({ schedule: { type: 'daily', times: ['10:00'] } });
   });
 
   it('on the list, every routine has an on/off switch that saves just that, and off blocks Run', async () => {
@@ -125,11 +133,14 @@ describe('the routine editor', () => {
     expect(cards.map((c) => c.querySelectorAll('[role="switch"]').length)).toEqual([1, 1]);
     const runBtn = (c: HTMLElement) => [...c.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === 'Run')!;
     expect(runBtn(cards[0]).disabled).toBe(false);
+    expect(cards[0].textContent).toContain('Daily (Mon, Wed) at 9AM, 3:30PM');
+    expect(cards[1].textContent).toContain('Run by hand');
     await act(async () => cards[0].querySelector<HTMLElement>('.toggle-text')!.click());
     await settle();
-    expect(requests.filter((r) => r.method === 'PUT').map((r) => [r.url, r.body])).toEqual([['/api/routines/r1', { paused: true }]]);
+    expect(requests.filter((r) => r.method === 'PUT').map((r) => [r.url, r.body])).toEqual([['/api/routines/r1', { enabled: false }]]);
     expect(runBtn(cards[0]).disabled).toBe(true);
-    expect(cards[0].textContent).toContain('switched off');
+    expect(cards[0].textContent).toContain('Switched off');
+    expect(cards[0].textContent).toContain('Daily (Mon, Wed) at 9AM, 3:30PM');
   });
 
   it('the editor has a Routine on/off switch beside Save; off saves at once and blocks Run now', async () => {
@@ -138,7 +149,7 @@ describe('the routine editor', () => {
     expect(sw.getAttribute('aria-checked')).toBe('true');
     await act(async () => [...el.querySelectorAll<HTMLElement>('.toggle-text')].find((t) => t.textContent === 'Routine on')!.click());
     await settle();
-    expect(requests.filter((r) => r.method === 'PUT').at(-1)!.body).toEqual({ paused: true });
+    expect(requests.filter((r) => r.method === 'PUT').at(-1)!.body).toEqual({ enabled: false });
     expect(btn('Run now').disabled).toBe(true);
   });
 

@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { state, GET, PUT, attempt, refreshSoon, toast, navigate } from './core.ts';
+import { brandImage } from './brandimages.ts';
 import { appIcon, appIconUrl } from './appicons.ts';
 import { brandPath, logo } from './icons.ts';
 import { EFFORT_NAMES, effortFor, effortLevels, isEffort } from '../shared/effort.ts';
@@ -77,11 +78,11 @@ const TABS: ModelTab[] = [
   { engine: 'openai', label: 'OpenRouter', brand: 'openrouter', glyph: '◇' },
   { engine: 'lmstudio', label: 'LM Studio', brand: null, glyph: 'LM' },
   { engine: 'venice', label: 'Venice', brand: null },
-  { engine: 'hermes', label: 'Hermes', brand: null, glyph: '☤' },
+  { engine: 'hermes', label: 'Hermes', brand: null },
   { engine: 'codex', label: 'Codex', brand: 'openai' },
-  { engine: 'pi', label: 'pi', brand: null, glyph: 'π' },
-  { engine: 'omp', label: 'OMP', brand: null, glyph: 'Ω' },
-  { engine: 'openclaw', label: 'OpenClaw', brand: null, glyph: '🦞' },
+  { engine: 'pi', label: 'pi', brand: null },
+  { engine: 'omp', label: 'OMP', brand: null },
+  { engine: 'openclaw', label: 'OpenClaw', brand: null },
 ];
 // The CLI engines with their own model lists (GET /models?engine=…): what an empty model means, and where to set them up.
 const CLI_TABS: Partial<Record<EngineId, { name: string; own: string; find: string }>> = {
@@ -89,7 +90,6 @@ const CLI_TABS: Partial<Record<EngineId, { name: string; own: string; find: stri
   omp: { name: 'oh-my-pi', own: "oh-my-pi's default model", find: 'oh-my-pi' },
   openclaw: { name: 'OpenClaw', own: "the OpenClaw agent's own model", find: 'OpenClaw' },
 };
-const GLYPH: Partial<Record<string, string>> = { hermes: '☤', pi: 'π', omp: 'Ω', openclaw: '🦞' };
 // { name: "Claude Sonnet 5.5", short: "Sonnet 5.5", latest: true/false, brand: "claude" | null, where: "Claude Code · Claude login" }
 export function modelInfo(a: ModelTarget): ModelInfo {
   const m = String(a.model || '');
@@ -151,7 +151,7 @@ export async function toggleFavorite(m: ModelChoice): Promise<boolean> {
 /** A brand logo, drawn by web/icons.ts (it has no React form), or the plain mark beside it. */
 function BrandMark({ brand, size, fallback }: { brand: string | null; size: number; fallback: ReactNode }) {
   if (!brand || !brandPath(brand)) return <>{fallback}</>;
-  return <DomNode as="span" className="dom-contents" make={() => logo(brand, size)} deps={[brand, size]} />;
+  return <DomNode as="span" className="dom-contents" make={() => logo(brand, size, brand === 'openai' ? 'currentColor' : null)} deps={[brand, size]} />;
 }
 
 /** A tag saying how hard the model thinks, when it isn't its engine's default. */
@@ -166,10 +166,10 @@ function EffortTag({ effort }: { effort: Effort | '' }) {
 
 /** What a chip shows: the model's mark, its short name, the effort, "latest" and a chevron. */
 function ChipFace({ brand, engine, label, effort, latest }: { brand: string | null; engine: string; label: string; effort: Effort | ''; latest: boolean }) {
-  const glyph = GLYPH[engine];
+  const ownMark = !brand && brandImage(engine, 13);
   return (
     <>
-      <BrandMark brand={brand} size={13} fallback={glyph ? <span className="text-[13px] leading-[13px]">{glyph}</span> : <Icon name="cpu" size={13} />} />
+      <BrandMark brand={brand} size={13} fallback={ownMark ? <DomNode as="span" className="dom-contents" make={() => ownMark} deps={[engine]} /> : <Icon name="cpu" size={13} />} />
       <span>{label}</span>
       <EffortTag effort={effort} />
       {latest ? <span className="model-latest">latest</span> : null}
@@ -347,7 +347,7 @@ function Missing({ text, find, close }: { text: string; find: string; close: () 
 /** The mark on a tab: a star for Favorites, else the engine's own app icon, logo or glyph. */
 function TabMark({ tab }: { tab: ModelTab }) {
   if (tab.engine === 'fav') return <Icon name="star" size={13} />;
-  if (tab.engine === 'venice') return <Icon name="cpu" size={13} />;
+  if (brandImage(tab.engine, 13)) return <DomNode as="span" className="dom-contents" make={() => brandImage(tab.engine, 13)} deps={[tab.engine]} />;
   if (tab.brand && brandPath(tab.brand)) return <BrandMark brand={tab.brand} size={13} fallback={null} />;
   if (appIconUrl(tab.engine)) return <DomNode as="span" className="dom-contents" make={() => appIcon(tab.engine, 13)} deps={[tab.engine]} />;
   return <span className="text-[13px] leading-[13px]">{tab.glyph || '•'}</span>;

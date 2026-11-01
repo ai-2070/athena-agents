@@ -172,6 +172,24 @@ describe('General & keys', () => {
     expect(key().value).toBe('');
   });
 
+  it('adds decorative marks to model choices and program fields without changing their names', async () => {
+    await open();
+    const sections = [...el.querySelectorAll('.settings-section h2')];
+    const folderIndex = sections.findIndex((heading) => heading.textContent === 'Allowed folders');
+    expect(sections[folderIndex - 1].textContent).toBe("The Brain's model");
+    expect(sections[folderIndex].querySelector('svg')).not.toBeNull();
+    const labels = [...el.querySelectorAll('label.field')].map((field) => field.querySelector('span')?.textContent);
+    expect(labels.indexOf('ComfyUI path')).toBe(labels.indexOf('Extra ComfyUI workflow folders') + 1);
+    expect(labels.indexOf('Blender path')).toBe(labels.indexOf('ComfyUI path') + 1);
+    const brain = el.querySelector('[aria-label="Brain"].seg')!;
+    for (const button of brain.querySelectorAll('button')) expect(button.querySelector('svg, img')).not.toBeNull();
+    for (const label of ['LM Studio server', 'Ollama server', 'Blender path', 'Extra ComfyUI workflow folders', 'Venice model']) {
+      const field = [...el.querySelectorAll('label.field')].find((f) => f.querySelector('span')?.textContent === label)!;
+      expect(field.querySelector('svg, img')).not.toBeNull();
+      expect(field.querySelector('input, textarea')).not.toBeNull();
+    }
+  });
+
   it('shows each engine with its logo and status, and copies an install command', async () => {
     const copied: string[] = [];
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (t: string) => void copied.push(t) } });
@@ -180,6 +198,13 @@ describe('General & keys', () => {
     expect(names).toEqual(expect.arrayContaining(['Claude Code', 'OpenAI Codex', 'Hermes', 'pi coding agent', 'oh-my-pi', 'OpenClaw', 'OpenRouter key', 'Anthropic API key']));
     // every engine and key row has a mark (a logo or its glyph)
     for (const r of el.querySelectorAll('.ai-list .ai-row')) expect(r.querySelector('.ai-mark')!.childNodes.length).toBeGreaterThan(0);
+    for (const [name, engine] of [['Venice key', 'venice'], ['Hermes', 'hermes'], ['pi coding agent', 'pi'], ['oh-my-pi', 'omp'], ['OpenClaw', 'openclaw']]) {
+      const row = [...el.querySelectorAll('.ai-row')].find((r) => r.querySelector('.ai-name')?.textContent === name)!;
+      const image = row.querySelector<HTMLImageElement>('.ai-mark img')!;
+      expect(image.getAttribute('src')).toBe(`/brand/engines/${engine}.svg`);
+      expect(image.getAttribute('aria-hidden')).toBe('true');
+      expect(image.getAttribute('width')).toBe(engine === 'pi' ? '15' : '17');
+    }
     // pi isn't in this state, so it shows its install command
     const copy = el.querySelector<HTMLButtonElement>('.ai-cmd button')!;
     await act(async () => copy.click());

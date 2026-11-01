@@ -38,7 +38,7 @@ describe('backups with earlier versions', () => {
     agents.save({ ...agents.get(a.id)!, systemPrompt: 'Agent v2.' });
     const dropped = newAgent({ name: 'Dropped agent' });
     agents.remove(dropped.id);
-    const t = workflows.save({ name: 'Versioned crew', description: 'Goal v1', members: [a.id], lead: null, steps: [], schedule: { type: 'daily', time: '09:00' }, enabled: true } as Partial<Team>);
+    const t = workflows.save({ name: 'Versioned crew', description: 'Goal v1', members: [a.id], lead: null, steps: [], schedule: { type: 'daily', times: ['09:00'] }, enabled: true } as Partial<Team>);
     withActor('brain', () => workflows.save({ ...workflows.get(t.id)!, description: 'Goal v2' }));
 
     const file = backup.createBackup(p.id);
@@ -68,7 +68,7 @@ describe('backups with earlier versions', () => {
 
   it("restoring a team's old version from a backup starts it paused", async () => {
     const p = await createProject({ name: 'Paused history', mode: 'new', folder: folder('paused-history') });
-    const t = workflows.save({ name: 'Scheduled', description: 'g1', members: [], lead: null, steps: [], schedule: { type: 'daily', time: '07:00' }, enabled: true } as Partial<Team>);
+    const t = workflows.save({ name: 'Scheduled', description: 'g1', members: [], lead: null, steps: [], schedule: { type: 'daily', times: ['07:00'] }, enabled: true } as Partial<Team>);
     workflows.save({ ...workflows.get(t.id)!, description: 'g2' });
     const file = backup.createBackup(p.id);
     const { project } = await backup.restoreBackup(fs.readFileSync(file.file), { name: 'Paused again' });

@@ -7,6 +7,7 @@ import { GET, POST, PUT, DEL, attempt, copy, ago, confirmBox } from '../core.ts'
 import { serverUrl } from '../client/connection.ts';
 import { FieldRow, PanelNote, Row, RowActions, Section, Sections, Switch, Tabs } from '../ui/controls.tsx';
 import { reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { ProgramLabel } from '../ui/programmark.tsx';
 import { Outbox } from './outbox.tsx';
 import type { Accounts, SecretStatus, Settings } from '../../shared/types.ts';
 
@@ -110,7 +111,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
     <div className="flex flex-col gap-10">
       {/* col gap-lg: the mark tests find the groups by */}
       <Sections className="col gap-lg">
-        <Section title="X accounts" description="The accounts your agents can post from." action={accounts.xAppConfigured ? <ButtonLink size="small" href={serverUrl('/oauth/x/start')}>+ Connect an account</ButtonLink> : null}>
+        <Section title={<ProgramLabel id="x">X accounts</ProgramLabel>} description="The accounts your agents can post from." action={accounts.xAppConfigured ? <ButtonLink size="small" href={serverUrl('/oauth/x/start')}>+ Connect an account</ButtonLink> : null}>
           {accounts.x.length ? (
             accounts.x.map((a) => <XAccount key={a.id} a={a} reload={reload} />)
           ) : (
@@ -119,7 +120,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
           <PanelNote>Agents with the Social tools draft posts into the Outbox; you approve each one. X bills API use per request on your developer account.</PanelNote>
         </Section>
 
-        <Section title="Telegram" description="Agents and workflows can message you, e.g. when a long task is done.">
+        <Section title={<ProgramLabel id="telegram">Telegram</ProgramLabel>} description="Agents and workflows can message you, e.g. when a long task is done.">
           <FieldRow label="Bot token" size="lg">
             <input className="code" type="password" autoComplete="off" placeholder={saved(secrets.telegramBotToken, 'Bot token from @BotFather')} onChange={(e) => (tg.current.token = e.target.value)} />
           </FieldRow>
@@ -132,7 +133,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
           </RowActions>
         </Section>
 
-        <Section title="Discord" description="Post to a channel through a webhook.">
+        <Section title={<ProgramLabel id="discord">Discord</ProgramLabel>} description="Post to a channel through a webhook.">
           <FieldRow label="Channel webhook URL" hint="Channel settings > Integrations > Webhooks > New webhook > Copy URL." size="lg">
             <input className="code" type="password" autoComplete="off" placeholder={saved(secrets.discordWebhook, 'https://discord.com/api/webhooks/…')} onChange={(e) => (dc.current = e.target.value)} />
           </FieldRow>
@@ -225,7 +226,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
             <input className="code" type="password" autoComplete="off" placeholder={saved(secrets.redditClientSecret, 'Secret')} onChange={(e) => (rd.current.secret = e.target.value)} />
           </FieldRow>
           <FieldRow label="Your Reddit username" hint="Reddit asks apps to say who runs them." size="lg">
-            <input defaultValue={settings.reddit?.username || ''} placeholder="Your Reddit username" onChange={(e) => (rd.current.username = e.target.value)} />
+            <input className="font-mono" defaultValue={settings.reddit?.username || ''} placeholder="Your Reddit username" onChange={(e) => (rd.current.username = e.target.value)} />
           </FieldRow>
           <RowActions>
             <Button size="small" onClick={() => void saveReddit()}>Save</Button>

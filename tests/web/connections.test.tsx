@@ -172,6 +172,10 @@ describe('Connections', () => {
     const sections = [...el.querySelectorAll('.settings-section h2')].map((heading) => heading.textContent);
     expect(sections.slice(-2)).toEqual(['Reddit accounts', 'Your Reddit app (one-time setup)']);
     expect(sections.indexOf('Discord')).toBeLessThan(sections.indexOf('Reddit accounts'));
+    for (const name of ['X accounts', 'Telegram', 'Discord']) {
+      const heading = [...el.querySelectorAll('.settings-section h2')].find((h) => h.textContent === name)!;
+      expect(heading.querySelector('svg')?.getAttribute('width')).toBe('17');
+    }
   });
 
   it('turns auto-post on only after you confirm', async () => {

@@ -83,8 +83,8 @@ export interface TeamAccess {
 
 export interface Schedule {
   type: 'none' | 'daily' | 'interval' | string;
-  /** daily: 'HH:MM' */
-  time?: string;
+  /** daily: one or more 'HH:MM' times */
+  times?: string[];
   /** interval: every N minutes */
   minutes?: number;
   /** daily: which weekdays (0 = Sunday); empty = every day */
@@ -229,10 +229,8 @@ export interface Routine {
   text: string;
   mentions: RoutineMention[];
   schedule?: Schedule;
-  /** The schedule is on. */
-  enabled?: boolean;
-  /** Switched off: it doesn't run, by hand or on its schedule. */
-  paused?: boolean;
+  /** On: it can run by hand or on its schedule. */
+  enabled: boolean;
   lastScheduledAt?: number;
   createdAt?: number;
   updatedAt?: number;

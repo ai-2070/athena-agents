@@ -20,6 +20,8 @@ const BRANDS: Record<string, string> = {
   openscad: 'openscad', kicad: 'kicad', obs: 'obsstudio', sketchup: 'sketchup', autocad: 'autocad', autodesk: 'autodesk', rhino: 'rhinoceros',
   'bambu lab': 'bambulab', bambu: 'bambulab', octoprint: 'octoprint', creality: 'creality', kdenlive: 'kdenlive', krita: 'krita',
   vscode: 'vscodium', zed: 'zedindustries', gimp: 'gimp', python: 'python', git: 'git', docker: 'docker', node: 'nodedotjs',
+  // MCP services with a mark in Simple Icons
+  'brave-search': 'brave', 'wolfram': 'wolfram', 'trivago': 'trivago', 'clickup': 'clickup', 'todoist': 'todoist', 'airtable': 'airtable', 'miro': 'miro', 'dropbox': 'dropbox', 'calendly': 'calendly', 'strava': 'strava', 'oomol': 'oomol', 'gitlab': 'gitlab', 'sentry': 'sentry', 'vercel': 'vercel', 'netlify': 'netlify', 'cloudflare': 'cloudflare', 'railway': 'railway', 'supabase': 'supabase', 'neon': 'neon', 'circleci': 'circleci', 'buildkite': 'buildkite', 'postman': 'postman', 'datadog': 'datadog', 'grafana': 'grafana', 'betterstack': 'betterstack', 'huggingface': 'huggingface', 'cloudinary': 'cloudinary', 'webflow': 'webflow', 'mixpanel': 'mixpanel', 'algolia': 'algolia', 'elevenlabs': 'elevenlabs', 'sketchfab': 'sketchfab', 'unsplash': 'unsplash', 'pixabay': 'pixabay', 'pexels': 'pexels', 'freepik': 'freepik', 'google-design': 'googlefonts', 'prisma-postgres': 'prisma', 'wordpress-com': 'wordpress', 'motherduck': 'duckdb',
   // the programs in Settings › Programs (server/programs.ts) that have a logo of their own
   'claude code': 'claudecode', uv: 'uv', vlc: 'vlcmediaplayer', 'obs studio': 'obsstudio',
   unity: 'unity', unreal: 'unrealengine', 'unreal engine': 'unrealengine', godot: 'godotengine', opera: 'opera', inkscape: 'inkscape',

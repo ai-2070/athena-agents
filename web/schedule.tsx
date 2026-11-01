@@ -1,10 +1,13 @@
 // The schedule editor (Manual / Every… / Daily) used by workflows and routines.
 // React now: it is rendered through createRoot into a detached div, edits item.schedule/item.enabled
 // in place and shares the app's controls.
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { scheduleText, DAY_NAMES as DAYS } from '../shared/routines.ts';
 import type { Schedule } from '../shared/types.ts';
+import { TimePicker } from './ui/timepicker.tsx';
+import { Button, IconButton } from './ui/button.tsx';
+import { Icon } from './ui/react.tsx';
 import { Chip } from './ui/marks.tsx';
 import { Field, Segmented, SwitchRow } from './ui/controls.tsx';
 import { CHIPS_CLASS } from './ui/classes.ts';
@@ -24,7 +27,9 @@ export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean },
 
 function Editor({ item, onChange, inputLabel, showToggle }: { item: { schedule?: Schedule; enabled?: boolean }; onChange: () => void; inputLabel: string; showToggle: boolean }) {
   const [, redraw] = useState(0);
+  const timesId = useId();
   const s = item.schedule!;
+  const times = s.times?.length ? s.times : ['09:00'];
   // mutate item in place, tell the caller, and draw the new state
   const mark = () => {
     onChange();
@@ -61,8 +66,24 @@ function Editor({ item, onChange, inputLabel, showToggle }: { item: { schedule?:
         ) : null}
         {s.type === 'daily' ? (
           <div className="flex flex-col gap-4">
-            <Field label="Time">
-              <input type="time" defaultValue={s.time || '09:00'} onInput={(e) => ((s.time = e.currentTarget.value), mark())} />
+            <Field label="Times" group={timesId}>
+              <div className="flex flex-col gap-2">
+                {times.map((time, index) => <div key={index} className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1"><TimePicker label={`Time ${index + 1}`} value={time} onChange={(value) => {
+                    s.times = times.map((old, i) => i === index ? value : old);
+                    mark();
+                  }} /></div>
+                  <IconButton variant="plain" aria-label={`Remove time ${index + 1}`} disabled={times.length === 1} onClick={() => { s.times = times.filter((_, i) => i !== index); mark(); }}><Icon name="x" size={14} /></IconButton>
+                </div>)}
+                <Button variant="ghost" size="small" className="self-start" disabled={times.length >= 1440} onClick={() => {
+                  const [hour, minute] = times[times.length - 1].split(':').map(Number);
+                  let next = ((hour || 0) * 60 + (minute || 0) + 60) % 1440;
+                  const format = (value: number) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+                  while (times.includes(format(next))) next = (next + 1) % 1440;
+                  s.times = [...times, format(next)];
+                  mark();
+                }}><Icon name="plus" size={13} />Add time</Button>
+              </div>
             </Field>
             <div className={CHIPS_CLASS}>
               {DAYS.map((d, i) => {

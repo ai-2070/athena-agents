@@ -16,7 +16,10 @@ const history = [
     text: 'I made it and asked the team to use it.',
     ts: 2,
     steps: [{ id: 't1', name: 'Read', input: { file_path: 'PROJECT.md' }, state: 'done', output: '# Project' }],
-    done: [{ kind: 'skill', text: 'Made the skill "Finish the job"', skillId: 'finish-the-job' }],
+    done: [
+      { kind: 'skill', text: 'Made the skill "Finish the job"', skillId: 'finish-the-job' },
+      ...['Created', 'Updated', 'Removed'].map((verb) => ({ kind: 'task', taskId: 'task-internal-id', text: `${verb} task: Check the report [phase 2] [task-internal-id]` })),
+    ],
     delegate: { kind: 'branch', id: 'w1', name: 'Review Team', message: 'Check the app.', sent: { messageId: 'brief', ts: 3 } },
   },
   { role: 'user', text: 'and have Scout look too', ts: 10 },
@@ -68,6 +71,8 @@ describe('a reopened Brain chat', () => {
     // the file it read, as a step, and the skill it made as an action (not "(…)" lines)
     expect([...list.querySelectorAll('.tool .tname')].map((n) => n.textContent)).toContain('Read');
     expect(text).toContain('Made the skill "Finish the job"');
+    for (const verb of ['Created', 'Updated', 'Removed']) expect(text).toContain(`${verb} task: Check the report [phase 2]`);
+    expect(text).not.toContain('task-internal-id');
     expect(text).not.toContain('(Made the skill');
     // the team's reply to its brief (not the brief itself), and Scout's turn with its tool call
     expect(text).toContain('The team checked it: all good.');
