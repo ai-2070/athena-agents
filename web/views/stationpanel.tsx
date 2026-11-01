@@ -106,7 +106,7 @@ function Panel({ api, subscribe, version }: { api: StationPanelApi; subscribe: (
 }
 
 // (st-panel-title stays as a mark the tests look for)
-const TITLE = 'st-panel-title font-sans text-[16px] leading-[1.25] font-semibold tracking-[-0.015em]';
+const TITLE = 'st-panel-title font-sans text-[16px] leading-[1.25] font-semibold tracking-[-0.015em] mt-0.5';
 // (the soft fade at both ends lets what scrolls past the head and the foot melt into the glass instead of being cut off)
 const BODY = 'min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-18px),transparent_100%)]';
 // a row in the connection and team lists (st-conn stays as a mark the tests look for)
