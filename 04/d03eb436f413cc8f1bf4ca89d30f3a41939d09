@@ -1,0 +1,102 @@
+server/overseer.ts
+  s_7daa4bf644d295::t_7f3703081b4b5e 90-100,429,543,567,1276,1282-1284,1300-1303
+  s_7daa4bf644d295::t_aca82db504944f 39,568,1285-1299
+  s_7daa4bf644d295::t_5b0138d06beaa0 40,101-103,569,1956
+  s_7daa4bf644d295::t_151be13fca8f84 1948-1949,1955,1957-1959,1963
+  s_7daa4bf644d295::t_cb27ebf690361d 2007
+server/tasktools.ts
+  s_7daa4bf644d295::t_195c3c096c1b24 1-52
+web/tasks.tsx
+  s_7daa4bf644d295::t_79f22e42045a49 73
+  s_7daa4bf644d295::t_9fce9e8ad09eef 1-32,34,36-64,66,68-72,74-83,85-90,92-98,100-122,124-126,128-132,134-135
+  s_7daa4bf644d295::t_5b0138d06beaa0 91
+  s_7daa4bf644d295::t_78855fa36d6fca 33,35,65,67,84,99,123,127,133
+docs/internal/GROK_BOT_ORCHESTRATION_2026-10-31.md
+  s_7daa4bf644d295::t_58f3244c458589 7-8
+tests/server/tasks.test.ts
+  s_7daa4bf644d295::t_039989796c279b 1-164,167-168
+  s_7daa4bf644d295::t_808954080942a9 165-166
+tests/server/project-isolation.test.ts
+  s_7daa4bf644d295::t_aca82db504944f 290-295
+docs/internal/plans/TASK_TOOLS_2026-11-01.md
+  s_7daa4bf644d295::t_58f3244c458589 1-22,24-65
+  s_7daa4bf644d295::t_9a264da7c78e96 23,66
+  s_7daa4bf644d295::t_2953a750481d62 67
+tests/server/goals.test.ts
+  s_7daa4bf644d295::t_c7284feda4014e 16,23,34,60-65,88,106-139,145
+  s_7daa4bf644d295::t_808954080942a9 140-144
+tests/server/claude-args.test.ts
+  s_7daa4bf644d295::t_94e590e036fc60 35-37
+tests/server/projectsync.test.ts
+  s_7daa4bf644d295::t_808954080942a9 10,24-39
+web/chat/ChatView.tsx
+  s_7daa4bf644d295::t_9fce9e8ad09eef 18,772
+README.md
+  s_7daa4bf644d295::t_58f3244c458589 31,175
+  s_7daa4bf644d295::t_54469c0441ba44 176
+tests/web/tasks.test.tsx
+  s_7daa4bf644d295::t_7e8d09065d15f0 1-125
+server/index.ts
+  s_7daa4bf644d295::t_195c3c096c1b24 37-38,494,496,503
+  s_7daa4bf644d295::t_c519e8f73bf9e9 495
+  s_7daa4bf644d295::t_cb27ebf690361d 36,497-502
+server/engines/claude.ts
+  s_7daa4bf644d295::t_94e590e036fc60 132
+  s_7daa4bf644d295::t_78855fa36d6fca 133
+docs/internal/plans/WORK_COMPLETION_2026-11-01.md
+  s_7daa4bf644d295::t_58f3244c458589 5-6
+docs/internal/plans/TEAM_ORCHESTRATION_FIXES_2026-10-31.md
+  s_7daa4bf644d295::t_58f3244c458589 3-4
+docs/guide.md
+  s_7daa4bf644d295::t_58f3244c458589 9,97-109
+  s_7daa4bf644d295::t_15c6151c5f80e5 110
+server/backup.ts
+  s_7daa4bf644d295::t_5af948650df504 25,121,397,563,813
+web/dock.tsx
+  s_7daa4bf644d295::t_9fce9e8ad09eef 20,923
+server/irc.ts
+  s_7daa4bf644d295::t_cb27ebf690361d 6,47,52,62,71
+  s_7daa4bf644d295::t_151be13fca8f84 109,137-141
+shared/types.ts
+  s_7daa4bf644d295::t_7f3703081b4b5e 847
+  s_7daa4bf644d295::t_94e590e036fc60 867
+  s_7daa4bf644d295::t_a6c78ec15708d0 868-926
+tests/server/compaction.test.ts
+  s_7daa4bf644d295::t_aca82db504944f 503
+server/tasks.ts
+  s_7daa4bf644d295::t_c519e8f73bf9e9 95,103,116-117,140-141,150-157,159-160,162,165-169
+  s_7daa4bf644d295::t_195c3c096c1b24 100
+  s_7daa4bf644d295::t_5af948650df504 183-188,191,193-223
+  s_7daa4bf644d295::t_5b0138d06beaa0 189-190
+  s_7daa4bf644d295::t_7e63237b1b1099 1-21,23-78,80-94,96-99,101-102,104-115,118-131,133-139,142-149,158,161,163-164,170-174,182
+  s_7daa4bf644d295::t_7f3703081b4b5e 79,175-181
+  s_7daa4bf644d295::t_c7284feda4014e 22,132,192
+scripts/desktop-smoke.ts
+  s_7daa4bf644d295::t_2bbb2af059f527 111-117
+server/tools.ts
+  s_7daa4bf644d295::t_195c3c096c1b24 29,142
+server/projectsync.ts
+  s_7daa4bf644d295::t_5af948650df504 21,44,208,302,570
+server/engines/index.ts
+  s_7daa4bf644d295::t_151be13fca8f84 255
+tests/server/api.test.ts
+  s_7daa4bf644d295::t_aca82db504944f 104-120
+web/teamchat.tsx
+  s_7daa4bf644d295::t_9fce9e8ad09eef 18,742
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "04d03eb436f413cc8f1bf4ca89d30f3a41939d09",
+  "prompts": {},
+  "sessions": {
+    "s_7daa4bf644d295": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1909a-0e49-7540-af35-65ce95355b59",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
