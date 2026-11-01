@@ -1,9 +1,13 @@
+import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { activeProject, agents, chats, saveSettings, setActiveProject, setSecret, withProject } from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
 import { newAgent } from '../../server/library.ts';
 import { beginRun, bindSession, readRun, setRunStatus } from '../../server/eve/state.ts';
-import { eveConfiguration, eveTool, openEveBridge } from '../../server/eve/bridge.ts';
+import { eveConfiguration, eveTool, eveToolPolicy, openEveBridge } from '../../server/eve/bridge.ts';
+import { decide, listApprovals } from '../../server/approvals.ts';
+import { dataPath, ensureDir } from '../../server/util.ts';
+import { stopEveRun } from '../../server/eve/recovery.ts';
 
 describe('the private Eve tool bridge', () => {
   it('resolves current project permissions and keeps credentials out of the persisted run', async () => {
@@ -25,11 +29,11 @@ describe('the private Eve tool bridge', () => {
     const other = await createProject({ name: 'Different bridge project' });
     setActiveProject(other.id);
     agents.save(newAgent({ name: 'Other private owner' }));
-    const result = await eveTool(binding.id, 'session', 'list_agents', {});
+    const result = await eveTool(binding.id, 'session', 'bridge-run', 'list-call', 'list_agents', {});
     expect(result.text).toContain('Visible bridge peer');
     expect(result.text).not.toContain('Other private owner');
     withProject(project, () => agents.save({ ...agent, toolGroups: [] }));
-    await expect(eveTool(binding.id, 'session', 'read_file', {})).rejects.toThrow('no longer available');
+    await expect(eveTool(binding.id, 'session', 'bridge-run', 'read-call', 'read_file', {})).rejects.toThrow('no longer available');
     await expect(eveConfiguration(binding.id, 'foreign-session')).rejects.toThrow('does not own');
     setRunStatus('bridge-run', 'stopped');
     await expect(eveConfiguration(binding.id, 'session')).rejects.toThrow('no active run');
@@ -45,5 +49,29 @@ describe('the private Eve tool bridge', () => {
     } finally {
       await bridge.close();
     }
+  });
+
+  it('keeps edited consent attached to the original arguments and rejects calls from an older run', async () => {
+    saveSettings({ brainApproves: false });
+    const workspace = ensureDir(dataPath('edited-eve-proof'));
+    const agent = agents.save(newAgent({ name: 'Edited consent', toolGroups: ['files'], autonomy: 'ask', workspace }));
+    const chat = chats.create(agent.id, 'Edits');
+    const binding = bindSession(agent, chat, activeProject(), 'proof');
+    beginRun('edited-run', binding.id);
+    setRunStatus('edited-run', 'running');
+    const args = { path: 'report.txt', content: 'draft' };
+    expect(await eveToolPolicy(binding.id, 'session', 'edited-run', 'write-call', 'write_file', args)).toEqual({ status: 'user-approval' });
+    const request = listApprovals().find((item) => item.data.runId === 'edited-run');
+    expect(request).toBeTruthy();
+    decide(request!.id, { approved: true, edited: { ...args, content: 'checked' }, always: true });
+    expect((await eveTool(binding.id, 'session', 'edited-run', 'write-call', 'write_file', args)).isError).toBe(false);
+    expect(fs.readFileSync(dataPath('edited-eve-proof/report.txt'), 'utf8')).toBe('checked');
+    expect(agents.get(agent.id)?.alwaysAllow).toContain('write_file');
+    await expect(eveTool(binding.id, 'session', 'edited-run', 'write-call', 'write_file', { ...args, content: 'changed call' })).rejects.toThrow('changed');
+    setRunStatus('edited-run', 'completed');
+    beginRun('next-run', binding.id);
+    setRunStatus('next-run', 'running');
+    await expect(eveTool(binding.id, 'session', 'edited-run', 'late-call', 'write_file', args)).rejects.toThrow('active run');
+    await stopEveRun('next-run');
   });
 });

@@ -12,6 +12,7 @@ import { startHandoff, awaitHandoff, listHandoffs, DEFAULT_WAIT_S, MAX_WAIT_S } 
 /** Hermes' own MCP tool timeout is 300 s: await_agent answers it well within that. */
 const HERMES_WAIT_S = 240;
 import { requestApproval } from './approvals.ts';
+import type { ApprovalRequest } from './approvals.ts';
 import { agentFetch } from './agentfetch.ts';
 import { accountOf } from './mcp.ts';
 import { knownPrograms, launchProgram, launchTarget, programExe, startMenuApps } from './programs.ts';
@@ -65,6 +66,10 @@ export interface ToolRunInfo {
   progress?: (text: string) => void;
   /** The MCP server an API-model agent's tool call goes to: its approval names the account. */
   mcpServer?: string;
+  /** Stable, server-issued identity for one durable tool operation. */
+  operationId?: string;
+  /** The input originally shown for an operation whose approval edited the arguments. */
+  approvalArgs?: Record<string, unknown>;
 }
 
 export interface ToolContext extends ToolRunInfo {
@@ -1136,19 +1141,25 @@ export function needsApproval(agent: ToolAgent, risk: Risk, toolName: string): b
   return risk === 'low' || risk === 'high';
 }
 
-// Ask the user when the agent's autonomy says so. Returns null when it may go ahead, else a refusal result.
-export async function gate(agent: ToolAgent, name: string, risk: Risk, args: ToolArgs, ctx: ToolRunInfo = {}, detail: string | null | undefined = null): Promise<ToolResult | null> {
-  if (!needsApproval(agent, risk, name)) return null;
+// Eve's policy and executor use the same request and original arguments.
+export function toolApprovalRequest(agent: ToolAgent, name: string, args: ToolArgs, ctx: ToolRunInfo = {}, detail?: string | null): ApprovalRequest {
   // an MCP tool of one account of several says which account: "… wants to use oomol-work__send on OOMOL: Work"
   const account = ctx.mcpServer ? accountOf(ctx.mcpServer) : '';
-  const d = await requestApproval({
+  return {
     kind: 'tool',
     title: `${agent.name} wants to use ${name}${account ? ` on ${account}` : ''}`,
     detail: detail ?? describeCall(name, args),
     agentId: agent.id,
     agentName: agent.name,
-    data: { tool: name, args, runId: ctx.runId },
-  });
+    data: { tool: name, args: ctx.approvalArgs || args, runId: ctx.runId },
+    operationId: ctx.operationId,
+  };
+}
+
+// Ask when the agent's autonomy says so; null lets the tool go ahead.
+export async function gate(agent: ToolAgent, name: string, risk: Risk, args: ToolArgs, ctx: ToolRunInfo = {}, detail: string | null | undefined = null): Promise<ToolResult | null> {
+  if (!needsApproval(agent, risk, name)) return null;
+  const d = await requestApproval(toolApprovalRequest(agent, name, args, ctx, detail));
   if (!d.approved) return { text: `The user said no${d.message ? `: ${d.message}` : ''}. Don't retry the same thing; ask what they want instead.`, isError: true, denied: true };
   if (d.always && agent.id && !agent.id.startsWith('_')) {
     // the run asking keeps going with this same agent: the yes counts for the rest of it too
@@ -1173,6 +1184,11 @@ export function riskOf(tool: ToolDef | string, args: ToolArgs = {}): Risk {
   }
 }
 
+export function toolApprovalName(name: string, args: ToolArgs): string {
+  const tool = BY_NAME.get(name);
+  return tool && typeof tool.risk === 'function' && riskOf(tool, args) === 'high' ? `${name}:high` : name;
+}
+
 // Run a tool for an agent, asking the user first when its settings say so.
 export async function callTool(agent: ToolAgent, name: string, args: ToolArgs = {}, ctx: ToolRunInfo = {}): Promise<ToolResult> {
   const tool = BY_NAME.get(name);
@@ -1181,7 +1197,7 @@ export async function callTool(agent: ToolAgent, name: string, args: ToolArgs = 
   args = args && typeof args === 'object' ? args : {};
   const risk = riskOf(tool, args);
   // For tools whose risk depends on arguments, "Always allow" only skips the low-risk form.
-  const allowName = typeof tool.risk === 'function' && risk === 'high' ? `${name}:high` : name;
+  const allowName = toolApprovalName(name, args);
   const refused = await gate(agent, allowName, risk, args, ctx, describeCall(name, args));
   if (refused) return refused;
   if (ctx.signal?.aborted) return { text: 'Stopped.', isError: true };

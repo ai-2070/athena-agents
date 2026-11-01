@@ -4,6 +4,7 @@
 // its team chat) as a new message, so nothing you answer is lost.
 import { agents, chats, questions, workflows, log, activeProject, withProject } from './store.ts';
 import { uid } from './util.ts';
+import { canonical } from '../shared/canonical.ts';
 import type { AgentQuestion } from '../shared/types.ts';
 
 export const MAX_CHOICES = 8;
@@ -27,6 +28,7 @@ export interface AskInput {
   runId?: string | null;
   teamId?: string | null;
   briefId?: string;
+  operationId?: string;
 }
 
 // questions an agent is waiting on right now, by id (in memory: after a restart nobody waits, and answers go as messages)
@@ -41,15 +43,21 @@ export function cleanChoices(raw: unknown): string[] {
 }
 
 /** Puts a question in the Outbox. (ask() also waits for the answer.) */
-export function addQuestion({ question, detail, choices, agentId = null, chatId = null, runId = null, teamId: explicitTeam = null, briefId }: AskInput): AgentQuestion {
+export function addQuestion({ question, detail, choices, agentId = null, chatId = null, runId = null, teamId: explicitTeam = null, briefId, operationId }: AskInput): AgentQuestion {
   const text = clean(question, 2000);
   if (!text) throw new Error('Say what you want to ask the user (question).');
+  const existing = operationId ? questions.list().find((item) => item.operationId === operationId) : null;
+  if (existing) {
+    if (canonical([existing.question, existing.detail || '', existing.choices, existing.agentId, existing.chatId, existing.runId]) !== canonical([text, clean(detail, 8000), cleanChoices(choices), agentId, chatId, runId])) throw new Error('The saved question does not match this tool call.');
+    return existing;
+  }
   const agent = agentId ? agents.get(agentId) : null;
   // a team's chat: a late answer goes to the team, so the others see it too
   const teamId = explicitTeam || (agentId && chatId ? chats.get(agentId, chatId)?.teamId || null : null);
   const team = teamId ? workflows.get(teamId) : null;
   const q = questions.save({
     id: uid('qn'),
+    ...(operationId ? { operationId } : {}),
     ...(briefId ? { briefId } : {}),
     question: text,
     ...(clean(detail, 8000) ? { detail: clean(detail, 8000) } : {}),
@@ -70,7 +78,7 @@ export function addQuestion({ question, detail, choices, agentId = null, chatId 
 /** Asks you and waits for your answer: until you answer or dismiss it, the run is stopped, or waitMs runs out. */
 export async function ask(input: AskInput, { signal, waitMs = WAIT_MS }: { signal?: AbortSignal; waitMs?: number } = {}): Promise<{ question: AgentQuestion; outcome: AskOutcome }> {
   const q = addQuestion(input);
-  if (signal?.aborted) return { question: close(q.id, 'The run was stopped.'), outcome: { kind: 'stopped' } };
+  if (signal?.aborted) return { question: closeQuestion(q.id, 'The run was stopped.'), outcome: { kind: 'stopped' } };
   const outcome = await new Promise<AskOutcome>((resolve) => {
     const done = (o: AskOutcome) => {
       clearTimeout(timer);
@@ -84,11 +92,11 @@ export async function ask(input: AskInput, { signal, waitMs = WAIT_MS }: { signa
     waiting.set(q.id, { runId: q.runId || null, resolve: done });
   });
   // stopped: you said stop, so the question goes too
-  if (outcome.kind === 'stopped') return { question: close(q.id, 'The run was stopped before you answered.'), outcome };
+  if (outcome.kind === 'stopped') return { question: closeQuestion(q.id, 'The run was stopped before you answered.'), outcome };
   return { question: questions.get(q.id) || q, outcome };
 }
 
-function close(id: string, note: string): AgentQuestion {
+export function closeQuestion(id: string, note: string): AgentQuestion {
   const q = questions.get(id);
   if (!q) throw new Error('No such question.');
   if (q.status !== 'waiting') return q;
@@ -146,7 +154,9 @@ async function deliver(q: AgentQuestion, answer: { choice: string; text: string 
   const engines = await import('./engines/index.ts');
   const w = waiting.get(q.id);
   // (its run may have ended without the wait noticing, e.g. the CLI quit: then it goes as a message)
-  const live = !!w && (!w.runId || !!engines.runInfo(w.runId));
+  const operation = q.operationId ? (await import('./eve/operations.ts')).readOperation(q.operationId) : null;
+  const durable = operation?.questionId === q.id && operation.runId === q.runId && !!engines.runInfo(q.runId) && operation.status === 'waiting';
+  const live = durable || !!w && (!w.runId || !!engines.runInfo(w.runId));
   let delivered: AgentQuestion['delivered'] = 'nowhere';
   let note = '';
   if (live) {

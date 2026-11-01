@@ -67,7 +67,8 @@ async function launchEveHost(options: EveHostOptions): Promise<EveHost> {
   const token = crypto.randomBytes(32).toString('hex');
   const child: ChildProcess = spawn(options.executable, [options.entry], {
     cwd: directory, windowsHide: true,
-    env: { ...process.env, NODE_ENV: 'production', HOST: '127.0.0.1', NITRO_HOST: '127.0.0.1', PORT: String(port), NITRO_PORT: String(port), WORKFLOW_LOCAL_BASE_URL: url, ATHENA_EVE_TOKEN: token, ATHENA_EVE_BRIDGE_URL: options.bridgeUrl, ATHENA_EVE_BRIDGE_TOKEN: options.bridgeToken },
+    // Inline-owned steps retain a 14-minute lease after a crash. Use queued steps locally.
+    env: { ...process.env, NODE_ENV: 'production', HOST: '127.0.0.1', NITRO_HOST: '127.0.0.1', PORT: String(port), NITRO_PORT: String(port), WORKFLOW_LOCAL_BASE_URL: url, WORKFLOW_INLINE_OWNERSHIP: '0', ATHENA_EVE_TOKEN: token, ATHENA_EVE_BRIDGE_URL: options.bridgeUrl, ATHENA_EVE_BRIDGE_TOKEN: options.bridgeToken },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   // Runtime output can contain model/provider diagnostics; do not broadcast or log raw output.

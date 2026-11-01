@@ -3,6 +3,7 @@ import type { DynamicModelContext } from 'eve';
 import type { EveRuntimeConfiguration } from '../../../../shared/types.ts';
 
 const configSchema = z.object({
+  runId: z.string().min(1),
   model: z.string().min(1),
   baseUrl: z.url(),
   apiKey: z.string(),

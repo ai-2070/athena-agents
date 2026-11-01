@@ -461,9 +461,29 @@ export interface Approval {
   brainNote?: string;
 }
 
+export interface ApprovalDecision {
+  approved: boolean;
+  message: string;
+  edited?: unknown;
+  always?: boolean;
+}
+
+export interface DurableApprovalRecord {
+  id: string;
+  operationId: string;
+  projectId: string;
+  fingerprint: string;
+  item: Approval;
+  expiresAt: number;
+  reviewing: boolean;
+  decision?: ApprovalDecision;
+}
+
 /** A question an agent asked you with ask_user: a choice to make, something only you know, a place it is stuck.
  *  It waits in the Outbox with its choices as buttons and a box for an answer in your own words. */
 export interface AgentQuestion {
+  /** Eve's saved call owns this wait instead of an in-memory Promise. */
+  operationId?: string;
   /** A completion check that stopped for user action. */
   briefId?: string;
   id: string;
@@ -653,6 +673,7 @@ export interface EngineCapabilities {
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 export interface EveRuntimeConfiguration {
+  runId: string;
   model: string;
   baseUrl: string;
   apiKey: string;
@@ -672,6 +693,7 @@ export interface EveSessionBinding {
   generation: string;
   sessionId: string | null;
   retired: boolean;
+  runtimeEnded?: boolean;
   createdAt: number;
 }
 
@@ -683,11 +705,34 @@ export interface EveRunRecord {
   depth: number;
   parentRunId: string | null;
   deliveryId: string | null;
+  turnId: string | null;
   status: EveRunStatus;
   configurationVersions: string[];
   cursor: { line: number; index: number } | null;
   /** Event identities and normalized outputs are saved together before publication. */
   events: { id: string; event: RunEvent }[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface EveToolOperation {
+  id: string;
+  runId: string;
+  bindingId: string;
+  sessionId: string;
+  callId: string;
+  name: string;
+  args: Record<string, unknown>;
+  origin: string;
+  risk: 'none' | 'low' | 'high';
+  fingerprint: string;
+  status: 'prepared' | 'waiting' | 'running' | 'completed' | 'uncertain' | 'cancelled';
+  result?: { text: string; isError?: boolean; images?: string[]; denied?: boolean };
+  approvalId?: string;
+  questionId?: string;
+  interactionId?: string;
+  interactionSettled?: boolean;
+  responseDeliveryId?: string;
   createdAt: number;
   updatedAt: number;
 }

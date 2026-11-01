@@ -53,7 +53,9 @@ const fixture = http.createServer(async (req, res) => {
     assert('binding' in body && body.binding === binding);
     res.setHeader('content-type', 'application/json');
     if (req.url === '/configuration') {
-      res.end(JSON.stringify({ model: 'athena-proof', baseUrl: `${fixtureUrl}/v1`, apiKey: 'fixture-provider-key', instructions: 'ATHENA_DYNAMIC_INSTRUCTIONS', contextWindow: 64000, tools: [{ name: 'probe', description: 'Read the proof value.', inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'], additionalProperties: false } }] }));
+      res.end(JSON.stringify({ runId: 'smoke-run', model: 'athena-proof', baseUrl: `${fixtureUrl}/v1`, apiKey: 'fixture-provider-key', instructions: 'ATHENA_DYNAMIC_INSTRUCTIONS', contextWindow: 64000, tools: [{ name: 'probe', description: 'Read the proof value.', inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'], additionalProperties: false } }] }));
+    } else if (req.url === '/policy') {
+      res.end(JSON.stringify({ status: 'approved' }));
     } else {
       assert.equal(req.url, '/tool');
       assert('input' in body);
@@ -99,6 +101,7 @@ async function start() {
       ...process.env, NODE_ENV: 'production', HOST: '127.0.0.1', NITRO_HOST: '127.0.0.1', PORT: String(runtimePort), NITRO_PORT: String(runtimePort),
       HOME: temporary, USERPROFILE: temporary, DASH_DATA: temporary,
       WORKFLOW_LOCAL_DATA_DIR: path.join(temporary, 'workflow'), WORKFLOW_LOCAL_BASE_URL: runtimeUrl,
+      WORKFLOW_INLINE_OWNERSHIP: '0',
       ATHENA_EVE_TOKEN: token, ATHENA_EVE_BRIDGE_TOKEN: bridgeToken, ATHENA_EVE_BRIDGE_URL: fixtureUrl,
     },
     stdio: ['ignore', 'pipe', 'pipe'],

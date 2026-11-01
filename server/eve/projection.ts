@@ -1,4 +1,6 @@
-import { readRun, recordEvents } from './state.ts';
+import { readRun, recordEvents, recordTurn } from './state.ts';
+import { operationsForRun, saveOperation } from './operations.ts';
+import { cancelDurableApproval } from '../approvals.ts';
 import type { SessionStreamEvent } from 'eve/client';
 import type { RunEvent } from '../../shared/types.ts';
 
@@ -10,6 +12,26 @@ export function projectEvent(runId: string, source: SessionStreamEvent): { id: s
   if (!run) throw new Error('No such Eve run.');
   const events: RunEvent[] = [];
   switch (source.type) {
+    case 'delivery.consumed':
+      if (source.data.deliveryId === run.deliveryId) recordTurn(runId, source.data.turnId);
+      break;
+    case 'interaction.opened': {
+      const subject = source.data.subject;
+      if (source.data.request.kind !== 'approval' || !('callId' in subject) || source.data.origin) throw new Error('This Eve interaction is not an Athena tool approval.');
+      const operation = operationsForRun(runId).find((item) => item.callId === subject.callId);
+      if (!operation || !(operation.approvalId || operation.questionId)) throw new Error('This Eve approval has no saved Athena operation.');
+      if (operation.interactionId && operation.interactionId !== source.data.interactionId) throw new Error('This operation already has an Eve interaction.');
+      saveOperation({ ...operation, interactionId: source.data.interactionId });
+      break;
+    }
+    case 'interaction.settled': {
+      const operation = operationsForRun(runId).find((item) => item.interactionId === source.data.interactionId);
+      if (!operation) break;
+      const withdrawn = !['accepted', 'declined'].includes(source.data.outcome);
+      if (withdrawn) cancelDurableApproval(operation.id, 'This tool request is no longer active.');
+      saveOperation({ ...operation, interactionSettled: true, ...(withdrawn && ['waiting', 'prepared'].includes(operation.status) ? { status: 'cancelled' } : {}) });
+      break;
+    }
     case 'content.delta':
     case 'call.input':
     case 'call.progress':

@@ -1,0 +1,159 @@
+import { Client } from 'eve/client';
+import { cancelForRun, durableApproval, ensureDurableApproval } from '../approvals.ts';
+import { questions, withProject } from '../store.ts';
+import { closeQuestion, WAIT_MS } from '../questions.ts';
+import { eveRuns, markSessionEnded, readBinding, readRun, retireSession, sessionContext, setRunStatus } from './state.ts';
+import { operationsForRun, readOperation, reconcileOperations, saveOperation } from './operations.ts';
+import { projectEvent } from './projection.ts';
+import type { EveHost } from './host.ts';
+import type { SessionSnapshot } from 'eve/client';
+
+export function eveClient(host: Pick<EveHost, 'url' | 'token'>, bindingId: string): Client {
+  return new Client({ baseUrl: host.url, auth: { bearer: host.token }, headers: { 'x-athena-binding': bindingId } });
+}
+
+function cancelQuestions(runId: string) {
+  const run = readRun(runId);
+  if (!run) return;
+  try {
+    const { project } = sessionContext(run.bindingId);
+    withProject(project, () => {
+      for (const operation of operationsForRun(runId)) if (operation.questionId && questions.get(operation.questionId)?.status === 'waiting') closeQuestion(operation.questionId, 'The run was stopped or interrupted.');
+    });
+  } catch { /* A deleted owner has no conversation to resume. */ }
+}
+
+function checkOutcomes(runId: string) {
+  const run = readRun(runId);
+  if (!run) return;
+  const { project, agent } = sessionContext(run.bindingId);
+  withProject(project, () => {
+    for (const operation of operationsForRun(runId).filter((item) => item.status === 'uncertain')) {
+      const key = `reconcile:${operation.id}`;
+      const approval = durableApproval(key) || ensureDurableApproval(key, {
+        kind: 'workflow', title: `Check the outcome of ${operation.name}`,
+        detail: 'This tool may already have made changes. Check its outcome before starting more work. Allow to mark this check done; this run stays interrupted and the tool will not be repeated.',
+        agentId: agent.id, agentName: agent.name, data: { tool: operation.name, args: operation.args, runId, outcomeCheck: true },
+      });
+      if (approval.decision?.approved) saveOperation({ ...operation, status: 'cancelled' });
+    }
+  });
+}
+
+async function endSession(bindingId: string, client: Client) {
+  const binding = readBinding(bindingId);
+  if (!binding?.sessionId || binding.runtimeEnded) return;
+  const response = await client.fetch(`/eve/v1/session/${encodeURIComponent(binding.sessionId)}/end`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'Stopped or interrupted in Athena.' }), signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) {
+    const error: unknown = await response.json();
+    if (!error || typeof error !== 'object' || !('code' in error) || !['session_not_active', 'session_expired'].includes(String(error.code))) throw new Error('Eve could not retire this stopped session.');
+  }
+  markSessionEnded(bindingId);
+}
+
+/** Save Stop before contacting the worker. A lost HTTP reply cannot undo the user's decision. */
+export async function stopEveRun(runId: string, client?: Client): Promise<void> {
+  const run = readRun(runId);
+  if (!run) return;
+  if (['completed', 'failed'].includes(run.status)) return;
+  if (['queued', 'running', 'waiting'].includes(run.status)) setRunStatus(runId, 'stopped');
+  cancelForRun(runId);
+  cancelQuestions(runId);
+  reconcileOperations(runId, true);
+  const binding = readBinding(run.bindingId);
+  retireSession(run.bindingId);
+  if (client && binding?.sessionId) await endSession(binding.id, client);
+}
+
+/** Replay a bounded durable prefix before deciding whether there is still machine work to follow. */
+export function reconcileSnapshot(runId: string, snapshot: SessionSnapshot) {
+  const run = readRun(runId);
+  if (!run) throw new Error('No such Eve run.');
+  const { binding } = sessionContext(run.bindingId);
+  if (snapshot.session.sessionId !== binding.sessionId) throw new Error('The snapshot does not belong to this Eve binding.');
+  if (!['queued', 'running', 'waiting'].includes(run.status)) return [];
+  const start = snapshot.events.findIndex((event) => event.type === 'delivery.admitted' && event.data.deliveryId === run.deliveryId);
+  if (start < 0) return [];
+  const events = snapshot.events.slice(start);
+  const projected = events.flatMap((event) => projectEvent(runId, event));
+  const current = readRun(runId)!;
+  const settled = events.findLast((event) => event.type === 'turn.settled' && event.data.turnId === current.turnId);
+  if (settled?.type === 'turn.settled') {
+    setRunStatus(runId, settled.data.outcome === 'cancelled' ? 'stopped' : settled.data.outcome === 'completed' ? 'completed' : 'failed');
+    cancelForRun(runId);
+  } else {
+    const paused = events.findLast((event) => event.type === 'turn.paused' && event.data.turnId === current.turnId);
+    const waiting = paused?.type === 'turn.paused' && paused.data.awaiting.some(({ interactionId }) => operationsForRun(runId).some((operation) => operation.interactionId === interactionId && !operation.interactionSettled));
+    setRunStatus(runId, waiting ? 'waiting' : 'running');
+  }
+  return projected;
+}
+
+/** A stable input key covers a crash after Eve accepts an answer but before Athena saves its receipt. */
+export async function deliverApprovalDecisions(runId: string, client: Client): Promise<void> {
+  const run = readRun(runId);
+  if (!run || !['running', 'waiting'].includes(run.status)) return;
+  const { binding, project } = sessionContext(run.bindingId);
+  if (!binding.sessionId) return;
+  for (const operation of operationsForRun(runId)) {
+    if (!operation.interactionId || operation.interactionSettled || operation.responseDeliveryId) continue;
+    const approval = durableApproval(operation.id);
+    const question = operation.questionId ? withProject(project, () => questions.get(operation.questionId!)) : null;
+    if (question?.status === 'waiting' && (question.createdAt || 0) + WAIT_MS <= Date.now()) withProject(project, () => questions.save({ ...question, status: 'closed', note: 'The question expired.' }));
+    const answered = operation.questionId ? withProject(project, () => questions.get(operation.questionId!)?.status !== 'waiting') : false;
+    if (!approval?.decision && !answered) continue;
+    const response = await client.fetch(`/eve/v1/session/${encodeURIComponent(binding.sessionId)}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(10000),
+      body: JSON.stringify({ answers: [{ interactionId: operation.interactionId, optionId: answered || approval?.decision?.approved ? 'approve' : 'deny' }], idempotencyKey: `approval:${operation.id}:${operation.interactionId}` }),
+    });
+    if (!response.ok) throw new Error('Eve could not accept the saved approval decision.');
+    const receipt: unknown = await response.json();
+    if (!receipt || typeof receipt !== 'object' || !('sessionId' in receipt) || receipt.sessionId !== binding.sessionId || !('deliveryId' in receipt) || typeof receipt.deliveryId !== 'string') throw new Error('Eve returned an invalid approval receipt.');
+    // Execution may already have updated the operation while the receipt was in flight.
+    saveOperation({ ...readOperation(operation.id)!, responseDeliveryId: receipt.deliveryId });
+  }
+}
+
+/** Called with the new private worker before new Athena work is admitted. Transport failure is retried. */
+export async function recoverEveRuns(host: Pick<EveHost, 'url' | 'token'>): Promise<{ runId: string; status: string }[]> {
+  const recovered: { runId: string; status: string }[] = [];
+  for (const run of eveRuns()) {
+    if (run.status === 'completed' || run.status === 'failed') continue;
+    const client = eveClient(host, run.bindingId);
+    if (run.status === 'stopped') {
+      await stopEveRun(run.id, client);
+      recovered.push({ runId: run.id, status: 'stopped' });
+      continue;
+    }
+    let binding;
+    try { binding = sessionContext(run.bindingId).binding; }
+    catch {
+      if (run.status !== 'interrupted') setRunStatus(run.id, 'interrupted');
+      cancelForRun(run.id, { keepOutcomeChecks: true });
+      cancelQuestions(run.id);
+      reconcileOperations(run.id, true);
+      retireSession(run.bindingId);
+      recovered.push({ runId: run.id, status: 'interrupted' });
+      continue;
+    }
+    reconcileOperations(run.id);
+    // A CLI child's vanished Promise cannot be reconstructed from its parent's saved text.
+    const orphan = run.parentRunId && !eveRuns().some((parent) => parent.id === run.parentRunId && ['queued', 'running', 'waiting'].includes(parent.status));
+    if (run.status === 'interrupted' || !binding.sessionId || !run.deliveryId || orphan || operationsForRun(run.id).some((operation) => operation.status === 'uncertain')) {
+      setRunStatus(run.id, 'interrupted');
+      cancelForRun(run.id, { keepOutcomeChecks: true });
+      cancelQuestions(run.id);
+      reconcileOperations(run.id, true);
+      checkOutcomes(run.id);
+      if (binding.sessionId) await endSession(binding.id, client);
+    } else {
+      const snapshot = await client.sessions.attach(binding.sessionId).snapshot({ signal: AbortSignal.timeout(10000) });
+      reconcileSnapshot(run.id, snapshot);
+      await deliverApprovalDecisions(run.id, client);
+    }
+    recovered.push({ runId: run.id, status: readRun(run.id)!.status });
+  }
+  return recovered;
+}

@@ -20,6 +20,7 @@ import * as compaction from '../compaction.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { engineCapabilities } from './capabilities.ts';
+import { readRun as readEveRun, sessionContext as eveSessionContext } from '../eve/state.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import { clearWork, stopChatWork } from '../briefs.ts';
 import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent, TeamContextMessage } from '../../shared/types.ts';
@@ -209,7 +210,13 @@ export function liveActivity(): LiveActivity[] {
 
 export function runInfo(runId: string | null | undefined): RunInfo | null {
   const r = runId && active.get(runId);
-  return r ? { id: runId, agentId: r.agentId, projectId: r.projectId, chatId: r.chatId, depth: r.depth, signal: r.signal, project: r.project, agent: r.agent } : null;
+  if (r) return { id: runId, agentId: r.agentId, projectId: r.projectId, chatId: r.chatId, depth: r.depth, signal: r.signal, project: r.project, agent: r.agent };
+  const saved = runId ? readEveRun(runId) : null;
+  if (!saved || !['running', 'waiting'].includes(saved.status)) return null;
+  try {
+    const { binding, project, agent } = eveSessionContext(saved.bindingId);
+    return { id: saved.id, agentId: agent.id, projectId: project.id, chatId: binding.chatId, depth: saved.depth, signal: new AbortController().signal, project, agent };
+  } catch { return null; }
 }
 
 // The chat object a running agent is writing to, so edits made meanwhile aren't overwritten.

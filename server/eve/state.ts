@@ -1,16 +1,13 @@
 import crypto from 'node:crypto';
 import { agents, chats, listProjects, withProject, workflows } from '../store.ts';
 import { teamWorkServers } from '../mcp.ts';
-import { DATA, dataPath, isInside, listFiles, readPlain, realTarget, writeJSON } from '../util.ts';
+import { listFiles, readPlain, writeJSON } from '../util.ts';
+import { privateDataPath } from '../private.ts';
 import type { Agent, Chat, EveRunRecord, EveRunStatus, EveSessionBinding, Project, RunEvent } from '../../shared/types.ts';
 
 const idOk = (id: string) => /^[a-zA-Z0-9_-]{1,120}$/.test(id);
 function privatePath(...parts: string[]): string {
-  const file = dataPath('runtime', 'eve', ...parts);
-  const root = realTarget(DATA);
-  const target = realTarget(file);
-  if (!root || !target || !isInside(root, target)) throw new Error('Eve metadata must stay under the data folder.');
-  return file;
+  return privateDataPath('runtime', 'eve', ...parts);
 }
 const bindingPath = (id: string) => privatePath('bindings', `${id}.json`);
 const runPath = (id: string) => privatePath('runs', `${id}.json`);
@@ -56,6 +53,11 @@ export function retireSession(id: string): void {
   if (binding) writeJSON(bindingPath(id), { ...binding, retired: true });
 }
 
+export function markSessionEnded(id: string): void {
+  const binding = readBinding(id);
+  if (binding) writeJSON(bindingPath(id), { ...binding, runtimeEnded: true });
+}
+
 export function readRun(id: string): EveRunRecord | null {
   return idOk(id) ? readPlain<EveRunRecord | null>(runPath(id), null) : null;
 }
@@ -70,7 +72,7 @@ export function beginRun(id: string, bindingId: string, depth = 0, parentRunId: 
   }
   const at = Date.now();
   if (activeEveRuns().some((run) => run.bindingId === bindingId)) throw new Error('This Eve conversation already has work in progress.');
-  return writeJSON(runPath(id), { id, bindingId, depth, parentRunId, status: 'queued', configurationVersions: [], deliveryId: null, cursor: null, events: [], createdAt: at, updatedAt: at } satisfies EveRunRecord);
+  return writeJSON(runPath(id), { id, bindingId, depth, parentRunId, status: 'queued', configurationVersions: [], deliveryId: null, turnId: null, cursor: null, events: [], createdAt: at, updatedAt: at } satisfies EveRunRecord);
 }
 
 export function recordConfiguration(id: string, definition: unknown): void {
@@ -92,8 +94,19 @@ export function setRunStatus(id: string, status: EveRunStatus, deliveryId?: stri
 }
 
 export function activeEveRuns(): EveRunRecord[] {
+  return eveRuns().filter((run) => !terminal(run.status));
+}
+
+export function eveRuns(): EveRunRecord[] {
   return listFiles(privatePath('runs'), (name) => name.endsWith('.json'))
-    .map((name) => readRun(name.slice(0, -5))).filter((run): run is EveRunRecord => !!run && !terminal(run.status));
+    .map((name) => readRun(name.slice(0, -5))).filter((run): run is EveRunRecord => !!run);
+}
+
+export function recordTurn(id: string, turnId: string): void {
+  const run = readRun(id);
+  if (!run || terminal(run.status)) throw new Error('This Eve run is no longer active.');
+  if (run.turnId && run.turnId !== turnId) throw new Error('An Eve run cannot change its turn.');
+  if (!run.turnId) writeJSON(runPath(id), { ...run, turnId, updatedAt: Date.now() });
 }
 
 /** Commit before notifying listeners; a reconnect can replay these outputs by stable ID. */

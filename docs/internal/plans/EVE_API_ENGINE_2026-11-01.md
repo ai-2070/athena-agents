@@ -1,6 +1,6 @@
 # Replace the built-in API agent with Eve
 
-*Plan, 1 November 2026. Phases 1 and 2 implemented; API-engine cutover is not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
+*Plan, 1 November 2026. Phases 1 and 2 implemented; phase 3's durable wait and recovery foundation is implemented, with checkpoint recovery still unresolved. API-engine cutover is not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
 
 ## Progress
 
@@ -22,16 +22,17 @@ filesystem template; source startup measured about 0.6 seconds. These are local 
 not performance guarantees. The final target is a separate process using the already bundled Bun,
 not a second runtime installation or a new agent loop embedded in the dashboard process.
 
-Two findings constrain the next phases:
+Runtime findings:
 
 - Eve 1.0.0-rc.1 ignores `WORKFLOW_LOCAL_DATA_DIR` for its managed local world and derives state
   from the process working directory. The supervisor must use a private working directory under
   `DATA` and copy the prepared attachment templates there. Compiler output alone is insufficient.
-- A reply's delivery event can precede its Workflow checkpoint. On Windows, forcibly stopping
-  immediately after that event left a resumed turn stalled under both Node and Bun 1.4.4; an idle restart after
-  the checkpoint passes. The smoke check explicitly waits for the checkpoint rather than claiming
-  interrupted-run recovery. Phase 3 must resolve and test that boundary before cutover. Do not
-  work around it in the product with a fixed sleep or silently restart a side-effecting turn.
+- A reply's delivery event can precede its Workflow checkpoint. The initial immediate-restart
+  failure exposed Workflow's inline ownership lease (about 14 minutes). Setting
+  `WORKFLOW_INLINE_OWNERSHIP=0` avoids that lease, but repeated tests still expose a separate
+  checkpoint gap: the recovered step reads its committed events and returns, yet the next
+  input can stall without another model call. Disabling retained VMs and turbo execution did
+  not resolve it. This remains a cutover blocker, under both the initial Node proof and Bun.
 
 Phase 2 adds private session bindings and a run ledger below `DATA/runtime/eve`, current project,
 agent and team permission resolution, configuration fingerprints, immutable run/delivery ownership,
@@ -48,17 +49,47 @@ than substituted with an empty result. The API adapter and UI consumption arrive
 tool routing and event projection with a fake provider and isolated project. Unit tests cover
 project switches, retired bindings, changed permissions, competing runs, stopped-run finality,
 duplicate events, tool results, native compaction markers and process shutdown. These are the
-foundations for phase 3, not a claim that approvals or interrupted work already survive restart.
+foundations for the durable waits below.
 
-The checkpoint interruption has an isolated reproduction:
+The checkpoint interruption has an isolated regression reproduction:
 
 ```sh
 bun scripts/eve-smoke.ts runtime/eve/.output/server/index.mjs bun runtime/eve/.eve/sandbox-cache --interrupt-after-reply
 ```
 
-It deliberately skips the idle-checkpoint wait and currently fails on Windows. The normal smoke
-and integration commands pass. Keep this reproduction for phase 3; do not enable automatic recovery
-of side-effecting turns until its outcomes and pending approvals are reconciled safely.
+It deliberately skips the idle-checkpoint wait and still fails intermittently on Windows. An
+isolated pass is insufficient evidence of a fix. The normal smoke and approval/question recovery
+integration pass. Keep this reproduction separate from the passing CI checks until the checkpoint
+gap is fixed, then make it mandatory before cutover. Linux results remain pending CI; all local
+tests use a fake provider and never paid calls or user credentials. Temporary diagnostic changes
+to generated build output are not shipped or committed.
+
+Phase 3 persists approvals, exact consent identities, edited arguments, decisions and expiry. Eve's
+native approval policy parks the call, rather than keeping an ordinary HTTP executor waiting for
+consent. Athena remains the only approval UI. Outbox questions use the same checkpoint boundary;
+an answer resumes its original saved call instead of also queuing a second chat message.
+
+Every tool operation has a project/session/run/call identity, saved execution intent and a saved
+outcome. Duplicate calls join a live executor or reuse its completed result. An execution intent
+left behind by a crash becomes uncertain, interrupts the run and asks the user to check the outcome.
+Acknowledging that check cannot restart the tool. This is conservative reconciliation, not a claim
+of exactly-once effects for external tools.
+
+The recovery service replays a bounded session snapshot, restores native approval interactions,
+delivers saved answers with stable Eve input keys, and settles recorded turns once. Stop is saved
+before contacting the worker and retires the binding; missing owners and orphaned cross-engine
+children are interrupted. History tools resolve a valid saved run after its in-memory entry is lost.
+
+The integration fixture now restarts the actual Bun worker while waiting for approval or an Outbox
+answer, resumes the original operation, and proves that stopped work cannot write its file. Unit
+tests cover duplicate execution, unknown outcomes, lost approval receipts, expiry, edited consent,
+withdrawal and interrupted Brain review. All state stays in throwaway project/home directories.
+
+Remaining recovery integration belongs with the engine adapter: wire the coordinator into server
+startup before admitting new runs; persist and reclaim queued/steered inputs; restore Athena's busy
+state and completion hooks; and reconcile team read marks and delegated-work handles. Nested tool
+approval paths (tool access and voxel ownership/settings) also need native checkpoints before
+cutover. These are still required; the existing API engine remains active until they are connected.
 
 ## Goal and scope
 
