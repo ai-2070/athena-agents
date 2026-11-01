@@ -16,7 +16,21 @@ describe('the private Eve process', () => {
     expect(host.token.length).toBe(64);
     await expect(startEveHost(options)).rejects.toThrow('already has an owner');
     await host.close();
+    await host.exited;
     await expect(fetch(host.url + '/eve/v1/health')).rejects.toThrow();
     await expect(startEveHost({ ...options, directory: path.dirname(dataPath()) })).rejects.toThrow('data folder');
+  });
+
+  it('cancels startup and releases the folder when its owner shuts down before readiness', async () => {
+    const fixture = ensureDir(dataPath('eve-abort-fixture'));
+    const entry = path.join(fixture, 'waiting.cjs');
+    fs.writeFileSync(entry, "process.stdin.on('end',()=>process.exit(0)); process.stdin.resume();");
+    const controller = new AbortController();
+    const options = { executable: process.execPath, entry, templates: ensureDir(path.join(fixture, 'templates')), directory: dataPath('runtime', 'eve', 'aborted-host'), bridgeUrl: 'http://127.0.0.1:1', bridgeToken: 'fixture', signal: controller.signal };
+    const started = startEveHost(options);
+    setTimeout(() => controller.abort(), 50);
+    await expect(started).rejects.toThrow(/abort/i);
+    // A second attempt reaches cancellation rather than a stale folder ownership guard.
+    await expect(startEveHost(options)).rejects.toThrow(/abort/i);
   });
 });

@@ -60,6 +60,9 @@ A second launch shows and focuses the open window. Size and position are remembe
 The staged app also includes the experimental Eve runtime in `app/runtime/eve/`, its attachment
 filesystem templates in `app/runtime/eve-sandbox-cache/`. Both use the existing bundled Bun 1.4+.
 These files support the API-engine replacement; the normal agent engine has not switched to Eve yet.
+The server's Eve supervisor finds these relocated files, uses the bundled Bun, and keeps worker
+state under `DATA/runtime/eve`. Saved native work is reconciled before the worker starts its queue.
+Server shutdown cancels an unfinished launch and closes the worker before the private tool bridge.
 `desktop:smoke` exercises the staged Eve server with the bundled Bun, a fake model and throwaway
 state before checking the dashboard. It also kills and restarts Eve at three checkpoint write
 boundaries and during an unfinished model call. The pinned local store and its patch ship with the runtime; see

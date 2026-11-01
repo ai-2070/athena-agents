@@ -14,16 +14,18 @@ export interface EveHostOptions {
   directory: string;
   bridgeUrl: string;
   bridgeToken: string;
+  signal?: AbortSignal;
 }
 
 export interface EveHost {
   url: string;
   token: string;
+  exited: Promise<void>;
   close(): Promise<void>;
 }
 
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms).unref());
-const owners = new Set<string>();
+const owners = new Map<string, symbol>();
 
 function noLinks(directory: string) {
   if (!fs.existsSync(directory)) return;
@@ -35,17 +37,21 @@ export async function startEveHost(options: EveHostOptions): Promise<EveHost> {
   const resolved = path.resolve(options.directory);
   const key = IS_WIN ? resolved.toLowerCase() : resolved;
   if (owners.has(key)) throw new Error('This Eve runtime folder already has an owner.');
-  owners.add(key);
+  const owner = Symbol();
+  owners.set(key, owner);
+  const release = () => { if (owners.get(key) === owner) owners.delete(key); };
   try {
     const host = await launchEveHost(options);
-    return { ...host, close: async () => { try { await host.close(); } finally { owners.delete(key); } } };
+    void host.exited.then(release);
+    return { ...host, close: async () => { try { await host.close(); } finally { release(); } } };
   } catch (error) {
-    owners.delete(key);
+    release();
     throw error;
   }
 }
 
 async function launchEveHost(options: EveHostOptions): Promise<EveHost> {
+  options.signal?.throwIfAborted();
   const dataRoot = realTarget(DATA);
   const wanted = realTarget(options.directory);
   if (!dataRoot || !wanted || !isInside(dataRoot, wanted)) throw new Error('Eve runtime state must stay under the data folder.');
@@ -77,9 +83,17 @@ async function launchEveHost(options: EveHostOptions): Promise<EveHost> {
   child.stdin?.on('error', () => {});
   let failure: Error | undefined;
   child.on('error', (error) => { failure = error; });
-  async function close() {
+  const exited = new Promise<void>((resolve) => {
+    child.once('exit', () => resolve());
+    child.once('error', () => resolve());
+  });
+  let closing: Promise<void> | undefined;
+  const onAbort = () => { void close(); };
+  function close(): Promise<void> {
+    return closing ??= stop().finally(() => options.signal?.removeEventListener('abort', onAbort));
+  }
+  async function stop() {
     if (child.exitCode !== null || child.signalCode !== null || failure) return;
-    const exited = once(child, 'exit');
     child.stdin?.end();
     if (await Promise.race([exited.then(() => true), pause(3000).then(() => false)])) return;
     child.kill();
@@ -87,15 +101,17 @@ async function launchEveHost(options: EveHostOptions): Promise<EveHost> {
     child.kill('SIGKILL');
     await exited;
   }
+  options.signal?.addEventListener('abort', onAbort, { once: true });
   try {
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
+      options.signal?.throwIfAborted();
       if (failure) throw failure;
       if (child.exitCode !== null || child.signalCode !== null) throw new Error('The Eve runtime exited before it was ready.');
       try {
         const response = await fetch(`${url}/eve/v1/health`, { signal: AbortSignal.timeout(1000), redirect: 'error' });
         const result: unknown = response.ok ? await response.json() : null;
-        if (result && typeof result === 'object' && 'ok' in result && result.ok === true && 'status' in result && result.status === 'ready') return { url, token, close };
+        if (result && typeof result === 'object' && 'ok' in result && result.ok === true && 'status' in result && result.status === 'ready') return { url, token, exited, close };
       } catch { /* the private listener is still starting */ }
       await pause(100);
     }

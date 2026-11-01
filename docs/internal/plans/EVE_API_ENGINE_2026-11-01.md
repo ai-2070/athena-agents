@@ -1,6 +1,6 @@
 # Replace the built-in API agent with Eve
 
-*Plan, 1 November 2026. Phases 1 and 2 implemented; phase 3 has durable waits, checkpoint recovery and saved agent/team coordination. The production Eve adapter and API-engine cutover are not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
+*Plan, 1 November 2026. Phases 1 and 2 implemented; phase 3 has durable waits, checkpoint recovery and saved agent/team coordination. Phase 4 has server-owned worker supervision; the engine adapter and API-engine cutover are not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
 
 ## Progress
 
@@ -24,14 +24,29 @@ request points to the receiving team that needs resuming. Normal shutdown preser
 Stop and Clear save their cancellation before stopping members. Existing completion checks reopen
 before a resumed saved result can settle. Project copies retain transcripts but do not inherit
 private live-work ownership. Tests cover these boundaries, including a separate process exiting
-during routing. Production Eve supervision, native busy/completion restoration and nested tool
-checkpoints remain before cutover.
+during routing. Native busy/completion restoration and the engine adapter remain before cutover.
+
+The server now owns the private Eve worker through `server/eve/runtime.ts`. It stays lazy when
+there is no saved native work, shares one startup across concurrent callers, and only reports
+readiness after recovery. Before launching a worker, a transport-free pass validates owners,
+marks unfinished execution intents uncertain, and interrupts orphaned children. This must precede
+launch because the local Workflow world starts its saved queue immediately. Ancestor checks run
+after all intents are reconciled, so file order cannot leave a child running under an interrupted
+parent. Retiring stopped/interrupted native sessions then uses the authenticated worker.
+Unexpected worker exit triggers a bounded retry when saved work remains; shutdown cancels startup
+and closes the worker before its bridge. The manager resolves source and relocated desktop files
+and continues to use the bundled Bun. Server startup runs recovery before schedulers and ordinary
+execution reconciliation. Unit tests cover shared readiness, idle/crashed workers, failed recovery,
+shutdown during launch and source/desktop paths; the six real-process integration scenarios now
+run through this manager. Restoring Athena's active map, following native event streams, joining
+saved team work, and enforcing ownership across two dashboard processes remain adapter/cutover
+requirements. The manager alone does not replace the API engine.
 
 Phase 1 now has a pinned Eve 1.0.0-rc.1 application, dynamic model/instructions/tool definitions,
 private token authentication, an attachment-only virtual filesystem and a repeatable smoke check.
 `eve:build` runs Eve under Bun 1.4+ and produces Nitro's Bun output. Desktop staging includes that
 output and its filesystem templates; the dashboard continues to use its existing engines.
-The Bun server will supervise a private Bun process in the next phase, keeping Tauri's single
+The Bun server supervises the private Bun process, keeping Tauri's single
 dashboard-child ownership model rather than adding a second independent Rust supervisor.
 
 Windows checks prove the model/tool round trip, rejection of unauthenticated input, idle-session
@@ -131,9 +146,9 @@ fake model requests, including no second request for stopped work. Unit
 tests cover duplicate execution, unknown outcomes, lost approval receipts, expiry, edited consent,
 withdrawal and interrupted Brain review. All state stays in throwaway project/home directories.
 
-Remaining recovery integration belongs with the engine adapter: wire the native coordinator into
-server startup before admitting new runs, restore Athena's native busy state and completion hooks,
-and join recovered Eve runs to their saved agent/team coordination. These are still required;
+Remaining recovery integration belongs with the engine adapter: restore Athena's native busy state,
+follow event streams and completion hooks, enforce cross-process ownership, and join recovered
+Eve runs to their saved agent/team coordination. These are still required;
 the existing API engine remains active until they are connected.
 
 ## Goal and scope

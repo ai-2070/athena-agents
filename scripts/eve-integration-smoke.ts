@@ -22,7 +22,8 @@ const { beginRun, bindSession, readRun, setRunStatus } = await import('../server
 const { openEveBridge } = await import('../server/eve/bridge.ts');
 const { startEveHost } = await import('../server/eve/host.ts');
 const { projectEvent } = await import('../server/eve/projection.ts');
-const { deliverApprovalDecisions, eveClient, reconcileSnapshot, recoverEveRuns, stopEveRun } = await import('../server/eve/recovery.ts');
+const { deliverApprovalDecisions, eveClient, prepareEveRecovery, reconcileSnapshot, recoverEveRuns, stopEveRun } = await import('../server/eve/recovery.ts');
+const { EveRuntime } = await import('../server/eve/runtime.ts');
 const { decide, listApprovals } = await import('../server/approvals.ts');
 const { answerQuestion, waitingQuestions } = await import('../server/questions.ts');
 const { dataPath } = await import('../server/util.ts');
@@ -67,6 +68,15 @@ const address = model.address();
 assert(address && typeof address !== 'string');
 const bridge = await openEveBridge();
 let host: Awaited<ReturnType<typeof startEveHost>> | undefined;
+let runtime: InstanceType<typeof EveRuntime> | undefined;
+async function startRuntime() {
+  runtime = new EveRuntime({
+    bridge: async () => ({ ...bridge, close: async () => {} }),
+    host: (privateBridge, signal) => startEveHost({ executable: process.execPath, entry: path.join(root, 'runtime/eve/.output/launch.mjs'), templates: path.join(root, 'runtime/eve/.eve/sandbox-cache'), directory: dataPath('runtime/eve/worker'), bridgeUrl: privateBridge.url, bridgeToken: privateBridge.token, signal }),
+    prepare: prepareEveRecovery, recover: recoverEveRuns, hasWork: () => false,
+  });
+  return runtime.ready();
+}
 try {
   saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${address.port}/v1`, label: 'Integration fixture' } }, compaction: { windowTokens: 64000 } });
   setSecret('customKey', 'integration-key');
@@ -75,9 +85,9 @@ try {
   agents.save(newAgent({ name: 'Integration peer' }));
   const chat = chats.create(agent.id, 'Integration proof');
   const binding = bindSession(agent, chat, project, 'proof');
+  host = await startRuntime();
   beginRun('integration-run', binding.id);
   setRunStatus('integration-run', 'running');
-  host = await startEveHost({ executable: process.execPath, entry: path.join(root, 'runtime/eve/.output/launch.mjs'), templates: path.join(root, 'runtime/eve/.eve/sandbox-cache'), directory: dataPath('runtime/eve/worker'), bridgeUrl: bridge.url, bridgeToken: bridge.token });
   const client = new Client({ baseUrl: host.url, auth: { bearer: host.token }, headers: { 'x-athena-binding': binding.id } });
   const { delivery } = await client.sessions.create({ message: 'List the other agents using the supplied tool.', signal: AbortSignal.timeout(30000) });
   setRunStatus('integration-run', 'running', delivery.deliveryId);
@@ -120,10 +130,9 @@ try {
     assert(!fs.existsSync(path.join(workspace, 'approved.txt')), 'No file may be written before consent.');
     if (kind === 'access') assert(!agents.get(owner.id)?.toolGroups.includes('shell'));
     if (kind === 'stop') await stopEveRun(runId);
-    await host.close();
-    host = await startEveHost({ executable: process.execPath, entry: path.join(root, 'runtime/eve/.output/launch.mjs'), templates: path.join(root, 'runtime/eve/.eve/sandbox-cache'), directory: dataPath('runtime/eve/worker'), bridgeUrl: bridge.url, bridgeToken: bridge.token });
+    await runtime!.close();
+    host = await startRuntime();
     const resumed = eveClient(host, saved.id);
-    await recoverEveRuns(host);
     console.log(`eve integration: ${kind} recovered`);
     if (kind === 'stop') {
       assert.equal(readRun(runId)?.status, 'stopped');
@@ -164,7 +173,7 @@ try {
   assert.equal(requests, 13, 'Stopped work must not make another model call.');
   console.log('eve integration: tool, access, ownership, setting and Outbox waits survive immediate restart; stopped work stays stopped');
 } finally {
-  await host?.close();
+  await runtime?.close();
   await bridge.close();
   model.closeAllConnections();
   await new Promise<void>((resolve) => model.close(() => resolve()));

@@ -11,6 +11,7 @@ import * as store from './store.ts';
 import { agents, chats, outbox, artifacts as artifactStore, workflows, runs, bus, getSettings, saveSettings, setSecret, secretStatus, internalToken, activity, log } from './store.ts';
 import { listApprovals, decide, requestApproval, setReviewer } from './approvals.ts';
 import * as engines from './engines/index.ts';
+import { eveRuntime } from './eve/runtime.ts';
 import { PROVIDERS, listModels } from './providers.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { codexModelList } from './models.ts';
@@ -1464,6 +1465,8 @@ ensureDir(dataPath('outputs'));
 fs.rmSync(dataPath('tmp', 'received'), { recursive: true, force: true }); // uploads cut off by a crash
 internalToken();
 store.migrateLayout();
+try { await eveRuntime.recover(); }
+catch { log('error', 'Eve could not restore saved work. It will try again before accepting new Eve work.'); }
 engines.recoverExecution();
 teams.recoverTeamWork();
 wfs.markInterruptedRuns();
@@ -1501,7 +1504,7 @@ const shutdown = () => {
   stopping = true;
   terms.closeAll();
   // agents' CLIs are stopped too: they would go on writing into the project with no dashboard to see it
-  void engines.stopAllRuns().finally(() => process.exit(0));
+  void engines.stopAllRuns().finally(() => eveRuntime.close()).finally(() => process.exit(0));
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

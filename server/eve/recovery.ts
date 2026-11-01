@@ -116,15 +116,15 @@ export async function deliverApprovalDecisions(runId: string, client: Client): P
   }
 }
 
-/** Called with the new private worker before new Athena work is admitted. Transport failure is retried. */
-export async function recoverEveRuns(host: Pick<EveHost, 'url' | 'token'>): Promise<{ runId: string; status: string }[]> {
-  const recovered: { runId: string; status: string }[] = [];
+/** Reconcile ownership and execution intents before a worker can automatically resume its queue. */
+export function prepareEveRecovery(): void {
   for (const run of eveRuns()) {
     if (run.status === 'completed' || run.status === 'failed') continue;
-    const client = eveClient(host, run.bindingId);
     if (run.status === 'stopped') {
-      await stopEveRun(run.id, client);
-      recovered.push({ runId: run.id, status: 'stopped' });
+      cancelForRun(run.id);
+      cancelQuestions(run.id);
+      reconcileOperations(run.id, true);
+      retireSession(run.bindingId);
       continue;
     }
     let binding;
@@ -135,20 +135,50 @@ export async function recoverEveRuns(host: Pick<EveHost, 'url' | 'token'>): Prom
       cancelQuestions(run.id);
       reconcileOperations(run.id, true);
       retireSession(run.bindingId);
-      recovered.push({ runId: run.id, status: 'interrupted' });
       continue;
     }
     reconcileOperations(run.id);
-    // A CLI child's vanished Promise cannot be reconstructed from its parent's saved text.
-    const orphan = run.parentRunId && !eveRuns().some((parent) => parent.id === run.parentRunId && ['queued', 'running', 'waiting'].includes(parent.status));
-    if (run.status === 'interrupted' || !binding.sessionId || !run.deliveryId || orphan || operationsForRun(run.id).some((operation) => operation.status === 'uncertain')) {
+    if (run.status === 'interrupted' || !binding.sessionId || !run.deliveryId || operationsForRun(run.id).some((operation) => operation.status === 'uncertain')) {
       setRunStatus(run.id, 'interrupted');
       cancelForRun(run.id, { keepOutcomeChecks: true });
       cancelQuestions(run.id);
       reconcileOperations(run.id, true);
       checkOutcomes(run.id);
-      if (binding.sessionId) await endSession(binding.id, client);
-    } else {
+    }
+  }
+  // A vanished CLI/team Promise cannot be reconstructed from its parent's saved text.
+  // Check ancestors after every operation intent has been reconciled, regardless of file order.
+  const canResume = (id: string, projectId: string, seen = new Set<string>()): boolean => {
+    if (seen.has(id)) return false;
+    seen.add(id);
+    const run = readRun(id);
+    if (!run || !['queued', 'running', 'waiting'].includes(run.status)) return false;
+    try {
+      if (sessionContext(run.bindingId).project.id !== projectId) return false;
+    } catch { return false; }
+    return !run.parentRunId || canResume(run.parentRunId, projectId, seen);
+  };
+  for (const run of eveRuns().filter((item) => ['queued', 'running', 'waiting'].includes(item.status))) {
+    const { project } = sessionContext(run.bindingId);
+    if (canResume(run.id, project.id)) continue;
+    setRunStatus(run.id, 'interrupted');
+    cancelForRun(run.id, { keepOutcomeChecks: true });
+    cancelQuestions(run.id);
+    reconcileOperations(run.id, true);
+  }
+}
+
+/** Called with the new private worker before new Athena work is admitted. Transport failure is retried. */
+export async function recoverEveRuns(host: Pick<EveHost, 'url' | 'token'>): Promise<{ runId: string; status: string }[]> {
+  prepareEveRecovery();
+  const recovered: { runId: string; status: string }[] = [];
+  for (const run of eveRuns()) {
+    if (run.status === 'completed' || run.status === 'failed') continue;
+    const client = eveClient(host, run.bindingId);
+    const binding = readBinding(run.bindingId);
+    if (run.status === 'stopped' || run.status === 'interrupted') {
+      if (binding?.sessionId) await endSession(binding.id, client);
+    } else if (binding?.sessionId) {
       const snapshot = await client.sessions.attach(binding.sessionId).snapshot({ signal: AbortSignal.timeout(10000) });
       reconcileSnapshot(run.id, snapshot);
       await deliverApprovalDecisions(run.id, client);

@@ -6,7 +6,7 @@ import { newAgent } from '../../server/library.ts';
 import { decide, ensureDurableApproval, listApprovals } from '../../server/approvals.ts';
 import { attachSession, beginRun, bindSession, readRun, setRunStatus } from '../../server/eve/state.ts';
 import { prepareOperation, readOperation, saveOperation } from '../../server/eve/operations.ts';
-import { deliverApprovalDecisions, eveClient, reconcileSnapshot, recoverEveRuns, stopEveRun } from '../../server/eve/recovery.ts';
+import { deliverApprovalDecisions, eveClient, prepareEveRecovery, reconcileSnapshot, recoverEveRuns, stopEveRun } from '../../server/eve/recovery.ts';
 import { runInfo } from '../../server/engines/index.ts';
 import type { SessionSnapshot, SessionStreamEvent } from 'eve/client';
 
@@ -42,6 +42,24 @@ const parked = () => snapshot([
 ]);
 
 describe('Eve restart reconciliation', () => {
+  it('interrupts an uncertain ancestor and its child before any worker transport starts', () => {
+    const parent = fixture('z-uncertain-parent');
+    attachSession(parent.binding.id, 'parent-session');
+    const child = fixture('a-uncertain-child', 'z-uncertain-parent');
+    attachSession(child.binding.id, 'child-session');
+    const operation = prepareOperation({ runId: 'z-uncertain-parent', bindingId: parent.binding.id, sessionId: 'parent-session', callId: 'send', name: 'send', args: {}, origin: 'builtin:send', risk: 'high' });
+    saveOperation({ ...operation, status: 'running' });
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    try {
+      prepareEveRecovery();
+      expect(fetch).not.toHaveBeenCalled();
+      expect(readRun('z-uncertain-parent')?.status).toBe('interrupted');
+      expect(readRun('a-uncertain-child')?.status).toBe('interrupted');
+      expect(readOperation(operation.id)?.status).toBe('uncertain');
+      expect(runInfo('a-uncertain-child')).toBeNull();
+    } finally { fetch.mockRestore(); }
+  });
+
   it('replays one original tool call, restores its wait and settles its turn only once', () => {
     const { operation } = waiting('recovery-facts');
     const prefix = parked();
@@ -113,7 +131,7 @@ describe('Eve restart reconciliation', () => {
     const transport = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
     try {
       await recoverEveRuns({ url: 'http://127.0.0.1:9876', token: 'fixture' });
-      expect(transport.mock.calls.every(([url]) => String(url).endsWith('/session/session/end'))).toBe(true);
+      expect(transport.mock.calls.every(([url]) => /\/session\/[^/]+\/end$/.test(String(url)))).toBe(true);
     } finally { transport.mockRestore(); }
     expect(readRun('orphan-child')?.status).toBe('interrupted');
     expect(readRun('unknown-effect')?.status).toBe('interrupted');
