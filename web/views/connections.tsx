@@ -226,7 +226,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
             <input className="code" type="password" autoComplete="off" placeholder={saved(secrets.redditClientSecret, 'Secret')} onChange={(e) => (rd.current.secret = e.target.value)} />
           </FieldRow>
           <FieldRow label="Your Reddit username" hint="Reddit asks apps to say who runs them." size="lg">
-            <input defaultValue={settings.reddit?.username || ''} placeholder="Your Reddit username" onChange={(e) => (rd.current.username = e.target.value)} />
+            <input className="font-mono" defaultValue={settings.reddit?.username || ''} placeholder="Your Reddit username" onChange={(e) => (rd.current.username = e.target.value)} />
           </FieldRow>
           <RowActions>
             <Button size="small" onClick={() => void saveReddit()}>Save</Button>

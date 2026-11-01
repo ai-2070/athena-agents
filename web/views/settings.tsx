@@ -165,10 +165,10 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
 
       <Section title="Limits" description="Stops a run that goes on too long or costs too much.">
         <FieldRow label="Max tool steps per message" hint="API-model agents stop after this many tool rounds." size="sm">
-          <input type="number" min={1} max={100} defaultValue={s.maxToolSteps} onChange={(e) => setP('maxToolSteps', Number(e.target.value))} />
+          <input className="font-mono" type="number" min={1} max={100} defaultValue={s.maxToolSteps} onChange={(e) => setP('maxToolSteps', Number(e.target.value))} />
         </FieldRow>
         <FieldRow label="Cost limit per message (USD)" hint="API runs stop between model steps when a known cost passes this limit. Venice may use a labeled USD-equivalent estimate. One answer can exceed it. 0 = no limit." size="sm">
-          <input type="number" min={0} step="0.5" defaultValue={s.costLimitUsdPerRun} onChange={(e) => setP('costLimitUsdPerRun', Number(e.target.value))} />
+          <input className="font-mono" type="number" min={0} step="0.5" defaultValue={s.costLimitUsdPerRun} onChange={(e) => setP('costLimitUsdPerRun', Number(e.target.value))} />
         </FieldRow>
       </Section>
 
@@ -189,13 +189,13 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
           description="Instant keeps the original words, cut to fit: long messages are shortened, tool calls become one line and their results are left out (the agent can read any of them back). No model call, so it takes no time and costs nothing. Off: the Brain’s model writes a summary instead (slower, smaller)."
         />
         <FieldRow label="Messages kept in full" hint="Up to this many of the latest messages (yours and the agent’s, with their tool calls) stay word for word, as far as the size budget allows. The rest is compacted." size="sm">
-          <input type="number" min={0} max={1000} defaultValue={s.compaction.keepMessages} onChange={(e) => setP('compaction.keepMessages', Number(e.target.value))} />
+          <input className="font-mono" type="number" min={0} max={1000} defaultValue={s.compaction.keepMessages} onChange={(e) => setP('compaction.keepMessages', Number(e.target.value))} />
         </FieldRow>
         <FieldRow label="Compact at (% of the context window)" hint="Compacts when the agent’s memory of a chat reaches this share of the model’s context window." size="sm">
-          <input type="number" min={10} max={95} defaultValue={s.compaction.thresholdPercent} onChange={(e) => setP('compaction.thresholdPercent', Number(e.target.value))} />
+          <input className="font-mono" type="number" min={10} max={95} defaultValue={s.compaction.thresholdPercent} onChange={(e) => setP('compaction.thresholdPercent', Number(e.target.value))} />
         </FieldRow>
         <FieldRow label="Context window (tokens)" hint="Leave empty to use what each engine or model says (Claude Code 200k, or 1M for a “[1m]” model). Set 1000000 if your models have a 1M-token window: everything the compaction keeps grows with the window." size="sm">
-          <input type="number" min={0} step={1000} defaultValue={s.compaction.windowTokens || ''} placeholder="auto" onChange={(e) => setP('compaction.windowTokens', Number(e.target.value) || 0)} />
+          <input className="font-mono" type="number" min={0} step={1000} defaultValue={s.compaction.windowTokens || ''} placeholder="auto" onChange={(e) => setP('compaction.windowTokens', Number(e.target.value) || 0)} />
         </FieldRow>
       </Section>
 
