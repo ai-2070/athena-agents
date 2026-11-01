@@ -1,0 +1,21 @@
+web/views/connections.tsx
+  s_57c675cb3340e9::t_3448f7bc790124 229
+web/views/settings.tsx
+  s_57c675cb3340e9::t_eb1dee502ad0af 168,171,192,195,198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e6f65f87269168f20674ebb27e6e9a11f37d4f42",
+  "prompts": {},
+  "sessions": {
+    "s_57c675cb3340e9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19923-964d-73a1-aa94-f5a5587530e9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
