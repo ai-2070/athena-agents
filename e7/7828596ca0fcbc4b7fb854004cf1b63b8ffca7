@@ -1,0 +1,21 @@
+tests/server/api.test.ts
+  s_57c675cb3340e9::t_37eb1f21abc141 36-39,48
+  s_57c675cb3340e9::t_5bcafe2985aadd 40
+  s_57c675cb3340e9::t_d7ad4d522f1070 5,17,34-35,41-47,49-62,74,90,102-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e77828596ca0fcbc4b7fb854004cf1b63b8ffca7",
+  "prompts": {},
+  "sessions": {
+    "s_57c675cb3340e9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19923-964d-73a1-aa94-f5a5587530e9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+README.md
+  s_57c675cb3340e9::t_f53f77a62f7700 179
+docs/guide.md
+  s_57c675cb3340e9::t_0470f3a1944fd6 122-123
+tests/web/tasks.test.tsx
+  s_57c675cb3340e9::t_3a5c7038e234a6 39,66-105
+web/tasks.tsx
+  s_57c675cb3340e9::t_6f97026c2c4322 11,32-33,45,47,66,74-98,104,108-110
+web/ui/select.tsx
+  s_57c675cb3340e9::t_792450038a474d 9,23,33
+web/views/station.ts
+  s_57c675cb3340e9::t_32e88ef94655e6 3800
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "649369c538132737d8a86f9576e55a544584a943",
+  "prompts": {},
+  "sessions": {
+    "s_57c675cb3340e9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19923-964d-73a1-aa94-f5a5587530e9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
