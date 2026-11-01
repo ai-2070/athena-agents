@@ -1,0 +1,40 @@
+server/eve/host.ts
+  s_3c304e20f190e2::t_a136e3b2320f1b 17,23,28,40-42,45-46,48,54,86-95,104,108,114
+tests/server/eve-runtime.test.ts
+  s_3c304e20f190e2::t_7a19f5bf840f01 1-152
+server/index.ts
+  s_3c304e20f190e2::t_1021d247cbce11 14,1468-1469,1507
+server/eve/recovery.ts
+  s_3c304e20f190e2::t_821da9b5a92fbd 119-120,124-127,141,147-181
+tests/server/eve-recovery.test.ts
+  s_3c304e20f190e2::t_4a53bf8d97e3f1 9,45-62
+  s_3c304e20f190e2::t_153ab8add91d2d 134
+tests/server/eve-host.test.ts
+  s_3c304e20f190e2::t_4a53bf8d97e3f1 19,23-34
+  s_3c304e20f190e2::t_7746957c69bed5 35
+docs/internal/plans/EVE_API_ENGINE_2026-11-01.md
+  s_3c304e20f190e2::t_64092be39a0339 3,27-43,49,149-151
+server/eve/runtime.ts
+  s_3c304e20f190e2::t_1021d247cbce11 1-113,116-138
+  s_3c304e20f190e2::t_1d58fa0d166f30 114-115
+docs/desktop.md
+  s_3c304e20f190e2::t_64092be39a0339 63-65
+scripts/eve-integration-smoke.ts
+  s_3c304e20f190e2::t_4a53bf8d97e3f1 25-26,71-79,88,133-134,176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d72e32a73af4d1e8e332455845ded75bf948c2d7",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
