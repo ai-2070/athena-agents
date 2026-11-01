@@ -225,6 +225,15 @@ describe('model picker: Venice', () => {
     expect(picked.at(-1)).toEqual({ engine: 'openai', provider: 'venice', model: 'venice-chat', effort: 'low' });
   });
 
+  it('uses the configured Venice default when an agent has no explicit model', async () => {
+    state.data!.settings = { ...state.data!.settings, defaults: { ...state.data!.settings?.defaults, veniceModel: 'venice-chat' } };
+    serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
+    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: '', effort: 'high' }, () => {});
+    await settle();
+    expect(document.querySelector('.model-list .st-menu-item.on')?.textContent).toContain('Venice Chat');
+    expect(document.querySelector('.model-effort-level.on')?.textContent).toBe('High');
+  });
+
   it('saves the Brain as Venice and reopens with the same provider', async () => {
     state.data!.settings = { ...state.data!.settings, brain: { provider: 'claude', model: 'haiku' }, favoriteModels: [] };
     serve((_method, path) => path.includes('provider=venice') ? { body: catalog } : path === '/settings' ? { body: { ok: true } } : undefined);

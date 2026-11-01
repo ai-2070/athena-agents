@@ -1,6 +1,26 @@
 # Venice API support
 
-1 November 2026. Proposed implementation; no runtime changes yet.
+1 November 2026. Implemented in six phases on `LZL0/venice`.
+
+| Phase | Commit |
+| --- | --- |
+| Provider setup and separate model defaults | `1c01b31` |
+| Inference-key validation and separate balances | `b2a5134` |
+| Model prices, limits and capabilities | `c32fa89` |
+| Agent execution and cost tracking | `9c54740` |
+| Brain selection and provider controls across the app | `e7c3ded` |
+| Documentation, default-picker regression coverage and final verification | This final delivery change |
+
+The implementation follows the scope below. Automated verification runs against isolated test data,
+including mocked inference, streamed errors, tool calls and billing. The live public catalog was also
+checked through an isolated dashboard server without a key. Paid inference and the exact live streamed
+billing envelope remain unverified because no Venice test key was supplied. Browser screenshots remain
+unverified: the embedded browser host was unavailable and the native browser surface could not be opened.
+
+Verification on Windows: `bun run check` passed all 201 test files (1,705 passed, 21 skipped).
+The web build, desktop staging build, desktop smoke test and `git diff --check` passed.
+The design detector found one existing Station border warning already present before this work.
+Linux checks remain for CI.
 
 Add Venice as a named API provider for agents and the Brain. Reuse the `openai` engine and existing
 tool approvals, chat storage, streaming and compaction. Users should be able to save and test a Venice

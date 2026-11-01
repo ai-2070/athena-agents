@@ -30,6 +30,7 @@ describe('Venice setup and defaults', () => {
   it('keeps hosted model defaults separate, including old agents without a provider', () => {
     const defaults = getSettings().defaults;
     expect(defaultModelForEngine('openai', defaults)).toBe(defaults.openrouterModel);
+    expect(defaultModelForEngine('openai', defaults, '')).toBe(defaults.openrouterModel);
     expect(defaultModelForEngine('openai', defaults, 'venice')).toBe('');
     expect(defaultModelFor('venice')).toBeNull();
     expect(newAgent({ engine: 'openai', provider: 'venice' }).model).toBe('');

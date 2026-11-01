@@ -131,7 +131,7 @@ Open **Settings → General & keys**. You only need to set up the engines you wa
 | Engine | What you need |
 |---|---|
 | **Claude Code** | The `claude` CLI. Use your Claude login, an Anthropic key or OpenRouter. |
-| **API model** | An OpenRouter key, a running LM Studio or Ollama server, or another OpenAI-compatible endpoint. Configure local endpoints under **Local and custom models**. |
+| **API model** | An OpenRouter or Venice key, a running LM Studio or Ollama server, or another OpenAI-compatible endpoint. Configure local endpoints under **Local and custom models**. |
 | **Hermes** | An installed Hermes setup with a profile to use. |
 | **OpenAI Codex** | The `codex` CLI and your ChatGPT login. Settings offers installation and sign-in; installation uses npm. |
 | **pi** | The `pi` coding agent (`npm install -g @earendil-works/pi-coding-agent`), signed in to a model provider (`/login` in pi, or a key such as `ANTHROPIC_API_KEY`). |
@@ -139,6 +139,8 @@ Open **Settings → General & keys**. You only need to set up the engines you wa
 | **OpenClaw** | The `openclaw` CLI, set up with `openclaw onboard`. Pick which of your OpenClaw agents answers in the agent's settings. |
 
 Choose **The Brain's model** in the same settings page. The Brain is the project-wide assistant: it answers questions, builds agents and teams, writes the project brief, manages skills, routines and MCP servers, switches agents' models, stops work, and hands work to the right people.
+
+For **Venice**, save an inference key under **API keys** and press **Test** to check access and balances without generating an answer. Choose a model from the **Venice** tab in a chat's model picker, or select **API model → Venice** in an agent's editor. The Brain can use Venice too. **Defaults for new agents → Venice model** sets its own fallback model; save settings after choosing it. Tools, image attachments and effort depend on the selected model. See [Venice setup and costs](docs/guide.md#venice-models).
 
 Claude Code and Codex receive dashboard tools through an MCP bridge; API-model agents call them directly. pi and oh-my-pi get them on their first run; Hermes needs a one-time **Give Hermes the dashboard tools** click under **Settings → MCP servers**. See [Giving engine CLIs the dashboard tools](docs/guide.md#giving-engine-clis-the-dashboard-tools).
 

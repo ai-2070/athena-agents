@@ -5,5 +5,5 @@ export function defaultModelForEngine(engine: string, defaults: Partial<Settings
   if (engine === 'claude-code') return defaults.claudeModel || 'sonnet';
   if (engine !== 'openai') return '';
   if (provider === 'venice') return defaults.veniceModel || '';
-  return provider === 'openrouter' ? defaults.openrouterModel || '' : '';
+  return !provider || provider === 'openrouter' ? defaults.openrouterModel || '' : '';
 }

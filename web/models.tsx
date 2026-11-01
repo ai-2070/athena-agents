@@ -11,6 +11,7 @@ import { state, GET, PUT, attempt, refreshSoon, toast, navigate } from './core.t
 import { appIcon, appIconUrl } from './appicons.ts';
 import { brandPath, logo } from './icons.ts';
 import { EFFORT_NAMES, effortFor, effortLevels, isEffort } from '../shared/effort.ts';
+import { defaultModelForEngine } from '../shared/modeldefaults.ts';
 import { Button } from './ui/button.tsx';
 import { PopoverContent, PopoverRoot } from './ui/popover.tsx';
 import { DomNode, Icon } from './ui/react.tsx';
@@ -222,7 +223,8 @@ const BRAIN_PROVIDER: Record<string, BrainSetting['provider'] | undefined> = { '
 const BRAIN_ENGINES: readonly EngineId[] = ['claude-code', 'openai', 'hermes', 'codex'];
 export function brainAsAgent(b: { provider?: string; model?: string; effort?: Effort | '' } | null | undefined = state.data?.settings?.brain): ModelTarget & { model: string; provider: string } {
   const p = b?.provider || 'claude';
-  return { engine: BRAIN_ENGINE[p] || 'claude-code', model: b?.model ?? (p === 'claude' ? 'haiku' : ''), provider: p === 'venice' ? 'venice' : 'openrouter', effort: b?.effort || '' };
+  const model = p === 'venice' ? b?.model || state.data?.settings?.defaults?.veniceModel || '' : b?.model ?? (p === 'claude' ? 'haiku' : '');
+  return { engine: BRAIN_ENGINE[p] || 'claude-code', model, provider: p === 'venice' ? 'venice' : 'openrouter', effort: b?.effort || '' };
 }
 export function brainSettingFromChoice(choice: ModelPatch): BrainSetting | null {
   const provider = choice.engine === 'openai' ? choice.provider === 'venice' ? 'venice' : !choice.provider || choice.provider === 'openrouter' ? 'openrouter' : undefined : BRAIN_PROVIDER[choice.engine];
@@ -779,6 +781,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
 let closeModelMenu: (() => void) | null = null;
 
 export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch: ModelPatch) => unknown, { title = 'Model', local = true, engines, providers }: { title?: string; local?: boolean; engines?: readonly EngineId[]; providers?: readonly string[] } = {}): void {
+  if (cur.engine === 'openai' && !cur.model) cur = { ...cur, model: defaultModelForEngine('openai', state.data?.settings?.defaults || {}, cur.provider) };
   // one picker at a time: whatever is up goes first, at once, so two are never in the way
   closeModelMenu?.();
   const host = document.createElement('div');
