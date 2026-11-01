@@ -10,6 +10,8 @@ import { memoryButton, BRAIN } from '../memory.tsx';
 import { FieldRow, Row, Section, Segmented, SwitchRow } from '../ui/controls.tsx';
 import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { logo } from '../icons.ts';
+import { ProgramGlyph, ProgramLabel } from '../ui/programmark.tsx';
+import { serverUrl } from '../client/connection.ts';
 import type { AppState, EngineStatus, SecretKey, SecretStatus, Settings, Terminal, VeniceAccountInfo } from '../../shared/types.ts';
 
 /** What POST /api/settings/test-openrouter passes on from OpenRouter's /key endpoint. */
@@ -48,8 +50,14 @@ const PROGRAM_PATHS: [string, string][] = [
   ['prusaslicer', 'PrusaSlicer'],
   ['orcaslicer', 'OrcaSlicer'],
   ['nvtt', 'NVIDIA Texture Tools (nvtt_export)'],
-  ['comfyui', 'ComfyUI'],
 ];
+function IconLabel({ icon, children, compact = false }: { icon: string; children: ReactNode; compact?: boolean }) {
+  return <span className={compact ? 'inline-flex items-center gap-2' : 'inline-flex items-center gap-3'}>
+    <span aria-hidden="true" className={compact ? 'flex shrink-0' : 'grid size-8 shrink-0 place-items-center rounded-ctl bg-panel-2 text-ink'}><Icon name={icon} size={compact ? 14 : 17} /></span>
+    <span>{children}</span>
+  </span>;
+}
+
 const lines = (text: string) => text.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
 
 export function GeneralTab() {
@@ -83,7 +91,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
       <Section title="API keys" description="For models you pay for by use. A saved key stays on this PC and is never shown again.">
         <div className={AI_LIST}>
           <SecretField k="openrouterKey" mark={<Mark brand="openrouter" />} secrets={secrets} reload={reload} label="OpenRouter key" placeholder="sk-or-…" hint={<span>One key for hundreds of models (Claude, GPT, Gemini, Llama, DeepSeek…). Get it at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Also usable by Claude Code agents.</span>} />
-          <SecretField k="veniceKey" mark={<span className="ai-mark grid size-8 place-items-center rounded-ctl bg-panel-2 text-ink"><Icon name="cpu" size={17} /></span>} secrets={secrets} reload={reload} label="Venice key" placeholder="Paste your Venice API key" hint={<span>For Venice agents and the Brain. Get an inference key at <a href="https://venice.ai/settings/api" target="_blank" rel="noopener">Venice API settings</a>. Test checks access without generating an answer.</span>} />
+          <SecretField k="veniceKey" mark={<Mark engine="venice" />} secrets={secrets} reload={reload} label="Venice key" placeholder="Paste your Venice API key" hint={<span>For Venice agents and the Brain. Get an inference key at <a href="https://venice.ai/settings/api" target="_blank" rel="noopener">Venice API settings</a>. Test checks access without generating an answer.</span>} />
           <SecretField k="anthropicKey" mark={<Mark brand="anthropic" />} optional secrets={secrets} reload={reload} label="Anthropic API key" placeholder="sk-ant-…" hint={'For Claude Code agents set to "Anthropic API key" instead of your subscription.'} />
         </div>
       </Section>
@@ -124,24 +132,30 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
         />
       </Section>
 
+      <Section title={<IconLabel icon="folder">Allowed folders</IconLabel>} description="Where agents may use their file tools, besides their own workspace.">
+        <FieldRow label="Folders every agent may read and write (file tools)" hint="Each agent can always use its own workspace and knowledge." size="lg">
+          <textarea className="code" rows={3} defaultValue={(s.allowedFolders || []).join('\n')} placeholder="C:\Users\you\Videos" onChange={(e) => setP('allowedFolders', lines(e.target.value))} />
+        </FieldRow>
+      </Section>
+
       <Section title="Defaults for new agents" description="What a new agent starts with. You can change it for each agent.">
-        <Row title="Brain" description="What a new agent thinks with." stack>
-          <Segmented label="Brain" options={data.engineList.map((e) => ({ value: e.id, label: e.label }))} value={engine} onChange={(v) => (setEngine(v), setP('defaults.engine', v))} />
+        <Row title={<IconLabel icon="brain">Brain</IconLabel>} description="What a new agent thinks with." stack>
+          <Segmented label="Brain" options={data.engineList.map((e) => ({ value: e.id, label: <span className="inline-flex items-center gap-2"><ProgramGlyph id={e.id} size={14} />{e.label}</span> }))} value={engine} onChange={(v) => (setEngine(v), setP('defaults.engine', v))} />
         </Row>
-        <FieldRow label="Claude Code model">
+        <FieldRow label={<ProgramLabel id="claude">Claude Code model</ProgramLabel>}>
           <input className="code" defaultValue={s.defaults.claudeModel} onChange={(e) => setP('defaults.claudeModel', e.target.value)} />
         </FieldRow>
-        <FieldRow label="OpenRouter model">
+        <FieldRow label={<ProgramLabel id="openrouter">OpenRouter model</ProgramLabel>}>
           <input className="code" defaultValue={s.defaults.openrouterModel} onChange={(e) => setP('defaults.openrouterModel', e.target.value)} />
         </FieldRow>
         <VeniceDefault initial={s.defaults.veniceModel || ''} onChange={(model) => setP('defaults.veniceModel', model)} />
-        <Row title="Autonomy" titleId="default-autonomy-label" description="How much an agent may do before it asks you.">
+        <Row title={<IconLabel icon="shield-check">Autonomy</IconLabel>} titleId="default-autonomy-label" description="How much an agent may do before it asks you.">
           <Segmented
             label="Autonomy"
             options={[
-              { value: 'ask', label: 'Ask first' },
-              { value: 'auto', label: 'Auto' },
-              { value: 'full', label: 'Full' },
+              { value: 'ask', label: <IconLabel icon="hand" compact>Ask first</IconLabel> },
+              { value: 'auto', label: <IconLabel icon="shield-check" compact>Auto</IconLabel> },
+              { value: 'full', label: <IconLabel icon="zap" compact>Full</IconLabel> },
             ]}
             value={autonomy}
             onChange={(v) => (setAutonomy(v), setP('defaults.autonomy', v))}
@@ -186,36 +200,33 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
       </Section>
 
       <Section title="Local and custom models" description="Models that run on this PC, or on a server you point to.">
-        <FieldRow label="LM Studio server" hint="In LM Studio: Developer > Start server." size="lg">
+        <FieldRow label={<ProgramLabel id="lmstudio">LM Studio server</ProgramLabel>} hint="In LM Studio: Developer > Start server." size="lg">
           <input className="code" defaultValue={s.providers.lmstudio.baseUrl} onChange={(e) => setP('providers.lmstudio.baseUrl', e.target.value)} />
         </FieldRow>
-        <FieldRow label="Ollama server" size="lg">
+        <FieldRow label={<ProgramLabel id="ollama">Ollama server</ProgramLabel>} size="lg">
           <input className="code" defaultValue={s.providers.ollama.baseUrl} onChange={(e) => setP('providers.ollama.baseUrl', e.target.value)} />
         </FieldRow>
-        <FieldRow label="Custom OpenAI-compatible URL" size="lg">
+        <FieldRow label={<ProgramLabel id="custom">Custom OpenAI-compatible URL</ProgramLabel>} size="lg">
           <input className="code" defaultValue={s.providers.custom.baseUrl} placeholder="https://api.example.com/v1" onChange={(e) => setP('providers.custom.baseUrl', e.target.value)} />
         </FieldRow>
-        <SecretField k="customKey" secrets={secrets} reload={reload} label="Custom provider key" placeholder="key" />
+        <SecretField k="customKey" mark={<span aria-hidden="true" className="ai-mark grid size-8 place-items-center rounded-ctl bg-panel-2 text-ink"><Icon name="key-round" size={20} /></span>} secrets={secrets} reload={reload} label="Custom provider key" placeholder="key" />
       </Section>
 
       <Section title="Programs" description="Their places are found by themselves. Set one only to pick a different version.">
-        <FieldRow label="ComfyUI address" size="lg">
+        <FieldRow label={<ProgramLabel id="comfyui">ComfyUI address</ProgramLabel>} size="lg">
           <input className="code" defaultValue={s.comfyui.url} placeholder="auto (tries :8188 and :8000)" onChange={(e) => setP('comfyui.url', e.target.value.trim())} />
         </FieldRow>
-        <FieldRow label="Extra ComfyUI workflow folders" size="lg">
+        <FieldRow label={<ProgramLabel id="comfyui">Extra ComfyUI workflow folders</ProgramLabel>} size="lg">
           <textarea className="code" rows={2} defaultValue={(s.comfyui.workflowDirs || []).join('\n')} placeholder="One folder per line" onChange={(e) => setP('comfyui.workflowDirs', lines(e.target.value))} />
         </FieldRow>
+        <FieldRow label={<ProgramLabel id="comfyui">ComfyUI path</ProgramLabel>} size="lg">
+          <input className="code" defaultValue={s.paths.comfyui || ''} placeholder="auto" onChange={(e) => setP('paths.comfyui', e.target.value.trim())} />
+        </FieldRow>
         {PROGRAM_PATHS.map(([k, label]) => (
-          <FieldRow key={k} label={`${label} path`} size="lg">
+          <FieldRow key={k} label={<ProgramLabel id={k}>{`${label} path`}</ProgramLabel>} size="lg">
             <input className="code" defaultValue={s.paths[k] || ''} placeholder="auto" onChange={(e) => setP(`paths.${k}`, e.target.value.trim())} />
           </FieldRow>
         ))}
-      </Section>
-
-      <Section title="Allowed folders" description="Where agents may use their file tools, besides their own workspace.">
-        <FieldRow label="Folders every agent may read and write (file tools)" hint="Each agent can always use its own workspace and knowledge." size="lg">
-          <textarea className="code" rows={3} defaultValue={(s.allowedFolders || []).join('\n')} placeholder="C:\Users\you\Videos" onChange={(e) => setP('allowedFolders', lines(e.target.value))} />
-        </FieldRow>
       </Section>
 
       {/* what isn't saved on its own: stays at the bottom right of the window while you scroll */}
@@ -238,8 +249,10 @@ function SavedSwitch({ field, initial, on, off, reload, title, description }: { 
   return <SwitchRow checked={value} onChange={(v) => void change(v)} title={title} description={description} />;
 }
 
-/** A provider's mark: its brand logo, else its own glyph (Hermes, pi… have no logo). */
-function Mark({ brand, glyph }: { brand?: string; glyph?: string }) {
+/** A provider's mark, bundled locally so it also works offline. */
+function Mark({ brand, glyph, engine }: { brand?: string; glyph?: string; engine?: 'hermes' | 'pi' | 'omp' | 'openclaw' | 'venice' }) {
+  const size = engine === 'pi' ? 15 : 17;
+  if (engine) return <span className="ai-mark grid size-8 place-items-center rounded-ctl bg-panel-2"><img src={serverUrl(`/brand/engines/${engine}.svg`)} width={size} height={size} alt="" aria-hidden="true" className="object-contain" /></span>;
   // near-black brand colours (Anthropic, OpenAI) draw in the text colour, so they show on a dark page too
   const color = brand && DARK_BRANDS.has(brand) ? 'currentColor' : null;
   return <DomNode as="span" className="ai-mark grid size-8 place-items-center rounded-ctl bg-panel-2 font-sans text-[16px] leading-none font-semibold text-ink [&_svg]:size-[17px]" make={() => (brand && logo(brand, 18, color)) || document.createTextNode(glyph || '•')} deps={[brand, glyph]} />;
@@ -364,19 +377,19 @@ function SecretField({ k, secrets, reload, label, placeholder, hint, mark, optio
 function VeniceDefault({ initial, onChange }: { initial: string; onChange: (value: string) => void }) {
   const [model, setModel] = useState(initial);
   const choose = (value: string) => { setModel(value); onChange(value); };
-  return <FieldRow label="Venice model" hint="Used when a Venice agent or the Brain has no model selected. Choose one, then Save settings.">
-    <div className="flex min-w-0 flex-wrap gap-2">
-      <input className="code min-w-0 flex-1" value={model} placeholder="Choose a Venice model" onChange={(e) => choose(e.target.value)} />
-      <Button variant="ghost" size="small" onClick={(event) => openModelPicker(event.currentTarget, { engine: 'openai', provider: 'venice', model }, (choice) => choose(choice.model || ''), { title: 'Default Venice model', local: false, engines: ['openai'], providers: ['venice'] })}>Choose model</Button>
+  return <FieldRow label={<ProgramLabel id="venice">Venice model</ProgramLabel>} hint="Used when a Venice agent or the Brain has no model selected. Choose one, then Save settings.">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 max-[400px]:grid-cols-1">
+      <input className="code w-full min-w-0" value={model} placeholder="Choose a Venice model" onChange={(e) => choose(e.target.value)} />
+      <Button variant="ghost" className="shrink-0" onClick={(event) => openModelPicker(event.currentTarget, { engine: 'openai', provider: 'venice', model }, (choice) => choose(choice.model || ''), { title: 'Default Venice model', local: false, engines: ['openai'], providers: ['venice'] })}>Choose model<Icon name="chevron-down" size={14} /></Button>
     </div>
   </FieldRow>;
 }
 
 // pi, oh-my-pi and OpenClaw: found or not, and how to install them (they sign in to models in their own terminal).
-const CLIS: { id: keyof EngineStatus & ('pi' | 'omp' | 'openclaw'); label: string; glyph: string; cmd: string; then: string }[] = [
-  { id: 'pi', label: 'pi coding agent', glyph: 'π', cmd: 'npm install -g @earendil-works/pi-coding-agent', then: 'Then sign in to a model provider with /login in pi.' },
-  { id: 'omp', label: 'oh-my-pi', glyph: 'Ω', cmd: 'bun install -g @oh-my-pi/pi-coding-agent', then: 'Needs Bun. Then sign in with /login in omp.' },
-  { id: 'openclaw', label: 'OpenClaw', glyph: '🦞', cmd: 'npm install -g openclaw', then: 'Then run openclaw onboard.' },
+const CLIS: { id: keyof EngineStatus & ('pi' | 'omp' | 'openclaw'); label: string; cmd: string; then: string }[] = [
+  { id: 'pi', label: 'pi coding agent', cmd: 'npm install -g @earendil-works/pi-coding-agent', then: 'Then sign in to a model provider with /login in pi.' },
+  { id: 'omp', label: 'oh-my-pi', cmd: 'bun install -g @oh-my-pi/pi-coding-agent', then: 'Needs Bun. Then sign in with /login in omp.' },
+  { id: 'openclaw', label: 'OpenClaw', cmd: 'npm install -g openclaw', then: 'Then run openclaw onboard.' },
 ];
 
 function Engines({ data, reload }: { data: AppState; reload: () => Promise<unknown> }) {
@@ -422,10 +435,10 @@ function Engines({ data, reload }: { data: AppState; reload: () => Promise<unkno
           </>
         )}
       </AiRow>
-      <AiRow mark={<Mark glyph="☤" />} name="Hermes" status={data.engines.hermes.installed ? <Found /> : <Pill>not installed</Pill>} note={data.engines.hermes.installed ? 'Agents can run on your Hermes profiles.' : null} />
-      {CLIS.map(({ id, label, glyph, cmd, then }) => {
+      <AiRow mark={<Mark engine="hermes" />} name="Hermes" status={data.engines.hermes.installed ? <Found /> : <Pill>not installed</Pill>} note={data.engines.hermes.installed ? 'Agents can run on your Hermes profiles.' : null} />
+      {CLIS.map(({ id, label, cmd, then }) => {
         const st: Partial<EngineStatus['pi']> = data.engines[id] || {};
-        return <AiRow key={id} mark={<Mark glyph={glyph} />} name={label} status={st.installed ? <Found version={st.version} /> : <Pill>not installed</Pill>} note={st.installed ? null : then} below={st.installed ? null : <InstallCmd cmd={cmd} />} />;
+        return <AiRow key={id} mark={<Mark engine={id} />} name={label} status={st.installed ? <Found version={st.version} /> : <Pill>not installed</Pill>} note={st.installed ? null : then} below={st.installed ? null : <InstallCmd cmd={cmd} />} />;
       })}
     </div>
   );

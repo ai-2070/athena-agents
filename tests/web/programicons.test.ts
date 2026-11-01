@@ -11,10 +11,20 @@ describe('programIcon', () => {
   });
 
   it('falls back to a line icon, and to the app icon where one is a PNG', () => {
-    const line = programIcon('omp', 'oh-my-pi');
+    const line = programIcon('netdesk', 'NetDesk');
     expect(line?.tagName.toLowerCase()).toBe('svg');
     expect(line?.getAttribute('fill')).toBe('currentColor');
     expect(programIcon('comfyui', 'ComfyUI')?.tagName.toLowerCase()).toBe('img');
+  });
+
+  it('uses local upstream artwork for the agents and programs with custom marks', () => {
+    for (const id of ['hermes', 'pi', 'omp', 'openclaw', 'venice', 'painter', 'designer', 'handbrakecli', 'imagemagick', 'prusaslicer', 'orcaslicer', 'vscode', 'orca', 'ffmpeg']) {
+      const image = programIcon(id, id, 24)!;
+      expect(image.tagName.toLowerCase()).toBe('img');
+      expect(image.getAttribute('src')).toMatch(new RegExp(`/brand/engines/${id}\\.(svg|png)$`));
+      expect(image.getAttribute('width')).toBe('24');
+      expect(image.getAttribute('aria-hidden')).toBe('true');
+    }
   });
 
   it('never draws nothing, even for a name it has not seen', () => {
@@ -22,7 +32,6 @@ describe('programIcon', () => {
   });
 
   it('uses a brand mark where Simple Icons has one, even for a short id', () => {
-    // Simple Icons' "Pi" is the pi coding agent (pi.dev), so the program wears it rather than a line icon.
-    expect(programIcon('pi', 'pi')?.getAttribute('aria-label')).toBe('Pi');
+    expect(programIcon('blender', 'Blender')?.getAttribute('aria-label')).toBe('Blender');
   });
 });
