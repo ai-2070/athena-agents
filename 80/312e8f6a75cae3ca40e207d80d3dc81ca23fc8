@@ -1,0 +1,14 @@
+web/app.ts
+  h_64425bc75e3f3d 91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80312e8f6a75cae3ca40e207d80d3dc81ca23fc8",
+  "prompts": {},
+  "humans": {
+    "h_64425bc75e3f3d": {
+      "author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
