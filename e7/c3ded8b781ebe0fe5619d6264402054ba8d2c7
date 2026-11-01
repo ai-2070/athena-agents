@@ -1,0 +1,84 @@
+web/models.tsx
+  s_9416edeb647587::t_62691f3c28757b 433-456,641-653,661,665-669,674,681,713,756,764,766
+  s_9416edeb647587::t_4ee34bf13ae8fe 13,53,61,78,109,121,219,225-229,242-244,300,303,348
+  s_9416edeb647587::t_b8a064f51edbb4 621,628,631,633,635,781,790
+web/views/setup.tsx
+  s_9416edeb647587::t_493def12dcaf91 43-44
+server/brain.ts
+  s_9416edeb647587::t_b3a2bdf105e808 10-13,17-18,97,101,138-144,146-147,151-156,165-180,187,190-191,268
+tests/web/agent-effort.test.ts
+  s_9416edeb647587::t_af4d066c2eadfb 35,54-66,69-73
+  s_9416edeb647587::t_69c26a04feb1b0 67-68
+tests/web/settings-general.test.tsx
+  s_9416edeb647587::t_79bc582302d696 7,26-27,37-38,55,89-129
+tests/web/agentstats.test.ts
+  s_9416edeb647587::t_1851c5ea192fc2 48-51
+tests/server/venice-brain.test.ts
+  s_9416edeb647587::t_d24d860f12ccb5 1-66
+web/agentstats.ts
+  s_9416edeb647587::t_98ddcb8be34e84 48,53,76,79-80
+web/app.ts
+  s_9416edeb647587::t_98ddcb8be34e84 169-170
+tests/web/library.test.tsx
+  s_9416edeb647587::t_79bc582302d696 59,140-153
+  s_9416edeb647587::t_beacc1ac793589 60
+  s_3c304e20f190e2::t_674bd85ab47ed7 154-155
+tests/web/models.test.ts
+  s_9416edeb647587::t_1851c5ea192fc2 2,32-37
+tests/server/brain-models.test.ts
+  s_9416edeb647587::t_a780d6f889c4b8 131-148
+web/views/settings.tsx
+  s_9416edeb647587::t_b8a064f51edbb4 8,13,86,92,134,137,156,304-306,320-329,343-345,355-358,364-372
+  s_3c304e20f190e2::t_2ff3bc15da7674 373-374
+web/views/stationpanel.tsx
+  s_9416edeb647587::t_493def12dcaf91 612
+web/views/library.tsx
+  s_9416edeb647587::t_8214c5519ea754 13-14,54,69,71,123,149-151,154
+web/views/station.ts
+  s_9416edeb647587::t_493def12dcaf91 2394,3751,3772-3773
+tests/web/groupD-pickers.test.ts
+  s_9416edeb647587::t_1851c5ea192fc2 125
+  s_9416edeb647587::t_57f5384e87a6b0 207-228,231-260,262-271
+  s_9416edeb647587::t_69c26a04feb1b0 229,261
+  s_9416edeb647587::t_024e8e6e247b5e 230
+web/views/stationdata.ts
+  s_9416edeb647587::t_b695cc69e3c6f9 5
+  s_9416edeb647587::t_493def12dcaf91 79,111,124
+server/apiproviders.ts
+  s_9416edeb647587::t_98ddcb8be34e84 49-53
+web/views/agents.tsx
+  s_9416edeb647587::t_af4d066c2eadfb 368,602,745
+  s_9416edeb647587::t_98ddcb8be34e84 599,635
+  s_9416edeb647587::t_8214c5519ea754 642,678,747-748,751
+web/views/home.tsx
+  s_9416edeb647587::t_493def12dcaf91 248
+server/overseer.ts
+  s_9416edeb647587::t_98ddcb8be34e84 38,316,1058,1373
+  s_9416edeb647587::t_1851c5ea192fc2 951-957,1364-1365,1371
+  s_9416edeb647587::t_a780d6f889c4b8 1366
+  s_9416edeb647587::t_3c813e75228dec 607-608
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e7c3ded8b781ebe0fe5619d6264402054ba8d2c7",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_9416edeb647587": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198cb-4b55-7643-890c-fb61b19964a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
