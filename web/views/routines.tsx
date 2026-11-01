@@ -162,7 +162,6 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
           <Icon name="play" size={13} />
           Run
         </Button>
-        <span className="flex-1 min-w-0" />
         {last ? (
           <span className="hint">
             <StatusIcon status={last.status} />
@@ -365,16 +364,14 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
           </PlateSection>
         </aside>
         <PlateSection className="col-span-2 rounded-box p-5 sm:p-6 max-lg:col-span-1">
-            <div className="panel-head !mb-3">
-              <h2>Runs</h2>
-            </div>
-            <Runs id={id} />
-            {isNew ? null : (
-              <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-5">
-                <Button variant="danger" size="small" onClick={() => void del()}>Delete routine</Button>
-              </div>
-            )}
-          </PlateSection>
+          <div className="panel-head !mb-3">
+            <h2>Runs</h2>
+          </div>
+          <Runs id={id} />
+        </PlateSection>
+        {!isNew && <div className="col-span-2 max-lg:col-span-1">
+          <Button variant="danger" size="small" onClick={() => void del()}><Icon name="trash-2" size={14} />Delete routine</Button>
+        </div>}
       </div>
     </div>
   );
@@ -397,9 +394,9 @@ function Runs({ id }: { id: string }) {
   if (!runs.length) return <p className="empty !py-4">No runs yet.</p>;
   const isOpen = (run: RoutineRun, i: number) => (open ? open.has(run.id) : i === 0);
   return (
-    <div className="flex flex-col divide-y divide-line">
+    <div className="flex flex-col gap-2">
       {runs.slice(0, 15).map((run, i) => (
-        <div key={run.id} className="relative">
+        <div key={run.id} className="relative rounded-ctl border border-line px-3">
         <details
           className="group/run"
           open={isOpen(run, i)}
@@ -412,16 +409,15 @@ function Runs({ id }: { id: string }) {
             setOpen(next);
           }}
         >
-          <summary className="flex cursor-pointer list-none items-center gap-3 py-3 text-[13px] [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 py-3 text-[13px] [&::-webkit-details-marker]:hidden">
             <span className="grid size-5 flex-none place-items-center"><StatusIcon status={run.status} /></span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-semibold capitalize text-ink">{run.status}</span>
-              <span className="hint mt-0.5 block">{`${ago(run.createdAt)} · ${run.trigger}`}</span>
-            </span>
+            <span className="font-semibold capitalize text-ink">{run.status}</span>
+            <span className="inline-flex min-w-0 items-center gap-1.5 text-[12px] text-dim"><Icon name={run.trigger === 'manual' ? 'hand' : 'calendar'} size={13} /><span className="truncate capitalize">{run.trigger === 'schedule' ? 'Scheduled' : run.trigger}</span></span>
+            <span className="ml-auto shrink-0 text-[12px] text-faint">{ago(run.createdAt)}</span>
             {run.status === 'running' ? <span className="w-14 flex-none" aria-hidden="true" /> : null}
-            <Icon name="chevron-down" size={14} className="flex-none text-dim transition-transform group-open/run:rotate-180" />
+            <Icon name="chevron-down" size={14} className="flex-none text-dim transition-transform duration-200 ease-in-out group-open/run:rotate-180" />
           </summary>
-          <div className="pb-3">
+          <div className="border-t border-line py-2">
             {run.targets.map((t) => (
               <TargetRow key={`${t.kind}:${t.id}`} t={t} />
             ))}
@@ -439,12 +435,11 @@ function Runs({ id }: { id: string }) {
 
 function TargetRow({ t }: { t: RoutineRunTarget }) {
   return (
-    <div className="border-t border-line py-3 [&_pre]:max-h-50">
+    <div className="py-2 [&_pre]:max-h-50">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="grid size-5 flex-none place-items-center"><StatusIcon status={t.status} /></span>
         <b className="min-w-0 break-words">{t.name}</b>
         <span className="hint capitalize">{t.kind === 'team' ? `team · ${t.status}` : t.status}</span>
-        <span className="flex-1 min-w-0" />
         {t.kind === 'team' ? (
           <Button variant="ghost" size="tiny" onClick={() => openChat('team', t.id)}>
             <Icon name="message-square" size={12} />
@@ -458,7 +453,7 @@ function TargetRow({ t }: { t: RoutineRunTarget }) {
         ) : null}
       </div>
       {t.output ? (
-        <div className="mt-3 max-h-72 max-w-[80ch] overflow-y-auto text-[13.5px] leading-[1.65] text-ink [&_.md>:first-child]:mt-0 [&_.md>:last-child]:mb-0">
+        <div className="mt-2 pl-7 max-h-72 max-w-[80ch] overflow-y-auto text-[13px] leading-[1.65] text-ink [&_.md>:first-child]:mt-0 [&_.md>:last-child]:mb-0">
           <DomNode make={() => md(t.output)} deps={[t.output]} />
         </div>
       ) : null}
