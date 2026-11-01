@@ -1,6 +1,7 @@
 // Input admission and its run receipt share one write: a crash cannot submit a queued input twice.
 import { privateDataPath } from './private.ts';
 import { readPlain, writeJSON } from './util.ts';
+import { readTeamWork } from './teamwork.ts';
 import type { ExecutionJournal, ExecutionQueue, ExecutionRun, SavedHandoff } from '../shared/types.ts';
 
 const file = () => privateDataPath('runtime', 'execution.json');
@@ -8,12 +9,19 @@ export const readExecution = (): ExecutionJournal => readPlain(file(), { runs: [
 const sameChat = (a: ExecutionQueue, projectId: string, chatId: string) => a.projectId === projectId && a.chatId === chatId;
 const KEEP_MS = 6 * 60 * 60 * 1000;
 
+function teamOwnsRun(run: ExecutionRun): boolean {
+  const prefix = `team:${run.projectId}/`;
+  if (!run.parentRunId?.startsWith(prefix)) return false;
+  const work = readTeamWork(run.projectId, run.parentRunId.slice(prefix.length));
+  return !!work && [...work.current, ...work.queue, ...work.interrupted].some((q) => q.delivery?.runId === run.id);
+}
+
 function change<T>(fn: (state: ExecutionJournal) => T): T {
   const state = readExecution();
   const result = fn(state);
   const keep = (item: { endedAt?: number }) => !item.endedAt || Date.now() - item.endedAt < KEEP_MS;
   state.handoffs = state.handoffs.filter(keep);
-  state.runs = state.runs.filter((r) => !r.settled || keep(r) || state.handoffs.some((h) => h.runId === r.id));
+  state.runs = state.runs.filter((r) => !r.settled || keep(r) || state.handoffs.some((h) => h.runId === r.id) || teamOwnsRun(r));
   writeJSON(file(), state);
   return result;
 }

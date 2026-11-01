@@ -1465,6 +1465,7 @@ fs.rmSync(dataPath('tmp', 'received'), { recursive: true, force: true }); // upl
 internalToken();
 store.migrateLayout();
 engines.recoverExecution();
+teams.recoverTeamWork();
 wfs.markInterruptedRuns();
 wfs.startScheduler();
 skills.ensureBuiltinSkills();

@@ -3,9 +3,12 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
-import { chats, saveSettings } from '../../server/store.ts';
+import { activeProject, chats, saveSettings, workflows } from '../../server/store.ts';
 import { activeRuns, queueMessage, queuedMessages, recoverExecution, startRun, stopAllRuns } from '../../server/engines/index.ts';
 import { readExecution } from '../../server/execution.ts';
+import { postUserMessage, queueUserMessage, teamState } from '../../server/teams.ts';
+import { readTeamWork } from '../../server/teamwork.ts';
+import type { Team } from '../../shared/types.ts';
 
 // a fake model that never answers: it holds every request open until the client goes away
 let server: http.Server;
@@ -28,6 +31,9 @@ describe('stopAllRuns()', () => {
     const chat = chats.create(a.id, 'One');
     const run = startRun(a, chat, 'go');
     queueMessage(a, chat, 'saved for later');
+    const team = workflows.save({ name: 'Busy team', members: [a.id], lead: a.id, steps: [] } as Partial<Team>);
+    await postUserMessage(team.id, 'Team job');
+    await queueUserMessage(team.id, 'Next team job');
     const ended = run.promise.catch(() => 'stopped');
     for (const end = Date.now() + 5000; asked === 0 && Date.now() < end; ) await new Promise((r) => setTimeout(r, 20));
     expect(asked).toBeGreaterThan(0);
@@ -35,6 +41,9 @@ describe('stopAllRuns()', () => {
     expect(run.signal.aborted).toBe(true);
     expect(activeRuns()).toHaveLength(0);
     await ended;
+    await expect.poll(() => teamState(team.id).working.length).toBe(0);
+    expect(readTeamWork(activeProject().id, team.id)?.interrupted).toHaveLength(1);
+    expect(teamState(team.id).held?.map((q) => q.text)).toEqual(['Next team job']);
     expect(queuedMessages(chat.id).map((q) => q.text)).toEqual(['saved for later']);
     expect(readExecution().runs[0]).toMatchObject({ status: 'interrupted' });
     recoverExecution();

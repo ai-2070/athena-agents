@@ -198,6 +198,63 @@ export interface ExecutionJournal {
   handoffs: SavedHandoff[];
 }
 
+export interface SavedTeamAssignment {
+  agentId: string;
+  msgIds: string[];
+  returning: boolean;
+  skills: string[];
+  steered?: boolean;
+  delivery?: { runId: string; chatId: string; from: number; readUpto: number; files: string[] };
+}
+
+/** An input saved before posting or waiting for a routing decision. */
+export interface SavedTeamInput {
+  id: string;
+  from: string;
+  text: string;
+  replyTo: string | null;
+  attachments: string[];
+  skills: string[];
+  to: string[];
+  track: boolean;
+  relay?: TeamRelay;
+}
+
+/** Private team coordination; project copies get the transcript without live work ownership. */
+export interface SavedTeamWork {
+  projectId: string;
+  teamId: string;
+  queue: SavedTeamAssignment[];
+  current: SavedTeamAssignment[];
+  interrupted: SavedTeamAssignment[];
+  held: QueuedMessage[];
+  pending: SavedTeamInput[];
+  assigned: string[];
+  brain: TeamMessage[];
+  episode: { turns: number; chatter?: number; brain?: number; relays?: number };
+  stopped: boolean;
+  epoch: number;
+}
+
+export interface SavedTeamRelay {
+  id: string;
+  from: string;
+  to: string;
+  by: string;
+  askId: string;
+  postedId: string;
+  pid: string;
+  depth: number;
+  returning: boolean;
+  skills: string[];
+  deliveries: { id: string; messageId: string }[];
+}
+
+export interface TeamRelayJournal {
+  active: SavedTeamRelay[];
+  closed: string[];
+}
+
 /** A team as GET /api/workflows returns it: with who is working and its latest message. */
 export interface TeamListing extends Team {
   state?: TeamState;
@@ -451,7 +508,7 @@ export interface Chat {
   createdAt: number;
   updatedAt: number;
   _deleted?: boolean;
-  /** Your /queue messages for when the current run is done (kept in memory; GET adds them, never saved). */
+  /** GET adds the private saved queue; it is not part of the chat file or project copies. */
   queued?: QueuedMessage[];
   /** Your /loop here, while it goes (GET adds it). */
   loop?: LoopInfo | null;

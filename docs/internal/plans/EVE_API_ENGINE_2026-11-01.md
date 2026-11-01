@@ -1,6 +1,6 @@
 # Replace the built-in API agent with Eve
 
-*Plan, 1 November 2026. Phases 1 and 2 implemented; phase 3's durable waits and checkpoint recovery are implemented. Engine lifecycle integration and API-engine cutover are not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
+*Plan, 1 November 2026. Phases 1 and 2 implemented; phase 3 has durable waits, checkpoint recovery and saved agent/team coordination. The production Eve adapter and API-engine cutover are not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
 
 ## Progress
 
@@ -12,8 +12,20 @@ unsent inputs remain queued, and Stop remains final. Lost delegation callbacks r
 answers from run receipts; interrupted tasks report their interruption without restarting them.
 An independent-process test exits between steering and completion and verifies saved order,
 attachments and ownership. Native Eve runs are reserved for the upcoming adapter's coordinator.
-Team assignments/read marks, completion-hook reconciliation and the production Eve adapter still
-need integration before cutover.
+Team assignments now retain original message IDs, skills, read boundaries, pending routing inputs,
+steers and held messages in private metadata. A held input keeps its identity through posting and
+assignment. A completed member run can finish its lost team callback on `/resume`, reusing the
+saved answer and original read boundary without making another model or tool call. Run receipts
+still owned by a paused team remain available beyond the ordinary six-hour retention window.
+Stable reply IDs and assignment identities prevent duplicate delivery and follow-up assignments.
+Cross-team requests and their delivery identities are saved before forwarding; settled replies
+are posted before closing their request. Recovery pauses both teams for review, and an outgoing
+request points to the receiving team that needs resuming. Normal shutdown preserves this work;
+Stop and Clear save their cancellation before stopping members. Existing completion checks reopen
+before a resumed saved result can settle. Project copies retain transcripts but do not inherit
+private live-work ownership. Tests cover these boundaries, including a separate process exiting
+during routing. Production Eve supervision, native busy/completion restoration and nested tool
+checkpoints remain before cutover.
 
 Phase 1 now has a pinned Eve 1.0.0-rc.1 application, dynamic model/instructions/tool definitions,
 private token authentication, an attachment-only virtual filesystem and a repeatable smoke check.
@@ -108,9 +120,9 @@ answer, resumes the original operation, and proves that stopped work cannot writ
 tests cover duplicate execution, unknown outcomes, lost approval receipts, expiry, edited consent,
 withdrawal and interrupted Brain review. All state stays in throwaway project/home directories.
 
-Remaining recovery integration belongs with the engine adapter: wire the coordinator into server
-startup before admitting new runs; persist and reclaim queued/steered inputs; restore Athena's busy
-state and completion hooks; and reconcile team read marks and delegated-work handles. Nested tool
+Remaining recovery integration belongs with the engine adapter: wire the native coordinator into
+server startup before admitting new runs, restore Athena's native busy state and completion hooks,
+and join recovered Eve runs to their saved agent/team coordination. Nested tool
 approval paths (tool access and voxel ownership/settings) also need native checkpoints before
 cutover. These are still required; the existing API engine remains active until they are connected.
 

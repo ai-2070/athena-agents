@@ -686,10 +686,10 @@ export function queuedMessages(chatId: string, projectId: string = here()): Queu
 }
 
 /** Send now if the chat is free, else once it is done with what it is doing. from: who it is from, when not you. */
-export function queueMessage(agent: Agent, chat: Chat, text: string, attachments: string[] = [], { from }: { from?: string } = {}): { runId: string } | { queued: QueuedMessage } {
+export function queueMessage(agent: Agent, chat: Chat, text: string, attachments: string[] = [], { from, resume = false }: { from?: string; resume?: boolean } = {}): { runId: string } | { queued: QueuedMessage } {
   const project = activeProject();
   const key = chatKey(project.id, chat.id);
-  if (!chatBusy(project.id, chat.id) && !waiting.has(key)) return { runId: startRun(agent, chat, text, { attachments, from: from || null }).runId };
+  if (!chatBusy(project.id, chat.id) && (!waiting.has(key) || resume)) return { runId: startRun(agent, chat, text, { attachments, from: from || null }).runId };
   const w = waiting.get(key) || { agentId: agent.id, project, items: [], priority: [], paused: false };
   const queued: QueuedMessage = { id: uid('q'), text, ...(attachments.length ? { attachments } : {}), ...(from ? { from } : {}), ts: Date.now() };
   w.items.push(queued);

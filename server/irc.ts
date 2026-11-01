@@ -187,7 +187,7 @@ export async function teamIdle(teamId: string, { stopped, recovering = false }: 
     return;
   }
   if (teamState(teamId).resumable) {
-    needsUser(brief, p.id, 'The team paused after repeated turns without useful work.', 'Clarify the assignment or change the approach, then send a message to continue.', 'stuck');
+    needsUser(brief, p.id, 'The team is paused with saved work to resume.', 'Check what was done, then use /resume or send a message to continue.', 'stuck');
     return;
   }
   const thread = teamMessages(teamId);
@@ -379,18 +379,19 @@ export function stoppedBriefs(open: BrainBrief[]): BrainBrief[] {
 }
 
 /** Pick up a brief that was stopped: a team's cut-off turns, or the agent's chat. */
-// (it opens again only when work really starts: a team's cut-off turns don't outlive a restart)
+// Reopen first so a saved result can trigger its completion check immediately.
 export function resumeBrief(b: BrainBrief, continueText: string): boolean {
   if (b.kind === 'team') {
+    updateBrief(b.id, { status: 'open' });
     const picked = resumeTeam(b.targetId) > 0;
-    if (picked) updateBrief(b.id, { status: 'open' });
+    if (!picked) updateBrief(b.id, { status: b.status });
     return picked;
   }
   const agent = agents.get(b.targetId);
   const chat = b.chatId ? chats.get(b.targetId, b.chatId) : null;
   if (!agent || !chat || isChatBusy(chat.id)) return false;
   updateBrief(b.id, { status: 'open' });
-  if (b.goal) queueMessage(agent, chat, continueText, [], { from: b.origin === 'chat' ? '/resume' : 'the Brain' });
+  if (b.goal) queueMessage(agent, chat, continueText, [], { from: b.origin === 'chat' ? '/resume' : 'the Brain', resume: true });
   else runForBrief(agent, chat.id, continueText, []);
   return true;
 }

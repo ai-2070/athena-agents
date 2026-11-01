@@ -9,6 +9,7 @@ import { createProject } from '../../server/projects.ts';
 import { admitExecution, interruptExecutions, readExecution, saveExecutionQueue, saveHandoff, updateExecution } from '../../server/execution.ts';
 import { activeRuns, queuedMessages, recoverExecution, startRun, stopChat } from '../../server/engines/index.ts';
 import { awaitHandoff, listHandoffs } from '../../server/handoffs.ts';
+import { RESUME_TEXT, resumeInChat, stopBrain } from '../../server/commands.ts';
 import { privateDataPath } from '../../server/private.ts';
 import { dataPath } from '../../server/util.ts';
 import type { ExecutionQueue, ExecutionRun } from '../../shared/types.ts';
@@ -117,7 +118,7 @@ describe('saved input admission', () => {
     expect(() => admitExecution({ ...run, id: 'overlap' })).toThrow('saved work');
   });
 
-  it('keeps the old input paused and sends saved inputs once after a new message', async () => {
+  it.each(['message', 'resume'])('keeps the old input paused and sends saved inputs once after continuing (%s)', async (mode) => {
     const { agent, chat, run, queue } = fixture();
     const asked: string[] = [];
     const model = http.createServer(async (req, res) => {
@@ -142,18 +143,31 @@ describe('saved input admission', () => {
       recoverExecution();
       await new Promise((resolve) => setTimeout(resolve, 30));
       expect(asked).toEqual([]);
-      await startRun(agent, chats.get(agent.id, chat.id)!, 'Continue after checking').promise;
+      const next = mode === 'resume' ? RESUME_TEXT : 'Continue after checking';
+      if (mode === 'resume') resumeInChat(agent.id, chat.id);
+      else await startRun(agent, chats.get(agent.id, chat.id)!, next).promise;
       for (const until = Date.now() + 5000; Date.now() < until && activeRuns().length; ) await new Promise((resolve) => setTimeout(resolve, 10));
       expect(activeRuns()).toEqual([]);
       expect(asked).toHaveLength(2);
-      expect(asked[0]).toContain('Continue after checking');
+      expect(asked[0]).toContain(next);
       expect(asked[1]).toContain('Do the next job');
-      expect(chats.get(agent.id, chat.id)!.items.filter((item) => item.type === 'user').map((item) => item.text)).toEqual([run.text, 'Continue after checking', 'Do the next job']);
+      expect(chats.get(agent.id, chat.id)!.items.filter((item) => item.type === 'user').map((item) => item.text)).toEqual([run.text, next, 'Do the next job']);
       expect(queuedMessages(chat.id)).toEqual([]);
     } finally {
       stopChat(chat.id);
       await new Promise<void>((resolve) => model.close(() => resolve()));
     }
+  });
+});
+
+describe('saved Stop commands', () => {
+  it('takes back a paused agent queue from the Brain Stop command', () => {
+    const { agent, chat, run, queue } = fixture();
+    saveExecutionQueue(queue);
+    admitExecution(run);
+    recoverExecution();
+    expect(stopBrain({ chats: [{ agentId: agent.id, chatId: chat.id }] }).stopped).toContain(agent.name);
+    expect(queuedMessages(chat.id)).toEqual([]);
   });
 });
 
