@@ -1,0 +1,33 @@
+scripts/build-eve.ts
+  s_3c304e20f190e2::t_580fcf4f5492c5 6-7,12
+README.md
+  s_3c304e20f190e2::t_580fcf4f5492c5 214,216
+  h_64425bc75e3f3d 111
+docs/internal/plans/EVE_API_ENGINE_2026-11-01.md
+  s_3c304e20f190e2::t_765fd4673044c4 9-11,18-23,84-85,118-121,123-125,276,280
+package.json
+  s_3c304e20f190e2::t_580fcf4f5492c5 52
+scripts/eve-smoke.ts
+  s_3c304e20f190e2::t_580fcf4f5492c5 16
+docs/desktop.md
+  s_3c304e20f190e2::t_6d234eec0da2da 62
+  s_3c304e20f190e2::t_580fcf4f5492c5 61,63-64
+scripts/desktop-smoke.ts
+  s_3c304e20f190e2::t_580fcf4f5492c5 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f4c2a1220c56ae8f08cb2f3ca132b5efb7ada9db",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

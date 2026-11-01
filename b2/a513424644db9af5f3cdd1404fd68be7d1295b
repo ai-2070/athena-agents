@@ -1,0 +1,40 @@
+server/status.ts
+  s_9416edeb647587::t_acb01bb36f7274 5-7
+server/apiresponse.ts
+  s_9416edeb647587::t_acb01bb36f7274 1-14
+server/venice.ts
+  s_9416edeb647587::t_acb01bb36f7274 1-53
+server/index.ts
+  s_9416edeb647587::t_acb01bb36f7274 54,382,390-394,992-998
+  s_3c304e20f190e2::t_141a47bf26402d 999
+tests/server/api.test.ts
+  s_9416edeb647587::t_c4b36042e807e2 190-192
+shared/types.ts
+  s_9416edeb647587::t_acb01bb36f7274 645-652
+tests/server/venice-account.test.ts
+  s_9416edeb647587::t_c4b36042e807e2 1-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b2a513424644db9af5f3cdd1404fd68be7d1295b",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_9416edeb647587": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198cb-4b55-7643-890c-fb61b19964a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

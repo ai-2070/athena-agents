@@ -1,0 +1,35 @@
+shared/types.ts
+  s_9416edeb647587::t_3c5a74247cdff0 25-31,304,445
+server/engines/openai.ts
+  s_9416edeb647587::t_ed54ab94e7368a 13-19,125,281,284
+  s_9416edeb647587::t_746e9b8bbce7de 285-287,292-293,295,297,299-300,334,337,343,381-396,476
+  s_9416edeb647587::t_64f1ea6804c6b2 149-186
+  s_9416edeb647587::t_584d1b553707fa 60-62,75,131,139-140,147-148,187-196,198-200,203-209,211
+server/apibilling.ts
+  s_9416edeb647587::t_3c5a74247cdff0 1-19
+server/apiproviders.ts
+  s_9416edeb647587::t_aa9b7f1b5449ea 1-85
+server/engines/index.ts
+  s_9416edeb647587::t_126c1d49da0898 25,57
+  s_9416edeb647587::t_3c5a74247cdff0 52,471-476,478
+tests/server/venice-engine.test.ts
+  s_9416edeb647587::t_126c1d49da0898 1-161
+shared/effort.ts
+  s_9416edeb647587::t_aa9b7f1b5449ea 16-17,28,30-31,33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9c5474004c403fe6a9d61dc4ae124a73ee234363",
+  "prompts": {},
+  "sessions": {
+    "s_9416edeb647587": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198cb-4b55-7643-890c-fb61b19964a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

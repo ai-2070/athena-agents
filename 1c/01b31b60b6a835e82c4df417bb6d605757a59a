@@ -1,0 +1,55 @@
+tests/server/backup.test.ts
+  s_9416edeb647587::t_e12e23403456fa 29
+web/agentstats.ts
+  s_9416edeb647587::t_25d9577e8248f3 2,47,51
+server/engines/index.ts
+  s_9416edeb647587::t_358e997ca81ed6 19,986
+server/index.ts
+  s_9416edeb647587::t_441959ec745aca 973
+server/store.ts
+  s_9416edeb647587::t_441959ec745aca 27,99
+shared/modeldefaults.ts
+  s_9416edeb647587::t_441959ec745aca 1-9
+server/brain.ts
+  s_9416edeb647587::t_358e997ca81ed6 93,96-98
+shared/types.ts
+  s_9416edeb647587::t_441959ec745aca 8,557,614,642,648,993
+web/views/library.tsx
+  s_9416edeb647587::t_25d9577e8248f3 3,69
+tests/server/store.test.ts
+  s_9416edeb647587::t_e12e23403456fa 17-19
+server/engines/openai.ts
+  s_9416edeb647587::t_441959ec745aca 13,109,116,126,323-324
+web/views/agents.tsx
+  s_9416edeb647587::t_25d9577e8248f3 18,370,682
+server/overseer.ts
+  s_9416edeb647587::t_25d9577e8248f3 312
+tests/server/projectsync.test.ts
+  s_9416edeb647587::t_e12e23403456fa 42
+server/models.ts
+  s_9416edeb647587::t_441959ec745aca 13,25,79,91
+tests/server/venice.test.ts
+  s_9416edeb647587::t_e12e23403456fa 1-54
+server/library.ts
+  s_9416edeb647587::t_358e997ca81ed6 9,119
+tests/server/api.test.ts
+  s_9416edeb647587::t_e12e23403456fa 181-186
+server/compaction.ts
+  s_9416edeb647587::t_358e997ca81ed6 15,115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1c01b31b60b6a835e82c4df417bb6d605757a59a",
+  "prompts": {},
+  "sessions": {
+    "s_9416edeb647587": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198cb-4b55-7643-890c-fb61b19964a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
