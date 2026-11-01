@@ -41,6 +41,7 @@
     "typecheck": "tsc -p tsconfig.server.json && tsc -p tsconfig.web.json && tsc -p runtime/eve/tsconfig.json",
     "eve:build": "bun scripts/build-eve.ts",
     "eve:smoke": "bun scripts/eve-smoke.ts",
+    "eve:recovery": "bun scripts/eve-recovery-smoke.ts",
     "eve:integration": "bun scripts/eve-integration-smoke.ts",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -55,6 +56,7 @@
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.82",
     "@ai-sdk/react": "4.0.163",
+    "@athena/eve-world": "file:./runtime/eve-world",
     "@base-ui/react": "1.9.0",
     "@emoji-mart/data": "1.2.1",
     "@fontsource-variable/archivo": "5.3.0",
@@ -73,6 +75,7 @@
     "@openuidev/react-ui": "0.18.1",
     "@phosphor-icons/react": "2.1.10",
     "@tanstack/react-virtual": "3.14.24",
+    "@workflow/world-local": "5.1.2",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/xterm": "6.0.0",
     "ai": "7.0.159",
@@ -105,5 +108,8 @@
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
     "vitest": "5.0.5"
+  },
+  "patchedDependencies": {
+    "@workflow/world-local@5.1.2": "patches/@workflow%2Fworld-local@5.1.2.patch"
   }
 }

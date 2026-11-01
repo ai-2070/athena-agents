@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@athena/eve-world": "file:../eve-world",
+    "@workflow/world-local": "5.1.2",
     "eve": "1.0.0-rc.1",
     "ai": "7.0.159",
     "@ai-sdk/openai-compatible": "3.0.82",

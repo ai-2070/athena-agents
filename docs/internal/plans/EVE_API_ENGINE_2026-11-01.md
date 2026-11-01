@@ -1,6 +1,6 @@
 # Replace the built-in API agent with Eve
 
-*Plan, 1 November 2026. Phases 1 and 2 implemented; phase 3's durable wait and recovery foundation is implemented, with checkpoint recovery still unresolved. API-engine cutover is not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
+*Plan, 1 November 2026. Phases 1 and 2 implemented; phase 3's durable waits and checkpoint recovery are implemented. Engine lifecycle integration and API-engine cutover are not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
 
 ## Progress
 
@@ -27,12 +27,11 @@ Runtime findings:
 - Eve 1.0.0-rc.1 ignores `WORKFLOW_LOCAL_DATA_DIR` for its managed local world and derives state
   from the process working directory. The supervisor must use a private working directory under
   `DATA` and copy the prepared attachment templates there. Compiler output alone is insufficient.
-- A reply's delivery event can precede its Workflow checkpoint. The initial immediate-restart
-  failure exposed Workflow's inline ownership lease (about 14 minutes). Setting
-  `WORKFLOW_INLINE_OWNERSHIP=0` avoids that lease, but repeated tests still expose a separate
-  checkpoint gap: the recovered step reads its committed events and returns, yet the next
-  input can stall without another model call. Disabling retained VMs and turbo execution did
-  not resolve it. This remains a cutover blocker, under both the initial Node proof and Bun.
+- A reply's delivery event can precede its Workflow checkpoint. Set
+  `WORKFLOW_INLINE_OWNERSHIP=0` to avoid a dead worker's inline ownership lease (about 14 minutes).
+  A separate crash gap was traced to the local store creating an empty terminal claim before
+  writing its step checkpoint and event. The surviving claim rejects completion forever after
+  a crash between those writes. The pinned local-store patch below fixes that gap.
 
 Phase 2 adds private session bindings and a run ledger below `DATA/runtime/eve`, current project,
 agent and team permission resolution, configuration fingerprints, immutable run/delivery ownership,
@@ -51,18 +50,31 @@ project switches, retired bindings, changed permissions, competing runs, stopped
 duplicate events, tool results, native compaction markers and process shutdown. These are the
 foundations for the durable waits below.
 
-The checkpoint interruption has an isolated regression reproduction:
+Checkpoint interruption is now a required process regression check:
 
 ```sh
-bun scripts/eve-smoke.ts runtime/eve/.output/server/index.mjs bun runtime/eve/.eve/sandbox-cache --interrupt-after-reply
+bun run eve:recovery
 ```
 
-It deliberately skips the idle-checkpoint wait and still fails intermittently on Windows. An
-isolated pass is insufficient evidence of a fix. The normal smoke and approval/question recovery
-integration pass. Keep this reproduction separate from the passing CI checks until the checkpoint
-gap is fixed, then make it mandatory before cutover. Linux results remain pending CI; all local
-tests use a fake provider and never paid calls or user credentials. Temporary diagnostic changes
-to generated build output are not shipped or committed.
+The check holds the filesystem write at each of three precise boundaries: after the claim but
+before the step checkpoint, after the checkpoint but before its event, and after the event but
+before clearing the claim's payload. It kills the worker, restarts it and sends another message.
+All three windows pass repeatedly on Windows/Bun 1.4.4, without repeating either model call or
+the tool. Linux results remain pending CI. Tests use a fake provider, never paid calls or user
+credentials. The fault preload exists only in the throwaway test process.
+
+`runtime/eve-world` selects `@workflow/world-local` 5.1.2 through Eve's public custom-world option.
+The committed Bun patch stores the exact outcome and event in the atomic terminal claim, then
+finishes pending writes before startup requeues work. It clears the extra payload after committing
+both files. Successes, failures, duplicate startup and event deduplication have tests. Application
+code does not edit private Workflow files, and no model or tool runs during this storage recovery.
+No old orphan claims are migrated. See that package's README for patch removal criteria.
+
+The local store must retain its package metadata, so its import stays at runtime and the build
+copies its complete dependency tree. The relocated desktop smoke repeats all three crash windows
+using the bundled Bun. Active work also resumes on startup without new input, and the custom
+world authenticates internal queue deliveries. Output is now about 16.2 MB plus the attachment template, compared with the
+initial 13.6 MB proof. The temporary diagnostic edits to generated output are gone.
 
 Phase 3 persists approvals, exact consent identities, edited arguments, decisions and expiry. Eve's
 native approval policy parks the call, rather than keeping an ordinary HTTP executor waiting for

@@ -23,6 +23,8 @@ const eve = Bun.spawn([bun, path.join(root, 'scripts/eve-smoke.ts'), path.join(a
   stdout: 'inherit', stderr: 'inherit',
 });
 if (await eve.exited !== 0) throw new Error('The staged Eve runtime failed its smoke check.');
+const recovery = Bun.spawn([bun, path.join(root, 'scripts/eve-recovery-smoke.ts'), path.join(app, 'runtime/eve/server/index.mjs'), bun, path.join(app, 'runtime/eve-sandbox-cache')], { stdout: 'inherit', stderr: 'inherit' });
+if (await recovery.exited !== 0) throw new Error('The staged Eve runtime failed its recovery check.');
 
 const freePort = (): Promise<number> =>
   new Promise((resolve, reject) => {

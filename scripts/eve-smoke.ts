@@ -23,8 +23,40 @@ const bridgeToken = crypto.randomBytes(32).toString('hex');
 const binding = crypto.randomBytes(16).toString('hex');
 const observations: { model: string; messages: unknown; tools?: { function: { name: string } }[] }[] = [];
 let toolCalls = 0;
+let modelHeld = false;
 let output = '';
 let child: ChildProcess | undefined;
+let launches = 0;
+const interrupt = process.argv.includes('--interrupt-after-reply');
+const checkpointWindow = process.argv.find((value) => value.startsWith('--checkpoint-window='))?.split('=')[1] || 'intent';
+assert(['intent', 'event', 'cleanup', 'model'].includes(checkpointWindow));
+const interruptModel = interrupt && checkpointWindow === 'model';
+let checkpointHeld = false;
+const checkpointProbe = path.join(temporary, 'checkpoint-probe.mjs');
+// Hold a real filesystem write at each commit boundary, then kill the worker.
+// This preload exists only in this throwaway fixture, never in the runtime build.
+if (interrupt && !interruptModel) fs.writeFileSync(checkpointProbe, `
+import fs from 'node:fs';
+let completed = 0;
+let target;
+const write = fs.promises.writeFile;
+fs.promises.writeFile = async function (file, data, ...options) {
+  let block = false;
+  if (typeof data === 'string') {
+    let record;
+    try { record = JSON.parse(data); } catch {}
+    if (record?.status === 'completed' && record.stepName?.endsWith('//turnStep') && ++completed === 2) target = record.stepId;
+    block = target && (${JSON.stringify(checkpointWindow)} === 'intent' && record?.stepId === target ||
+      ${JSON.stringify(checkpointWindow)} === 'event' && record?.eventType === 'step_completed' && record.correlationId === target ||
+      ${JSON.stringify(checkpointWindow)} === 'cleanup' && data === '' && String(file).includes(target + '.terminal'));
+  }
+  if (block) {
+    process.stderr.write('ATHENA_CHECKPOINT_HELD\\n');
+    await new Promise(() => {});
+  }
+  return write.call(this, file, data, ...options);
+};
+`);
 
 const fixture = http.createServer(async (req, res) => {
   try {
@@ -46,6 +78,7 @@ const fixture = http.createServer(async (req, res) => {
         : { tool_calls: [{ index: 0, id: 'probe-call', type: 'function', function: { name: tool.function.name, arguments: '{"value":"proof"}' } }] };
       res.writeHead(200, { 'content-type': 'text/event-stream' });
       res.write(`data: ${JSON.stringify({ id: 'fixture', object: 'chat.completion.chunk', model: request.model, choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`);
+      if (interruptModel && observations.length === 2) { modelHeld = true; return; }
       res.end(`data: ${JSON.stringify({ id: 'fixture', object: 'chat.completion.chunk', model: request.model, choices: [{ index: 0, delta: {}, finish_reason: seenToolResult ? 'stop' : 'tool_calls' }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } })}\n\ndata: [DONE]\n\n`);
       return;
     }
@@ -94,7 +127,8 @@ async function stop() {
 }
 
 async function start() {
-  child = spawn(executable, [entry], {
+  launches++;
+  child = spawn(executable, [...(interrupt && !interruptModel && launches === 1 ? [path.basename(executable).startsWith('node') ? '--import' : '--preload', checkpointProbe] : []), entry], {
     cwd: temporary,
     windowsHide: true,
     env: {
@@ -107,7 +141,7 @@ async function start() {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.stdout?.on('data', (data: Buffer) => { output += data.toString(); });
-  child.stderr?.on('data', (data: Buffer) => { output += data.toString(); });
+  child.stderr?.on('data', (data: Buffer) => { output += data.toString(); if (data.toString().includes('ATHENA_CHECKPOINT_HELD')) checkpointHeld = true; });
   let spawnError: Error | undefined;
   child.on('error', (error) => { spawnError = error; });
   const deadline = Date.now() + 30000;
@@ -131,6 +165,14 @@ try {
   assert.equal(observations.length, 0);
   const client = new Client({ baseUrl: runtimeUrl, auth: { bearer: token }, headers: { 'x-athena-binding': binding } });
   const { session, delivery } = await client.sessions.create({ message: 'Use the proof tool.' });
+  if (interruptModel) {
+    const deadline = Date.now() + 10000;
+    while (!modelHeld && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10));
+    assert(modelHeld, 'The fake provider must hold an unfinished model call.');
+    await stop();
+    await start();
+    console.log('eve smoke: active work resumes after restart without a new input');
+  }
   const result = await delivery.result({ signal: AbortSignal.timeout(30000) });
   assert.equal(result.status, 'completed', JSON.stringify(result));
   assert.equal(result.reply, 'ATHENA_EVE_REPLY');
@@ -141,7 +183,7 @@ try {
   // Delivery settlement precedes its Workflow checkpoint. Test an idle restart here;
   // interruption between those boundaries is a separate recovery case.
   const checkpointDeadline = Date.now() + 5000;
-  for (; !process.argv.includes('--interrupt-after-reply');) {
+  for (; !interrupt && !interruptModel;) {
     const stepFiles = fs.readdirSync(path.join(temporary, '.eve', '.workflow-data', 'steps'), { recursive: true, encoding: 'utf8' }).filter((file) => file.endsWith('.json'));
     const running = stepFiles.some((file) => {
       const step: unknown = JSON.parse(fs.readFileSync(path.join(temporary, '.eve', '.workflow-data', 'steps', file), 'utf8'));
@@ -151,8 +193,11 @@ try {
     assert(Date.now() < checkpointDeadline, 'The first turn must finish checkpointing.');
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  await stop();
-  await start();
+  if (interrupt && !interruptModel) {
+    while (!checkpointHeld && Date.now() < checkpointDeadline) await new Promise((resolve) => setTimeout(resolve, 10));
+    assert(checkpointHeld, 'The fault probe must hold the reply checkpoint before killing the process.');
+  }
+  if (!interruptModel) { await stop(); await start(); }
   console.log('eve smoke: runtime restarted, sending follow-up');
   const attached = client.sessions.attach(saved.sessionId, { streamIndex: saved.streamIndex });
   const response = await attached.send('Continue after restart.');
@@ -160,6 +205,7 @@ try {
   assert.equal(resumed.status, 'completed', JSON.stringify(resumed));
   assert.equal(resumed.reply, 'ATHENA_EVE_REPLY');
   assert.equal(toolCalls, 1);
+  assert.equal(observations.length, interruptModel ? 4 : 3, 'Only the unfinished model call may run again.');
   console.log('eve smoke: saved session survives runtime restart');
   const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j2ioAAAAASUVORK5CYII=';
   const media = await attached.send([

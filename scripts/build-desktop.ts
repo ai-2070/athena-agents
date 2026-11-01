@@ -89,6 +89,8 @@ function copyTerminalModule(t: DesktopTarget): void {
     fs.mkdirSync(dir, { recursive: true });
     fs.copyFileSync(path.join(root, 'package.json'), path.join(dir, 'package.json'));
     fs.copyFileSync(path.join(root, 'bun.lock'), path.join(dir, 'bun.lock'));
+    copyDir(path.join(root, 'patches'), path.join(dir, 'patches'));
+    copyDir(path.join(root, 'runtime', 'eve-world'), path.join(dir, 'runtime', 'eve-world'));
     sh([process.execPath, 'install', '--frozen-lockfile', '--production', '--ignore-scripts', '--linker=hoisted', `--os=${t.os}`, `--cpu=${t.cpu}`], dir);
   }
   for (const p of [path.join('node_modules', '@lydell', 'node-pty'), platformPkg]) {

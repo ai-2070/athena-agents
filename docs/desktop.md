@@ -61,7 +61,9 @@ The staged app also includes the experimental Eve runtime in `app/runtime/eve/`,
 filesystem templates in `app/runtime/eve-sandbox-cache/`. Both use the existing bundled Bun 1.4+.
 These files support the API-engine replacement; the normal agent engine has not switched to Eve yet.
 `desktop:smoke` exercises the staged Eve server with the bundled Bun, a fake model and throwaway
-state before checking the dashboard. Eve adds no second runtime installation or download.
+state before checking the dashboard. It also kills and restarts Eve at three checkpoint write
+boundaries and during an unfinished model call. The pinned local store and its patch ship with the runtime; see
+[`runtime/eve-world`](../runtime/eve-world/README.md). Eve adds no second runtime installation or download.
 
 - Everything the server imports must bundle with `Bun.build` (`target: 'bun'`). Native modules can't be
   bundled: add them to `external` in `build-desktop.ts` and copy them like node-pty.
