@@ -1,0 +1,48 @@
+scripts/build-icons.ts
+  s_57c675cb3340e9::t_0f1ddac41c408a 23
+  s_57c675cb3340e9::t_26171076a553c7 24
+web/icons.ts
+  s_57c675cb3340e9::t_26171076a553c7 10
+tests/web/brand.test.tsx
+  s_57c675cb3340e9::t_d187bb9db91e36 4-6,35-60
+tests/web/groupD-pickers.test.ts
+  s_57c675cb3340e9::t_c8574f25821605 81-85,130
+tests/web/iconweight.test.tsx
+  s_57c675cb3340e9::t_efe0555b11030e 53-54,56,62-63
+tests/web/mcp.test.tsx
+  s_57c675cb3340e9::t_ac13e5fcf9c36e 109-122
+tests/web/preseticons.test.ts
+  s_57c675cb3340e9::t_2b42c8097738a4 1-14
+web/brandimages.ts
+  s_57c675cb3340e9::t_7ac8a665addb6f 1-23
+web/models.tsx
+  s_57c675cb3340e9::t_617c18fa31d053 11,81,83-85,154,169,172,350
+web/preseticons.ts
+  s_57c675cb3340e9::t_ea9d6bb420499b 1-20
+web/programicons.ts
+  s_57c675cb3340e9::t_ee01c14e53d239 3,93
+web/ui/fileicons.tsx
+  s_57c675cb3340e9::t_f883178d26aff4 2-3,50,52
+web/views/mcp.tsx
+  s_57c675cb3340e9::t_b71c484d00faab 10-12,16-26,184
+web/views/station.ts
+  s_57c675cb3340e9::t_462835b9c90cab 3773,3775,3779-3781
+web/views/stationdata.ts
+  s_57c675cb3340e9::t_f35ac0e3b82edf 5,8,108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "37275354c73f247527dd75b6296eb609bd8ac9f2",
+  "prompts": {},
+  "sessions": {
+    "s_57c675cb3340e9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19923-964d-73a1-aa94-f5a5587530e9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
