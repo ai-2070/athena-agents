@@ -49,7 +49,7 @@
     "desktop:smoke": "bun scripts/desktop-smoke.ts"
   },
   "engines": {
-    "bun": ">=1.2"
+    "bun": ">=1.4"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.82",

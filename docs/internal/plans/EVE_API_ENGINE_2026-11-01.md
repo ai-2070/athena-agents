@@ -6,18 +6,21 @@
 
 Phase 1 now has a pinned Eve 1.0.0-rc.1 application, dynamic model/instructions/tool definitions,
 private token authentication, an attachment-only virtual filesystem and a repeatable smoke check.
-`eve:build` uses supported Node output. Desktop staging includes that output, its filesystem
-templates and checksum-verified Node 24.19.0; the dashboard continues to use its existing engines.
-The Bun server will supervise the private Node process in the next phase, keeping Tauri's single
+`eve:build` runs Eve under Bun 1.4+ and produces Nitro's Bun output. Desktop staging includes that
+output and its filesystem templates; the dashboard continues to use its existing engines.
+The Bun server will supervise a private Bun process in the next phase, keeping Tauri's single
 dashboard-child ownership model rather than adding a second independent Rust supervisor.
 
 Windows checks prove the model/tool round trip, rejection of unauthenticated input, idle-session
 restart, image bytes and PDF input without Docker, and relocation into the staged desktop app.
 Models and tool execution in these checks are protocol fixtures: no live paid model, user key or
 local model installation is used. Linux CI runs the same proof; that result is still pending.
-The measured runtime output is about 16.2 MB plus a 92.8 MB Windows Node executable and a small
-filesystem template. Startup measured about 0.7 seconds in the source proof and 2.1 seconds in
-the first staged proof; these are local observations, not performance guarantees.
+The initial Node proof worked but added a 92.8 MB Windows executable. Follow-up tests under Bun
+1.4.4 passed both the existing Node-targeted output and a fresh native Bun build, so that extra
+runtime and its download code were removed. Native Bun output is about 13.6 MB plus a small
+filesystem template; source startup measured about 0.6 seconds. These are local observations,
+not performance guarantees. The final target is a separate process using the already bundled Bun,
+not a second runtime installation or a new agent loop embedded in the dashboard process.
 
 Two findings constrain the next phases:
 
@@ -78,7 +81,8 @@ already supports them. Pin the exact Eve and provider versions after the packagi
   Athena's editable agents through one authored root, rather than compiling one app per agent.
   [Dynamic capabilities](https://eve.dev/docs/guides/dynamic-capabilities)
 - Self-hosting produces a Nitro Node server and uses a Workflow world for state. The local world
-  writes to disk. Eve documents Node.js 24+, so Bun execution and bundling are unproven here.
+  writes to disk. Eve documents Node.js 24+; the runtime proof additionally verifies its native
+  Nitro Bun build and execution under Bun 1.4.4.
   [Getting started](https://eve.dev/docs/getting-started),
   [self-hosting](https://eve.dev/docs/guides/deployment/self-hosting)
 - Direct AI SDK provider models and OpenAI-compatible local endpoints are supported. A model ID
@@ -111,14 +115,14 @@ Browser / Gateway / team / routine
 
 ### Runtime and desktop packaging
 
-Use the supported self-hosted Node runtime as the baseline: one supervised private sidecar, one
-prebuilt Eve app, and one local Workflow world. Athena's Bun HTTP server remains the dashboard host.
-Prefer embedding only if the first proof establishes a supported, reproducible path; do not assume
-Eve is a `run()` helper that can be placed inside our existing Bun bundle.
+Use the verified Bun runtime: one supervised private Bun sidecar, one prebuilt Eve app and one
+local Workflow world. Athena's Bun HTTP server remains the dashboard host. The runtime proof
+builds with Nitro's Bun preset and runs under Bun 1.4.4. Keep the process boundary; Eve is not
+a `run()` helper placed inside our existing dashboard bundle.
 
-The baseline adds a bundled Node runtime and the Eve build output to desktop packaging. Change
-`scripts/build-desktop.ts`, desktop startup/shutdown code in `src-tauri/`, desktop smoke checks and
-CI together. Include all runtime-discovered files and dependencies. No development checkout,
+Package the Eve build output and reuse the existing bundled Bun. Change `scripts/build-desktop.ts`,
+the Bun server's child-process lifecycle, desktop smoke checks and CI together. Tauri continues
+to supervise the dashboard server. Include all runtime-discovered files and dependencies. No development checkout,
 globally installed Node, `npx` download, Docker installation or writable application directory may
 be needed on the installed user's machine.
 
@@ -269,11 +273,11 @@ algorithm is introduced as a fallback.
 ## Implementation sequence
 
 1. **Prove the runtime before the rewrite.** Build a pinned minimal Eve app with dynamic model,
-   prompt and Athena tool bridge. Run on Windows and Linux; stage the supported Node sidecar in a
+   prompt and Athena tool bridge. Run on Windows and Linux; stage the verified Bun sidecar in a
    desktop build. Exercise a local compatible model, a remote model, an image and a document.
    Prove authenticated loopback callbacks, writable runtime storage and no Docker requirement.
    Deliver a packaging decision and measured startup/package cost. If the supported packaging path
-   cannot meet desktop requirements, record the blocker rather than reverting to an unexamined Bun assumption.
+   cannot meet desktop requirements, record the blocker rather than assuming a different runtime will work.
 2. **Define the ownership boundary.** Add session bindings, run ledger, provider extraction, engine
    capabilities and the single dynamic root. Implement transcript event projection and tool routing.
 3. **Make waits and recovery real.** Persist approvals and operation outcomes, implement startup

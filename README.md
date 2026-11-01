@@ -108,7 +108,7 @@ The installers are not signed yet: on Windows choose **More info → Run anyway*
 
 ### From the source code
 
-You need [Bun](https://bun.sh) **1.2 or newer**, and a model to run your agents (see [Connect a model](#connect-a-model)). In this repository's folder:
+You need [Bun](https://bun.sh) **1.4 or newer**, and a model to run your agents (see [Connect a model](#connect-a-model)). In this repository's folder:
 
 ```sh
 bun install
@@ -211,9 +211,9 @@ More: [Troubleshooting](docs/guide.md#troubleshooting).
 ## Development
 
 The Eve runtime replacement is being developed separately from the current API engine. Building
-the runtime needs Node.js 24 or newer. `bun run eve:build` builds it and `bun run eve:smoke` checks
+the runtime uses Bun 1.4 or newer. `bun run eve:build` builds it and `bun run eve:smoke` checks
 its private HTTP API, tool bridge, idle restart and file inputs with a fake model and throwaway data.
-These checks do not use your accounts or API keys. Desktop builds also stage a pinned Node runtime.
+These checks do not use your accounts or API keys. Desktop builds use the existing bundled Bun runtime.
 
 Bun runs the TypeScript server and bundles the browser app. The code is strict TypeScript; server and shared modules must also work under Node, because Vitest imports them there. CI uses **Bun 1.4.4** and **Node 24**, and checks Windows and Linux.
 

@@ -13,7 +13,7 @@ import type { ChildProcess } from 'node:child_process';
 
 const root = path.resolve(import.meta.dirname, '..');
 const entry = path.resolve(process.argv[2] || path.join(root, 'runtime/eve/.output/server/index.mjs'));
-const executable = process.argv[3] || 'node';
+const executable = process.argv[3] || process.execPath;
 const sandboxTemplates = process.argv[4] || path.join(root, 'runtime/eve/.eve/sandbox-cache');
 if (!fs.existsSync(entry)) throw new Error('Build the Eve runtime before running its smoke check.');
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'athena-eve-smoke-'));
