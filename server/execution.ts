@@ -50,12 +50,18 @@ export function admitExecution(run: ExecutionRun, queueId?: string): void {
   });
 }
 
-export function updateExecution(id: string, update: Partial<Pick<ExecutionRun, 'status' | 'stopRequested' | 'steered' | 'endedAt' | 'answer' | 'error' | 'settled'>>): ExecutionRun | null {
+export function updateExecution(id: string, update: Partial<Pick<ExecutionRun, 'status' | 'stopRequested' | 'steered' | 'endedAt' | 'answer' | 'error' | 'settled' | 'completionClaimed'>>): ExecutionRun | null {
   return change((state) => {
     const run = state.runs.find((r) => r.id === id);
     if (!run) return null;
     if (run.status !== 'running' && update.status && run.status !== update.status) return run;
     Object.assign(run, update);
+    if (run.status !== 'running') for (const handoff of state.handoffs) {
+      if (handoff.runId !== run.id || handoff.projectId !== run.projectId || handoff.endedAt) continue;
+      handoff.endedAt = run.endedAt || Date.now();
+      if (run.status === 'completed') handoff.answer = run.answer || '(no answer)';
+      else handoff.error = run.status === 'stopped' ? 'it was stopped' : run.error || 'The task could not finish.';
+    }
     return run;
   });
 }

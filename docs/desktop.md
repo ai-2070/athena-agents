@@ -62,6 +62,10 @@ filesystem templates in `app/runtime/eve-sandbox-cache/`. Both use the existing 
 These files support the API-engine replacement; the normal agent engine has not switched to Eve yet.
 The server's Eve supervisor finds these relocated files, uses the bundled Bun, and keeps worker
 state under `DATA/runtime/eve`. Saved native work is reconciled before the worker starts its queue.
+The supervisor claims a private loopback ownership port derived from the resolved runtime path;
+another process or a port collision blocks startup rather than sharing the Workflow files.
+The claim is released when its process exits. Recovered native runs regain busy state and follow
+their saved event stream without submitting another user message.
 Server shutdown cancels an unfinished launch and closes the worker before the private tool bridge.
 `desktop:smoke` exercises the staged Eve server with the bundled Bun, a fake model and throwaway
 state before checking the dashboard. It also kills and restarts Eve at three checkpoint write

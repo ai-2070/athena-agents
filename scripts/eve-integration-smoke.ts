@@ -24,6 +24,10 @@ const { startEveHost } = await import('../server/eve/host.ts');
 const { projectEvent } = await import('../server/eve/projection.ts');
 const { deliverApprovalDecisions, eveClient, prepareEveRecovery, reconcileSnapshot, recoverEveRuns, stopEveRun } = await import('../server/eve/recovery.ts');
 const { EveRuntime } = await import('../server/eve/runtime.ts');
+const { claimEveRuntime } = await import('../server/eve/ownership.ts');
+const { EveCoordinator, eveConnection } = await import('../server/eve/coordinator.ts');
+const { admitExecution } = await import('../server/execution.ts');
+const { activeRuns, isChatBusy, nativeRunPromise, onRunEnd, recoverExecution } = await import('../server/engines/index.ts');
 const { decide, listApprovals } = await import('../server/approvals.ts');
 const { answerQuestion, waitingQuestions } = await import('../server/questions.ts');
 const { dataPath } = await import('../server/util.ts');
@@ -32,6 +36,9 @@ const { shownWorld } = await import('../server/voxel/link.ts');
 const { setOpenPages } = await import('../server/voxel/look.ts');
 setOpenPages(() => 0);
 let requests = 0;
+let releaseLifecycle = () => {};
+let lifecycleWaiting = 0;
+const lifecycleGate = new Promise<void>((resolve) => { releaseLifecycle = resolve; });
 const model = http.createServer(async (request, response) => {
   try {
     let text = '';
@@ -50,6 +57,10 @@ const model = http.createServer(async (request, response) => {
     assert(offered, 'The selected Athena tool must be available.');
     requests++;
     const completed = Array.isArray(body.messages) && body.messages.some((message: unknown) => !!message && typeof message === 'object' && 'role' in message && message.role === 'tool');
+    if (completed && JSON.stringify(body.messages).includes('DURABLE_LIFECYCLE_PROOF')) {
+      lifecycleWaiting++;
+      await lifecycleGate;
+    }
     const args = writing ? { path: 'approved.txt', content: 'saved once' } : asking ? { question: 'Pick a colour', choices: ['Blue', 'Red'] }
       : granting ? { tools: 'shell', why: 'Run the requested build' }
         : building ? { object: 'Shared integration bench', steps: [{ box: [2, 2, 2], use: 'stone' }] } : {};
@@ -69,8 +80,10 @@ assert(address && typeof address !== 'string');
 const bridge = await openEveBridge();
 let host: Awaited<ReturnType<typeof startEveHost>> | undefined;
 let runtime: InstanceType<typeof EveRuntime> | undefined;
+let coordinator: InstanceType<typeof EveCoordinator> | undefined;
 async function startRuntime() {
   runtime = new EveRuntime({
+    claim: claimEveRuntime,
     bridge: async () => ({ ...bridge, close: async () => {} }),
     host: (privateBridge, signal) => startEveHost({ executable: process.execPath, entry: path.join(root, 'runtime/eve/.output/launch.mjs'), templates: path.join(root, 'runtime/eve/.eve/sandbox-cache'), directory: dataPath('runtime/eve/worker'), bridgeUrl: privateBridge.url, bridgeToken: privateBridge.token, signal }),
     prepare: prepareEveRecovery, recover: recoverEveRuns, hasWork: () => false,
@@ -172,7 +185,51 @@ try {
   }
   assert.equal(requests, 13, 'Stopped work must not make another model call.');
   console.log('eve integration: tool, access, ownership, setting and Outbox waits survive immediate restart; stopped work stays stopped');
+  const owner = agents.save(newAgent({ name: 'Lifecycle owner', provider: 'custom', model: 'integration-proof', toolGroups: ['agents'], richAnswers: false }));
+  const conversation = chats.create(owner.id, 'Native lifecycle');
+  const saved = bindSession(owner, conversation, project, 'proof');
+  const runId = 'lifecycle-run';
+  admitExecution({ id: runId, projectId: project.id, agentId: owner.id, chatId: conversation.id, engine: owner.engine, parentRunId: null, ownerChatId: conversation.id, ownerAgentId: owner.id, depth: 0, text: 'DURABLE_LIFECYCLE_PROOF', from: null, attachments: [], startedAt: Date.now(), status: 'running' });
+  beginRun(runId, saved.id);
+  setRunStatus(runId, 'running');
+  const { delivery: lifecycleDelivery } = await eveClient(host, saved.id).sessions.create({ message: 'DURABLE_LIFECYCLE_PROOF', signal: AbortSignal.timeout(30000) });
+  setRunStatus(runId, 'running', lifecycleDelivery.deliveryId);
+  for await (const event of lifecycleDelivery.stream({ signal: AbortSignal.timeout(30000) })) {
+    projectEvent(runId, event);
+    if (event.type === 'call.settled') break;
+  }
+  coordinator = new EveCoordinator({ ready: () => runtime!.ready(), connect: eveConnection, retryMs: 10 });
+  coordinator.restore();
+  recoverExecution();
+  let completions = 0;
+  onRunEnd((ended) => { if (ended.runId === runId) completions++; });
+  const done = nativeRunPromise(runId);
+  assert(done, 'The original native run must regain its application completion handle.');
+  coordinator.start();
+  assert(isChatBusy(conversation.id));
+  assert(activeRuns().some((run) => run.id === runId));
+  const until = async (ok: () => boolean) => {
+    const deadline = Date.now() + 30000;
+    while (!ok()) { assert(Date.now() < deadline, 'Lifecycle recovery timed out.'); await new Promise((resolve) => setTimeout(resolve, 20)); }
+  };
+  await until(() => lifecycleWaiting === 1);
+  await runtime!.close();
+  host = await startRuntime();
+  assert(isChatBusy(conversation.id), 'Transport loss must keep the same native run busy.');
+  await until(() => lifecycleWaiting === 2);
+  releaseLifecycle();
+  assert.equal(await done, 'ATHENA_INTEGRATION_REPLY');
+  assert.equal(completions, 1);
+  assert(!isChatBusy(conversation.id));
+  const transcript = chats.get(owner.id, conversation.id)!;
+  assert.equal(transcript.items.filter((item) => item.type === 'tool').length, 1);
+  assert.equal(transcript.items.filter((item) => item.type === 'assistant').length, 1);
+  assert.equal(requests, 16, 'Only the interrupted model request may repeat; the committed tool must not run again.');
+  console.log('eve integration: native busy state, transcript and completion survive worker restart without another input');
 } finally {
+  releaseLifecycle();
+  onRunEnd(null);
+  await coordinator?.close();
   await runtime?.close();
   await bridge.close();
   model.closeAllConnections();

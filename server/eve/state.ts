@@ -24,19 +24,30 @@ export function bindSession(agent: Agent, chat: Chat, project: Project, generati
 }
 
 export function sessionContext(id: string): { binding: EveSessionBinding; project: Project; agent: Agent; chat: Chat } {
-  const binding = readBinding(id);
-  if (!binding || binding.retired) throw new Error('This Eve session binding is not active.');
-  const project = listProjects().find((item) => item.id === binding.projectId);
-  if (!project) throw new Error('The session project no longer exists.');
-  return withProject(project, () => {
-    let agent = agents.get(binding.agentId);
-    const chat = chats.get(binding.agentId, binding.chatId);
-    if (!agent || !chat || chat.agentId !== agent.id || (chat.teamId || null) !== binding.teamId) throw new Error('The session agent or conversation no longer exists.');
+  const context = transcriptContext(id);
+  if (context.binding.retired) throw new Error('This Eve session binding is not active.');
+  return withProject(context.project, () => {
+    const { binding } = context;
+    let { agent } = context;
     if (binding.teamId) {
       const team = workflows.get(binding.teamId);
       if (!team || !team.members.includes(agent.id)) throw new Error('The agent no longer belongs to this team.');
       agent = { ...agent, toolGroups: [...new Set([...agent.toolGroups, ...(team.access?.toolGroups || [])])], mcpServers: teamWorkServers(agent.mcpServers, team.access?.mcpServers || []), _teamSkills: team.skills || [] };
     }
+    return { ...context, agent };
+  });
+}
+
+/** Saved originals can be projected after Stop; this never grants execution permission. */
+export function transcriptContext(id: string): { binding: EveSessionBinding; project: Project; agent: Agent; chat: Chat } {
+  const binding = readBinding(id);
+  if (!binding) throw new Error('This Eve session binding is not active.');
+  const project = listProjects().find((item) => item.id === binding.projectId);
+  if (!project) throw new Error('The session project no longer exists.');
+  return withProject(project, () => {
+    const agent = agents.get(binding.agentId);
+    const chat = chats.get(binding.agentId, binding.chatId);
+    if (!agent || !chat || chat.agentId !== agent.id || (chat.teamId || null) !== binding.teamId) throw new Error('The session agent or conversation no longer exists.');
     return { binding, project, agent, chat };
   });
 }
@@ -110,13 +121,33 @@ export function recordTurn(id: string, turnId: string): void {
 }
 
 /** Commit before notifying listeners; a reconnect can replay these outputs by stable ID. */
-export function recordEvents(id: string, cursor: { line: number; index: number }, events: RunEvent[]): { id: string; event: RunEvent }[] {
+export function recordEvents(id: string, cursor: { line: number; index: number }, events: RunEvent[], partId?: string): { id: string; event: RunEvent }[] {
   const run = readRun(id);
   if (!run) throw new Error('No such Eve run.');
   if (!Number.isSafeInteger(cursor.line) || !Number.isSafeInteger(cursor.index) || cursor.line < 0 || cursor.index < 0) throw new Error('Invalid Eve event position.');
   if (run.cursor && (cursor.line < run.cursor.line || cursor.line === run.cursor.line && cursor.index <= run.cursor.index)) return [];
   if (terminal(run.status)) throw new Error('A finished Eve run cannot accept new events.');
   const saved = events.map((event, index) => ({ id: `${cursor.line}:${cursor.index}:${index}`, event }));
-  writeJSON(runPath(id), { ...run, cursor, events: [...run.events, ...saved], updatedAt: Date.now() });
+  const text = saved.find((item) => item.event.kind === 'text');
+  writeJSON(runPath(id), { ...run, cursor, events: [...run.events, ...saved], ...(partId && text ? { textParts: { ...run.textParts, [partId]: text.id } } : {}), updatedAt: Date.now() });
   return saved;
+}
+
+export function markProjected(id: string, count: number): void {
+  const run = readRun(id);
+  if (!run || !Number.isSafeInteger(count) || count < (run.projected || 0) || count > run.events.length) throw new Error('Invalid Eve transcript position.');
+  writeJSON(runPath(id), { ...run, projected: count });
+}
+
+export function settleRun(id: string, status: 'completed' | 'failed' | 'stopped' | 'interrupted', answer: string, error?: string): void {
+  const run = readRun(id);
+  if (!run) throw new Error('No such Eve run.');
+  if (terminal(run.status)) return;
+  writeJSON(runPath(id), { ...run, status, answer, pendingTerminal: undefined, ...(error ? { error } : {}), endedAt: Date.now(), updatedAt: Date.now() });
+}
+
+export function stageTerminal(id: string, pendingTerminal: NonNullable<EveRunRecord['pendingTerminal']>): void {
+  const run = readRun(id);
+  if (!run || terminal(run.status)) return;
+  writeJSON(runPath(id), { ...run, pendingTerminal });
 }

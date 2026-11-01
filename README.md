@@ -220,6 +220,8 @@ the runtime uses Bun 1.4 or newer. `bun run eve:build` builds it and `bun run ev
 its private HTTP API, tool bridge, idle restart and file inputs with a fake model and throwaway data.
 `bun run eve:integration` also checks Athena's real tool bridge, saved session ownership, events,
 and restart during file, tool-access, voxel-ownership, appearance and Outbox approvals.
+It also checks that a native run stays busy through worker restart and records its answer and
+completion once, without another user input.
 These checks do not use your accounts or API keys. Desktop builds use the existing bundled Bun runtime.
 
 Bun runs the TypeScript server and bundles the browser app. The code is strict TypeScript; server and shared modules must also work under Node, because Vitest imports them there. CI uses **Bun 1.4.4** and **Node 24**, and checks Windows and Linux.

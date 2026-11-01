@@ -6,10 +6,12 @@ import { openEveBridge } from './bridge.ts';
 import { startEveHost } from './host.ts';
 import { activeEveRuns, eveRuns, readBinding } from './state.ts';
 import { prepareEveRecovery, recoverEveRuns } from './recovery.ts';
+import { claimEveRuntime, EveOwnershipError } from './ownership.ts';
 import type { EveHost } from './host.ts';
 
 type Bridge = Awaited<ReturnType<typeof openEveBridge>>;
 export interface EveRuntimeDependencies {
+  claim?(): Promise<() => Promise<void>>;
   bridge(): Promise<Bridge>;
   host(bridge: Bridge, signal: AbortSignal): Promise<EveHost>;
   prepare(): void;
@@ -39,6 +41,7 @@ export class EveRuntime {
   private host: EveHost | undefined;
   private starting: Promise<EveHost> | undefined;
   private stopping: Promise<void> | undefined;
+  private release: (() => Promise<void>) | undefined;
   private readonly abort = new AbortController();
   private retry: ReturnType<typeof setTimeout> | undefined;
   private attempts = 0;
@@ -70,6 +73,7 @@ export class EveRuntime {
     let host: EveHost | undefined;
     let exited = false;
     try {
+      this.release ||= await this.dependencies.claim?.();
       // A worker starts its saved queue immediately; reconcile before launching it.
       this.dependencies.prepare();
       this.abort.signal.throwIfAborted();
@@ -89,9 +93,10 @@ export class EveRuntime {
       this.host = host;
       this.attempts = 0;
       return host;
-    } catch {
+    } catch (error) {
       await host?.close();
       this.scheduleRetry();
+      if (error instanceof EveOwnershipError) throw error;
       throw new Error('Eve could not restore saved work. Check that its runtime is built, then try again.');
     }
   }
@@ -119,13 +124,18 @@ export class EveRuntime {
     await this.starting?.catch(() => {});
     try { await host?.close(); }
     finally {
-      await this.bridge?.close();
-      this.bridge = undefined;
+      try { await this.bridge?.close(); }
+      finally {
+        this.bridge = undefined;
+        await this.release?.();
+        this.release = undefined;
+      }
     }
   }
 }
 
 export const eveRuntime = new EveRuntime({
+  claim: claimEveRuntime,
   bridge: openEveBridge,
   host: (bridge, signal) => {
     const executable = process.versions.bun ? process.execPath : which('bun');

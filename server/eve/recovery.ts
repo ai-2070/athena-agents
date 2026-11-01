@@ -1,12 +1,12 @@
 import { Client } from 'eve/client';
 import { cancelForRun, durableApproval, ensureDurableApproval } from '../approvals.ts';
-import { questions, withProject } from '../store.ts';
+import { listProjects, questions, withProject } from '../store.ts';
 import { closeQuestion, WAIT_MS } from '../questions.ts';
-import { eveRuns, markSessionEnded, readBinding, readRun, retireSession, sessionContext, setRunStatus } from './state.ts';
+import { eveRuns, markSessionEnded, readBinding, readRun, retireSession, sessionContext, setRunStatus, settleRun, stageTerminal } from './state.ts';
 import { operationsForRun, readOperation, reconcileOperations, saveOperation } from './operations.ts';
-import { projectEvent } from './projection.ts';
+import { EveProjectionError, projectEvent } from './projection.ts';
 import type { EveHost } from './host.ts';
-import type { SessionSnapshot } from 'eve/client';
+import type { SessionSnapshot, SessionStreamEvent } from 'eve/client';
 
 export function eveClient(host: Pick<EveHost, 'url' | 'token'>, bindingId: string): Client {
   return new Client({ baseUrl: host.url, auth: { bearer: host.token }, headers: { 'x-athena-binding': bindingId } });
@@ -16,9 +16,14 @@ function cancelQuestions(runId: string) {
   const run = readRun(runId);
   if (!run) return;
   try {
-    const { project } = sessionContext(run.bindingId);
+    const binding = readBinding(run.bindingId);
+    const project = binding && listProjects().find((item) => item.id === binding.projectId);
+    if (!project) return;
     withProject(project, () => {
-      for (const operation of operationsForRun(runId)) if (operation.questionId && questions.get(operation.questionId)?.status === 'waiting') closeQuestion(operation.questionId, 'The run was stopped or interrupted.');
+      for (const operation of operationsForRun(runId)) {
+        const question = operation.questionId && questions.get(operation.questionId);
+        if (question && question.runId === runId && question.status === 'waiting') closeQuestion(question.id, 'The run was stopped or interrupted.');
+      }
     });
   } catch { /* A deleted owner has no conversation to resume. */ }
 }
@@ -68,6 +73,36 @@ export async function stopEveRun(runId: string, client?: Client): Promise<void> 
 }
 
 /** Replay a bounded durable prefix before deciding whether there is still machine work to follow. */
+export function observeEveEvent(runId: string, event: SessionStreamEvent) {
+  const run = readRun(runId);
+  if (!run || !['queued', 'running', 'waiting'].includes(run.status)) return [];
+  if (!run.cursor && !(event.type === 'delivery.admitted' && event.data.deliveryId === run.deliveryId)) return [];
+  const projected = projectEvent(runId, event);
+  const current = readRun(runId)!;
+  if (event.type === 'turn.settled' && event.data.turnId === current.turnId) {
+    stageTerminal(runId, { line: event.meta.position.line, status: event.data.outcome === 'cancelled' ? 'stopped' : event.data.outcome === 'completed' ? 'completed' : 'failed', parts: [...(event.data.reply || [])], error: event.data.error?.message });
+  } else if (event.type === 'session.ended') {
+    stageTerminal(runId, { line: event.meta.position.line, status: event.data.outcome === 'failed' ? 'failed' : current.pendingTerminal?.status || 'interrupted', parts: current.pendingTerminal?.parts || [], error: event.data.error?.message || current.pendingTerminal?.error || 'The Eve session ended before this turn finished.' });
+  } else if (event.type === 'turn.paused' && event.data.turnId === current.turnId) {
+    const waiting = event.data.awaiting.some(({ interactionId }) => operationsForRun(runId).some((operation) => operation.interactionId === interactionId && !operation.interactionSettled));
+    setRunStatus(runId, waiting ? 'waiting' : 'running');
+  } else if (event.type === 'interaction.settled') {
+    const waiting = operationsForRun(runId).some((operation) => operation.interactionId && !operation.interactionSettled);
+    setRunStatus(runId, waiting ? 'waiting' : 'running');
+  }
+  const ready = readRun(runId)!;
+  if (ready.pendingTerminal && event.meta.endOfLine !== false && event.meta.position.line >= ready.pendingTerminal.line) {
+    const text = ready.pendingTerminal.parts.map((part) => {
+      const original = ready.events.find((item) => item.id === ready.textParts?.[part])?.event;
+      if (original?.kind !== 'text') throw new EveProjectionError('Eve reply needs its original content before it can finish.');
+      return original.text;
+    }).join('');
+    settleRun(runId, ready.pendingTerminal.status, text, ready.pendingTerminal.error);
+    cancelForRun(runId);
+  }
+  return projected;
+}
+
 export function reconcileSnapshot(runId: string, snapshot: SessionSnapshot) {
   const run = readRun(runId);
   if (!run) throw new Error('No such Eve run.');
@@ -77,18 +112,7 @@ export function reconcileSnapshot(runId: string, snapshot: SessionSnapshot) {
   const start = snapshot.events.findIndex((event) => event.type === 'delivery.admitted' && event.data.deliveryId === run.deliveryId);
   if (start < 0) return [];
   const events = snapshot.events.slice(start);
-  const projected = events.flatMap((event) => projectEvent(runId, event));
-  const current = readRun(runId)!;
-  const settled = events.findLast((event) => event.type === 'turn.settled' && event.data.turnId === current.turnId);
-  if (settled?.type === 'turn.settled') {
-    setRunStatus(runId, settled.data.outcome === 'cancelled' ? 'stopped' : settled.data.outcome === 'completed' ? 'completed' : 'failed');
-    cancelForRun(runId);
-  } else {
-    const paused = events.findLast((event) => event.type === 'turn.paused' && event.data.turnId === current.turnId);
-    const waiting = paused?.type === 'turn.paused' && paused.data.awaiting.some(({ interactionId }) => operationsForRun(runId).some((operation) => operation.interactionId === interactionId && !operation.interactionSettled));
-    setRunStatus(runId, waiting ? 'waiting' : 'running');
-  }
-  return projected;
+  return events.flatMap((event) => observeEveEvent(runId, event));
 }
 
 /** A stable input key covers a crash after Eve accepts an answer but before Athena saves its receipt. */
@@ -179,9 +203,19 @@ export async function recoverEveRuns(host: Pick<EveHost, 'url' | 'token'>): Prom
     if (run.status === 'stopped' || run.status === 'interrupted') {
       if (binding?.sessionId) await endSession(binding.id, client);
     } else if (binding?.sessionId) {
-      const snapshot = await client.sessions.attach(binding.sessionId).snapshot({ signal: AbortSignal.timeout(10000) });
-      reconcileSnapshot(run.id, snapshot);
-      await deliverApprovalDecisions(run.id, client);
+      try {
+        const snapshot = await client.sessions.attach(binding.sessionId).snapshot({ signal: AbortSignal.timeout(10000) });
+        reconcileSnapshot(run.id, snapshot);
+        await deliverApprovalDecisions(run.id, client);
+      } catch (error) {
+        if (!(error instanceof EveProjectionError)) throw error;
+        settleRun(run.id, 'interrupted', '', 'Eve returned a saved event Athena could not read. Check its results before continuing.');
+        cancelForRun(run.id, { keepOutcomeChecks: true });
+        cancelQuestions(run.id);
+        reconcileOperations(run.id, true);
+        checkOutcomes(run.id);
+        await endSession(binding.id, client);
+      }
     }
     recovered.push({ runId: run.id, status: readRun(run.id)!.status });
   }

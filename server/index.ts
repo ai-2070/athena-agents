@@ -12,6 +12,8 @@ import { agents, chats, outbox, artifacts as artifactStore, workflows, runs, bus
 import { listApprovals, decide, requestApproval, setReviewer } from './approvals.ts';
 import * as engines from './engines/index.ts';
 import { eveRuntime } from './eve/runtime.ts';
+import { EveOwnershipError } from './eve/ownership.ts';
+import { eveCoordinator } from './eve/coordinator.ts';
 import { PROVIDERS, listModels } from './providers.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { codexModelList } from './models.ts';
@@ -1466,7 +1468,11 @@ fs.rmSync(dataPath('tmp', 'received'), { recursive: true, force: true }); // upl
 internalToken();
 store.migrateLayout();
 try { await eveRuntime.recover(); }
-catch { log('error', 'Eve could not restore saved work. It will try again before accepting new Eve work.'); }
+catch (error) {
+  if (error instanceof EveOwnershipError) throw error;
+  log('error', 'Eve could not restore saved work. It will try again before accepting new Eve work.');
+}
+eveCoordinator.restore();
 engines.recoverExecution();
 teams.recoverTeamWork();
 wfs.markInterruptedRuns();
@@ -1474,6 +1480,7 @@ wfs.startScheduler();
 skills.ensureBuiltinSkills();
 learning.startLearning();
 irc.startIrc();
+eveCoordinator.start();
 void irc.recoverWork().catch((e: unknown) => store.log('error', `Couldn't resume saved work: ${e instanceof Error ? e.message : String(e)}`));
 routinesMod.markInterruptedRoutines();
 routinesMod.startRoutineScheduler();
@@ -1504,7 +1511,7 @@ const shutdown = () => {
   stopping = true;
   terms.closeAll();
   // agents' CLIs are stopped too: they would go on writing into the project with no dashboard to see it
-  void engines.stopAllRuns().finally(() => eveRuntime.close()).finally(() => process.exit(0));
+  void engines.stopAllRuns().finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()])).finally(() => process.exit(0));
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

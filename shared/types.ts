@@ -166,6 +166,7 @@ export interface ExecutionRun {
   answer?: string;
   error?: string;
   settled?: boolean;
+  completionClaimed?: boolean;
 }
 
 export interface ExecutionQueue {
@@ -386,14 +387,14 @@ export interface Project {
 }
 
 // ---------- chats ----------
-export type ChatItem =
+export type ChatItem = (
   | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number; teamMessageId?: string; runId?: string }
   | { type: 'assistant'; text: string; ts?: number }
-  | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number }
+  | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number; resultSourceId?: string }
   | { type: 'error'; text: string; ts?: number; runId?: string }
   /** reset: "Clear memory" (the agent starts fresh after it) */
   | { type: 'meta'; text: string; ts?: number; reset?: boolean }
-  | CompactionItem;
+  | CompactionItem) & { sourceId?: string };
 
 /** Full messages imported from the team's shared transcript before a member answers. */
 export interface TeamContextMessage {
@@ -823,6 +824,12 @@ export interface EveRunRecord {
   cursor: { line: number; index: number } | null;
   /** Event identities and normalized outputs are saved together before publication. */
   events: { id: string; event: RunEvent }[];
+  textParts?: Record<string, string>;
+  projected?: number;
+  answer?: string;
+  error?: string;
+  endedAt?: number;
+  pendingTerminal?: { line: number; status: 'completed' | 'failed' | 'stopped' | 'interrupted'; parts: string[]; error?: string };
   createdAt: number;
   updatedAt: number;
 }

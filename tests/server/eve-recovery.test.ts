@@ -6,7 +6,7 @@ import { newAgent } from '../../server/library.ts';
 import { decide, ensureDurableApproval, listApprovals } from '../../server/approvals.ts';
 import { attachSession, beginRun, bindSession, readRun, setRunStatus } from '../../server/eve/state.ts';
 import { prepareOperation, readOperation, saveOperation } from '../../server/eve/operations.ts';
-import { deliverApprovalDecisions, eveClient, prepareEveRecovery, reconcileSnapshot, recoverEveRuns, stopEveRun } from '../../server/eve/recovery.ts';
+import { deliverApprovalDecisions, eveClient, observeEveEvent, prepareEveRecovery, reconcileSnapshot, recoverEveRuns, stopEveRun } from '../../server/eve/recovery.ts';
 import { runInfo } from '../../server/engines/index.ts';
 import type { SessionSnapshot, SessionStreamEvent } from 'eve/client';
 
@@ -42,6 +42,16 @@ const parked = () => snapshot([
 ]);
 
 describe('Eve restart reconciliation', () => {
+  it('waits for the complete durable line before classifying a cancelled turn as a session failure', () => {
+    const own = fixture('line-boundary-run');
+    attachSession(own.binding.id, 'session');
+    const start = parked().events.slice(0, 2);
+    reconcileSnapshot('line-boundary-run', snapshot(start));
+    observeEveEvent('line-boundary-run', { ...fact({ type: 'turn.settled', data: { turnId: 'turn', outcome: 'cancelled' } }, 2), meta: { position: { line: 2, index: 0 }, at: new Date().toISOString(), endOfLine: false } });
+    expect(readRun('line-boundary-run')?.status).toBe('running');
+    observeEveEvent('line-boundary-run', { ...fact({ type: 'session.ended', data: { outcome: 'failed', error: { message: 'Original session failure', code: 'MODEL_ERROR' } } }, 2), meta: { position: { line: 2, index: 1 }, at: new Date().toISOString() } });
+    expect(readRun('line-boundary-run')).toMatchObject({ status: 'failed', error: 'Original session failure' });
+  });
   it('interrupts an uncertain ancestor and its child before any worker transport starts', () => {
     const parent = fixture('z-uncertain-parent');
     attachSession(parent.binding.id, 'parent-session');

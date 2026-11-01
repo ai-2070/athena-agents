@@ -20,7 +20,7 @@ import * as compaction from '../compaction.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { engineCapabilities } from './capabilities.ts';
-import { activeEveRuns, readRun as readEveRun, sessionContext as eveSessionContext } from '../eve/state.ts';
+import { activeEveRuns, readRun as readEveRun, sessionContext as eveSessionContext, transcriptContext } from '../eve/state.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import { clearWork, stopChatWork } from '../briefs.ts';
 import { admitExecution, interruptExecutions, readExecution, saveExecutionQueue, updateExecution } from '../execution.ts';
@@ -167,6 +167,109 @@ export const ENGINE_LIST: EngineInfo[] = [
 const active = new Map<string, RunEntry>(); // runId -> { abort, agentId, chatId, chat, depth, parentRunId }
 // each run, done once it has ended (its last steps included): a steer waits for the run it stopped
 const ends = new Map<string, Promise<void>>();
+const restored = new Map<string, { promise: Promise<string>; resolve: (answer: string) => void; reject: (error: Error) => void }>();
+
+/** Recreate ownership only; the coordinator follows the existing native turn without submitting input. */
+export function restoreNativeRun(runId: string, stop: () => Promise<void>): boolean {
+  if (active.has(runId)) return false;
+  const saved = readExecution().runs.find((run) => run.id === runId);
+  const native = readEveRun(runId);
+  if (!saved || saved.settled || saved.completionClaimed || !native) return false;
+  const { binding, project, agent, chat } = transcriptContext(native.bindingId);
+  if (saved.projectId !== project.id || saved.agentId !== agent.id || saved.chatId !== binding.chatId || saved.parentRunId !== native.parentRunId || saved.depth !== native.depth) throw new Error('The saved native run changed ownership.');
+  if (runsIn(project.id, chat.id).length) throw new Error('This chat already has an active run.');
+  const controller = new AbortController();
+  const ancestors: string[] = [];
+  const journal = readExecution();
+  let parent = saved.parentRunId;
+  while (parent && !ancestors.includes(parent)) {
+    ancestors.push(parent);
+    parent = journal.runs.find((run) => run.id === parent && run.projectId === project.id)?.parentRunId || null;
+  }
+  let resolve!: (answer: string) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<string>((yes, no) => { resolve = yes; reject = no; });
+  const entry: RunEntry = {
+    signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth: saved.depth, parentRunId: saved.parentRunId,
+    ownerChatId: saved.ownerChatId, ownerAgentId: saved.ownerAgentId, ancestors, startedAt: saved.startedAt,
+    agentName: agent.name, project, projectId: project.id, agent, steered: saved.steered,
+    abort: () => {
+      controller.abort();
+      if (closing) {
+        active.delete(runId);
+        restored.delete(runId);
+        reject(new RunStopped());
+        emit('runs');
+      } else void stop().catch(() => log('error', 'Eve could not acknowledge Stop yet. The saved Stop remains in effect.', { agentId: agent.id, chatId: chat.id }));
+    },
+  };
+  withProject(project, () => {
+    if (!chat.items.some((item) => item.type === 'user' && item.runId === runId)) {
+      const imported = new Set(chat.items.flatMap((item) => item.type === 'user' && item.teamMessageId ? [item.teamMessageId] : []));
+      for (const item of saved.context || []) if (!imported.has(item.id)) {
+        chat.items.push({ type: 'user', text: item.text, from: item.from, teamMessageId: item.id, ts: item.ts });
+        imported.add(item.id);
+      }
+      chat.items.push({ type: 'user', text: saved.text, from: saved.from, attachments: saved.attachments, ts: saved.startedAt, runId });
+      chats.save(chat);
+    }
+  });
+  restored.set(runId, { promise, resolve, reject });
+  ends.set(runId, promise.then(() => {}, () => {}).finally(() => ends.delete(runId)));
+  active.set(runId, entry);
+  emit('runs');
+  return true;
+}
+
+export const nativeRunPromise = (runId: string): Promise<string> | undefined => restored.get(runId)?.promise;
+
+/** Terminal facts, transcript and outcome are durable before completion is claimed. */
+export function finishNativeRun(runId: string): void {
+  const job = restored.get(runId);
+  const entry = active.get(runId);
+  const native = readEveRun(runId);
+  const saved = readExecution().runs.find((run) => run.id === runId);
+  if (!job || !entry || !native || !saved || ['queued', 'running', 'waiting'].includes(native.status)) return;
+  withProject(entry.project, () => {
+    const stopped = native.status === 'stopped';
+    const failed = native.status === 'failed' || native.status === 'interrupted';
+    const answer = native.answer || '';
+    const error = stopped ? 'Stopped.' : native.status === 'failed' ? 'Eve could not finish this work. Check the model connection and the saved results before continuing.' : native.error || 'Eve could not finish this work. Check what was done before continuing.';
+    const chat = entry.chat;
+    if (!chat._deleted && agentStore.get(entry.agentId) && chats.get(entry.agentId, chat.id)) {
+      if (native.status !== 'completed') {
+        const sourceId = `eve:${runId}:terminal`;
+        if (!chat.items.some((item) => item.sourceId === sourceId)) chat.items.push({ type: 'error', text: error, ts: Date.now(), runId, sourceId });
+        for (const item of chat.items) if (item.type === 'tool' && item.status === 'running') Object.assign(item, { status: 'error', isError: true, result: stopped ? '(stopped)' : '(did not finish)' });
+      }
+      if (resets.delete(chatKey(entry.projectId, chat.id))) clearMemory(chat);
+      chats.save(chat);
+    }
+    updateExecution(runId, { status: native.status as 'completed' | 'failed' | 'stopped' | 'interrupted', answer, ...(native.status === 'completed' ? {} : { error }), endedAt: native.endedAt || Date.now(), completionClaimed: true });
+    active.delete(runId);
+    restored.delete(runId);
+    const steered = stopped && !!(entry.steered || saved.steered);
+    if (native.status === 'interrupted') {
+      stopChatWork(entry.ownerChatId, entry.projectId);
+      const queue = waiting.get(chatKey(entry.projectId, chat.id));
+      if (queue) { queue.paused = true; emitQueue(entry.agentId, chat.id, entry.projectId); }
+    }
+    emit('run', { runId, agentId: entry.agentId, chatId: chat.id, event: native.status === 'completed' ? { kind: 'done', text: answer, seconds: Math.round((Date.now() - entry.startedAt) / 1000) } : { kind: 'error', text: error } });
+    emit('runs');
+    try {
+      if (!steered) runEndHook?.({ runId, agentId: entry.agentId, chatId: chat.id, parentRunId: entry.parentRunId, ownerChatId: entry.ownerChatId, ownerAgentId: entry.ownerAgentId, answer, stopped, failed });
+    } catch {
+      /* a listener's problem is not the run's */
+    } finally {
+      updateExecution(runId, { settled: true });
+      if (stopped) job.reject(new RunStopped());
+      else if (failed) job.reject(new Error(error));
+      else job.resolve(answer);
+      if (stopped && !steered) unqueue(chat.id, undefined, entry.projectId);
+      else if (native.status !== 'interrupted' && !steering.has(chatKey(entry.projectId, chat.id))) carryOn(entry.projectId, chat.id);
+    }
+  });
+}
 
 // What is kept in memory for a chat (below) is by project and chat: a cloned project keeps its chats' ids,
 // so a chat id alone could mean the original's chat. Without a project: the one the work belongs to.
@@ -642,7 +745,7 @@ const emitQueue = (agentId: string, chatId: string, projectId: string) => {
 /** Restore ownership before the Brain, schedules or incoming requests can start work. */
 export function recoverExecution(): void {
   const projects = listProjects();
-  const resumable = new Set(activeEveRuns().map((r) => r.id));
+  const resumable = new Set([...activeEveRuns().map((r) => r.id), ...restored.keys()]);
   for (const run of interruptExecutions(resumable)) {
     const project = projects.find((p) => p.id === run.projectId);
     if (project) withProject(project, () => {

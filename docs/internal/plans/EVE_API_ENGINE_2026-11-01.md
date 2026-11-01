@@ -1,6 +1,6 @@
 # Replace the built-in API agent with Eve
 
-*Plan, 1 November 2026. Phases 1 and 2 implemented; phase 3 has durable waits, checkpoint recovery and saved agent/team coordination. Phase 4 has server-owned worker supervision; the engine adapter and API-engine cutover are not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
+*Plan, 1 November 2026; progress updated 2 November. Phases 1 and 2 implemented; phase 3 has durable waits, checkpoint recovery and saved agent/team coordination. Phase 4 has worker supervision, native event following and restored run ownership/completion. New-turn admission, team joining and API-engine cutover are not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
 
 ## Progress
 
@@ -11,7 +11,7 @@ before schedulers and the Brain's completion checks: unfinished existing-engine 
 unsent inputs remain queued, and Stop remains final. Lost delegation callbacks recover completed
 answers from run receipts; interrupted tasks report their interruption without restarting them.
 An independent-process test exits between steering and completion and verifies saved order,
-attachments and ownership. Native Eve runs are reserved for the upcoming adapter's coordinator.
+attachments and ownership. Native Eve runs are reserved for the coordinator described below.
 Team assignments now retain original message IDs, skills, read boundaries, pending routing inputs,
 steers and held messages in private metadata. A held input keeps its identity through posting and
 assignment. A completed member run can finish its lost team callback on `/resume`, reusing the
@@ -24,7 +24,7 @@ request points to the receiving team that needs resuming. Normal shutdown preser
 Stop and Clear save their cancellation before stopping members. Existing completion checks reopen
 before a resumed saved result can settle. Project copies retain transcripts but do not inherit
 private live-work ownership. Tests cover these boundaries, including a separate process exiting
-during routing. Native busy/completion restoration and the engine adapter remain before cutover.
+during routing. Joining native team turns and the new-turn engine adapter remain before cutover.
 
 The server now owns the private Eve worker through `server/eve/runtime.ts`. It stays lazy when
 there is no saved native work, shares one startup across concurrent callers, and only reports
@@ -38,9 +38,38 @@ and closes the worker before its bridge. The manager resolves source and relocat
 and continues to use the bundled Bun. Server startup runs recovery before schedulers and ordinary
 execution reconciliation. Unit tests cover shared readiness, idle/crashed workers, failed recovery,
 shutdown during launch and source/desktop paths; the six real-process integration scenarios now
-run through this manager. Restoring Athena's active map, following native event streams, joining
-saved team work, and enforcing ownership across two dashboard processes remain adapter/cutover
-requirements. The manager alone does not replace the API engine.
+run through this manager. The manager alone does not replace the API engine.
+
+The native coordinator now restores owned runs into Athena's active map before schedules and
+completion checks start, then follows the existing session's durable stream. Disconnects retain
+the same run and reconnect from its saved cursor; the coordinator never submits a model message.
+Saved consent answers are delivered while the stream waits. Stop saves its decision before
+aborting the restored signal and retiring the native session. Completed native turns saved before
+their application callback can still finish that callback, settle delegation handles and release
+the queue. A callback has a persisted completion claim: an interrupted claim pauses follow-up
+work for review rather than repeating unknown effects. This is not exactly-once execution of an
+arbitrary callback. Team joining and native child restoration under already-ended parents still
+need the adapter work below.
+
+Committed text, tools and images project into chat originals with stable source IDs. Chat save
+precedes the projection receipt and publication; replay after that gap detects the existing fact.
+Tool outputs are retained in full. Final answers resolve the native reply's part IDs; unreadable
+references pause the run rather than becoming empty successful answers. Preview deltas do not
+become saved originals. Terminal classification waits for the complete durable line, retaining a
+pending terminal fact across reconnects so a cancelled turn plus session failure is reported as
+a failure. Deleted owners interrupt their runs and close their pending questions; provider error
+details remain private rather than being broadcast as diagnostics. Tests cover duplicate replay, the chat-save/cursor gap, project switches,
+restored busy state, reconnect, Stop, lost completion callbacks and interrupted completion claims.
+The real-process integration now also restarts the worker during a model call, checks that busy
+ownership survives, and receives exactly one tool original, answer and completion. Across the
+whole fixture there are sixteen model requests: only the interrupted request repeats.
+
+A kernel-held loopback ownership socket now prevents two dashboard processes from recovering or
+launching the same private runtime directory. Its port is derived from the resolved path, including
+Windows path aliases. A collision with another local service fails closed. Process death releases
+the claim without stale PID files or lease stealing. Ownership is claimed before reconciliation
+and held until worker/bridge shutdown; another owner stops server startup before native state is
+reconciled. Tests include an independent process killed while holding the claim.
 
 Phase 1 now has a pinned Eve 1.0.0-rc.1 application, dynamic model/instructions/tool definitions,
 private token authentication, an attachment-only virtual filesystem and a repeatable smoke check.
@@ -146,10 +175,10 @@ fake model requests, including no second request for stopped work. Unit
 tests cover duplicate execution, unknown outcomes, lost approval receipts, expiry, edited consent,
 withdrawal and interrupted Brain review. All state stays in throwaway project/home directories.
 
-Remaining recovery integration belongs with the engine adapter: restore Athena's native busy state,
-follow event streams and completion hooks, enforce cross-process ownership, and join recovered
-Eve runs to their saved agent/team coordination. These are still required;
-the existing API engine remains active until they are connected.
+Remaining integration belongs with the engine adapter: submit fresh turns and attachments with
+saved admission identities, join recovered native team turns, and handle sessions when clearing,
+changing engines or updating the runtime generation. The existing API engine remains active until
+these paths and the compaction removal are connected.
 
 ## Goal and scope
 
