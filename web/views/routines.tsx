@@ -360,7 +360,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             <div className="panel-head !mb-3">
               <h2>Schedule</h2>
             </div>
-            <DomNode make={() => scheduleEditor(r.current, () => (setDirty(true), setKind(r.current.schedule?.type || 'none')), { inputLabel: 'Extra for scheduled runs (optional)', showToggle: false })} deps={[id]} />
+            <DomNode make={() => scheduleEditor(r.current, () => (setDirty(true), setKind(r.current.schedule?.type || 'none')), { inputLabel: 'Additional instructions for scheduled runs (optional)', inputHint: 'Added to the main instructions when this routine runs automatically. Not used by Run now.', showToggle: false })} deps={[id]} />
             {kind !== 'none' ? <p className="hint">Runs while the dashboard is open.</p> : null}
           </PlateSection>
         </aside>

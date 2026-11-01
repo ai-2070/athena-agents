@@ -18,14 +18,14 @@ const MIN_MINUTES = 5;
 export { scheduleText };
 
 /** Edits item.schedule and item.enabled in place; onChange runs after every edit. */
-export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean }, onChange: () => void, { inputLabel = 'Input for scheduled runs', showToggle = true }: { inputLabel?: string; /** false: the page has its own on/off switch. */ showToggle?: boolean } = {}): HTMLDivElement {
+export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean }, onChange: () => void, { inputLabel = 'Input for scheduled runs', inputHint, showToggle = true }: { inputLabel?: string; inputHint?: string; /** false: the page has its own on/off switch. */ showToggle?: boolean } = {}): HTMLDivElement {
   item.schedule ||= { type: 'none' };
   const host = document.createElement('div');
-  createRoot(host).render(<Editor item={item} onChange={onChange} inputLabel={inputLabel} showToggle={showToggle} />);
+  createRoot(host).render(<Editor item={item} onChange={onChange} inputLabel={inputLabel} inputHint={inputHint} showToggle={showToggle} />);
   return host;
 }
 
-function Editor({ item, onChange, inputLabel, showToggle }: { item: { schedule?: Schedule; enabled?: boolean }; onChange: () => void; inputLabel: string; showToggle: boolean }) {
+function Editor({ item, onChange, inputLabel, inputHint, showToggle }: { item: { schedule?: Schedule; enabled?: boolean }; onChange: () => void; inputLabel: string; inputHint?: string; showToggle: boolean }) {
   const [, redraw] = useState(0);
   const timesId = useId();
   const s = item.schedule!;
@@ -41,7 +41,7 @@ function Editor({ item, onChange, inputLabel, showToggle }: { item: { schedule?:
     if (el) el.onchange = () => (el.value = String(s.minutes));
   };
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <Segmented
         options={[
           { value: 'none', label: <span className="inline-flex items-center gap-2"><Icon name="hand" size={15} />Manual</span> },
@@ -107,7 +107,7 @@ function Editor({ item, onChange, inputLabel, showToggle }: { item: { schedule?:
           </div>
         ) : null}
         {s.type !== 'none' ? (
-          <Field label={inputLabel}>
+          <Field label={<span className="block pr-2 whitespace-normal wrap-anywhere">{inputLabel}</span>} hint={inputHint}>
             <input defaultValue={s.input || ''} onInput={(e) => ((s.input = e.currentTarget.value), mark())} />
           </Field>
         ) : null}
