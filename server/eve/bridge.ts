@@ -14,6 +14,7 @@ import * as mcp from '../mcp.ts';
 import { activeEveRuns, attachSession, readRun, recordConfiguration, sessionContext, setRunStatus } from './state.ts';
 import { executeOperation, operationId, prepareOperation, readOperation, saveOperation } from './operations.ts';
 import { canonical } from '../../shared/canonical.ts';
+import { admissionHistory } from './admission.ts';
 import type { EveRuntimeConfiguration } from '../../shared/types.ts';
 
 const schema = z.record(z.string(), z.json());
@@ -148,7 +149,7 @@ export async function eveTool(bindingId: string, sessionId: string, runId: strin
   });
 }
 
-const requestSchema = z.object({ binding: z.string().min(1), input: z.object({ sessionId: z.string().min(1), runId: z.string().min(1).optional(), callId: z.string().optional(), name: z.string().optional(), args: z.record(z.string(), z.unknown()).optional() }) });
+const requestSchema = z.object({ binding: z.string().min(1), input: z.object({ sessionId: z.string().min(1).optional(), runId: z.string().min(1).optional(), messageHash: z.string().length(64).optional(), callId: z.string().optional(), name: z.string().optional(), args: z.record(z.string(), z.unknown()).optional() }) });
 
 /** A separate authenticated listener; dashboard request guards are never bypassed. */
 export async function openEveBridge() {
@@ -163,7 +164,7 @@ export async function openEveBridge() {
     }
     const controller = new AbortController();
     response.on('close', () => { if (!response.writableEnded) controller.abort(); });
-    if (request.method !== 'POST' || !['/configuration', '/policy', '/tool'].includes(request.url || '')) {
+    if (request.method !== 'POST' || !['/admission', '/configuration', '/policy', '/tool'].includes(request.url || '')) {
       response.writeHead(404).end();
       return;
     }
@@ -177,10 +178,13 @@ export async function openEveBridge() {
         chunks.push(bytes);
       }
       const body = requestSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-      if (request.url !== '/configuration' && !(body.input.callId && body.input.runId)) throw new Error('An Eve run and tool call ID are required.');
-      const value = request.url === '/configuration' ? await eveConfiguration(body.binding, body.input.sessionId)
-        : request.url === '/policy' ? await eveToolPolicy(body.binding, body.input.sessionId, body.input.runId!, body.input.callId!, body.input.name || '', body.input.args || {})
-          : await eveTool(body.binding, body.input.sessionId, body.input.runId!, body.input.callId!, body.input.name || '', body.input.args || {}, controller.signal);
+      if (request.url !== '/admission' && !body.input.sessionId) throw new Error('An Eve session ID is required.');
+      if (!['/admission', '/configuration'].includes(request.url || '') && !(body.input.callId && body.input.runId)) throw new Error('An Eve run and tool call ID are required.');
+      if (request.url === '/admission' && !(body.input.runId && body.input.messageHash)) throw new Error('A saved Eve input is required.');
+      const value = request.url === '/admission' ? { history: admissionHistory(body.binding, body.input.runId!, body.input.messageHash!, body.input.sessionId) }
+        : request.url === '/configuration' ? await eveConfiguration(body.binding, body.input.sessionId!)
+          : request.url === '/policy' ? await eveToolPolicy(body.binding, body.input.sessionId!, body.input.runId!, body.input.callId!, body.input.name || '', body.input.args || {})
+            : await eveTool(body.binding, body.input.sessionId!, body.input.runId!, body.input.callId!, body.input.name || '', body.input.args || {}, controller.signal);
       response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(value));
     } catch {
       // A provider failure may contain credentials; only a fixed message leaves the bridge.

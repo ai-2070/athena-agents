@@ -6,8 +6,10 @@ import { newAgent } from '../../server/library.ts';
 import { createProject } from '../../server/projects.ts';
 import { addBrief, listBriefs } from '../../server/briefs.ts';
 import { resumeInTeam } from '../../server/commands.ts';
-import { admitExecution, updateExecution } from '../../server/execution.ts';
-import { recoverExecution } from '../../server/engines/index.ts';
+import { admitExecution, readExecution, updateExecution } from '../../server/execution.ts';
+import { finishNativeRun, nativeRunPromise, recoverExecution, restoreNativeRun } from '../../server/engines/index.ts';
+import { attachSession, beginRun, bindSession, readRun, sessionContext, setRunStatus, settleRun } from '../../server/eve/state.ts';
+import { prepareEveRecovery, stopEveRun } from '../../server/eve/recovery.ts';
 import { clearThread, getThread, isTeamBusy, postUserMessage, queueUserMessage, recoverTeamWork, resumeTeam, setBrainHandlers, stopTeam, teamMessages, teamState, unqueueTeam } from '../../server/teams.ts';
 import { readRelayWork, readTeamWork, saveRelayWork, saveTeamWork } from '../../server/teamwork.ts';
 import { dataPath, readJSON, writeJSON } from '../../server/util.ts';
@@ -26,7 +28,102 @@ function fixture() {
   return { project, agent, team, chat, message, threadFile, work, run };
 }
 
+function nativeFixture() {
+  const own = fixture();
+  saveTeamWork(own.work);
+  admitExecution(own.run);
+  const binding = bindSession(own.agent, own.chat, own.project, 'proof');
+  attachSession(binding.id, `session-${own.run.id}`);
+  beginRun(own.run.id, binding.id, own.run.depth, own.run.parentRunId);
+  setRunStatus(own.run.id, 'running', 'original-delivery');
+  return own;
+}
+
 describe('saved team assignments', () => {
+  it('joins a native turn after restart and posts one result with its original read boundary', async () => {
+    const own = nativeFixture();
+    expect(sessionContext(readRun(own.run.id)!.bindingId).agent._teamSkills).toEqual(['original-skill']);
+    prepareEveRecovery();
+    expect(readRun(own.run.id)?.status).toBe('running');
+    expect(restoreNativeRun(own.run.id, () => stopEveRun(own.run.id))).toBe(true);
+    recoverExecution();
+    recoverTeamWork();
+    recoverTeamWork();
+    expect(teamState(own.team.id)).toMatchObject({ working: [own.agent.id], resumable: false });
+    expect(readTeamWork(own.project.id, own.team.id)?.current[0]?.delivery).toEqual(own.work.current[0]?.delivery);
+    const done = nativeRunPromise(own.run.id)!;
+    const later = readJSON<{ messages: TeamMessage[]; sessions: Record<string, string>; seen: Record<string, number> }>(own.threadFile)!;
+    later.messages.push({ id: 'later-message', from: 'system', text: 'A message arriving while this turn works', ts: Date.now(), mentions: [] });
+    writeJSON(own.threadFile, later);
+    const other = await createProject({ name: 'Another open project' });
+    await withProject(other, async () => {
+      settleRun(own.run.id, 'completed', 'Native team result');
+      finishNativeRun(own.run.id);
+      expect(await done).toBe('Native team result');
+    });
+    await expect.poll(() => withProject(own.project, () => teamState(own.team.id).working.length)).toBe(0);
+    expect(withProject(own.project, () => teamMessages(own.team.id).filter((m) => m.from === own.agent.id))).toMatchObject([{ id: `reply-${own.run.id}`, text: 'Native team result' }]);
+    expect(readJSON<{ seen: Record<string, number> }>(own.threadFile)!.seen[own.agent.id]).toBe(1);
+    expect(readExecution().runs.filter((run) => run.chatId === own.chat.id)).toHaveLength(1);
+    expect(readTeamWork(own.project.id, own.team.id)?.current).toEqual([]);
+  });
+
+  it('keeps unstarted work paused while collecting a live native result', async () => {
+    const own = nativeFixture();
+    own.work.queue = [{ agentId: own.agent.id, msgIds: ['not-started'], skills: [], returning: false }];
+    own.work.held = [{ id: 'held-next', text: 'Must wait', ts: Date.now() }];
+    saveTeamWork(own.work);
+    restoreNativeRun(own.run.id, () => stopEveRun(own.run.id));
+    recoverExecution();
+    recoverTeamWork();
+    expect(teamState(own.team.id)).toMatchObject({ working: [own.agent.id], resumable: true });
+    settleRun(own.run.id, 'completed', 'One recovered reply');
+    finishNativeRun(own.run.id);
+    await expect.poll(() => teamState(own.team.id).working.length).toBe(0);
+    expect(teamMessages(own.team.id).filter((m) => m.from === own.agent.id).map((m) => m.text)).toEqual(['One recovered reply']);
+    expect(readTeamWork(own.project.id, own.team.id)?.interrupted).toEqual(own.work.queue);
+    expect(teamState(own.team.id).held).toEqual(own.work.held);
+    expect(readExecution().runs.filter((run) => run.chatId === own.chat.id)).toHaveLength(1);
+    stopTeam(own.team.id);
+  });
+
+  it('does not advance read marks or file delivery after a recovered native failure', async () => {
+    const own = nativeFixture();
+    own.work.current[0]!.delivery!.files = ['original-file'];
+    saveTeamWork(own.work);
+    restoreNativeRun(own.run.id, () => stopEveRun(own.run.id));
+    recoverTeamWork();
+    settleRun(own.run.id, 'failed', '', 'The model disconnected.');
+    finishNativeRun(own.run.id);
+    await expect.poll(() => teamState(own.team.id).working.length).toBe(0);
+    expect(readJSON<{ seen: Record<string, number>; filesSent: Record<string, string[]> }>(own.threadFile)).toMatchObject({ seen: { [own.agent.id]: 0 }, filesSent: {} });
+    expect(teamMessages(own.team.id).find((m) => m.from === own.agent.id)?.text).toContain('hit a problem');
+  });
+
+  it('honours Stop on a joined native turn and retains previously paused assignments', async () => {
+    const own = nativeFixture();
+    own.work.interrupted = [{ agentId: own.agent.id, msgIds: ['paused-earlier'], skills: [], returning: false }];
+    saveTeamWork(own.work);
+    restoreNativeRun(own.run.id, () => stopEveRun(own.run.id));
+    recoverTeamWork();
+    stopTeam(own.team.id);
+    finishNativeRun(own.run.id);
+    await expect.poll(() => teamState(own.team.id).working.length).toBe(0);
+    expect(readTeamWork(own.project.id, own.team.id)?.interrupted?.map((q) => q.msgIds)).toEqual([[own.message.id], ['paused-earlier']]);
+    expect(teamMessages(own.team.id).filter((m) => m.from === own.agent.id)).toEqual([]);
+    prepareEveRecovery();
+    expect(readRun(own.run.id)?.status).toBe('stopped');
+  });
+
+  it('interrupts a native team turn without its exact saved current assignment', () => {
+    const own = nativeFixture();
+    own.work.queue = own.work.current;
+    own.work.current = [];
+    saveTeamWork(own.work);
+    prepareEveRecovery();
+    expect(readRun(own.run.id)?.status).toBe('interrupted');
+  });
+
   it('pauses after a restart without advancing read marks or discarding queued messages', () => {
     const { project, agent, team, threadFile, work, run } = fixture();
     work.held = [{ id: 'held-message', text: 'Next assignment', attachments: ['notes.txt'], replyTo: 'original-message', ts: Date.now() }];

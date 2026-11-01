@@ -808,6 +808,22 @@ export interface EveSessionBinding {
   retired: boolean;
   runtimeEnded?: boolean;
   createdAt: number;
+  imported?: string[];
+}
+
+export type EveMessagePart = { type: 'text'; text: string } | { type: 'file'; data: string; mediaType: string; filename: string };
+export interface EveAdmissionRecord {
+  id: string;
+  bindingId: string;
+  mode: 'create' | 'send';
+  sessionId: string | null;
+  message: EveMessagePart[];
+  history: { id: string; role: 'user' | 'assistant'; text: string }[];
+  historyKeys: string[];
+  messageHash: string;
+  fingerprint: string;
+  status: 'prepared' | 'accepted' | 'cancelled';
+  createdAt: number;
 }
 
 export type EveRunStatus = 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'stopped' | 'interrupted';

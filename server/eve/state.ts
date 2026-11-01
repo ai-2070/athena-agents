@@ -3,6 +3,8 @@ import { agents, chats, listProjects, withProject, workflows } from '../store.ts
 import { teamWorkServers } from '../mcp.ts';
 import { listFiles, readPlain, writeJSON } from '../util.ts';
 import { privateDataPath } from '../private.ts';
+import { readExecution } from '../execution.ts';
+import { activeTeamAssignment } from '../teamwork.ts';
 import type { Agent, Chat, EveRunRecord, EveRunStatus, EveSessionBinding, Project, RunEvent } from '../../shared/types.ts';
 
 const idOk = (id: string) => /^[a-zA-Z0-9_-]{1,120}$/.test(id);
@@ -14,6 +16,24 @@ const runPath = (id: string) => privatePath('runs', `${id}.json`);
 
 export function readBinding(id: string): EveSessionBinding | null {
   return idOk(id) ? readPlain<EveSessionBinding | null>(bindingPath(id), null) : null;
+}
+
+export function conversationBinding(projectId: string, agentId: string, chatId: string, generation: string): EveSessionBinding | null {
+  const interrupted = new Set(eveRuns().filter((run) => ['failed', 'stopped', 'interrupted'].includes(run.status)).map((run) => run.bindingId));
+  return listFiles(privatePath('bindings'), (name) => name.endsWith('.json')).map((name) => readBinding(name.slice(0, -5)))
+    .filter((item): item is EveSessionBinding => !!item && !item.retired && !item.runtimeEnded && !interrupted.has(item.id) && item.projectId === projectId && item.agentId === agentId && item.chatId === chatId && item.generation === generation)
+    .sort((a, b) => b.createdAt - a.createdAt)[0] || null;
+}
+
+/** Accepting a receipt records identities even if Stop arrived while the request was in flight. */
+export function recordAdmissionReceipt(id: string, sessionId: string, deliveryId: string, imported: string[]): void {
+  const run = readRun(id);
+  const binding = run && readBinding(run.bindingId);
+  if (!run || !binding || !sessionId || !deliveryId) throw new Error('Invalid Eve admission receipt.');
+  if (binding.sessionId && binding.sessionId !== sessionId) throw new Error('The Eve session changed its binding.');
+  if (run.deliveryId && run.deliveryId !== deliveryId) throw new Error('The Eve delivery changed its run.');
+  writeJSON(bindingPath(binding.id), { ...binding, sessionId, imported: [...new Set([...(binding.imported || []), ...imported])] });
+  setRunStatus(id, run.status === 'queued' ? 'running' : run.status, deliveryId);
 }
 
 export function bindSession(agent: Agent, chat: Chat, project: Project, generation: string): EveSessionBinding {
@@ -32,7 +52,9 @@ export function sessionContext(id: string): { binding: EveSessionBinding; projec
     if (binding.teamId) {
       const team = workflows.get(binding.teamId);
       if (!team || !team.members.includes(agent.id)) throw new Error('The agent no longer belongs to this team.');
-      agent = { ...agent, toolGroups: [...new Set([...agent.toolGroups, ...(team.access?.toolGroups || [])])], mcpServers: teamWorkServers(agent.mcpServers, team.access?.mcpServers || []), _teamSkills: team.skills || [] };
+      const receipt = readExecution().runs.find((run) => run.projectId === binding.projectId && run.agentId === agent.id && run.chatId === binding.chatId && run.status === 'running');
+      const assignment = receipt && activeTeamAssignment(receipt, team.id);
+      agent = { ...agent, toolGroups: [...new Set([...agent.toolGroups, ...(team.access?.toolGroups || [])])], mcpServers: teamWorkServers(agent.mcpServers, team.access?.mcpServers || []), _teamSkills: [...new Set([...(team.skills || []), ...(assignment?.skills || [])])] };
     }
     return { ...context, agent };
   });

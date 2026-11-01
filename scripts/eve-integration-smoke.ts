@@ -16,9 +16,11 @@ process.env.HOME = home;
 process.env.USERPROFILE = home;
 assert.equal(os.homedir(), home);
 
-const { activeProject, agents, chats, saveSettings, setSecret } = await import('../server/store.ts');
+const { activeProject, agents, chats, workflows, saveSettings, setSecret } = await import('../server/store.ts');
 const { newAgent } = await import('../server/library.ts');
-const { beginRun, bindSession, readRun, setRunStatus } = await import('../server/eve/state.ts');
+const { beginRun, bindSession, readBinding, readRun, setRunStatus } = await import('../server/eve/state.ts');
+const { prepareAdmission, readAdmission, submitAdmission } = await import('../server/eve/admission.ts');
+const { newBatch } = await import('../server/uploads.ts');
 const { openEveBridge } = await import('../server/eve/bridge.ts');
 const { startEveHost } = await import('../server/eve/host.ts');
 const { projectEvent } = await import('../server/eve/projection.ts');
@@ -26,11 +28,13 @@ const { deliverApprovalDecisions, eveClient, prepareEveRecovery, reconcileSnapsh
 const { EveRuntime } = await import('../server/eve/runtime.ts');
 const { claimEveRuntime } = await import('../server/eve/ownership.ts');
 const { EveCoordinator, eveConnection } = await import('../server/eve/coordinator.ts');
-const { admitExecution } = await import('../server/execution.ts');
+const { admitExecution, updateExecution } = await import('../server/execution.ts');
 const { activeRuns, isChatBusy, nativeRunPromise, onRunEnd, recoverExecution } = await import('../server/engines/index.ts');
+const { recoverTeamWork, teamMessages, teamState } = await import('../server/teams.ts');
+const { saveTeamWork } = await import('../server/teamwork.ts');
 const { decide, listApprovals } = await import('../server/approvals.ts');
 const { answerQuestion, waitingQuestions } = await import('../server/questions.ts');
-const { dataPath } = await import('../server/util.ts');
+const { dataPath, readJSON, writeJSON } = await import('../server/util.ts');
 const { callTool } = await import('../server/tools.ts');
 const { shownWorld } = await import('../server/voxel/link.ts');
 const { setOpenPages } = await import('../server/voxel/look.ts');
@@ -38,6 +42,7 @@ setOpenPages(() => 0);
 let requests = 0;
 let releaseLifecycle = () => {};
 let lifecycleWaiting = 0;
+const admittedMessages: unknown[] = [];
 const lifecycleGate = new Promise<void>((resolve) => { releaseLifecycle = resolve; });
 const model = http.createServer(async (request, response) => {
   try {
@@ -47,6 +52,13 @@ const model = http.createServer(async (request, response) => {
     assert(body && typeof body === 'object' && 'messages' in body && 'tools' in body);
     assert.equal(request.headers.authorization, 'Bearer integration-key');
     assert(Array.isArray(body.tools));
+    if (JSON.stringify(body.messages).includes('ADMISSION_PROOF')) {
+      requests++;
+      admittedMessages.push(body.messages);
+      response.writeHead(200, { 'content-type': 'text/event-stream' });
+      response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ADMISSION_REPLY' }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } })}\n\ndata: [DONE]\n\n`);
+      return;
+    }
     const writing = JSON.stringify(body.messages).includes('DURABLE_WRITE_PROOF');
     const asking = JSON.stringify(body.messages).includes('DURABLE_QUESTION_PROOF');
     const granting = JSON.stringify(body.messages).includes('DURABLE_ACCESS_PROOF');
@@ -186,11 +198,16 @@ try {
   assert.equal(requests, 13, 'Stopped work must not make another model call.');
   console.log('eve integration: tool, access, ownership, setting and Outbox waits survive immediate restart; stopped work stays stopped');
   const owner = agents.save(newAgent({ name: 'Lifecycle owner', provider: 'custom', model: 'integration-proof', toolGroups: ['agents'], richAnswers: false }));
-  const conversation = chats.create(owner.id, 'Native lifecycle');
+  const team = workflows.save({ name: 'Lifecycle team', members: [owner.id], lead: owner.id, steps: [] });
+  const conversation = chats.create(owner.id, 'Native lifecycle', team.id);
   const saved = bindSession(owner, conversation, project, 'proof');
   const runId = 'lifecycle-run';
-  admitExecution({ id: runId, projectId: project.id, agentId: owner.id, chatId: conversation.id, engine: owner.engine, parentRunId: null, ownerChatId: conversation.id, ownerAgentId: owner.id, depth: 0, text: 'DURABLE_LIFECYCLE_PROOF', from: null, attachments: [], startedAt: Date.now(), status: 'running' });
-  beginRun(runId, saved.id);
+  const parent = `team:${project.id}/${team.id}`;
+  const threadFile = dataPath('projects', project.id, 'teamchats', `${team.id}.json`);
+  writeJSON(threadFile, { messages: [{ id: 'native-team-source', from: 'user', text: 'DURABLE_LIFECYCLE_PROOF', ts: Date.now(), mentions: [owner.id] }], sessions: { [owner.id]: conversation.id }, seen: { [owner.id]: 0 }, filesSent: {} });
+  saveTeamWork({ projectId: project.id, teamId: team.id, current: [{ agentId: owner.id, msgIds: ['native-team-source'], skills: [], returning: false, delivery: { runId, chatId: conversation.id, from: 0, readUpto: 1, files: [] } }], queue: [], interrupted: [], held: [], pending: [], assigned: [JSON.stringify([owner.id, 'native-team-source'])], brain: [], episode: { turns: 1 }, stopped: false, epoch: 0 });
+  admitExecution({ id: runId, projectId: project.id, agentId: owner.id, chatId: conversation.id, engine: owner.engine, parentRunId: parent, ownerChatId: conversation.id, ownerAgentId: owner.id, depth: 1, text: 'DURABLE_LIFECYCLE_PROOF', from: null, attachments: [], startedAt: Date.now(), status: 'running' });
+  beginRun(runId, saved.id, 1, parent);
   setRunStatus(runId, 'running');
   const { delivery: lifecycleDelivery } = await eveClient(host, saved.id).sessions.create({ message: 'DURABLE_LIFECYCLE_PROOF', signal: AbortSignal.timeout(30000) });
   setRunStatus(runId, 'running', lifecycleDelivery.deliveryId);
@@ -201,6 +218,8 @@ try {
   coordinator = new EveCoordinator({ ready: () => runtime!.ready(), connect: eveConnection, retryMs: 10 });
   coordinator.restore();
   recoverExecution();
+  recoverTeamWork();
+  assert.deepEqual(teamState(team.id).working, [owner.id]);
   let completions = 0;
   onRunEnd((ended) => { if (ended.runId === runId) completions++; });
   const done = nativeRunPromise(runId);
@@ -219,13 +238,62 @@ try {
   await until(() => lifecycleWaiting === 2);
   releaseLifecycle();
   assert.equal(await done, 'ATHENA_INTEGRATION_REPLY');
+  await until(() => !teamState(team.id).working.length);
+  assert.deepEqual(teamMessages(team.id).filter((message) => message.from === owner.id).map((message) => message.text), ['ATHENA_INTEGRATION_REPLY']);
+  assert.equal(readJSON<{ seen: Record<string, number> }>(threadFile)!.seen[owner.id], 1);
   assert.equal(completions, 1);
   assert(!isChatBusy(conversation.id));
   const transcript = chats.get(owner.id, conversation.id)!;
   assert.equal(transcript.items.filter((item) => item.type === 'tool').length, 1);
   assert.equal(transcript.items.filter((item) => item.type === 'assistant').length, 1);
   assert.equal(requests, 16, 'Only the interrupted model request may repeat; the committed tool must not run again.');
-  console.log('eve integration: native busy state, transcript and completion survive worker restart without another input');
+  console.log('eve integration: native busy state, transcript, team result and read marks survive worker restart without another input');
+  const admissionOwner = agents.save(newAgent({ name: 'Admission owner', provider: 'custom', model: 'integration-proof', toolGroups: [], richAnswers: false }));
+  const admissionChat = chats.create(admissionOwner.id, 'Saved admission');
+  admissionChat.items = [{ type: 'user', text: 'ORIGINAL_USER_ROLE' }, { type: 'assistant', text: 'ORIGINAL_ASSISTANT_ROLE' }];
+  chats.save(admissionChat);
+  const uploadDir = newBatch().dir;
+  const image = path.join(uploadDir, 'original.png');
+  const document = path.join(uploadDir, 'original.pdf');
+  fs.writeFileSync(image, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=', 'base64'));
+  fs.writeFileSync(document, '%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF');
+  for (const [index, attachments] of [[image, document], []].entries()) {
+    const id = `admission-proof-${index}`;
+    const text = `ADMISSION_PROOF_${index}`;
+    admitExecution({ id, projectId: project.id, agentId: admissionOwner.id, chatId: admissionChat.id, engine: admissionOwner.engine, parentRunId: null, ownerAgentId: admissionOwner.id, ownerChatId: admissionChat.id, depth: 0, text, from: null, attachments, startedAt: Date.now(), status: 'running' });
+    const latest = chats.get(admissionOwner.id, admissionChat.id)!;
+    latest.items.push({ type: 'user', text, runId: id, attachments });
+    chats.save(latest);
+    const input = await prepareAdmission(id, project);
+    if (!index) { fs.unlinkSync(image); fs.unlinkSync(document); }
+    class LostReceiptClient extends Client {
+      override async fetch(route: string, init?: RequestInit): Promise<Response> {
+        const response = await super.fetch(route, init);
+        assert(response.ok, `Native admission failed: ${response.status} ${await response.clone().text()}`);
+        throw new Error('INJECTED_LOST_RECEIPT');
+      }
+    }
+    const dropped = new LostReceiptClient({ baseUrl: host.url, auth: { bearer: host.token }, headers: { 'x-athena-binding': input.bindingId } });
+    await assert.rejects(submitAdmission(input, dropped), /INJECTED_LOST_RECEIPT/);
+    assert.equal(readAdmission(id)?.status, 'prepared');
+    await runtime!.close();
+    host = await startRuntime();
+    assert.equal(readAdmission(id)?.status, 'accepted');
+    await coordinator.follow(id);
+    assert.equal(readRun(id)?.status, 'completed');
+    assert.equal(readRun(id)?.answer, 'ADMISSION_REPLY');
+    updateExecution(id, { status: 'completed', answer: 'ADMISSION_REPLY', settled: true });
+    if (!index) assert.equal(input.mode, 'create');
+    else { assert.equal(input.mode, 'send'); assert.equal(readBinding(input.bindingId)?.sessionId, input.sessionId); }
+  }
+  assert.equal(admittedMessages.length, 2, 'Lost create/send receipts must not duplicate native deliveries.');
+  const originals = JSON.stringify(admittedMessages[0]);
+  assert(originals.includes('ORIGINAL_USER_ROLE') && originals.includes('ORIGINAL_ASSISTANT_ROLE'));
+  assert(originals.includes('image_url') && originals.includes('data:image/png;base64,'));
+  assert(originals.includes('file_data') && originals.includes('data:application/pdf;base64,'));
+  assert(Array.isArray(admittedMessages[0]) && admittedMessages[0].some((item: unknown) => !!item && typeof item === 'object' && 'role' in item && item.role === 'assistant' && JSON.stringify(item).includes('ORIGINAL_ASSISTANT_ROLE')));
+  assert.equal(requests, 18);
+  console.log('eve integration: lost create/send receipts recover one delivery, with original roles and saved image/PDF bytes');
 } finally {
   releaseLifecycle();
   onRunEnd(null);

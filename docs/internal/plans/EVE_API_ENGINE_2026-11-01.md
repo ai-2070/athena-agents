@@ -1,6 +1,6 @@
 # Replace the built-in API agent with Eve
 
-*Plan, 1 November 2026; progress updated 2 November. Phases 1 and 2 implemented; phase 3 has durable waits, checkpoint recovery and saved agent/team coordination. Phase 4 has worker supervision, native event following and restored run ownership/completion. New-turn admission, team joining and API-engine cutover are not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
+*Plan, 1 November 2026; progress updated 2 November. Phases 1 and 2 implemented; phase 3 has durable waits, checkpoint recovery and saved agent/team coordination. Phase 4 has worker supervision, native event following, restored run ownership/completion, saved new-turn admission and native team joining. API-engine cutover is not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
 
 ## Progress
 
@@ -24,7 +24,7 @@ request points to the receiving team that needs resuming. Normal shutdown preser
 Stop and Clear save their cancellation before stopping members. Existing completion checks reopen
 before a resumed saved result can settle. Project copies retain transcripts but do not inherit
 private live-work ownership. Tests cover these boundaries, including a separate process exiting
-during routing. Joining native team turns and the new-turn engine adapter remain before cutover.
+during routing. Native team joining and new-turn admission are described below; engine registration remains before cutover.
 
 The server now owns the private Eve worker through `server/eve/runtime.ts`. It stays lazy when
 there is no saved native work, shares one startup across concurrent callers, and only reports
@@ -48,8 +48,8 @@ aborting the restored signal and retiring the native session. Completed native t
 their application callback can still finish that callback, settle delegation handles and release
 the queue. A callback has a persisted completion claim: an interrupted claim pauses follow-up
 work for review rather than repeating unknown effects. This is not exactly-once execution of an
-arbitrary callback. Team joining and native child restoration under already-ended parents still
-need the adapter work below.
+arbitrary callback. Native child restoration under already-ended parents still needs the adapter
+work below.
 
 Committed text, tools and images project into chat originals with stable source IDs. Chat save
 precedes the projection receipt and publication; replay after that gap detects the existing fact.
@@ -62,7 +62,38 @@ details remain private rather than being broadcast as diagnostics. Tests cover d
 restored busy state, reconnect, Stop, lost completion callbacks and interrupted completion claims.
 The real-process integration now also restarts the worker during a model call, checks that busy
 ownership survives, and receives exactly one tool original, answer and completion. Across the
-whole fixture there are sixteen model requests: only the interrupted request repeats.
+whole fixture there are eighteen model requests: only the interrupted request repeats.
+
+Fresh turns now save their exact text, attachment bytes and role-preserving original history before
+dispatch. The authenticated Eve channel retrieves that history from Athena; it is never flattened
+into a second system prompt. Eve's public creation operation ID and later-turn idempotency key
+cover a lost HTTP receipt. Startup retries the same saved input, including files edited or deleted
+after admission. Receipts can still record the session identity after an in-flight Stop, without
+reviving the run. Missing or retired owners and saved Stops cannot dispatch again. Failed or retired
+sessions get a fresh binding on the next turn. History admission
+budgets standing instructions, rich-answer instructions, tool definitions and text against the model
+window, rejecting oversized originals instead of clipping them. Individual file bytes are capped at
+16 MB and the turn at 24 MB; unsupported capacity fails before dispatch. Historical attachments keep
+their file references in imported text; the native history interface itself accepts text roles only.
+Further provider-specific accounting for document/image token capacity remains part of cutover.
+
+Saved current team assignments now join their restored native completion handles automatically.
+Recovery checks project, agent, chat, team parent and the exact saved current delivery. It never
+resubmits the assignment, replaces its delivery or advances its read/file boundary before success.
+The dynamic configuration also retains the saved assignment's extra skills.
+Unstarted assignments, held inputs and non-native turns remain paused; collecting a native result
+cannot start them or trigger a premature completion check. Stop preserves both joined and previously
+paused assignments. Unit tests cover repeated recovery, failure, Stop and a project switch. The real
+Bun integration now follows a team turn through a worker restart and verifies one posted answer and
+the original read mark. It also drops both creation and continuation receipts, restarts, and proves
+one model delivery per turn with saved image/PDF bytes and original user/assistant roles.
+
+`server/engines/eve.ts` supplies the admission/follow adapter but is not registered as the built-in
+engine yet. The existing API engine remains active while options, usage, clearing, configuration
+changes and custom-compaction removal are connected.
+
+This phase passed Windows typechecking, all 1,748 tests (21 skipped), the web build, the eighteen-request
+real Bun integration and staged desktop smoke. Linux CI remains pending.
 
 A kernel-held loopback ownership socket now prevents two dashboard processes from recovering or
 launching the same private runtime directory. Its port is derived from the resolved path, including
@@ -175,10 +206,9 @@ fake model requests, including no second request for stopped work. Unit
 tests cover duplicate execution, unknown outcomes, lost approval receipts, expiry, edited consent,
 withdrawal and interrupted Brain review. All state stays in throwaway project/home directories.
 
-Remaining integration belongs with the engine adapter: submit fresh turns and attachments with
-saved admission identities, join recovered native team turns, and handle sessions when clearing,
-changing engines or updating the runtime generation. The existing API engine remains active until
-these paths and the compaction removal are connected.
+Remaining integration belongs with engine cutover: model options and usage, sessions when clearing,
+changing models/engines or updating the runtime generation, and native children under ended parents.
+The existing API engine remains active until these paths and compaction removal are connected.
 
 ## Goal and scope
 

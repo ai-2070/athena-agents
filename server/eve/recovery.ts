@@ -5,6 +5,9 @@ import { closeQuestion, WAIT_MS } from '../questions.ts';
 import { eveRuns, markSessionEnded, readBinding, readRun, retireSession, sessionContext, setRunStatus, settleRun, stageTerminal } from './state.ts';
 import { operationsForRun, readOperation, reconcileOperations, saveOperation } from './operations.ts';
 import { EveProjectionError, projectEvent } from './projection.ts';
+import { pendingAdmissions, submitAdmission, validAdmission } from './admission.ts';
+import { readExecution } from '../execution.ts';
+import { activeTeamAssignment } from '../teamwork.ts';
 import type { EveHost } from './host.ts';
 import type { SessionSnapshot, SessionStreamEvent } from 'eve/client';
 
@@ -162,7 +165,7 @@ export function prepareEveRecovery(): void {
       continue;
     }
     reconcileOperations(run.id);
-    if (run.status === 'interrupted' || !binding.sessionId || !run.deliveryId || operationsForRun(run.id).some((operation) => operation.status === 'uncertain')) {
+    if (run.status === 'interrupted' || ((!binding.sessionId || !run.deliveryId) && !validAdmission(run.id)) || operationsForRun(run.id).some((operation) => operation.status === 'uncertain')) {
       setRunStatus(run.id, 'interrupted');
       cancelForRun(run.id, { keepOutcomeChecks: true });
       cancelQuestions(run.id);
@@ -170,7 +173,7 @@ export function prepareEveRecovery(): void {
       checkOutcomes(run.id);
     }
   }
-  // A vanished CLI/team Promise cannot be reconstructed from its parent's saved text.
+  // Native parents and exact saved team assignments can be joined without another model input.
   // Check ancestors after every operation intent has been reconciled, regardless of file order.
   const canResume = (id: string, projectId: string, seen = new Set<string>()): boolean => {
     if (seen.has(id)) return false;
@@ -178,7 +181,12 @@ export function prepareEveRecovery(): void {
     const run = readRun(id);
     if (!run || !['queued', 'running', 'waiting'].includes(run.status)) return false;
     try {
-      if (sessionContext(run.bindingId).project.id !== projectId) return false;
+      const { binding, project } = sessionContext(run.bindingId);
+      if (project.id !== projectId) return false;
+      if (run.parentRunId?.startsWith('team:')) {
+        const receipt = readExecution().runs.find((item) => item.id === run.id);
+        return !!binding.teamId && !!receipt && receipt.projectId === projectId && receipt.agentId === binding.agentId && receipt.chatId === binding.chatId && !!activeTeamAssignment(receipt, binding.teamId);
+      }
     } catch { return false; }
     return !run.parentRunId || canResume(run.parentRunId, projectId, seen);
   };
@@ -195,6 +203,10 @@ export function prepareEveRecovery(): void {
 /** Called with the new private worker before new Athena work is admitted. Transport failure is retried. */
 export async function recoverEveRuns(host: Pick<EveHost, 'url' | 'token'>): Promise<{ runId: string; status: string }[]> {
   prepareEveRecovery();
+  for (const input of pendingAdmissions()) {
+    if (!validAdmission(input.id)) continue;
+    await submitAdmission(input, eveClient(host, input.bindingId));
+  }
   const recovered: { runId: string; status: string }[] = [];
   for (const run of eveRuns()) {
     if (run.status === 'completed' || run.status === 'failed') continue;
