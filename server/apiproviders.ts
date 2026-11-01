@@ -46,6 +46,11 @@ export function resolveApiProvider(id: string): ApiProvider {
 const catalogs = new Map<string, { at: number; models: ApiModelInfo[] }>();
 export const clearApiModelCache = (): void => catalogs.clear();
 
+export function cachedApiModelInfo(id: string, model: string): ApiModelInfo | undefined {
+  const hit = catalogs.get(`${id}|${definition(id)?.base().replace(/\/$/, '')}`);
+  return hit && Date.now() - hit.at < 300_000 ? hit.models.find((m) => m.id === model) : undefined;
+}
+
 export async function listApiModels(id: string): Promise<ApiModelInfo[]> {
   const p = definition(id);
   const base = p?.base().replace(/\/$/, '');

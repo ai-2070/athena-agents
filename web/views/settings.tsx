@@ -5,12 +5,12 @@ import { Pill } from '../ui/marks.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, PUT, attempt, toast, refreshSoon, navigate } from '../core.ts';
-import { brainModelChip } from '../models.tsx';
+import { brainModelChip, openModelPicker } from '../models.tsx';
 import { memoryButton, BRAIN } from '../memory.tsx';
 import { FieldRow, Row, Section, Segmented, SwitchRow } from '../ui/controls.tsx';
 import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { logo } from '../icons.ts';
-import type { AppState, EngineStatus, SecretKey, SecretStatus, Settings, Terminal } from '../../shared/types.ts';
+import type { AppState, EngineStatus, SecretKey, SecretStatus, Settings, Terminal, VeniceAccountInfo } from '../../shared/types.ts';
 
 /** What POST /api/settings/test-openrouter passes on from OpenRouter's /key endpoint. */
 interface OpenRouterKeyInfo {
@@ -83,12 +83,13 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
       <Section title="API keys" description="For models you pay for by use. A saved key stays on this PC and is never shown again.">
         <div className={AI_LIST}>
           <SecretField k="openrouterKey" mark={<Mark brand="openrouter" />} secrets={secrets} reload={reload} label="OpenRouter key" placeholder="sk-or-…" hint={<span>One key for hundreds of models (Claude, GPT, Gemini, Llama, DeepSeek…). Get it at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Also usable by Claude Code agents.</span>} />
+          <SecretField k="veniceKey" mark={<span className="ai-mark grid size-8 place-items-center rounded-ctl bg-panel-2 text-ink"><Icon name="cpu" size={17} /></span>} secrets={secrets} reload={reload} label="Venice key" placeholder="Paste your Venice API key" hint={<span>For Venice agents and the Brain. Get an inference key at <a href="https://venice.ai/settings/api" target="_blank" rel="noopener">Venice API settings</a>. Test checks access without generating an answer.</span>} />
           <SecretField k="anthropicKey" mark={<Mark brand="anthropic" />} optional secrets={secrets} reload={reload} label="Anthropic API key" placeholder="sk-ant-…" hint={'For Claude Code agents set to "Anthropic API key" instead of your subscription.'} />
         </div>
       </Section>
 
       <Section title="The Brain's model" description="The Brain oversees the project: it answers about it and its files, builds teams and agents, writes PROJECT.md and hands work out.">
-        <Row title="Model" titleId="brain-model-label" description="It can run on Claude Code, OpenRouter, Hermes or Codex. Claude Code and Codex can also open files in the project folder.">
+        <Row title="Model" titleId="brain-model-label" description="It can run on Claude Code, OpenRouter, Venice, Hermes or Codex. Claude Code and Codex can also open files in the project folder.">
           <DomNode make={() => brainModelChip({ prefix: '', onChange: (b) => (s.brain = b) })} deps={[]} />
         </Row>
         <Row title="Memory" description="What the Brain remembers across its conversations in this project. Read or change it any time.">
@@ -130,9 +131,10 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
         <FieldRow label="Claude Code model">
           <input className="code" defaultValue={s.defaults.claudeModel} onChange={(e) => setP('defaults.claudeModel', e.target.value)} />
         </FieldRow>
-        <FieldRow label="API model">
+        <FieldRow label="OpenRouter model">
           <input className="code" defaultValue={s.defaults.openrouterModel} onChange={(e) => setP('defaults.openrouterModel', e.target.value)} />
         </FieldRow>
+        <VeniceDefault initial={s.defaults.veniceModel || ''} onChange={(model) => setP('defaults.veniceModel', model)} />
         <Row title="Autonomy" titleId="default-autonomy-label" description="How much an agent may do before it asks you.">
           <Segmented
             label="Autonomy"
@@ -151,7 +153,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
         <FieldRow label="Max tool steps per message" hint="API-model agents stop after this many tool rounds." size="sm">
           <input type="number" min={1} max={100} defaultValue={s.maxToolSteps} onChange={(e) => setP('maxToolSteps', Number(e.target.value))} />
         </FieldRow>
-        <FieldRow label="Cost limit per message (USD)" hint="OpenRouter runs stop past this. 0 = no limit." size="sm">
+        <FieldRow label="Cost limit per message (USD)" hint="API runs stop between model steps when a known cost passes this limit. Venice may use a labeled USD-equivalent estimate. One answer can exceed it. 0 = no limit." size="sm">
           <input type="number" min={0} step="0.5" defaultValue={s.costLimitUsdPerRun} onChange={(e) => setP('costLimitUsdPerRun', Number(e.target.value))} />
         </FieldRow>
       </Section>
@@ -299,7 +301,9 @@ function InstallCmd({ cmd }: { cmd: string }) {
 /** A key: typed in, saved to the server (never shown again), removable, and for OpenRouter testable. Without a mark it is a plain row. */
 function SecretField({ k, secrets, reload, label, placeholder, hint, mark, optional = false }: { k: SecretKey; secrets: SecretStatus; reload: () => Promise<unknown>; label: string; placeholder: string; hint?: ReactNode; mark?: ReactNode; optional?: boolean }) {
   const [value, setValue] = useState('');
-  const saved = secrets[k];
+  const saved = secrets[k] || { set: false };
+  const [testing, setTesting] = useState(false);
+  const [account, setAccount] = useState<VeniceAccountInfo | null>(null);
   const id = `secret-${k}`;
   const store = async () => {
     if (!value.trim()) return toast('Paste the key first', 'warn');
@@ -313,8 +317,16 @@ function SecretField({ k, secrets, reload, label, placeholder, hint, mark, optio
     refreshSoon(0);
     await reload();
   };
-  const test = () =>
-    attempt(() => POST<OpenRouterKeyInfo>('/settings/test-openrouter'), (r) => `Key works${r.label ? ` (${r.label})` : ''}${r.limit_remaining != null ? ` · $${Number(r.limit_remaining).toFixed(2)} left` : r.usage != null ? ` · $${Number(r.usage).toFixed(2)} used` : ''}`);
+  const test = async () => {
+    setTesting(true);
+    setAccount(null);
+    try {
+      if (k === 'veniceKey') {
+        const result = await attempt(() => POST<VeniceAccountInfo>('/settings/test-venice'));
+        if (result) setAccount(result);
+      } else await attempt(() => POST<OpenRouterKeyInfo>('/settings/test-openrouter'), (r) => `Key works${r.label ? ` (${r.label})` : ''}${r.limit_remaining != null ? ` · $${Number(r.limit_remaining).toFixed(2)} left` : r.usage != null ? ` · $${Number(r.usage).toFixed(2)} used` : ''}`);
+    } finally { setTesting(false); }
+  };
   return (
     <div className={mark ? `${AI_ROW} ai-key` : 'ai-row ai-key grid grid-cols-[minmax(0,1fr)] items-start gap-x-4 px-5 py-4 [&.flash-find]:rounded-ctl'}>
       {mark}
@@ -328,9 +340,9 @@ function SecretField({ k, secrets, reload, label, placeholder, hint, mark, optio
           <Button size="small" className="h-auto! min-h-9.5" disabled={!value.trim()} onClick={() => void store()}>
             Save
           </Button>
-          {k === 'openrouterKey' && saved.set ? (
-            <Button variant="ghost" size="small" className="h-auto! min-h-9.5" onClick={() => void test()}>
-              Test
+          {(k === 'openrouterKey' || k === 'veniceKey') && saved.set ? (
+            <Button variant="ghost" size="small" className="h-auto! min-h-9.5" disabled={testing} onClick={() => void test()}>
+              {testing ? 'Testing…' : 'Test'}
             </Button>
           ) : null}
           {saved.set ? (
@@ -340,9 +352,24 @@ function SecretField({ k, secrets, reload, label, placeholder, hint, mark, optio
           ) : null}
         </div>
         {hint ? <div className={AI_NOTE}>{hint}</div> : null}
+        {account ? <div className={AI_NOTE} role="status">
+          <p className="m-0">{account.expired ? 'This key has expired. Create a new key in Venice API settings.' : !account.accessPermitted ? 'The key is valid, but Venice has blocked API access. Check your account and key permissions.' : Object.values(account.balances).every((n) => n === 0) ? 'The key works, but no credits remain. Add credits in Venice API settings.' : 'The key works. Venice API access is allowed.'}</p>
+          <p className="m-0">{[account.balances.usd != null ? `$${account.balances.usd.toFixed(2)} USD` : '', account.balances.diem != null ? `${account.balances.diem.toFixed(2)} DIEM` : '', account.balances.bundled != null ? `${account.balances.bundled.toFixed(2)} bundled credits` : ''].filter(Boolean).join(' · ')}</p>
+        </div> : null}
       </div>
     </div>
   );
+}
+
+function VeniceDefault({ initial, onChange }: { initial: string; onChange: (value: string) => void }) {
+  const [model, setModel] = useState(initial);
+  const choose = (value: string) => { setModel(value); onChange(value); };
+  return <FieldRow label="Venice model" hint="Used when a Venice agent or the Brain has no model selected. Choose one, then Save settings.">
+    <div className="flex min-w-0 flex-wrap gap-2">
+      <input className="code min-w-0 flex-1" value={model} placeholder="Choose a Venice model" onChange={(e) => choose(e.target.value)} />
+      <Button variant="ghost" size="small" onClick={(event) => openModelPicker(event.currentTarget, { engine: 'openai', provider: 'venice', model }, (choice) => choose(choice.model || ''), { title: 'Default Venice model', local: false, engines: ['openai'], providers: ['venice'] })}>Choose model</Button>
+    </div>
+  </FieldRow>;
 }
 
 // pi, oh-my-pi and OpenClaw: found or not, and how to install them (they sign in to models in their own terminal).

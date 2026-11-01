@@ -2,7 +2,7 @@
 // programs, MCP servers, connectors on your Claude account), teams as the map draws them, and what a
 // click on the map points at.
 import { state } from '../core.ts';
-import { logo, brandColor } from '../icons.ts';
+import { icon, logo, brandColor } from '../icons.ts';
 import { craftIcon, craftColor } from '../crafticons.ts';
 import { INK, brandTone } from './stationpalette.ts';
 import { appIcon } from '../appicons.ts';
@@ -76,6 +76,7 @@ export const INTEGRATIONS: Integration[] = [
   { id: 'codex', label: 'OpenAI Codex', glyph: '◎', color: INK },
   { id: 'reddit', label: 'Reddit', glyph: 'r/', color: '#ff4500' },
   { id: 'openrouter', label: 'OpenRouter', glyph: '⇄', color: '#94a3b8' },
+  { id: 'venice', label: 'Venice', glyph: 'V', color: INK },
   { id: 'lmstudio', label: 'LM Studio', glyph: 'LM', color: '#6a72ed' },
   { id: 'ollama', label: 'Ollama', glyph: 'OL', color: INK },
   { id: 'x', label: 'X', glyph: '𝕏', color: INK },
@@ -107,6 +108,7 @@ export const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageEl
 // The brand logo for an integration (or connector name), falling back to its glyph.
 export function mark(id: string, size = 14): SVGSVGElement | HTMLImageElement | string {
   const key = id.startsWith('mcp:') ? id.slice(4) : id.startsWith('cc:') ? id.slice(3) : BRAND_OF[id] || id;
+  if (id === 'venice') return icon('cpu', size);
   return appLogo(key, size) || intInfo(id)?.glyph || String(key).slice(0, 2).toUpperCase();
 }
 export const intInfo = (id: string): Integration | undefined => id.startsWith('cc:') ? { id, label: id.slice(3), glyph: connectorLook(id.slice(3)).glyph, color: connectorLook(id.slice(3)).color } : (id.startsWith('mcp:') ? { id, label: id.slice(4), glyph: '⌁', color: craftColor(id.slice(4)) || '#a9d3e2', mcp: true } : INTEGRATIONS.find((x) => x.id === id));
@@ -119,6 +121,7 @@ export function availableIntegrations(d: AppState, progs: Program[]): AvailableI
     codex: !!d.engines.codex?.installed,
     reddit: (d.accounts.reddit || []).length > 0,
     openrouter: d.secrets.openrouterKey.set,
+    venice: !!d.secrets.veniceKey?.set,
     lmstudio: !!P('lmstudio')?.installed,
     ollama: !!P('ollama')?.installed,
     x: d.accounts.x.length > 0,

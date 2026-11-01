@@ -45,12 +45,12 @@ export function agentCategory(a: Pick<Agent, 'source'>): { id: string; label: st
 const ALIAS = new Set(['sonnet', 'opus', 'haiku', 'fable', 'default', 'best']);
 /** The model an agent runs on, as you'd name it: "Sonnet", "gpt-5.5" (without the provider part). */
 export function agentModel(a: Pick<Agent, 'engine' | 'model'> & Partial<Pick<Agent, 'provider'>>, defaults?: Partial<Settings['defaults']>): { id: string; label: string; sub: string } {
-  const sub = ENGINE_LABEL[a.engine] || a.engine;
+  const sub = a.engine === 'openai' && a.provider === 'venice' ? 'Venice' : ENGINE_LABEL[a.engine] || a.engine;
   let model = (a.model || '').trim();
   if (!model && a.engine === 'claude-code') model = defaults?.claudeModel || 'sonnet';
   if (!model && a.engine === 'openai') model = defaultModelForEngine('openai', defaults || {}, a.provider);
   const label = !model ? (a.engine === 'hermes' ? "its profile's model" : `${sub}'s default`) : ALIAS.has(model.toLowerCase()) ? model[0].toUpperCase() + model.slice(1).toLowerCase() : model.split('/').pop() || model;
-  return { id: `${a.engine}|${label.toLowerCase()}`, label, sub };
+  return { id: `${a.engine}|${a.engine === 'openai' && a.provider === 'venice' ? 'venice|' : ''}${label.toLowerCase()}`, label, sub };
 }
 
 /** Counts into slices, biggest first; past `keep` they fold into one "Other". */
@@ -73,11 +73,11 @@ export function categorySlices(agents: Pick<Agent, 'source'>[]): Slice[] {
   return slices(agents, agentCategory, CATEGORY_COLORS.length).map((s, i) => ({ ...s, color: s.id === 'other' ? OTHER_COLOR : CATEGORY_COLORS[i] }));
 }
 
-export const modelSlices = (agents: Pick<Agent, 'engine' | 'model'>[], defaults?: Partial<Settings['defaults']>): Slice[] => slices(agents, (a) => agentModel(a, defaults), 5);
+export const modelSlices = (agents: (Pick<Agent, 'engine' | 'model'> & Partial<Pick<Agent, 'provider'>>)[], defaults?: Partial<Settings['defaults']>): Slice[] => slices(agents, (a) => agentModel(a, defaults), 5);
 
 /** The engine tiles at the Station's top right, by key: an API-model agent is on LM Studio or OpenRouter. */
-export const ENGINE_NAMES: Record<string, string> = { 'claude-code': 'Claude Code', openrouter: 'OpenRouter', lmstudio: 'LM Studio', hermes: 'Hermes', codex: 'OpenAI Codex', pi: 'pi', omp: 'oh-my-pi', openclaw: 'OpenClaw' };
-export const engineKey = (a: Pick<Agent, 'engine' | 'provider'>): string => (a.engine === 'openai' ? (a.provider === 'lmstudio' ? 'lmstudio' : 'openrouter') : a.engine);
+export const ENGINE_NAMES: Record<string, string> = { 'claude-code': 'Claude Code', openrouter: 'OpenRouter', venice: 'Venice', lmstudio: 'LM Studio', hermes: 'Hermes', codex: 'OpenAI Codex', pi: 'pi', omp: 'oh-my-pi', openclaw: 'OpenClaw' };
+export const engineKey = (a: Pick<Agent, 'engine' | 'provider'>): string => (a.engine === 'openai' ? (a.provider === 'venice' ? 'venice' : a.provider === 'lmstudio' ? 'lmstudio' : 'openrouter') : a.engine);
 
 /** Does an agent belong to a slice (an Other slice: to any it stands for)? */
 export const inSlice = (s: Slice, id: string): boolean => s.id === id || !!s.rest?.some((r) => r.id === id);

@@ -10,6 +10,8 @@ import { h, GET, POST, PUT, DEL, attempt, navigate, md, modal, toast, refreshSoo
 import { Chips, SearchBox, Segmented, Tabs } from '../ui/controls.tsx';
 import { domButton } from '../ui/dom.ts';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
+import { modelInfo, openModelPicker } from '../models.tsx';
+import type { ModelChoice } from '../models.tsx';
 import type { Agent, AppState, EngineId, PresetListing, Team } from '../../shared/types.ts';
 
 /** An agent of The Agency as GET /api/library lists it (server/library.ts AgencyAgent without file). */
@@ -49,7 +51,7 @@ interface LibraryIndex {
   claude: ClaudeSubagentListing[];
   starters: StarterListing[];
 }
-type Overrides = { engine: EngineId; model: string };
+type Overrides = { engine: EngineId; model: string; provider?: string };
 type HirePayload = { source: 'starter'; name: string; overrides: Overrides } | { source: 'agency'; slug: string; overrides: Overrides } | { source: 'hermes'; profile: string } | { source: 'claude'; slug: string };
 type Tab = 'starters' | 'agency' | 'hermes' | 'claude' | 'presets';
 
@@ -64,9 +66,9 @@ const params = () => new URLSearchParams(location.hash.split('?')[1] || '');
 // Opened from a Station branch (#/library?branch=id): new hires join that branch.
 const branchParam = () => params().get('branch');
 
-function overrides(engine: EngineId, data: AppState): Overrides {
+function overrides(engine: EngineId, data: AppState, choice: ModelChoice | null): Overrides {
   const d = data.settings.defaults;
-  return { engine, model: defaultModelForEngine(engine, d) };
+  return { engine, model: engine === 'openai' ? choice?.model || defaultModelForEngine(engine, d, choice?.provider) : defaultModelForEngine(engine, d), ...(engine === 'openai' && choice?.provider ? { provider: choice.provider } : {}) };
 }
 
 async function hire(payload: HirePayload, name: string): Promise<Agent | undefined> {
@@ -118,6 +120,7 @@ function LibraryPage() {
   const [failed, setFailed] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>(() => (params().get('tab') === 'presets' ? 'presets' : lastTab));
   const [engine, setEngine] = useState<EngineId>(() => data?.settings?.defaults?.engine || 'claude-code');
+  const [apiChoice, setApiChoice] = useState<ModelChoice | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -143,9 +146,12 @@ function LibraryPage() {
       <div className="ml-auto flex flex-wrap items-center gap-3">
         <span className="label">Runs on</span>
         <Segmented label="Runs on" options={data.engineList.map((e) => ({ value: e.id, label: e.label }))} value={engine} onChange={setEngine} />
+        {engine === 'openai' ? <Button variant="ghost" size="small" onClick={(event) => openModelPicker(event.currentTarget, apiChoice || { engine: 'openai', provider: 'openrouter', model: data.settings.defaults.openrouterModel }, setApiChoice, { title: 'Model for new hires', engines: ['openai'] })}>
+          {apiChoice ? `${modelInfo(apiChoice).where} · ${modelInfo(apiChoice).short}` : 'Choose API model'}
+        </Button> : null}
       </div>
     ) : null;
-  const ov = () => overrides(engine, data);
+  const ov = () => overrides(engine, data, apiChoice);
 
   return (
     <>

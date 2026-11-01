@@ -40,7 +40,8 @@ const TABS: Tab[] = [
 
 // What can be found. find = text on the page to jump to; words = extra search words.
 const INDEX: IndexEntry[] = [
-  { tab: 'general', find: 'API keys', label: 'AI keys', words: 'openrouter key api anthropic token' },
+  { tab: 'general', find: 'API keys', label: 'AI keys', words: 'openrouter venice key api anthropic token' },
+  { tab: 'general', find: 'Venice key', label: 'Venice key', words: 'venice api key balance diem models' },
   { tab: 'general', find: 'OpenRouter key', label: 'OpenRouter key', words: 'api key models gpt gemini llama deepseek' },
   { tab: 'general', find: 'Claude Code', label: 'Claude Code', words: 'claude cli login version installed' },
   { tab: 'general', find: 'OpenAI Codex', label: 'OpenAI Codex', words: 'codex chatgpt gpt install sign in login' },

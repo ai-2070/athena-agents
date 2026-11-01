@@ -56,6 +56,8 @@ beforeEach(() => {
     }
     if (url === '/api/presets') return json(presets);
     if (url === '/api/state') return json(state.data);
+    if (url === '/api/models?engine=openai&provider=venice') return json([{ id: 'venice-chat', name: 'Venice Chat' }]);
+    if (url.startsWith('/api/models?')) return json([]);
     if (url === '/api/library/hire') return json({ id: 'new-1', name: 'Hired' });
     if (url.startsWith('/api/presets/') && method === 'DELETE') return json({ ok: true });
     return json({});
@@ -133,6 +135,22 @@ describe('Library page', () => {
     const foot = el.querySelector('.card .card-foot')!;
     expect([...foot.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Chat', 'Edit']);
     expect(document.getElementById('toasts')!.textContent).toContain('Brand Guardian joined your team');
+  });
+
+  it('hires directly onto the Venice provider and selected model', async () => {
+    state.data!.engineList.push({ id: 'openai', label: 'API model' } as AppState['engineList'][number]);
+    await open();
+    await click(buttons('API model')[0]);
+    await click(buttons('Choose API model')[0]);
+    const veniceTab = [...document.querySelectorAll<HTMLButtonElement>('.model-tab')].find((b) => b.textContent === 'Venice')!;
+    await click(veniceTab);
+    await settle();
+    const model = [...document.querySelectorAll<HTMLButtonElement>('.model-list .st-menu-item')].find((b) => b.textContent?.includes('Venice Chat'))!;
+    await click(model);
+    await settle();
+    expect(el.textContent).toContain('Venice · venice-chat');
+    await click(el.querySelector<HTMLButtonElement>('.card .btn.small')!);
+    expect(requests.find((r) => r.url === '/api/library/hire')?.body).toMatchObject({ overrides: { engine: 'openai', provider: 'venice', model: 'venice-chat' } });
   });
 
   it('deletes a preset only after you confirm', async () => {

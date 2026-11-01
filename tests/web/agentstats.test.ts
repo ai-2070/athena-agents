@@ -45,5 +45,9 @@ describe('agent models', () => {
     expect(engineKey({ engine: 'openai', provider: 'lmstudio' })).toBe('lmstudio');
     expect(engineKey({ engine: 'openai', provider: 'openrouter' })).toBe('openrouter');
     expect(engineKey({ engine: 'codex', provider: '' })).toBe('codex');
+    expect(engineKey({ engine: 'openai', provider: 'venice' })).toBe('venice');
+    const venice = agentModel({ engine: 'openai', provider: 'venice', model: '' }, { veniceModel: 'shared-model', openrouterModel: 'other-model' });
+    expect(venice).toMatchObject({ label: 'shared-model', sub: 'Venice' });
+    expect(venice.id).not.toBe(agentModel({ engine: 'openai', provider: 'openrouter', model: 'shared-model' }).id);
   });
 });
