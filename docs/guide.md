@@ -40,6 +40,8 @@ pi and oh-my-pi run their own tools (files, shell, edits) without asking, whatev
 
 In **Settings → General & keys → API keys**, save a Venice inference key from [Venice API settings](https://venice.ai/settings/api). **Test** checks the saved key without generating an answer. It shows access, expiration and any available USD, DIEM and bundled-credit balances separately. A valid key can still have blocked access or no credits. Remove or replace the key in the same row. Keys stay in the server's secret store and are excluded from project folders and backups.
 
+The chat model picker and Station’s AI engines strip show only engines that are set up: saved API keys, installed local engines and, where checked, an active sign-in. Add or change setup in **Settings**.
+
 Pick **Venice** in the model picker for an agent or **The Brain's model**. In the agent editor, choose **API model**, then **Venice** as the provider. In the Agent library, choose **API model**, then **Choose API model** before hiring. Favorites keep their provider, so a Venice model stays on Venice when selected again. The Brain can also look up Venice models and move an agent or whole team onto one by name.
 
 Venice models have their own ids. Set **Defaults for new agents → Venice model**, then **Save settings**, to supply a model when a Venice agent or the Brain has none selected. Otherwise choose a model explicitly. OpenRouter's default does not apply to Venice. The existing default engine choice stays unchanged.
@@ -116,6 +118,8 @@ Clicking the Brain on the Station shows what is in its folder. Pictures, Markdow
 Open **Tasks** in an agent, team or Brain chat to see the steps of a job. Agent and team chats show their own list and project tasks assigned to them. The Brain starts with **All project tasks**; filter by the Brain, a team or an agent, then by status or a search phrase. Lists update as work changes.
 
 Use **Add task** to write a title and description of what must be done and how to check it. Choose an owner, or leave shared work unassigned. Click a task to edit its details, owner, status, working label or prerequisites. **Open** shows unfinished work; choose **All statuses** to include finished tasks. **Show more tasks** loads the next page. Prerequisite choices come from the loaded rows in the same list; clear a search or load more rows to include another task. **Remove** asks first and removes that task's dependency links too. If someone changed a task while you edited it, your draft stays open; **Reload saved task** loads their saved version.
+
+Use **Clear tasks** beside **Add task** to remove all open tasks in the selected list. Confirm the popup to clear them; completed tasks stay. The button is disabled when the list has no open tasks. Search and status filters do not limit which open tasks are cleared.
 
 Every engine receives the dashboard's `TaskCreate`, `TaskGet`, `TaskList` and `TaskUpdate` tools. The Brain uses the same saved records. Agents can read their own lists, their teams' lists and project tasks assigned to them or their team. The Brain and the user can manage the whole project. A task's list stays fixed; its owner can change within that list. Team tasks can belong to the team or a member, and project tasks can belong to the Brain, an agent or a team.
 

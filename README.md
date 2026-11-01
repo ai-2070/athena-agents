@@ -140,6 +140,8 @@ Open **Settings → General & keys**. You only need to set up the engines you wa
 
 Choose **The Brain's model** in the same settings page. The Brain is the project-wide assistant: it answers questions, builds agents and teams, writes the project brief, manages skills, routines and MCP servers, switches agents' models, stops work, and hands work to the right people.
 
+The chat model picker and Station’s AI engines strip show only engines that are set up: saved API keys, installed local engines and, where checked, an active sign-in. Add or change setup in **Settings**.
+
 For **Venice**, save an inference key under **API keys** and press **Test** to check access and balances without generating an answer. Choose a model from the **Venice** tab in a chat's model picker, or select **API model → Venice** in an agent's editor. The Brain can use Venice too. **Defaults for new agents → Venice model** sets its own fallback model; save settings after choosing it. Tools, image attachments and effort depend on the selected model. See [Venice setup and costs](docs/guide.md#venice-models).
 
 Claude Code and Codex receive dashboard tools through an MCP bridge; API-model agents call them directly. pi and oh-my-pi get them on their first run; Hermes needs a one-time **Give Hermes the dashboard tools** click under **Settings → MCP servers**. See [Giving engine CLIs the dashboard tools](docs/guide.md#giving-engine-clis-the-dashboard-tools).
@@ -174,7 +176,7 @@ In any agent, team or Brain chat, **/** lists the commands (`/queue`, `/stop`, `
 
 **Assigned work keeps going.** The Brain checks agent and team results after each turn and follows up on missing work automatically. No `/goal` command is needed. It keeps going while work advances, waits for delegated work, and stops when the result is delivered or your action is needed. Blockers and repeated lack of progress appear in **Needs you** with a question you can answer to continue. **Stop** cancels continuation; changing the project on screen leaves work in its own project. Completion checks use the Brain's configured model.
 
-**Tasks stay with the work.** Agents, teams and the Brain share `TaskCreate`, `TaskGet`, `TaskList` and `TaskUpdate`. They can create or update several tasks in one call, with a result for each item. Tasks hold the requirements, owner and prerequisites; another agent cannot take work already claimed by someone else. The chat's **Tasks** panel lets you add, edit, search and remove them. A task records a step; ask in the chat to start the work. Tasks are included in project saves and backups. See [Tasks](docs/guide.md#tasks).
+**Tasks stay with the work.** Agents, teams and the Brain share `TaskCreate`, `TaskGet`, `TaskList` and `TaskUpdate`. They can create or update several tasks in one call, with a result for each item. Tasks hold the requirements, owner and prerequisites; another agent cannot take work already claimed by someone else. The chat's **Tasks** panel lets you add, edit, search and remove them. **Clear tasks** removes all open tasks in the selected list after confirmation and keeps completed tasks. A task records a step; ask in the chat to start the work. Tasks are included in project saves and backups. See [Tasks](docs/guide.md#tasks).
 
 ## Approvals and safety
 

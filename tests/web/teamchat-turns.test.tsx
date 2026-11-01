@@ -53,7 +53,7 @@ beforeEach(() => {
   bodies = {};
   missed = [];
   live = uiStream();
-  state.data = { runs: [], approvals: [], agents: [{ id: 'lead', name: 'Lead', emoji: '🧭', color: '#fff' }, { id: 'maker', name: 'Maker', emoji: '🎨', color: '#fff' }] } as unknown as AppState;
+  state.data = { engines: { 'claude-code': { installed: true, loggedIn: true } }, runs: [], approvals: [], agents: [{ id: 'lead', name: 'Lead', emoji: '🧭', color: '#fff' }, { id: 'maker', name: 'Maker', emoji: '🎨', color: '#fff' }] } as unknown as AppState;
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     requests.push(`${init.method || 'GET'} ${url}`);
     if (init.body) bodies[url] = JSON.parse(String(init.body));
@@ -194,18 +194,23 @@ describe('team chat turns', () => {
     document.body.append(el);
     const chat = (open = renderTeamChat(el, 't1'));
     await settle();
-    const work = el.querySelector('details.tc-work') as HTMLDetailsElement;
+    const work = el.querySelector('.tc-work')!;
     expect(work).not.toBeNull();
     expect(requests).not.toContain('GET /api/agents/lead/chats/lead-chat');
-    await act(async () => {
-      work.open = true;
-      work.dispatchEvent(new Event('toggle'));
-    });
+    const trigger = work.querySelector<HTMLButtonElement>('button')!;
+    await act(async () => trigger.click());
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
     for (let i = 0; i < 100 && !work.querySelector('details.tool'); i++) await settle();
     expect(requests).toContain('GET /api/agents/lead/chats/lead-chat');
     expect(work.querySelector('details.tool .tname')!.textContent).toBe('read_file');
     // (the message to the agent isn't repeated: the thread shows it)
     expect(work.textContent).not.toContain('team brief');
+    const loaded = requests.filter((request) => request === 'GET /api/agents/lead/chats/lead-chat').length;
+    await act(async () => trigger.click());
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    await act(async () => trigger.click());
+    await settle();
+    expect(requests.filter((request) => request === 'GET /api/agents/lead/chats/lead-chat')).toHaveLength(loaded);
   });
 
   it('a long message folds with Show more; a short one does not', async () => {
@@ -227,6 +232,9 @@ describe('team chat turns', () => {
       expect(el.querySelector('.tc-folded')).toBeNull();
       expect(more[0].textContent).toBe('Show less');
       expect(more[0].getAttribute('aria-expanded')).toBe('true');
+      await act(async () => more[0].click());
+      expect(more[0].getAttribute('aria-expanded')).toBe('false');
+      expect(el.querySelector('.tc-folded')).not.toBeNull();
     } finally {
       tall.mockRestore();
     }

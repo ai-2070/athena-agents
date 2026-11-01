@@ -46,7 +46,7 @@ export function TimePicker({ value, onChange, label = 'Time' }: { value: string;
       event.preventDefault();
       choose(unit, next);
     };
-    return <div className="min-w-0">
+    return <div className="min-w-0 px-2 py-3">
       <div id={`${id}-${unit}-label`} className="px-2 pb-2 text-center text-[12px] font-medium text-dim">{unit === 'hour' ? 'Hour' : unit === 'minute' ? 'Minute' : 'AM/PM'}</div>
       <div ref={ref} role="listbox" aria-labelledby={`${id}-${unit}-label`} aria-activedescendant={`${id}-${unit}-${current}`} tabIndex={0} onKeyDown={keyDown} className="relative flex h-44 flex-col gap-1 overflow-y-auto rounded-ctl p-1 outline-none focus-visible:ring-1 focus-visible:ring-accent">
         {Array.from({ length: count }, (_, number) => <Button key={number} id={`${id}-${unit}-${number}`} type="button" role="option" aria-selected={!!draft && number === current} tabIndex={-1} variant={draft && number === current ? 'primary' : 'plain'} size="small" className="w-full shrink-0 font-mono" onClick={() => { ref.current?.focus(); choose(unit, number); }}>{unit === 'hour' ? pad(number + 1) : unit === 'period' ? number ? 'PM' : 'AM' : pad(number)}</Button>)}
@@ -57,13 +57,13 @@ export function TimePicker({ value, onChange, label = 'Time' }: { value: string;
     <Popover.Trigger type="button" data-time-picker aria-label={`${label}: ${displayTime(value)}`} className={fieldTriggerClass('field', 'justify-between font-mono')}>
       <span className={value ? 'text-ink' : 'text-faint'}>{displayTime(value)}</span><Icon name="clock" size={16} />
     </Popover.Trigger>
-    <PopoverContent aria-label={`${label} picker`} initialFocus={hours} className="w-72 p-3">
-      <div className="grid grid-cols-3 gap-2">
+    <PopoverContent aria-label={`${label} picker`} initialFocus={hours} className="w-72 p-0">
+      <div className="grid grid-cols-3 divide-x divide-line">
         {column('hour', 12, (hour % 12 + 11) % 12, hours, periods, minutes)}
         {column('minute', 60, minute, minutes, hours, periods)}
         {column('period', 2, hour >= 12 ? 1 : 0, periods, minutes, hours)}
       </div>
-      <div className="mt-3 flex items-center gap-1.5 border-t border-line pt-3">
+      <div className="flex items-center gap-1.5 border-t border-line p-3">
         <Button type="button" variant="ghost" size="small" onClick={() => setDraft(nowTime())}>Now</Button>
         <Button type="button" variant="plain" size="small" onClick={() => setDraft('')}>Clear</Button>
         <Button type="button" size="small" className="ml-auto" onClick={() => { onChange(draft); setOpen(false); }}>OK</Button>

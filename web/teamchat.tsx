@@ -12,7 +12,8 @@ import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { mentionPreviews } from './filepreview.tsx';
 import { modelChip } from './models.tsx';
-import { slideIn } from './motion.ts';
+import { CollapseRoot, CollapseTrigger, CollapsePanel } from './ui/collapse.tsx';
+import { slideIn, reducedMotion } from './motion.ts';
 import { useFind } from './ui/find.tsx';
 import { queuedText } from '../shared/queue.ts';
 import { TaskPanel } from './tasks.tsx';
@@ -277,6 +278,9 @@ const FOLD_SLACK = 120;
 /** A long message shows its start and a Show more button, so one reply doesn't fill the whole window. */
 function Fold({ children }: { children: ReactNode }) {
   const inner = useRef<HTMLDivElement>(null);
+  const outer = useRef<HTMLDivElement>(null);
+  const fromHeight = useRef<number | null>(null);
+  const animation = useRef<Animation | null>(null);
   const [long, setLong] = useState(false);
   const [open, setOpen] = useState(false);
   useLayoutEffect(() => {
@@ -291,20 +295,31 @@ function Fold({ children }: { children: ReactNode }) {
     return () => ro.disconnect();
   }, []);
   const folded = long && !open;
+  useLayoutEffect(() => {
+    const el = outer.current;
+    const from = fromHeight.current;
+    fromHeight.current = null;
+    animation.current?.cancel();
+    if (!el || from === null || reducedMotion() || typeof el.animate !== 'function') return;
+    const to = folded ? FOLD_AT : inner.current?.scrollHeight || 0;
+    animation.current = el.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 240, easing: 'ease-in-out' });
+    void animation.current.finished.catch(() => {});
+  }, [folded]);
+  useEffect(() => () => animation.current?.cancel(), []);
   return (
     <>
-      <div className={folded ? 'tc-folded max-h-[360px] overflow-hidden [mask-image:linear-gradient(to_bottom,#000_70%,transparent)]' : undefined}>
+      <div ref={outer} style={folded ? { height: FOLD_AT } : undefined} className={folded ? 'tc-folded overflow-hidden [mask-image:linear-gradient(to_bottom,#000_70%,transparent)]' : 'overflow-hidden'}>
         <div ref={inner}>{children}</div>
       </div>
       {long ? (
         <div className="mt-2.5 flex w-full justify-center">
           <button
             type="button"
-            className="tc-more inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint hover:text-ink"
+            className="tc-more inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint transition-colors duration-200 ease-in-out hover:text-ink"
             aria-expanded={open}
-            onClick={() => setOpen(!open)}
+            onClick={() => { fromHeight.current = outer.current?.getBoundingClientRect().height ?? null; setOpen(!open); }}
           >
-            <Icon name="chevron-down" size={12} className={open ? 'rotate-180' : undefined} />
+            <Icon name="chevron-down" size={12} className={`transition-transform duration-200 ease-in-out ${open ? 'rotate-180' : ''}`} />
             {open ? 'Show less' : 'Show more'}
           </button>
         </div>
@@ -315,22 +330,21 @@ function Fold({ children }: { children: ReactNode }) {
 
 /** "Show the work": the steps and tool calls behind a reply, loaded when opened. */
 function Work({ m }: { m: TeamMessage }) {
+  const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(false);
   const turn = m.turn!;
   return (
-    <details className="tc-work mt-3" onToggle={(e) => (e.currentTarget as HTMLDetailsElement).open && setOpened(true)}>
-      <summary className="list-none cursor-pointer inline-flex items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint [&::-webkit-details-marker]:hidden hover:text-ink [[open]>&]:text-ink">
+    <CollapseRoot className="tc-work mt-3" open={open} onOpenChange={(value) => { setOpen(value); if (value) setOpened(true); }}>
+      <CollapseTrigger render={<Button variant="plain" size="tiny" className="-ml-2" />}>
         <Icon name="wrench" size={12} />
         Show the work
-      </summary>
-      <div className={TURN_BODY}>
-        {opened ? (
-          <Suspense fallback={null}>
-            <TurnView agentId={m.from} chatId={turn.chatId} from={turn.from} to={turn.to} empty="No steps were saved for this reply." />
-          </Suspense>
-        ) : null}
-      </div>
-    </details>
+      </CollapseTrigger>
+      <CollapsePanel keepMounted>
+        <div className={TURN_BODY}>
+          {opened ? <Suspense fallback={null}><TurnView agentId={m.from} chatId={turn.chatId} from={turn.from} to={turn.to} empty="No steps were saved for this reply." /></Suspense> : null}
+        </div>
+      </CollapsePanel>
+    </CollapseRoot>
   );
 }
 
@@ -359,7 +373,7 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
         <span className="flex-1 min-w-0" />
         {author ? (
           <button className="tc-act" title={`Reply to ${author.name}`} aria-label={`Reply to ${author.name}`} onClick={() => onReply(m)}>
-            <Icon name="message-circle" size={13} />
+            <Icon name="reply" size={13} />
           </button>
         ) : null}
       </div>
@@ -817,7 +831,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       <div className={`flex items-center gap-2 text-[12.5px] text-ice ${replyTo ? '' : ' hidden'}`}>
         {replyTo ? (
           <>
-            <Icon name="message-circle" size={12} />
+            <Icon name="reply" size={12} />
             {`Replying to ${agentOf(replyTo.from)?.name}`}
             <button className="tc-act" aria-label="Don't reply" onClick={() => reply(null)}>
               <Icon name="x" size={12} />

@@ -2,6 +2,7 @@
 // The Brain sits in the middle. Every branch is a workflow: its steps stand along the branch in order,
 // agents at desks, tools and checkpoints on pedestals. Beams pulse when work moves; dashed lines show
 // which programs and services each step can reach. Agents not on any branch wait on the Bench.
+import { engineConfigured } from '../engineavailability.ts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, onEventConnection, ago, toast, promptBox, confirmBox, refreshSoon, modal } from '../core.ts';
@@ -3764,7 +3765,7 @@ function drawHud(): void {
   ].filter(Boolean) as { glyph: SVGSVGElement | string; title: string; href: string }[];
   for (const m of missing) tiles.push({ key: m.title, glyph: m.glyph, color: 'var(--color-faint)', on: false, missing: true, title: m.title, onclick: () => navigate(m.href) });
   const seen = new Set<string>();
-  // Every engine an agent (or the Brain) can run on: lit when ready, grey with a setup link when not.
+  // Only engines that have been set up; local servers can still be stopped.
   const brainP = d.settings?.brain?.provider || 'claude';
   const busyIds = new Set((d.runs || []).map((r) => r.agentId));
   // LM Studio: a tile once it is installed or an agent uses it; lit while its local server is up
@@ -3773,6 +3774,7 @@ function drawHud(): void {
   const lmStudio = lm || d.agents.some(onLmStudio)
     ? [{ id: 'openai', uses: onLmStudio, brain: '', name: 'LM Studio', glyph: mark('lmstudio', 15), color: '#6a72ed', ready: !!lm?.live, why: lm ? 'its server is not running (LM Studio > Developer > Start server)' : 'not installed', find: 'LM Studio server' }]
     : [];
+  const installedPrograms = new Set(S.progs.filter((program) => program.installed).map((program) => program.id));
   const engines = [
     { id: 'claude-code', brain: 'claude', name: 'Claude Code', glyph: appLogo('claude code', 15) || '✳', color: '#d97757', ready: d.engines['claude-code'].installed, why: d.engines['claude-code'].installed ? '' : 'not installed', find: 'Claude Code' },
     { id: 'openai', uses: (a: Agent) => a.engine === 'openai' && !onLmStudio(a) && a.provider !== 'venice', brain: 'openrouter', name: 'OpenRouter', glyph: appLogo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
@@ -3780,13 +3782,13 @@ function drawHud(): void {
     ...lmStudio,
     { id: 'hermes', brain: 'hermes', name: 'Hermes', glyph: mark('hermes', 15), color: '#d8c25a', ready: d.engines.hermes.installed, why: d.engines.hermes.installed ? '' : 'not installed', find: 'Hermes' },
     { id: 'codex', brain: 'codex', name: 'OpenAI Codex', glyph: appLogo('openai', 14) || '◎', color: INK, ready: !!(d.engines.codex?.installed && d.engines.codex.loggedIn), why: !d.engines.codex?.installed ? 'not installed' : d.engines.codex.loggedIn ? '' : 'not signed in', find: 'OpenAI Codex' },
-    // pi, oh-my-pi and OpenClaw: always shown, like the model picker's tabs (grey with a setup link until installed)
+    // CLI engines use their own provider logins.
     ...([
       { id: 'pi', name: 'pi', glyph: mark('pi', 15), color: '#9fd3a8', find: 'pi coding agent' },
       { id: 'omp', name: 'oh-my-pi', glyph: mark('omp', 15), color: '#c8a2f0', find: 'oh-my-pi' },
       { id: 'openclaw', name: 'OpenClaw', glyph: mark('openclaw', 15), color: '#ff6f5e', find: 'OpenClaw' },
     ] as const).map((e) => ({ ...e, brain: '', ready: !!d.engines[e.id]?.installed, why: d.engines[e.id]?.installed ? '' : 'not installed' })),
-  ].map((e: { id: string; uses?: (a: Agent) => boolean; brain: string; name: string; glyph: SVGSVGElement | HTMLImageElement | string; color: string; ready: boolean; why: string; find: string }) => {
+  ].filter((engine) => engineConfigured(engine.name === 'LM Studio' ? 'lmstudio' : engine.brain || engine.id, d, installedPrograms)).map((e: { id: string; uses?: (a: Agent) => boolean; brain: string; name: string; glyph: SVGSVGElement | HTMLImageElement | string; color: string; ready: boolean; why: string; find: string }) => {
     const uses = e.uses || ((a: Agent) => a.engine === e.id);
     const users = d.agents.filter(uses);
     const busy = users.some((a) => busyIds.has(a.id));
@@ -3795,7 +3797,7 @@ function drawHud(): void {
     const toAgents = e.ready && users.length ? `#/agents?uses=${engineKey(users[0])}` : '';
     return { ...e, uses, n: users.length + (brainP === e.brain ? 1 : 0), busy, toAgents, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${toAgents ? ' (click to see its agents)' : e.ready ? '' : ' (click to set up)'}` };
   });
-  S.clockEl ||= h('span.st-clock', { class: 'flex-none whitespace-nowrap text-right text-[24px] leading-[normal] font-medium tabular-nums text-[color:light-dark(var(--color-black),var(--color-white))] max-md:hidden font-brand' });
+  S.clockEl ||= h('span.st-clock', { class: 'w-[5.5em] flex-none whitespace-nowrap text-right text-[26px] leading-[normal] font-medium tabular-nums text-[color:light-dark(var(--color-black),var(--color-white))] max-md:hidden font-brand' });
   S.tileEls = new Map();
   mount(
     S.hudTop,
@@ -3855,7 +3857,7 @@ function drawHud(): void {
       { class: 'ml-auto flex items-center gap-2' },
       // on small screens only the buttons stay
       d.runs.length || S.active.size ? h('div', { class: `${STAT} max-md:hidden` }, h('b', { class: `${STAT_N} text-accent` }, String(d.runs.length + S.active.size)), 'working') : null,
-      needs ? h('button', { class: `${STAT} border-amber cursor-pointer`, onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: `${STAT_N} text-amber` }, String(needs)), 'needs you') : null,
+      needs ? domButton({ variant: 'ghost', size: 'small', class: 'glass border-amber', onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: 'font-semibold tabular-nums text-amber' }, String(needs)), 'Needs you') : null,
       d.agents.length
         ? domButton({ size: 'small', onclick: newBranch }, icon('users', 14), 'New team')
         : null,

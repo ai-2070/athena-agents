@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { state, GET, PUT, attempt, refreshSoon, toast, navigate } from './core.ts';
+import { engineConfigured } from './engineavailability.ts';
 import { brandImage } from './brandimages.ts';
 import { appIcon, appIconUrl } from './appicons.ts';
 import { brandPath, logo } from './icons.ts';
@@ -15,7 +16,7 @@ import { EFFORT_NAMES, effortFor, effortLevels, isEffort } from '../shared/effor
 import { defaultModelForEngine } from '../shared/modeldefaults.ts';
 import { Button } from './ui/button.tsx';
 import { PopoverContent, PopoverRoot } from './ui/popover.tsx';
-import { DomNode, Icon } from './ui/react.tsx';
+import { DomNode, Icon, useAppState } from './ui/react.tsx';
 import type { Agent, ApiModelInfo, BrainSetting, Effort, EngineId, EngineStatus, FavoriteModel } from '../shared/types.ts';
 
 /** What modelInfo() needs: an agent, or the Brain dressed up as one (brainAsAgent). */
@@ -626,21 +627,33 @@ interface PickerProps {
 
 /** The picker: a tab for Favorites (when there are any) and one per engine, the effort row, and that tab's models. */
 function ModelPicker({ anchor, cur, apply, title, local, engines, providers, open, close, dispose }: PickerProps) {
+  const data = useAppState();
+  const [installedPrograms, setInstalledPrograms] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    if (!local) return;
+    let live = true;
+    void GET<{ id: string; installed: boolean }[]>('/programs').then((programs) => {
+      if (live && Array.isArray(programs)) setInstalledPrograms(new Set(programs.filter((program) => program.installed).map((program) => program.id)));
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [local]);
+  const configured = (id: string) => engineConfigured(id, data, installedPrograms);
   const usable = (e: EngineId) => !engines || engines.includes(e);
   // favorites this picker can use (without local servers, only OpenRouter's API models)
-  const favs = () => favoriteModels().filter((f) => usable(f.engine) && (!providers || f.engine !== 'openai' || providers.includes(f.provider || 'openrouter')) && (local || f.engine !== 'openai' || ['openrouter', 'venice'].includes(f.provider || 'openrouter')));
+  const favs = () => favoriteModels().filter((f) => configured(f.engine === 'openai' ? f.provider || 'openrouter' : f.engine) && usable(f.engine) && (!providers || f.engine !== 'openai' || providers.includes(f.provider || 'openrouter')) && (local || f.engine !== 'openai' || ['openrouter', 'venice'].includes(f.provider || 'openrouter')));
   // LM Studio's tab only where models on this PC can be used (not for the Brain)
-  const myTabs = TABS.filter((t) => (local || t.engine !== 'lmstudio') && (!providers || providers.includes(t.engine === 'openai' ? 'openrouter' : t.engine)) && (t.engine === 'fav' || usable(t.engine === 'lmstudio' || t.engine === 'venice' ? 'openai' : t.engine)));
+  const myTabs = TABS.filter((t) => configured(t.engine) && (local || t.engine !== 'lmstudio') && (!providers || providers.includes(t.engine === 'openai' ? 'openrouter' : t.engine)) && (t.engine === 'fav' || usable(t.engine === 'lmstudio' || t.engine === 'venice' ? 'openai' : t.engine)));
   const curTab = tabOf(cur);
   const homeTab = (): PickerTab => (myTabs.some((t) => t.engine === curTab) ? curTab : myTabs[0]?.engine || 'claude-code');
   const [, refresh] = useReducer((n: number) => n + 1, 0);
-  const [tab, setTab] = useState<PickerTab>(() => (favs().length ? 'fav' : homeTab()));
+  const [requestedTab, setTab] = useState<PickerTab>(() => (favoriteModels().length ? 'fav' : curTab));
+  const tab = requestedTab === 'fav' && favs().length ? 'fav' : myTabs.some((candidate) => candidate.engine === requestedTab) ? requestedTab : homeTab();
   // the effort asked for (kept as asked: each engine sends its nearest level)
   const [effort, setEffort] = useState<Effort | ''>(() => effortOf(cur));
   const asked = useRef<Effort | ''>(effort);
   const [veniceModels, setVeniceModels] = useState<ModelListing[] | null>(null);
   const [veniceError, setVeniceError] = useState<string | null>(null);
-  const needsVenice = tab === 'venice' || (cur.engine === 'openai' && cur.provider === 'venice') || (tab === 'fav' && favs().some((f) => f.provider === 'venice'));
+  const needsVenice = configured('venice') && (tab === 'venice' || (cur.engine === 'openai' && cur.provider === 'venice') || (tab === 'fav' && favs().some((f) => f.provider === 'venice')));
   useEffect(() => {
     if (!needsVenice) return;
     let live = true;
@@ -653,7 +666,6 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
   }, [needsVenice]);
   const favList = favs();
   // (the last favorite just went: back to the engine in use)
-  if (tab === 'fav' && !favList.length) setTab(homeTab());
   const setLevel = (value: Effort | '') => {
     asked.current = value;
     setEffort(value);
@@ -709,7 +721,8 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
   }, [open, anchor, close]);
 
   let body: ReactNode;
-  if (tab === 'fav') body = <FavoritesBody favs={favList} cur={cur} isUnavailable={isUnavailable} onPick={pick} onChanged={refresh} />;
+  if (!myTabs.length && !favList.length) body = <Missing text="No engines are set up yet." find="Engines on this PC" close={close} />;
+  else if (tab === 'fav') body = <FavoritesBody favs={favList} cur={cur} isUnavailable={isUnavailable} onPick={pick} onChanged={refresh} />;
   else if (tab === 'claude-code') body = <ClaudeBody cur={cur} close={close} onPick={pick} onChanged={refresh} />;
   else if (tab === 'openai') body = <OpenRouterBody cur={cur} local={local} close={close} onPick={pick} onChanged={refresh} />;
   else if (tab === 'venice') body = <VeniceBody cur={cur} models={veniceModels} error={veniceError} close={close} onPick={pick} onChanged={refresh} />;
@@ -755,7 +768,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
             </button>
           ))}
         </div>
-        {provider !== 'venice' || levels.length ? <div className="px-2 pb-3 border-b border-line mb-1.5">
+        {shownTabs.length && (provider !== 'venice' || levels.length) ? <div className="px-2 pb-3 border-b border-line mb-1.5">
           <div className="flex items-center gap-1.5 px-1 pb-2 font-sans text-[12px] font-medium leading-[normal] text-dim">
             <Icon name="gauge" size={13} />
             <span>Effort</span>

@@ -6,6 +6,7 @@ import { Icon } from './react.tsx';
 export interface SelectOption {
   value: string;
   label: string;
+  icon?: string;
 }
 
 export function SelectControl({ options, value, onChange, 'aria-label': ariaLabel, className = '' }: {
@@ -19,6 +20,7 @@ export function SelectControl({ options, value, onChange, 'aria-label': ariaLabe
   return (
     <Select.Root value={value} onValueChange={(next) => { if (next !== null) onChange(String(next)); }}>
       <Select.Trigger aria-label={ariaLabel} className={fieldTriggerClass('field', `min-w-0 text-ink ${className}`)}>
+        {picked?.icon && <Icon name={picked.icon} size={16} className="shrink-0 text-dim" />}
         <span className="min-w-0 flex-1 truncate">{picked?.label}</span>
         <Select.Icon className="flex flex-none text-dim"><Icon name="chevron-down" size={16} /></Select.Icon>
       </Select.Trigger>
@@ -28,6 +30,7 @@ export function SelectControl({ options, value, onChange, 'aria-label': ariaLabe
             <Select.List>
               {options.map((option) => (
                 <Select.Item key={option.value} value={option.value} className="st-menu-item">
+                  {option.icon && <Icon name={option.icon} size={16} className="shrink-0 text-dim" />}
                   <Select.ItemText className="min-w-0 flex-1 truncate">{option.label}</Select.ItemText>
                   <Select.ItemIndicator className="flex text-accent"><Icon name="check" size={14} /></Select.ItemIndicator>
                 </Select.Item>
