@@ -642,6 +642,14 @@ export interface Settings {
 export type SecretKey = 'openrouterKey' | 'veniceKey' | 'anthropicKey' | 'customKey' | 'xClientSecret' | 'telegramBotToken' | 'discordWebhook' | 'redditClientSecret';
 export type SecretStatus = Record<SecretKey, { set: boolean; hint?: string }>;
 
+/** A saved Venice key can be valid while access is blocked or its credits have run out. */
+export interface VeniceAccountInfo {
+  accessPermitted: boolean;
+  expiresAt: string | null;
+  expired: boolean;
+  balances: { usd: number | null; diem: number | null; bundled: number | null };
+}
+
 // ---------- engines ----------
 export interface EngineStatus {
   'claude-code': { installed: boolean; path: string | null; loggedIn: boolean; version: string | null };

@@ -2,6 +2,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { HOME, run, which, dataPath, readJSON, writeJSON } from './util.ts';
+import { readVeniceAccount } from './venice.ts';
+
+export const veniceUsage = () => readVeniceAccount().catch(() => null);
 
 /** One usage window (5-hour session or week): percent used and when it resets (ms), if known. */
 export interface UsageWindow {

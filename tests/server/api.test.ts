@@ -187,6 +187,9 @@ describe('API', () => {
   });
 
   it('answers 404 for unknown routes and 400 for bad bodies', async () => {
+    const venice = await req('/api/settings/test-venice', { method: 'POST', headers: json });
+    expect(venice.status).toBe(400);
+    expect(await venice.text()).toContain('No Venice key saved');
     expect((await req('/api/nope')).status).toBe(404);
     expect((await req('/api/agents', { method: 'POST', headers: json, body: '{oops' })).status).toBe(400);
     expect((await req('/api/agents', { method: 'POST', headers: json, body: 'null' })).status).toBe(400);
