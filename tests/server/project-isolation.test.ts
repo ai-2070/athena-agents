@@ -16,6 +16,7 @@ import { approvePost } from '../../server/social.ts';
 import { markInterruptedRuns } from '../../server/workflows.ts';
 import { markInterruptedRoutines } from '../../server/routines.ts';
 import { getThread, postUserMessage, queueUserMessage, stopTeam, teamState } from '../../server/teams.ts';
+import { callTool } from '../../server/tools.ts';
 import type { WorkflowRun } from '../../server/store.ts';
 import type { Chat, ChatItem, OutboxPost, RoutineRun, Team } from '../../shared/types.ts';
 
@@ -259,6 +260,36 @@ describe('a cloned team', () => {
       withProject(a, () => stopTeam(team.id));
       withProject(b, () => stopTeam(team.id));
       await releaseUntil(() => !activeRuns().length);
+    }
+  });
+});
+
+describe('conversation tools during a project switch', () => {
+  it('searches and reads the running agent\'s project, even when its clone is open', async () => {
+    const a = await createProject({ name: 'Search run A', mode: 'new', folder: folder('search-run-a') });
+    const member = apiAgent('Search runner');
+    const chat = chats.create(member.id, 'Original chat');
+    const b = (await cloneProject(a.id, 'Search run B')).project;
+    setActiveProject(a.id);
+    const going = startRun(member, chat, 'ORIGINAL_ONLY_PRIVATE');
+    try {
+      await until(() => held.length > 0);
+      setActiveProject(b.id);
+      const copy = chats.get(member.id, chat.id)!;
+      copy.items.push({ type: 'user', text: 'CLONE_ONLY_PRIVATE' });
+      chats.save(copy);
+      const scoped = await callTool(member, 'search_conversations', { query: 'ORIGINAL_ONLY_PRIVATE' }, { runId: going.runId });
+      expect(scoped.isError).toBe(false);
+      expect(scoped.text).toContain('ORIGINAL_ONLY_PRIVATE');
+      expect((await callTool(member, 'search_conversations', { query: 'CLONE_ONLY_PRIVATE' }, { runId: going.runId })).text).toContain('"total":0');
+      expect((await callTool(member, 'read_conversation', { source: 'own', conversationId: chat.id, messageId: '0' }, { runId: going.runId })).text).toContain('ORIGINAL_ONLY_PRIVATE');
+      expect((await callTool(member, 'search_conversations', { query: 'ORIGINAL_ONLY_PRIVATE' })).text).toContain('"total":0');
+      const stranger = apiAgent('Wrong caller');
+      expect((await callTool(stranger, 'search_conversations', { query: 'PRIVATE' }, { runId: going.runId })).isError).toBe(true);
+    } finally {
+      stopChat(chat.id, a.id);
+      await releaseUntil(() => !runInfo(going.runId));
+      await going.promise;
     }
   });
 });

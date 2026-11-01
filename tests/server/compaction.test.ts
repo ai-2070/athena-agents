@@ -334,6 +334,48 @@ describe('seedPrompt() and recall()', () => {
 });
 
 describe('during runs', () => {
+  it('CLI team context is delivered whole in a resumed session and on a fresh seed', async () => {
+    const a = newAgent({ name: 'Team CLI', engine: 'claude-code', toolGroups: [] });
+    const chat = chats.create(a.id, 'Team', 'team-context');
+    chat.sessionId = 'existing';
+    chat.sessionEngine = 'claude-code';
+    const text = words(3000) + ' CRITICAL_LAST_INSTRUCTION';
+    await startRun(a, chat, 'Do the task', { context: [{ id: 'source-1', text, from: 'user', ts: 1 }] }).promise;
+    expect(cli.prompts[0]).toContain(text);
+    expect(cli.sessions[0]).toBe('existing');
+    chat.sessionId = null;
+    delete chat.reseed;
+    await startRun(a, chat, 'Continue', { context: [] }).promise;
+    expect(cli.prompts[1]).toContain(text);
+    expect(chat.items.filter((i) => i.type === 'user' && i.teamMessageId === 'source-1')).toHaveLength(1);
+  });
+
+  it('CLI teams compact imported backlog according to the window even with engine-owned compaction on', async () => {
+    saveSettings({ compaction: { windowTokens: 32000, keepMessages: 2 } });
+    const a = newAgent({ name: 'Team backlog CLI', engine: 'claude-code', toolGroups: [] });
+    const chat = chats.create(a.id, 'Team', 'team-context');
+    const context = Array.from({ length: 50 }, (_,i) => ({ id: `source-${i}`, text: words(1000) + ` TAIL_${i}`, from: 'user', ts: i }));
+    await startRun(a, chat, 'Do the task', { context }).promise;
+    expect(chat.items.some((i) => i.type === 'compaction')).toBe(true);
+    expect(chat.items.some((i) => i.type === 'user' && i.teamMessageId === 'source-0' && i.text.endsWith('TAIL_0'))).toBe(true);
+    expect(cli.prompts[0]).toContain('Do the task');
+    expect(cli.prompts[0]).toContain('<compacted-history>');
+  });
+
+  it('compacts the full saved seed when a native session disappears after reporting small memory', async () => {
+    saveSettings({ compaction: { windowTokens: 32000, keepMessages: 2 } });
+    const a = newAgent({ name: 'Lost team session', engine: 'claude-code', toolGroups: [] });
+    const chat = chats.create(a.id, 'Team', 'team-context');
+    chat.items.push(...history(20, 1000));
+    chat.sessionId = 'gone';
+    chat.sessionEngine = 'claude-code';
+    chat.context = { tokens: 1000, items: chat.items.length, at: 1, by: measuredBy(a) };
+    await startRun(a, chat, 'Continue', { context: [] }).promise;
+    expect(cli.sessions).toEqual(['gone', null]);
+    expect(cli.prompts[1]).toContain('<compacted-history>');
+    expect(chat.items.at(-1)).toMatchObject({ type: 'assistant', text: 'done' });
+  });
+
   it('Claude Code compacts its own session: a full chat goes on in that session, with no compaction here', async () => {
     saveSettings({ compaction: { windowTokens: 20_000, keepMessages: 2 } });
     const a = newAgent({ name: 'Own', engine: 'claude-code', toolGroups: [] });

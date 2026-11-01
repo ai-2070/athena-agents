@@ -338,13 +338,15 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
   const window = await contextWindow(agent, chat);
   // the last-resort cut below compaction: never more than the window holds, never less than before
   const historyChars = Math.max(400_000, window * 3);
+  // Team transcripts are already managed by compaction; never silently trim them a second time.
+  const history = () => chat.teamId ? chat.llm as LlmMessage[] : trimHistory(chat.llm as LlmMessage[], historyChars);
   const toolTokens = estimateTokens(JSON.stringify(defs));
   let measured: { tokens: number; len: number } | null = null;
   let overflowRetried = false;
   const used = (): number => {
     const llm = chat.llm as LlmMessage[];
     if (measured && measured.len <= llm.length) return measured.tokens + estimateTokens(JSON.stringify(llm.slice(measured.len)));
-    return estimateTokens(systemPrompt + checkpointSection(chat.items)) + toolTokens + estimateTokens(JSON.stringify(trimHistory(llm, historyChars)));
+    return estimateTokens(systemPrompt + checkpointSection(chat.items)) + toolTokens + estimateTokens(JSON.stringify(chat.teamId ? llm : trimHistory(llm, historyChars)));
   };
   const compactNow = async (trigger: 'auto' | 'overflow'): Promise<boolean> => {
     if (!compact) return false;
@@ -360,7 +362,7 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
     const body = {
       model,
       // (the compacted history, if any, goes with the instructions: an edit to it counts from the next request)
-      messages: [{ role: 'system', content: systemPrompt + checkpointSection(chat.items) }, ...expandImages(trimHistory(chat.llm as LlmMessage[], historyChars), vision)],
+      messages: [{ role: 'system', content: systemPrompt + checkpointSection(chat.items) }, ...expandImages(history(), vision)],
       stream: true,
       ...(defs.length ? { tools: defs } : {}),
       ...(provider.id === 'openrouter' ? { usage: { include: true } } : { stream_options: { include_usage: true } }),

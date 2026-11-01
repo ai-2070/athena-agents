@@ -222,7 +222,7 @@ flowchart TD
   A3 --> Q
   A4 --> Q
   Q --> PUMP["pump: start a turn for every free agent, one at a time per agent"]
-  PUMP --> TR["runTurn: first-turn briefing, recent digest up to 9000 chars + older previews up to 2000, Addressed-to-you and shared assignments"]
+  PUMP --> TR["runTurn: full transcript entries added to each member's chat, model-aware compaction, Addressed-to-you and shared assignments"]
   TR --> AF["after a turn: its @mentions enqueue, @Brain, #Team relay, else the answer returns to the lead or asker once"]
   AF --> CH{"8 replies in a row that only talk?"}
   CH -->|yes| PAUSE["pause the team and post a system note"]
@@ -234,18 +234,18 @@ flowchart TD
 | turn limit | **none** | "Agents keep handing work to each other until the work is done" |
 | `MAX_CHATTER` | 8 | The only brake: consecutive talk-only turns |
 | `CHATTER_CHARS` | 600 | A reply ≥ this counts as work even with no tool call |
-| `CONTEXT_CHARS` | 9000 | Thread digest cap per turn |
-| `EARLIER_BUDGET` | 2000 | Older previews, including heading and omission counts |
-| `KEEP_MESSAGES` | 500 | Thread retention |
+| Team transcript limits | No fixed character or message-count cap | Full originals retained until cleared or deleted; engine context managed by compaction |
 | `MAX_BRAIN_REPLIES` | 4 | `@Brain` answers per user message |
 | `MAX_RELAYS` / `MAX_RELAY_DEPTH` | 4 / 3 | Team-to-team asks per message, and nesting |
 | `FOLLOW_UPS_MAX` | 2 | Brain re-asks before declaring the work stuck |
 
 Structural facts:
 
-- **One shared thread**, but each agent keeps its **own session per team** (`Team: <name>`) plus a **read
-  mark** (`seen`), so a turn's prompt is a digest of "new since you last spoke" plus the messages addressed
-  to you. Grok Bot reaches the same per-participant view by a different route.
+- **One shared thread**, with each agent's **own session per team** (`Team: <name>`). Full source messages
+  are imported as individual chat entries, deduplicated by stable team message ids. Read marks advance
+  only after successful turns. Existing clipped sessions replay the retained originals once. Engine
+  compaction manages model capacity; `search_conversations` and `read_conversation` retrieve originals
+  across the agent's own chats and member teams. Grok Bot reaches a per-participant view by another route.
 - **Roles are data**: `members`, `lead`, `access` (extra tool groups / MCP for the run), `skills`, `files`,
   `schedule`, `pos` on the Station map.
 - **Routing is a priority ladder** (`routeMessage`): mentions → replied-to author → sole service holder
@@ -292,7 +292,7 @@ bounded follow-up budget**.
 | Cost ceiling per user message | Bounded by construction | Unbounded by design ("no limit on turns") |
 | Peer messaging | Fire-and-forget; no handle, no await; reply arrives as an `[agent]` wake | Handle + `await_agent` (up to 30 min per call), depth 3, stopping the asker stops descendants |
 | Fan-out policy | **Requires** explicit user say-so or a widget first; never while blocked on the user | Not gated by policy; gated by tool risk (`request_tool` → approvals) and the Outbox for outbound posts |
-| Context per participant | One unified conversation carrying DMs and room turns (tagged); sees "since I last spoke" | Shared thread + per-agent session and `seen`; recent digest ≤ 9 000 chars + older previews ≤ 2 000, with explicit shortening and omission counts |
+| Context per participant | One unified conversation carrying DMs and room turns (tagged); sees "since I last spoke" | Full shared messages enter each member's session; model-aware compaction, retained originals and conversation search/read tools |
 | Authority over the roster | Can `CreateAgent` / `UpdateAgent`; **only the user deletes** | The Brain creates and edits agents and teams; deletion is a user action, with version history |
 | Nesting | Groups **cannot** contain groups (throws) | Teams can ask teams, depth ≤ 3, with cycle detection |
 | Overseer | A *primary Bot* that chats and coordinates | The **Brain**: `reviewWork` verdicts, ≤2 follow-ups, `/goal` briefs |
@@ -355,7 +355,7 @@ Almost every advantage on one side is the mirror of a disadvantage on the other.
 | Order is emergent, so duplicates are possible | Prompts disclose other members assigned the same messages, including queued peers, before a batch starts. Agents still split their own work; there is no duplicate detector or enforced ownership. |
 | Cross-project state is *guarded*, not eliminated | The team runtime and the handoff map are still process-global keyed by id, with a project check at each access (`runtime(teamId, pid)`, `h.projectId === activeProject().id`, `teamRunId` = `team:<project>/<team>`). The 2026-10-28 review's findings here are fixed in code; the residual risk is a new call site that forgets the check. |
 | Fan-out is ungated | A team can enqueue every member and spend accordingly; there is no "ask first" policy as with `SendToAgent`. |
-| The thread digest still loses detail | The 9 000-character recent block now has up to 2 000 characters of older previews, reserving the oldest unread preview and counting omitted messages. Text clipped at 2 500 characters is marked too, including addressed text. Prefixes can still miss instructions, and omitted text is not replayed after `seen` advances. |
+| Compacted memory still needs recall | The fixed digest and 500-message retention limits were removed on 1 November. Messages are saved in full, including imported per-member context. Compaction can leave details out of active model memory; agents can search and read the saved originals. An addressed task exceeding the model window fails explicitly rather than being clipped. |
 
 ### Where each one breaks
 

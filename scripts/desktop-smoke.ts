@@ -7,6 +7,7 @@ import os from 'node:os';
 import net from 'node:net';
 import path from 'node:path';
 import { desktopTarget, hostTriple } from './desktop-target.ts';
+import type { Agent, AppState, Chat, ConversationReadResult, ConversationSearchResult } from '../shared/types.ts';
 
 const root = path.resolve(import.meta.dirname, '..');
 const app = path.join(root, 'src-tauri', 'app');
@@ -85,6 +86,28 @@ try {
   const settings = await fetch(base + '/api/settings');
   if (!settings.ok) fail(`/api/settings answered ${settings.status}`);
   console.log('smoke: static files and API ok');
+
+  // Exercise the bundled history module through the same internal endpoint the MCP bridge uses.
+  const state = await (await fetch(base + '/api/state')).json() as AppState;
+  if (path.resolve(state.dataDir) !== path.resolve(data)) fail('the responding server is not using our throwaway data');
+  const headers = { 'content-type': 'application/json', 'x-dash': '1' };
+  const agent = await (await fetch(base + '/api/agents', { method: 'POST', headers, body: JSON.stringify({ name: 'Smoke searcher', toolGroups: [] }) })).json() as Agent;
+  const chat = await (await fetch(base + `/api/agents/${agent.id}/chats`, { method: 'POST', headers, body: '{}' })).json() as Chat;
+  chat.items.push({ type: 'user', text: 'SAVED_CONVERSATION_SMOKE_ORIGINAL' });
+  // The fixture lives only in the verified throwaway project; no model or real agent is started.
+  fs.writeFileSync(path.join(data, 'projects', state.project.id, 'chats', agent.id, `${chat.id}.json`), JSON.stringify(chat));
+  const token = fs.readFileSync(path.join(data, '.internal-token'), 'utf8').trim();
+  const historyTool = async (name: string, args: Record<string, unknown>): Promise<string> => {
+    const response = await fetch(base + '/api/internal/tools/call', { method: 'POST', headers: { ...headers, 'x-dash-internal': token }, body: JSON.stringify({ agent: agent.id, name, args }) });
+    const result = await response.json() as { text: string; isError?: boolean };
+    if (!response.ok || result.isError) fail(`conversation tool ${name} failed: ${result.text}`);
+    return result.text;
+  };
+  const found = JSON.parse(await historyTool('search_conversations', { query: 'SAVED_CONVERSATION_SMOKE_ORIGINAL', scope: 'own' })) as ConversationSearchResult;
+  if (found.hits.length !== 1) fail('the bundled conversation search did not find the saved original');
+  const original = JSON.parse(await historyTool('read_conversation', { ...found.hits[0] })) as ConversationReadResult;
+  if (original.text !== 'SAVED_CONVERSATION_SMOKE_ORIGINAL') fail('the bundled conversation reader changed the original');
+  console.log('smoke: conversation search and read ok');
 
   // the bridge, as Claude Code would start it: one MCP initialize request over stdio
   const bridge = Bun.spawn([bun, path.join(app, 'server', 'mcp-bridge.js')], {

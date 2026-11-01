@@ -20,7 +20,7 @@ import * as compaction from '../compaction.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { richFor, richSection } from '../richanswers.ts';
-import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent } from '../../shared/types.ts';
+import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent, TeamContextMessage } from '../../shared/types.ts';
 import type { LoopRequest } from '../../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../../shared/queue.ts';
 
@@ -118,6 +118,7 @@ export interface StartRunOptions {
   from?: string | null;
   attachments?: string[];
   parentRunId?: string | null;
+  context?: TeamContextMessage[];
 }
 
 /** What a team adds while an agent works for it (tools, MCP servers, skills). */
@@ -136,6 +137,7 @@ export interface AskAgentOptions {
   signal?: AbortSignal | null;
   extra?: AskAgentExtra | null;
   attachments?: string[];
+  context?: TeamContextMessage[];
 }
 
 const ENGINES = { 'claude-code': claude, openai, hermes, codex, pi, omp, openclaw } satisfies { [K in EngineId]: Engine<EngineStatus[K]> };
@@ -243,6 +245,7 @@ export function buildSystemPrompt(agent: Agent): string {
     memoryContext(agent),
     worldPrompt(tools),
     skillsPrompt(agent),
+    'Use search_conversations to find earlier work in your own chats or your teams\' shared conversations in this project. Use read_conversation on a search hit to read the saved original; continue with nextOffset until you have the text you need. Search past decisions before guessing about earlier work.',
     accountsPrompt(agent.mcpServers || []),
     `\n# Where you are
 You are one of several agents on the user's personal dashboard, running on their Windows PC (user folder ${HOME}).
@@ -263,7 +266,7 @@ function pushItem<T extends ChatItem>(chat: Chat, item: T): T {
 // Start answering a message in a chat. Returns immediately with the run id.
 // The run belongs to the project it starts in (see withProject): opening another project meanwhile
 // doesn't move its chat, tool calls or files there.
-export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
+export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null, context }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
   if (closing) throw new Error('The dashboard is stopping.');
   const project = activeProject();
   const key = chatKey(project.id, chat.id);
@@ -284,8 +287,24 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       if (!chat._deleted) chats.save(chat);
     });
 
+  const reset = chat.items.findLastIndex((i) => i.type === 'meta' && i.reset);
+  const imported = new Set(chat.items.slice(reset + 1).flatMap((i) => i.type === 'user' && i.teamMessageId ? [i.teamMessageId] : []));
+  const added: TeamContextMessage[] = [];
+  const restoreApi = !!context && agent.engine === 'openai' && !chat.llm?.length;
+  chat.llm ||= [];
+  for (const m of context || []) {
+    if (imported.has(m.id)) continue;
+    imported.add(m.id);
+    added.push(m);
+  }
+  for (const m of added) {
+    pushItem(chat, { type: 'user', text: m.text, from: m.from, ts: m.ts, teamMessageId: m.id });
+    // Preserve the API engine's tool history; only the new transcript entries are appended.
+    if (agent.engine === 'openai') chat.llm.push({ role: 'user', content: m.text });
+  }
   // the chat shows what was written (with the files as chips); the agent also gets where the files are
   pushItem(chat, { type: 'user', text, from, ...(attachments.length ? { attachments } : {}) });
+  if (restoreApi) chat.llm = compaction.llmFromItems(chat.items);
   if (chat.title === 'New chat') chat.title = (text || attachmentNames(attachments)).replace(/\s+/g, ' ').slice(0, 60) || 'New chat';
   persist();
   const send = (event: RunEvent) => emit('run', { runId, agentId: agent.id, chatId: chat.id, event });
@@ -362,8 +381,15 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       // sessions too; with that switched off (Settings > Chat memory) they compact here, before the run,
       // and start a new session from the compacted history.
       const cli = agent.engine !== 'openai';
+      if (cli && context && !chat.sessionId) chat.reseed = true;
       const settings = compaction.compactionSettings();
-      if (cli && settings.auto && !compaction.engineCompacts(agent, settings)) {
+      if (context) {
+        const window = await compaction.contextWindow(agent, chat);
+        if (compaction.estimateTokens(systemPrompt + prompt) > window * 0.85) {
+          throw new Error('The addressed team messages exceed this model\'s context window. Use a larger-context model or split the request. The full messages remain saved and searchable.');
+        }
+      }
+      if (cli && settings.auto && (context || !compaction.engineCompacts(agent, settings))) {
         const window = await compaction.contextWindow(agent, chat);
         if (compaction.memoryTokens(chat, agent, systemPrompt) >= compaction.compactAt(window, settings)) await compact({ trigger: 'auto' }).catch(() => null);
       }
@@ -388,7 +414,23 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       const memoryNote = !chat.reseed && chat.sessionId && (agent.engine === 'codex' || agent.engine === 'hermes' || agent.engine === 'openclaw') && memoryAt > (chat.memoryAt || 0) ? `<memory-update>\nYour MEMORY.md changed since your last message here. It now says:\n${readMemory(agent.id).trim() || '(empty)'}\n</memory-update>\n\n` : '';
       chat.memoryAt = memoryAt;
       // (prompt: the message with its attachments, as the engine gets it)
-      const seeded = async () => (cli && chat.reseed ? compaction.seedPrompt(chat.items, prompt, await compaction.contextWindow(agent, chat)) : memoryNote + prompt);
+      const seeded = async () => {
+        if (!cli) return prompt;
+        const window = await compaction.contextWindow(agent, chat);
+        let input = chat.reseed
+          ? compaction.seedPrompt(chat.items, prompt, window, !!context)
+          : memoryNote + (added.length ? `${added.map((m) => m.text).join('\n\n')}\n\n` : '') + prompt;
+        // A native session can disappear after reporting small compacted memory. Its full saved seed
+        // may be much larger, so measure that seed too before restoring it.
+        if (context && chat.reseed && settings.auto && compaction.estimateTokens(systemPrompt + input) > window * 0.85) {
+          await compact({ trigger: 'auto' });
+          input = compaction.seedPrompt(chat.items, prompt, window, true);
+        }
+        if (context && compaction.estimateTokens(systemPrompt + input) > window * 0.85) {
+          throw new Error('The full team context does not fit this model. Enable chat compaction or use a larger-context model. No team messages were discarded.');
+        }
+        return input;
+      };
       const go = async () => engine.run({ agent, chat, text: await seeded(), signal: controller.signal, onEvent, depth, runId, systemPrompt, attachments, compact });
       let result: EngineResult;
       try {
@@ -420,6 +462,11 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     } catch (e) {
       const stopped = controller.signal.aborted;
       failed = !stopped;
+      // A failed CLI turn may never have received its imported messages. Replay saved memory on retry.
+      if (context && agent.engine !== 'openai') {
+        chat.sessionId = null;
+        chat.reseed = true;
+      }
       const msg = stopped ? (entry.steered ? 'Stopped to take your new message.' : 'Stopped.') : (e as Error).message || String(e);
       for (const it of chat.items) if (it.type === 'tool' && it.status === 'running') Object.assign(it, { status: 'error', isError: true, result: stopped ? '(stopped)' : '(did not finish)' });
       pushItem(chat, { type: 'error', text: msg });
@@ -809,14 +856,14 @@ export function forgetChat(chatId: string, projectId: string = here()) {
 
 // Used by ask_agent and workflows: run to completion in a fresh chat, return the answer.
 // extra: tool groups / MCP servers added for this run only (a branch's access).
-export async function askAgent(agent: Agent, message: string, { depth = 1, from = null, title = null, chatId = null, parentRunId = null, signal = null, extra = null, attachments = [] }: AskAgentOptions = {}): Promise<string> {
+export async function askAgent(agent: Agent, message: string, { depth = 1, from = null, title = null, chatId = null, parentRunId = null, signal = null, extra = null, attachments = [], context }: AskAgentOptions = {}): Promise<string> {
   if (signal?.aborted) throw new RunStopped();
   let fresh = agentStore.get(agent.id) || agent;
   // extra: what a team adds while the agent works for it (tools, MCP servers, skills)
   // (the team's copy of a service, its account, replaces the agent's own copies of it)
   if (extra) fresh = { ...fresh, toolGroups: [...new Set([...(fresh.toolGroups || []), ...(extra.toolGroups || [])])], mcpServers: teamWorkServers(fresh.mcpServers || [], extra.mcpServers || []), _teamSkills: extra.skills || [] };
   const chat = (chatId && chats.get(fresh.id, chatId)) || chats.create(fresh.id, title || (from ? `Asked by ${from}` : 'Task'));
-  const { runId, promise, signal: runSignal } = startRun(fresh, chat, message, { depth, from, parentRunId, attachments });
+  const { runId, promise, signal: runSignal } = startRun(fresh, chat, message, { depth, from, parentRunId, attachments, context });
   const onAbort = () => stopRun(runId);
   signal?.addEventListener('abort', onAbort);
   try {

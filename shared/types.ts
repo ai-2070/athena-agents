@@ -275,13 +275,64 @@ export interface Project {
 
 // ---------- chats ----------
 export type ChatItem =
-  | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number }
+  | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number; teamMessageId?: string }
   | { type: 'assistant'; text: string; ts?: number }
   | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number }
   | { type: 'error'; text: string; ts?: number }
   /** reset: "Clear memory" (the agent starts fresh after it) */
   | { type: 'meta'; text: string; ts?: number; reset?: boolean }
   | CompactionItem;
+
+/** Full messages imported from the team's shared transcript before a member answers. */
+export interface TeamContextMessage {
+  id: string;
+  text: string;
+  from: string;
+  ts: number;
+}
+
+export interface ConversationSearch {
+  query: string;
+  scope?: 'own' | 'team' | 'all';
+  teamId?: string;
+  offset?: number;
+  limit?: number;
+}
+
+export interface ConversationHit {
+  source: 'own' | 'team';
+  conversationId: string;
+  title: string;
+  messageId: string;
+  author: string;
+  ts: number;
+  excerpt: string;
+}
+
+export interface ConversationRead {
+  source: 'own' | 'team';
+  conversationId: string;
+  messageId: string;
+  offset?: number;
+  limit?: number;
+}
+
+export interface ConversationSearchResult {
+  hits: ConversationHit[];
+  total: number;
+  nextOffset: number | null;
+}
+
+export interface ConversationReadResult {
+  source: 'own' | 'team';
+  conversationId: string;
+  messageId: string;
+  title: string;
+  text: string;
+  totalChars: number;
+  offset: number;
+  nextOffset: number | null;
+}
 
 /** How a compaction was made. instant: the original words, cut to fit (no model call). summary: a model
  *  wrote a summary. engine: the engine compacted its own memory (Claude Code), so there is no text here. */

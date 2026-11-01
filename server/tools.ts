@@ -169,6 +169,36 @@ const TOOLS: ToolDef[] = [
   },
   // ---------- chat history (every agent; what a compaction left out) ----------
   {
+    name: 'search_conversations',
+    group: 'core',
+    risk: 'none',
+    description: 'Search saved original messages and tool results across your own past chats and the shared conversations of teams you belong to, in this project only. All search words must match the same entry, ignoring case. Returns message references and excerpts; use read_conversation for the original text. Cleared or deleted chats are not searched.',
+    parameters: obj({ query: str('Words to find'), scope: { type: 'string', enum: ['own', 'team', 'all'], description: 'Default all: your own chats and teams you belong to' }, teamId: str('Optional: limit team searches to this team id'), offset: { type: 'number', description: 'Next result offset from a previous page' }, limit: { type: 'number', description: 'Results per page, up to 20; default 10' } }, ['query']),
+    run: async (args, ctx) => {
+      const { searchConversations } = await import('./conversations.ts');
+      const { runInfo } = await import('./engines/index.ts');
+      const { activeProject, withProject } = await import('./store.ts');
+      const run = runInfo(ctx.runId);
+      if (ctx.runId && (!run || run.agentId !== ctx.agent.id)) return { text: 'That run is not available to you.', isError: true };
+      return withProject(run?.project || activeProject(), () => ({ text: JSON.stringify(searchConversations(ctx.agent.id, args as unknown as import('../shared/types.ts').ConversationSearch)) }));
+    },
+  },
+  {
+    name: 'read_conversation',
+    group: 'core',
+    risk: 'none',
+    description: 'Read an original message found by search_conversations, including text left out by compaction. Pass its source, conversationId and messageId. A long message has explicit character pages: keep reading with nextOffset until it is null. Only your own chats and teams you belong to in this project are available.',
+    parameters: obj({ source: { type: 'string', enum: ['own', 'team'] }, conversationId: str('Conversation id from a search hit'), messageId: str('Message id from a search hit, or a team message reference'), offset: { type: 'number', description: 'Character offset, default 0' }, limit: { type: 'number', description: 'Characters to read, default 8000, maximum 16000' } }, ['source', 'conversationId', 'messageId']),
+    run: async (args, ctx) => {
+      const { readConversation } = await import('./conversations.ts');
+      const { runInfo } = await import('./engines/index.ts');
+      const { activeProject, withProject } = await import('./store.ts');
+      const run = runInfo(ctx.runId);
+      if (ctx.runId && (!run || run.agentId !== ctx.agent.id)) return { text: 'That run is not available to you.', isError: true };
+      return withProject(run?.project || activeProject(), () => ({ text: JSON.stringify(readConversation(ctx.agent.id, args as unknown as import('../shared/types.ts').ConversationRead)) }));
+    },
+  },
+  {
     name: 'recall_history',
     group: 'core',
     risk: 'none',

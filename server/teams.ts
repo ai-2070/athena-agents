@@ -14,7 +14,7 @@ import { askAgent, stopChat, stopChildren, forgetChat, RunStopped } from './engi
 import { isStepList, teamSteps, parseTeamRefs, teamFrom, fromTeam } from '../shared/teams.ts';
 import { attachmentNames, cleanAttachments } from './uploads.ts';
 import { soleHolder, servicesOf } from './services.ts';
-import { teamDigest, teamMessage } from './teamdigest.ts';
+import { teamMessage } from './teamcontext.ts';
 import type { Agent, LoopInfo, QueuedMessage, Team, TeamMessage, TeamRef, TeamRelay, TeamState } from '../shared/types.ts';
 import type { LoopRequest } from '../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../shared/queue.ts';
@@ -23,7 +23,6 @@ import { queuedEdit, reorderQueued } from '../shared/queue.ts';
 // where agents only talk (no tool used, a short reply), like two agents thanking each other forever.
 export const MAX_CHATTER = 8;
 const CHATTER_CHARS = 600; // a reply this long is work in itself (a draft, a plan), even without tools
-const KEEP_MESSAGES = 500;
 const MAX_BRAIN_REPLIES = 4; // times the Brain answers @Brain per message you send
 const MAX_RELAYS = 4; // times a team asks other teams per message you send
 const MAX_RELAY_DEPTH = 3; // a team asking a team asking a team, at most
@@ -148,12 +147,12 @@ function loadChat(teamId: string, pid?: string): TeamChat {
   return readJSON<TeamChat>(chatFile(teamId, pid), { messages: [], sessions: {}, seen: {} });
 }
 function saveChat(teamId: string, c: TeamChat, pid?: string) {
-  if (c.messages.length > KEEP_MESSAGES) {
-    const cut = c.messages.length - KEEP_MESSAGES;
-    c.messages = c.messages.slice(cut);
-    for (const k of Object.keys(c.seen)) c.seen[k] = Math.max(0, c.seen[k] - cut);
-  }
   writeJSON(chatFile(teamId, pid), c);
+}
+
+/** Full saved transcript. Callers must check team membership before exposing it to an agent. */
+export function teamMessages(teamId: string): TeamMessage[] {
+  return loadChat(teamId).messages;
 }
 
 // ---------- who is working ----------
@@ -644,19 +643,24 @@ async function runTurn(team: Team, item: QueueItem) {
   const c = loadChat(team.id);
   // the agent's own memory of this team: one chat session per agent per team
   let chatId = c.sessions[agent.id];
+  let created = false;
   if (!chatId || !chats.get(agent.id, chatId)) {
     chatId = chats.create(agent.id, `Team: ${team.name}`, team.id).id;
     c.sessions[agent.id] = chatId;
+    created = true;
   }
-  const first = c.seen[agent.id] == null;
-  const fresh = c.messages.slice(c.seen[agent.id] || 0).filter((m) => m.from !== agent.id);
+  const first = created || c.seen[agent.id] == null;
+  // Stable source ids survive compaction. Older clipped sessions import the retained transcript once.
+  const history = chats.get(agent.id, chatId)?.items || [];
+  const reset = history.findLastIndex((i) => i.type === 'meta' && i.reset);
+  const imported = new Set(history.slice(reset + 1).flatMap((i) => i.type === 'user' && i.teamMessageId ? [i.teamMessageId] : []));
+  const fresh = c.messages.filter((m) => !imported.has(m.id));
   const name = (m: TeamMessage) => {
     const id = m.from;
     if (m.relay) return m.relay.answers ? `#${m.relay.teamName} answered (${m.relay.byName} there)` : `#${m.relay.teamName} asks your team (${m.relay.byName} there)`;
     return id === 'user' ? 'You (the user)' : id === 'system' ? 'System' : id === BRAIN ? 'The Brain (overseer)' : `@${agents.get(id)?.name || 'someone'}`;
   };
   const said = (m: TeamMessage) => teamMessage(m, name);
-  const digest = teamDigest(fresh, name);
   const forYou = c.messages.filter((m) => item.msgIds.includes(m.id)).map(said).join('\n\n');
   // the team's files go to the engine once per agent (so models that can't open files get them too), new ones when added;
   // plus what the user attached since this agent last read
@@ -665,8 +669,6 @@ async function runTurn(team: Team, item: QueueItem) {
   const given = new Set(c.filesSent?.[agent.id] || []);
   const newTeamFiles = teamFiles.filter((f) => !given.has(f));
   const attachments = cleanAttachments([...new Set([...newTeamFiles, ...[...fresh, ...c.messages.filter((m) => item.msgIds.includes(m.id))].flatMap((m) => m.attachments || [])])]);
-  c.seen[agent.id] = c.messages.length;
-  c.filesSent = { ...c.filesSent, [agent.id]: teamFiles };
   saveChat(team.id, c);
   const filesNote = newTeamFiles.length
     ? `The team's reference files from the user (${attachmentNames(newTeamFiles)}) are attached at the end.\n\n`
@@ -674,14 +676,22 @@ async function runTurn(team: Team, item: QueueItem) {
   const assigned = [...(runtime(team.id).current?.values() || []), ...runtime(team.id).queue];
   const peers = [...new Set(assigned.filter((q) => q.agentId !== agent.id && team.members.includes(q.agentId) && q.msgIds.some((id) => item.msgIds.includes(id))).map((q) => q.agentId))];
   const peersNote = peers.length ? `Other members assigned this message: ${peers.map((id) => `@${agents.get(id)?.name || 'someone'}`).join(', ')}. Do your own part; avoid duplicating theirs.\n\n` : '';
-  const prompt = `${first ? `${briefing(team, agent)}\n\n` : ''}${filesNote}New in the team chat since you last spoke:\n\n${digest.trim() || '(nothing new)'}\n\n---\nAddressed to you:\n${forYou}\n\n${peersNote}${TURN_ASK}`;
+  const prompt = `${first ? `${briefing(team, agent)}\n\n` : ''}${filesNote}The shared team messages are in your conversation history, with their original text and [team message id] references. Use search_conversations and read_conversation to find and read earlier conversations after compaction.\n\n---\nAddressed to you:\n${forYou}\n\n${peersNote}${TURN_ASK}`;
   // (where this turn starts in the agent's session: the team chat shows its work, live and afterwards)
   const from = chats.get(agent.id, chatId)?.items.length ?? 0;
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'start', chatId } });
   let text = '';
   let stopped = false;
   try {
-    text = await askAgent(agent, prompt, { depth: 1, from: `team ${team.name}`, chatId, parentRunId: teamRunId(team.id), extra: { ...(team.access || {}), skills: [...new Set([...(team.skills || []), ...item.skills])] }, attachments });
+    text = await askAgent(agent, prompt, { depth: 1, from: `team ${team.name}`, chatId, parentRunId: teamRunId(team.id), extra: { ...(team.access || {}), skills: [...new Set([...(team.skills || []), ...item.skills])] }, attachments,
+      context: fresh.map((m) => ({ id: m.id, text: said(m), from: name(m), ts: m.ts })) });
+    // Read marks and file delivery only advance after a successful turn, never on a failed request.
+    const delivered = loadChat(team.id, pid);
+    if (runtime(team.id).epoch === epoch && delivered.sessions[agent.id] === chatId) {
+      delivered.seen[agent.id] = c.messages.length;
+      delivered.filesSent = { ...delivered.filesSent, [agent.id]: teamFiles };
+      saveChat(team.id, delivered, pid);
+    }
   } catch (e) {
     // you stopped this agent's turn: say so in the thread, and hand nothing on
     stopped = e instanceof RunStopped;
