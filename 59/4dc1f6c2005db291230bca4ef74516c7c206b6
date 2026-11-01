@@ -1,0 +1,25 @@
+web/phosphor.ts
+  s_57c675cb3340e9::t_71503bb5391706 26,190
+web/schedule.tsx
+  s_57c675cb3340e9::t_6c6cc87afa80ef 47-49
+web/ui/timepicker.tsx
+  s_57c675cb3340e9::t_10d97e8e7e559a 49,60-61,66
+web/views/routines.tsx
+  s_57c675cb3340e9::t_1853c1d4a71dc7 144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "594dc1f6c2005db291230bca4ef74516c7c206b6",
+  "prompts": {},
+  "sessions": {
+    "s_57c675cb3340e9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19923-964d-73a1-aa94-f5a5587530e9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
