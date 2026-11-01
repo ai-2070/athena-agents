@@ -51,6 +51,8 @@ export function durableApproval(operationId: string): DurableApprovalRecord | nu
   return durableById(durableId(operationId));
 }
 
+export const approvalFingerprint = (request: ApprovalRequest): string => canonical({ project: activeProject().id, agent: request.agentId || null, kind: request.kind || 'tool', data: request.data || {} });
+
 export function cancelDurableApproval(operationId: string, message: string): void {
   const saved = durableApproval(operationId);
   if (saved) restoreDurable(saved);
@@ -85,7 +87,7 @@ function restoreDurableApprovals() {
 /** Persist a request without waiting in an ordinary tool executor. Eve parks the call itself. */
 export function ensureDurableApproval(operationId: string, request: ApprovalRequest): DurableApprovalRecord {
   const id = durableId(operationId);
-  const fingerprint = canonical({ project: activeProject().id, agent: request.agentId || null, kind: request.kind || 'tool', data: request.data || {} });
+  const fingerprint = approvalFingerprint(request);
   const existing = durableById(id);
   if (existing) {
     if (existing.fingerprint !== fingerprint) throw new Error('The approval does not match this operation.');

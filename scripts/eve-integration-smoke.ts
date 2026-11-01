@@ -26,6 +26,10 @@ const { deliverApprovalDecisions, eveClient, reconcileSnapshot, recoverEveRuns, 
 const { decide, listApprovals } = await import('../server/approvals.ts');
 const { answerQuestion, waitingQuestions } = await import('../server/questions.ts');
 const { dataPath } = await import('../server/util.ts');
+const { callTool } = await import('../server/tools.ts');
+const { shownWorld } = await import('../server/voxel/link.ts');
+const { setOpenPages } = await import('../server/voxel/look.ts');
+setOpenPages(() => 0);
 let requests = 0;
 const model = http.createServer(async (request, response) => {
   try {
@@ -37,13 +41,19 @@ const model = http.createServer(async (request, response) => {
     assert(Array.isArray(body.tools));
     const writing = JSON.stringify(body.messages).includes('DURABLE_WRITE_PROOF');
     const asking = JSON.stringify(body.messages).includes('DURABLE_QUESTION_PROOF');
-    const toolName = writing ? 'write_file' : asking ? 'ask_user' : 'list_agents';
+    const granting = JSON.stringify(body.messages).includes('DURABLE_ACCESS_PROOF');
+    const building = JSON.stringify(body.messages).includes('DURABLE_OWNER_PROOF');
+    const looking = JSON.stringify(body.messages).includes('DURABLE_LOOK_PROOF');
+    const toolName = writing ? 'write_file' : asking ? 'ask_user' : granting ? 'request_tool' : building ? 'world_build' : looking ? 'world_look' : 'list_agents';
     const offered = body.tools.find((tool: unknown) => typeof tool === 'object' && tool !== null && 'function' in tool && typeof tool.function === 'object' && tool.function !== null && 'name' in tool.function && typeof tool.function.name === 'string' && tool.function.name.endsWith(toolName)) as { function: { name: string } } | undefined;
     assert(offered, 'The selected Athena tool must be available.');
     requests++;
-    const completed = JSON.stringify(body.messages).includes(writing ? 'Wrote ' : asking ? 'The user answered' : 'Integration peer');
+    const completed = Array.isArray(body.messages) && body.messages.some((message: unknown) => !!message && typeof message === 'object' && 'role' in message && message.role === 'tool');
+    const args = writing ? { path: 'approved.txt', content: 'saved once' } : asking ? { question: 'Pick a colour', choices: ['Blue', 'Red'] }
+      : granting ? { tools: 'shell', why: 'Run the requested build' }
+        : building ? { object: 'Shared integration bench', steps: [{ box: [2, 2, 2], use: 'stone' }] } : {};
     const delta = completed ? { content: 'ATHENA_INTEGRATION_REPLY' }
-      : { tool_calls: [{ index: 0, id: 'integration-call', type: 'function', function: { name: offered.function.name, arguments: writing ? '{"path":"approved.txt","content":"saved once"}' : asking ? '{"question":"Pick a colour","choices":["Blue","Red"]}' : '{}' } }] };
+      : { tool_calls: [{ index: 0, id: 'integration-call', type: 'function', function: { name: offered.function.name, arguments: JSON.stringify(args) } }] };
     response.writeHead(200, { 'content-type': 'text/event-stream' });
     response.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`);
     response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: completed ? 'stop' : 'tool_calls' }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } })}\n\ndata: [DONE]\n\n`);
@@ -82,18 +92,25 @@ try {
   assert(!JSON.stringify(recorded).includes('integration-key'));
   setRunStatus('integration-run', 'completed', delivery.deliveryId);
   console.log('eve integration: private Bun process, saved binding, Athena tool routing and replay-safe event projection ok');
-  for (const kind of ['approval', 'question', 'stop'] as const) {
+  for (const kind of ['approval', 'question', 'access', 'ownership', 'look', 'stop'] as const) {
     console.log(`eve integration: testing ${kind} recovery`);
     const workspace = path.join(temporary, kind);
     fs.mkdirSync(workspace);
-    const owner = agents.save(newAgent({ name: `Durable ${kind}`, provider: 'custom', model: 'integration-proof', toolGroups: ['files'], autonomy: 'ask', workspace, mcpServers: [], richAnswers: false }));
+    const owner = agents.save(newAgent({ name: `Durable ${kind}`, provider: 'custom', model: 'integration-proof', toolGroups: kind === 'ownership' || kind === 'look' ? ['world'] : ['files'], autonomy: kind === 'access' || kind === 'look' ? 'full' : 'ask', workspace, mcpServers: [], richAnswers: false }));
+    saveSettings({ brainApproves: false });
+    if (kind === 'ownership') {
+      const builder = newAgent({ name: 'Original integration builder', toolGroups: ['world'], autonomy: 'full' });
+      assert.equal((await callTool(builder, 'world_build', { object: 'Shared integration bench', steps: [{ box: [1, 1, 1], use: 'wood' }] })).isError, false);
+    }
+    if (kind === 'look') saveSettings({ look: { stationLook: 'classic' } });
     const conversation = chats.create(owner.id, `Durable ${kind}`);
     const saved = bindSession(owner, conversation, project, 'proof');
     const runId = `durable-${kind}`;
     beginRun(runId, saved.id);
     setRunStatus(runId, 'running');
     const transport = eveClient(host, saved.id);
-    const { session, delivery: pending } = await transport.sessions.create({ message: kind === 'question' ? 'DURABLE_QUESTION_PROOF' : 'DURABLE_WRITE_PROOF', signal: AbortSignal.timeout(30000) });
+    const prompt = { approval: 'DURABLE_WRITE_PROOF', question: 'DURABLE_QUESTION_PROOF', access: 'DURABLE_ACCESS_PROOF', ownership: 'DURABLE_OWNER_PROOF', look: 'DURABLE_LOOK_PROOF', stop: 'DURABLE_WRITE_PROOF' }[kind];
+    const { session, delivery: pending } = await transport.sessions.create({ message: prompt, signal: AbortSignal.timeout(30000) });
     setRunStatus(runId, 'running', pending.deliveryId);
     for await (const event of pending.stream({ signal: AbortSignal.timeout(30000) })) projectEvent(runId, event);
     console.log(`eve integration: ${kind} parked`);
@@ -101,6 +118,7 @@ try {
     reconcileSnapshot(runId, paused);
     assert.equal(readRun(runId)?.status, 'waiting');
     assert(!fs.existsSync(path.join(workspace, 'approved.txt')), 'No file may be written before consent.');
+    if (kind === 'access') assert(!agents.get(owner.id)?.toolGroups.includes('shell'));
     if (kind === 'stop') await stopEveRun(runId);
     await host.close();
     host = await startEveHost({ executable: process.execPath, entry: path.join(root, 'runtime/eve/.output/launch.mjs'), templates: path.join(root, 'runtime/eve/.eve/sandbox-cache'), directory: dataPath('runtime/eve/worker'), bridgeUrl: bridge.url, bridgeToken: bridge.token });
@@ -113,9 +131,11 @@ try {
       assert(!listApprovals().some((item) => item.data.runId === runId));
       continue;
     }
-    if (kind === 'approval') {
+    if (kind !== 'question') {
       const request = listApprovals().find((item) => item.data.runId === runId);
       assert(request, 'The original Athena approval must survive restart.');
+      if (kind === 'access') assert.equal(request.kind, 'tools');
+      if (kind === 'look') assert.equal(request.kind, 'setting');
       assert(decide(request.id, { approved: true }));
     } else {
       const question = waitingQuestions().find((item) => item.runId === runId);
@@ -134,9 +154,15 @@ try {
     assert.equal(readRun(runId)?.events.filter((item) => item.event.kind === 'tool').length, 1);
     assert.equal(readRun(runId)?.events.filter((item) => item.event.kind === 'tool_result').length, 1);
     if (kind === 'approval') assert.equal(fs.readFileSync(path.join(workspace, 'approved.txt'), 'utf8'), 'saved once');
+    if (kind === 'access') assert(agents.get(owner.id)?.toolGroups.includes('shell'));
+    if (kind === 'ownership') assert.equal(shownWorld().world?.objects.find((item) => item.name === 'Shared integration bench')?.volumes.reduce((sum, volume) => sum + volume.count, 0), 8);
+    if (kind === 'look') {
+      const { getSettings } = await import('../server/store.ts');
+      assert.equal(getSettings().look.stationLook, 'world');
+    }
   }
-  assert.equal(requests, 7, 'Stopped work must not make another model call.');
-  console.log('eve integration: approval and Outbox answer survive immediate restart; stopped work stays stopped');
+  assert.equal(requests, 13, 'Stopped work must not make another model call.');
+  console.log('eve integration: tool, access, ownership, setting and Outbox waits survive immediate restart; stopped work stays stopped');
 } finally {
   await host?.close();
   await bridge.close();

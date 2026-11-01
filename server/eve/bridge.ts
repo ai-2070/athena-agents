@@ -7,8 +7,9 @@ import { providerOf } from '../providers.ts';
 import { contextWindow } from '../compaction.ts';
 import { getSettings, questions, withProject } from '../store.ts';
 import { addQuestion, answerResult } from '../questions.ts';
-import { callTool, gate, needsApproval, riskOf, toolApprovalName, toolApprovalRequest } from '../tools.ts';
-import { durableApproval, ensureDurableApproval } from '../approvals.ts';
+import { callTool, gate, needsApproval, toolApprovalPlan, toolApprovalRequest } from '../tools.ts';
+import { approvalFingerprint, cancelDurableApproval, durableApproval, ensureDurableApproval } from '../approvals.ts';
+import type { ApprovalRequest } from '../approvals.ts';
 import * as mcp from '../mcp.ts';
 import { activeEveRuns, attachSession, readRun, recordConfiguration, sessionContext, setRunStatus } from './state.ts';
 import { executeOperation, operationId, prepareOperation, readOperation, saveOperation } from './operations.ts';
@@ -63,9 +64,13 @@ export async function eveToolPolicy(bindingId: string, sessionId: string, runId:
     if (!target) throw new Error('This tool is no longer available to the agent.');
     const fresh = invocationContext(bindingId, sessionId, runId);
     if (target.kind === 'mcp' && (!fresh.agent.mcpServers.includes(target.server) || !mcp.isEnabled(target.server))) throw new Error('This MCP account is no longer available to the agent.');
-    const risk = target.kind === 'builtin' ? riskOf(target.name, args) : target.risk;
+    const edited = durableApproval(operationId(bindingId, sessionId, runId, callId))?.decision?.edited;
+    const effective = edited !== null && typeof edited === 'object' && !Array.isArray(edited) ? edited as Record<string, unknown> : args;
+    const context = { runId: run.id, approvalArgs: args };
+    const plan = target.kind === 'builtin' ? await toolApprovalPlan(fresh.agent, target.name, effective, context)
+      : { risk: target.risk, requests: needsApproval(fresh.agent, target.risk, name) ? [toolApprovalRequest(fresh.agent, name, effective, { ...context, mcpServer: target.server })] : [] };
     const origin = target.kind === 'builtin' ? `builtin:${target.name}` : `mcp:${target.server}:${target.name}`;
-    const operation = prepareOperation({ runId: run.id, bindingId, sessionId, callId, name, args, origin, risk });
+    const operation = prepareOperation({ runId: run.id, bindingId, sessionId, callId, name, args, origin, risk: plan.risk });
     if (operation.status === 'running') return { status: 'approved' };
     if (target.kind === 'builtin' && target.name === 'ask_user') {
       const question = addQuestion({ question: String(args.question || ''), detail: typeof args.detail === 'string' ? args.detail : undefined, choices: args.choices, agentId: agent.id, chatId: fresh.binding.chatId, runId: run.id, operationId: operation.id });
@@ -73,11 +78,23 @@ export async function eveToolPolicy(bindingId: string, sessionId: string, runId:
       if (question.status === 'waiting') setRunStatus(run.id, 'waiting');
       return { status: question.status === 'waiting' ? 'user-approval' : 'approved' };
     }
-    const approvalName = target.kind === 'builtin' ? toolApprovalName(target.name, args) : name;
-    if (needsApproval(fresh.agent, risk, approvalName) || operation.approvalId) {
-      const request = toolApprovalRequest(fresh.agent, approvalName, args, { runId: run.id, operationId: operation.id, ...(target.kind === 'mcp' ? { mcpServer: target.server } : {}) });
+    if (plan.requests.length || operation.approvalId) {
+      const checks = plan.requests.map(approvalFingerprint);
+      if (operation.approvalChecks && checks.some((check) => !operation.approvalChecks!.includes(check))) {
+        cancelDurableApproval(operation.id, 'The tool target or required consent changed.');
+        saveOperation({ ...operation, status: 'cancelled' });
+        return { status: 'denied', reason: 'The tool target or required consent changed. Make a new call for the current target.' };
+      }
+      const previous = operation.approvalId ? durableApproval(operation.id) : null;
+      if (operation.approvalId && !previous) throw new Error('The saved consent is missing.');
+      // One native wait covers every check; the executor verifies each individual boundary again.
+      const request: ApprovalRequest = previous?.item || (plan.requests.length === 1 ? plan.requests[0]! : {
+        ...toolApprovalRequest(fresh.agent, name, args, context),
+        detail: plan.requests.map((item) => `${item.title}\n${item.detail || ''}`).join('\n\n'),
+        data: { tool: name, args, runId: run.id, checks },
+      });
       const approval = ensureDurableApproval(operation.id, request);
-      saveOperation({ ...operation, approvalId: approval.id, status: approval.decision ? approval.decision.approved ? 'prepared' : 'cancelled' : 'waiting' });
+      saveOperation({ ...operation, approvalChecks: operation.approvalChecks || checks, approvalId: approval.id, status: approval.decision ? approval.decision.approved ? 'prepared' : 'cancelled' : 'waiting' });
       if (!approval.decision) {
         setRunStatus(run.id, 'waiting');
         return { status: 'user-approval' };
@@ -108,7 +125,14 @@ export async function eveTool(bindingId: string, sessionId: string, runId: strin
       }
       const edited = durableApproval(id)?.decision?.edited;
       const effective = edited !== null && typeof edited === 'object' && !Array.isArray(edited) ? edited as Record<string, unknown> : args;
-      const context = { runId: run.id, depth: run.depth, signal, operationId: id, approvalArgs: args };
+      const context = { runId: run.id, depth: run.depth, signal, operationId: id, approvalArgs: args,
+        approvalDecision: async (request: ApprovalRequest) => {
+          const saved = readOperation(id);
+          const decision = durableApproval(id)?.decision;
+          if (signal?.aborted || !['running', 'waiting'].includes(readRun(run.id)?.status || '') || !saved?.approvalChecks?.includes(approvalFingerprint(request)) || !decision?.approved) return { approved: false, message: 'This action is not covered by the saved approval. Make a new call for the current target.' };
+          return { ...decision, always: saved.approvalChecks.length === 1 && decision.always };
+        },
+      };
       if (target.kind === 'builtin') return callTool(fresh.agent, target.name, effective, context);
       if (!fresh.agent.mcpServers.includes(target.server) || !mcp.isEnabled(target.server)) return { text: 'This MCP account is no longer available.', isError: true, denied: true };
       const refused = await gate(fresh.agent, name, target.risk, effective, { ...context, mcpServer: target.server });

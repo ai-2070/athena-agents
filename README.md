@@ -218,7 +218,8 @@ More: [Troubleshooting](docs/guide.md#troubleshooting).
 The Eve runtime replacement is being developed separately from the current API engine. Building
 the runtime uses Bun 1.4 or newer. `bun run eve:build` builds it and `bun run eve:smoke` checks
 its private HTTP API, tool bridge, idle restart and file inputs with a fake model and throwaway data.
-`bun run eve:integration` also checks Athena's real tool bridge, saved session ownership and events.
+`bun run eve:integration` also checks Athena's real tool bridge, saved session ownership, events,
+and restart during file, tool-access, voxel-ownership, appearance and Outbox approvals.
 These checks do not use your accounts or API keys. Desktop builds use the existing bundled Bun runtime.
 
 Bun runs the TypeScript server and bundles the browser app. The code is strict TypeScript; server and shared modules must also work under Node, because Vitest imports them there. CI uses **Bun 1.4.4** and **Node 24**, and checks Windows and Linux.

@@ -841,6 +841,7 @@ export interface EveToolOperation {
   status: 'prepared' | 'waiting' | 'running' | 'completed' | 'uncertain' | 'cancelled';
   result?: { text: string; isError?: boolean; images?: string[]; denied?: boolean };
   approvalId?: string;
+  approvalChecks?: string[];
   questionId?: string;
   interactionId?: string;
   interactionSettled?: boolean;

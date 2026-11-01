@@ -115,16 +115,26 @@ delivers saved answers with stable Eve input keys, and settles recorded turns on
 before contacting the worker and retires the binding; missing owners and orphaned cross-engine
 children are interrupted. History tools resolve a valid saved run after its in-memory entry is lost.
 
-The integration fixture now restarts the actual Bun worker while waiting for approval or an Outbox
-answer, resumes the original operation, and proves that stopped work cannot write its file. Unit
+Tool-access grants, voxel ownership checks and the Station look setting now use native checkpoints
+too. A read-only consent plan collects the outer gate and nested checks before execution; one
+approval covers the listed checks. Each executor boundary reads the saved decision without
+starting another promise-based approval wait. Consent records bind ownership checks to the
+world, object/prefab or skin target and original arguments. Replacing a named object or editing
+the call toward another target cannot reuse its consent. A combined approval's Always allow
+choice does not silently grant every nested capability permanently. Setting changes still go
+directly to the user, including at Full autonomy. Other engines keep their existing approval flow.
+
+The integration fixture now restarts the actual Bun worker while waiting for a file approval,
+tool-access grant, ownership approval, look setting or Outbox answer. It resumes the original
+operation and proves that stopped work cannot write its file. The six scenarios use thirteen
+fake model requests, including no second request for stopped work. Unit
 tests cover duplicate execution, unknown outcomes, lost approval receipts, expiry, edited consent,
 withdrawal and interrupted Brain review. All state stays in throwaway project/home directories.
 
 Remaining recovery integration belongs with the engine adapter: wire the native coordinator into
 server startup before admitting new runs, restore Athena's native busy state and completion hooks,
-and join recovered Eve runs to their saved agent/team coordination. Nested tool
-approval paths (tool access and voxel ownership/settings) also need native checkpoints before
-cutover. These are still required; the existing API engine remains active until they are connected.
+and join recovered Eve runs to their saved agent/team coordination. These are still required;
+the existing API engine remains active until they are connected.
 
 ## Goal and scope
 
