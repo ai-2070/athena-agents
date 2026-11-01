@@ -5,7 +5,7 @@ export type { Effort } from './effort.ts';
 
 export type EngineId = 'claude-code' | 'openai' | 'hermes' | 'codex' | 'pi' | 'omp' | 'openclaw';
 export type Autonomy = 'ask' | 'auto' | 'full';
-export type ProviderId = 'openrouter' | 'lmstudio' | 'ollama' | 'custom';
+export type ProviderId = 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'custom';
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
 
 // ---------- agents ----------
@@ -554,7 +554,7 @@ export interface ActivityEntry {
 
 // ---------- settings ----------
 export interface BrainSetting {
-  provider: 'claude' | 'openrouter' | 'hermes' | 'codex';
+  provider: 'claude' | 'openrouter' | 'venice' | 'hermes' | 'codex';
   model: string;
   /** How hard it thinks. '' or missing = the model's default. */
   effort?: Effort | '';
@@ -611,7 +611,7 @@ export type StationQuality = 'smooth' | 'balanced' | 'saver';
 export type SidebarPanel = 'status' | 'limits';
 
 export interface Settings {
-  defaults: { engine: EngineId; claudeModel: string; openrouterModel: string; hermesProfile: string; autonomy: Autonomy };
+  defaults: { engine: EngineId; claudeModel: string; openrouterModel: string; veniceModel: string; hermesProfile: string; autonomy: Autonomy };
   providers: { lmstudio: { baseUrl: string }; ollama: { baseUrl: string }; custom: { baseUrl: string; label: string } };
   comfyui: { url: string; workflowDirs: string[] };
   paths: Record<string, string>;
@@ -639,13 +639,13 @@ export interface Settings {
   defaultWorld: string;
 }
 
-export type SecretKey = 'openrouterKey' | 'anthropicKey' | 'customKey' | 'xClientSecret' | 'telegramBotToken' | 'discordWebhook' | 'redditClientSecret';
+export type SecretKey = 'openrouterKey' | 'veniceKey' | 'anthropicKey' | 'customKey' | 'xClientSecret' | 'telegramBotToken' | 'discordWebhook' | 'redditClientSecret';
 export type SecretStatus = Record<SecretKey, { set: boolean; hint?: string }>;
 
 // ---------- engines ----------
 export interface EngineStatus {
   'claude-code': { installed: boolean; path: string | null; loggedIn: boolean; version: string | null };
-  openai: { openrouter: boolean; custom: boolean };
+  openai: { openrouter: boolean; venice: boolean; custom: boolean };
   hermes: { installed: boolean; path: string | null };
   codex: { installed: boolean; loggedIn: boolean; version: string | null; path?: string | null; how?: string };
   pi: { installed: boolean; path: string | null; version: string | null };
@@ -990,7 +990,7 @@ export interface UsageMeter {
   text?: string | null;
 }
 export interface ProviderUsage {
-  id: 'claude' | 'openrouter' | 'codex';
+  id: 'claude' | 'openrouter' | 'venice' | 'codex';
   name: string;
   meters: UsageMeter[];
 }

@@ -1,4 +1,5 @@
 // The Agents page's overview: what kinds of agents the project has and which models they run on.
+import { defaultModelForEngine } from '../shared/modeldefaults.ts';
 import { ENGINE_LABEL } from './core.ts';
 import type { Agent, Settings } from '../shared/types.ts';
 
@@ -43,11 +44,11 @@ export function agentCategory(a: Pick<Agent, 'source'>): { id: string; label: st
 
 const ALIAS = new Set(['sonnet', 'opus', 'haiku', 'fable', 'default', 'best']);
 /** The model an agent runs on, as you'd name it: "Sonnet", "gpt-5.5" (without the provider part). */
-export function agentModel(a: Pick<Agent, 'engine' | 'model'>, defaults?: Partial<Settings['defaults']>): { id: string; label: string; sub: string } {
+export function agentModel(a: Pick<Agent, 'engine' | 'model'> & Partial<Pick<Agent, 'provider'>>, defaults?: Partial<Settings['defaults']>): { id: string; label: string; sub: string } {
   const sub = ENGINE_LABEL[a.engine] || a.engine;
   let model = (a.model || '').trim();
   if (!model && a.engine === 'claude-code') model = defaults?.claudeModel || 'sonnet';
-  if (!model && a.engine === 'openai') model = defaults?.openrouterModel || '';
+  if (!model && a.engine === 'openai') model = defaultModelForEngine('openai', defaults || {}, a.provider);
   const label = !model ? (a.engine === 'hermes' ? "its profile's model" : `${sub}'s default`) : ALIAS.has(model.toLowerCase()) ? model[0].toUpperCase() + model.slice(1).toLowerCase() : model.split('/').pop() || model;
   return { id: `${a.engine}|${label.toLowerCase()}`, label, sub };
 }

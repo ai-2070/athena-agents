@@ -15,6 +15,7 @@ import { Avatar, DomNode, Icon, ProjectScoped, reactPage, useAppState } from '..
 import { SelectControl } from '../ui/select.tsx';
 import { themeColor } from '../theme.ts';
 import type { ModelListing } from '../models.tsx';
+import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { ENGINE_NAMES, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
@@ -366,7 +367,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
   // A new engine or provider may not have the effort level: keep the nearest one it has, the one the Effort field shows.
   const fit = (x: Agent): Agent => (x.effort ? { ...x, effort: effortFor(x.engine, x.effort, x.provider) } : x);
   const pickEngine = (engine: Agent['engine']) => {
-    setA((x) => fit({ ...x, engine, model: engine === 'claude-code' ? d.settings.defaults.claudeModel : engine === 'openai' ? d.settings.defaults.openrouterModel : '' }));
+    setA((x) => fit({ ...x, engine, model: defaultModelForEngine(engine, d.settings.defaults, x.provider) }));
     setDirty(true);
   };
   const del = async () => {
@@ -678,7 +679,7 @@ function EngineFields({ a, d, set, fit }: {
               { value: 'custom', label: 'Custom OpenAI-compatible' },
             ],
             // a server on this PC takes fewer effort levels
-            (v) => fit({ ...a, provider: v as Agent['provider'] }),
+            (v) => fit({ ...a, provider: v, model: defaultModelForEngine('openai', d.settings.defaults, v) }),
           )}
           {model('Model', 'Start typing to search. Pick one that supports tools.')}
         </div>

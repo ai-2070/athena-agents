@@ -970,7 +970,7 @@ post<{ flavor?: string }>('/api/pi/add-bridge', async (_p, body) => {
 get('/api/settings', async () => ({ settings: getSettings(), secrets: secretStatus() }));
 put<Parameters<typeof saveSettings>[0] | null>('/api/settings', async (_p, body) => saveSettings(body || {}));
 post<{ key: string; value?: unknown }>('/api/secrets', async (_p, body) => {
-  const okKeys: string[] = ['openrouterKey', 'anthropicKey', 'customKey', 'xClientSecret', 'telegramBotToken', 'discordWebhook', 'redditClientSecret'];
+  const okKeys: string[] = ['openrouterKey', 'veniceKey', 'anthropicKey', 'customKey', 'xClientSecret', 'telegramBotToken', 'discordWebhook', 'redditClientSecret'];
   if (!okKeys.includes(body.key)) throw new HttpError(400, 'Unknown key');
   setSecret(body.key as SecretKey, String(body.value || '').trim());
   return secretStatus();

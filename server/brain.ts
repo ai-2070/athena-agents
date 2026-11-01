@@ -90,12 +90,12 @@ const GROUP_IDS = TOOL_GROUPS.map((g) => g.id);
 export function brainModel(): BrainModel {
   const b: Partial<BrainSetting> = getSettings().brain || {};
   const key = !!getSecrets().openrouterKey;
-  const ok: Record<BrainSetting['provider'], boolean> = { claude: !!which('claude'), openrouter: key, hermes: !!which('hermes'), codex: !!which('codex') };
+  const ok: Record<BrainSetting['provider'], boolean> = { claude: !!which('claude'), openrouter: key, venice: !!getSecrets().veniceKey, hermes: !!which('hermes'), codex: !!which('codex') };
   const p: BrainSetting['provider'] = ok[b.provider as BrainSetting['provider']] ? (b.provider as BrainSetting['provider']) : (['claude', 'openrouter', 'hermes', 'codex'] as const).find((x) => ok[x]) || b.provider || 'claude';
   const model = p === b.provider ? b.model ?? '' : '';
-  const dflt = { claude: 'haiku', openrouter: 'anthropic/claude-haiku-5.5', hermes: '', codex: '' }[p];
-  const engine = ({ claude: 'claude-code', openrouter: 'openai', hermes: 'hermes', codex: 'codex' } as const satisfies Record<BrainSetting['provider'], EngineId>)[p];
-  const effort = p === b.provider ? effortFor(engine, b.effort) : '';
+  const dflt = { claude: 'haiku', openrouter: 'anthropic/claude-haiku-5.5', venice: getSettings().defaults.veniceModel, hermes: '', codex: '' }[p];
+  const engine = ({ claude: 'claude-code', openrouter: 'openai', venice: 'openai', hermes: 'hermes', codex: 'codex' } as const satisfies Record<BrainSetting['provider'], EngineId>)[p];
+  const effort = p === b.provider ? effortFor(engine, b.effort, p) : '';
   return { provider: p, model: model || dflt, effort, fallback: p !== (b.provider || 'claude') };
 }
 

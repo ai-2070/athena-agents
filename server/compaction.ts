@@ -12,6 +12,7 @@
 // (--- COMPACTED --- in the chat) and holds the checkpoint, which you can read and edit.
 import { uid } from './util.ts';
 import { getSettings } from './store.ts';
+import { defaultModelForEngine } from '../shared/modeldefaults.ts';
 import { latestCompaction, memoryStart } from '../shared/compaction.ts';
 import type { Agent, Chat, ChatItem, CompactionItem, CompactionSetting, CompactionTrigger } from '../shared/types.ts';
 import type { LlmMessage } from './engines/openai.ts';
@@ -111,7 +112,7 @@ export async function contextWindow(agent: ModelOf, chat?: Chat | null): Promise
   if (agent.engine === 'hermes' || agent.engine === 'pi' || agent.engine === 'omp' || agent.engine === 'openclaw') return 128_000;
   const provider = String(agent.provider || 'openrouter');
   const local = provider === 'lmstudio' || provider === 'ollama';
-  const id = model || getSettings().defaults.openrouterModel;
+  const id = model || defaultModelForEngine('openai', getSettings().defaults, provider);
   let w = windows.get(provider);
   if (!w || Date.now() - w.at > 10 * 60_000) {
     const { listModels } = await import('./engines/openai.ts');

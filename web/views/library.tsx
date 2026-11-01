@@ -1,5 +1,6 @@
 // Agent library: ready-made agents. Athena's own (made for this dashboard's tools), The Agency (msitarzewski/agency-agents), Hermes profiles, Claude Code subagents,
 // and your presets. A React page on Base UI controls.
+import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { Plate } from '../ui/surface.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
@@ -65,7 +66,7 @@ const branchParam = () => params().get('branch');
 
 function overrides(engine: EngineId, data: AppState): Overrides {
   const d = data.settings.defaults;
-  return { engine, model: engine === 'claude-code' ? d.claudeModel : engine === 'openai' ? d.openrouterModel : '' };
+  return { engine, model: defaultModelForEngine(engine, d) };
 }
 
 async function hire(payload: HirePayload, name: string): Promise<Agent | undefined> {

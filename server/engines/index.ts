@@ -16,6 +16,7 @@ import * as hermes from './hermes.ts';
 import * as codex from './codex.ts';
 import * as openclaw from './openclaw.ts';
 import { pi, omp } from './pi.ts';
+import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import * as compaction from '../compaction.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
@@ -982,7 +983,4 @@ export function engineStatus(): EngineStatus {
   };
 }
 
-export const defaultModel = (engine: string): string => {
-  const d = getSettings().defaults;
-  return engine === 'claude-code' ? d.claudeModel : engine === 'openai' ? d.openrouterModel : '';
-};
+export const defaultModel = (engine: string, provider?: string): string => defaultModelForEngine(engine, getSettings().defaults, provider);

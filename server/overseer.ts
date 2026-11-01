@@ -309,7 +309,7 @@ function keyFiles(root: string, budget: number): string {
 // "provider: openrouter | model: anthropic/claude-opus-5.5 | effort: high"
 const runsOn = (a: Agent) => {
   const p = providerOfAgent(a);
-  const model = a.model || (p === 'codex' ? "Codex's default model" : p === 'hermes' ? `the model of Hermes profile "${a.hermesProfile || 'default'}"` : p === 'openclaw' ? `the model of OpenClaw agent "${a.openclawAgent || 'default'}"` : p === 'pi' || p === 'omp' ? `${p === 'pi' ? "pi's" : "oh-my-pi's"} default model` : defaultModel(a.engine) || 'its default model');
+  const model = a.model || (p === 'codex' ? "Codex's default model" : p === 'hermes' ? `the model of Hermes profile "${a.hermesProfile || 'default'}"` : p === 'openclaw' ? `the model of OpenClaw agent "${a.openclawAgent || 'default'}"` : p === 'pi' || p === 'omp' ? `${p === 'pi' ? "pi's" : "oh-my-pi's"} default model` : defaultModel(a.engine, a.provider) || 'its default model');
   // the full id the engine reported last time (a short name like "sonnet" points to the latest version)
   const last = a.lastModel && a.lastModel !== a.model ? ` (last ran as ${a.lastModel})` : '';
   const e = effortFor(a.engine, a.effort, a.provider);

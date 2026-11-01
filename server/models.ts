@@ -10,7 +10,7 @@ import { listModels as openclawModels } from './engines/openclaw.ts';
 import { listModels as codexModels } from './engines/codex.ts';
 import type { Agent, EngineId, ProviderId } from '../shared/types.ts';
 
-export type ModelProvider = 'claude' | 'openrouter' | 'lmstudio' | 'ollama' | 'custom' | 'codex' | 'hermes' | 'pi' | 'omp' | 'openclaw';
+export type ModelProvider = 'claude' | 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'custom' | 'codex' | 'hermes' | 'pi' | 'omp' | 'openclaw';
 
 interface ProviderInfo {
   label: string;
@@ -22,6 +22,7 @@ interface ProviderInfo {
 export const MODEL_PROVIDERS: Record<ModelProvider, ProviderInfo> = {
   claude: { label: 'Claude Code', engine: 'claude-code' },
   openrouter: { label: 'OpenRouter', engine: 'openai', provider: 'openrouter' },
+  venice: { label: 'Venice', engine: 'openai', provider: 'venice' },
   lmstudio: { label: 'LM Studio', engine: 'openai', provider: 'lmstudio' },
   ollama: { label: 'Ollama', engine: 'openai', provider: 'ollama' },
   custom: { label: 'Custom server', engine: 'openai', provider: 'custom' },
@@ -75,6 +76,7 @@ export function providerProblem(p: ModelProvider): string | null {
   if (p === 'hermes') return which('hermes') ? null : 'Hermes is not installed on this PC';
   if (p === 'pi' || p === 'omp' || p === 'openclaw') return which(p) ? null : `${MODEL_PROVIDERS[p].label} is not installed on this PC`;
   if (p === 'openrouter') return getSecrets().openrouterKey ? null : 'there is no OpenRouter key (Settings)';
+  if (p === 'venice') return getSecrets().veniceKey ? null : 'there is no Venice key (Settings)';
   const base = getSettings().providers?.[p]?.baseUrl;
   return base ? null : `${MODEL_PROVIDERS[p].label} has no address (Settings)`;
 }
@@ -86,6 +88,7 @@ export function defaultModelFor(p: ModelProvider): string | null {
   const d = getSettings().defaults;
   if (p === 'claude') return d.claudeModel || 'sonnet';
   if (p === 'openrouter') return d.openrouterModel || null;
+  if (p === 'venice') return d.veniceModel || null;
   if (OWN_DEFAULT.has(p)) return '';
   // a server on this PC: there is no sensible default, a model has to be named
   return null;

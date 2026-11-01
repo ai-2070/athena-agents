@@ -10,6 +10,7 @@ import { PORT } from '../util.ts';
 import { checkpointSection, compactAt, compactionSettings, contextWindow, estimateTokens, isOverflowError } from '../compaction.ts';
 import type { FetchError } from '../util.ts';
 import { effortFor } from '../../shared/effort.ts';
+import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { cacheFields } from '../promptcache.ts';
 import type { Agent, EngineStatus, ProviderId, RunEvent } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
@@ -105,13 +106,14 @@ interface ToolOutput {
 
 export const PROVIDERS: Record<ProviderId, ProviderDef> = {
   openrouter: { label: 'OpenRouter', base: () => 'https://openrouter.ai/api/v1', key: () => getSecrets().openrouterKey, needsKey: true },
+  venice: { label: 'Venice', base: () => 'https://api.venice.ai/api/v1', key: () => getSecrets().veniceKey, needsKey: true },
   lmstudio: { label: 'LM Studio (local)', base: () => getSettings().providers.lmstudio.baseUrl, key: () => 'lm-studio' },
   ollama: { label: 'Ollama (local)', base: () => getSettings().providers.ollama.baseUrl, key: () => 'ollama' },
   custom: { label: 'Custom', base: () => getSettings().providers.custom.baseUrl, key: () => getSecrets().customKey || 'none' },
 };
 
 export function status(): EngineStatus['openai'] {
-  return { openrouter: !!getSecrets().openrouterKey, custom: !!getSettings().providers.custom.baseUrl };
+  return { openrouter: !!getSecrets().openrouterKey, venice: !!getSecrets().veniceKey, custom: !!getSettings().providers.custom.baseUrl };
 }
 
 function providerOf(agent: Agent): Provider {
@@ -121,7 +123,7 @@ function providerOf(agent: Agent): Provider {
   const base = (p.base() || '').replace(/\/$/, '');
   const key = p.key();
   if (!base) throw new Error(`${p.label} has no address. Set it in Settings.`);
-  if (p.needsKey && !key) throw new Error('Add your OpenRouter key in Settings first.');
+  if (p.needsKey && !key) throw new Error(`Add your ${p.label} key in Settings first.`);
   const headers: Record<string, string> = { 'content-type': 'application/json', authorization: `Bearer ${key}` };
   if (id === 'openrouter') Object.assign(headers, { 'HTTP-Referer': `http://localhost:${PORT}`, 'X-Title': 'Athena Agents' });
   return { id, base, headers };
@@ -318,7 +320,8 @@ const hasImages = (msgs: LlmMessage[]) => msgs.some((m) => m.role === 'user' && 
 export async function run({ agent, chat, text, signal, onEvent, depth, runId, systemPrompt, attachments = [], compact }: EngineRunArgs): Promise<EngineResult> {
   const provider = providerOf(agent);
   const settings = getSettings();
-  const model = agent.model || settings.defaults.openrouterModel;
+  const model = agent.model || defaultModelForEngine('openai', settings.defaults, provider.id);
+  if (!model) throw new Error(`Choose a ${PROVIDERS[provider.id as ProviderId].label} model in Settings or for this agent first.`);
   chat.llm ||= [];
   const images = imageParts(attachments);
   chat.llm.push({ role: 'user', content: images.length ? [{ type: 'text', text }, ...images] : text });
