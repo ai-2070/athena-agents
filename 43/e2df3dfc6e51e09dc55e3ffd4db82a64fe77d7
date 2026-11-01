@@ -1,0 +1,53 @@
+DESIGN.md
+  s_57c675cb3340e9::t_fe85ed891986d0 166,180-181
+README.md
+  s_57c675cb3340e9::t_fa4138ae9bfba1 143-144
+docs/guide.md
+  s_57c675cb3340e9::t_f7727685f7ca53 43-44
+tests/web/connections.test.tsx
+  s_57c675cb3340e9::t_dd3239a385e054 66-78
+tests/web/engineavailability.test.ts
+  s_57c675cb3340e9::t_19da6cd034e9a9 1-28
+tests/web/groupD-pickers.test.ts
+  s_57c675cb3340e9::t_dbe9803a04c2fc 10,22,35-36,82,110,374,384,399,503-522
+tests/web/library.test.tsx
+  s_57c675cb3340e9::t_fad0bf15e14c91 43
+tests/web/tasks.test.tsx
+  s_57c675cb3340e9::t_7f580ea29bcd0f 66-80
+tests/web/teamchat-turns.test.tsx
+  s_57c675cb3340e9::t_35c6a1ae9a2bd0 56,197,200-202,208-213,235-237
+web/chat/ChatView.tsx
+  s_57c675cb3340e9::t_f3cf300a2f324a 773
+web/engineavailability.ts
+  s_57c675cb3340e9::t_d14a4058bb80b5 1-15
+web/models.tsx
+  s_57c675cb3340e9::t_7aa7533a12356c 11,19,630-640,643,645,649-650,656,724-725,771
+web/phosphor.ts
+  s_57c675cb3340e9::t_3881da54724920 6-7,208-209
+web/tasks.tsx
+  s_57c675cb3340e9::t_42b286dd615980 4,71-72,74,78,94,96-97,123
+web/teamchat.tsx
+  s_57c675cb3340e9::t_f3cf7b9dd82698 15-16,281-283,298-308,311,318,320,322,333,337-338,341-347,376,834
+web/ui/collapse.tsx
+  s_57c675cb3340e9::t_a42c2a4dceca53 1-10
+web/views/outbox.tsx
+  s_57c675cb3340e9::t_4355fa77be97ad 11,124,132-137,196,223-225,259-262,269-270,277
+web/views/station.ts
+  s_57c675cb3340e9::t_5dd6d9cdb99d35 5,3768,3777,3785,3791,3860
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "43e2df3dfc6e51e09dc55e3ffd4db82a64fe77d7",
+  "prompts": {},
+  "sessions": {
+    "s_57c675cb3340e9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19923-964d-73a1-aa94-f5a5587530e9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
