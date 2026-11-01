@@ -1,0 +1,77 @@
+web/ui/programmark.tsx
+  s_57c675cb3340e9::t_f4cbe0583c28d5 4,24-28
+  s_57c675cb3340e9::t_78d98d17770b75 29
+tests/server/backup-versions.test.ts
+  s_57c675cb3340e9::t_e998b492102076 41,71
+web/views/agents.tsx
+  s_57c675cb3340e9::t_f4cbe0583c28d5 15,440,469,496,499,655,658-662,757
+  s_57c675cb3340e9::t_a1e838a62a059a 649-654,656-657
+server/routines.ts
+  s_57c675cb3340e9::t_80cd8c73e265c6 83,141,242
+server/overseer.ts
+  s_57c675cb3340e9::t_80cd8c73e265c6 349,359,610,1815,1835
+  s_57c675cb3340e9::t_178f7952e1293d 1146
+shared/types.ts
+  s_57c675cb3340e9::t_80cd8c73e265c6 86-87,232-233
+web/views/station.ts
+  s_57c675cb3340e9::t_80cd8c73e265c6 2314
+tests/server/backup.test.ts
+  s_57c675cb3340e9::t_e998b492102076 40-41
+tests/server/overseer.test.ts
+  s_57c675cb3340e9::t_e998b492102076 149,156,190
+shared/routines.ts
+  s_57c675cb3340e9::t_80cd8c73e265c6 95,106-110
+  s_57c675cb3340e9::t_7f50fea64096d9 74-89
+server/workflows.ts
+  s_57c675cb3340e9::t_80cd8c73e265c6 217-222,256
+web/schedule.tsx
+  s_57c675cb3340e9::t_e998b492102076 8-10,30,32,69-85
+  s_57c675cb3340e9::t_98918178d47fdc 4,86
+tests/server/project-delete-clone.test.ts
+  s_57c675cb3340e9::t_e998b492102076 75
+README.md
+  s_57c675cb3340e9::t_e998b492102076 166
+tests/web/routines-page.test.tsx
+  s_57c675cb3340e9::t_e998b492102076 13,102,104,107-109,111-124,126,136-137,140,142-143,152
+  s_57c675cb3340e9::t_c0e94c50a81b39 30,110
+web/views/routines.tsx
+  s_57c675cb3340e9::t_80cd8c73e265c6 82,127,131,206,216,218-219,232,252-255,298-300
+  s_57c675cb3340e9::t_6c12271f0bb7a6 10,14,128,144
+tests/server/versions.test.ts
+  s_57c675cb3340e9::t_e998b492102076 227
+tests/server/routines.test.ts
+  s_57c675cb3340e9::t_e998b492102076 82-83,178,182
+  s_57c675cb3340e9::t_771d105937cad4 10-11,49-79
+docs/guide.md
+  s_57c675cb3340e9::t_a48077a8ad79ef 185,342
+server/history.ts
+  s_57c675cb3340e9::t_dc28a455b21955 120
+server/versions.ts
+  s_57c675cb3340e9::t_4ec526c6f4ae05 210
+tests/web/agents-page.test.tsx
+  s_57c675cb3340e9::t_f6562b3455b7e6 135-145
+tests/web/timepicker.test.tsx
+  s_57c675cb3340e9::t_dbc06cde69519c 1-59
+web/ui/controls.tsx
+  s_57c675cb3340e9::t_61d576e70c272b 76
+web/ui/timepicker.tsx
+  s_57c675cb3340e9::t_1461a80ea33c24 1-73
+web/views/stationpanel.tsx
+  s_57c675cb3340e9::t_1d350c0abece63 911
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4113ccaffbdd78b01cdd175f4344ed5e9a5ca17a",
+  "prompts": {},
+  "sessions": {
+    "s_57c675cb3340e9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19923-964d-73a1-aa94-f5a5587530e9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
