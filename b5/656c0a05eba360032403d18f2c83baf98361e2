@@ -1,0 +1,24 @@
+tests/web/groupD-pickers.test.ts
+  s_9c8d911149168f::t_e07aefe9f3e1d4 279-310,312-329
+  s_9c8d911149168f::t_d96c7f5458971c 311
+web/models.tsx
+  s_9c8d911149168f::t_d96c7f5458971c 408,414-415,453,670,674,712
+docs/guide.md
+  s_9c8d911149168f::t_d96c7f5458971c 47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b5656c0a05eba360032403d18f2c83baf98361e2",
+  "prompts": {},
+  "sessions": {
+    "s_9c8d911149168f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198e4-a961-7860-9c31-6d91b3d89cde",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
