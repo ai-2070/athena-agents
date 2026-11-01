@@ -1,0 +1,64 @@
+tests/server/goals.test.ts
+  s_7daa4bf644d295::t_004d58e577c97d 146-178
+server/tasks.ts
+  s_7daa4bf644d295::t_55628003175f0a 4,16-19,21-31
+  s_7daa4bf644d295::t_bbabbebcac2243 20
+server/engines/openai.ts
+  s_7daa4bf644d295::t_bbabbebcac2243 472-475
+tests/server/pi-engine.test.ts
+  s_7daa4bf644d295::t_5b2bd803218dcd 138-146
+docs/internal/plans/TASK_TOOLS_2026-11-01.md
+  s_7daa4bf644d295::t_c493626e788cf1 18-33,35-40
+  s_7daa4bf644d295::t_741e7a0a17a107 34
+  s_7daa4bf644d295::t_131b825514b95d 84,88-89
+server/engines/pi.ts
+  s_7daa4bf644d295::t_5b2bd803218dcd 138-140
+docs/guide.md
+  s_7daa4bf644d295::t_c493626e788cf1 105-106
+tests/server/tasks.test.ts
+  s_7daa4bf644d295::t_d03b2cb462913c 10,187-202
+  s_7daa4bf644d295::t_bbabbebcac2243 176,180,205,207,209,211-216
+  s_7daa4bf644d295::t_e389385e3ae171 11,124-175,177-179,181-186,203-204,206,208,210,217-218
+server/engines/codex.ts
+  s_7daa4bf644d295::t_5b2bd803218dcd 230-231
+server/overseer.ts
+  s_7daa4bf644d295::t_10b544455ee92c 39,90,1296-1314
+  s_7daa4bf644d295::t_bbabbebcac2243 570
+tests/server/openai-engine.test.ts
+  s_7daa4bf644d295::t_c493626e788cf1 75-76,83-84,86
+  s_7daa4bf644d295::t_5b2bd803218dcd 15,73-74,77-82,85,87-88
+tests/server/fixtures/fake-codex.js
+  s_7daa4bf644d295::t_5b2bd803218dcd 13-20
+tests/server/project-isolation.test.ts
+  s_7daa4bf644d295::t_004d58e577c97d 21,290,292-295,298-300
+server/engines/index.ts
+  s_7daa4bf644d295::t_13be220431d389 349-353
+  s_7daa4bf644d295::t_bbabbebcac2243 255
+shared/types.ts
+  s_7daa4bf644d295::t_55628003175f0a 918-925
+scripts/desktop-smoke.ts
+  s_7daa4bf644d295::t_c493626e788cf1 10,103,118-123
+README.md
+  s_7daa4bf644d295::t_c493626e788cf1 175
+tests/server/codex-run.test.ts
+  s_7daa4bf644d295::t_5b2bd803218dcd 75-85
+server/tasktools.ts
+  s_7daa4bf644d295::t_bbabbebcac2243 3,13,29,45
+  s_7daa4bf644d295::t_55628003175f0a 12,30-31,44,46,48-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fbd8cd69381e5df901f0f09fc2a6bb0c08875842",
+  "prompts": {},
+  "sessions": {
+    "s_7daa4bf644d295": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1909a-0e49-7540-af35-65ce95355b59",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
