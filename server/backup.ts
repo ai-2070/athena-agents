@@ -22,6 +22,7 @@ import { setLink } from './voxel/link.ts';
 import { libraryEntries, putLibraryEntry } from './voxel/prefabs.ts';
 import type { LibraryPrefab } from './voxel/prefabs.ts';
 import { savedOpacity } from '../shared/look.ts';
+import { restoredTasks } from './tasks.ts';
 import type { Agent, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
 
 export const BACKUP_EXT = '.dashbackup';
@@ -117,6 +118,7 @@ export interface BackupData {
   routines: Routine[];
   layout: unknown;
   brainChat: unknown;
+  tasks?: unknown;
   teamChats: { name: string; data: unknown }[];
   chats: { agentId: string; chat: Chat }[];
   knowledge: PackedFile[];
@@ -392,6 +394,7 @@ export function packProject(p: Project): BackupData {
     routines: readAll<Routine>(projectDir(id, 'routines')),
     layout: readPlain<unknown>(projectDir(id, 'layout.json'), {}),
     brainChat: readPlain<unknown>(projectDir(id, 'brain-chat.json'), { messages: [] }),
+    tasks: readPlain<unknown>(projectDir(id, 'tasks.json'), { tasks: [] }),
     teamChats: jsonFiles(projectDir(id, 'teamchats')).map((name) => ({ name, data: readJSON<unknown>(projectDir(id, 'teamchats', name)) })).filter((x) => x.data != null),
     chats,
     knowledge,
@@ -557,6 +560,7 @@ export function decodeBackup(buf: Buffer): BackupData {
     routines: arr<Routine>(b.routines).filter((r) => r && typeof r === 'object' && typeof r.id === 'string' && ID_RE.test(r.id)),
     layout: b.layout && typeof b.layout === 'object' ? b.layout : {},
     brainChat: b.brainChat && typeof b.brainChat === 'object' ? b.brainChat : { messages: [] },
+    tasks: restoredTasks(b.tasks),
     teamChats: arr<BackupData['teamChats'][number]>(b.teamChats).filter((c) => c && typeof c.name === 'string' && /^[\w.-]+\.json$/.test(c.name) && c.data != null),
     chats: arr<BackupData['chats'][number]>(b.chats).filter((c) => c && typeof c.agentId === 'string' && CHAT_ID_RE.test(c.agentId) && c.chat && typeof c.chat.id === 'string' && CHAT_ID_RE.test(c.chat.id) && Array.isArray(c.chat.items)),
     knowledge: files(b.knowledge),
@@ -806,6 +810,7 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   }
   writeJSON(projectDir(id, 'layout.json'), b.layout);
   writeJSON(projectDir(id, 'brain-chat.json'), b.brainChat);
+  writeJSON(projectDir(id, 'tasks.json'), restoredTasks(b.tasks));
   for (const c of b.teamChats) writeJSON(projectDir(id, 'teamchats', c.name), c.data);
   // chats go back under the agent and id they were saved as (whatever the chat itself claims)
   const agentIds = new Set(b.agents.map((a) => a.id));

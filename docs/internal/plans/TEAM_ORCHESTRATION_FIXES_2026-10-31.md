@@ -1,7 +1,18 @@
 # Team orchestration: four follow-ups
 
+**Task follow-up, 1 November 2026.** [Shared task tools and chat UI](TASK_TOOLS_2026-11-01.md) adds durable task lists for agents, teams and the Brain, with owners, exclusive claims, prerequisites and completion checks. The Brain's UI defaults to all project tasks with filters. The earlier decision against locks below concerns inferred duplicate messages; explicit claims on saved task records now prevent competing agents from taking the same claimed task.
+
+**Completion follow-up, 1 November 2026.** [Automatic work completion](WORK_COMPLETION_2026-11-01.md) adds default completion checks, continuation while work advances, actionable blockers and startup recovery. Team queues now continue in their owning project when another project is opened; project switches no longer require `/resume`.
+
 Plan, 31 October 2026. Follows the comparison in
 [`docs/internal/GROK_BOT_ORCHESTRATION_2026-10-31.md`](../GROK_BOT_ORCHESTRATION_2026-10-31.md).
+
+**Revision, 1 November 2026.** The preview-only approach in item 2 did not meet the shared-context goal.
+It is superseded by [Full team context and conversation search](TEAM_CONTEXT_AND_SEARCH_2026-11-01.md).
+The implementation now imports full messages into each member's conversation, uses model-aware memory
+management, retains the transcript beyond 500 messages, and provides `search_conversations` and
+`read_conversation` tools. The 31 October implementation notes and item 2 below record the earlier design;
+their fixed budgets and omission-preview acceptance criteria no longer describe the current behavior.
 
 **Implementation, 31 October 2026.** All four follow-ups are implemented on
 `fix/team-orchestration-2026-10-31`:

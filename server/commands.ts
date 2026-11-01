@@ -143,7 +143,7 @@ const cleanWork = (w: BrainWork) => ({
 
 const teamBusy = (id: string) => {
   const s = teams.teamState(id);
-  return !!(s.working.length || s.queued.length || s.held?.length || s.loop);
+  return teams.isTeamBusy(id) || !!s.loop;
 };
 function stopAgentChat(chatId: string) {
   engines.unqueue(chatId);
@@ -159,17 +159,17 @@ export function stopBrain(work: BrainWork): { stopped: string[] } {
   lastStop.set(pid, Date.now());
   const names = new Set<string>();
   // (marked stopped first, so their follow-up checks don't run on the cut-off work)
-  for (const b of stoppedBriefs(listBriefs(pid).filter((x) => x.status === 'open' && x.origin !== 'chat'))) {
+  for (const b of stoppedBriefs(listBriefs(pid).filter((x) => ['open', 'blocked', 'stuck'].includes(x.status) && x.origin !== 'chat'))) {
     if (b.kind === 'team' && teamBusy(b.targetId)) teams.stopTeam(b.targetId), names.add(b.name);
-    if (b.kind === 'agent' && b.chatId && engines.isChatBusy(b.chatId)) stopAgentChat(b.chatId), names.add(b.name);
+    if (b.kind === 'agent' && b.chatId) stopAgentChat(b.chatId), names.add(b.name);
   }
   for (const c of list)
-    if (engines.isChatBusy(c.chatId)) {
+    if (engines.isChatBusy(c.chatId) || listBriefs(pid).some((b) => b.chatId === c.chatId && ['open', 'blocked', 'stuck'].includes(b.status))) {
       stopAgentChat(c.chatId);
       names.add(agents.get(c.agentId)?.name || 'an agent');
     }
   for (const id of teamIds)
-    if (teams.getTeam(id) && teamBusy(id)) {
+    if (teams.getTeam(id) && (teamBusy(id) || listBriefs(pid).some((b) => b.kind === 'team' && b.targetId === id && ['open', 'blocked', 'stuck'].includes(b.status)))) {
       teams.stopTeam(id);
       names.add(teams.getTeam(id)?.name || 'a team');
     }

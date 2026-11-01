@@ -192,7 +192,7 @@ export const GUIDE =
 export const SUMMARY_GUIDE =
   'Earlier messages of this chat were compacted into the summary below to save room. "(seq N)" points at an original message or tool call; to read it in full, call recall_history with seq=N (or from/to for a range, or query to search).';
 // Tools whose calls are left out of a compaction altogether.
-const HIDDEN_TOOLS = new Set(['recall_history', 'TodoWrite']);
+const HIDDEN_TOOLS = new Set(['recall_history', 'search_conversations', 'read_conversation', 'TodoWrite']);
 // The argument that says what a tool call was about, in the order they are looked for.
 const KEY_ARGS = ['file_path', 'path', 'command', 'query', 'pattern', 'url', 'program', 'workflow', 'agent', 'subreddit', 'name', 'file', 'title', 'description', 'prompt', 'message', 'text'];
 
@@ -476,12 +476,12 @@ export function checkpointSection(items: ChatItem[]): string {
 }
 
 /** For a CLI engine's new session: the compacted history and the messages kept in full, then the new message. */
-export function seedPrompt(items: ChatItem[], text: string, window = 200_000): string {
+export function seedPrompt(items: ChatItem[], text: string, window = 200_000, full = false): string {
   const cp = latestCompaction(items);
   const cur = items.findLastIndex((i) => i.type === 'user');
   const seqs: number[] = [];
   for (let i = memoryStart(items); i < (cur === -1 ? items.length : cur); i++) if (['user', 'assistant', 'tool', 'error'].includes(items[i].type)) seqs.push(i);
-  const recent = compileHistory(items, seqs, null, sizesFor(window, compactionSettings().thresholdPercent).seed).body;
+  const recent = full ? seqs.map((seq) => fullItem(items[seq], seq)).join('\n\n') : compileHistory(items, seqs, null, sizesFor(window, compactionSettings().thresholdPercent).seed).body;
   if (cp) return `<compacted-history>\n${cp.item.text}\n${recent ? `\nThe latest messages, in full:\n${recent}\n` : ''}</compacted-history>\n\nThis chat carries on from here. The new message:\n\n${text}`;
   // no compaction yet (the engine changed, or its session was lost): the chat so far, as it fits
   return recent ? `<chat-history>\n${recent}\n</chat-history>\n\nThis chat carries on from here. The new message:\n\n${text}` : text;

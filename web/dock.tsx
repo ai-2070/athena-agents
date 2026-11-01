@@ -17,6 +17,7 @@ import { attachTray } from './attach.tsx';
 import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { openMemory, BRAIN } from './memory.tsx';
+import { TaskPanel } from './tasks.tsx';
 import { mentionPreviews } from './filepreview.tsx';
 import { useFind } from './ui/find.tsx';
 import { brainKeyLabel, brainKeyTitle, brainShortcut } from './shortcuts.ts';
@@ -919,6 +920,7 @@ function DockView({ bar }: { bar: HTMLElement }) {
             <Icon name="x" size={15} />
           </IconButton>
         </div>
+        <div className="px-5 max-sm:px-4"><TaskPanel filters /></div>
         <DockList settings={data?.settings} />
         <div className="cmd-chips compact pt-2 px-5 pb-0 max-sm:pt-1 max-sm:px-0 hidden" ref={chips} />
         {/* your /queue messages, in the order they will go (click one to change it, drag to reorder, × takes one back) */}

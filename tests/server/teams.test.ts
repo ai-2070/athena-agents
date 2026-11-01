@@ -12,6 +12,7 @@ let server: http.Server;
 // the last message each agent was sent, by name
 const lastAsk: Record<string, string> = {};
 const asks: Record<string, string[]> = {};
+const contexts: Record<string, string[]> = {};
 const heldReplies = new Set<() => void>();
 beforeAll(async () => {
   server = http.createServer(async (req, res) => {
@@ -25,6 +26,7 @@ beforeAll(async () => {
     if (who) {
       lastAsk[who] = last;
       (asks[who] ||= []).push(last);
+      (contexts[who] ||= []).push(j.messages.slice(1).map((m) => m.content).join('\n\n'));
     }
     if (who?.startsWith('Hold')) {
       let release!: () => void;
@@ -285,6 +287,8 @@ describe('fallback routing and concurrent assignments', () => {
   const setup = (dispatcher = false) => {
     asks.HoldOne = [];
     asks.HoldTwo = [];
+    contexts.HoldOne = [];
+    contexts.HoldTwo = [];
     const one = agent('HoldOne');
     const two = agent('HoldTwo');
     const lead = dispatcher ? agent('Dispatcher') : null;
@@ -310,7 +314,7 @@ describe('fallback routing and concurrent assignments', () => {
       await until(() => asks.HoldOne.length === 1);
       expect(teamState(team.id).working).toEqual([one.id]);
       expect(notes(team).map((m) => m.text)).toEqual(['No routing match: asked @HoldOne, the first member free.']);
-      expect(asks.HoldOne[0]).toContain('System: No routing match: asked @HoldOne');
+      expect(contexts.HoldOne[0]).toContain('System: No routing match: asked @HoldOne');
     } finally { await cleanup(team); }
   });
 

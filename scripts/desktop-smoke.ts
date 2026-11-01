@@ -7,6 +7,7 @@ import os from 'node:os';
 import net from 'node:net';
 import path from 'node:path';
 import { desktopTarget, hostTriple } from './desktop-target.ts';
+import type { Agent, AppState, Chat, ConversationReadResult, ConversationSearchResult, TaskBatchResult } from '../shared/types.ts';
 
 const root = path.resolve(import.meta.dirname, '..');
 const app = path.join(root, 'src-tauri', 'app');
@@ -85,6 +86,41 @@ try {
   const settings = await fetch(base + '/api/settings');
   if (!settings.ok) fail(`/api/settings answered ${settings.status}`);
   console.log('smoke: static files and API ok');
+
+  // Exercise the bundled history module through the same internal endpoint the MCP bridge uses.
+  const state = await (await fetch(base + '/api/state')).json() as AppState;
+  if (path.resolve(state.dataDir) !== path.resolve(data)) fail('the responding server is not using our throwaway data');
+  const headers = { 'content-type': 'application/json', 'x-dash': '1' };
+  const agent = await (await fetch(base + '/api/agents', { method: 'POST', headers, body: JSON.stringify({ name: 'Smoke searcher', toolGroups: [] }) })).json() as Agent;
+  const chat = await (await fetch(base + `/api/agents/${agent.id}/chats`, { method: 'POST', headers, body: '{}' })).json() as Chat;
+  chat.items.push({ type: 'user', text: 'SAVED_CONVERSATION_SMOKE_ORIGINAL' });
+  // The fixture lives only in the verified throwaway project; no model or real agent is started.
+  fs.writeFileSync(path.join(data, 'projects', state.project.id, 'chats', agent.id, `${chat.id}.json`), JSON.stringify(chat));
+  const token = fs.readFileSync(path.join(data, '.internal-token'), 'utf8').trim();
+  const historyTool = async (name: string, args: Record<string, unknown>): Promise<string> => {
+    const response = await fetch(base + '/api/internal/tools/call', { method: 'POST', headers: { ...headers, 'x-dash-internal': token }, body: JSON.stringify({ agent: agent.id, name, args }) });
+    const result = await response.json() as { text: string; isError?: boolean };
+    if (!response.ok || result.isError) fail(`dashboard tool ${name} failed: ${result.text}`);
+    return result.text;
+  };
+  const found = JSON.parse(await historyTool('search_conversations', { query: 'SAVED_CONVERSATION_SMOKE_ORIGINAL', scope: 'own' })) as ConversationSearchResult;
+  if (found.hits.length !== 1) fail('the bundled conversation search did not find the saved original');
+  const original = JSON.parse(await historyTool('read_conversation', { ...found.hits[0] })) as ConversationReadResult;
+  if (original.text !== 'SAVED_CONVERSATION_SMOKE_ORIGINAL') fail('the bundled conversation reader changed the original');
+  console.log('smoke: conversation search and read ok');
+  const createdTask = JSON.parse(await historyTool('TaskCreate', { subject: 'Bundled task smoke', description: 'Verify saved task tools in the desktop server.' })) as { task: { id: string } };
+  const tasks = JSON.parse(await historyTool('TaskList', {})) as { tasks: { id: string }[] };
+  if (!tasks.tasks.some((t) => t.id === createdTask.task.id)) fail('the bundled task list did not include the new task');
+  await historyTool('TaskUpdate', { taskId: createdTask.task.id, status: 'completed' });
+  const savedTask = JSON.parse(await historyTool('TaskGet', { taskId: createdTask.task.id })) as { task: { status: string } };
+  if (savedTask.task.status !== 'completed') fail('the bundled task update was not saved');
+  console.log('smoke: task create, list, update and read ok');
+  const bulk = JSON.parse(await historyTool('TaskCreate', { tasks: [{ subject: 'First bundled batch task', description: 'Keep this item.' }, { subject: '', description: 'Report this failure.' }, { subject: 'Last bundled batch task', description: 'Keep later successes.' }] })) as TaskBatchResult;
+  if (bulk.results.length !== 3 || !bulk.results[0].success || bulk.results[1].success || !bulk.results[2].success) fail('the bundled create batch lost a per-item outcome');
+  const updates = bulk.results.flatMap((r) => r.success ? [{ taskId: r.taskId, status: 'completed' }] : []);
+  const changed = JSON.parse(await historyTool('TaskUpdate', { tasks: updates })) as TaskBatchResult;
+  if (changed.results.length !== 2 || !changed.results.every((r) => r.success && r.status === 'completed')) fail('the bundled update batch did not finish every task');
+  console.log('smoke: bulk task create and update ok');
 
   // the bridge, as Claude Code would start it: one MCP initialize request over stdio
   const bridge = Bun.spawn([bun, path.join(app, 'server', 'mcp-bridge.js')], {

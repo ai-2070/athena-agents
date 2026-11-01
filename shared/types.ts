@@ -275,13 +275,64 @@ export interface Project {
 
 // ---------- chats ----------
 export type ChatItem =
-  | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number }
+  | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number; teamMessageId?: string }
   | { type: 'assistant'; text: string; ts?: number }
   | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number }
   | { type: 'error'; text: string; ts?: number }
   /** reset: "Clear memory" (the agent starts fresh after it) */
   | { type: 'meta'; text: string; ts?: number; reset?: boolean }
   | CompactionItem;
+
+/** Full messages imported from the team's shared transcript before a member answers. */
+export interface TeamContextMessage {
+  id: string;
+  text: string;
+  from: string;
+  ts: number;
+}
+
+export interface ConversationSearch {
+  query: string;
+  scope?: 'own' | 'team' | 'all';
+  teamId?: string;
+  offset?: number;
+  limit?: number;
+}
+
+export interface ConversationHit {
+  source: 'own' | 'team';
+  conversationId: string;
+  title: string;
+  messageId: string;
+  author: string;
+  ts: number;
+  excerpt: string;
+}
+
+export interface ConversationRead {
+  source: 'own' | 'team';
+  conversationId: string;
+  messageId: string;
+  offset?: number;
+  limit?: number;
+}
+
+export interface ConversationSearchResult {
+  hits: ConversationHit[];
+  total: number;
+  nextOffset: number | null;
+}
+
+export interface ConversationReadResult {
+  source: 'own' | 'team';
+  conversationId: string;
+  messageId: string;
+  title: string;
+  text: string;
+  totalChars: number;
+  offset: number;
+  nextOffset: number | null;
+}
 
 /** How a compaction was made. instant: the original words, cut to fit (no model call). summary: a model
  *  wrote a summary. engine: the engine compacted its own memory (Claude Code), so there is no text here. */
@@ -413,6 +464,8 @@ export interface Approval {
 /** A question an agent asked you with ask_user: a choice to make, something only you know, a place it is stuck.
  *  It waits in the Outbox with its choices as buttons and a box for an answer in your own words. */
 export interface AgentQuestion {
+  /** A completion check that stopped for user action. */
+  briefId?: string;
   id: string;
   question: string;
   /** what you need to know to answer (Markdown) */
@@ -572,7 +625,7 @@ export interface Settings {
   brainSkills: string[];
   /** The Brain may install skills from any GitHub link, not only from repos you named in the chat. */
   brainAnyGitHub: boolean;
-  /** The Brain checks the work it handed out when it's finished, follows up when something is missing, and tells you how it went. */
+  /** The Brain checks ordinary assignments after each turn and continues until delivered or blocked. */
   brainFollowsUp: boolean;
   look: LookSetting;
   telegram: { chatId: string };
@@ -791,7 +844,7 @@ export interface MemoryInfo {
 }
 
 // ---------- the Brain ----------
-export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'world' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
+export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'world' | 'task' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; taskId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
 /** A tool the Brain used while it answered (it reads the project's files). */
 export interface BrainStep {
   id: string;
@@ -811,6 +864,74 @@ export interface BrainDelegate {
   sent?: { messageId?: string; ts?: number; chatId?: string; runId?: string };
 }
 
+/** A saved task list within one project. */
+export interface TaskScope {
+  kind: 'brain' | 'agent' | 'team';
+  id?: string;
+}
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'deleted';
+export interface WorkTask {
+  id: string;
+  subject: string;
+  description: string;
+  activeForm: string;
+  status: TaskStatus;
+  scope: TaskScope;
+  /** Empty, brain, agent:<id>, or team:<id>. */
+  owner: string;
+  blockedBy: string[];
+  blocks: string[];
+  metadata: Record<string, unknown>;
+  briefId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+export type TaskSummary = Omit<WorkTask, 'description' | 'metadata' | 'blocks'>;
+export interface TaskPage {
+  tasks: TaskSummary[];
+  total: number;
+  nextOffset: number | null;
+}
+export interface TaskCreateInput {
+  subject: string;
+  description: string;
+  activeForm?: string;
+  metadata?: Record<string, unknown>;
+  scope?: TaskScope;
+  owner?: string;
+}
+export interface TaskUpdateInput {
+  taskId: string;
+  status?: TaskStatus;
+  subject?: string;
+  description?: string;
+  activeForm?: string;
+  owner?: string;
+  metadata?: Record<string, unknown>;
+  addBlocks?: string[];
+  addBlockedBy?: string[];
+  removeBlocks?: string[];
+  removeBlockedBy?: string[];
+  /** Reject an edit made against an older saved version. */
+  expectedUpdatedAt?: number;
+}
+export type TaskBatchInput<T> = { tasks: T[] };
+export type TaskCreateArgs = TaskCreateInput | TaskBatchInput<TaskCreateInput>;
+export type TaskUpdateArgs = TaskUpdateInput | TaskBatchInput<TaskUpdateInput>;
+export type TaskBatchItem = { index: number; success: true; taskId: string; status: TaskStatus; updatedAt: number }
+  | { index: number; success: false; error: string; code: number };
+export interface TaskBatchResult {
+  results: TaskBatchItem[];
+}
+export interface TaskQuery {
+  scope?: TaskScope;
+  view?: string;
+  status?: 'open' | TaskStatus | 'all';
+  search?: string;
+  offset?: number;
+  limit?: number;
+}
+
 /** Work the Brain handed to a team or an agent, and how its follow-up went (data/projects/<id>/brain-briefs.json). */
 export interface BrainBrief {
   id: string;
@@ -825,11 +946,20 @@ export interface BrainBrief {
   messageId?: string;
   chatId?: string;
   followUps: number;
-  /** open: working on it. done: finished (or needs you). stuck: not done after the follow-ups. stopped: you stopped it. replaced: a newer brief went to the same team or agent. cleared: you dropped the goal. */
-  status: 'open' | 'done' | 'stuck' | 'stopped' | 'replaced' | 'cleared';
-  /** your /goal: the Brain judges the work against it, and follows up more times */
+  /** open: working. done: delivered. blocked: needs the user. stuck: no progress. */
+  status: 'open' | 'done' | 'blocked' | 'stuck' | 'stopped' | 'replaced' | 'cleared';
+  /** Created from an ordinary assignment; no command is needed. */
+  automatic?: boolean;
+  revision?: number;
+  stalled?: number;
+  /** Evidence of the last advance, for detecting repeated claims of progress. */
+  progress?: string;
+  workStamp?: string;
+  failures?: number;
+  userAction?: string;
+  /** Completion condition: the original user request, or an explicit /goal. */
   goal?: string;
-  /** chat: set with /goal in the agent's or team's own chat (the Brain reports there, not in the Brain chat) */
+  /** chat: assigned directly in this chat; completion reports there. */
   origin?: 'chat';
   /** the Brain's last word on it, for you */
   summary?: string;

@@ -20,7 +20,8 @@ import * as compaction from '../compaction.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { richFor, richSection } from '../richanswers.ts';
-import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent } from '../../shared/types.ts';
+import { clearWork, stopChatWork } from '../briefs.ts';
+import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent, TeamContextMessage } from '../../shared/types.ts';
 import type { LoopRequest } from '../../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../../shared/queue.ts';
 
@@ -76,6 +77,10 @@ export interface RunEntry {
   chat: Chat;
   depth: number;
   parentRunId: string | null;
+  /** The top-level chat, even after its run has ended while children still work. */
+  ownerChatId: string;
+  ownerAgentId: string;
+  ancestors: string[];
   startedAt: number;
   agentName: string;
   /** the project the run started in: its chat, tools and files stay there */
@@ -118,6 +123,7 @@ export interface StartRunOptions {
   from?: string | null;
   attachments?: string[];
   parentRunId?: string | null;
+  context?: TeamContextMessage[];
 }
 
 /** What a team adds while an agent works for it (tools, MCP servers, skills). */
@@ -136,6 +142,7 @@ export interface AskAgentOptions {
   signal?: AbortSignal | null;
   extra?: AskAgentExtra | null;
   attachments?: string[];
+  context?: TeamContextMessage[];
 }
 
 const ENGINES = { 'claude-code': claude, openai, hermes, codex, pi, omp, openclaw } satisfies { [K in EngineId]: Engine<EngineStatus[K]> };
@@ -218,6 +225,7 @@ export function chatRunId(agentId: string, chatId: string, projectId: string = h
 /** Clear memory: the agent starts fresh after this. While a run goes, its memory is cleared again when it
  *  ends (what it answers now came from the memory you cleared). */
 export function resetMemory(chat: Chat, projectId: string = here()): void {
+  if (projectId === here()) clearWork('agent', chat.agentId, chat.id);
   chat.items.push({ type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', reset: true, ts: Date.now() });
   if (runsIn(projectId, chat.id).length) resets.add(chatKey(projectId, chat.id));
   clearMemory(chat);
@@ -243,6 +251,8 @@ export function buildSystemPrompt(agent: Agent): string {
     memoryContext(agent),
     worldPrompt(tools),
     skillsPrompt(agent),
+    'Use search_conversations to find earlier work in your own chats or your teams\' shared conversations in this project. Use read_conversation on a search hit to read the saved original; continue with nextOffset until you have the text you need. Search past decisions before guessing about earlier work.',
+    'Use the dashboard TaskCreate, TaskGet, TaskList and TaskUpdate tools for work with several steps. TaskCreate/TaskUpdate accept one task or {tasks:[...]} with no per-call task-count cap, processed in order with per-item results; retry only failures because successes stay saved. Keep acceptance criteria in descriptions, claim ready tasks before starting, and mark completed only after checking the result. Read TaskList on each turn to recover saved work. Respect blockedBy dependencies and other owners. Use the dashboard MCP task tools, not a harness-local task list, so the user and team share the same records. Task creation and assignment record work; they do not start another agent. Delegate with ask_agent or team mentions when needed.',
     accountsPrompt(agent.mcpServers || []),
     `\n# Where you are
 You are one of several agents on the user's personal dashboard, running on their Windows PC (user folder ${HOME}).
@@ -263,7 +273,7 @@ function pushItem<T extends ChatItem>(chat: Chat, item: T): T {
 // Start answering a message in a chat. Returns immediately with the run id.
 // The run belongs to the project it starts in (see withProject): opening another project meanwhile
 // doesn't move its chat, tool calls or files there.
-export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
+export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null, context }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
   if (closing) throw new Error('The dashboard is stopping.');
   const project = activeProject();
   const key = chatKey(project.id, chat.id);
@@ -272,11 +282,13 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   // agent.engine comes from a JSON file, so it may be something unknown.
   const engine: Engine | undefined = (ENGINES as Partial<Record<string, Engine>>)[agent.engine];
   if (!engine) throw new Error(`Unknown engine "${agent.engine}".`);
+  if (!from && depth === 0 && !parentRunId) userWorkHook?.(agent, chat, text || `Work on the attached files: ${attachmentNames(attachments)}`);
   const runId = uid('r');
   const controller = new AbortController();
   const started = Date.now();
   const inProject = <T>(fn: () => T): T => withProject(project, fn);
-  const entry: RunEntry = { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, startedAt: started, agentName: agent.name, project, projectId: project.id, agent };
+  const parent = parentRunId ? active.get(parentRunId) : null;
+  const entry: RunEntry = { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, ownerChatId: parent?.ownerChatId || chat.id, ownerAgentId: parent?.ownerAgentId || agent.id, ancestors: [...(parent?.ancestors || []), ...(parentRunId ? [parentRunId] : [])], startedAt: started, agentName: agent.name, project, projectId: project.id, agent };
   active.set(runId, entry);
   // Saving skips chats deleted while the run was going.
   const persist = () =>
@@ -284,8 +296,24 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       if (!chat._deleted) chats.save(chat);
     });
 
+  const reset = chat.items.findLastIndex((i) => i.type === 'meta' && i.reset);
+  const imported = new Set(chat.items.slice(reset + 1).flatMap((i) => i.type === 'user' && i.teamMessageId ? [i.teamMessageId] : []));
+  const added: TeamContextMessage[] = [];
+  const restoreApi = !!context && agent.engine === 'openai' && !chat.llm?.length;
+  chat.llm ||= [];
+  for (const m of context || []) {
+    if (imported.has(m.id)) continue;
+    imported.add(m.id);
+    added.push(m);
+  }
+  for (const m of added) {
+    pushItem(chat, { type: 'user', text: m.text, from: m.from, ts: m.ts, teamMessageId: m.id });
+    // Preserve the API engine's tool history; only the new transcript entries are appended.
+    if (agent.engine === 'openai') chat.llm.push({ role: 'user', content: m.text });
+  }
   // the chat shows what was written (with the files as chips); the agent also gets where the files are
   pushItem(chat, { type: 'user', text, from, ...(attachments.length ? { attachments } : {}) });
+  if (restoreApi) chat.llm = compaction.llmFromItems(chat.items);
   if (chat.title === 'New chat') chat.title = (text || attachmentNames(attachments)).replace(/\s+/g, ' ').slice(0, 60) || 'New chat';
   persist();
   const send = (event: RunEvent) => emit('run', { runId, agentId: agent.id, chatId: chat.id, event });
@@ -318,7 +346,11 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       // its images as files next to the chat: the chat (and what's streamed) keeps only their links
       if (ev.images?.length) ev.images = keepToolImages(agent.id, chat.id, ev.images);
       const it = [...chat.items].reverse().find((i): i is ChatItemOf<'tool'> => i.type === 'tool' && i.id === ev.id);
-      if (it) Object.assign(it, { result: String(ev.text ?? '').slice(0, 30000), images: ev.images || [], isError: !!ev.isError, status: ev.isError ? 'error' : 'done' });
+      if (it) {
+        const result = String(ev.text ?? '');
+        const taskResult = /(?:^|[_:])Task(?:Create|Update)$/.test(it.name);
+        Object.assign(it, { result: taskResult ? result : result.slice(0, 30000), images: ev.images || [], isError: !!ev.isError, status: ev.isError ? 'error' : 'done' });
+      }
       persist();
     } else if (ev.kind === 'model') {
       const fresh = agentStore.get(agent.id);
@@ -362,8 +394,15 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       // sessions too; with that switched off (Settings > Chat memory) they compact here, before the run,
       // and start a new session from the compacted history.
       const cli = agent.engine !== 'openai';
+      if (cli && context && !chat.sessionId) chat.reseed = true;
       const settings = compaction.compactionSettings();
-      if (cli && settings.auto && !compaction.engineCompacts(agent, settings)) {
+      if (context) {
+        const window = await compaction.contextWindow(agent, chat);
+        if (compaction.estimateTokens(systemPrompt + prompt) > window * 0.85) {
+          throw new Error('The addressed team messages exceed this model\'s context window. Use a larger-context model or split the request. The full messages remain saved and searchable.');
+        }
+      }
+      if (cli && settings.auto && (context || !compaction.engineCompacts(agent, settings))) {
         const window = await compaction.contextWindow(agent, chat);
         if (compaction.memoryTokens(chat, agent, systemPrompt) >= compaction.compactAt(window, settings)) await compact({ trigger: 'auto' }).catch(() => null);
       }
@@ -388,7 +427,23 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       const memoryNote = !chat.reseed && chat.sessionId && (agent.engine === 'codex' || agent.engine === 'hermes' || agent.engine === 'openclaw') && memoryAt > (chat.memoryAt || 0) ? `<memory-update>\nYour MEMORY.md changed since your last message here. It now says:\n${readMemory(agent.id).trim() || '(empty)'}\n</memory-update>\n\n` : '';
       chat.memoryAt = memoryAt;
       // (prompt: the message with its attachments, as the engine gets it)
-      const seeded = async () => (cli && chat.reseed ? compaction.seedPrompt(chat.items, prompt, await compaction.contextWindow(agent, chat)) : memoryNote + prompt);
+      const seeded = async () => {
+        if (!cli) return prompt;
+        const window = await compaction.contextWindow(agent, chat);
+        let input = chat.reseed
+          ? compaction.seedPrompt(chat.items, prompt, window, !!context)
+          : memoryNote + (added.length ? `${added.map((m) => m.text).join('\n\n')}\n\n` : '') + prompt;
+        // A native session can disappear after reporting small compacted memory. Its full saved seed
+        // may be much larger, so measure that seed too before restoring it.
+        if (context && chat.reseed && settings.auto && compaction.estimateTokens(systemPrompt + input) > window * 0.85) {
+          await compact({ trigger: 'auto' });
+          input = compaction.seedPrompt(chat.items, prompt, window, true);
+        }
+        if (context && compaction.estimateTokens(systemPrompt + input) > window * 0.85) {
+          throw new Error('The full team context does not fit this model. Enable chat compaction or use a larger-context model. No team messages were discarded.');
+        }
+        return input;
+      };
       const go = async () => engine.run({ agent, chat, text: await seeded(), signal: controller.signal, onEvent, depth, runId, systemPrompt, attachments, compact });
       let result: EngineResult;
       try {
@@ -420,6 +475,11 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     } catch (e) {
       const stopped = controller.signal.aborted;
       failed = !stopped;
+      // A failed CLI turn may never have received its imported messages. Replay saved memory on retry.
+      if (context && agent.engine !== 'openai') {
+        chat.sessionId = null;
+        chat.reseed = true;
+      }
       const msg = stopped ? (entry.steered ? 'Stopped to take your new message.' : 'Stopped.') : (e as Error).message || String(e);
       for (const it of chat.items) if (it.type === 'tool' && it.status === 'running') Object.assign(it, { status: 'error', isError: true, result: stopped ? '(stopped)' : '(did not finish)' });
       pushItem(chat, { type: 'error', text: msg });
@@ -441,7 +501,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       // stopped for a new message from you: that message is next, and a /goal is checked after it instead
       const steered = stopped && !!entry.steered;
       try {
-        if (!steered) runEndHook?.({ agentId: agent.id, chatId: chat.id, runId, answer, stopped, failed });
+        if (!steered) runEndHook?.({ agentId: agent.id, chatId: chat.id, runId, parentRunId, ownerChatId: entry.ownerChatId, ownerAgentId: entry.ownerAgentId, answer, stopped, failed });
       } catch {
         /* a listener's problem is not the run's */
       }
@@ -546,6 +606,7 @@ const told = (id: string, runId: string | null) => {
 const chatBusy = (projectId: string, chatId: string) => runsIn(projectId, chatId).length > 0 || compacting.has(chatKey(projectId, chatId)) || steering.has(chatKey(projectId, chatId));
 /** Something is going in this chat: a run, or a compaction. */
 export const isChatBusy = (chatId: string, projectId: string = here()): boolean => chatBusy(projectId, chatId);
+export const hasBackgroundWork = (chatId: string, projectId: string = here()): boolean => [...active.values()].some((r) => r.projectId === projectId && r.ownerChatId === chatId && r.chatId !== chatId);
 const emitQueue = (agentId: string, chatId: string, projectId: string) => emit('queue', { agentId, chatId, queued: queuedMessages(chatId, projectId) });
 
 export function queuedMessages(chatId: string, projectId: string = here()): QueuedMessage[] {
@@ -653,11 +714,18 @@ export interface RunEnd {
   agentId: string;
   chatId: string;
   runId: string;
+  parentRunId?: string | null;
+  ownerChatId?: string;
+  ownerAgentId?: string;
   answer: string;
   stopped: boolean;
   failed: boolean;
 }
 let runEndHook: ((e: RunEnd) => void) | null = null;
+let userWorkHook: ((agent: Agent, chat: Chat, text: string) => void) | null = null;
+export function onUserWork(fn: typeof userWorkHook): void {
+  userWorkHook = fn;
+}
 /** Called (in the run's project) whenever a run ends. One listener. */
 export function onRunEnd(fn: ((e: RunEnd) => void) | null): void {
   runEndHook = fn;
@@ -780,6 +848,7 @@ export function stopRun(runId: string): boolean {
 }
 
 let closing = false;
+export const isStopping = (): boolean => closing;
 /** The server is stopping: stop every run (an agent's CLI and everything it started with it), start no
  *  new ones, and wait up to `ms` for them to end, so nothing keeps working in a project after we're gone. */
 export async function stopAllRuns(ms = 3000): Promise<void> {
@@ -790,16 +859,18 @@ export async function stopAllRuns(ms = 3000): Promise<void> {
 }
 
 export function stopChildren(parentRunId: string) {
-  for (const [id, r] of active) if (r.parentRunId === parentRunId) stopRun(id);
+  for (const [id, r] of active) if (r.ancestors.includes(parentRunId)) stopRun(id);
 }
 
 export function stopChat(chatId: string, projectId: string = here()) {
-  for (const [id] of runsIn(projectId, chatId)) stopRun(id);
+  stopChatWork(chatId, projectId);
+  for (const [id, run] of active) if (run.projectId === projectId && (run.chatId === chatId || run.ownerChatId === chatId)) stopRun(id);
 }
 
 // A chat deleted while running: stop it and make sure nothing writes it back.
 export function forgetChat(chatId: string, projectId: string = here()) {
   const live = liveChat(chatId, projectId);
+  if (live && projectId === here()) clearWork('agent', live.agentId, chatId);
   if (live) live._deleted = true;
   resets.delete(chatKey(projectId, chatId));
   unqueue(chatId, undefined, projectId);
@@ -809,14 +880,14 @@ export function forgetChat(chatId: string, projectId: string = here()) {
 
 // Used by ask_agent and workflows: run to completion in a fresh chat, return the answer.
 // extra: tool groups / MCP servers added for this run only (a branch's access).
-export async function askAgent(agent: Agent, message: string, { depth = 1, from = null, title = null, chatId = null, parentRunId = null, signal = null, extra = null, attachments = [] }: AskAgentOptions = {}): Promise<string> {
+export async function askAgent(agent: Agent, message: string, { depth = 1, from = null, title = null, chatId = null, parentRunId = null, signal = null, extra = null, attachments = [], context }: AskAgentOptions = {}): Promise<string> {
   if (signal?.aborted) throw new RunStopped();
   let fresh = agentStore.get(agent.id) || agent;
   // extra: what a team adds while the agent works for it (tools, MCP servers, skills)
   // (the team's copy of a service, its account, replaces the agent's own copies of it)
   if (extra) fresh = { ...fresh, toolGroups: [...new Set([...(fresh.toolGroups || []), ...(extra.toolGroups || [])])], mcpServers: teamWorkServers(fresh.mcpServers || [], extra.mcpServers || []), _teamSkills: extra.skills || [] };
   const chat = (chatId && chats.get(fresh.id, chatId)) || chats.create(fresh.id, title || (from ? `Asked by ${from}` : 'Task'));
-  const { runId, promise, signal: runSignal } = startRun(fresh, chat, message, { depth, from, parentRunId, attachments });
+  const { runId, promise, signal: runSignal } = startRun(fresh, chat, message, { depth, from, parentRunId, attachments, context });
   const onAbort = () => stopRun(runId);
   signal?.addEventListener('abort', onAbort);
   try {

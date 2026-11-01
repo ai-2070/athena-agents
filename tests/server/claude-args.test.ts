@@ -32,6 +32,9 @@ describe('claudeArgs() questions', () => {
   it("turns off Claude's own question box in dashboard runs: it asks with ask_user (the Outbox)", () => {
     const args = claudeArgs(agent('auto'), files);
     expect(args[args.indexOf('--disallowedTools') + 1]).toBe('AskUserQuestion');
+    const blocked = args.slice(args.indexOf('--disallowedTools') + 1, args.indexOf('--allowedTools'));
+    expect(blocked).toEqual(['AskUserQuestion', 'TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList', 'TodoWrite']);
+    expect(args.slice(args.indexOf('--allowedTools') + 1)).toContain('mcp__dashboard');
     expect(claudeArgs(agent('full'), files)).toContain('--disallowedTools');
   });
 

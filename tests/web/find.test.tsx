@@ -61,7 +61,7 @@ describe('Ctrl+F in a Markdown preview', () => {
     await rest(50);
     expect(count()).toBe('3 / 3');
     await type('zebra');
-    expect(count()).toBe('None');
+    await expect.poll(count).toBe('None');
   });
 
   it('⌘F does the same, and Esc closes the box without closing the dialog', async () => {

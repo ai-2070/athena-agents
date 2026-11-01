@@ -6,7 +6,8 @@ import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ask, clearHistory, history } from '../../server/overseer.ts';
-import { sendBrief, startIrc, FOLLOW_UPS_MAX } from '../../server/irc.ts';
+import { sendBrief, startIrc } from '../../server/irc.ts';
+import { NO_PROGRESS_LIMIT } from '../../shared/commands.ts';
 import { addBrief, listBriefs, updateBrief } from '../../server/briefs.ts';
 import { resumeInTeam } from '../../server/commands.ts';
 import { newAgent } from '../../server/library.ts';
@@ -97,7 +98,7 @@ describe('the Brain hands work on as itself', () => {
     expect(notes().at(-1)).toContain('**Thumbs finished.**');
   });
 
-  it(`follows up when something is missing, ${FOLLOW_UPS_MAX} times at most, then says it is stuck`, async () => {
+  it('stops after consecutive checks without progress and asks the user for help', async () => {
     const lead = agent('Dawdler');
     const t = team('Slowpokes', lead.id);
     verdicts.push('{"done":false,"followUp":"@Dawdler please finish it","summary":"Only started."}', '{"done":false,"followUp":"@Dawdler finish it now","summary":"Still only started."}', '{"done":false,"followUp":"again","summary":"Never got past starting."}');
@@ -106,8 +107,8 @@ describe('the Brain hands work on as itself', () => {
     await until(() => briefFor(t.id)?.status === 'stuck');
     const from = thread(t.id).map((m) => (m.from === 'brain' ? `brain: ${m.text}` : 'agent'));
     expect(from).toEqual(['brain: Write the script', 'agent', 'brain: @Dawdler please finish it', 'agent', 'brain: @Dawdler finish it now', 'agent']);
-    expect(briefFor(t.id)?.followUps).toBe(FOLLOW_UPS_MAX);
-    expect(notes().at(-1)).toMatch(/Slowpokes hasn't finished.*Never got past starting/);
+    expect(briefFor(t.id)?.followUps).toBe(NO_PROGRESS_LIMIT - 1);
+    expect(notes().at(-1)).toMatch(/Slowpokes needs you.*Never got past starting/);
   });
 
   it('starts a chat with an agent as the Brain and checks its answer', async () => {
@@ -149,7 +150,7 @@ describe('follow-up edge cases', () => {
     await ask('make it');
     await until(() => briefFor(t.id)?.status === 'stuck');
     expect(thread(t.id).filter((m) => m.from === 'brain')).toHaveLength(1);
-    expect(notes().at(-1)).toMatch(/Vague hasn't finished\*\*\. Hard to tell/);
+    expect(notes().at(-1)).toMatch(/Vague needs you\.\*\* Hard to tell/);
   });
 
   it('turning follow-ups off also stops checking on work handed out before', async () => {
@@ -165,7 +166,7 @@ describe('follow-up edge cases', () => {
     expect(briefFor(h.id)?.status).toBe('open');
   });
 
-  it('an answer for work handed on anew meanwhile is not followed up', async () => {
+  it('a newer assignment in a different chat leaves earlier work supervised', async () => {
     const w = agent('Writer');
     let judge!: (v: string) => void;
     verdicts.push(new Promise<string>((r) => (judge = r)), '{"done":true,"summary":"The new one is done."}');
@@ -179,9 +180,9 @@ describe('follow-up edge cases', () => {
     await until(() => briefFor(w.id)?.status === 'done' && briefFor(w.id)?.text === 'Second version');
     judge('{"done":false,"followUp":"Add the summary","summary":"Missing the summary."}');
     await new Promise((r) => setTimeout(r, 200));
-    // no follow-up went into the first chat
-    expect(chats.get(w.id, firstChat)!.items.filter((i) => i.type === 'user')).toHaveLength(1);
-    expect(listBriefs().find((b) => b.text === 'First version')?.status).toBe('replaced');
+    await until(() => listBriefs().find((b) => b.text === 'First version')?.status === 'done');
+    expect(chats.get(w.id, firstChat)!.items.filter((i) => i.type === 'user')).toHaveLength(2);
+    expect(listBriefs().find((b) => b.text === 'First version')?.status).toBe('done');
   });
 
   it("checks an agent's answer in its own project after you open another", async () => {
@@ -252,7 +253,7 @@ describe('@Brain in a team chat', () => {
     await postUserMessage(t.id, 'Make a banner');
     await until(() => thread(t.id).some((m) => m.text === 'Done at 1280x720.'));
     const msgs = thread(t.id);
-    expect(msgs.map((m) => m.from)).toEqual(['user', a.id, 'brain', a.id]);
+    expect(msgs.filter((m) => m.from !== 'system').map((m) => m.from)).toEqual(['user', a.id, 'brain', a.id]);
     expect(msgs[2]).toMatchObject({ text: 'Use 1280x720.', replyTo: msgs[1].id });
     // the Brain got the thread and the question, and was told the agent's words are data
     const q = asked.findLast((x) => x.system.includes('wrote to you (@Brain)'))!;

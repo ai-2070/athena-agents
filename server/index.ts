@@ -33,7 +33,9 @@ import { isEffort } from '../shared/effort.ts';
 import { queuedText } from '../shared/queue.ts';
 import { savedOpacity } from '../shared/look.ts';
 import * as commands from './commands.ts';
-import { openGoal } from './briefs.ts';
+import { openGoal, clearWork, listBriefs } from './briefs.ts';
+import * as tasksMod from './tasks.ts';
+import type { TaskCreateInput, TaskQuery, TaskUpdateInput } from '../shared/types.ts';
 import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
@@ -489,8 +491,19 @@ get('/api/agents/:id/chats', async ({ id }) => chats.list(id));
 post('/api/agents/:id/chats', async ({ id }) => chats.create(need(agents.get(id)).id));
 // (with your /queue messages still waiting, and your /loop and /goal there)
 get('/api/agents/:id/chats/:cid', async ({ id, cid }) => ({ ...need(chats.get(id, cid)), queued: engines.queuedMessages(cid), loop: engines.loopOf(cid), goal: openGoal('agent', id, cid) }));
+
+get('/api/tasks', async (_p, _b, q) => tasksMod.listTasks({ view: q.view || 'all', status: (q.status || 'all') as TaskQuery['status'], search: q.search || '', offset: Number(q.offset), limit: Number(q.limit) }, { admin: true, scope: { kind: 'brain' } }));
+get('/api/tasks/:id', async ({ id }) => ({ task: need(tasksMod.getTask(id, { admin: true, scope: { kind: 'brain' } })) }));
+post<TaskCreateInput & { chatId?: unknown }>('/api/tasks', async (_p, body) => {
+  const scope = tasksMod.taskScope(body.scope || { kind: 'brain' });
+  const chatId = typeof body.chatId === 'string' && scope.kind === 'agent' && chats.get(scope.id!, body.chatId) ? body.chatId : null;
+  const brief = listBriefs().findLast((b) => b.status === 'open' && (scope.kind === 'team' ? b.kind === 'team' && b.targetId === scope.id : scope.kind === 'agent' && b.targetId === scope.id && b.chatId === chatId));
+  return { task: tasksMod.createTask(body, { admin: true, scope, ...(brief ? { briefId: brief.id } : {}) }) };
+});
+put<TaskUpdateInput>('/api/tasks/:id', async ({ id }, body) => ({ task: tasksMod.updateTask({ ...body, taskId: id }, { admin: true, scope: { kind: 'brain' } }) }));
 del('/api/agents/:id/chats/:cid', async ({ id, cid }) => {
   engines.forgetChat(cid);
+  clearWork('agent', id, cid);
   chats.remove(id, cid);
   return { ok: true };
 });
@@ -1456,6 +1469,7 @@ wfs.startScheduler();
 skills.ensureBuiltinSkills();
 learning.startLearning();
 irc.startIrc();
+void irc.recoverWork().catch((e: unknown) => store.log('error', `Couldn't resume saved work: ${e instanceof Error ? e.message : String(e)}`));
 routinesMod.markInterruptedRoutines();
 routinesMod.startRoutineScheduler();
 projectSync.startAutoSave();

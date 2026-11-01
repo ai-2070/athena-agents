@@ -25,6 +25,8 @@ export interface AskInput {
   agentId?: string | null;
   chatId?: string | null;
   runId?: string | null;
+  teamId?: string | null;
+  briefId?: string;
 }
 
 // questions an agent is waiting on right now, by id (in memory: after a restart nobody waits, and answers go as messages)
@@ -39,15 +41,16 @@ export function cleanChoices(raw: unknown): string[] {
 }
 
 /** Puts a question in the Outbox. (ask() also waits for the answer.) */
-export function addQuestion({ question, detail, choices, agentId = null, chatId = null, runId = null }: AskInput): AgentQuestion {
+export function addQuestion({ question, detail, choices, agentId = null, chatId = null, runId = null, teamId: explicitTeam = null, briefId }: AskInput): AgentQuestion {
   const text = clean(question, 2000);
   if (!text) throw new Error('Say what you want to ask the user (question).');
   const agent = agentId ? agents.get(agentId) : null;
   // a team's chat: a late answer goes to the team, so the others see it too
-  const teamId = agentId && chatId ? chats.get(agentId, chatId)?.teamId || null : null;
+  const teamId = explicitTeam || (agentId && chatId ? chats.get(agentId, chatId)?.teamId || null : null);
   const team = teamId ? workflows.get(teamId) : null;
   const q = questions.save({
     id: uid('qn'),
+    ...(briefId ? { briefId } : {}),
     question: text,
     ...(clean(detail, 8000) ? { detail: clean(detail, 8000) } : {}),
     choices: cleanChoices(choices),

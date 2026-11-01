@@ -6,6 +6,7 @@ The [README](../README.md) says what the dashboard is, how to install it, which 
 - [Giving engine CLIs the dashboard tools](#giving-engine-clis-the-dashboard-tools)
 - [Your first project](#your-first-project)
 - [Chats and files](#chats-and-files)
+- [Tasks](#tasks)
 - [Skills: instructions worth keeping](#skills-instructions-worth-keeping)
 - [MEMORY.md: what agents remember](#memorymd-what-agents-remember)
 - [Routines: work worth repeating](#routines-work-worth-repeating)
@@ -78,7 +79,8 @@ Type **/** in an agent, team or Brain chat to see the commands. They work while 
 - `/resume` picks up work that was stopped: the agent carries on where its turn was cut off, a team's interrupted agents start again (also after the team paused at its turn limit), and in Brain chat what the last `/stop` cut off.
 - `/resend` sends your last message again, with its files.
 - `/loop <message>` repeats a message. `/loop 15m check the build` sends it every 15 minutes, never while a turn is still going; `/loop 5x improve the tests` sends it again after each answer, 5 times. A loop runs 10 times unless you say otherwise (at most 100). It shows above the box with **×** to end it; `/loop off` or `/stop` ends it too. Loops last until the dashboard restarts; use a Routine for anything permanent.
-- `/goal <what done looks like>` keeps the work going until it is done. After each turn, the Brain checks the work against your goal and follows up with what is missing, up to 5 times, then says whether the goal was reached. `/goal` alone shows it, `/goal clear` drops it. In Brain chat, the Brain hands the goal to the right agent or team and follows up there.
+- Assignments in agent, team and Brain chats get automatic completion checks by default. The Brain follows up on missing work while results advance. It checks tool results as well as replies, and waits for background delegates and other teams before judging the result. Completed work is reported as finished; a missing account, approval, decision, unrecoverable error, impossible request, or repeated lack of progress is reported separately in **Needs you**. Answer the question or send a message to continue. Work stays in its project when you open another one, and saved open assignments are checked again after a restart. **Stop**, clearing the chat, and deleting it cancel continuation.
+- `/goal <what done looks like>` supplies an explicit completion condition. It works even when ordinary completion checks are off. `/goal` alone shows the current condition, `/goal clear` drops it. In Brain chat, the Brain hands the goal to the right agent or team and follows up there. Productive work has no fixed follow-up limit; three consecutive checks without new progress stop and ask for your help. Temporary connection and service errors retry up to three times; authentication, credits, limits and other errors that need you stop with a question. The Brain's model must be set up for completion checks, and each check uses that model.
 - `/compact` (agent chats) shortens the chat; see Long chats.
 - `/clear` (team chats) empties the chat after you confirm, and each agent forgets the conversation.
 
@@ -91,6 +93,22 @@ Use the paperclip, drop files and folders, or paste them (**Ctrl+V**, **⌘V** o
 Click an attached picture, Markdown file or PDF to look at it, before or after sending: pictures open big, Markdown opens to read, and a PDF opens in a new browser tab (once it has uploaded). A big picture fits the window; zoom with a click (click again to zoom back out), the scroll wheel, a pinch, the **−** / **+** buttons or the **+**, **−** and **0** keys, and drag to move around.
 
 Clicking the Brain on the Station shows what is in its folder. Pictures, Markdown files and PDFs there open the same way, so does **from PROJECT.md** under the description, and a folder opens in Finder or Explorer.
+
+## Tasks
+
+Open **Tasks** in an agent, team or Brain chat to see the steps of a job. Agent and team chats show their own list and project tasks assigned to them. The Brain starts with **All project tasks**; filter by the Brain, a team or an agent, then by status or a search phrase. Lists update as work changes.
+
+Use **Add task** to write a title and description of what must be done and how to check it. Choose an owner, or leave shared work unassigned. Click a task to edit its details, owner, status, working label or prerequisites. **Open** shows unfinished work; choose **All statuses** to include finished tasks. **Show more tasks** loads the next page. Prerequisite choices come from the loaded rows in the same list; clear a search or load more rows to include another task. **Remove** asks first and removes that task's dependency links too. If someone changed a task while you edited it, your draft stays open; **Reload saved task** loads their saved version.
+
+Every engine receives the dashboard's `TaskCreate`, `TaskGet`, `TaskList` and `TaskUpdate` tools. The Brain uses the same saved records. Agents can read their own lists, their teams' lists and project tasks assigned to them or their team. The Brain and the user can manage the whole project. A task's list stays fixed; its owner can change within that list. Team tasks can belong to the team or a member, and project tasks can belong to the Brain, an agent or a team.
+
+`TaskCreate` and `TaskUpdate` also accept a `tasks` array, with no per-call task-count cap. Each item has the same fields as a single task or update. Items run in order, with a result or error for each; successful items stay saved if another item fails. Agents retry only the failed items. Put prerequisite completion before dependent completion in the array. A deletion anywhere in a tool batch asks for the normal approval before any item runs. Existing single-task calls keep their original responses.
+
+Tasks start **Pending**. A worker claims ready work as **In progress**, checks the result, then marks it **Completed**. Another agent cannot take a task already claimed by an agent. A task with unfinished prerequisites is **Blocked** and cannot start or finish until they are complete. Dependencies must be in the same list; cycles are refused. Reopening a prerequisite returns dependent work to Pending so it gets checked again.
+
+Creating or assigning a task records the plan. Ask the agent, team or Brain in the chat to do the work. During supervised work, unfinished tasks linked to the assignment prevent a premature completion report. Completing every task still requires the Brain's usual check of the requested result. A blocker continues to go to **Needs you**.
+
+Tasks survive restarts and are included in folder saves, backups and clones. Opening a saved copy keeps task IDs and dependency links, resets In progress tasks to Pending and drops old completion-check links. Each project's tasks remain separate when you switch projects.
 
 ## Skills: instructions worth keeping
 
@@ -163,7 +181,11 @@ When the Brain hands work to a team, it writes in the team chat as **Brain**, so
 
 If there is no match, the first free member answers. If everyone is busy, the message waits for the first member. A note in the chat names who was chosen and says when the work is queued. A match, a lead, a reply or an @mention still goes to that member even when they are busy.
 
-When several members are assigned the same message, each is told who else has it, including the member who starts first. This helps them divide the work, but does not assign each part for them. Each turn includes recent unread messages and, when the conversation is long, short previews of older ones. Shortened text is marked; counts say how many older messages have previews and how many are not shown. These previews can miss details, and text left out is not automatically sent later.
+When several members are assigned the same message, each is told who else has it, including the member who starts first. This helps them divide the work, but does not assign each part for them. Shared messages enter each member's chat with their full original text, including instructions at the end of long messages. The team's saved transcript keeps older messages too; it no longer expires after 500 messages. A member joining later gets the saved conversation. Messages already removed by the old limit cannot be recovered.
+
+**Agents can look up earlier conversations.** Every agent has `search_conversations` to search its own saved chats and the shared threads of teams it belongs to, in this project. It returns matching excerpts and message references. `read_conversation` reads an original message, with explicit pages for long text so the agent can continue to its end. These tools work without granting Files tools. Another member's private chats are not included, and explicitly cleared or deleted conversations are not searched.
+
+**When the conversation fills the model's memory.** The normal Chat memory settings decide when to compact; saved originals remain available through the conversation tools. Current addressed requests stay in full. If a request itself is too large for the selected model, the turn reports that it cannot fit instead of clipping instructions or marking them read. Choose a model with more room or split the request. Failed turns leave the read mark unchanged, and retries keep the full messages.
 
 **Team members finish their part.** Each agent in a team is told to finish the work it's given rather than decline it or stop partway, to start its own part without waiting for teammates, to install what it needs, and to ask for missing tools (see **Agents ask for tools**) or ask you for access and keys.
 
@@ -172,7 +194,7 @@ When several members are assigned the same message, each is told who else has it
 - **A team gets the tools its work needs.** Agents from the Agent library's Agency only get the tools their job title suggests, so the Brain gives the team the rest: **Social** when it posts or messages anywhere (X, Reddit, Telegram, Discord; posts wait in the Outbox for your OK), the voxel world tools when it builds the world, and the image, 3D or video tools for that work. A team whose name or goal mentions posting or the voxel world gets them even if the Brain forgets; if you take a tool away from a team, it stays away. Every agent can hand in finished results to **Artifacts**.
 - **Ask the Brain from a team chat.** Anyone in a team chat, an agent or you, can write **@Brain** to ask a question or say they're stuck. The Brain answers in the thread and may pass work to a teammate. An agent's request can't make it change agents, teams, skills, routines or settings (an agent asks for tools with `request_tool` instead, below): when the team needs something only you can give, such as an account, a teammate or a decision, the Brain tells you in Brain chat.
 - **Teams ask each other.** In a team chat, an agent or you can write **#Team Name** (type **#** to pick one) to ask another team in the same project. The message goes to that team's chat, marked with the team it came from and who asked, and is answered there like a message from you. Once that team is done, its last reply comes back to the team that asked, to the agent that asked, who carries on. When you write it, nobody on your own team starts unless you also @mention them. A team asks other teams at most 4 times per message you send, and teams asking teams stops 3 deep. If the team you asked is stopped, the team that asked is told.
-- **The Brain follows up.** When the team goes quiet or the agent finishes, the Brain checks the result. If something is missing, it asks for it, twice at most. When the work is done, stuck or needs you, it says so in Brain chat. Turn this off with **The Brain follows up** under **Settings → The Brain's model**.
+- **The Brain follows up.** Direct assignments and work handed out by the Brain are checked automatically after each turn. Missing work gets a concrete next step, without requiring you to type a command. Completion and blockers are separate: only delivered work is called finished. A blocker or repeated lack of progress creates an actionable question in **Needs you**. Direct assignments report in their chat; work handed out by the Brain reports in Brain chat. Turn ordinary checks off with **The Brain follows up** under **Settings → The Brain's model**; explicit `/goal` requests still get checked. Existing approval rules and Outbox review still apply.
 
 ## Models, effort and stopping work from Brain chat
 

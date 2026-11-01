@@ -43,12 +43,18 @@ describe('effects', () => {
   const rnd = () => ((a = (Math.imul(a, 1664525) + 1013904223) >>> 0) / 4294967296);
   const box = { w: 10, h: 6, d: 8 };
   const inside = (p: ReturnType<typeof makeParticles>) => {
+    let x = 0, low = Infinity, high = -Infinity, z = 0;
     for (let i = 0; i < p.n; i++) {
-      expect(Math.abs(p.pos[i * 3])).toBeLessThanOrEqual(box.w / 2 + 1e-6);
-      expect(p.pos[i * 3 + 1]).toBeGreaterThanOrEqual(0);
-      expect(p.pos[i * 3 + 1]).toBeLessThanOrEqual(box.h + 1e-6);
-      expect(Math.abs(p.pos[i * 3 + 2])).toBeLessThanOrEqual(box.d / 2 + 1e-6);
+      x = Math.max(x, Math.abs(p.pos[i * 3]));
+      low = Math.min(low, p.pos[i * 3 + 1]);
+      high = Math.max(high, p.pos[i * 3 + 1]);
+      z = Math.max(z, Math.abs(p.pos[i * 3 + 2]));
     }
+    // Every particle is checked at every step, with four assertions on the resulting bounds.
+    expect(x).toBeLessThanOrEqual(box.w / 2 + 1e-6);
+    expect(low).toBeGreaterThanOrEqual(0);
+    expect(high).toBeLessThanOrEqual(box.h + 1e-6);
+    expect(z).toBeLessThanOrEqual(box.d / 2 + 1e-6);
   };
 
   it('falling particles stay in their box and come back at the top', () => {
