@@ -1,0 +1,24 @@
+tests/web/library.test.tsx
+  s_9c8d911149168f::t_6dccbaa00e15e7 59,147,153,159-160,162
+  s_9c8d911149168f::t_30da542979f15d 140-144,154,161,164
+docs/guide.md
+  s_9c8d911149168f::t_30da542979f15d 47
+web/views/library.tsx
+  s_9c8d911149168f::t_fb04fc0fb47a64 14,54,69,71-75,127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "70acb2d68816a4c906e20208895f1cdd23709e0b",
+  "prompts": {},
+  "sessions": {
+    "s_9c8d911149168f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198e4-a961-7860-9c31-6d91b3d89cde",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
