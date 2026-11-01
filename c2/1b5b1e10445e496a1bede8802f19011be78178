@@ -1,0 +1,62 @@
+server/eve/state.ts
+  s_3c304e20f190e2::t_1623205ccd8901 6-7,55-57
+  s_3c304e20f190e2::t_923bb2124f70ee 21,23,25-38
+  s_3c304e20f190e2::t_50a69fc3329cb9 22,24
+tests/server/eve-admission.test.ts
+  s_3c304e20f190e2::t_8de4a2a3965332 1-2,4-14,18-19,22-34,38-40,74-192,207-238
+  s_3c304e20f190e2::t_50a69fc3329cb9 193-206
+  s_3c304e20f190e2::t_fa930a8819f83e 3,15-17,20-21,41-73
+  s_3c304e20f190e2::t_18625cd464221d 35-37
+server/teamwork.ts
+  s_3c304e20f190e2::t_6b6f23e846f774 4,18-23
+  s_3c304e20f190e2::t_3f66fe2fb42c76 24-25
+runtime/eve/agent/channels/eve.ts
+  s_3c304e20f190e2::t_e950e876749c37 1,3-5,8-16
+scripts/eve-integration-smoke.ts
+  s_3c304e20f190e2::t_612f68847497ef 21-23,31,45,55-61,251-296
+  s_3c304e20f190e2::t_f89883c671cfed 19,33-34,37,201-202,205-210,221-222,241-243,250
+shared/types.ts
+  s_3c304e20f190e2::t_923bb2124f70ee 811-826
+tests/server/teamwork.test.ts
+  s_3c304e20f190e2::t_1623205ccd8901 11,45
+  s_3c304e20f190e2::t_ced3f13aaaaba2 56
+  s_3c304e20f190e2::t_e817aac3c9e833 9-10,12,31-41,43-44,46-55,57-63,66-126
+  s_3c304e20f190e2::t_e0387187c9ffca 64-65
+docs/internal/plans/EVE_API_ENGINE_2026-11-01.md
+  s_3c304e20f190e2::t_2fbb0380d8f05a 72-73,83,94-96
+  s_3c304e20f190e2::t_f66efcdc1bda1f 3,27,51-52,65-71,74-82,84-93,209-211
+server/eve/recovery.ts
+  s_3c304e20f190e2::t_e950e876749c37 8,168,206-209
+  s_3c304e20f190e2::t_6b6f23e846f774 9-10,176,184-189
+server/engines/eve.ts
+  s_3c304e20f190e2::t_ced3f13aaaaba2 5,29
+  s_3c304e20f190e2::t_fa930a8819f83e 31-32
+  s_3c304e20f190e2::t_e950e876749c37 1-4,6-28,30,33-43
+server/eve/admission.ts
+  s_3c304e20f190e2::t_ced3f13aaaaba2 46-47,96
+  s_3c304e20f190e2::t_923bb2124f70ee 1-10,12-17,19-41,48-77,79-93,95,97-107,111,114,117-155
+  s_3c304e20f190e2::t_699a521ab376f7 11,18,42-45,78,94,108-110,112-113,115-116
+server/teams.ts
+  s_3c304e20f190e2::t_c9d6254ca4ca14 200,206,667,1205-1208
+  s_3c304e20f190e2::t_6b6f23e846f774 13,15,201-205,207-221,223,717,736,740-743,803,848,857,882,1018
+  s_3c304e20f190e2::t_e817aac3c9e833 744-755
+  s_3c304e20f190e2::t_94d6968b59e127 756-757
+server/eve/bridge.ts
+  s_3c304e20f190e2::t_e950e876749c37 17,152,167,181-187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c21b5b1e10445e496a1bede8802f19011be78178",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
