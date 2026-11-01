@@ -1,0 +1,19 @@
+docs/internal/plans/VENICE_API_PLAN.md
+  s_9416edeb647587::t_b5a0f1dff8fa4b 1-215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "28bc060797f6a3ebf40a92bc1930203eea3760c4",
+  "prompts": {},
+  "sessions": {
+    "s_9416edeb647587": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198cb-4b55-7643-890c-fb61b19964a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
