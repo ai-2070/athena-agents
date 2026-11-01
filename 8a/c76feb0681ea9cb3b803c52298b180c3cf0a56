@@ -1,0 +1,19 @@
+web/views/stationpanel.tsx
+  s_6948f15a3f0af4::t_cfb47174df3fae 109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8ac76feb0681ea9cb3b803c52298b180c3cf0a56",
+  "prompts": {},
+  "sessions": {
+    "s_6948f15a3f0af4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6919bfe3-ce22-4174-b508-678a59a02169",
+        "model": "unknown"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
