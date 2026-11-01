@@ -915,6 +915,14 @@ export interface TaskUpdateInput {
   /** Reject an edit made against an older saved version. */
   expectedUpdatedAt?: number;
 }
+export type TaskBatchInput<T> = { tasks: T[] };
+export type TaskCreateArgs = TaskCreateInput | TaskBatchInput<TaskCreateInput>;
+export type TaskUpdateArgs = TaskUpdateInput | TaskBatchInput<TaskUpdateInput>;
+export type TaskBatchItem = { index: number; success: true; taskId: string; status: TaskStatus; updatedAt: number }
+  | { index: number; success: false; error: string; code: number };
+export interface TaskBatchResult {
+  results: TaskBatchItem[];
+}
 export interface TaskQuery {
   scope?: TaskScope;
   view?: string;

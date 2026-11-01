@@ -1,6 +1,6 @@
 import { activeProject, chats, withProject } from './store.ts';
 import { listBriefs } from './briefs.ts';
-import { createTask, getTask, listTasks, updateTask } from './tasks.ts';
+import { createTask, getTask, listTasks, runTaskBatch, updateTask } from './tasks.ts';
 import type { TaskAccess } from './tasks.ts';
 import type { JSONSchema, ToolContext, ToolDef } from './tools.ts';
 import type { TaskCreateInput, TaskQuery, TaskUpdateInput } from '../shared/types.ts';
@@ -9,6 +9,8 @@ const scope: JSONSchema = { type: 'object', properties: { kind: { type: 'string'
 const string: JSONSchema = { type: 'string' };
 const ids: JSONSchema = { type: 'array', items: string, maxItems: 40 };
 const create = { subject: string, description: string, activeForm: string, metadata: { type: 'object' }, scope, owner: string };
+const update = { taskId: string, subject: string, description: string, activeForm: string, owner: string, metadata: { type: 'object' }, status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'deleted'] }, addBlockedBy: ids, addBlocks: ids, removeBlockedBy: ids, removeBlocks: ids, expectedUpdatedAt: { type: 'number' } };
+const bulkSchema = (properties: Record<string, JSONSchema>, required: string[]): JSONSchema => ({ type: 'object', properties: { ...properties, tasks: { type: 'array', minItems: 1, items: { type: 'object', properties, required } } }, oneOf: [{ required }, { required: ['tasks'] }] });
 async function inContext<T>(ctx: ToolContext, fn: (access: TaskAccess) => T): Promise<T> {
   const { runInfo } = await import('./engines/index.ts');
   const run = ctx.runId ? runInfo(ctx.runId) : null;
@@ -24,9 +26,9 @@ export function taskTools(): ToolDef[] {
   return [
     {
       name: 'TaskCreate', group: 'core', risk: 'none',
-      description: 'Create a saved task: subject, detailed description with acceptance criteria, optional activeForm and metadata. Default list is your team while working in a team, otherwise your own list. Shared tasks support owners and dependencies. owner is empty, brain, agent:<id> or team:<id>. This records work; it does not start a run.',
-      parameters: { type: 'object', properties: create, required: ['subject', 'description'] },
-      run: async (args, ctx) => ({ text: JSON.stringify(await inContext(ctx, (a) => ({ task: createTask(args as unknown as TaskCreateInput, a) }))) }),
+      description: 'Create saved tasks. Either provide one task (subject, description, optional activeForm, metadata, scope, owner) or {tasks:[...]} with a non-empty array of task objects, without single-task fields. No per-call task-count cap. Batches process in order, keep successes and return an indexed success or error per item; do not retry successes. Batch successes give taskId/status/updatedAt; TaskGet reads full details. Default list: your current team or own list. owner is empty, brain, agent:<id> or team:<id>. Records work; does not start a run.',
+      parameters: bulkSchema(create, ['subject', 'description']),
+      run: async (args, ctx) => ({ text: JSON.stringify(await inContext(ctx, (a) => runTaskBatch(args, (item) => createTask(item as unknown as TaskCreateInput, a)) ?? { task: createTask(args as unknown as TaskCreateInput, a) })) }),
     },
     {
       name: 'TaskGet', group: 'core', risk: 'none', description: 'Read one saved task, including its full description, owner, metadata and dependency links. Read before claiming work.',
@@ -39,10 +41,12 @@ export function taskTools(): ToolDef[] {
       run: async (args, ctx) => ({ text: JSON.stringify(await inContext(ctx, (a) => listTasks(args as TaskQuery, a))) }),
     },
     {
-      name: 'TaskUpdate', group: 'core', risk: (args) => args.status === 'deleted' ? 'high' : 'none',
-      description: 'Update a task, claim it with owner agent:<your id> and status in_progress, or mark it completed after verifying the result. States: pending, in_progress, completed, deleted. Dependencies: addBlockedBy/addBlocks (or removeBlockedBy/removeBlocks). metadata merges keys; null removes a key. Another agent cannot take an already claimed task. Deletion needs normal approval.',
-      parameters: { type: 'object', properties: { taskId: string, subject: string, description: string, activeForm: string, owner: string, metadata: { type: 'object' }, status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'deleted'] }, addBlockedBy: ids, addBlocks: ids, removeBlockedBy: ids, removeBlocks: ids, expectedUpdatedAt: { type: 'number' } }, required: ['taskId'] },
+      name: 'TaskUpdate', group: 'core', risk: (args) => args.status === 'deleted' || (Array.isArray(args.tasks) && args.tasks.some((t: unknown) => !!t && typeof t === 'object' && 'status' in t && t.status === 'deleted')) ? 'high' : 'none',
+      description: 'Update one task by taskId, or {tasks:[...]} with a non-empty array of updates, without single-task fields. No per-call task-count cap. Batches process in order and return indexed taskId/status/updatedAt or errors; successes persist, so retry only failed items. Complete prerequisites before dependent updates. Claim with owner agent:<your id> and status in_progress; completed only after verification. States: pending/in_progress/completed/deleted. addBlockedBy/addBlocks or removeBlockedBy/removeBlocks edit links. metadata merges; null removes a key. Claims stay exclusive. Any deletion gates the whole call for approval.',
+      parameters: bulkSchema(update, ['taskId']),
       run: async (args, ctx) => ({ text: JSON.stringify(await inContext(ctx, (a) => {
+        const batch = runTaskBatch(args, (item) => updateTask(item as unknown as TaskUpdateInput, a));
+        if (batch) return batch;
         const before = getTask(args.taskId, a);
         const task = updateTask(args as unknown as TaskUpdateInput, a);
         return { success: true, taskId: task.id, updatedFields: Object.keys(args).filter((k) => k !== 'taskId'), statusChange: before?.status !== task.status ? { from: before?.status, to: task.status } : null };

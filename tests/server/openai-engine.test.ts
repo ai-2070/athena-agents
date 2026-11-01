@@ -12,7 +12,7 @@ import { cutReason, trimHistory } from '../../server/engines/openai.ts';
 import type { LlmMessage } from '../../server/engines/openai.ts';
 import { decide, listApprovals } from '../../server/approvals.ts';
 import * as mcp from '../../server/mcp.ts';
-import type { Chat } from '../../shared/types.ts';
+import type { Chat, TaskBatchResult } from '../../shared/types.ts';
 
 const FAKE_MCP = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-mcp.mjs');
 
@@ -70,6 +70,22 @@ const go = async (autonomy: 'auto' | 'ask' | 'full', script: Reply[], onApproval
 };
 
 describe('MCP tools for API models', () => {
+  it('passes every batch outcome to the next model step even beyond the usual tool-output limit', async () => {
+    const { chat } = await go('full', [
+      { call: { name: 'TaskCreate', args: JSON.stringify({ tasks: Array.from({ length: 400 }, () => ({ subject: '', description: 'Invalid title.' })) }) } },
+      { call: { name: 'TaskUpdate', args: JSON.stringify({ tasks: Array.from({ length: 400 }, () => ({ taskId: 'missing', status: 'completed' })) }) } },
+      { text: 'The invalid items need corrections.' },
+    ], undefined, []);
+    for (const request of [requests[1], requests[2]]) {
+      const output = request.messages.findLast((m) => m.role === 'tool')!.content as string;
+      expect(output.length).toBeGreaterThan(24000);
+      const batch = JSON.parse(output) as TaskBatchResult;
+      expect(batch.results).toHaveLength(400);
+      expect(batch.results.at(-1)).toMatchObject({ index: 399, success: false });
+    }
+    expect(chat.items.filter((i) => i.type === 'tool' && i.result && JSON.parse(i.result).results.length === 400)).toHaveLength(2);
+  });
+
   it('a tool that only reads needs no yes on Auto, and its picture reaches the model', async () => {
     const asked: string[] = [];
     await go('auto', [{ call: { name: 'fake__look', args: '{}' } }, { text: 'I see a dot.' }], (t) => asked.push(t));

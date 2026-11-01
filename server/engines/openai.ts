@@ -469,7 +469,10 @@ export async function run({ agent, chat, text, signal, onEvent, depth, runId, sy
         const seen = await toolPictures(agent.id, chat.id, result.images);
         pictures.push(...seen);
         const note = result.images?.length ? `\n[${result.images.length} image(s) shown to the user${seen.length ? '; you get them in the next message' : ''}]` : '';
-        chat.llm.push({ role: 'tool', tool_call_id: call.id, content: String(result.text || '(no output)').slice(0, 24000) + note });
+        // Mutations must return every item outcome so the agent can retry only failures.
+        const text = String(result.text || '(no output)');
+        const taskResult = target?.kind === 'builtin' && ['TaskCreate', 'TaskUpdate'].includes(target.name);
+        chat.llm.push({ role: 'tool', tool_call_id: call.id, content: (taskResult ? text : text.slice(0, 24000)) + note });
         answered.add(call.id);
       }
     } finally {

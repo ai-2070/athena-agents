@@ -72,4 +72,15 @@ describe('npm-installed Codex', () => {
     const chat = await ask();
     expect(chat.items.at(-1)).toMatchObject({ type: 'error', text: expect.stringContaining('stream disconnected') });
   });
+  it('keeps every task batch outcome in saved MCP results', async () => {
+    process.env.FAKE_CODEX_MODE = 'tasks';
+    const chat = await ask();
+    const results = chat.items.flatMap((i) => i.type === 'tool' && i.result ? [i.result] : []);
+    expect(results).toHaveLength(2);
+    for (const text of results) {
+      expect(text.length).toBeGreaterThan(20000);
+      expect(JSON.parse(text).results).toHaveLength(300);
+      expect(JSON.parse(text).results.at(-1)).toMatchObject({ index: 299 });
+    }
+  });
 });

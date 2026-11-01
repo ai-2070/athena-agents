@@ -1,7 +1,7 @@
 // One project file makes claims and dependency edits a single synchronous transaction.
 import { agents, workflows, activeProject, emit } from './store.ts';
 import { dataPath, readJSON, writeJSON, uid } from './util.ts';
-import type { TaskCreateInput, TaskPage, TaskQuery, TaskScope, TaskSummary, TaskUpdateInput, WorkTask } from '../shared/types.ts';
+import type { TaskBatchResult, TaskCreateInput, TaskPage, TaskQuery, TaskScope, TaskSummary, TaskUpdateInput, WorkTask } from '../shared/types.ts';
 
 export interface TaskAccess {
   agentId?: string;
@@ -13,6 +13,22 @@ const file = () => dataPath('projects', activeProject().id, 'tasks.json');
 export const savedTasks = (): WorkTask[] => readJSON<{ tasks: WorkTask[] }>(file(), { tasks: [] }).tasks;
 const fail = (message: string, status = 400): never => { throw Object.assign(new Error(message), { status }); };
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+/** Batches commit each item in order. Bad items never roll back successful siblings. */
+export function runTaskBatch(input: Record<string, unknown>, apply: (item: Record<string, unknown>) => WorkTask): TaskBatchResult | null {
+  if (!Object.hasOwn(input, 'tasks')) return null;
+  if (Object.keys(input).some((k) => k !== 'tasks')) return fail('Use either single-task fields or a tasks array, not both.');
+  if (!Array.isArray(input.tasks) || !input.tasks.length) return fail('tasks must be a non-empty array of task objects.');
+  return { results: input.tasks.map((item: unknown, index) => {
+    try {
+      if (!object(item) || Object.hasOwn(item, 'tasks')) return fail('Each batch item must be one task object.');
+      const task = apply(item);
+      return { index, success: true, taskId: task.id, status: task.status, updatedAt: task.updatedAt };
+    } catch (e) {
+      const code = object(e) && typeof e.status === 'number' ? e.status : 400;
+      return { index, success: false, error: (e instanceof Error ? e.message : String(e)).slice(0, 1000), code };
+    }
+  }) };
+}
 const text = (v: unknown, name: string, max: number, required = false): string => {
   if (typeof v !== 'string' || v.length > max || (required && !v.trim())) return fail(`${name} must be ${required ? 'non-empty text' : 'text'} of at most ${max} characters.`);
   return v.trim();

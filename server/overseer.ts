@@ -36,7 +36,7 @@ import { MODEL_PROVIDERS, PROVIDER_IDS, modelProvider, providerOfAgent, provider
 import type { Effort } from '../shared/effort.ts';
 import type { ModelProvider } from './models.ts';
 import { listBriefs } from './briefs.ts';
-import { createTask, getTask, listTasks, savedTasks, updateTask } from './tasks.ts';
+import { createTask, getTask, listTasks, runTaskBatch, savedTasks, updateTask } from './tasks.ts';
 import type { TaskCreateInput, TaskQuery, TaskUpdateInput } from '../shared/types.ts';
 import { build as buildInWorld } from './voxel/build.ts';
 import { shownWorld, worldForBuild } from './voxel/link.ts';
@@ -87,6 +87,7 @@ interface MemberRef {
 }
 /** One action the Brain asked for, as parsed from its answer (nothing is guaranteed). */
 export interface BrainAction {
+  tasks?: unknown;
   taskId?: string;
   subject?: unknown;
   activeForm?: unknown;
@@ -566,6 +567,7 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"delegate","to":"team"|"agent","id":"<id, or 'new' for the team/agent created just before>","message":"a clear brief with the context from the snapshot they need"}   (it goes out as your message: in the team chat, or a new chat with the agent. When they finish you check the result yourself and follow up if something is missing)
 {"do":"TaskCreate","subject":"short title","description":"requirements and acceptance criteria","activeForm":"Doing the work","scope":{"kind":"brain"|"team"|"agent","id":"team/agent id when needed"},"owner":"brain, agent:<id>, team:<id>, or empty","metadata":{}}
 {"do":"TaskUpdate","taskId":"id, unique title, or new (the task just created)","status":"pending"|"in_progress"|"completed"|"deleted","owner":"…","addBlockedBy":["prerequisite ids or unique titles"],"addBlocks":["dependent ids or unique titles"]} (also subject, description, activeForm, metadata, removeBlockedBy, removeBlocks)
+TaskCreate and TaskUpdate also accept {"do":"TaskCreate"|"TaskUpdate","tasks":[{...},{...}]} with a non-empty array of task objects/updates and no per-call task-count cap, without single-task fields. Items run in order; failures are reported per item and successful items remain saved. Retry only failed items. Batch updates can refer to unique titles from earlier creates; put prerequisite completion before dependent completion.
 {"do":"TaskGet","taskId":"id"} / {"do":"TaskList","status":"open","search":"optional text","offset":0,"limit":50} (read saved tasks before answering; TaskList also accepts scope, returns nextOffset for more pages)
 {"do":"create_routine","name":"…","description":"one line","text":"what to do, with @Name mentions","schedule":SCHEDULE,"enabled":true|false}
 {"do":"update_routine","routine":"<routine id>","name":"…","description":"…","text":"the whole new text","schedule":SCHEDULE,"enabled":true|false}   (only the fields that change)
@@ -1291,14 +1293,25 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
           if (named.length !== 1) throw new Error('Use an existing task id or a unique task title.');
           return named[0].id;
         };
-        const edit = { ...act };
-        if (kind === 'TaskUpdate') for (const field of ['addBlockedBy', 'addBlocks', 'removeBlockedBy', 'removeBlocks'] as const) if (Array.isArray(edit[field])) edit[field] = edit[field].map(reference);
-        if (kind === 'TaskCreate' && edit.scope && typeof edit.scope === 'object' && 'kind' in edit.scope && 'id' in edit.scope && edit.scope.id === 'new') edit.scope = { kind: edit.scope.kind, id: edit.scope.kind === 'team' ? lastTeam : lastAgent };
-        if (edit.owner === 'agent:new') edit.owner = `agent:${lastAgent}`;
-        if (edit.owner === 'team:new') edit.owner = `team:${lastTeam}`;
-        const task = kind === 'TaskCreate' ? createTask(edit as unknown as TaskCreateInput, access) : updateTask({ ...edit, taskId: reference(edit.taskId) } as unknown as TaskUpdateInput, access);
-        lastTask = task.id;
-        done.push({ kind: 'task', taskId: task.id, text: `${kind === 'TaskCreate' ? 'Created' : task.status === 'deleted' ? 'Removed' : 'Updated'} task: ${task.subject} [${task.id}]` });
+        const perform = (input: Record<string, unknown>) => {
+          const edit = { ...input };
+          if (kind === 'TaskUpdate') for (const field of ['addBlockedBy', 'addBlocks', 'removeBlockedBy', 'removeBlocks'] as const) if (Array.isArray(edit[field])) edit[field] = edit[field].map(reference);
+          if (kind === 'TaskCreate' && edit.scope && typeof edit.scope === 'object' && 'kind' in edit.scope && 'id' in edit.scope && edit.scope.id === 'new') edit.scope = { kind: edit.scope.kind, id: edit.scope.kind === 'team' ? lastTeam : lastAgent };
+          if (edit.owner === 'agent:new') edit.owner = `agent:${lastAgent}`;
+          if (edit.owner === 'team:new') edit.owner = `team:${lastTeam}`;
+          const task = kind === 'TaskCreate' ? createTask(edit as unknown as TaskCreateInput, access) : updateTask({ ...edit, taskId: reference(edit.taskId) } as unknown as TaskUpdateInput, access);
+          lastTask = task.id;
+          return task;
+        };
+        const { do: _do, action: _action, ...input } = act;
+        const batch = runTaskBatch(input, perform);
+        const results = batch?.results || [{ success: true as const, taskId: perform(input).id }];
+        const saved = new Map(savedTasks().map((t) => [t.id, t]));
+        for (const result of results) {
+          if (!result.success) { done.push({ kind: 'error', text: `${kind} item ${result.index + 1}: ${result.error}` }); continue; }
+          const task = saved.get(result.taskId)!;
+          done.push({ kind: 'task', taskId: task.id, text: `${kind === 'TaskCreate' ? 'Created' : task.status === 'deleted' ? 'Removed' : 'Updated'} task: ${task.subject} [${task.id}]` });
+        }
         continue;
       }
       if (kind === 'stop') {

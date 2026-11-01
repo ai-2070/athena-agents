@@ -135,7 +135,9 @@ export function piReader(onEvent: (ev: RunEvent) => void, onSession: (id: string
     } else if (t === 'tool_execution_end' && ev.toolCallId) {
       // (a picture it read, a screenshot: shown under the tool call)
       const images = toolImages(ev.result);
-      onEvent({ kind: 'tool_result', id: ev.toolCallId, text: toolText(ev.result).slice(0, 20000), isError: !!ev.isError, ...(images.length ? { images } : {}) });
+      const text = toolText(ev.result);
+      const taskResult = /(?:^|[_:])Task(?:Create|Update)$/.test(ev.toolName || '');
+      onEvent({ kind: 'tool_result', id: ev.toolCallId, text: taskResult ? text : text.slice(0, 20000), isError: !!ev.isError, ...(images.length ? { images } : {}) });
     } else if (t === 'auto_retry_start') onEvent({ kind: 'status', text: `Trying again (${ev.attempt || 1}/${ev.maxAttempts || '?'})${ev.errorMessage ? `: ${ev.errorMessage.slice(0, 100)}` : ''}` });
     else if (t === 'compaction_start' || t === 'auto_compaction_start') onEvent({ kind: 'status', text: 'Compacting its memory…' });
     else if ((t === 'compaction_end' || t === 'auto_compaction_end') && !ev.aborted) {

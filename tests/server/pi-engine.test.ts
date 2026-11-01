@@ -135,6 +135,15 @@ describe('piReader', () => {
     expect(toolText('plain')).toBe('plain');
     expect(toolText({ ok: true })).toBe('{"ok":true}');
   });
+  it('keeps all task batch results in the saved conversation beyond the usual output limit', () => {
+    const events: RunEvent[] = [];
+    const r = piReader((e) => events.push(e), () => {});
+    const text = JSON.stringify({ results: Array.from({ length: 300 }, (_, index) => ({ index, success: false, error: 'That task is unavailable.', code: 404 })) });
+    expect(text.length).toBeGreaterThan(20000);
+    for (const toolName of ['TaskCreate', 'mcp__dashboard__TaskUpdate']) r.line(ev({ type: 'tool_execution_end', toolCallId: toolName, toolName, result: { content: [{ type: 'text', text }] } }));
+    expect(events).toHaveLength(2);
+    expect(events.every((e) => e.kind === 'tool_result' && e.text === text)).toBe(true);
+  });
 });
 
 describe('a pi run', () => {

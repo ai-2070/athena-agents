@@ -7,7 +7,8 @@ import { createProject } from '../../server/projects.ts';
 import { cloneProject } from '../../server/backup.ts';
 import { createTask, getTask, listTasks, restoredTasks, savedTasks, updateTask } from '../../server/tasks.ts';
 import { callTool, riskOf, toolsForAgent } from '../../server/tools.ts';
-import type { TaskPage, Team, WorkTask } from '../../shared/types.ts';
+import { decide, listApprovals } from '../../server/approvals.ts';
+import type { TaskBatchResult, TaskPage, Team, WorkTask } from '../../shared/types.ts';
 
 const admin = { admin: true, scope: { kind: 'brain' as const } };
 const setup = () => {
@@ -120,6 +121,101 @@ describe('saved tasks', () => {
 });
 
 describe('task tools and project copies', () => {
+  it('creates batches with indexed partial results, full saved details and per-item access checks', async () => {
+    const { a, b } = setup();
+    const result = await callTool(a, 'TaskCreate', { tasks: [
+      { subject: 'First bulk task', description: 'Keep every requirement.', metadata: { ticket: 42 } },
+      { subject: '', description: 'Invalid title.' },
+      { subject: 'Private intrusion', description: 'Must be refused.', scope: { kind: 'agent', id: b.id } },
+      null,
+      { tasks: [{ subject: 'Nested', description: 'No nested batches.' }] },
+      { subject: 'Last bulk task', description: 'Continue after failures.' },
+    ] });
+    expect(result.isError).toBe(false);
+    const batch = JSON.parse(result.text) as TaskBatchResult;
+    expect(batch.results.map((r) => [r.index, r.success])).toEqual([[0, true], [1, false], [2, false], [3, false], [4, false], [5, true]]);
+    expect(batch.results[2]).toMatchObject({ code: 403 });
+    const first = batch.results[0];
+    if (!first.success) throw new Error('The first task should have been saved.');
+    expect(getTask(first.taskId, { agentId: a.id, scope: { kind: 'agent', id: a.id } })).toMatchObject({ description: 'Keep every requirement.', metadata: { ticket: 42 }, updatedAt: first.updatedAt });
+    expect(savedTasks().filter((t) => t.subject.endsWith('bulk task'))).toHaveLength(2);
+  });
+
+  it('updates batches in order, respects blockers and stale versions, and keeps successful siblings', async () => {
+    const { a, create, access } = setup();
+    const first = create('Bulk prerequisite'); const second = create('Bulk dependent');
+    updateTask({ taskId: second.id, addBlockedBy: [first.id] }, access);
+    const result = JSON.parse((await callTool(a, 'TaskUpdate', { tasks: [
+      { taskId: second.id, status: 'completed' },
+      { taskId: first.id, status: 'completed' },
+      { taskId: second.id, status: 'completed', metadata: { checked: true } },
+      { taskId: first.id, subject: 'Stale edit', expectedUpdatedAt: first.updatedAt },
+      { taskId: 'missing', status: 'completed' },
+    ] })).text) as TaskBatchResult;
+    expect(result.results.map((r) => r.success)).toEqual([false, true, true, false, false]);
+    expect(result.results[0]).toMatchObject({ index: 0, code: 409 });
+    expect(result.results[3]).toMatchObject({ index: 3, code: 409 });
+    expect(result.results[4]).toMatchObject({ index: 4, code: 404 });
+    expect(getTask(first.id, access)).toMatchObject({ status: 'completed', subject: 'Bulk prerequisite' });
+    expect(getTask(second.id, access)).toMatchObject({ status: 'completed', metadata: { checked: true } });
+  });
+
+  it('protects claimed work inside a batch and detects deletions anywhere in the call', async () => {
+    const { a, b, create, access } = setup();
+    const claimed = create('Peer owns this'); const free = create('My own work');
+    updateTask({ taskId: claimed.id, owner: `agent:${b.id}`, status: 'in_progress' }, { ...access, agentId: b.id });
+    const args = { tasks: [{ taskId: claimed.id, status: 'completed' }, { taskId: free.id, status: 'completed' }] };
+    expect(riskOf('TaskUpdate', args)).toBe('none');
+    const batch = JSON.parse((await callTool(a, 'TaskUpdate', args)).text) as TaskBatchResult;
+    expect(batch.results.map((r) => r.success)).toEqual([false, true]);
+    expect(getTask(claimed.id, access)?.status).toBe('in_progress');
+    expect(riskOf('TaskUpdate', { tasks: [null, ...args.tasks, { taskId: free.id, status: 'deleted' }] })).toBe('high');
+    expect(riskOf('TaskUpdate', { status: 'deleted', tasks: args.tasks })).toBe('high');
+  });
+
+  it('rejects malformed, empty and mixed batches before writing any task', async () => {
+    const { a } = setup();
+    const item = { subject: 'Must not be saved', description: 'Invalid wrapper.' };
+    const before = savedTasks();
+    for (const tasks of [null, {}, []]) {
+      expect((await callTool(a, 'TaskCreate', { tasks })).isError).toBe(true);
+      expect((await callTool(a, 'TaskUpdate', { tasks })).isError).toBe(true);
+    }
+    expect((await callTool(a, 'TaskCreate', { ...item, tasks: [item] })).isError).toBe(true);
+    expect((await callTool(a, 'TaskUpdate', { taskId: 'missing', tasks: [{}] })).isError).toBe(true);
+    expect(savedTasks()).toEqual(before);
+  });
+
+  it('waits for approval before any batch item runs when a later item deletes a task', async () => {
+    const { a, create, access } = setup();
+    const first = create('Wait for approval'); const second = create('Delete after approval');
+    const guarded = { ...a, autonomy: 'auto' as const, alwaysAllow: ['TaskUpdate'] };
+    const args = { tasks: [{ taskId: first.id, status: 'completed' }, { taskId: second.id, status: 'deleted' }] };
+    const pending = callTool(guarded, 'TaskUpdate', args);
+    const approval = listApprovals().find((p) => p.agentId === a.id)!;
+    expect(approval.data.args).toEqual(args);
+    expect(getTask(first.id, access)?.status).toBe('pending');
+    expect(getTask(second.id, access)?.status).toBe('pending');
+    decide(approval.id, { approved: false });
+    expect((await pending).denied).toBe(true);
+    expect(getTask(first.id, access)?.status).toBe('pending');
+    expect(getTask(second.id, access)?.status).toBe('pending');
+  });
+
+  it('accepts large create and update batches without a task-count cap and retains every result', async () => {
+    const { a } = setup();
+    const result = await callTool(a, 'TaskCreate', { tasks: Array.from({ length: 300 }, (_, i) => ({ subject: `Large batch task ${i}`, description: i ? 'Verify the result.' : 'a'.repeat(8000) })) });
+    const batch = JSON.parse(result.text) as TaskBatchResult;
+    expect(batch.results).toHaveLength(300);
+    expect(batch.results.every((r) => r.success)).toBe(true);
+    expect(result.text.length).toBeGreaterThan(24000);
+    expect(batch.results.at(-1)).toMatchObject({ index: 299, status: 'pending' });
+    const tasks = batch.results.flatMap((r) => r.success ? [{ taskId: r.taskId, status: 'completed' }] : []);
+    const updated = JSON.parse((await callTool(a, 'TaskUpdate', { tasks })).text) as TaskBatchResult;
+    expect(updated.results).toHaveLength(300);
+    expect(updated.results.every((r) => r.success && r.status === 'completed')).toBe(true);
+  });
+
   it('exposes the four core tools, keeps ordinary bookkeeping approval-free and gates deletion', async () => {
     const { a, b } = setup();
     expect(toolsForAgent(a).filter((t) => /^Task(Create|Get|List|Update)$/.test(t.name))).toHaveLength(4);

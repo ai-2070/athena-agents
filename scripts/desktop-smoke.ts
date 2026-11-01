@@ -7,7 +7,7 @@ import os from 'node:os';
 import net from 'node:net';
 import path from 'node:path';
 import { desktopTarget, hostTriple } from './desktop-target.ts';
-import type { Agent, AppState, Chat, ConversationReadResult, ConversationSearchResult } from '../shared/types.ts';
+import type { Agent, AppState, Chat, ConversationReadResult, ConversationSearchResult, TaskBatchResult } from '../shared/types.ts';
 
 const root = path.resolve(import.meta.dirname, '..');
 const app = path.join(root, 'src-tauri', 'app');
@@ -100,7 +100,7 @@ try {
   const historyTool = async (name: string, args: Record<string, unknown>): Promise<string> => {
     const response = await fetch(base + '/api/internal/tools/call', { method: 'POST', headers: { ...headers, 'x-dash-internal': token }, body: JSON.stringify({ agent: agent.id, name, args }) });
     const result = await response.json() as { text: string; isError?: boolean };
-    if (!response.ok || result.isError) fail(`conversation tool ${name} failed: ${result.text}`);
+    if (!response.ok || result.isError) fail(`dashboard tool ${name} failed: ${result.text}`);
     return result.text;
   };
   const found = JSON.parse(await historyTool('search_conversations', { query: 'SAVED_CONVERSATION_SMOKE_ORIGINAL', scope: 'own' })) as ConversationSearchResult;
@@ -115,6 +115,12 @@ try {
   const savedTask = JSON.parse(await historyTool('TaskGet', { taskId: createdTask.task.id })) as { task: { status: string } };
   if (savedTask.task.status !== 'completed') fail('the bundled task update was not saved');
   console.log('smoke: task create, list, update and read ok');
+  const bulk = JSON.parse(await historyTool('TaskCreate', { tasks: [{ subject: 'First bundled batch task', description: 'Keep this item.' }, { subject: '', description: 'Report this failure.' }, { subject: 'Last bundled batch task', description: 'Keep later successes.' }] })) as TaskBatchResult;
+  if (bulk.results.length !== 3 || !bulk.results[0].success || bulk.results[1].success || !bulk.results[2].success) fail('the bundled create batch lost a per-item outcome');
+  const updates = bulk.results.flatMap((r) => r.success ? [{ taskId: r.taskId, status: 'completed' }] : []);
+  const changed = JSON.parse(await historyTool('TaskUpdate', { tasks: updates })) as TaskBatchResult;
+  if (changed.results.length !== 2 || !changed.results.every((r) => r.success && r.status === 'completed')) fail('the bundled update batch did not finish every task');
+  console.log('smoke: bulk task create and update ok');
 
   // the bridge, as Claude Code would start it: one MCP initialize request over stdio
   const bridge = Bun.spawn([bun, path.join(app, 'server', 'mcp-bridge.js')], {

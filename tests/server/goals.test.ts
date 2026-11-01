@@ -143,6 +143,39 @@ describe('ordinary assignments keep going automatically', () => {
     expect(JSON.parse(lookup).result).toMatchObject({ total: 2, nextOffset: null });
     expect(JSON.parse(lookup).result.tasks).toHaveLength(1);
   });
+  it('lets the Brain create and update batches with per-item failures and ordered dependencies', async () => {
+    const unique = `Brain batch ${Date.now()}`;
+    answers.push(`Saving tasks.\n\`\`\`actions\n${JSON.stringify([
+      { do: 'TaskCreate', tasks: [{ subject: `${unique} build`, description: 'Build the result.' }, { subject: '', description: 'Bad item.' }, { subject: `${unique} check`, description: 'Verify the result.' }] },
+      { do: 'TaskUpdate', tasks: [{ taskId: `${unique} check`, addBlockedBy: [`${unique} build`] }, { taskId: 'missing task', status: 'completed' }, { taskId: `${unique} build`, status: 'completed' }, { taskId: `${unique} check`, status: 'completed' }] },
+    ])}\n\`\`\``);
+    const result = await ask('Save and finish a two-step task plan.');
+    expect(result.done.filter((d) => d.kind === 'task')).toHaveLength(5);
+    expect(result.done.filter((d) => d.kind === 'error')).toHaveLength(2);
+    expect(result.done.filter((d) => d.kind === 'error').every((d) => d.text.includes('item 2'))).toBe(true);
+    const tasks = savedTasks().filter((t) => t.subject.startsWith(unique));
+    expect(tasks.map((t) => t.status)).toEqual(['completed', 'completed']);
+    expect(tasks[1].blockedBy).toEqual([tasks[0].id]);
+  });
+
+  it('binds all successful Brain batch tasks to the delegated assignment before it starts', async () => {
+    const a = agent('Holder'); const unique = `Delegated batch ${Date.now()}`;
+    answers.push(`Handing it on.\n\`\`\`actions\n${JSON.stringify([
+      { do: 'TaskCreate', tasks: [{ subject: `${unique} first`, description: 'First requirement.', scope: { kind: 'agent', id: a.id } }, { subject: `${unique} second`, description: 'Second requirement.', scope: { kind: 'agent', id: a.id } }] },
+      { do: 'delegate', to: 'agent', id: a.id, message: 'Finish both saved tasks.' },
+    ])}\n\`\`\``);
+    const result = await ask('Finish both requirements.');
+    const chatId = result.delegate!.sent!.chatId!;
+    await until(() => held.length > 0);
+    const brief = briefIn(chatId);
+    const tasks = savedTasks().filter((t) => t.subject.startsWith(unique));
+    expect(tasks).toHaveLength(2);
+    expect(tasks.every((t) => t.briefId === brief.id)).toBe(true);
+    for (const task of tasks) updateTask({ taskId: task.id, status: 'completed' }, { admin: true, scope: { kind: 'brain' } });
+    held.shift()!();
+    await until(() => briefIn(chatId).status === 'done');
+  });
+
   it('checks a direct message and continues beyond the old five-turn cap while results advance', async () => {
     const a = agent('Progressing');
     const c = chats.create(a.id);

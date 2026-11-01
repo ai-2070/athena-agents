@@ -18,7 +18,7 @@ import { markInterruptedRoutines } from '../../server/routines.ts';
 import { getThread, postUserMessage, queueUserMessage, stopTeam, teamState } from '../../server/teams.ts';
 import { callTool } from '../../server/tools.ts';
 import type { WorkflowRun } from '../../server/store.ts';
-import type { Chat, ChatItem, OutboxPost, RoutineRun, Team } from '../../shared/types.ts';
+import type { Chat, ChatItem, OutboxPost, RoutineRun, TaskBatchResult, Team } from '../../shared/types.ts';
 
 // A fake model and webhook. Each chat request waits until the test releases it and answers "re: <last>".
 // The requests' messages are kept (sent); /models waits too while holdModels is on.
@@ -287,11 +287,17 @@ describe('conversation tools during a project switch', () => {
       expect((await callTool(member, 'search_conversations', { query: 'ORIGINAL_ONLY_PRIVATE' })).text).toContain('"total":0');
       const stranger = apiAgent('Wrong caller');
       expect((await callTool(stranger, 'search_conversations', { query: 'PRIVATE' }, { runId: going.runId })).isError).toBe(true);
-      const created = await callTool(member, 'TaskCreate', { subject: 'Original project task', description: 'Must stay in the original project.' }, { runId: going.runId });
+      const created = await callTool(member, 'TaskCreate', { tasks: [{ subject: 'Original project task', description: 'Must stay in the original project.' }, { subject: 'Second original task', description: 'The whole batch stays here.' }] }, { runId: going.runId });
       expect(created.isError).toBe(false);
-      const id = (JSON.parse(created.text) as { task: { id: string } }).task.id;
+      const batch = JSON.parse(created.text) as TaskBatchResult;
+      const ids = batch.results.flatMap((r) => r.success ? [r.taskId] : []);
+      expect(ids).toHaveLength(2);
+      const id = ids[0];
       expect(JSON.parse((await callTool(member, 'TaskGet', { taskId: id })).text).task).toBeNull();
       expect(JSON.parse((await callTool(member, 'TaskGet', { taskId: id }, { runId: going.runId })).text).task.subject).toBe('Original project task');
+      const updated = JSON.parse((await callTool(member, 'TaskUpdate', { tasks: ids.map((taskId) => ({ taskId, status: 'completed' })) }, { runId: going.runId })).text) as TaskBatchResult;
+      expect(updated.results.every((r) => r.success)).toBe(true);
+      for (const taskId of ids) expect(JSON.parse((await callTool(member, 'TaskGet', { taskId })).text).task).toBeNull();
       expect((await callTool(stranger, 'TaskList', {}, { runId: going.runId })).isError).toBe(true);
     } finally {
       stopChat(chat.id, a.id);

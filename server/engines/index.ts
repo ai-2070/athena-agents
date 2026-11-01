@@ -252,7 +252,7 @@ export function buildSystemPrompt(agent: Agent): string {
     worldPrompt(tools),
     skillsPrompt(agent),
     'Use search_conversations to find earlier work in your own chats or your teams\' shared conversations in this project. Use read_conversation on a search hit to read the saved original; continue with nextOffset until you have the text you need. Search past decisions before guessing about earlier work.',
-    'Use the dashboard TaskCreate, TaskGet, TaskList and TaskUpdate tools for work with several steps. Keep acceptance criteria in descriptions, claim ready tasks before starting, and mark completed only after checking the result. Read TaskList on each turn to recover saved work. Respect blockedBy dependencies and other owners. Use the dashboard MCP task tools, not a harness-local task list, so the user and team share the same records. Task creation and assignment record work; they do not start another agent. Delegate with ask_agent or team mentions when needed.',
+    'Use the dashboard TaskCreate, TaskGet, TaskList and TaskUpdate tools for work with several steps. TaskCreate/TaskUpdate accept one task or {tasks:[...]} with no per-call task-count cap, processed in order with per-item results; retry only failures because successes stay saved. Keep acceptance criteria in descriptions, claim ready tasks before starting, and mark completed only after checking the result. Read TaskList on each turn to recover saved work. Respect blockedBy dependencies and other owners. Use the dashboard MCP task tools, not a harness-local task list, so the user and team share the same records. Task creation and assignment record work; they do not start another agent. Delegate with ask_agent or team mentions when needed.',
     accountsPrompt(agent.mcpServers || []),
     `\n# Where you are
 You are one of several agents on the user's personal dashboard, running on their Windows PC (user folder ${HOME}).
@@ -346,7 +346,11 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       // its images as files next to the chat: the chat (and what's streamed) keeps only their links
       if (ev.images?.length) ev.images = keepToolImages(agent.id, chat.id, ev.images);
       const it = [...chat.items].reverse().find((i): i is ChatItemOf<'tool'> => i.type === 'tool' && i.id === ev.id);
-      if (it) Object.assign(it, { result: String(ev.text ?? '').slice(0, 30000), images: ev.images || [], isError: !!ev.isError, status: ev.isError ? 'error' : 'done' });
+      if (it) {
+        const result = String(ev.text ?? '');
+        const taskResult = /(?:^|[_:])Task(?:Create|Update)$/.test(it.name);
+        Object.assign(it, { result: taskResult ? result : result.slice(0, 30000), images: ev.images || [], isError: !!ev.isError, status: ev.isError ? 'error' : 'done' });
+      }
       persist();
     } else if (ev.kind === 'model') {
       const fresh = agentStore.get(agent.id);

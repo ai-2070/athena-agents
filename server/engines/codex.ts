@@ -227,7 +227,8 @@ export async function run({ agent, chat, text, signal, onEvent, systemPrompt, ru
           // an MCP result ({ content: [...] }): its text, and its images shown under the tool call
           const content = (it.result as { content?: unknown } | null)?.content;
           const { text, images } = Array.isArray(content) ? splitContent(content) : { text: JSON.stringify(it.result ?? it.error ?? ''), images: [] };
-          onEvent({ kind: 'tool_result', id: it.id, text: text.slice(0, 20000), isError: !!it.error || it.status === 'failed', ...(images.length ? { images } : {}) });
+          const taskResult = it.server === 'dashboard' && ['TaskCreate', 'TaskUpdate'].includes(it.tool || '');
+          onEvent({ kind: 'tool_result', id: it.id, text: taskResult ? text : text.slice(0, 20000), isError: !!it.error || it.status === 'failed', ...(images.length ? { images } : {}) });
         }
       } else if (it.type === 'file_change') {
         const files = (it.changes || []).map((c) => c.path).join(', ');
