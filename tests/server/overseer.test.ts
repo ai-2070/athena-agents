@@ -146,14 +146,14 @@ describe('the Brain and routines', () => {
     newAgent({ name: 'Scout' });
     const { done } = applyActions([
       { do: 'create_team', name: 'Post Crew', members: [{ new: { name: 'Poster', specialty: 'writes posts' } }] },
-      { do: 'create_routine', name: 'Morning post', text: '@Scout finds news, @Post Crew writes it up with @Brand voice.', schedule: { type: 'daily', time: '7:30', days: ['Mon', 'wednesday', 9] }, enabled: true },
+      { do: 'create_routine', name: 'Morning post', text: '@Scout finds news, @Post Crew writes it up with @Brand voice.', schedule: { type: 'daily', times: ['7:30'], days: ['Mon', 'wednesday', 9] }, enabled: true },
     ]);
     const made = done.find((d) => d.kind === 'routine')!;
     expect(made.text).toBe('Made the routine "Morning post" (daily 07:30 Mon Wed; for Post Crew, Scout; skills: Brand voice)');
     const { getRoutine } = await import('../../server/routines.ts');
     const r = getRoutine(made.routineId!)!;
     expect(r.mentions.map((m) => `${m.kind}:${m.name}`)).toEqual(['agent:Scout', 'team:Post Crew', 'skill:Brand voice']);
-    expect(r.schedule).toEqual({ type: 'daily', time: '07:30', days: [1, 3] });
+    expect(r.schedule).toEqual({ type: 'daily', times: ['07:30'], days: [1, 3] });
     expect(r.enabled).toBe(true);
     expect(done.some((d) => d.kind === 'error')).toBe(false);
   });
@@ -187,7 +187,7 @@ describe('the Brain and routines', () => {
     const snap = await snapshot({ fileBudget: 0 });
     expect(snap).toContain('more characters not shown');
     expect(snap).not.toContain('THE END');
-    const { done } = applyActions([{ do: 'update_routine', routine: id, text: '@Scout does less.', schedule: { type: 'daily', time: '10:00' } }]);
+    const { done } = applyActions([{ do: 'update_routine', routine: id, text: '@Scout does less.', schedule: { type: 'daily', times: ['10:00'] } }]);
     expect(done[0].kind).toBe('error');
     expect(done[0].text).toMatch(/too long to rewrite here/);
     expect(getRoutine(id)!.text).toBe(long);

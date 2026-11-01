@@ -346,7 +346,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     const st = teamState(t.id);
     const thread = getThread(t.id, 4).messages;
     const name = (id: string) => (id === 'user' ? 'You' : id === 'brain' ? 'you (the Brain)' : byId.get(id)?.name || id);
-    const sched = t.schedule && t.schedule.type !== 'none' ? ` | schedule: ${t.schedule.type} ${t.schedule.time || ''}${t.enabled === false ? ' (off)' : ''}` : '';
+    const sched = t.schedule && t.schedule.type !== 'none' ? ` | schedule: ${t.schedule.type} ${t.schedule.times?.join(', ') || ''}${t.enabled === false ? ' (off)' : ''}` : '';
     return [
       `- id=${t.id} | ${t.name} | goal: ${t.description || '-'} | members: ${t.members.map((id) => `${name(id)}${t.lead === id ? ' (lead)' : ''}`).join(', ') || 'none'} | skills: ${(t.skills || []).join(',') || 'none'} | mcp: ${(t.access?.mcpServers || []).join(',') || 'none'}${sched}`,
       `  NOW: ${st.working.length ? `working: ${st.working.map(name).join(', ')}` : 'quiet'}${st.queued.length ? ` | queued: ${st.queued.map(name).join(', ')}` : ''}`,
@@ -356,7 +356,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
 
   const routineLines = listRoutines().map((r) => {
     const names = (kind: string) => r.mentions.filter((m) => m.kind === kind).map((m) => `${m.name}${m.missing ? ' (deleted)' : ''}`).join(', ') || '-';
-    const sched = r.schedule && r.schedule.type !== 'none' ? `${scheduleText(r.schedule)}${r.enabled ? '' : ' (off)'}` : 'run by hand';
+    const sched = `${r.schedule && r.schedule.type !== 'none' ? scheduleText(r.schedule) : 'run by hand'}${r.enabled ? '' : ' (off)'}`;
     const last = r.lastRun ? `${r.lastRun.status} ${ago(r.lastRun.createdAt)}` : 'never run';
     return `- id=${r.id} | ${r.name} | ${sched} | agents: ${names('agent')} | teams: ${names('team')} | skills: ${names('skill')} | last run: ${last}\n  text: ${r.text.length > ROUTINE_TEXT_SHOWN ? `${r.text.slice(0, ROUTINE_TEXT_SHOWN)}… (${r.text.length - ROUTINE_TEXT_SHOWN} more characters not shown: too long to rewrite here, the user edits its text on the Routines page)` : r.text.trim() || '(empty)'}`;
   });
@@ -607,7 +607,7 @@ TaskCreate and TaskUpdate also accept {"do":"TaskCreate"|"TaskUpdate","tasks":[{
 PROVIDER is one of: claude (Claude Code: opus, sonnet, haiku, fable, which always mean the latest version, or a full claude-… id), openrouter (any model on OpenRouter, ids like google/gemini-…), venice (Venice API models; use find_models for ids and capabilities), lmstudio, ollama, custom (model servers on this PC), codex (OpenAI Codex), hermes, pi and omp (the pi and oh-my-pi coding agents: provider/model ids like anthropic/claude-sonnet-5-5), openclaw (OpenClaw agents). Set up on this PC now: ${readyProviders().join(', ') || 'none'}.
 EFFORT is one of ${EFFORTS.join(', ')}, or "default" (the model's own). Claude Code takes low to max, Codex and OpenRouter minimal to xhigh, Venice only the selected model's advertised levels, servers on this PC low to high, Hermes, pi, oh-my-pi and OpenClaw minimal to max; a level a provider doesn't have becomes its nearest one.
 STEP is a build step, run in order, from the cursor; positions and sizes are in map units with "units":"map" (a desk is 2.6 wide, a person 1.7 tall), else in voxels of the current size: {"use":"stone"}, {"material":"name","color":"#rrggbb","kind":"solid|emissive|water|glass|leaf"}, {"voxel_size":0.1}, {"at":[x,y,z]}, {"box":[w,h,d]}, {"sphere":r}, {"blob":[rx,ry,rz],"rough":0.3,"holes":0.2}, {"cylinder":r,"height":h}, {"revolve":[[radius,height],…]}, {"extrude":{"points":[[x,z],…]},"height":h}, {"path":[[x,z],…],"width":w}, {"heightmap":{"size":[w,d],"height":6},"top":"grass"}, {"layers":[["#.#"]],"key":{"#":"wood"}}, {"text":"HI"}; copies of prefabs: {"place":"Palm tree","at":[x,y,z],"turn":30}, {"place":["Person A","Person B"],"scatter":{"area":[w,d],"count":40},"turn":"random"}, {"place":"Lamp","along":[[x,z],…],"every":12,"sides":2,"offset":4}; any step can take "at":[x,y,z] and "use". Stock materials include grass, sand, stone, cobble, brick, wood, dark wood, leaves, blossom, water, glass, lantern (glows), red lacquer, roof tile, gold, snow, cloth white.
-SCHEDULE is {"type":"none"} (run by hand) or {"type":"daily","time":"HH:MM","days":[0-6, 0 = Sunday; leave out for every day]} or {"type":"interval","minutes":N}. Set "enabled":true when the user wants it to run on its own.
+SCHEDULE is {"type":"none"} (run by hand) or {"type":"daily","times":["09:00","15:00"],"days":[0-6, 0 = Sunday; leave out for every day]} or {"type":"interval","minutes":N}. A routine uses one "enabled" switch for manual and scheduled runs. Set it to false to switch the routine off.
 MEMBER is {"agent":"<existing agent id>"} or {"library":"<slug>"} or {"starter":"<name>"} or {"new":{"name":"…","emoji":"…","specialty":"one line","instructions":"5-10 sentences, second person","tools":["ids"],"skills":["skill ids"],"mcpServers":["names"]}}
 create_team and update_team also take "skills":["skill ids"] (update_team: the team's whole list).
 Tool group ids: ${GROUP_IDS.join(', ')}
@@ -1143,7 +1143,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
     const t = routineTargets(r);
     const who = [...t.teams.map((x) => x.name), ...t.agents.map((a) => a.name)];
     const skills = r.mentions.filter((m) => m.kind === 'skill' && !m.missing).map((m) => m.name);
-    const when = r.schedule && r.schedule.type !== 'none' ? `${scheduleText(r.schedule)}${r.enabled ? '' : ', schedule off'}` : 'run by hand';
+    const when = `${r.schedule && r.schedule.type !== 'none' ? scheduleText(r.schedule) : 'run by hand'}${r.enabled ? '' : ', routine off'}`;
     return `${when}; ${who.length ? `for ${who.join(', ')}` : 'nobody mentioned yet'}${skills.length ? `; skills: ${skills.join(', ')}` : ''}`;
   };
   // a routine nobody can run: say so, so it can be fixed in the next message
@@ -1812,7 +1812,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
           description: String(act.description || ''),
           text,
           schedule: cleanSchedule(act.schedule),
-          enabled: act.enabled === true,
+          enabled: act.enabled !== false,
         }).id)!;
         lastRoutine = r.id;
         log('routine', `The Brain made the routine "${r.name}"`);
@@ -1832,7 +1832,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
           changed.push('what to do');
         }
         if (act.schedule !== undefined) (patch.schedule = cleanSchedule(act.schedule)), changed.push('schedule');
-        if (act.enabled !== undefined) (patch.enabled = act.enabled === true), changed.push(act.enabled === true ? 'schedule on' : 'schedule off');
+        if (act.enabled !== undefined) (patch.enabled = act.enabled === true), changed.push(act.enabled === true ? 'routine on' : 'routine off');
         const r = getRoutine(saveRoutine(patch, old.id).id)!;
         lastRoutine = r.id;
         log('routine', `The Brain updated the routine "${r.name}" (${changed.join(', ')})`);

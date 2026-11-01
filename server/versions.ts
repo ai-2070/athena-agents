@@ -207,7 +207,7 @@ export function cleanTeamVersion(item: Fields, id: string): Fields | null {
     schedule: (x) => {
       const s = obj(x);
       if (!s || !isStr(s.type)) return undefined;
-      return keepTyped(s, { type: str, time: str, input: str, minutes: num, days: (d) => (Array.isArray(d) && d.every((n) => typeof n === 'number') ? d : undefined) });
+      return keepTyped(s, { type: str, times: strList, input: str, minutes: num, days: (d) => (Array.isArray(d) && d.every((n) => typeof n === 'number') ? d : undefined) });
     },
   });
   return isStr(out.name) ? { ...out, id } : null;

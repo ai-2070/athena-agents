@@ -7,7 +7,8 @@ import { agents, saveSettings, workflows } from '../../server/store.ts';
 import { getThread, postUserMessage } from '../../server/teams.ts';
 import { saveSkill } from '../../server/skills.ts';
 import { checkRoutineSchedules, getRoutine, listRuns, routineTargets, saveRoutine, startRoutine } from '../../server/routines.ts';
-import { cleanSchedule, findMentions, mentionQuery, renameMentions } from '../../shared/routines.ts';
+import { due } from '../../server/workflows.ts';
+import { cleanSchedule, scheduleSummary, timeText, findMentions, mentionQuery, renameMentions } from '../../shared/routines.ts';
 import type { RoutineMention, RoutineRun, Team } from '../../shared/types.ts';
 
 describe('findMentions()', () => {
@@ -45,10 +46,41 @@ describe('mentions in any script', () => {
   });
 });
 
+describe('daily schedules', () => {
+  it('shows all run times and days on cards, including midnight and noon', () => {
+    expect(timeText('00:00')).toBe('12:00 AM');
+    expect(timeText('12:00')).toBe('12:00 PM');
+    expect(scheduleSummary({ type: 'daily', times: ['09:00', '21:00'] })).toBe('Daily at 9AM, 9PM');
+    expect(scheduleSummary({ type: 'daily', times: ['00:00', '12:00', '17:30'] })).toBe('Daily at 12AM, 12PM, 5:30PM');
+    expect(scheduleSummary({ type: 'interval', minutes: 15 })).toBe('Every 15 minutes');
+  });
+
+  it('cleans, sorts and deduplicates multiple times', () => {
+    expect(cleanSchedule({ type: 'daily', times: ['17:30', '8:05', '08:05', '24:00', 'noon', null] })).toEqual({ type: 'daily', times: ['08:05', '17:30'] });
+  });
+
+  it('runs each time once, including nearby times, and respects days and the on switch', () => {
+    const at = (hour: number, minute = 0) => new Date(2030, 5, 10, hour, minute).getTime();
+    const schedule = { type: 'daily', times: ['09:00', '09:15', '17:30'] };
+    const routine = { enabled: true, schedule, lastScheduledAt: at(8) };
+    expect(due(routine, at(8, 59))).toBe(false);
+    expect(due(routine, at(9))).toBe(true);
+    routine.lastScheduledAt = at(9);
+    expect(due(routine, at(9, 1))).toBe(false);
+    expect(due(routine, at(9, 15))).toBe(true);
+    routine.lastScheduledAt = at(9, 15);
+    expect(due(routine, at(17, 30))).toBe(true);
+    expect(due({ ...routine, enabled: false }, at(17, 30))).toBe(false);
+    expect(due({ ...routine, schedule: { ...schedule, days: [(new Date(at(17)).getDay() + 1) % 7] } }, at(17, 30))).toBe(false);
+    routine.lastScheduledAt = at(17, 30);
+    expect(due(routine, at(17, 31))).toBe(false);
+  });
+});
+
 describe('cleanSchedule()', () => {
   it('counts each day once, so repeats of one day are not every day', () => {
-    expect(cleanSchedule({ type: 'daily', time: '8:05', days: ['Mon', 'Mon', 'Mon', 'Mon', 'Mon', 'Mon', 'Mon'] })).toEqual({ type: 'daily', time: '08:05', days: [1] });
-    expect(cleanSchedule({ type: 'daily', days: [0, 1, 2, 3, 4, 5, 6] })).toEqual({ type: 'daily', time: '09:00' });
+    expect(cleanSchedule({ type: 'daily', times: ['8:05'], days: ['Mon', 'Mon', 'Mon', 'Mon', 'Mon', 'Mon', 'Mon'] })).toEqual({ type: 'daily', times: ['08:05'], days: [1] });
+    expect(cleanSchedule({ type: 'daily', days: [0, 1, 2, 3, 4, 5, 6] })).toEqual({ type: 'daily', times: ['09:00'] });
   });
   it('keeps intervals at 5 minutes or more, and drops what it does not know', () => {
     expect(cleanSchedule({ type: 'interval', minutes: 1, extra: 'x' })).toEqual({ type: 'interval', minutes: 5 });
@@ -143,11 +175,11 @@ describe('a routine', () => {
 
   it('a switched-off routine does not run, by hand or on its schedule, until it is switched on', async () => {
     const r = saveRoutine({ name: 'Paused', text: 'Do it.', schedule: { type: 'interval', minutes: 5 }, enabled: true });
-    saveRoutine({ paused: true }, r.id);
+    saveRoutine({ enabled: false }, r.id);
     await expect(startRoutine(r.id)).rejects.toThrow(/switched off/);
     checkRoutineSchedules(Date.now() + 3_600_000);
     expect(listRuns(r.id)).toHaveLength(0);
-    expect(saveRoutine({ paused: false }, r.id).paused).toBe(false);
+    expect(saveRoutine({ enabled: true }, r.id).enabled).toBe(true);
     await expect(startRoutine(r.id)).rejects.toThrow(/Mention at least one agent or team/);
   });
 

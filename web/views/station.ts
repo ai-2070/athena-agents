@@ -2311,7 +2311,7 @@ function wfStats(wfId: string) {
 function scheduleText(s: (Schedule & { minutes?: number }) | undefined): string {
   if (!s || s.type === 'none') return 'manual';
   if (s.type === 'interval') return `every ${s.minutes || 60} min`;
-  return `daily ${s.time || '09:00'}`;
+  return `daily ${(s.times?.length ? s.times : ['09:00']).join(', ')}`;
 }
 
 function drawBranchCard(wfId: string): void {

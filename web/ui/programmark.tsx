@@ -1,6 +1,7 @@
 // Program names share the same marks in settings and the installed-program list.
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
+import { presetIcon } from '../preseticons.ts';
 import { programIcon } from '../programicons.ts';
 import { onThemeChange } from '../theme.ts';
 import { DomNode, Icon } from './react.tsx';
@@ -19,4 +20,10 @@ export function ProgramLabel({ id, children }: { id: string; children: ReactNode
     </span>
     <span>{children}</span>
   </span>;
+}
+
+export function PresetGlyph({ id, size = 17 }: { id: string; size?: number }) {
+  const [theme, setTheme] = useState(0);
+  useEffect(() => onThemeChange(() => setTheme((n) => n + 1)), []);
+  return <span aria-hidden="true"><DomNode as="span" className="flex shrink-0" make={() => presetIcon(id, size)} deps={[id, size, theme]} /></span>;
 }

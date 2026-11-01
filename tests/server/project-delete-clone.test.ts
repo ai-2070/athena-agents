@@ -72,7 +72,7 @@ describe('cloning a project', () => {
     setActiveProject(src.id);
     const a = newAgent({ name: 'Writer' });
     const b = newAgent({ name: 'Editor' });
-    workflows.save({ name: 'Crew', members: [a.id, b.id], lead: a.id, steps: [], schedule: { type: 'daily', time: '09:00' }, enabled: true } as Partial<Team>);
+    workflows.save({ name: 'Crew', members: [a.id, b.id], lead: a.id, steps: [], schedule: { type: 'daily', times: ['09:00'] }, enabled: true } as Partial<Team>);
     const { project, restored } = await cloneProject(src.id);
     expect(project.name).toBe('Clone: source (copy)');
     expect(project.id).not.toBe(src.id);

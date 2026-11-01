@@ -80,13 +80,12 @@ export function listRoutines(): (Routine & { lastRun: RoutineRun | null })[] {
 export function saveRoutine(patch: Partial<Routine>, id?: string): Routine {
   const old = id ? routines.get(id) : null;
   if (id && !old) throw oops('No such routine.', 404);
-  const next: Partial<Routine> = { ...(old || { schedule: { type: 'none' }, enabled: false }) };
+  const next: Partial<Routine> = { ...(old || { schedule: { type: 'none' }, enabled: true }) };
   if (patch.name !== undefined) next.name = String(patch.name).trim().slice(0, 120);
   if (patch.description !== undefined) next.description = String(patch.description || '').trim().slice(0, 500);
   if (patch.text !== undefined) next.text = String(patch.text || '').slice(0, MAX_TEXT);
   if (patch.schedule !== undefined) next.schedule = cleanSchedule(patch.schedule);
   if (patch.enabled !== undefined) next.enabled = !!patch.enabled;
-  if (patch.paused !== undefined) next.paused = !!patch.paused;
   next.name ||= 'New routine';
   next.text ??= '';
   // a routine with nothing to do is never saved (one that is already empty can still be switched or deleted)
@@ -139,7 +138,7 @@ export async function startRoutine(id: string, { trigger = 'manual', input = '' 
   const r = getRoutine(id);
   if (!r) throw oops('No such routine.', 404);
   if (!r.text.trim()) throw oops('Write what the routine should do first.');
-  if (r.paused) throw oops('This routine is switched off. Turn it on to run it.');
+  if (!r.enabled) throw oops('This routine is switched off. Turn it on to run it.');
   const { teams, agents: solo, skills } = routineTargets(r);
   if (!teams.length && !solo.length) throw oops('Mention at least one agent or team with @ so the routine knows who does it.');
   const targets: RoutineRunTarget[] = [
@@ -240,7 +239,7 @@ export function markInterruptedRoutines() {
 
 export function checkRoutineSchedules(now = Date.now()) {
   for (const r of routines.list()) {
-    if (r.paused || !due(r, now)) continue;
+    if (!due(r, now)) continue;
     r.lastScheduledAt = now;
     routines.save(r);
     startRoutine(r.id, { trigger: 'schedule', input: r.schedule?.input || '' }).catch((e: unknown) => log('error', `Scheduled routine "${r.name}": ${(e as Error).message}`));

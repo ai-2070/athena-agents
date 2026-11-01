@@ -182,7 +182,7 @@ Each project can have its own background picture behind the map: click the Brain
 
 ## Routines: work worth repeating
 
-Create a routine, write the instructions, and **@mention** the agents or teams that should do the work and the skills they should use. Use **Run now** to run its saved instructions, or set a schedule. A new routine is only saved once it has something to do. Every routine has a sliding switch, on its card in the list and on its page, to switch it on or off: a routine that is off doesn't run, by hand or on its schedule. A scheduled routine has a second switch in its Schedule box for the schedule itself. Each run records what its agents and teams did.
+Create a routine, write the instructions, and **@mention** the agents or teams that should do the work and the skills they should use. Use **Run now** to run its saved instructions, or set a schedule. A new routine is only saved once it has something to do. Every routine has a sliding switch, on its card in the list and on its page, to switch it on or off: a routine that is off doesn't run, by hand or on its schedule. The same switch controls manual and scheduled runs. A daily schedule can have several times; use **Add time** to add another. Pick the hour, minute and AM/PM, then press **OK**. The routine card shows every time and the selected days. Each run records what its agents and teams did.
 
 In **Runs**, expand a run to see each agent's or team's result. Markdown in a result is shown formatted, and **Chat** opens the conversation.
 
@@ -339,7 +339,7 @@ Choose **New project → From backup**, then drop in a `.dashbackup` file or cho
 
 - Restore creates a new project; it does not replace the original.
 - Missing skills and presets are added. If a skill has the same ID but different contents, your existing skill stays and the restored copy gets an `-restored` suffix. Matching skills receive the backup's earlier versions.
-- Scheduled teams and routines return **paused**, so the restored copy does not run the same work twice. Re-enable the schedules you want.
+- Scheduled teams and routines return **paused**, so the restored copy does not run the same work twice. Turn the routines and team schedules you want back on.
 - Agent chats come back with what was said, but a Claude Code, Codex, Hermes or OpenClaw chat starts a new session from that history: the copy never carries on in the original's conversation.
 - A `BRAIN.md` already in the folder you restore into stays as it is.
 

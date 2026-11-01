@@ -908,7 +908,7 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
             value={sch.type === 'daily' ? 'daily' : 'none'}
             onChange={(t) => saveSchedule({ type: t })}
           />
-          {sch.type === 'daily' ? <input key={`t:${sch.time}`} type="time" aria-label="Time" defaultValue={sch.time || '09:00'} className="w-27.5" ref={committed<HTMLInputElement>((el) => saveSchedule({ time: el.value }))} /> : null}
+          {sch.type === 'daily' ? (sch.times?.length ? sch.times : ['09:00']).map((time, index, times) => <input key={`t:${index}:${time}`} type="time" aria-label={index ? `Time ${index + 1}` : 'Time'} defaultValue={time} className="w-27.5 font-mono" ref={committed<HTMLInputElement>((el) => saveSchedule({ times: times.map((value, i) => i === index ? el.value : value) }))} />) : null}
         </div>
         {sch.type === 'daily' ? (
           <div className="mt-2.5">

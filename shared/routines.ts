@@ -71,12 +71,28 @@ export function mentionQuery(text: string, caret: number): { start: number; quer
 
 export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+/** A saved 24-hour time as the time people see in the picker and cards. */
+export function timeText(value: string, compact = false): string {
+  const [hour, minute] = value.split(':').map(Number);
+  const period = hour >= 12 ? 'PM' : 'AM';
+  if (compact) return `${hour % 12 || 12}${minute ? `:${String(minute).padStart(2, '0')}` : ''}${period}`;
+  return `${String(hour % 12 || 12).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${period}`;
+}
+
+/** Timing shown on routine cards, including every daily run. */
+export function scheduleSummary(s: Schedule | undefined): string {
+  if (!s || s.type === 'none') return 'Run by hand';
+  if (s.type === 'interval') return `Every ${s.minutes || 60} minutes`;
+  const days = s.days?.length && s.days.length < 7 ? ` (${s.days.map((day) => DAY_NAMES[day]).join(', ')})` : '';
+  return `Daily${days} at ${(s.times?.length ? s.times : ['09:00']).map((time) => timeText(time, true)).join(', ')}`;
+}
+
 /** A schedule in a few words: "manual", "every 60 min", "daily 09:00 Mon Wed". */
 export function scheduleText(s: Schedule | undefined): string {
   if (!s || s.type === 'none') return 'manual';
   if (s.type === 'interval') return `every ${s.minutes || 60} min`;
   const days = s.days?.length && s.days.length < 7 ? ` ${s.days.map((d) => DAY_NAMES[d]).join(' ')}` : '';
-  return `daily ${s.time || '09:00'}${days}`;
+  return `daily ${(s.times?.length ? s.times : ['09:00']).join(', ')}${days}`;
 }
 
 /** A schedule from loose input (the Brain's actions): unknown fields dropped, values kept in range. */
@@ -87,8 +103,11 @@ export function cleanSchedule(raw: unknown): Schedule {
   const input = typeof r.input === 'string' ? r.input.trim().slice(0, 2000) : '';
   if (type === 'interval') out.minutes = Math.max(5, Math.min(7 * 24 * 60, Math.round(Number(r.minutes) || 60)));
   if (type === 'daily') {
-    const m = /^(\d{1,2}):(\d{2})$/.exec(String(r.time || '').trim());
-    out.time = m && Number(m[1]) < 24 && Number(m[2]) < 60 ? `${m[1].padStart(2, '0')}:${m[2]}` : '09:00';
+    const times = (Array.isArray(r.times) ? r.times : []).flatMap((value: unknown) => {
+      const m = typeof value === 'string' ? /^(\d{1,2}):(\d{2})$/.exec(value.trim()) : null;
+      return m && Number(m[1]) < 24 && Number(m[2]) < 60 ? [`${m[1].padStart(2, '0')}:${m[2]}`] : [];
+    });
+    out.times = times.length ? [...new Set(times)].sort() : ['09:00'];
     const days = (Array.isArray(r.days) ? r.days : [])
       .map((d) => (typeof d === 'number' ? d : DAY_NAMES.findIndex((n) => String(d).toLowerCase().startsWith(n.toLowerCase()))))
       .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);

@@ -73,7 +73,7 @@ export function Segmented<V extends string>({ options, value, onChange, label }:
   return (
     <ToggleGroup ref={root} className="seg" aria-label={label} value={value ? [value] : []} onValueChange={(v) => v[0] && onChange(v[0] as V)}>
       {options.map((o) => (
-        <Toggle key={o.value} value={o.value} title={o.title} className={(s) => on(s.pressed)}>
+        <Toggle key={o.value} value={o.value} title={o.title} className={(s) => on(s.pressed, 'inline-flex min-h-[30px] items-center justify-center')}>
           {o.label}
         </Toggle>
       ))}
