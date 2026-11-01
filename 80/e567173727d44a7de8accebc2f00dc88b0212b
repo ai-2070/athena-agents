@@ -1,0 +1,19 @@
+web/views/station.ts
+  s_57c675cb3340e9::t_06b558dd1cb20e 3495,3582-3589,3685,3688,3798,3811,3823,3965
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80e567173727d44a7de8accebc2f00dc88b0212b",
+  "prompts": {},
+  "sessions": {
+    "s_57c675cb3340e9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19923-964d-73a1-aa94-f5a5587530e9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

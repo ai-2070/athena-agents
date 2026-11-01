@@ -1,0 +1,56 @@
+public/brand/engines/pi.svg
+  s_57c675cb3340e9::t_82cf4fe30e9803 1-16
+web/views/settings.tsx
+  s_57c675cb3340e9::t_132c7bad2f57ec 222-223
+  s_57c675cb3340e9::t_7ca1e2792c7756 13-14,54-60,94,135-140,142-143,145,148,152,156-158,203,206,209,212,216,219,224,226,252-255,380-383,389-392,438-439,441
+public/brand/engines/README.md
+  s_57c675cb3340e9::t_82cf4fe30e9803 1-10
+  s_57c675cb3340e9::t_a4cffc4f795842 23,25
+  s_57c675cb3340e9::t_5785fba57800d1 24,26-27
+  s_57c675cb3340e9::t_89e755502e4bb5 13-20
+  s_57c675cb3340e9::t_c2a40cec162cea 11-12,21-22
+public/brand/engines/hermes.svg
+  s_57c675cb3340e9::t_82cf4fe30e9803 1-7
+public/brand/engines/openclaw.svg
+  s_57c675cb3340e9::t_82cf4fe30e9803 1-40
+public/brand/engines/omp.svg
+  s_57c675cb3340e9::t_82cf4fe30e9803 1-11
+public/brand/engines/prusaslicer.svg
+  s_57c675cb3340e9::t_89e755502e4bb5 1-5
+web/programicons.ts
+  s_57c675cb3340e9::t_bb3a42241a800a 3,7-26,113,117
+  s_57c675cb3340e9::t_53b92c2fd09260 29
+tests/web/settings-general.test.tsx
+  s_57c675cb3340e9::t_132c7bad2f57ec 181-183
+  s_57c675cb3340e9::t_a22a15a34c84fa 175-180,184-192,201-207
+public/brand/engines/designer.svg
+  s_57c675cb3340e9::t_ef784971baa99c 1-30
+public/brand/engines/painter.svg
+  s_57c675cb3340e9::t_3563d961e2630d 1-27
+public/brand/engines/venice.svg
+  s_57c675cb3340e9::t_17b4e6d5621202 1-4
+tests/web/connections.test.tsx
+  s_57c675cb3340e9::t_f1676dbaf61938 175-178
+tests/web/programicons.test.ts
+  s_57c675cb3340e9::t_d0146bb46bb6e6 14,20-29,35
+web/ui/programmark.tsx
+  s_57c675cb3340e9::t_b3bf221305c9bb 1-22
+web/views/connections.tsx
+  s_57c675cb3340e9::t_20c03efee985c4 10,114,123,136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "be38b25f00f06a013b6a5dbbc1fa2eacede31174",
+  "prompts": {},
+  "sessions": {
+    "s_57c675cb3340e9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19923-964d-73a1-aa94-f5a5587530e9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
