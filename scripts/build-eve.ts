@@ -10,3 +10,4 @@ const build = Bun.spawn([process.execPath, path.join(root, 'node_modules/eve/bin
 if (await build.exited !== 0) throw new Error('The Eve runtime build failed.');
 const entry = path.join(runtime, '.output', 'server', 'index.mjs');
 if (!fs.existsSync(entry)) throw new Error('The Eve build did not produce a Bun server.');
+fs.copyFileSync(path.join(runtime, 'launch.mjs'), path.join(runtime, '.output', 'launch.mjs'));

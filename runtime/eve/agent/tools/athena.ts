@@ -7,6 +7,6 @@ export default defineDynamic(async (ctx) => {
   return Object.fromEntries(config.tools.map((tool) => [tool.name, defineTool({
     description: tool.description,
     inputSchema: tool.inputSchema,
-    execute: async (input) => bridgeCall(binding, '/tool', { name: tool.name, args: input }),
+    execute: async (input, call) => bridgeCall(binding, '/tool', { sessionId: call.session.id, callId: call.callId, name: tool.name, args: input }, call.abortSignal),
   })]));
 });

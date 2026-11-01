@@ -11,7 +11,7 @@ import * as store from './store.ts';
 import { agents, chats, outbox, artifacts as artifactStore, workflows, runs, bus, getSettings, saveSettings, setSecret, secretStatus, internalToken, activity, log } from './store.ts';
 import { listApprovals, decide, requestApproval, setReviewer } from './approvals.ts';
 import * as engines from './engines/index.ts';
-import { PROVIDERS, listModels } from './engines/openai.ts';
+import { PROVIDERS, listModels } from './providers.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { codexModelList } from './models.ts';
 import { listProfiles } from './engines/hermes.ts';

@@ -41,6 +41,7 @@
     "typecheck": "tsc -p tsconfig.server.json && tsc -p tsconfig.web.json && tsc -p runtime/eve/tsconfig.json",
     "eve:build": "bun scripts/build-eve.ts",
     "eve:smoke": "bun scripts/eve-smoke.ts",
+    "eve:integration": "bun scripts/eve-integration-smoke.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "bun run typecheck && bun run test",

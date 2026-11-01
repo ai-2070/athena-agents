@@ -19,6 +19,7 @@ import { pi, omp } from './pi.ts';
 import * as compaction from '../compaction.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
+import { engineCapabilities } from './capabilities.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import { clearWork, stopChatWork } from '../briefs.ts';
 import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent, TeamContextMessage } from '../../shared/types.ts';
@@ -320,7 +321,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   send({ kind: 'start', text, from, ...(attachments.length ? { attachments } : {}) });
   log('run', `${agent.name} started: ${(text || attachmentNames(attachments)).slice(0, 120)}`, { agentId: agent.id, chatId: chat.id });
   // API models can't open files without the Files tools: small text files go along in full
-  const prompt = withAttachments(text, attachments, { inline: agent.engine === 'openai' ? 24000 : 0 });
+  const prompt = withAttachments(text, attachments, { inline: engineCapabilities(agent.engine).inlineAttachmentText ? 24000 : 0 });
 
   let current: ChatItemOf<'assistant'> | null = null; // assistant item being streamed
   let lastSave = 0;
@@ -393,7 +394,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       // The API-model engine compacts by itself (before each step). The CLI engines compact their own
       // sessions too; with that switched off (Settings > Chat memory) they compact here, before the run,
       // and start a new session from the compacted history.
-      const cli = agent.engine !== 'openai';
+      const cli = !engineCapabilities(agent.engine).directTools;
       if (cli && context && !chat.sessionId) chat.reseed = true;
       const settings = compaction.compactionSettings();
       if (context) {
@@ -476,7 +477,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       const stopped = controller.signal.aborted;
       failed = !stopped;
       // A failed CLI turn may never have received its imported messages. Replay saved memory on retry.
-      if (context && agent.engine !== 'openai') {
+      if (context && !engineCapabilities(agent.engine).directTools) {
         chat.sessionId = null;
         chat.reseed = true;
       }

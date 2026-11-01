@@ -114,7 +114,7 @@ export async function contextWindow(agent: ModelOf, chat?: Chat | null): Promise
   const id = model || getSettings().defaults.openrouterModel;
   let w = windows.get(provider);
   if (!w || Date.now() - w.at > 10 * 60_000) {
-    const { listModels } = await import('./engines/openai.ts');
+    const { listModels } = await import('./providers.ts');
     const list = await listModels(provider).catch(() => []);
     w = { at: Date.now(), models: new Map(list.filter((m) => m.context).map((m) => [m.id, m.context!])) };
     // (an empty answer is retried sooner: the server may just be starting)

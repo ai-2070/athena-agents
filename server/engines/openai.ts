@@ -1,7 +1,12 @@
 // API-model engine: OpenRouter, LM Studio, Ollama or any OpenAI-compatible server, with tool calling.
 import fs from 'node:fs';
 import path from 'node:path';
-import { getSettings, getSecrets } from '../store.ts';
+import { getSettings } from '../store.ts';
+import { providerOf } from '../providers.ts';
+import type { Provider } from '../providers.ts';
+import { gatherTools } from '../apitools.ts';
+export { mcpToolName } from '../apitools.ts';
+export { PROVIDERS, listModels, status } from '../providers.ts';
 import { attachedImages } from '../uploads.ts';
 import { inlineToolImages, keepToolImages } from '../toolimages.ts';
 import { callTool as callBuiltin, toolDefs, gate } from '../tools.ts';
@@ -11,40 +16,8 @@ import { checkpointSection, compactAt, compactionSettings, contextWindow, estima
 import type { FetchError } from '../util.ts';
 import { effortFor } from '../../shared/effort.ts';
 import { cacheFields } from '../promptcache.ts';
-import type { Agent, EngineStatus, ProviderId, RunEvent } from '../../shared/types.ts';
+import type { Agent, RunEvent } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
-
-export interface ProviderDef {
-  label: string;
-  base: () => string;
-  key: () => string | undefined;
-  needsKey?: boolean;
-}
-
-/** A provider ready to call: base URL without the trailing slash, and the request headers. */
-interface Provider {
-  id: string;
-  base: string;
-  headers: Record<string, string>;
-}
-
-/** A model as GET /api/models lists it. price is USD per million tokens. */
-export interface ModelInfo {
-  id: string;
-  name: string;
-  context: number | null;
-  tools: boolean;
-  price: { in: number; out: number } | null;
-}
-
-/** A row of an OpenAI-compatible /models answer (OpenRouter adds the extra fields). */
-interface ApiModel {
-  id: string;
-  name?: string;
-  context_length?: number;
-  supported_parameters?: string[];
-  pricing?: { prompt: string; completion: string };
-}
 
 export interface ToolCall {
   id: string;
@@ -61,13 +34,6 @@ export type LlmMessage =
   | { role: 'user'; content: string | UserPart[] }
   | { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] }
   | { role: 'tool'; tool_call_id: string; content: string };
-
-interface ToolDef {
-  type: 'function';
-  function: { name: string; description?: string; parameters: unknown };
-}
-
-type ToolRoute = { kind: 'builtin'; name: string } | { kind: 'mcp'; server: string; name: string; risk: 'low' | 'high' };
 
 interface Usage {
   cost?: number;
@@ -101,83 +67,6 @@ interface ToolOutput {
   text: string;
   images?: string[];
   isError?: boolean;
-}
-
-export const PROVIDERS: Record<ProviderId, ProviderDef> = {
-  openrouter: { label: 'OpenRouter', base: () => 'https://openrouter.ai/api/v1', key: () => getSecrets().openrouterKey, needsKey: true },
-  lmstudio: { label: 'LM Studio (local)', base: () => getSettings().providers.lmstudio.baseUrl, key: () => 'lm-studio' },
-  ollama: { label: 'Ollama (local)', base: () => getSettings().providers.ollama.baseUrl, key: () => 'ollama' },
-  custom: { label: 'Custom', base: () => getSettings().providers.custom.baseUrl, key: () => getSecrets().customKey || 'none' },
-};
-
-export function status(): EngineStatus['openai'] {
-  return { openrouter: !!getSecrets().openrouterKey, custom: !!getSettings().providers.custom.baseUrl };
-}
-
-function providerOf(agent: Agent): Provider {
-  const id = agent.provider || 'openrouter';
-  const p: ProviderDef | undefined = (PROVIDERS as Partial<Record<string, ProviderDef>>)[id];
-  if (!p) throw new Error(`Unknown provider ${id}`);
-  const base = (p.base() || '').replace(/\/$/, '');
-  const key = p.key();
-  if (!base) throw new Error(`${p.label} has no address. Set it in Settings.`);
-  if (p.needsKey && !key) throw new Error('Add your OpenRouter key in Settings first.');
-  const headers: Record<string, string> = { 'content-type': 'application/json', authorization: `Bearer ${key}` };
-  if (id === 'openrouter') Object.assign(headers, { 'HTTP-Referer': `http://localhost:${PORT}`, 'X-Title': 'Athena Agents' });
-  return { id, base, headers };
-}
-
-export async function listModels(providerId: string): Promise<ModelInfo[]> {
-  const p: ProviderDef | undefined = (PROVIDERS as Partial<Record<string, ProviderDef>>)[providerId];
-  if (!p) return [];
-  const base = (p.base() || '').replace(/\/$/, '');
-  if (!base) return [];
-  try {
-    const res = await fetch(`${base}/models`, { headers: { authorization: `Bearer ${p.key() || ''}` }, signal: AbortSignal.timeout(8000) });
-    const j = (await res.json()) as { data?: ApiModel[] };
-    return (j.data || []).map((m) => ({
-      id: m.id,
-      name: m.name || m.id,
-      context: m.context_length || null,
-      tools: providerId === 'openrouter' ? (m.supported_parameters || []).includes('tools') : true,
-      price: m.pricing ? { in: +m.pricing.prompt * 1e6, out: +m.pricing.completion * 1e6 } : null,
-    }));
-  } catch {
-    return [];
-  }
-}
-
-const safeName = (s: string): string => s.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
-
-/** An MCP tool's name for the model: <server>__<tool>, at most 64 characters. Two names cut to the same 64
- *  ("…__send_email_with_a…" twice) would call the wrong tool: the second one gets a number. */
-export function mcpToolName(server: string, tool: string, taken: { has(name: string): boolean }): string {
-  const base = safeName(`${server}__${tool}`);
-  let name = base;
-  for (let i = 2; taken.has(name); i++) name = `${base.slice(0, 63 - String(i).length)}_${i}`;
-  return name;
-}
-
-async function gatherTools(agent: Agent, onEvent: (ev: RunEvent) => void): Promise<{ defs: ToolDef[]; route: Map<string, ToolRoute> }> {
-  const defs: ToolDef[] = toolDefs(agent).map((t): ToolDef => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
-  const route = new Map<string, ToolRoute>(defs.map((d): [string, ToolRoute] => [d.function.name, { kind: 'builtin', name: d.function.name }]));
-  const servers = mcp.listServers();
-  // (a server you turned off isn't started or offered)
-  for (const server of (agent.mcpServers || []).filter((n) => mcp.isEnabled(n, servers))) {
-    // a copy of a service (one account of several) is named by its label: "[OOMOL: Work] Send an email"
-    const shown = mcp.accountOf(server, servers) || server;
-    try {
-      const tools = await mcp.listTools(server);
-      for (const t of tools) {
-        const name = mcpToolName(server, t.name, route);
-        route.set(name, { kind: 'mcp', server, name: t.name, risk: mcp.mcpToolRisk(t) });
-        defs.push({ type: 'function', function: { name, description: `[${shown}] ${t.description || ''}`.slice(0, 1000), parameters: t.inputSchema || { type: 'object', properties: {} } } });
-      }
-    } catch (e) {
-      onEvent({ kind: 'status', text: `MCP server ${server} unavailable: ${(e as Error).message}` });
-    }
-  }
-  return { defs, route };
 }
 
 /** An error from the model server; midStream: part of the answer had come already. */

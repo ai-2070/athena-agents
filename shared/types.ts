@@ -643,6 +643,55 @@ export type SecretKey = 'openrouterKey' | 'anthropicKey' | 'customKey' | 'xClien
 export type SecretStatus = Record<SecretKey, { set: boolean; hint?: string }>;
 
 // ---------- engines ----------
+export interface EngineCapabilities {
+  nativeSession: boolean;
+  directTools: boolean;
+  inlineAttachmentText: boolean;
+  durableSession: boolean;
+}
+
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export interface EveRuntimeConfiguration {
+  model: string;
+  baseUrl: string;
+  apiKey: string;
+  headers: Record<string, string>;
+  instructions: string;
+  contextWindow: number;
+  tools: { name: string; description: string; inputSchema: Record<string, JsonValue> }[];
+}
+
+/** Private runtime records are not part of browser state or project exports. */
+export interface EveSessionBinding {
+  id: string;
+  projectId: string;
+  agentId: string;
+  chatId: string;
+  teamId: string | null;
+  generation: string;
+  sessionId: string | null;
+  retired: boolean;
+  createdAt: number;
+}
+
+export type EveRunStatus = 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'stopped' | 'interrupted';
+
+export interface EveRunRecord {
+  id: string;
+  bindingId: string;
+  depth: number;
+  parentRunId: string | null;
+  deliveryId: string | null;
+  status: EveRunStatus;
+  configurationVersions: string[];
+  cursor: { line: number; index: number } | null;
+  /** Event identities and normalized outputs are saved together before publication. */
+  events: { id: string; event: RunEvent }[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface EngineStatus {
   'claude-code': { installed: boolean; path: string | null; loggedIn: boolean; version: string | null };
   openai: { openrouter: boolean; custom: boolean };

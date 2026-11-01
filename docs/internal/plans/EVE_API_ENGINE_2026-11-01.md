@@ -1,6 +1,6 @@
 # Replace the built-in API agent with Eve
 
-*Plan, 1 November 2026. Runtime proof implemented; API-engine cutover is not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
+*Plan, 1 November 2026. Phases 1 and 2 implemented; API-engine cutover is not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
 
 ## Progress
 
@@ -28,10 +28,37 @@ Two findings constrain the next phases:
   from the process working directory. The supervisor must use a private working directory under
   `DATA` and copy the prepared attachment templates there. Compiler output alone is insufficient.
 - A reply's delivery event can precede its Workflow checkpoint. On Windows, forcibly stopping
-  immediately after that event left a resumed turn stalled in the proof; an idle restart after
+  immediately after that event left a resumed turn stalled under both Node and Bun 1.4.4; an idle restart after
   the checkpoint passes. The smoke check explicitly waits for the checkpoint rather than claiming
   interrupted-run recovery. Phase 3 must resolve and test that boundary before cutover. Do not
   work around it in the product with a fixed sleep or silently restart a side-effecting turn.
+
+Phase 2 adds private session bindings and a run ledger below `DATA/runtime/eve`, current project,
+agent and team permission resolution, configuration fingerprints, immutable run/delivery ownership,
+and ordered event IDs for replay. Provider discovery and API tool catalogs now live outside the
+old API engine. Engine capabilities describe direct tools and attachment handling explicitly.
+The private bridge routes selected tools through Athena's existing risk checks and MCP account
+selection; the process host confines runtime state to `DATA` and owns its child through stdin.
+
+Committed Eve facts are normalized and saved before they can be published. Transient previews
+are excluded from saved originals; referenced values must be resolved before projection, rather
+than substituted with an empty result. The API adapter and UI consumption arrive at cutover.
+
+`bun run eve:integration` exercises the actual Bun process, private Athena bridge, saved ownership,
+tool routing and event projection with a fake provider and isolated project. Unit tests cover
+project switches, retired bindings, changed permissions, competing runs, stopped-run finality,
+duplicate events, tool results, native compaction markers and process shutdown. These are the
+foundations for phase 3, not a claim that approvals or interrupted work already survive restart.
+
+The checkpoint interruption has an isolated reproduction:
+
+```sh
+bun scripts/eve-smoke.ts runtime/eve/.output/server/index.mjs bun runtime/eve/.eve/sandbox-cache --interrupt-after-reply
+```
+
+It deliberately skips the idle-checkpoint wait and currently fails on Windows. The normal smoke
+and integration commands pass. Keep this reproduction for phase 3; do not enable automatic recovery
+of side-effecting turns until its outcomes and pending approvals are reconciled safely.
 
 ## Goal and scope
 

@@ -6,7 +6,7 @@ export default defineAgent({
   defaultTools: false,
   model: defineDynamic(async (ctx) => {
     const config = await configuration(ctx);
-    const provider = createOpenAICompatible({ name: 'athena', baseURL: config.baseUrl, apiKey: config.apiKey });
+    const provider = createOpenAICompatible({ name: 'athena', baseURL: config.baseUrl, apiKey: config.apiKey, headers: config.headers });
     return { model: provider(config.model), modelContextWindowTokens: config.contextWindow };
   }),
 });

@@ -3,7 +3,7 @@
 import { getSecrets, getSettings } from './store.ts';
 import { which } from './util.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
-import { listModels } from './engines/openai.ts';
+import { listModels } from './providers.ts';
 import { listProfiles } from './engines/hermes.ts';
 import { listModels as piModels } from './engines/pi.ts';
 import { listModels as openclawModels } from './engines/openclaw.ts';

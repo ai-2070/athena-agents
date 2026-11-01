@@ -47,6 +47,7 @@ jobs:
         run: |
           bun run eve:build
           bun run eve:smoke
+          bun run eve:integration
 
   desktop:
     name: Desktop app (${{ matrix.os }})

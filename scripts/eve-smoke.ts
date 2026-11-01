@@ -57,7 +57,11 @@ const fixture = http.createServer(async (req, res) => {
     } else {
       assert.equal(req.url, '/tool');
       assert('input' in body);
-      assert.deepEqual(body.input, { name: 'probe', args: { value: 'proof' } });
+      assert(body.input && typeof body.input === 'object' && 'sessionId' in body.input && typeof body.input.sessionId === 'string');
+      assert('callId' in body.input && typeof body.input.callId === 'string');
+      assert('name' in body.input && body.input.name === 'probe');
+      assert('args' in body.input);
+      assert.deepEqual(body.input.args, { value: 'proof' });
       toolCalls++;
       res.end(JSON.stringify({ text: 'ATHENA_TOOL_RESULT' }));
     }
@@ -134,7 +138,7 @@ try {
   // Delivery settlement precedes its Workflow checkpoint. Test an idle restart here;
   // interruption between those boundaries is a separate recovery case.
   const checkpointDeadline = Date.now() + 5000;
-  for (;;) {
+  for (; !process.argv.includes('--interrupt-after-reply');) {
     const stepFiles = fs.readdirSync(path.join(temporary, '.eve', '.workflow-data', 'steps'), { recursive: true, encoding: 'utf8' }).filter((file) => file.endsWith('.json'));
     const running = stepFiles.some((file) => {
       const step: unknown = JSON.parse(fs.readFileSync(path.join(temporary, '.eve', '.workflow-data', 'steps', file), 'utf8'));

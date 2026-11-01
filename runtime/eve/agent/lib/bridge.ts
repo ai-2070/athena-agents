@@ -1,16 +1,18 @@
 import { z } from 'zod';
 import type { DynamicModelContext } from 'eve';
+import type { EveRuntimeConfiguration } from '../../../../shared/types.ts';
 
 const configSchema = z.object({
   model: z.string().min(1),
   baseUrl: z.url(),
   apiKey: z.string(),
+  headers: z.record(z.string(), z.string()).default({}),
   instructions: z.string(),
   contextWindow: z.number().int().positive(),
   tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: z.record(z.string(), z.json()) })),
 });
 
-export async function bridgeCall(binding: string, operation: string, body?: unknown): Promise<unknown> {
+export async function bridgeCall(binding: string, operation: string, body: unknown, signal?: AbortSignal): Promise<unknown> {
   const origin = process.env.ATHENA_EVE_BRIDGE_URL;
   const secret = process.env.ATHENA_EVE_BRIDGE_TOKEN;
   if (!origin || !secret) throw new Error('The Athena tool bridge is not configured.');
@@ -21,7 +23,7 @@ export async function bridgeCall(binding: string, operation: string, body?: unkn
     headers: { 'content-type': 'application/json', authorization: `Bearer ${secret}` },
     body: JSON.stringify({ binding, ...(body === undefined ? {} : { input: body }) }),
     redirect: 'error',
-    signal: AbortSignal.timeout(30_000),
+    signal: signal || AbortSignal.timeout(30_000),
   });
   if (!response.ok) throw new Error(`The Athena tool bridge refused the request (${response.status}).`);
   return response.json();
@@ -33,6 +35,6 @@ export function bindingOf(ctx: DynamicModelContext): string {
   return binding;
 }
 
-export async function configuration(ctx: DynamicModelContext) {
-  return configSchema.parse(await bridgeCall(bindingOf(ctx), '/configuration'));
+export async function configuration(ctx: DynamicModelContext): Promise<EveRuntimeConfiguration> {
+  return configSchema.parse(await bridgeCall(bindingOf(ctx), '/configuration', { sessionId: ctx.session.id }));
 }
