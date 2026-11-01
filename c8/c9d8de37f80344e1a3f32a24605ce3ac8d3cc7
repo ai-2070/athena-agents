@@ -1,0 +1,40 @@
+docs/internal/plans/EVE_API_ENGINE_2026-11-01.md
+  s_3c304e20f190e2::t_5659f77804d30a 118-130,136-137
+server/approvals.ts
+  s_3c304e20f190e2::t_469e7e12405196 54-55,90
+shared/types.ts
+  s_3c304e20f190e2::t_469e7e12405196 844
+scripts/eve-integration-smoke.ts
+  s_3c304e20f190e2::t_252cefd8db4355 29-30,44-47,51-54,56,95,99-105,112-113,121,134,137-138,157-162,164-165
+  s_3c304e20f190e2::t_b1b53d0a2b58c5 31-32
+server/voxel/tools.ts
+  s_3c304e20f190e2::t_a4fde89e7892f4 11,61-63,69-75,79,83-84,97-155,159-160,496,613-615
+  s_3c304e20f190e2::t_f8449a02236651 82
+server/eve/bridge.ts
+  s_3c304e20f190e2::t_f8449a02236651 133
+  s_3c304e20f190e2::t_7b0d1d209a035c 10-12,67-71,73,81-95,97,128-132,134-135
+server/tools.ts
+  s_3c304e20f190e2::t_469e7e12405196 15,73-75,1088-1092,1094,1097-1098,1105-1112,1120-1121,1166,1174,1204-1224,1239
+tests/server/eve-consent.test.ts
+  s_3c304e20f190e2::t_63b0e37b97dbdc 53
+  s_3c304e20f190e2::t_f8449a02236651 1-27,30-52,54-105
+  s_3c304e20f190e2::t_a3c4918a2ab8f2 28-29
+README.md
+  s_3c304e20f190e2::t_5659f77804d30a 221-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c8c9d8de37f80344e1a3f32a24605ce3ac8d3cc7",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
