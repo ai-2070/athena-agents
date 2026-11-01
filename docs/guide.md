@@ -4,6 +4,7 @@ The [README](../README.md) says what the dashboard is, how to install it, which 
 
 - [Desktop app notes](#desktop-app-notes)
 - [Giving engine CLIs the dashboard tools](#giving-engine-clis-the-dashboard-tools)
+- [Venice models](#venice-models)
 - [Your first project](#your-first-project)
 - [Chats and files](#chats-and-files)
 - [Tasks](#tasks)
@@ -34,6 +35,22 @@ The [desktop app](../README.md#desktop-app) is the same dashboard in its own win
 Claude Code and Codex receive dashboard tools through an MCP bridge; API-model agents call them directly. For Hermes, open **Settings → MCP servers** and click **Give Hermes the dashboard tools**, then restart Hermes sessions. pi and oh-my-pi get them through their own `mcp.json` (pi needs version 0.99 or newer): the first run of an agent on either adds the dashboard there, and puts it right if the app was moved. **Give pi and oh-my-pi the dashboard tools** on the same page does it by hand. If that file isn't valid JSON it is left alone, and you get a message saying the agent can't use the dashboard tools until it is fixed.
 
 pi and oh-my-pi run their own tools (files, shell, edits) without asking, whatever the agent's autonomy says. OpenClaw follows its own approval settings. Each chat keeps its own pi, oh-my-pi or OpenClaw session. OpenClaw goes through its Gateway when it is running; otherwise it answers on this PC.
+
+## Venice models
+
+In **Settings → General & keys → API keys**, save a Venice inference key from [Venice API settings](https://venice.ai/settings/api). **Test** checks the saved key without generating an answer. It shows access, expiration and any available USD, DIEM and bundled-credit balances separately. A valid key can still have blocked access or no credits. Remove or replace the key in the same row. Keys stay in the server's secret store and are excluded from project folders and backups.
+
+Pick **Venice** in the model picker for an agent or **The Brain's model**. In the agent editor, choose **API model**, then **Venice** as the provider. In the Agent library, choose **API model**, then **Choose API model** before hiring. Favorites keep their provider, so a Venice model stays on Venice when selected again. The Brain can also look up Venice models and move an agent or whole team onto one by name.
+
+Venice models have their own ids. Set **Defaults for new agents → Venice model**, then **Save settings**, to supply a model when a Venice agent or the Brain has none selected. Otherwise choose a model explicitly. OpenRouter's default does not apply to Venice. The existing default engine choice stays unchanged.
+
+The model list shows prices and context size, flags models without tool use and disables unavailable models, including in Favorites. Effort appears only when the selected model advertises supported levels. The Agent library keeps your chosen effort for new hires; **Default** uses the model's own setting. Image attachments follow its vision and image-count limits. If the catalog cannot load, the picker keeps the selected model and offers manual model entry; effort is omitted until its supported levels are known.
+
+Venice uses Athena's agent and Brain instructions with Venice's added system prompt disabled. Venice's built-in search, scraping and character features are not enabled. This integration covers chat, including supported image attachments; it does not add Venice image generation, video, audio, embeddings or wallet authentication.
+
+The Station's usage readout shows available Venice balances separately from Claude, Codex and OpenRouter. After a run, chat usage distinguishes reported USD and DIEM charges from an **estimated USD equivalent** based on token counts and catalog prices. An estimate is not a USD debit. If neither reported cost nor an estimate is available, the chat says **Cost unavailable**.
+
+**Cost limit per message** stops API runs between model steps after a known cost passes the limit. Venice uses a USD-equivalent estimate when needed, including for DIEM-funded runs. A single answer can exceed the limit. If cost information is missing, the monetary limit cannot be measured; the tool-step limit still applies. This is a local stop, not a hard spending cap at Venice.
 
 ## Your first project
 
@@ -199,7 +216,7 @@ When several members are assigned the same message, each is told who else has it
 ## Models, effort and stopping work from Brain chat
 
 - **Switch models and effort.** "Put the video team on Opus at high effort" changes one agent, several agents or every agent on a team. The Brain checks model names against the provider's list before it changes anything.
-- **Look up models.** "Which Gemini models are on OpenRouter?" lists matching models with prices and context size. Ask "which model is each agent on?" to see every agent's model and effort.
+- **Look up models.** "Which Gemini models are on OpenRouter?" or "Which Venice models support tools?" lists matching models with prices and context size. Ask "which model is each agent on?" to see every agent's model and effort.
 - **Stop work.** "Stop the Writer", "stop the video team" or "stop everything" stops an agent, a team, or everything running in the open project: teams, agents, routines and workflows.
 
 The Brain changes models or stops work only when you ask.
@@ -263,7 +280,7 @@ Very long chats still scroll smoothly: from 50 messages on, the chat page and th
 ## Your Claude and Codex usage limits
 
 - **See them in the sidebar.** Click **Limits** above the list at the bottom of the menu (or pick **Usage limits** under **Settings → Appearance → Sidebar**). In place of what's set up, it shows how much of your Claude and Codex plans you have used in each window (5 hours, the week) and when each starts again. It reads them again every minute. **Status** brings the list back. Each project remembers which one you picked last.
-- **And at the top right of the Station.** The same numbers as **Session** and **Week** meters, taking turns every few seconds between Claude, Codex and OpenRouter (credits left) for each one you're signed in to.
+- **And at the top right of the Station.** The same numbers as **Session** and **Week** meters, taking turns every few seconds between Claude, Codex, OpenRouter (credits left) and Venice (separate balances) for each one you've set up.
 - **Free Codex resets.** When OpenAI has given your Codex account free limit resets, point at **Codex** in the sidebar: a card beside it says how many you have and when the next one runs out. **Reset now** asks first, then uses the one that runs out first and sets your Codex limits back to 0%. If you haven't used any of your limit yet, Codex keeps the reset.
 - **Where the numbers come from.** Claude's come from Anthropic with your Claude Code login; Codex's from the Codex program on this PC (`codex app-server`) with your Codex login. Nothing else is sent anywhere.
 

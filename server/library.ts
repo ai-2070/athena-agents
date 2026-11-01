@@ -6,6 +6,7 @@ import { HOME, ROOT, exists, listDirs, listFiles, parseFrontmatter, readJSON, sl
 import { agents, getSettings, log } from './store.ts';
 import { listProfiles } from './engines/hermes.ts';
 import { isEffort } from '../shared/effort.ts';
+import { defaultModelForEngine } from '../shared/modeldefaults.ts';
 import type { Agent } from '../shared/types.ts';
 
 /** An agent in The Agency library (not hired yet). */
@@ -115,7 +116,7 @@ export function newAgent(fields: Partial<Agent> = {}): Agent {
     description: fields.description || '',
     systemPrompt: fields.systemPrompt || '',
     engine,
-    model: fields.model ?? (engine === 'claude-code' ? d.claudeModel : engine === 'openai' ? d.openrouterModel : ''),
+    model: fields.model ?? defaultModelForEngine(engine, d, fields.provider),
     provider: fields.provider || 'openrouter',
     claudeAuth: fields.claudeAuth || 'login',
     hermesProfile: fields.hermesProfile ?? d.hermesProfile ?? '',

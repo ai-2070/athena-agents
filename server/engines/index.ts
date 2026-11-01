@@ -16,12 +16,13 @@ import * as hermes from './hermes.ts';
 import * as codex from './codex.ts';
 import * as openclaw from './openclaw.ts';
 import { pi, omp } from './pi.ts';
+import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import * as compaction from '../compaction.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import { clearWork, stopChatWork } from '../briefs.ts';
-import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent, TeamContextMessage } from '../../shared/types.ts';
+import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunBilling, RunEvent, TeamContextMessage } from '../../shared/types.ts';
 import type { LoopRequest } from '../../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../../shared/queue.ts';
 
@@ -48,11 +49,12 @@ export interface EngineRunArgs {
   compact?: (o: { trigger: CompactionTrigger }) => Promise<CompactionItem | null>;
 }
 
-/** What an engine's run() resolves to. cost is in USD. context: how full the model's memory was at the
+/** What an engine's run() resolves to. cost is in USD (or a labeled USD-equivalent estimate). context: how full the model's memory was at the
  *  end, and window its size, in tokens (when the engine says). */
 export interface EngineResult {
   text: string;
   cost?: number;
+  billing?: RunBilling;
   tokens?: number;
   /** of those, read from the provider's prompt cache */
   cached?: number;
@@ -466,9 +468,14 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       if (result?.text && !chat.items.some((i, idx) => idx > chat.items.findLastIndex((x) => x.type === 'user') && i.type === 'assistant')) {
         pushItem(chat, { type: 'assistant', text: result.text });
       }
-      if (result?.cost) pushItem(chat, { type: 'meta', text: `$${result.cost.toFixed(4)}${result.tokens ? ` · ${result.tokens} tokens` : ''}${result.cached ? ` · ${result.cached} from cache` : ''}` });
+      if (result?.cost || result?.billing) {
+        const billing = result.billing;
+        const amount = billing?.source === 'unavailable' ? 'Cost unavailable' : `${billing?.source === 'estimated' ? 'Estimated ' : ''}$${(result.cost || 0).toFixed(4)}${billing?.source === 'estimated' ? ' USD equivalent' : ''}`;
+        const charged = [billing?.chargedUsd != null ? `$${billing.chargedUsd.toFixed(4)} USD charged` : '', billing?.chargedDiem != null ? `${billing.chargedDiem.toFixed(4)} DIEM charged` : ''].filter(Boolean);
+        pushItem(chat, { type: 'meta', text: `${amount}${charged.length ? ` · ${charged.join(' · ')}` : ''}${result.tokens ? ` · ${result.tokens} tokens` : ''}${result.cached ? ` · ${result.cached} from cache` : ''}`, ...(billing ? { billing } : {}) });
+      }
       persist();
-      send({ kind: 'done', text: result?.text || '', cost: result?.cost || 0, seconds: Math.round((Date.now() - started) / 1000) });
+      send({ kind: 'done', text: result?.text || '', ...(result?.billing ? { billing: result.billing, ...(result.cost != null ? { cost: result.cost } : {}) } : { cost: result?.cost || 0 }), seconds: Math.round((Date.now() - started) / 1000) });
       log('run', `${agent.name} finished (${Math.round((Date.now() - started) / 1000)}s)`, { agentId: agent.id, chatId: chat.id });
       answer = result?.text || lastAssistantText(chat);
       return answer;
@@ -982,7 +989,4 @@ export function engineStatus(): EngineStatus {
   };
 }
 
-export const defaultModel = (engine: string): string => {
-  const d = getSettings().defaults;
-  return engine === 'claude-code' ? d.claudeModel : engine === 'openai' ? d.openrouterModel : '';
-};
+export const defaultModel = (engine: string, provider?: string): string => defaultModelForEngine(engine, getSettings().defaults, provider);

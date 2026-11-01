@@ -35,6 +35,7 @@ import { BACKGROUND_OPACITY, mapDotsOpacity, toPercent } from '../shared/look.ts
 import { MODEL_PROVIDERS, PROVIDER_IDS, modelProvider, providerOfAgent, providerProblem, readyProviders, defaultModelFor, checkModel, checkModelNow, availableModels, findModels } from './models.ts';
 import type { Effort } from '../shared/effort.ts';
 import type { ModelProvider } from './models.ts';
+import { cachedApiModelInfo } from './apiproviders.ts';
 import { listBriefs } from './briefs.ts';
 import { createTask, getTask, listTasks, runTaskBatch, savedTasks, updateTask } from './tasks.ts';
 import type { TaskCreateInput, TaskQuery, TaskUpdateInput } from '../shared/types.ts';
@@ -309,10 +310,10 @@ function keyFiles(root: string, budget: number): string {
 // "provider: openrouter | model: anthropic/claude-opus-5.5 | effort: high"
 const runsOn = (a: Agent) => {
   const p = providerOfAgent(a);
-  const model = a.model || (p === 'codex' ? "Codex's default model" : p === 'hermes' ? `the model of Hermes profile "${a.hermesProfile || 'default'}"` : p === 'openclaw' ? `the model of OpenClaw agent "${a.openclawAgent || 'default'}"` : p === 'pi' || p === 'omp' ? `${p === 'pi' ? "pi's" : "oh-my-pi's"} default model` : defaultModel(a.engine) || 'its default model');
+  const model = a.model || (p === 'codex' ? "Codex's default model" : p === 'hermes' ? `the model of Hermes profile "${a.hermesProfile || 'default'}"` : p === 'openclaw' ? `the model of OpenClaw agent "${a.openclawAgent || 'default'}"` : p === 'pi' || p === 'omp' ? `${p === 'pi' ? "pi's" : "oh-my-pi's"} default model` : defaultModel(a.engine, a.provider) || 'its default model');
   // the full id the engine reported last time (a short name like "sonnet" points to the latest version)
   const last = a.lastModel && a.lastModel !== a.model ? ` (last ran as ${a.lastModel})` : '';
-  const e = effortFor(a.engine, a.effort, a.provider);
+  const e = effortFor(a.engine, a.effort, a.provider, cachedApiModelInfo(String(a.provider), a.model || defaultModel(a.engine, a.provider))?.reasoningEfforts);
   return `provider: ${p} | model: ${model}${last} | effort: ${e || "default (the model's own)"}`;
 };
 
@@ -603,8 +604,8 @@ TaskCreate and TaskUpdate also accept {"do":"TaskCreate"|"TaskUpdate","tasks":[{
 {"do":"stop","to":"agent"|"team"|"all","id":"<agent or team id; not needed for all>"}   (stops the work going on now: an agent's jobs, a team's chat with its queue, or with "all" everything running in this project: every team, agent, routine and workflow; "targets":[{"to":…,"id":…},…] for several)
 {"do":"set_model","to":"agent"|"team","id":"<agent or team id, or 'new'>","model":"<model id>","provider":"PROVIDER","effort":"EFFORT"}   (or "targets":[{"to":…,"id":…},…] instead of "to"/"id", for several at once; a team means every agent on it; give the model, the effort or both; "provider" only to move them to another provider, else the model is for the provider each one runs on now)
 {"do":"find_models","provider":"PROVIDER","query":"words to match, e.g. gemini flash"}   (a look-up like read_skill: you get the matching model ids, then answer again; leave out "provider" to search every provider that is set up, leave out "query" to list them all)
-PROVIDER is one of: claude (Claude Code: opus, sonnet, haiku, fable, which always mean the latest version, or a full claude-… id), openrouter (any model on OpenRouter, ids like google/gemini-…), lmstudio, ollama, custom (model servers on this PC), codex (OpenAI Codex), hermes, pi and omp (the pi and oh-my-pi coding agents: provider/model ids like anthropic/claude-sonnet-5-5), openclaw (OpenClaw agents). Set up on this PC now: ${readyProviders().join(', ') || 'none'}.
-EFFORT is one of ${EFFORTS.join(', ')}, or "default" (the model's own). Claude Code takes low to max, Codex and OpenRouter minimal to xhigh, servers on this PC low to high, Hermes, pi, oh-my-pi and OpenClaw minimal to max; a level a provider doesn't have becomes its nearest one.
+PROVIDER is one of: claude (Claude Code: opus, sonnet, haiku, fable, which always mean the latest version, or a full claude-… id), openrouter (any model on OpenRouter, ids like google/gemini-…), venice (Venice API models; use find_models for ids and capabilities), lmstudio, ollama, custom (model servers on this PC), codex (OpenAI Codex), hermes, pi and omp (the pi and oh-my-pi coding agents: provider/model ids like anthropic/claude-sonnet-5-5), openclaw (OpenClaw agents). Set up on this PC now: ${readyProviders().join(', ') || 'none'}.
+EFFORT is one of ${EFFORTS.join(', ')}, or "default" (the model's own). Claude Code takes low to max, Codex and OpenRouter minimal to xhigh, Venice only the selected model's advertised levels, servers on this PC low to high, Hermes, pi, oh-my-pi and OpenClaw minimal to max; a level a provider doesn't have becomes its nearest one.
 STEP is a build step, run in order, from the cursor; positions and sizes are in map units with "units":"map" (a desk is 2.6 wide, a person 1.7 tall), else in voxels of the current size: {"use":"stone"}, {"material":"name","color":"#rrggbb","kind":"solid|emissive|water|glass|leaf"}, {"voxel_size":0.1}, {"at":[x,y,z]}, {"box":[w,h,d]}, {"sphere":r}, {"blob":[rx,ry,rz],"rough":0.3,"holes":0.2}, {"cylinder":r,"height":h}, {"revolve":[[radius,height],…]}, {"extrude":{"points":[[x,z],…]},"height":h}, {"path":[[x,z],…],"width":w}, {"heightmap":{"size":[w,d],"height":6},"top":"grass"}, {"layers":[["#.#"]],"key":{"#":"wood"}}, {"text":"HI"}; copies of prefabs: {"place":"Palm tree","at":[x,y,z],"turn":30}, {"place":["Person A","Person B"],"scatter":{"area":[w,d],"count":40},"turn":"random"}, {"place":"Lamp","along":[[x,z],…],"every":12,"sides":2,"offset":4}; any step can take "at":[x,y,z] and "use". Stock materials include grass, sand, stone, cobble, brick, wood, dark wood, leaves, blossom, water, glass, lantern (glows), red lacquer, roof tile, gold, snow, cloth white.
 SCHEDULE is {"type":"none"} (run by hand) or {"type":"daily","time":"HH:MM","days":[0-6, 0 = Sunday; leave out for every day]} or {"type":"interval","minutes":N}. Set "enabled":true when the user wants it to run on its own.
 MEMBER is {"agent":"<existing agent id>"} or {"library":"<slug>"} or {"starter":"<name>"} or {"new":{"name":"…","emoji":"…","specialty":"one line","instructions":"5-10 sentences, second person","tools":["ids"],"skills":["skill ids"],"mcpServers":["names"]}}
@@ -947,6 +948,13 @@ export async function prepareModels(actions: BrainAction[]): Promise<void> {
     const prov = modelProvider(act.provider);
     if (act.model === undefined || act.model === null) {
       if (prov) movedTo.add(prov);
+      const providers = new Set<ModelProvider>(prov ? [prov] : []);
+      if (!prov) for (const target of targetList(act)) {
+        try {
+          for (const agent of modelTargets(target, { agent: null, team: null }).list) providers.add(providerOfAgent(agent));
+        } catch { /* reported when the action runs */ }
+      }
+      await Promise.all([...providers].filter((p) => p === 'venice').map((p) => availableModels(p)));
       continue;
     }
     const model = String(act.model).trim();
@@ -1047,7 +1055,7 @@ function stopWork(t: BrainAction, p: Project, last: { agent: string | null; team
 
 /** "Claude Code · opus, high effort" */
 function modelText(a: Agent): string {
-  const e = effortFor(a.engine, a.effort, a.provider);
+  const e = effortFor(a.engine, a.effort, a.provider, cachedApiModelInfo(String(a.provider), a.model || defaultModel(a.engine, a.provider))?.reasoningEfforts);
   return `${MODEL_PROVIDERS[providerOfAgent(a)].label} · ${a.model || 'its default model'}, ${e ? `${EFFORT_NAMES[e].toLowerCase()} effort` : "the model's default effort"}`;
 }
 
@@ -1353,16 +1361,16 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
                 if (MODEL_PROVIDERS[prov].provider) next.provider = MODEL_PROVIDERS[prov].provider!;
               }
               // (also catches agents made earlier in this answer, which prepareModels couldn't see)
-              const wrong = hasModel ? checkModelNow(providerOfAgent(next), model) : null;
+              const moved = providerOfAgent(next) !== providerOfAgent(a);
+              const nextModel = hasModel ? model : moved && prov ? defaultModelFor(prov) ?? '' : next.model;
+              const wrong = hasModel || (moved && providerOfAgent(next) === 'venice') ? checkModelNow(providerOfAgent(next), nextModel || '') : null;
               if (wrong) {
                 refused.push(`${a.name}: ${wrong}`);
                 continue;
               }
-              const moved = providerOfAgent(next) !== providerOfAgent(a);
-              if (hasModel) next.model = model;
-              else if (moved && prov) next.model = defaultModelFor(prov) ?? '';
+              next.model = nextModel;
               if (effort !== undefined) {
-                next.effort = effortFor(next.engine, effort, next.provider);
+                next.effort = effortFor(next.engine, effort, next.provider, cachedApiModelInfo(String(next.provider), next.model || defaultModel(next.engine, next.provider))?.reasoningEfforts);
                 if (effort && next.effort !== effort) nearest = true;
               }
               if (next.engine === a.engine && next.provider === a.provider && next.model === a.model && (next.effort || '') === (a.effort || '')) same.push(a);

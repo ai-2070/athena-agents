@@ -128,6 +128,24 @@ describe('providers and model lists', () => {
 });
 
 describe('set_model', () => {
+  it('moves a whole team to Venice and changes effort using the advertised model levels', async () => {
+    setSecret('veniceKey', 'venice-test');
+    vi.stubGlobal('fetch', async () => Response.json({ data: [{ id: 'venice-chat', model_spec: { capabilities: { supportsFunctionCalling: true, supportsReasoningEffort: true, reasoningEffortOptions: ['low', 'high'] } } }] }));
+    const a = newAgent({ name: 'Venice writer', engine: 'claude-code', model: 'sonnet' });
+    const b = newAgent({ name: 'Venice editor', engine: 'openai', provider: 'openrouter', model: 'google/gemini-3-pro' });
+    const crew = team('Venice crew', [a.id, b.id]);
+    const actions = [{ do: 'set_model', to: 'team', id: crew.id, provider: 'venice', model: 'venice-chat', effort: 'max' }];
+    await prepareModels(actions);
+    expect(applyActions(actions).done[0]?.kind).toBe('model');
+    for (const agent of [a, b]) expect(agents.get(agent.id)).toMatchObject({ engine: 'openai', provider: 'venice', model: 'venice-chat', effort: 'high' });
+    const effort = [{ do: 'set_model', to: 'agent', id: a.id, effort: 'medium' }];
+    await prepareModels(effort);
+    applyActions(effort);
+    expect(agents.get(a.id)?.effort).toBe('low');
+    setSecret('veniceKey', null);
+    expect(applyActions(actions).done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('no Venice key') });
+  });
+
   it("changes one agent's model and keeps the old version", () => {
     const a = newAgent({ name: 'Writer', engine: 'claude-code', model: 'sonnet' });
     const r = applyActions([{ do: 'set_model', to: 'agent', id: a.id, model: 'opus' }]);

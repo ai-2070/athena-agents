@@ -10,11 +10,12 @@ import { createRoot } from 'react-dom/client';
 import { state, GET, PUT, attempt, refreshSoon, toast, navigate } from './core.ts';
 import { appIcon, appIconUrl } from './appicons.ts';
 import { brandPath, logo } from './icons.ts';
-import { EFFORT_NAMES, effortFor, effortLevels } from '../shared/effort.ts';
+import { EFFORT_NAMES, effortFor, effortLevels, isEffort } from '../shared/effort.ts';
+import { defaultModelForEngine } from '../shared/modeldefaults.ts';
 import { Button } from './ui/button.tsx';
 import { PopoverContent, PopoverRoot } from './ui/popover.tsx';
 import { DomNode, Icon } from './ui/react.tsx';
-import type { Agent, BrainSetting, Effort, EngineId, EngineStatus, FavoriteModel } from '../shared/types.ts';
+import type { Agent, ApiModelInfo, BrainSetting, Effort, EngineId, EngineStatus, FavoriteModel } from '../shared/types.ts';
 
 /** What modelInfo() needs: an agent, or the Brain dressed up as one (brainAsAgent). */
 export interface ModelTarget {
@@ -44,17 +45,13 @@ export interface ModelInfo {
   where: string;
 }
 /** One entry of GET /api/models (engine=openai, codex, pi…). */
-export interface ModelListing {
+export interface ModelListing extends Partial<Omit<ApiModelInfo, 'id'>> {
   id: string;
-  name?: string;
-  context?: number | null;
-  tools?: boolean;
-  price?: { in: number; out: number } | null;
   /** Codex: what the model is for */
   description?: string;
 }
 /** A picker tab: an engine, Favorites, or LM Studio (API models on this PC, with a tab of their own). */
-type PickerTab = EngineId | 'fav' | 'lmstudio';
+type PickerTab = EngineId | 'fav' | 'lmstudio' | 'venice';
 interface ModelTab {
   engine: PickerTab;
   label: string;
@@ -62,7 +59,7 @@ interface ModelTab {
   glyph?: string;
 }
 /** The tab a model belongs on: LM Studio models run on the API-model engine but get their own tab. */
-export const tabOf = (t: { engine: EngineId; provider?: string }): EngineId | 'lmstudio' => (t.engine === 'openai' && t.provider === 'lmstudio' ? 'lmstudio' : t.engine);
+export const tabOf = (t: { engine: EngineId; provider?: string }): PickerTab => (t.engine === 'openai' && (t.provider === 'lmstudio' || t.provider === 'venice') ? t.provider : t.engine);
 
 // What Claude Code's short names point to today.
 const CLAUDE = [
@@ -79,6 +76,7 @@ const TABS: ModelTab[] = [
   { engine: 'claude-code', label: 'Claude', brand: 'claude' },
   { engine: 'openai', label: 'OpenRouter', brand: 'openrouter', glyph: '◇' },
   { engine: 'lmstudio', label: 'LM Studio', brand: null, glyph: 'LM' },
+  { engine: 'venice', label: 'Venice', brand: null },
   { engine: 'hermes', label: 'Hermes', brand: null, glyph: '☤' },
   { engine: 'codex', label: 'Codex', brand: 'openai' },
   { engine: 'pi', label: 'pi', brand: null, glyph: 'π' },
@@ -109,7 +107,7 @@ export function modelInfo(a: ModelTarget): ModelInfo {
     const label = a.engine === 'pi' ? 'pi' : 'oh-my-pi';
     return { name: m || `${label} default model`, short: m ? m.split('/').pop()! : label, latest: false, brand: /claude|anthropic/.test(m) ? 'claude' : null, where: `${label}${m.includes('/') ? ` · ${m.split('/')[0]}` : ''}` };
   }
-  const where = ({ lmstudio: 'LM Studio', ollama: 'Ollama', custom: 'Custom server' } as Record<string, string | undefined>)[a.provider as string] || 'OpenRouter';
+  const where = ({ venice: 'Venice', lmstudio: 'LM Studio', ollama: 'Ollama', custom: 'Custom server' } as Record<string, string | undefined>)[a.provider as string] || 'OpenRouter';
   const id = m.split('/').pop() || 'model';
   const c = CLAUDE.find((x) => id.replace(/\./g, '-').startsWith(x.id));
   return { name: c ? `Claude ${c.family} ${c.version}` : id, short: c ? `${c.family} ${c.version}` : id, latest: false, brand: /claude|anthropic/.test(m) ? 'claude' : /llama|ollama/.test(m) ? 'ollama' : where === 'OpenRouter' ? 'openrouter' : null, where };
@@ -121,7 +119,7 @@ const CHIP = 'inline-flex items-center gap-2 whitespace-nowrap py-1.5 px-3 borde
 export const SEARCH = 'model-search mt-1 mb-2 px-3 py-2 text-[13.5px]';
 
 /** The effort a target runs at, as its engine takes it ('' = the model's default). */
-export const effortOf = (a: ModelTarget): Effort | '' => effortFor(a.engine, a.effort, a.provider);
+export const effortOf = (a: ModelTarget): Effort | '' => a.engine === 'openai' && a.provider === 'venice' ? isEffort(a.effort) ? a.effort : '' : effortFor(a.engine, a.effort, a.provider);
 /** "Claude Opus 5.5" or "Claude Opus 5.5 (high effort)" */
 const withEffort = (a: ModelTarget) => {
   const e = effortOf(a);
@@ -219,13 +217,18 @@ export function modelChip(agent: Agent, { onChange, compact = false }: { onChang
 
 // ---------- the Brain's own model ----------
 // settings.brain = { provider: 'claude' | 'openrouter' | 'hermes' | 'codex', model }
-const BRAIN_ENGINE: Record<string, EngineId | undefined> = { claude: 'claude-code', openrouter: 'openai', hermes: 'hermes', codex: 'codex' };
+const BRAIN_ENGINE: Record<string, EngineId | undefined> = { claude: 'claude-code', openrouter: 'openai', venice: 'openai', hermes: 'hermes', codex: 'codex' };
 const BRAIN_PROVIDER: Record<string, BrainSetting['provider'] | undefined> = { 'claude-code': 'claude', openai: 'openrouter', hermes: 'hermes', codex: 'codex' };
 /** The engines the Brain can think with (its picker offers only these). */
 const BRAIN_ENGINES: readonly EngineId[] = ['claude-code', 'openai', 'hermes', 'codex'];
 export function brainAsAgent(b: { provider?: string; model?: string; effort?: Effort | '' } | null | undefined = state.data?.settings?.brain): ModelTarget & { model: string; provider: string } {
   const p = b?.provider || 'claude';
-  return { engine: BRAIN_ENGINE[p] || 'claude-code', model: b?.model ?? 'haiku', provider: 'openrouter', effort: b?.effort || '' };
+  const model = p === 'venice' ? b?.model || state.data?.settings?.defaults?.veniceModel || '' : b?.model ?? (p === 'claude' ? 'haiku' : '');
+  return { engine: BRAIN_ENGINE[p] || 'claude-code', model, provider: p === 'venice' ? 'venice' : 'openrouter', effort: b?.effort || '' };
+}
+export function brainSettingFromChoice(choice: ModelPatch): BrainSetting | null {
+  const provider = choice.engine === 'openai' ? choice.provider === 'venice' ? 'venice' : !choice.provider || choice.provider === 'openrouter' ? 'openrouter' : undefined : BRAIN_PROVIDER[choice.engine];
+  return provider ? { provider, model: choice.model || '', effort: choice.effort } : null;
 }
 export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: (brain: BrainSetting) => void; prefix?: string } = {}): HTMLButtonElement {
   const { chip, draw } = makeChip("The Brain's model: answers about the project, builds teams and agents, hands out work", () => {
@@ -238,12 +241,11 @@ export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: 
     openModelPicker(chip, brainAsAgent(), async (patch) => {
       const sameOne = sameModel(brainAsAgent(), patch);
       // (an engine the Brain can't think with is not offered; never quietly swap in Claude for one)
-      const provider = BRAIN_PROVIDER[patch.engine];
-      if (!provider) {
-        toast("The Brain can't use that engine. Pick Claude, OpenRouter, Hermes or Codex.", 'error');
+      const brain = brainSettingFromChoice(patch);
+      if (!brain) {
+        toast("The Brain can't use that engine. Pick Claude, OpenRouter, Venice, Hermes or Codex.", 'error');
         return false;
       }
-      const brain: BrainSetting = { provider, model: patch.model ?? '', effort: patch.effort };
       const r = await attempt(() => PUT('/settings', { brain }));
       if (!r) return false;
       if (state.data?.settings) state.data.settings.brain = brain;
@@ -297,10 +299,10 @@ function FavStar({ choice, onChanged }: { choice: ModelChoice; onChanged: () => 
 }
 
 /** One model in the list: its name and where it runs, and the star beside it. */
-function Row({ label, sub, active, choice, brand = null, onPick, onChanged }: { label: string; sub: string | null; active: boolean; choice: ModelChoice; brand?: string | null; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
+function Row({ label, sub, active, choice, brand = null, disabled = false, onPick, onChanged }: { label: string; sub: string | null; active: boolean; choice: ModelChoice; brand?: string | null; disabled?: boolean; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
   return (
     <div className="model-row group flex items-center gap-0.5">
-      <button type="button" className={classes('st-menu-item', active && 'on', 'flex-1 min-w-0')} onClick={() => onPick(choice)}>
+      <button type="button" disabled={disabled} className={classes('st-menu-item', active && 'on', 'flex-1 min-w-0 disabled:opacity-50 disabled:cursor-not-allowed')} onClick={() => onPick(choice)}>
         <RowMark active={active} brand={brand} />
         <span className="flex-1 min-w-0">
           {label}
@@ -345,6 +347,7 @@ function Missing({ text, find, close }: { text: string; find: string; close: () 
 /** The mark on a tab: a star for Favorites, else the engine's own app icon, logo or glyph. */
 function TabMark({ tab }: { tab: ModelTab }) {
   if (tab.engine === 'fav') return <Icon name="star" size={13} />;
+  if (tab.engine === 'venice') return <Icon name="cpu" size={13} />;
   if (tab.brand && brandPath(tab.brand)) return <BrandMark brand={tab.brand} size={13} fallback={null} />;
   if (appIconUrl(tab.engine)) return <DomNode as="span" className="dom-contents" make={() => appIcon(tab.engine, 13)} deps={[tab.engine]} />;
   return <span className="text-[13px] leading-[13px]">{tab.glyph || '•'}</span>;
@@ -402,13 +405,14 @@ function LocalSection({ provider, label, howToStart = '', cur, onPick, onChanged
 }
 
 /** Favorites: the models starred in Settings this picker can use. */
-function FavoritesBody({ favs, cur, onPick, onChanged }: { favs: FavoriteModel[]; cur: ModelTarget; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
+function FavoritesBody({ favs, cur, isUnavailable, onPick, onChanged }: { favs: FavoriteModel[]; cur: ModelTarget; isUnavailable: (c: ModelChoice) => boolean; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
   return (
     <>
       <div className="st-menu-head">Favorites</div>
       {favs.map((f) => {
         const mi = modelInfo(f);
-        return <Row key={`${f.engine} ${f.provider || ''} ${f.model}`} label={mi.name || f.model} sub={mi.where} active={sameModel(cur, f)} choice={f} brand={mi.brand} onPick={onPick} onChanged={onChanged} />;
+        const offline = isUnavailable(f);
+        return <Row key={`${f.engine} ${f.provider || ''} ${f.model}`} label={mi.name || f.model} sub={`${mi.where}${offline ? ' · Temporarily unavailable' : ''}`} active={sameModel(cur, f)} disabled={offline} choice={f} brand={mi.brand} onPick={onPick} onChanged={onChanged} />;
       })}
     </>
   );
@@ -427,6 +431,27 @@ function ClaudeBody({ cur, close, onPick, onChanged }: { cur: ModelTarget; close
       {CLAUDE.map((c) => <Row key={`pin ${c.id}`} label={`${c.family} ${c.version}`} sub={c.id} active={same(c.id)} choice={{ engine: 'claude-code', model: c.id }} brand="claude" onPick={onPick} onChanged={onChanged} />)}
     </>
   );
+}
+
+function VeniceBody({ cur, models, error, close, onPick, onChanged }: { cur: ModelTarget; models: ModelListing[] | null; error: string | null; close: () => void; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
+  const [query, setQuery] = useState('');
+  const current = cur.engine === 'openai' && cur.provider === 'venice' ? cur.model : '';
+  const list = models || [];
+  const pool: ModelListing[] = current && !list.some((m) => m.id === current) ? [{ id: current, name: current }, ...list] : list;
+  const shown = pool.filter((m) => `${m.id} ${m.name || ''}`.toLowerCase().includes(query.toLowerCase())).slice(0, 80);
+  return <>
+    {state.data?.secrets?.veniceKey?.set ? null : <Missing text="Add your Venice key to run a model." find="Venice key" close={close} />}
+    <div className="st-menu-head">Venice</div>
+    <input className={SEARCH} aria-label="Search Venice models" placeholder="Search Venice models" value={query} onChange={(e) => setQuery(e.target.value)} />
+    {models === null && !error ? <p className="model-sub px-2.5 py-1" role="status">Loading Venice models…</p> : null}
+    {error ? <p className="model-sub px-2.5 py-1" role="status">{error} You can enter a model id below.</p> : null}
+    {models && !models.length ? <p className="model-sub px-2.5 py-1">No Venice models found. Enter a model id below or try again later.</p> : null}
+    {models?.length && !shown.length ? <p className="model-sub px-2.5 py-1">No models match this search.</p> : null}
+    <div className="model-list">{shown.map((m) => <Row key={m.id} label={m.name || m.id}
+      sub={[m.id, m.price ? `$${m.price.in.toFixed(2)} / $${m.price.out.toFixed(2)} per M tokens` : '', m.context ? `${Math.round(m.context / 1000)}k context` : '', m.tools === false ? 'No tool use' : '', m.offline ? 'Temporarily unavailable' : ''].filter(Boolean).join(' · ')}
+      active={m.id === current} disabled={m.offline} choice={{ engine: 'openai', provider: 'venice', model: m.id }} onPick={onPick} onChanged={onChanged} />)}</div>
+    <FreeInput placeholder="or enter a Venice model id and press Enter" onSubmit={(model) => onPick({ engine: 'openai', provider: 'venice', model })} />
+  </>;
 }
 
 /** OpenRouter: its own list (as much as the server knows), the picks everyone wants, and any server on this PC. */
@@ -593,25 +618,39 @@ interface PickerProps {
   title: string;
   local: boolean;
   engines?: readonly EngineId[];
+  providers?: readonly string[];
   open: boolean;
   close: () => void;
   dispose: () => void;
 }
 
 /** The picker: a tab for Favorites (when there are any) and one per engine, the effort row, and that tab's models. */
-function ModelPicker({ anchor, cur, apply, title, local, engines, open, close, dispose }: PickerProps) {
+function ModelPicker({ anchor, cur, apply, title, local, engines, providers, open, close, dispose }: PickerProps) {
   const usable = (e: EngineId) => !engines || engines.includes(e);
   // favorites this picker can use (without local servers, only OpenRouter's API models)
-  const favs = () => favoriteModels().filter((f) => usable(f.engine) && (local || f.engine !== 'openai' || (f.provider || 'openrouter') === 'openrouter'));
+  const favs = () => favoriteModels().filter((f) => usable(f.engine) && (!providers || f.engine !== 'openai' || providers.includes(f.provider || 'openrouter')) && (local || f.engine !== 'openai' || ['openrouter', 'venice'].includes(f.provider || 'openrouter')));
   // LM Studio's tab only where models on this PC can be used (not for the Brain)
-  const myTabs = TABS.filter((t) => (local || t.engine !== 'lmstudio') && (t.engine === 'fav' || t.engine === 'lmstudio' || usable(t.engine)));
+  const myTabs = TABS.filter((t) => (local || t.engine !== 'lmstudio') && (!providers || providers.includes(t.engine === 'openai' ? 'openrouter' : t.engine)) && (t.engine === 'fav' || usable(t.engine === 'lmstudio' || t.engine === 'venice' ? 'openai' : t.engine)));
   const curTab = tabOf(cur);
-  const homeTab = (): PickerTab => (myTabs.some((t) => t.engine === curTab) ? curTab : 'claude-code');
+  const homeTab = (): PickerTab => (myTabs.some((t) => t.engine === curTab) ? curTab : myTabs[0]?.engine || 'claude-code');
   const [, refresh] = useReducer((n: number) => n + 1, 0);
   const [tab, setTab] = useState<PickerTab>(() => (favs().length ? 'fav' : homeTab()));
   // the effort asked for (kept as asked: each engine sends its nearest level)
   const [effort, setEffort] = useState<Effort | ''>(() => effortOf(cur));
   const asked = useRef<Effort | ''>(effort);
+  const [veniceModels, setVeniceModels] = useState<ModelListing[] | null>(null);
+  const [veniceError, setVeniceError] = useState<string | null>(null);
+  const needsVenice = tab === 'venice' || (cur.engine === 'openai' && cur.provider === 'venice') || (tab === 'fav' && favs().some((f) => f.provider === 'venice'));
+  useEffect(() => {
+    if (!needsVenice) return;
+    let live = true;
+    setVeniceError(null);
+    void GET<ModelListing[]>('/models?engine=openai&provider=venice').then(
+      (models) => { if (live) setVeniceModels(models); },
+      () => { if (live) setVeniceError('Could not load Venice models.'); },
+    );
+    return () => { live = false; };
+  }, [needsVenice]);
   const favList = favs();
   // (the last favorite just went: back to the engine in use)
   if (tab === 'fav' && !favList.length) setTab(homeTab());
@@ -619,24 +658,29 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, open, close, d
     asked.current = value;
     setEffort(value);
   };
-  const tabEngine = (): EngineId => (tab === 'fav' ? cur.engine : tab === 'lmstudio' ? 'openai' : tab);
+  const tabEngine = (): EngineId => (tab === 'fav' ? cur.engine : tab === 'lmstudio' || tab === 'venice' ? 'openai' : tab);
   // the effort row is for the model in use, on Favorites and its own tab; on the others it is for what you pick here
   const live = tab === 'fav' || tab === curTab;
   const engine = tabEngine();
-  const provider = engine !== 'openai' ? undefined : live ? cur.provider : tab === 'lmstudio' ? 'lmstudio' : 'openrouter';
-  const shown = effortFor(engine, effort, provider);
+  const provider = engine !== 'openai' ? undefined : live ? cur.provider : tab === 'lmstudio' ? 'lmstudio' : tab === 'venice' ? 'venice' : 'openrouter';
+  const levelsFor = (choice: ModelChoice) => choice.provider === 'venice' ? veniceModels?.find((m) => m.id === choice.model)?.reasoningEfforts : undefined;
+  const modelLevels = provider === 'venice' ? live ? levelsFor(cur) : veniceModels?.flatMap((m) => m.reasoningEfforts || []) : undefined;
+  const levels = effortLevels(engine, provider, modelLevels);
+  const shown = effortFor(engine, effort, provider, modelLevels);
+  const isUnavailable = (choice: ModelChoice): boolean => choice.engine === 'openai' && choice.provider === 'venice' && veniceModels?.find((m) => m.id === choice.model)?.offline === true;
 
   // Picking a model closes the picker; changing the effort of the model in use applies it at once and keeps it open.
   const pick = (choice: ModelChoice) => {
+    if (isUnavailable(choice)) return toast('This Venice model is temporarily unavailable. Choose another model.', 'warn');
     close();
-    void apply({ ...choice, effort: effortFor(choice.engine, asked.current, choice.provider) });
+    void apply({ ...choice, effort: effortFor(choice.engine, asked.current, choice.provider, levelsFor(choice)) });
   };
   const changeEffort = async (value: Effort | '') => {
     const before = asked.current;
     // synchronously, like typing: the row shows the level the moment it is clicked
     flushSync(() => setLevel(value));
     if (!live) return;
-    const ok = await apply({ engine: cur.engine, model: cur.model ?? '', ...(cur.engine === 'openai' ? { provider: cur.provider } : {}), effort: effortFor(cur.engine, value, cur.provider) });
+    const ok = await apply({ engine: cur.engine, model: cur.model ?? '', ...(cur.engine === 'openai' ? { provider: cur.provider } : {}), effort: effortFor(cur.engine, value, cur.provider, levelsFor(cur)) });
     // (it failed: the row goes back to what it was)
     if (ok === false && asked.current === value) setLevel(before);
   };
@@ -665,9 +709,10 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, open, close, d
   }, [open, anchor, close]);
 
   let body: ReactNode;
-  if (tab === 'fav') body = <FavoritesBody favs={favList} cur={cur} onPick={pick} onChanged={refresh} />;
+  if (tab === 'fav') body = <FavoritesBody favs={favList} cur={cur} isUnavailable={isUnavailable} onPick={pick} onChanged={refresh} />;
   else if (tab === 'claude-code') body = <ClaudeBody cur={cur} close={close} onPick={pick} onChanged={refresh} />;
   else if (tab === 'openai') body = <OpenRouterBody cur={cur} local={local} close={close} onPick={pick} onChanged={refresh} />;
+  else if (tab === 'venice') body = <VeniceBody cur={cur} models={veniceModels} error={veniceError} close={close} onPick={pick} onChanged={refresh} />;
   else if (tab === 'lmstudio') body = <LocalSection provider="lmstudio" label="LM Studio" howToStart="LM Studio > Developer > Start server" cur={cur} onPick={pick} onChanged={refresh} />;
   else if (tab === 'hermes') body = <HermesBody cur={cur} close={close} onPick={pick} onChanged={refresh} />;
   else if (tab === 'pi' || tab === 'omp' || tab === 'openclaw') body = <CliBody engine={tab} cur={cur} close={close} onPick={pick} onChanged={refresh} />;
@@ -710,7 +755,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, open, close, d
             </button>
           ))}
         </div>
-        <div className="px-2 pb-3 border-b border-line mb-1.5">
+        {provider !== 'venice' || levels.length ? <div className="px-2 pb-3 border-b border-line mb-1.5">
           <div className="flex items-center gap-1.5 px-1 pb-2 font-sans text-[12px] font-medium leading-[normal] text-dim">
             <Icon name="gauge" size={13} />
             <span>Effort</span>
@@ -718,9 +763,9 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, open, close, d
           </div>
           <div className="flex gap-1" role="group" aria-label="Effort">
             <LevelButton value="" shown={shown} onPick={(v) => void changeEffort(v)} />
-            {effortLevels(engine, provider).map((level) => <LevelButton key={level} value={level} shown={shown} onPick={(v) => void changeEffort(v)} />)}
+            {levels.map((level) => <LevelButton key={level} value={level} shown={shown} onPick={(v) => void changeEffort(v)} />)}
           </div>
-        </div>
+        </div> : null}
         <div className="model-body max-h-95 overflow-y-auto">{body}</div>
       </PopoverContent>
     </PopoverRoot>
@@ -735,7 +780,8 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, open, close, d
 // engines: only these engines' tabs and favorites (the Brain's picker); all when left out.
 let closeModelMenu: (() => void) | null = null;
 
-export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch: ModelPatch) => unknown, { title = 'Model', local = true, engines }: { title?: string; local?: boolean; engines?: readonly EngineId[] } = {}): void {
+export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch: ModelPatch) => unknown, { title = 'Model', local = true, engines, providers }: { title?: string; local?: boolean; engines?: readonly EngineId[]; providers?: readonly string[] } = {}): void {
+  if (cur.engine === 'openai' && !cur.model) cur = { ...cur, model: defaultModelForEngine('openai', state.data?.settings?.defaults || {}, cur.provider) };
   // one picker at a time: whatever is up goes first, at once, so two are never in the way
   closeModelMenu?.();
   const host = document.createElement('div');
@@ -744,7 +790,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   let open = true;
   let done = false;
   let timer: number | undefined;
-  const render = (isOpen: boolean) => root.render(<ModelPicker anchor={anchor} cur={cur} apply={apply} title={title} local={local} engines={engines} open={isOpen} close={close} dispose={remove} />);
+  const render = (isOpen: boolean) => root.render(<ModelPicker anchor={anchor} cur={cur} apply={apply} title={title} local={local} engines={engines} providers={providers} open={isOpen} close={close} dispose={remove} />);
   const remove = () => {
     if (done) return;
     done = true;

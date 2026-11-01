@@ -15,6 +15,7 @@ import { Avatar, DomNode, Icon, ProjectScoped, reactPage, useAppState } from '..
 import { SelectControl } from '../ui/select.tsx';
 import { themeColor } from '../theme.ts';
 import type { ModelListing } from '../models.tsx';
+import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { ENGINE_NAMES, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
@@ -364,9 +365,9 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
     }
   };
   // A new engine or provider may not have the effort level: keep the nearest one it has, the one the Effort field shows.
-  const fit = (x: Agent): Agent => (x.effort ? { ...x, effort: effortFor(x.engine, x.effort, x.provider) } : x);
+  const fit = (x: Agent): Agent => (x.effort && !(x.engine === 'openai' && x.provider === 'venice') ? { ...x, effort: effortFor(x.engine, x.effort, x.provider) } : x);
   const pickEngine = (engine: Agent['engine']) => {
-    setA((x) => fit({ ...x, engine, model: engine === 'claude-code' ? d.settings.defaults.claudeModel : engine === 'openai' ? d.settings.defaults.openrouterModel : '' }));
+    setA((x) => fit({ ...x, engine, model: defaultModelForEngine(engine, d.settings.defaults, x.provider) }));
     setDirty(true);
   };
   const del = async () => {
@@ -595,10 +596,10 @@ function ModelInput({ label, hint, value, placeholder, models, onChange }: { lab
             <Autocomplete.Popup className="glass st-menu w-(--anchor-width) max-w-(--available-width) outline-none empty:hidden has-[>[role=listbox]:empty]:hidden">
               <Autocomplete.List className="max-h-72 overflow-y-auto">
                 {(item: ModelListing) => (
-                  <Autocomplete.Item key={item.id} value={item} className="st-menu-item">
+                  <Autocomplete.Item key={item.id} value={item} disabled={item.offline} className="st-menu-item">
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-mono text-[12px]">{item.id}</span>
-                      <span className="block truncate text-[11.5px] text-dim">{`${item.name}${item.price ? ` · $${item.price.in.toFixed(2)}/$${item.price.out.toFixed(2)} per M` : ''}${item.tools === false ? ' · no tools' : ''}`}</span>
+                      <span className="block truncate text-[11.5px] text-dim">{`${item.name || item.id}${item.price ? ` · $${item.price.in.toFixed(2)}/$${item.price.out.toFixed(2)} per M` : ''}${item.tools === false ? ' · no tools' : ''}${item.offline ? ' · temporarily unavailable' : ''}`}</span>
                     </span>
                   </Autocomplete.Item>
                 )}
@@ -631,13 +632,14 @@ function EngineFields({ a, d, set, fit }: {
   useEffect(() => {
     let live = true;
     const q = a.engine === 'openai' ? `engine=openai&provider=${a.provider}` : `engine=${a.engine}`;
+    setModels([]);
     void GET<ModelListing[]>(`/models?${q}`)
       .catch((): ModelListing[] => [])
       .then((m) => live && setModels(m.slice(0, 600)));
     return () => void (live = false);
   }, [a.engine, a.provider]);
   const placeholder =
-    a.engine === 'claude-code' ? 'sonnet' : a.engine === 'hermes' ? "profile's default" : a.engine === 'openclaw' ? "the OpenClaw agent's model" : a.engine === 'pi' || a.engine === 'omp' ? 'its default (e.g. anthropic/claude-sonnet-5-5)' : 'anthropic/claude-sonnet-5.5';
+    a.engine === 'claude-code' ? 'sonnet' : a.engine === 'hermes' ? "profile's default" : a.engine === 'openclaw' ? "the OpenClaw agent's model" : a.engine === 'pi' || a.engine === 'omp' ? 'its default (e.g. anthropic/claude-sonnet-5-5)' : a.provider === 'venice' ? 'Choose a Venice model' : 'anthropic/claude-sonnet-5.5';
   const model = (label: string, hint: string) => (
     <ModelInput label={label} hint={hint} value={a.model || ''} placeholder={placeholder} models={models} onChange={(value) => set('model', value)} />
   );
@@ -673,12 +675,13 @@ function EngineFields({ a, d, set, fit }: {
             a.provider || 'openrouter',
             [
               { value: 'openrouter', label: `OpenRouter${d.secrets.openrouterKey.set ? '' : ' (add key in Settings)'}` },
+              { value: 'venice', label: `Venice${d.secrets.veniceKey?.set ? '' : ' (add key in Settings)'}` },
               { value: 'lmstudio', label: 'LM Studio (local)' },
               { value: 'ollama', label: 'Ollama (local)' },
               { value: 'custom', label: 'Custom OpenAI-compatible' },
             ],
             // a server on this PC takes fewer effort levels
-            (v) => fit({ ...a, provider: v as Agent['provider'] }),
+            (v) => fit({ ...a, provider: v, model: defaultModelForEngine('openai', d.settings.defaults, v) }),
           )}
           {model('Model', 'Start typing to search. Pick one that supports tools.')}
         </div>
@@ -739,13 +742,13 @@ function EngineFields({ a, d, set, fit }: {
   return (
     <div className="flex flex-col gap-4">
       {parts}
-      {pick(
+      {a.engine !== 'openai' || a.provider !== 'venice' || models.find((m) => m.id === a.model)?.reasoningEfforts?.length ? pick(
         'Effort',
-        effortFor(a.engine, a.effort, a.provider),
-        [{ value: '', label: "Model's default" }, ...effortLevels(a.engine, a.provider).map((e) => ({ value: e, label: EFFORT_NAMES[e] }))],
+        effortFor(a.engine, a.effort, a.provider, models.find((m) => m.id === a.model)?.reasoningEfforts),
+        [{ value: '', label: "Model's default" }, ...effortLevels(a.engine, a.provider, models.find((m) => m.id === a.model)?.reasoningEfforts).map((e) => ({ value: e, label: EFFORT_NAMES[e] }))],
         (v) => set('effort', v as Agent['effort']),
         'How hard the model thinks before it answers. More effort: better on hard work, but slower and uses more of your plan.',
-      )}
+      ) : null}
     </div>
   );
 }

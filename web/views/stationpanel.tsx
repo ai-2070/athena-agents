@@ -609,7 +609,7 @@ function ConnectionPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id
               Tools &amp; MCP
             </ButtonLink>
           ) : null}
-          {['openrouter', 'lmstudio', 'ollama'].includes(it.id) ? (
+          {['openrouter', 'venice', 'lmstudio', 'ollama'].includes(it.id) ? (
             <ButtonLink variant="ghost" size="small" href="#/settings">
               Settings
             </ButtonLink>

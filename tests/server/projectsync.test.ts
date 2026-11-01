@@ -39,6 +39,7 @@ describe('auto-save into the project folder', () => {
 
   it('writes agents, teams and project info into <folder>/.dashboard, never secrets', async () => {
     setSecret('openrouterKey', 'sk-or-v1-sentinel-do-not-save-4242');
+    setSecret('veniceKey', 'venice-sentinel-do-not-save-4343');
     const p = await createProject({ name: 'Saved one', mode: 'new', folder: folder('saved-one'), description: 'A test project' });
     const a = newAgent({ name: 'Writer' });
     workflows.save({ name: 'Crew', members: [a.id], lead: a.id, steps: [] } as Partial<Team>);

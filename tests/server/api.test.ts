@@ -178,9 +178,18 @@ describe('API', () => {
     const text = await (await req('/api/state')).text();
     expect(text).not.toContain('supersecretvalue');
     expect(JSON.parse(text).secrets.openrouterKey).toEqual({ set: true, hint: '…9999' });
+    await req('/api/secrets', { method: 'POST', headers: json, body: JSON.stringify({ key: 'veniceKey', value: 'venice-supersecretvalue4321' }) });
+    const venice = await (await req('/api/state')).text();
+    expect(venice).not.toContain('supersecretvalue');
+    expect(JSON.parse(venice).secrets.veniceKey).toEqual({ set: true, hint: '…4321' });
+    await req('/api/secrets', { method: 'POST', headers: json, body: JSON.stringify({ key: 'veniceKey', value: '' }) });
+    expect((await (await req('/api/state')).json()).secrets.veniceKey).toEqual({ set: false });
   });
 
   it('answers 404 for unknown routes and 400 for bad bodies', async () => {
+    const venice = await req('/api/settings/test-venice', { method: 'POST', headers: json });
+    expect(venice.status).toBe(400);
+    expect(await venice.text()).toContain('No Venice key saved');
     expect((await req('/api/nope')).status).toBe(404);
     expect((await req('/api/agents', { method: 'POST', headers: json, body: '{oops' })).status).toBe(400);
     expect((await req('/api/agents', { method: 'POST', headers: json, body: 'null' })).status).toBe(400);

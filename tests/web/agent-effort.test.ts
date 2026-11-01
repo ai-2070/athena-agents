@@ -32,6 +32,7 @@ beforeEach(() => {
     'fetch',
     vi.fn(async (url: string, init: RequestInit = {}) => {
       const path = String(url).replace(/^\/api/, '');
+      if (path === '/models?engine=openai&provider=venice') return Response.json([{ id: 'venice-chat', reasoningEfforts: ['low', 'high'] }]);
       if (init.method === 'PUT' && path === '/agents/a1') saved = JSON.parse(String(init.body));
       const body = path === '/agents/a1' ? { ...agent, knowledgeFiles: [], workspacePath: '/tmp', tools: [] } : path === '/mcp' ? { servers: {} } : [];
       return new Response(JSON.stringify(saved && init.method === 'PUT' ? saved : body), { status: 200 });
@@ -50,6 +51,26 @@ afterEach(() => {
 const effortSelect = () => document.querySelector<HTMLButtonElement>('button[aria-label="Effort"]')!;
 
 describe('agent editor: effort', () => {
+  it('switches to Venice with its own default and shows only its supported effort levels', async () => {
+    state.data!.settings.defaults.veniceModel = 'venice-chat';
+    const el = document.getElementById('view')!;
+    await act(async () => render(el, ['a1', 'edit']));
+    await settle();
+    await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'API model')!.click());
+    const provider = el.querySelector<HTMLButtonElement>('button[aria-label="Provider"]')!;
+    await act(async () => provider.click());
+    await settle();
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((b) => b.textContent?.startsWith('Venice'))!.click());
+    await settle();
+    await act(async () => effortSelect().click());
+    await settle();
+    const popup = [...document.querySelectorAll('[role="listbox"]')].at(-1)!;
+    expect([...popup.querySelectorAll('[role="option"]')].map((o) => o.textContent?.trim())).toEqual(["Model's default", 'Low', 'High']);
+    await act(async () => effortSelect().click());
+    await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'Save')!.click());
+    expect(saved).toMatchObject({ engine: 'openai', provider: 'venice', model: 'venice-chat' });
+  });
+
   it("shows the engine's levels and saves the nearest one after switching engines", async () => {
     const el = document.getElementById('view')!;
     await act(async () => render(el, ['a1', 'edit']));

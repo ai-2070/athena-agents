@@ -26,6 +26,7 @@ function craft(payload: Record<string, unknown>): Buffer {
 describe('workspace backups', () => {
   it('writes one file in <home>/Blacksite Backups with the project, its chats and knowledge, every skill and preset, and no keys', async () => {
     setSecret('anthropicKey', 'sk-ant-sentinel-not-in-backups-777');
+    setSecret('veniceKey', 'venice-sentinel-not-in-backups-888');
     const p = await createProject({ name: 'Backed Up', mode: 'new', folder: folder('backed-up'), description: 'Launch work' });
     fs.writeFileSync(path.join(p.brainPath, 'PROJECT.md'), '# Backed Up\n\nThe plan.');
     fs.writeFileSync(path.join(p.brainPath, 'notes', 'idea.md'), 'An idea');

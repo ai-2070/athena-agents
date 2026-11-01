@@ -56,6 +56,8 @@ beforeEach(() => {
     }
     if (url === '/api/presets') return json(presets);
     if (url === '/api/state') return json(state.data);
+    if (url === '/api/models?engine=openai&provider=venice') return json([{ id: 'venice-chat', name: 'Venice Chat', reasoningEfforts: ['low', 'high'] }]);
+    if (url.startsWith('/api/models?')) return json([]);
     if (url === '/api/library/hire') return json({ id: 'new-1', name: 'Hired' });
     if (url.startsWith('/api/presets/') && method === 'DELETE') return json({ ok: true });
     return json({});
@@ -133,6 +135,33 @@ describe('Library page', () => {
     const foot = el.querySelector('.card .card-foot')!;
     expect([...foot.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Chat', 'Edit']);
     expect(document.getElementById('toasts')!.textContent).toContain('Brand Guardian joined your team');
+  });
+
+  it.each([
+    { source: 'agency', effort: 'high' },
+    { source: 'starter', effort: 'high' },
+    { source: 'agency', effort: '' },
+  ])('keeps effort "$effort" when hiring a $source agent with Venice', async ({ source, effort }) => {
+    state.data!.engineList.push({ id: 'openai', label: 'API model' } as AppState['engineList'][number]);
+    await open();
+    if (source === 'starter') await click(el.querySelector<HTMLElement>('[role="tab"]')!);
+    await click(buttons('API model')[0]);
+    await click(buttons('Choose API model')[0]);
+    const veniceTab = [...document.querySelectorAll<HTMLButtonElement>('.model-tab')].find((b) => b.textContent === 'Venice')!;
+    await click(veniceTab);
+    await settle();
+    await click(document.querySelector<HTMLButtonElement>('button[title="High effort"]')!);
+    if (!effort) await click(document.querySelector<HTMLButtonElement>('button[title="The model\'s own default"]')!);
+    const model = [...document.querySelectorAll<HTMLButtonElement>('.model-list .st-menu-item')].find((b) => b.textContent?.includes('Venice Chat'))!;
+    await click(model);
+    await settle();
+    expect(el.textContent).toContain('Venice · venice-chat');
+    await click(buttons('Venice · venice-chat')[0]);
+    await settle();
+    expect(document.querySelector('.model-effort-level.on')?.textContent).toBe(effort ? 'High' : 'Default');
+    await click([...document.querySelectorAll<HTMLButtonElement>('.model-list .st-menu-item')].find((b) => b.textContent?.includes('Venice Chat'))!);
+    await click(el.querySelector<HTMLButtonElement>('.card .btn.small')!);
+    expect(requests.find((r) => r.url === '/api/library/hire')?.body).toMatchObject({ source, overrides: { engine: 'openai', provider: 'venice', model: 'venice-chat', effort } });
   });
 
   it('deletes a preset only after you confirm', async () => {

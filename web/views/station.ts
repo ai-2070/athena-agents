@@ -2391,7 +2391,7 @@ function hoverForLink(intId: string): Hover | null {
 }
 
 // An AI engine (top right): the agents that run on it, with their wires to its tile.
-const ENGINE_TILES = ['claude', 'codex', 'hermes', 'openrouter', 'lmstudio', 'ollama'];
+const ENGINE_TILES = ['claude', 'codex', 'hermes', 'openrouter', 'venice', 'lmstudio', 'ollama'];
 function hoverForEngine(uses: (a: Agent) => boolean, brain: boolean, color: string): Hover | null {
   if (!S) return null;
   const ids = new Set((state.data?.agents || []).filter(uses).map((a) => a.id));
@@ -3748,7 +3748,7 @@ function drawHud(): void {
     tiles.push({ key: `cc:${c.name}`, int: `cc:${c.name}`, glyph: appLogo(c.name, 14) || look.glyph, color: look.color, on: ok, title: `${c.name} · Claude account connector · ${ok ? 'connected' : c.status === 'needs-auth' ? 'needs sign-in (run /mcp in Claude Code)' : c.detail}`, onclick: () => navigate('#/settings?tab=mcp') });
   }
   // Model engines (Claude, Hermes, OpenRouter, LM Studio) have their own tiles on the right.
-  const ENGINE_SIDE = new Set(['claude', 'hermes', 'openrouter', 'lmstudio']);
+  const ENGINE_SIDE = new Set(['claude', 'hermes', 'openrouter', 'venice', 'lmstudio']);
   for (const it of ints) if (!ENGINE_SIDE.has(it.id)) tiles.push({ key: it.id, int: it.id, glyph: mark(it.id), color: it.color, on: it.live, title: `${it.label} · ${it.live ? 'ready' : 'installed, not running'}`, onclick: () => choose({ type: 'int', id: it.id }) });
   const missing = [
     !d.accounts.x.length && { glyph: logo('x', 13) || '𝕏', title: 'X · not connected (Connections)', href: '#/settings?tab=connections' },
@@ -3769,7 +3769,8 @@ function drawHud(): void {
     : [];
   const engines = [
     { id: 'claude-code', brain: 'claude', name: 'Claude Code', glyph: appLogo('claude code', 15) || '✳', color: '#d97757', ready: d.engines['claude-code'].installed, why: d.engines['claude-code'].installed ? '' : 'not installed', find: 'Claude Code' },
-    { id: 'openai', uses: (a: Agent) => a.engine === 'openai' && !onLmStudio(a), brain: 'openrouter', name: 'OpenRouter', glyph: appLogo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
+    { id: 'openai', uses: (a: Agent) => a.engine === 'openai' && !onLmStudio(a) && a.provider !== 'venice', brain: 'openrouter', name: 'OpenRouter', glyph: appLogo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
+    { id: 'openai', uses: (a: Agent) => a.engine === 'openai' && a.provider === 'venice', brain: 'venice', name: 'Venice', glyph: icon('cpu', 15), color: INK, ready: !!d.secrets.veniceKey?.set, why: d.secrets.veniceKey?.set ? '' : 'no key yet', find: 'Venice key' },
     ...lmStudio,
     { id: 'hermes', brain: 'hermes', name: 'Hermes', glyph: '☤', color: '#d8c25a', ready: d.engines.hermes.installed, why: d.engines.hermes.installed ? '' : 'not installed', find: 'Hermes' },
     { id: 'codex', brain: 'codex', name: 'OpenAI Codex', glyph: appLogo('openai', 14) || '◎', color: INK, ready: !!(d.engines.codex?.installed && d.engines.codex.loggedIn), why: !d.engines.codex?.installed ? 'not installed' : d.engines.codex.loggedIn ? '' : 'not signed in', find: 'OpenAI Codex' },

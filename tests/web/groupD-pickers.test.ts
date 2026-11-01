@@ -122,7 +122,7 @@ describe('model picker: LM Studio tab', () => {
     document.body.append(brainModelChip());
     document.querySelector<HTMLButtonElement>('.model-chip')!.click();
     const names = tabs().map((t) => t.textContent);
-    expect(names).toEqual(['Favorites', 'Claude', 'OpenRouter', '☤Hermes', 'Codex']);
+    expect(names).toEqual(['Favorites', 'Claude', 'OpenRouter', 'Venice', '☤Hermes', 'Codex']);
     const rows = [...document.querySelectorAll('.model-body .model-row')].map((r) => r.textContent);
     expect(rows).toEqual([expect.stringContaining('gpt-5')]);
   });
@@ -201,6 +201,131 @@ describe('model picker: effort', () => {
     openModelPicker(document.body, { engine: 'codex', model: '', effort: 'low' }, (p) => picked.push(p));
     levels()[0].click();
     expect(picked).toEqual([{ engine: 'codex', model: '', effort: '' }]);
+  });
+});
+
+describe('model picker: Venice', () => {
+  const catalog = [{ id: 'venice-chat', name: 'Venice Chat', tools: true, reasoningEfforts: ['low', 'high'], price: { in: 0.15, out: 0.6 } }, { id: 'offline-model', name: 'Offline model', offline: true }];
+  const tab = () => [...document.querySelectorAll<HTMLButtonElement>('.model-tab')].find((b) => b.textContent === 'Venice')!;
+
+  it('opens on Venice and keeps its provider for effort-only edits and model choices', async () => {
+    serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'venice-chat', effort: 'high' }, (p) => picked.push(p));
+    await settle();
+    expect(tab().classList.contains('on')).toBe(true);
+    expect(document.querySelector('.model-body')?.textContent).toContain('$0.15 / $0.60');
+    const levels = [...document.querySelectorAll<HTMLButtonElement>('.model-effort-level')];
+    expect(levels.map((b) => b.textContent)).toEqual(['Default', 'Low', 'High']);
+    levels.find((b) => b.textContent === 'Low')!.click();
+    expect(picked).toEqual([{ engine: 'openai', provider: 'venice', model: 'venice-chat', effort: 'low' }]);
+    const offline = [...document.querySelectorAll<HTMLButtonElement>('.model-list .st-menu-item')].find((b) => b.textContent?.includes('Offline model'))!;
+    expect(offline.disabled).toBe(true);
+    buttons(document.querySelector('.model-body')!, 'Venice Chat')[0].click();
+    expect(picked.at(-1)).toEqual({ engine: 'openai', provider: 'venice', model: 'venice-chat', effort: 'low' });
+  });
+
+  it('uses the configured Venice default when an agent has no explicit model', async () => {
+    state.data!.settings = { ...state.data!.settings, defaults: { ...state.data!.settings?.defaults, veniceModel: 'venice-chat' } };
+    serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
+    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: '', effort: 'high' }, () => {});
+    await settle();
+    expect(document.querySelector('.model-list .st-menu-item.on')?.textContent).toContain('Venice Chat');
+    expect(document.querySelector('.model-effort-level.on')?.textContent).toBe('High');
+  });
+
+  it('saves the Brain as Venice and reopens with the same provider', async () => {
+    state.data!.settings = { ...state.data!.settings, brain: { provider: 'claude', model: 'haiku' }, favoriteModels: [] };
+    serve((_method, path) => path.includes('provider=venice') ? { body: catalog } : path === '/settings' ? { body: { ok: true } } : undefined);
+    const chip = brainModelChip();
+    document.body.append(chip);
+    chip.click();
+    tab().click();
+    await settle();
+    buttons(document.querySelector('.model-body')!, 'Venice Chat')[0].click();
+    await settle();
+    expect(calls.find((c) => c.method === 'PUT' && c.path === '/settings')?.body).toEqual({ brain: { provider: 'venice', model: 'venice-chat', effort: '' } });
+    chip.click();
+    await settle();
+    expect(tab().classList.contains('on')).toBe(true);
+  });
+
+  it('keeps a selected model usable when discovery fails and offers manual entry', async () => {
+    serve((_method, path) => path.includes('provider=venice') ? { status: 503, body: { error: 'offline' } } : { body: [] });
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'saved-model' }, (p) => picked.push(p), { local: false });
+    await settle();
+    const body = document.querySelector('.model-body')!;
+    expect(body.textContent).toContain('Could not load Venice models');
+    expect(body.textContent).toContain('saved-model');
+    expect(body.textContent).not.toContain('anthropic/claude');
+    expect(document.querySelector('[aria-label="Effort"]')).toBeNull();
+    const input = [...body.querySelectorAll<HTMLInputElement>('input')].find((el) => el.placeholder.startsWith('or enter'))!;
+    input.value = 'manual-model';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(picked).toEqual([{ engine: 'openai', provider: 'venice', model: 'manual-model', effort: '' }]);
+  });
+
+  it('keeps Venice favorites available to the Brain and isolates a Venice-only default picker', async () => {
+    state.data!.settings = { ...state.data!.settings, favoriteModels: [{ engine: 'openai', provider: 'venice', model: 'venice-chat' }] };
+    serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'venice-chat' }, (p) => picked.push(p), { local: false, engines: ['openai'], providers: ['venice'] });
+    await settle();
+    expect([...document.querySelectorAll('.model-tab')].map((b) => b.textContent)).toEqual(['Favorites', 'Venice']);
+    buttons(document.querySelector('.model-body')!, 'venice-chat')[0].click();
+    expect(picked[0]?.provider).toBe('venice');
+  });
+
+  it.each([true, false])('disables unavailable favorites while keeping available models selectable (local=%s)', async (local) => {
+    state.data!.settings = { ...state.data!.settings, favoriteModels: [
+      { engine: 'openai', provider: 'venice', model: 'offline-model' },
+      { engine: 'openai', provider: 'venice', model: 'venice-chat' },
+    ] };
+    serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'venice-chat' }, (p) => picked.push(p), { local, engines: ['openai'], ...(local ? {} : { providers: ['venice'] }) });
+    await settle();
+    const body = document.querySelector('.model-body')!;
+    const offline = buttons(body, 'offline-model')[0];
+    expect(offline.disabled).toBe(true);
+    expect(offline.textContent).toContain('Temporarily unavailable');
+    offline.click();
+    expect(picked).toEqual([]);
+    expect(document.querySelector('.model-menu')?.hasAttribute('data-ending-style')).toBe(false);
+    const star = offline.closest('.model-row')!.querySelector<HTMLButtonElement>('.model-fav')!;
+    expect(star.disabled).toBe(false);
+    buttons(body, 'venice-chat')[0].click();
+    expect(picked).toEqual([{ engine: 'openai', provider: 'venice', model: 'venice-chat', effort: '' }]);
+  });
+
+  it('refuses a known unavailable model entered by hand without closing the picker', async () => {
+    serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'venice-chat' }, (p) => picked.push(p));
+    await settle();
+    const input = [...document.querySelectorAll<HTMLInputElement>('input')].find((el) => el.placeholder.startsWith('or enter'))!;
+    input.value = 'offline-model';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(picked).toEqual([]);
+    await settle();
+    expect(document.getElementById('toasts')?.textContent).toContain('temporarily unavailable');
+    expect(document.querySelector('.model-menu')?.hasAttribute('data-ending-style')).toBe(false);
+    input.value = 'venice-chat';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(picked).toEqual([{ engine: 'openai', provider: 'venice', model: 'venice-chat', effort: '' }]);
+  });
+
+  it('keeps favorites selectable when the catalog cannot establish availability', async () => {
+    state.data!.settings = { ...state.data!.settings, favoriteModels: [{ engine: 'openai', provider: 'venice', model: 'saved-model' }] };
+    serve(() => ({ status: 503, body: { error: 'offline' } }));
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'saved-model' }, (p) => picked.push(p));
+    await settle();
+    const favorite = buttons(document.querySelector('.model-body')!, 'saved-model')[0];
+    expect(favorite.disabled).toBe(false);
+    favorite.click();
+    expect(picked).toEqual([{ engine: 'openai', provider: 'venice', model: 'saved-model', effort: '' }]);
   });
 });
 
