@@ -78,6 +78,11 @@ describe('model picker: LM Studio tab', () => {
     const picked: ModelPatch[] = [];
     openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, (p) => picked.push(p));
     expect(tabs().map((t) => t.textContent).slice(0, 3)).toEqual(['Claude', 'OpenRouter', 'LM Studio']);
+    for (const [label, id] of [['Hermes', 'hermes'], ['pi', 'pi'], ['OMP', 'omp'], ['OpenClaw', 'openclaw'], ['Venice', 'venice']]) {
+      const image = tabs().find((tab) => tab.textContent === label)!.querySelector('img')!;
+      expect(image.getAttribute('src')).toBe(`/brand/engines/${id}.svg`);
+      expect(image.width).toBe(13);
+    }
     tabs().find((t) => t.textContent === 'LM Studio')!.click();
     await settle();
     const menu = document.querySelector('.model-menu')!;
@@ -122,7 +127,7 @@ describe('model picker: LM Studio tab', () => {
     document.body.append(brainModelChip());
     document.querySelector<HTMLButtonElement>('.model-chip')!.click();
     const names = tabs().map((t) => t.textContent);
-    expect(names).toEqual(['Favorites', 'Claude', 'OpenRouter', 'Venice', '☤Hermes', 'Codex']);
+    expect(names).toEqual(['Favorites', 'Claude', 'OpenRouter', 'Venice', 'Hermes', 'Codex']);
     const rows = [...document.querySelectorAll('.model-body .model-row')].map((r) => r.textContent);
     expect(rows).toEqual([expect.stringContaining('gpt-5')]);
   });

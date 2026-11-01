@@ -2,9 +2,10 @@
 // programs, MCP servers, connectors on your Claude account), teams as the map draws them, and what a
 // click on the map points at.
 import { state } from '../core.ts';
-import { icon, logo, brandColor } from '../icons.ts';
+import { logo, brandColor } from '../icons.ts';
 import { craftIcon, craftColor } from '../crafticons.ts';
 import { INK, brandTone } from './stationpalette.ts';
+import { brandImage } from '../brandimages.ts';
 import { appIcon } from '../appicons.ts';
 import type { Agent, AppState, ProviderUsage, Team, TeamListing, TeamStep } from '../../shared/types.ts';
 
@@ -104,11 +105,10 @@ const logoFill = (name: string): string | null => {
   const c = brandColor(name);
   return c ? brandTone(c) : null;
 };
-export const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null => logo(name, size, logoFill(name)) || craftIcon(name, size) || appIcon(name, size);
+export const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null => brandImage(name, size) || logo(name, size, logoFill(name)) || craftIcon(name, size) || appIcon(name, size);
 // The brand logo for an integration (or connector name), falling back to its glyph.
 export function mark(id: string, size = 14): SVGSVGElement | HTMLImageElement | string {
   const key = id.startsWith('mcp:') ? id.slice(4) : id.startsWith('cc:') ? id.slice(3) : BRAND_OF[id] || id;
-  if (id === 'venice') return icon('cpu', size);
   return appLogo(key, size) || intInfo(id)?.glyph || String(key).slice(0, 2).toUpperCase();
 }
 export const intInfo = (id: string): Integration | undefined => id.startsWith('cc:') ? { id, label: id.slice(3), glyph: connectorLook(id.slice(3)).glyph, color: connectorLook(id.slice(3)).color } : (id.startsWith('mcp:') ? { id, label: id.slice(4), glyph: '⌁', color: craftColor(id.slice(4)) || '#a9d3e2', mcp: true } : INTEGRATIONS.find((x) => x.id === id));

@@ -1,28 +1,8 @@
 // The mark each program draws in Settings › Programs: its own brand logo where we have one
 // (web/icons.ts, via appLogo so its colour reads on the page), else a line icon (web/phosphor.ts).
-import { serverUrl } from './client/connection.ts';
+import { brandImage } from './brandimages.ts';
 import { icon } from './icons.ts';
 import { appLogo } from './views/stationdata.ts';
-
-const IMAGES: Record<string, string> = {
-  hermes: 'hermes.svg', pi: 'pi.svg', omp: 'omp.svg', openclaw: 'openclaw.svg', venice: 'venice.svg',
-  painter: 'painter.svg', designer: 'designer.svg', handbrake: 'handbrakecli.png', handbrakecli: 'handbrakecli.png',
-  imagemagick: 'imagemagick.png', prusaslicer: 'prusaslicer.svg', orcaslicer: 'orcaslicer.png',
-  vscode: 'vscode.png', 'vs code': 'vscode.png', orca: 'orca.png', ffmpeg: 'ffmpeg.png',
-};
-
-function imageMark(id: string, size: number): HTMLImageElement | null {
-  const file = IMAGES[id];
-  if (!file) return null;
-  const image = document.createElement('img');
-  image.src = serverUrl(`/brand/engines/${file}`);
-  image.width = size;
-  image.height = size;
-  image.alt = '';
-  image.setAttribute('aria-hidden', 'true');
-  image.className = 'object-contain';
-  return image;
-}
 
 /** Program id → the name its logo is filed under, when the id on its own would find the wrong one. */
 const BRAND: Record<string, string> = {
@@ -110,7 +90,7 @@ const LINE: Record<string, string> = {
 
 /** A program's icon: its brand logo (by id, then by name), else its line icon, else a box. */
 export const programIcon = (id: string, name: string, size = 20): SVGSVGElement | HTMLImageElement | null =>
-  imageMark(id, size) ?? (BRAND[id]
+  brandImage(id, size) ?? (BRAND[id]
     ? appLogo(BRAND[id], size)
     : LINE[id]
       ? icon(LINE[id], size)

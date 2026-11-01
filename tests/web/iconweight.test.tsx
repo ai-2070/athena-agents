@@ -50,15 +50,16 @@ describe('icon weight', () => {
     expect(shape(1)).not.toBe(light[1]);
   });
 
-  it('thickens the VS Code line to match', () => {
-    const width = () => document.querySelector('svg')!.getAttribute('stroke-width');
+  it('keeps the official VS Code artwork when the line icon weight changes', () => {
+    const source = () => document.querySelector('img')!.getAttribute('src');
     show(<VSCodeIcon />);
-    const light = Number(width());
+    const light = source();
     show(
       <IconWeightProvider value="regular">
         <VSCodeIcon />
       </IconWeightProvider>,
     );
-    expect(Number(width())).toBeGreaterThan(light);
+    expect(source()).toBe(light);
+    expect(source()).toBe('/brand/engines/vscode.png');
   });
 });

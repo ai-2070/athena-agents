@@ -106,6 +106,20 @@ describe('the MCP servers tab', () => {
     expect([...el.querySelectorAll('.mcp-tool')].map((t) => t.textContent)).toEqual(['read_file', 'shell ●']);
   });
 
+  it('gives each preset a decorative mark and keeps its title and add action', async () => {
+    const names = ['playwright', 'chrome-devtools', 'filesystem', 'fetch', 'memory', 'sequential-thinking', 'blender', 'hermes', 'github'];
+    mcpMore = { presets: names.map((name) => ({ name, title: name, description: 'A preset', ready: true, installed: false, type: 'http', url: 'https://example.com/mcp', headers: {} })) };
+    await open();
+    const titles = [...el.querySelectorAll('.cards .card-title')];
+    expect(titles.map((title) => title.textContent)).toEqual(names);
+    for (const title of titles) {
+      const mark = title.querySelector('[aria-hidden="true"]')!;
+      expect(mark.querySelector('svg, img')).not.toBeNull();
+      expect(btn(title.closest('.card') || title.parentElement!, 'Add')).not.toBeNull();
+    }
+    expect(requests.some((r) => r.url === '/api/mcp-preset')).toBe(false);
+  });
+
   it('finds a preset by its name or what it does', async () => {
     const preset = (name: string, title: string, description: string) => ({ name, title, description, ready: true, installed: false, type: 'http', url: `https://${name}.example.com/mcp`, headers: {} });
     mcpMore = { presets: [preset('sentry', 'Sentry', 'Errors and stack traces.'), preset('kiwi', 'Flights (Kiwi.com)', 'Search flights.')] };

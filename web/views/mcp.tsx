@@ -7,9 +7,22 @@ import { useCallback, useEffect, useState } from 'react';
 import { GET, POST, DEL, attempt, confirmBox, copy, refreshSoon } from '../core.ts';
 import { Field, PanelNote, Row, SearchBox, Section, Segmented } from '../ui/controls.tsx';
 import { openModal } from '../ui/overlays.tsx';
-import { reactPage } from '../ui/react.tsx';
+import { presetIcon } from '../preseticons.ts';
+import { onThemeChange } from '../theme.ts';
+import { DomNode, reactPage } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import type { McpServerInfo, McpSuggestion, ToolGroup } from '../../shared/types.ts';
+
+function PresetTitle({ name, title }: { name: string; title: string }) {
+  const [theme, setTheme] = useState(0);
+  useEffect(() => onThemeChange(() => setTheme((n) => n + 1)), []);
+  return <div className="card-title flex items-center gap-2.5">
+    <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-ctl bg-panel-2 text-ink">
+      <DomNode as="span" className="flex" make={() => presetIcon(name)} deps={[name, theme]} />
+    </span>
+    <span>{title}</span>
+  </div>;
+}
 
 // why a server is suggested ("on this PC" gets the accent and a dot); mcp-why stays for the tests
 const WHY = 'mcp-why text-[12px] leading-[1.4] font-medium';
@@ -168,7 +181,7 @@ export function McpTab() {
         <div className="cards">
           {shown.map((p) => (
             <Plate key={p.name} className="flex min-w-0 flex-col gap-2.5 rounded-box p-5">
-              <div className="card-title">{p.title}</div>
+              <PresetTitle name={p.name} title={p.title} />
               <div className="card-sub">{p.description}</div>
               <div className="hint font-mono text-[11.5px] wrap-anywhere">{p.type === 'stdio' ? `${p.command} ${p.args.join(' ')}` : p.url}</div>
               <div className="card-foot">

@@ -3770,15 +3770,15 @@ function drawHud(): void {
   const engines = [
     { id: 'claude-code', brain: 'claude', name: 'Claude Code', glyph: appLogo('claude code', 15) || '✳', color: '#d97757', ready: d.engines['claude-code'].installed, why: d.engines['claude-code'].installed ? '' : 'not installed', find: 'Claude Code' },
     { id: 'openai', uses: (a: Agent) => a.engine === 'openai' && !onLmStudio(a) && a.provider !== 'venice', brain: 'openrouter', name: 'OpenRouter', glyph: appLogo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
-    { id: 'openai', uses: (a: Agent) => a.engine === 'openai' && a.provider === 'venice', brain: 'venice', name: 'Venice', glyph: icon('cpu', 15), color: INK, ready: !!d.secrets.veniceKey?.set, why: d.secrets.veniceKey?.set ? '' : 'no key yet', find: 'Venice key' },
+    { id: 'openai', uses: (a: Agent) => a.engine === 'openai' && a.provider === 'venice', brain: 'venice', name: 'Venice', glyph: mark('venice', 15), color: INK, ready: !!d.secrets.veniceKey?.set, why: d.secrets.veniceKey?.set ? '' : 'no key yet', find: 'Venice key' },
     ...lmStudio,
-    { id: 'hermes', brain: 'hermes', name: 'Hermes', glyph: '☤', color: '#d8c25a', ready: d.engines.hermes.installed, why: d.engines.hermes.installed ? '' : 'not installed', find: 'Hermes' },
+    { id: 'hermes', brain: 'hermes', name: 'Hermes', glyph: mark('hermes', 15), color: '#d8c25a', ready: d.engines.hermes.installed, why: d.engines.hermes.installed ? '' : 'not installed', find: 'Hermes' },
     { id: 'codex', brain: 'codex', name: 'OpenAI Codex', glyph: appLogo('openai', 14) || '◎', color: INK, ready: !!(d.engines.codex?.installed && d.engines.codex.loggedIn), why: !d.engines.codex?.installed ? 'not installed' : d.engines.codex.loggedIn ? '' : 'not signed in', find: 'OpenAI Codex' },
     // pi, oh-my-pi and OpenClaw: always shown, like the model picker's tabs (grey with a setup link until installed)
     ...([
-      { id: 'pi', name: 'pi', glyph: 'π', color: '#9fd3a8', find: 'pi coding agent' },
-      { id: 'omp', name: 'oh-my-pi', glyph: 'Ω', color: '#c8a2f0', find: 'oh-my-pi' },
-      { id: 'openclaw', name: 'OpenClaw', glyph: '🦞', color: '#ff6f5e', find: 'OpenClaw' },
+      { id: 'pi', name: 'pi', glyph: mark('pi', 15), color: '#9fd3a8', find: 'pi coding agent' },
+      { id: 'omp', name: 'oh-my-pi', glyph: mark('omp', 15), color: '#c8a2f0', find: 'oh-my-pi' },
+      { id: 'openclaw', name: 'OpenClaw', glyph: mark('openclaw', 15), color: '#ff6f5e', find: 'OpenClaw' },
     ] as const).map((e) => ({ ...e, brain: '', ready: !!d.engines[e.id]?.installed, why: d.engines[e.id]?.installed ? '' : 'not installed' })),
   ].map((e: { id: string; uses?: (a: Agent) => boolean; brain: string; name: string; glyph: SVGSVGElement | HTMLImageElement | string; color: string; ready: boolean; why: string; find: string }) => {
     const uses = e.uses || ((a: Agent) => a.engine === e.id);
