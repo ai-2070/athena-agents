@@ -276,6 +276,57 @@ describe('model picker: Venice', () => {
     buttons(document.querySelector('.model-body')!, 'venice-chat')[0].click();
     expect(picked[0]?.provider).toBe('venice');
   });
+
+  it.each([true, false])('disables unavailable favorites while keeping available models selectable (local=%s)', async (local) => {
+    state.data!.settings = { ...state.data!.settings, favoriteModels: [
+      { engine: 'openai', provider: 'venice', model: 'offline-model' },
+      { engine: 'openai', provider: 'venice', model: 'venice-chat' },
+    ] };
+    serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'venice-chat' }, (p) => picked.push(p), { local, engines: ['openai'], ...(local ? {} : { providers: ['venice'] }) });
+    await settle();
+    const body = document.querySelector('.model-body')!;
+    const offline = buttons(body, 'offline-model')[0];
+    expect(offline.disabled).toBe(true);
+    expect(offline.textContent).toContain('Temporarily unavailable');
+    offline.click();
+    expect(picked).toEqual([]);
+    expect(document.querySelector('.model-menu')?.hasAttribute('data-ending-style')).toBe(false);
+    const star = offline.closest('.model-row')!.querySelector<HTMLButtonElement>('.model-fav')!;
+    expect(star.disabled).toBe(false);
+    buttons(body, 'venice-chat')[0].click();
+    expect(picked).toEqual([{ engine: 'openai', provider: 'venice', model: 'venice-chat', effort: '' }]);
+  });
+
+  it('refuses a known unavailable model entered by hand without closing the picker', async () => {
+    serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'venice-chat' }, (p) => picked.push(p));
+    await settle();
+    const input = [...document.querySelectorAll<HTMLInputElement>('input')].find((el) => el.placeholder.startsWith('or enter'))!;
+    input.value = 'offline-model';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(picked).toEqual([]);
+    await settle();
+    expect(document.getElementById('toasts')?.textContent).toContain('temporarily unavailable');
+    expect(document.querySelector('.model-menu')?.hasAttribute('data-ending-style')).toBe(false);
+    input.value = 'venice-chat';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(picked).toEqual([{ engine: 'openai', provider: 'venice', model: 'venice-chat', effort: '' }]);
+  });
+
+  it('keeps favorites selectable when the catalog cannot establish availability', async () => {
+    state.data!.settings = { ...state.data!.settings, favoriteModels: [{ engine: 'openai', provider: 'venice', model: 'saved-model' }] };
+    serve(() => ({ status: 503, body: { error: 'offline' } }));
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'saved-model' }, (p) => picked.push(p));
+    await settle();
+    const favorite = buttons(document.querySelector('.model-body')!, 'saved-model')[0];
+    expect(favorite.disabled).toBe(false);
+    favorite.click();
+    expect(picked).toEqual([{ engine: 'openai', provider: 'venice', model: 'saved-model', effort: '' }]);
+  });
 });
 
 describe('model picker: favorites', () => {

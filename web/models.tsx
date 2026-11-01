@@ -405,13 +405,14 @@ function LocalSection({ provider, label, howToStart = '', cur, onPick, onChanged
 }
 
 /** Favorites: the models starred in Settings this picker can use. */
-function FavoritesBody({ favs, cur, onPick, onChanged }: { favs: FavoriteModel[]; cur: ModelTarget; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
+function FavoritesBody({ favs, cur, isUnavailable, onPick, onChanged }: { favs: FavoriteModel[]; cur: ModelTarget; isUnavailable: (c: ModelChoice) => boolean; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
   return (
     <>
       <div className="st-menu-head">Favorites</div>
       {favs.map((f) => {
         const mi = modelInfo(f);
-        return <Row key={`${f.engine} ${f.provider || ''} ${f.model}`} label={mi.name || f.model} sub={mi.where} active={sameModel(cur, f)} choice={f} brand={mi.brand} onPick={onPick} onChanged={onChanged} />;
+        const offline = isUnavailable(f);
+        return <Row key={`${f.engine} ${f.provider || ''} ${f.model}`} label={mi.name || f.model} sub={`${mi.where}${offline ? ' · Temporarily unavailable' : ''}`} active={sameModel(cur, f)} disabled={offline} choice={f} brand={mi.brand} onPick={onPick} onChanged={onChanged} />;
       })}
     </>
   );
@@ -449,10 +450,7 @@ function VeniceBody({ cur, models, error, close, onPick, onChanged }: { cur: Mod
     <div className="model-list">{shown.map((m) => <Row key={m.id} label={m.name || m.id}
       sub={[m.id, m.price ? `$${m.price.in.toFixed(2)} / $${m.price.out.toFixed(2)} per M tokens` : '', m.context ? `${Math.round(m.context / 1000)}k context` : '', m.tools === false ? 'No tool use' : '', m.offline ? 'Temporarily unavailable' : ''].filter(Boolean).join(' · ')}
       active={m.id === current} disabled={m.offline} choice={{ engine: 'openai', provider: 'venice', model: m.id }} onPick={onPick} onChanged={onChanged} />)}</div>
-    <FreeInput placeholder="or enter a Venice model id and press Enter" onSubmit={(model) => {
-      if (list.find((m) => m.id === model)?.offline) return toast('This Venice model is temporarily unavailable. Choose another model.', 'warn');
-      onPick({ engine: 'openai', provider: 'venice', model });
-    }} />
+    <FreeInput placeholder="or enter a Venice model id and press Enter" onSubmit={(model) => onPick({ engine: 'openai', provider: 'venice', model })} />
   </>;
 }
 
@@ -669,9 +667,11 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
   const modelLevels = provider === 'venice' ? live ? levelsFor(cur) : veniceModels?.flatMap((m) => m.reasoningEfforts || []) : undefined;
   const levels = effortLevels(engine, provider, modelLevels);
   const shown = effortFor(engine, effort, provider, modelLevels);
+  const isUnavailable = (choice: ModelChoice): boolean => choice.engine === 'openai' && choice.provider === 'venice' && veniceModels?.find((m) => m.id === choice.model)?.offline === true;
 
   // Picking a model closes the picker; changing the effort of the model in use applies it at once and keeps it open.
   const pick = (choice: ModelChoice) => {
+    if (isUnavailable(choice)) return toast('This Venice model is temporarily unavailable. Choose another model.', 'warn');
     close();
     void apply({ ...choice, effort: effortFor(choice.engine, asked.current, choice.provider, levelsFor(choice)) });
   };
@@ -709,7 +709,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
   }, [open, anchor, close]);
 
   let body: ReactNode;
-  if (tab === 'fav') body = <FavoritesBody favs={favList} cur={cur} onPick={pick} onChanged={refresh} />;
+  if (tab === 'fav') body = <FavoritesBody favs={favList} cur={cur} isUnavailable={isUnavailable} onPick={pick} onChanged={refresh} />;
   else if (tab === 'claude-code') body = <ClaudeBody cur={cur} close={close} onPick={pick} onChanged={refresh} />;
   else if (tab === 'openai') body = <OpenRouterBody cur={cur} local={local} close={close} onPick={pick} onChanged={refresh} />;
   else if (tab === 'venice') body = <VeniceBody cur={cur} models={veniceModels} error={veniceError} close={close} onPick={pick} onChanged={refresh} />;

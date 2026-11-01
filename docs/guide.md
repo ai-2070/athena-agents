@@ -44,7 +44,7 @@ Pick **Venice** in the model picker for an agent or **The Brain's model**. In th
 
 Venice models have their own ids. Set **Defaults for new agents → Venice model**, then **Save settings**, to supply a model when a Venice agent or the Brain has none selected. Otherwise choose a model explicitly. OpenRouter's default does not apply to Venice. The existing default engine choice stays unchanged.
 
-The model list shows prices and context size, flags models without tool use and disables unavailable models. Effort appears only when the selected model advertises supported levels. The Agent library keeps your chosen effort for new hires; **Default** uses the model's own setting. Image attachments follow its vision and image-count limits. If the catalog cannot load, the picker keeps the selected model and offers manual model entry; effort is omitted until its supported levels are known.
+The model list shows prices and context size, flags models without tool use and disables unavailable models, including in Favorites. Effort appears only when the selected model advertises supported levels. The Agent library keeps your chosen effort for new hires; **Default** uses the model's own setting. Image attachments follow its vision and image-count limits. If the catalog cannot load, the picker keeps the selected model and offers manual model entry; effort is omitted until its supported levels are known.
 
 Venice uses Athena's agent and Brain instructions with Venice's added system prompt disabled. Venice's built-in search, scraping and character features are not enabled. This integration covers chat, including supported image attachments; it does not add Venice image generation, video, audio, embeddings or wallet authentication.
 
