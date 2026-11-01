@@ -36,8 +36,9 @@ unrequested file disclosure. Existing agent tool risk and approval rules continu
   request-body receiver needs a stream/bytes abstraction for platform downloads.
 - `server/store.ts`, `shared/types.ts`, `server/approvals.ts`, `server/artifacts.ts` and chat events
   already provide most local storage, approval and UI building blocks.
-- `web/views/connections.tsx` manages current connections. Add a dedicated Gateways section there;
-  create shared service/client modules where the new settings and status require them.
+- `web/views/setup.tsx` owns the Settings tabs, deep links and search index. Add a dedicated
+  **Gateways** tab backed by a new `web/views/gateways.tsx`; create shared service/client modules
+  where its settings and status require them. `web/views/connections.tsx` keeps social connections.
 
 ## Upstream facts
 
@@ -266,7 +267,11 @@ the final returned remote ID exists.
 
 ## Product interface and existing outbound helpers
 
-In Connections, add **Gateways** with Add, Edit, Enable/Pause, reconnect/test, and recent activity.
+Add a dedicated **Settings > Gateways** tab with Add, Edit, Enable/Pause, reconnect/test, and recent activity.
+Register `gateways` in `web/views/setup.tsx` alongside the other Settings tabs, with the deep link
+`#/settings?tab=gateways`. Add search entries for all four platforms, sender guards, file uploads
+and relay setup. Gateway status links in `web/app.ts` should open this tab and the relevant account.
+The tab owns gateway accounts, routing, access guards, files, relay setup and connection health.
 Each setup includes account credentials, project/target, channel/DM scope, the platform-specific
 sender guard, file limits and a plain explanation of who can trigger work. An empty required guard
 prevents enabling Telegram or WhatsApp. Slack's optional field is labeled "Allowed user IDs (optional)".
@@ -276,9 +281,10 @@ performs read-only credential/scope checks; an actual test message is an explici
 a selected destination. Show denied identities locally without downloading their files or quoting
 their private message text. UI uses existing controls, theme tokens and `web/client/` requests.
 
-Replace the Telegram/Discord one-way connection forms with gateway account/destination selection
-once parity is implemented. Route their existing Outbox send intent through the gateway delivery
-service, retaining its approval behavior. No old secret-field migration is needed; clearly request
+Move Telegram/Discord setup out of Connections into Settings > Gateways once parity is implemented;
+remove the old one-way forms and update their settings-search entries and status links. Route their
+existing Outbox send intent through the gateway delivery service, retaining its approval behavior.
+No old secret-field migration is needed; clearly request
 fresh setup. Keep X/Reddit social account handling separate. Add Slack/WhatsApp proactive sends only
 through the same explicit policy, with WhatsApp restrictions enforced.
 
@@ -291,7 +297,8 @@ through the same explicit policy, with WhatsApp restrictions enforced.
 2. **Foundation:** add schemas, secret storage, local durable SDK state, worker supervision, identity
    guards, bindings, inbox/delivery ledgers and shared Athena conversation entry points.
 3. **Telegram:** ship required user-ID guards, polling, files, burst/album behavior, ordered dispatch,
-   final replies, restart recovery and the gateway UI end to end.
+   final replies, restart recovery and the dedicated Settings > Gateways tab end to end, including
+   Settings search, deep links and status-link navigation.
 4. **Slack and Discord:** add socket/Gateway lifecycle, configured scopes, Slack optional user guard,
    Discord optional user guard, file permissions and thread mapping. Exercise multiple accounts.
 5. **WhatsApp:** complete the deployable relay, pairing/revocation, required phone guards and verified
@@ -321,7 +328,9 @@ an explicit manual test-account matrix. Required cases:
   and slow consumers. Never acknowledge an event that has not reached durable storage.
 - WhatsApp window expiry while a run is busy; full long replies on all platforms; per-part status.
 - Credentials and token-bearing media URLs absent from state APIs, logs, exports and project backups.
-- UI setup, required/optional guard validation, file progress/errors and pause/reconnect behavior.
+- The dedicated Settings tab, direct links and search results for all four platforms; removal of
+  Telegram/Discord setup from Connections; required/optional guard validation, file progress/errors
+  and pause/reconnect behavior.
 
 Run `bun run check`, `bun run build`, desktop staging/smoke and required Rust checks. Test the bundled
 worker from read-only application files with throwaway `DASH_DATA` and test homes on Windows/Linux.
