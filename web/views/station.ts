@@ -3797,7 +3797,7 @@ function drawHud(): void {
     const toAgents = e.ready && users.length ? `#/agents?uses=${engineKey(users[0])}` : '';
     return { ...e, uses, n: users.length + (brainP === e.brain ? 1 : 0), busy, toAgents, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${toAgents ? ' (click to see its agents)' : e.ready ? '' : ' (click to set up)'}` };
   });
-  S.clockEl ||= h('span.st-clock', { class: 'w-[8.5em] flex-none whitespace-nowrap text-right text-[24px] leading-[normal] font-medium tabular-nums text-[color:light-dark(var(--color-black),var(--color-white))] max-md:hidden font-brand' });
+  S.clockEl ||= h('span.st-clock', { class: 'w-[5.5em] flex-none whitespace-nowrap text-right text-[26px] leading-[normal] font-medium tabular-nums text-[color:light-dark(var(--color-black),var(--color-white))] max-md:hidden font-brand' });
   S.tileEls = new Map();
   mount(
     S.hudTop,
