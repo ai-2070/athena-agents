@@ -1,0 +1,68 @@
+runtime/eve/package.json
+  s_3c304e20f190e2::t_3fe8d3ee05a0fc 7
+  s_3c304e20f190e2::t_4a61ee3e167b8a 6
+runtime/eve-world/README.md
+  s_3c304e20f190e2::t_0be6b2d06e09f3 6-7,16-17
+  s_3c304e20f190e2::t_5314f4e47e236b 1-5,8-15,18-23
+docs/desktop.md
+  s_3c304e20f190e2::t_4489a1c0897e00 64,66
+  s_3c304e20f190e2::t_89f0117ac3ac2c 65
+scripts/eve-recovery-smoke.ts
+  s_3c304e20f190e2::t_35f3a7c198e4e7 1-7,10-12
+  s_3c304e20f190e2::t_fc7eff8a0ce214 8-9
+runtime/eve/tsconfig.json
+  s_3c304e20f190e2::t_5314f4e47e236b 4
+scripts/desktop-smoke.ts
+  s_3c304e20f190e2::t_35f3a7c198e4e7 26-27
+scripts/eve-smoke.ts
+  s_3c304e20f190e2::t_fba2964ab43e0b 31,41,44-45,48-55
+  s_3c304e20f190e2::t_fc7eff8a0ce214 26,32-33,38,81,131,168-175,186,196,199-200,208
+  s_3c304e20f190e2::t_8c81a85b34ab52 29,130
+  s_3c304e20f190e2::t_35f3a7c198e4e7 36-37,144
+  s_3c304e20f190e2::t_e3b397c4e451f1 30,34-35,39-40,42-43,46-47,56-59,197-198
+patches/@workflow%2Fworld-local@5.1.2.patch
+  s_3c304e20f190e2::t_9523bdc8daeac9 1-131
+.github/workflows/ci.yml
+  s_3c304e20f190e2::t_35f3a7c198e4e7 50
+runtime/eve-world/package.json
+  s_3c304e20f190e2::t_5314f4e47e236b 6
+  s_3c304e20f190e2::t_4a61ee3e167b8a 1-5,7-11
+runtime/eve-world/index.ts
+  s_3c304e20f190e2::t_6abd531a68c100 2-3,10,16-35
+  s_3c304e20f190e2::t_5314f4e47e236b 1,5-9,36
+  s_3c304e20f190e2::t_0be6b2d06e09f3 4,11-15
+package.json
+  s_3c304e20f190e2::t_9523bdc8daeac9 111-113
+  s_3c304e20f190e2::t_35f3a7c198e4e7 44
+  s_3c304e20f190e2::t_c2209d5e23d0be 59
+  s_3c304e20f190e2::t_e78db958d5a8b5 78
+runtime/eve/agent/agent.ts
+  s_3c304e20f190e2::t_4a61ee3e167b8a 7
+  s_3c304e20f190e2::t_b07255ebb2c910 8
+scripts/build-desktop.ts
+  s_3c304e20f190e2::t_df9e7646a6b5e7 92-93
+docs/internal/plans/EVE_API_ENGINE_2026-11-01.md
+  s_3c304e20f190e2::t_4489a1c0897e00 3,30-34,53,56,59-74,77
+  s_3c304e20f190e2::t_0be6b2d06e09f3 75-76
+tests/server/eve-world.test.ts
+  s_3c304e20f190e2::t_f2ae78d124f1b7 1-4,6-7,19-73
+  s_3c304e20f190e2::t_0be6b2d06e09f3 5,8-18
+bun.lock
+  s_3c304e20f190e2::t_151160eb4bb119 10,29,65-67,87-88,477-478,483-484,487-492,511-512,515-516,525-526,975-976,979-980,1047-1048,1109-1110,1149-1150,1239-1240,1341-1346
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "948219a4d05591b073f00a11e0d994b96dd11d59",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
