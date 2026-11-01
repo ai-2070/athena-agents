@@ -1,0 +1,96 @@
+runtime/eve/agent/lib/bridge.ts
+  s_3c304e20f190e2::t_b8c0c47512c36a 6
+tests/server/eve-recovery.test.ts
+  s_3c304e20f190e2::t_250fd4bda76901 3,113-117
+  s_3c304e20f190e2::t_afade479a10e87 1-2,4-112,118-123
+server/questions.ts
+  s_3c304e20f190e2::t_0ca7339419236a 81,95,99
+  s_3c304e20f190e2::t_ee038356961221 7,31,46,49-53,60,157-159
+runtime/eve/agent/tools/athena.ts
+  s_3c304e20f190e2::t_0ce2fad46ff947 2,5-6,13,15-16
+  s_3c304e20f190e2::t_b8c0c47512c36a 14,17
+shared/canonical.ts
+  s_3c304e20f190e2::t_afb481ed70d058 1-7
+server/tools.ts
+  s_3c304e20f190e2::t_52bd4e115e4b0e 15,69-72,1145,1148,1154-1158,1160-1162,1187-1191,1200
+  s_3c304e20f190e2::t_78856d1df15896 1144,1159
+tests/server/eve-approvals.test.ts
+  s_3c304e20f190e2::t_d064a79972eb59 1-43
+docs/internal/plans/EVE_API_ENGINE_2026-11-01.md
+  s_3c304e20f190e2::t_f1f24e37a64224 25,30,52,66-92
+  s_3c304e20f190e2::t_639795c85d9cda 3,31-35,54,60-65
+server/private.ts
+  s_3c304e20f190e2::t_a6020f6e49a724 1-10
+server/eve/operations.ts
+  s_3c304e20f190e2::t_b8c0c47512c36a 12,30
+  s_3c304e20f190e2::t_afb481ed70d058 5
+  s_3c304e20f190e2::t_52bd4e115e4b0e 1-4,6-11,13-29,31-80
+server/eve/state.ts
+  s_3c304e20f190e2::t_250fd4bda76901 56-60
+  s_3c304e20f190e2::t_a6020f6e49a724 4-5,10
+  s_3c304e20f190e2::t_c9fcdb915afc2c 75,97-100,102-109
+server/eve/host.ts
+  s_3c304e20f190e2::t_f625747fad4538 70-71
+tests/server/eve-bridge.test.ts
+  s_3c304e20f190e2::t_b8c0c47512c36a 32,36
+  s_3c304e20f190e2::t_f1f24e37a64224 1
+  s_3c304e20f190e2::t_5f1def77dd3b7d 7-10,53-76
+scripts/eve-smoke.ts
+  s_3c304e20f190e2::t_afb481ed70d058 57-58
+  s_3c304e20f190e2::t_e66e231a8dcf8e 104
+  s_3c304e20f190e2::t_b8c0c47512c36a 56
+shared/types.ts
+  s_3c304e20f190e2::t_c9fcdb915afc2c 708,734
+  s_3c304e20f190e2::t_a6020f6e49a724 464-481
+  s_3c304e20f190e2::t_b8c0c47512c36a 676
+  s_3c304e20f190e2::t_52bd4e115e4b0e 718-731,733,735-739
+  s_3c304e20f190e2::t_250fd4bda76901 696
+  s_3c304e20f190e2::t_ee038356961221 485-486,732
+server/eve/projection.ts
+  s_3c304e20f190e2::t_ee038356961221 22
+  s_3c304e20f190e2::t_c9fcdb915afc2c 1-3,15-21,23-34
+server/engines/index.ts
+  s_3c304e20f190e2::t_4b2d5087880db5 23,213-219
+tests/server/eve-operations.test.ts
+  s_3c304e20f190e2::t_d064a79972eb59 1-65
+server/eve/recovery.ts
+  s_3c304e20f190e2::t_250fd4bda76901 5,36,43-55,67,134,146,150
+  s_3c304e20f190e2::t_c1fd13c66ae2b0 74,98
+  s_3c304e20f190e2::t_ee038356961221 3,103-106,109
+  s_3c304e20f190e2::t_4b2d5087880db5 1-2,6-14,26-35,37-42,56-59,61-62,64-66,68-73,75-97,99-102,107-108,110-133,136-145,148-149,151-159
+  s_3c304e20f190e2::t_f1f24e37a64224 60
+  s_3c304e20f190e2::t_0ca7339419236a 4,15-25,63,135,147
+server/approvals.ts
+  s_3c304e20f190e2::t_0ca7339419236a 61-65
+  s_3c304e20f190e2::t_0ce2fad46ff947 54-59
+  s_3c304e20f190e2::t_250fd4bda76901 199,201
+  s_3c304e20f190e2::t_a6020f6e49a724 5-8,10-11,23,39,43-53,60,66-87,89-105,118-129,146,156-158,173,181-182,191,200
+  s_3c304e20f190e2::t_afb481ed70d058 9,88
+server/eve/bridge.ts
+  s_3c304e20f190e2::t_ee038356961221 8-9,70-75,102-108
+  s_3c304e20f190e2::t_afb481ed70d058 14-15,119,122
+  s_3c304e20f190e2::t_250fd4bda76901 121
+  s_3c304e20f190e2::t_b8c0c47512c36a 20,24,40,54-55,57,64,91-92,94-95,101,127,156,158-159
+  s_3c304e20f190e2::t_f1f24e37a64224 13,120
+  s_3c304e20f190e2::t_0ce2fad46ff947 10-11,58-60,65-69,76-90,93,96-100,109-118,123,142
+scripts/eve-integration-smoke.ts
+  s_3c304e20f190e2::t_6cd6136e8ee647 86,99,109,127
+  s_3c304e20f190e2::t_c1fd13c66ae2b0 25-27,38-41,44,46,73,85,87-98,100-108,110-126,132-139
+  s_3c304e20f190e2::t_6d1f737daa8b4a 128-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "36626b387ef9e0708dc848a67151515896aa1b70",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
