@@ -141,7 +141,7 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
         <div className="skill-ico !h-9 !w-9 !rounded-[8px]"><Icon name="repeat" size={16} /></div>
         <div className="flex-1 min-w-0">
           <a className="skill-name text-[14px] font-semibold text-ink hover:text-ink hover:underline" href={`#/routines/${r.id}`}>{r.name}</a>
-          <div className="hint mt-0.5">{!on ? 'Switched off · ' : ''}{scheduleSummary(r.schedule)}</div>
+          <div className="hint mt-0.5 flex items-start gap-1.5"><Icon name={r.schedule?.type === 'daily' ? 'calendar' : r.schedule?.type === 'interval' ? 'repeat' : 'hand'} size={13} className="mt-0.5 shrink-0" /><span>{!on ? 'Switched off · ' : ''}{scheduleSummary(r.schedule)}</span></div>
         </div>
         <Switch checked={on} onChange={(v) => void toggleOn(v)} className="flex-none flex-nowrap" >
           <span className="text-[12.5px] font-medium text-dim" title={`Switch ${r.name} ${on ? 'off' : 'on'}`}>{on ? 'On' : 'Off'}</span>

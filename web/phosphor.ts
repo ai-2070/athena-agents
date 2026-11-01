@@ -23,6 +23,7 @@ import { BooksIcon } from '@phosphor-icons/react/dist/csr/Books';
 import { BrainIcon } from '@phosphor-icons/react/dist/csr/Brain';
 import { BroadcastIcon } from '@phosphor-icons/react/dist/csr/Broadcast';
 import { BrowserIcon } from '@phosphor-icons/react/dist/csr/Browser';
+import { CalendarBlankIcon } from '@phosphor-icons/react/dist/csr/CalendarBlank';
 import { CameraIcon } from '@phosphor-icons/react/dist/csr/Camera';
 import { CameraRotateIcon } from '@phosphor-icons/react/dist/csr/CameraRotate';
 import { CaretDownIcon } from '@phosphor-icons/react/dist/csr/CaretDown';
@@ -186,6 +187,7 @@ export const PHOSPHOR: Record<string, PhosphorIcon> = {
   'circle-check': CheckCircleIcon,
   'circle-x': XCircleIcon,
   clock: ClockIcon,
+  calendar: CalendarBlankIcon,
   'shield-check': ShieldCheckIcon,
   'key-round': KeyIcon,
   server: HardDrivesIcon,

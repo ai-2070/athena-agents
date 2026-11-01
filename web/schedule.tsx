@@ -44,9 +44,9 @@ function Editor({ item, onChange, inputLabel, showToggle }: { item: { schedule?:
     <div className="flex flex-col gap-4">
       <Segmented
         options={[
-          { value: 'none', label: 'Manual' },
-          { value: 'interval', label: 'Every…' },
-          { value: 'daily', label: 'Daily' },
+          { value: 'none', label: <span className="inline-flex items-center gap-2"><Icon name="hand" size={15} />Manual</span> },
+          { value: 'interval', label: <span className="inline-flex items-center gap-2"><Icon name="repeat" size={15} />Every…</span> },
+          { value: 'daily', label: <span className="inline-flex items-center gap-2"><Icon name="calendar" size={15} />Daily</span> },
         ]}
         value={s.type}
         onChange={(v) => ((item.schedule!.type = v), mark())}
