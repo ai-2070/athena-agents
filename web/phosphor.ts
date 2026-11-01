@@ -3,6 +3,8 @@
 // Each icon is imported from its own file: the package's index pulls in all 1,500 of them, which slows every test.
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { ArrowBendUpLeftIcon } from '@phosphor-icons/react/dist/csr/ArrowBendUpLeft';
+import { FloppyDiskIcon } from '@phosphor-icons/react/dist/csr/FloppyDisk';
 import { ApertureIcon } from '@phosphor-icons/react/dist/csr/Aperture';
 import { ArchiveIcon } from '@phosphor-icons/react/dist/csr/Archive';
 import { ArrowClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowClockwise';
@@ -203,6 +205,8 @@ export const PHOSPHOR: Record<string, PhosphorIcon> = {
   rocket: RocketIcon,
   puzzle: PuzzlePieceIcon,
   copy: CopyIcon,
+  save: FloppyDiskIcon,
+  reply: ArrowBendUpLeftIcon,
   'bookmark-plus': BookmarkSimpleIcon,
   download: DownloadSimpleIcon,
   repeat: RepeatIcon,

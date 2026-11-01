@@ -163,7 +163,7 @@ the weight. Chevrons are 12px (To button, model chip); header and menu icons 15 
 
 ## Motion
 
-All motion uses transform and opacity only. Settings > Appearance > Motion: Reduced (and the system's reduced-motion setting)
+Window motion uses transform and opacity. Inline disclosures also animate height so the chat moves with the content. Settings > Appearance > Motion: Reduced (and the system's reduced-motion setting)
 turns it off; the programmatic animations check `reducedMotion()` (`web/motion.ts`) and base styles collapse CSS
 animations and transitions to about 0ms.
 
@@ -177,6 +177,8 @@ animations and transitions to about 0ms.
 | **Model picker opens** | `menu-pop` keyframe: opacity 0 to 1, scale .97 and a 3px slide (`--menu-dy`), origin top-left (below the chip) or bottom-left (above it) | 0.14s, `--ease-soft` |
 | **Model picker closes** | fades and shrinks to .97 (`slideOut`), no clicks while it goes, then removed; removed at once if Motion is Reduced or there are no animations; a 500ms backstop removes it if the animation never ends | 110ms `cubic-bezier(.5,0,.75,0)` |
 | **Segmented choices** | the selected plate slides and resizes from the previous choice; buttons and their keyboard focus stay in place | 240ms, `--ease-soft`; off with reduced motion |
+| **Tasks and Show the work** | expand and collapse height with a fade; work stays loaded when closed | 240ms, `ease-in-out`; off with reduced motion |
+| **Show more / Show less** | grow or fold a long message between its preview height and full height | 240ms, `ease-in-out`; off with reduced motion |
 | Hover and open states | background and colour transitions | 0.12s (menu items), 0.15s (To button, example prompts) |
 
 Measured in a real browser (frame by frame): each popup goes from opacity 0 to 1 over 6 to 7 frames on the way in, and

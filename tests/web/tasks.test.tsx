@@ -63,6 +63,21 @@ const fill = async (input: HTMLInputElement | HTMLTextAreaElement, value: string
 const field = (label: string) => [...el.querySelectorAll('label')].find((l) => l.textContent?.startsWith(label))!.querySelector<HTMLInputElement | HTMLTextAreaElement>('input,textarea')!;
 
 describe('task lists in chats', () => {
+  it('closes and reopens the task panel through the same accessible toggle', async () => {
+    await open();
+    const toggle = button('Tasks');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(document.getElementById(toggle.getAttribute('aria-controls')!)).not.toBeNull();
+    await act(async () => toggle.click());
+    await settle();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(el.querySelector('[aria-label="Search tasks"]')).toBeNull();
+    await act(async () => toggle.click());
+    await settle(160);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(el.querySelector('[aria-label="Search tasks"]')).not.toBeNull();
+  });
+
   it('shows all project tasks in the Brain view, with owner, status and dependency states', async () => {
     await open();
     expect(el.textContent).toContain('Write the report');

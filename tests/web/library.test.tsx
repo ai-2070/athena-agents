@@ -40,6 +40,7 @@ beforeEach(() => {
   state.data = {
     agents: [],
     engines: { hermes: { installed: false } },
+    secrets: { veniceKey: { set: true } },
     engineList: [
       { id: 'claude-code', label: 'Claude Code' },
       { id: 'codex', label: 'Codex' },

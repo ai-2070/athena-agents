@@ -7,6 +7,7 @@ import type { AppState } from '../../shared/types.ts';
 
 type Reply = { status?: number; body: unknown };
 type Route = (method: string, path: string, body: unknown) => Reply | undefined;
+let programs = [{ id: 'lmstudio', installed: true }, { id: 'ollama', installed: true }];
 const calls: { method: string; path: string; body: unknown }[] = [];
 
 // Answer the client's fetch('/api/...') calls from a route function.
@@ -18,7 +19,7 @@ function serve(route: Route) {
       const path = String(url).replace(/^\/api/, '');
       const body = init.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ method, path, body });
-      const r = route(method, path, body) || (path === '/state' ? { body: state.data } : { status: 404, body: { error: 'not found' } });
+      const r = (path === '/programs' ? { body: programs } : route(method, path, body)) || (path === '/state' ? { body: state.data } : { status: 404, body: { error: 'not found' } });
       return new Response(JSON.stringify(r.body), { status: r.status || 200 });
     }),
   );
@@ -31,7 +32,8 @@ const removeButtons = (root: ParentNode) => [...root.querySelectorAll<HTMLButton
 beforeEach(() => {
   calls.length = 0;
   document.body.innerHTML = '<div id="toasts"></div><div id="modal-root"></div>';
-  state.data = { agents: [], toolGroups: [], engines: {}, secrets: {}, runs: [], approvals: [] } as unknown as AppState;
+  programs = [{ id: 'lmstudio', installed: true }, { id: 'ollama', installed: true }];
+  state.data = { agents: [], toolGroups: [], engines: { 'claude-code': { installed: true, loggedIn: true }, codex: { installed: true, loggedIn: true }, hermes: { installed: true }, pi: { installed: true }, omp: { installed: true }, openclaw: { installed: true } }, secrets: { openrouterKey: { set: true }, veniceKey: { set: true } }, runs: [], approvals: [] } as unknown as AppState;
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -77,6 +79,7 @@ describe('model picker: LM Studio tab', () => {
     serve((_m, path) => (path === '/models?engine=openai&provider=lmstudio' ? { body: [{ id: 'qwen3-coder-30b' }] } : { body: [] }));
     const picked: ModelPatch[] = [];
     openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, (p) => picked.push(p));
+    await settle();
     expect(tabs().map((t) => t.textContent).slice(0, 3)).toEqual(['Claude', 'OpenRouter', 'LM Studio']);
     for (const [label, id] of [['Hermes', 'hermes'], ['pi', 'pi'], ['OMP', 'omp'], ['OpenClaw', 'openclaw'], ['Venice', 'venice']]) {
       const image = tabs().find((tab) => tab.textContent === label)!.querySelector('img')!;
@@ -104,6 +107,7 @@ describe('model picker: LM Studio tab', () => {
   it('says how to start LM Studio when it lists no models', async () => {
     serve(() => ({ body: [] }));
     openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {});
+    await settle();
     tabs().find((t) => t.textContent === 'LM Studio')!.click();
     await settle();
     expect(document.querySelector('.model-menu')!.textContent).toContain('Is LM Studio running? (LM Studio > Developer > Start server)');
@@ -367,6 +371,7 @@ describe('model picker: favorites', () => {
     settings().favoriteModels = [{ engine: 'openai', provider: 'ollama', model: 'llama3.2' }];
     serve((method, path, body) => (method === 'PUT' && path === '/settings' ? { body: { ...settings(), ...(body as object) } } : { body: [] }));
     openModelPicker(document.body, { engine: 'codex', model: '' }, () => {});
+    await settle();
     expect(document.querySelector('.model-body')?.textContent).toContain('llama3.2');
     expect(document.querySelector('.model-body')?.textContent).toContain('Ollama');
     document.querySelector<HTMLButtonElement>('.model-body .model-fav')!.click();
@@ -376,7 +381,7 @@ describe('model picker: favorites', () => {
     expect([...document.querySelectorAll('.model-tab')].map((t) => t.textContent)).not.toContain('Favorites');
   });
 
-  it("leaves out favorites on this PC's servers where they can't be used (the Brain)", () => {
+  it("leaves out favorites on this PC's servers where they can't be used (the Brain)", async () => {
     settings().favoriteModels = [
       { engine: 'openai', provider: 'ollama', model: 'llama3.2' },
       { engine: 'openai', provider: 'openrouter', model: 'x/y' },
@@ -391,6 +396,7 @@ describe('model picker: favorites', () => {
     expect([...document.querySelectorAll('.model-tab')].map((t) => t.textContent)).not.toContain('Favorites');
     // an agent's picker does show it
     openModelPicker(document.body, { engine: 'claude-code', model: 'haiku' }, () => {});
+    await settle();
     expect(document.querySelector('.model-body')!.textContent).toContain('llama3.2');
   });
 
@@ -492,5 +498,25 @@ describe('team builder: saving', () => {
     const put = calls.find((c) => c.method === 'PUT')!.body as { steps: { type: string; agentId?: string }[]; stepList?: unknown };
     expect(put.steps.map((x) => x.agentId || x.type)).toEqual(['a1', 'approval', 'x_post']);
     expect(put.stepList).toBeUndefined();
+  });
+});
+
+ describe('configured engines', () => {
+  it('hides engines without setup and favorites that use them', async () => {
+    programs = [];
+    state.data = { agents: [], engines: { hermes: { installed: true } }, secrets: {}, settings: { favoriteModels: [{ engine: 'openai', provider: 'venice', model: 'saved' }] } } as unknown as AppState;
+    serve(() => ({ body: [] }));
+    openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {});
+    await settle();
+    expect([...document.querySelectorAll('.model-tab')].map(t => t.textContent)).toEqual(['Hermes']);
+  });
+  it('offers setup when no engines are configured', async () => {
+    programs = [];
+    state.data = { agents: [], engines: {}, secrets: {} } as unknown as AppState;
+    serve(() => ({ body: [] }));
+    openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {});
+    await settle();
+    expect(document.querySelectorAll('.model-tab')).toHaveLength(0);
+    expect(document.querySelector('.model-menu')?.textContent).toContain('No engines are set up yet.');
   });
 });
