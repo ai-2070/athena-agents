@@ -11,7 +11,7 @@ import { Chips, SearchBox, Segmented, Tabs } from '../ui/controls.tsx';
 import { domButton } from '../ui/dom.ts';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { modelInfo, openModelPicker } from '../models.tsx';
-import type { ModelChoice } from '../models.tsx';
+import type { ModelPatch } from '../models.tsx';
 import type { Agent, AppState, EngineId, PresetListing, Team } from '../../shared/types.ts';
 
 /** An agent of The Agency as GET /api/library lists it (server/library.ts AgencyAgent without file). */
@@ -51,7 +51,7 @@ interface LibraryIndex {
   claude: ClaudeSubagentListing[];
   starters: StarterListing[];
 }
-type Overrides = { engine: EngineId; model: string; provider?: string };
+type Overrides = Pick<Agent, 'engine' | 'model'> & Partial<Pick<Agent, 'provider' | 'effort'>>;
 type HirePayload = { source: 'starter'; name: string; overrides: Overrides } | { source: 'agency'; slug: string; overrides: Overrides } | { source: 'hermes'; profile: string } | { source: 'claude'; slug: string };
 type Tab = 'starters' | 'agency' | 'hermes' | 'claude' | 'presets';
 
@@ -66,9 +66,13 @@ const params = () => new URLSearchParams(location.hash.split('?')[1] || '');
 // Opened from a Station branch (#/library?branch=id): new hires join that branch.
 const branchParam = () => params().get('branch');
 
-function overrides(engine: EngineId, data: AppState, choice: ModelChoice | null): Overrides {
+function overrides(engine: EngineId, data: AppState, choice: ModelPatch | null): Overrides {
   const d = data.settings.defaults;
-  return { engine, model: engine === 'openai' ? choice?.model || defaultModelForEngine(engine, d, choice?.provider) : defaultModelForEngine(engine, d), ...(engine === 'openai' && choice?.provider ? { provider: choice.provider } : {}) };
+  return {
+    engine,
+    model: engine === 'openai' ? choice?.model || defaultModelForEngine(engine, d, choice?.provider) : defaultModelForEngine(engine, d),
+    ...(engine === 'openai' && choice ? { provider: choice.provider, effort: choice.effort } : {}),
+  };
 }
 
 async function hire(payload: HirePayload, name: string): Promise<Agent | undefined> {
@@ -120,7 +124,7 @@ function LibraryPage() {
   const [failed, setFailed] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>(() => (params().get('tab') === 'presets' ? 'presets' : lastTab));
   const [engine, setEngine] = useState<EngineId>(() => data?.settings?.defaults?.engine || 'claude-code');
-  const [apiChoice, setApiChoice] = useState<ModelChoice | null>(null);
+  const [apiChoice, setApiChoice] = useState<ModelPatch | null>(null);
 
   useEffect(() => {
     let live = true;
