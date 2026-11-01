@@ -36,7 +36,7 @@ beforeEach(() => {
     if (url.pathname === '/api/tasks' && method === 'GET') {
       if (failLoad) return json({ error: 'Task list could not load.' }, 503);
       const view = url.searchParams.get('view'); const search = url.searchParams.get('search')?.toLowerCase(); const filter = url.searchParams.get('status');
-      const rows = tasks.filter((t) => !view || view === 'all' || view === (t.scope.kind === 'brain' ? 'brain' : `${t.scope.kind}:${t.scope.id}`)).filter((t) => !search || t.subject.toLowerCase().includes(search)).filter((t) => filter !== 'open' || t.status !== 'completed');
+      const rows = tasks.filter((t) => !view || view === 'all' || view === (t.scope.kind === 'brain' ? 'brain' : `${t.scope.kind}:${t.scope.id}`)).filter((t) => !search || t.subject.toLowerCase().includes(search)).filter((t) => t.status !== 'deleted' && (filter !== 'open' || t.status !== 'completed'));
       return json({ tasks: rows, total: rows.length, nextOffset: null });
     }
     if (url.pathname === '/api/tasks' && method === 'POST') { const t = { ...task('created', String(body.subject), body.scope as TaskScope), ...body }; tasks.push(t as WorkTask); return json({ task: t }); }
@@ -63,6 +63,46 @@ const fill = async (input: HTMLInputElement | HTMLTextAreaElement, value: string
 const field = (label: string) => [...el.querySelectorAll('label')].find((l) => l.textContent?.startsWith(label))!.querySelector<HTMLInputElement | HTMLTextAreaElement>('input,textarea')!;
 
 describe('task lists in chats', () => {
+  it('confirms before clearing open tasks and keeps completed tasks', async () => {
+    tasks.push({ ...task('done', 'Finished work'), status: 'completed' });
+    await open();
+    expect(button('Clear tasks').disabled).toBe(false);
+    expect(button('Clear tasks').querySelector('svg')).not.toBeNull();
+    expect(button('Add task').querySelector('svg')).not.toBeNull();
+    await act(async () => button('Clear tasks').click());
+    await settle();
+    expect(requests.some(r => r.method === 'PUT')).toBe(false);
+    const confirm = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(b => b.textContent === 'Clear tasks')!;
+    await act(async () => confirm.click());
+    await settle();
+    expect(tasks.map(t => t.status)).toEqual(['deleted', 'deleted', 'completed']);
+    expect(button('Clear tasks').disabled).toBe(true);
+  });
+
+  it('can cancel clearing and only clears the selected list', async () => {
+    tasks = [task('own', 'Agent work', { kind: 'agent', id: 'a1' }), task('brain', 'Brain work')];
+    await open({ view: 'agent:a1', scope: { kind: 'agent', id: 'a1' } });
+    await act(async () => button('Clear tasks').click());
+    await settle();
+    const dialogButton = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(b => b.textContent === label)!;
+    await act(async () => dialogButton('Cancel').click());
+    await settle(250);
+    expect(tasks.every(t => t.status === 'pending')).toBe(true);
+    await act(async () => button('Clear tasks').click());
+    await settle();
+    await act(async () => dialogButton('Clear tasks').click());
+    await settle();
+    expect(tasks.map(t => t.status)).toEqual(['deleted', 'pending']);
+  });
+
+  it('visibly disables clearing when there are no open tasks', async () => {
+    tasks = [{ ...task('done', 'Finished work'), status: 'completed' }];
+    await open();
+    expect(button('Clear tasks').disabled).toBe(true);
+    await act(async () => button('Clear tasks').click());
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
   it('closes and reopens the task panel through the same accessible toggle', async () => {
     await open();
     const toggle = button('Tasks');
