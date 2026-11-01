@@ -21,6 +21,7 @@ import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { engineCapabilities } from './capabilities.ts';
 import { activeEveRuns, readRun as readEveRun, sessionContext as eveSessionContext, transcriptContext } from '../eve/state.ts';
+import { eveUsage } from '../eve/usage.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import { clearWork, stopChatWork } from '../briefs.ts';
 import { admitExecution, interruptExecutions, readExecution, saveExecutionQueue, updateExecution } from '../execution.ts';
@@ -234,7 +235,7 @@ export function finishNativeRun(runId: string): void {
     const stopped = native.status === 'stopped';
     const failed = native.status === 'failed' || native.status === 'interrupted';
     const answer = native.answer || '';
-    const error = stopped ? 'Stopped.' : native.status === 'failed' ? 'Eve could not finish this work. Check the model connection and the saved results before continuing.' : native.error || 'Eve could not finish this work. Check what was done before continuing.';
+    const error = stopped ? 'Stopped.' : native.limitReason || (native.status === 'failed' ? 'Eve could not finish this work. Check the model connection and the saved results before continuing.' : native.error || 'Eve could not finish this work. Check what was done before continuing.');
     const chat = entry.chat;
     if (!chat._deleted && agentStore.get(entry.agentId) && chats.get(entry.agentId, chat.id)) {
       if (native.status !== 'completed') {
@@ -254,7 +255,8 @@ export function finishNativeRun(runId: string): void {
       const queue = waiting.get(chatKey(entry.projectId, chat.id));
       if (queue) { queue.paused = true; emitQueue(entry.agentId, chat.id, entry.projectId); }
     }
-    emit('run', { runId, agentId: entry.agentId, chatId: chat.id, event: native.status === 'completed' ? { kind: 'done', text: answer, seconds: Math.round((Date.now() - entry.startedAt) / 1000) } : { kind: 'error', text: error } });
+    const usage = eveUsage(runId);
+    emit('run', { runId, agentId: entry.agentId, chatId: chat.id, event: native.status === 'completed' ? { kind: 'done', text: answer, ...(usage.cost === undefined ? {} : { cost: usage.cost }), seconds: Math.round((Date.now() - entry.startedAt) / 1000) } : { kind: 'error', text: error } });
     emit('runs');
     try {
       if (!steered) runEndHook?.({ runId, agentId: entry.agentId, chatId: chat.id, parentRunId: entry.parentRunId, ownerChatId: entry.ownerChatId, ownerAgentId: entry.ownerAgentId, answer, stopped, failed });

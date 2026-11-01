@@ -4,18 +4,19 @@ import path from 'node:path';
 import { agents, chats, withProject } from '../store.ts';
 import { readExecution } from '../execution.ts';
 import { cleanAttachments, safeUploadsRoot, withAttachments } from '../uploads.ts';
-import { contextWindow, estimateTokens } from '../compaction.ts';
+import { estimateTokens } from '../compaction.ts';
 import { listFiles, readPlain, realTarget, isInside, writeJSON } from '../util.ts';
 import { privateDataPath } from '../private.ts';
 import { canonical } from '../../shared/canonical.ts';
 import { beginRun, bindSession, conversationBinding, readRun, recordAdmissionReceipt, sessionContext, setRunStatus, settleRun } from './state.ts';
 import type { EveAdmissionRecord, EveMessagePart, ExecutionRun, Project } from '../../shared/types.ts';
 import type { Client } from 'eve/client';
+import { selectEveModel } from './model.ts';
 
 export const EVE_GENERATION = 'eve-1.0.0-rc.1-athena-1';
 const file = (id: string) => privateDataPath('runtime', 'eve', 'admissions', `${id}.json`);
 const hash = (value: unknown) => crypto.createHash('sha256').update(canonical(value)).digest('hex');
-const identity = (record: EveAdmissionRecord) => ({ id: record.id, bindingId: record.bindingId, mode: record.mode, sessionId: record.sessionId, message: record.message, history: record.history, historyKeys: record.historyKeys });
+const identity = (record: EveAdmissionRecord) => ({ id: record.id, bindingId: record.bindingId, mode: record.mode, sessionId: record.sessionId, message: record.message, history: record.history, historyKeys: record.historyKeys, selection: record.selection });
 const MAX_FILE = 16 * 1024 * 1024;
 const MAX_TOTAL = 24 * 1024 * 1024;
 
@@ -80,7 +81,9 @@ export async function prepareAdmission(runId: string, project: Project): Promise
     const agent = agents.get(receipt.agentId);
     const chat = chats.get(receipt.agentId, receipt.chatId);
     if (!agent || !chat) throw new Error('This conversation no longer exists.');
-    const binding = conversationBinding(project.id, agent.id, chat.id, EVE_GENERATION) || bindSession(agent, chat, project, EVE_GENERATION);
+    const selection = await selectEveModel(agent, chat);
+    const generation = hash({ runtime: EVE_GENERATION, engine: agent.engine, model: selection, reset: chat.items.findLastIndex((item) => item.type === 'meta' && item.reset) });
+    const binding = conversationBinding(project.id, agent.id, chat.id, generation) || bindSession(agent, chat, project, generation);
     sessionContext(binding.id);
     const imported = new Set(binding.imported || []);
     const history: EveAdmissionRecord['history'] = [];
@@ -108,14 +111,14 @@ export async function prepareAdmission(runId: string, project: Project): Promise
     const [{ buildSystemPrompt }, { richSection }, { gatherTools }] = await Promise.all([import('../engines/index.ts'), import('../richanswers.ts'), import('../apitools.ts')]);
     const current = sessionContext(binding.id);
     const [{ defs }, rich] = await Promise.all([gatherTools(current.agent, () => {}), richSection(current.agent, chat, receipt.depth)]);
-    const window = await contextWindow(agent, chat);
+    const window = selection.contextWindow;
     const tokens = estimateTokens(buildSystemPrompt(current.agent) + rich + JSON.stringify(defs) + history.map((item) => item.text).join('\n') + message.filter((part) => part.type === 'text').map((part) => part.text).join('\n'));
     if (tokens > window * 0.85) throw new Error('The saved conversation does not fit this model. Choose a larger-context model or clear memory. No original messages were discarded.');
     // Awaited model metadata must not revive a run stopped in the meantime.
     if (receiptFor(runId).stopRequested || receiptFor(runId).status !== 'running') throw new Error('Stopped.');
     sessionContext(binding.id);
     beginRun(runId, binding.id, receipt.depth, receipt.parentRunId);
-    const input = { id: runId, bindingId: binding.id, mode: binding.sessionId ? 'send' : 'create', sessionId: binding.sessionId, message, history, historyKeys, messageHash: hash(message), status: 'prepared', createdAt: Date.now() } satisfies Omit<EveAdmissionRecord, 'fingerprint'>;
+    const input = { id: runId, bindingId: binding.id, mode: binding.sessionId ? 'send' : 'create', sessionId: binding.sessionId, message, history, historyKeys, selection, messageHash: hash(message), status: 'prepared', createdAt: Date.now() } satisfies Omit<EveAdmissionRecord, 'fingerprint'>;
     const record: EveAdmissionRecord = { ...input, fingerprint: hash(identity({ ...input, fingerprint: '' })) };
     writeJSON(file(runId), record);
     setRunStatus(runId, 'running');

@@ -4,17 +4,17 @@ import { once } from 'node:events';
 import { z } from 'zod';
 import { gatherTools } from '../apitools.ts';
 import { providerOf } from '../providers.ts';
-import { contextWindow } from '../compaction.ts';
-import { getSettings, questions, withProject } from '../store.ts';
+import { questions, withProject } from '../store.ts';
 import { addQuestion, answerResult } from '../questions.ts';
 import { callTool, gate, needsApproval, toolApprovalPlan, toolApprovalRequest } from '../tools.ts';
 import { approvalFingerprint, cancelDurableApproval, durableApproval, ensureDurableApproval } from '../approvals.ts';
 import type { ApprovalRequest } from '../approvals.ts';
 import * as mcp from '../mcp.ts';
-import { activeEveRuns, attachSession, readRun, recordConfiguration, sessionContext, setRunStatus } from './state.ts';
+import { activeEveRuns, attachSession, readRun, recordConfiguration, recordCostBaseline, recordLimit, sessionContext, setRunStatus } from './state.ts';
 import { executeOperation, operationId, prepareOperation, readOperation, saveOperation } from './operations.ts';
 import { canonical } from '../../shared/canonical.ts';
-import { admissionHistory } from './admission.ts';
+import { admissionHistory, readAdmission } from './admission.ts';
+import { selectEveModel } from './model.ts';
 import type { EveRuntimeConfiguration } from '../../shared/types.ts';
 
 const schema = z.record(z.string(), z.json());
@@ -29,22 +29,25 @@ function invocationContext(bindingId: string, sessionId: string, runId?: string)
   return { ...context, run };
 }
 
-export async function eveConfiguration(bindingId: string, sessionId: string): Promise<EveRuntimeConfiguration> {
-  const { project, agent, chat, run } = invocationContext(bindingId, sessionId);
+export async function eveConfiguration(bindingId: string, sessionId: string, nativeCost = 0): Promise<EveRuntimeConfiguration> {
+  const { binding, project, agent, chat, run } = invocationContext(bindingId, sessionId);
+  const costBaseline = recordCostBaseline(run.id, nativeCost);
   return withProject(project, async () => {
     const [{ buildSystemPrompt }, { richSection }] = await Promise.all([import('../engines/index.ts'), import('../richanswers.ts')]);
-    const provider = providerOf(agent);
+    const selection = readAdmission(run.id)?.selection || await selectEveModel(agent, chat);
+    const provider = providerOf({ ...agent, provider: selection.provider });
+    if (provider.base !== selection.baseUrl) throw new Error('The model address changed during this turn. Start a new turn to use it.');
     const { defs } = await gatherTools(agent, () => {});
     const headers = { ...provider.headers };
     delete headers.authorization;
     delete headers['content-type'];
     const configuration: EveRuntimeConfiguration = {
       runId: run.id,
-      model: agent.model || getSettings().defaults.openrouterModel,
-      baseUrl: provider.base,
+      ...selection,
+      cacheKey: binding.id,
+      costBaseline,
       apiKey: provider.headers.authorization?.replace(/^Bearer /, '') || '', headers,
       instructions: buildSystemPrompt(agent) + await richSection(agent, chat, run.depth),
-      contextWindow: await contextWindow(agent, chat),
       tools: defs.map((tool) => ({ name: tool.function.name, description: tool.function.description || '', inputSchema: schema.parse(tool.function.parameters) })),
     };
     const { apiKey: _key, headers: _headers, ...definition } = configuration;
@@ -149,7 +152,7 @@ export async function eveTool(bindingId: string, sessionId: string, runId: strin
   });
 }
 
-const requestSchema = z.object({ binding: z.string().min(1), input: z.object({ sessionId: z.string().min(1).optional(), runId: z.string().min(1).optional(), messageHash: z.string().length(64).optional(), callId: z.string().optional(), name: z.string().optional(), args: z.record(z.string(), z.unknown()).optional() }) });
+const requestSchema = z.object({ binding: z.string().min(1), input: z.object({ sessionId: z.string().min(1).optional(), runId: z.string().min(1).optional(), nativeCost: z.number().finite().nonnegative().optional(), messageHash: z.string().length(64).optional(), limit: z.enum(['steps', 'cost']).optional(), callId: z.string().optional(), name: z.string().optional(), args: z.record(z.string(), z.unknown()).optional() }) });
 
 /** A separate authenticated listener; dashboard request guards are never bypassed. */
 export async function openEveBridge() {
@@ -164,7 +167,7 @@ export async function openEveBridge() {
     }
     const controller = new AbortController();
     response.on('close', () => { if (!response.writableEnded) controller.abort(); });
-    if (request.method !== 'POST' || !['/admission', '/configuration', '/policy', '/tool'].includes(request.url || '')) {
+    if (request.method !== 'POST' || !['/admission', '/configuration', '/limit', '/policy', '/tool'].includes(request.url || '')) {
       response.writeHead(404).end();
       return;
     }
@@ -179,10 +182,19 @@ export async function openEveBridge() {
       }
       const body = requestSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')));
       if (request.url !== '/admission' && !body.input.sessionId) throw new Error('An Eve session ID is required.');
+      if (request.url === '/limit') {
+        if (!body.input.runId || !body.input.limit) throw new Error('A saved run and limit are required.');
+        invocationContext(body.binding, body.input.sessionId!, body.input.runId);
+        const config = await eveConfiguration(body.binding, body.input.sessionId!);
+        const reason = body.input.limit === 'steps' ? `Stopped after ${config.maxModelSteps} model steps. Raise Max tool steps in Settings to continue.` : `Stopped: this run reached the $${config.costLimitUsd} limit set in Settings.`;
+        recordLimit(body.input.runId, reason);
+        response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ reason }));
+        return;
+      }
       if (!['/admission', '/configuration'].includes(request.url || '') && !(body.input.callId && body.input.runId)) throw new Error('An Eve run and tool call ID are required.');
       if (request.url === '/admission' && !(body.input.runId && body.input.messageHash)) throw new Error('A saved Eve input is required.');
       const value = request.url === '/admission' ? { history: admissionHistory(body.binding, body.input.runId!, body.input.messageHash!, body.input.sessionId) }
-        : request.url === '/configuration' ? await eveConfiguration(body.binding, body.input.sessionId!)
+        : request.url === '/configuration' ? await eveConfiguration(body.binding, body.input.sessionId!, body.input.nativeCost)
           : request.url === '/policy' ? await eveToolPolicy(body.binding, body.input.sessionId!, body.input.runId!, body.input.callId!, body.input.name || '', body.input.args || {})
             : await eveTool(body.binding, body.input.sessionId!, body.input.runId!, body.input.callId!, body.input.name || '', body.input.args || {}, controller.signal);
       response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(value));

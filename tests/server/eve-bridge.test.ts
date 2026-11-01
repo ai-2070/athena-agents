@@ -24,6 +24,8 @@ describe('the private Eve tool bridge', () => {
     expect(config.model).toBe('proof');
     expect(config.apiKey).toBe('private-eve-fixture-key');
     expect(config.contextWindow).toBe(64000);
+    expect(config.costBaseline).toBe(0);
+    expect((await eveConfiguration(binding.id, 'session', 10)).costBaseline).toBe(0);
     expect(JSON.stringify(readRun('bridge-run'))).not.toContain('private-eve-fixture-key');
     expect(readRun('bridge-run')?.configurationVersions).toHaveLength(1);
     const other = await createProject({ name: 'Different bridge project' });

@@ -86,7 +86,7 @@ const fixture = http.createServer(async (req, res) => {
     assert('binding' in body && body.binding === binding);
     res.setHeader('content-type', 'application/json');
     if (req.url === '/configuration') {
-      res.end(JSON.stringify({ runId: 'smoke-run', model: 'athena-proof', baseUrl: `${fixtureUrl}/v1`, apiKey: 'fixture-provider-key', instructions: 'ATHENA_DYNAMIC_INSTRUCTIONS', contextWindow: 64000, tools: [{ name: 'probe', description: 'Read the proof value.', inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'], additionalProperties: false } }] }));
+      res.end(JSON.stringify({ runId: 'smoke-run', provider: 'custom', model: 'athena-proof', baseUrl: `${fixtureUrl}/v1`, apiKey: 'fixture-provider-key', instructions: 'ATHENA_DYNAMIC_INSTRUCTIONS', contextWindow: 64000, effort: '', cacheKey: 'smoke-binding', maxModelSteps: 16, costLimitUsd: 2, costBaseline: 0, tools: [{ name: 'probe', description: 'Read the proof value.', inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'], additionalProperties: false } }] }));
     } else if (req.url === '/policy') {
       res.end(JSON.stringify({ status: 'approved' }));
     } else {

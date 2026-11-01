@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Client } from 'eve/client';
-import { activeProject, agents, chats, saveSettings, withProject } from '../../server/store.ts';
+import { activeProject, agents, chats, saveSettings, setSecret, withProject } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
 import { createProject } from '../../server/projects.ts';
 import { admitExecution, updateExecution } from '../../server/execution.ts';
@@ -15,12 +15,14 @@ import { prepareEveRecovery, stopEveRun } from '../../server/eve/recovery.ts';
 import { eveRuntime } from '../../server/eve/runtime.ts';
 import { eveCoordinator } from '../../server/eve/coordinator.ts';
 import { run as runEve } from '../../server/engines/eve.ts';
+import { eveConfiguration } from '../../server/eve/bridge.ts';
 import type { ChatItem, ExecutionRun } from '../../shared/types.ts';
 
 afterEach(() => vi.restoreAllMocks());
 
 function fixture(items: ChatItem[] = [], attachments: string[] = []) {
   saveSettings({ compaction: { windowTokens: 64000 } });
+  setSecret('openrouterKey', 'unit-admission-key');
   const project = activeProject();
   const agent = agents.save(newAgent({ name: 'Admission owner', toolGroups: [], mcpServers: [], richAnswers: false }));
   const chat = chats.create(agent.id, 'Admission');
@@ -38,6 +40,52 @@ function transport(reply: (body: Record<string, unknown>) => Response | Promise<
 }
 
 describe('saved Eve input admission', () => {
+  it('pins a turn model and its options while resolving current permissions', async () => {
+    const own = fixture();
+    agents.save({ ...own.agent, model: 'original-model', temperature: 0.2, effort: 'high' });
+    const input = await prepareAdmission(own.run.id, own.project);
+    agents.save({ ...own.agent, model: 'changed-model', temperature: 0.8, effort: 'low', toolGroups: [] });
+    const selected = await eveConfiguration(input.bindingId, 'selected-session');
+    expect(selected).toMatchObject({ model: 'original-model', temperature: 0.2, effort: 'high', cacheKey: input.bindingId });
+    expect(JSON.stringify(readAdmission(input.id))).not.toContain('unit-admission-key');
+  });
+
+  it('refuses to reroute an admitted turn when its provider address changes', async () => {
+    const own = fixture();
+    agents.save({ ...own.agent, provider: 'custom' });
+    saveSettings({ providers: { custom: { baseUrl: 'http://127.0.0.1:9001/v1', label: 'Original' } } });
+    const input = await prepareAdmission(own.run.id, own.project);
+    saveSettings({ providers: { custom: { baseUrl: 'http://127.0.0.1:9002/v1', label: 'Changed' } } });
+    await expect(eveConfiguration(input.bindingId, 'pinned-endpoint')).rejects.toThrow('address changed');
+    expect(readAdmission(input.id)?.selection.baseUrl).toBe('http://127.0.0.1:9001/v1');
+  });
+
+  it('starts a fresh native session after changing models or clearing memory', async () => {
+    const own = fixture([{ type: 'user', text: 'Retained history' }]);
+    const first = await prepareAdmission(own.run.id, own.project);
+    recordAdmissionReceipt(first.id, 'old-model-session', 'old-delivery', []);
+    settleRun(first.id, 'completed', 'Old answer');
+    updateExecution(first.id, { status: 'completed', settled: true });
+    agents.save({ ...own.agent, model: 'another-model' });
+    const next = { ...own.run, id: `${own.run.id}-model` };
+    admitExecution(next);
+    const changed = await prepareAdmission(next.id, own.project);
+    expect(changed.mode).toBe('create');
+    expect(changed.bindingId).not.toBe(first.bindingId);
+    expect(changed.history.some((m) => m.text === 'Retained history')).toBe(true);
+    recordAdmissionReceipt(changed.id, 'changed-model-session', 'changed-delivery', []);
+    settleRun(changed.id, 'completed', 'Changed answer');
+    updateExecution(changed.id, { status: 'completed', settled: true });
+    own.chat.items.push({ type: 'meta', text: 'Memory cleared', reset: true });
+    chats.save(own.chat);
+    const cleared = { ...own.run, id: `${own.run.id}-clear` };
+    admitExecution(cleared);
+    const fresh = await prepareAdmission(cleared.id, own.project);
+    expect(fresh.mode).toBe('create');
+    expect(fresh.bindingId).not.toBe(changed.bindingId);
+    expect(fresh.history).toEqual([]);
+  });
+
   it('runs the adapter through a lost receipt and follows the native result', async () => {
     const own = fixture();
     const ready = vi.spyOn(eveRuntime, 'ready').mockResolvedValue({ url: 'http://127.0.0.1:4800', token: 'fixture', exited: new Promise<void>(() => {}), close: async () => {} });
@@ -48,7 +96,7 @@ describe('saved Eve input admission', () => {
       return Response.json({ sessionId: 'adapter-session', deliveryId: 'adapter-delivery' });
     });
     vi.spyOn(eveCoordinator, 'follow').mockImplementation(async (id) => { settleRun(id, 'completed', 'Native answer'); });
-    expect(await runEve({ agent: own.agent, chat: own.chat, runId: own.run.id, text: own.run.text, systemPrompt: '', attachments: [], signal: new AbortController().signal, depth: 0, onEvent: () => {} })).toEqual({ text: 'Native answer' });
+    expect(await runEve({ agent: own.agent, chat: own.chat, runId: own.run.id, text: own.run.text, systemPrompt: '', attachments: [], signal: new AbortController().signal, depth: 0, onEvent: () => {} })).toEqual({ text: 'Native answer', window: 64000 });
     expect(requests).toHaveLength(2);
     expect(requests[0]).toBe(requests[1]);
     expect(ready).toHaveBeenCalledTimes(2);

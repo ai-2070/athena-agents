@@ -4,6 +4,9 @@ import { liveChat } from '../engines/index.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { markProjected, readRun, transcriptContext } from './state.ts';
 import { EveProjectionError } from './projection.ts';
+import { readAdmission } from './admission.ts';
+import { measuredBy } from '../compaction.ts';
+import { readExecution } from '../execution.ts';
 import type { RunEvent } from '../../shared/types.ts';
 
 /** The chat and its stable fact IDs are saved together, before advancing or broadcasting. */
@@ -37,6 +40,18 @@ export function projectTranscript(runId: string): void {
         const ts = Date.now();
         if (event.kind === 'text') chat.items.push({ type: 'assistant', text: event.text, sourceId, ts });
         else if (event.kind === 'tool') chat.items.push({ type: 'tool', id: event.id, name: event.name, args: event.args, result: null, status: 'running', sourceId, ts });
+        else if (event.kind === 'usage') {
+          const cost = event.costUsd === undefined ? 'Cost not reported' : `$${event.costUsd.toFixed(4)}`;
+          const tokens = event.inputTokens + event.outputTokens;
+          chat.items.push({ type: 'meta', text: `${event.summary ? 'Memory summary · ' : ''}${cost} · ${tokens} tokens${event.cacheReadTokens ? ` · ${event.cacheReadTokens} from cache` : ''}`, sourceId, ts });
+          if (!event.summary) {
+            const selection = readAdmission(runId)?.selection;
+            const engine = readExecution().runs.find((receipt) => receipt.id === runId)?.engine || agent.engine;
+            const measured = { ...agent, engine, model: selection?.model || agent.model, provider: selection?.provider || agent.provider };
+            const window = selection?.contextWindow;
+            chat.context = { tokens, ...(window ? { window } : {}), items: chat.items.length, at: ts, by: measuredBy(measured) };
+          }
+        }
         else if (event.kind === 'compacted') {
           const id = `eve${crypto.createHash('sha256').update(sourceId).digest('hex').slice(0, 24)}`;
           chat.items.push({ type: 'compaction', id, text: '', mode: 'engine', trigger: 'auto', upto: chat.items.length, sourceId, ts });

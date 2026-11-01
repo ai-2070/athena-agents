@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { DynamicModelContext } from 'eve';
 import type { EveRuntimeConfiguration } from '../../../../shared/types.ts';
+import { runs } from 'eve/events';
 
 const configSchema = z.object({
   runId: z.string().min(1),
@@ -10,6 +11,13 @@ const configSchema = z.object({
   headers: z.record(z.string(), z.string()).default({}),
   instructions: z.string(),
   contextWindow: z.number().int().positive(),
+  provider: z.string().min(1),
+  effort: z.enum(['', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']),
+  temperature: z.number().min(0).max(2).optional(),
+  cacheKey: z.string().min(1),
+  maxModelSteps: z.number().int().positive(),
+  costLimitUsd: z.number().nonnegative(),
+  costBaseline: z.number().nonnegative(),
   tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: z.record(z.string(), z.json()) })),
 });
 
@@ -37,5 +45,6 @@ export function bindingOf(ctx: DynamicModelContext): string {
 }
 
 export async function configuration(ctx: DynamicModelContext): Promise<EveRuntimeConfiguration> {
-  return configSchema.parse(await bridgeCall(bindingOf(ctx), '/configuration', { sessionId: ctx.session.id }));
+  const nativeCost = runs(ctx.view).reduce((sum, run) => sum + (run.usage?.costUsd || 0), 0);
+  return configSchema.parse(await bridgeCall(bindingOf(ctx), '/configuration', { sessionId: ctx.session.id, nativeCost }));
 }

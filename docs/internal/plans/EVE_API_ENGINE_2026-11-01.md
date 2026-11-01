@@ -1,6 +1,6 @@
 # Replace the built-in API agent with Eve
 
-*Plan, 1 November 2026; progress updated 2 November. Phases 1 and 2 implemented; phase 3 has durable waits, checkpoint recovery and saved agent/team coordination. Phase 4 has worker supervision, native event following, restored run ownership/completion, saved new-turn admission and native team joining. API-engine cutover is not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
+*Plan, 1 November 2026; progress updated 2 November. Phases 1 and 2 implemented; phase 3 has durable waits, checkpoint recovery and saved agent/team coordination. Phase 4 has worker supervision, native event following, restored run ownership/completion, saved new-turn admission, native team joining, model controls and usage/limit reporting. API-engine cutover is not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
 
 ## Progress
 
@@ -62,7 +62,7 @@ details remain private rather than being broadcast as diagnostics. Tests cover d
 restored busy state, reconnect, Stop, lost completion callbacks and interrupted completion claims.
 The real-process integration now also restarts the worker during a model call, checks that busy
 ownership survives, and receives exactly one tool original, answer and completion. Across the
-whole fixture there are eighteen model requests: only the interrupted request repeats.
+whole fixture there are twenty model requests: only the interrupted request repeats.
 
 Fresh turns now save their exact text, attachment bytes and role-preserving original history before
 dispatch. The authenticated Eve channel retrieves that history from Athena; it is never flattened
@@ -77,6 +77,35 @@ window, rejecting oversized originals instead of clipping them. Individual file 
 their file references in imported text; the native history interface itself accepts text roles only.
 Further provider-specific accounting for document/image token capacity remains part of cutover.
 
+Model, endpoint, effort, temperature, window and run limits now have a saved per-turn selection.
+Credentials remain outside it. Permissions and tools still resolve against the current owner.
+A changed provider address cannot reroute work already admitted. Model/option changes and a saved
+memory-reset mark change the binding generation, starting a fresh session from admitted originals.
+Retirement and deletion of old idle runtime state still belong to the cutover paths below.
+
+The direct compatible-model SDK adapter sends temperature and the selected effort without silent
+retry at another setting. OpenRouter receives its reasoning shape and prompt-cache identity;
+compatible local/custom endpoints receive `reasoning_effort`. Provider-reported token/cache counts
+and cost become cursor-deduplicated native facts, saved chat metadata and restored completion totals.
+Summary usage counts too. Missing prices remain unknown, including a total with an unpriced call.
+No price is estimated from the model name. The memory measurement is stamped with the selected model,
+so editing an agent during a run cannot label old usage as a measurement from its new model.
+
+Max tool steps now bounds native model steps, and the cost limit checks the provider-reported cost
+available before another provider call. These checks wrap SDK calls; they do not add a second model
+loop. The initial known-cost baseline is saved once in Athena's private run record, so a worker
+restart cannot reset it. Eve's dynamic memo proved insufficient across the approval restart test.
+Checks run at the provider-call boundary rather than during tool-catalog resolution, allowing an
+already-approved pending tool to finish. A fixed saved limit reason reaches the run's failure text.
+Missing price reports cannot establish an upper spending bound, and an already charged request
+cannot be undone. Decimal comparison avoids an extra call from subtraction rounding.
+
+The real Bun fixture now restarts a cost-limited run after the native delivery has durably settled
+on an approval, approves the original write, and verifies one file write and no next model request.
+It also checks the step limit, per-turn cost baselines on a reused session, requested temperature
+and effort, and exact cost/cache totals. Unit tests exercise the actual compatible SDK, absent and
+zero prices, role/model changes, endpoint pinning, invalid settings and replay of usage originals.
+
 Saved current team assignments now join their restored native completion handles automatically.
 Recovery checks project, agent, chat, team parent and the exact saved current delivery. It never
 resubmits the assignment, replaces its delivery or advances its read/file boundary before success.
@@ -89,11 +118,15 @@ the original read mark. It also drops both creation and continuation receipts, r
 one model delivery per turn with saved image/PDF bytes and original user/assistant roles.
 
 `server/engines/eve.ts` supplies the admission/follow adapter but is not registered as the built-in
-engine yet. The existing API engine remains active while options, usage, clearing, configuration
-changes and custom-compaction removal are connected.
+engine yet. The existing API engine remains active while native completion ownership, shutdown,
+clearing/deletion and custom-compaction removal are connected in the ordinary run path.
 
 This phase passed Windows typechecking, all 1,748 tests (21 skipped), the web build, the eighteen-request
 real Bun integration and staged desktop smoke. Linux CI remains pending.
+
+The following model-controls and usage phase passed Windows typechecking, all 1,756 tests (21 skipped),
+the web build, the twenty-request real Bun integration and staged desktop smoke, including its four
+crash boundaries. Linux CI remains pending.
 
 A kernel-held loopback ownership socket now prevents two dashboard processes from recovering or
 launching the same private runtime directory. Its port is derived from the resolved path, including
@@ -206,8 +239,9 @@ fake model requests, including no second request for stopped work. Unit
 tests cover duplicate execution, unknown outcomes, lost approval receipts, expiry, edited consent,
 withdrawal and interrupted Brain review. All state stays in throwaway project/home directories.
 
-Remaining integration belongs with engine cutover: model options and usage, sessions when clearing,
-changing models/engines or updating the runtime generation, and native children under ended parents.
+Remaining integration belongs with engine cutover: native completion ownership and shutdown in the
+ordinary run path, retirement when clearing/deleting/changing engines or runtime generations, and
+native children under ended parents.
 The existing API engine remains active until these paths and compaction removal are connected.
 
 ## Goal and scope

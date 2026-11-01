@@ -51,6 +51,14 @@ export function projectEvent(runId: string, source: SessionStreamEvent): { id: s
     case 'model.started':
       events.push({ kind: 'model', model: source.data.modelId });
       break;
+    case 'usage.recorded': {
+      if (source.scope?.turnId && source.scope.turnId !== run.turnId) break;
+      const usage = source.data.usage;
+      const counts = [usage.inputTokens, usage.outputTokens, usage.cacheReadTokens, usage.cacheWriteTokens];
+      if (counts.some((count) => !Number.isSafeInteger(count) || count < 0) || usage.costUsd !== undefined && (!Number.isFinite(usage.costUsd) || usage.costUsd < 0)) throw new EveProjectionError('Eve returned invalid usage counts.');
+      events.push({ kind: 'usage', ...usage, ...(source.data.owner && 'changeId' in source.data.owner ? { summary: true } : {}) });
+      break;
+    }
     case 'call.requested': {
       if (source.data.inputRef && source.data.input === undefined) throw new EveProjectionError('Eve tool input needs its referenced value before it can be saved.');
       if (source.data.capability.kind === 'tool') events.push({ kind: 'tool', id: source.data.callId, name: source.data.capability.name, args: object(source.data.input) || {} });

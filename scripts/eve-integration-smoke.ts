@@ -20,6 +20,7 @@ const { activeProject, agents, chats, workflows, saveSettings, setSecret } = awa
 const { newAgent } = await import('../server/library.ts');
 const { beginRun, bindSession, readBinding, readRun, setRunStatus } = await import('../server/eve/state.ts');
 const { prepareAdmission, readAdmission, submitAdmission } = await import('../server/eve/admission.ts');
+const { eveUsage } = await import('../server/eve/usage.ts');
 const { newBatch } = await import('../server/uploads.ts');
 const { openEveBridge } = await import('../server/eve/bridge.ts');
 const { startEveHost } = await import('../server/eve/host.ts');
@@ -53,10 +54,12 @@ const model = http.createServer(async (request, response) => {
     assert.equal(request.headers.authorization, 'Bearer integration-key');
     assert(Array.isArray(body.tools));
     if (JSON.stringify(body.messages).includes('ADMISSION_PROOF')) {
+      assert('temperature' in body && body.temperature === 0);
+      assert('reasoning_effort' in body && body.reasoning_effort === 'high');
       requests++;
       admittedMessages.push(body.messages);
       response.writeHead(200, { 'content-type': 'text/event-stream' });
-      response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ADMISSION_REPLY' }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } })}\n\ndata: [DONE]\n\n`);
+      response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ADMISSION_REPLY' }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110, cost: 0.01, prompt_tokens_details: { cached_tokens: 40 } } })}\n\ndata: [DONE]\n\n`);
       return;
     }
     const writing = JSON.stringify(body.messages).includes('DURABLE_WRITE_PROOF');
@@ -80,7 +83,7 @@ const model = http.createServer(async (request, response) => {
       : { tool_calls: [{ index: 0, id: 'integration-call', type: 'function', function: { name: offered.function.name, arguments: JSON.stringify(args) } }] };
     response.writeHead(200, { 'content-type': 'text/event-stream' });
     response.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`);
-    response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: completed ? 'stop' : 'tool_calls' }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } })}\n\ndata: [DONE]\n\n`);
+    response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: completed ? 'stop' : 'tool_calls' }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110, cost: 0.01, prompt_tokens_details: { cached_tokens: 40 } } })}\n\ndata: [DONE]\n\n`);
   } catch {
     response.writeHead(500).end('The integration fixture received an unexpected request.');
   }
@@ -248,7 +251,7 @@ try {
   assert.equal(transcript.items.filter((item) => item.type === 'assistant').length, 1);
   assert.equal(requests, 16, 'Only the interrupted model request may repeat; the committed tool must not run again.');
   console.log('eve integration: native busy state, transcript, team result and read marks survive worker restart without another input');
-  const admissionOwner = agents.save(newAgent({ name: 'Admission owner', provider: 'custom', model: 'integration-proof', toolGroups: [], richAnswers: false }));
+  const admissionOwner = agents.save(newAgent({ name: 'Admission owner', provider: 'custom', model: 'integration-proof', toolGroups: [], richAnswers: false, temperature: 0, effort: 'high' }));
   const admissionChat = chats.create(admissionOwner.id, 'Saved admission');
   admissionChat.items = [{ type: 'user', text: 'ORIGINAL_USER_ROLE' }, { type: 'assistant', text: 'ORIGINAL_ASSISTANT_ROLE' }];
   chats.save(admissionChat);
@@ -282,6 +285,8 @@ try {
     await coordinator.follow(id);
     assert.equal(readRun(id)?.status, 'completed');
     assert.equal(readRun(id)?.answer, 'ADMISSION_REPLY');
+    assert.deepEqual(eveUsage(id), { cost: 0.01, tokens: 110, cached: 40, context: 110 });
+    assert.equal(readRun(id)?.costBaseline, index * 0.01);
     updateExecution(id, { status: 'completed', answer: 'ADMISSION_REPLY', settled: true });
     if (!index) assert.equal(input.mode, 'create');
     else { assert.equal(input.mode, 'send'); assert.equal(readBinding(input.bindingId)?.sessionId, input.sessionId); }
@@ -294,6 +299,47 @@ try {
   assert(Array.isArray(admittedMessages[0]) && admittedMessages[0].some((item: unknown) => !!item && typeof item === 'object' && 'role' in item && item.role === 'assistant' && JSON.stringify(item).includes('ORIGINAL_ASSISTANT_ROLE')));
   assert.equal(requests, 18);
   console.log('eve integration: lost create/send receipts recover one delivery, with original roles and saved image/PDF bytes');
+  for (const limit of ['steps', 'cost'] as const) {
+    saveSettings({ maxToolSteps: limit === 'steps' ? 1 : 16, costLimitUsdPerRun: limit === 'cost' ? 0.005 : 2 });
+    const workspace = path.join(temporary, `limit-${limit}`);
+    fs.mkdirSync(workspace);
+    const limited = agents.save(newAgent({ name: `Limited ${limit}`, provider: 'custom', model: 'integration-proof', toolGroups: limit === 'cost' ? ['files'] : ['agents'], autonomy: 'ask', workspace, richAnswers: false }));
+    const chat = chats.create(limited.id, 'Native limits');
+    const id = `limit-${limit}`;
+    const text = limit === 'cost' ? 'DURABLE_WRITE_PROOF' : 'LIMIT_PROOF';
+    admitExecution({ id, projectId: project.id, agentId: limited.id, chatId: chat.id, engine: limited.engine, parentRunId: null, ownerAgentId: limited.id, ownerChatId: chat.id, depth: 0, text, from: null, attachments: [], startedAt: Date.now(), status: 'running' });
+    chat.items.push({ type: 'user', text, runId: id });
+    chats.save(chat);
+    const input = await prepareAdmission(id, project);
+    await submitAdmission(input, eveClient(host, input.bindingId));
+    const followed = coordinator.follow(id);
+    if (limit === 'cost') {
+      const sessionId = readBinding(input.bindingId)!.sessionId!;
+      const session = eveClient(host, input.bindingId).sessions.attach(sessionId);
+      let settledLine: number | undefined;
+      for await (const event of session.stream({ signal: AbortSignal.timeout(30000) })) {
+        if (event.type === 'delivery.settled' && event.data.deliveryId === readRun(id)?.deliveryId) settledLine = event.meta.position.line;
+        if (settledLine !== undefined && event.meta.endOfLine !== false && event.meta.position.line >= settledLine) break;
+      }
+      reconcileSnapshot(id, await session.snapshot());
+      assert.equal(readRun(id)?.status, 'waiting');
+      await runtime!.close();
+      host = await startRuntime();
+      const approval = listApprovals().find((item) => item.data.runId === id);
+      assert(approval);
+      decide(approval.id, { approved: true });
+    }
+    let limitTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([followed, new Promise<never>((_, reject) => { limitTimer = setTimeout(() => reject(new Error(`Native ${limit} limit timed out: ${JSON.stringify(readRun(id))}`)), 30000); })]);
+    } finally { clearTimeout(limitTimer); }
+    assert.equal(readRun(id)?.status, 'failed');
+    assert(readRun(id)?.limitReason?.includes(limit === 'steps' ? '1 model steps' : '$0.005 limit'), JSON.stringify(readRun(id)));
+    assert.equal(eveUsage(id).cost, 0.01);
+    if (limit === 'cost') assert.equal(fs.readFileSync(path.join(workspace, 'approved.txt'), 'utf8'), 'saved once');
+  }
+  assert.equal(requests, 20, 'Each native limit must stop before a second model call.');
+  console.log('eve integration: temperature, effort, cost/cache totals and step/cost limits reach the native runtime');
 } finally {
   releaseLifecycle();
   onRunEnd(null);

@@ -7,6 +7,7 @@ import { eveClient, stopEveRun } from '../eve/recovery.ts';
 import { readRun } from '../eve/state.ts';
 import { status } from '../providers.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
+import { eveUsage } from '../eve/usage.ts';
 export { status };
 export const durable = true;
 
@@ -34,8 +35,8 @@ export async function run({ runId, signal }: EngineRunArgs): Promise<EngineResul
     }
     await eveCoordinator.follow(runId);
     const result = readRun(runId);
-    if (signal.aborted || result?.status !== 'completed') throw new Error('Eve could not finish this work. Check its saved results before continuing.');
-    return { text: result.answer || '' };
+    if (signal.aborted || result?.status !== 'completed') throw new Error(result?.limitReason || 'Eve could not finish this work. Check its saved results before continuing.');
+    return { text: result.answer || '', ...eveUsage(runId), window: input.selection.contextWindow };
   } finally {
     signal.removeEventListener('abort', stopped);
     if (signal.aborted && !isStopping()) await stopEveRun(runId, eveClient(host, input.bindingId)).catch(() => {});

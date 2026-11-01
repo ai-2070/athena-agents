@@ -116,6 +116,20 @@ export function recordConfiguration(id: string, definition: unknown): void {
   if (run.configurationVersions.at(-1) !== version) writeJSON(runPath(id), { ...run, configurationVersions: [...run.configurationVersions, version], updatedAt: Date.now() });
 }
 
+export function recordLimit(id: string, limitReason: string): void {
+  const run = readRun(id);
+  if (!run || terminal(run.status)) throw new Error('This Eve run is no longer active.');
+  if (!run.limitReason) writeJSON(runPath(id), { ...run, limitReason, updatedAt: Date.now() });
+}
+
+export function recordCostBaseline(id: string, cost: number): number {
+  const run = readRun(id);
+  if (!run || terminal(run.status) || !Number.isFinite(cost) || cost < 0) throw new Error('Invalid Eve usage baseline.');
+  if (run.costBaseline !== undefined) return run.costBaseline;
+  writeJSON(runPath(id), { ...run, costBaseline: cost, updatedAt: Date.now() });
+  return cost;
+}
+
 const terminal = (status: EveRunStatus) => ['completed', 'failed', 'stopped', 'interrupted'].includes(status);
 
 export function setRunStatus(id: string, status: EveRunStatus, deliveryId?: string): EveRunRecord {

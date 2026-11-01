@@ -534,6 +534,7 @@ export type RunEvent =
   | { kind: 'tool_result'; id: string; text?: string; isError?: boolean; images?: string[] }
   | { kind: 'status'; text: string }
   | { kind: 'model'; model: string }
+  | { kind: 'usage'; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; costUsd?: number; summary?: boolean }
   | { kind: 'done'; text: string; cost?: number; seconds?: number }
   /** the engine compacted its own memory (Claude Code): marked in the chat, never sent on as a run event */
   | { kind: 'compacted'; trigger?: string; tokensBefore?: number }
@@ -793,6 +794,13 @@ export interface EveRuntimeConfiguration {
   headers: Record<string, string>;
   instructions: string;
   contextWindow: number;
+  provider: string;
+  effort: Effort | '';
+  temperature?: number;
+  cacheKey: string;
+  maxModelSteps: number;
+  costLimitUsd: number;
+  costBaseline: number;
   tools: { name: string; description: string; inputSchema: Record<string, JsonValue> }[];
 }
 
@@ -811,6 +819,17 @@ export interface EveSessionBinding {
   imported?: string[];
 }
 
+export interface EveModelSelection {
+  provider: string;
+  baseUrl: string;
+  model: string;
+  effort: Effort | '';
+  temperature?: number;
+  contextWindow: number;
+  maxModelSteps: number;
+  costLimitUsd: number;
+}
+
 export type EveMessagePart = { type: 'text'; text: string } | { type: 'file'; data: string; mediaType: string; filename: string };
 export interface EveAdmissionRecord {
   id: string;
@@ -824,6 +843,7 @@ export interface EveAdmissionRecord {
   fingerprint: string;
   status: 'prepared' | 'accepted' | 'cancelled';
   createdAt: number;
+  selection: EveModelSelection;
 }
 
 export type EveRunStatus = 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'stopped' | 'interrupted';
@@ -842,6 +862,8 @@ export interface EveRunRecord {
   events: { id: string; event: RunEvent }[];
   textParts?: Record<string, string>;
   projected?: number;
+  limitReason?: string;
+  costBaseline?: number;
   answer?: string;
   error?: string;
   endedAt?: number;
