@@ -1,0 +1,43 @@
+README.md
+  s_3c304e20f190e2::t_62bb2d9011be6e 173-176
+shared/types.ts
+  s_3c304e20f190e2::t_66ed1f940f58da 333,336
+  s_3c304e20f190e2::t_b1ee25049e33d9 146-200
+server/handoffs.ts
+  s_3c304e20f190e2::t_32d98c72249a2f 7-8,10,15,21,27-30,34,39,42-43,50,60,62,68,71-76,84,86,98
+tests/server/execution.test.ts
+  s_3c304e20f190e2::t_854b7a4c915789 2-3,6,10,118-123,125-156
+  s_3c304e20f190e2::t_e7dbf0978eee01 1,4-5,7-9,11-117,157-193
+  s_3c304e20f190e2::t_aac65d192a79e9 124
+docs/guide.md
+  s_3c304e20f190e2::t_62bb2d9011be6e 74
+docs/internal/plans/EVE_API_ENGINE_2026-11-01.md
+  s_3c304e20f190e2::t_62bb2d9011be6e 7-17
+tests/server/shutdown.test.ts
+  s_3c304e20f190e2::t_854b7a4c915789 7-8,28-30,38-42
+server/engines/index.ts
+  s_3c304e20f190e2::t_7e89c29cdc8ec4 3,641-682
+  s_3c304e20f190e2::t_c82b913fec90ca 26,131-133,153,290,299,305-314,316,339,498,512,599-600,605,619-620,624-625,636-640,693,708,710,712,747,763-764,771-772,775,778,919,925-926,948,966,973
+  s_3c304e20f190e2::t_dcf87ca6ad1c91 23,97,508-510,535,537-539,920-924
+server/execution.ts
+  s_3c304e20f190e2::t_62bb2d9011be6e 16
+  s_3c304e20f190e2::t_b1ee25049e33d9 1-15,17-92
+server/index.ts
+  s_3c304e20f190e2::t_7e89c29cdc8ec4 1467
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "57a7cb3d19539bd102ce91d5e28047c5046fb8b4",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
