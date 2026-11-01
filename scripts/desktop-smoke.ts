@@ -108,6 +108,13 @@ try {
   const original = JSON.parse(await historyTool('read_conversation', { ...found.hits[0] })) as ConversationReadResult;
   if (original.text !== 'SAVED_CONVERSATION_SMOKE_ORIGINAL') fail('the bundled conversation reader changed the original');
   console.log('smoke: conversation search and read ok');
+  const createdTask = JSON.parse(await historyTool('TaskCreate', { subject: 'Bundled task smoke', description: 'Verify saved task tools in the desktop server.' })) as { task: { id: string } };
+  const tasks = JSON.parse(await historyTool('TaskList', {})) as { tasks: { id: string }[] };
+  if (!tasks.tasks.some((t) => t.id === createdTask.task.id)) fail('the bundled task list did not include the new task');
+  await historyTool('TaskUpdate', { taskId: createdTask.task.id, status: 'completed' });
+  const savedTask = JSON.parse(await historyTool('TaskGet', { taskId: createdTask.task.id })) as { task: { status: string } };
+  if (savedTask.task.status !== 'completed') fail('the bundled task update was not saved');
+  console.log('smoke: task create, list, update and read ok');
 
   // the bridge, as Claude Code would start it: one MCP initialize request over stdio
   const bridge = Bun.spawn([bun, path.join(app, 'server', 'mcp-bridge.js')], {

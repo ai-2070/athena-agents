@@ -4,6 +4,8 @@ Research note, 31 October 2026. Written for the team; nothing here changes our c
 
 **Athena revision, 1 November 2026.** Ordinary agent/team assignments now get automatic completion checks. The Brain continues unfinished work while results advance and reports blockers separately from success. See [Automatic work completion](plans/WORK_COMPLETION_2026-11-01.md) for the implementation and validation.
 
+**Saved tasks, 1 November 2026.** Agents, teams and the Brain now share task records with owners, prerequisites and exclusive agent claims, plus a task UI in each chat. This prevents competing claims on an explicit task; it does not infer that two differently worded requests are duplicates. See [Shared task tools and chat UI](plans/TASK_TOOLS_2026-11-01.md).
+
 **What this covers.** xAI's **Grok Bot** — the agent product bundled with The X Subscription, *not*
 the `@grok` bot on X. Three passes: what the subscription is, what its system prompts actually say
 (they leaked), and a deep comparison of how its bots orchestrate each other against our Teams,

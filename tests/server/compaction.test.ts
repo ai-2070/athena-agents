@@ -500,7 +500,7 @@ describe('during runs', () => {
   });
 
   it('API model: compacts between tool steps when a step fills the memory, and the next request has the compacted history', async () => {
-    saveSettings({ compaction: { windowTokens: 20_000, keepMessages: 2 } });
+    saveSettings({ compaction: { windowTokens: 30_000, keepMessages: 2 } });
     const a = newAgent({ name: 'Stepper', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
     const chat = chats.create(a.id);
     chat.items.push(...history(3));

@@ -6,6 +6,7 @@ The [README](../README.md) says what the dashboard is, how to install it, which 
 - [Giving engine CLIs the dashboard tools](#giving-engine-clis-the-dashboard-tools)
 - [Your first project](#your-first-project)
 - [Chats and files](#chats-and-files)
+- [Tasks](#tasks)
 - [Skills: instructions worth keeping](#skills-instructions-worth-keeping)
 - [MEMORY.md: what agents remember](#memorymd-what-agents-remember)
 - [Routines: work worth repeating](#routines-work-worth-repeating)
@@ -92,6 +93,20 @@ Use the paperclip, drop files and folders, or paste them (**Ctrl+V**, **⌘V** o
 Click an attached picture, Markdown file or PDF to look at it, before or after sending: pictures open big, Markdown opens to read, and a PDF opens in a new browser tab (once it has uploaded). A big picture fits the window; zoom with a click (click again to zoom back out), the scroll wheel, a pinch, the **−** / **+** buttons or the **+**, **−** and **0** keys, and drag to move around.
 
 Clicking the Brain on the Station shows what is in its folder. Pictures, Markdown files and PDFs there open the same way, so does **from PROJECT.md** under the description, and a folder opens in Finder or Explorer.
+
+## Tasks
+
+Open **Tasks** in an agent, team or Brain chat to see the steps of a job. Agent and team chats show their own list and project tasks assigned to them. The Brain starts with **All project tasks**; filter by the Brain, a team or an agent, then by status or a search phrase. Lists update as work changes.
+
+Use **Add task** to write a title and description of what must be done and how to check it. Choose an owner, or leave shared work unassigned. Click a task to edit its details, owner, status, working label or prerequisites. **Open** shows unfinished work; choose **All statuses** to include finished tasks. **Show more tasks** loads the next page. Prerequisite choices come from the loaded rows in the same list; clear a search or load more rows to include another task. **Remove** asks first and removes that task's dependency links too. If someone changed a task while you edited it, your draft stays open; **Reload saved task** loads their saved version.
+
+Every engine receives the dashboard's `TaskCreate`, `TaskGet`, `TaskList` and `TaskUpdate` tools. The Brain uses the same saved records. Agents can read their own lists, their teams' lists and project tasks assigned to them or their team. The Brain and the user can manage the whole project. A task's list stays fixed; its owner can change within that list. Team tasks can belong to the team or a member, and project tasks can belong to the Brain, an agent or a team.
+
+Tasks start **Pending**. A worker claims ready work as **In progress**, checks the result, then marks it **Completed**. Another agent cannot take a task already claimed by an agent. A task with unfinished prerequisites is **Blocked** and cannot start or finish until they are complete. Dependencies must be in the same list; cycles are refused. Reopening a prerequisite returns dependent work to Pending so it gets checked again.
+
+Creating or assigning a task records the plan. Ask the agent, team or Brain in the chat to do the work. During supervised work, unfinished tasks linked to the assignment prevent a premature completion report. Completing every task still requires the Brain's usual check of the requested result. A blocker continues to go to **Needs you**.
+
+Tasks survive restarts and are included in folder saves, backups and clones. Opening a saved copy keeps task IDs and dependency links, resets In progress tasks to Pending and drops old completion-check links. Each project's tasks remain separate when you switch projects.
 
 ## Skills: instructions worth keeping
 

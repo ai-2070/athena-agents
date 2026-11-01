@@ -15,6 +15,7 @@ import { modelChip } from './models.tsx';
 import { slideIn } from './motion.ts';
 import { useFind } from './ui/find.tsx';
 import { queuedText } from '../shared/queue.ts';
+import { TaskPanel } from './tasks.tsx';
 import { parseCommand } from '../shared/commands.ts';
 import { commandChips, slashMenu } from './chatcommands.ts';
 import type { SlashMenu } from './chatcommands.ts';
@@ -738,6 +739,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   return (
     <div className={fill ? 'flex flex-col gap-3 h-full' : 'flex flex-col gap-3'} ref={root}>
       {find}
+      <TaskPanel view={`team:${teamId}`} scope={{ kind: 'team', id: teamId }} />
       <div
         // (in a scrolling column, an item must keep its height: never squeezed by the list's)
         className={fill ? 'tc-list overflow-y-auto flex flex-col gap-6 pt-4 pb-5 *:shrink-0 flex-1 min-h-0' : 'tc-list overflow-y-auto flex flex-col gap-6 pt-4 pb-5 px-1 *:shrink-0 min-h-[120px]'}

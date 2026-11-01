@@ -129,8 +129,8 @@ export function claudeArgs(agent: Agent, { promptFile, mcpFile, interactive = fa
     args.push('--permission-mode', mode === 'auto' ? 'auto' : 'default');
     if (!interactive) args.push('--permission-prompt-tool', PERMISSION_TOOL);
   }
-  // Claude's own question box has nobody to show it to in a dashboard run: it asks with ask_user (the Outbox) instead
-  if (!interactive) args.push('--disallowedTools', 'AskUserQuestion');
+  // Dashboard runs use shared MCP tasks and ask_user; harness-local records would be invisible to the team.
+  if (!interactive) args.push('--disallowedTools', 'AskUserQuestion', 'TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList', 'TodoWrite');
   args.push('--allowedTools', 'mcp__dashboard', ...(mode !== 'ask' ? (agent.mcpServers || []).map((s) => `mcp__${s}`) : []));
   const dirs = knowledgeRoots(agent);
   if (dirs.length) args.push('--add-dir', ...dirs);

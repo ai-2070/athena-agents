@@ -252,6 +252,7 @@ export function buildSystemPrompt(agent: Agent): string {
     worldPrompt(tools),
     skillsPrompt(agent),
     'Use search_conversations to find earlier work in your own chats or your teams\' shared conversations in this project. Use read_conversation on a search hit to read the saved original; continue with nextOffset until you have the text you need. Search past decisions before guessing about earlier work.',
+    'Use the dashboard TaskCreate, TaskGet, TaskList and TaskUpdate tools for work with several steps. Keep acceptance criteria in descriptions, claim ready tasks before starting, and mark completed only after checking the result. Read TaskList on each turn to recover saved work. Respect blockedBy dependencies and other owners. Use the dashboard MCP task tools, not a harness-local task list, so the user and team share the same records. Task creation and assignment record work; they do not start another agent. Delegate with ask_agent or team mentions when needed.',
     accountsPrompt(agent.mcpServers || []),
     `\n# Where you are
 You are one of several agents on the user's personal dashboard, running on their Windows PC (user folder ${HOME}).

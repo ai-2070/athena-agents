@@ -101,6 +101,23 @@ describe('API', () => {
     expect(list.find((x: { id: string }) => x.id === t.id)).toMatchObject({ name: 'Crew', members: [a.id] });
   });
 
+  it('creates, lists, reads and updates persistent tasks through the real API', async () => {
+    const created = await req('/api/tasks', { method: 'POST', headers: json, body: JSON.stringify({ subject: 'API task', description: 'Check the real task routes.' }) });
+    expect(created.status).toBe(200);
+    const { task } = await created.json();
+    expect((await (await req(`/api/tasks/${task.id}`)).json()).task.subject).toBe('API task');
+    const page = await (await req('/api/tasks?view=all&status=open')).json();
+    expect(page.tasks.some((t: { id: string }) => t.id === task.id)).toBe(true);
+    const update = await req(`/api/tasks/${task.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ status: 'completed', expectedUpdatedAt: task.updatedAt }) });
+    expect((await update.json()).task.status).toBe('completed');
+    const stale = await req(`/api/tasks/${task.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ subject: 'stale', expectedUpdatedAt: task.updatedAt }) });
+    expect(stale.status).toBe(409);
+    const invalid = await req('/api/tasks', { method: 'POST', headers: json, body: JSON.stringify({ subject: '' }) });
+    expect(invalid.status).toBe(400);
+    const unsafe = await req(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status: 'pending' }) });
+    expect(unsafe.status).toBe(403);
+  });
+
   it('deletes a team with its agents, but keeps agents that are on another team', async () => {
     const send = async (method: string, p: string, body?: unknown) => (await req(p, { method, headers: json, ...(body ? { body: JSON.stringify(body) } : {}) })).json();
     const solo = await send('POST', '/api/agents', { name: 'Only Here' });

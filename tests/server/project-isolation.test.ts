@@ -287,6 +287,12 @@ describe('conversation tools during a project switch', () => {
       expect((await callTool(member, 'search_conversations', { query: 'ORIGINAL_ONLY_PRIVATE' })).text).toContain('"total":0');
       const stranger = apiAgent('Wrong caller');
       expect((await callTool(stranger, 'search_conversations', { query: 'PRIVATE' }, { runId: going.runId })).isError).toBe(true);
+      const created = await callTool(member, 'TaskCreate', { subject: 'Original project task', description: 'Must stay in the original project.' }, { runId: going.runId });
+      expect(created.isError).toBe(false);
+      const id = (JSON.parse(created.text) as { task: { id: string } }).task.id;
+      expect(JSON.parse((await callTool(member, 'TaskGet', { taskId: id })).text).task).toBeNull();
+      expect(JSON.parse((await callTool(member, 'TaskGet', { taskId: id }, { runId: going.runId })).text).task.subject).toBe('Original project task');
+      expect((await callTool(stranger, 'TaskList', {}, { runId: going.runId })).isError).toBe(true);
     } finally {
       stopChat(chat.id, a.id);
       await releaseUntil(() => !runInfo(going.runId));

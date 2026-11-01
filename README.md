@@ -28,6 +28,7 @@ The dashboard runs at **http://localhost:4800**, with no dashboard account or lo
 ## What you can do
 
 - **Build a team for a job.** Describe the outcome to the Brain, or choose agents from the Agent library. Each agent keeps its own instructions, knowledge, memory, model, skills and tools.
+- **Track the work together.** Open **Tasks** in an agent, team or Brain chat. Keep the steps, owners, status and prerequisites in one saved project list. The Brain shows all project tasks, with filters for each team and agent.
 - **Mix models.** Use Claude Code, Codex, Hermes, pi, oh-my-pi, OpenClaw or OpenAI-compatible APIs, including local model servers. Team members do not need to use the same engine.
 - **Work with your files and programs.** Give agents a project folder, attach reference files, and connect tools for programs such as Blender, Maya, Houdini, Substance 3D, ComfyUI, ffmpeg, HandBrake, ImageMagick, OpenSCAD, PrusaSlicer and NVIDIA's texture tools, and let them pull free textures, HDRIs and models from Poly Haven and ambientCG. The Programs page also finds Adobe apps, free creative programs (GIMP, Krita, Inkscape, Audacity and more), video editors (DaVinci Resolve, CapCut, Kdenlive and more), CAD programs and slicers. Add more tools through MCP servers.
 - **Keep useful instructions.** Write skills in plain words, share them across agents and teams, and turn repeated work into routines you can run by hand or on a schedule.
@@ -170,6 +171,8 @@ Projects keep separate agents, teams and chats. The project name at the top left
 In any agent, team or Brain chat, **/** lists the commands (`/queue`, `/stop`, `/resume`, `/resend`, `/loop`, `/goal`, `/compact`, `/clear`), **@** picks another agent, and **#** in a team chat picks another team. What each one does, and how files and long chats are handled: [Chats and files](docs/guide.md#chats-and-files).
 
 **Assigned work keeps going.** The Brain checks agent and team results after each turn and follows up on missing work automatically. No `/goal` command is needed. It keeps going while work advances, waits for delegated work, and stops when the result is delivered or your action is needed. Blockers and repeated lack of progress appear in **Needs you** with a question you can answer to continue. **Stop** cancels continuation; changing the project on screen leaves work in its own project. Completion checks use the Brain's configured model.
+
+**Tasks stay with the work.** Agents, teams and the Brain share `TaskCreate`, `TaskGet`, `TaskList` and `TaskUpdate`. Tasks hold the requirements, owner and prerequisites; another agent cannot take work already claimed by someone else. The chat's **Tasks** panel lets you add, edit, search and remove them. A task records a step; ask in the chat to start the work. Tasks are included in project saves and backups. See [Tasks](docs/guide.md#tasks).
 
 ## Approvals and safety
 

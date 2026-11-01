@@ -2,6 +2,8 @@
 
 1 November 2026. Extends [team context and conversation search](TEAM_CONTEXT_AND_SEARCH_2026-11-01.md).
 
+**Task integration, 1 November 2026.** [Shared task tools and chat UI](TASK_TOOLS_2026-11-01.md) adds saved task evidence to completion reviews. An assignment with unfinished linked tasks continues even when the evaluator says done. A completed task list still needs the usual result check; blockers still request user action.
+
 ## Requirement and comparison
 
 An ordinary assignment should finish without the user typing a continuation command. The Brain should verify the result, continue missing work, or stop with a concrete request for user action when the request cannot advance. A plan or partial result is not completion.

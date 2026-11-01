@@ -7,6 +7,7 @@ import { createProject, removeProject, updateProject } from '../../server/projec
 import { newAgent } from '../../server/library.ts';
 import { dataPath } from '../../server/util.ts';
 import * as sync from '../../server/projectsync.ts';
+import { createTask, getTask, updateTask } from '../../server/tasks.ts';
 import type { Team } from '../../shared/types.ts';
 
 const folder = (name: string) => path.join(os.homedir(), 'projects', name);
@@ -20,6 +21,22 @@ const allText = (dir: string): string =>
 const linksWork = process.platform !== 'win32'; // file links need admin rights on Windows
 
 describe('auto-save into the project folder', () => {
+  it('saves task links in the folder and restores them without stale running state', async () => {
+    const p = await createProject({ name: 'Saved tasks', mode: 'new', folder: folder('saved-tasks') });
+    const access = { admin: true, scope: { kind: 'brain' as const } };
+    const a = createTask({ subject: 'Prepare', description: 'Prepare the result.' }, access);
+    const b = createTask({ subject: 'Check', description: 'Verify the result.' }, access);
+    updateTask({ taskId: b.id, addBlockedBy: [a.id] }, access);
+    updateTask({ taskId: a.id, status: 'in_progress' }, access);
+    sync.saveProject(p.id);
+    const copy = await createProject({ name: 'Tasks from folder', mode: 'existing', folder: p.brainPath });
+    sync.restoreInto(copy.id, p.brainPath);
+    setActiveProject(copy.id);
+    expect(getTask(a.id, access)?.status).toBe('pending');
+    expect(getTask(a.id, access)?.blocks).toEqual([b.id]);
+    expect(getTask(b.id, access)?.blockedBy).toEqual([a.id]);
+  });
+
   it('writes agents, teams and project info into <folder>/.dashboard, never secrets', async () => {
     setSecret('openrouterKey', 'sk-or-v1-sentinel-do-not-save-4242');
     const p = await createProject({ name: 'Saved one', mode: 'new', folder: folder('saved-one'), description: 'A test project' });

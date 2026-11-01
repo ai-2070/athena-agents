@@ -1,5 +1,7 @@
 # Team orchestration: four follow-ups
 
+**Task follow-up, 1 November 2026.** [Shared task tools and chat UI](TASK_TOOLS_2026-11-01.md) adds durable task lists for agents, teams and the Brain, with owners, exclusive claims, prerequisites and completion checks. The Brain's UI defaults to all project tasks with filters. The earlier decision against locks below concerns inferred duplicate messages; explicit claims on saved task records now prevent competing agents from taking the same claimed task.
+
 **Completion follow-up, 1 November 2026.** [Automatic work completion](WORK_COMPLETION_2026-11-01.md) adds default completion checks, continuation while work advances, actionable blockers and startup recovery. Team queues now continue in their owning project when another project is opened; project switches no longer require `/resume`.
 
 Plan, 31 October 2026. Follows the comparison in

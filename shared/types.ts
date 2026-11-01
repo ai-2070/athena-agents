@@ -844,7 +844,7 @@ export interface MemoryInfo {
 }
 
 // ---------- the Brain ----------
-export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'world' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
+export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'world' | 'task' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; taskId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
 /** A tool the Brain used while it answered (it reads the project's files). */
 export interface BrainStep {
   id: string;
@@ -862,6 +862,66 @@ export interface BrainDelegate {
   attachments?: string[];
   /** Set once the server handed it on: the Brain's message in the team chat, or the agent chat it started. */
   sent?: { messageId?: string; ts?: number; chatId?: string; runId?: string };
+}
+
+/** A saved task list within one project. */
+export interface TaskScope {
+  kind: 'brain' | 'agent' | 'team';
+  id?: string;
+}
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'deleted';
+export interface WorkTask {
+  id: string;
+  subject: string;
+  description: string;
+  activeForm: string;
+  status: TaskStatus;
+  scope: TaskScope;
+  /** Empty, brain, agent:<id>, or team:<id>. */
+  owner: string;
+  blockedBy: string[];
+  blocks: string[];
+  metadata: Record<string, unknown>;
+  briefId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+export type TaskSummary = Omit<WorkTask, 'description' | 'metadata' | 'blocks'>;
+export interface TaskPage {
+  tasks: TaskSummary[];
+  total: number;
+  nextOffset: number | null;
+}
+export interface TaskCreateInput {
+  subject: string;
+  description: string;
+  activeForm?: string;
+  metadata?: Record<string, unknown>;
+  scope?: TaskScope;
+  owner?: string;
+}
+export interface TaskUpdateInput {
+  taskId: string;
+  status?: TaskStatus;
+  subject?: string;
+  description?: string;
+  activeForm?: string;
+  owner?: string;
+  metadata?: Record<string, unknown>;
+  addBlocks?: string[];
+  addBlockedBy?: string[];
+  removeBlocks?: string[];
+  removeBlockedBy?: string[];
+  /** Reject an edit made against an older saved version. */
+  expectedUpdatedAt?: number;
+}
+export interface TaskQuery {
+  scope?: TaskScope;
+  view?: string;
+  status?: 'open' | TaskStatus | 'all';
+  search?: string;
+  offset?: number;
+  limit?: number;
 }
 
 /** Work the Brain handed to a team or an agent, and how its follow-up went (data/projects/<id>/brain-briefs.json). */
