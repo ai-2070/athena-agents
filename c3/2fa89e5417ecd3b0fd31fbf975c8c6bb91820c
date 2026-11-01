@@ -1,0 +1,31 @@
+server/models.ts
+  s_9416edeb647587::t_cd820e29df333a 102,132,136-137,215-217
+web/models.tsx
+  s_9416edeb647587::t_cfae56fbc58535 17,47
+  s_9416edeb647587::t_cd820e29df333a 764
+shared/types.ts
+  s_9416edeb647587::t_cd820e29df333a 11-24
+tests/server/venice-models.test.ts
+  s_9416edeb647587::t_cfae56fbc58535 6-7,54
+  s_9416edeb647587::t_2716c9c4426605 1-5,8-53,55-69
+server/engines/openai.ts
+  s_9416edeb647587::t_cd820e29df333a 14,16,34,124-129
+server/apimodels.ts
+  s_9416edeb647587::t_cd820e29df333a 1-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c32fa89e5417ecd3b0fd31fbf975c8c6bb91820c",
+  "prompts": {},
+  "sessions": {
+    "s_9416edeb647587": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198cb-4b55-7643-890c-fb61b19964a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
