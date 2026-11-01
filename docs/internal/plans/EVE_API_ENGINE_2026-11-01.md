@@ -4,6 +4,17 @@
 
 ## Progress
 
+Engine lifecycle integration now saves input receipts, agent-chat queues and delegation handles in
+private metadata outside project copies. Queue removal and run admission share one atomic write.
+Steering saves its replacement input before stopping the old run. Startup reconciliation runs
+before schedulers and the Brain's completion checks: unfinished existing-engine work pauses,
+unsent inputs remain queued, and Stop remains final. Lost delegation callbacks recover completed
+answers from run receipts; interrupted tasks report their interruption without restarting them.
+An independent-process test exits between steering and completion and verifies saved order,
+attachments and ownership. Native Eve runs are reserved for the upcoming adapter's coordinator.
+Team assignments/read marks, completion-hook reconciliation and the production Eve adapter still
+need integration before cutover.
+
 Phase 1 now has a pinned Eve 1.0.0-rc.1 application, dynamic model/instructions/tool definitions,
 private token authentication, an attachment-only virtual filesystem and a repeatable smoke check.
 `eve:build` runs Eve under Bun 1.4+ and produces Nitro's Bun output. Desktop staging includes that

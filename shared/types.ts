@@ -143,6 +143,61 @@ export interface QueuedMessage {
   ts: number;
 }
 
+/** Private run ownership and input receipts; never copied with a project. */
+export interface ExecutionRun {
+  id: string;
+  projectId: string;
+  agentId: string;
+  chatId: string;
+  engine: EngineId;
+  parentRunId: string | null;
+  ownerChatId: string;
+  ownerAgentId: string;
+  depth: number;
+  text: string;
+  from: string | null;
+  attachments: string[];
+  context?: TeamContextMessage[];
+  startedAt: number;
+  status: 'running' | 'completed' | 'failed' | 'stopped' | 'interrupted';
+  stopRequested?: boolean;
+  steered?: boolean;
+  endedAt?: number;
+  answer?: string;
+  error?: string;
+  settled?: boolean;
+}
+
+export interface ExecutionQueue {
+  projectId: string;
+  agentId: string;
+  chatId: string;
+  items: QueuedMessage[];
+  priority: string[];
+  paused: boolean;
+}
+
+export interface SavedHandoff {
+  id: string;
+  from: string;
+  projectId: string;
+  to: string;
+  toName: string;
+  chatId: string;
+  runId: string;
+  task: string;
+  startedAt: number;
+  endedAt?: number;
+  answer?: string;
+  error?: string;
+}
+
+export interface ExecutionJournal {
+  runs: ExecutionRun[];
+  queues: ExecutionQueue[];
+  handoffs: SavedHandoff[];
+}
+
 /** A team as GET /api/workflows returns it: with who is working and its latest message. */
 export interface TeamListing extends Team {
   state?: TeamState;
@@ -275,10 +330,10 @@ export interface Project {
 
 // ---------- chats ----------
 export type ChatItem =
-  | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number; teamMessageId?: string }
+  | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number; teamMessageId?: string; runId?: string }
   | { type: 'assistant'; text: string; ts?: number }
   | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number }
-  | { type: 'error'; text: string; ts?: number }
+  | { type: 'error'; text: string; ts?: number; runId?: string }
   /** reset: "Clear memory" (the agent starts fresh after it) */
   | { type: 'meta'; text: string; ts?: number; reset?: boolean }
   | CompactionItem;

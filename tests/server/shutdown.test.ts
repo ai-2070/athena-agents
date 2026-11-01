@@ -4,7 +4,8 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { chats, saveSettings } from '../../server/store.ts';
-import { activeRuns, startRun, stopAllRuns } from '../../server/engines/index.ts';
+import { activeRuns, queueMessage, queuedMessages, recoverExecution, startRun, stopAllRuns } from '../../server/engines/index.ts';
+import { readExecution } from '../../server/execution.ts';
 
 // a fake model that never answers: it holds every request open until the client goes away
 let server: http.Server;
@@ -24,7 +25,9 @@ afterAll(() => new Promise<void>((r) => server.close(() => r())));
 describe('stopAllRuns()', () => {
   it('stops every run, waits for them to end, and refuses new ones', async () => {
     const a = newAgent({ name: 'Busy', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
-    const run = startRun(a, chats.create(a.id, 'One'), 'go');
+    const chat = chats.create(a.id, 'One');
+    const run = startRun(a, chat, 'go');
+    queueMessage(a, chat, 'saved for later');
     const ended = run.promise.catch(() => 'stopped');
     for (const end = Date.now() + 5000; asked === 0 && Date.now() < end; ) await new Promise((r) => setTimeout(r, 20));
     expect(asked).toBeGreaterThan(0);
@@ -32,6 +35,11 @@ describe('stopAllRuns()', () => {
     expect(run.signal.aborted).toBe(true);
     expect(activeRuns()).toHaveLength(0);
     await ended;
+    expect(queuedMessages(chat.id).map((q) => q.text)).toEqual(['saved for later']);
+    expect(readExecution().runs[0]).toMatchObject({ status: 'interrupted' });
+    recoverExecution();
+    expect(queuedMessages(chat.id).map((q) => q.text)).toEqual(['saved for later']);
+    expect(readExecution().queues[0]?.paused).toBe(true);
     expect(() => startRun(a, chats.create(a.id, 'Two'), 'again')).toThrow(/stopping/);
   });
 });

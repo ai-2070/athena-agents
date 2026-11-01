@@ -1,6 +1,6 @@
 // Runs agents. One run = one user message answered by an agent (with any tool calls in between).
 // Engines stream events; this file turns them into chat history and live updates for the browser.
-import { agents as agentStore, chats, emit, log, getSettings, activeProject, withProject } from '../store.ts';
+import { agents as agentStore, chats, emit, log, getSettings, activeProject, withProject, listProjects } from '../store.ts';
 import { uid, HOME, settledWithin } from '../util.ts';
 import { cancelForRun } from '../approvals.ts';
 import { knowledgeContext } from '../knowledge.ts';
@@ -20,9 +20,10 @@ import * as compaction from '../compaction.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { engineCapabilities } from './capabilities.ts';
-import { readRun as readEveRun, sessionContext as eveSessionContext } from '../eve/state.ts';
+import { activeEveRuns, readRun as readEveRun, sessionContext as eveSessionContext } from '../eve/state.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import { clearWork, stopChatWork } from '../briefs.ts';
+import { admitExecution, interruptExecutions, readExecution, saveExecutionQueue, updateExecution } from '../execution.ts';
 import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent, TeamContextMessage } from '../../shared/types.ts';
 import type { LoopRequest } from '../../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../../shared/queue.ts';
@@ -93,6 +94,7 @@ export interface RunEntry {
   agent: Agent;
   /** stopped for a new message from you: its /queue messages and loop stay */
   steered?: boolean;
+  stopRequested?: boolean;
 }
 
 /** What a running agent is doing right now (liveActivity()). */
@@ -126,6 +128,9 @@ export interface StartRunOptions {
   attachments?: string[];
   parentRunId?: string | null;
   context?: TeamContextMessage[];
+  /** Reserved by a saved handoff or queue admission. */
+  reservedRunId?: string;
+  queueId?: string;
 }
 
 /** What a team adds while an agent works for it (tools, MCP servers, skills). */
@@ -145,6 +150,7 @@ export interface AskAgentOptions {
   extra?: AskAgentExtra | null;
   attachments?: string[];
   context?: TeamContextMessage[];
+  reservedRunId?: string;
 }
 
 const ENGINES = { 'claude-code': claude, openai, hermes, codex, pi, omp, openclaw } satisfies { [K in EngineId]: Engine<EngineStatus[K]> };
@@ -281,7 +287,7 @@ function pushItem<T extends ChatItem>(chat: Chat, item: T): T {
 // Start answering a message in a chat. Returns immediately with the run id.
 // The run belongs to the project it starts in (see withProject): opening another project meanwhile
 // doesn't move its chat, tool calls or files there.
-export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null, context }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
+export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null, context, reservedRunId, queueId }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
   if (closing) throw new Error('The dashboard is stopping.');
   const project = activeProject();
   const key = chatKey(project.id, chat.id);
@@ -290,14 +296,24 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   // agent.engine comes from a JSON file, so it may be something unknown.
   const engine: Engine | undefined = (ENGINES as Partial<Record<string, Engine>>)[agent.engine];
   if (!engine) throw new Error(`Unknown engine "${agent.engine}".`);
-  if (!from && depth === 0 && !parentRunId) userWorkHook?.(agent, chat, text || `Work on the attached files: ${attachmentNames(attachments)}`);
-  const runId = uid('r');
+  const runId = reservedRunId || uid('r');
   const controller = new AbortController();
   const started = Date.now();
   const inProject = <T>(fn: () => T): T => withProject(project, fn);
   const parent = parentRunId ? active.get(parentRunId) : null;
   const entry: RunEntry = { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, ownerChatId: parent?.ownerChatId || chat.id, ownerAgentId: parent?.ownerAgentId || agent.id, ancestors: [...(parent?.ancestors || []), ...(parentRunId ? [parentRunId] : [])], startedAt: started, agentName: agent.name, project, projectId: project.id, agent };
+  admitExecution({ id: runId, projectId: project.id, agentId: agent.id, chatId: chat.id, engine: agent.engine, parentRunId, ownerChatId: entry.ownerChatId, ownerAgentId: entry.ownerAgentId, depth, text, from, attachments, context, startedAt: started, status: 'running' }, queueId);
+  const queued = waiting.get(key);
+  if (queued) {
+    queued.paused = false;
+    if (queueId) {
+      queued.items = queued.items.filter((q) => q.id !== queueId);
+      queued.priority = queued.priority.filter((id) => id !== queueId);
+      if (!queued.items.length) waiting.delete(key);
+    }
+  }
   active.set(runId, entry);
+  if (!from && depth === 0 && !parentRunId) userWorkHook?.(agent, chat, text || `Work on the attached files: ${attachmentNames(attachments)}`);
   // Saving skips chats deleted while the run was going.
   const persist = () =>
     inProject(() => {
@@ -320,7 +336,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     if (agent.engine === 'openai') chat.llm.push({ role: 'user', content: m.text });
   }
   // the chat shows what was written (with the files as chips); the agent also gets where the files are
-  pushItem(chat, { type: 'user', text, from, ...(attachments.length ? { attachments } : {}) });
+  pushItem(chat, { type: 'user', text, from, runId, ...(attachments.length ? { attachments } : {}) });
   if (restoreApi) chat.llm = compaction.llmFromItems(chat.items);
   if (chat.title === 'New chat') chat.title = (text || attachmentNames(attachments)).replace(/\s+/g, ' ').slice(0, 60) || 'New chat';
   persist();
@@ -479,6 +495,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       send({ kind: 'done', text: result?.text || '', cost: result?.cost || 0, seconds: Math.round((Date.now() - started) / 1000) });
       log('run', `${agent.name} finished (${Math.round((Date.now() - started) / 1000)}s)`, { agentId: agent.id, chatId: chat.id });
       answer = result?.text || lastAssistantText(chat);
+      updateExecution(runId, { status: 'completed', answer, endedAt: Date.now() });
       return answer;
     } catch (e) {
       const stopped = controller.signal.aborted;
@@ -488,9 +505,11 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
         chat.sessionId = null;
         chat.reseed = true;
       }
-      const msg = stopped ? (entry.steered ? 'Stopped to take your new message.' : 'Stopped.') : (e as Error).message || String(e);
+      const interrupted = closing && !entry.stopRequested;
+      const msg = interrupted ? 'The dashboard closed before this work finished. Check what was done before continuing.' : stopped ? (entry.steered ? 'Stopped to take your new message.' : 'Stopped.') : (e as Error).message || String(e);
+      updateExecution(runId, { status: interrupted ? 'interrupted' : stopped ? 'stopped' : 'failed', error: msg, endedAt: Date.now() });
       for (const it of chat.items) if (it.type === 'tool' && it.status === 'running') Object.assign(it, { status: 'error', isError: true, result: stopped ? '(stopped)' : '(did not finish)' });
-      pushItem(chat, { type: 'error', text: msg });
+      pushItem(chat, { type: 'error', text: msg, runId });
       persist();
       send({ kind: 'error', text: msg });
       if (!stopped) log('error', `${agent.name}: ${msg}`, { agentId: agent.id, chatId: chat.id });
@@ -513,8 +532,11 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       } catch {
         /* a listener's problem is not the run's */
       }
+      if (!closing) updateExecution(runId, { settled: true });
       // done: your next /queue message goes now, then the loop's next one (a stopped run takes them with it: you said stop)
-      if (steered) {
+      if (closing) {
+        stopLoop(chat.id, null, project.id);
+      } else if (steered) {
         // the queue and the loop carry on after your new message (a loop turn it cut counts as done)
         loopRunEnded(project.id, chat.id, runId, false);
         // (it waits for this run to end and goes now; one that gave up waiting is first in the queue)
@@ -574,10 +596,13 @@ async function steerNow(agent: Agent, chat: Chat, text: string, attachments: str
   if (runs.some(([, r]) => r.depth > 0)) throw httpError(409, `${agent.name} is working for a team or another agent in this chat. Stop it there, or /queue your message for when it is done.`);
   if (!runs.length) return { runId: startRun(agent, chat, text, { attachments }).runId };
   steering.add(key);
+  // Save the new input before stopping its predecessor, including a crash during the wait.
+  const started = queueFirst(agent, chat, text, attachments);
   let ended: boolean;
   try {
     for (const [id, r] of runs) {
       r.steered = true;
+      updateExecution(id, { steered: true });
       stopRun(id);
     }
     ended = await settledWithin(
@@ -591,20 +616,13 @@ async function steerNow(agent: Agent, chat: Chat, text: string, attachments: str
   const now = liveChat(chat.id, projectId) || chats.get(agent.id, chat.id);
   if (!now || now._deleted || chat._deleted) throw httpError(404, 'This chat was deleted.');
   // still ending: this message goes first, the moment it has
-  if (!ended) return { runId: queueFirst(agent, chat, text, attachments) };
-  try {
-    // (the stopped run saved its part: start from the chat as it is now)
-    return { runId: startRun(agent, now, text, { attachments }).runId };
-  } catch (e) {
-    // (refused after all: what waited behind it goes on)
-    carryOn(projectId, chat.id);
-    throw e;
-  }
+  carryOn(projectId, chat.id);
+  return { runId: ended ? (await started) ?? Promise.resolve(null) : started };
 }
 
 // ---------- /queue: messages that wait for the chat to be free ----------
-// Kept in memory by project and chat (chatKey). Each goes as its own message, in order, when the run before it ends.
-const waiting = new Map<string, { agentId: string; project: Project; items: QueuedMessage[] }>();
+// Saved by project and chat. A restarted queue waits for a new message before carrying on.
+const waiting = new Map<string, { agentId: string; project: Project; items: QueuedMessage[]; priority: string[]; paused: boolean }>();
 // queued messages someone waits on: told the run each one started, or null if it never will
 const starts = new Map<string, (runId: string | null) => void>();
 const told = (id: string, runId: string | null) => {
@@ -615,7 +633,53 @@ const chatBusy = (projectId: string, chatId: string) => runsIn(projectId, chatId
 /** Something is going in this chat: a run, or a compaction. */
 export const isChatBusy = (chatId: string, projectId: string = here()): boolean => chatBusy(projectId, chatId);
 export const hasBackgroundWork = (chatId: string, projectId: string = here()): boolean => [...active.values()].some((r) => r.projectId === projectId && r.ownerChatId === chatId && r.chatId !== chatId);
-const emitQueue = (agentId: string, chatId: string, projectId: string) => emit('queue', { agentId, chatId, queued: queuedMessages(chatId, projectId) });
+const emitQueue = (agentId: string, chatId: string, projectId: string) => {
+  const w = waiting.get(chatKey(projectId, chatId));
+  saveExecutionQueue({ agentId, chatId, projectId, items: w?.items || [], priority: w?.priority || [], paused: w?.paused || false });
+  emit('queue', { agentId, chatId, queued: queuedMessages(chatId, projectId) });
+};
+
+/** Restore ownership before the Brain, schedules or incoming requests can start work. */
+export function recoverExecution(): void {
+  const projects = listProjects();
+  const resumable = new Set(activeEveRuns().map((r) => r.id));
+  for (const run of interruptExecutions(resumable)) {
+    const project = projects.find((p) => p.id === run.projectId);
+    if (project) withProject(project, () => {
+      stopChatWork(run.ownerChatId, run.projectId);
+      const chat = chats.get(run.agentId, run.chatId);
+      if (!chat) return;
+      if (!chat.items.some((item) => item.type === 'user' && item.runId === run.id)) {
+        const imported = new Set(chat.items.flatMap((item) => item.type === 'user' && item.teamMessageId ? [item.teamMessageId] : []));
+        for (const m of run.context || []) if (!imported.has(m.id)) {
+          chat.items.push({ type: 'user', text: m.text, from: m.from, ts: m.ts, teamMessageId: m.id });
+          imported.add(m.id);
+        }
+        chat.items.push({ type: 'user', text: run.text, from: run.from, attachments: run.attachments, ts: run.startedAt, runId: run.id });
+      }
+      if (!chat.items.some((item) => item.type === 'error' && item.runId === run.id)) chat.items.push({ type: 'error', runId: run.id, text: run.error || 'This work finished before the dashboard restarted. Follow-up work is paused. Send a message to continue.', ts: run.endedAt || Date.now() });
+      if (run.status !== 'completed') {
+        for (const item of chat.items) if (item.type === 'tool' && item.status === 'running') Object.assign(item, { status: 'error', isError: true, result: '(interrupted)' });
+        chat.sessionId = null;
+        chat.llm = [];
+        chat.reseed = true;
+      }
+      chats.save(chat);
+    });
+    updateExecution(run.id, { settled: true });
+  }
+  waiting.clear();
+  for (const queue of readExecution().queues) {
+    const project = projects.find((p) => p.id === queue.projectId);
+    const valid = project && withProject(project, () => !!agentStore.get(queue.agentId) && !!chats.get(queue.agentId, queue.chatId));
+    if (!project || !valid) {
+      saveExecutionQueue({ ...queue, items: [], paused: false });
+      continue;
+    }
+    if (queue.paused) stopChatWork(queue.chatId, project.id);
+    if (queue.items.length) waiting.set(chatKey(project.id, queue.chatId), { agentId: queue.agentId, project, items: queue.items, priority: queue.priority, paused: queue.paused });
+  }
+}
 
 export function queuedMessages(chatId: string, projectId: string = here()): QueuedMessage[] {
   return [...(waiting.get(chatKey(projectId, chatId))?.items || [])];
@@ -626,7 +690,7 @@ export function queueMessage(agent: Agent, chat: Chat, text: string, attachments
   const project = activeProject();
   const key = chatKey(project.id, chat.id);
   if (!chatBusy(project.id, chat.id) && !waiting.has(key)) return { runId: startRun(agent, chat, text, { attachments, from: from || null }).runId };
-  const w = waiting.get(key) || { agentId: agent.id, project, items: [] };
+  const w = waiting.get(key) || { agentId: agent.id, project, items: [], priority: [], paused: false };
   const queued: QueuedMessage = { id: uid('q'), text, ...(attachments.length ? { attachments } : {}), ...(from ? { from } : {}), ts: Date.now() };
   w.items.push(queued);
   waiting.set(key, w);
@@ -641,10 +705,11 @@ export function queueMessage(agent: Agent, chat: Chat, text: string, attachments
 function queueFirst(agent: Agent, chat: Chat, text: string, attachments: string[]): Promise<string | null> {
   const project = activeProject();
   const key = chatKey(project.id, chat.id);
-  const w = waiting.get(key) || { agentId: agent.id, project, items: [] };
+  const w = waiting.get(key) || { agentId: agent.id, project, items: [], priority: [], paused: false };
   const q: QueuedMessage = { id: uid('q'), text, ...(attachments.length ? { attachments } : {}), ts: Date.now() };
-  const at = w.items.findIndex((x) => !starts.has(x.id));
+  const at = w.items.findIndex((x) => !w.priority.includes(x.id));
   w.items.splice(at === -1 ? w.items.length : at, 0, q);
+  w.priority.push(q.id);
   waiting.set(key, w);
   const started = new Promise<string | null>((resolve) => starts.set(q.id, resolve));
   emitQueue(agent.id, chat.id, project.id);
@@ -679,6 +744,7 @@ export function unqueue(chatId: string, id?: string, projectId: string = here())
   if (!w) return [];
   const taken = id ? w.items.filter((q) => q.id === id) : w.items;
   w.items = id ? w.items.filter((q) => q.id !== id) : [];
+  w.priority = w.priority.filter((id) => w.items.some((q) => q.id === id));
   if (!w.items.length) waiting.delete(key);
   for (const q of taken) told(q.id, null);
   if (taken.length) emitQueue(w.agentId, chatId, projectId);
@@ -694,21 +760,22 @@ function carryOn(projectId: string, chatId: string) {
 function sendQueued(projectId: string, chatId: string) {
   const key = chatKey(projectId, chatId);
   const w = waiting.get(key);
-  if (!w || chatBusy(projectId, chatId)) return;
-  const next = w.items.shift()!;
-  if (!w.items.length) waiting.delete(key);
+  if (!w || w.paused || !w.items.length || chatBusy(projectId, chatId)) return;
+  const next = w.items[0]!;
   // in the project it was typed in, like the run before it
   withProject(w.project, () => {
     const agent = agentStore.get(w.agentId);
     const chat = chats.get(w.agentId, chatId);
     if (!agent || !chat) {
       for (const q of [next, ...w.items]) told(q.id, null);
-      return void waiting.delete(key);
+      waiting.delete(key);
+      return;
     }
     try {
-      told(next.id, startRun(agent, chat, next.text, { attachments: next.attachments || [], from: next.from || null }).runId);
+      told(next.id, startRun(agent, chat, next.text, { attachments: next.attachments || [], from: next.from || null, queueId: next.id }).runId);
     } catch (e) {
       told(next.id, null);
+      w.paused = true;
       log('error', `${agent.name}: a queued message couldn't be sent: ${(e as Error).message}`, { agentId: agent.id, chatId });
     }
   });
@@ -849,7 +916,14 @@ function lastAssistantText(chat: Chat): string {
 // Stopping a run also stops the runs it started (ask_agent, even while nobody awaits them) and anything a workflow started.
 export function stopRun(runId: string): boolean {
   const r = active.get(runId);
-  if (r) r.abort();
+  if (r) {
+    if (!closing) {
+      r.stopRequested = true;
+      updateExecution(runId, { stopRequested: true });
+      if (!r.steered) unqueue(r.chatId, undefined, r.projectId);
+    }
+    r.abort();
+  }
   cancelForRun(runId);
   stopChildren(runId);
   return !!r;
@@ -871,6 +945,7 @@ export function stopChildren(parentRunId: string) {
 }
 
 export function stopChat(chatId: string, projectId: string = here()) {
+  unqueue(chatId, undefined, projectId);
   stopChatWork(chatId, projectId);
   for (const [id, run] of active) if (run.projectId === projectId && (run.chatId === chatId || run.ownerChatId === chatId)) stopRun(id);
 }
@@ -888,14 +963,14 @@ export function forgetChat(chatId: string, projectId: string = here()) {
 
 // Used by ask_agent and workflows: run to completion in a fresh chat, return the answer.
 // extra: tool groups / MCP servers added for this run only (a branch's access).
-export async function askAgent(agent: Agent, message: string, { depth = 1, from = null, title = null, chatId = null, parentRunId = null, signal = null, extra = null, attachments = [], context }: AskAgentOptions = {}): Promise<string> {
+export async function askAgent(agent: Agent, message: string, { depth = 1, from = null, title = null, chatId = null, parentRunId = null, signal = null, extra = null, attachments = [], context, reservedRunId }: AskAgentOptions = {}): Promise<string> {
   if (signal?.aborted) throw new RunStopped();
   let fresh = agentStore.get(agent.id) || agent;
   // extra: what a team adds while the agent works for it (tools, MCP servers, skills)
   // (the team's copy of a service, its account, replaces the agent's own copies of it)
   if (extra) fresh = { ...fresh, toolGroups: [...new Set([...(fresh.toolGroups || []), ...(extra.toolGroups || [])])], mcpServers: teamWorkServers(fresh.mcpServers || [], extra.mcpServers || []), _teamSkills: extra.skills || [] };
   const chat = (chatId && chats.get(fresh.id, chatId)) || chats.create(fresh.id, title || (from ? `Asked by ${from}` : 'Task'));
-  const { runId, promise, signal: runSignal } = startRun(fresh, chat, message, { depth, from, parentRunId, attachments, context });
+  const { runId, promise, signal: runSignal } = startRun(fresh, chat, message, { depth, from, parentRunId, attachments, context, reservedRunId });
   const onAbort = () => stopRun(runId);
   signal?.addEventListener('abort', onAbort);
   try {

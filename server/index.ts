@@ -1464,6 +1464,7 @@ ensureDir(dataPath('outputs'));
 fs.rmSync(dataPath('tmp', 'received'), { recursive: true, force: true }); // uploads cut off by a crash
 internalToken();
 store.migrateLayout();
+engines.recoverExecution();
 wfs.markInterruptedRuns();
 wfs.startScheduler();
 skills.ensureBuiltinSkills();
