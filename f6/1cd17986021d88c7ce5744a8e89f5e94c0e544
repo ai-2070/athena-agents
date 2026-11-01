@@ -1,0 +1,42 @@
+docs/guide.md
+  s_9416edeb647587::t_a7090084f46e60 7,39-54,219,283
+README.md
+  s_9416edeb647587::t_a7090084f46e60 134,143
+  s_9416edeb647587::t_8dc5afb3f6f30a 144
+web/models.tsx
+  s_9416edeb647587::t_511e6f56e97dac 14,226-227,784
+shared/modeldefaults.ts
+  s_9416edeb647587::t_511e6f56e97dac 8
+tests/web/groupD-pickers.test.ts
+  s_9416edeb647587::t_511e6f56e97dac 228-236
+tests/server/venice.test.ts
+  s_9416edeb647587::t_511e6f56e97dac 33
+docs/internal/plans/VENICE_API_PLAN.md
+  s_9416edeb647587::t_624884d7053822 3-18
+  s_9c8d911149168f::t_ffe978dd245982 20-23
+  s_9c8d911149168f::t_1140eb2cc2ac6f 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f61cd17986021d88c7ce5744a8e89f5e94c0e544",
+  "prompts": {},
+  "sessions": {
+    "s_9416edeb647587": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198cb-4b55-7643-890c-fb61b19964a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_9c8d911149168f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198e4-a961-7860-9c31-6d91b3d89cde",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
