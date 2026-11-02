@@ -837,6 +837,7 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
   const sch = wf.schedule || { type: 'none' };
   const saveSchedule = (patch: Partial<NonNullable<TeamView['schedule']>>) => {
     const schedule = { ...sch, ...patch } as NonNullable<TeamView['schedule']>;
+    if (schedule.type === 'daily' && schedule.times?.length && !schedule.times.some((time) => time.trim())) schedule.type = 'none';
     void api.saveTeam({ ...wf, schedule, enabled: schedule.type !== 'none' });
   };
   const cloneTeam = async (withAgents: boolean) => {

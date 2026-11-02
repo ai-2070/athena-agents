@@ -788,7 +788,7 @@ export function ChatView(p: ChatViewProps) {
               </p>
               <div className="mt-5 flex flex-col gap-2">
                 {suggestions(agent).map((t) => (
-                  <button key={t} className="flex w-full cursor-pointer items-center gap-3 rounded-[10px] border border-line bg-panel px-4 py-3 text-left text-[13px] text-dim shadow-[inset_0_1px_0_var(--glass-spec)] transition-colors hover:bg-panel-2 hover:text-ink" onClick={() => p.apiRef?.current?.setDraft(t)}>
+                  <button key={t} className="flex w-full cursor-pointer items-center gap-3 rounded-[10px] border border-line bg-panel px-4 py-3 text-left text-[13px] text-dim shadow-[inset_0_1px_0_var(--glass-spec)] transition-[transform,background-color,color] duration-150 active:scale-[0.98] motion-reduce:transition-none hover:bg-panel-2 hover:text-ink" onClick={() => p.apiRef?.current?.setDraft(t)}>
                     <span className="min-w-0 flex-1">{t}</span>
                     <Dom make={() => icon('chevron-right', 14)} deps={[]} />
                   </button>

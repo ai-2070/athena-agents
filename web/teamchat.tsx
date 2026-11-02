@@ -4,6 +4,7 @@
 // React; renderTeamChat() puts it into a plain-DOM place (the chat window's tab) and hands back
 // focus, mention and destroy. The message box stays uncontrolled: the paste chips, the / menu and
 // mention() change its text directly, as typing does.
+import { Chip } from './ui/marks.tsx';
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, onReconnect, confirmBox, toast } from './core.ts';
@@ -256,9 +257,11 @@ function textWithMentions(text: string, names: readonly string[], teams: readonl
         // (the match's offset is next to last: the pattern has one group without other teams, two with)
         child.textContent!.replace(re, (m: string, ...rest: unknown[]) => {
           const idx = rest[rest.length - 2] as number;
-          const tag = document.createElement('span');
+          const tag = document.createElement('button');
           tag.className = m.startsWith('#') ? MENTION_TEAM : MENTION;
           tag.textContent = m;
+          tag.type = 'button';
+          tag.addEventListener('click', () => tag.dispatchEvent(new CustomEvent('chat-mention', { bubbles: true, detail: m })));
           frag.append(child.textContent!.slice(last, idx), tag);
           last = idx + m.length;
           return m;
@@ -335,7 +338,7 @@ function Work({ m }: { m: TeamMessage }) {
   const turn = m.turn!;
   return (
     <CollapseRoot className="tc-work mt-3" open={open} onOpenChange={(value) => { setOpen(value); if (value) setOpened(true); }}>
-      <CollapseTrigger render={<Button variant="plain" size="tiny" className="-ml-2" />}>
+      <CollapseTrigger className="inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-[12px] text-dim hover:text-ink hover:underline">
         <Icon name="wrench" size={12} />
         Show the work
       </CollapseTrigger>
@@ -434,6 +437,7 @@ interface BoxRef {
 function mentionIn(input: HTMLTextAreaElement, name: string): void {
   const tag = `@${name} `;
   if (!input.value.includes(tag)) input.value = `${tag}${input.value}`;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
   input.focus();
   input.setSelectionRange(input.value.length, input.value.length);
 }
@@ -443,6 +447,9 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   const [C, bump, store] = useTeamData(teamId);
   const [replyTo, setReplyTo] = useState<TeamMessage | null>(null);
   const [suggest, setSuggest] = useState<{ start: number; opts: MentionOption[]; index: number } | null>(null);
+  const [selectedMentions, setSelectedMentions] = useState<string[]>([]);
+  const selectedRef = useRef<string[]>([]);
+  const selectMentions = (tags: string[]) => { selectedRef.current = tags; setSelectedMentions(tags); };
   const [uploading, setUploading] = useState(false);
   const [slash, setSlash] = useState<SlashMenu | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -466,7 +473,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   const [filled, setFilled] = useState(false);
   const refill = useRef(() => {});
   const tray = useMemo(() => attachTray({ onChange: () => refill.current(), iconWeight: 'regular' }), []);
-  refill.current = () => setFilled(!!input.current?.value.trim() || tray.count() > 0);
+  refill.current = () => setFilled(!!input.current?.value.trim() || selectedRef.current.length > 0 || tray.count() > 0);
   // long pasted text, folded into a chip until it is sent
   const pastes = useMemo(() => pasteBox(), []);
   /** Put text back in the box (a failed send, what Stop brought back). */
@@ -562,6 +569,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     }
   };
   const emptyBox = () => {
+    selectMentions([]);
     input.current!.value = '';
     slashRef.current?.update();
     pastes.sync();
@@ -603,7 +611,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     if (now && ['stop', 'resume', 'resend', 'goal', 'clear'].includes(now.name)) return command(now.name, now.rest, pastes.text().trim());
     // /loop off ends the loop: the files staged for the next message stay (they would go nowhere)
     if (now?.name === 'loop' && LOOP_OFF.test(now.rest)) return loopOff(now.rest, pastes.text().trim());
-    if ((!box.value.trim() && !tray.count()) || sending.current) return;
+    if ((!box.value.trim() && !selectedRef.current.length && !tray.count()) || sending.current) return;
     sending.current = true;
     try {
       if (tray.busy()) setUploading(true);
@@ -612,13 +620,14 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       if (!attachments) return;
       // what is in the box now (more may have been typed while the files uploaded)
       const typed = pastes.text().trim();
+      const recipients = selectedRef.current.join(' ');
       // "/loop [15m] [5x] …": posted again and again (with the files), or /loop off
       const cmd = parseCommand(typed, 'team');
       if (cmd?.name === 'loop') {
         if (LOOP_OFF.test(cmd.rest)) return loopOff(cmd.rest, typed);
         emptyBox();
         const taken = tray.take();
-        const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`/teams/${teamId}/loop`, { text: cmd.rest, attachments }));
+        const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`/teams/${teamId}/loop`, { text: [recipients, cmd.rest].filter(Boolean).join(' '), attachments }));
         if (!r) return void (restore(typed), tray.put(taken));
         store.current.loop = r.loop;
         return bump();
@@ -628,7 +637,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       // changes its course: whoever is working stops and takes it up now.
       const queued = queuedText(typed);
       const steer = store.current.working.length > 0;
-      const text = queued ?? typed;
+      const text = [recipients, queued ?? typed].filter(Boolean).join(' ');
       if (!text && !attachments.length) return void (typed && toast('Write the message after /queue'));
       emptyBox();
       const taken = tray.take();
@@ -636,7 +645,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       type Sent = { message?: TeamMessage; queued?: QueuedMessage };
       const r = await attempt((): Promise<Sent> => (queued != null ? POST<Sent>(`/teams/${teamId}/queue`, body) : POST<TeamMessage>(`/teams/${teamId}/${steer ? 'steer' : 'messages'}`, body).then((message) => ({ message }))));
       if (!r) {
-        restore(typed);
+        restore(text);
         tray.put(taken);
         return;
       }
@@ -663,8 +672,11 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     const m = /(^|\s)([@#])([\w .-]{0,30})$/.exec(ta.value.slice(0, pos));
     if (!m) return;
     const start = pos - m[3].length - 1;
-    ta.value = `${ta.value.slice(0, start)}${o.t ? '#' : '@'}${o.label} ${ta.value.slice(pos)}`;
-    const caret = start + o.label.length + 2;
+    const tag = `${o.t ? '#' : '@'}${o.label}`;
+    selectMentions([...new Set([...selectedRef.current, tag])]);
+    ta.value = `${ta.value.slice(0, start)}${ta.value.slice(pos)}`;
+    const caret = start;
+    refill.current();
     ta.setSelectionRange(caret, caret);
     setSuggest(null);
     ta.focus();
@@ -676,6 +688,14 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   useEffect(() => {
     const ta = input.current!;
     box.input = ta;
+    const addMention = (event: Event) => {
+      const tag = (event as CustomEvent<string>).detail;
+      selectMentions([...new Set([...selectedRef.current, tag])]);
+      refill.current();
+      ta.focus();
+    };
+    const host = root.current!;
+    host.addEventListener('chat-mention', addMention);
     // what was asked before the box was here (opened from the Station with a member's @)
     const { focus, mentions } = box.pending;
     box.pending = { focus: false, mentions: [] };
@@ -696,6 +716,14 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       return opts.length ? { start: pos - m[3].length - 1, opts, index: Math.min(index, opts.length - 1) } : null;
     };
     const onInput = () => {
+      const tags = [...membersRef.current.map((a) => a.name), 'everyone', 'Brain'].sort((a, b) => b.length - a.length);
+      for (const name of tags) {
+        const tag = `@${name}`;
+        if (ta.value.startsWith(tag + ' ')) {
+          selectMentions([...new Set([...selectedRef.current, tag])]);
+          ta.value = ta.value.slice(tag.length + 1);
+        }
+      }
       setSuggest(find());
       menu.update();
       refill.current();
@@ -728,11 +756,13 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       e.stopPropagation();
     };
     ta.addEventListener('input', onInput);
+    if (mentions.length) onInput();
     ta.addEventListener('keydown', onKey);
     return () => {
       ta.removeEventListener('input', onInput);
       ta.removeEventListener('keydown', onKey);
       offPastes();
+      host.removeEventListener('chat-mention', addMention);
       if (box.input === ta) box.input = null;
     };
   }, [pastes, box, store]);
@@ -842,6 +872,9 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       <DomNode className="dom-contents" make={() => tray.el} deps={[tray]} />
       <DomNode className="dom-contents" make={() => pastes.el} deps={[pastes]} />
       <div className="dock-composer relative">
+        {selectedMentions.length ? <div className="flex flex-wrap gap-1.5 px-3 pt-3">
+          {selectedMentions.map((tag) => <Chip key={tag} on aria-label={`Remove ${tag}`} onClick={() => { selectMentions(selectedRef.current.filter((t) => t !== tag)); refill.current(); input.current?.focus(); }}>{tag}<Icon name="x" size={12} /></Chip>)}
+        </div> : null}
         <div className="flex-1 min-w-0 relative">
           <textarea className="dock-input block field-sizing-content min-h-[56px] max-h-[max(160px,20vh)] w-full resize-none text-[13.5px]" ref={input} rows={2} aria-label="Message the team" placeholder={busy.length ? 'The team is working… Write to change its course now, or /queue a message for when it is done' : PLACEHOLDER} />
           <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">
@@ -860,7 +893,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
                 ) : (
                   <Icon name={o.label === 'Brain' ? 'brain' : 'users'} size={14} />
                 )}
-                {`${o.t ? '#' : '@'}${o.label}`}
+                <span className="min-w-0 max-w-[45%] shrink-0 truncate">{`${o.t ? '#' : '@'}${o.label}`}</span>
                 {o.label === 'Brain' && !o.t ? <span className="hint">ask the Brain</span> : null}
                 {o.a?.specialty ? <span className="hint">{o.a.specialty}</span> : o.t ? <span className="hint">{o.t.description || 'ask this team'}</span> : null}
               </button>

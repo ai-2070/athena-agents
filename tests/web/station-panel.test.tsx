@@ -158,6 +158,17 @@ describe('the Station panel', () => {
     expect(saved.at(-1)!.enabled).toBe(true);
   });
 
+  it('turns the routine off when its last time is cleared', async () => {
+    teams[0] = team({ schedule: { type: 'daily', times: ['09:00'] }, enabled: true });
+    await open({ type: 'branch', id: 't1' });
+    await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
+    const time = el.querySelector<HTMLInputElement>('input[aria-label="Time"]')!;
+    time.value = '';
+    await act(async () => void time.dispatchEvent(new Event('change')));
+    expect(saved.at(-1)!.schedule?.type).toBe('none');
+    expect(saved.at(-1)!.enabled).toBe(false);
+  });
+
   it('an agent: its teams, adding it to another, and opening a team', async () => {
     await open({ type: 'agent', id: 'a1' });
     expect(el.querySelector('.st-panel-title')!.textContent).toBe('Scout');
