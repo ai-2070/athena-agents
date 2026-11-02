@@ -1,0 +1,66 @@
+server/gateways/files.ts
+  s_3f5afab86a1bb3::t_b3aade4df74780 78
+  s_3f5afab86a1bb3::t_7a53ee5c3be1e9 1-9,11-77,79-101,103-107,111-117,119-128,135-136,138-148
+  s_3f5afab86a1bb3::t_49ae96d6c664b4 10,102,118,129-134
+  s_3f5afab86a1bb3::t_03ea26eeed67c4 108-110,137
+server/gateways/worker.ts
+  s_3f5afab86a1bb3::t_5efb42f2902ecd 153
+  s_3f5afab86a1bb3::t_4eddccbd168e76 10-11,17,32,41-42,93,101-105,154,161-167
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_a64022593886e6 28-33
+tests/server/gateway-worker.test.ts
+  s_3f5afab86a1bb3::t_0d379ff510a087 23-44
+  s_3f5afab86a1bb3::t_c4c6e12e72f72b 2,45-65
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_849530167ba7c6 33,42-43,47-50,53-61
+  s_3f5afab86a1bb3::t_9bc25f0a106c57 51-52,62
+server/index.ts
+  s_3f5afab86a1bb3::t_a7a03a274739e0 990-993
+tests/server/gateway-files.test.ts
+  s_3f5afab86a1bb3::t_02bd94e249c70e 157
+  s_3f5afab86a1bb3::t_869de22d06a1a2 152-156,158-167
+  s_3f5afab86a1bb3::t_55d0056b5b03fc 1-151,168
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_b1dd225c150dc2 4,24,36-42,96-125,127-145,147-150,154-156,166-184,263-267
+  s_3f5afab86a1bb3::t_458f094267d2bb 157-165
+  s_3f5afab86a1bb3::t_466c49f5f58ba2 46,126,146,151-153
+  s_3f5afab86a1bb3::t_266c998911e745 73-74,76-80,82
+tests/server/uploads.test.ts
+  s_3f5afab86a1bb3::t_9e5a3098b914ee 8,35-57
+server/gateways/telegram.ts
+  s_3f5afab86a1bb3::t_a5599abcbb106f 7,101,107,119
+  s_3f5afab86a1bb3::t_24a3e4b1b8249c 74
+  s_3f5afab86a1bb3::t_2ee8aa56d95f0c 95,97-100,102-106,108-118,120-121,123,125-126
+  s_3f5afab86a1bb3::t_b0fdfe242960aa 96,122,124
+server/uploads.ts
+  s_3f5afab86a1bb3::t_8f173bb7d4b55b 104-112,129,134-135,147-153,155-160
+  s_3f5afab86a1bb3::t_fca714e4f6295d 52-60,116,154
+  s_3f5afab86a1bb3::t_a2e774cdb0035d 161
+shared/types.ts
+  s_3f5afab86a1bb3::t_550c31164b0579 66,90-99
+  s_3f5afab86a1bb3::t_365c5c0f37fb27 100
+tests/server/api.test.ts
+  s_3f5afab86a1bb3::t_46fb7539e28fb2 256
+tests/server/gateway-telegram.test.ts
+  s_3f5afab86a1bb3::t_9d9dc067b6d166 25,44-48,64,68-83
+README.md
+  s_3f5afab86a1bb3::t_f5947ea19e9211 224
+docs/guide.md
+  s_3f5afab86a1bb3::t_6fab0173e30a84 373
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "57baada4478e0b4d72e6868a0b33d78ee49b1327",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
