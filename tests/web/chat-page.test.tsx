@@ -53,6 +53,22 @@ const open = async (params: string[]) => {
 };
 
 describe('the agent chat page', () => {
+  it("doesn't list empty chats, and New chat goes to one instead of making another", async () => {
+    chats.push({ id: 'c4', title: 'New chat', updatedAt: Date.now(), count: 0 });
+    try {
+      await open(['a1', 'c1']);
+      await settle(80);
+      const nav = el.querySelector('nav[aria-label="Chats"]')!;
+      expect([...nav.querySelectorAll('a .t')].map((t) => t.textContent)).not.toContain('New chat');
+      const button = [...el.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'New chat')!;
+      await act(async () => button.click());
+      expect(location.hash).toBe('#/agents/a1/c4');
+      expect(requests.some((r) => r.method === 'POST' && r.url === '/api/agents/a1/chats')).toBe(false);
+    } finally {
+      chats.pop();
+    }
+  });
+
   it('says so when the agent no longer exists', async () => {
     await open(['gone']);
     expect(el.textContent).toBe('That agent no longer exists. Back to agents');

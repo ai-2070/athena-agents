@@ -110,7 +110,12 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
     [agent.id, loadMemory],
   );
 
+  // a new chat only when there is something to start fresh from: an empty one is used again
   const newChat = async () => {
+    const isEmpty = (id: string) => chats.find((c) => c.id === id)?.count === 0;
+    if (isEmpty(chat.id)) return api.current?.focus();
+    const empty = chats.find((c) => c.count === 0);
+    if (empty) return navigate(`#/agents/${agent.id}/${empty.id}`);
     const c = await attempt(() => POST<Chat>(`/agents/${agent.id}/chats`));
     if (c) navigate(`#/agents/${agent.id}/${c.id}`);
   };
@@ -135,7 +140,9 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
   // a search box once the list is long; the chats grouped by the day they were last used
   const [find, setFind] = useState('');
   const q = find.trim().toLowerCase();
-  const shown = q ? chats.filter((c) => (c.title || 'Chat').toLowerCase().includes(q)) : chats;
+  // empty chats aren't listed (the open one is, so you can see where you are)
+  const listed = chats.filter((c) => c.count > 0 || c.id === chat.id);
+  const shown = q ? listed.filter((c) => (c.title || 'Chat').toLowerCase().includes(q)) : listed;
   const groups: { day: string; list: ChatSummary[] }[] = [];
   for (const c of shown) {
     const day = dayOf(c.updatedAt);
@@ -192,9 +199,9 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
         <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2.5 pt-3 pb-4 max-md:max-h-56 max-md:flex-none" aria-label="Chats">
           <div className="flex items-baseline justify-between px-2 pb-2 text-[12px] font-medium text-dim">
             <span>Chats</span>
-            <span className="text-faint tabular-nums">{chats.length}</span>
+            <span className="text-faint tabular-nums">{listed.length}</span>
           </div>
-          {chats.length > 8 ? (
+          {listed.length > 8 ? (
             <label className="relative mx-1 mb-2 block">
               <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-faint"><Icon name="search" size={13} /></span>
               <input className="h-8! py-0! pl-8! text-[12.5px]!" aria-label="Find a chat" placeholder="Find a chat" value={find} onChange={(e) => setFind(e.currentTarget.value)} />
