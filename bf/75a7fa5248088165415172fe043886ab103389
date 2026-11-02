@@ -1,0 +1,28 @@
+tests/web/routines-page.test.tsx
+  s_8e3c27e6ce0122::t_dc49f6e53299f0 34,105-111
+  s_8e3c27e6ce0122::t_729155f75ef922 112-113
+web/views/stationpanel.tsx
+  s_8e3c27e6ce0122::t_6f9c361a27a4fc 7,33-34,904-905,907-914,917-920,975-1010
+tests/web/station-panel.test.tsx
+  s_8e3c27e6ce0122::t_c78d930d1186da 74-79,158,171,174-181,184-185,188-190,192-195
+docs/guide.md
+  s_8e3c27e6ce0122::t_b76cb23acb803c 192
+web/views/routines.tsx
+  s_8e3c27e6ce0122::t_fdb977e910836b 201-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bf75a7fa5248088165415172fe043886ab103389",
+  "prompts": {},
+  "sessions": {
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
