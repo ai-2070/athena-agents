@@ -1,0 +1,72 @@
+shared/types.ts
+  s_3c304e20f190e2::t_304a19c842e360 858-865,878
+tests/server/eve-context-integration.test.ts
+  s_3c304e20f190e2::t_db837b02a77457 12,65
+  s_3c304e20f190e2::t_79a94ee817bf5e 40,42-44
+  s_3c304e20f190e2::t_8b252f7f4feb95 9,63,73-76
+  s_3c304e20f190e2::t_f122f72c003493 1-8,10-11,13-39,41,45-62,64,66-72,77-95
+docs/guide.md
+  s_3c304e20f190e2::t_de6ee356764909 94-95
+runtime/eve/agent/lib/tool-output.ts
+  s_3c304e20f190e2::t_304a19c842e360 1-14
+AGENTS.md
+  s_3c304e20f190e2::t_f260df2eeca0a2 39-40
+runtime/eve/agent/tools/athena.ts
+  s_3c304e20f190e2::t_304a19c842e360 1,4,18
+docs/internal/plans/EVE_API_ENGINE_2026-11-01.md
+  s_3c304e20f190e2::t_388c0f4e9546d8 33-35
+  s_3c304e20f190e2::t_c61c562db47e27 3,7-32,36-41,328
+server/engines/openclaw.ts
+  s_3c304e20f190e2::t_ece7202889d07d 150
+web/chat/ChatView.tsx
+  s_3c304e20f190e2::t_370afcbb4dfcea 570
+runtime/eve/agent/lib/model.ts
+  s_3c304e20f190e2::t_304a19c842e360 47-75,78-79
+tests/server/eve-operations.test.ts
+  s_3c304e20f190e2::t_74478e1d7aae9b 21,30
+tests/server/context.test.ts
+  s_3c304e20f190e2::t_8561f225775faa 1-30
+web/chat/parts.tsx
+  s_3c304e20f190e2::t_ece7202889d07d 210,234-235
+web/compactmark.ts
+  s_3c304e20f190e2::t_ece7202889d07d 4
+tests/server/teams.test.ts
+  s_3c304e20f190e2::t_826f572bad3986 138-143
+server/eve/admission.ts
+  s_3c304e20f190e2::t_842e1f75021abb 15,30
+  s_3c304e20f190e2::t_5ac397ee0aed01 25-29,31-33,130-137
+  s_3c304e20f190e2::t_8561f225775faa 139
+tests/server/eve-admission.test.ts
+  s_3c304e20f190e2::t_8561f225775faa 12,43-57
+server/eve/operations.ts
+  s_3c304e20f190e2::t_304a19c842e360 6,8,11,46,62
+tests/server/eve-model.test.ts
+  s_3c304e20f190e2::t_8561f225775faa 3,42-59
+  s_3c304e20f190e2::t_842e1f75021abb 4-5,36-41
+  s_3c304e20f190e2::t_de6ee356764909 21-35
+server/engines/index.ts
+  s_3c304e20f190e2::t_ece7202889d07d 690
+server/eve/media.ts
+  s_3c304e20f190e2::t_304a19c842e360 1,3-4,31-38
+  s_3c304e20f190e2::t_842e1f75021abb 2,5-30
+server/library.ts
+  s_3c304e20f190e2::t_fd2799060e3c6d 130
+docs/desktop.md
+  s_3c304e20f190e2::t_f44f0d644e3e2b 60,62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ba003117c1981e4750a7286111abfaa6eb7da731",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
