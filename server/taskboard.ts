@@ -182,6 +182,35 @@ export function changeBoardTask(projectId: string, id: string, input: BoardInput
   });
 }
 
+/**
+ * Spaces a column's cards out again: new ranks for cards of one project or several, one save per project. Only the
+ * rank changes (not the version: nothing about the task did), and a card that left the column meanwhile keeps its own.
+ */
+export function rerankBoardTasks(items: unknown): void {
+  if (!Array.isArray(items) || items.length > MAX_TASKS) return fail('ranks must be a list of at most 10,000.');
+  const byProject = new Map<string, Map<string, { status: BoardStatus; rank: number }>>();
+  for (const v of items) {
+    if (!object(v) || typeof v.projectId !== 'string' || typeof v.id !== 'string') return fail('Each rank needs a projectId and an id.');
+    const ranks = byProject.get(v.projectId) || new Map<string, { status: BoardStatus; rank: number }>();
+    ranks.set(v.id, { status: status(v.status), rank: rank(v.rank) });
+    byProject.set(v.projectId, ranks);
+  }
+  // (every project is checked before any is written)
+  const projects = [...byProject.keys()].map(projectOf);
+  for (const p of projects) {
+    withProject(p, () => {
+      const ranks = byProject.get(p.id)!;
+      const f = read();
+      const ids: string[] = [];
+      for (const t of f.tasks) {
+        const r = ranks.get(t.id);
+        if (r && r.status === t.status && r.rank !== t.rank) (t.rank = r.rank), ids.push(t.id);
+      }
+      if (ids.length) write(f, ids);
+    });
+  }
+}
+
 /** Adds a comment (Markdown) to a task: from you, the Brain ('brain') or an agent ('agent:<id>'). */
 export function addBoardComment(projectId: string, taskId: string, text: unknown, by = 'you'): BoardTask {
   const p = projectOf(projectId);

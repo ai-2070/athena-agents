@@ -187,6 +187,34 @@ describe('the Tasks board', () => {
     expect(requests.find((r) => r.method === 'POST')).toMatchObject({ url: '/api/task-board/p1', body: { title: 'Taste the new cake', description: 'Before Friday.', status: 'in_review', priority: 'normal', assignee: '' } });
   });
 
+  it('moves a card between two with the same rank in "All projects", spacing the column out again', async () => {
+    localStorage.setItem('dash-task-board', 'all');
+    // (every project's first task has rank 0)
+    board = [
+      card({ id: 'x', title: 'Newest', rank: 0, createdAt: now + 2 }),
+      card({ id: 'y', title: 'Middle', projectId: 'p2', projectName: 'Podcast', rank: 0, createdAt: now + 1 }),
+      card({ id: 'z', title: 'Oldest', projectId: 'p2', projectName: 'Podcast', rank: 0 }),
+    ];
+    await open();
+    expect(ids('To do')).toEqual(['x', 'y', 'z']);
+    await act(async () => el.querySelector<HTMLElement>('[data-task-id="p1/x"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true })));
+    await settle();
+    expect(ids('To do')).toEqual(['y', 'x', 'z']);
+    const puts = requests.filter((r) => r.method === 'PUT');
+    expect(puts[0]).toMatchObject({ url: '/api/task-board-ranks', body: { ranks: [{ projectId: 'p2', id: 'z', status: 'todo', rank: 2048 }] } });
+    expect(puts[1]).toMatchObject({ url: '/api/task-board/p1/x', body: { status: 'todo', rank: 1024 } });
+  });
+
+  it('places a card between two, spacing the column out when there is no room', () => {
+    const [a, b, c] = [card({ id: 'a', rank: 0 }), card({ id: 'b', rank: 0 }), card({ id: 'c', rank: 5 })];
+    expect(tasks.place([a, c], a, c)).toEqual({ rank: 2.5, respaced: [] });
+    expect(tasks.place([a, b, c], a, b)).toEqual({ rank: 1024, respaced: [{ task: b, rank: 2048 }, { task: c, rank: 3072 }] });
+    // ranks too close to split
+    const [d, e] = [card({ id: 'd', rank: 1 }), card({ id: 'e', rank: 1 + Number.EPSILON })];
+    expect(tasks.place([d, e], d, e)).toEqual({ rank: 1024, respaced: [{ task: d, rank: 0 }, { task: e, rank: 2048 }] });
+    expect(tasks.place([a, c], undefined, a).rank).toBe(-1024);
+  });
+
   it('works out a place between two cards', () => {
     expect(tasks.rankBetween(undefined, undefined)).toBe(0);
     expect(tasks.rankBetween(1, 2)).toBe(1.5);

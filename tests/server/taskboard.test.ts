@@ -7,7 +7,7 @@ import { createProject } from '../../server/projects.ts';
 import { savedTasks } from '../../server/tasks.ts';
 import { cloneProject } from '../../server/backup.ts';
 import { applyActions } from '../../server/overseer.ts';
-import { addBoardComment, addBoardTask, boardLines, boardPeople, boardTask, changeBoardComment, changeBoardTask, findBoardTask, removeBoardTask, restoredBoard, taskBoard } from '../../server/taskboard.ts';
+import { addBoardComment, addBoardTask, boardLines, boardPeople, boardTask, changeBoardComment, changeBoardTask, findBoardTask, removeBoardTask, rerankBoardTasks, restoredBoard, taskBoard } from '../../server/taskboard.ts';
 
 describe('the Tasks board', () => {
   it('numbers tasks in each project and shows every project\'s, or one project\'s, with names', async () => {
@@ -58,6 +58,28 @@ describe('the Tasks board', () => {
     expect(taskBoard(open.id).tasks.some((x) => x.id === t.id)).toBe(false);
     removeBoardTask(p.id, t.id);
     expect(taskBoard(p.id).tasks.map((x) => x.title)).toEqual(['Pay the printer']);
+  });
+
+  it('spaces cards out again across projects, changing only their ranks, and leaves a card that left the column', async () => {
+    const a = await createProject({ name: 'Board ranks A' });
+    const b = await createProject({ name: 'Board ranks B' });
+    const x = addBoardTask(a.id, { title: 'X' });
+    const y = addBoardTask(b.id, { title: 'Y' });
+    const z = addBoardTask(b.id, { title: 'Z', status: 'in_progress' });
+    rerankBoardTasks([
+      { projectId: a.id, id: x.id, status: 'todo', rank: 2048 },
+      { projectId: b.id, id: y.id, status: 'todo', rank: 1024 },
+      // (moved to In progress meanwhile: keeps its place there)
+      { projectId: b.id, id: z.id, status: 'todo', rank: 4096 },
+    ]);
+    expect(boardTask(a.id, x.id)).toMatchObject({ rank: 2048, updatedAt: x.updatedAt });
+    expect(boardTask(b.id, y.id).rank).toBe(1024);
+    expect(boardTask(b.id, z.id).rank).toBe(z.rank);
+    expect(() => rerankBoardTasks([{ projectId: a.id, id: x.id, status: 'todo', rank: 1 }, { projectId: 'gone', id: 'q', status: 'todo', rank: 0 }])).toThrow('That project is unavailable.');
+    // nothing was written when one project was unavailable
+    expect(boardTask(a.id, x.id).rank).toBe(2048);
+    expect(() => rerankBoardTasks({})).toThrow('ranks must be a list');
+    expect(() => rerankBoardTasks([{ projectId: a.id, id: x.id, status: 'todo', rank: 'top' }])).toThrow('rank must be a number.');
   });
 
   it('goes with a project when it is cloned (a backup), and edits stay apart', async () => {

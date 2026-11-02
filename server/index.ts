@@ -521,6 +521,7 @@ get('/api/task-board-people/:projectId', async ({ projectId }) => taskBoard.boar
 post<taskBoard.BoardInput>('/api/task-board/:projectId', async ({ projectId }, body) => ({ task: taskBoard.addBoardTask(projectId, body || {}) }));
 get('/api/task-board/:projectId/:id', async ({ projectId, id }) => ({ task: taskBoard.boardTask(projectId, id) }));
 put<taskBoard.BoardInput & { expectedUpdatedAt?: unknown }>('/api/task-board/:projectId/:id', async ({ projectId, id }, body) => ({ task: taskBoard.changeBoardTask(projectId, id, body || {}) }));
+put<{ ranks?: unknown }>('/api/task-board-ranks', async (_p, body) => (taskBoard.rerankBoardTasks(body?.ranks), { ok: true }));
 del('/api/task-board/:projectId/:id', async ({ projectId, id }) => (taskBoard.removeBoardTask(projectId, id), { ok: true }));
 post<{ text?: unknown }>('/api/task-board/:projectId/:id/comments', async ({ projectId, id }, body) => ({ task: taskBoard.addBoardComment(projectId, id, body?.text) }));
 put<{ text?: unknown }>('/api/task-board/:projectId/:id/comments/:cid', async ({ projectId, id, cid }, body) => ({ task: taskBoard.changeBoardComment(projectId, id, cid, body?.text) }));

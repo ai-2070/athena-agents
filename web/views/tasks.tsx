@@ -33,6 +33,28 @@ export function rankBetween(above: number | undefined, below: number | undefined
 }
 const byRank = (a: BoardTask, b: BoardTask) => a.rank - b.rank || b.createdAt - a.createdAt || a.id.localeCompare(b.id);
 const same = (a: BoardTask, b: BoardTask) => a.id === b.id && a.projectId === b.projectId;
+
+export interface Placement {
+  rank: number;
+  /** other cards of the column that move to make room */
+  respaced: { task: BoardTask; rank: number }[];
+}
+/**
+ * Where a card goes between two others (column: its cards in order, without the card). When there is no room between
+ * the two (the same rank, as every project's first card has in "All projects", or ranks too close to split), the
+ * column is spaced out again.
+ */
+export function place(column: BoardTask[], above: BoardTask | undefined, below: BoardTask | undefined): Placement {
+  const rank = rankBetween(above?.rank, below?.rank);
+  if ((!above || rank > above.rank) && (!below || rank < below.rank)) return { rank, respaced: [] };
+  const at = above ? column.findIndex((t) => same(t, above)) + 1 : 0;
+  const respaced: Placement['respaced'] = [];
+  column.forEach((t, i) => {
+    const r = (i < at ? i : i + 1) * 1024;
+    if (r !== t.rank) respaced.push({ task: t, rank: r });
+  });
+  return { rank: at * 1024, respaced };
+}
 const path = (t: Pick<BoardTask, 'projectId' | 'id'>) => `/task-board/${encodeURIComponent(t.projectId)}/${encodeURIComponent(t.id)}`;
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const cardKey = (t: BoardTask) => `${t.projectId}/${t.id}`;
@@ -138,8 +160,8 @@ function TaskBoardPage() {
   // failed, and the moves after it are dropped), so a quick second move isn't taken for someone else's change.
   const saving = useRef(new Map<string, Promise<number | null>>());
   /** Saves a move (and shows it at once); one the server refuses goes back. Moving to Blocked asks why first. */
-  const move = async (task: BoardTask, status: BoardStatus, rank: number, at?: { x: number; y: number }) => {
-    if (status === task.status && rank === task.rank) return;
+  const move = async (task: BoardTask, status: BoardStatus, { rank, respaced }: Placement, at?: { x: number; y: number }) => {
+    if (status === task.status && rank === task.rank && !respaced.length) return;
     let blockedReason: string | undefined;
     if (status === 'blocked' && task.status !== 'blocked') {
       const why = await askWhyBlocked(task);
@@ -149,11 +171,13 @@ function TaskBoardPage() {
     remember(cardKey(task), at);
     const patch = { status, rank, ...(blockedReason !== undefined ? { blockedReason } : {}) };
     // (the version stays the server's; a card moved to Done counts as done now)
-    setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, ...patch, ...(status === 'done' && t.status !== 'done' ? { doneAt: Date.now() } : {}) } : t)) } : d));
+    const room = new Map(respaced.map((r) => [cardKey(r.task), r.rank]));
+    setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, ...patch, ...(status === 'done' && t.status !== 'done' ? { doneAt: Date.now() } : {}) } : room.has(cardKey(t)) ? { ...t, rank: room.get(cardKey(t))! } : t)) } : d));
     const key = cardKey(task);
     const saved = (saving.current.get(key) ?? Promise.resolve<number | null>(task.updatedAt)).then(async (version) => {
       if (version === null) return null;
       try {
+        if (respaced.length) await PUT('/task-board-ranks', { ranks: respaced.map((r) => ({ projectId: r.task.projectId, id: r.task.id, status: r.task.status, rank: r.rank })) });
         const r = await PUT<{ task: BoardTask }>(path(task), { ...patch, expectedUpdatedAt: version });
         setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, updatedAt: r.task.updatedAt } : t)) } : d));
         return r.task.updatedAt;
@@ -169,18 +193,19 @@ function TaskBoardPage() {
     requestAnimationFrame(() => board.current?.querySelector<HTMLElement>(`[data-task-id="${key}"]`)?.focus({ preventScroll: true }));
     await saved;
   };
-  // the rank for a place in a column, among its other cards
-  const rankAt = (status: BoardStatus, index: number, task: BoardTask) => {
+  // where a place in a column as it is shown puts a card: between the shown cards either side of it, among all of
+  // the column's cards (the ones filtered out or older keep their order too)
+  const placeAt = (status: BoardStatus, index: number, task: BoardTask) => {
     const others = columns.find((c) => c.value === status)!.list.filter((t) => !same(t, task));
-    return rankBetween(others[index - 1]?.rank, others[index]?.rank);
+    return place(tasks.filter((t) => t.status === status && !same(t, task)).sort(byRank), others[index - 1], others[index]);
   };
-  const toColumn = (task: BoardTask, status: BoardStatus) => void move(task, status, rankAt(status, 0, task));
+  const toColumn = (task: BoardTask, status: BoardStatus) => void move(task, status, placeAt(status, 0, task));
   const step = (task: BoardTask, dir: -1 | 1) => {
     const list = columns.find((c) => c.value === task.status)!.list;
     const i = list.findIndex((t) => same(t, task));
     const j = i + dir;
     if (i < 0 || j < 0 || j >= list.length) return;
-    void move(task, task.status, rankAt(task.status, j, task));
+    void move(task, task.status, placeAt(task.status, j, task));
   };
   const onDrop = (status: BoardStatus, at: { x: number; y: number }) => {
     const task = dragging;
@@ -188,7 +213,7 @@ function TaskBoardPage() {
     setDragging(null);
     setDrop(null);
     if (!task || !target || target.status !== status) return;
-    void move(task, status, rankAt(status, target.index, task), at);
+    void move(task, status, placeAt(status, target.index, task), at);
   };
   const remove = async (task: BoardTask) => {
     if (!(await confirmBox(`Remove ${taskKey(task.number)} "${task.title}"?`, { ok: 'Remove', danger: true }))) return;
