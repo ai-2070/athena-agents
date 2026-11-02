@@ -1,0 +1,236 @@
+tests/server/teamwork.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 20,288
+tests/server/project-isolation.test.ts
+  s_3c304e20f190e2::t_41b1f869c7353c 13,79,124,155
+tests/server/eve-bridge.test.ts
+  s_3c304e20f190e2::t_8455246fbdcb09 14
+web/views/station.ts
+  s_3c304e20f190e2::t_87756b7758216e 3272,3766,3768,3772
+server/eve/state.ts
+  s_3c304e20f190e2::t_c63dac12bdf4ec 71
+  s_3c304e20f190e2::t_51f375f583300f 24,28-36,196
+  s_3c304e20f190e2::t_ae4410d95920bf 60-61,68-70
+tests/server/groupB-teams.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 38
+tests/server/commands.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 53
+  s_3c304e20f190e2::t_ae4410d95920bf 10,70,162-164,172
+server/models.ts
+  s_3c304e20f190e2::t_87756b7758216e 24-27
+tests/server/brain-stop.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 39
+server/mcp.ts
+  s_3c304e20f190e2::t_87756b7758216e 896
+scripts/eve-integration-smoke.ts
+  s_3c304e20f190e2::t_8455246fbdcb09 109
+docs/internal/plans/EVE_API_ENGINE_2026-11-01.md
+  s_3c304e20f190e2::t_29056a54d8ad70 3,7-20
+  s_3c304e20f190e2::t_f99060f150fc3f 21
+tests/web/agent-effort.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 21,24
+web/app.ts
+  s_3c304e20f190e2::t_dd946ba83b7026 168
+web/models.tsx
+  s_3c304e20f190e2::t_87756b7758216e 46,65,80,130,133,143,222-223,225,377,384,386,394,399,440,455,476-477,576,581,605,622,626,639,670
+tests/web/chatview.test.tsx
+  s_3c304e20f190e2::t_b2d89c0c7e35f1 135-136,138,442
+  s_3c304e20f190e2::t_dd946ba83b7026 54,73
+web/agentstats.ts
+  s_3c304e20f190e2::t_87756b7758216e 50,79
+web/views/agents.tsx
+  s_3c304e20f190e2::t_87756b7758216e 59,276,369,633,667
+tests/server/eve-model.test.ts
+  s_3c304e20f190e2::t_8455246fbdcb09 59
+tests/server/team-projects.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 47
+tests/server/brain-mcp.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 176
+web/navlimits.tsx
+  s_3c304e20f190e2::t_87756b7758216e 170
+web/views/stationdata.ts
+  s_3c304e20f190e2::t_87756b7758216e 151
+vitest.config.ts
+  s_3c304e20f190e2::t_2b68de52d2dfa5 18-19
+  s_3c304e20f190e2::t_640de2bf5a0bf9 8
+  s_3c304e20f190e2::t_75f18190f0ff09 27
+  s_3c304e20f190e2::t_58c2840196636c 21
+server/engines/index.ts
+  s_3c304e20f190e2::t_87756b7758216e 152,155,1054,1065
+  s_3c304e20f190e2::t_7dcf581345507a 491,544-547,572,578-581
+  s_3c304e20f190e2::t_dd946ba83b7026 976
+  s_3c304e20f190e2::t_aba7fd4f7c30b7 13,19,279,329,499-501,504,513-514,516,519,521-524,532,536,538,682,714,1040,1043,1046,1048
+  s_3c304e20f190e2::t_ae4410d95920bf 28,133,137,388,402,1023
+  s_3c304e20f190e2::t_51f375f583300f 23,340,498,1004
+shared/context.ts
+  s_3c304e20f190e2::t_aba7fd4f7c30b7 1-5
+web/views/chat.tsx
+  s_3c304e20f190e2::t_dd946ba83b7026 179,181
+  s_3c304e20f190e2::t_87756b7758216e 9,28,132,149-150
+web/views/stationpanel.tsx
+  s_3c304e20f190e2::t_87756b7758216e 1134
+runtime/eve/agent/tools/athena.ts
+  s_3c304e20f190e2::t_ae4410d95920bf 1,17
+web/chat/ChatView.tsx
+  s_3c304e20f190e2::t_87756b7758216e 17,147,314,426,557,688
+  s_3c304e20f190e2::t_916cf314edfc89 577
+tests/server/projectsync.test.ts
+  s_3c304e20f190e2::t_8455246fbdcb09 127
+web/compactmark.ts
+  s_3c304e20f190e2::t_87756b7758216e 1-2,4-8
+scripts/dev.ts
+  s_3c304e20f190e2::t_5aa713869aaae1 12-13
+tests/web/station-panel.test.tsx
+  s_3c304e20f190e2::t_87756b7758216e 59-60
+docs/guide.md
+  s_3c304e20f190e2::t_ea006e42cd450b 247,249,251,253
+server/conversations.ts
+  s_3c304e20f190e2::t_6f58257bf919d7 9
+server/eve/admission.ts
+  s_3c304e20f190e2::t_51f375f583300f 11,86-90
+  s_3c304e20f190e2::t_aba7fd4f7c30b7 7
+tests/server/handoffs.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 31
+scripts/build-eve.ts
+  s_3c304e20f190e2::t_6d49f161296375 7-21
+tests/server/eve-admission.test.ts
+  s_3c304e20f190e2::t_8455246fbdcb09 24,274
+tests/server/goals.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 98
+  s_3c304e20f190e2::t_ae4410d95920bf 287
+server/context.ts
+  s_3c304e20f190e2::t_aba7fd4f7c30b7 1,5-6,60,80,87,112-123
+  s_3c304e20f190e2::t_5aa713869aaae1 3-4,98-99,106
+  s_3c304e20f190e2::t_87756b7758216e 64,69
+server/engines/eve.ts
+  s_3c304e20f190e2::t_7dcf581345507a 36-43
+tests/web/terminals.test.tsx
+  s_3c304e20f190e2::t_87756b7758216e 47
+README.md
+  s_3c304e20f190e2::t_94417531985984 58,276
+tests/web/agentchat.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 18,33,59
+web/views/terminals.tsx
+  s_3c304e20f190e2::t_87756b7758216e 108
+tests/server/attachments-flow.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 46,78
+tests/server/workflow-stop.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 36,50,69
+tests/server/mcp-copies.test.ts
+  s_3c304e20f190e2::t_8455246fbdcb09 6
+tests/server/effort.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 21-22,28
+tests/server/brain-models.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 61,140,167,202,226,230,252,270,298
+tests/server/routines.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 95
+server/providers.ts
+  s_3c304e20f190e2::t_87756b7758216e 45
+tests/web/chatwin.test.tsx
+  s_3c304e20f190e2::t_87756b7758216e 21-22
+tests/server/crossteam.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 41
+tests/web/groupD-pickers.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 44-45,48,56,62,69,77,87,92,237,251-252,259
+tests/web/models.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 12-13,15-17,30
+tests/server/artifacts.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 41-42
+server/store.ts
+  s_3c304e20f190e2::t_87756b7758216e 49,380
+package.json
+  s_3c304e20f190e2::t_5aa713869aaae1 37
+tests/server/irc.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 80
+web/views/settings.tsx
+  s_3c304e20f190e2::t_87756b7758216e 157-159,353
+tests/server/team-context.test.ts
+  s_3c304e20f190e2::t_8455246fbdcb09 9,31,81,108-109,112,115,118-119,144,149
+  s_3c304e20f190e2::t_2b68de52d2dfa5 129
+  s_3c304e20f190e2::t_87756b7758216e 36,99
+tests/server/run-project.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 51,109,129
+  s_3c304e20f190e2::t_ae4410d95920bf 83
+tests/server/promptcache.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 62,93
+tests/server/versions.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 218
+server/teams.ts
+  s_3c304e20f190e2::t_364fb14cbac634 14,746-748,750
+tests/server/queue.test.ts
+  s_3c304e20f190e2::t_b2d89c0c7e35f1 1-3,85-87,98
+  s_3c304e20f190e2::t_87756b7758216e 53
+tests/web/agents-page.test.tsx
+  s_3c304e20f190e2::t_87756b7758216e 14,29,71
+tests/server/execution.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 24,79
+tests/web/dock-reset.test.tsx
+  s_3c304e20f190e2::t_87756b7758216e 41
+tests/server/api.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 412,447,520,557
+  s_3c304e20f190e2::t_ae4410d95920bf 385-386,389-391,526,577
+  s_3c304e20f190e2::t_324c51eb873d42 535
+  s_3c304e20f190e2::t_5aa713869aaae1 578-580,587-588
+tests/server/teams.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 68
+tests/eve-build.ts
+  s_3c304e20f190e2::t_640de2bf5a0bf9 1-5,11
+  s_3c304e20f190e2::t_a2b04040145d13 6-10
+server/eve/transcript.ts
+  s_3c304e20f190e2::t_aba7fd4f7c30b7 8
+tests/web/dock.test.tsx
+  s_3c304e20f190e2::t_87756b7758216e 35
+shared/types.ts
+  s_3c304e20f190e2::t_ae4410d95920bf 147-152,167
+  s_3c304e20f190e2::t_6f58257bf919d7 457,464,495,499,501
+  s_3c304e20f190e2::t_87756b7758216e 6,458,748,881
+  s_3c304e20f190e2::t_51f375f583300f 797
+tests/server/conversation-search.test.ts
+  s_3c304e20f190e2::t_41b1f869c7353c 104
+tests/server/questions.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 24
+tests/server/setup.ts
+  s_3c304e20f190e2::t_143cc1c9ebcd77 23-28
+server/library.ts
+  s_3c304e20f190e2::t_87756b7758216e 118
+tests/server/services.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 9
+tests/web/agentstats.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 39,45-46
+server/brain.ts
+  s_3c304e20f190e2::t_87756b7758216e 97
+scripts/build-icons.ts
+  s_3c304e20f190e2::t_87756b7758216e 17
+server/eve/model.ts
+  s_3c304e20f190e2::t_87756b7758216e 19
+  s_3c304e20f190e2::t_aba7fd4f7c30b7 2
+web/views/library.tsx
+  s_3c304e20f190e2::t_87756b7758216e 68
+tests/server/groupB-legacy.test.ts
+  s_3c304e20f190e2::t_87756b7758216e 89
+tests/server/shutdown.test.ts
+  s_3c304e20f190e2::t_5aa713869aaae1 7,50-51
+  s_3c304e20f190e2::t_58c2840196636c 26-31,54-55,57
+  s_3c304e20f190e2::t_87756b7758216e 35
+tests/web/settings-general.test.tsx
+  s_3c304e20f190e2::t_8455246fbdcb09 20
+tests/web/dock-history.test.tsx
+  s_3c304e20f190e2::t_87756b7758216e 42
+web/core.ts
+  s_3c304e20f190e2::t_87756b7758216e 470,473
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "04ad09005b61902672b0e8a155d3632b9ec95ebb",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
