@@ -1,0 +1,21 @@
+tests/web/station-panel.test.tsx
+  s_8165cbdd742c65::t_1ba9d1c23edc3e 132,141-149
+web/views/stationpanel.tsx
+  s_8165cbdd742c65::t_691f321beca1aa 4,17,35-36,1000-1004,1006-1007
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8894d9509cbe5f405083a9e66616f5d2b8f1ba8f",
+  "prompts": {},
+  "sessions": {
+    "s_8165cbdd742c65": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a199c5-f080-7273-8f12-bf60fd408801",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
