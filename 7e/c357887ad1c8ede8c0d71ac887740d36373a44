@@ -1,0 +1,24 @@
+web/navlimits.tsx
+  s_8e3c27e6ce0122::t_384453eab7015c 55-56,59,61
+public/index.html
+  s_8e3c27e6ce0122::t_c8d7ecf02a942b 21
+web/app.ts
+  s_8e3c27e6ce0122::t_c8d7ecf02a942b 103,124-129
+  s_8e3c27e6ce0122::t_384453eab7015c 104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7ec357887ad1c8ede8c0d71ac887740d36373a44",
+  "prompts": {},
+  "sessions": {
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
