@@ -4,6 +4,7 @@ import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { connectEvents, state } from '../../web/core.ts';
 import * as tasks from '../../web/views/tasks.tsx';
+import { pillMentions } from '../../web/taskboard.tsx';
 import type { AppState, BoardTask, ServerEvent } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -371,6 +372,15 @@ describe('a task\'s own page', () => {
     await act(async () => box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
     expect(box.value).toBe('Thanks @Photographer ');
     expect(el.querySelector('section[aria-label="Activity"] [data-mention="@Photographer"]')).not.toBeNull();
+  });
+
+  it('draws @mentions as pills by the rules the server reads them by', () => {
+    const root = document.createElement('div');
+    root.innerHTML = '<p>Ask @Café, not @Caféé or me@Café; then @Trend Scout—and <code>@Café</code> @Trend</p>';
+    const who = (kind: 'agent' | 'team', id: string, name: string) => ({ kind, id, name, lead: '', sub: '' });
+    pillMentions(root, [who('agent', 'c', 'Café'), who('agent', 's', 'Trend Scout'), who('team', 't', 'Trend')]);
+    expect([...root.querySelectorAll('.task-mention')].map((p) => p.textContent)).toEqual(['@Café', '@Trend Scout', '@Trend']);
+    expect(root.querySelector('code')!.textContent).toBe('@Café');
   });
 
   it('says so when the task is gone', async () => {

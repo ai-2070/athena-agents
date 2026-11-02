@@ -10,6 +10,7 @@ import { loadSkills, skillsCache } from './skillpick.ts';
 import { attachMentions } from './routinemention.ts';
 import type { Candidate } from './routinemention.ts';
 import { attachMentionEditor } from './chat/mentioneditor.ts';
+import { mentionPattern } from '../shared/routines.ts';
 import { Button } from './ui/button.tsx';
 import { Switch } from './ui/controls.tsx';
 import { Dropdown, DropdownContent, DropdownRadioGroup, DropdownRadioItem, DropdownTrigger } from './ui/dropdown.tsx';
@@ -81,9 +82,9 @@ const PILL_MENTION = 'inline-flex items-center gap-1 rounded-ctl bg-accent/10 px
 /** @Name in drawn Markdown as a pill (a team's and a skill's with their icon); never inside code or a link. */
 export function pillMentions(root: HTMLElement, candidates: readonly Candidate[]): void {
   if (!candidates.length) return;
-  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const names = [...candidates].sort((a, b) => b.name.length - a.name.length);
-  const re = new RegExp(`(^|[\\s(])@(${names.map((c) => esc(c.name)).join('|')})(?=$|[\\s.,!?;:)])`, 'gi');
+  // (the rules the server reads mentions by)
+  const re = mentionPattern(names.map((c) => c.name));
   const walk = (node: Node) => {
     for (const child of [...node.childNodes]) {
       if (child.nodeType === 3) {

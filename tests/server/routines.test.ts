@@ -8,8 +8,16 @@ import { getThread, postUserMessage } from '../../server/teams.ts';
 import { saveSkill } from '../../server/skills.ts';
 import { checkRoutineSchedules, deleteRoutine, getRoutine, listRuns, routineTargets, saveRoutine, startRoutine } from '../../server/routines.ts';
 import { due } from '../../server/workflows.ts';
-import { cleanSchedule, scheduleSummary, timeText, findMentions, mentionQuery, renameMentions } from '../../shared/routines.ts';
+import { cleanSchedule, scheduleSummary, timeText, findMentions, mentionPattern, mentionQuery, renameMentions } from '../../shared/routines.ts';
 import type { RoutineMention, RoutineRun, Team } from '../../shared/types.ts';
+
+describe('mentionPattern()', () => {
+  it('finds any of the names by findMentions\' rules, longest first, and nothing with no names', () => {
+    const re = mentionPattern(['Trend', 'Trend Scout', ' ']);
+    expect([...'@Trend Scout, @Trendy, bob@Trend, (@trend)'.matchAll(re)].map((m) => m[2])).toEqual(['Trend Scout', 'trend']);
+    expect('@ anything'.match(mentionPattern([]))).toBeNull();
+  });
+});
 
 describe('findMentions()', () => {
   const c: RoutineMention[] = [
