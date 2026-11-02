@@ -20,6 +20,32 @@ afterEach(async () => {
 });
 
 describe('gateway intake lifecycle', () => {
+  it('starts dispatch and delivery with the transport and saves delivery before releasing ownership', async () => {
+    const instance = saveGatewayInstance(gatewayConfig(String(account++)));
+    let saved: GatewayInbox | undefined;
+    let submissions = 0;
+    const sent: string[] = [];
+    const worker = new TelegramGatewayWorker(instance.id, {
+      execution: { async submit() { submissions++; return {}; }, poll() { return { state: 'completed', answer: 'Worker final answer' }; } },
+      transport: (state, inbox) => {
+        saved = inbox;
+        return {
+          start: async () => { inbox.accept({ ...gatewayInput(), accountId: instance.accountId }); },
+          stop: async () => { expect(inbox.list()[0].reply?.parts[0].status).toBe('sent'); await state.disconnect(); },
+          alive: () => true,
+          reply: async (_event, text) => { sent.push(text); return 'confirmed-message'; },
+        };
+      },
+    }); workers.push(worker);
+    await worker.start();
+    await expect.poll(() => saved?.list()[0].reply?.parts[0].status).toBe('sent');
+    expect(submissions).toBe(1); expect(sent).toEqual(['Worker final answer']);
+    await worker.stop();
+    const state = new GatewayStateAdapter(instance.id); await state.connect();
+    expect(new GatewayInbox(state).list()[0].reply?.parts[0].remoteId).toBe('confirmed-message');
+    await state.disconnect();
+  });
+
   it('finishes interrupted file receipts before SDK shutdown releases state ownership', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let saved: GatewayInbox | undefined;

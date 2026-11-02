@@ -2,10 +2,12 @@ import { TelegramAdapter } from '@chat-adapter/telegram';
 import type { TelegramUpdate } from '@chat-adapter/telegram';
 import type { ChatInstance, Logger } from 'chat';
 import { z } from 'zod';
-import type { GatewayInbound } from '../../shared/types.ts';
+import type { GatewayInbound, GatewayInboxEvent } from '../../shared/types.ts';
 import { getGatewayInstance } from './instances.ts';
 import { gatewayInputAllowed, GatewayFileLimitError } from './inbox.ts';
 import type { GatewayInbox } from './inbox.ts';
+import { GatewaySendError } from './replies.ts';
+import { withGatewayRoute } from './instances.ts';
 
 export class GatewaySetupError extends Error {}
 
@@ -90,6 +92,33 @@ export class TelegramIntakeAdapter extends TelegramAdapter {
     // Replay any pending SDK receipts through the same idempotent application inbox.
     this.receive(update);
     return [];
+  }
+
+  async replyText(event: GatewayInboxEvent, text: string, signal: AbortSignal): Promise<string> {
+    const instance = getGatewayInstance(this.instanceId);
+    if (event.route.instanceId !== this.instanceId || !gatewayInputAllowed(instance, event.input) || event.input.accountId !== this.botUserId) throw new GatewaySendError('failed');
+    withGatewayRoute(event.route, () => {});
+    if (!text || text.length > 3000 || !/^-?\d+$/.test(event.input.conversationId) || !/^\d+$/.test(event.input.sourceMessageId)) throw new GatewaySendError('failed');
+    try {
+      // Plain text avoids formatter expansion, truncation and fallback posts with ambiguous outcomes.
+      const result = z.object({ message_id: z.number().int().positive(), chat: z.object({ id: z.number().int() }) }).parse(await this.telegramFetch('sendMessage', {
+        chat_id: event.input.conversationId, text,
+        ...(event.input.threadId ? { message_thread_id: Number(event.input.threadId) } : {}),
+        reply_parameters: { message_id: Number(event.input.sourceMessageId) },
+        link_preview_options: { is_disabled: true },
+      }, { signal }));
+      if (String(result.chat.id) !== event.input.conversationId) throw new GatewaySendError('uncertain');
+      return this.encodeMessageId(event.input.conversationId, result.message_id);
+    } catch (error) {
+      if (error instanceof Error && 'code' in error) {
+        if (error.code === 'RATE_LIMITED') {
+          const seconds = 'retryAfter' in error && typeof error.retryAfter === 'number' && Number.isFinite(error.retryAfter) ? error.retryAfter : 1;
+          throw new GatewaySendError('retry', Math.ceil(Math.max(1, seconds) * 1000));
+        }
+        if (['AUTH_FAILED', 'PERMISSION_DENIED', 'NOT_FOUND', 'VALIDATION_ERROR'].includes(String(error.code))) throw new GatewaySendError('failed');
+      }
+      throw new GatewaySendError('uncertain');
+    }
   }
 
   /** Unlike the SDK's buffered helper, this exposes a bounded stream and refuses redirects. */

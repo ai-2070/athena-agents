@@ -10,6 +10,8 @@ import { GatewayStateAdapter } from '../../server/gateways/state.ts';
 import { GatewayInbox } from '../../server/gateways/inbox.ts';
 import { TelegramIntakeAdapter } from '../../server/gateways/telegram.ts';
 import { gatewayConfig } from './gateway-fixtures.ts';
+import { GatewayDispatcher } from '../../server/gateways/dispatch.ts';
+import { GatewayReplies } from '../../server/gateways/replies.ts';
 
 const quiet: Logger = { child: () => quiet, debug() {}, info() {}, warn() {}, error() {} };
 const cleanups: (() => Promise<void>)[] = [];
@@ -22,7 +24,7 @@ function update(id: number, actor = 123): TelegramUpdate {
   };
 }
 
-async function fixture(options: { webhook?: string; wrongBot?: boolean; failCommit?: boolean; filePath?: string; fileSize?: number; redirect?: boolean } = {}) {
+async function fixture(options: { webhook?: string; wrongBot?: boolean; failCommit?: boolean; filePath?: string; fileSize?: number; redirect?: boolean; sendError?: number } = {}) {
   const config = gatewayConfig(String(account++));
   const instance = saveGatewayInstance(config);
   saveGatewayCredentials(instance.id, { botToken: 'private-token' });
@@ -42,6 +44,13 @@ async function fixture(options: { webhook?: string; wrongBot?: boolean; failComm
     if (method === 'getMe') result = { id: options.wrongBot ? 888 : Number(instance.accountId), is_bot: true, first_name: 'Athena', username: 'actual_bot' };
     else if (method === 'getWebhookInfo') result = { url: options.webhook ?? '', pending_update_count: 0, has_custom_certificate: false };
     else if (method === 'getFile') result = { file_path: options.filePath ?? 'documents/proof.txt', file_size: options.fileSize ?? 5 };
+    else if (method === 'sendMessage') {
+      if (options.sendError) {
+        response.writeHead(options.sendError, { 'content-type': 'application/json' });
+        response.end(JSON.stringify({ ok: false, error_code: options.sendError, description: 'private provider detail', parameters: { retry_after: 7 } })); return;
+      }
+      result = { message_id: 50, chat: { id: 123, type: 'private' } };
+    }
     else if (method === 'proof.txt') {
       if (options.redirect) response.writeHead(302, { location: '/forbidden-download' });
       response.end('hello'); return;
@@ -65,6 +74,39 @@ async function fixture(options: { webhook?: string; wrongBot?: boolean; failComm
 }
 
 describe('Telegram durable intake', () => {
+  it.each([{ code: 429, outcome: 'retry' }, { code: 403, outcome: 'failed' }, { code: 500, outcome: 'uncertain' }])('classifies $code send failures without exposing provider details', async ({ code, outcome }) => {
+    const f = await fixture({ sendError: code });
+    f.batches.push([update(1)]); await f.chat.initialize();
+    await expect.poll(() => f.inbox.list().length).toBe(1);
+    const send = f.adapter.replyText(f.inbox.list()[0], 'Answer', new AbortController().signal);
+    await expect(send).rejects.toMatchObject({ outcome, message: 'The gateway reply could not be confirmed.', ...(code === 429 ? { retryAfterMs: 7000 } : {}) });
+    expect(f.calls.filter((call) => call.method === 'sendMessage')).toHaveLength(1);
+  });
+
+  it('dispatches accepted input once and sends the saved final text to its original message', async () => {
+    const f = await fixture();
+    let submissions = 0;
+    const answer = '**Literal** :wave: [text] 😀';
+    const abort = new AbortController();
+    const dispatcher = new GatewayDispatcher(f.inbox, abort.signal, {
+      async submit() { submissions++; return {}; },
+      poll() { return { state: 'completed', answer }; },
+    });
+    const replies = new GatewayReplies(f.inbox, (event, text, signal) => f.adapter.replyText(event, text, signal), abort.signal);
+    cleanups.push(async () => { abort.abort(); await dispatcher.stop(); await replies.stop(); });
+    await dispatcher.start(); replies.start();
+    f.batches.push([update(1), update(2, 456), update(1)]);
+    await f.chat.initialize();
+    await expect.poll(() => f.inbox.list()[0]?.reply?.parts[0]?.status).toBe('sent');
+    expect(submissions).toBe(1);
+    expect(f.inbox.list()).toHaveLength(1);
+    const sends = f.calls.filter((call) => call.method === 'sendMessage');
+    expect(sends).toHaveLength(1);
+    expect(JSON.parse(sends[0].body)).toMatchObject({ chat_id: '123', text: answer, reply_parameters: { message_id: 1 } });
+    expect(JSON.parse(sends[0].body)).not.toHaveProperty('parse_mode');
+    expect(f.inbox.list()[0].reply?.parts[0].remoteId).toBeTruthy();
+  });
+
   it('streams private files with metadata limits, safe provider paths and no redirects', async () => {
     const valid = await fixture();
     const result = await valid.adapter.downloadFileSource('private-file', 16, new AbortController().signal);

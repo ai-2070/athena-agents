@@ -7,7 +7,7 @@ import { bindTasks, tasksForBrief } from './tasks.ts';
 import { getTeam, getThread, isTeamBusy, teamBackgroundFinished, teamMessages, postBrainMessage, postSystem, postUserMessage, resumeTeam, setBrainHandlers, teamState, BRAIN } from './teams.ts';
 import type { RouteFn } from './teams.ts';
 import { NO_PROGRESS_LIMIT } from '../shared/commands.ts';
-import { activeRuns, addChatNote, hasBackgroundWork, isChatBusy, isStopping, queuedMessages, onRunEnd, onUserWork, queueMessage, startRun } from './engines/index.ts';
+import { activeRuns, addChatNote, hasBackgroundWork, isChatBusy, isStopping, queuedMessages, onRunEnd, onUserWork, queueMessage, startRun, chatRunId } from './engines/index.ts';
 import type { RunEnd } from './engines/index.ts';
 import { think, parseJSON, brainModel, pickMember } from './brain.ts';
 import { snapshot, addBrainNote } from './overseer.ts';
@@ -36,7 +36,8 @@ function tellUser(pid: string, text: string, conversationId?: string) {
 
 // What the Brain says about a brief: a goal set in an agent's or team's chat is reported there, the rest in the Brain chat.
 function report(b: BrainBrief, pid: string, text: string) {
-  if (b.origin !== 'chat') return tellUser(pid, text);
+  const scoped = b.kind === 'team' ? privateTeamRecord(b.targetId)?.conversationId : b.chatId ? chats.get(b.targetId, b.chatId)?.conversationId : undefined;
+  if (b.origin !== 'chat' && !scoped) return tellUser(pid, text);
   if (b.kind === 'team') postSystem(b.targetId, text.replace(/\*\*/g, ''));
   else if (b.chatId) addChatNote(b.targetId, b.chatId, text.replace(/\*\*/g, ''));
 }
@@ -71,8 +72,10 @@ async function sendNow(delegate: BrainDelegate, { goal = '', objective = '', com
   const agent = agents.get(delegate.id);
   if (!agent) throw new Error(`no agent "${delegate.name}"`);
   const chat = conversationId ? privateAgentChat(conversationId, agent.id) : chats.create(agent.id);
-  if (keep) { const brief = addBrief({ kind: 'agent', targetId: agent.id, name: agent.name, text: message, ts: Date.now(), chatId: chat.id, ...withGoal }); bindTasks(taskIds, brief.id); }
+  const brief = keep ? addBrief({ kind: 'agent', targetId: agent.id, name: agent.name, text: message, ts: Date.now(), chatId: chat.id, ...withGoal }) : null;
+  if (brief) bindTasks(taskIds, brief.id);
   const { runId } = runForBrief(agent, chat.id, message, attachments);
+  if (brief) updateBrief(brief.id, { messageId: runId });
   delegate.sent = { chatId: chat.id, runId };
 }
 
@@ -412,7 +415,7 @@ export function startIrc(): void {
     },
   });
   onUserWork((agent, chat, text) => {
-    if (followsUp() || listBriefs().some((b) => b.chatId === chat.id && b.goal && !b.automatic && ['open', 'blocked', 'stuck'].includes(b.status))) trackWork('agent', agent.id, agent.name, text, { chatId: chat.id });
+    if (followsUp() || listBriefs().some((b) => b.chatId === chat.id && b.goal && !b.automatic && ['open', 'blocked', 'stuck'].includes(b.status))) trackWork('agent', agent.id, agent.name, text, { chatId: chat.id, messageId: chatRunId(agent.id, chat.id) || undefined });
   });
   // Automatic assignments and explicit goals share the same end-of-turn checks.
   onRunEnd((e) => {

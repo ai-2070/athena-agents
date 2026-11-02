@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, UploadedFile } from '../../shared/types.ts';
+import type { GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, UploadedFile } from '../../shared/types.ts';
 import { emit } from '../store.ts';
 import { readJSON, uid, writeJSON } from '../util.ts';
 import { captureGatewayRoute, getGatewayInstance, withGatewayRoute } from './instances.ts';
 import type { GatewayStateAdapter } from './state.ts';
+import { privateDataPath } from '../private.ts';
 
 const externalId = z.string().min(1).max(500);
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -15,6 +16,17 @@ const target = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('team'), id: externalId }),
 ]);
 const route = z.strictObject({ instanceId: externalId, projectId: externalId, target, generation: stamp.positive() });
+const common = { conversationId: externalId, projectId: externalId, sender: z.string() };
+const conversation = z.discriminatedUnion('kind', [
+  z.strictObject({ ...common, kind: z.literal('brain') }),
+  z.strictObject({ ...common, kind: z.literal('agent'), agentId: externalId, chatId: externalId }),
+  z.strictObject({ ...common, kind: z.literal('team'), teamId: externalId }),
+]);
+const dispatchSchema: z.ZodType<GatewayDispatch> = z.strictObject({
+  conversation, state: z.enum(['starting', 'running', 'completed', 'needs-review']), startedAt: stamp,
+  runId: externalId.optional(), messageId: externalId.optional(), briefId: externalId.optional(), briefRevision: stamp.optional(), answer: z.string().max(1000000).optional(),
+  brain: z.strictObject({ answer: z.string(), delegate: z.strictObject({ kind: z.enum(['agent', 'branch']), id: externalId, name: z.string(), message: z.string(), sent: z.strictObject({ messageId: externalId.optional(), ts: stamp.optional(), chatId: externalId.optional(), runId: externalId.optional() }).optional() }).nullable() }).optional(),
+});
 const inboundSchema: z.ZodType<GatewayInbound> = z.strictObject({
   platform: z.enum(['telegram', 'slack', 'discord', 'whatsapp']), accountId: externalId,
   conversationId: externalId, threadId: z.string().max(500), sourceEventId: externalId, sourceMessageId: externalId,
@@ -34,6 +46,8 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
     id: externalId, bindingId: externalId, route, input: inboundSchema, sequence: stamp.positive(), receivedAt: stamp,
     status: z.enum(['queued', 'waiting-files', 'running', 'done', 'needs-review']), operationId: externalId.optional(), reason: z.string().optional(),
     fileBatch: z.string().regex(/^[\w-]{1,64}$/).optional(),
+    dispatch: dispatchSchema.optional(),
+    reply: z.strictObject({ createdAt: stamp, reason: z.string().optional(), parts: z.array(z.strictObject({ text: z.string().min(1).max(3000), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed']), attempts: stamp, remoteId: externalId.optional(), retryAt: stamp.optional() })).min(1).max(1000) }).optional(),
     files: z.array(z.strictObject({
       index: stamp, status: z.enum(['pending', 'transferring', 'saved', 'failed']),
       attempts: z.array(z.strictObject({ id: externalId, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), bytes: stamp })),
@@ -44,6 +58,16 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
 });
 const digest = (parts: (string | number)[]): string => crypto.createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 export class GatewayFileLimitError extends Error {}
+
+/** Atomic writers permit read-only diagnostics without taking the live worker's claim. */
+export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] {
+  getGatewayInstance(instanceId);
+  const file = privateDataPath('gateways-runtime', instanceId, 'inbox.json');
+  if (!fs.existsSync(file)) return [];
+  const parsed = journalSchema.safeParse(readJSON(file));
+  if (!parsed.success) throw Object.assign(new Error('This gateway inbox is unreadable.'), { status: 503 });
+  return parsed.data.events;
+}
 
 /** Only Telegram has a verified raw-event normalizer so far. Other transports fail closed. */
 export function gatewayInputAllowed(instance: GatewayInstance, input: GatewayInbound): boolean {
@@ -79,6 +103,7 @@ export class GatewayInbox {
           || (file.status === 'saved' && (!file.file || !file.sha256 || file.file.size !== file.attempts.at(-1)?.bytes)))))
         || (event.input.media.length > 0 && ['queued', 'running', 'done'].includes(event.status) && (!event.files || event.files.some((file) => file.status !== 'saved')));
       return !binding || event.route.instanceId !== this.state.instanceId || JSON.stringify(binding.route) !== JSON.stringify(event.route)
+        || (event.dispatch && (event.dispatch.conversation.projectId !== event.route.projectId || event.dispatch.conversation.conversationId !== event.bindingId || event.dispatch.conversation.kind !== event.route.target.kind))
         || invalidFiles
         || binding.accountId !== event.input.accountId || binding.conversationId !== event.input.conversationId || binding.threadId !== event.input.threadId
         || event.sequence >= journal.nextSequence || (index > 0 && event.sequence <= journal.events[index - 1].sequence);
@@ -92,6 +117,100 @@ export class GatewayInbox {
   }
 
   list(): GatewayInboxEvent[] { return this.read().events; }
+
+  beginDispatch(eventId: string, operationId: string, local: GatewayLocalConversation): GatewayInboxEvent {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event || event.status !== 'running' || event.operationId !== operationId || event.dispatch) throw new Error('This gateway input already has an operation.');
+    this.checkAccess(event);
+    if (local.conversationId !== event.bindingId || local.projectId !== event.route.projectId || local.kind !== event.route.target.kind) throw new Error('The gateway conversation changed.');
+    event.dispatch = { conversation: local, state: 'starting', startedAt: Date.now(), ...(local.kind === 'agent' ? { runId: operationId } : local.kind === 'team' ? { messageId: operationId } : {}) };
+    this.commit(journal);
+    return event;
+  }
+
+  recordDispatch(eventId: string, operationId: string, result: Pick<GatewayDispatch, 'runId' | 'messageId' | 'briefId' | 'briefRevision' | 'brain'>): void {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event?.dispatch || event.status !== 'running' || event.operationId !== operationId) throw new Error('This gateway operation is no longer active.');
+    event.dispatch = { ...event.dispatch, ...result, state: 'running' };
+    this.commit(journal);
+  }
+
+  review(eventId: string, reason = 'This work needs review in Athena before continuing.'): void {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event) throw new Error('No such gateway message.');
+    event.status = 'needs-review'; event.reason = reason;
+    if (event.dispatch) event.dispatch.state = 'needs-review';
+    this.commit(journal);
+  }
+
+  finishDispatch(eventId: string, operationId: string, answer: string): void {
+    if (!answer.trim() || answer.length > 1000000) throw new Error('The gateway answer needs review.');
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event?.dispatch || event.status !== 'running' || event.operationId !== operationId) throw new Error('This gateway operation is no longer active.');
+    this.checkAccess(event);
+    const parts: string[] = [];
+    for (let start = 0; start < answer.length;) {
+      let end = Math.min(start + 3000, answer.length);
+      const last = answer.charCodeAt(end - 1);
+      if (end < answer.length && last >= 0xd800 && last <= 0xdbff) end--;
+      parts.push(answer.slice(start, end)); start = end;
+    }
+    event.dispatch.state = 'completed'; event.dispatch.answer = answer;
+    event.status = 'done';
+    event.reply = { createdAt: Date.now(), parts: parts.map((text) => ({ text, status: 'pending', attempts: 0 })) };
+    this.commit(journal);
+  }
+
+  claimReply(): { event: GatewayInboxEvent; index: number } | null {
+    const journal = this.read();
+    const blocked = new Set<string>();
+    for (const event of journal.events) {
+      if (blocked.has(event.bindingId)) continue;
+      const index = event.reply?.parts.findIndex((part) => part.status !== 'sent') ?? -1;
+      if (event.status !== 'done' || index >= 0) blocked.add(event.bindingId);
+      if (index < 0 || !event.reply) continue;
+      const part = event.reply.parts[index];
+      if (part.status !== 'pending' || (part.retryAt ?? 0) > Date.now()) continue;
+      try { this.checkAccess(event); }
+      catch {
+        part.status = 'failed'; event.reply.reason = 'Access or the destination changed. This reply was not sent.';
+        this.commit(journal); continue;
+      }
+      part.status = 'sending'; part.attempts++;
+      this.commit(journal);
+      return { event, index };
+    }
+    return null;
+  }
+
+  settleReply(eventId: string, index: number, outcome: { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number }): void {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    const part = event?.reply?.parts[index];
+    if (!part || part.status !== 'sending') throw new Error('This gateway reply is no longer sending.');
+    if ('remoteId' in outcome) { part.status = 'sent'; part.remoteId = outcome.remoteId; delete part.retryAt; }
+    else {
+      part.status = outcome.status; part.retryAt = outcome.retryAt;
+      event!.reply!.reason = outcome.status === 'uncertain' ? 'Delivery uncertain. Check the messaging app before explicitly retrying.' : outcome.status === 'failed' ? 'The reply could not be sent. Check setup before retrying.' : 'The platform asked this reply to wait before retrying.';
+    }
+    if (event!.reply!.parts.every((item) => item.status === 'sent')) delete event!.reply!.reason;
+    this.commit(journal);
+  }
+
+  retryReply(eventId: string): void {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event?.reply) throw new Error('No saved reply for this message.');
+    this.checkAccess(event);
+    const part = event.reply.parts.find((item) => item.status !== 'sent');
+    if (!part || !['failed', 'uncertain'].includes(part.status)) throw new Error('This reply is not waiting for an explicit retry.');
+    part.status = 'pending'; delete part.retryAt; delete event.reply.reason;
+    this.commit(journal);
+  }
 
   checkAccess(event: GatewayInboxEvent): GatewayInstance {
     const instance = getGatewayInstance(this.state.instanceId);
@@ -211,7 +330,14 @@ export class GatewayInbox {
     };
     if (input.kind === 'edit') {
       event.reason = 'Message edited. Review it before starting more work.';
-      if (original && (original.status === 'queued' || original.status === 'waiting-files')) { original.status = 'needs-review'; original.reason = event.reason; }
+      if (original && ['queued', 'waiting-files', 'running'].includes(original.status)) {
+        original.status = 'needs-review'; original.reason = event.reason;
+        if (original.dispatch) original.dispatch.state = 'needs-review';
+      }
+      if (original?.reply?.parts.some((part) => part.status !== 'sent')) {
+        for (const part of original.reply.parts) if (part.status === 'pending') part.status = 'failed';
+        original.reply.reason = 'The source message changed. Review this answer before explicitly retrying.';
+      }
     }
     journal.events.push(event);
     this.commit(journal);
@@ -225,7 +351,7 @@ export class GatewayInbox {
     const blocked = new Set<string>();
     for (const event of journal.events) {
       const prior = blocked.has(event.bindingId);
-      if (event.status !== 'done') blocked.add(event.bindingId);
+      if (event.status !== 'done' || event.reply?.parts.some((part) => part.status !== 'sent')) blocked.add(event.bindingId);
       if (event.status !== 'queued') continue;
       if (prior) continue;
       try {
@@ -250,7 +376,7 @@ export class GatewayInbox {
   complete(eventId: string, operationId: string): void {
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
-    if (!event || event.operationId !== operationId || event.status !== 'running') throw new Error('This gateway operation is no longer running.');
+    if (!event || event.operationId !== operationId || event.status !== 'running' || event.dispatch) throw new Error('This gateway operation is no longer running.');
     event.status = 'done';
     this.commit(journal);
   }
@@ -265,7 +391,12 @@ export class GatewayInbox {
         file.status = 'failed'; file.reason = 'The download was interrupted. Retry it or ask the sender to resend it.';
         changed = true;
       }
+      for (const part of event.reply?.parts ?? []) {
+        if (part.status !== 'sending') continue;
+        part.status = 'uncertain'; event.reply!.reason = 'Delivery was interrupted. Check the messaging app before explicitly retrying.'; changed = true;
+      }
       if (event.status !== 'running') continue;
+      if (event.dispatch) continue;
       event.status = 'needs-review';
       event.reason = 'Work was interrupted. Check its saved operation before retrying.';
       changed = true;

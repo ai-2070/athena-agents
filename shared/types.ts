@@ -89,6 +89,28 @@ export interface GatewayInboxEvent {
   reason?: string;
   fileBatch?: string;
   files?: GatewayIncomingFile[];
+  dispatch?: GatewayDispatch;
+  reply?: { parts: GatewayReplyPart[]; createdAt: number; reason?: string };
+}
+
+export interface GatewayDispatch {
+  conversation: GatewayLocalConversation;
+  state: 'starting' | 'running' | 'completed' | 'needs-review';
+  startedAt: number;
+  runId?: string;
+  messageId?: string;
+  briefId?: string;
+  briefRevision?: number;
+  brain?: { answer: string; delegate: Pick<BrainDelegate, 'kind' | 'id' | 'name' | 'message' | 'sent'> | null };
+  answer?: string;
+}
+
+export interface GatewayReplyPart {
+  text: string;
+  status: 'pending' | 'sending' | 'sent' | 'uncertain' | 'failed';
+  attempts: number;
+  remoteId?: string;
+  retryAt?: number;
 }
 
 export interface GatewayIncomingFile {

@@ -127,6 +127,7 @@ export interface RunInfo {
 }
 
 export interface StartRunOptions {
+  userInitiated?: boolean;
   depth?: number;
   from?: string | null;
   attachments?: string[];
@@ -397,7 +398,7 @@ function pushItem<T extends ChatItem>(chat: Chat, item: T): T {
 // Start answering a message in a chat. Returns immediately with the run id.
 // The run belongs to the project it starts in (see withProject): opening another project meanwhile
 // doesn't move its chat, tool calls or files there.
-export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null, context, reservedRunId, queueId, workAccess }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
+export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null, context, reservedRunId, queueId, workAccess, userInitiated = false }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
   if (closing) throw new Error('The dashboard is stopping.');
   const project = activeProject();
   const key = chatKey(project.id, chat.id);
@@ -422,7 +423,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     }
   }
   active.set(runId, entry);
-  if (!from && depth === 0 && !parentRunId) userWorkHook?.(agent, chat, text || `Work on the attached files: ${attachmentNames(attachments)}`);
+  if ((!from || userInitiated) && depth === 0 && !parentRunId) userWorkHook?.(agent, chat, text || `Work on the attached files: ${attachmentNames(attachments)}`);
   // Saving skips chats deleted while the run was going.
   const persist = () =>
     inProject(() => {

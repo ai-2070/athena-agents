@@ -1,6 +1,6 @@
 # Chat SDK Gateways with files
 
-*Plan, 1 November 2026. Foundation and Telegram intake started 2 November; two-way chats and product setup are incomplete.
+*Plan, 1 November 2026. Experimental Telegram text conversations added 2 November; product setup and file replies are incomplete.
 New gateway data does not need a legacy compatibility layer.*
 
 ## Implementation status
@@ -39,8 +39,8 @@ New gateway data does not need a legacy compatibility layer.*
   not advance the polling offset. Exact topic scopes use `chatId/topicId`; new shared conversations
   require a bot mention or reply. No attachment is downloaded during intake.
 - Added guarded local APIs for instance configuration, credential replacement/presence, connection
-  health, reconnect, explicit file retry and deletion under `/api/gateways`. There is no Settings UI,
-  model dispatch or outgoing delivery yet. Telegram intake queues messages only; the existing
+  health, reconnect, inbox receipts, explicit file/reply retry and deletion under `/api/gateways`. There is no Settings UI;
+  the existing
   Outbox helpers remain unchanged. Other platforms fail closed at application intake and report
   unavailable when enabled. WhatsApp configuration currently accepts canonical E.164 only;
   local-number parsing and verified business identity mapping remain to implement.
@@ -67,9 +67,21 @@ New gateway data does not need a legacy compatibility layer.*
   omit other conversations' team messages, active turns, activity, briefs, approvals and pending posts.
   Target deletion and unreadable private records fail closed. A global project switch does not move
   a private Brain answer or cancel its work; the dispatcher must supply its access/route recheck.
-- Next: connect the inbox to conversation admission and completion tracking, add the delivery ledger
-  and Settings UI, and finish the other platforms. No gateway invokes a model yet. Albums
-  still need grouping before dispatch, and resend reconciliation, inbox retention/review controls and explicit webhook
+- Enabled Telegram workers now dispatch accepted input through the normal Brain, agent or team
+  services. Admission saves the private conversation and operation ID before starting work. Native
+  run/message IDs and scoped Brain operation markers reconcile restarts without repeating model
+  actions. Missing or interrupted execution evidence requires review. Completion waits for active
+  descendants and the normal completion brief; blocked work and changed brief revisions are held.
+  Normal tool permissions and approvals still apply. Pausing transport does not implicitly cancel
+  a native run, and changed sender access or routes block its eventual outward answer.
+- Final text is saved atomically with an ordered delivery ledger before network I/O. Unicode-safe
+  parts retain exact plain text and reply to the originating Telegram message/topic. Confirmed parts
+  survive restarts; provider rate limits persist their retry time. Lost confirmations and interrupted
+  sends become uncertain and need an explicit retry after checking Telegram. Source edits hold
+  queued/running work and unsent answer parts. Local fixtures cover admission through reply delivery;
+  live account checks remain outstanding.
+- Next: add outgoing deliverable files, bounded working/approval notices, Settings UI, and the other
+  platforms. Albums still need grouping before dispatch, and inbox retention/review controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the final deletion/retention flow is pending. Real-account text/file checks on all four platforms
   and platform verification on Windows/Linux remain outstanding. Offline checks run in CI.

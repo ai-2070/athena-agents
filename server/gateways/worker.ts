@@ -9,18 +9,24 @@ import { GatewaySetupError, TelegramIntakeAdapter } from './telegram.ts';
 import { claimGatewayAccount } from './ownership.ts';
 import { GatewayFileProcessor } from './files.ts';
 import type { GatewayDownloader } from './files.ts';
+import { GatewayDispatcher } from './dispatch.ts';
+import type { GatewayExecutionServices } from './execution.ts';
+import { GatewayReplies } from './replies.ts';
+import type { GatewayReplySender } from './replies.ts';
 
 interface Transport {
   start(): Promise<void>;
   stop(): Promise<void>;
   alive(): boolean;
   download?: GatewayDownloader;
+  reply?: GatewayReplySender;
 }
 interface WorkerOptions {
   transport?(state: GatewayStateAdapter, inbox: GatewayInbox, activity: (connected: boolean) => void, signal: AbortSignal): Transport;
   health?(value: GatewayHealth): void;
   retryMs?: number;
   monitorMs?: number;
+  execution?: GatewayExecutionServices;
 }
 const quiet: Logger = { child: () => quiet, debug() {}, info() {}, warn() {}, error() {} };
 
@@ -29,7 +35,7 @@ function telegramTransport(state: GatewayStateAdapter, inbox: GatewayInbox, acti
   if (!botToken) throw new GatewaySetupError('Add a Telegram bot token before connecting.');
   const telegram = new TelegramIntakeAdapter(state.instanceId, inbox, botToken, activity, { signal });
   const chat = new Chat({ userName: 'Athena', adapters: { telegram }, state, logger: quiet, concurrency: 'concurrent' });
-  return { start: () => chat.initialize(), stop: () => chat.shutdown(), alive: () => telegram.isPolling, download: (id, maxBytes, signal) => telegram.downloadFileSource(id, maxBytes, signal) };
+  return { start: () => chat.initialize(), stop: () => chat.shutdown(), alive: () => telegram.isPolling, download: (id, maxBytes, signal) => telegram.downloadFileSource(id, maxBytes, signal), reply: (event, text, signal) => telegram.replyText(event, text, signal) };
 }
 
 /** A supervised local intake worker. Agent execution and delivery consume the saved inbox separately. */
@@ -39,6 +45,8 @@ export class TelegramGatewayWorker {
   private state: GatewayStateAdapter | undefined;
   private transport: Transport | undefined;
   private files: GatewayFileProcessor | undefined;
+  private dispatcher: GatewayDispatcher | undefined;
+  private replies: GatewayReplies | undefined;
   private inbox: GatewayInbox | undefined;
   private abort: AbortController | undefined;
   private releaseAccount: (() => Promise<void>) | undefined;
@@ -103,6 +111,12 @@ export class TelegramGatewayWorker {
         await this.files.start();
       }
       abort.signal.throwIfAborted();
+      if (transport.reply) {
+        this.replies = new GatewayReplies(inbox, transport.reply, abort.signal); this.replies.start();
+        this.dispatcher = new GatewayDispatcher(inbox, abort.signal, this.options.execution);
+        await this.dispatcher.start();
+      }
+      abort.signal.throwIfAborted();
       this.attempts = 0;
       this.publish('connected');
       this.monitor = setInterval(() => {
@@ -151,6 +165,8 @@ export class TelegramGatewayWorker {
     const releaseAccount = this.releaseAccount;
     // Keep claims if transport shutdown fails; another worker must not take over a live consumer.
     // Chat.shutdown disconnects SDK state, so finish file receipts while ownership is still held.
+    await this.dispatcher?.stop();
+    await this.replies?.stop();
     await this.files?.stop();
     await transport?.stop();
     await state?.disconnect();
@@ -160,11 +176,18 @@ export class TelegramGatewayWorker {
     this.releaseAccount = undefined;
     this.files = undefined;
     this.inbox = undefined;
+    this.dispatcher = undefined; this.replies = undefined;
   }
 
   retryFiles(eventId: string): void {
     if (this.closed || !this.inbox || !this.files) throw Object.assign(new Error('Connect this gateway before retrying its files.'), { status: 400 });
     this.inbox.retryFiles(eventId);
+  }
+
+  retryReply(eventId: string): void {
+    if (this.closed || !this.inbox || !this.replies) throw Object.assign(new Error('Connect this gateway before retrying its reply.'), { status: 400 });
+    try { this.inbox.retryReply(eventId); }
+    catch { throw Object.assign(new Error('This reply cannot be retried. Check its status, access and destination.'), { status: 400 }); }
   }
 
   stop(): Promise<void> { return this.stopping ??= this.close(); }

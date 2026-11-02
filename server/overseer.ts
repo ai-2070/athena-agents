@@ -57,6 +57,7 @@ export interface BrainChatMessage {
   ts: number;
   attachments?: string[];
   from?: string;
+  operationId?: string;
   /** What the Brain did with this answer, so a reopened chat shows it the way it first did. */
   done?: BrainDone[];
   /** Who it handed the work to, and where (a reopened chat follows that work again). */
@@ -1939,6 +1940,7 @@ export interface BrainAskOptions {
   goal?: boolean;
   conversationId?: string;
   from?: string;
+  operationId?: string;
   proceed?: () => boolean;
 }
 export async function ask(text: string, opts: BrainAskOptions = {}): Promise<BrainAnswer> {
@@ -1964,7 +1966,7 @@ async function askNow(text: string, opts: BrainAskOptions): Promise<BrainAnswer>
   }
 }
 
-async function answerNow(text: string, { attachments = [], onPart, goal = false, conversationId, from, proceed }: { attachments?: string[]; onPart?: (p: BrainPart) => void; goal?: boolean; conversationId?: string; from?: string; proceed?: () => boolean }, me: Asking): Promise<BrainAnswer> {
+async function answerNow(text: string, { attachments = [], onPart, goal = false, conversationId, from, proceed, operationId }: { attachments?: string[]; onPart?: (p: BrainPart) => void; goal?: boolean; conversationId?: string; from?: string; proceed?: () => boolean; operationId?: string }, me: Asking): Promise<BrainAnswer> {
   const p = activeProject();
   const key = brainKey(p.id, conversationId);
   const gen = generation(key);
@@ -2073,7 +2075,7 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false,
   const now = Date.now();
   // on top of the history as it is now (not as it was before thinking), so nothing saved meanwhile is lost;
   // cleared meanwhile: this turn belongs to the old conversation, so it isn't brought back
-  if (!cleared()) remember([...history(p.id, conversationId), { role: 'user', text, ...(from ? { from } : {}), ts: now, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: r.answer, ts: Date.now(), ...(done.length ? { done } : {}), ...(delegate ? { delegate: { kind: delegate.kind, id: delegate.id, name: delegate.name, message: delegate.message, ...(delegate.sent ? { sent: delegate.sent } : {}) } } : {}), ...(steps.length ? { steps: steps.map((st) => (st.state === 'running' ? { ...st, state: 'error' as const, output: '(no result)' } : st)) } : {}) }], p.id, conversationId);
+  if (!cleared()) remember([...history(p.id, conversationId), { role: 'user', text, ...(operationId ? { operationId } : {}), ...(from ? { from } : {}), ts: now, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: r.answer, ...(operationId ? { operationId } : {}), ts: Date.now(), ...(done.length ? { done } : {}), ...(delegate ? { delegate: { kind: delegate.kind, id: delegate.id, name: delegate.name, message: delegate.message, ...(delegate.sent ? { sent: delegate.sent } : {}) } } : {}), ...(steps.length ? { steps: steps.map((st) => (st.state === 'running' ? { ...st, state: 'error' as const, output: '(no result)' } : st)) } : {}) }], p.id, conversationId);
   return { ...r, model: bm, project: p.name };
 }
 

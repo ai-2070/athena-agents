@@ -16,6 +16,7 @@ import { EveOwnershipError } from './eve/ownership.ts';
 import { eveCoordinator } from './eve/coordinator.ts';
 import * as gateways from './gateways/instances.ts';
 import { GatewaySupervisor } from './gateways/supervisor.ts';
+import { gatewayInboxHistory } from './gateways/inbox.ts';
 import { PROVIDERS, listModels } from './providers.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { codexModelList } from './models.ts';
@@ -977,6 +978,7 @@ get('/api/gateways', async () => ({
   health: gatewaySupervisor.health(),
 }));
 post<unknown>('/api/gateways', async (_p, body) => gateways.saveGatewayInstance(body));
+get('/api/gateways/:id/inbox', async ({ id }) => ({ events: gatewayInboxHistory(id) }));
 put<unknown>('/api/gateways/:id', async ({ id }, body) => gateways.saveGatewayInstance(body, id));
 put<unknown>('/api/gateways/:id/credentials', async ({ id }, body) => {
   gateways.saveGatewayCredentials(id, body);
@@ -989,6 +991,10 @@ post('/api/gateways/:id/reconnect', async ({ id }) => {
 });
 post('/api/gateways/:id/inbox/:eventId/retry-files', async ({ id, eventId }) => {
   gatewaySupervisor.retryFiles(id, eventId);
+  return { ok: true };
+});
+post('/api/gateways/:id/inbox/:eventId/retry-reply', async ({ id, eventId }) => {
+  gatewaySupervisor.retryReply(id, eventId);
   return { ok: true };
 });
 del('/api/gateways/:id', async ({ id }) => {

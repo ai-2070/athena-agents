@@ -31,6 +31,12 @@ export class GatewaySupervisor {
     worker.retryFiles(eventId);
   }
 
+  retryReply(instanceId: string, eventId: string): void {
+    const worker = this.workers.get(instanceId);
+    if (!worker) throw Object.assign(new Error('Connect this gateway before retrying its reply.'), { status: 400 });
+    worker.retryReply(eventId);
+  }
+
   start(): Promise<void> {
     if (this.closed) return Promise.resolve();
     if (!this.listening) { bus.on('event', this.changed); this.listening = true; }
