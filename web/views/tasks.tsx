@@ -5,7 +5,7 @@
 // column and Alt+↑ / Alt+↓ to move it within one; its "…" menu does the same. A change is saved in the task's own
 // project. A task's page shows its description (Markdown) and its comments, with "Draft with the Brain" for both.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, DragEvent as ReactDragEvent } from 'react';
+import type { CSSProperties, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { DEL, GET, POST, PUT, ago, confirmBox, navigate, onEvent, onReconnect, promptBox, toast } from '../core.ts';
 import { reducedMotion } from '../motion.ts';
 import { Button, ButtonLink, IconButton } from '../ui/button.tsx';
@@ -58,6 +58,14 @@ export function place(column: BoardTask[], above: BoardTask | undefined, below: 
 const path = (t: Pick<BoardTask, 'projectId' | 'id'>) => `/task-board/${encodeURIComponent(t.projectId)}/${encodeURIComponent(t.id)}`;
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const cardKey = (t: BoardTask) => `${t.projectId}/${t.id}`;
+
+/** Double-clicking text you can change opens its editor (not on a link or a button in it). */
+const editOnDoubleClick = (edit: () => void) => (e: ReactMouseEvent) => {
+  if ((e.target as HTMLElement).closest('a,button')) return;
+  // (the word the double-click selected)
+  window.getSelection()?.removeAllRanges();
+  edit();
+};
 
 /** Asks why a task is blocked (null: the move is called off). */
 const askWhyBlocked = (t: BoardTask) => promptBox(`Why is ${taskKey(t.number)} blocked?`, { placeholder: 'e.g. Waiting for the printer\'s quote', ok: 'Move to Blocked' });
@@ -720,7 +728,7 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
   };
   if (!editing)
     return task.description ? (
-      <div className="group relative -mx-3 rounded-box px-3 py-2 [transition:background-color_0.15s] hover:bg-ink/3">
+      <div className="group relative -mx-3 rounded-box px-3 py-2 [transition:background-color_0.15s] hover:bg-ink/3" onDoubleClick={editOnDoubleClick(edit)}>
         <Markdown text={task.description} mentions={mentions} />
         <Button variant="ghost" size="tiny" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100" onClick={edit}>
           <Icon name="pencil" size={12} />
@@ -846,6 +854,7 @@ function Comment({ task, comment: c, mentions, onChange }: { task: BoardTask; co
   const box = useRef<HTMLTextAreaElement>(null);
   useMentionBox(box, mentions, editing);
   const url = `${path(task)}/comments/${encodeURIComponent(c.id)}`;
+  const edit = () => (setValue(c.text), setEditing(true));
   const save = async () => {
     try {
       onChange((await PUT<{ task: BoardTask }>(url, { text: value })).task);
@@ -871,7 +880,7 @@ function Comment({ task, comment: c, mentions, onChange }: { task: BoardTask; co
           <span className="text-faint" title={new Date(c.at).toLocaleString()}>{ago(c.at)}{c.editedAt ? ' · edited' : ''}</span>
           {c.by === 'you' && !editing ? (
             <span className="ml-auto flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-              <IconButton variant="plain" aria-label="Edit comment" title="Edit" onClick={() => (setValue(c.text), setEditing(true))}><Icon name="pencil" size={13} /></IconButton>
+              <IconButton variant="plain" aria-label="Edit comment" title="Edit" onClick={edit}><Icon name="pencil" size={13} /></IconButton>
               <IconButton variant="plain" aria-label="Remove comment" title="Remove" onClick={() => void remove()}><Icon name="trash-2" size={13} /></IconButton>
             </span>
           ) : null}
@@ -885,7 +894,7 @@ function Comment({ task, comment: c, mentions, onChange }: { task: BoardTask; co
             </div>
           </div>
         ) : (
-          <div className="mt-1 rounded-box border border-line bg-panel/60 px-3.5 py-2.5">
+          <div className="mt-1 rounded-box border border-line bg-panel/60 px-3.5 py-2.5" onDoubleClick={c.by === 'you' ? editOnDoubleClick(edit) : undefined}>
             <Markdown text={c.text} mentions={mentions} />
           </div>
         )}

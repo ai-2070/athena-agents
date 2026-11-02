@@ -383,6 +383,25 @@ describe('a task\'s own page', () => {
     expect(root.querySelector('code')!.textContent).toBe('@Café');
   });
 
+  it('opens the description, and a comment of yours, for editing on a double-click (not one from someone else)', async () => {
+    board[0] = { ...board[0], description: 'Use **real** butter, from [the farm](https://example.com).', comments: [
+      { id: 'c1', by: 'you', byName: 'You', text: 'Mine to change', at: now },
+      { id: 'c2', by: 'brain', byName: 'The Brain', text: 'From the Brain', at: now },
+    ] };
+    await open(['p1', 'a']);
+    const dbl = (target: Element) => act(async () => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    // (not on a link in it)
+    await dbl(el.querySelector('a[href="https://example.com"]')!);
+    expect(el.querySelector('textarea[aria-label="Description"]')).toBeNull();
+    await dbl(el.querySelector('strong')!);
+    expect(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Description"]')!.value).toBe('Use **real** butter, from [the farm](https://example.com).');
+    const comment = (text: string) => [...el.querySelectorAll('section[aria-label="Activity"] li')].find((li) => li.textContent?.includes(text))!;
+    await dbl(comment('From the Brain').querySelector('.md')!);
+    expect(el.querySelector('textarea[aria-label="Edit comment"]')).toBeNull();
+    await dbl(comment('Mine to change').querySelector('.md')!);
+    expect(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Edit comment"]')!.value).toBe('Mine to change');
+  });
+
   it('says so when the task is gone', async () => {
     await open(['p1', 'missing']);
     expect(el.textContent).toContain('Back to tasks');
