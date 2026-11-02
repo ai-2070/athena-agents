@@ -1,0 +1,27 @@
+tests/web/station-panel.test.tsx
+  s_8165cbdd742c65::t_b9ed86c1830104 168-179
+web/chat/ChatView.tsx
+  s_8165cbdd742c65::t_6158c3659dfc5e 698
+web/teamchat.tsx
+  s_8165cbdd742c65::t_8e92ee4f1944ef 883
+web/ui/agentselect.tsx
+  s_8165cbdd742c65::t_0944f5b6fbe5cf 18,32
+web/views/station.ts
+  s_8165cbdd742c65::t_da959ace7db287 2315,2322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "df666192e520c4194fa1b9290ca38018e1a3035f",
+  "prompts": {},
+  "sessions": {
+    "s_8165cbdd742c65": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a199c5-f080-7273-8f12-bf60fd408801",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
