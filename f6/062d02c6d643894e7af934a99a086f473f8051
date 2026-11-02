@@ -1,0 +1,23 @@
+tests/web/agents-page.test.tsx
+  s_8e3c27e6ce0122::t_ced1a969cd6491 216
+  s_8e3c27e6ce0122::t_85b15cfbf0b61b 146-158
+web/views/agents.tsx
+  s_8e3c27e6ce0122::t_eeca61feab8e9f 12,305-308,311-327,329,355-373,375-389,436,438-439,443-461,464-483,491,493,495-504,506-507,509,512-517,519-520,522-535,538-553,555-587,589-602,604-607,609,631-633,635,821,873,879,888,896-897,899-900,903-904
+  s_8e3c27e6ce0122::t_e48fe87d5dbdc2 328,374,440-441,518,608
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f6062d02c6d643894e7af934a99a086f473f8051",
+  "prompts": {},
+  "sessions": {
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
