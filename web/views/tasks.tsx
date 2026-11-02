@@ -728,10 +728,10 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
         </Button>
       </div>
     ) : (
-      <button type="button" onClick={edit} className="-mx-3 flex cursor-text items-center gap-2 rounded-box border-0 bg-transparent px-3 py-3 text-left text-[14px] text-faint [transition:background-color_0.15s] hover:bg-ink/3">
+      <Button variant="plain" className="-ml-3 self-start" onClick={edit}>
         <Icon name="pen-line" size={14} />
         Add a description…
-      </button>
+      </Button>
     );
   return (
     <div className="flex flex-col overflow-hidden rounded-box border border-accent/50 bg-bg shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_12%,transparent)]">

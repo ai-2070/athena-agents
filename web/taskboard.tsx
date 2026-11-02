@@ -187,10 +187,10 @@ export function DraftWithBrain({ draft, disabled }: { draft: (instruction: strin
                 </label>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11.5px] text-faint">It reads what is here and the task.</span>
-                  <button type="submit" className={buttonClass('primary', 'small')} disabled={busy}>
+                  <Button type="submit" size="small" disabled={busy}>
                     <Icon name="sparkles" size={13} />
                     {busy ? 'Drafting…' : 'Draft'}
-                  </button>
+                  </Button>
                 </div>
               </form>
             </Popover.Popup>

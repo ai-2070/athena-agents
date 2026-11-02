@@ -48,7 +48,7 @@ export function useDragPreview(board: RefObject<HTMLElement | null>): void {
       const copy = cardCopy(card);
       Object.assign(copy.style, {
         position: 'fixed', left: '0', top: '0', width: `${box.width}px`, margin: '0', zIndex: '60', pointerEvents: 'none',
-        opacity: '0.95', boxShadow: '0 12px 32px -8px rgb(0 0 0 / 0.45)', transition: 'none',
+        opacity: '0.95', boxShadow: 'var(--shadow-pop)', transition: 'none',
       });
       document.body.append(copy);
       preview = copy;
