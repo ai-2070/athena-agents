@@ -5,17 +5,27 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
-import { Client } from 'eve/client';
 
 const root = path.resolve(import.meta.dirname, '..');
-const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'athena-eve-integration-'));
+const isolated = process.argv[2] === '--isolated' ? process.argv[3] : undefined;
+const temporary = isolated || fs.mkdtempSync(path.join(os.tmpdir(), 'athena-eve-integration-'));
 const home = path.join(temporary, 'home');
-fs.mkdirSync(home);
-process.env.DASH_DATA = path.join(temporary, 'data');
-process.env.HOME = home;
-process.env.USERPROFILE = home;
+if (!isolated) {
+  fs.mkdirSync(home);
+  // Bun can cache the home folder before imports finish; isolate it at process startup.
+  const child = Bun.spawn([process.execPath, import.meta.filename, '--isolated', temporary], {
+    env: { ...process.env, DASH_DATA: path.join(temporary, 'data'), HOME: home, USERPROFILE: home, PI_CODING_AGENT_DIR: path.join(home, '.pi', 'agent') },
+    stdout: 'inherit', stderr: 'inherit',
+  });
+  const code = await child.exited;
+  assert(temporary.startsWith(path.join(os.tmpdir(), 'athena-eve-integration-')));
+  fs.rmSync(temporary, { recursive: true, force: true });
+  process.exit(code);
+}
 assert.equal(os.homedir(), home);
+assert.equal(process.env.DASH_DATA, path.join(temporary, 'data'));
 
+const { Client } = await import('eve/client');
 const { activeProject, agents, chats, workflows, saveSettings, setSecret } = await import('../server/store.ts');
 const { newAgent } = await import('../server/library.ts');
 const { beginRun, bindSession, readBinding, readRun, setRunStatus } = await import('../server/eve/state.ts');
