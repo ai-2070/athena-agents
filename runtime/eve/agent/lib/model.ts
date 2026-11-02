@@ -44,9 +44,38 @@ export function athenaModel(config: EveRuntimeConfiguration, beforeCall?: () => 
     },
   });
   const model = provider(config.model);
+  type Prompt = Parameters<typeof model.doGenerate>[0]['prompt'];
+  type UserPart = Extract<Prompt[number], { role: 'user' }>['content'][number];
+  // Compatible APIs accept images in user content, while tool results stay text with their IDs.
+  const withToolImages = (options: Parameters<typeof model.doGenerate>[0]) => {
+    const prompt: Prompt = [];
+    let images: UserPart[] = [];
+    const flush = () => {
+      if (images.length) prompt.push({ role: 'user', content: images });
+      images = [];
+    };
+    for (const message of options.prompt) {
+      if (message.role !== 'tool') { flush(); prompt.push(message); continue; }
+      const content = message.content.map((part) => {
+        if (part.type !== 'tool-result' || part.output.type !== 'content') return part;
+        const text: string[] = [];
+        for (const value of part.output.value) {
+          if (value.type === 'file' && value.mediaType.startsWith('image/')) {
+            if (value.data.type !== 'data' && value.data.type !== 'url') throw new Error('This tool image has no portable bytes.');
+            images.push({ type: 'text', text: `Image returned by ${part.toolName} (${part.toolCallId}):` }, { type: 'file', data: value.data, mediaType: value.mediaType });
+          } else if (value.type === 'text') text.push(value.text);
+          else throw new Error('This tool returned content the model connection cannot read.');
+        }
+        return { ...part, output: { type: 'text' as const, value: text.join('\n') } };
+      });
+      prompt.push({ ...message, content });
+    }
+    flush();
+    return { ...options, prompt };
+  };
   return {
     specificationVersion: model.specificationVersion, provider: model.provider, modelId: model.modelId, supportedUrls: model.supportedUrls,
-    doGenerate: async (options: Parameters<typeof model.doGenerate>[0]) => { await beforeCall?.(); return model.doGenerate(options); },
-    doStream: async (options: Parameters<typeof model.doStream>[0]) => { await beforeCall?.(); return model.doStream(options); },
+    doGenerate: async (options: Parameters<typeof model.doGenerate>[0]) => { await beforeCall?.(); return model.doGenerate(withToolImages(options)); },
+    doStream: async (options: Parameters<typeof model.doStream>[0]) => { await beforeCall?.(); return model.doStream(withToolImages(options)); },
   };
 }

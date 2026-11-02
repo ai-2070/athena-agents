@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { athenaModel, reachedCostLimit } from '../../runtime/eve/agent/lib/model.ts';
+import { modelToolOutput } from '../../runtime/eve/agent/lib/tool-output.ts';
+import { captureToolImages, fileTokens } from '../../server/eve/media.ts';
+import { deflateSync } from 'node:zlib';
 import { activeProject, agents, chats, saveSettings, setSecret } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
 import { selectEveModel } from '../../server/eve/model.ts';
@@ -15,6 +18,45 @@ const config: EveRuntimeConfiguration = { runId: 'model-proof', provider: 'openr
 const prompt = () => [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'Hello' }] }];
 
 describe('Eve model controls', () => {
+  it.each(['lmstudio', 'custom'] as const)('uses the selected %s connection without remote-provider fields', async (provider) => {
+    let sent: Record<string, unknown> = {};
+    let target = '';
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      target = String(url);
+      sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      expect(new Headers(init?.headers).get('authorization')).toBe('Bearer unit-fixture-key');
+      return Response.json({ id: 'completion', created: 1, model: 'local-model', choices: [{ index: 0, message: { role: 'assistant', content: 'Ready' }, finish_reason: 'stop' }] });
+    });
+    await athenaModel({ ...config, provider, baseUrl: 'http://127.0.0.1:9876/v1', model: 'local-model' }).doGenerate({ prompt: prompt() });
+    expect(target).toBe('http://127.0.0.1:9876/v1/chat/completions');
+    expect(sent).toMatchObject({ model: 'local-model', reasoning_effort: 'high', temperature: 0 });
+    expect(sent).not.toHaveProperty('cache_control');
+    expect(sent).not.toHaveProperty('session_id');
+  });
+  it('counts PDF pages even when a small compressed file expands to many pages', () => {
+    const compressed = deflateSync(Buffer.from('/Type /Page '.repeat(12)));
+    const pdf = Buffer.concat([Buffer.from('%PDF-1.4\n/Type /ObjStm\nstream\n'), compressed, Buffer.from('\nendstream')]);
+    expect(fileTokens('application/pdf', pdf.toString('base64'))).toBe(36000);
+    expect(fileTokens('application/pdf', Buffer.from('%PDF-1.4 /Count 40').toString('base64'))).toBe(120000);
+  });
+  it('sends saved tool images as vision input after all matching tool results', async () => {
+    const result = await captureToolImages({ text: 'Screenshot', images: ['data:image/png;base64,YQ=='] });
+    expect(modelToolOutput(result)).toMatchObject({ type: 'content', value: [{ type: 'text', text: 'Screenshot' }, { type: 'file', data: { type: 'data', data: 'YQ==' } }] });
+    let body: Record<string, unknown> = {};
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return Response.json({ id: 'vision', created: 1, model: config.model, choices: [{ index: 0, message: { role: 'assistant', content: 'Seen' }, finish_reason: 'stop' }] });
+    });
+    const model = athenaModel(config);
+    await model.doGenerate({ prompt: [{ role: 'assistant', content: [{ type: 'tool-call', toolCallId: 'one', toolName: 'screenshot', input: {} }, { type: 'tool-call', toolCallId: 'two', toolName: 'read', input: {} }] }, { role: 'tool', content: [{ type: 'tool-result', toolCallId: 'one', toolName: 'screenshot', output: { type: 'content', value: [{ type: 'text', text: 'Screenshot' }, { type: 'file', data: { type: 'data', data: 'YQ==' }, mediaType: 'image/png' }] } }] }, { role: 'tool', content: [{ type: 'tool-result', toolCallId: 'two', toolName: 'read', output: { type: 'text', value: 'Other result' } }] }] });
+    const messages = body.messages as { role: string; content: unknown; tool_call_id?: string }[];
+    expect(messages.map((message) => message.role)).toEqual(['assistant', 'tool', 'tool', 'user']);
+    expect(messages[1]).toMatchObject({ tool_call_id: 'one', content: 'Screenshot' });
+    expect(JSON.stringify(messages.at(-1))).toContain('data:image/png;base64,YQ==');
+    const unavailable = await captureToolImages({ text: 'Result', images: ['https://untrusted.invalid/image.png'] });
+    expect(unavailable.text).toContain('could not be supplied to the model');
+    expect(unavailable.modelImages).toEqual([]);
+  });
   it('does not grant another model call because subtracting decimal costs rounds down', () => {
     expect(reachedCostLimit(0.03, 0.02, 0.01)).toBe(true);
     expect(reachedCostLimit(0.03, 0.02, 0.011)).toBe(false);

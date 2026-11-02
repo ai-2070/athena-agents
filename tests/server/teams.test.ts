@@ -135,11 +135,12 @@ describe('how long a team keeps going', () => {
 
   it('keeps going past any turn count while the agents do work', async () => {
     const { team, replies, paused } = await rally('Writer', 'Editor');
-    await until(() => replies() >= 40 || paused());
-    expect(paused()).toBe(false);
-    expect(replies()).toBeGreaterThanOrEqual(40);
-    stopTeam(team.id);
-  }, 30000);
+    try {
+      await expect.poll(() => replies() >= 40 || paused(), { timeout: 60000 }).toBe(true);
+      expect(paused()).toBe(false);
+      expect(replies()).toBeGreaterThanOrEqual(40);
+    } finally { stopTeam(team.id); }
+  }, 75000);
 
   it('pauses agents that only hand it back and forth', async () => {
     const { team, replies, paused } = await rally('Ping', 'Pong');

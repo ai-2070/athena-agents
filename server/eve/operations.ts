@@ -3,11 +3,12 @@ import { listFiles, readPlain, writeJSON } from '../util.ts';
 import { privateDataPath } from '../private.ts';
 import { readRun } from './state.ts';
 import { canonical } from '../../shared/canonical.ts';
-import type { EveToolOperation } from '../../shared/types.ts';
+import type { EveToolOperation, EveToolResult } from '../../shared/types.ts';
 import type { ToolResult } from '../tools.ts';
+import { captureToolImages } from './media.ts';
 
 const file = (id: string) => privateDataPath('runtime', 'eve', 'operations', `${id}.json`);
-const jobs = new Map<string, Promise<ToolResult>>();
+const jobs = new Map<string, Promise<EveToolResult>>();
 
 export const operationId = (bindingId: string, sessionId: string, runId: string, callId: string) => crypto.createHash('sha256').update(JSON.stringify([bindingId, sessionId, runId, callId])).digest('hex');
 
@@ -42,7 +43,7 @@ export function prepareOperation(input: Pick<EveToolOperation, 'runId' | 'bindin
 const uncertainResult = (): ToolResult => ({ text: 'This tool may already have taken effect. Its outcome must be checked in Athena before retrying. Do not repeat it.', isError: true });
 
 /** Save intent before execution and return the same result for redelivered call identities. */
-export async function executeOperation(id: string, execute: () => Promise<ToolResult>): Promise<ToolResult> {
+export async function executeOperation(id: string, execute: () => Promise<ToolResult>): Promise<EveToolResult> {
   const operation = readOperation(id);
   if (!operation) throw new Error('No such Eve operation.');
   if (operation.status === 'completed') return operation.result || { text: '(no output)' };
@@ -58,7 +59,7 @@ export async function executeOperation(id: string, execute: () => Promise<ToolRe
   const run = readRun(operation.runId);
   if (!run || !['running', 'waiting'].includes(run.status)) throw new Error('This Eve run is no longer active.');
   saveOperation({ ...operation, status: 'running' });
-  const job = Promise.resolve().then(execute).then((result) => {
+  const job = Promise.resolve().then(execute).then(captureToolImages).then((result) => {
     const status = operation.risk === 'high' && result.isError && !result.denied ? 'uncertain' : 'completed';
     saveOperation({ ...readOperation(id)!, status, result });
     return status === 'uncertain' ? uncertainResult() : result;

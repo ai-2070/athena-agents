@@ -203,15 +203,11 @@ export interface MessageViewProps {
   dim: boolean;
   /** what a Rich answer's buttons send */
   onSend: (text: string) => void;
-  /** for the COMPACTED mark's edit */
-  chatPath?: string;
-  latestCompaction?: string | null;
-  onCompactionSaved?: () => void;
   /** whose chat this is (an ask_user card shows that agent's question) */
   owner?: QuestionOwner | null;
 }
 
-export function MessageView({ m, variant, busy, streaming, dim, onSend, chatPath, latestCompaction, onCompactionSaved, owner }: MessageViewProps) {
+export function MessageView({ m, variant, busy, streaming, dim, onSend, owner }: MessageViewProps) {
   if (m.role === 'user') {
     const { text, attachments } = readUser(m);
     const paths = [...attachments, ...findFileMentions(text)];
@@ -235,8 +231,8 @@ export function MessageView({ m, variant, busy, streaming, dim, onSend, chatPath
         if (p.type === 'dynamic-tool') return <ToolCard key={key} part={p} variant={variant} busy={busy} owner={owner} />;
         if (p.type === 'data-compaction') {
           const it = p.data as CompactionItem;
-          if (variant === 'mini') return <div key={key} className={ST_CMP} title="The agent’s memory of the messages above was compacted. Open the full chat to see or edit it.">Compacted</div>;
-          return <Dom key={key} make={() => compactionMark(it, { chatPath, latest: latestCompaction === it.id, busy, compact: variant === 'compact', onSaved: onCompactionSaved })} deps={[it.id, it.text, latestCompaction, busy, chatPath]} />;
+          if (variant === 'mini') return <div key={key} className={ST_CMP} title="The engine shortened its active memory. Original messages remain saved and searchable.">Compacted</div>;
+          return <Dom key={key} make={() => compactionMark(it, { compact: variant === 'compact' })} deps={[it.id, variant]} />;
         }
         if (p.type === 'data-error') return <div key={key} className={variant === 'full' ? 'msg error' : variant === 'compact' ? AC_ERR : ST_ERR}>{(p.data as { text: string }).text}</div>;
         if (p.type === 'data-meta') return variant === 'full' ? <div key={key} className="msg meta">{(p.data as { text: string }).text}</div> : null;

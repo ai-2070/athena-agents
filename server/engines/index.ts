@@ -687,7 +687,7 @@ const told = (id: string, runId: string | null) => {
   starts.delete(id);
 };
 const chatBusy = (projectId: string, chatId: string) => runsIn(projectId, chatId).length > 0 || steering.has(chatKey(projectId, chatId));
-/** Something is going in this chat: a run, or a compaction. */
+/** Something is going in this chat: a turn or pending work. */
 export const isChatBusy = (chatId: string, projectId: string = here()): boolean => chatBusy(projectId, chatId);
 export const hasBackgroundWork = (chatId: string, projectId: string = here()): boolean => [...active.values()].some((r) => r.projectId === projectId && r.ownerChatId === chatId && r.chatId !== chatId);
 const emitQueue = (agentId: string, chatId: string, projectId: string) => {

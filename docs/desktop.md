@@ -57,9 +57,9 @@ A second launch shows and focuses the open window. Size and position are remembe
 
 ### Keep in mind when changing the server
 
-The staged app also includes the experimental Eve runtime in `app/runtime/eve/`, its attachment
+The staged app includes the default API engine's Eve runtime in `app/runtime/eve/`, its attachment
 filesystem templates in `app/runtime/eve-sandbox-cache/`. Both use the existing bundled Bun 1.4+.
-These files support the API-engine replacement; the normal agent engine has not switched to Eve yet.
+API-model agents use these files for the native model/tool loop and active context.
 The server's Eve supervisor finds these relocated files, uses the bundled Bun, and keeps worker
 state under `DATA/runtime/eve`. Saved native work is reconciled before the worker starts its queue.
 The supervisor claims a private loopback ownership port derived from the resolved runtime path;

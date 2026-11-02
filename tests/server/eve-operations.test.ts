@@ -18,7 +18,7 @@ describe('saved Eve tool outcomes', () => {
   it('joins duplicate deliveries and reuses the saved result without repeating an effect', async () => {
     const { operation, input } = fixture('outcome-once');
     let release = () => {};
-    const execute = vi.fn(async () => { await new Promise<void>((resolve) => { release = resolve; }); return { text: 'sent', images: ['image'] }; });
+    const execute = vi.fn(async () => { await new Promise<void>((resolve) => { release = resolve; }); return { text: 'sent', images: ['data:image/png;base64,aW1hZ2U='] }; });
     const first = executeOperation(operation.id, execute);
     const second = executeOperation(operation.id, execute);
     await Promise.resolve();
@@ -27,7 +27,7 @@ describe('saved Eve tool outcomes', () => {
     expect(readOperation(operation.id)?.status).toBe('running');
     release();
     expect(await first).toEqual(await second);
-    expect(await executeOperation(operation.id, execute)).toEqual({ text: 'sent', images: ['image'] });
+    expect(await executeOperation(operation.id, execute)).toEqual({ text: 'sent', images: ['data:image/png;base64,aW1hZ2U='], modelImages: ['data:image/png;base64,aW1hZ2U='] });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(prepareOperation({ ...input, args: { to: 'peer', text: 'once' } }).id).toBe(operation.id);
     expect(() => prepareOperation({ ...input, args: { text: 'different', to: 'peer' } })).toThrow('changed');

@@ -9,7 +9,7 @@ import { admitExecution, updateExecution } from '../../server/execution.ts';
 import { newBatch } from '../../server/uploads.ts';
 import { privateDataPath } from '../../server/private.ts';
 import { writeJSON } from '../../server/util.ts';
-import { admissionHistory, prepareAdmission, readAdmission, submitAdmission, validAdmission } from '../../server/eve/admission.ts';
+import { admissionHistory, messageTokens, prepareAdmission, readAdmission, submitAdmission, validAdmission } from '../../server/eve/admission.ts';
 import { readBinding, readRun, recordAdmissionReceipt, settleRun } from '../../server/eve/state.ts';
 import { prepareEveRecovery, stopEveRun } from '../../server/eve/recovery.ts';
 import { eveRuntime } from '../../server/eve/runtime.ts';
@@ -40,6 +40,21 @@ function transport(reply: (body: Record<string, unknown>) => Response | Promise<
 }
 
 describe('saved Eve input admission', () => {
+  it('budgets files and rejects a current message Eve would shorten later', async () => {
+    expect(messageTokens([{ type: 'file', filename: 'image.png', mediaType: 'image/png', data: 'data:image/png;base64,YQ==' }])).toBeGreaterThan(4784);
+    const own = fixture();
+    saveSettings({ contextWindowTokens: 200000 });
+    updateExecution(own.run.id, { status: 'completed', settled: true });
+    const long = { ...own.run, id: `${own.run.id}-long`, text: 'Full current request '.repeat(12000) };
+    admitExecution(long);
+    await expect(prepareAdmission(long.id, own.project)).rejects.toThrow('No input was shortened or sent');
+    expect(readAdmission(long.id)).toBeNull();
+    const pdf = path.join(newBatch().dir, 'large.pdf');
+    fs.writeFileSync(pdf, Buffer.alloc(100000));
+    const document = fixture([], [pdf]);
+    await expect(prepareAdmission(document.run.id, document.project)).rejects.toThrow('No input was shortened or sent');
+    expect(fs.statSync(pdf).size).toBe(100000);
+  });
   it('pins a turn model and its options while resolving current permissions', async () => {
     const own = fixture();
     agents.save({ ...own.agent, model: 'original-model', temperature: 0.2, effort: 'high' });

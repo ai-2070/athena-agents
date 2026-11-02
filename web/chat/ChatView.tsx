@@ -554,15 +554,12 @@ export function ChatView(p: ChatViewProps) {
     return true;
   };
 
-  const dimBefore = -1;
   // (a long chat draws only the messages near the screen, so the whole of it can be shown)
   const shown = variant === 'mini' ? messages.slice(-14) : messages;
   const windowed = variant !== 'mini' && shown.length >= WINDOW_FROM;
   const lastId = messages[messages.length - 1]?.id;
-  const chatPath = chatId ? `/agents/${agent.id}/chats/${chatId}` : undefined;
   const owner = useMemo(() => ({ agentId: agent.id, chatId }), [agent.id, chatId]);
   const row = (m: ChatMessage) => {
-    const seq = m.metadata?.seq;
     return (
       <MessageView
         key={m.id}
@@ -570,12 +567,9 @@ export function ChatView(p: ChatViewProps) {
         variant={variant}
         busy={busy}
         streaming={streaming && m.id === lastId}
-        dim={seq != null && seq < dimBefore}
+        dim={false}
         onSend={(t) => void send(t)}
-        chatPath={chatPath}
         owner={owner}
-
-        onCompactionSaved={() => void reload()}
       />
     );
   };

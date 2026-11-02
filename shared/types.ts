@@ -855,6 +855,14 @@ export interface EveRunRecord {
   updatedAt: number;
 }
 
+export interface EveToolResult {
+  text: string;
+  isError?: boolean;
+  images?: string[];
+  denied?: boolean;
+  modelImages?: string[];
+}
+
 export interface EveToolOperation {
   id: string;
   runId: string;
@@ -867,7 +875,7 @@ export interface EveToolOperation {
   risk: 'none' | 'low' | 'high';
   fingerprint: string;
   status: 'prepared' | 'waiting' | 'running' | 'completed' | 'uncertain' | 'cancelled';
-  result?: { text: string; isError?: boolean; images?: string[]; denied?: boolean };
+  result?: EveToolResult;
   approvalId?: string;
   approvalChecks?: string[];
   questionId?: string;

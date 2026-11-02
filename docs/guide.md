@@ -91,6 +91,8 @@ When you paste a lot of text (more than 10 lines or 800 characters) into an agen
 
 Use the paperclip, drop files and folders, or paste them (**Ctrl+V**, **⌘V** on macOS) into a chat, the Brain on the Station, the team builder or the New project dialog. A pasted screenshot is saved as `pasted-image.png`. Pasting on the Station, outside a text box, gives the files to the Brain. Text copied from Word, Excel or a web page still pastes as text. Attachments are saved under the project folder's `uploads/` directory, and the agent or Brain receives their paths. Files attached in the team builder are shared with every team member.
 
+Eve sends attached images and documents as native model inputs, with a limit of 16 MB per file and 24 MB per turn. Context limits can be tighter: it budgets instructions, tools, text and files before sending, including PDF pages. A request that Eve could shorten during compaction is rejected intact; use smaller attachments or ask the agent to read files with its tools. The model must support the attached media. Tool results can supply up to six images of 5 MB each to the model; a result says when an image cannot be supplied.
+
 Click an attached picture, Markdown file or PDF to look at it, before or after sending: pictures open big, Markdown opens to read, and a PDF opens in a new browser tab (once it has uploaded). A big picture fits the window; zoom with a click (click again to zoom back out), the scroll wheel, a pinch, the **−** / **+** buttons or the **+**, **−** and **0** keys, and drag to move around.
 
 Clicking the Brain on the Station shows what is in its folder. Pictures, Markdown files and PDFs there open the same way, so does **from PROJECT.md** under the description, and a folder opens in Finder or Explorer.

@@ -1,8 +1,43 @@
 # Replace the built-in API agent with Eve
 
-*Plan, 1 November 2026; progress updated 2 November. Eve is now the default API engine. The old API loop and custom compaction pipeline are deleted. Remaining work is session retirement and update recovery, attachment/tool-image admission, final integration and platform validation. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
+*Plan, 1 November 2026; progress updated 2 November. The Eve cutover and compaction removal are implemented. Local Windows integration, build, desktop smoke and Rust checks pass. Final full-suite and Linux/Windows CI validation are being completed. Gateways are explicitly outside this session. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
 
 ## Progress
+
+All six implementation phases are connected. Ordinary API turns register as `eve`; the handwritten
+API loop is deleted. Eve owns model calls, tool sequencing, native context and compaction. Athena
+keeps agent/project ownership, tool permissions, consent, saved originals, tasks and completion checks.
+No second API harness or legacy reader remains.
+
+Sessions retire on clear/delete, engine or model changes and incompatible runtime versions. Reset
+intent survives a restart during a turn. Recovery can join exact saved descendants after their parent
+completed. Private native payloads are retained locally until app data is removed; retired bindings
+cannot execute or enter portable project copies/backups. This is an explicit retention policy, not
+a claim that Workflow payloads have been securely erased.
+
+Admission budgets standing instructions, tools, original history and the full current input. Images
+use a conservative pinned-runtime bound; PDFs count page objects, including bounded compressed object
+streams. Current input must fit the region Eve retains intact during compaction. Rejection leaves
+originals untouched. Tool images are captured in the operation receipt, then passed through supported
+Eve tool-output parts and the compatible model's vision messages. Unsupported/oversized images produce
+an explicit note. Rich-answer instructions and outputs work through the native runtime; creating or
+copying an agent now preserves that setting.
+
+The native context test forces real Eve compaction, verifies model-facing tool images and rich output,
+then searches and pages the complete pre-compaction original. Protocol tests cover OpenRouter,
+LM Studio, Ollama and custom connections without paid calls. The real-process fixture covers native
+waits, Stop, cost/step limits, lost input receipts, worker restarts and saved team read boundaries.
+Existing suites exercise Brain, goals, routines, copies, backups, exports and CLI reseeding.
+
+Windows validation: full suite passed 1,707 tests before the final three provider/PDF cases; the final
+focused suite passed all 58 tests. A subsequent full run passed 1,709 tests and timed out on the
+forty-turn team test; its native-runtime budget and failure cleanup were corrected, then all 22
+team tests passed. Web build, twenty-request native integration, staged desktop smoke
+(including four crash boundaries), `cargo fmt --check` and locked Clippy passed. The UI detector has no
+findings. A live browser visual check could not run because the browser host is unavailable. No real
+provider accounts or paid models were used. Final CI results will be recorded below.
+
+## Earlier phase notes (historical)
 
 Lifecycle integration now retires native sessions on clear/delete, engine changes, model generations
 and incompatible runtime updates. Active Clear memory allows the current turn to finish, then saves
@@ -290,7 +325,7 @@ The [Chat SDK Gateways plan](CHAT_GATEWAYS_2026-11-01.md) is independent. Gatewa
 conversation services, which can select Eve or any CLI engine. Eve's own messaging channels are not
 a second implementation of Gateways.
 
-## Current implementation
+## Starting implementation (before the cutover)
 
 | Area | Current ownership and relevant files |
 |---|---|

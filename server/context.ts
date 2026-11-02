@@ -24,25 +24,6 @@ export function estimateTokens(input: unknown): number {
   return n;
 }
 
-/** The start of s that fits in budget tokens (and budget × 4 characters, so a base64 blob can't slip
- *  through as "one word"). Cuts only between characters, never inside one. */
-export function cutTokens(s: string, budget: number): { text: string; cut: boolean } {
-  const maxChars = Math.max(0, budget) * 4;
-  if (s.length <= maxChars && estimateTokens(s) <= budget) return { text: s, cut: false };
-  let n = 0;
-  let run = 0;
-  let i = 0;
-  for (const ch of s) {
-    const c = ch.codePointAt(0)!;
-    const cost = charCost(c, run);
-    if (n + cost > budget || i + ch.length > maxChars) break;
-    n += cost;
-    i += ch.length;
-    run = isWord(c) ? run + 1 : 0;
-  }
-  return { text: s.slice(0, i).trimEnd(), cut: true };
-}
-
 /** How much room an item takes in the agent's memory, word for word. */
 export function itemTokens(it: ChatItem): number {
   if (it.type === 'user' || it.type === 'assistant' || it.type === 'error') return estimateTokens(it.text) + 4;

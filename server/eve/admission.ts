@@ -12,6 +12,7 @@ import { beginRun, bindSession, conversationBinding, invalidateConversation, rea
 import type { EveAdmissionRecord, EveMessagePart, ExecutionRun, Project } from '../../shared/types.ts';
 import type { Client } from 'eve/client';
 import { selectEveModel } from './model.ts';
+import { fileTokens } from './media.ts';
 
 import { EVE_GENERATION } from './version.ts';
 export { EVE_GENERATION } from './version.ts';
@@ -20,6 +21,15 @@ const hash = (value: unknown) => crypto.createHash('sha256').update(canonical(va
 const identity = (record: EveAdmissionRecord) => ({ id: record.id, bindingId: record.bindingId, mode: record.mode, sessionId: record.sessionId, message: record.message, history: record.history, historyKeys: record.historyKeys, selection: record.selection });
 const MAX_FILE = 16 * 1024 * 1024;
 const MAX_TOTAL = 24 * 1024 * 1024;
+
+/** Conservative bounds for Eve's pinned media estimator; never import private harness code. */
+export function messageTokens(parts: readonly EveMessagePart[]): number {
+  return 128 + parts.reduce((sum, part) => {
+    if (part.type === 'text') return sum + Math.max(estimateTokens(part.text), Math.ceil(Buffer.byteLength(JSON.stringify(part)) / 4));
+    const encoded = part.data.slice(part.data.indexOf(',') + 1);
+    return sum + 128 + fileTokens(part.mediaType, encoded);
+  }, 0);
+}
 
 export function readAdmission(id: string): EveAdmissionRecord | null {
   if (!/^[\w-]{1,120}$/.test(id)) return null;
@@ -117,8 +127,16 @@ export async function prepareAdmission(runId: string, project: Project): Promise
     const current = sessionContext(binding.id);
     const [{ defs }, rich] = await Promise.all([gatherTools(current.agent, () => {}), richSection(current.agent, chat, receipt.depth)]);
     const window = selection.contextWindow;
-    const tokens = estimateTokens(buildSystemPrompt(current.agent) + rich + JSON.stringify(defs) + history.map((item) => item.text).join('\n') + message.filter((part) => part.type === 'text').map((part) => part.text).join('\n'));
+    const standing = JSON.stringify({ instructions: buildSystemPrompt(current.agent) + rich, tools: defs });
+    const envelope = Math.max(estimateTokens(standing), Math.ceil(Buffer.byteLength(standing) / 4)) + 1024;
+    const addressed = messageTokens(message);
+    // Eve retains at most 20k tokens or half its remaining compaction threshold for the current input.
+    const currentLimit = Math.min(20000, Math.floor((window * 0.9 - envelope) / 2));
+    const originalHistory = history.map((item) => ({ role: item.role, content: item.text }));
+    const historySize = Math.max(estimateTokens(history.map((item) => item.text).join('\n')), Math.ceil(Buffer.byteLength(JSON.stringify(originalHistory)) / 4));
+    const tokens = envelope + historySize + addressed;
     if (tokens > window * 0.85) throw new Error('The saved conversation does not fit this model. Choose a larger-context model or clear memory. No original messages were discarded.');
+    if (addressed > currentLimit) throw new Error('This request and its files exceed the space Eve keeps intact during compaction. Send a smaller request or use the file tools. No input was shortened or sent.');
     // Awaited model metadata must not revive a run stopped in the meantime.
     if (receiptFor(runId).stopRequested || receiptFor(runId).status !== 'running') throw new Error('Stopped.');
     sessionContext(binding.id);
