@@ -6,6 +6,40 @@ export type { Effort } from './effort.ts';
 export type EngineId = 'claude-code' | 'eve' | 'hermes' | 'codex' | 'pi' | 'omp' | 'openclaw';
 export type Autonomy = 'ask' | 'auto' | 'full';
 export type ProviderId = 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'custom';
+
+// ---------- chat gateway instances ----------
+export type GatewayPlatform = 'telegram' | 'slack' | 'discord' | 'whatsapp';
+export type GatewayTarget = { kind: 'brain' } | { kind: 'team'; id: string } | { kind: 'agent'; id: string };
+
+export type GatewaySenderPolicy =
+  | { platform: 'telegram'; allowedUserIds: string[] }
+  | { platform: 'whatsapp'; allowedPhones: string[] }
+  | { platform: 'slack' | 'discord'; allowedUserIds: string[] };
+
+/** Browser-safe configuration. Credentials are stored separately and never included here. */
+export interface GatewayInstance {
+  id: string;
+  name: string;
+  platform: GatewayPlatform;
+  accountId: string;
+  projectId: string;
+  target: GatewayTarget;
+  senderPolicy: GatewaySenderPolicy;
+  scope: { directMessages: boolean; conversationIds: string[]; guildIds: string[] };
+  fileLimits: { perFileBytes: number; perMessageBytes: number; filesPerMessage: number; dailyBytes: number };
+  enabled: boolean;
+  routeGeneration: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Queued work keeps this route even when the instance is edited. */
+export interface GatewayRoute {
+  instanceId: string;
+  projectId: string;
+  target: GatewayTarget;
+  generation: number;
+}
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
 
 /** An API model's advertised limits. Missing capabilities mean the provider did not say. */

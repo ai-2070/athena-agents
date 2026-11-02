@@ -103,6 +103,32 @@ export function secretStatus(): SecretStatus {
   return out as SecretStatus;
 }
 
+export interface GatewaySecrets {
+  botToken?: string;
+  appToken?: string;
+  signingSecret?: string;
+  verificationToken?: string;
+  accessToken?: string;
+  relayKey?: string;
+}
+
+// Global, outside project exports and versions, just like provider secrets.
+const GATEWAY_SECRETS_FILE = dataPath('gateway-secrets.json');
+
+export function getGatewaySecrets(instanceId: string): GatewaySecrets {
+  const records = readJSON<Record<string, GatewaySecrets>>(GATEWAY_SECRETS_FILE, {});
+  return Object.hasOwn(records, instanceId) ? records[instanceId] : {};
+}
+
+export function setGatewaySecrets(instanceId: string, value: GatewaySecrets | null): void {
+  if (!/^[a-zA-Z0-9_-]+$/.test(instanceId)) throw new Error('Invalid gateway instance ID.');
+  const records = readJSON<Record<string, GatewaySecrets>>(GATEWAY_SECRETS_FILE, {});
+  if (value === null) delete records[instanceId];
+  else Object.defineProperty(records, instanceId, { value, enumerable: true, configurable: true, writable: true });
+  writeJSON(GATEWAY_SECRETS_FILE, records);
+  emit('gateways', { id: instanceId });
+}
+
 // A token the local MCP bridge uses to call back into the dashboard.
 export function internalToken(): string {
   const file = dataPath('.internal-token');

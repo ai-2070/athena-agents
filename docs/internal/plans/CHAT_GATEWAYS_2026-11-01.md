@@ -1,6 +1,22 @@
 # Chat SDK Gateways with files
 
-*Plan, 1 November 2026. Not implemented. New gateway data does not need a legacy compatibility layer.*
+*Plan, 1 November 2026. Foundation started 2 November; transports and product setup are not implemented.
+New gateway data does not need a legacy compatibility layer.*
+
+## Implementation status
+
+- Added browser-safe instance and route types, global instance storage, separate server-only
+  credential storage and Brain/team/agent validation in the configured project.
+- Added account ownership checks, sender-guard and file-limit configuration validation, per-instance
+  pause/delete, route generations and project-pinned execution helpers. Changed routes block stale
+  queued work for review; they never redirect it. Deleted projects or targets pause the instance
+  when its route is checked.
+- These are internal foundation services only. No worker, transport, API routes or Settings UI is
+  enabled yet. Sender validation here checks configuration, not inbound platform identities.
+  WhatsApp configuration currently accepts canonical E.164 only; local-number parsing and verified
+  business identity mapping remain to implement.
+- Next: transport/media proof against pinned SDK packages, then durable inbox/delivery state and
+  worker ownership. Real-account text/file checks on all four platforms remain outstanding.
 
 ## Goal
 
