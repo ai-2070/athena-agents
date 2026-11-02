@@ -15,7 +15,7 @@ import { projectMark } from './projectlogo.ts';
 import { askBrain } from './dock.tsx';
 import { BACKUP_EXT, backupProject, backupAgo, fileSize, listBackups, readBackupSummary, restoreBackup, restoredText, summaryLine } from './backup.tsx';
 import type { BackupListing, BackupSummary } from './backup.tsx';
-import { attachTray } from './attach.tsx';
+import { attachTray, PICKER_LABELLED } from './attach.tsx';
 import type { AttachTray } from './attach.tsx';
 import type { Project } from '../shared/types.ts';
 
@@ -130,7 +130,7 @@ export function openProjectMenu(anchor: Element): void {
   });
 }
 
-// From backup: the drop zone (over: a file is dragged onto it), empty or showing the picked backup
+// Backup: the drop zone (over: a file is dragged onto it), empty or showing the picked backup
 const DROP_EMPTY =
   'flex min-h-[132px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[12px] border-[1.5px] border-dashed border-line-2 bg-panel-2/70 p-4.5 text-center text-dim [transition:border-color_0.18s,background_0.18s,color_0.18s] hover:border-line-2 hover:bg-panel-2 hover:text-ink focus-visible:border-accent focus-visible:text-ink focus-visible:outline-none [&.over]:border-solid [&.over]:border-accent [&.over]:bg-[color-mix(in_srgb,var(--color-accent)_9%,var(--color-panel))] [&.over]:text-ink';
 const DROP_HAS =
@@ -143,15 +143,16 @@ const BACKUP_ITEM =
 const ITEM_META = 'text-[12px] whitespace-nowrap text-faint';
 
 // the four ways into a project (the mode row at the top of the window)
+const modeLabel = (ico: string, text: string) => <span className="inline-flex items-center gap-1.5"><Icon name={ico} size={14} />{text}</span>;
 const MODE_OPTIONS: readonly Choice<NewProjectMode>[] = [
-  { value: 'new', label: 'New folder' },
-  { value: 'existing', label: 'Existing folder' },
-  { value: 'github', label: 'From GitHub' },
-  { value: 'backup', label: 'From backup' },
+  { value: 'new', label: modeLabel('folder-plus', 'New folder') },
+  { value: 'existing', label: modeLabel('folder-open', 'Existing folder') },
+  { value: 'github', label: modeLabel('github-logo', 'GitHub') },
+  { value: 'backup', label: modeLabel('archive-restore', 'Backup') },
 ];
-const NAME_PLACEHOLDER = 'e.g. Market research, Client website, Quarterly report';
+const NAME_PLACEHOLDER = 'e.g. Bakery website, Podcast launch, Trip to Japan';
 const ABOUT_PLACEHOLDER =
-  'The goal, who it is for and what it should deliver. e.g. "A comparison of three payroll providers on cost, support and data security, with a two-page summary and a recommendation for the finance team by the end of the month."';
+  'What you want to make and who it is for. e.g. "A simple website for my bakery: the menu, opening hours and a few photos, so people nearby can find us."';
 
 /** A picked backup: a dropped file, or one from the backups folder. */
 type PickSrc = { file: File } | { listed: string };
@@ -216,7 +217,7 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
     setFolder(info.root ? `${info.root}${sep}${slug(name || repo.split('/').pop())}` : '');
   }, [info.root, mode, name, repo, sep]);
 
-  // the backups folder is read the first time the window shows "From backup"
+  // the backups folder is read the first time the window shows "Backup"
   useEffect(() => {
     if (mode !== 'backup' || loadedBackups.current) return;
     loadedBackups.current = true;
@@ -224,7 +225,7 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
     void listBackups().then((r) => setBackups(r.backups)).catch(() => {});
   }, [mode]);
 
-  // in every mode but "From backup" the tray takes dropped files anywhere on the window
+  // in every mode but "Backup" the tray takes dropped files anywhere on the window
   useEffect(() => {
     if (mode === 'backup') {
       stopTrayDrop.current?.();
@@ -238,7 +239,7 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
   useEffect(() => () => stopTrayDrop.current?.(), []);
 
   // A backup dropped on the window is taken as the backup, before the tray sees it (it listens further
-  // down, on the dialog itself). A lone .dashbackup dropped in another mode switches to "From backup".
+  // down, on the dialog itself). A lone .dashbackup dropped in another mode switches to "Backup".
   useEffect(() => {
     const back = box.current?.closest<HTMLElement>('.modal-back');
     if (!back) return;
@@ -367,6 +368,8 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
               }}
             />
           </Field>
+          {/* (a little less padding, so the four choices and their icons fit on one line) */}
+          <div className="[&_.seg_button]:px-3">
           <Segmented
             options={MODE_OPTIONS}
             value={mode}
@@ -375,6 +378,7 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
             }}
             label="New project from"
           />
+          </div>
           {/* the folder's field and the note about it sit together, so the note reads as part of it */}
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-5">
@@ -507,7 +511,7 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
 export async function openNewProject({ mode: startMode = 'new', onDone }: { mode?: NewProjectMode; onDone?: (p: CreatedProject) => unknown } = {}): Promise<void> {
   const info = await GET<ProjectList>('/projects').catch(() => ({ root: '' }));
   const made: { current: CreatedProject | null } = { current: null };
-  const tray = attachTray({ deferred: true });
+  const tray = attachTray({ deferred: true, pickerButton: PICKER_LABELLED });
   const dlg = openModal('New project', (close) => <NewProjectWindow info={info} startMode={startMode} onDone={onDone} close={close} made={made} tray={tray} />, {
     narrow: true,
     // closed after the project was made but before its files went: it is still open in the dashboard

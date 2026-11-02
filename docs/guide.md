@@ -343,7 +343,7 @@ Backups are not a full copy of your working folder: back up source files, upload
 
 ### Restore a backup
 
-Choose **New project → From backup**, then drop in a `.dashbackup` file or choose one from the backups folder.
+Choose **New project → Backup**, then drop in a `.dashbackup` file or choose one from the backups folder.
 
 - Restore creates a new project; it does not replace the original.
 - Missing skills and presets are added. If a skill has the same ID but different contents, your existing skill stays and the restored copy gets an `-restored` suffix. Matching skills receive the backup's earlier versions.
