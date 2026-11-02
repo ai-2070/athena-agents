@@ -283,7 +283,39 @@ New gateway data does not need a legacy compatibility layer.*
   for Slack. Setup explains bot scopes, event subscriptions and local-only restrictions. DOM and
   API tests cover token isolation, partial saves, enable controls and request guards. Browser visual
   verification is unavailable in this session; real-account and Windows/Linux checks remain pending.
-- Next: implement Discord and WhatsApp. Native-work override controls and explicit webhook
+- Added the first Discord intake foundation using the pinned Chat SDK adapter. Startup verifies
+  `/users/@me` against the configured bot and checks the application/bot relationship and Message
+  content capability. Only caller-supplied authenticated Gateway dispatches can enter this proof:
+  inherited HTTP callback handling always returns 404, and the SDK's default Gateway listener is
+  explicitly blocked. It is not wired into production workers or Settings yet.
+- Discord receipts retain guild and actual channel IDs separately from a native thread's parent.
+  Queued authorization requires an explicit guild plus channel/verified-parent scope; DM policy
+  stays separate. The optional exact user-ID list permits local scoped humans when empty. REST
+  checks verify one-to-one DM recipients or guild membership, native thread parent/guild and bot
+  read/reply permissions. Permission calculation applies everyone, role and member overwrites in
+  Discord order, including administrator and send-in-thread rules. Missing permission evidence,
+  unjoined private threads, locked/archived threads, bot/system/webhook actors, forwarded snapshots,
+  foreign guilds and unsupported message types are refused before admission. IDs stay unsigned
+  64-bit strings; guild/parent metadata is checked against each persisted binding.
+- Non-thread channel roots need a direct bot mention; unrelated channel messages cannot inherit
+  a previous topic. Replies to saved source messages or confirmed bot deliveries keep the original
+  topic, and native threads keep independent histories. Partial updates fetch a complete current
+  message after finding its original receipt. Verified text/file changes hold that original work;
+  unchanged metadata/unfurl updates do not start work. Attachments remain bounded ID/metadata
+  descriptors without CDN URLs or downloads. API calls are bounded, redacted and never automatically
+  retried. Intake is serialized with at most 32 queued events, snapshots caller-owned payloads and
+  drains on cancellation; a failed check/write rejects rather than reporting a committed event.
+- `bun run gateways:discord-smoke` proves identity, permissions, scopes, replay, attachment receipts
+  and partial edits against a fake local REST service under Bun, Node and a read-only bundled build
+  outside the checkout. It opens no real Gateway connection or platform messages. Discord differs
+  from Slack's acknowledgement contract: live integration must retain the last durably handled
+  dispatch sequence and resume from it, including after local write failure, before it can ship.
+  The SDK's default listener does not establish this application recovery boundary. See Discord's
+  [Gateway resume contract](https://docs.discord.com/developers/events/gateway),
+  [message dispatch/update fields](https://docs.discord.com/developers/events/gateway-events) and
+  [application intent capabilities](https://docs.discord.com/developers/resources/application).
+- Next: prove Discord live Gateway sequencing/recovery, then add replies, files and setup; implement
+  WhatsApp after that. Native-work override controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the full deletion flow for retired instances is pending. Real-account text/file checks on all four platforms
   and platform verification on Windows/Linux remain outstanding. Offline checks run in CI.

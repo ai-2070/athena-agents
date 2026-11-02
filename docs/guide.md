@@ -450,6 +450,10 @@ Existing Outbox connections work as before. The
 `bun run gateways:smoke` checks a fake local Telegram service without using accounts or keys.
 `bun run gateways:slack-smoke` checks Slack Socket Mode, private downloads and selected file replies
 locally with throwaway data. Real-account checks and Windows/Linux verification remain pending.
+`bun run gateways:discord-smoke` checks the Discord intake foundation with a local REST fixture:
+bot identity, optional sender rules, explicit guild/channel scopes, permissions, threads, replay and
+partial message edits. It uses no real account or Gateway connection. Discord is not enabled in
+Settings; live Gateway recovery, reply delivery and file transfer remain unfinished.
 
 ## License and credits
 

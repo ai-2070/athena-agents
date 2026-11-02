@@ -11,6 +11,7 @@ import type { GatewayCompletion } from './execution.ts';
 import type { GatewayReconciliation } from '../../shared/types.ts';
 import { gatewayAlbumCandidates, gatewayAlbumKey, gatewayCleanupCandidates } from '../../shared/gateways.ts';
 import { slackChannelId, slackTimestamp, slackUserId, slackWorkspaceId } from '../../shared/gateway-slack.ts';
+import { discordId } from '../../shared/gateway-discord.ts';
 
 const externalId = z.string().min(1).max(500);
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -33,7 +34,7 @@ const dispatchSchema: z.ZodType<GatewayDispatch> = z.strictObject({
 });
 const inboundSchema: z.ZodType<GatewayInbound> = z.strictObject({
   platform: z.enum(['telegram', 'slack', 'discord', 'whatsapp']), accountId: externalId,
-  conversationId: externalId, threadId: z.string().max(500), sourceEventId: externalId, sourceMessageId: externalId,
+  conversationId: externalId, guildId: externalId.optional(), parentConversationId: externalId.optional(), threadId: z.string().max(500), sourceEventId: externalId, sourceMessageId: externalId,
   kind: z.enum(['message', 'edit']),
   actor: z.strictObject({ id: externalId, label: z.string().max(200), kind: z.enum(['user', 'bot', 'anonymous']) }),
   directMessage: z.boolean(), triggered: z.boolean(), text: z.string().max(65536),
@@ -49,7 +50,7 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
   retired: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(100000).optional(),
   retiredAlbums: z.array(z.string().regex(/^[a-f0-9]{64}$/)).max(100000).optional(),
   retiredQuota: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), incomingBytes: stamp, outgoingBytes: stamp })).max(100000).optional(),
-  bindings: z.array(z.strictObject({ id: externalId, accountId: externalId, conversationId: externalId, threadId: z.string().max(500), route, createdAt: stamp })),
+  bindings: z.array(z.strictObject({ id: externalId, accountId: externalId, conversationId: externalId, guildId: externalId.optional(), parentConversationId: externalId.optional(), threadId: z.string().max(500), route, createdAt: stamp })),
   events: z.array(z.strictObject({
     id: externalId, bindingId: externalId, route, input: inboundSchema, sequence: stamp.positive(), receivedAt: stamp,
     status: z.enum(['queued', 'waiting-files', 'running', 'done', 'needs-review']), operationId: externalId.optional(), reason: z.string().optional(),
@@ -132,6 +133,15 @@ export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] {
 /** Only inputs from verified transport normalizers may reach this journal. */
 export function gatewayInputAllowed(instance: GatewayInstance, input: GatewayInbound): boolean {
   if (!instance.enabled || instance.platform !== input.platform || input.accountId !== instance.accountId || input.actor.kind !== 'user') return false;
+  if (input.platform !== 'discord' && (input.guildId !== undefined || input.parentConversationId !== undefined)) return false;
+  if (instance.platform === 'discord') {
+    if (instance.senderPolicy.platform !== 'discord' || ![input.accountId, input.actor.id, input.conversationId, input.sourceMessageId].every(discordId)
+      || (input.threadId && !discordId(input.threadId)) || (input.parentConversationId && (!discordId(input.parentConversationId) || input.threadId !== input.conversationId)) || input.mediaGroupId) return false;
+    if (instance.senderPolicy.allowedUserIds.length && !instance.senderPolicy.allowedUserIds.includes(input.actor.id)) return false;
+    return input.directMessage ? input.guildId === undefined && input.parentConversationId === undefined && !input.threadId && instance.scope.directMessages
+      : Boolean(input.guildId && discordId(input.guildId) && input.threadId && instance.scope.guildIds.includes(input.guildId)
+        && (instance.scope.conversationIds.includes(input.conversationId) || (input.parentConversationId && instance.scope.conversationIds.includes(input.parentConversationId))));
+  }
   if (instance.platform === 'slack') {
     if (instance.senderPolicy.platform !== 'slack' || !slackWorkspaceId.test(input.accountId) || !slackUserId.test(input.actor.id)
       || !slackChannelId.test(input.conversationId) || !slackTimestamp.test(input.sourceMessageId) || (input.threadId && !slackTimestamp.test(input.threadId))
@@ -180,7 +190,7 @@ export class GatewayInbox {
       return !binding || event.route.instanceId !== this.state.instanceId || JSON.stringify(binding.route) !== JSON.stringify(event.route)
         || (event.dispatch && (event.dispatch.conversation.projectId !== event.route.projectId || event.dispatch.conversation.conversationId !== event.bindingId || event.dispatch.conversation.kind !== event.route.target.kind))
         || invalidFiles || invalidOutgoing
-        || binding.accountId !== event.input.accountId || binding.conversationId !== event.input.conversationId || binding.threadId !== event.input.threadId
+        || binding.accountId !== event.input.accountId || binding.conversationId !== event.input.conversationId || binding.guildId !== event.input.guildId || binding.parentConversationId !== event.input.parentConversationId || binding.threadId !== event.input.threadId
         || event.sequence >= journal.nextSequence || (index > 0 && event.sequence <= journal.events[index - 1].sequence);
     })) throw new Error('The gateway inbox has inconsistent receipts. Restore it before reconnecting.');
     return journal;
@@ -615,12 +625,13 @@ export class GatewayInbox {
     if (!gatewayInputAllowed(instance, input)) return null;
     const journal = this.read();
     const source = [instance.id, input.accountId, input.conversationId, input.threadId, input.sourceMessageId];
+    if (input.platform === 'discord') source.push(input.guildId ?? '');
     const eventId = digest([...source, input.kind, ...(input.kind === 'edit' ? [input.sourceEventId] : [])]);
     if (journal.retired?.includes(eventId)) return null;
     const duplicate = journal.events.find((event) => event.id === eventId);
     if (duplicate) return duplicate;
     const boundRoute = captureGatewayRoute(instance.id);
-    const bindingId = digest([instance.id, input.accountId, input.conversationId, input.threadId, boundRoute.generation]);
+    const bindingId = digest([instance.id, input.accountId, input.conversationId, input.threadId, boundRoute.generation, ...(input.platform === 'discord' ? [input.guildId ?? ''] : [])]);
     let binding = journal.bindings.find((item) => item.id === bindingId);
     // A new channel conversation needs a mention/reply. Topic scope is explicit and exact.
     if (!input.directMessage && !binding && !input.triggered) return null;
@@ -629,7 +640,7 @@ export class GatewayInbox {
     if (!input.text && !input.media.length) return null;
     if (journal.events.length >= 10000) throw new Error('The gateway inbox is full. Free space before retrying.');
     if (!binding) {
-      binding = { id: bindingId, accountId: input.accountId, conversationId: input.conversationId, threadId: input.threadId, route: boundRoute, createdAt: Date.now() };
+      binding = { id: bindingId, accountId: input.accountId, conversationId: input.conversationId, ...(input.guildId ? { guildId: input.guildId } : {}), ...(input.parentConversationId ? { parentConversationId: input.parentConversationId } : {}), threadId: input.threadId, route: boundRoute, createdAt: Date.now() };
       journal.bindings.push(binding);
     }
     const event: GatewayInboxEvent = {

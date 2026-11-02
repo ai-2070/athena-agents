@@ -60,6 +60,8 @@ export interface GatewayInbound {
   platform: GatewayPlatform;
   accountId: string;
   conversationId: string;
+  guildId?: string;
+  parentConversationId?: string;
   threadId: string;
   sourceEventId: string;
   sourceMessageId: string;
@@ -76,6 +78,8 @@ export interface GatewayConversationBinding {
   id: string;
   accountId: string;
   conversationId: string;
+  guildId?: string;
+  parentConversationId?: string;
   threadId: string;
   route: GatewayRoute;
   createdAt: number;

@@ -47,6 +47,7 @@
     "test:watch": "vitest",
     "gateways:smoke": "bun scripts/gateways-smoke.ts",
     "gateways:slack-smoke": "bun scripts/gateways-slack-smoke.ts",
+    "gateways:discord-smoke": "bun scripts/gateways-discord-smoke.ts",
     "check": "bun run typecheck && bun run test",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",

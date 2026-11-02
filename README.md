@@ -240,6 +240,8 @@ a fake local Telegram service and throwaway data; it uses no accounts or keys. S
 `bun run gateways:slack-smoke` checks Slack Socket Mode, private files and threaded replies against
 a local service. Slack needs a workspace ID, separate bot/app tokens and explicit conversation scopes.
 Its sender list is optional; empty allows local workspace users within those scopes. Real-account checks remain pending.
+`bun run gateways:discord-smoke` checks Discord identities, scopes, permissions and message receipts
+against a local REST fixture. It does not open a Gateway socket; Discord remains unavailable in Settings.
 
 The Eve runtime replacement is being developed separately from the current API engine. Building
 the runtime uses Bun 1.4 or newer. `bun run eve:build` builds it and `bun run eve:smoke` checks
