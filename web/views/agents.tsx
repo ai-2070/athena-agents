@@ -593,7 +593,7 @@ function ModelInput({ label, hint, value, placeholder, models, onChange }: { lab
           </Autocomplete.Trigger>
         </div>
         <Autocomplete.Portal>
-          <Autocomplete.Positioner anchor={anchor} side="bottom" align="start" sideOffset={5} className="z-96 outline-none" collisionPadding={8}>
+          <Autocomplete.Positioner positionMethod="fixed" anchor={anchor} side="bottom" align="start" sideOffset={5} className="z-96 outline-none" collisionPadding={8}>
             <Autocomplete.Popup className="glass st-menu w-(--anchor-width) max-w-(--available-width) outline-none empty:hidden has-[>[role=listbox]:empty]:hidden">
               <Autocomplete.List className="max-h-72 overflow-y-auto">
                 {(item: ModelListing) => (

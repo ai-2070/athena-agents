@@ -25,7 +25,7 @@ export const DropdownTrigger = Menu.Trigger;
 export function DropdownContent({ side = 'bottom', align = 'start', sideOffset = 6, className = '', children, ...popup }: Menu.Popup.Props & Pick<Menu.Positioner.Props, 'side' | 'align' | 'sideOffset'>) {
   return (
     <Menu.Portal>
-      <Menu.Positioner className="z-96 outline-none" side={side} align={align} sideOffset={sideOffset} collisionPadding={8}>
+      <Menu.Positioner positionMethod="fixed" className="z-96 outline-none" side={side} align={align} sideOffset={sideOffset} collisionPadding={8}>
         <Menu.Popup className={`st-menu dd static ${className}`.trim()} {...popup}>
           {children}
         </Menu.Popup>

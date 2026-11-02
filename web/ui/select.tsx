@@ -25,7 +25,7 @@ export function SelectControl({ options, value, onChange, 'aria-label': ariaLabe
         <Select.Icon className="flex flex-none text-dim"><Icon name="chevron-down" size={16} /></Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Positioner className="z-96 outline-none" alignItemWithTrigger={false} side="bottom" align="start" sideOffset={6} collisionPadding={8}>
+        <Select.Positioner positionMethod="fixed" className="z-96 outline-none" alignItemWithTrigger={false} side="bottom" align="start" sideOffset={6} collisionPadding={8}>
           <Select.Popup className="st-menu dd static max-h-72 min-w-(--anchor-width) max-w-none">
             <Select.List>
               {options.map((option) => (
