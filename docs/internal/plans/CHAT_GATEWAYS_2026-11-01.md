@@ -11,12 +11,28 @@ New gateway data does not need a legacy compatibility layer.*
   pause/delete, route generations and project-pinned execution helpers. Changed routes block stale
   queued work for review; they never redirect it. Deleted projects or targets pause the instance
   when its route is checked.
+- Pinned `chat` and the four official adapters to `4.43.0`. Added a local SDK state adapter for
+  subscriptions, cache/dedupe, lists, token-checked expiring locks and FIFO queues. Mutations use
+  atomic JSON writes under `DATA/gateways-runtime/<instanceId>`, with one kernel-held ownership
+  claim per resolved instance directory. A competing writer or ownership-port collision fails
+  closed; process death releases the claim. State corruption blocks reconnect instead of resetting
+  it. Queue overflow fails for retry instead of silently dropping a message. This SDK queue is not
+  the application inbox or its execution/recovery ledger.
+- `bun run gateways:smoke` uses a fake local Telegram API and throwaway data/home folders. It proves
+  SDK polling, required sender filtering, an attachment-only input, private file download, a file
+  reply and subscription persistence, with webhook deletion explicitly disabled. The same fixture
+  passes under Bun and Node; tests exercise both runtimes, state isolation, expiry, competing claims
+  and recovery after killing a writer. A bundled proof also runs from read-only files outside the
+  repository. All four adapters import and construct in the fixture;
+  live Slack/Discord connections and WhatsApp signatures/media remain unproven.
 - These are internal foundation services only. No worker, transport, API routes or Settings UI is
   enabled yet. Sender validation here checks configuration, not inbound platform identities.
   WhatsApp configuration currently accepts canonical E.164 only; local-number parsing and verified
   business identity mapping remain to implement.
-- Next: transport/media proof against pinned SDK packages, then durable inbox/delivery state and
-  worker ownership. Real-account text/file checks on all four platforms remain outstanding.
+- Next: finish transport/media proof, add durable inbox/delivery state and wire worker supervision.
+  Prove existing-webhook detection before enabling Telegram polling; disabling automatic deletion
+  alone is not the setup flow. Real-account text/file checks on all four platforms and platform
+  verification on Windows/Linux remain outstanding. The offline checks run in the CI test matrix.
 
 ## Goal
 

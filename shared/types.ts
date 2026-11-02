@@ -1,6 +1,7 @@
 // Types shared by the server (server/) and the browser app (web/).
 // The server stores these as JSON files; the browser gets them from the API.
 import type { Effort } from './effort.ts';
+import type { SerializedMessage } from 'chat';
 export type { Effort } from './effort.ts';
 
 export type EngineId = 'claude-code' | 'eve' | 'hermes' | 'codex' | 'pi' | 'omp' | 'openclaw';
@@ -39,6 +40,16 @@ export interface GatewayRoute {
   projectId: string;
   target: GatewayTarget;
   generation: number;
+}
+
+/** Private SDK coordination state, separate from the application inbox and delivery ledgers. */
+export interface GatewaySdkState {
+  version: 1;
+  values: Record<string, { value: unknown; expiresAt: number | null }>;
+  lists: Record<string, { values: unknown[]; expiresAt: number | null }>;
+  locks: Record<string, { threadId: string; token: string; expiresAt: number }>;
+  subscriptions: string[];
+  queues: Record<string, { enqueuedAt: number; expiresAt: number; message: SerializedMessage }[]>;
 }
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
 
