@@ -1,0 +1,67 @@
+server/store.ts
+  s_3f5afab86a1bb3::t_345015ac16e3fb 399,406-407
+server/private-conversations.ts
+  s_3f5afab86a1bb3::t_eb080917c80730 21,23
+  s_3f5afab86a1bb3::t_254ea0715bc1c1 1-20,22,24-74,78-94
+  s_3f5afab86a1bb3::t_b99a7b4169718e 75-77
+server/overseer.ts
+  s_3f5afab86a1bb3::t_7e680b005aa2c4 472-476
+  s_3f5afab86a1bb3::t_3d0a3feb71ddc0 1951,1953,1955,1959,1963,1967,1969-1971,1975-1977,1987,1989,2008,2024,2026,2028,2034,2042-2043,2066,2076
+  s_3f5afab86a1bb3::t_d5af12de374a00 10,478-481,520-521,1935-1947
+  s_3f5afab86a1bb3::t_a836236cc31cb7 7-8,59,324,354-356,416,420-423,440,467,469-471,477,483-485,494-496,510-512,514-517
+  s_3f5afab86a1bb3::t_a68768cdca95d6 325,468,1948
+  s_3f5afab86a1bb3::t_4c6bbf0f525daa 334-338
+server/irc.ts
+  s_3f5afab86a1bb3::t_a68768cdca95d6 297
+  s_3f5afab86a1bb3::t_7c2db6fb406143 32-34,48,54,58,60,73,306,322,335
+  s_3f5afab86a1bb3::t_0e628c9035a6f3 14,49
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_72d16a0423740b 58-71
+server/teams.ts
+  s_3f5afab86a1bb3::t_a68768cdca95d6 48,256,295,326,334,339,833
+  s_3f5afab86a1bb3::t_4bc1b0c6a59595 25,136,200,473,478,820
+tests/server/private-conversations.test.ts
+  s_3f5afab86a1bb3::t_de53b95234419e 132-161
+  s_3f5afab86a1bb3::t_d69b172208a8c7 1-80,85-131,162
+  s_3f5afab86a1bb3::t_ae4262b46130bb 81-84
+server/gateways/conversations.ts
+  s_3f5afab86a1bb3::t_7d23d6eefea63d 1-26
+server/conversations.ts
+  s_3f5afab86a1bb3::t_8a0d60406ec54c 4,15-16,19,38,43,59,67,71
+server/questions.ts
+  s_3f5afab86a1bb3::t_da0d0f5df75821 7,58
+server/tools.ts
+  s_3f5afab86a1bb3::t_b12638ef0a814d 193,208
+shared/types.ts
+  s_3f5afab86a1bb3::t_d81b64c4bf400e 949
+  s_3f5afab86a1bb3::t_308053699eb164 118-126,645-646,673
+  s_3f5afab86a1bb3::t_d2d7555f4456e1 127-132
+  s_3f5afab86a1bb3::t_95ff128c97a10f 368,423
+server/tasks.ts
+  s_3f5afab86a1bb3::t_88741a865d78f0 4,42,45,73
+server/engines/index.ts
+  s_3f5afab86a1bb3::t_59e2111a0b0406 121,321,325-326
+  s_3f5afab86a1bb3::t_76b53bd5287853 1049,1051
+  s_3f5afab86a1bb3::t_c2d8df678bfda3 5,1047-1048,1050
+server/eve/state.ts
+  s_3f5afab86a1bb3::t_579b38454267f8 6,71
+  s_3f5afab86a1bb3::t_6dc96b238190b5 58,93
+tests/server/gateway-conversations.test.ts
+  s_3f5afab86a1bb3::t_118881514290d8 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eafbaeef51d7ac401eb05df631a70747aa70894c",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
