@@ -1,4 +1,6 @@
-import type { GatewayInbound, GatewayInboxEvent } from './types.ts';
+import type { GatewayInbound, GatewayInboxEvent, GatewayPlatform } from './types.ts';
+
+export const gatewayPlatformAvailable = (platform: GatewayPlatform): boolean => platform === 'telegram' || platform === 'slack';
 
 export const gatewayAlbumKey = (input: GatewayInbound): string | null => input.mediaGroupId
   ? JSON.stringify([input.accountId, input.conversationId, input.threadId, input.mediaGroupId]) : null;

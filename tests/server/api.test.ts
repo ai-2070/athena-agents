@@ -250,6 +250,9 @@ describe('gateway configuration API', () => {
     expect((await create(config)).status).toBe(400);
     const credentials = await req(`/api/gateways/${one.id}/credentials`, { method: 'PUT', headers: json, body: JSON.stringify({ botToken: 'private-gateway-token' }) });
     expect(await credentials.json()).toEqual({ botToken: true });
+    expect((await req(`/api/gateways/${one.id}/credentials`, { method: 'POST', body: JSON.stringify({ appToken: 'private-app-token' }) })).status).toBe(403);
+    expect(await (await req(`/api/gateways/${one.id}/credentials`, { method: 'POST', headers: json, body: JSON.stringify({ appToken: 'private-app-token' }) })).json()).toEqual({ botToken: true, appToken: true });
+    expect(await (await req(`/api/gateways/${one.id}/credentials`, { method: 'POST', headers: json, body: JSON.stringify({ appToken: null }) })).json()).toEqual({ botToken: true });
     const listing = await req('/api/gateways');
     const listed = await listing.json() as { instances: (GatewayInstance & { credentials: Record<string, boolean> })[]; health: GatewayHealth[] };
     expect(JSON.stringify(listed)).not.toContain('private-gateway-token');

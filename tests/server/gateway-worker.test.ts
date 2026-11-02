@@ -6,7 +6,7 @@ import { ensureBrain } from '../../server/projects.ts';
 import { agents, collection } from '../../server/store.ts';
 import { listGatewayInstances, saveGatewayInstance, removeGatewayInstance } from '../../server/gateways/instances.ts';
 import { GatewaySupervisor } from '../../server/gateways/supervisor.ts';
-import { TelegramGatewayWorker } from '../../server/gateways/worker.ts';
+import { GatewayWorker } from '../../server/gateways/worker.ts';
 import { GatewaySetupError } from '../../server/gateways/telegram.ts';
 import { GatewayInbox } from '../../server/gateways/inbox.ts';
 import { GatewayStateAdapter } from '../../server/gateways/state.ts';
@@ -14,7 +14,7 @@ import type { GatewayInstance } from '../../shared/types.ts';
 import { gatewayConfig, gatewayInput } from './gateway-fixtures.ts';
 
 let account = 20000;
-const workers: TelegramGatewayWorker[] = [];
+const workers: GatewayWorker[] = [];
 const supervisors: GatewaySupervisor[] = [];
 afterEach(async () => {
   await Promise.all(supervisors.splice(0).map((supervisor) => supervisor.stop()));
@@ -26,7 +26,7 @@ describe('gateway intake lifecycle', () => {
   it('groups a saved album through its worker once and wakes the normal dispatcher', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let saved: GatewayInbox | undefined; let submissions = 0; let attachments = 0;
-    const worker = new TelegramGatewayWorker(instance.id, {
+    const worker = new GatewayWorker(instance.id, {
       execution: {
         async submit(_event, _signal, proceed, input) { expect(proceed()).toBe(true); submissions++; attachments = input?.attachments.length ?? 0; return {}; },
         poll() { return { state: 'pending' }; },
@@ -50,7 +50,7 @@ describe('gateway intake lifecycle', () => {
   it('reconciles held work through its worker without resubmission or exposing provider errors', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let saved: GatewayInbox | undefined; let recover = false; let submissions = 0; let sends = 0;
-    const worker = new TelegramGatewayWorker(instance.id, {
+    const worker = new GatewayWorker(instance.id, {
       execution: {
         async submit() { submissions++; throw new Error('Response lost after saved completion'); },
         poll() { return { state: 'needs-review' }; },
@@ -71,7 +71,7 @@ describe('gateway intake lifecycle', () => {
   it('uses the worker file selection service and records interrupted uploads before releasing state', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let saved: GatewayInbox | undefined; let complete = false; let sending = false;
-    const worker = new TelegramGatewayWorker(instance.id, {
+    const worker = new GatewayWorker(instance.id, {
       execution: { async submit() { return {}; }, poll() { return complete ? { state: 'completed', answer: 'Final answer' } : { state: 'pending' }; } },
       transport: (state, inbox) => {
         saved = inbox;
@@ -97,7 +97,7 @@ describe('gateway intake lifecycle', () => {
   it('saves an interrupted status notice before transport shutdown releases ownership', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let saved: GatewayInbox | undefined; let sending = false;
-    const worker = new TelegramGatewayWorker(instance.id, {
+    const worker = new GatewayWorker(instance.id, {
       execution: { async submit() { return {}; }, poll() { return { state: 'pending' }; } },
       transport: (state, inbox) => {
         saved = inbox;
@@ -125,7 +125,7 @@ describe('gateway intake lifecycle', () => {
     let saved: GatewayInbox | undefined;
     let submissions = 0;
     const sent: string[] = [];
-    const worker = new TelegramGatewayWorker(instance.id, {
+    const worker = new GatewayWorker(instance.id, {
       execution: { async submit() { submissions++; return {}; }, poll() { return { state: 'completed', answer: 'Worker final answer' }; } },
       transport: (state, inbox) => {
         saved = inbox;
@@ -150,7 +150,7 @@ describe('gateway intake lifecycle', () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let saved: GatewayInbox | undefined;
     let streaming = false;
-    const worker = new TelegramGatewayWorker(instance.id, { transport: (state, inbox) => {
+    const worker = new GatewayWorker(instance.id, { transport: (state, inbox) => {
       saved = inbox;
       return {
         start: async () => {}, stop: () => state.disconnect(), alive: () => true,
@@ -172,7 +172,7 @@ describe('gateway intake lifecycle', () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let saved: GatewayInbox | undefined;
     let fail = true;
-    const worker = new TelegramGatewayWorker(instance.id, { transport: (_state, inbox) => {
+    const worker = new GatewayWorker(instance.id, { transport: (_state, inbox) => {
       saved = inbox;
       return {
         start: async () => { inbox.accept({ ...gatewayInput(), accountId: instance.accountId, text: '', media: [{ kind: 'file', fileId: 'private-file', name: 'plan.txt' }] }); },
@@ -193,7 +193,7 @@ describe('gateway intake lifecycle', () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let starts = 0;
     let stops = 0;
-    const worker = new TelegramGatewayWorker(instance.id, {
+    const worker = new GatewayWorker(instance.id, {
       retryMs: 5,
       transport: () => ({
         start: async () => { if (++starts < 2) throw new Error('https://api.example/botPRIVATE_TOKEN'); },
@@ -216,17 +216,17 @@ describe('gateway intake lifecycle', () => {
   it('requires explicit reconnect after a setup error and claims the same account only once', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let starts = 0;
-    const worker = new TelegramGatewayWorker(instance.id, { retryMs: 5, transport: () => ({ start: async () => { starts++; throw new GatewaySetupError('Existing webhook'); }, stop: async () => {}, alive: () => false }) });
+    const worker = new GatewayWorker(instance.id, { retryMs: 5, transport: () => ({ start: async () => { starts++; throw new GatewaySetupError('Existing webhook'); }, stop: async () => {}, alive: () => false }) });
     workers.push(worker); await worker.start();
     expect(worker.health().status).toBe('needs-setup');
     await new Promise((resolve) => setTimeout(resolve, 30)); expect(starts).toBe(1);
     await worker.stop();
-    const first = new TelegramGatewayWorker(instance.id, { transport: () => ({ start: async () => {}, stop: async () => {}, alive: () => true }) });
+    const first = new GatewayWorker(instance.id, { transport: () => ({ start: async () => {}, stop: async () => {}, alive: () => true }) });
     workers.push(first); await first.start();
     // Simulate two dashboard processes racing to create records for the same account.
     const duplicate = collection<GatewayInstance>('gateways', { global: true }).save({ ...instance, id: `${instance.id}-duplicate` });
     let duplicateStarts = 0;
-    const second = new TelegramGatewayWorker(duplicate.id, { retryMs: 60000, transport: () => ({ start: async () => { duplicateStarts++; }, stop: async () => {}, alive: () => true }) });
+    const second = new GatewayWorker(duplicate.id, { retryMs: 60000, transport: () => ({ start: async () => { duplicateStarts++; }, stop: async () => {}, alive: () => true }) });
     workers.push(second); await second.start();
     expect(second.health().status).toBe('retrying'); expect(duplicateStarts).toBe(0);
   });
@@ -237,7 +237,7 @@ describe('gateway intake lifecycle', () => {
     const inbox = new GatewayInbox(state);
     inbox.accept({ ...gatewayInput(), accountId: instance.accountId }); inbox.claimNext();
     await state.disconnect();
-    const worker = new TelegramGatewayWorker(instance.id, { transport: (_state, recovered) => ({
+    const worker = new GatewayWorker(instance.id, { transport: (_state, recovered) => ({
       start: async () => { expect(recovered.list()[0].status).toBe('needs-review'); expect(recovered.claimNext()).toBeNull(); },
       stop: async () => {}, alive: () => true,
     }) }); workers.push(worker);
@@ -252,7 +252,7 @@ describe('gateway intake lifecycle', () => {
     const two = saveGatewayInstance(twoConfig);
     const starts = new Map<string, number>();
     const stops = new Map<string, number>();
-    const supervisor = new GatewaySupervisor((id, health) => new TelegramGatewayWorker(id, { health, transport: () => ({
+    const supervisor = new GatewaySupervisor((id, health) => new GatewayWorker(id, { health, transport: () => ({
       start: async () => { starts.set(id, (starts.get(id) ?? 0) + 1); },
       stop: async () => { stops.set(id, (stops.get(id) ?? 0) + 1); }, alive: () => true,
     }) })); supervisors.push(supervisor);

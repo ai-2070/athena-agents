@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { GatewayInstance, GatewayRoute, GatewayTarget, GatewayTargets } from '../../shared/types.ts';
 import { agents, collection, getGatewaySecrets, listProjects, setGatewaySecrets, withProject, workflows } from '../store.ts';
 import { uid } from '../util.ts';
+import { slackChannelId, slackTimestamp, slackUserId, slackWorkspaceId } from '../../shared/gateway-slack.ts';
 
 const instances = collection<GatewayInstance>('gateways', { global: true });
 const id = z.string().regex(/^[a-zA-Z0-9_-]+$/).max(200);
@@ -97,6 +98,8 @@ export function saveGatewayInstance(input: unknown, instanceId?: string): Gatewa
     fail('File limits must fit within the message and daily limits.');
   }
   if (next.enabled) {
+    if (next.platform === 'slack' && (!slackWorkspaceId.test(next.accountId) || (next.senderPolicy.platform === 'slack' && next.senderPolicy.allowedUserIds.some((id) => !slackUserId.test(id)))
+      || next.scope.guildIds.length || next.scope.conversationIds.some((scope) => { const [channel, thread, extra] = scope.split('/'); return !slackChannelId.test(channel) || extra !== undefined || (thread !== undefined && !slackTimestamp.test(thread)); }))) fail('Check the Slack workspace, user IDs and channel or thread scopes.');
     const policy = next.senderPolicy;
     if ((policy.platform === 'telegram' && !policy.allowedUserIds.length) || (policy.platform === 'whatsapp' && !policy.allowedPhones.length)) {
       fail('Add at least one allowed sender before enabling this instance.');
@@ -127,6 +130,19 @@ export function saveGatewayCredentials(instanceId: string, input: unknown): void
   const parsed = secrets.safeParse(input);
   if (!parsed.success) fail('Check the gateway credentials.');
   setGatewaySecrets(instanceId, parsed.data);
+}
+
+/** Change one token without sending the other saved secret back to the browser. */
+export function updateGatewayCredentials(instanceId: string, input: unknown): void {
+  requireInstance(instanceId);
+  const token = z.string().trim().min(1).max(4096).nullable().optional();
+  const parsed = z.strictObject({ botToken: token, appToken: token }).safeParse(input);
+  if (!parsed.success) fail('Check the gateway credentials.');
+  const next = { ...getGatewaySecrets(instanceId) };
+  for (const key of ['botToken', 'appToken'] as const) if (parsed.data[key] !== undefined) {
+    if (parsed.data[key] === null) delete next[key]; else next[key] = parsed.data[key];
+  }
+  saveGatewayCredentials(instanceId, next);
 }
 
 /** Presence only: no token suffixes or private connection details reach the browser. */

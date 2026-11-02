@@ -6,7 +6,7 @@ import { PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { useServerEvents } from '../ui/react.tsx';
 import type { GatewayInboxEvent, GatewayInstance, GatewayOutgoingFile } from '../../shared/types.ts';
-import { gatewayAlbumCandidates, gatewayCleanupCandidates, gatewayNeedsReview } from '../../shared/gateways.ts';
+import { gatewayAlbumCandidates, gatewayCleanupCandidates, gatewayNeedsReview, gatewayPlatformAvailable } from '../../shared/gateways.ts';
 export { gatewayNeedsReview } from '../../shared/gateways.ts';
 
 const message = (error: unknown) => error instanceof Error ? error.message : 'Could not update this inbox. Try again.';
@@ -49,7 +49,7 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
   };
   const ordered = [...(events || [])].sort((a, b) => b.sequence - a.sequence);
   const shown = filter === 'review' ? ordered.filter(gatewayNeedsReview) : ordered;
-  const connected = instance.enabled && instance.platform === 'telegram';
+  const connected = instance.enabled && gatewayPlatformAvailable(instance.platform);
   const cutoff = () => age === 'all' ? Date.now() : Date.now() - Number(age) * 86400000;
   const eligible = gatewayCleanupCandidates(events || [], cutoff());
   const cleanup = async () => {
@@ -67,7 +67,7 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
     {notice && <div role="status" className="px-5 py-4 text-dim">{notice}</div>}
     {!events && !error && <Row title="Loading messages…" />}
     {events && !shown.length && <Row title={!events.length ? 'No saved messages' : 'No messages need review'} description={!events.length ? 'Messages from allowed senders appear here after they are saved.' : 'Choose All messages to see queued work, completed replies and confirmed files.'} />}
-    {!connected && <PanelNote>This instance is paused or unavailable. Enable its Telegram connection before retrying deliveries or selecting files.</PanelNote>}
+    {!connected && <PanelNote>This instance is paused or unavailable. Enable its connection before retrying deliveries or selecting files.</PanelNote>}
     {shown.slice(0, limit).map((event) => {
       const candidates = gatewayAlbumCandidates(events || [], event);
       const album = event.album?.memberIds?.map((id) => events?.find((item) => item.id === id)).filter((item) => item !== undefined) ?? [];
@@ -83,7 +83,7 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
         <Button size="small" variant="danger" disabled={busy || !eligible.length} onClick={() => void cleanup()}>Remove completed receipts</Button>
       </div>
     </Row>}
-    <PanelNote>Confirmed deliveries are kept. Check Telegram before retrying an uncertain send; it may already have arrived. These controls never replay model work. Approvals stay in Athena.</PanelNote>
+    <PanelNote>Confirmed deliveries are kept. Check the messaging app before retrying an uncertain send; it may already have arrived. These controls never replay model work. Approvals stay in Athena.</PanelNote>
   </Section>;
 }
 
@@ -104,7 +104,7 @@ function InboxMessage({ event, busy, connected, canSelect, act, candidates, albu
     await act(`${base}/group-album`, { eventIds: ids });
   };
   const retry = async (suffix: string, uncertain: boolean) => {
-    if (uncertain && !await confirmBox(`Check Telegram chat ${event.input.conversationId} for message ${event.input.sourceMessageId} first. This delivery may already have arrived. Retrying can send a duplicate; confirmed parts will be kept.`, { ok: 'Retry delivery' })) return;
+    if (uncertain && !await confirmBox(`Check ${event.input.platform === 'slack' ? 'Slack' : 'Telegram'} chat ${event.input.conversationId} for message ${event.input.sourceMessageId} first. This delivery may already have arrived. Retrying can send a duplicate; confirmed parts will be kept.`, { ok: 'Retry delivery' })) return;
     await act(`${base}/${suffix}`);
   };
   const skip = async (index: number, uncertain: boolean) => {

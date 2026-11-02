@@ -370,9 +370,9 @@ The dashboard keeps the last **50 versions** per item and groups nearby edits. *
 
 Building, testing and packaging the dashboard is in the [README](../README.md#development).
 
-Chat gateways are still being built. Experimental Telegram instances can pass allowed text and attached files
+Chat gateways are still being built. Experimental Telegram and Slack instances can pass allowed text and attached files
 to the Brain, a team or an agent and send final text replies. Files explicitly selected through the local API
-can be sent as Telegram documents after their size, location and saved content hash are checked.
+can be sent as Telegram documents or Slack files after their size, location and saved content hash are checked.
 Gateway agents can also inspect specific finished files and request their delivery through the normal
 approval policy. Files changed after inspection are refused. Artifacts and tool images are not attached automatically.
 Delegated files can come from the agent's custom workspace. Their source run, private conversation and
@@ -384,6 +384,26 @@ Save leaves the instance paused; click **Enable** to connect. Saving an edit pau
 account has its own instance and token. **Pause** stops receiving and delivering; native work already
 started keeps its normal stop behavior. **Reconnect** retries connection setup. **Delete** removes the
 connection and token but retains conversation receipts for recovery.
+
+For Slack, choose **Add Slack instance** and enter the workspace ID (starting with T), a bot OAuth
+token (xoxb-) and an app-level token (xapp-) from the same Slack app. Enable Socket Mode; the app
+token needs `connections:write`. The bot needs `app_mentions:read`, `channels:history`, `channels:read`,
+`groups:history`, `groups:read`, `im:history`, `im:read`, `users:read`, `chat:write`, `files:read` and
+`files:write`. Subscribe to `app_mention`, `message.channels`, `message.groups` and `message.im`.
+Reinstall the app after changing scopes, and invite the bot into each allowed channel. No public
+callback URL is needed. Bot and app tokens can be changed or removed separately; blank fields keep
+the saved tokens. Save pauses the instance; **Enable** starts it once both tokens are saved.
+
+Slack's user-ID list is optional. Empty allows local workspace users within the configured scope;
+adding IDs restricts it to those exact users. Direct messages are a separate choice. List channel IDs
+or channel ID/thread timestamp pairs under **Allowed channels and threads**. Mention the bot to start
+an assignment in a channel, then reply in that thread to continue. Direct messages also start a thread
+per new root message. Different threads keep separate Athena histories. Shared channels, external
+users, group DMs and org-wide installations are refused. Slack files must be hosted uploads shared
+in the saved local conversation; external or inaccessible files hold the request for review. Downloads
+are bounded and rechecked; selected output files use the same workspace, channel and thread.
+Replies are plain text and cannot turn model output into Slack mentions or unfurls. Ambiguous sends
+stay held until explicitly retried after checking Slack. Approvals are reviewed in Athena.
 
 Open an instance's **Inbox** to see messages needing review, or choose **All messages** for its saved
 history. Expand a message to see its original sender, saved destination, attachments, final reply and
@@ -428,8 +448,8 @@ review it in the dashboard. Telegram cannot approve requests.
 Existing Outbox connections work as before. The
 [gateway plan](internal/plans/CHAT_GATEWAYS_2026-11-01.md) tracks the remaining work;
 `bun run gateways:smoke` checks a fake local Telegram service without using accounts or keys.
-`bun run gateways:slack-smoke` checks Slack Socket Mode intake locally with throwaway data.
-Slack is not available in Settings yet; reply delivery and file transfer remain unfinished.
+`bun run gateways:slack-smoke` checks Slack Socket Mode, private downloads and selected file replies
+locally with throwaway data. Real-account checks and Windows/Linux verification remain pending.
 
 ## License and credits
 

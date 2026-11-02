@@ -14,7 +14,7 @@ export interface GatewayDownloadSource {
   declaredBytes?: number;
   cancel?(): Promise<void>;
 }
-export type GatewayDownloader = (fileId: string, maxBytes: number, signal: AbortSignal) => Promise<GatewayDownloadSource>;
+export type GatewayDownloader = (fileId: string, maxBytes: number, signal: AbortSignal, event: GatewayInboxEvent) => Promise<GatewayDownloadSource>;
 
 async function hashFile(file: string, signal: AbortSignal): Promise<string> {
   const hash = crypto.createHash('sha256');
@@ -116,7 +116,7 @@ export class GatewayFileProcessor {
           const attempt = this.inbox.beginTransfer(event.id, file.index);
           const media = event.input.media[file.index];
           if ((media.size ?? 0) > attempt.budget) throw new GatewayFileLimitError('File exceeds its reserved download budget.');
-          const source = await this.download(media.fileId, attempt.budget, this.signal);
+          const source = await this.download(media.fileId, attempt.budget, this.signal, event);
           try {
             // Flatten remote names; an attachment cannot create a directory tree or choose its own root.
             const fallback = media.kind === 'image' ? 'image.jpg' : media.kind === 'audio' ? 'audio.ogg' : media.kind === 'video' ? 'video.mp4' : 'file.bin';

@@ -6,6 +6,8 @@ import { captureGatewayRoute, getGatewayInstance } from './instances.ts';
 import { GatewayCleanupError, GatewayInbox } from './inbox.ts';
 import { GatewayStateAdapter } from './state.ts';
 import { GatewaySetupError, TelegramIntakeAdapter } from './telegram.ts';
+import { SlackIntakeAdapter } from './slack.ts';
+import { gatewayPlatformAvailable } from '../../shared/gateways.ts';
 import { claimGatewayAccount } from './ownership.ts';
 import { GatewayFileProcessor } from './files.ts';
 import type { GatewayDownloader } from './files.ts';
@@ -43,8 +45,18 @@ function telegramTransport(state: GatewayStateAdapter, inbox: GatewayInbox, acti
   return { start: () => chat.initialize(), stop: () => chat.shutdown(), alive: () => telegram.isPolling, download: (id, maxBytes, signal) => telegram.downloadFileSource(id, maxBytes, signal), reply: (event, text, signal) => telegram.replyText(event, text, signal), upload: (event, file, signal) => telegram.replyDocument(event, file, signal) };
 }
 
+function slackTransport(state: GatewayStateAdapter, inbox: GatewayInbox, activity: (connected: boolean) => void, signal: AbortSignal): Transport {
+  const { botToken, appToken } = getGatewaySecrets(state.instanceId);
+  if (!botToken || !appToken) throw new GatewaySetupError('Add Slack bot and app tokens before connecting.');
+  const slack = new SlackIntakeAdapter(state.instanceId, inbox, botToken, appToken, activity, { signal });
+  const chat = new Chat({ userName: 'Athena', adapters: { slack }, state, logger: quiet, concurrency: 'concurrent' });
+  return { start: () => chat.initialize(), stop: () => chat.shutdown(), alive: () => slack.isConnected,
+    download: (id, maxBytes, signal, event) => slack.downloadFileSource(id, maxBytes, signal, event),
+    reply: (event, text, signal) => slack.replyText(event, text, signal), upload: (event, file, signal) => slack.replyDocument(event, file, signal) };
+}
+
 /** A supervised local intake worker. Agent execution and delivery consume the saved inbox separately. */
-export class TelegramGatewayWorker {
+export class GatewayWorker {
   private readonly instanceId: string;
   private readonly options: WorkerOptions;
   private state: GatewayStateAdapter | undefined;
@@ -97,17 +109,17 @@ export class TelegramGatewayWorker {
     this.abort = abort;
     try {
       const instance = getGatewayInstance(this.instanceId);
-      if (!instance.enabled || instance.platform !== 'telegram') throw new GatewaySetupError('This Telegram instance is paused.');
+      if (!instance.enabled || !gatewayPlatformAvailable(instance.platform)) throw new GatewaySetupError('This gateway instance is paused or unavailable.');
       captureGatewayRoute(instance.id);
-      this.releaseAccount = await claimGatewayAccount('telegram', instance.accountId);
+      this.releaseAccount = await claimGatewayAccount(instance.platform, instance.accountId);
       abort.signal.throwIfAborted();
       await state.connect();
       abort.signal.throwIfAborted();
       const inbox = new GatewayInbox(state);
       this.inbox = inbox;
       inbox.recover();
-      const transport = (this.options.transport ?? telegramTransport)(state, inbox, (connected) => {
-        this.publish(connected ? 'connected' : 'retrying', connected ? '' : 'Telegram could not receive messages. It will retry.');
+      const transport = (this.options.transport ?? (instance.platform === 'slack' ? slackTransport : telegramTransport))(state, inbox, (connected) => {
+        this.publish(connected ? 'connected' : 'retrying', connected ? '' : 'This gateway could not receive messages. It will retry.');
       }, abort.signal);
       this.transport = transport;
       await transport.start();
@@ -148,7 +160,7 @@ export class TelegramGatewayWorker {
   private async restart(): Promise<void> {
     await this.dispose();
     if (this.closed) return;
-    this.publish('retrying', 'Telegram stopped receiving messages. It will reconnect.');
+    this.publish('retrying', 'This gateway stopped receiving messages. It will reconnect.');
     this.scheduleRetry();
   }
 

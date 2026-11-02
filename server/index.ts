@@ -987,6 +987,10 @@ put<unknown>('/api/gateways/:id/credentials', async ({ id }, body) => {
   gateways.saveGatewayCredentials(id, body);
   return gateways.gatewayCredentialStatus(id);
 });
+post<unknown>('/api/gateways/:id/credentials', async ({ id }, body) => {
+  gateways.updateGatewayCredentials(id, body);
+  return gateways.gatewayCredentialStatus(id);
+});
 post('/api/gateways/:id/reconnect', async ({ id }) => {
   gateways.getGatewayInstance(id);
   await gatewaySupervisor.reconnect(id);

@@ -42,7 +42,7 @@ const TABS: Tab[] = [
 
 // What can be found. find = text on the page to jump to; words = extra search words.
 const INDEX: IndexEntry[] = [
-  { tab: 'gateways', find: 'Chat gateways', label: 'Telegram chat gateways', words: 'telegram bot two way slack discord whatsapp instances sender guard brain agent team token inbox delivery uncertain retry files' },
+  { tab: 'gateways', find: 'Chat gateways', label: 'Telegram and Slack chat gateways', words: 'telegram bot two way slack discord whatsapp instances sender guard brain agent team token inbox delivery uncertain retry files' },
   { tab: 'general', find: 'API keys', label: 'AI keys', words: 'openrouter venice key api anthropic token' },
   { tab: 'general', find: 'Venice key', label: 'Venice key', words: 'venice api key balance diem models' },
   { tab: 'general', find: 'OpenRouter key', label: 'OpenRouter key', words: 'api key models gpt gemini llama deepseek' },

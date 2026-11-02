@@ -55,7 +55,7 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
     status: z.enum(['queued', 'waiting-files', 'running', 'done', 'needs-review']), operationId: externalId.optional(), reason: z.string().optional(),
     fileBatch: z.string().regex(/^[\w-]{1,64}$/).optional(),
     dispatch: dispatchSchema.optional(),
-    reply: z.strictObject({ createdAt: stamp, reason: z.string().optional(), parts: z.array(replyPart).min(1).max(1000) }).optional(),
+    reply: z.strictObject({ createdAt: stamp, reason: z.string().optional(), parts: z.array(replyPart).min(1).max(2000) }).optional(),
     notices: z.strictObject({ working: replyPart.optional(), approval: replyPart.optional() }).optional(),
     album: z.strictObject({ leaderId: externalId, memberIds: z.array(externalId).min(2).max(10).optional() }).optional(),
     albumBlocked: z.literal(true).optional(),
@@ -75,6 +75,15 @@ function saveAnswer(event: GatewayInboxEvent, answer: string): void {
   const parts: string[] = [];
   for (let start = 0; start < answer.length;) {
     let end = Math.min(start + 3000, answer.length);
+    if (event.input.platform === 'slack') {
+      end = start; let length = 0;
+      while (end < answer.length) {
+        const point = answer.codePointAt(end)!; const width = point > 0xffff ? 2 : 1;
+        const cost = point === 38 ? 5 : point === 60 || point === 62 ? 4 : width;
+        if (length + cost > 3000) break;
+        length += cost; end += width;
+      }
+    }
     const last = answer.charCodeAt(end - 1);
     if (end < answer.length && last >= 0xd800 && last <= 0xdbff) end--;
     parts.push(answer.slice(start, end)); start = end;
@@ -237,6 +246,18 @@ export class GatewayInbox {
     const journal = this.read(); const event = journal.events.find((item) => item.id === eventId);
     if (!event) throw new Error('No such gateway message.');
     return this.sources(journal, event);
+  }
+
+  /** Detect source changes during asynchronous transport checks without overriding an explicit retry. */
+  deliveryVersion(eventId: string): string {
+    const journal = this.read(); const event = journal.events.find((item) => item.id === eventId);
+    if (!event) throw new Error('No such gateway message.');
+    const ids = new Set(event.album?.memberIds ?? [event.id]);
+    const sources = journal.events.filter((item) => ids.has(item.id));
+    const changes = journal.events.filter((item) => (event.input.mediaGroupId && gatewayAlbumKey(item.input) === gatewayAlbumKey(event.input) && !ids.has(item.id))
+      || (item.input.kind === 'edit' && sources.some((source) => source.input.accountId === item.input.accountId && source.input.conversationId === item.input.conversationId
+        && source.input.threadId === item.input.threadId && source.input.sourceMessageId === item.input.sourceMessageId))).map((item) => item.id);
+    return JSON.stringify([event.status, event.operationId, changes]);
   }
 
   cleanup(body: unknown): { removed: number } {
@@ -412,7 +433,7 @@ export class GatewayInbox {
     if ('remoteId' in outcome) { file.status = 'sent'; file.remoteId = outcome.remoteId; delete file.retryAt; delete file.reason; }
     else {
       file.status = outcome.status; file.retryAt = outcome.retryAt;
-      file.reason = outcome.status === 'uncertain' ? 'Delivery uncertain. Check Telegram before explicitly retrying.' : outcome.status === 'failed' ? 'The file could not be sent. Check its location, contents and setup.' : 'The platform asked this file to wait before retrying.';
+      file.reason = outcome.status === 'uncertain' ? 'Delivery uncertain. Check the messaging app before explicitly retrying.' : outcome.status === 'failed' ? 'The file could not be sent. Check its location, contents and setup.' : 'The platform asked this file to wait before retrying.';
       if (file.status === 'pending' && this.sourceChanged(journal, event!)) { file.status = 'failed'; file.reason = 'The source changed during delivery. Review it before explicitly retrying.'; }
     }
     this.commit(journal);
@@ -675,7 +696,7 @@ export class GatewayInbox {
     for (const event of journal.events) {
       for (const file of event.outgoing ?? []) {
         if (file.status !== 'sending') continue;
-        file.status = 'uncertain'; file.reason = 'Delivery was interrupted. Check Telegram before explicitly retrying.'; changed = true;
+        file.status = 'uncertain'; file.reason = 'Delivery was interrupted. Check the messaging app before explicitly retrying.'; changed = true;
       }
       for (const notice of Object.values(event.notices ?? {})) {
         if (notice.status !== 'sending') continue;

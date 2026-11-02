@@ -29,7 +29,7 @@ beforeEach(() => {
     else if (url.endsWith('/inbox')) result = { events: [] };
     else if (url.endsWith('/credentials')) {
       if (failToken) return new Response(JSON.stringify({ error: 'Could not store token.' }), { status: 500 });
-      const instance = instances.find((item) => url.includes(item.id))!; instance.credentials = { botToken: Boolean(body.botToken) };
+      const instance = instances.find((item) => url.includes(item.id))!; if (method === 'POST') { for (const key of ['botToken', 'appToken']) if (Object.hasOwn(body, key)) { if (body[key] === null) delete instance.credentials[key]; else instance.credentials[key] = Boolean(body[key]); } } else instance.credentials = { botToken: Boolean(body.botToken) };
       result = instance.credentials;
     } else if (method === 'POST' && url === '/api/gateways') {
       const instance = { ...body, id: `g${instances.length + 1}`, createdAt: 1, updatedAt: 1, routeGeneration: 1, credentials: {} } as unknown as typeof instances[number]; instances.push(instance); result = instance;
@@ -139,4 +139,38 @@ it('opens a per-instance inbox deep link and reports a deleted instance clearly'
   act(() => unmount()); location.hash = '#/settings?tab=gateways&inbox=deleted'; await open();
   expect(host.textContent).toContain('This gateway is no longer available');
   expect(requests.some((item) => item.url === '/api/gateways/deleted/inbox')).toBe(false);
+});
+
+async function createSlack() {
+  await act(async () => button('Add Slack instance').click()); await settle();
+  await type('Instance name', 'Slack work'); await type('Workspace ID', 'TWORK');
+  await type('Bot token', 'xoxb-private-bot'); await type('App token', 'xapp-private-app');
+}
+it('creates a paused Slack instance with an optional sender list and separate required tokens', async () => {
+  await open(); await createSlack(); expect(host.textContent).toContain('Empty allows local workspace users'); expect(host.textContent).toContain('Socket Mode');
+  await type('Allowed channels and threads', 'CWORK\nCOTHER/1700000000.000001');
+  await act(async () => button('Save instance').click()); await settle();
+  const writes = requests.filter((item) => item.method !== 'GET');
+  expect(writes[0].body).toMatchObject({ platform: 'slack', accountId: 'TWORK', enabled: false, senderPolicy: { platform: 'slack', allowedUserIds: [] }, scope: { conversationIds: ['CWORK', 'COTHER/1700000000.000001'] } });
+  expect(writes[0].body).not.toHaveProperty('botToken'); expect(writes[0].body).not.toHaveProperty('appToken');
+  expect(writes[1]).toEqual({ url: '/api/gateways/g1/credentials', method: 'POST', body: { botToken: 'xoxb-private-bot', appToken: 'xapp-private-app' } });
+  expect(host.textContent).not.toContain('private-'); expect(button('Enable').disabled).toBe(false);
+});
+
+it('preserves the other Slack token when updating or removing only one saved token', async () => {
+  await open(); await createSlack(); await act(async () => button('Save instance').click()); await settle();
+  await act(async () => button('Edit').click()); await settle(); expect(input('App token').value).toBe(''); expect(input('Bot token').value).toBe('');
+  await type('App token', 'xapp-replacement'); await act(async () => button('Save instance').click()); await settle();
+  expect(requests.filter((item) => item.url.endsWith('/credentials')).at(-1)?.body).toEqual({ appToken: 'xapp-replacement' });
+  expect(instances[0].credentials.botToken).toBe(true);
+  await act(async () => button('Edit').click()); await settle(); await act(async () => button('Remove saved app token').click());
+  await act(async () => button('Save instance').click()); await settle(); expect(instances[0].credentials.botToken).toBe(true); expect(button('Enable').disabled).toBe(true);
+});
+
+it('opens a Slack setup deep link with independent fields and keeps token drafts after a failed save', async () => {
+  await open(); await createSlack(); failToken = true; await act(async () => button('Save instance').click()); await settle();
+  expect(input('App token').value).toBe('xapp-private-app'); expect(input('Workspace ID').disabled).toBe(true); failToken = false;
+  await act(async () => button('Save instance').click()); await settle(); act(() => unmount()); location.hash = '#/settings?tab=gateways&instance=g1'; await open();
+  expect(input('Workspace ID').value).toBe('TWORK'); expect(input('Allowed user IDs').value).toBe(''); expect(input('App token').value).toBe('');
+  expect(host.textContent).toContain('Edit Slack work'); expect(instances).toHaveLength(1);
 });

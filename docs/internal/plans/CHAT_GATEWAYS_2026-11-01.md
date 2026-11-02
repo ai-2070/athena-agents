@@ -1,7 +1,7 @@
 # Chat SDK Gateways with files
 
 *Plan, 1 November 2026. Experimental Telegram conversations added 2 November;
-Slack intake proof added 3 November. Product setup remains incomplete.
+Experimental Slack text/file delivery added 3 November. Product setup remains incomplete.
 New gateway data does not need a legacy compatibility layer.*
 
 ## Implementation status
@@ -42,7 +42,7 @@ New gateway data does not need a legacy compatibility layer.*
 - Added guarded local APIs for instance configuration, credential replacement/presence, connection
   health, reconnect, inbox receipts, explicit file/reply retry and deletion under `/api/gateways`;
   the existing
-  Outbox helpers remain unchanged. Other platforms fail closed at application intake and report
+  Outbox helpers remain unchanged. Discord and WhatsApp fail closed at application intake and report
   unavailable when enabled. WhatsApp configuration currently accepts canonical E.164 only;
   local-number parsing and verified business identity mapping remain to implement.
 - Added a streamed incoming-file stage. Telegram metadata and response headers are checked before
@@ -110,7 +110,8 @@ New gateway data does not need a legacy compatibility layer.*
   | Platform | Files | Limit | Captions and grouping |
   | --- | --- | --- | --- |
   | Telegram | Nonempty regular files as documents, including images/audio/video | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | No file captions, native media or albums. One SDK transport request and remote receipt per file, with a 30-second send timeout |
-  | Slack, Discord, WhatsApp | Not enabled in application transport | Pending live verification | Pending |
+  | Slack | Hosted local uploads and explicitly selected regular output files | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | Bounded private streaming downloads; one external-upload allocation, byte upload and completion per file, without SDK retry/fallback |
+  | Discord, WhatsApp | Not enabled in application transport | Pending live verification | Pending |
 
   The application uses the SDK's Telegram multipart transport primitive directly for documents,
   avoiding formatter fallback, grouped sends and hidden retries that would obscure per-file outcomes.
@@ -141,7 +142,7 @@ New gateway data does not need a legacy compatibility layer.*
   retain the new instance ID so retrying credential storage cannot create a duplicate account.
   Live health refreshes preserve form drafts. Destination lookup lists only names/IDs in the chosen
   project without changing the open project. Settings search finds gateways, and
-  `#/settings?tab=gateways&instance=<id>` opens the named Telegram editor. Other platforms are marked
+  `#/settings?tab=gateways&instance=<id>` opens the named Telegram or Slack editor. Discord and WhatsApp are marked
   unavailable; old one-way forms remain under Connections until unified delivery is ready.
   DOM tests cover creation, separate secrets, partial saves, project/team choice, deep links and
   loading errors. Browser screenshot verification was unavailable in this development session.
@@ -248,10 +249,41 @@ New gateway data does not need a legacy compatibility layer.*
   throwaway data/home folders. Bun, Node and a read-only bundled proof outside the checkout pass.
   Tests cover separate tokens, failed commits and replay, optional sender guards, exact scopes,
   actor/channel verification, edits, stale access/routes, queue limits, arrival order and shutdown.
-  Production Slack setup stays unavailable until file transfer, reply delivery and supervised
-  lifecycle are complete; no dashboard callback routes or public endpoints were added.
-- Next: complete Slack file transfer, replies and worker/setup integration, then the remaining
-  platforms. Native-work override controls and explicit webhook
+  This proof is extended below to cover file transfer, reply delivery and supervised lifecycle; no
+  dashboard callback routes or public endpoints were added.
+- Enabled experimental Slack workers alongside Telegram through one shared supervised lifecycle.
+  Workspace ownership, pause/reconnect/delete, file reservations, native Brain/team/agent dispatch,
+  completion tracking, approvals, selected/delegated files and durable per-part outcomes use the
+  existing application ledger. Slack closes its socket on failure; the supervisor reconnects with
+  backoff without resubmitting recorded native work. Every new Slack message root, including a DM,
+  binds its own thread; replies continue that thread's private Athena conversation. Edits recover the
+  original binding even when Slack omits channel/thread metadata.
+- Added Slack private streaming downloads. The worker resolves only saved file IDs, verifies hosted
+  mode, local owner identity and a share in the accepted conversation, checks size and headers, and
+  refuses redirects and off-origin URLs. Only the fixed Slack file origin receives a bot-token header;
+  private URLs never enter the journal. File counts, failed reservations, daily limits, hash checks,
+  cancellation and download retries use the shared processor. Unsupported or inaccessible media
+  holds the whole request rather than dispatching partial input.
+- Slack final text and advisory notices use direct SDK Web API calls with zero automatic retries.
+  Control characters are escaped, markup and automatic parsing/unfurls are disabled, and durable
+  parts fit 3,000 encoded UTF-16 units including entity expansion. Up to 2,000 parts cover the existing
+  million-character answer bound. Replies stay in the original thread. Truncation warnings and unknown
+  outcomes are held, confirmed prefixes stay confirmed, and known rate limits persist a wait time.
+  See [Slack text escaping](https://docs.slack.dev/messaging/formatting-message-text/).
+- Selected Slack documents use verified bytes and three explicit steps: upload-URL allocation,
+  bounded byte upload to the fixed Slack origin, then completion in the saved channel/thread. Access
+  is rechecked before sharing; signed upload URLs are transient. A lost completion response stays
+  uncertain for explicit review. SDK helper fan-out and hidden resend are not used. Tests cover
+  byte/hash and destination checks, redirect/URL refusal, private downloads, upload ambiguity and
+  plain long replies. The Bun/Node/read-only bundled proof now exercises this complete path locally.
+- Settings can add multiple Slack workspaces with independent targets, optional user guards, exact
+  channel/thread scopes and separate bot/app tokens. Blank credential fields keep saved values;
+  guarded POST credential updates replace or remove just the named token without revealing the
+  other one. Save pauses the instance, enable needs both tokens, and Inbox/status/deep links work
+  for Slack. Setup explains bot scopes, event subscriptions and local-only restrictions. DOM and
+  API tests cover token isolation, partial saves, enable controls and request guards. Browser visual
+  verification is unavailable in this session; real-account and Windows/Linux checks remain pending.
+- Next: implement Discord and WhatsApp. Native-work override controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the full deletion flow for retired instances is pending. Real-account text/file checks on all four platforms
   and platform verification on Windows/Linux remain outstanding. Offline checks run in CI.

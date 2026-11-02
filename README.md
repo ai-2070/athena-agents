@@ -221,12 +221,12 @@ More: [Troubleshooting](docs/guide.md#troubleshooting).
 
 ## Development
 
-Chat gateways are in development. Experimental Telegram instances can pass allowed text and attached files
+Chat gateways are in development. Experimental Telegram and Slack instances can pass allowed text and attached files
 to the Brain, a team or an agent and send final text replies. Files explicitly selected through the local API
-or explicitly handed in by a gateway agent through its approval policy can be sent as Telegram documents.
-Set up Telegram instances under **Settings → Gateways**, choose their project and destination, allow sender IDs,
+or explicitly handed in by a gateway agent through its approval policy can be sent as Telegram documents or Slack files.
+Set up Telegram or Slack instances under **Settings → Gateways**, choose their project, destination and sender rules,
 then enable them. Open an instance's **Inbox** to review delivery, retry unconfirmed parts, skip files or select
-specific files to send. Uncertain retries ask you to check Telegram first. Artifacts and tool images are not attached automatically.
+specific files to send. Uncertain retries ask you to check the messaging app first. Artifacts and tool images are not attached automatically.
 **Check saved work** can recover a verified completed reply or resume tracking its original operation without starting another run.
 Telegram albums wait in the inbox for **Group album and start**. Check Telegram for all parts first;
 one assignment includes every saved file and caption. Later parts or edits hold the work for review.
@@ -237,8 +237,9 @@ Slow requests show a short working notice; approvals stay in Athena. Uncertain s
 `bun run gateways:smoke` checks the SDK with
 a fake local Telegram service and throwaway data; it uses no accounts or keys. See the
 [gateway plan](docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md) for what is finished and what remains.
-`bun run gateways:slack-smoke` checks Slack Socket Mode intake against a local service. Slack setup,
-reply delivery and file transfer are still in development.
+`bun run gateways:slack-smoke` checks Slack Socket Mode, private files and threaded replies against
+a local service. Slack needs a workspace ID, separate bot/app tokens and explicit conversation scopes.
+Its sender list is optional; empty allows local workspace users within those scopes. Real-account checks remain pending.
 
 The Eve runtime replacement is being developed separately from the current API engine. Building
 the runtime uses Bun 1.4 or newer. `bun run eve:build` builds it and `bun run eve:smoke` checks

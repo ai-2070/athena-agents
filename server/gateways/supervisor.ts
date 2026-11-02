@@ -1,23 +1,23 @@
 import type { GatewayHealth, GatewayReconciliation, GatewayStatus, ServerEvent } from '../../shared/types.ts';
-import { gatewayNeedsReview } from '../../shared/gateways.ts';
+import { gatewayNeedsReview, gatewayPlatformAvailable } from '../../shared/gateways.ts';
 import { bus, emit, listProjects } from '../store.ts';
 import { GatewayCleanupError, GatewayInbox, gatewayInboxHistory } from './inbox.ts';
 import { GatewayStateAdapter } from './state.ts';
 import { getGatewayInstance, listGatewayInstances } from './instances.ts';
-import { TelegramGatewayWorker } from './worker.ts';
+import { GatewayWorker } from './worker.ts';
 
 /** Settings changes restart only their instance; transport failures never expose raw SDK errors. */
 export class GatewaySupervisor {
-  private readonly workers = new Map<string, TelegramGatewayWorker>();
+  private readonly workers = new Map<string, GatewayWorker>();
   private readonly statuses = new Map<string, GatewayHealth>();
   private readonly reviews = new Map<string, number | null>();
   private readonly changedInboxes = new Set<string>();
   private pending: Promise<void> = Promise.resolve();
   private closed = false;
   private listening = false;
-  private readonly worker: (instanceId: string, health: (value: GatewayHealth) => void) => TelegramGatewayWorker;
+  private readonly worker: (instanceId: string, health: (value: GatewayHealth) => void) => GatewayWorker;
 
-  constructor(worker = (instanceId: string, health: (value: GatewayHealth) => void) => new TelegramGatewayWorker(instanceId, { health })) {
+  constructor(worker = (instanceId: string, health: (value: GatewayHealth) => void) => new GatewayWorker(instanceId, { health })) {
     this.worker = worker;
   }
 
@@ -48,7 +48,7 @@ export class GatewaySupervisor {
         id: instance.id, name: instance.name, platform: instance.platform, projectId: instance.projectId,
         projectName: projects.get(instance.projectId) || 'Project unavailable', enabled: instance.enabled,
         status: !instance.enabled ? 'paused' : !projects.has(instance.projectId) ? 'needs-setup'
-          : this.statuses.get(instance.id)?.status ?? (instance.platform === 'telegram' ? 'connecting' : 'needs-setup'),
+          : this.statuses.get(instance.id)?.status ?? (gatewayPlatformAvailable(instance.platform) ? 'connecting' : 'needs-setup'),
         reviewCount: this.reviews.get(instance.id) ?? null,
       };
     });
@@ -122,7 +122,7 @@ export class GatewaySupervisor {
         this.statuses.set(instanceId, health);
         emit('gateway-health', { ...health });
       };
-      if (!instance.enabled || instance.platform !== 'telegram') {
+      if (!instance.enabled || !gatewayPlatformAvailable(instance.platform)) {
         publish({ instanceId, status: instance.enabled ? 'needs-setup' : 'paused', reason: instance.enabled ? 'This platform is not available yet.' : '', attempts: 0, updatedAt: Date.now() });
         return;
       }

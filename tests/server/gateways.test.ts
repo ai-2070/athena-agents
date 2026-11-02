@@ -5,7 +5,7 @@ import { dataPath } from '../../server/util.ts';
 import {
   captureGatewayRoute, gatewayCredentialStatus, getGatewayInstance, listGatewayInstances,
   removeGatewayInstance, saveGatewayCredentials, saveGatewayInstance, withGatewayRoute,
-  gatewayTargets,
+  gatewayTargets, updateGatewayCredentials,
 } from '../../server/gateways/instances.ts';
 import type { GatewayPlatform, GatewayTarget } from '../../shared/types.ts';
 
@@ -14,10 +14,10 @@ const second = { ...first, id: 'other-project', name: 'Other project' };
 
 function config(accountId = 'bot-1', platform: GatewayPlatform = 'telegram', target: GatewayTarget = { kind: 'brain' }) {
   return {
-    name: 'My gateway', platform, accountId, projectId: first.id, target,
+    name: 'My gateway', platform, accountId: platform === 'slack' ? `T${accountId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}` : accountId, projectId: first.id, target,
     senderPolicy: platform === 'whatsapp'
       ? { platform, allowedPhones: ['+436641234567'] }
-      : { platform, allowedUserIds: ['12345'] },
+      : { platform, allowedUserIds: platform === 'slack' ? ['UALICE'] : ['12345'] },
     scope: { directMessages: true, conversationIds: [], guildIds: [] },
     fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 },
     enabled: true,
@@ -31,6 +31,23 @@ beforeEach(() => {
 });
 
 describe('gateway instances', () => {
+  it('updates each Slack token without exposing or removing the other saved secret', () => {
+    const instance = saveGatewayInstance(config('tokens', 'slack'));
+    saveGatewayCredentials(instance.id, { botToken: 'private-bot', appToken: 'private-app' });
+    updateGatewayCredentials(instance.id, { botToken: 'replacement-bot' });
+    expect(getGatewaySecrets(instance.id)).toEqual({ botToken: 'replacement-bot', appToken: 'private-app' });
+    expect(gatewayCredentialStatus(instance.id)).toEqual({ botToken: true, appToken: true });
+    updateGatewayCredentials(instance.id, { appToken: null }); expect(getGatewaySecrets(instance.id)).toEqual({ botToken: 'replacement-bot' });
+    expect(() => updateGatewayCredentials(instance.id, { unknown: 'value' })).toThrow('credentials');
+  });
+
+  it('checks Slack workspace, user and conversation IDs before enabling a saved draft', () => {
+    const good = config('scope', 'slack');
+    for (const change of [{ accountId: 'a workspace' }, { senderPolicy: { platform: 'slack', allowedUserIds: ['@alice'] } }, { scope: { directMessages: false, conversationIds: ['general'], guildIds: [] } }, { scope: { directMessages: false, conversationIds: ['CLOCAL/not-a-timestamp'], guildIds: [] } }]) {
+      expect(() => saveGatewayInstance({ ...good, ...change })).toThrow('Slack workspace');
+    }
+    expect(saveGatewayInstance({ ...good, senderPolicy: { platform: 'slack', allowedUserIds: [] }, scope: { directMessages: false, conversationIds: ['CLOCAL/1700000000.000001'], guildIds: [] } }).enabled).toBe(true);
+  });
   it('lists only target names and IDs in the chosen project without moving the open project', () => {
     agents.save({ id: 'visible-first', name: 'First', workspace: 'private path' });
     withProject(second, () => { agents.save({ id: 'visible-second', name: 'Second', workspace: 'other private path' }); workflows.save({ id: 'team-second', name: 'Other team' }); });
