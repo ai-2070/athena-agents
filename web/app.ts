@@ -100,6 +100,8 @@ const NAV_TXT =
   'uppercase tracking-[0.025em] in-[.station-mode]:[display:none] in-[.station-mode]:group-hover:absolute in-[.station-mode]:group-hover:left-[58px] in-[.station-mode]:group-hover:z-90 in-[.station-mode]:group-hover:block in-[.station-mode]:group-hover:rounded-ctl in-[.station-mode]:group-hover:border in-[.station-mode]:group-hover:border-line in-[.station-mode]:group-hover:bg-raise in-[.station-mode]:group-hover:shadow-pop in-[.station-mode]:group-hover:px-3 in-[.station-mode]:group-hover:py-1.5 in-[.station-mode]:group-hover:whitespace-nowrap in-[.station-mode]:group-hover:text-ink in-[.station-mode.nav-wide]:inline in-[.station-mode.nav-wide]:group-hover:static in-[.station-mode.nav-wide]:group-hover:border-0 in-[.station-mode.nav-wide]:group-hover:bg-transparent in-[.station-mode.nav-wide]:group-hover:p-0 in-[.station-mode.nav-wide]:group-hover:shadow-none in-[.station-mode.nav-wide]:group-hover:text-inherit md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode]:group-hover:static md:in-[.station-mode]:group-hover:border-0 md:in-[.station-mode]:group-hover:bg-transparent md:in-[.station-mode]:group-hover:p-0 md:in-[.station-mode]:group-hover:text-inherit md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 const NAV_COUNT =
   'ml-auto in-[.station-mode]:[display:none] in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
+// the status list's scrolling part: its top and bottom fade instead of cutting off
+const NAV_LIST = 'nav-list flex min-h-0 min-w-0 flex-1 flex-col gap-px overflow-x-hidden overflow-y-auto pb-2 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-16px),transparent_100%)]';
 // a line of the status list at the bottom left
 const NS_LINE = 'group flex min-w-0 w-full items-center gap-2.5 rounded-ctl px-2 py-1 text-[12.5px] leading-5 text-dim no-underline [transition:background-color_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
 
@@ -119,7 +121,12 @@ function renderNav() {
   const d = state.data;
   if (d) {
     // the status list, or (Status / Limits switch) your Claude and Codex usage limits
-    mount(document.getElementById('nav-status')!, sidebarPanel() === 'limits' ? navLimits(renderNav) : navStatus(d), panelSwitch(renderNav));
+    // only the list scrolls, its ends fading out (like a chat's), and the switch stays under it
+    mount(
+      document.getElementById('nav-status')!,
+      h('div', { class: NAV_LIST }, sidebarPanel() === 'limits' ? navLimits(renderNav) : navStatus(d)),
+      panelSwitch(renderNav),
+    );
   }
   // the version is asked for once (no GitHub call here: the star count is only fetched in Settings > About)
   if (!aboutAsked) {
