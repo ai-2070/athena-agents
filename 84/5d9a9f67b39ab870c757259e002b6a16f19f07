@@ -1,0 +1,38 @@
+tests/web/teamchat-teams.test.ts
+  s_8e3c27e6ce0122::t_4627f275c21bd5 81-83
+tests/web/routines-page.test.tsx
+  s_8e3c27e6ce0122::t_ca8a035aea5aab 65-67
+web/teamchat.tsx
+  s_8e3c27e6ce0122::t_04029ae29ec84b 264,688
+  s_8e3c27e6ce0122::t_4627f275c21bd5 8
+tests/web/mentioneditor.test.ts
+  s_8e3c27e6ce0122::t_4627f275c21bd5 45-50,52-56
+  s_8e3c27e6ce0122::t_3e9ce3d93ef390 51
+  s_8e3c27e6ce0122::t_ca8a035aea5aab 57-66
+web/chat/mentioneditor.ts
+  s_8e3c27e6ce0122::t_07a7b8ff0afb70 124-125
+  s_8e3c27e6ce0122::t_04029ae29ec84b 4-7,50,55-57,64
+web/views/routines.tsx
+  s_8e3c27e6ce0122::t_07a7b8ff0afb70 13,226-227,229-231,341-342
+  s_8e3c27e6ce0122::t_04029ae29ec84b 228
+web/routinemention.ts
+  s_8e3c27e6ce0122::t_07a7b8ff0afb70 182,184-186,191
+docs/guide.md
+  s_8e3c27e6ce0122::t_6623b9b73002a8 192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "845d9a9f67b39ab870c757259e002b6a16f19f07",
+  "prompts": {},
+  "sessions": {
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
