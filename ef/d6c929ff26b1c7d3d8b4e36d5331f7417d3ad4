@@ -1,0 +1,21 @@
+web/app.ts
+  s_8165cbdd742c65::t_63783c9ebbeeef 99
+web/teamchat.tsx
+  s_8165cbdd742c65::t_2ebf2796b08134 774,779,826
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "efd6c929ff26b1c7d3d8b4e36d5331f7417d3ad4",
+  "prompts": {},
+  "sessions": {
+    "s_8165cbdd742c65": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a199c5-f080-7273-8f12-bf60fd408801",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
