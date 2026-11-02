@@ -3,6 +3,7 @@ import { agents, chats, listProjects, withProject, workflows } from '../store.ts
 import { teamWorkServers } from '../mcp.ts';
 import { listFiles, readPlain, writeJSON } from '../util.ts';
 import { privateDataPath } from '../private.ts';
+import { privateTeamDefinition } from '../private-conversations.ts';
 import { readExecution } from '../execution.ts';
 import { activeTeamAssignment } from '../teamwork.ts';
 import { EVE_GENERATION } from './version.ts';
@@ -54,7 +55,7 @@ export function recordAdmissionReceipt(id: string, sessionId: string, deliveryId
 export function bindSession(agent: Agent, chat: Chat, project: Project, generation: string): EveSessionBinding {
   if (chat.agentId !== agent.id) throw new Error('The chat does not belong to this agent.');
   if (!generation) throw new Error('An Eve generation is required.');
-  const binding: EveSessionBinding = { id: crypto.randomBytes(32).toString('hex'), agentId: agent.id, chatId: chat.id, projectId: project.id, teamId: chat.teamId || null, generation, runtimeVersion: EVE_GENERATION, sessionId: null, retired: false, createdAt: Date.now() };
+  const binding: EveSessionBinding = { id: crypto.randomBytes(32).toString('hex'), agentId: agent.id, chatId: chat.id, projectId: project.id, teamId: chat.teamId || null, ...(chat.conversationId ? { conversationId: chat.conversationId } : {}), generation, runtimeVersion: EVE_GENERATION, sessionId: null, retired: false, createdAt: Date.now() };
   return writeJSON(bindingPath(binding.id), binding);
 }
 
@@ -67,7 +68,7 @@ export function sessionContext(id: string): { binding: EveSessionBinding; projec
     let agent: Agent = { ...context.agent, engine: 'eve' };
     const receipt = readExecution().runs.find((run) => run.projectId === binding.projectId && run.agentId === agent.id && run.chatId === binding.chatId && run.status === 'running');
     if (binding.teamId) {
-      const team = workflows.get(binding.teamId);
+      const team = workflows.get(binding.teamId) || privateTeamDefinition(binding.teamId);
       if (!team || !team.members.includes(agent.id)) throw new Error('The agent no longer belongs to this team.');
       const assignment = receipt && activeTeamAssignment(receipt, team.id);
       agent = { ...agent, toolGroups: [...new Set([...agent.toolGroups, ...(team.access?.toolGroups || [])])], mcpServers: teamWorkServers(agent.mcpServers, team.access?.mcpServers || []), _teamSkills: [...new Set([...(team.skills || []), ...(assignment?.skills || [])])] };
@@ -89,7 +90,7 @@ export function transcriptContext(id: string): { binding: EveSessionBinding; pro
   return withProject(project, () => {
     const agent = agents.get(binding.agentId);
     const chat = chats.get(binding.agentId, binding.chatId);
-    if (!agent || !chat || chat.agentId !== agent.id || (chat.teamId || null) !== binding.teamId) throw new Error('The session agent or conversation no longer exists.');
+    if (!agent || !chat || chat.agentId !== agent.id || (chat.teamId || null) !== binding.teamId || (chat.conversationId || null) !== (binding.conversationId || null)) throw new Error('The session agent or conversation no longer exists.');
     return { binding, project, agent, chat };
   });
 }

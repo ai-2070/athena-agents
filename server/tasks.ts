@@ -1,6 +1,7 @@
 // One project file makes claims and dependency edits a single synchronous transaction.
 import { agents, workflows, activeProject, emit } from './store.ts';
 import { dataPath, readJSON, writeJSON, uid } from './util.ts';
+import { privateTeamDefinition } from './private-conversations.ts';
 import type { TaskBatchResult, TaskCreateInput, TaskPage, TaskQuery, TaskScope, TaskSummary, TaskUpdateInput, WorkTask } from '../shared/types.ts';
 
 export interface TaskAccess {
@@ -38,10 +39,10 @@ export function taskScope(v: unknown): TaskScope {
   if (!object(v) || typeof v.kind !== 'string' || !['brain', 'agent', 'team'].includes(v.kind)) return fail('Choose a task list: brain, agent or team.');
   if (v.kind === 'brain') return { kind: 'brain' };
   if (typeof v.id !== 'string' || !/^[\w.-]+$/.test(v.id)) return fail('The task list needs a valid id.');
-  if (v.kind === 'agent' ? !agents.get(v.id) : !workflows.get(v.id)) return fail('That task list is unavailable.', 404);
+  if (v.kind === 'agent' ? !agents.get(v.id) : !(workflows.get(v.id) || privateTeamDefinition(v.id))) return fail('That task list is unavailable.', 404);
   return { kind: v.kind as 'agent' | 'team', id: v.id };
 }
-const member = (agentId: string | undefined, teamId: string | undefined) => !!agentId && !!teamId && !!workflows.get(teamId)?.members?.includes(agentId);
+const member = (agentId: string | undefined, teamId: string | undefined) => !!agentId && !!teamId && !!(workflows.get(teamId) || privateTeamDefinition(teamId))?.members?.includes(agentId);
 function ownList(a: TaskAccess, s: TaskScope): boolean {
   return !!a.admin || (s.kind === 'agent' && s.id === a.agentId) || (s.kind === 'team' && member(a.agentId, s.id));
 }
@@ -69,7 +70,7 @@ function owner(v: unknown, s: TaskScope): string {
   const match = /^(agent|team):([\w.-]+)$/.exec(value);
   if (!match) return fail('owner must be empty, brain, agent:<id> or team:<id>.');
   const [, kind, id] = match;
-  if (kind === 'agent' ? !agents.get(id) : !workflows.get(id)) return fail('That owner is unavailable.');
+  if (kind === 'agent' ? !agents.get(id) : !(workflows.get(id) || privateTeamDefinition(id))) return fail('That owner is unavailable.');
   if (s.kind === 'agent' && (kind !== 'agent' || id !== s.id)) return fail('A private list belongs to its agent. Use a shared list to assign other people.');
   if (s.kind === 'team' && (kind === 'team' ? id !== s.id : !member(id, s.id))) return fail('Choose a member of this team.');
   return value;

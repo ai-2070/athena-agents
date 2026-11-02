@@ -22,6 +22,7 @@ import { clearWork, openBrief, stopTeamWork } from './briefs.ts';
 import type { Agent, LoopInfo, QueuedMessage, SavedTeamAssignment, SavedTeamInput, SavedTeamRelay, Team, TeamMessage, TeamRef, TeamRelay, TeamState } from '../shared/types.ts';
 import type { LoopRequest } from '../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../shared/queue.ts';
+import { privateTeamDefinition, privateTeamRecord, privateTeams } from './private-conversations.ts';
 
 // No limit on turns, so long work keeps going. What pauses a team is chatter: this many turns in a row
 // where agents only talk (no tool used, a short reply), like two agents thanking each other forever.
@@ -44,6 +45,7 @@ interface TeamChat {
 
 /** A message before post() gives it an id and a time. */
 interface NewMessage {
+  sender?: string;
   id?: string;
   from: string;
   text: string;
@@ -131,7 +133,7 @@ export function normalize<T extends Team | null | undefined>(team: T): T {
 }
 
 export function getTeam(id: string | null | undefined): Team | null {
-  return normalize(teamStore.get(id));
+  return normalize(teamStore.get(id) || (id ? privateTeamDefinition(id) : null));
 }
 
 export function listTeams(): Team[] {
@@ -195,7 +197,7 @@ export function recoverTeamWork(): void {
   closedRelays.clear();
   for (const key of relayWork.closed) closedRelays.add(key);
   for (const project of listProjects()) withProject(project, () => {
-    for (const team of listTeams()) {
+    for (const team of [...listTeams(), ...privateTeams().map(normalize)]) {
       const r = runtime(team.id);
       if (!r.recovered) continue;
       const sessions = loadChat(team.id).sessions;
@@ -251,7 +253,7 @@ function post(team: Team, msg: NewMessage): TeamMessage {
   const c = loadChat(team.id);
   const existing = msg.id && c.messages.find((m) => m.id === msg.id);
   if (existing) {
-    if (existing.from !== msg.from || existing.text !== msg.text || (existing.replyTo || null) !== (msg.replyTo || null) || JSON.stringify(existing.attachments || []) !== JSON.stringify(msg.attachments || [])) throw new Error('A saved team message cannot change.');
+    if (existing.from !== msg.from || existing.sender !== msg.sender || existing.text !== msg.text || (existing.replyTo || null) !== (msg.replyTo || null) || JSON.stringify(existing.attachments || []) !== JSON.stringify(msg.attachments || [])) throw new Error('A saved team message cannot change.');
     return existing;
   }
   const full: TeamMessage = { id: uid('m'), ts: Date.now(), mentions: [], ...msg };
@@ -290,6 +292,7 @@ export function parseMentions(team: Team, text: unknown, exclude: string | null 
 
 // ---------- you (or the Brain) write in the team chat ----------
 interface PostOptions {
+  sender?: string;
   /** Stable identity for a saved input. */
   messageId?: string;
   /** Internal goals and loops already have their own owner. */
@@ -320,7 +323,7 @@ function postAndRoute(teamId: string, from: string, text: string | null | undefi
   return here(() => routeMessage(teamId, from, text, opts));
 }
 
-async function routeMessage(teamId: string, from: string, text: string | null | undefined, { replyTo = null, route = null, skills = [], attachments = [], relay, to = [], signal, track = true, messageId = uid('m') }: PostOptions & { relay?: TeamRelay }): Promise<TeamMessage> {
+async function routeMessage(teamId: string, from: string, text: string | null | undefined, { replyTo = null, route = null, skills = [], attachments = [], relay, to = [], signal, track = true, sender, messageId = uid('m') }: PostOptions & { relay?: TeamRelay }): Promise<TeamMessage> {
   if (signal?.aborted) throw new RunStopped();
   const team = getTeam(teamId);
   if (!team) throw new Error('No such team.');
@@ -328,12 +331,12 @@ async function routeMessage(teamId: string, from: string, text: string | null | 
   text = String(text || '').trim();
   if (!text && !attachments.length) throw new Error('Write something first.');
   const r = runtime(team.id);
-  const input: SavedTeamInput = { id: messageId, from, text, replyTo, attachments, skills, to, track, ...(relay ? { relay } : {}) };
+  const input: SavedTeamInput = { id: messageId, from, ...(sender ? { sender } : {}), text, replyTo, attachments, skills, to, track, ...(relay ? { relay } : {}) };
   if (!r.pending?.some((q) => q.id === messageId)) (r.pending ||= []).push(input);
   saveRuntime(team.id);
   const mentions = parseMentions(team, text);
   const wasPosted = loadChat(team.id).messages.some((m) => m.id === messageId);
-  const msg = post(team, { id: messageId, from, text, mentions, replyTo, ...(attachments.length ? { attachments } : {}), ...(relay ? { relay } : {}) });
+  const msg = post(team, { id: messageId, from, ...(sender ? { sender } : {}), text, mentions, replyTo, ...(attachments.length ? { attachments } : {}), ...(relay ? { relay } : {}) });
   if (!wasPosted && track && ((from === 'user' && !mentionsBrain(text)) || fromTeam(from))) brainHandlers?.assigned?.(team, msg);
   r.episode = { turns: 0 }; // a new message from you gives the team a fresh budget
   r.stopped = false;
@@ -467,11 +470,12 @@ function resumeRelays(team: Team): void {
 const askable = (t: Team) => t.members.length > 0 && !isStepList(t);
 /** The other teams this one can ask (#Team Name), for its chat. */
 export function otherTeams(teamId: string): TeamRef[] {
+  if (privateTeamRecord(teamId)) return [];
   return listTeams()
     .filter((t) => t.id !== teamId && askable(t))
     .map((t) => ({ id: t.id, name: t.name, description: t.description || '', ...(t.color ? { color: t.color } : {}), ...(t.mark ? { mark: t.mark } : {}) }));
 }
-const teamsNamed = (team: Team, text: unknown) => parseTeamRefs(text, listTeams().filter(askable), team.id);
+const teamsNamed = (team: Team, text: unknown) => privateTeamRecord(team.id) ? [] : parseTeamRefs(text, listTeams().filter(askable), team.id);
 const nameOf = (id: string) => (id === 'user' ? 'the user' : id === BRAIN ? 'the Brain' : agents.get(id)?.name || 'someone');
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -813,7 +817,7 @@ async function runTurn(team: Team, item: QueueItem, native?: Promise<string>) {
   let chatId = c.sessions[agent.id];
   let created = false;
   if (!chatId || !chats.get(agent.id, chatId)) {
-    chatId = chats.create(agent.id, `Team: ${team.name}`, team.id).id;
+    chatId = chats.create(agent.id, `Team: ${team.name}`, team.id, privateTeamRecord(team.id)?.conversationId).id;
     c.sessions[agent.id] = chatId;
     created = true;
   }
@@ -826,7 +830,7 @@ async function runTurn(team: Team, item: QueueItem, native?: Promise<string>) {
   const name = (m: TeamMessage) => {
     const id = m.from;
     if (m.relay) return m.relay.answers ? `#${m.relay.teamName} answered (${m.relay.byName} there)` : `#${m.relay.teamName} asks your team (${m.relay.byName} there)`;
-    return id === 'user' ? 'You (the user)' : id === 'system' ? 'System' : id === BRAIN ? 'The Brain (overseer)' : `@${agents.get(id)?.name || 'someone'}`;
+    return id === 'user' ? m.sender || 'You (the user)' : id === 'system' ? 'System' : id === BRAIN ? 'The Brain (overseer)' : `@${agents.get(id)?.name || 'someone'}`;
   };
   const said = (m: TeamMessage) => teamMessage(m, name);
   const forYou = c.messages.filter((m) => item.msgIds.includes(m.id)).map(said).join('\n\n');

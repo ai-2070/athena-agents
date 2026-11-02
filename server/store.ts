@@ -396,15 +396,15 @@ export const chats = {
     return listFiles(dir, (n) => n.endsWith('.json'))
       .map((n) => readJSON<Chat>(path.join(dir, n)))
       .filter((c): c is Chat => Boolean(c))
-      .map(({ id, title, updatedAt, createdAt, items, teamId }) => ({ id, title, updatedAt, createdAt, count: items?.length || 0, teamId: teamId || null }))
+      .map(({ id, title, updatedAt, createdAt, items, teamId, conversationId }) => ({ id, title, updatedAt, createdAt, count: items?.length || 0, teamId: teamId || null, ...(conversationId ? { conversationId } : {}) }))
       .sort((a, b) => b.updatedAt - a.updatedAt);
   },
   get(agentId: string, chatId: string | null | undefined): Chat | null {
     if (!chatId || !SAFE_ID.test(chatId)) return null;
     return readJSON<Chat>(path.join(this.dir(agentId), `${chatId}.json`));
   },
-  create(agentId: string, title = 'New chat', teamId: string | null = null): Chat {
-    const chat: Chat = { id: uid('c'), agentId, title, items: [], sessionId: null, ...(teamId ? { teamId } : {}), createdAt: Date.now(), updatedAt: Date.now() };
+  create(agentId: string, title = 'New chat', teamId: string | null = null, conversationId?: string): Chat {
+    const chat: Chat = { id: uid('c'), agentId, title, items: [], sessionId: null, ...(teamId ? { teamId } : {}), ...(conversationId ? { conversationId } : {}), createdAt: Date.now(), updatedAt: Date.now() };
     return this.save(chat);
   },
   save(chat: Chat): Chat {

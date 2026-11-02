@@ -115,6 +115,21 @@ export interface GatewayHealth {
   attempts: number;
   updatedAt: number;
 }
+
+/** Stable private runtime identities; the configured agent/team stays the source of its settings. */
+export interface PrivateConversation {
+  id: string;
+  projectId: string;
+  conversationId: string;
+  target: { kind: 'agent' | 'team'; id: string };
+  createdAt: number;
+}
+
+export type GatewayLocalConversation = { conversationId: string; projectId: string; sender: string } & (
+  | { kind: 'brain' }
+  | { kind: 'agent'; agentId: string; chatId: string }
+  | { kind: 'team'; teamId: string }
+);
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
 
 /** An API model's advertised limits. Missing capabilities mean the provider did not say. */
@@ -350,6 +365,7 @@ export interface SavedTeamAssignment {
 export interface SavedTeamInput {
   id: string;
   from: string;
+  sender?: string;
   text: string;
   replyTo: string | null;
   attachments: string[];
@@ -404,6 +420,7 @@ export interface TeamMessage {
   id: string;
   ts: number;
   from: string; // 'user' | 'system' | 'brain' | agent id | 'team:<id>' (another team)
+  sender?: string;
   text: string;
   /** From another team (#Team Name): who there wrote it, and, for that team's answer to a question
    *  asked from here, the message that asked. Names are kept so it reads right after renames. */
@@ -625,6 +642,8 @@ export interface Chat {
   sessionEngine?: EngineId;
   /** Set when this is the agent's session for a team chat. */
   teamId?: string | null;
+  /** External binding scope; absent for ordinary dashboard conversations. */
+  conversationId?: string;
   /** The next CLI session receives the saved original conversation. */
   reseed?: boolean;
   /** How full the agent's memory is (see ChatContext). Cleared when the session is replaced or you clear memory. */
@@ -651,6 +670,7 @@ export interface ChatSummary {
   createdAt: number;
   count: number;
   teamId?: string | null;
+  conversationId?: string;
 }
 
 // ---------- runs and live events ----------
@@ -926,6 +946,7 @@ export interface EveRuntimeConfiguration {
 
 /** Private runtime records are not part of browser state or project exports. */
 export interface EveSessionBinding {
+  conversationId?: string;
   id: string;
   projectId: string;
   agentId: string;

@@ -4,8 +4,10 @@
 import { BUILD_ORDER, DIORAMA } from './voxel/diorama.ts';
 import fs from 'node:fs';
 import path from 'node:path';
+import { privateDataPath } from './private.ts';
+import { checkConversationId, existingPrivateTeamId } from './private-conversations.ts';
 import { waitingQuestions } from './questions.ts';
-import { agents, workflows, activeProject, openProject, projectSwitches, listProjects, getSettings, saveSettings, outbox, activity, log, emit, routineRuns, runs as workflowRuns } from './store.ts';
+import { agents, workflows, activeProject, openProject, projectSwitches, listProjects, getSettings, saveSettings, outbox, activity, log, emit, routineRuns, runs as workflowRuns, withProject } from './store.ts';
 import { agencyAgents, hireFromAgency, createStarter, newAgent, STARTERS } from './library.ts';
 import { TOOL_GROUPS, workspaceOf } from './tools.ts';
 import { listServers, PRESETS, presetNeeds, signsInByBrowser, withOwnLogin, suggestPresets, importableServers, saveServer, serverName, renameServer, removeServerEverywhere, kindOf, serviceTitle, copyTitle, copiesByKind, copiesWithoutUseFor, serversForPrompt, resolveKind, addedKinds, placeNew } from './mcp.ts';
@@ -54,6 +56,7 @@ export interface BrainChatMessage {
   text: string;
   ts: number;
   attachments?: string[];
+  from?: string;
   /** What the Brain did with this answer, so a reopened chat shows it the way it first did. */
   done?: BrainDone[];
   /** Who it handed the work to, and where (a reopened chat follows that work again). */
@@ -318,7 +321,8 @@ const runsOn = (a: Agent) => {
 };
 
 // Everything the Brain knows right now, as text.
-export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = {}): Promise<string> {
+export async function snapshot({ fileBudget = 9000, conversationId }: { fileBudget?: number; conversationId?: string } = {}): Promise<string> {
+  if (conversationId !== undefined) checkConversationId(conversationId);
   const p = activeProject();
   const root = ensureBrain(p);
   const info = await brainInfo(p).catch(() => null);
@@ -327,7 +331,11 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
 
   const all = agents.list();
   const byId = new Map(all.map((a) => [a.id, a]));
-  const live = liveActivity();
+  const live = liveActivity().filter((run) => {
+    if (!conversationId) return true;
+    const owner = runInfo(run.runId);
+    return owner?.projectId === p.id && owner.conversationId === conversationId;
+  });
   const teams = listTeams();
   const teamOf = new Map<string, string[]>();
   for (const t of teams) for (const id of t.members) teamOf.set(id, [...(teamOf.get(id) || []), t.name]);
@@ -343,8 +351,9 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
   });
 
   const teamLines = teams.map((t) => {
-    const st = teamState(t.id);
-    const thread = getThread(t.id, 4).messages;
+    const privateId = conversationId ? existingPrivateTeamId(conversationId, t.id) : t.id;
+    const st = privateId ? teamState(privateId) : { working: [], queued: [] };
+    const thread = privateId ? getThread(privateId, 4).messages : [];
     const name = (id: string) => (id === 'user' ? 'You' : id === 'brain' ? 'you (the Brain)' : byId.get(id)?.name || id);
     const sched = t.schedule && t.schedule.type !== 'none' ? ` | schedule: ${t.schedule.type} ${t.schedule.times?.join(', ') || ''}${t.enabled === false ? ' (off)' : ''}` : '';
     return [
@@ -404,14 +413,14 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
 
   // what the Brain handed out lately, and how its follow-up stands
   const briefLines = listBriefs(p.id)
-    .filter((b) => b.status !== 'replaced')
+    .filter((b) => !conversationId && b.status !== 'replaced')
     .slice(-8)
     .map((b) => `- ${b.status.toUpperCase()} | to ${b.kind} ${b.name} | ${ago(b.ts)} | "${cut(b.text, 140)}"${b.followUps ? ` | followed up ${b.followUps}x` : ''}${b.summary ? ` | ${cut(b.summary, 200)}` : ''}`);
 
-  const approvals = listApprovals();
-  const pendingPosts = outbox.list().filter((x) => x.status === 'pending');
-  const asked = waitingQuestions();
-  const recent = activity(25)
+  const approvals = conversationId ? [] : listApprovals();
+  const pendingPosts = conversationId ? [] : outbox.list().filter((x) => x.status === 'pending');
+  const asked = conversationId ? [] : waitingQuestions();
+  const recent = (conversationId ? [] : activity(25))
     .filter((e) => e.kind !== 'terminal')
     .map((e) => `- ${ago(e.ts)}: ${cut(e.text, 160)}`);
 
@@ -428,7 +437,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     `\nAGENTS (${all.length}, ${live.length} running now):\n${agentLines.join('\n') || '(none)'}`,
     `\nTEAMS (${teams.length}; a team is a group chat of agents with a shared goal):\n${teamLines.join('\n') || '(none)'}`,
     `\nWORK YOU HANDED OUT (newest last; you check on open ones when they finish):\n${briefLines.join('\n') || '(none)'}`,
-    `\nSAVED TASKS (use TaskList for more, TaskGet for full details):\n${JSON.stringify(listTasks({ status: 'open', limit: 40 }, { admin: true, scope: { kind: 'brain' } }))}`,
+    `\nSAVED TASKS (use TaskList for more, TaskGet for full details):\n${conversationId ? '(not included in private conversation snapshots)' : JSON.stringify(listTasks({ status: 'open', limit: 40 }, { admin: true, scope: { kind: 'brain' } }))}`,
     `\nROUTINES (${routineLines.length}; saved instructions run by hand or on a schedule):\n${routineLines.join('\n') || '(none)'}`,
     `\nSKILLS (${skillLines.length}; the project's recorded know-how and workflows; mention one in a routine as @Name):\n${skillLines.slice(0, 120).join('\n') || '(none)'}`,
     `\nMCP SERVERS (${mcpLines.length}; outside tool servers agents and teams can be given):\n${mcpLines.join('\n') || '(none)'}\nReady-made, to add: ${ready}\nReady-made that sign in through the browser the first time they run (no key to paste), to add: ${byBrowser}${suggested ? `\nSuggested for this PC (not added; offer them, add only when the user says yes): ${suggested}` : ''}${found ? `\nFound in the user's Claude configs, to add: ${found}` : ''}`,
@@ -455,13 +464,25 @@ function brainWorldSnapshot(): string {
 
 // ---------- conversation with the Brain ----------
 // pid: the project whose chat it is (the active one by default)
-const histFile = (pid = activeProject().id) => dataPath('projects', pid, 'brain-chat.json');
-export function history(pid?: string): BrainChatMessage[] {
-  return readJSON<{ messages: BrainChatMessage[] }>(histFile(pid), { messages: [] }).messages;
+const histFile = (pid = activeProject().id, conversationId?: string) => {
+  if (conversationId === undefined) return dataPath('projects', pid, 'brain-chat.json');
+  checkConversationId(pid); checkConversationId(conversationId);
+  return privateDataPath('runtime', 'brain-conversations', pid, `${conversationId}.json`);
+};
+const brainKey = (pid: string, conversationId?: string) => {
+  if (conversationId === undefined) return pid;
+  checkConversationId(pid); checkConversationId(conversationId);
+  return JSON.stringify([pid, conversationId]);
+};
+export function history(pid?: string, conversationId?: string): BrainChatMessage[] {
+  const file = histFile(pid, conversationId);
+  const saved = readJSON<{ messages: BrainChatMessage[] }>(file);
+  if (conversationId && fs.existsSync(file) && (!saved || !Array.isArray(saved.messages))) throw new Error('The private Brain conversation is unreadable.');
+  return saved?.messages || [];
 }
-function remember(msgs: BrainChatMessage[], pid?: string) {
-  writeJSON(histFile(pid), { messages: msgs.slice(-HISTORY_KEEP) });
-  emit('brain-chat');
+function remember(msgs: BrainChatMessage[], pid?: string, conversationId?: string) {
+  writeJSON(histFile(pid, conversationId), { messages: msgs.slice(-HISTORY_KEEP) });
+  emit('brain-chat', { projectId: pid || activeProject().id, ...(conversationId ? { conversationId } : {}) });
 }
 // Bumped each time a project's Brain chat is cleared, so an answer still on its way can tell
 // that its conversation is gone and doesn't write it back.
@@ -470,8 +491,9 @@ const generation = (pid: string) => generations.get(pid) || 0;
 // /stop in the Brain chat: answers being written when it came change nothing and aren't kept
 const stops = new Map<string, number>();
 const stopCount = (pid: string) => stops.get(pid) || 0;
-export function stopAsks(pid = activeProject().id): void {
-  stops.set(pid, stopCount(pid) + 1);
+export function stopAsks(pid = activeProject().id, conversationId?: string): void {
+  const key = brainKey(pid, conversationId);
+  stops.set(key, stopCount(key) + 1);
 }
 // the answers being written now, by project (a new message meanwhile cuts them off)
 interface Asking {
@@ -485,17 +507,18 @@ const asking = new Map<string, Set<Asking>>();
 /** A new message while the Brain answers: the answer being written changes nothing (like /stop), and the
  *  message it was answering stays in the chat's history, so the next answer knows what came before. One
  *  too far along to stop finishes, and its answer comes to the chat by itself (brain-late). */
-export function steerAsks(pid = activeProject().id): void {
-  for (const a of asking.get(pid) || []) a.steered = true;
-  stopAsks(pid);
+export function steerAsks(pid = activeProject().id, conversationId?: string): void {
+  for (const a of asking.get(brainKey(pid, conversationId)) || []) a.steered = true;
+  stopAsks(pid, conversationId);
 }
-export function clearHistory(pid = activeProject().id) {
-  generations.set(pid, generation(pid) + 1);
-  remember([], pid);
+export function clearHistory(pid = activeProject().id, conversationId?: string) {
+  const key = brainKey(pid, conversationId);
+  generations.set(key, generation(key) + 1);
+  remember([], pid, conversationId);
 }
 // A message from the Brain nobody asked for (what it learned from finished work), on top of the chat.
-export function addBrainNote(pid: string, text: string, done: BrainDone[] = []) {
-  remember([...history(pid), { role: 'brain', text, ts: Date.now(), ...(done.length ? { done } : {}) }], pid);
+export function addBrainNote(pid: string, text: string, done: BrainDone[] = [], conversationId?: string) {
+  remember([...history(pid, conversationId), { role: 'brain', text, ts: Date.now(), ...(done.length ? { done } : {}) }], pid, conversationId);
 }
 
 const GROUP_IDS = TOOL_GROUPS.map((g) => g.id);
@@ -1909,34 +1932,49 @@ export function checkProject(project: string | null | undefined): void {
 /** project: the project the message was typed in. A message that waited while you switched projects is refused.
  *  attachments: files the user attached (paths in uploads/). onPart: what it does as it happens (streamed). */
 // goal: your /goal: the Brain hands it on and follows up until it is met (see irc.ts)
-export async function ask(text: string, opts: { project?: string | null; attachments?: string[]; onPart?: (p: BrainPart) => void; goal?: boolean } = {}): Promise<BrainAnswer> {
+export interface BrainAskOptions {
+  project?: string | null;
+  attachments?: string[];
+  onPart?: (p: BrainPart) => void;
+  goal?: boolean;
+  conversationId?: string;
+  from?: string;
+  proceed?: () => boolean;
+}
+export async function ask(text: string, opts: BrainAskOptions = {}): Promise<BrainAnswer> {
+  return opts.conversationId ? withProject(activeProject(), () => askNow(text, opts)) : askNow(text, opts);
+}
+async function askNow(text: string, opts: BrainAskOptions): Promise<BrainAnswer> {
+  if (opts.conversationId !== undefined) checkConversationId(opts.conversationId);
   checkProject(opts.project);
   const pid = activeProject().id;
+  const key = brainKey(pid, opts.conversationId);
   const me: Asking = { goal: !!opts.goal, steered: false, past: false };
-  const live = asking.get(pid) || new Set<Asking>();
+  const live = asking.get(key) || new Set<Asking>();
   live.add(me);
-  asking.set(pid, live);
+  asking.set(key, live);
   try {
     const r = await answerNow(text, opts, me);
     // cut off by a new message, too late to stop: the chat stopped reading it, so it hears it this way
-    if (me.steered && me.past) emit('brain-late', { projectId: pid, answer: r, goal: me.goal });
+    if (me.steered && me.past) emit(opts.conversationId ? 'private-brain-late' : 'brain-late', { projectId: pid, conversationId: opts.conversationId, answer: r, goal: me.goal });
     return r;
   } finally {
     live.delete(me);
-    if (!live.size && asking.get(pid) === live) asking.delete(pid);
+    if (!live.size && asking.get(key) === live) asking.delete(key);
   }
 }
 
-async function answerNow(text: string, { attachments = [], onPart, goal = false }: { attachments?: string[]; onPart?: (p: BrainPart) => void; goal?: boolean }, me: Asking): Promise<BrainAnswer> {
+async function answerNow(text: string, { attachments = [], onPart, goal = false, conversationId, from, proceed }: { attachments?: string[]; onPart?: (p: BrainPart) => void; goal?: boolean; conversationId?: string; from?: string; proceed?: () => boolean }, me: Asking): Promise<BrainAnswer> {
   const p = activeProject();
-  const gen = generation(p.id);
-  const stopsAtStart = stopCount(p.id);
+  const key = brainKey(p.id, conversationId);
+  const gen = generation(key);
+  const stopsAtStart = stopCount(key);
   const switchesAtStart = projectSwitches();
   const bm = brainModel();
   const canRead = bm.provider === 'claude' || bm.provider === 'codex';
-  const snap = await snapshot({ fileBudget: canRead ? 6000 : 12000 });
-  const past = history(p.id);
-  const convo = past.length ? `\n\nEARLIER IN THIS CHAT:\n${past.slice(-12).map((m) => `${m.role === 'user' ? 'User' : 'Brain'}: ${cut(brainChatLine(m), 600)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`).join('\n')}` : '';
+  const snap = await snapshot({ fileBudget: canRead ? 6000 : 12000, conversationId });
+  const past = history(p.id, conversationId);
+  const convo = past.length ? `\n\nEARLIER IN THIS CHAT:\n${past.slice(-12).map((m) => `${m.role === 'user' ? `User${m.from ? ` (${m.from})` : ''}` : 'Brain'}: ${cut(brainChatLine(m), 600)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`).join('\n')}` : '';
   // files the user attached: where they are (it can open them when it reads files), and the text of small ones
   const files = attachments.length ? `\n\n${describeAttachments(attachments, { inline: canRead ? 8000 : 24000 })}\n(When you delegate, the attached files go along with your brief: mention them in it.)` : '';
   // files from earlier turns (the last few): where they are, and for a Brain that can't open files, their text
@@ -1946,9 +1984,9 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
   const own = brainSkills();
   const named = skillTexts(skillsNamedIn([text, ...past.slice(-4).map(brainChatLine)].join('\n')).filter((slug) => !own.some((sk) => sk.slug === slug)));
   const seenSkills = new Set([...ownSkillsShown(own).seen, ...named.seen]);
-  const system = SYSTEM(p.name, canRead, own, brainMemoryContext(p.id));
+  const system = SYSTEM(p.name, canRead, own, conversationId ? '' : brainMemoryContext(p.id));
   const goalNote = goal ? `\n\n(The user set this as a GOAL with /goal: hand it to the agent or team best placed to do it, with a clear brief. You will check their work against it after each turn and follow up until it is met.)` : '';
-  const prompt = `SNAPSHOT\n${snap}${named.text}\n\n${catalog()}${convo}${earlierFiles}\n\nUSER:\n${text || '(no message: see the attached files)'}${files}${goalNote}`;
+  const prompt = `SNAPSHOT\n${snap}${named.text}\n\n${catalog()}${convo}${earlierFiles}\n\nUSER${from ? ` (${from})` : ''}:\n${text || '(no message: see the attached files)'}${files}${goalNote}`;
   // the tools it uses, kept with its answer so a reopened chat shows them as the live one did
   // (since it last started over, as the chat shows them)
   let steps: BrainStep[] = [];
@@ -1967,7 +2005,7 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
   const asked = parsed.actions.filter((a) => actionKind(a) === 'read_skill').map((a) => String(a.skill || a.id || a.name || ''));
   const searches = parsed.actions.filter((a) => actionKind(a) === 'find_models').slice(0, MODEL_SEARCHES_MAX);
   const taskReads = parsed.actions.filter((a) => ['TaskGet', 'TaskList'].includes(actionKind(a))).slice(0, 3);
-  if ((asked.length || searches.length || taskReads.length) && generation(p.id) === gen) {
+  if ((asked.length || searches.length || taskReads.length) && generation(key) === gen) {
     const found = asked.map((ref) => findSkill(ref));
     const opened = skillTexts(found.filter((sk): sk is SkillDetail => sk !== null).map((sk) => sk.slug), { budget: 40000, heading: 'SKILLS YOU OPENED (read_skill)' });
     const missing = asked.filter((_ref, i) => !found[i]);
@@ -1983,17 +2021,17 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
   }
   parsed.actions = parsed.actions.filter((a) => !['read_skill', 'find_models', 'TaskGet', 'TaskList'].includes(actionKind(a)));
   // you stopped it while it thought: change nothing, keep nothing
-  if (stopCount(p.id) !== stopsAtStart) {
+  if (stopCount(key) !== stopsAtStart || proceed?.() === false) {
     // (cut off by a new message: its question stays, so the next answer knows what came before)
-    if (me.steered && !me.goal && generation(p.id) === gen) {
+    if (me.steered && !me.goal && generation(key) === gen) {
       const at = Date.now();
-      remember([...history(p.id), { role: 'user', text, ts: at, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: '(stopped before answering: the user sent a new message)', ts: at + 1 }], p.id);
+      remember([...history(p.id, conversationId), { role: 'user', text, ...(from ? { from } : {}), ts: at, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: '(stopped before answering: the user sent a new message)', ts: at + 1 }], p.id, conversationId);
     }
     const dropped: BrainDone = { kind: 'error', text: 'You stopped the Brain, so nothing was changed.' };
     return { answer: parsed.answer, done: [dropped], delegate: null, model: bm, project: p.name };
   }
   // you started a new conversation while it thought: this answer belongs to the old one, so change nothing and don't bring it back
-  if (generation(p.id) !== gen) {
+  if (generation(key) !== gen) {
     const dropped: BrainDone = { kind: 'error', text: 'You started a new conversation while the Brain was thinking, so nothing was changed.' };
     return { answer: parsed.answer, done: parsed.actions.length ? [dropped] : [], delegate: null, model: bm, project: p.name };
   }
@@ -2001,8 +2039,8 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
   // you switched projects while it thought (even if you came back since: the chat dropped this turn), so skip its actions
   const skipped: BrainDone = { kind: 'error', text: `You switched projects while the Brain was thinking, so nothing was changed. Open "${p.name}" and ask again.` };
   // (a new conversation started while installs or model lists were fetched: the same, and nothing is kept)
-  const cleared = () => generation(p.id) !== gen;
-  const stale = () => projectSwitches() !== switchesAtStart || openProject().id !== p.id || cleared();
+  const cleared = () => generation(key) !== gen;
+  const stale = () => (conversationId ? proceed?.() === false : projectSwitches() !== switchesAtStart || openProject().id !== p.id) || cleared();
   // the user's own words in this chat: GitHub links and MCP server settings are checked against them
   const userWords = [text, ...past.filter((m) => m.role === 'user').map((m) => m.text)].join('\n');
   // GitHub installs first (they download), with the user's own words to check the links against; a
@@ -2025,7 +2063,7 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
   if (delegate) {
     try {
       const { sendBrief } = await import('./irc.ts');
-      await sendBrief(delegate, { objective: text, taskIds: done.flatMap((d) => d.taskId ? [d.taskId] : []), completed: done.filter((d) => d.kind !== 'error').map((d) => d.text), ...(goal ? { goal: text } : {}) });
+      await sendBrief(delegate, { conversationId, objective: text, taskIds: done.flatMap((d) => d.taskId ? [d.taskId] : []), completed: done.filter((d) => d.kind !== 'error').map((d) => d.text), ...(goal ? { goal: text } : {}) });
     } catch (e) {
       done.push({ kind: 'error', text: `Couldn't hand it to ${delegate.name}: ${(e as Error).message}` });
       delegate = null;
@@ -2035,7 +2073,7 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false 
   const now = Date.now();
   // on top of the history as it is now (not as it was before thinking), so nothing saved meanwhile is lost;
   // cleared meanwhile: this turn belongs to the old conversation, so it isn't brought back
-  if (!cleared()) remember([...history(p.id), { role: 'user', text, ts: now, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: r.answer, ts: Date.now(), ...(done.length ? { done } : {}), ...(delegate ? { delegate: { kind: delegate.kind, id: delegate.id, name: delegate.name, message: delegate.message, ...(delegate.sent ? { sent: delegate.sent } : {}) } } : {}), ...(steps.length ? { steps: steps.map((st) => (st.state === 'running' ? { ...st, state: 'error' as const, output: '(no result)' } : st)) } : {}) }], p.id);
+  if (!cleared()) remember([...history(p.id, conversationId), { role: 'user', text, ...(from ? { from } : {}), ts: now, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: r.answer, ts: Date.now(), ...(done.length ? { done } : {}), ...(delegate ? { delegate: { kind: delegate.kind, id: delegate.id, name: delegate.name, message: delegate.message, ...(delegate.sent ? { sent: delegate.sent } : {}) } } : {}), ...(steps.length ? { steps: steps.map((st) => (st.state === 'running' ? { ...st, state: 'error' as const, output: '(no result)' } : st)) } : {}) }], p.id, conversationId);
   return { ...r, model: bm, project: p.name };
 }
 

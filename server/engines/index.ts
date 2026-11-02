@@ -2,6 +2,7 @@
 // Engines stream events; this file turns them into chat history and live updates for the browser.
 import { agents as agentStore, chats, emit, log, getSettings, activeProject, withProject, listProjects } from '../store.ts';
 import { uid, HOME, settledWithin } from '../util.ts';
+import { privateTeamRecord } from '../private-conversations.ts';
 import { cancelForRun } from '../approvals.ts';
 import { knowledgeContext } from '../knowledge.ts';
 import { memoryContext, memoryStamp, readMemory, hasMemory } from '../memory.ts';
@@ -117,6 +118,7 @@ export interface RunInfo {
   agentId: string;
   projectId: string;
   chatId: string;
+  conversationId?: string;
   depth: number;
   signal: AbortSignal;
   project: Project;
@@ -316,12 +318,12 @@ export function liveActivity(): LiveActivity[] {
 
 export function runInfo(runId: string | null | undefined): RunInfo | null {
   const r = runId && active.get(runId);
-  if (r) return { id: runId, agentId: r.agentId, projectId: r.projectId, chatId: r.chatId, depth: r.depth, signal: r.signal, project: r.project, agent: r.agent };
+  if (r) return { id: runId, agentId: r.agentId, projectId: r.projectId, chatId: r.chatId, conversationId: r.chat.conversationId, depth: r.depth, signal: r.signal, project: r.project, agent: r.agent };
   const saved = runId ? readEveRun(runId) : null;
   if (!saved || !['running', 'waiting'].includes(saved.status)) return null;
   try {
-    const { binding, project, agent } = eveSessionContext(saved.bindingId);
-    return { id: saved.id, agentId: agent.id, projectId: project.id, chatId: binding.chatId, depth: saved.depth, signal: new AbortController().signal, project, agent };
+    const { binding, project, agent, chat } = eveSessionContext(saved.bindingId);
+    return { id: saved.id, agentId: agent.id, projectId: project.id, chatId: binding.chatId, conversationId: chat.conversationId, depth: saved.depth, signal: new AbortController().signal, project, agent };
   } catch { return null; }
 }
 
@@ -1042,7 +1044,11 @@ export async function askAgent(agent: Agent, message: string, { depth = 1, from 
   // extra: what a team adds while the agent works for it (tools, MCP servers, skills)
   // (the team's copy of a service, its account, replaces the agent's own copies of it)
   if (extra) fresh = { ...fresh, toolGroups: [...new Set([...(fresh.toolGroups || []), ...(extra.toolGroups || [])])], mcpServers: teamWorkServers(fresh.mcpServers || [], extra.mcpServers || []), _teamSkills: extra.skills || [] };
-  const chat = (chatId && chats.get(fresh.id, chatId)) || chats.create(fresh.id, title || (from ? `Asked by ${from}` : 'Task'));
+  const teamPrefix = `team:${activeProject().id}/`;
+  const parentConversation = parentRunId?.startsWith(teamPrefix) ? privateTeamRecord(parentRunId.slice(teamPrefix.length))?.conversationId : parentRunId ? runInfo(parentRunId)?.conversationId : undefined;
+  const existing = chatId ? chats.get(fresh.id, chatId) : null;
+  if (existing && parentRunId && existing.conversationId !== parentConversation) throw new Error('Delegated work cannot leave its private conversation.');
+  const chat = existing || chats.create(fresh.id, title || (from ? `Asked by ${from}` : 'Task'), null, parentConversation);
   const { runId, promise, signal: runSignal } = startRun(fresh, chat, message, { depth, from, parentRunId, attachments, context, reservedRunId, workAccess: extra || undefined });
   const onAbort = () => stopRun(runId);
   signal?.addEventListener('abort', onAbort);

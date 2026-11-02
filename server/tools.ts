@@ -190,7 +190,7 @@ const TOOLS: ToolDef[] = [
       const { activeProject, withProject } = await import('./store.ts');
       const run = runInfo(ctx.runId);
       if (ctx.runId && (!run || run.agentId !== ctx.agent.id)) return { text: 'That run is not available to you.', isError: true };
-      return withProject(run?.project || activeProject(), () => ({ text: JSON.stringify(searchConversations(ctx.agent.id, args as unknown as import('../shared/types.ts').ConversationSearch)) }));
+      return withProject(run?.project || activeProject(), () => ({ text: JSON.stringify(searchConversations(ctx.agent.id, args as unknown as import('../shared/types.ts').ConversationSearch, run?.conversationId)) }));
     },
   },
   {
@@ -205,7 +205,7 @@ const TOOLS: ToolDef[] = [
       const { activeProject, withProject } = await import('./store.ts');
       const run = runInfo(ctx.runId);
       if (ctx.runId && (!run || run.agentId !== ctx.agent.id)) return { text: 'That run is not available to you.', isError: true };
-      return withProject(run?.project || activeProject(), () => ({ text: JSON.stringify(readConversation(ctx.agent.id, args as unknown as import('../shared/types.ts').ConversationRead)) }));
+      return withProject(run?.project || activeProject(), () => ({ text: JSON.stringify(readConversation(ctx.agent.id, args as unknown as import('../shared/types.ts').ConversationRead, run?.conversationId)) }));
     },
   },
   {

@@ -55,10 +55,20 @@ New gateway data does not need a legacy compatibility layer.*
   across retries and restarts. File counts and known total sizes are checked before any download.
   File work stops and saves its receipt before SDK shutdown releases instance ownership. Albums
   save their individual files but remain review items until grouping is implemented.
-- Next: isolate Brain/team histories per external binding before connecting the inbox to shared
-  Brain/team/agent services, add the delivery ledger and Settings UI, and finish the other platforms.
-  Existing Brain and team routes use shared histories and cannot be reused unchanged for private
-  gateway conversations. No gateway invokes a model yet. Albums
+- Added stable private conversation identities and a guarded gateway resolver for claimed input.
+  Brain histories, Stop/Clear state and snapshots are scoped per binding. Agent chats and team
+  member sessions carry the same scope; conversation search/read tools refuse other scopes.
+  Private team runtime IDs reuse the existing turn, queue and recovery services, with current
+  membership and access resolved from the configured team. They do not appear as extra configured
+  teams or get scheduled, and automatic cross-team relays are disabled for these private threads.
+  Brain delegation stays in its private scope. Native Eve membership checks, task ownership and
+  user questions recognize the private team identities. Sender labels survive team input recovery.
+- These conversations use the selected project's files and target settings. Private Brain snapshots
+  omit other conversations' team messages, active turns, activity, briefs, approvals and pending posts.
+  Target deletion and unreadable private records fail closed. A global project switch does not move
+  a private Brain answer or cancel its work; the dispatcher must supply its access/route recheck.
+- Next: connect the inbox to conversation admission and completion tracking, add the delivery ledger
+  and Settings UI, and finish the other platforms. No gateway invokes a model yet. Albums
   still need grouping before dispatch, and resend reconciliation, inbox retention/review controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the final deletion/retention flow is pending. Real-account text/file checks on all four platforms
