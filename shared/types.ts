@@ -1166,6 +1166,8 @@ export interface WorkTask {
   blocks: string[];
   metadata: Record<string, unknown>;
   briefId?: string;
+  /** Its place in its column on the Tasks board (smaller is higher). Unset: newest first. */
+  rank?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -1197,6 +1199,8 @@ export interface TaskUpdateInput {
   removeBlockedBy?: string[];
   /** Reject an edit made against an older saved version. */
   expectedUpdatedAt?: number;
+  /** Its place in its column on the Tasks board. */
+  rank?: number;
 }
 export type TaskBatchInput<T> = { tasks: T[] };
 export type TaskCreateArgs = TaskCreateInput | TaskBatchInput<TaskCreateInput>;
@@ -1213,6 +1217,36 @@ export interface TaskQuery {
   search?: string;
   offset?: number;
   limit?: number;
+}
+
+/** A card on the Tasks board: a task with the names it shows, from whichever project it is in. */
+export interface BoardTask {
+  id: string;
+  projectId: string;
+  projectName: string;
+  subject: string;
+  /** The start of its description, for the card. */
+  preview: string;
+  activeForm: string;
+  status: Exclude<TaskStatus, 'deleted'>;
+  scope: TaskScope;
+  /** "The Brain", the agent's or the team's name. */
+  listName: string;
+  owner: string;
+  ownerName: string;
+  ownerEmoji?: string;
+  ownerColor?: string;
+  /** Unfinished tasks it waits for. */
+  blockedBy: string[];
+  /** Its order in the column: rank, or for a task never moved, newest first. */
+  rank: number;
+  createdAt: number;
+  updatedAt: number;
+}
+/** GET /api/task-board: the cards, and the projects to choose from. */
+export interface TaskBoardData {
+  projects: { id: string; name: string; open: number }[];
+  tasks: BoardTask[];
 }
 
 /** Work the Brain handed to a team or an agent, and how its follow-up went (data/projects/<id>/brain-briefs.json). */

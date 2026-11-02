@@ -38,6 +38,7 @@ import { savedOpacity } from '../shared/look.ts';
 import * as commands from './commands.ts';
 import { openGoal, clearWork, listBriefs } from './briefs.ts';
 import * as tasksMod from './tasks.ts';
+import * as taskBoard from './taskboard.ts';
 import type { TaskCreateInput, TaskQuery, TaskUpdateInput } from '../shared/types.ts';
 import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
@@ -512,6 +513,11 @@ post<TaskCreateInput & { chatId?: unknown }>('/api/tasks', async (_p, body) => {
   return { task: tasksMod.createTask(body, { admin: true, scope, ...(brief ? { briefId: brief.id } : {}) }) };
 });
 put<TaskUpdateInput>('/api/tasks/:id', async ({ id }, body) => ({ task: tasksMod.updateTask({ ...body, taskId: id }, { admin: true, scope: { kind: 'brain' } }) }));
+// the Tasks board: one project's tasks or every project's (?project=all), changed in the project each belongs to
+get('/api/task-board', async (_p, _b, q) => taskBoard.taskBoard(q.project || 'all'));
+post<{ subject?: unknown; description?: unknown; status?: unknown; rank?: unknown }>('/api/task-board/:projectId', async ({ projectId }, body) => ({ task: taskBoard.addBoardTask(projectId, body || {}) }));
+get('/api/task-board/:projectId/:id', async ({ projectId, id }) => ({ task: taskBoard.boardTaskDetail(projectId, id) }));
+put<taskBoard.BoardPatch>('/api/task-board/:projectId/:id', async ({ projectId, id }, body) => ({ task: taskBoard.changeBoardTask(projectId, id, body || {}) }));
 del('/api/agents/:id/chats/:cid', async ({ id, cid }) => {
   engines.forgetChat(cid);
   clearWork('agent', id, cid);
