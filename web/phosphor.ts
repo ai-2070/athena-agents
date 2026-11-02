@@ -9,6 +9,7 @@ import { ApertureIcon } from '@phosphor-icons/react/dist/csr/Aperture';
 import { ArchiveIcon } from '@phosphor-icons/react/dist/csr/Archive';
 import { FolderPlusIcon } from '@phosphor-icons/react/dist/csr/FolderPlus';
 import { KeyboardIcon } from '@phosphor-icons/react/dist/csr/Keyboard';
+import { KanbanIcon } from '@phosphor-icons/react/dist/csr/Kanban';
 import { GithubLogoIcon } from '@phosphor-icons/react/dist/csr/GithubLogo';
 import { ArrowClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowClockwise';
 import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowCounterClockwise';
@@ -208,6 +209,7 @@ export const PHOSPHOR: Record<string, PhosphorIcon> = {
   'folder-plus': FolderPlusIcon,
   'github-logo': GithubLogoIcon,
   keyboard: KeyboardIcon,
+  kanban: KanbanIcon,
   'rotate-cw': ArrowClockwiseIcon,
   'chevron-right': CaretRightIcon,
   rocket: RocketIcon,
