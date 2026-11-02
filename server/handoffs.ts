@@ -22,7 +22,7 @@ const handoffs = () => readExecution().handoffs.filter((h) => !h.endedAt || Date
 
 /** Starts the task in a new chat with the target and returns at once. */
 export async function startHandoff(from: Pick<Agent, 'id' | 'name'>, target: Agent, task: string, { depth, parentRunId, signal }: { depth: number; parentRunId?: string | null; signal?: AbortSignal }): Promise<Handoff> {
-  const { askAgent, RunStopped } = await import('./engines/index.ts');
+  const { askAgent, isStopping, RunStopped } = await import('./engines/index.ts');
   const chat = chats.create(target.id, `Asked by ${from.name}`);
   const saved: SavedHandoff = { id: uid('h'), from: from.id, projectId: activeProject().id, to: target.id, toName: target.name, chatId: chat.id, runId: uid('r'), task, startedAt: Date.now() };
   saveHandoff(saved);
@@ -34,6 +34,8 @@ export async function startHandoff(from: Pick<Agent, 'id' | 'name'>, target: Age
       saveHandoff({ ...saved, answer, endedAt: h.endedAt });
     },
     (e: unknown) => {
+      // Shutdown aborts the local waiter while a saved native run can still resume.
+      if (isStopping() && readExecution().runs.some((run) => run.id === h.runId && run.status === 'running' && !run.stopRequested)) return;
       h.error = e instanceof RunStopped ? 'it was stopped' : (e as Error).message || String(e);
       h.endedAt = Date.now();
       saveHandoff({ ...saved, error: h.error, endedAt: h.endedAt });
