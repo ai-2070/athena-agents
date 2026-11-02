@@ -5,8 +5,9 @@
 ## Goal
 
 Add **Gateways**: two-way conversations with Athena through Telegram, Discord, WhatsApp and Slack,
-using [Vercel Chat SDK](https://github.com/vercel/chat). Each gateway connects an account to an
-explicit Athena project and a Brain, agent or team target. People can send text and files from the
+using [Vercel Chat SDK](https://github.com/vercel/chat). Each gateway platform supports multiple
+independently configured instances. Each instance connects an account to an explicit Athena project
+and exactly one Brain, team or agent target. People can send text and files from the
 messaging app, and receive replies and selected output files in the same conversation.
 
 Gateways are transport adapters, not agent runtimes. They use the same Athena conversation services
@@ -22,7 +23,7 @@ Required sender policy from the product discussion:
 | Slack | Optional allowlist of user IDs; an empty list adds no user-specific restriction |
 | Discord | Explicit guild/channel or DM scope; optional user-ID allowlist proposed for finer control |
 
-Gateway setup is the user's authorization to send ordinary replies to accepted messages in its
+Gateway instance setup is the user's authorization to send ordinary replies to accepted messages in its
 configured conversation. It does not authorize arbitrary outbound posts, unrelated recipients or
 unrequested file disclosure. Existing agent tool risk and approval rules continue to apply.
 
@@ -72,6 +73,22 @@ WhatsApp signed webhook --> small public relay                 |               |
                   local outbound authenticated connection
 ```
 
+### Gateway instances
+
+Telegram, Discord, WhatsApp and Slack are gateway platform types, not singleton connections. Users
+can add multiple named instances of each type, such as two Telegram bots routed to different teams,
+a Slack instance routed to the Brain and a Discord instance routed to one agent. Each instance owns
+its account credentials, project, target (`Brain`, `Team` or `Agent`), scopes, sender policy, limits,
+enabled state and health. Team and agent targets reference an explicit ID in the selected project.
+
+Keep instance IDs stable and include them in secrets, worker ownership, SDK state, bindings, inbox
+and delivery records, relay pairing and API/UI actions. Instances must not share conversation
+history, authorization or operational state implicitly. Reject overlapping ownership of the same
+external account/event stream where it would create duplicate consumers or ambiguous routing;
+multiple instances do not permit multiple Telegram polling consumers for one bot. Changing an
+instance's project or target creates a new route generation and local conversation; pending work
+stays pinned to its original binding and cannot be redirected to the new target.
+
 ### Run locally where possible
 
 Run Chat SDK and its adapters in a supervised local gateway worker, with explicit start/stop,
@@ -82,7 +99,7 @@ Persist operational state below `DATA`, and ship worker files in desktop builds.
 - Telegram: explicit polling mode, one consumer per bot. Register no public webhook. Do not silently
   delete an existing webhook during connection; detect it and offer an explicit switch in setup.
 - Slack: Socket Mode with the configured bot token and app-level token. Start with one workspace
-  installation per gateway; separate gateways can connect different accounts/workspaces.
+  installation per instance; separate instances can connect different accounts/workspaces.
 - Discord: a persistent Gateway listener for ordinary messages and attachments. Verify message
   content intents and channel permissions. Route interaction acknowledgements using the supported
   SDK Gateway path; if that path needs forwarding, use an authenticated private worker endpoint.
@@ -156,10 +173,10 @@ Require configured guild/channel scopes, with DMs enabled separately. Offer an o
 list. Usernames, channel names and message mentions cannot grant access. Do not accept messages from
 other bots by default. Server/channel permission failures appear as connection errors.
 
-Use a binding key composed from gateway ID, platform account/workspace ID, channel/chat ID and
+Use a binding key composed from gateway instance ID, platform account/workspace ID, channel/chat ID and
 thread/topic/conversation ID. Persist the bound project and target. A global project switch never
 redirects a conversation. Rebinding starts a new local conversation and cannot leak old private
-history. A gateway with a deleted project/target pauses instead of selecting another one.
+history. An instance with a deleted project/target pauses instead of selecting another one.
 
 DM messages are accepted in allowed bound DMs. In shared channels, start on an explicit bot mention
 or reply, then continue only the subscribed thread/topic. Platforms without usable threading use an
@@ -172,15 +189,15 @@ Add new shapes to `shared/types.ts`, with server-only credentials kept out of br
 
 | Record | Purpose |
 |---|---|
-| Gateway | Platform, account label, project/target, transport, sender policy, conversation scopes, file limits and enabled state |
-| Gateway secret record | Bot/app tokens, signing/verification secrets and relay credentials, stored through the secrets layer |
-| Conversation binding | External composite identity to local project, agent/team/Brain conversation and route generation |
-| Inbox event | Stable source ID, actor, received time, normalized input, serializable media descriptors and processing status |
-| Delivery | Destination, source run/message, text parts, approved files, remote IDs, attempts and individual outcomes |
-| Gateway health | Redacted status, last activity, reconnect/failure reason and counts; emit changes to open tabs |
+| Gateway instance | Stable instance ID, platform, instance name/account label, project, discriminated Brain/team/agent target, transport, sender policy, conversation scopes, file limits and enabled state |
+| Gateway instance secret record | Instance-scoped bot/app tokens, signing/verification secrets and relay credentials, stored through the secrets layer |
+| Conversation binding | Instance ID and external composite identity to local project, agent/team/Brain conversation and route generation |
+| Inbox event | Instance ID, stable source ID, actor, received time, normalized input, serializable media descriptors and processing status |
+| Delivery | Instance ID, bound route generation, destination, source run/message, text parts, approved files, remote IDs, attempts and individual outcomes |
+| Gateway instance health | Instance ID, redacted status, last activity, reconnect/failure reason and counts; emit changes to open tabs |
 
 Persist through `store.ts` helpers. Add a local `StateAdapter` backed by the same storage layer for
-SDK subscriptions, TTL cache/dedupe and leases. It supports one local worker per gateway, with
+SDK subscriptions, TTL cache/dedupe and leases. It supports one local worker per gateway instance, with
 atomic write/claim and expiry semantics; a second worker must fail its ownership claim. Keep the
 SDK's coordination state separate from the application inbox and delivery ledgers.
 
@@ -190,7 +207,7 @@ store suitable for its deployment and replicas, rather than a process-local JSON
 
 Normalize and durably enqueue accepted events, then return to the transport promptly. SDK handlers
 must not wait through a long model run. Configure deliberate queuing, not the SDK's default dropping
-of lock conflicts. Preserve per-conversation order, deduplicate by account plus platform event/message
+of lock conflicts. Preserve per-conversation order, deduplicate within an instance by account plus platform event/message
 identity, and reconcile edits separately. A repeated event cannot start a second agent run.
 
 Factor shared agent, Brain and team send services from the existing browser routes. Call them under
@@ -247,12 +264,12 @@ the final returned remote ID exists.
 - First ship final replies plus a bounded "Working"/typing indication. Add throttled streaming only
   where it preserves the full final text and reliable delivery accounting; split long replies or
   attach a full text file rather than silently truncate them.
-- Configure reply routing to the originating conversation and target. A team gateway sends the
+- Configure reply routing to the originating conversation and target. An instance targeting a team sends the
   chosen outward answer and selected files, not private member reasoning, internal tools or raw logs.
 - Preserve current autonomy and risk approvals. V1 approvals stay in the dashboard; a remote user
   sees "Needs approval in Athena" without secrets or a public link to the local app. Remote approval
   controls require a separate actor/operation-bound design, not a generic "approve" message parser.
-- Ordinary contextual replies use the gateway's explicit setup authorization. Agent-requested
+- Ordinary contextual replies use the instance's explicit setup authorization. Agent-requested
   proactive sends, other recipients and additional file disclosures use a high-risk gateway tool
   and existing approval policy/Outbox where appropriate. Never let the model supply credentials.
 - Track text parts and files separately. Retry rate limits using provider hints; do not resend already
@@ -261,29 +278,33 @@ the final returned remote ID exists.
 - For WhatsApp, enforce the current service-window/template rules at delivery time. Do not send a
   generated free-text answer outside the allowed window. Keep the answer locally and show the
   restriction; templates are optional explicit configuration, not invented by the model.
-- Disabling/revoking a gateway stops intake and prevents queued sends. Recheck policy before a
-  download/run/send; already executing tools follow ordinary stop semantics. Deleting a gateway
-  clears credentials, relay pairing and temporary media by a defined retention policy.
+- Disabling/revoking an instance stops its intake and prevents queued sends. Recheck policy before a
+  download/run/send; already executing tools follow ordinary stop semantics. Deleting an instance
+  clears its credentials, relay pairing and temporary media by a defined retention policy.
 
 ## Product interface and existing outbound helpers
 
-Add a dedicated **Settings > Gateways** tab with Add, Edit, Enable/Pause, reconnect/test, and recent activity.
+Add a dedicated **Settings > Gateways** tab listing instances grouped by platform, with Add instance,
+Edit, Enable/Pause, reconnect/test, and recent activity for each instance. Allow repeated additions
+of the same platform; adding one instance must not replace an existing one.
 Register `gateways` in `web/views/setup.tsx` alongside the other Settings tabs, with the deep link
 `#/settings?tab=gateways`. Add search entries for all four platforms, sender guards, file uploads
-and relay setup. Gateway status links in `web/app.ts` should open this tab and the relevant account.
+and relay setup. Gateway status links in `web/app.ts` should open this tab and the relevant instance, using its stable ID.
 The tab owns gateway accounts, routing, access guards, files, relay setup and connection health.
-Each setup includes account credentials, project/target, channel/DM scope, the platform-specific
+Each instance setup includes a name, account credentials, project, an explicit Brain/Team/Agent
+target picker (with a team or agent picker where needed), channel/DM scope, the platform-specific
 sender guard, file limits and a plain explanation of who can trigger work. An empty required guard
 prevents enabling Telegram or WhatsApp. Slack's optional field is labeled "Allowed user IDs (optional)".
 
-Show "Connected", "Waiting for relay", "Needs setup", "Paused" and actionable errors. Test setup
+Show each instance's project and target alongside "Connected", "Waiting for relay", "Needs setup", "Paused" and actionable errors. Test setup
 performs read-only credential/scope checks; an actual test message is an explicit user action with
 a selected destination. Show denied identities locally without downloading their files or quoting
 their private message text. UI uses existing controls, theme tokens and `web/client/` requests.
 
 Move Telegram/Discord setup out of Connections into Settings > Gateways once parity is implemented;
 remove the old one-way forms and update their settings-search entries and status links. Route their
-existing Outbox send intent through the gateway delivery service, retaining its approval behavior.
+existing Outbox send intent through the gateway delivery service with an explicit destination
+instance, retaining its approval behavior. Never choose the first instance of a platform implicitly.
 No old secret-field migration is needed; clearly request
 fresh setup. Keep X/Reddit social account handling separate. Add Slack/WhatsApp proactive sends only
 through the same explicit policy, with WhatsApp restrictions enforced.
@@ -294,13 +315,14 @@ through the same explicit policy, with WhatsApp restrictions enforced.
    using test accounts. Prove Telegram polling, local Slack/Discord connections, a minimal WhatsApp
    relay, signature verification and adapter lifecycle on Windows/Linux. Confirm Bun versus packaged
    Node, exact attachment limits, SDK state methods and Discord intents/interaction routing.
-2. **Foundation:** add schemas, secret storage, local durable SDK state, worker supervision, identity
+2. **Foundation:** add multi-instance schemas, instance-scoped secret storage, local durable SDK state, worker supervision, identity
    guards, bindings, inbox/delivery ledgers and shared Athena conversation entry points.
 3. **Telegram:** ship required user-ID guards, polling, files, burst/album behavior, ordered dispatch,
    final replies, restart recovery and the dedicated Settings > Gateways tab end to end, including
-   Settings search, deep links and status-link navigation.
+   Settings search, instance deep links and status-link navigation. Support multiple Telegram instances
+   with independent Brain/team/agent targets from the first release.
 4. **Slack and Discord:** add socket/Gateway lifecycle, configured scopes, Slack optional user guard,
-   Discord optional user guard, file permissions and thread mapping. Exercise multiple accounts.
+   Discord optional user guard, file permissions and thread mapping. Exercise multiple instances per platform and independent Brain/team/agent targets.
 5. **WhatsApp:** complete the deployable relay, pairing/revocation, required phone guards and verified
    identity mappings, local media downloads, service-window handling, quotas and offline recovery.
 6. **Unify delivery and finish:** replace old one-way helpers, add approved proactive sending,
@@ -319,7 +341,12 @@ an explicit manual test-account matrix. Required cases:
   channels and action callbacks. Discord wrong guild/channel, DM policy and missing permissions.
 - All sender policies apply to subscribed messages, attachment-only input and delayed queued work.
 - Duplicate events, lock conflicts, bursts, own echoes, message edits and interrupted poll offsets.
+- Multiple instances of every platform with separate Brain, team and agent targets; independent
+  credentials, guards, scopes, health, pause/delete and SDK state; no cross-instance history or delivery.
+- Duplicate external account/event-stream ownership is rejected where routing would be ambiguous;
+  one Telegram polling consumer per bot, with no duplicate runs from overlapping intake.
 - Project switch/rebinding/deleted target; agent, Brain and team dispatch; gateway engine independence.
+  Queued work retains its original instance/binding and route generation after configuration changes.
 - Private incoming and outgoing image, document, audio and video; expired URLs, misleading sizes,
   path traversal, symlink escape, SSRF redirect, quota exhaustion and partial multi-file failures.
 - Crash after inbox commit, after run start and during individual send/upload; no blind duplicate run
@@ -330,13 +357,15 @@ an explicit manual test-account matrix. Required cases:
 - Credentials and token-bearing media URLs absent from state APIs, logs, exports and project backups.
 - The dedicated Settings tab, direct links and search results for all four platforms; removal of
   Telegram/Discord setup from Connections; required/optional guard validation, file progress/errors
-  and pause/reconnect behavior.
+  and per-instance pause/reconnect behavior; repeated Add instance, target pickers, stable instance
+  deep links and explicit Outbox instance selection.
 
 Run `bun run check`, `bun run build`, desktop staging/smoke and required Rust checks. Test the bundled
 worker from read-only application files with throwaway `DASH_DATA` and test homes on Windows/Linux.
 The relay has its own storage/signature/retry checks and a local end-to-end integration fixture.
 
 Done means all four platforms support authorized two-way text and file delivery, restart-safe
-routing, clear partial-failure states and the specified sender guards, while Athena remains local
+routing across multiple independently configured instances per platform, each targeting the Brain,
+a team or an agent, clear partial-failure states and the specified sender guards, while Athena remains local
 and login-free. Telegram/Slack/Discord need no public dashboard endpoint; WhatsApp has a working,
 documented relay. Creating this plan sends no platform messages and deploys no service.
