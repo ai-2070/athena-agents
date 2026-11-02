@@ -3,6 +3,7 @@
 // tile: a mark too light to read on a white page (ComfyUI's yellow) sits on a dark rounded square, as in the
 // program's own icon; on a near-black page the square disappears into it.
 const APP_ICONS: Record<string, { src: string; tile?: string }> = {
+  irfanview: { src: '/app-icons/irfanview.ico' },
   comfyui: { src: '/app-icons/comfyui.png', tile: '#17181c' },
   lmstudio: { src: '/app-icons/lmstudio.png' },
 };

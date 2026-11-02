@@ -17,7 +17,7 @@ export function brandImage(id: string, size: number): HTMLImageElement | null {
   image.height = size;
   image.alt = '';
   image.setAttribute('aria-hidden', 'true');
-  image.className = 'object-contain';
+  image.className = 'app-icon object-contain';
   return image;
 }
 

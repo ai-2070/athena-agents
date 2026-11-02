@@ -41,8 +41,10 @@ describe('a team chat with other teams', () => {
   it("draws another team's message in its colour, marks #Teams, and suggests teams after #", async () => {
     state.data = { runs: [], approvals: [], agents: [{ id: 'ana', name: 'Ana', emoji: '🎨', color: '#fff' }] } as unknown as AppState;
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
-    vi.stubGlobal('fetch', async (url: string) =>
-      url === '/api/teams/t2/chat'
+    const sent: unknown[] = [];
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/messages')) sent.push(JSON.parse(String(init?.body)));
+      return url === '/api/teams/t2/chat'
         ? json({
             team: { id: 't2', name: 'Social', members: ['ana'], steps: [] },
             others: [{ id: 't1', name: 'Design', color: '#ff00aa', mark: 'D', description: 'Logos and banners' }],
@@ -53,8 +55,8 @@ describe('a team chat with other teams', () => {
             working: [],
             queued: [],
           })
-        : json({}),
-    );
+        : json({});
+    });
     const el = document.createElement('div');
     document.body.append(el);
     const chat = renderTeamChat(el, 't2');
@@ -75,6 +77,18 @@ describe('a team chat with other teams', () => {
     expect(opt.textContent).toContain('Logos and banners');
     await act(async () => opt.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })));
     expect(box.value).toBe('#Design ');
+    expect(el.querySelector('[data-mention="#Design"]')?.textContent).toBe('#Design');
+    await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Remove #Design"]')!.click());
+    expect(el.querySelector('[aria-label="Remove #Design"]')).toBeNull();
+    await act(async () => el.querySelector<HTMLButtonElement>('.tc-mention.tc-team')!.click());
+    expect(el.querySelector('[aria-label="Remove #Design"]')).not.toBeNull();
+    const editor = el.querySelector<HTMLElement>('[contenteditable="true"]')!;
+    expect(document.activeElement).toBe(editor);
+    editor.append(document.createTextNode('Please help'));
+    await act(async () => editor.dispatchEvent(new Event('input', { bubbles: true })));
+    await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Send"]')!.click());
+    expect(sent).toEqual([expect.objectContaining({ text: '#Design Please help' })]);
+    expect(el.querySelector('[aria-label="Remove #Design"]')).toBeNull();
     act(() => chat.destroy());
   });
 });

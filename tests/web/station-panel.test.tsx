@@ -129,7 +129,7 @@ describe('the Station panel', () => {
     expect(saved.at(-1)!.lead).toBe(null);
   });
 
-  it('a team: Setup is mono and boxed, and the symbol picker marks the one in use', async () => {
+  it('a team: Setup uses the shared searchable emoji picker', async () => {
     await open({ type: 'branch', id: 't1' });
     await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
     await settle();
@@ -138,8 +138,15 @@ describe('the Station panel', () => {
     expect(titles.slice(0, 3)).toEqual(['Name and goal', 'Team skills', 'Extra access']);
     expect(titles).toContain('Symbol on the map');
     const symbol = [...el.querySelectorAll('.mono-fields > section')].find((x) => x.firstElementChild!.textContent?.trim() === 'Symbol on the map')!;
-    expect(symbol.querySelectorAll('button[aria-pressed="true"]').length).toBeLessThanOrEqual(1);
-    expect(symbol.querySelectorAll('button[aria-pressed]').length).toBeGreaterThan(5);
+    await vi.waitFor(() => expect(symbol.querySelector('[aria-label="Choose emoji"]')).not.toBeNull());
+    await act(async () => symbol.querySelector<HTMLButtonElement>('[aria-label="Choose emoji"]')!.click());
+    await settle();
+    const search = document.querySelector<HTMLInputElement>('[aria-label="Search emoji"]')!;
+    expect(search).not.toBeNull();
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('[aria-label="Emoji choices"] button')][0]!.click());
+    expect(saved.at(-1)!.mark).toBeTruthy();
+    expect(saved.at(-1)!.markFile).toBeNull();
+    expect(symbol.querySelector('input[aria-label="Your own emoji"]')?.classList.contains('h-9')).toBe(true);
   });
 
   it('a team: the Setup tab saves the name when you leave the field, and the routine', async () => {
@@ -156,6 +163,29 @@ describe('the Station panel', () => {
     await act(async () => [...el.querySelectorAll<HTMLButtonElement>('.seg button')].find((b) => b.textContent === 'Every day')!.click());
     expect(saved.at(-1)!.schedule).toEqual({ type: 'daily' });
     expect(saved.at(-1)!.enabled).toBe(true);
+  });
+
+  it('saves Off and keeps it selected after the team refreshes', async () => {
+    teams[0] = team({ schedule: { type: 'daily', times: ['09:00'] }, enabled: true });
+    await open({ type: 'branch', id: 't1' });
+    await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
+    await act(async () => button('Off').click());
+    expect(saved.at(-1)!.enabled).toBe(false);
+    expect(saved.at(-1)!.schedule?.type).toBe('none');
+    teams[0] = saved.at(-1)!;
+    await open({ type: 'branch', id: 't1' });
+    expect(button('Off').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('turns the routine off when its last time is cleared', async () => {
+    teams[0] = team({ schedule: { type: 'daily', times: ['09:00'] }, enabled: true });
+    await open({ type: 'branch', id: 't1' });
+    await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
+    const time = el.querySelector<HTMLInputElement>('input[aria-label="Time"]')!;
+    time.value = '';
+    await act(async () => void time.dispatchEvent(new Event('change')));
+    expect(saved.at(-1)!.schedule?.type).toBe('none');
+    expect(saved.at(-1)!.enabled).toBe(false);
   });
 
   it('an agent: its teams, adding it to another, and opening a team', async () => {

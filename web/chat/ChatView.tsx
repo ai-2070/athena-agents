@@ -695,7 +695,7 @@ export function ChatView(p: ChatViewProps) {
               <span className="avatar" style={{ '--agent-color': a.color || 'var(--color-accent)' } as CSSProperties}>
                 {a.emoji || '🤖'}
               </span>
-              @{a.name}
+              <span className="min-w-0 shrink-0 truncate font-medium">@{a.name}</span>
               {a.specialty ? <span className="hint">{a.specialty}</span> : null}
             </button>
           ))}
@@ -770,7 +770,7 @@ export function ChatView(p: ChatViewProps) {
     <>
       {find}
       {variant !== 'mini' && <div className={compact ? '' : 'px-10 max-md:px-4'}><TaskPanel view={`agent:${agent.id}`} scope={{ kind: 'agent', id: agent.id }} chatId={chatId || undefined} /></div>}
-      <div ref={list} className={variant === 'mini' ? 'oc-mini-list flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto py-2' : compact ? 'ac-list flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pt-1 pb-2' : 'messages'} onScroll={onScroll}>
+      <div ref={list} className={variant === 'mini' ? 'oc-mini-list flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto py-2' : compact ? 'ac-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-14px),transparent_100%)] flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pt-1 pb-2' : 'messages'} onScroll={onScroll}>
         {empty ? (
           variant === 'mini' ? (
             <p className="empty">No messages yet.</p>
@@ -788,7 +788,7 @@ export function ChatView(p: ChatViewProps) {
               </p>
               <div className="mt-5 flex flex-col gap-2">
                 {suggestions(agent).map((t) => (
-                  <button key={t} className="flex w-full cursor-pointer items-center gap-3 rounded-[10px] border border-line bg-panel px-4 py-3 text-left text-[13px] text-dim shadow-[inset_0_1px_0_var(--glass-spec)] transition-colors hover:bg-panel-2 hover:text-ink" onClick={() => p.apiRef?.current?.setDraft(t)}>
+                  <button key={t} className="flex w-full cursor-pointer items-center gap-3 rounded-[10px] border border-line bg-panel px-4 py-3 text-left text-[13px] text-dim shadow-[inset_0_1px_0_var(--glass-spec)] transition-[transform,background-color,color] duration-150 active:scale-[0.98] motion-reduce:transition-none hover:bg-panel-2 hover:text-ink" onClick={() => p.apiRef?.current?.setDraft(t)}>
                     <span className="min-w-0 flex-1">{t}</span>
                     <Dom make={() => icon('chevron-right', 14)} deps={[]} />
                   </button>
