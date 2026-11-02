@@ -225,6 +225,7 @@ Chat gateways are in development. Experimental Telegram instances can pass allow
 to the Brain, a team or an agent and send final text replies. Files explicitly selected through the local API
 or explicitly handed in by a gateway agent through its approval policy can be sent as Telegram documents.
 Settings setup and file selection UI are not ready. Artifacts and tool images are not attached automatically.
+Delegated files stay tied to their source run and workspace; revoked access holds delivery for review.
 Slow requests show a short working notice; approvals stay in Athena. Uncertain sends need review before retrying.
 `bun run gateways:smoke` checks the SDK with
 a fake local Telegram service and throwaway data; it uses no accounts or keys. See the

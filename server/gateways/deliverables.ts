@@ -2,7 +2,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { runInfo } from '../engines/index.ts';
 import { readExecution } from '../execution.ts';
-import { insideRoots } from '../util.ts';
+import { insideRoots, realTarget } from '../util.ts';
 import { safeUploadsRoot } from '../uploads.ts';
 import { readGatewayDocument } from './outgoing.ts';
 import { getGatewayInstance } from './instances.ts';
@@ -45,12 +45,15 @@ async function inspect(runId: string | null | undefined, agentId: string, paths:
   const signal = AbortSignal.any([current.signal, run.signal]);
   const uploads = safeUploadsRoot(run.project);
   const workspace = run.agent.workspace && path.isAbsolute(run.agent.workspace) ? run.agent.workspace : run.project.brainPath;
-  const selected: Pick<GatewayOutgoingFile, 'path' | 'name' | 'size' | 'sha256'>[] = [];
+  const root = realTarget(workspace);
+  if (!root) throw unavailable();
+  const source = { runId: run.id, agentId: run.agentId, chatId: run.chatId, workspace: root };
+  const selected: Pick<GatewayOutgoingFile, 'path' | 'name' | 'size' | 'sha256' | 'source'>[] = [];
   for (const raw of paths) {
     if (!path.isAbsolute(raw) || !insideRoots(raw, [workspace, ...(uploads ? [uploads] : [])])) throw unavailable();
-    const { path: real, name, size, sha256 } = await readGatewayDocument(event, raw, signal);
+    const { path: real, name, size, sha256 } = await readGatewayDocument(event, raw, signal, source);
     if (selected.some((item) => item.path === real)) throw unavailable();
-    selected.push({ path: real, name, size, sha256 });
+    selected.push({ path: real, name, size, sha256, source });
   }
   signal.throwIfAborted();
   const limits = getGatewayInstance(event.route.instanceId).fileLimits;
@@ -64,7 +67,7 @@ async function inspect(runId: string | null | undefined, agentId: string, paths:
 export async function prepareGatewayFiles(runId: string | null | undefined, agentId: string, raw: unknown) {
   const { paths } = z.strictObject({ paths: pathsSchema }).parse(raw);
   const { selected } = await inspect(runId, agentId, paths);
-  return selected;
+  return selected.map(({ path, name, size, sha256 }) => ({ path, name, size, sha256 }));
 }
 
 /** The high-risk tool's approved hashes bind its disclosure to these exact bytes. */

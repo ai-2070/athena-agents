@@ -50,7 +50,7 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
     dispatch: dispatchSchema.optional(),
     reply: z.strictObject({ createdAt: stamp, reason: z.string().optional(), parts: z.array(replyPart).min(1).max(1000) }).optional(),
     notices: z.strictObject({ working: replyPart.optional(), approval: replyPart.optional() }).optional(),
-    outgoing: z.array(z.strictObject({ path: z.string().min(1), name: z.string().min(1).max(180), size: stamp.positive(), sha256: z.string().regex(/^[a-f0-9]{64}$/), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed', 'skipped']), attempts: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), bytes: stamp })), remoteId: externalId.optional(), retryAt: stamp.optional(), reason: z.string().optional() })).max(10).optional(),
+    outgoing: z.array(z.strictObject({ path: z.string().min(1), name: z.string().min(1).max(180), size: stamp.positive(), sha256: z.string().regex(/^[a-f0-9]{64}$/), source: z.strictObject({ runId: externalId, agentId: externalId, chatId: externalId, workspace: z.string().min(1) }).optional(), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed', 'skipped']), attempts: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), bytes: stamp })), remoteId: externalId.optional(), retryAt: stamp.optional(), reason: z.string().optional() })).max(10).optional(),
     files: z.array(z.strictObject({
       index: stamp, status: z.enum(['pending', 'transferring', 'saved', 'failed']),
       attempts: z.array(z.strictObject({ id: externalId, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), bytes: stamp })),
@@ -194,14 +194,14 @@ export class GatewayInbox {
     return null;
   }
 
-  selectOutgoing(eventId: string, files: Pick<GatewayOutgoingFile, 'path' | 'name' | 'size' | 'sha256'>[]): void {
+  selectOutgoing(eventId: string, files: Pick<GatewayOutgoingFile, 'path' | 'name' | 'size' | 'sha256' | 'source'>[]): void {
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
     if (!event?.dispatch || !['running', 'done'].includes(event.status) || journal.events.some((item) => item.bindingId === event.bindingId && item.sequence > event.sequence && item.dispatch)) throw new Error('Select files for the current gateway assignment.');
     const instance = this.checkAccess(event);
     if (!files.length || files.length > instance.fileLimits.filesPerMessage || files.some((file) => file.size > instance.fileLimits.perFileBytes) || files.reduce((sum, file) => sum + file.size, 0) > instance.fileLimits.perMessageBytes) throw new Error('These files exceed this gateway’s limits.');
     if (event.outgoing) {
-      if (JSON.stringify(event.outgoing.map(({ path, name, size, sha256 }) => ({ path, name, size, sha256 }))) === JSON.stringify(files)) return;
+      if (JSON.stringify(event.outgoing.map(({ path, name, size, sha256, source }) => ({ path, name, size, sha256, ...(source ? { source } : {}) }))) === JSON.stringify(files)) return;
       throw new Error('Files were already selected for this assignment.');
     }
     event.outgoing = files.map((file) => ({ ...file, status: 'pending', attempts: [] }));

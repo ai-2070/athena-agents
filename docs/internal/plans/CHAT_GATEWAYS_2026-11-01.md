@@ -122,12 +122,18 @@ New gateway data does not need a legacy compatibility layer.*
   and approval. The destination comes only from the live run's private conversation and project;
   callers cannot supply an instance, event or recipient. A matching running execution receipt and
   live worker ownership are required, and reconnect/shutdown revokes the old handoff.
-  Both the caller's workspace/safe uploads and the gateway target's folders must allow each file.
-  Brain-delegated agents with custom workspaces outside the Brain folder therefore cannot hand
-  those files in yet. The result confirms selection only; the normal final-answer and per-file
+  Deliverables carry a server-created source run, agent, chat and resolved workspace. This allows
+  Brain delegates to hand in files from custom workspaces without adding every agent folder to a
+  gateway's allowed roots. Inspection and delivery require a matching native execution receipt in
+  the bound project, the private chat's matching binding, and unchanged current workspace access.
+  Team-member files also require current membership. Failed/cancelled or missing/pruned execution
+  receipts, deleted chats/agents and changed workspaces hold delivery for review. Ordinary local API
+  selection retains its target-folder limits and cannot supply source records. Tool callers can supply
+  only paths and hashes; source records never come from model arguments. Tests cover restart after
+  completion, custom Brain-delegate folders, cross-binding reuse, missing/failed run evidence and
+  revoked workspace access. The result confirms selection only; the normal final-answer and per-file
   delivery ledger still control upload. Remote messages cannot approve these tool requests.
-- Next: add Settings/file review UI, broaden proven deliverable routing for custom delegated
-  workspaces, and finish the other
+- Next: add Settings/file review UI and finish the other
   platforms. Albums still need grouping before dispatch, and inbox retention/review controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the final deletion/retention flow is pending. Real-account text/file checks on all four platforms

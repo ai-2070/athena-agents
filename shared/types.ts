@@ -100,6 +100,7 @@ export interface GatewayOutgoingFile {
   name: string;
   size: number;
   sha256: string;
+  source?: { runId: string; agentId: string; chatId: string; workspace: string };
   status: GatewayReplyPart['status'] | 'skipped';
   attempts: { day: string; bytes: number }[];
   remoteId?: string;

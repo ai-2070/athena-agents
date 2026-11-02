@@ -375,6 +375,8 @@ to the Brain, a team or an agent and send final text replies. Files explicitly s
 can be sent as Telegram documents after their size, location and saved content hash are checked.
 Gateway agents can also inspect specific finished files and request their delivery through the normal
 approval policy. Files changed after inspection are refused. Artifacts and tool images are not attached automatically.
+Delegated files can come from the agent's custom workspace. Their source run, private conversation and
+current folder access are checked again before delivery; missing records or revoked access hold the file for review.
 Settings setup and file selection UI are not ready.
 Uncertain sends need review before retrying; automatic retries preserve confirmed reply parts.
 Slow requests can send one working notice. When a run needs approval, Telegram says **Needs approval in Athena**;
