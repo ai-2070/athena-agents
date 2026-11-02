@@ -1,0 +1,21 @@
+tests/web/routines-page.test.tsx
+  s_d3db9ebe8d99bd::t_dac58cc5487a22 48-49,185-189,195,209-213,215-223
+web/views/routines.tsx
+  s_d3db9ebe8d99bd::t_6083a391de10bd 18,488-490,492,500,516-532
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4a7c9f8d0f055ce0b9e4ebbf1419eb34a94cf787",
+  "prompts": {},
+  "sessions": {
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "unknown"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
