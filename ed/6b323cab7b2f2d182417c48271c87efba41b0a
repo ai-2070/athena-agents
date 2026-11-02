@@ -1,0 +1,40 @@
+server/eve/version.ts
+  s_3c304e20f190e2::t_ecf986584d5109 1
+tests/server/run-project.test.ts
+  s_3c304e20f190e2::t_5abbcefacdb53a 39
+docs/internal/plans/EVE_API_ENGINE_2026-11-01.md
+  s_3c304e20f190e2::t_a3eb5e5d346dd0 32-43
+tests/server/queue.test.ts
+  s_3c304e20f190e2::t_5abbcefacdb53a 39
+tests/server/workflow-stop.test.ts
+  s_3c304e20f190e2::t_5abbcefacdb53a 24-27,29
+tests/server/attachments-flow.test.ts
+  s_3c304e20f190e2::t_5abbcefacdb53a 41
+runtime/eve/agent/agent.ts
+  s_3c304e20f190e2::t_2020d43fcfba2f 13,15,19-21
+  s_3c304e20f190e2::t_10f2d8e19b5806 2,12
+tests/server/eve-context-integration.test.ts
+  s_3c304e20f190e2::t_10f2d8e19b5806 10,32,56
+  s_3c304e20f190e2::t_0bc1e5bac3612d 78
+  s_3c304e20f190e2::t_7920ae297ed76e 45,57,63,79-82,100
+runtime/eve/agent/lib/model.ts
+  s_3c304e20f190e2::t_2020d43fcfba2f 34,47-54,86-99
+runtime/eve/agent/lib/bridge.ts
+  s_3c304e20f190e2::t_10f2d8e19b5806 4,48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ed6b323cab7b2f2d182417c48271c87efba41b0a",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
