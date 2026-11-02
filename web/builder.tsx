@@ -8,7 +8,7 @@ import { GET, POST, PUT, attempt, state, toast, refreshSoon } from './core.ts';
 import type { ModalHandle } from './core.ts';
 import { teamSteps } from '../shared/teams.ts';
 import { mcpOptions } from './mcpcopies.ts';
-import { attachTray, baseName, isFolderPath } from './attach.tsx';
+import { attachTray, baseName, isFolderPath, PICKER_LABELLED } from './attach.tsx';
 import type { AttachTray } from './attach.tsx';
 import { openModal } from './ui/overlays.tsx';
 import { Button } from './ui/button.tsx';
@@ -402,7 +402,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   // agents hired by an earlier save attempt, until the state catches up
   const hired = new Map<string, Agent>();
   const flags: BuilderFlags = { saving: false, savedOk: false, closed: false };
-  const tray = attachTray();
+  const tray = attachTray({ pickerButton: PICKER_LABELLED });
   const m = openModal(
     wf ? `Edit ${wf.name}` : 'New team',
     (close) => (

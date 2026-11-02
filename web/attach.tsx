@@ -286,6 +286,8 @@ export interface AttachTray {
 export const COMPOSER_BTNS = 'flex flex-none flex-col justify-between gap-2 [&_.btn]:size-9 [&_.btn]:px-0';
 /** The plate a chat box's paperclip sits on: a quiet icon action, not one of the composer's boxed controls. */
 export const PICKER_BUTTON = { variant: 'plain', size: 'small', class: 'size-8! px-0!' } as const;
+/** In a dialog (New project, New team) it is a button that says what it does. */
+export const PICKER_LABELLED = { variant: 'ghost', size: 'small', label: 'Add files / folders' } as const;
 /** Its text box: never shorter than the two buttons, and growing upward with what you type to about a
  *  fifth of the window before it scrolls. */
 export const COMPOSER_TEXT = 'block field-sizing-content min-h-[80px] max-h-[max(160px,20vh)] resize-none';
@@ -342,7 +344,7 @@ const OVERLAY_CLASS = 'pointer-events-none absolute inset-0.75 z-50 flex animate
 
 // deferred: hold the files and upload only when ready() is called (a new project: its folder doesn't exist yet).
 // iconWeight: the weight the chat around it draws its icons in (the paperclip is drawn apart from it).
-export function attachTray({ deferred = false, onChange, iconWeight, pickerButton = PICKER_BUTTON }: { deferred?: boolean; onChange?: () => void; iconWeight?: IconWeight; pickerButton?: { variant?: ButtonVariant; size?: ButtonSize; class?: string } } = {}): AttachTray {
+export function attachTray({ deferred = false, onChange, iconWeight, pickerButton = PICKER_BUTTON }: { deferred?: boolean; onChange?: () => void; iconWeight?: IconWeight; pickerButton?: { variant?: ButtonVariant; size?: ButtonSize; class?: string; label?: string } } = {}): AttachTray {
   let items: Item[] = [];
   const el = document.createElement('div');
   el.className = 'att-tray hidden';
