@@ -6,6 +6,7 @@ import { state } from '../../web/core.ts';
 import { mountStationPanel } from '../../web/views/stationpanel.tsx';
 import type { StationPanelApi } from '../../web/views/stationpanel.tsx';
 import type { MapPick, TeamView } from '../../web/views/stationdata.ts';
+import { routineCounts } from '../../web/views/stationdata.ts';
 import type { AppState, Team } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -71,6 +72,12 @@ beforeEach(() => {
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (init?.method === 'POST') posts.push({ url, body: JSON.parse(String(init.body || '{}')) });
+    if (url === '/api/routines')
+      return json([
+        { id: 'r1', name: 'Weekly thumbnails', text: '@Thumbs make three', enabled: true, schedule: { type: 'daily', times: ['09:00'] }, mentions: [{ kind: 'team', id: 't1', name: 'Thumbs' }], lastRun: null },
+        { id: 'r2', name: 'Posts only', text: '@Posts write', enabled: true, schedule: { type: 'none' }, mentions: [{ kind: 'team', id: 't2', name: 'Posts' }] },
+        { id: 'r3', name: 'Paused one', text: '@Thumbs later', enabled: false, schedule: { type: 'none' }, mentions: [{ kind: 'team', id: 't1', name: 'Thumbs' }] },
+      ]);
     if (url === '/api/brain')
       return json({
         project: {},
@@ -149,7 +156,7 @@ describe('the Station panel', () => {
     expect(symbol.querySelector('input[aria-label="Your own emoji"]')?.classList.contains('h-9')).toBe(true);
   });
 
-  it('a team: the Setup tab saves the name when you leave the field, and the routine', async () => {
+  it('a team: the Setup tab saves the name when you leave the field', async () => {
     await open({ type: 'branch', id: 't1' });
     await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
     await settle();
@@ -160,32 +167,41 @@ describe('the Station panel', () => {
     expect(saved.at(-1)!.name).toBe('Thumbnails');
     // the connections it reaches, from the map
     expect([...el.querySelectorAll('.st-conn .grow')].map((x) => x.textContent)).toEqual(['Claude Code', 'X']);
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('.seg button')].find((b) => b.textContent === 'Every day')!.click());
-    expect(saved.at(-1)!.schedule).toEqual({ type: 'daily' });
-    expect(saved.at(-1)!.enabled).toBe(true);
   });
 
-  it('saves Off and keeps it selected after the team refreshes', async () => {
-    teams[0] = team({ schedule: { type: 'daily', times: ['09:00'] }, enabled: true });
+  it('a team: Setup lists the routines that mention it as cards, and starts a new one with it mentioned', async () => {
     await open({ type: 'branch', id: 't1' });
     await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
-    await act(async () => button('Off').click());
+    await settle();
+    const routines = [...el.querySelectorAll('.mono-fields > section')].find((x) => x.firstElementChild!.textContent?.trim() === 'Routines')!;
+    const cards = [...routines.querySelectorAll<HTMLButtonElement>('button.st-conn')];
+    expect(cards.map((c) => c.textContent)).toEqual(['Weekly thumbnailsDaily at 9AMNot run yet', 'Paused oneRun by handOff']);
+    await act(async () => cards[0].click());
+    expect(location.hash).toBe('#/routines/r1');
+    await act(async () => button('New routine for this team').click());
+    expect(location.hash).toBe('#/routines/new?team=t1');
+  });
+
+  it('counts the routines that mention each team, once per routine, leaving out deleted teams', () => {
+    expect(routineCounts([
+      { mentions: [{ kind: 'team', id: 't1', name: 'A' }, { kind: 'agent', id: 'a1', name: 'B' }] },
+      { mentions: [{ kind: 'team', id: 't1', name: 'A' }, { kind: 'team', id: 't1', name: 'A' }, { kind: 'team', id: 't2', name: 'C' }] },
+      { mentions: [{ kind: 'team', id: 't3', name: 'Gone', missing: true }] },
+    ])).toEqual({ t1: 2, t2: 1 });
+  });
+
+  it('a team with the daily message from before routines shows it, and Turn off stops it', async () => {
+    teams[0] = team({ schedule: { type: 'daily', times: ['09:00'], input: 'Post the news' }, enabled: true });
+    await open({ type: 'branch', id: 't1' });
+    await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
+    await settle();
+    expect(el.textContent).toContain('Post the news');
+    await act(async () => button('Turn off').click());
     expect(saved.at(-1)!.enabled).toBe(false);
     expect(saved.at(-1)!.schedule?.type).toBe('none');
     teams[0] = saved.at(-1)!;
     await open({ type: 'branch', id: 't1' });
-    expect(button('Off').getAttribute('aria-pressed')).toBe('true');
-  });
-
-  it('turns the routine off when its last time is cleared', async () => {
-    teams[0] = team({ schedule: { type: 'daily', times: ['09:00'] }, enabled: true });
-    await open({ type: 'branch', id: 't1' });
-    await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
-    const time = el.querySelector<HTMLInputElement>('input[aria-label="Time"]')!;
-    time.value = '';
-    await act(async () => void time.dispatchEvent(new Event('change')));
-    expect(saved.at(-1)!.schedule?.type).toBe('none');
-    expect(saved.at(-1)!.enabled).toBe(false);
+    expect(el.textContent).not.toContain('Post the news');
   });
 
   it('an agent: its teams, adding it to another, and opening a team', async () => {

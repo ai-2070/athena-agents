@@ -1,7 +1,10 @@
 // An editable rich view of the textarea. The textarea remains the plain-text source for chat helpers.
 import { icon } from '../icons.ts';
 
-export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => string[]): () => void {
+/** A name the box shows as a pill, with an icon before it if it has one (a team, a skill). */
+export type MentionTag = string | { tag: string; icon?: string };
+
+export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => MentionTag[]): () => void {
   const wasFocused = document.activeElement === input;
   const editor = document.createElement('div');
   editor.className = `${input.className} whitespace-pre-wrap overflow-y-auto`;
@@ -44,19 +47,21 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => stri
   };
   const draw = () => {
     const text = input.value;
-    const known = tags().sort((a, b) => b.length - a.length);
+    const known = tags().map((t) => (typeof t === 'string' ? { tag: t } : t)).sort((a, b) => b.tag.length - a.tag.length);
     editor.replaceChildren();
     let start = 0;
     for (let i = 0; i < text.length; i++) {
       if (i && !/\s/.test(text[i - 1])) continue;
-      const tag = known.find((t) => text.slice(i, i + t.length).toLowerCase() === t.toLowerCase() && (!text[i + t.length] || /[\s.,!?;:]/.test(text[i + t.length])));
-      if (!tag) continue;
+      const found = known.find(({ tag: t }) => text.slice(i, i + t.length).toLowerCase() === t.toLowerCase() && (!text[i + t.length] || /[\s.,!?;:]/.test(text[i + t.length])));
+      if (!found) continue;
+      const tag = found.tag;
       editor.append(document.createTextNode(text.slice(start, i)));
       const chip = document.createElement('span');
       chip.contentEditable = 'false';
       chip.setAttribute('contenteditable', 'false');
       chip.dataset.mention = text.slice(i, i + tag.length);
       chip.className = 'inline-flex items-center gap-1 rounded-ctl bg-accent/10 px-1.5 text-accent font-medium align-baseline';
+      if (found.icon) chip.append(icon(found.icon, 11));
       chip.append(document.createTextNode(chip.dataset.mention));
       const remove = document.createElement('button');
       remove.type = 'button';
@@ -116,7 +121,8 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => stri
     const forwarded = new KeyboardEvent('keydown', { key: event.key, code: event.code, shiftKey: event.shiftKey, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey, isComposing: event.isComposing, bubbles: true, cancelable: true });
     input.dispatchEvent(forwarded);
     if (forwarded.defaultPrevented) event.preventDefault();
-    else if (event.key === 'Enter' && event.shiftKey) { event.preventDefault(); insertText('\n'); }
+    // a new line as text, not the <div> the browser would add (a box that sends on Enter has taken it already)
+    else if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); insertText('\n'); }
     event.stopPropagation();
   });
   editor.addEventListener('paste', (event) => {

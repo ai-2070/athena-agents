@@ -23,6 +23,8 @@ export interface DialogSpec {
   /** The buttons at the bottom; none leaves the row out. */
   foot: Nodes | null;
   narrow: boolean;
+  /** Between narrow and the full width: a form with a row of choices (New project). */
+  medium?: boolean;
   /** Called once, however it closes. */
   onClose?: () => void;
   /** What gets focus when it opens: by default its first text box, else the dialog itself. */
@@ -144,10 +146,11 @@ function DialogView({ entry, container, children }: { entry: Entry; container: H
     <Dialog.Root open={entry.open} onOpenChange={(open) => !open && closeEntry(entry)} onOpenChangeComplete={(open) => !open && remove(entry)}>
       <Dialog.Portal container={container}>
         <Dialog.Viewport className={`modal-back${spec.exit !== false ? ' exit' : ''}`} ref={(el: HTMLDivElement | null) => void (entry.view.current = el || entry.view.current)}>
-          <Dialog.Popup ref={popup} className={`modal${spec.narrow ? ' narrow' : ''}`} initialFocus={firstFocus}>
+          <Dialog.Popup ref={popup} className={`modal${spec.narrow ? ' narrow' : spec.medium ? ' medium' : ''}`} initialFocus={firstFocus}>
             <div className="modal-head">
               {spec.titleNode ? <Dialog.Title>{spec.titleNode}</Dialog.Title> : <Dialog.Title ref={title} />}
-              <Dialog.Close className={iconButtonClass()} aria-label="Close">
+              {/* (the same close button as the Station's side panel) */}
+              <Dialog.Close className={iconButtonClass('inset')} aria-label="Close">
                 <Icon name="x" size={15} />
               </Dialog.Close>
             </div>
@@ -179,10 +182,10 @@ export function openDialog(spec: DialogSpec): OpenDialog {
 
 /** A dialog with React content, for React pages. content gets close(); it draws <div className="modal-body">
  *  and, if it has buttons, <div className="modal-foot">. It stacks with every other dialog. */
-export function openModal(title: ReactNode, content: (close: () => void) => ReactNode, { narrow = false, onClose }: { narrow?: boolean; onClose?: () => void } = {}): OpenDialog {
+export function openModal(title: ReactNode, content: (close: () => void) => ReactNode, { narrow = false, medium = false, onClose }: { narrow?: boolean; medium?: boolean; onClose?: () => void } = {}): OpenDialog {
   let handle: OpenDialog | null = null;
   const close = () => handle?.close();
-  handle = openDialog({ title: [], titleNode: title, body: [], foot: null, narrow, onClose, content: <ModalContent render={() => content(close)} /> });
+  handle = openDialog({ title: [], titleNode: title, body: [], foot: null, narrow, medium, onClose, content: <ModalContent render={() => content(close)} /> });
   return handle;
 }
 // (a component, so the content's hooks belong to it)

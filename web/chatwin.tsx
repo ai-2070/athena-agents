@@ -914,7 +914,7 @@ function LayoutMenu({ w }: { w: Win }) {
         <Icon name="layout-panel-left" size={14} />
       </Menu.Trigger>
       <Menu.Portal>
-        <Menu.Positioner className="z-96 outline-none" side="bottom" align="end" sideOffset={4} collisionPadding={8}>
+        <Menu.Positioner positionMethod="fixed" className="z-96 outline-none" side="bottom" align="end" sideOffset={4} collisionPadding={8}>
           <Menu.Popup className="cw-layout st-menu dd static min-w-60 max-w-80">
             <Menu.Group>
               <Menu.GroupLabel className="st-menu-head">Arrange</Menu.GroupLabel>

@@ -8,14 +8,14 @@ import { GET, POST, PUT, attempt, state, toast, refreshSoon } from './core.ts';
 import type { ModalHandle } from './core.ts';
 import { teamSteps } from '../shared/teams.ts';
 import { mcpOptions } from './mcpcopies.ts';
-import { attachTray, baseName, isFolderPath } from './attach.tsx';
+import { attachTray, baseName, isFolderPath, PICKER_LABELLED } from './attach.tsx';
 import type { AttachTray } from './attach.tsx';
 import { openModal } from './ui/overlays.tsx';
 import { Button } from './ui/button.tsx';
 import { ChipSet, Field } from './ui/controls.tsx';
 import { Pill } from './ui/marks.tsx';
 import { Avatar, DomNode, Icon } from './ui/react.tsx';
-import { PlateSection } from './ui/surface.tsx';
+import { FileDrop, FormSection } from './ui/formsection.tsx';
 import type { Agent, Team, TeamAccess, TeamStep } from '../shared/types.ts';
 
 /** An agent the Brain designed (POST /api/assist/agent), not created yet. */
@@ -45,17 +45,8 @@ const STEP_BTN = 'size-7 rounded-ctl p-0 border cursor-pointer text-[12px] hover
 const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a', '#4f7fa8', '#5a9a3a', '#a84a5a', '#2f8fa0'];
 
 /** One boxed part of the dialog: an icon and a title (and a count or the like at the end), then its content. */
-function BuilderSection({ title, ico, end, children }: { title: string; ico: string; end?: ReactNode; children: ReactNode }) {
-  return (
-    <PlateSection className="flex flex-col gap-4 rounded-box p-5">
-      <div className="flex items-center gap-2.5 text-[14px] font-semibold text-ink">
-        <Icon name={ico} size={15} className="text-faint" />
-        {title}
-        {end}
-      </div>
-      {children}
-    </PlateSection>
-  );
+function BuilderSection({ title, ico, hint, end, children }: { title: string; ico: string; hint?: ReactNode; end?: ReactNode; children: ReactNode }) {
+  return <FormSection icon={ico} title={title} hint={hint} end={end}>{children}</FormSection>;
 }
 
 // what the wizard is working on, mutated in place (the object Save reads)
@@ -201,24 +192,31 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
   return (
     <>
       <div className="modal-body">
-        <div className="flex flex-col gap-5">
-          <p className="hint m-0">A team is a group chat of agents. You write to the team, the lead (or the best fit) takes it, and they hand work to each other with @mentions.</p>
-          <BuilderSection title="Basics" ico="users">
+        <div className="flex flex-col gap-6">
+          <BuilderSection title="Basics" ico="users" hint="A team is a group chat of agents. You write to it, the lead (or the best fit) takes it, and they hand work on with @mentions.">
             <Field label="Name">
               <input ref={name} defaultValue={b.name} placeholder="e.g. Social, Video studio, Launch crew" onInput={(e) => (b.name = e.currentTarget.value)} />
             </Field>
             <Field label="Goal">
-              <textarea ref={desc} rows={2} defaultValue={b.description} placeholder={"The team's goal. Write it here and press Auto-build to let the Brain pick the agents."} onInput={(e) => (b.description = e.currentTarget.value)} />
+              <textarea ref={desc} rows={3} defaultValue={b.description} placeholder="What the team is for, e.g. plan and write two posts a week for our bakery, with photos" onInput={(e) => (b.description = e.currentTarget.value)} />
             </Field>
-            <div className="flex flex-wrap items-center gap-3">
+            {/* the Brain's offer, set apart: it fills in the members (and new agents) from the goal and the files */}
+            <div className="flex flex-wrap items-center gap-3 rounded-box border border-accent/25 bg-accent/6 px-4 py-3">
+              <span aria-hidden="true" className="grid size-8 flex-none place-items-center rounded-[9px] bg-accent/12 text-accent">
+                <Icon name="sparkles" size={15} />
+              </span>
+              <span className="min-w-0 flex-1 basis-52">
+                <span className="block text-[13.5px] font-medium text-ink">Let the Brain pick the agents</span>
+                <span className="block text-[12.5px] leading-normal text-dim">{status || 'It reads the goal and any files, then suggests members, new ones too.'}</span>
+              </span>
               <Button size="small" disabled={asking} onClick={() => void autoBuild()}>
                 <Icon name="sparkles" size={14} />
                 Auto-build
               </Button>
-              <span className="hint">{status}</span>
             </div>
           </BuilderSection>
-          <BuilderSection title="Files" ico="paperclip">
+          <BuilderSection title="Files" ico="paperclip" hint="Optional. Auto-build reads them, and every member is told where they are.">
+            <FileDrop picker={<DomNode as="span" className="dom-contents" make={() => tray.picker} deps={[]} />} hint="Briefs, brand guides, assets. Or drop or paste them anywhere in this window.">
             <div className={b.files.length ? 'att-tray' : 'att-tray hidden'}>
               {b.files.map((p) => (
                 <span key={p} className="att-chip sent" title={p}>
@@ -243,10 +241,7 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
               ))}
             </div>
             <DomNode className="dom-contents" make={() => tray.el} deps={[]} />
-            <div className="flex flex-wrap items-center gap-3">
-              <DomNode as="span" className="dom-contents" make={() => tray.picker} deps={[]} />
-              <span className="hint">Briefs, brand guides, assets: drop or paste files or folders anywhere here. Auto-build reads them, and every member is told where they are.</span>
-            </div>
+            </FileDrop>
           </BuilderSection>
           <BuilderSection title="Members" ico="bot" end={<Pill>{b.members.length}</Pill>}>
             <div className="flex flex-col gap-3">
@@ -297,11 +292,21 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
                     </div>
                   );
                 })}
-                {b.members.length ? null : <p className="empty">No agents yet. Add them below, or describe the goal and press Auto-build.</p>}
+                {b.members.length ? null : (
+                  <div className="flex flex-col items-center gap-1.5 rounded-box border border-dashed border-line-2 px-6 py-7 text-center">
+                    <Icon name="bot" size={20} className="text-faint" />
+                    <p className="m-0 text-[13px] text-dim">No agents yet. Add them below, or let Auto-build pick them.</p>
+                  </div>
+                )}
               </div>
               <div className="label mt-2">Add an agent</div>
-              <div className="mt-3 flex flex-col gap-3">
-                {agents.length ? <input ref={searchRef} placeholder="Search your agents…" aria-label="Search your agents" /> : null}
+              <div className="flex flex-col gap-2.5">
+                {agents.length ? (
+                  <label className="relative">
+                    <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint"><Icon name="search" size={14} /></span>
+                    <input ref={searchRef} className="pl-8.5!" placeholder="Search your agents…" aria-label="Search your agents" />
+                  </label>
+                ) : null}
                 <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
                   {left.length ? (
                     left.map((a) => (
@@ -335,7 +340,7 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
               </div>
             </div>
           </BuilderSection>
-          <BuilderSection title="Access" ico="wrench">
+          <BuilderSection title="Access" ico="wrench" hint="While working for this team, every member gets these on top of its own tools.">
             <div className="label">Programs &amp; tools</div>
             <div className="mt-3">
               <ChipSet
@@ -368,7 +373,6 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
                 </div>
               </>
             ) : null}
-            <p className="hint mt-4">While working for this team, every member gets these on top of its own tools.</p>
           </BuilderSection>
         </div>
       </div>
@@ -402,7 +406,7 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   // agents hired by an earlier save attempt, until the state catches up
   const hired = new Map<string, Agent>();
   const flags: BuilderFlags = { saving: false, savedOk: false, closed: false };
-  const tray = attachTray();
+  const tray = attachTray({ pickerButton: PICKER_LABELLED });
   const m = openModal(
     wf ? `Edit ${wf.name}` : 'New team',
     (close) => (

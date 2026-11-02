@@ -189,7 +189,7 @@ Each project can have its own background picture behind the map: click the Brain
 
 ## Routines: work worth repeating
 
-Create a routine, write the instructions, and **@mention** the agents or teams that should do the work and the skills they should use. Use **Run now** to run its saved instructions, or set a schedule. A new routine is only saved once it has something to do. Every routine has a sliding switch, on its card in the list and on its page, to switch it on or off: a routine that is off doesn't run, by hand or on its schedule. The same switch controls manual and scheduled runs. A daily schedule can have several times; use **Add time** to add another. Pick the hour, minute and AM/PM, then press **OK**. The routine card shows every time and the selected days. Each run records what its agents and teams did.
+Create a routine, write the instructions, and **@mention** the agents or teams that should do the work and the skills they should use. Each mention shows as a pill, as in a team chat's message box, with an icon for a team or a skill; **×** on a pill takes it out. Use **Run now** to run its saved instructions, or set a schedule. A new routine is only saved once it has something to do. Every routine has a sliding switch, on its card in the list and on its page, to switch it on or off: a routine that is off doesn't run, by hand or on its schedule. The same switch controls manual and scheduled runs. A daily schedule can have several times; use **Add time** to add another. Pick the hour, minute and AM/PM, then press **OK**. The routine card shows every time and the selected days. Each run records what its agents and teams did. On the Station, a team's **Setup** tab lists the routines that mention it; **New routine for this team** starts one with the team already mentioned.
 
 In **Runs**, expand a run to see each agent's or team's result. Markdown in a result is shown formatted, and **Chat** opens the conversation.
 
@@ -343,7 +343,7 @@ Backups are not a full copy of your working folder: back up source files, upload
 
 ### Restore a backup
 
-Choose **New project → From backup**, then drop in a `.dashbackup` file or choose one from the backups folder.
+Choose **New project → Backup**, then drop in a `.dashbackup` file or choose one from the backups folder.
 
 - Restore creates a new project; it does not replace the original.
 - Missing skills and presets are added. If a skill has the same ID but different contents, your existing skill stays and the restored copy gets an `-restored` suffix. Matching skills receive the backup's earlier versions.

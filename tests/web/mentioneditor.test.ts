@@ -42,6 +42,28 @@ describe('inline mention editor', () => {
     expect(input.value).toBe('@Ana hi');
   });
 
+  it('puts an icon before a pill that has one', () => {
+    const input = document.createElement('textarea');
+    input.value = 'Ask @Ana and @Design with @Brand voice';
+    document.body.append(input);
+    dispose = attachMentionEditor(input, () => ['@Ana', { tag: '@Design', icon: 'users' }, { tag: '@Brand voice', icon: 'puzzle' }]);
+    const pill = (m: string) => document.querySelector(`[data-mention="${m}"]`)!;
+    expect(pill('@Ana').firstElementChild?.tagName.toLowerCase()).toBe('button');
+    expect(pill('@Design').firstElementChild?.tagName.toLowerCase()).toBe('svg');
+    expect(pill('@Brand voice').firstElementChild?.tagName.toLowerCase()).toBe('svg');
+    expect(input.value).toBe('Ask @Ana and @Design with @Brand voice');
+  });
+
+  it('puts a new line in as text when the box does not take Enter itself', () => {
+    const { input, editor } = open('@Ana hi');
+    input.focus();
+    input.setSelectionRange(7, 7);
+    const key = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    editor.dispatchEvent(key);
+    expect(key.defaultPrevented).toBe(true);
+    expect(input.value).toBe('@Ana hi\n');
+  });
+
   it('shows changes made by textarea helpers and restores the textarea on cleanup', () => {
     const { input, editor } = open('Hi');
     input.setRangeText(' @Ana', 2, 2, 'end');

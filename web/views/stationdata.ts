@@ -7,7 +7,7 @@ import { craftIcon, craftColor } from '../crafticons.ts';
 import { INK, brandTone } from './stationpalette.ts';
 import { brandImage } from '../brandimages.ts';
 import { appIcon } from '../appicons.ts';
-import type { Agent, AppState, ProviderUsage, Team, TeamListing, TeamStep } from '../../shared/types.ts';
+import type { Agent, AppState, ProviderUsage, Routine, Team, TeamListing, TeamStep } from '../../shared/types.ts';
 
 /** A connection a step can reach: a service, a program, an MCP server ('mcp:x') or a Claude account connector ('cc:x'). */
 export interface Integration {
@@ -241,4 +241,11 @@ export function connectorLook(name: string): { glyph: string; color: string } {
   for (const [re, glyph, color] of map) if (re.test(n)) return { glyph, color };
   const craft = craftColor(name);
   return { color: craft || '#a9d3e2', glyph: name.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '⌁' };
+}
+
+/** Team id → how many routines mention it. */
+export function routineCounts(list: readonly Pick<Routine, 'mentions'>[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const r of list) for (const id of new Set(r.mentions.filter((m) => m.kind === 'team' && !m.missing).map((m) => m.id))) out[id] = (out[id] || 0) + 1;
+  return out;
 }

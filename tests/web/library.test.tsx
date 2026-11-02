@@ -159,7 +159,7 @@ describe('Library page', () => {
     expect(el.textContent).toContain('Venice · venice-chat');
     await click(buttons('Venice · venice-chat')[0]);
     await settle();
-    expect(document.querySelector('.model-effort-level.on')?.textContent).toBe(effort ? 'High' : 'Default');
+    expect(document.querySelector('.model-effort-level.on')?.textContent).toBe(effort ? 'High' : 'Auto');
     await click([...document.querySelectorAll<HTMLButtonElement>('.model-list .st-menu-item')].find((b) => b.textContent?.includes('Venice Chat'))!);
     await click(el.querySelector<HTMLButtonElement>('.card .btn.small')!);
     expect(requests.find((r) => r.url === '/api/library/hire')?.body).toMatchObject({ source, overrides: { engine: 'eve', provider: 'venice', model: 'venice-chat', effort } });
@@ -188,7 +188,9 @@ describe('Library page', () => {
     let finish!: () => void;
     slowLibrary = new Promise((r) => (finish = r));
     await open();
-    expect(el.textContent).toBe('Loading library…');
+    // the page's shape while it loads, with what is loading for screen readers
+    expect(el.querySelector('[role="status"]')!.textContent).toContain('Loading library…');
+    expect(el.querySelectorAll('.cards .card').length).toBeGreaterThan(0);
     act(() => library.unmount());
     finish();
     await settle();

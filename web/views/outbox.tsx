@@ -54,7 +54,8 @@ export function Outbox() {
     <Sections>
       <Questions />
       {data.accounts.x.length ? <Compose accounts={data.accounts.x.map((a) => a.username)} added={() => void reload()} /> : null}
-      <Section title={`Waiting for you (${pending.length})`} headingClassName="section" bare>
+      {/* nothing waiting: the heading goes above, so the note is in the middle of the page, not of the right column */}
+      <Section title={`Waiting for you (${pending.length})`} headingClassName="section" bare className={pending.length ? '' : 'lg:grid-cols-1'}>
         {pending.length ? (
           <div className="flex flex-col gap-4">
             {pending.map((p) => <PostCard key={p.id} p={p} changed={changed} />)}

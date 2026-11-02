@@ -52,12 +52,13 @@ export function rememberSidebarPanel(p: SidebarPanel): void {
 // Only on a switch: the sidebar is drawn again often, and that must not replay it.
 let switching = false;
 const PANEL = 'contents';
-// the lines sit directly in nav-status (the status list) or inside the display:contents box navLimits returns,
-// which lays them out as if they were there themselves
+// the lines sit in nav-status's scrolling list (.nav-list), directly (the status list) or inside the
+// display:contents box navLimits returns, which lays them out as if they were there themselves
 const lines = (host: Element | null): HTMLElement[] => {
   if (!host) return [];
+  const open = (el: Element): Element[] => (el.classList.contains(PANEL) || el.classList.contains('nav-list') ? [...el.children].flatMap(open) : [el]);
   return [...host.children]
-    .flatMap((el) => (el.classList.contains(PANEL) ? [...el.children] : [el]))
+    .flatMap(open)
     .filter((el): el is HTMLElement => el instanceof HTMLElement && !el.classList.contains('sidebar-panel-switch'));
 };
 

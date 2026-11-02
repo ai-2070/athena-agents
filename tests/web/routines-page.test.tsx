@@ -31,7 +31,7 @@ beforeEach(() => {
     if (url === '/api/routines' && method === 'POST') return json({ ...routine, ...body, id: 'r2', mentions: [] });
     if (url.startsWith('/api/routine-runs')) return json(runsData);
     if (url.startsWith('/api/skills')) return json({ skills: [], claude: [] });
-    return json(url.includes('/workflows') ? [] : { ok: true });
+    return json(url.includes('/workflows') ? [{ id: 't1', name: 'Content Team', members: ['a1'], description: '' }] : { ok: true });
   });
 });
 afterEach(() => {
@@ -62,6 +62,9 @@ describe('the routine editor', () => {
     expect([...menu.querySelectorAll('.rt-menu-item')].map((b) => b.textContent)).toEqual(['✍️WriterPosts']);
     await act(async () => ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
     expect(ta.value).toBe('Ask @Writer ');
+    // shown as a pill, like in a team chat's message box
+    expect(ta.hidden).toBe(true);
+    expect(el.querySelector('[contenteditable="true"][aria-label="What to do"] [data-mention="@Writer"]')).not.toBeNull();
     expect(el.querySelector('.rt-who')!.textContent).toContain('Writer');
     expect(btn('Save').disabled).toBe(false);
   });
@@ -87,6 +90,9 @@ describe('the routine editor', () => {
     expect(btn('Save').disabled).toBe(true);
     expect(btn('Run now').disabled).toBe(true);
     expect(el.textContent).not.toContain('Delete routine');
+    // a draft has no runs of its own: it never asks for every routine's
+    expect(requests.some((r) => r.url.startsWith('/api/routine-runs'))).toBe(false);
+    expect(el.querySelector('aside')!.textContent).toContain('Not saved yet');
     const ta = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="What to do"]')!;
     await typeInto(ta, '   ');
     expect(btn('Save').disabled).toBe(true);
@@ -97,6 +103,25 @@ describe('the routine editor', () => {
     expect(requests.filter((r) => r.method !== 'GET').map((r) => `${r.method} ${r.url}`)).toEqual(['POST /api/routines']);
     expect(requests.find((r) => r.method === 'POST')!.body).toMatchObject({ name: 'New routine', text: 'Find news.' });
     expect(location.hash).toBe('#/routines/r2');
+  });
+
+  it('a new routine from a team on the Station starts with that team mentioned', async () => {
+    location.hash = '#/routines/new?team=t1';
+    await act(async () => routines.render(el, ['new']));
+    await settle(100);
+    expect(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="What to do"]')!.value).toBe('@Content Team ');
+    expect(el.querySelector('[data-mention="@Content Team"]')).not.toBeNull();
+    location.hash = '';
+  });
+
+  it('shows its state at the side: on, how it runs, and the last run', async () => {
+    await open();
+    const side = el.querySelector('aside')!;
+    expect(side.textContent).toContain('Routine on');
+    expect(side.textContent).toContain('It runs when you press Run now.');
+    expect(side.textContent).toContain('Last run');
+    expect(side.textContent).toContain('Done');
+    expect([...side.querySelectorAll('button')].some((b) => b.textContent === 'Run now')).toBe(true);
   });
 
   it('has one routine switch and saves daily times without a separate schedule switch', async () => {
@@ -160,6 +185,17 @@ describe('the routine editor', () => {
     expect(details.textContent).toContain('Three stories.');
     expect(details.querySelector('strong')?.textContent).toBe('Three stories.');
     expect(details.querySelector('a[href="#/agents/a1/c1"]')).not.toBeNull();
+  });
+
+  it('says how long a run took, and who did it', async () => {
+    runsData = [{ ...run, createdAt: Date.now() - 65_000, finishedAt: Date.now() }];
+    await open();
+    const summary = el.querySelector('details summary')!;
+    expect(summary.textContent).toContain('Done');
+    expect(summary.textContent).toContain('Run by hand');
+    expect(summary.textContent).toContain('took 1m 5s');
+    expect(summary.querySelector('[aria-label="Writer"]')).not.toBeNull();
+    expect([routines.runTook(800), routines.runTook(42_000), routines.runTook(3_725_000)]).toEqual(['1s', '42s', '1h 2m']);
   });
 
   it('keeps run details usable while stopping a running entry', async () => {

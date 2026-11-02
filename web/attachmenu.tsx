@@ -8,14 +8,16 @@ import type { IconWeight } from './ui/react.tsx';
 import { buttonClass } from './ui/classes.ts';
 import type { ButtonSize, ButtonVariant } from './ui/classes.ts';
 
-export function mountAttachMenu(host: HTMLElement, { files, folder, weight = 'light', button = {} }: { files: () => void; folder: () => void; weight?: IconWeight; button?: { variant?: ButtonVariant; size?: ButtonSize; class?: string } }): void {
+/** label: words next to the paperclip (a dialog's "Add files / folders"); without, it is the chat box's bare paperclip. */
+export function mountAttachMenu(host: HTMLElement, { files, folder, weight = 'light', button = {} }: { files: () => void; folder: () => void; weight?: IconWeight; button?: { variant?: ButtonVariant; size?: ButtonSize; class?: string; label?: string } }): void {
   createRoot(host).render(
     <StrictMode>
       {/* (its own React tree, so it is told the weight its chat draws icons in) */}
       <IconWeightProvider value={weight}>
         <Dropdown>
-          <DropdownTrigger className={buttonClass(button.variant ?? 'ghost', button.size ?? 'small', button.class)} aria-label="Attach files" title="Attach files or a folder (or drop or paste them here)">
+          <DropdownTrigger className={buttonClass(button.variant ?? 'ghost', button.size ?? 'small', button.class)} aria-label={button.label ? undefined : 'Attach files'} title="Attach files or a folder (or drop or paste them here)">
             <Icon name="paperclip" size={15} />
+            {button.label || null}
           </DropdownTrigger>
           <DropdownContent side="top" align="end" className="min-w-40">
             <DropdownItem icon="file" onClick={files}>

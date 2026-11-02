@@ -7,6 +7,9 @@ import { ArrowBendUpLeftIcon } from '@phosphor-icons/react/dist/csr/ArrowBendUpL
 import { FloppyDiskIcon } from '@phosphor-icons/react/dist/csr/FloppyDisk';
 import { ApertureIcon } from '@phosphor-icons/react/dist/csr/Aperture';
 import { ArchiveIcon } from '@phosphor-icons/react/dist/csr/Archive';
+import { FolderPlusIcon } from '@phosphor-icons/react/dist/csr/FolderPlus';
+import { KeyboardIcon } from '@phosphor-icons/react/dist/csr/Keyboard';
+import { GithubLogoIcon } from '@phosphor-icons/react/dist/csr/GithubLogo';
 import { ArrowClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowClockwise';
 import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowCounterClockwise';
 import { ArrowDownIcon } from '@phosphor-icons/react/dist/csr/ArrowDown';
@@ -202,6 +205,9 @@ export const PHOSPHOR: Record<string, PhosphorIcon> = {
   store: StorefrontIcon,
   'file-text': FileTextIcon,
   'folder-open': FolderOpenIcon,
+  'folder-plus': FolderPlusIcon,
+  'github-logo': GithubLogoIcon,
+  keyboard: KeyboardIcon,
   'rotate-cw': ArrowClockwiseIcon,
   'chevron-right': CaretRightIcon,
   rocket: RocketIcon,

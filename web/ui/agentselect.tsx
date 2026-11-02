@@ -22,7 +22,7 @@ export function AgentSelect({ agents, value, onChange }: { agents: Agent[]; valu
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Positioner className="z-96 outline-none" alignItemWithTrigger={false} side="bottom" align="start" sideOffset={4} collisionPadding={8}>
+        <Select.Positioner positionMethod="fixed" className="z-96 outline-none" alignItemWithTrigger={false} side="bottom" align="start" sideOffset={4} collisionPadding={8}>
           <Select.Popup className="st-menu dd static max-h-72 min-w-(--anchor-width) max-w-none">
             <Select.List>
               {agents.map((a) => (

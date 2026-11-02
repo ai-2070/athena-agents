@@ -177,7 +177,7 @@ function SettingsSearch({ onChoose }: { onChoose: (hit: Hit) => void }) {
       </div>
       <Autocomplete.Portal>
         {/* placed by its positioner, so no position of its own */}
-        <Autocomplete.Positioner anchor={anchor} align="end" sideOffset={6} className="z-60 outline-none">
+        <Autocomplete.Positioner positionMethod="fixed" anchor={anchor} align="end" sideOffset={6} collisionPadding={8} className="z-60 outline-none">
           <Autocomplete.Popup className="glass st-menu w-[max(var(--anchor-width),320px)] max-w-(--available-width) outline-none empty:hidden has-[>[role=listbox]:empty]:hidden">
             <Autocomplete.List>
               {(hit: Hit) => (

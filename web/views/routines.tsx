@@ -1,6 +1,7 @@
 // Routines: instructions you run again and again. Type @ in the text to mention who does it (agents,
 // teams) and which skills they use. Run it by hand or on a schedule.
-import { Plate, PlateSection } from '../ui/surface.tsx';
+import { Plate } from '../ui/surface.tsx';
+import { FormSection } from '../ui/formsection.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
@@ -10,11 +11,13 @@ import { loadSkills, skillsCache } from '../skillpick.ts';
 import { scheduleEditor } from '../schedule.tsx';
 import { openChat } from '../chatwin.tsx';
 import { attachMentions, startMention, KIND_LABEL } from '../routinemention.ts';
+import { attachMentionEditor } from '../chat/mentioneditor.ts';
 import type { Candidate } from '../routinemention.ts';
 import { findMentions, scheduleSummary } from '../../shared/routines.ts';
 import { Field, Switch } from '../ui/controls.tsx';
 import { DomNode, Icon, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
-import { Dot } from '../ui/marks.tsx';
+import { Dot, Pill } from '../ui/marks.tsx';
+import type { PillTone } from '../ui/classes.ts';
 import type { AppState, Routine, RoutineListing, RoutineMention, RoutineMentionKind, RoutineRun, RoutineRunTarget, TeamListing } from '../../shared/types.ts';
 
 /** Agents, teams and skills a routine can mention. Agents first: on a name clash they win (the server does the same). */
@@ -196,7 +199,9 @@ function RoutineEditor({ id }: { id: string }) {
       </p>
     );
   if (!loaded || !teams) return <p className="text-dim">Loading routines…</p>;
-  return <EditorForm key={loaded.id} first={loaded} teams={teams} />;
+  // (from a team's panel on the Station: a new routine starts with that team mentioned)
+  const team = loaded === BLANK ? teams.find((t) => t.id === new URLSearchParams(location.hash.split('?')[1] || '').get('team')) : undefined;
+  return <EditorForm key={loaded.id} first={team ? { ...BLANK, text: `@${team.name} ` } : loaded} teams={teams} />;
 }
 
 function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) {
@@ -212,8 +217,11 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   const [running, setRunning] = useState(false);
   // a draft has no id yet: its first Save makes the routine
   const isNew = !id;
-  // The schedule editor tells us when its fields change.
+  // The schedule editor tells us when its fields change (the side card shows its summary).
   const [kind, setKind] = useState(first.schedule?.type || 'none');
+  const [, scheduleChanged] = useState(0);
+  // the newest run, from the runs list, for the side card
+  const [last, setLast] = useState<RoutineRun | null>(null);
   // One switch controls manual and scheduled runs.
   const [active, setActive] = useState(first.enabled);
   const canSave = dirty && !saving && !!name.trim() && !!text.trim();
@@ -222,7 +230,12 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   const cands = () => (d ? candidates(d, teams) : []);
   const candsRef = useRef(cands);
   candsRef.current = cands;
-  useEffect(() => attachMentions(ta.current!, () => candsRef.current(), () => {}), []);
+  useEffect(() => {
+    // mentions show as pills, like in a team chat's message box
+    const offEditor = attachMentionEditor(ta.current!, () => candsRef.current().map((c) => ({ tag: `@${c.name}`, icon: c.kind === 'team' ? 'users' : c.kind === 'skill' ? 'puzzle' : undefined })));
+    const offMenu = attachMentions(ta.current!, () => candsRef.current(), () => {});
+    return () => (offMenu(), offEditor());
+  }, []);
 
   const save = async (): Promise<boolean> => {
     // never an empty routine
@@ -274,12 +287,12 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   ];
   const skills = found.filter((m) => m.kind === 'skill').map((m) => <MentionChip key={`s:${m.id}`} m={m} teams={teams} />);
   const whoRow = (label: string, ico: string, items: ReactNode[], empty: string) => (
-    <div className="grid grid-cols-[120px_minmax(0,1fr)] items-start gap-3 max-sm:grid-cols-1 max-sm:gap-1.5">
-      <div className="inline-flex items-center gap-2 pt-0.5 text-[13px] leading-[normal] font-medium text-dim">
+    <div className="grid grid-cols-[112px_minmax(0,1fr)] items-start gap-3 max-sm:grid-cols-1 max-sm:gap-1.5">
+      <div className="inline-flex items-center gap-2 pt-1 text-[12.5px] leading-[normal] font-medium text-dim">
         <Icon name={ico} size={13} />
         {label}
       </div>
-      <div className={CHIPS}>{items.length ? items : <span className="hint">{empty}</span>}</div>
+      <div className={CHIPS}>{items.length ? items : <span className="pt-0.5 text-[12.5px] text-faint">{empty}</span>}</div>
     </div>
   );
   const insert = (kind: RoutineMentionKind, label: string, ico: string) => (
@@ -288,30 +301,31 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
       {label}
     </Button>
   );
+  const schedule = r.current.schedule;
+  const lastLook = last ? runLook(last.status) : null;
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <ButtonLink variant="ghost" size="small" href="#/routines">← Routines</ButtonLink>
-        <div className="flex flex-wrap items-center gap-4">
-          <Switch checked={active} onChange={switchActive}>
-            <span className="text-[13px] font-medium text-dim">{active ? 'Routine on' : 'Routine off'}</span>
-          </Switch>
-          <Button variant="ghost" disabled={running || isNew || !active} title={isNew || !active ? 'Save the routine first, and switch it on, to run it' : undefined} onClick={() => void run()}>
-            <Icon name="play" size={14} />
-            Run now
-          </Button>
-          <Button  disabled={!canSave} title={!text.trim() ? 'Write what the routine should do first' : undefined} onClick={() => void save()}>Save</Button>
+        <div className="flex items-center gap-3">
+          {dirty && !isNew ? <span className="text-[12.5px] text-faint">Unsaved changes</span> : null}
+          <Button disabled={!canSave} title={!text.trim() ? 'Write what the routine should do first' : undefined} onClick={() => void save()}>Save</Button>
         </div>
       </div>
-      <div className="mb-7">
-        <h1 className="m-0 text-[22px] leading-[1.2] font-semibold text-ink">{isNew ? 'New routine' : name || 'Routine'}</h1>
-        <p className="hint mt-2 mb-0">Set the work, who does it and when it runs.</p>
+      <div className="mb-7 flex items-start gap-4">
+        <span aria-hidden="true" className="grid size-11 flex-none place-items-center rounded-[12px] border border-accent/25 bg-accent/10 text-accent">
+          <Icon name="repeat" size={20} />
+        </span>
+        <div className="min-w-0">
+          <h1 className="m-0 truncate text-[22px] leading-[1.2] font-semibold text-ink">{isNew ? 'New routine' : name || 'Routine'}</h1>
+          <p className="hint mt-1.5 mb-0">{description || 'Set the work, who does it and when it runs.'}</p>
+        </div>
       </div>
-      <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(300px,1fr)] items-start gap-5 max-lg:grid-cols-1">
-        <Plate className="min-w-0 rounded-box p-5 sm:p-6">
-          <div>
-            <div className="panel-head !mb-4"><h2>Details</h2></div>
+      <div className="grid grid-cols-[minmax(0,1fr)_340px] items-start gap-6 max-lg:grid-cols-1">
+        {/* the work: what it is called, what it asks, who it goes to */}
+        <Plate className="flex min-w-0 flex-col gap-6 rounded-box p-5 sm:p-6">
+          <FormSection icon="pen-line" title="Details">
             <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
               <Field label="Name">
                 <input value={name} onChange={(e) => (setName(e.target.value), setDirty(true))} />
@@ -320,57 +334,85 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
                 <input value={description} placeholder="Optional, shown on the card" onChange={(e) => (setDescription(e.target.value), setDirty(true))} />
               </Field>
             </div>
-          </div>
-          <div className="mt-6 border-t border-line pt-6">
-            <div className="panel-head !mb-3 flex-wrap gap-3">
-              <h2>What to do</h2>
-              <div className="actions">
-                {insert('agent', 'Agent', 'bot')}
-                {insert('team', 'Team', 'users')}
-                {insert('skill', 'Skill', 'puzzle')}
-              </div>
-            </div>
+          </FormSection>
+          <FormSection
+            icon="list-checks"
+            title="What to do"
+            hint={<>Type <b className="font-semibold text-ink">@</b> to mention an agent, a team or a skill. Agents and teams each get the routine (an agent in a mentioned team gets it in that team chat); skills are given to all of them.</>}
+            end={<>{insert('agent', 'Agent', 'bot')}{insert('team', 'Team', 'users')}{insert('skill', 'Skill', 'puzzle')}</>}
+          >
             <textarea
               ref={ta}
-              className="code min-h-45 leading-[1.55]"
+              // the text box look as utilities: the pill editor shown in its place copies these classes
+              className="code min-h-45 w-full resize-y rounded-ctl border border-line-2 bg-bg px-3 py-[9px] font-mono text-[12.5px] leading-[1.55] text-ink shadow-card outline-none [transition:border-color_0.15s,box-shadow_0.15s] hover:border-[color-mix(in_srgb,var(--color-ink)_22%,var(--color-line-2))] focus:border-accent focus:[box-shadow:0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)] empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]"
               rows={9}
               aria-label="What to do"
               value={text}
               placeholder={'What should be done? Type @ to mention who does it and the skills to use.\n\ne.g. @Researcher find the 3 most interesting AI stories from the last day, with links. Then @Content Team writes one X post about the best one using @Brand voice.'}
               onChange={(e) => (setText(e.target.value), setDirty(true))}
             />
-            <p className="hint mt-3 max-w-[68ch] leading-[1.5]">
-              Type <b>@</b> to mention an agent, a team or a skill. Mentioned agents and teams each get the routine (an agent in a mentioned team gets it in that team chat); mentioned skills are given to all of them for it.
-            </p>
-            <div className="rt-who mt-5 flex flex-col gap-4 border-t border-line pt-5">
+            {/* who the text mentions, read back as chips */}
+            <div className="rt-who flex flex-col gap-3 rounded-box border border-line bg-panel-2/40 px-4 py-3.5">
               {whoRow('Who does it', 'users', doers, 'Mention at least one agent or team.')}
               {whoRow('Skills', 'puzzle', skills, 'None. Mention a skill to have them follow it.')}
               {gone.length ? (
-                <p className="hint">
+                <p className="hint m-0 inline-flex items-center gap-1.5 text-amber!">
                   <Icon name="triangle-alert" size={12} />
-                  {` ${gone.map((m) => `@${m.name}`).join(', ')} ${gone.length === 1 ? 'was' : 'were'} deleted, so ${gone.length === 1 ? 'it is' : 'they are'} left out.`}
+                  {`${gone.map((m) => `@${m.name}`).join(', ')} ${gone.length === 1 ? 'was' : 'were'} deleted, so ${gone.length === 1 ? 'it is' : 'they are'} left out.`}
                 </p>
               ) : null}
             </div>
-          </div>
+          </FormSection>
         </Plate>
-        <aside className="flex min-w-0 flex-col gap-5">
-          <PlateSection className="panel !m-0 !p-5 sm:!p-6">
-            <div className="panel-head !mb-3">
-              <h2>Schedule</h2>
+        {/* the routine's state: on or off, run it, when it runs on its own */}
+        <aside className="flex min-w-0 flex-col lg:sticky lg:top-20">
+          <Plate className="flex flex-col gap-5 rounded-box p-5">
+            <div className="flex flex-col gap-3">
+              <Switch checked={active} onChange={switchActive} className="flex-nowrap!">
+                <span className="text-[13.5px] font-semibold text-ink">{active ? 'Routine on' : 'Routine off'}</span>
+              </Switch>
+              <p className="m-0 text-[12.5px] leading-normal text-dim">
+                {!active ? "It doesn't run, by hand or on its schedule." : kind === 'none' ? 'It runs when you press Run now.' : `Runs by hand, and ${scheduleSummary(schedule).replace(/^./, (c) => c.toLowerCase())}.`}
+              </p>
+              <Button variant="ghost" className="w-full justify-center" disabled={running || isNew || !active} title={isNew || !active ? 'Save the routine first, and switch it on, to run it' : undefined} onClick={() => void run()}>
+                <Icon name="play" size={14} />
+                Run now
+              </Button>
+              <div className="flex items-center gap-2 text-[12.5px] text-dim">
+                <Icon name="history" size={13} className="text-faint" />
+                {last && lastLook ? (
+                  <>
+                    <span>Last run</span>
+                    <Pill tone={lastLook.tone}>{lastLook.label}</Pill>
+                    <span className="ml-auto text-faint">{ago(last.createdAt)}</span>
+                  </>
+                ) : (
+                  <span>{isNew ? 'Not saved yet' : 'Not run yet'}</span>
+                )}
+              </div>
             </div>
-            <DomNode make={() => scheduleEditor(r.current, () => (setDirty(true), setKind(r.current.schedule?.type || 'none')), { inputLabel: 'Additional instructions for scheduled runs (optional)', inputHint: 'Added to the main instructions when this routine runs automatically. Not used by Run now.', showToggle: false })} deps={[id]} />
-            {kind !== 'none' ? <p className="hint">Runs while the dashboard is open.</p> : null}
-          </PlateSection>
+            <div className="flex flex-col gap-4 border-t border-line pt-5">
+              <div className="flex items-center gap-3">
+                <span aria-hidden="true" className="grid size-8 flex-none place-items-center rounded-[9px] border border-line bg-panel-2 text-dim">
+                  <Icon name="calendar" size={15} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="m-0 text-[14px] leading-snug font-semibold text-ink">Schedule</h3>
+                  <p className="m-0 text-[12.5px] text-dim">{scheduleSummary(schedule)}</p>
+                </div>
+              </div>
+              <DomNode make={() => scheduleEditor(r.current, () => (setDirty(true), setKind(r.current.schedule?.type || 'none'), scheduleChanged((n) => n + 1)), { inputLabel: 'Additional instructions for scheduled runs (optional)', inputHint: 'Added to the main instructions when this routine runs automatically. Not used by Run now.', showToggle: false })} deps={[id]} />
+              {kind !== 'none' ? <p className="hint m-0">Runs while the dashboard is open.</p> : null}
+            </div>
+          </Plate>
         </aside>
-        <PlateSection className="col-span-2 rounded-box p-5 sm:p-6 max-lg:col-span-1">
-          <div className="panel-head !mb-3">
-            <h2>Runs</h2>
-          </div>
-          <Runs id={id} />
-        </PlateSection>
-        {!isNew && <div className="col-span-2 max-lg:col-span-1">
-          <Button variant="danger" size="small" onClick={() => void del()}><Icon name="trash-2" size={14} />Delete routine</Button>
+        <Plate className="col-span-2 rounded-box p-5 sm:p-6 max-lg:col-span-1">
+          <FormSection icon="history" title="Runs" hint="What each agent and team did, newest first.">
+            <Runs id={id} onLatest={setLast} />
+          </FormSection>
+        </Plate>
+        {!isNew && <div className="col-span-2 flex justify-end max-lg:col-span-1">
+          <Button variant="danger" onClick={() => void del()}><Icon name="trash-2" size={14} />Delete routine</Button>
         </div>}
       </div>
     </div>
@@ -378,85 +420,155 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
 }
 
 
+/** How a run (or one of its agents) ended, as a pill's tone and words. */
+const RUN_LOOK: Record<string, { tone: PillTone; label: string }> = {
+  running: { tone: 'info', label: 'Running' },
+  done: { tone: 'ok', label: 'Done' },
+  sent: { tone: 'ok', label: 'Sent to the team' },
+  failed: { tone: 'bad', label: 'Failed' },
+  stopped: { tone: 'warn', label: 'Stopped' },
+};
+const runLook = (status: string) => RUN_LOOK[status] || { tone: 'dim' as const, label: status };
+
+/** How long a run took: "12s", "3m 5s", "1h 4m". */
+export function runTook(ms: number): string {
+  const sec = Math.max(1, Math.round(ms / 1000));
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m${sec % 60 ? ` ${sec % 60}s` : ''}`;
+  return `${Math.floor(min / 60)}h${min % 60 ? ` ${min % 60}m` : ''}`;
+}
+
+type Who = { emoji?: string; color?: string } | undefined;
+
+/** An agent's emoji on its colour, or a team's icon: small, for a run's summary and its rows. */
+function TargetMark({ t, agent, small = false }: { t: RoutineRunTarget; agent: Who; small?: boolean }) {
+  const size = small ? 'size-6 rounded-[7px] text-[12px] ring-2 ring-panel' : 'size-8 rounded-[9px] text-[15px]';
+  return t.kind === 'team' ? (
+    <span className={`grid flex-none place-items-center border border-line bg-panel-2 text-dim ${size}`} title={t.name}><Icon name="users" size={small ? 12 : 15} /></span>
+  ) : (
+    <span className={`avatar ${size}`} style={{ '--agent-color': agent?.color || 'var(--color-accent)' } as CSSProperties} title={t.name}>{agent?.emoji || '🤖'}</span>
+  );
+}
+
 /** The routine's last runs, kept current; the newest is open, and whichever you opened stays open. */
-function Runs({ id }: { id: string }) {
+function Runs({ id, onLatest }: { id: string; onLatest?: (run: RoutineRun | null) => void }) {
+  const d = useAppState();
   const [runs, setRuns] = useState<RoutineRun[] | null>(null);
   const [open, setOpen] = useState<Set<string> | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const load = useCallback(() => {
     clearTimeout(timer.current);
+    // a draft has no runs (an empty id would ask for every routine's)
+    if (!id) return setRuns([]);
     // (a burst of events loads once)
     timer.current = setTimeout(() => void GET<RoutineRun[]>(`/routine-runs?routineId=${encodeURIComponent(id)}`).then(setRuns).catch(() => setRuns([])), 150);
   }, [id]);
   useEffect(() => (load(), () => clearTimeout(timer.current)), [load]);
+  useEffect(() => onLatest?.(runs?.[0] ?? null), [runs, onLatest]);
   useServerEvents((ev) => ev.type === 'routine-run' && (ev as { routineId?: string }).routineId === id && load());
   if (!runs) return null;
-  if (!runs.length) return <p className="empty !py-4">No runs yet.</p>;
+  if (!runs.length)
+    return (
+      <div className="flex flex-col items-center gap-2 rounded-box border border-dashed border-line-2 px-6 py-10 text-center">
+        <Icon name="history" size={20} className="text-faint" />
+        <p className="m-0 text-[13.5px] text-dim">No runs yet. Use Run now, or set a schedule.</p>
+      </div>
+    );
+  const agentOf = (t: RoutineRunTarget): Who => (t.kind === 'agent' ? d?.agents.find((a) => a.id === t.id) : undefined);
   const isOpen = (run: RoutineRun, i: number) => (open ? open.has(run.id) : i === 0);
   return (
-    <div className="flex flex-col gap-2">
-      {runs.slice(0, 15).map((run, i) => (
-        <div key={run.id} className="relative rounded-ctl border border-line px-3">
-        <details
-          className="group/run"
-          open={isOpen(run, i)}
-          onToggle={(e) => {
-            const now = (e.currentTarget as HTMLDetailsElement).open;
-            if (now === isOpen(run, i)) return;
-            const next = new Set(open ?? (runs[0] ? [runs[0].id] : []));
-            if (now) next.add(run.id);
-            else next.delete(run.id);
-            setOpen(next);
-          }}
-        >
-          <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 py-3 text-[13px] [&::-webkit-details-marker]:hidden">
-            <span className="grid size-5 flex-none place-items-center"><StatusIcon status={run.status} /></span>
-            <span className="font-semibold capitalize text-ink">{run.status}</span>
-            <span className="inline-flex min-w-0 items-center gap-1.5 text-[12px] text-dim"><Icon name={run.trigger === 'manual' ? 'hand' : 'calendar'} size={13} /><span className="truncate capitalize">{run.trigger === 'schedule' ? 'Scheduled' : run.trigger}</span></span>
-            <span className="ml-auto shrink-0 text-[12px] text-faint">{ago(run.createdAt)}</span>
-            {run.status === 'running' ? <span className="w-14 flex-none" aria-hidden="true" /> : null}
-            <Icon name="chevron-down" size={14} className="flex-none text-dim transition-transform duration-200 ease-in-out group-open/run:rotate-180" />
-          </summary>
-          <div className="border-t border-line py-2">
-            {run.targets.map((t) => (
-              <TargetRow key={`${t.kind}:${t.id}`} t={t} />
-            ))}
-            {run.skills.length ? <div className="hint mt-2">{`Skills: ${run.skills.map((slug) => skillsCache().find((s) => s.slug === slug)?.name || slug).join(', ')}`}</div> : null}
+    <div className="flex flex-col gap-3">
+      {runs.slice(0, 15).map((run, i) => {
+        const look = runLook(run.status);
+        const took = run.finishedAt && run.createdAt ? runTook(run.finishedAt - run.createdAt) : '';
+        return (
+          <div key={run.id} className="relative overflow-hidden rounded-box border border-line bg-bg shadow-card">
+            <details
+              className="group/run"
+              open={isOpen(run, i)}
+              onToggle={(e) => {
+                const now = (e.currentTarget as HTMLDetailsElement).open;
+                if (now === isOpen(run, i)) return;
+                const next = new Set(open ?? (runs[0] ? [runs[0].id] : []));
+                if (now) next.add(run.id);
+                else next.delete(run.id);
+                setOpen(next);
+              }}
+            >
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 transition-colors hover:bg-panel-2/60 [&::-webkit-details-marker]:hidden">
+                <Pill tone={look.tone} className="gap-1.5">
+                  {run.status === 'running' ? <Dot tone="busy" /> : null}
+                  {look.label}
+                </Pill>
+                <span className="inline-flex items-center gap-1.5 text-[12.5px] text-dim">
+                  <Icon name={run.trigger === 'manual' ? 'hand' : 'calendar'} size={13} />
+                  {run.trigger === 'manual' ? 'Run by hand' : run.trigger === 'schedule' ? 'Scheduled' : run.trigger}
+                </span>
+                <span className="flex items-center -space-x-1.5" aria-label={run.targets.map((t) => t.name).join(', ')}>
+                  {run.targets.slice(0, 5).map((t) => <TargetMark key={`${t.kind}:${t.id}`} t={t} agent={agentOf(t)} small />)}
+                </span>
+                <span className="ml-auto shrink-0 text-[12px] text-faint tabular-nums" title={run.createdAt ? new Date(run.createdAt).toLocaleString() : undefined}>
+                  {ago(run.createdAt)}{took ? ` · took ${took}` : ''}
+                </span>
+                {run.status === 'running' ? <span className="w-14 flex-none" aria-hidden="true" /> : null}
+                <Icon name="chevron-down" size={14} className="flex-none text-dim transition-transform duration-200 ease-in-out group-open/run:rotate-180" />
+              </summary>
+              <div className="flex flex-col gap-1 border-t border-line px-4 py-3">
+                {run.error ? <p className="m-0 rounded-ctl bg-red/8 px-3 py-2 text-[13px] text-red">{run.error}</p> : null}
+                {run.targets.map((t) => (
+                  <TargetRow key={`${t.kind}:${t.id}`} t={t} agent={agentOf(t)} />
+                ))}
+                {run.skills.length ? (
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12.5px] text-dim">
+                    <Icon name="puzzle" size={13} />
+                    {run.skills.map((slug) => skillsCache().find((sk) => sk.slug === slug)?.name || slug).join(', ')}
+                  </div>
+                ) : null}
+              </div>
+            </details>
+            {run.status === 'running' ? (
+              <Button variant="danger" size="tiny" className="absolute top-3 right-10" onClick={() => void attempt(() => POST(`/routine-runs/${run.id}/stop`))}>Stop</Button>
+            ) : null}
           </div>
-        </details>
-        {run.status === 'running' ? (
-          <Button variant="danger" size="tiny" className="absolute top-3 right-8" onClick={() => void attempt(() => POST(`/routine-runs/${run.id}/stop`))}>Stop</Button>
-        ) : null}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-function TargetRow({ t }: { t: RoutineRunTarget }) {
+function TargetRow({ t, agent }: { t: RoutineRunTarget; agent: Who }) {
+  const look = runLook(t.status);
   return (
-    <div className="py-2 [&_pre]:max-h-50">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="grid size-5 flex-none place-items-center"><StatusIcon status={t.status} /></span>
-        <b className="min-w-0 break-words">{t.name}</b>
-        <span className="hint capitalize">{t.kind === 'team' ? `team · ${t.status}` : t.status}</span>
-        {t.kind === 'team' ? (
-          <Button variant="ghost" size="tiny" onClick={() => openChat('team', t.id)}>
-            <Icon name="message-square" size={12} />
-            Team chat
-          </Button>
-        ) : t.chatId ? (
-          <ButtonLink variant="ghost" size="tiny" href={`#/agents/${t.id}/${t.chatId}`}>
-            <Icon name="message-square" size={12} />
-            Chat
-          </ButtonLink>
+    <div className="flex gap-3 py-2 [&_pre]:max-h-50">
+      <TargetMark t={t} agent={agent} />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1">
+          <b className="min-w-0 break-words text-[14px]">{t.name}</b>
+          <span className="inline-flex items-center gap-1 text-[12.5px] text-dim">
+            <StatusIcon status={t.status} />
+            {t.kind === 'team' ? `Team · ${look.label.toLowerCase()}` : look.label}
+          </span>
+          <span className="ml-auto">
+            {t.kind === 'team' ? (
+              <Button variant="ghost" size="tiny" onClick={() => openChat('team', t.id)}>
+                <Icon name="message-square" size={12} />
+                Team chat
+              </Button>
+            ) : t.chatId ? (
+              <ButtonLink variant="ghost" size="tiny" href={`#/agents/${t.id}/${t.chatId}`}>
+                <Icon name="message-square" size={12} />
+                Chat
+              </ButtonLink>
+            ) : null}
+          </span>
+        </div>
+        {t.output ? (
+          <div className="mt-2 max-h-72 max-w-[80ch] overflow-y-auto rounded-ctl border border-line bg-panel-2/50 px-4 py-3 text-[13px] leading-[1.65] text-ink [&_.md>:first-child]:mt-0 [&_.md>:last-child]:mb-0">
+            <DomNode make={() => md(t.output)} deps={[t.output]} />
+          </div>
         ) : null}
       </div>
-      {t.output ? (
-        <div className="mt-2 pl-7 max-h-72 max-w-[80ch] overflow-y-auto text-[13px] leading-[1.65] text-ink [&_.md>:first-child]:mt-0 [&_.md>:last-child]:mb-0">
-          <DomNode make={() => md(t.output)} deps={[t.output]} />
-        </div>
-      ) : null}
     </div>
   );
 }
