@@ -29,13 +29,18 @@ LM Studio, Ollama and custom connections without paid calls. The real-process fi
 waits, Stop, cost/step limits, lost input receipts, worker restarts and saved team read boundaries.
 Existing suites exercise Brain, goals, routines, copies, backups, exports and CLI reseeding.
 
-Windows validation: full suite passed 1,707 tests before the final three provider/PDF cases; the final
-focused suite passed all 58 tests. A subsequent full run passed 1,709 tests and timed out on the
-forty-turn team test; its native-runtime budget and failure cleanup were corrected, then all 22
-team tests passed. Web build, twenty-request native integration, staged desktop smoke
-(including four crash boundaries), `cargo fmt --check` and locked Clippy passed. The UI detector has no
-findings. A live browser visual check could not run because the browser host is unavailable. No real
-provider accounts or paid models were used. Final CI results will be recorded below.
+Windows validation passes all 1,710 tests (212 files; 20 intentional skips), the web build,
+twenty-request native integration, staged desktop smoke with four crash boundaries, Rust format
+and locked Clippy checks. The UI detector has no findings. A live browser visual check could not
+run because the browser host is unavailable. No real provider accounts or paid models were used.
+
+CI proved both Linux and Windows desktop jobs. The Linux test job exposed four old cold-start
+waits that still assumed an in-process API loop; those waits now allow the native worker to start,
+with explicit completion assertions and bounded cleanup. A final workflow run validates the fixes.
+Native summary costs now use Eve's model-usage total plus reported SDK costs that have not yet
+reached a refreshed native view. A real compaction test proves a charged summary blocks the next
+model request when it reaches the turn budget. The model's already charged request cannot be undone.
+
 
 ## Earlier phase notes (historical)
 

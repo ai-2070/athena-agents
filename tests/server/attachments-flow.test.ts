@@ -38,7 +38,7 @@ const upload = async (rel: string, text: string) => {
   return (await receive(Object.assign(Readable.from([Buffer.from(text)]), { headers: {} }) as unknown as http.IncomingMessage, batch, rel)).path;
 };
 const waitFor = async (n: number, teamId: string) => {
-  for (let i = 0; i < 80 && getThread(teamId).messages.length < n; i++) await new Promise((r) => setTimeout(r, 50));
+  await expect.poll(() => getThread(teamId).messages.length, { timeout: 15000 }).toBeGreaterThanOrEqual(n);
 };
 
 describe('a team with files', () => {

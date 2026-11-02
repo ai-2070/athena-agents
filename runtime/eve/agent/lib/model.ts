@@ -31,7 +31,7 @@ export function reachedCostLimit(total: number, baseline: number, limit: number)
   return limit > 0 && spent > 0 && spent + rounding >= limit;
 }
 
-export function athenaModel(config: EveRuntimeConfiguration, beforeCall?: () => Promise<void>) {
+export function athenaModel(config: EveRuntimeConfiguration, beforeCall?: (reportedCost: number) => Promise<void>) {
   const provider = createOpenAICompatible({
     name: 'athena', baseURL: config.baseUrl, apiKey: config.apiKey, headers: config.headers, includeUsage: true, metadataExtractor,
     transformRequestBody: (body: Record<string, unknown>) => {
@@ -44,6 +44,14 @@ export function athenaModel(config: EveRuntimeConfiguration, beforeCall?: () => 
     },
   });
   const model = provider(config.model);
+  let reportedCost = 0;
+  const charge = (metadata: unknown) => {
+    if (!metadata || typeof metadata !== 'object' || !('gateway' in metadata)) return;
+    const gateway = metadata.gateway;
+    if (!gateway || typeof gateway !== 'object' || !('cost' in gateway)) return;
+    const cost = Number(gateway.cost);
+    if (gateway.cost != null && Number.isFinite(cost) && cost >= 0) reportedCost += cost;
+  };
   type Prompt = Parameters<typeof model.doGenerate>[0]['prompt'];
   type UserPart = Extract<Prompt[number], { role: 'user' }>['content'][number];
   // Compatible APIs accept images in user content, while tool results stay text with their IDs.
@@ -75,7 +83,19 @@ export function athenaModel(config: EveRuntimeConfiguration, beforeCall?: () => 
   };
   return {
     specificationVersion: model.specificationVersion, provider: model.provider, modelId: model.modelId, supportedUrls: model.supportedUrls,
-    doGenerate: async (options: Parameters<typeof model.doGenerate>[0]) => { await beforeCall?.(); return model.doGenerate(withToolImages(options)); },
-    doStream: async (options: Parameters<typeof model.doStream>[0]) => { await beforeCall?.(); return model.doStream(withToolImages(options)); },
+    doGenerate: async (options: Parameters<typeof model.doGenerate>[0]) => {
+      await beforeCall?.(reportedCost);
+      const result = await model.doGenerate(withToolImages(options));
+      charge(result.providerMetadata);
+      return result;
+    },
+    doStream: async (options: Parameters<typeof model.doStream>[0]) => {
+      await beforeCall?.(reportedCost);
+      const result = await model.doStream(withToolImages(options));
+      return { ...result, stream: result.stream.pipeThrough(new TransformStream({ transform(part, controller) {
+        if (part.type === 'finish') charge(part.providerMetadata);
+        controller.enqueue(part);
+      } })) };
+    },
   };
 }

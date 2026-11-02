@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { DynamicModelContext } from 'eve';
 import type { EveRuntimeConfiguration } from '../../../../shared/types.ts';
-import { runs } from 'eve/events';
+import { usage } from 'eve/events';
 
 const configSchema = z.object({
   runId: z.string().min(1),
@@ -45,6 +45,6 @@ export function bindingOf(ctx: DynamicModelContext): string {
 }
 
 export async function configuration(ctx: DynamicModelContext): Promise<EveRuntimeConfiguration> {
-  const nativeCost = runs(ctx.view).reduce((sum, run) => sum + (run.usage?.costUsd || 0), 0);
+  const nativeCost = usage(ctx.view).byKind.model?.costUsd || 0;
   return configSchema.parse(await bridgeCall(bindingOf(ctx), '/configuration', { sessionId: ctx.session.id, nativeCost }));
 }

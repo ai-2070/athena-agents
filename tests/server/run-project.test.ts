@@ -36,7 +36,7 @@ beforeAll(async () => {
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
-const until = async (ok: () => boolean, ms = 5000) => {
+const until = async (ok: () => boolean, ms = 15000) => {
   for (const end = Date.now() + ms; Date.now() < end; ) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 20));

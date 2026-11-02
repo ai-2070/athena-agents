@@ -7,6 +7,7 @@ import { startRun, stopAllRuns } from '../../server/engines/index.ts';
 import { eveCoordinator } from '../../server/eve/coordinator.ts';
 import { eveRuntime } from '../../server/eve/runtime.ts';
 import { readRun } from '../../server/eve/state.ts';
+import { eveUsage } from '../../server/eve/usage.ts';
 import { readConversation, searchConversations } from '../../server/conversations.ts';
 import * as mcp from '../../server/mcp.ts';
 import { openuiPrompt } from '../../server/richanswers.ts';
@@ -28,6 +29,7 @@ describe('native Eve context and media', () => {
     let summaries = 0;
     let vision = 0;
     let rich = 0;
+    let replies = 0;
     const failures: string[] = [];
     server = http.createServer(async (request, response) => {
       if (request.url?.endsWith('/models')) return response.end(JSON.stringify({ data: [{ id: 'native-context', context_length: 64000 }] }));
@@ -40,7 +42,7 @@ describe('native Eve context and media', () => {
       if (serialized.includes('CONTEXT CHECKPOINT COMPACTION')) {
         summaries++;
         const summary = 'The first vision check is complete. Continue with the full current request.';
-        if (body.stream) response.writeHead(200, { 'content-type': 'text/event-stream' }).end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: summary }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 20 } })}\n\ndata: [DONE]\n\n`);
+        if (body.stream) response.writeHead(200, { 'content-type': 'text/event-stream' }).end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: summary }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 20, cost: 0.01 } })}\n\ndata: [DONE]\n\n`);
         else response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id: 'summary', model: 'native-context', created: 1, choices: [{ index: 0, message: { role: 'assistant', content: summary }, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 20 } }));
         return;
       }
@@ -51,13 +53,14 @@ describe('native Eve context and media', () => {
         else vision++;
       }
       const delta = next || toolResult ? { content: answer } : { tool_calls: [{ index: 0, id: 'vision-call', type: 'function', function: { name: 'vision__screenshot', arguments: '{}' } }] };
-      response.writeHead(200, { 'content-type': 'text/event-stream' }).end(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: next || toolResult ? 'stop' : 'tool_calls' }], usage: { prompt_tokens: toolResult && !next ? 60000 : 100, completion_tokens: 30 } })}\n\ndata: [DONE]\n\n`);
+      replies++;
+      response.writeHead(200, { 'content-type': 'text/event-stream' }).end(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: next || toolResult ? 'stop' : 'tool_calls' }], usage: { prompt_tokens: toolResult || next ? 60000 : 100, completion_tokens: 30, cost: 0.0001 } })}\n\ndata: [DONE]\n\n`);
     });
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('No test port.');
-    saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${address.port}/v1`, label: 'Native proof' } }, contextWindowTokens: 64000, brainFollowsUp: false });
+    saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${address.port}/v1`, label: 'Native proof' } }, contextWindowTokens: 64000, brainFollowsUp: false, costLimitUsdPerRun: 0.005 });
     mcp.saveServer('vision', { type: 'http', url: 'http://127.0.0.1:1/mcp', enabled: true });
     vi.spyOn(mcp, 'listTools').mockResolvedValue([{ name: 'screenshot', description: 'Read a fixture screenshot', inputSchema: { type: 'object', properties: {} }, annotations: { readOnlyHint: true, destructiveHint: false } }]);
     const tool = vi.spyOn(mcp, 'callTool').mockResolvedValue({ text: 'Original screenshot result', images: [`data:image/png;base64,${PNG}`] });
@@ -72,8 +75,11 @@ describe('native Eve context and media', () => {
     expect(tool).toHaveBeenCalledTimes(1);
     const next = startRun(agent, chats.get(agent.id, chat.id)!, 'FORCE_NEXT_CONTEXT: retain this complete new request.');
     const nextAnswer = await next.promise;
-    expect(readRun(next.runId)?.error).toBeUndefined();
-    expect(nextAnswer).toBe(answer);
+    expect(summaries).toBeGreaterThan(0);
+    expect(nextAnswer).toBe('');
+    expect(readRun(next.runId)).toMatchObject({ status: 'failed', limitReason: expect.stringContaining('$0.005') });
+    expect(eveUsage(next.runId).cost).toBeCloseTo(0.01);
+    expect(replies).toBe(2);
     expect(summaries).toBeGreaterThan(0);
     expect(rich).toBeGreaterThan(0);
     expect(failures).toEqual([]);
@@ -91,5 +97,6 @@ describe('native Eve context and media', () => {
       offset = page.nextOffset;
     }
     expect(text).toBe(original);
+
   }, 45000);
 });

@@ -21,9 +21,12 @@ beforeAll(async () => {
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
   saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
 });
-afterAll(() => new Promise<void>((r) => server.close(() => r())));
+afterAll(async () => {
+  server.closeAllConnections();
+  await new Promise<void>((r) => server.close(() => r()));
+});
 
-const until = async (ok: () => boolean, ms = 5000) => {
+const until = async (ok: () => boolean, ms = 15000) => {
   for (const end = Date.now() + ms; Date.now() < end; ) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 20));
