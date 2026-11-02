@@ -1,0 +1,19 @@
+scripts/eve-integration-smoke.ts
+  s_aa3f7e974bdac5::t_b4dad97c477ddd 10-11,13-24,26,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f313cbf5f6e4e71e7872ee248c608f0a5a18acd",
+  "prompts": {},
+  "sessions": {
+    "s_aa3f7e974bdac5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198f1-4ab0-7380-a79f-d744ec1af2c3",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
