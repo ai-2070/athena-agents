@@ -1,0 +1,35 @@
+docs/guide.md
+  s_3c304e20f190e2::t_b06449d75a4f1c 258
+  s_3c304e20f190e2::t_c639b8e03dcfdd 257
+server/engines/index.ts
+  s_aa3f7e974bdac5::t_0464f343d566d1 579
+README.md
+  s_aa3f7e974bdac5::t_0464f343d566d1 35
+tests/server/eve-outcomes-flow.test.ts
+  s_aa3f7e974bdac5::t_0290549c2dc23a 1-36,38-39,41-62
+  s_aa3f7e974bdac5::t_8b0513e3260692 37,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aca533f04e1b671332b6a700bcf5cb1e595b9a19",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_aa3f7e974bdac5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198f1-4ab0-7380-a79f-d744ec1af2c3",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
