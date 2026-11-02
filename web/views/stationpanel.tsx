@@ -1,7 +1,7 @@
 // The Station's side panel: what you clicked on the map (the Brain, a team, an agent, the Bench or a
 // connection), with what you can do there. React; the map (station.ts) owns the panel's element, slides
 // it in and out, and tells it to draw again (update()) when what it shows may have changed.
-import { StrictMode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { StrictMode, Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GET, POST, PUT, DEL, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon } from '../core.ts';
@@ -14,7 +14,7 @@ import { openChat } from '../chatwin.tsx';
 import { skillPicker } from '../skillpick.ts';
 import { historyButton } from '../history.tsx';
 import { projectMark, pickLogo, removeLogo, pickModel, removeModel, pickBackground, removeBackground } from '../projectlogo.ts';
-import { pickTeamMark, EMOJI_CHOICES, DEFAULT_TEAM_MARK } from '../teammark.ts';
+import { pickTeamMark, DEFAULT_TEAM_MARK } from '../teammark.ts';
 import { icon, logo } from '../icons.ts';
 import { modelChip, modelInfo } from '../models.tsx';
 import { Avatar, DomNode, HoverScroll, Icon, IconWeightProvider, useAppState } from '../ui/react.tsx';
@@ -31,6 +31,8 @@ import { fileManager, previewFile, previewTitle } from '../filepreview.tsx';
 import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, connectorLook } from './stationdata.ts';
 import type { AvailableIntegration, Connector, MapPick, Program, TeamView } from './stationdata.ts';
 import type { Agent, AppState, Project, Team, TeamAccess, TeamState } from '../../shared/types.ts';
+
+const EmojiPicker = lazy(() => import('../ui/emojipicker.tsx').then((m) => ({ default: m.EmojiPicker })));
 
 /** What the panel needs from the map. */
 export interface StationPanelApi {
@@ -995,25 +997,14 @@ function SymbolPicker({ api, wf }: { api: StationPanelApi; wf: TeamView }) {
   const current = wf.mark || DEFAULT_TEAM_MARK;
   return (
     <div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(44px,1fr))] gap-1.5">
-        {EMOJI_CHOICES.map((e) => {
-          const on = !own && current === e;
-          return (
-            <button
-              key={e}
-              className={`grid h-11 cursor-pointer place-items-center rounded-ctl border text-[21px] leading-none [transition:border-color_0.15s,background-color_0.15s,transform_0.15s] hover:-translate-y-px hover:border-accent-dim ${on ? 'border-accent bg-accent/10' : 'border-line-2 bg-panel'}`}
-              title={e}
-              aria-pressed={on}
-              onClick={() => void setEmoji(e)}
-            >
-              {e}
-            </button>
-          );
-        })}
-      </div>
+      <Suspense fallback={<span className="inline-grid size-15 place-items-center text-[28px]">{current}</span>}>
+        <EmojiPicker value={current} onChange={(emoji) => void setEmoji(emoji)}>
+          <span className="text-[28px] leading-none">{current}</span>
+        </EmojiPicker>
+      </Suspense>
       <div className="mt-3 flex items-center gap-2">
-        <input aria-label="Your own emoji" placeholder="Type or paste an emoji" maxLength={16} className="min-w-0 flex-1" ref={committed<HTMLInputElement>((el) => el.value.trim() && void setEmoji(el.value.trim()))} />
-        <Button variant="ghost" size="small" className="flex-none" onClick={() => void pickTeamMark({ id: wf.id, name: wf.name }).then((ok) => void (ok && api.reloadTeams()))}>
+        <input aria-label="Your own emoji" placeholder="Type or paste an emoji" maxLength={16} className="h-9 min-w-0 flex-1 py-0" ref={committed<HTMLInputElement>((el) => el.value.trim() && void setEmoji(el.value.trim()))} />
+        <Button variant="ghost" className="flex-none" onClick={() => void pickTeamMark({ id: wf.id, name: wf.name }).then((ok) => void (ok && api.reloadTeams()))}>
           <Icon name="image" size={14} />
           Picture or 3D model…
         </Button>
