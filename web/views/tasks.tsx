@@ -81,12 +81,18 @@ function TaskBoardPage() {
   const serial = useRef(0);
   useDragPreview(board);
 
+  // While a card is dragged or a move is being saved, the board isn't loaded again under it: a dragged card that
+  // moved to another column would leave the drag with no end (and its copy on the screen). It loads once that is over.
+  const held = useRef({ drag: false, moves: 0, missed: false });
+  const holding = () => held.current.drag || held.current.moves > 0;
   const load = useCallback(async () => {
     if (!project) return;
+    if (holding()) return void (held.current.missed = true);
     const request = ++serial.current;
     try {
       const next = await GET<TaskBoardData>(`/task-board?project=${encodeURIComponent(project)}`);
       if (request !== serial.current) return;
+      if (holding()) return void (held.current.missed = true);
       setData(next);
       setError('');
     } catch (e) {
@@ -103,6 +109,20 @@ function TaskBoardPage() {
     setData(null);
     void load();
   }, [load]);
+  const release = useCallback(() => {
+    if (holding() || !held.current.missed) return;
+    held.current.missed = false;
+    void load();
+  }, [load]);
+  useEffect(() => {
+    held.current.drag = !!dragging;
+    release();
+    if (!dragging) return;
+    // (a drag whose end never came: the next press of the pointer ends it)
+    const end = () => (setDragging(null), setDrop(null));
+    document.addEventListener('pointerdown', end, true);
+    return () => document.removeEventListener('pointerdown', end, true);
+  }, [dragging, release]);
   // kept current: a change to a board this shows, another project opened, a reconnect
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -180,6 +200,7 @@ function TaskBoardPage() {
     const room = new Map(respaced.map((r) => [cardKey(r.task), r.rank]));
     setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, ...patch, ...(status === 'done' && t.status !== 'done' ? { doneAt: Date.now() } : {}) } : room.has(cardKey(t)) ? { ...t, rank: room.get(cardKey(t))! } : t)) } : d));
     const key = cardKey(task);
+    held.current.moves++;
     const saved = (saving.current.get(key) ?? Promise.resolve<number | null>(task.updatedAt)).then(async (version) => {
       if (version === null) return null;
       try {
@@ -195,7 +216,11 @@ function TaskBoardPage() {
       }
     });
     saving.current.set(key, saved);
-    void saved.then(() => saving.current.get(key) === saved && saving.current.delete(key));
+    void saved.then(() => {
+      if (saving.current.get(key) === saved) saving.current.delete(key);
+      held.current.moves--;
+      release();
+    });
     requestAnimationFrame(() => board.current?.querySelector<HTMLElement>(`[data-task-id="${key}"]`)?.focus({ preventScroll: true }));
     await saved;
   };

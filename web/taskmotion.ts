@@ -60,12 +60,15 @@ export function useDragPreview(board: RefObject<HTMLElement | null>): void {
     root.addEventListener('dragend', clear, true);
     document.addEventListener('dragover', onDragOver);
     document.addEventListener('drop', clear, true);
+    // (no press can happen during a drag: one after a drag whose end never came takes the copy away)
+    document.addEventListener('pointerdown', clear, true);
     return () => {
       clear();
       root.removeEventListener('dragstart', onDragStart, true);
       root.removeEventListener('dragend', clear, true);
       document.removeEventListener('dragover', onDragOver);
       document.removeEventListener('drop', clear, true);
+      document.removeEventListener('pointerdown', clear, true);
     };
   }, [board]);
 }

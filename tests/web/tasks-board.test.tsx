@@ -248,6 +248,22 @@ describe('the Tasks board', () => {
     expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/a', body: { status: 'todo', rank: 2 + 1024 } });
   });
 
+  it('doesn\'t load the board again under a card being dragged, and does once it is let go', async () => {
+    await open();
+    await act(async () => el.querySelector('[data-task-id="p1/a"]')!.dispatchEvent(dragEvent('dragstart')));
+    // the Brain moves the card meanwhile
+    board[0] = { ...board[0], status: 'in_progress', updatedAt: now + 3 };
+    const loads = () => requests.filter((r) => r.url.startsWith('/api/task-board?')).length;
+    const before = loads();
+    await serverEvent({ type: 'board', projectId: 'p1', ids: ['a'] });
+    expect(loads()).toBe(before);
+    expect(ids('To do')).toEqual(['a', 'b']);
+    await act(async () => el.querySelector('[data-task-id="p1/a"]')!.dispatchEvent(dragEvent('dragend')));
+    await settle();
+    expect(loads()).toBe(before + 1);
+    expect(ids('In progress')).toEqual(['a', 'c']);
+  });
+
   it('works out a place between two cards', () => {
     expect(tasks.rankBetween(undefined, undefined)).toBe(0);
     expect(tasks.rankBetween(1, 2)).toBe(1.5);
