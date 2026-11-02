@@ -269,7 +269,7 @@ describe('model picker: Venice', () => {
     expect(body.textContent).toContain('saved-model');
     expect(body.textContent).not.toContain('anthropic/claude');
     expect(document.querySelector('[aria-label="Effort"]')).toBeNull();
-    const input = [...body.querySelectorAll<HTMLInputElement>('input')].find((el) => el.placeholder.startsWith('or enter'))!;
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Search models"]')!;
     input.value = 'manual-model';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     expect(picked).toEqual([{ engine: 'eve', provider: 'venice', model: 'manual-model', effort: '' }]);
@@ -313,7 +313,7 @@ describe('model picker: Venice', () => {
     const picked: ModelPatch[] = [];
     openModelPicker(document.body, { engine: 'eve', provider: 'venice', model: 'venice-chat' }, (p) => picked.push(p));
     await settle();
-    const input = [...document.querySelectorAll<HTMLInputElement>('input')].find((el) => el.placeholder.startsWith('or enter'))!;
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Search models"]')!;
     input.value = 'offline-model';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     expect(picked).toEqual([]);
@@ -518,5 +518,45 @@ describe('team builder: saving', () => {
     await settle();
     expect(document.querySelectorAll('.model-tab')).toHaveLength(0);
     expect(document.querySelector('.model-menu')?.textContent).toContain('No engines are set up yet.');
+  });
+});
+
+describe('model picker: the search box', () => {
+  const tab = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('.model-tab')].find((b) => b.textContent === label)!;
+  const box = () => document.querySelector<HTMLInputElement>('.model-menu input[aria-label="Search models"]')!;
+  const type = (text: string) => {
+    const el = box();
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, text);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  const rows = () => [...document.querySelectorAll('.model-body .model-row')].map((r) => r.textContent);
+
+  it('sits under the effort row on every tab and filters that tab', async () => {
+    serve(() => ({ body: [] }));
+    openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {});
+    await settle();
+    const effort = document.querySelector('[aria-label="Effort"]')!;
+    expect(effort.compareDocumentPosition(box()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(box().compareDocumentPosition(document.querySelector('.model-body')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    type('opus');
+    await settle();
+    expect(rows().length).toBeGreaterThan(0);
+    expect(rows().every((r) => /opus/i.test(r || ''))).toBe(true);
+    tab('Hermes').click();
+    await settle();
+    expect(box()).not.toBeNull();
+  });
+
+  it('says when nothing matches, and Enter takes what is typed as the model id on that tab', async () => {
+    serve(() => ({ body: [] }));
+    const picked: ModelPatch[] = [];
+    openModelPicker(document.body, { engine: 'hermes', model: '' }, (p) => picked.push(p));
+    await settle();
+    type('my/own-model');
+    await settle();
+    expect(rows()).toEqual([]);
+    expect(document.querySelector('.model-body')!.textContent).toContain('Press Enter to use "my/own-model"');
+    box().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(picked).toEqual([{ engine: 'hermes', model: 'my/own-model', effort: '' }]);
   });
 });
