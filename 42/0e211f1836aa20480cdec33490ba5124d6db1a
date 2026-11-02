@@ -1,0 +1,25 @@
+README.md
+  s_aa3f7e974bdac5::t_c01c6ddece47fc 60-61
+server/handoffs.ts
+  s_aa3f7e974bdac5::t_c01c6ddece47fc 25,37-38
+tests/server/handoff-shutdown.test.ts
+  s_aa3f7e974bdac5::t_bfef1947fb925a 1-91
+docs/guide.md
+  s_aa3f7e974bdac5::t_c01c6ddece47fc 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "420e211f1836aa20480cdec33490ba5124d6db1a",
+  "prompts": {},
+  "sessions": {
+    "s_aa3f7e974bdac5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198f1-4ab0-7380-a79f-d744ec1af2c3",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
