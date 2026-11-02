@@ -1166,8 +1166,6 @@ export interface WorkTask {
   blocks: string[];
   metadata: Record<string, unknown>;
   briefId?: string;
-  /** Its place in its column on the Tasks board (smaller is higher). Unset: newest first. */
-  rank?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -1199,8 +1197,6 @@ export interface TaskUpdateInput {
   removeBlockedBy?: string[];
   /** Reject an edit made against an older saved version. */
   expectedUpdatedAt?: number;
-  /** Its place in its column on the Tasks board. */
-  rank?: number;
 }
 export type TaskBatchInput<T> = { tasks: T[] };
 export type TaskCreateArgs = TaskCreateInput | TaskBatchInput<TaskCreateInput>;
@@ -1219,34 +1215,53 @@ export interface TaskQuery {
   limit?: number;
 }
 
-/** A card on the Tasks board: a task with the names it shows, from whichever project it is in. */
-export interface BoardTask {
+// ---------- the Tasks board ----------
+/** The board's columns, in order (any can move to any other). */
+export type BoardStatus = 'todo' | 'in_progress' | 'in_review' | 'blocked' | 'done';
+export type BoardPriority = 'urgent' | 'high' | 'normal' | 'low';
+/**
+ * A task on the Tasks board (data/projects/<id>/board.json): work you track for the project, with a
+ * description, a status, a priority and someone who has it. Not the step lists agents keep in their chats.
+ */
+export interface ProjectTask {
   id: string;
-  projectId: string;
-  projectName: string;
-  subject: string;
-  /** The start of its description, for the card. */
-  preview: string;
-  activeForm: string;
-  status: Exclude<TaskStatus, 'deleted'>;
-  scope: TaskScope;
-  /** "The Brain", the agent's or the team's name. */
-  listName: string;
-  owner: string;
-  ownerName: string;
-  ownerEmoji?: string;
-  ownerColor?: string;
-  /** Unfinished tasks it waits for. */
-  blockedBy: string[];
-  /** Its order in the column: rank, or for a task never moved, newest first. */
+  /** #12: counts up in each project */
+  number: number;
+  title: string;
+  description: string;
+  status: BoardStatus;
+  priority: BoardPriority;
+  /** '' (no one), 'you', 'brain', 'agent:<id>' or 'team:<id>' */
+  assignee: string;
+  /** its place in its column (smaller is higher) */
   rank: number;
+  /** why it is Blocked (only while it is) */
+  blockedReason?: string;
+  /** 'you', 'brain' or 'agent:<id>' */
+  createdBy: string;
   createdAt: number;
   updatedAt: number;
+  /** when it went to Done */
+  doneAt?: number;
 }
-/** GET /api/task-board: the cards, and the projects to choose from. */
+/** A board task as the board shows it: with its project and the names of who has it and who made it. */
+export interface BoardTask extends ProjectTask {
+  projectId: string;
+  projectName: string;
+  assigneeName: string;
+  assigneeEmoji?: string;
+  assigneeColor?: string;
+  creatorName: string;
+}
+/** GET /api/task-board: the cards, and every project with how many open tasks it has. */
 export interface TaskBoardData {
   projects: { id: string; name: string; open: number }[];
   tasks: BoardTask[];
+}
+/** Who a project's tasks can go to (the new task window and the task page). */
+export interface BoardPeople {
+  agents: { id: string; name: string; emoji?: string; color?: string }[];
+  teams: { id: string; name: string }[];
 }
 
 /** Work the Brain handed to a team or an agent, and how its follow-up went (data/projects/<id>/brain-briefs.json). */

@@ -145,10 +145,6 @@ export function updateTask(input: TaskUpdateInput, access: TaskAccess): WorkTask
   if (!access.admin && previous === 'in_progress' && originalOwner.startsWith('agent:') && originalOwner !== `agent:${access.agentId}` && input.status !== undefined && input.status !== previous) return fail('Only the owner can finish or release this claimed task.', 409);
   for (const field of ['subject', 'description', 'activeForm'] as const) if (input[field] !== undefined) task[field] = text(input[field], field, field === 'description' ? 8000 : 240, field !== 'activeForm');
   if (input.metadata !== undefined) task.metadata = metadata(input.metadata, task.metadata);
-  if (input.rank !== undefined) {
-    if (typeof input.rank !== 'number' || !Number.isFinite(input.rank)) return fail('rank must be a number.');
-    task.rank = input.rank;
-  }
   if (access.briefId && (input.status === 'in_progress' || input.status === 'completed') && !task.briefId) task.briefId = access.briefId;
   const edges = (raw: unknown): string[] => {
     if (!Array.isArray(raw) || raw.length > 40 || raw.some((id) => typeof id !== 'string')) return fail('Dependencies must be an array of at most 40 task ids.');
@@ -217,7 +213,6 @@ export function restoredTasks(raw: unknown): { tasks: WorkTask[] } {
         id: v.id, scope, subject: text(v.subject, 'subject', 240, true), description: text(v.description, 'description', 8000, true), activeForm: v.activeForm ? text(v.activeForm, 'activeForm', 240) : '',
         status: status === 'in_progress' ? 'pending' : status, owner: typeof v.owner === 'string' && /^(|brain|(?:agent|team):[\w.-]+)$/.test(v.owner) ? v.owner : '',
         metadata: metadata(v.metadata || {}), blockedBy: Array.isArray(v.blockedBy) ? v.blockedBy.filter((id): id is string => typeof id === 'string').slice(0, 40) : [], blocks: [],
-        ...(typeof v.rank === 'number' && Number.isFinite(v.rank) ? { rank: v.rank } : {}),
         createdAt: typeof v.createdAt === 'number' && Number.isFinite(v.createdAt) ? v.createdAt : Date.now(), updatedAt: Date.now(),
       };
       if (JSON.stringify(task).length > 18000) continue;
