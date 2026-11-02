@@ -134,6 +134,9 @@ function TaskBoardPage() {
   const filtered = !!(q || assignee || priority);
   const open = tasks.filter((t) => t.status !== 'done').length;
 
+  // A card's moves are saved one after another, each on the version of the task the last one left (null: that one
+  // failed, and the moves after it are dropped), so a quick second move isn't taken for someone else's change.
+  const saving = useRef(new Map<string, Promise<number | null>>());
   /** Saves a move (and shows it at once); one the server refuses goes back. Moving to Blocked asks why first. */
   const move = async (task: BoardTask, status: BoardStatus, rank: number, at?: { x: number; y: number }) => {
     if (status === task.status && rank === task.rank) return;
@@ -144,15 +147,27 @@ function TaskBoardPage() {
       blockedReason = why;
     }
     remember(cardKey(task), at);
-    setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, status, rank, updatedAt: Date.now(), ...(blockedReason !== undefined ? { blockedReason } : {}) } : t)) } : d));
-    try {
-      await PUT(path(task), { status, rank, ...(blockedReason !== undefined ? { blockedReason } : {}) });
-    } catch (e) {
-      toast(errorText(e), 'error');
-      remember();
-      void load();
-    }
-    requestAnimationFrame(() => board.current?.querySelector<HTMLElement>(`[data-task-id="${cardKey(task)}"]`)?.focus({ preventScroll: true }));
+    const patch = { status, rank, ...(blockedReason !== undefined ? { blockedReason } : {}) };
+    // (the version stays the server's; a card moved to Done counts as done now)
+    setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, ...patch, ...(status === 'done' && t.status !== 'done' ? { doneAt: Date.now() } : {}) } : t)) } : d));
+    const key = cardKey(task);
+    const saved = (saving.current.get(key) ?? Promise.resolve<number | null>(task.updatedAt)).then(async (version) => {
+      if (version === null) return null;
+      try {
+        const r = await PUT<{ task: BoardTask }>(path(task), { ...patch, expectedUpdatedAt: version });
+        setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, updatedAt: r.task.updatedAt } : t)) } : d));
+        return r.task.updatedAt;
+      } catch (e) {
+        toast(errorText(e), 'error');
+        remember();
+        void load();
+        return null;
+      }
+    });
+    saving.current.set(key, saved);
+    void saved.then(() => saving.current.get(key) === saved && saving.current.delete(key));
+    requestAnimationFrame(() => board.current?.querySelector<HTMLElement>(`[data-task-id="${key}"]`)?.focus({ preventScroll: true }));
+    await saved;
   };
   // the rank for a place in a column, among its other cards
   const rankAt = (status: BoardStatus, index: number, task: BoardTask) => {

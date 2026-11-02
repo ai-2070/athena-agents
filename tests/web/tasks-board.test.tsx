@@ -66,7 +66,14 @@ beforeEach(() => {
       const t = board.find((x) => x.projectId === one[1] && x.id === one[2]);
       return t ? json({ task: t }) : new Response(JSON.stringify({ error: 'That task is unavailable.' }), { status: 404 });
     }
-    if (one && method === 'PUT') return json({ task: { ...board.find((t) => t.id === one[2]), ...body } });
+    if (one && method === 'PUT') {
+      // (like the server: a save made on an old version is refused)
+      const i = board.findIndex((t) => t.projectId === one[1] && t.id === one[2]);
+      const { expectedUpdatedAt, ...change } = body as Partial<BoardTask> & { expectedUpdatedAt?: number };
+      if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== board[i].updatedAt) return new Response(JSON.stringify({ error: 'This task changed meanwhile. Reload it before saving.' }), { status: 409 });
+      board[i] = { ...board[i], ...change, updatedAt: board[i].updatedAt + 1 };
+      return json({ task: board[i] });
+    }
     if (url === '/api/task-board-draft') return json({ kind: 'comment', text: 'Is the oven here yet?' });
     const comments = /^\/api\/task-board\/([^/]+)\/([^/]+)\/comments/.exec(url);
     if (comments) return json({ task: { ...board.find((t) => t.id === comments[2]), comments: [{ id: 'c9', by: 'you', byName: 'You', text: body?.text, at: now }] } });
@@ -126,6 +133,30 @@ describe('the Tasks board', () => {
     await act(async () => a().dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true })));
     expect(ids('In progress')).toEqual(['a', 'c']);
     expect(requests.at(-1)).toMatchObject({ method: 'PUT', url: '/api/task-board/p1/a', body: { status: 'in_progress', rank: 1 - 1024 } });
+  });
+
+  it('saves quick moves of one card one after another, each on the version the last one left', async () => {
+    await open();
+    const a = () => el.querySelector<HTMLElement>('[data-task-id="p1/a"]')!;
+    await act(async () => {
+      a().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true }));
+      a().dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true }));
+    });
+    await settle();
+    expect(requests.filter((r) => r.method === 'PUT').map((r) => (r.body as { expectedUpdatedAt: number }).expectedUpdatedAt)).toEqual([now, now + 1]);
+    expect(document.getElementById('toasts')!.textContent).toBe('');
+    expect(ids('In progress')).toEqual(['a', 'c']);
+  });
+
+  it('puts a card back, and says so, when it was changed somewhere else first', async () => {
+    await open();
+    // (the Brain moved it a moment ago; this board hasn't loaded that yet)
+    board[0] = { ...board[0], status: 'in_review', updatedAt: now + 9 };
+    await act(async () => el.querySelector<HTMLElement>('[data-task-id="p1/a"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true })));
+    await settle();
+    expect(document.getElementById('toasts')!.textContent).toContain('This task changed meanwhile.');
+    expect(ids('In review')).toEqual(['a', 'r']);
+    expect(ids('In progress')).toEqual(['c']);
   });
 
   it('asks why before a card goes to Blocked, and leaves it where it was if you cancel', async () => {
