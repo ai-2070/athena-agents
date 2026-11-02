@@ -90,9 +90,15 @@ function TaskBoardPage() {
       setData(next);
       setError('');
     } catch (e) {
-      if (request === serial.current) setError(errorText(e));
+      if (request !== serial.current) return;
+      // a project picked here before that has since been removed: back to this project
+      if (which !== 'here' && which !== 'all' && e instanceof Error && 'status' in e && e.status === 404) {
+        localStorage.removeItem(WHICH_KEY);
+        return setWhich('here');
+      }
+      setError(errorText(e));
     }
-  }, [project]);
+  }, [project, which]);
   useEffect(() => {
     setData(null);
     void load();

@@ -58,6 +58,7 @@ beforeEach(() => {
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (url.startsWith('/api/task-board?')) {
       const project = new URLSearchParams(url.split('?')[1]).get('project');
+      if (!['all', 'p1', 'p2'].includes(project!)) return new Response(JSON.stringify({ error: 'That project is unavailable.' }), { status: 404 });
       return json({ projects: [{ id: 'p1', name: 'Bakery', open: 5 }, { id: 'p2', name: 'Podcast', open: 1 }], tasks: board.filter((t) => project === 'all' || t.projectId === project) });
     }
     if (url.startsWith('/api/task-board-people/')) return json({ agents: [{ id: 'x', name: 'Photographer', emoji: '📷' }], teams: [] });
@@ -128,6 +129,16 @@ describe('the Tasks board', () => {
     expect(requests[0].url).toBe('/api/task-board?project=all');
     expect(ids('To do')).toEqual(['f', 'a', 'b']);
     expect(column('To do').querySelector('[data-task-id="p2/f"]')!.textContent).toContain('Podcast');
+  });
+
+  it('goes back to this project when the project picked before has been removed', async () => {
+    localStorage.setItem('dash-task-board', 'removed-project');
+    await open();
+    const loads = requests.map((r) => r.url).filter((u) => u.startsWith('/api/task-board?'));
+    expect([loads[0], loads.at(-1)]).toEqual(['/api/task-board?project=removed-project', '/api/task-board?project=p1']);
+    expect(ids('To do')).toEqual(['a', 'b']);
+    expect(el.querySelector('[role="alert"]')).toBeNull();
+    expect(localStorage.getItem('dash-task-board')).toBeNull();
   });
 
   it('moves a card a column with ] and within one with Alt+↓, saving it in its own project', async () => {
