@@ -1,0 +1,31 @@
+tests/web/mentioneditor.test.ts
+  s_8165cbdd742c65::t_150d77bdbe4bc0 1-55
+tests/web/teamchat-teams.test.ts
+  s_8165cbdd742c65::t_3b5a1728b4d115 79-80,85-88
+tests/web/teamchat-turns.test.tsx
+  s_8165cbdd742c65::t_1a2f13999270ff 108,384
+web/chat/ChatView.tsx
+  s_8165cbdd742c65::t_8870c62442c26b 773
+web/chat/mentioneditor.ts
+  s_8165cbdd742c65::t_bfedc3fe567ed0 1-152
+web/styles/components.css
+  s_8165cbdd742c65::t_ab63acf19edba7 497-498
+web/teamchat.tsx
+  s_8165cbdd742c65::t_f02f58af972711 7,102-103,340-342,439,449-450,475,612,627,637,673-674,686,690-691,754,779,851-853,855,859-861
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3dc5b11a6f823a65de2681ed1c03aa69ef166a35",
+  "prompts": {},
+  "sessions": {
+    "s_8165cbdd742c65": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a199c5-f080-7273-8f12-bf60fd408801",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
