@@ -1,0 +1,61 @@
+web/app.ts
+  s_8165cbdd742c65::t_63a974add5cdfd 91
+web/appicons.ts
+  s_8165cbdd742c65::t_74c56cd6e589e2 6
+scripts/build-icons.ts
+  s_8165cbdd742c65::t_63a974add5cdfd 67
+  s_8165cbdd742c65::t_165f13dbfc68bc 15,68
+web/views/chat.tsx
+  s_8165cbdd742c65::t_63a974add5cdfd 124
+tests/web/dock-reset.test.tsx
+  s_8165cbdd742c65::t_74c56cd6e589e2 98
+  s_8165cbdd742c65::t_b47322526416e1 33,96-97
+web/views/station.ts
+  s_8165cbdd742c65::t_63a974add5cdfd 2347
+  s_8165cbdd742c65::t_74914b2ee999a3 3691
+web/chat/ChatView.tsx
+  s_8165cbdd742c65::t_63a974add5cdfd 791
+web/views/workflows.tsx
+  s_8165cbdd742c65::t_63a974add5cdfd 128
+web/dock.tsx
+  s_8165cbdd742c65::t_63a974add5cdfd 8,265
+web/chat/parts.tsx
+  s_8165cbdd742c65::t_63a974add5cdfd 241
+web/brandimages.ts
+  s_8165cbdd742c65::t_74c56cd6e589e2 20
+web/styles/components.css
+  s_8165cbdd742c65::t_63a974add5cdfd 428-430,492-493
+tests/web/teamchat-teams.test.ts
+  s_8165cbdd742c65::t_74c56cd6e589e2 79-85,89
+  s_8165cbdd742c65::t_689fe9128f357d 44-47,58-59,86-88
+web/teamchat.tsx
+  s_8165cbdd742c65::t_74c56cd6e589e2 765
+  s_8165cbdd742c65::t_63a974add5cdfd 341
+  s_8165cbdd742c65::t_593f09299c14b7 7,260,263-264,440,450-452,476,572,614,623,630,640,648,675-679,691-698,719-726,759,875-877,896
+public/app-icons/README.md
+  s_8165cbdd742c65::t_dbccab69ed2b06 9
+scripts/brand-fallbacks.json
+  s_8165cbdd742c65::t_89dbb5225cf50a 31-45,47
+tests/web/station-panel.test.tsx
+  s_8165cbdd742c65::t_8c8a6aea66f0aa 161-171
+web/icons.ts
+  s_8165cbdd742c65::t_45a7ef64becd17 10
+web/views/stationpanel.tsx
+  s_8165cbdd742c65::t_ef891c02dfb710 840
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "79a169ff5fc770b295cc8a471e5182f01a9489eb",
+  "prompts": {},
+  "sessions": {
+    "s_8165cbdd742c65": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a199c5-f080-7273-8f12-bf60fd408801",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
