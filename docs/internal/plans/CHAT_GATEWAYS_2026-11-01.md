@@ -80,7 +80,14 @@ New gateway data does not need a legacy compatibility layer.*
   sends become uncertain and need an explicit retry after checking Telegram. Source edits hold
   queued/running work and unsent answer parts. Local fixtures cover admission through reply delivery;
   live account checks remain outstanding.
-- Next: add outgoing deliverable files, bounded working/approval notices, Settings UI, and the other
+- Added bounded text notices: after five seconds, a running operation can send one "Working on it
+  in Athena" message. A visible approval for a live run in the same project and private binding
+  can send one "Needs approval in Athena" notice instead. Approval titles, arguments, reasons and
+  local URLs are never included. Approval notices are checked again before sending; finished work,
+  revoked access and superseded working notices are dropped. Notices share the serialized sender,
+  per-send timeout, rate-limit waits and uncertain-delivery recovery, but never block a final answer
+  or a later assignment. No remote approval controls are added.
+- Next: add outgoing deliverable files, Settings UI, and the other
   platforms. Albums still need grouping before dispatch, and inbox retention/review controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the final deletion/retention flow is pending. Real-account text/file checks on all four platforms

@@ -373,6 +373,8 @@ Building, testing and packaging the dashboard is in the [README](../README.md#de
 Chat gateways are still being built. Experimental Telegram instances can pass allowed text and attached files
 to the Brain, a team or an agent and send final text replies. Settings setup and outgoing files are not ready.
 Uncertain sends need review before retrying; automatic retries preserve confirmed reply parts.
+Slow requests can send one working notice. When a run needs approval, Telegram says **Needs approval in Athena**;
+review it in the dashboard. Telegram cannot approve requests.
 Existing Outbox connections work as before. The
 [gateway plan](internal/plans/CHAT_GATEWAYS_2026-11-01.md) tracks the remaining work;
 `bun run gateways:smoke` checks a fake local Telegram service without using accounts or keys.

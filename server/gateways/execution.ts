@@ -1,5 +1,6 @@
 import { agents, chats } from '../store.ts';
-import { startRun, hasBackgroundWork, isChatBusy } from '../engines/index.ts';
+import { startRun, hasBackgroundWork, isChatBusy, runInfo } from '../engines/index.ts';
+import { listApprovals } from '../approvals.ts';
 import { readExecution } from '../execution.ts';
 import { ask, history } from '../overseer.ts';
 import { getTeam, getThread, isTeamBusy, postUserMessage, teamState } from '../teams.ts';
@@ -14,6 +15,7 @@ export type GatewayCompletion = { state: 'pending' } | { state: 'needs-review' }
 export interface GatewayExecutionServices {
   submit(event: GatewayInboxEvent, signal: AbortSignal, proceed: () => boolean): Promise<GatewaySubmitted>;
   poll(event: GatewayInboxEvent): GatewayCompletion;
+  approvalPending?(event: GatewayInboxEvent): boolean;
 }
 const pending: GatewayCompletion = { state: 'pending' };
 const review: GatewayCompletion = { state: 'needs-review' };
@@ -61,6 +63,13 @@ function teamCompletion(event: GatewayInboxEvent, teamId: string, messageId: str
 }
 
 export const gatewayExecution: GatewayExecutionServices = {
+  approvalPending(event) {
+    return withGatewayRoute(event.route, () => listApprovals().some((approval) => {
+      if (!event.dispatch || approval.createdAt < event.dispatch.startedAt || typeof approval.data.runId !== 'string') return false;
+      const run = runInfo(approval.data.runId);
+      return run?.projectId === event.route.projectId && run.conversationId === event.bindingId;
+    }));
+  },
   async submit(event, signal, proceed) {
     signal.throwIfAborted();
     if (!proceed() || !event.dispatch || !event.operationId) throw new Error('This gateway operation is no longer authorized.');

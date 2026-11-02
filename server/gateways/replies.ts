@@ -18,13 +18,15 @@ export class GatewayReplies {
   private readonly send: GatewayReplySender;
   private readonly abort = new AbortController();
   private readonly signal: AbortSignal;
+  private readonly noticeAllowed: (event: GatewayInboxEvent, kind: 'working' | 'approval') => boolean;
   private pending: Promise<void> | undefined;
   private again = false;
   private stopped = false;
   private timer: ReturnType<typeof setInterval> | undefined;
   private readonly changed = (event: ServerEvent) => { if (event.type === 'gateway-inbox') void this.wake().catch(() => {}); };
-  constructor(inbox: GatewayInbox, send: GatewayReplySender, signal: AbortSignal) {
+  constructor(inbox: GatewayInbox, send: GatewayReplySender, signal: AbortSignal, noticeAllowed: (event: GatewayInboxEvent, kind: 'working' | 'approval') => boolean = () => true) {
     this.inbox = inbox; this.send = send; this.signal = AbortSignal.any([signal, this.abort.signal]);
+    this.noticeAllowed = noticeAllowed;
   }
   start(): void {
     if (this.timer) return;
@@ -44,15 +46,22 @@ export class GatewayReplies {
   private async drain(): Promise<void> {
     while (!this.stopped && !this.signal.aborted) {
       const claimed = this.inbox.claimReply();
-      if (!claimed) return;
+      const notice = claimed ? null : this.inbox.claimNotice(this.noticeAllowed);
+      if (!claimed && !notice) return;
+      const event = claimed?.event ?? notice!.event;
+      const text = claimed ? event.reply!.parts[claimed.index].text : event.notices![notice!.kind]!.text;
+      const settle = (outcome: { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number }) => {
+        if (claimed) this.inbox.settleReply(event.id, claimed.index, outcome);
+        else this.inbox.settleNotice(event.id, notice!.kind, outcome);
+      };
       try {
-        if (this.signal.aborted) { this.inbox.settleReply(claimed.event.id, claimed.index, { status: 'pending' }); return; }
-        const id = await this.send(claimed.event, claimed.event.reply!.parts[claimed.index].text, this.signal);
-        this.inbox.settleReply(claimed.event.id, claimed.index, { remoteId: id });
+        if (this.signal.aborted) { settle({ status: 'pending' }); return; }
+        const id = await this.send(event, text, this.signal);
+        settle({ remoteId: id });
       } catch (error) {
         const result = error instanceof GatewaySendError ? error : new GatewaySendError('uncertain');
         const retryAt = Math.min(Number.MAX_SAFE_INTEGER, Date.now() + Math.max(1000, result.retryAfterMs));
-        this.inbox.settleReply(claimed.event.id, claimed.index, result.outcome === 'retry' ? { status: 'pending', retryAt } : { status: result.outcome });
+        settle(result.outcome === 'retry' ? { status: 'pending', retryAt } : { status: result.outcome });
       }
     }
   }

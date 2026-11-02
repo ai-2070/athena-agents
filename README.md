@@ -223,7 +223,8 @@ More: [Troubleshooting](docs/guide.md#troubleshooting).
 
 Chat gateways are in development. Experimental Telegram instances can pass allowed text and attached files
 to the Brain, a team or an agent and send final text replies. Settings setup and outgoing files are not ready.
-Uncertain sends need review before retrying. `bun run gateways:smoke` checks the SDK with
+Slow requests show a short working notice; approvals stay in Athena. Uncertain sends need review before retrying.
+`bun run gateways:smoke` checks the SDK with
 a fake local Telegram service and throwaway data; it uses no accounts or keys. See the
 [gateway plan](docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md) for what is finished and what remains.
 

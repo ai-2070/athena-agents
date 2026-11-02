@@ -39,6 +39,7 @@ const inboundSchema: z.ZodType<GatewayInbound> = z.strictObject({
     name: z.string().max(512).optional(), mimeType: z.string().max(200).optional(), size: stamp.optional(),
   })).max(10),
 });
+const replyPart = z.strictObject({ text: z.string().min(1).max(3000), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed']), attempts: stamp, remoteId: externalId.optional(), retryAt: stamp.optional() });
 const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
   version: z.literal(1), nextSequence: stamp.positive(),
   bindings: z.array(z.strictObject({ id: externalId, accountId: externalId, conversationId: externalId, threadId: z.string().max(500), route, createdAt: stamp })),
@@ -47,7 +48,8 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
     status: z.enum(['queued', 'waiting-files', 'running', 'done', 'needs-review']), operationId: externalId.optional(), reason: z.string().optional(),
     fileBatch: z.string().regex(/^[\w-]{1,64}$/).optional(),
     dispatch: dispatchSchema.optional(),
-    reply: z.strictObject({ createdAt: stamp, reason: z.string().optional(), parts: z.array(z.strictObject({ text: z.string().min(1).max(3000), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed']), attempts: stamp, remoteId: externalId.optional(), retryAt: stamp.optional() })).min(1).max(1000) }).optional(),
+    reply: z.strictObject({ createdAt: stamp, reason: z.string().optional(), parts: z.array(replyPart).min(1).max(1000) }).optional(),
+    notices: z.strictObject({ working: replyPart.optional(), approval: replyPart.optional() }).optional(),
     files: z.array(z.strictObject({
       index: stamp, status: z.enum(['pending', 'transferring', 'saved', 'failed']),
       attempts: z.array(z.strictObject({ id: externalId, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), bytes: stamp })),
@@ -185,6 +187,45 @@ export class GatewayInbox {
       return { event, index };
     }
     return null;
+  }
+
+  queueNotice(eventId: string, kind: 'working' | 'approval'): void {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event?.dispatch || event.status !== 'running' || event.notices?.[kind] || (kind === 'working' && event.notices?.approval)) return;
+    this.checkAccess(event);
+    event.notices ??= {};
+    event.notices[kind] = { text: kind === 'working' ? 'Working on it in Athena.' : 'Needs approval in Athena.', status: 'pending', attempts: 0 };
+    this.commit(journal);
+  }
+
+  claimNotice(eligible: (event: GatewayInboxEvent, kind: 'working' | 'approval') => boolean = () => true): { event: GatewayInboxEvent; kind: 'working' | 'approval' } | null {
+    const journal = this.read();
+    let changed = false;
+    for (const event of journal.events) {
+      for (const kind of ['approval', 'working'] as const) {
+        const notice = event.notices?.[kind];
+        if (!notice || notice.status !== 'pending') continue;
+        let allowed = event.status === 'running';
+        try { this.checkAccess(event); allowed = allowed && eligible(event, kind); } catch { allowed = false; }
+        if (!allowed || (kind === 'working' && event.notices?.approval)) { notice.status = 'failed'; changed = true; continue; }
+        if ((notice.retryAt ?? 0) > Date.now()) continue;
+        notice.status = 'sending'; notice.attempts++;
+        this.commit(journal);
+        return { event, kind };
+      }
+    }
+    if (changed) this.commit(journal);
+    return null;
+  }
+
+  settleNotice(eventId: string, kind: 'working' | 'approval', outcome: { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number }): void {
+    const journal = this.read();
+    const notice = journal.events.find((item) => item.id === eventId)?.notices?.[kind];
+    if (!notice || notice.status !== 'sending') throw new Error('This gateway notice is no longer sending.');
+    if ('remoteId' in outcome) { notice.status = 'sent'; notice.remoteId = outcome.remoteId; delete notice.retryAt; }
+    else { notice.status = outcome.status; notice.retryAt = outcome.retryAt; }
+    this.commit(journal);
   }
 
   settleReply(eventId: string, index: number, outcome: { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number }): void {
@@ -386,6 +427,10 @@ export class GatewayInbox {
     const journal = this.read();
     let changed = false;
     for (const event of journal.events) {
+      for (const notice of Object.values(event.notices ?? {})) {
+        if (notice.status !== 'sending') continue;
+        notice.status = 'uncertain'; changed = true;
+      }
       for (const file of event.files ?? []) {
         if (file.status !== 'transferring') continue;
         file.status = 'failed'; file.reason = 'The download was interrupted. Retry it or ask the sender to resend it.';

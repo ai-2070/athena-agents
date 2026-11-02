@@ -91,6 +91,7 @@ export interface GatewayInboxEvent {
   files?: GatewayIncomingFile[];
   dispatch?: GatewayDispatch;
   reply?: { parts: GatewayReplyPart[]; createdAt: number; reason?: string };
+  notices?: Partial<Record<'working' | 'approval', GatewayReplyPart>>;
 }
 
 export interface GatewayDispatch {

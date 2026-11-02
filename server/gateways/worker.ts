@@ -10,6 +10,7 @@ import { claimGatewayAccount } from './ownership.ts';
 import { GatewayFileProcessor } from './files.ts';
 import type { GatewayDownloader } from './files.ts';
 import { GatewayDispatcher } from './dispatch.ts';
+import { gatewayExecution } from './execution.ts';
 import type { GatewayExecutionServices } from './execution.ts';
 import { GatewayReplies } from './replies.ts';
 import type { GatewayReplySender } from './replies.ts';
@@ -112,8 +113,9 @@ export class TelegramGatewayWorker {
       }
       abort.signal.throwIfAborted();
       if (transport.reply) {
-        this.replies = new GatewayReplies(inbox, transport.reply, abort.signal); this.replies.start();
-        this.dispatcher = new GatewayDispatcher(inbox, abort.signal, this.options.execution);
+        const execution = this.options.execution ?? gatewayExecution;
+        this.replies = new GatewayReplies(inbox, transport.reply, abort.signal, (event, kind) => kind !== 'approval' || execution.approvalPending?.(event) === true); this.replies.start();
+        this.dispatcher = new GatewayDispatcher(inbox, abort.signal, execution);
         await this.dispatcher.start();
       }
       abort.signal.throwIfAborted();

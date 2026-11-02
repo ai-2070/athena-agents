@@ -106,7 +106,7 @@ export class TelegramIntakeAdapter extends TelegramAdapter {
         ...(event.input.threadId ? { message_thread_id: Number(event.input.threadId) } : {}),
         reply_parameters: { message_id: Number(event.input.sourceMessageId) },
         link_preview_options: { is_disabled: true },
-      }, { signal }));
+      }, { signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]) }));
       if (String(result.chat.id) !== event.input.conversationId) throw new GatewaySendError('uncertain');
       return this.encodeMessageId(event.input.conversationId, result.message_id);
     } catch (error) {

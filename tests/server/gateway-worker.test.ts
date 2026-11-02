@@ -20,6 +20,32 @@ afterEach(async () => {
 });
 
 describe('gateway intake lifecycle', () => {
+  it('saves an interrupted status notice before transport shutdown releases ownership', async () => {
+    const instance = saveGatewayInstance(gatewayConfig(String(account++)));
+    let saved: GatewayInbox | undefined; let sending = false;
+    const worker = new TelegramGatewayWorker(instance.id, {
+      execution: { async submit() { return {}; }, poll() { return { state: 'pending' }; } },
+      transport: (state, inbox) => {
+        saved = inbox;
+        return {
+          start: async () => { inbox.accept({ ...gatewayInput(), accountId: instance.accountId }); },
+          stop: () => state.disconnect(), alive: () => true,
+          reply: async (_event, _text, signal) => {
+            sending = true;
+            return new Promise<never>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+          },
+        };
+      },
+    }); workers.push(worker); await worker.start();
+    await expect.poll(() => saved?.list()[0].dispatch?.state).toBe('running');
+    saved!.queueNotice(saved!.list()[0].id, 'working');
+    await expect.poll(() => sending).toBe(true);
+    await worker.stop();
+    const state = new GatewayStateAdapter(instance.id); await state.connect();
+    expect(new GatewayInbox(state).list()[0].notices?.working?.status).toBe('uncertain');
+    await state.disconnect();
+  });
+
   it('starts dispatch and delivery with the transport and saves delivery before releasing ownership', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let saved: GatewayInbox | undefined;

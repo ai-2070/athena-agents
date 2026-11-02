@@ -10,12 +10,14 @@ import { saveGatewayInstance } from '../../server/gateways/instances.ts';
 import { gatewayConversation } from '../../server/gateways/conversations.ts';
 import { gatewayExecution } from '../../server/gateways/execution.ts';
 import { gatewayConfig, gatewayInput } from './gateway-fixtures.ts';
-import type { Agent, Chat, GatewayTarget } from '../../shared/types.ts';
+import type { Agent, Approval, Chat, GatewayTarget } from '../../shared/types.ts';
 
-const calls = vi.hoisted(() => ({ runs: [] as { text: string; options: { reservedRunId?: string; from?: string | null; attachments?: string[]; userInitiated?: boolean } }[], answer: 'Brain answer.' }));
+const calls = vi.hoisted(() => ({ runs: [] as { text: string; options: { reservedRunId?: string; from?: string | null; attachments?: string[]; userInitiated?: boolean } }[], answer: 'Brain answer.', approvals: [] as Approval[], scopes: new Map<string, { projectId: string; conversationId?: string }>() }));
 vi.mock('../../server/brain.ts', async (original) => ({ ...await original<typeof import('../../server/brain.ts')>(), brainModel: () => ({ provider: 'openrouter', model: 'mock' }), think: async () => calls.answer }));
+vi.mock('../../server/approvals.ts', async (original) => ({ ...await original<typeof import('../../server/approvals.ts')>(), listApprovals: () => calls.approvals }));
 vi.mock('../../server/engines/index.ts', async (original) => ({
   ...await original<typeof import('../../server/engines/index.ts')>(),
+  runInfo: (id: string) => calls.scopes.get(id) ?? null,
   askAgent: async () => 'Member final answer.',
   startRun: (agent: Agent, chat: Chat, text: string, options: { reservedRunId?: string; from?: string | null; attachments?: string[]; userInitiated?: boolean }) => {
     calls.runs.push({ text, options });
@@ -26,7 +28,7 @@ vi.mock('../../server/engines/index.ts', async (original) => ({
 }));
 let account = 65000;
 const opened: GatewayStateAdapter[] = [];
-afterEach(async () => { for (const state of opened.splice(0)) await state.disconnect(); calls.answer = 'Brain answer.'; });
+afterEach(async () => { for (const state of opened.splice(0)) await state.disconnect(); calls.answer = 'Brain answer.'; calls.approvals = []; calls.scopes.clear(); });
 async function fixture(target: GatewayTarget) {
   const instance = saveGatewayInstance({ ...gatewayConfig(String(account++)), target });
   const state = new GatewayStateAdapter(instance.id); opened.push(state); await state.connect();
@@ -37,6 +39,23 @@ async function fixture(target: GatewayTarget) {
 }
 
 describe('gateway conversation execution services', () => {
+  it('matches approvals to a live run in this binding and project without exposing their contents', async () => {
+    const f = await fixture({ kind: 'brain' }); const event = f.event;
+    const approval: Approval = { id: 'approval-test', title: 'Private title', detail: 'Private detail', kind: 'tool', agentId: 'member', agentName: 'Member', data: { runId: 'delegate-run', args: { token: 'private-token' } }, editable: null, createdAt: event.dispatch!.startedAt };
+    calls.approvals = [approval];
+    expect(gatewayExecution.approvalPending!(event)).toBe(false);
+    calls.scopes.set('delegate-run', { projectId: event.route.projectId, conversationId: 'other-binding' });
+    expect(gatewayExecution.approvalPending!(event)).toBe(false);
+    calls.scopes.set('delegate-run', { projectId: 'other-project', conversationId: event.bindingId });
+    expect(gatewayExecution.approvalPending!(event)).toBe(false);
+    calls.scopes.set('delegate-run', { projectId: event.route.projectId, conversationId: event.bindingId });
+    expect(gatewayExecution.approvalPending!(event)).toBe(true);
+    approval.createdAt--;
+    expect(gatewayExecution.approvalPending!(event)).toBe(false);
+    approval.createdAt++; approval.data = {};
+    expect(gatewayExecution.approvalPending!(event)).toBe(false);
+  });
+
   it('uses the real agent entry point with a reserved ID and sender, and waits for descendants and completion review', async () => {
     const agent = newAgent({ name: 'Execution target' }); const f = await fixture({ kind: 'agent', id: agent.id });
     const event = await f.record(); const local = event.dispatch!.conversation;

@@ -16,7 +16,7 @@ export class GatewayDispatcher {
   private stopped = false;
   private timer: ReturnType<typeof setInterval> | undefined;
   private readonly changed = (event: ServerEvent) => {
-    if (['gateway-inbox', 'run', 'team', 'brief', 'brain-chat'].includes(event.type)) void this.wake().catch(() => {});
+    if (['gateway-inbox', 'run', 'team', 'brief', 'brain-chat', 'approvals'].includes(event.type)) void this.wake().catch(() => {});
   };
 
   constructor(inbox: GatewayInbox, signal: AbortSignal, services = gatewayExecution) {
@@ -49,12 +49,14 @@ export class GatewayDispatcher {
   private async drain(): Promise<void> {
     for (const event of this.inbox.list()) {
       if (this.stopped || this.signal.aborted) return;
-      if (event.status !== 'running' || !event.dispatch || this.tasks.has(event.id)) continue;
+      if (event.status !== 'running' || !event.dispatch) continue;
       try {
         if (!this.allowed(event)) { this.inbox.review(event.id, 'Access or the destination changed. Review this work in Athena.'); continue; }
-        const result = this.services.poll(event);
+        const result = this.tasks.has(event.id) ? { state: 'pending' as const } : this.services.poll(event);
         if (result.state === 'needs-review') this.inbox.review(event.id);
         else if (result.state === 'completed') this.inbox.finishDispatch(event.id, event.operationId!, result.answer);
+        else if (this.services.approvalPending?.(event)) this.inbox.queueNotice(event.id, 'approval');
+        else if (Date.now() - event.dispatch.startedAt >= 5000) this.inbox.queueNotice(event.id, 'working');
       } catch { this.inbox.review(event.id); }
     }
     while (!this.stopped && !this.signal.aborted && this.inbox.list().filter((event) => event.status === 'running').length < 4) {

@@ -41,6 +41,89 @@ async function fixture() {
 }
 
 describe('gateway dispatch and reply receipts', () => {
+  it('sends one delayed working notice while a long Brain submission is still pending', async () => {
+    const f = await fixture(); f.accept();
+    let finish: (() => void) | undefined;
+    f.services.submit = () => new Promise((resolve) => { finish = () => resolve({}); });
+    await f.dispatcher.start();
+    await expect.poll(() => Boolean(finish)).toBe(true);
+    const sent: string[] = [];
+    const sender = f.replies(async (_event, text) => { sent.push(text); return 'working-id'; });
+    await sender.wake(); expect(sent).toEqual([]);
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6000);
+    await f.dispatcher.wake(); await sender.wake();
+    expect(sent).toEqual(['Working on it in Athena.']);
+    f.inbox.recover(); await f.dispatcher.wake(); await sender.wake();
+    expect(sent).toHaveLength(1);
+    expect(f.inbox.list()[0].notices?.working?.remoteId).toBe('working-id');
+    finish!();
+  });
+
+  it('sends only a fixed approval notice and suppresses later working notices for the same operation', async () => {
+    const f = await fixture(); f.accept(); f.services.approvalPending = () => true;
+    await f.dispatcher.start();
+    await expect.poll(() => f.inbox.list()[0].notices?.approval?.status).toBe('pending');
+    const sent: string[] = [];
+    const sender = f.replies(async (_event, text) => { sent.push(text); return 'approval-id'; });
+    await sender.wake();
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6000);
+    f.services.approvalPending = () => false;
+    await f.dispatcher.wake(); await sender.wake();
+    expect(sent).toEqual(['Needs approval in Athena.']);
+    expect(f.inbox.list()[0].notices?.working).toBeUndefined();
+  });
+
+  it('holds ambiguous notices without blocking the final answer and cancels stale notices', async () => {
+    const f = await fixture(); const accepted = f.accept();
+    await f.dispatcher.start();
+    await expect.poll(() => f.inbox.list()[0].dispatch?.state).toBe('running');
+    f.inbox.queueNotice(accepted.id, 'working');
+    let fail = true; const sent: string[] = [];
+    const sender = f.replies(async (_event, text) => { sent.push(text); if (fail) throw new Error('private failure'); return 'final-id'; });
+    await sender.wake(); expect(f.inbox.list()[0].notices?.working?.status).toBe('uncertain');
+    f.inbox.recover(); await sender.wake(); expect(sent).toHaveLength(1);
+    f.inbox.queueNotice(accepted.id, 'approval'); fail = false;
+    f.outcomes.set(accepted.id, { state: 'completed', answer: 'Final answer' });
+    await f.dispatcher.wake(); await sender.wake();
+    expect(sent).toEqual(['Working on it in Athena.', 'Final answer']);
+    expect(f.inbox.list()[0].notices?.approval?.status).toBe('failed');
+  });
+
+  it('rechecks approval presence and sender access immediately before sending notices', async () => {
+    const f = await fixture(); const accepted = f.accept(); await f.dispatcher.start();
+    await expect.poll(() => f.inbox.list()[0].dispatch?.state).toBe('running');
+    f.inbox.queueNotice(accepted.id, 'approval');
+    let sends = 0;
+    const sender = new GatewayReplies(f.inbox, async () => { sends++; return 'unexpected'; }, f.abort.signal, () => false);
+    cleanups.push(() => sender.stop());
+    await sender.wake(); expect(sends).toBe(0);
+    expect(f.inbox.list()[0].notices?.approval?.status).toBe('failed');
+    const other = f.accept('2', '456'); await f.dispatcher.wake();
+    await expect.poll(() => f.inbox.list().find((item) => item.id === other.id)?.dispatch?.state).toBe('running');
+    f.inbox.queueNotice(other.id, 'working');
+    saveGatewayInstance({ ...f.config, senderPolicy: { platform: 'telegram', allowedUserIds: ['777'] } }, f.instance.id);
+    await f.replies(async () => { sends++; return 'unexpected'; }).wake();
+    expect(sends).toBe(0);
+  });
+
+  it('persists notice rate limits and treats interrupted notice sends as uncertain', async () => {
+    const f = await fixture(); const accepted = f.accept(); await f.dispatcher.start();
+    await expect.poll(() => f.inbox.list()[0].dispatch?.state).toBe('running');
+    f.inbox.queueNotice(accepted.id, 'working');
+    let attempts = 0;
+    const sender = f.replies(async () => { attempts++; throw new GatewaySendError('retry', 7000); });
+    await sender.wake();
+    const retryAt = f.inbox.list()[0].notices?.working?.retryAt;
+    expect(retryAt).toBeGreaterThan(Date.now());
+    await f.state.disconnect(); await f.state.connect(); f.inbox.recover();
+    await sender.wake(); expect(attempts).toBe(1);
+    vi.spyOn(Date, 'now').mockReturnValue(retryAt! + 1);
+    expect(f.inbox.claimNotice()?.kind).toBe('working');
+    await f.state.disconnect(); await f.state.connect(); f.inbox.recover();
+    expect(f.inbox.list()[0].notices?.working?.status).toBe('uncertain');
+    await sender.wake(); expect(attempts).toBe(1);
+  });
+
   it('admits once, waits for actual completion, and preserves the full long reply in ordered parts', async () => {
     const f = await fixture(); const event = f.accept();
     f.accept(); const second = f.accept('2');
