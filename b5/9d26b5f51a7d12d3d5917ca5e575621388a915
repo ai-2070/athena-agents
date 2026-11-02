@@ -1,0 +1,29 @@
+web/backup.tsx
+  s_8e3c27e6ce0122::t_bda292933e3d3e 141
+README.md
+  s_8e3c27e6ce0122::t_bda292933e3d3e 208
+web/projects.tsx
+  s_8e3c27e6ce0122::t_bda292933e3d3e 133,150-151,220,228,242,371-372,381
+  s_8e3c27e6ce0122::t_6fe9e72cbbff49 18,514
+  s_8e3c27e6ce0122::t_7a0a098dbff651 146,148-149,153,155
+docs/guide.md
+  s_8e3c27e6ce0122::t_bda292933e3d3e 346
+web/phosphor.ts
+  s_8e3c27e6ce0122::t_7a0a098dbff651 10-11,207-208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b59d26b5f51a7d12d3d5917ca5e575621388a915",
+  "prompts": {},
+  "sessions": {
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
