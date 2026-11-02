@@ -31,7 +31,7 @@ beforeEach(() => {
     if (url === '/api/routines' && method === 'POST') return json({ ...routine, ...body, id: 'r2', mentions: [] });
     if (url.startsWith('/api/routine-runs')) return json(runsData);
     if (url.startsWith('/api/skills')) return json({ skills: [], claude: [] });
-    return json(url.includes('/workflows') ? [] : { ok: true });
+    return json(url.includes('/workflows') ? [{ id: 't1', name: 'Content Team', members: ['a1'], description: '' }] : { ok: true });
   });
 });
 afterEach(() => {
@@ -100,6 +100,15 @@ describe('the routine editor', () => {
     expect(requests.filter((r) => r.method !== 'GET').map((r) => `${r.method} ${r.url}`)).toEqual(['POST /api/routines']);
     expect(requests.find((r) => r.method === 'POST')!.body).toMatchObject({ name: 'New routine', text: 'Find news.' });
     expect(location.hash).toBe('#/routines/r2');
+  });
+
+  it('a new routine from a team on the Station starts with that team mentioned', async () => {
+    location.hash = '#/routines/new?team=t1';
+    await act(async () => routines.render(el, ['new']));
+    await settle(100);
+    expect(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="What to do"]')!.value).toBe('@Content Team ');
+    expect(el.querySelector('[data-mention="@Content Team"]')).not.toBeNull();
+    location.hash = '';
   });
 
   it('has one routine switch and saves daily times without a separate schedule switch', async () => {

@@ -198,7 +198,9 @@ function RoutineEditor({ id }: { id: string }) {
       </p>
     );
   if (!loaded || !teams) return <p className="text-dim">Loading routines…</p>;
-  return <EditorForm key={loaded.id} first={loaded} teams={teams} />;
+  // (from a team's panel on the Station: a new routine starts with that team mentioned)
+  const team = loaded === BLANK ? teams.find((t) => t.id === new URLSearchParams(location.hash.split('?')[1] || '').get('team')) : undefined;
+  return <EditorForm key={loaded.id} first={team ? { ...BLANK, text: `@${team.name} ` } : loaded} teams={teams} />;
 }
 
 function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) {

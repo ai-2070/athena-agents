@@ -4,7 +4,7 @@
 import { StrictMode, Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { GET, POST, PUT, DEL, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon } from '../core.ts';
+import { GET, POST, PUT, DEL, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon, onEvent } from '../core.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.tsx';
 import { openDock } from '../dock.tsx';
@@ -30,7 +30,8 @@ import { WorldPanel } from './worldpanel.tsx';
 import { fileManager, previewFile, previewTitle } from '../filepreview.tsx';
 import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, connectorLook } from './stationdata.ts';
 import type { AvailableIntegration, Connector, MapPick, Program, TeamView } from './stationdata.ts';
-import type { Agent, AppState, Project, Team, TeamAccess, TeamState } from '../../shared/types.ts';
+import type { Agent, AppState, Project, RoutineListing, Team, TeamAccess, TeamState } from '../../shared/types.ts';
+import { scheduleSummary } from '../../shared/routines.ts';
 
 const EmojiPicker = lazy(() => import('../ui/emojipicker.tsx').then((m) => ({ default: m.EmojiPicker })));
 
@@ -900,24 +901,23 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
       <SetupBox icon="plug" title="Connections the team can reach">
         <ConnectionList api={api} d={d} ids={api.teamLinks(id)} />
       </SetupBox>
-      <SetupBox icon="clock" title="Daily routine" hint="The team gets this message on its schedule, as if you wrote it in the chat.">
-        <div className="flex flex-wrap items-center gap-2">
-          <Segmented
-            label="Daily routine"
-            options={[
-              { value: 'none', label: 'Off' },
-              { value: 'daily', label: 'Every day' },
-            ]}
-            value={sch.type === 'daily' ? 'daily' : 'none'}
-            onChange={(t) => saveSchedule({ type: t })}
-          />
-          {sch.type === 'daily' ? (sch.times?.length ? sch.times : ['09:00']).map((time, index, times) => <input key={`t:${index}:${time}`} type="time" aria-label={index ? `Time ${index + 1}` : 'Time'} defaultValue={time} className="w-27.5 font-mono" ref={committed<HTMLInputElement>((el) => saveSchedule({ times: times.map((value, i) => i === index ? el.value : value) }))} />) : null}
-        </div>
+      <SetupBox icon="repeat" title="Routines" hint="Routines that mention this team. Each run comes to the team chat.">
+        <TeamRoutines wf={wf} />
         {sch.type === 'daily' ? (
-          <div className="mt-2.5">
-            <input key={`m:${sch.input || ''}`} aria-label="What the team should do each time" defaultValue={sch.input || ''} placeholder="What the team should do each time" ref={committed<HTMLInputElement>((el) => saveSchedule({ input: el.value }))} />
+          // the daily message teams had before routines: it still runs, so it shows here until it is turned off
+          <div className={`${CONN} mt-2 cursor-default hover:bg-transparent`}>
+            <span className="grid size-7 flex-none place-items-center rounded-[7px] bg-panel-2 text-dim"><Icon name="clock" size={13} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate">{sch.input || 'Daily message'}</span>
+              <span className="hint block">{`Every day at ${(sch.times?.length ? sch.times : ['09:00']).join(', ')} · set up before routines`}</span>
+            </span>
+            <Button variant="ghost" size="tiny" onClick={() => saveSchedule({ type: 'none' })}>Turn off</Button>
           </div>
         ) : null}
+        <Button variant="ghost" size="small" className="mt-3" onClick={() => navigate(`#/routines/new?team=${encodeURIComponent(wf.id)}`)}>
+          <Icon name="plus" size={14} />
+          New routine for this team
+        </Button>
       </SetupBox>
       <SetupBox icon="star" title="Symbol on the map" hint="Shown in the middle of the team's pod. An emoji, or a picture or 3D model of your own.">
         <SymbolPicker api={api} wf={wf} />
@@ -972,6 +972,42 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
 }
 
 /** One boxed part of the team's Setup: an icon and a title, a short line under it, then its content. */
+/** The routines that mention a team, as cards: each opens its page. */
+function TeamRoutines({ wf }: { wf: TeamView }) {
+  const [list, setList] = useState<RoutineListing[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = () => void GET<RoutineListing[]>('/routines').then((l) => live && setList(l), () => live && setList([]));
+    load();
+    // (a run changes the card's last run; a project switch, the whole list)
+    const off = onEvent((ev) => (ev.type === 'routine-run' || ev.type === 'project') && load());
+    return () => ((live = false), off());
+  }, []);
+  if (!list) return null;
+  const mine = list.filter((r) => r.mentions.some((m) => m.kind === 'team' && m.id === wf.id));
+  if (!mine.length) return <p className="hint">No routine mentions this team yet.</p>;
+  return (
+    <div className="flex flex-col gap-2">
+      {mine.map((r) => {
+        const last = r.lastRun;
+        const state = !r.enabled ? { text: 'Off', cls: 'text-faint' } : last?.status === 'running' ? { text: 'Running', cls: 'text-accent' } : last?.status === 'failed' ? { text: 'Failed', cls: 'text-red' } : last ? { text: `Ran ${ago(last.createdAt)}`, cls: 'text-dim' } : { text: 'Not run yet', cls: 'text-faint' };
+        return (
+          <button key={r.id} type="button" className={CONN} onClick={() => navigate(`#/routines/${r.id}`)}>
+            <span className="grid size-7 flex-none place-items-center rounded-[7px] bg-panel-2 text-dim">
+              <Icon name={r.schedule?.type === 'daily' ? 'calendar' : r.schedule?.type === 'interval' ? 'repeat' : 'hand'} size={13} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate">{r.name}</span>
+              <span className="hint block truncate">{scheduleSummary(r.schedule)}</span>
+            </span>
+            <span className={`flex-none text-[12px] leading-[normal] font-medium ${state.cls}`}>{state.text}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function SetupBox({ icon, title, hint, children }: { icon: string; title: string; hint?: string; children: ReactNode }) {
   return (
     <section className="py-4 first:pt-0">
