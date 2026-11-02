@@ -287,7 +287,9 @@ describe('the Tasks board', () => {
 describe('a task\'s own page', () => {
   it('shows the task with its properties, and saves a new title when you leave it', async () => {
     await open(['p1', 'k']);
-    expect(el.querySelector('nav[aria-label="Breadcrumb"]')!.textContent).toBe('TasksBakery#5');
+    expect(el.querySelector('nav[aria-label="Breadcrumb"]')!.textContent).toBe('Tasks#5');
+    // (the project is in the details beside it)
+    expect(el.querySelector('aside[aria-label="Properties"]')!.textContent).toContain('ProjectBakery');
     expect(el.textContent).toContain('Waiting for the quote');
     expect(el.querySelector('[aria-label="Status: Blocked"]')).not.toBeNull();
     const title = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Title"]')!;
@@ -394,12 +396,17 @@ describe('a task\'s own page', () => {
     await dbl(el.querySelector('a[href="https://example.com"]')!);
     expect(el.querySelector('textarea[aria-label="Description"]')).toBeNull();
     await dbl(el.querySelector('strong')!);
-    expect(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Description"]')!.value).toBe('Use **real** butter, from [the farm](https://example.com).');
+    const description = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Description"]')!;
+    expect(description.value).toBe('Use **real** butter, from [the farm](https://example.com).');
+    // the caret at the end, ready to add to it
+    expect([description.selectionStart, description.selectionEnd]).toEqual([description.value.length, description.value.length]);
     const comment = (text: string) => [...el.querySelectorAll('section[aria-label="Activity"] li')].find((li) => li.textContent?.includes(text))!;
     await dbl(comment('From the Brain').querySelector('.md')!);
     expect(el.querySelector('textarea[aria-label="Edit comment"]')).toBeNull();
     await dbl(comment('Mine to change').querySelector('.md')!);
-    expect(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Edit comment"]')!.value).toBe('Mine to change');
+    const edit = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Edit comment"]')!;
+    expect(edit.value).toBe('Mine to change');
+    expect(edit.selectionStart).toBe('Mine to change'.length);
   });
 
   it('says so when the task is gone', async () => {

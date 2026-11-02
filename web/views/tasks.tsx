@@ -67,6 +67,16 @@ const editOnDoubleClick = (edit: () => void) => (e: ReactMouseEvent) => {
   edit();
 };
 
+/** Puts the caret at the end of the text when its editor opens (after the mention box is attached). */
+function useCaretAtEnd(box: { current: HTMLTextAreaElement | null }, editing: boolean): void {
+  useEffect(() => {
+    const ta = box.current;
+    if (!editing || !ta) return;
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }, [box, editing]);
+}
+
 /** Asks why a task is blocked (null: the move is called off). */
 const askWhyBlocked = (t: BoardTask) => promptBox(`Why is ${taskKey(t.number)} blocked?`, { placeholder: 'e.g. Waiting for the printer\'s quote', ok: 'Move to Blocked' });
 
@@ -616,15 +626,13 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
     </div>
   );
   return (
-    <div className="flex flex-col">
+    <div className="mx-auto flex w-full max-w-6xl flex-col">
       <div className="mb-8 flex items-center gap-2">
         <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-[13px]">
           <a href="#/tasks" className="inline-flex items-center gap-1.5 text-dim no-underline hover:text-ink">
             <Icon name="kanban" size={14} />
             Tasks
           </a>
-          <Icon name="chevron-right" size={13} className="text-faint" />
-          <span className="flex-none text-dim">{task.projectName}</span>
           <Icon name="chevron-right" size={13} className="text-faint" />
           <span aria-current="page" className="flex-none font-medium text-ink tabular-nums">{taskKey(task.number)}</span>
         </nav>
@@ -645,7 +653,7 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
         </div>
       </div>
       <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <article className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-6 max-lg:order-2">
+        <article className="flex w-full max-w-3xl min-w-0 flex-col gap-6 max-lg:order-2">
           <TitleEditor task={task} onSave={(title) => save({ title })} />
           {task.status === 'blocked' ? (
             <div className="flex items-start gap-3 rounded-box border border-red/25 bg-red/6 px-4 py-3">
@@ -709,6 +717,7 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
   const [editing, setEditing] = useState(false);
   const box = useRef<HTMLTextAreaElement>(null);
   useMentionBox(box, mentions, editing);
+  useCaretAtEnd(box, editing);
   const [value, setValue] = useState(task.description);
   const [busy, setBusy] = useState(false);
   // the description as it was when editing started (the page keeps loading changes made meanwhile)
@@ -770,7 +779,7 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
             return () => setValue(was);
           }}
         />
-        <span className="text-[11.5px] text-faint max-sm:hidden">Markdown works</span>
+        <span className="text-[11.5px] text-faint max-sm:hidden">Markdown supported</span>
         <span className="ml-auto flex items-center gap-1.5">
           <Button variant="plain" size="small" onClick={() => (setValue(task.description), setEditing(false))} disabled={busy}>Cancel</Button>
           <Button size="small" onClick={() => void save()} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
@@ -819,7 +828,7 @@ function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Can
           aria-label="Comment"
           rows={3}
           maxLength={8000}
-          placeholder="Leave a comment… Type @ to mention someone. Markdown works."
+          placeholder="Leave a comment… Type @ to mention someone. Markdown supported."
           value={text}
           disabled={busy}
           onChange={(e) => setText(e.currentTarget.value)}
@@ -853,6 +862,7 @@ function Comment({ task, comment: c, mentions, onChange }: { task: BoardTask; co
   const [value, setValue] = useState(c.text);
   const box = useRef<HTMLTextAreaElement>(null);
   useMentionBox(box, mentions, editing);
+  useCaretAtEnd(box, editing);
   const url = `${path(task)}/comments/${encodeURIComponent(c.id)}`;
   const edit = () => (setValue(c.text), setEditing(true));
   const save = async () => {

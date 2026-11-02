@@ -349,7 +349,7 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
           aria-label="Description"
           rows={6}
           maxLength={8000}
-          placeholder="Add a description: what needs to happen, and how you'll know it's done. Type @ to mention an agent, a team or a skill. Markdown works."
+          placeholder="Add a description: what needs to happen, and how you'll know it's done. Type @ to mention an agent, a team or a skill. Markdown supported."
           value={description}
           disabled={busy}
           onChange={(e) => setDescription(e.currentTarget.value)}
