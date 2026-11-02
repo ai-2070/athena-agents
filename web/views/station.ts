@@ -3873,7 +3873,8 @@ function drawHud(): void {
       d.runs.length || S.active.size ? h('div', { class: `${STAT} max-md:hidden` }, h('b', { class: `${STAT_N} text-accent` }, String(d.runs.length + S.active.size)), 'working') : null,
       needs ? domButton({ variant: 'ghost', size: 'small', class: 'glass border-amber', onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: 'font-semibold tabular-nums text-amber' }, String(needs)), 'Needs you') : null,
       d.agents.length
-        ? domButton({ size: 'small', onclick: newBranch }, icon('users', 14), 'New team')
+        ? // quiet until pointed at: the page's text colour on nothing, the accent behind it on hover
+          domButton({ variant: 'plain', size: 'small', class: 'text-ink! hover:bg-accent! hover:text-on-accent! focus-visible:bg-accent! focus-visible:text-on-accent!', onclick: newBranch }, icon('users', 14), 'New team')
         : null,
     ),
   );
