@@ -55,7 +55,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.82",
-    "@ai-sdk/react": "4.0.163",
+    "@ai-sdk/react": "4.0.165",
     "@athena/eve-world": "file:./runtime/eve-world",
     "@base-ui/react": "1.9.0",
     "@emoji-mart/data": "1.2.1",
