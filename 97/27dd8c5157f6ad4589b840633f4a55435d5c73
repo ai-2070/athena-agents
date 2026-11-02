@@ -1,0 +1,27 @@
+tests/server/gateways.test.ts
+  s_3f5afab86a1bb3::t_f4462cafbe4a9c 1-141
+server/gateways/instances.ts
+  s_3f5afab86a1bb3::t_0955dc3f6dad76 1-150
+shared/types.ts
+  s_3f5afab86a1bb3::t_7c6b01d2886d36 9-42
+server/store.ts
+  s_3f5afab86a1bb3::t_b8afba683d9c2d 106-131
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_7838ecfc708bef 3-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9727dd8c5157f6ad4589b840633f4a55435d5c73",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
