@@ -1,0 +1,73 @@
+shared/types.ts
+  s_3c304e20f190e2::t_045d62a4f7a23a 177,796
+tests/server/eve-lifecycle.test.ts
+  s_3c304e20f190e2::t_90c06f45896bc7 1-77
+tests/server/eve-coordinator.test.ts
+  s_3c304e20f190e2::t_90c06f45896bc7 7,87-100
+  s_3c304e20f190e2::t_4e92c1b633cf4d 29
+server/eve/recovery.ts
+  s_3c304e20f190e2::t_045d62a4f7a23a 5-6,65,67,69-72,157-163,176,207-214,229
+  s_3c304e20f190e2::t_f4ce2f2ea642d7 66,68
+tests/server/eve-state.test.ts
+  s_3c304e20f190e2::t_4e92c1b633cf4d 12
+tests/server/eve-recovery.test.ts
+  s_3c304e20f190e2::t_4e92c1b633cf4d 14
+server/execution.ts
+  s_3c304e20f190e2::t_045d62a4f7a23a 24-32,61
+docs/desktop.md
+  s_3c304e20f190e2::t_b06449d75a4f1c 135-140
+docs/internal/plans/EVE_API_ENGINE_2026-11-01.md
+  s_3c304e20f190e2::t_8f8188ba1730ba 7-18
+server/engines/eve.ts
+  s_3c304e20f190e2::t_f4ce2f2ea642d7 7,20-21
+  s_3c304e20f190e2::t_f912a28f832711 6
+tests/server/eve-bridge.test.ts
+  s_3c304e20f190e2::t_4e92c1b633cf4d 17-18,33,59
+server/eve/admission.ts
+  s_3c304e20f190e2::t_045d62a4f7a23a 16-17
+server/eve/coordinator.ts
+  s_3c304e20f190e2::t_f912a28f832711 161
+server/index.ts
+  s_3c304e20f190e2::t_d7a00583826268 430,438
+server/engines/index.ts
+  s_3c304e20f190e2::t_f912a28f832711 25,242,341-349,573-574,577,1023
+  s_3c304e20f190e2::t_b06449d75a4f1c 534
+  s_3c304e20f190e2::t_d7a00583826268 23,1018-1022
+scripts/eve-integration-smoke.ts
+  s_3c304e20f190e2::t_4e92c1b633cf4d 112-113,137,140,203,254,306
+runtime/eve/agent/agent.ts
+  s_3c304e20f190e2::t_b06449d75a4f1c 15-17
+server/eve/version.ts
+  s_3c304e20f190e2::t_045d62a4f7a23a 1
+tests/server/eve-model.test.ts
+  s_3c304e20f190e2::t_4e92c1b633cf4d 61,71
+server/eve/state.ts
+  s_3c304e20f190e2::t_045d62a4f7a23a 8,22-26,57,64
+server/eve/runtime.ts
+  s_3c304e20f190e2::t_045d62a4f7a23a 7-8,33,118-121
+  s_3c304e20f190e2::t_fdc83fed6b9678 122-123
+tests/server/eve-admission.test.ts
+  s_3c304e20f190e2::t_4e92c1b633cf4d 27
+docs/guide.md
+  s_3c304e20f190e2::t_b06449d75a4f1c 255-256
+tests/server/eve-operations.test.ts
+  s_3c304e20f190e2::t_4e92c1b633cf4d 8
+tests/server/eve-consent.test.ts
+  s_3c304e20f190e2::t_4e92c1b633cf4d 17,27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f522467b1ab4278026e57fa337d156449ce37553",
+  "prompts": {},
+  "sessions": {
+    "s_3c304e20f190e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19890-1e6d-7c43-8ba0-7a1c98f013a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
