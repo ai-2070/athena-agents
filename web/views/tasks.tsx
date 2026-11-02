@@ -213,6 +213,8 @@ function TaskBoardPage() {
     setDragging(null);
     setDrop(null);
     if (!task || !target || target.status !== status) return;
+    // let go where it already was: nothing moves (and no gap was drawn there)
+    if (task.status === status && target.index === columns.find((c) => c.value === status)!.list.findIndex((t) => same(t, task))) return;
     void move(task, status, placeAt(status, target.index, task), at);
   };
   const remove = async (task: BoardTask) => {

@@ -93,6 +93,12 @@ const open = async (params: string[] = []) => {
 };
 const column = (label: string) => el.querySelector<HTMLElement>(`section[aria-label="${label}"]`)!;
 const ids = (label: string) => [...column(label).querySelectorAll('[data-task-id]')].map((c) => c.getAttribute('data-task-id')!.split('/')[1]);
+// a drag event with what the board reads from it (happy-dom leaves dataTransfer out)
+const dragEvent = (kind: string) => {
+  const e = new DragEvent(kind, { bubbles: true, cancelable: true });
+  Object.defineProperty(e, 'dataTransfer', { value: { effectAllowed: '', dropEffect: '', setData: () => {}, setDragImage: () => {} } });
+  return e;
+};
 const type = async (input: HTMLInputElement | HTMLTextAreaElement, text: string) =>
   act(async () => {
     Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')!.set!.call(input, text);
@@ -213,6 +219,22 @@ describe('the Tasks board', () => {
     const [d, e] = [card({ id: 'd', rank: 1 }), card({ id: 'e', rank: 1 + Number.EPSILON })];
     expect(tasks.place([d, e], d, e)).toEqual({ rank: 1024, respaced: [{ task: d, rank: 0 }, { task: e, rank: 2048 }] });
     expect(tasks.place([a, c], undefined, a).rank).toBe(-1024);
+  });
+
+  it('saves nothing when a card is let go where it was, and moves it when it is let go somewhere else', async () => {
+    await open();
+    // (the page has no layout here, so the drop lands at the end of the column)
+    const drag = async (id: string) => {
+      await act(async () => el.querySelector(`[data-task-id="p1/${id}"]`)!.dispatchEvent(dragEvent('dragstart')));
+      await act(async () => column('To do').dispatchEvent(dragEvent('dragover')));
+      await act(async () => column('To do').dispatchEvent(dragEvent('drop')));
+      await settle();
+    };
+    await drag('b');
+    expect(requests.some((r) => r.method === 'PUT')).toBe(false);
+    await drag('a');
+    expect(ids('To do')).toEqual(['b', 'a']);
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/a', body: { status: 'todo', rank: 2 + 1024 } });
   });
 
   it('works out a place between two cards', () => {
