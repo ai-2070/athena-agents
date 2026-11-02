@@ -6,7 +6,8 @@ import { activeProject, setActiveProject, withProject } from '../../server/store
 import { createProject } from '../../server/projects.ts';
 import { savedTasks } from '../../server/tasks.ts';
 import { cloneProject } from '../../server/backup.ts';
-import { addBoardTask, boardPeople, boardTask, changeBoardTask, removeBoardTask, restoredBoard, taskBoard } from '../../server/taskboard.ts';
+import { applyActions } from '../../server/overseer.ts';
+import { addBoardComment, addBoardTask, boardLines, boardPeople, boardTask, changeBoardComment, changeBoardTask, findBoardTask, removeBoardTask, restoredBoard, taskBoard } from '../../server/taskboard.ts';
 
 describe('the Tasks board', () => {
   it('numbers tasks in each project and shows every project\'s, or one project\'s, with names', async () => {
@@ -67,6 +68,55 @@ describe('the Tasks board', () => {
     changeBoardTask(copy.id, t.id, { title: 'Ship the copy' });
     expect(boardTask(original.id, t.id).title).toBe('Ship it');
     expect(addBoardTask(copy.id, { title: 'Next' }).number).toBe(2);
+  });
+
+  it('lets the Brain add, move, assign and remove board tasks by #number or title, and see the board', async () => {
+    const p = await createProject({ name: 'Board brain' });
+    const r = applyActions([
+      { do: 'hire', members: [{ new: { name: 'Board baker', specialty: 'cakes' } }] },
+      { do: 'board_add', title: 'Bake the test cake', description: 'Chocolate, for Friday.', priority: 'high', assignee: 'agent:new' },
+      { do: 'board_add', title: 'Order flour' },
+    ], p);
+    expect(r.done.filter((d) => d.kind === 'board').map((d) => d.text)).toEqual(['Added #1 to the board: Bake the test cake', 'Added #2 to the board: Order flour']);
+    const cake = findBoardTask(p.id, '#1');
+    expect(cake).toMatchObject({ priority: 'high', assigneeName: 'Board baker', creatorName: 'The Brain' });
+    expect(r.done.find((d) => d.kind === 'board')!.boardTask).toEqual({ projectId: p.id, id: cake.id });
+    expect(boardLines(p.id)).toEqual([
+      '#2 [To do] Order flour | unassigned',
+      expect.stringMatching(/^#1 \[To do\] \(high\) Bake the test cake \| Board baker \(agent:.+\) \| Chocolate, for Friday\.$/),
+    ]);
+
+    // blocked needs a reason; a title finds the task too
+    expect(applyActions([{ do: 'board_update', task: '#2', status: 'blocked' }], p).done[0]).toMatchObject({ kind: 'error', text: 'board_update: say why it is blocked (blockedReason)' });
+    const moved = applyActions([{ do: 'board_update', task: 'order flour', status: 'blocked', blockedReason: 'The mill is closed' }, { do: 'board_update', task: 1, status: 'in_review' }], p);
+    expect(moved.done.map((d) => d.text)).toEqual(['Updated #2 on the board: Order flour (now blocked)', 'Updated #1 on the board: Bake the test cake (now in review)']);
+    expect(boardLines(p.id)[0]).toBe('#2 [Blocked] Order flour | unassigned | blocked: The mill is closed');
+    expect(applyActions([{ do: 'board_update', task: '#9', status: 'done' }], p).done[0]).toMatchObject({ kind: 'error', text: 'board_update: no task "#9" on the board' });
+    applyActions([{ do: 'board_remove', task: '#2' }], p);
+    expect(taskBoard(p.id).tasks.map((t) => t.number)).toEqual([1]);
+  });
+
+  it('keeps comments on a task (you, the Brain), counts them on the board and shows them on its page', async () => {
+    const p = await createProject({ name: 'Board comments' });
+    const t = addBoardTask(p.id, { title: 'Pick the paper' });
+    const after = addBoardComment(p.id, t.id, 'Go for **recycled**, 120 g.');
+    expect(after.comments).toEqual([expect.objectContaining({ by: 'you', byName: 'You', text: 'Go for **recycled**, 120 g.' })]);
+    expect(taskBoard(p.id).tasks[0]).toMatchObject({ commentCount: 1 });
+    expect(taskBoard(p.id).tasks[0].comments).toBeUndefined();
+    const cid = after.comments![0].id;
+    expect(changeBoardComment(p.id, t.id, cid, 'Go for recycled, 150 g.').comments![0]).toMatchObject({ text: 'Go for recycled, 150 g.', editedAt: expect.any(Number) });
+    expect(() => addBoardComment(p.id, t.id, '   ')).toThrow('comment must be non-empty text');
+
+    // the Brain reads the last comment and adds its own
+    expect(boardLines(p.id)[0]).toContain('1 comment, last from You: "Go for recycled, 150 g."');
+    const r = applyActions([{ do: 'board_comment', task: '#1', text: 'Checked: the printer has it in stock.' }], p);
+    expect(r.done[0]).toMatchObject({ kind: 'board', text: 'Commented on #1: Pick the paper' });
+    expect(boardTask(p.id, t.id).comments!.map((c) => [c.byName, c.text])).toEqual([['You', 'Go for recycled, 150 g.'], ['The Brain', 'Checked: the printer has it in stock.']]);
+
+    // they go with a copy of the project
+    const copy = restoredBoard({ tasks: [{ id: t.id, title: 'x', comments: [{ id: 'c1', by: 'brain', text: 'kept', at: 1 }, { id: 'c2', text: '' }, { id: '../c', text: 'bad id' }] }] });
+    expect(copy.tasks[0].comments).toEqual([{ id: 'c1', by: 'brain', text: 'kept', at: 1 }]);
+    expect(changeBoardComment(p.id, t.id, cid, null).comments!.length).toBe(1);
   });
 
   it('brings back only well-formed tasks from a saved copy, numbering on from the highest', () => {

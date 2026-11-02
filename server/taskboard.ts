@@ -3,11 +3,13 @@
 // the task belongs to (withProject), whichever project is open.
 import { agents, workflows, listProjects, withProject, activeProject, emit } from './store.ts';
 import { dataPath, readJSON, writeJSON, uid } from './util.ts';
-import type { BoardPeople, BoardPriority, BoardStatus, BoardTask, Project, ProjectTask, TaskBoardData } from '../shared/types.ts';
+import type { BoardComment, BoardPeople, BoardPriority, BoardStatus, BoardTask, Project, ProjectTask, TaskBoardData, TaskComment } from '../shared/types.ts';
 
 export const BOARD_STATUSES: readonly BoardStatus[] = ['todo', 'in_progress', 'in_review', 'blocked', 'done'];
 export const BOARD_PRIORITIES: readonly BoardPriority[] = ['urgent', 'high', 'normal', 'low'];
 const MAX_TASKS = 10000;
+const MAX_COMMENTS = 500;
+const COMMENT_MAX = 8000;
 
 interface BoardFile {
   tasks: ProjectTask[];
@@ -60,10 +62,14 @@ function who(ref: string, none: string): { name: string; emoji?: string; color?:
   }
   return { name: workflows.get(id)?.name || 'A former team' };
 }
-function card(p: Project, t: ProjectTask): BoardTask {
+/** A task as the board shows it. withComments: its comments too, with their writers' names (the task's page). */
+function card(p: Project, t: ProjectTask, withComments = false): BoardTask {
   const a = who(t.assignee, 'Unassigned');
+  const { comments = [], ...rest } = t;
   return {
-    ...t,
+    ...rest,
+    commentCount: comments.length,
+    ...(withComments ? { comments: comments.map(named) } : {}),
     projectId: p.id,
     projectName: p.name,
     assigneeName: a.name,
@@ -71,6 +77,10 @@ function card(p: Project, t: ProjectTask): BoardTask {
     ...(a.color ? { assigneeColor: a.color } : {}),
     creatorName: who(t.createdBy, 'You').name,
   };
+}
+function named(c: TaskComment): BoardComment {
+  const w = who(c.by, 'You');
+  return { ...c, byName: w.name, ...(w.emoji ? { byEmoji: w.emoji } : {}) };
 }
 const order = (a: ProjectTask, b: ProjectTask) => a.rank - b.rank || b.createdAt - a.createdAt || a.id.localeCompare(b.id);
 
@@ -89,7 +99,7 @@ export function boardTask(projectId: string, id: string): BoardTask {
   const p = projectOf(projectId);
   return withProject(p, () => {
     const t = read().tasks.find((x) => x.id === id);
-    return t ? card(p, t) : fail('That task is unavailable.', 404);
+    return t ? card(p, t, true) : fail('That task is unavailable.', 404);
   });
 }
 
@@ -168,7 +178,67 @@ export function changeBoardTask(projectId: string, id: string, input: BoardInput
     }
     t.updatedAt = Math.max(Date.now(), t.updatedAt + 1);
     write(f, [t.id]);
-    return card(p, t);
+    return card(p, t, true);
+  });
+}
+
+/** Adds a comment (Markdown) to a task: from you, the Brain ('brain') or an agent ('agent:<id>'). */
+export function addBoardComment(projectId: string, taskId: string, text: unknown, by = 'you'): BoardTask {
+  const p = projectOf(projectId);
+  return withProject(p, () => {
+    const f = read();
+    const t = f.tasks.find((x) => x.id === taskId) || fail('That task is unavailable.', 404);
+    const comments = t.comments || [];
+    if (comments.length >= MAX_COMMENTS) return fail('This task has 500 comments. Remove old ones before adding more.');
+    const now = Date.now();
+    t.comments = [...comments, { id: uid('c'), by, text: text_(text), at: now }];
+    t.updatedAt = Math.max(now, t.updatedAt + 1);
+    write(f, [t.id]);
+    return card(p, t, true);
+  });
+}
+
+/** Changes or removes a comment (text null removes it). */
+export function changeBoardComment(projectId: string, taskId: string, commentId: string, text: unknown): BoardTask {
+  const p = projectOf(projectId);
+  return withProject(p, () => {
+    const f = read();
+    const t = f.tasks.find((x) => x.id === taskId) || fail('That task is unavailable.', 404);
+    const c = (t.comments || []).find((x) => x.id === commentId) || fail('That comment is unavailable.', 404);
+    if (text === null) t.comments = (t.comments || []).filter((x) => x.id !== c.id);
+    else Object.assign(c, { text: text_(text), editedAt: Date.now() });
+    t.updatedAt = Math.max(Date.now(), t.updatedAt + 1);
+    write(f, [t.id]);
+    return card(p, t, true);
+  });
+}
+const text_ = (v: unknown) => text(v, 'comment', COMMENT_MAX, true);
+
+/** A task by its #number, its id or a title only one task has (the Brain names tasks these ways). */
+export function findBoardTask(projectId: string, ref: unknown): BoardTask {
+  const p = projectOf(projectId);
+  return withProject(p, () => {
+    const all = read().tasks;
+    const r = typeof ref === 'number' ? `#${ref}` : typeof ref === 'string' ? ref.trim() : '';
+    const n = /^#?(\d+)$/.exec(r);
+    const hit = (n ? all.find((t) => t.number === Number(n[1])) : undefined) || all.find((t) => t.id === r);
+    if (hit) return card(p, hit);
+    const named = all.filter((t) => t.title.toLowerCase() === r.toLowerCase());
+    if (named.length === 1) return card(p, named[0]);
+    return fail(named.length ? `${named.length} tasks are called "${r}": use its #number` : `no task "${r}" on the board`, 404);
+  });
+}
+
+/** The board as the Brain sees it: open tasks, then the last few done, one line each. */
+export function boardLines(projectId: string, max = 60): string[] {
+  const label: Record<BoardStatus, string> = { todo: 'To do', in_progress: 'In progress', in_review: 'In review', blocked: 'Blocked', done: 'Done' };
+  const tasks = taskBoard(projectId).tasks;
+  const open = tasks.filter((t) => t.status !== 'done');
+  const done = tasks.filter((t) => t.status === 'done').sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 5);
+  const last = (t: BoardTask) => withProject(projectOf(projectId), () => read().tasks.find((x) => x.id === t.id)?.comments?.at(-1));
+  return [...open.slice(0, max), ...done].map((t) => {
+    const c = t.commentCount ? last(t) : undefined;
+    return `#${t.number} [${label[t.status]}] ${t.priority === 'normal' ? '' : `(${t.priority}) `}${t.title} | ${t.assignee ? `${t.assigneeName} (${t.assignee})` : 'unassigned'}${t.blockedReason ? ` | blocked: ${t.blockedReason}` : ''}${t.description ? ` | ${t.description.replace(/\s+/g, ' ').slice(0, 140)}` : ''}${c ? ` | ${t.commentCount} comment${t.commentCount === 1 ? '' : 's'}, last from ${who(c.by, 'you').name}: "${c.text.replace(/\s+/g, ' ').slice(0, 120)}"` : ''}`;
   });
 }
 
@@ -204,6 +274,7 @@ export function restoredBoard(raw: unknown): BoardFile {
       createdAt: num(v.createdAt, Date.now()),
       updatedAt: num(v.updatedAt, Date.now()),
       ...(s === 'done' ? { doneAt: num(v.doneAt, num(v.updatedAt, Date.now())) } : {}),
+      ...(Array.isArray(v.comments) ? { comments: v.comments.filter((c): c is Record<string, unknown> => object(c) && typeof c.id === 'string' && /^[\w.-]+$/.test(c.id) && typeof c.text === 'string' && !!c.text.trim()).slice(0, MAX_COMMENTS).map((c) => ({ id: c.id as string, by: ref(c.by) || 'you', text: (c.text as string).slice(0, COMMENT_MAX), at: num(c.at, Date.now()), ...(typeof c.editedAt === 'number' ? { editedAt: c.editedAt } : {}) })) } : {}),
     });
     seen.add(v.id);
   }

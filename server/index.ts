@@ -39,7 +39,8 @@ import * as commands from './commands.ts';
 import { openGoal, clearWork, listBriefs } from './briefs.ts';
 import * as tasksMod from './tasks.ts';
 import * as taskBoard from './taskboard.ts';
-import type { TaskCreateInput, TaskQuery, TaskUpdateInput } from '../shared/types.ts';
+import { draftBoardText } from './taskdraft.ts';
+import type { TaskCreateInput, TaskQuery, TaskUpdateInput, BoardDraftInput } from '../shared/types.ts';
 import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
@@ -521,6 +522,11 @@ post<taskBoard.BoardInput>('/api/task-board/:projectId', async ({ projectId }, b
 get('/api/task-board/:projectId/:id', async ({ projectId, id }) => ({ task: taskBoard.boardTask(projectId, id) }));
 put<taskBoard.BoardInput & { expectedUpdatedAt?: unknown }>('/api/task-board/:projectId/:id', async ({ projectId, id }, body) => ({ task: taskBoard.changeBoardTask(projectId, id, body || {}) }));
 del('/api/task-board/:projectId/:id', async ({ projectId, id }) => (taskBoard.removeBoardTask(projectId, id), { ok: true }));
+post<{ text?: unknown }>('/api/task-board/:projectId/:id/comments', async ({ projectId, id }, body) => ({ task: taskBoard.addBoardComment(projectId, id, body?.text) }));
+put<{ text?: unknown }>('/api/task-board/:projectId/:id/comments/:cid', async ({ projectId, id, cid }, body) => ({ task: taskBoard.changeBoardComment(projectId, id, cid, body?.text) }));
+del('/api/task-board/:projectId/:id/comments/:cid', async ({ projectId, id, cid }) => ({ task: taskBoard.changeBoardComment(projectId, id, cid, null) }));
+// "Draft with the Brain": a title and description, or a comment, put back in the box (nothing saved)
+post<BoardDraftInput>('/api/task-board-draft', async (_p, body) => draftBoardText(body));
 del('/api/agents/:id/chats/:cid', async ({ id, cid }) => {
   engines.forgetChat(cid);
   clearWork('agent', id, cid);
