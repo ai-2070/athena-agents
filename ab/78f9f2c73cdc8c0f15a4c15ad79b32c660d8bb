@@ -1,0 +1,56 @@
+web/views/gateway-inbox.tsx
+  s_3f5afab86a1bb3::t_7e2914dfd39c13 9-10
+shared/types.ts
+  s_3f5afab86a1bb3::t_7e2914dfd39c13 166-177,1179
+shared/gateways.ts
+  s_3f5afab86a1bb3::t_7e2914dfd39c13 1-8
+tests/server/gateway-status.test.ts
+  s_3f5afab86a1bb3::t_bcfad70aa57277 1-2,4-43,55
+  s_3f5afab86a1bb3::t_dd863193120a6c 3,44-54
+tests/server/api.test.ts
+  s_3f5afab86a1bb3::t_bcfad70aa57277 258-261
+docs/guide.md
+  s_3f5afab86a1bb3::t_dd863193120a6c 403-407
+tests/web/gateway-status.test.ts
+  s_3f5afab86a1bb3::t_ae244fa8e85050 19
+  s_3f5afab86a1bb3::t_bcfad70aa57277 1-18,20-28
+web/gateway-status.ts
+  s_3f5afab86a1bb3::t_ae244fa8e85050 17
+  s_3f5afab86a1bb3::t_8bd57f1c13a074 1-16,18-19
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_dd863193120a6c 177-188
+server/index.ts
+  s_3f5afab86a1bb3::t_7e2914dfd39c13 159
+README.md
+  s_3f5afab86a1bb3::t_dd863193120a6c 231
+web/app.ts
+  s_3f5afab86a1bb3::t_8bd57f1c13a074 27,159,172-175,305
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_7e2914dfd39c13 1-4,12-13,24-25,33-48,51-54
+  s_3f5afab86a1bb3::t_dd863193120a6c 49-50
+  s_8e3c27e6ce0122::t_605c8dbac88055 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ab78f9f2c73cdc8c0f15a4c15ad79b32c660d8bb",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "unknown"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
