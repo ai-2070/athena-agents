@@ -20,7 +20,7 @@ import { backgroundUrl, logoUrl, modelUrl, projectMark } from '../projectlogo.ts
 import { loadModel } from '../modelviewer.ts';
 import { teamMarkUrl, DEFAULT_TEAM_MARK } from '../teammark.ts';
 import { neighbours, stepIndex, floorDirection, shortName } from '../projectnav.ts';
-import { slideIn, slideOut } from '../motion.ts';
+import { reducedMotion, slideIn, slideOut } from '../motion.ts';
 import { icon, logo, brandPath } from '../icons.ts';
 import { brandMark } from '../brand.ts';
 import { pal, refreshPalette, watchPalette, brandTone, mutedTone, mix, alpha, INK } from './stationpalette.ts';
@@ -229,7 +229,7 @@ interface LabelSpec {
 interface Label extends LabelSpec {
   world: THREE.Vector3;
   /** what was last written to its style (written again only when it changes) */
-  shown?: { display: string; transform: string; origin: string };
+  shown?: { display: string; transform: string; origin: string; placed?: boolean };
 }
 type PickType = 'agent' | 'branch' | 'bench' | 'brain' | 'int';
 /** A dashed wire from a header tile to a desk. */
@@ -2358,6 +2358,8 @@ function drawBranchCard(wfId: string): void {
 // ---------- labels ----------
 function addLabel(l: LabelSpec & { world?: THREE.Vector3 }): void {
   assertMounted(S);
+  // hidden until the map has put it in its place (else it sits in the top left corner for a moment)
+  l.el.style.visibility = 'hidden';
   S.labels.append(l.el);
   l.el.addEventListener('contextmenu', (ev) => {
     ev.preventDefault();
@@ -2458,6 +2460,12 @@ function placeLabels(): void {
     if (!hide) {
       const transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(${tx}%, ${ty}%) scale(${sc.toFixed(3)})`;
       if (shown.transform !== transform) l.el.style.transform = shown.transform = transform;
+      // the first time it has a real place (the map has a size): show it, fading in
+      if (!shown.placed && S.w > 0 && S.h > 0) {
+        shown.placed = true;
+        l.el.style.visibility = '';
+        if (!reducedMotion() && typeof l.el.animate === 'function') l.el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' });
+      }
     }
   }
   S.labels.dataset.zoom = z > 1.6 ? 'near' : z < 0.75 ? 'far' : 'mid';
