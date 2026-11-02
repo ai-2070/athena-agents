@@ -1,0 +1,26 @@
+tests/web/groupD-pickers.test.ts
+  s_8e3c27e6ce0122::t_43af0c449c263b 523-562
+  s_8e3c27e6ce0122::t_885ffe8e173982 272,316
+web/models.tsx
+  s_8e3c27e6ce0122::t_288656d1bf3eb6 12,719
+  s_8e3c27e6ce0122::t_20131a90153b65 671-683,688-718,720,795,801,806-809,811-822
+  s_8e3c27e6ce0122::t_512cf653db4d7b 267,305-308,311-312,392,418,453,462-463,473,480,502-503,526
+  s_8e3c27e6ce0122::t_f68996ccdaf81e 457,483,537
+  s_8e3c27e6ce0122::t_1799d9096ac64f 6,684-687,810
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a528557fb1f3be3848652227bc5be8634f2db848",
+  "prompts": {},
+  "sessions": {
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
