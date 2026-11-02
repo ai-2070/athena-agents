@@ -400,6 +400,11 @@ allowed, its saved reply is queued for delivery. Work still in progress resumes 
 Missing records, edited input, changed destinations and unproven completion remain held; this action
 does not override them. Team recovery needs a completed review of the original message, rather than
 the latest team reply. Controls for removing old receipts are still being built.
+
+The sidebar's **Status** panel shows gateway connection state and messages needing review. Click an
+instance needing review to open its inbox, or a connection warning to open its setup. Its tooltip names
+the bound project. Up to five instances appear, with attention items first; **All gateways** opens the full
+list. If an inbox is unreadable, its status says **check inbox** rather than reporting no problems.
 Uncertain sends need review before retrying; automatic retries preserve confirmed reply parts.
 Slow requests can send one working notice. When a run needs approval, Telegram says **Needs approval in Athena**;
 review it in the dashboard. Telegram cannot approve requests.

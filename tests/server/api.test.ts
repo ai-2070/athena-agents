@@ -255,6 +255,10 @@ describe('gateway configuration API', () => {
     expect(JSON.stringify(listed)).not.toContain('private-gateway-token');
     expect(listed.instances.find((instance) => instance.id === one.id)?.credentials).toEqual({ botToken: true });
     expect(listed.instances.find((instance) => instance.id === two.id)?.credentials).toEqual({});
+    const navigation = await (await req('/api/state')).json() as { gateways: { id: string; status: string; reviewCount: number | null }[] };
+    expect(navigation.gateways.find((instance) => instance.id === one.id)).toMatchObject({ status: 'paused', reviewCount: 0 });
+    expect(JSON.stringify(navigation.gateways)).not.toContain('private-gateway-token');
+    expect(JSON.stringify(navigation.gateways)).not.toContain('credentials');
     expect((await create({ ...config, accountId: '30002', botToken: 'do-not-echo-this' })).status).toBe(400);
     expect((await req(`/api/gateways/${one.id}/reconnect`, { method: 'POST', headers: json })).status).toBe(200);
     expect((await req(`/api/gateways/${one.id}/inbox/missing/retry-files`, { method: 'POST', headers: json })).status).toBe(400);

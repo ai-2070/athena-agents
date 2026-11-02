@@ -163,6 +163,18 @@ export interface GatewayHealth {
   updatedAt: number;
 }
 
+/** Navigation metadata only: no credentials, sender rules or message contents. */
+export interface GatewayStatus {
+  id: string;
+  name: string;
+  platform: GatewayPlatform;
+  projectId: string;
+  projectName: string;
+  enabled: boolean;
+  status: GatewayHealth['status'];
+  reviewCount: number | null;
+}
+
 /** Stable private runtime identities; the configured agent/team stays the source of its settings. */
 export interface PrivateConversation {
   id: string;
@@ -1164,6 +1176,7 @@ export interface Terminal {
 
 /** GET /api/state: everything the browser needs to draw. */
 export interface AppState {
+  gateways: GatewayStatus[];
   agents: Agent[];
   mcpServers: string[];
   /** each MCP server's label, service and "use for" (an older server leaves it out) */

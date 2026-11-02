@@ -156,6 +156,7 @@ const mcpState = () => {
   return { mcpServers: Object.keys(servers), mcpInfo: mcp.serverInfo(servers) };
 };
 get('/api/state', async (): Promise<AppState> => ({
+  gateways: gatewaySupervisor.summary(),
   agents: agents.list().sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || a.name.localeCompare(b.name)),
   ...mcpState(),
   project: projects.withLogo(store.activeProject()),

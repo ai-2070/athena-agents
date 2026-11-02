@@ -6,13 +6,12 @@ import { PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { useServerEvents } from '../ui/react.tsx';
 import type { GatewayInboxEvent, GatewayInstance, GatewayOutgoingFile } from '../../shared/types.ts';
+import { gatewayNeedsReview } from '../../shared/gateways.ts';
+export { gatewayNeedsReview } from '../../shared/gateways.ts';
 
 const message = (error: unknown) => error instanceof Error ? error.message : 'Could not update this inbox. Try again.';
 const unresolved = (status: string) => status === 'failed' || status === 'uncertain';
 const deliveryLabel = (status: GatewayOutgoingFile['status'] | 'saved' | 'transferring') => ({ pending: 'Waiting', sending: 'Sending', sent: 'Sent', uncertain: 'Delivery uncertain', failed: 'Needs review', skipped: 'Skipped', saved: 'Saved', transferring: 'Downloading' })[status];
-export function gatewayNeedsReview(event: GatewayInboxEvent): boolean {
-  return event.status === 'needs-review' || Boolean(event.files?.some((file) => file.status === 'failed') || event.reply?.parts.some((part) => unresolved(part.status)) || event.outgoing?.some((file) => unresolved(file.status)));
-}
 export function gatewayMessageStatus(event: GatewayInboxEvent): string {
   if (event.reply?.parts.some((part) => part.status === 'uncertain') || event.outgoing?.some((file) => file.status === 'uncertain')) return 'Delivery uncertain';
   if (gatewayNeedsReview(event)) return 'Needs review';

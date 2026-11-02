@@ -1,5 +1,7 @@
-import type { GatewayHealth, GatewayReconciliation, ServerEvent } from '../../shared/types.ts';
-import { bus, emit } from '../store.ts';
+import type { GatewayHealth, GatewayReconciliation, GatewayStatus, ServerEvent } from '../../shared/types.ts';
+import { gatewayNeedsReview } from '../../shared/gateways.ts';
+import { bus, emit, listProjects } from '../store.ts';
+import { gatewayInboxHistory } from './inbox.ts';
 import { getGatewayInstance, listGatewayInstances } from './instances.ts';
 import { TelegramGatewayWorker } from './worker.ts';
 
@@ -7,6 +9,8 @@ import { TelegramGatewayWorker } from './worker.ts';
 export class GatewaySupervisor {
   private readonly workers = new Map<string, TelegramGatewayWorker>();
   private readonly statuses = new Map<string, GatewayHealth>();
+  private readonly reviews = new Map<string, number | null>();
+  private readonly changedInboxes = new Set<string>();
   private pending: Promise<void> = Promise.resolve();
   private closed = false;
   private listening = false;
@@ -17,13 +21,37 @@ export class GatewaySupervisor {
   }
 
   private changed = (event: ServerEvent): void => {
-    if (event.type === 'gateways' && typeof event.id === 'string') void this.reconnect(event.id);
+    if ((event.type === 'gateway-inbox' || event.type === 'gateway-health') && typeof event.instanceId === 'string') this.changedInboxes.add(event.instanceId);
+    if (event.type === 'gateways' && typeof event.id === 'string') { this.changedInboxes.add(event.id); void this.reconnect(event.id); }
     if (event.type === 'projects' || ((event.type === 'agents' || event.type === 'workflows') && event.removed === true)) {
       for (const instance of listGatewayInstances()) void this.reconnect(instance.id);
     }
   };
 
   health(): GatewayHealth[] { return [...this.statuses.values()].map((value) => ({ ...value })); }
+
+  /** Read each changed journal once per state refresh, rather than for every delivery mutation. */
+  summary(): GatewayStatus[] {
+    const instances = listGatewayInstances();
+    const ids = new Set(instances.map((instance) => instance.id));
+    for (const id of this.reviews.keys()) if (!ids.has(id)) this.reviews.delete(id);
+    for (const id of this.changedInboxes) if (!ids.has(id)) this.changedInboxes.delete(id);
+    const projects = new Map(listProjects().map((project) => [project.id, project.name]));
+    return instances.map((instance) => {
+      if (!this.reviews.has(instance.id) || this.changedInboxes.has(instance.id)) {
+        try { this.reviews.set(instance.id, gatewayInboxHistory(instance.id).filter(gatewayNeedsReview).length); }
+        catch { this.reviews.set(instance.id, null); }
+        this.changedInboxes.delete(instance.id);
+      }
+      return {
+        id: instance.id, name: instance.name, platform: instance.platform, projectId: instance.projectId,
+        projectName: projects.get(instance.projectId) || 'Project unavailable', enabled: instance.enabled,
+        status: !instance.enabled ? 'paused' : !projects.has(instance.projectId) ? 'needs-setup'
+          : this.statuses.get(instance.id)?.status ?? (instance.platform === 'telegram' ? 'connecting' : 'needs-setup'),
+        reviewCount: this.reviews.get(instance.id) ?? null,
+      };
+    });
+  }
 
   retryFiles(instanceId: string, eventId: string): void {
     const worker = this.workers.get(instanceId);

@@ -174,7 +174,18 @@ New gateway data does not need a legacy compatibility layer.*
   are rejected again before committing. The UI explains that a completed reply may be delivered,
   disables the check while paused, and shows the saved outcome. Tests cover restart, no resubmission,
   native Brain/team evidence, stale edits/access/routes, duplicate checks, error redaction and request guards.
-- Next: add receipt retention and gateway status navigation, and finish the other
+- Added gateway status navigation to the sidebar's Status panel. It shows up to five instances,
+  prioritizing held work, failed deliveries and connection problems, with an All gateways link for
+  larger lists. Review/healthy links open the relevant instance inbox; Telegram setup/reconnect
+  problems open that instance's editor. Paused instances with held work still link to their receipts.
+  Tooltips identify the platform and bound project, and a setup link appears when no instance exists.
+  The app state contains only instance identity, project label, connection state and review count;
+  credentials, sender rules and message contents are excluded. Review counts share the inbox's
+  attention rules and are cached until receipt/health/configuration changes, then read once per state
+  refresh. Unreadable journals report an unknown count without being reset; missing projects report
+  setup needed. Gateway events refresh sidebar state. Tests cover summary privacy, dirty-count refresh,
+  corrupt journals, deleted projects, link destinations, ordering and the sidebar row limit.
+- Next: add receipt retention and finish the other
   platforms. Albums still need grouping before dispatch, and inbox retention/review controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the final deletion/retention flow is pending. Real-account text/file checks on all four platforms
