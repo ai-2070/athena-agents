@@ -748,16 +748,16 @@ export function ChatView(p: ChatViewProps) {
               <p className="hint mt-1.5 mb-0">{agent.specialty || ''}</p>
             </div>
           ) : (
-            <div className="empty-chat m-auto w-full max-w-[440px] py-12 text-center text-dim">
-              <div className="mx-auto grid size-15 place-items-center rounded-[16px] border border-line bg-panel text-[32px] leading-none shadow-[inset_0_1px_0_var(--glass-spec)]">{agent.emoji || '🤖'}</div>
-              <p className="mt-5 mb-0 text-[16px] font-medium text-ink">
-                Ask {agent.name} anything{agent.specialty ? `. Good at: ${agent.specialty}` : ''}.
-              </p>
-              <div className="mt-5 flex flex-col gap-2">
+            <div className="empty-chat m-auto w-full max-w-[520px] py-12 text-center text-dim">
+              <div className="mx-auto grid size-14 place-items-center rounded-[16px] border border-line bg-panel text-[30px] leading-none shadow-[inset_0_1px_0_var(--glass-spec)]">{agent.emoji || '🤖'}</div>
+              <p className="mt-5 mb-0 text-[17px] font-semibold tracking-tight text-ink">Ask {agent.name} anything</p>
+              {agent.specialty ? <p className="mx-auto mt-1.5 mb-0 max-w-[44ch] text-[13.5px] leading-normal text-dim">{agent.specialty}</p> : null}
+              {/* a few things to try: each puts its words in the message box */}
+              <div className={`mt-7 grid gap-2 text-left ${suggestions(agent).length > 1 ? 'sm:grid-cols-2' : 'mx-auto max-w-[300px]'}`}>
                 {suggestions(agent).map((t) => (
-                  <button key={t} className="flex w-full cursor-pointer items-center gap-3 rounded-[10px] border border-line bg-panel px-4 py-3 text-left text-[13px] text-dim shadow-[inset_0_1px_0_var(--glass-spec)] transition-[transform,background-color,color] duration-150 active:scale-[0.98] motion-reduce:transition-none hover:bg-panel-2 hover:text-ink" onClick={() => p.apiRef?.current?.setDraft(t)}>
+                  <button key={t} className="group/try flex w-full cursor-pointer items-start gap-2.5 rounded-box border border-line bg-panel px-3.5 py-3 text-left text-[13px] leading-snug text-dim shadow-[inset_0_1px_0_var(--glass-spec)] transition-[transform,background-color,color,border-color] duration-150 active:scale-[0.98] motion-reduce:transition-none hover:border-line-2 hover:bg-panel-2 hover:text-ink" onClick={() => p.apiRef?.current?.setDraft(t)}>
+                    <Dom className="mt-px flex-none text-faint group-hover/try:text-accent" make={() => icon('sparkles', 14)} deps={[]} />
                     <span className="min-w-0 flex-1">{t}</span>
-                    <Dom make={() => icon('chevron-right', 14)} deps={[]} />
                   </button>
                 ))}
               </div>

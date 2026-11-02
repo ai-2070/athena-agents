@@ -19,6 +19,7 @@ const agent = { id: 'a1', name: 'Writer', emoji: '✍️', engine: 'claude-code'
 const chats = [
   { id: 'c1', title: 'Launch post', updatedAt: Date.now(), count: 4 },
   { id: 'c2', title: 'Old', updatedAt: Date.now() - 86_400_000, count: 1 },
+  { id: 'c3', title: 'Routine: Morning news', updatedAt: Date.now() - 40 * 86_400_000, count: 2 },
 ];
 
 beforeEach(() => {
@@ -66,21 +67,36 @@ describe('the agent chat page', () => {
   it('shows the agent, its chats (this one marked), the title and how full its memory is', async () => {
     await open(['a1', 'c1']);
     await settle(80);
-    expect([...el.querySelectorAll('nav[aria-label="Chats"] a')].map((a) => `${a.querySelector('.t')!.textContent}${a.getAttribute('aria-current') ? '*' : ''}`)).toEqual(['Launch post*', 'Old']);
+    const nav = el.querySelector('nav[aria-label="Chats"]')!;
+    expect([...nav.querySelectorAll('a')].map((a) => `${a.querySelector('.t')!.textContent}${a.getAttribute('aria-current') ? '*' : ''}`)).toEqual(['Launch post*', 'Old', 'Routine: Morning news']);
+    // grouped by the day they were last used
+    expect(nav.textContent).toContain('Today');
+    expect(nav.textContent).toContain('Yesterday');
+    expect(nav.textContent).toContain('Older');
     expect(el.querySelector('.chat-title')!.textContent).toBe('Launch post');
-    const mem = el.querySelector('.pill.mem')!;
-    expect(mem.textContent).toBe('Memory 85%');
+    const mem = el.querySelector('.chat-head .mem')!;
+    expect(mem.textContent).toBe('Memory85%');
     expect(mem.classList.contains('warn')).toBe(true);
     expect(mem.querySelector<HTMLElement>('[aria-hidden="true"]')!.style.width).toBe('85%');
-    expect(el.querySelector('.chat-tools')!.textContent).toBe('read_file · web_search');
+    expect([...el.querySelectorAll('.chat-tools code')].map((c) => c.textContent)).toEqual(['read_file', 'web_search']);
   });
 
   it('deletes the chat only after you confirm, then goes back to the agent', async () => {
     await open(['a1', 'c1']);
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('.chat-head button')].find((b) => b.textContent === 'Delete')!.click());
+    // Rename, Clear memory and Delete are in the "…" menu
+    await act(async () => el.querySelector<HTMLButtonElement>('.chat-head [aria-label="Chat options"]')!.click());
+    await settle();
+    expect([...document.querySelectorAll('.st-menu .st-menu-item')].map((i) => i.textContent)).toEqual(['Rename', 'Clear memory', 'Delete']);
+    await act(async () => [...document.querySelectorAll<HTMLElement>('.st-menu .st-menu-item')].find((b) => b.textContent === 'Delete')!.click());
     await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === 'Delete')!.click());
     await settle();
     expect(requests.some((r) => r.method === 'DELETE' && r.url === '/api/agents/a1/chats/c1')).toBe(true);
     expect(location.hash).toBe('#/agents/a1');
+  });
+
+  it('puts a chat under Today, Yesterday, This week, This month or Older', () => {
+    const now = new Date(2026, 10, 2, 15).getTime();
+    const day = 86_400_000;
+    expect([now - 60_000, now - day, now - 3 * day, now - 20 * day, now - 60 * day].map((t) => chatPage.dayOf(t, now))).toEqual(['Today', 'Yesterday', 'This week', 'This month', 'Older']);
   });
 });
