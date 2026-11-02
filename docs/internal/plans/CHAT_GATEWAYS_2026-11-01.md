@@ -159,8 +159,22 @@ New gateway data does not need a legacy compatibility layer.*
   File selection preserves drafts on errors and is offered only for the current eligible assignment.
   Live receipt updates preserve open rows and drafts. Tests cover actions, confirmation/cancellation,
   disabled controls, rendering bounds, deep links and missing instances. Native `needs-review` work
-  remains held: there is no model replay/resume/override action or receipt deletion/retention UI yet.
-- Next: add native-work reconciliation, receipt retention and gateway status navigation, and finish the other
+  remains held unless its original saved operation can be verified; no model replay/override or receipt
+  deletion/retention UI is provided.
+- Added **Check saved work** for held messages with a dispatch receipt. The guarded
+  `POST /api/gateways/:id/inbox/:eventId/reconcile` checks the original operation only: it never calls
+  admission, Brain ask, agent start or team post. Verified pending work resumes completion tracking
+  under the same operation ID; a verified completed answer and its pending text parts are saved in
+  one atomic journal write. Missing/error evidence stays held with the latest check state/time.
+  Existing reply receipts cannot be replaced or reconciled a second time. The native completion
+  check requires exact run/message/Brain operation identities and unchanged completion revisions;
+  team recovery additionally requires a nonempty completion summary tied to that original message.
+  This stricter check remains in use after tracking resumes, so a later unrelated team reply cannot
+  become the recovered outward answer. Source edits/albums, revoked sender access and changed routes
+  are rejected again before committing. The UI explains that a completed reply may be delivered,
+  disables the check while paused, and shows the saved outcome. Tests cover restart, no resubmission,
+  native Brain/team evidence, stale edits/access/routes, duplicate checks, error redaction and request guards.
+- Next: add receipt retention and gateway status navigation, and finish the other
   platforms. Albums still need grouping before dispatch, and inbox retention/review controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the final deletion/retention flow is pending. Real-account text/file checks on all four platforms

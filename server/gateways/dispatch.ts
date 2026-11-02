@@ -1,8 +1,8 @@
-import type { GatewayInboxEvent, ServerEvent } from '../../shared/types.ts';
+import type { GatewayInboxEvent, GatewayReconciliation, ServerEvent } from '../../shared/types.ts';
 import { bus } from '../store.ts';
 import { gatewayConversation } from './conversations.ts';
 import { gatewayExecution } from './execution.ts';
-import type { GatewayExecutionServices } from './execution.ts';
+import type { GatewayCompletion, GatewayExecutionServices } from './execution.ts';
 import type { GatewayInbox } from './inbox.ts';
 
 /** Durable admission is separate from transport handlers and long-running model promises. */
@@ -46,13 +46,24 @@ export class GatewayDispatcher {
     try { this.inbox.checkAccess(event); return true; } catch { return false; }
   }
 
+  reconcile(eventId: string): GatewayReconciliation {
+    if (this.stopped || this.signal.aborted) throw new Error('This gateway is not connected.');
+    const event = this.inbox.reconciliationCandidate(eventId);
+    const result = this.tasks.has(event.id) ? { state: 'pending' as const } : this.checkCompletion(event, true);
+    return this.inbox.settleReconciliation(event.id, event.operationId!, result);
+  }
+
+  private checkCompletion(event: GatewayInboxEvent, strict = false): GatewayCompletion {
+    return strict && this.services.reconcile ? this.services.reconcile(event) : this.services.poll(event);
+  }
+
   private async drain(): Promise<void> {
     for (const event of this.inbox.list()) {
       if (this.stopped || this.signal.aborted) return;
       if (event.status !== 'running' || !event.dispatch) continue;
       try {
         if (!this.allowed(event)) { this.inbox.review(event.id, 'Access or the destination changed. Review this work in Athena.'); continue; }
-        const result = this.tasks.has(event.id) ? { state: 'pending' as const } : this.services.poll(event);
+        const result = this.tasks.has(event.id) ? { state: 'pending' as const } : this.checkCompletion(event, event.reconciliation?.state === 'tracking');
         if (result.state === 'needs-review') this.inbox.review(event.id);
         else if (result.state === 'completed') this.inbox.finishDispatch(event.id, event.operationId!, result.answer);
         else if (this.services.approvalPending?.(event)) this.inbox.queueNotice(event.id, 'approval');

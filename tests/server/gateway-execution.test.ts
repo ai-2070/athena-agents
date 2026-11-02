@@ -9,6 +9,7 @@ import { GatewayInbox } from '../../server/gateways/inbox.ts';
 import { saveGatewayInstance } from '../../server/gateways/instances.ts';
 import { gatewayConversation } from '../../server/gateways/conversations.ts';
 import { gatewayExecution } from '../../server/gateways/execution.ts';
+import { GatewayDispatcher } from '../../server/gateways/dispatch.ts';
 import { gatewayConfig, gatewayInput } from './gateway-fixtures.ts';
 import type { Agent, Approval, Chat, GatewayTarget } from '../../shared/types.ts';
 
@@ -86,10 +87,29 @@ describe('gateway conversation execution services', () => {
     updateBrief(brief.id, { revision: 1 }); expect(gatewayExecution.poll(event).state).toBe('needs-review');
   });
 
+  it('requires a completion summary for the exact team message when reconciling held work', async () => {
+    const agent = newAgent({ name: 'Reconciliation member' }); const team = workflows.save({ name: 'Reconciliation team', members: [agent.id], lead: agent.id, steps: [] });
+    const f = await fixture({ kind: 'team', id: team.id }); const event = await f.record(); const local = event.dispatch!.conversation;
+    if (local.kind !== 'team') throw new Error('Wrong conversation');
+    await expect.poll(() => isTeamBusy(local.teamId)).toBe(false);
+    expect(gatewayExecution.reconcile!(event).state).toBe('needs-review');
+    const brief = addBrief({ kind: 'team', targetId: local.teamId, name: team.name, messageId: event.operationId, text: 'Original assignment', ts: Date.now() });
+    updateBrief(brief.id, { status: 'done', summary: '' });
+    expect(gatewayExecution.reconcile!(event).state).toBe('needs-review');
+    updateBrief(brief.id, { summary: 'Original verified team answer' });
+    expect(gatewayExecution.reconcile!(event)).toEqual({ state: 'completed', answer: 'Original verified team answer' });
+    updateBrief(brief.id, { revision: 1 }); expect(gatewayExecution.reconcile!(event).state).toBe('needs-review');
+  });
+
   it('recovers a Brain answer from its operation marker and refuses an unproven request instead of submitting again', async () => {
     const f = await fixture({ kind: 'brain' }); const event = await f.record();
     expect(gatewayExecution.poll(event)).toEqual({ state: 'completed', answer: 'Brain answer.' });
     expect(gatewayExecution.poll({ ...event, dispatch: { ...event.dispatch!, state: 'starting', brain: undefined } })).toEqual({ state: 'completed', answer: 'Brain answer.' });
     expect(gatewayExecution.poll({ ...event, operationId: 'unknown-operation', dispatch: { ...event.dispatch!, brain: undefined } }).state).toBe('needs-review');
+    f.inbox.review(event.id);
+    const dispatcher = new GatewayDispatcher(f.inbox, new AbortController().signal);
+    expect(dispatcher.reconcile(event.id).state).toBe('completed');
+    expect(f.inbox.list()[0].reply?.parts[0].text).toBe('Brain answer.');
+    expect(() => dispatcher.reconcile(event.id)).toThrow('held operation');
   });
 });

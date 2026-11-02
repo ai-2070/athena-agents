@@ -23,6 +23,27 @@ afterEach(async () => {
 });
 
 describe('gateway intake lifecycle', () => {
+  it('reconciles held work through its worker without resubmission or exposing provider errors', async () => {
+    const instance = saveGatewayInstance(gatewayConfig(String(account++)));
+    let saved: GatewayInbox | undefined; let recover = false; let submissions = 0; let sends = 0;
+    const worker = new TelegramGatewayWorker(instance.id, {
+      execution: {
+        async submit() { submissions++; throw new Error('Response lost after saved completion'); },
+        poll() { return { state: 'needs-review' }; },
+        reconcile() { if (!recover) throw new Error('PRIVATE_PROVIDER_TOKEN'); return { state: 'completed', answer: 'Recovered completed work' }; },
+      },
+      transport: (state, inbox) => {
+        saved = inbox; return { start: async () => { inbox.accept({ ...gatewayInput(), accountId: instance.accountId }); }, stop: () => state.disconnect(), alive: () => true, reply: async () => { sends++; return 'confirmed'; } };
+      },
+    }); workers.push(worker); await worker.start();
+    await expect.poll(() => saved?.list()[0].status).toBe('needs-review'); const id = saved!.list()[0].id;
+    expect(() => worker.reconcile(id)).toThrow('Nothing was restarted or sent');
+    expect(JSON.stringify(saved!.list())).not.toContain('PRIVATE_PROVIDER_TOKEN');
+    recover = true; expect(worker.reconcile(id).state).toBe('completed');
+    await expect.poll(() => sends).toBe(1); expect(submissions).toBe(1);
+    await worker.stop(); expect(() => worker.reconcile(id)).toThrow('Connect this gateway');
+  });
+
   it('uses the worker file selection service and records interrupted uploads before releasing state', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let saved: GatewayInbox | undefined; let complete = false; let sending = false;

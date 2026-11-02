@@ -7,6 +7,8 @@ import { readJSON, uid, writeJSON } from '../util.ts';
 import { captureGatewayRoute, getGatewayInstance, withGatewayRoute } from './instances.ts';
 import type { GatewayStateAdapter } from './state.ts';
 import { privateDataPath } from '../private.ts';
+import type { GatewayCompletion } from './execution.ts';
+import type { GatewayReconciliation } from '../../shared/types.ts';
 
 const externalId = z.string().min(1).max(500);
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -50,6 +52,7 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
     dispatch: dispatchSchema.optional(),
     reply: z.strictObject({ createdAt: stamp, reason: z.string().optional(), parts: z.array(replyPart).min(1).max(1000) }).optional(),
     notices: z.strictObject({ working: replyPart.optional(), approval: replyPart.optional() }).optional(),
+    reconciliation: z.strictObject({ at: stamp, state: z.enum(['tracking', 'completed', 'needs-review']) }).optional(),
     outgoing: z.array(z.strictObject({ path: z.string().min(1), name: z.string().min(1).max(180), size: stamp.positive(), sha256: z.string().regex(/^[a-f0-9]{64}$/), source: z.strictObject({ runId: externalId, agentId: externalId, chatId: externalId, workspace: z.string().min(1) }).optional(), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed', 'skipped']), attempts: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), bytes: stamp })), remoteId: externalId.optional(), retryAt: stamp.optional(), reason: z.string().optional() })).max(10).optional(),
     files: z.array(z.strictObject({
       index: stamp, status: z.enum(['pending', 'transferring', 'saved', 'failed']),
@@ -60,6 +63,19 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
   })),
 });
 const digest = (parts: (string | number)[]): string => crypto.createHash('sha256').update(JSON.stringify(parts)).digest('hex');
+function saveAnswer(event: GatewayInboxEvent, answer: string): void {
+  if (!event.dispatch || event.reply || !answer.trim() || answer.length > 1000000) throw new Error('The gateway answer needs review.');
+  const parts: string[] = [];
+  for (let start = 0; start < answer.length;) {
+    let end = Math.min(start + 3000, answer.length);
+    const last = answer.charCodeAt(end - 1);
+    if (end < answer.length && last >= 0xd800 && last <= 0xdbff) end--;
+    parts.push(answer.slice(start, end)); start = end;
+  }
+  event.dispatch.state = 'completed'; event.dispatch.answer = answer;
+  event.status = 'done'; delete event.reason;
+  event.reply = { createdAt: Date.now(), parts: parts.map((text) => ({ text, status: 'pending', attempts: 0 })) };
+}
 export class GatewayFileLimitError extends Error {}
 
 /** Atomic writers permit read-only diagnostics without taking the live worker's claim. */
@@ -150,26 +166,41 @@ export class GatewayInbox {
     if (!event) throw new Error('No such gateway message.');
     event.status = 'needs-review'; event.reason = reason;
     if (event.dispatch) event.dispatch.state = 'needs-review';
+    if (event.reconciliation?.state === 'tracking') event.reconciliation = { at: Date.now(), state: 'needs-review' };
     this.commit(journal);
   }
 
   finishDispatch(eventId: string, operationId: string, answer: string): void {
-    if (!answer.trim() || answer.length > 1000000) throw new Error('The gateway answer needs review.');
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
     if (!event?.dispatch || event.status !== 'running' || event.operationId !== operationId) throw new Error('This gateway operation is no longer active.');
     this.checkAccess(event);
-    const parts: string[] = [];
-    for (let start = 0; start < answer.length;) {
-      let end = Math.min(start + 3000, answer.length);
-      const last = answer.charCodeAt(end - 1);
-      if (end < answer.length && last >= 0xd800 && last <= 0xdbff) end--;
-      parts.push(answer.slice(start, end)); start = end;
-    }
-    event.dispatch.state = 'completed'; event.dispatch.answer = answer;
-    event.status = 'done';
-    event.reply = { createdAt: Date.now(), parts: parts.map((text) => ({ text, status: 'pending', attempts: 0 })) };
+    saveAnswer(event, answer);
+    if (event.reconciliation?.state === 'tracking') event.reconciliation = { at: Date.now(), state: 'completed' };
     this.commit(journal);
+  }
+
+  private heldOperation(journal: GatewayInboxJournal, eventId: string): GatewayInboxEvent {
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event || event.status !== 'needs-review' || !event.dispatch || !event.operationId || event.reply) throw new Error('This message has no held operation to check.');
+    this.checkAccess(event);
+    if (event.input.kind !== 'message' || event.input.mediaGroupId || journal.events.some((item) => item.input.kind === 'edit'
+      && item.input.accountId === event.input.accountId && item.input.conversationId === event.input.conversationId
+      && item.input.threadId === event.input.threadId && item.input.sourceMessageId === event.input.sourceMessageId)) throw new Error('This source message changed or needs grouping. It cannot be reconciled automatically.');
+    return event;
+  }
+
+  reconciliationCandidate(eventId: string): GatewayInboxEvent { return this.heldOperation(this.read(), eventId); }
+
+  settleReconciliation(eventId: string, operationId: string, result: GatewayCompletion): GatewayReconciliation {
+    const journal = this.read(); const event = this.heldOperation(journal, eventId);
+    if (event.operationId !== operationId) throw new Error('The saved operation changed.');
+    const state = result.state === 'pending' ? 'tracking' : result.state;
+    if (result.state === 'completed') saveAnswer(event, result.answer);
+    else if (result.state === 'pending') { event.status = 'running'; event.dispatch!.state = 'running'; delete event.reason; }
+    event.reconciliation = { at: Date.now(), state };
+    this.commit(journal);
+    return event.reconciliation;
   }
 
   claimReply(): { event: GatewayInboxEvent; index: number } | null {

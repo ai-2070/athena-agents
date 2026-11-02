@@ -392,8 +392,14 @@ have separate **Retry file** and **Skip file** controls; uncertain deliveries as
 first because a retry might create a duplicate. Skipping cannot undo a delivery that already happened.
 Enable a paused instance before retrying. To send specific files for the current assignment, enter
 absolute paths under **Files to send**, one per line. The server checks their location, size and content
-hash before upload. These actions never replay model work. Messages held for native-work review stay
-paused; controls for reconciling that work and removing old receipts are still being built.
+hash before upload. These actions never replay model work.
+
+For a held message with a saved operation, **Check saved work** checks that original operation without
+starting another run. If its completion is verified and the original sender and destination are still
+allowed, its saved reply is queued for delivery. Work still in progress resumes completion tracking.
+Missing records, edited input, changed destinations and unproven completion remain held; this action
+does not override them. Team recovery needs a completed review of the original message, rather than
+the latest team reply. Controls for removing old receipts are still being built.
 Uncertain sends need review before retrying; automatic retries preserve confirmed reply parts.
 Slow requests can send one working notice. When a run needs approval, Telegram says **Needs approval in Athena**;
 review it in the dashboard. Telegram cannot approve requests.

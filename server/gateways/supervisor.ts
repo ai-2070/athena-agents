@@ -1,4 +1,4 @@
-import type { GatewayHealth, ServerEvent } from '../../shared/types.ts';
+import type { GatewayHealth, GatewayReconciliation, ServerEvent } from '../../shared/types.ts';
 import { bus, emit } from '../store.ts';
 import { getGatewayInstance, listGatewayInstances } from './instances.ts';
 import { TelegramGatewayWorker } from './worker.ts';
@@ -35,6 +35,12 @@ export class GatewaySupervisor {
     const worker = this.workers.get(instanceId);
     if (!worker) throw Object.assign(new Error('Connect this gateway before retrying its reply.'), { status: 400 });
     worker.retryReply(eventId);
+  }
+
+  reconcile(instanceId: string, eventId: string): GatewayReconciliation {
+    const worker = this.workers.get(instanceId);
+    if (!worker) throw Object.assign(new Error('Connect this gateway before checking its saved work.'), { status: 400 });
+    return worker.reconcile(eventId);
   }
 
   async selectDocuments(instanceId: string, eventId: string, body: unknown): Promise<void> {

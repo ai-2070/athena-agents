@@ -15,6 +15,7 @@ export type GatewayCompletion = { state: 'pending' } | { state: 'needs-review' }
 export interface GatewayExecutionServices {
   submit(event: GatewayInboxEvent, signal: AbortSignal, proceed: () => boolean): Promise<GatewaySubmitted>;
   poll(event: GatewayInboxEvent): GatewayCompletion;
+  reconcile?(event: GatewayInboxEvent): GatewayCompletion;
   approvalPending?(event: GatewayInboxEvent): boolean;
 }
 const pending: GatewayCompletion = { state: 'pending' };
@@ -47,7 +48,7 @@ function agentCompletion(event: GatewayInboxEvent, agentId: string, chatId: stri
   if (all.some((item) => item.id !== runId && item.ownerChatId === chatId && item.startedAt >= run.startedAt)) return review;
   return { state: 'completed', answer: run.answer || '' };
 }
-function teamCompletion(event: GatewayInboxEvent, teamId: string, messageId: string): GatewayCompletion {
+function teamCompletion(event: GatewayInboxEvent, teamId: string, messageId: string, strict = false): GatewayCompletion {
   if (privateTeamRecord(teamId)?.conversationId !== event.bindingId) return review;
   const team = getTeam(teamId);
   if (!team) return review;
@@ -58,8 +59,26 @@ function teamCompletion(event: GatewayInboxEvent, teamId: string, messageId: str
   if (teamState(teamId).resumable) return review;
   const brief = checkBrief(event, briefFor(messageId, teamId));
   if (brief?.state !== 'completed' && brief) return brief;
+  if (strict) return brief?.state === 'completed' && brief.answer.trim() ? brief : review;
   const answer = brief?.state === 'completed' && brief.answer || thread.messages.slice(at + 1).findLast((message) => team.members.includes(message.from))?.text;
   return answer ? { state: 'completed', answer } : review;
+}
+
+function completion(event: GatewayInboxEvent, strict = false): GatewayCompletion {
+  return withGatewayRoute(event.route, () => {
+    const dispatch = event.dispatch;
+    if (!dispatch) return review;
+    const local = dispatch.conversation;
+    if (local.kind === 'agent') return agentCompletion(event, local.agentId, local.chatId, dispatch.runId!);
+    if (local.kind === 'team') return teamCompletion(event, local.teamId, dispatch.messageId!, strict);
+    const saved = dispatch.brain ?? history(event.route.projectId, event.bindingId).findLast((message) => message.role === 'brain' && message.operationId === event.operationId);
+    if (!saved || ('done' in saved && saved.done?.some((item) => item.kind === 'error'))) return review;
+    const delegate = saved.delegate;
+    if (!delegate) return { state: 'completed', answer: 'answer' in saved ? saved.answer : saved.text };
+    if (delegate.kind === 'agent' && delegate.sent?.chatId && delegate.sent.runId) return agentCompletion(event, delegate.id, delegate.sent.chatId, delegate.sent.runId);
+    if (delegate.kind === 'branch' && delegate.sent?.messageId) return teamCompletion(event, delegate.id, delegate.sent.messageId, strict);
+    return review;
+  });
 }
 
 export const gatewayExecution: GatewayExecutionServices = {
@@ -95,20 +114,6 @@ export const gatewayExecution: GatewayExecutionServices = {
       return { brain: { answer: answer.answer, delegate: delegate ? { kind: delegate.kind, id: delegate.id, name: delegate.name, message: delegate.message, sent: delegate.sent } : null }, ...briefReference(brief) };
     });
   },
-  poll(event) {
-    return withGatewayRoute(event.route, () => {
-      const dispatch = event.dispatch;
-      if (!dispatch) return review;
-      const local = dispatch.conversation;
-      if (local.kind === 'agent') return agentCompletion(event, local.agentId, local.chatId, dispatch.runId!);
-      if (local.kind === 'team') return teamCompletion(event, local.teamId, dispatch.messageId!);
-      const saved = dispatch.brain ?? history(event.route.projectId, event.bindingId).findLast((message) => message.role === 'brain' && message.operationId === event.operationId);
-      if (!saved || ('done' in saved && saved.done?.some((item) => item.kind === 'error'))) return review;
-      const delegate = saved.delegate;
-      if (!delegate) return { state: 'completed', answer: 'answer' in saved ? saved.answer : saved.text };
-      if (delegate.kind === 'agent' && delegate.sent?.chatId && delegate.sent.runId) return agentCompletion(event, delegate.id, delegate.sent.chatId, delegate.sent.runId);
-      if (delegate.kind === 'branch' && delegate.sent?.messageId) return teamCompletion(event, delegate.id, delegate.sent.messageId);
-      return review;
-    });
-  },
+  poll: (event) => completion(event),
+  reconcile: (event) => completion(event, true),
 };

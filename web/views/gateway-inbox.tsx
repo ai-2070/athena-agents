@@ -101,7 +101,14 @@ function InboxMessage({ event, busy, connected, canSelect, act }: {
       <div className="break-all text-dim">Saved project <code>{event.route.projectId}</code> · {event.route.target.kind === 'brain' ? 'The Brain' : <>{event.route.target.kind === 'agent' ? 'Agent' : 'Team'} <code>{event.route.target.id}</code></>}. Destination changes do not redirect saved work.</div>
       {event.input.text && <p tabIndex={0} aria-label="Original message" className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words focus-visible:outline-2 focus-visible:outline-accent">{event.input.text}</p>}
       {event.reason && <p className="m-0 whitespace-pre-wrap break-words text-dim">{event.reason}</p>}
-      {event.status === 'needs-review' && <p className="m-0 text-dim">This message is held for review. Automatic model replay is disabled. Review the native work and saved destination before starting another assignment.</p>}
+      {event.status === 'needs-review' && <div>
+        <p className="m-0 text-dim">This message is held for review. Automatic model replay is disabled. Review the native work and saved destination before starting another assignment.</p>
+        {event.dispatch && event.operationId && !event.reply && event.input.kind === 'message' && !event.input.mediaGroupId && <div className="mt-2">
+          <p className="my-2 text-dim">Check only the original saved operation. If it is complete and still allowed, its saved reply will be delivered. This does not start another run or override edited input.</p>
+          <Button size="small" variant="ghost" disabled={busy || !connected} onClick={() => void act(`${base}/reconcile`)}>Check saved work</Button>
+        </div>}
+      </div>}
+      {event.reconciliation && <p role="status" className="m-0 text-dim">{event.reconciliation.state === 'tracking' ? 'Tracking the original saved work.' : event.reconciliation.state === 'completed' ? 'Saved completed answer queued for delivery.' : 'Still held: no completed operation was verified.'} · Checked {new Date(event.reconciliation.at).toLocaleString()}</p>}
       {event.files?.length ? <div><h3 className="m-0 mb-2 text-[13px] font-medium">Incoming files</h3>
         {event.files.map((file) => {
           const size = file.file?.size ?? event.input.media[file.index]?.size;

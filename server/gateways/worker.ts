@@ -1,6 +1,6 @@
 import { Chat } from 'chat';
 import type { Logger } from 'chat';
-import type { GatewayHealth } from '../../shared/types.ts';
+import type { GatewayHealth, GatewayReconciliation } from '../../shared/types.ts';
 import { getGatewaySecrets } from '../store.ts';
 import { captureGatewayRoute, getGatewayInstance } from './instances.ts';
 import { GatewayInbox } from './inbox.ts';
@@ -197,6 +197,12 @@ export class TelegramGatewayWorker {
     if (this.closed || !this.inbox || !this.replies) throw Object.assign(new Error('Connect this gateway before retrying its reply.'), { status: 400 });
     try { this.inbox.retryReply(eventId); }
     catch { throw Object.assign(new Error('This reply cannot be retried. Check its status, access and destination.'), { status: 400 }); }
+  }
+
+  reconcile(eventId: string): GatewayReconciliation {
+    if (this.closed || !this.dispatcher) throw Object.assign(new Error('Connect this gateway before checking its saved work.'), { status: 400 });
+    try { return this.dispatcher.reconcile(eventId); }
+    catch { throw Object.assign(new Error('This work cannot be reconciled. Check the saved destination, sender access and source edits. Nothing was restarted or sent.'), { status: 400 }); }
   }
 
   async selectDocuments(eventId: string, body: unknown): Promise<void> {

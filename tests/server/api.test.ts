@@ -261,6 +261,8 @@ describe('gateway configuration API', () => {
     expect(await (await req(`/api/gateways/${one.id}/inbox`)).json()).toEqual({ events: [] });
     expect((await req(`/api/gateways/${one.id}/inbox/missing/retry-reply`, { method: 'POST', headers: json })).status).toBe(400);
     expect((await req(`/api/gateways/${one.id}/inbox/missing/retry-reply`, { method: 'POST' })).status).toBe(403);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/reconcile`, { method: 'POST' })).status).toBe(403);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/reconcile`, { method: 'POST', headers: json })).status).toBe(400);
     expect((await req(`/api/gateways/${one.id}/inbox/missing/files`, { method: 'POST', headers: json, body: JSON.stringify({ paths: ['file.txt'] }) })).status).toBe(400);
     expect((await req(`/api/gateways/${one.id}/inbox/missing/files/0/retry`, { method: 'POST', headers: json })).status).toBe(400);
     expect((await req(`/api/gateways/${one.id}/inbox/missing/files/0/skip`, { method: 'POST', headers: json })).status).toBe(400);

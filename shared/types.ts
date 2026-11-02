@@ -97,6 +97,12 @@ export interface GatewayInboxEvent {
   reply?: { parts: GatewayReplyPart[]; createdAt: number; reason?: string };
   notices?: Partial<Record<'working' | 'approval', GatewayReplyPart>>;
   outgoing?: GatewayOutgoingFile[];
+  reconciliation?: GatewayReconciliation;
+}
+
+export interface GatewayReconciliation {
+  at: number;
+  state: 'tracking' | 'completed' | 'needs-review';
 }
 
 export interface GatewayOutgoingFile {

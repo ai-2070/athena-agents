@@ -8,6 +8,7 @@ import { gatewayConversation } from '../../server/gateways/conversations.ts';
 import type { GatewayCompletion, GatewayExecutionServices } from '../../server/gateways/execution.ts';
 import type { GatewayReplySender } from '../../server/gateways/replies.ts';
 import { gatewayConfig, gatewayInput } from './gateway-fixtures.ts';
+import { newAgent } from '../../server/library.ts';
 
 let account = 60000;
 const cleanups: (() => Promise<void>)[] = [];
@@ -39,8 +40,60 @@ async function fixture() {
   };
   return { config, instance, state, inbox, abort, accept, outcomes, submissions, services, dispatcher, replies, finish };
 }
+async function held(f: Awaited<ReturnType<typeof fixture>>) {
+  f.accept(); const claimed = f.inbox.claimNext()!;
+  f.inbox.beginDispatch(claimed.id, claimed.operationId!, await gatewayConversation(claimed, f.abort.signal));
+  f.inbox.review(claimed.id); return f.inbox.list()[0];
+}
 
 describe('gateway dispatch and reply receipts', () => {
+  it('reconciles a held completion after restart without submitting a second model request or replacing delivery receipts', async () => {
+    const f = await fixture(); const original = await held(f);
+    await f.state.disconnect(); await f.state.connect(); f.inbox.recover();
+    f.outcomes.set(original.id, { state: 'completed', answer: 'Verified saved answer' });
+    expect(f.dispatcher.reconcile(original.id).state).toBe('completed');
+    expect(f.submissions).toHaveLength(0);
+    const recovered = f.inbox.list()[0]; expect(recovered.operationId).toBe(original.operationId);
+    expect(recovered.reply?.parts[0].text).toBe('Verified saved answer');
+    expect(() => f.dispatcher.reconcile(original.id)).toThrow('held operation');
+    let sends = 0; await f.replies(async () => { sends++; return 'recovered-reply'; }).wake();
+    expect(sends).toBe(1); expect(f.submissions).toHaveLength(0);
+  });
+
+  it('keeps strict completion checks when resuming tracking of an original operation', async () => {
+    const f = await fixture(); const original = await held(f);
+    let result: GatewayCompletion = { state: 'pending' };
+    f.services.reconcile = () => result;
+    f.services.poll = () => ({ state: 'completed', answer: 'Unproven fallback answer' });
+    expect(f.dispatcher.reconcile(original.id).state).toBe('tracking');
+    await f.dispatcher.start(); expect(f.inbox.list()[0].status).toBe('running');
+    expect(f.inbox.list()[0].reply).toBeUndefined(); expect(f.submissions).toHaveLength(0);
+    result = { state: 'completed', answer: 'Verified completion' }; await f.dispatcher.wake();
+    expect(f.inbox.list()[0].reply?.parts[0].text).toBe('Verified completion');
+    expect(f.inbox.list()[0].reconciliation?.state).toBe('completed'); expect(f.submissions).toHaveLength(0);
+  });
+
+  it('leaves missing execution evidence held and refuses claims without a dispatch receipt', async () => {
+    const f = await fixture(); const original = await held(f);
+    f.outcomes.set(original.id, { state: 'needs-review' });
+    expect(f.dispatcher.reconcile(original.id).state).toBe('needs-review');
+    expect(f.inbox.list()[0].status).toBe('needs-review'); expect(f.inbox.list()[0].reply).toBeUndefined();
+    expect(f.submissions).toHaveLength(0);
+    const other = f.accept('2', '456'); const claimed = f.inbox.claimNext()!; expect(claimed.id).toBe(other.id);
+    f.inbox.review(other.id); expect(() => f.dispatcher.reconcile(other.id)).toThrow('held operation');
+  });
+
+  it.each(['edit', 'access', 'route', 'edit during check'])('refuses reconciliation after %s changes', async (kind) => {
+    const f = await fixture(); const original = await held(f);
+    const edit = () => f.inbox.accept({ ...original.input, kind: 'edit', sourceEventId: 'edited', text: 'Changed request' });
+    if (kind === 'edit') edit();
+    if (kind === 'access') saveGatewayInstance({ ...f.config, senderPolicy: { platform: 'telegram', allowedUserIds: ['777'] } }, f.instance.id);
+    if (kind === 'route') { const agent = newAgent({ name: 'Other destination' }); saveGatewayInstance({ ...f.config, target: { kind: 'agent', id: agent.id } }, f.instance.id); }
+    f.services.reconcile = () => { if (kind === 'edit during check') edit(); return { state: 'completed', answer: 'Must stay held' }; };
+    expect(() => f.dispatcher.reconcile(original.id)).toThrow();
+    expect(f.inbox.list()[0].reply).toBeUndefined(); expect(f.submissions).toHaveLength(0);
+  });
+
   it('sends one delayed working notice while a long Brain submission is still pending', async () => {
     const f = await fixture(); f.accept();
     let finish: (() => void) | undefined;

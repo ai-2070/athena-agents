@@ -31,6 +31,7 @@ beforeEach(() => {
     writes.push({ url, body: JSON.parse(String(init.body || '{}')) as Record<string, unknown> });
     if (refuse) return new Response(JSON.stringify({ error: 'File access changed.' }), { status: 400 });
     if (url.endsWith('/retry-reply')) events[0].reply!.parts[1].status = 'pending';
+    if (url.endsWith('/reconcile')) events[0].reconciliation = { at: 1700000000000, state: 'needs-review' };
     if (url.endsWith('/files/1/skip')) events[0].outgoing![1].status = 'skipped';
     return new Response(JSON.stringify({ ok: true }));
   });
@@ -124,4 +125,20 @@ it('distinguishes skipped files from fully confirmed delivery', () => {
   expect(gatewayMessageStatus(item)).toBe('Delivered');
   item.outgoing = [{ path: '/report', name: 'report.txt', size: 5, sha256: 'a'.repeat(64), status: 'skipped', attempts: [] }];
   expect(gatewayMessageStatus(item)).toContain('skipped');
+});
+
+it('checks only the saved held operation and reports when completion is still unproven', async () => {
+  events[0].status = 'needs-review'; events[0].reply = undefined; events[0].dispatch!.state = 'needs-review';
+  await open(); expect(host.textContent).toContain('does not start another run');
+  await click('Check saved work'); await settle();
+  expect(writes.map((request) => request.url)).toEqual(['/api/gateways/g1/inbox/event-1/reconcile']);
+  expect(host.textContent).toContain('Still held: no completed operation was verified.');
+  expect(gatewayMessageStatus(events[0])).toBe('Needs review');
+});
+
+it('does not offer recovery for input without a dispatch receipt and disables it while paused', async () => {
+  events[0].status = 'needs-review'; events[0].reply = undefined;
+  await open(false); expect(button('Check saved work').disabled).toBe(true);
+  act(() => unmount()); events[0].dispatch = undefined; await open();
+  expect(button('Check saved work')).toBeUndefined(); expect(writes).toHaveLength(0);
 });
