@@ -101,6 +101,8 @@
 @keyframes pulse { 50% { opacity: 0.3; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-out { to { opacity: 0; } }
+/* a gap opening where a dragged card will land (the Tasks board) */
+@keyframes open-slot { from { height: 0; opacity: 0; } }
 @keyframes pop-out { to { opacity: 0; transform: scale(0.96); } }
 /* a menu opening: it fades in and settles from a touch smaller */
 @keyframes menu-pop { from { opacity: 0; transform: scale(0.97) translateY(var(--menu-dy, -3px)); } to { opacity: 1; transform: none; } }

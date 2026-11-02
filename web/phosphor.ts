@@ -10,6 +10,14 @@ import { ArchiveIcon } from '@phosphor-icons/react/dist/csr/Archive';
 import { FolderPlusIcon } from '@phosphor-icons/react/dist/csr/FolderPlus';
 import { KeyboardIcon } from '@phosphor-icons/react/dist/csr/Keyboard';
 import { KanbanIcon } from '@phosphor-icons/react/dist/csr/Kanban';
+import { CircleDashedIcon } from '@phosphor-icons/react/dist/csr/CircleDashed';
+import { CircleHalfIcon } from '@phosphor-icons/react/dist/csr/CircleHalf';
+import { EyeIcon } from '@phosphor-icons/react/dist/csr/Eye';
+import { UserIcon } from '@phosphor-icons/react/dist/csr/User';
+import { MinusIcon } from '@phosphor-icons/react/dist/csr/Minus';
+import { LinkSimpleIcon } from '@phosphor-icons/react/dist/csr/LinkSimple';
+import { CaretDoubleUpIcon } from '@phosphor-icons/react/dist/csr/CaretDoubleUp';
+import { CaretUpIcon } from '@phosphor-icons/react/dist/csr/CaretUp';
 import { GithubLogoIcon } from '@phosphor-icons/react/dist/csr/GithubLogo';
 import { ArrowClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowClockwise';
 import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowCounterClockwise';
@@ -210,6 +218,14 @@ export const PHOSPHOR: Record<string, PhosphorIcon> = {
   'github-logo': GithubLogoIcon,
   keyboard: KeyboardIcon,
   kanban: KanbanIcon,
+  'circle-dashed': CircleDashedIcon,
+  'circle-half': CircleHalfIcon,
+  'eye': EyeIcon,
+  'user': UserIcon,
+  'minus': MinusIcon,
+  'link': LinkSimpleIcon,
+  'chevrons-up': CaretDoubleUpIcon,
+  'chevron-up': CaretUpIcon,
   'rotate-cw': ArrowClockwiseIcon,
   'chevron-right': CaretRightIcon,
   rocket: RocketIcon,
