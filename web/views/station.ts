@@ -2312,14 +2312,14 @@ function wfStats(wfId: string) {
 function scheduleText(s: (Schedule & { minutes?: number }) | undefined): string {
   if (!s || s.type === 'none') return 'manual';
   if (s.type === 'interval') return `every ${s.minutes || 60} min`;
-  return `daily ${(s.times?.length ? s.times : ['09:00']).join(', ')}`;
+  return `Daily ${(s.times?.length ? s.times : ['09:00']).join(', ')}`;
 }
 
 function drawBranchCard(wfId: string): void {
   assertMounted(S);
   const b = S.branches.get(wfId);
   if (!b) return;
-  const wf = b.wf;
+  const wf = S.workflows.find((team) => team.id === wfId) || b.wf;
   const ts = S.teamState?.[wfId] || { working: [], queued: [] };
   const last = S.teamLast?.[wfId];
   const nameOf = (id: string) => (id === 'user' ? 'You' : id === 'system' ? '' : id === 'brain' ? 'Brain' : state.data?.agents.find((a) => a.id === id)?.name || '');

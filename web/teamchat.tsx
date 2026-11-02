@@ -880,7 +880,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
                 ) : (
                   <Icon name={o.label === 'Brain' ? 'brain' : 'users'} size={14} />
                 )}
-                <span className="min-w-0 max-w-[45%] shrink-0 truncate">{`${o.t ? '#' : '@'}${o.label}`}</span>
+                <span className="min-w-0 max-w-[45%] shrink-0 truncate font-medium">{`${o.t ? '#' : '@'}${o.label}`}</span>
                 {o.label === 'Brain' && !o.t ? <span className="hint">ask the Brain</span> : null}
                 {o.a?.specialty ? <span className="hint">{o.a.specialty}</span> : o.t ? <span className="hint">{o.t.description || 'ask this team'}</span> : null}
               </button>

@@ -695,7 +695,7 @@ export function ChatView(p: ChatViewProps) {
               <span className="avatar" style={{ '--agent-color': a.color || 'var(--color-accent)' } as CSSProperties}>
                 {a.emoji || '🤖'}
               </span>
-              @{a.name}
+              <span className="min-w-0 shrink-0 truncate font-medium">@{a.name}</span>
               {a.specialty ? <span className="hint">{a.specialty}</span> : null}
             </button>
           ))}

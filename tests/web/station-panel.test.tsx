@@ -165,6 +165,18 @@ describe('the Station panel', () => {
     expect(saved.at(-1)!.enabled).toBe(true);
   });
 
+  it('saves Off and keeps it selected after the team refreshes', async () => {
+    teams[0] = team({ schedule: { type: 'daily', times: ['09:00'] }, enabled: true });
+    await open({ type: 'branch', id: 't1' });
+    await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
+    await act(async () => button('Off').click());
+    expect(saved.at(-1)!.enabled).toBe(false);
+    expect(saved.at(-1)!.schedule?.type).toBe('none');
+    teams[0] = saved.at(-1)!;
+    await open({ type: 'branch', id: 't1' });
+    expect(button('Off').getAttribute('aria-pressed')).toBe('true');
+  });
+
   it('turns the routine off when its last time is cleared', async () => {
     teams[0] = team({ schedule: { type: 'daily', times: ['09:00'] }, enabled: true });
     await open({ type: 'branch', id: 't1' });

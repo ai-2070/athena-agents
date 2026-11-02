@@ -15,7 +15,7 @@ export function AgentSelect({ agents, value, onChange }: { agents: Agent[]; valu
       <Select.Trigger aria-label="Agent to add" className={fieldTriggerClass('panel', 'text-ink')}>
         <span className={`${row} flex-1`}>
           {picked ? <Avatar agent={picked} /> : null}
-          <span className="min-w-0 truncate">{picked?.name}</span>
+          <span className="min-w-0 truncate font-medium">{picked?.name}</span>
         </span>
         <Select.Icon className="flex text-dim">
           <Icon name="chevron-down" size={16} />
@@ -29,7 +29,7 @@ export function AgentSelect({ agents, value, onChange }: { agents: Agent[]; valu
                 <Select.Item key={a.id} value={a.id} className="st-menu-item">
                   <span className={`${row} flex-1`}>
                     <Avatar agent={a} />
-                    <Select.ItemText className="min-w-0 truncate">{a.name}</Select.ItemText>
+                    <Select.ItemText className="min-w-0 truncate font-medium">{a.name}</Select.ItemText>
                   </span>
                   <Select.ItemIndicator className="flex text-accent">
                     <Icon name="check" size={14} />
