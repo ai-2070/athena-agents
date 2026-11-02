@@ -173,8 +173,7 @@ function navStatus(d: AppState) {
       h('a', { class: footer, href: S('tab=about&find=This PC'), title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}` },
         icon('folder-open', 13), h('span', { class: 'flex min-w-0 flex-1 flex-col gap-0.5' },
           h('span', { class: 'truncate text-dim' }, d.project?.name || 'Project'),
-          h('span', { class: 'truncate', title: savedLine }, savedLine))),
-      h('a', { class: footer, href: S('tab=about&find=This PC'), title: 'Address' }, icon('globe', 13), h('span', { class: 'min-w-0 truncate' }, `localhost:${d.port} · no login`))),
+          h('span', { class: 'truncate', title: savedLine }, savedLine)))),
   ];
 }
 
