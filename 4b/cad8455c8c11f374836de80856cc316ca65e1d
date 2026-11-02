@@ -1,0 +1,26 @@
+web/ui/skeleton.tsx
+  s_8e3c27e6ce0122::t_abb2e3205d8a6d 1-2,4-6,9-11,13-19
+  s_8e3c27e6ce0122::t_c1c5eef5f12b66 3,12
+  s_8e3c27e6ce0122::t_657ec35be6b86b 7-8
+tests/web/library.test.tsx
+  s_8e3c27e6ce0122::t_c1c5eef5f12b66 191-193
+web/views/library.tsx
+  s_8e3c27e6ce0122::t_c1c5eef5f12b66 5,120,122-128,130-164,184
+  s_8e3c27e6ce0122::t_657ec35be6b86b 121,129,208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4bcad8455c8c11f374836de80856cc316ca65e1d",
+  "prompts": {},
+  "sessions": {
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
