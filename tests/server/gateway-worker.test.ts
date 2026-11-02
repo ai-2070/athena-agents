@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { Readable } from 'node:stream';
+import fs from 'node:fs';
+import path from 'node:path';
+import { ensureBrain } from '../../server/projects.ts';
 import { agents, collection } from '../../server/store.ts';
 import { listGatewayInstances, saveGatewayInstance, removeGatewayInstance } from '../../server/gateways/instances.ts';
 import { GatewaySupervisor } from '../../server/gateways/supervisor.ts';
@@ -20,6 +23,32 @@ afterEach(async () => {
 });
 
 describe('gateway intake lifecycle', () => {
+  it('uses the worker file selection service and records interrupted uploads before releasing state', async () => {
+    const instance = saveGatewayInstance(gatewayConfig(String(account++)));
+    let saved: GatewayInbox | undefined; let complete = false; let sending = false;
+    const worker = new TelegramGatewayWorker(instance.id, {
+      execution: { async submit() { return {}; }, poll() { return complete ? { state: 'completed', answer: 'Final answer' } : { state: 'pending' }; } },
+      transport: (state, inbox) => {
+        saved = inbox;
+        return {
+          start: async () => { inbox.accept({ ...gatewayInput(), accountId: instance.accountId }); }, alive: () => true,
+          stop: async () => { expect(inbox.list()[0].outgoing?.[0].status).toBe('uncertain'); await state.disconnect(); },
+          reply: async () => 'text-confirmed',
+          upload: async (_event, _file, signal) => {
+            sending = true;
+            return new Promise<never>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+          },
+        };
+      },
+    }); workers.push(worker); await worker.start();
+    await expect.poll(() => saved?.list()[0].dispatch?.state).toBe('running');
+    const target = path.join(ensureBrain(), `worker-document-${account}.txt`); fs.writeFileSync(target, 'document');
+    await worker.selectDocuments(saved!.list()[0].id, { paths: [target] }); complete = true;
+    await expect.poll(() => sending).toBe(true); await worker.stop();
+    const state = new GatewayStateAdapter(instance.id); await state.connect();
+    expect(new GatewayInbox(state).list()[0].outgoing?.[0].status).toBe('uncertain'); await state.disconnect();
+  });
+
   it('saves an interrupted status notice before transport shutdown releases ownership', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let saved: GatewayInbox | undefined; let sending = false;

@@ -371,7 +371,9 @@ The dashboard keeps the last **50 versions** per item and groups nearby edits. *
 Building, testing and packaging the dashboard is in the [README](../README.md#development).
 
 Chat gateways are still being built. Experimental Telegram instances can pass allowed text and attached files
-to the Brain, a team or an agent and send final text replies. Settings setup and outgoing files are not ready.
+to the Brain, a team or an agent and send final text replies. Files explicitly selected through the local API
+can be sent as Telegram documents after their size, location and saved content hash are checked.
+Settings setup, file selection UI and automatic deliverable attachments are not ready.
 Uncertain sends need review before retrying; automatic retries preserve confirmed reply parts.
 Slow requests can send one working notice. When a run needs approval, Telegram says **Needs approval in Athena**;
 review it in the dashboard. Telegram cannot approve requests.

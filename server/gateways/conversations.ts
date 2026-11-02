@@ -4,7 +4,7 @@ import { getGatewayInstance, withGatewayRoute } from './instances.ts';
 import { gatewayInputAllowed } from './inbox.ts';
 import { verifyGatewayFile } from './files.ts';
 
-/** Resolve only claimed, authorized input. No worker invokes a model through this helper yet. */
+/** Resolve only claimed, authorized input before model admission. */
 export async function gatewayConversation(event: GatewayInboxEvent, signal: AbortSignal): Promise<GatewayLocalConversation> {
   signal.throwIfAborted();
   checkConversationId(event.bindingId);

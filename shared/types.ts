@@ -92,6 +92,19 @@ export interface GatewayInboxEvent {
   dispatch?: GatewayDispatch;
   reply?: { parts: GatewayReplyPart[]; createdAt: number; reason?: string };
   notices?: Partial<Record<'working' | 'approval', GatewayReplyPart>>;
+  outgoing?: GatewayOutgoingFile[];
+}
+
+export interface GatewayOutgoingFile {
+  path: string;
+  name: string;
+  size: number;
+  sha256: string;
+  status: GatewayReplyPart['status'] | 'skipped';
+  attempts: { day: string; bytes: number }[];
+  remoteId?: string;
+  retryAt?: number;
+  reason?: string;
 }
 
 export interface GatewayDispatch {

@@ -37,6 +37,18 @@ export class GatewaySupervisor {
     worker.retryReply(eventId);
   }
 
+  async selectDocuments(instanceId: string, eventId: string, body: unknown): Promise<void> {
+    const worker = this.workers.get(instanceId);
+    if (!worker) throw Object.assign(new Error('Connect this gateway before selecting files.'), { status: 400 });
+    await worker.selectDocuments(eventId, body);
+  }
+
+  changeDocument(instanceId: string, eventId: string, index: number, action: 'retry' | 'skip'): void {
+    const worker = this.workers.get(instanceId);
+    if (!worker) throw Object.assign(new Error('Connect this gateway before changing its files.'), { status: 400 });
+    worker.changeDocument(eventId, index, action);
+  }
+
   start(): Promise<void> {
     if (this.closed) return Promise.resolve();
     if (!this.listening) { bus.on('event', this.changed); this.listening = true; }

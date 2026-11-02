@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import http from 'node:http';
+import path from 'node:path';
 import { once } from 'node:events';
 import { Chat } from 'chat';
 import type { Logger } from 'chat';
@@ -12,6 +13,9 @@ import { TelegramIntakeAdapter } from '../../server/gateways/telegram.ts';
 import { gatewayConfig } from './gateway-fixtures.ts';
 import { GatewayDispatcher } from '../../server/gateways/dispatch.ts';
 import { GatewayReplies } from '../../server/gateways/replies.ts';
+import { gatewayConversation } from '../../server/gateways/conversations.ts';
+import { selectGatewayDocuments } from '../../server/gateways/outgoing.ts';
+import { ensureBrain } from '../../server/projects.ts';
 
 const quiet: Logger = { child: () => quiet, debug() {}, info() {}, warn() {}, error() {} };
 const cleanups: (() => Promise<void>)[] = [];
@@ -44,7 +48,7 @@ async function fixture(options: { webhook?: string; wrongBot?: boolean; failComm
     if (method === 'getMe') result = { id: options.wrongBot ? 888 : Number(instance.accountId), is_bot: true, first_name: 'Athena', username: 'actual_bot' };
     else if (method === 'getWebhookInfo') result = { url: options.webhook ?? '', pending_update_count: 0, has_custom_certificate: false };
     else if (method === 'getFile') result = { file_path: options.filePath ?? 'documents/proof.txt', file_size: options.fileSize ?? 5 };
-    else if (method === 'sendMessage') {
+    else if (method === 'sendMessage' || method === 'sendDocument') {
       if (options.sendError) {
         response.writeHead(options.sendError, { 'content-type': 'application/json' });
         response.end(JSON.stringify({ ok: false, error_code: options.sendError, description: 'private provider detail', parameters: { retry_after: 7 } })); return;
@@ -74,6 +78,31 @@ async function fixture(options: { webhook?: string; wrongBot?: boolean; failComm
 }
 
 describe('Telegram durable intake', () => {
+  it('uploads explicitly selected, verified bytes as a document after the text reply', async () => {
+    const f = await fixture(); f.batches.push([update(1)]); await f.chat.initialize();
+    await expect.poll(() => f.inbox.list().length).toBe(1);
+    const signal = new AbortController().signal;
+    const event = f.inbox.claimNext()!;
+    f.inbox.beginDispatch(event.id, event.operationId!, await gatewayConversation(event, signal));
+    const target = path.join(ensureBrain(), `${f.instance.id}.txt`); fs.writeFileSync(target, 'verified document bytes');
+    await selectGatewayDocuments(f.inbox, event.id, { paths: [target] }, signal);
+    f.inbox.finishDispatch(event.id, event.operationId!, 'Here is your document.');
+    const replies = new GatewayReplies(f.inbox, (input, text, abort) => f.adapter.replyText(input, text, abort), signal, () => true,
+      (input, file, abort) => f.adapter.replyDocument(input, file, abort));
+    cleanups.push(() => replies.stop()); await replies.wake();
+    expect(f.calls.filter((call) => ['sendMessage', 'sendDocument'].includes(call.method)).map((call) => call.method)).toEqual(['sendMessage', 'sendDocument']);
+    const body = f.calls.find((call) => call.method === 'sendDocument')!.body;
+    expect(body).toContain('verified document bytes');
+    expect(body).toContain(`filename="${path.basename(target)}"`);
+    expect(body).toContain('name="chat_id"'); expect(body).toContain('123');
+    expect(body).toContain('name="reply_parameters"'); expect(body).toContain('{"message_id":1}');
+    expect(f.inbox.list()[0].outgoing?.[0].status).toBe('sent');
+    expect(f.inbox.list()[0].outgoing?.[0].remoteId).toBeTruthy();
+    fs.writeFileSync(target, 'changed document bytes');
+    await expect(f.adapter.replyDocument(f.inbox.list()[0], f.inbox.list()[0].outgoing![0], signal)).rejects.toMatchObject({ outcome: 'failed' });
+    expect(f.calls.filter((call) => call.method === 'sendDocument')).toHaveLength(1);
+  });
+
   it.each([{ code: 429, outcome: 'retry' }, { code: 403, outcome: 'failed' }, { code: 500, outcome: 'uncertain' }])('classifies $code send failures without exposing provider details', async ({ code, outcome }) => {
     const f = await fixture({ sendError: code });
     f.batches.push([update(1)]); await f.chat.initialize();

@@ -257,6 +257,10 @@ describe('gateway configuration API', () => {
     expect(await (await req(`/api/gateways/${one.id}/inbox`)).json()).toEqual({ events: [] });
     expect((await req(`/api/gateways/${one.id}/inbox/missing/retry-reply`, { method: 'POST', headers: json })).status).toBe(400);
     expect((await req(`/api/gateways/${one.id}/inbox/missing/retry-reply`, { method: 'POST' })).status).toBe(403);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/files`, { method: 'POST', headers: json, body: JSON.stringify({ paths: ['file.txt'] }) })).status).toBe(400);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/files/0/retry`, { method: 'POST', headers: json })).status).toBe(400);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/files/0/skip`, { method: 'POST', headers: json })).status).toBe(400);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/files`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ paths: ['file.txt'] }) })).status).toBe(403);
     expect((await req(`/api/gateways/${one.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ ...config, name: 'Renamed Telegram' }) })).status).toBe(200);
     expect((await req(`/api/gateways/${one.id}`, { method: 'DELETE', headers: json })).status).toBe(200);
     const remaining = await (await req('/api/gateways')).json() as { instances: GatewayInstance[] };

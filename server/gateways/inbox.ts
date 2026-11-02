@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, UploadedFile } from '../../shared/types.ts';
+import type { GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, UploadedFile } from '../../shared/types.ts';
 import { emit } from '../store.ts';
 import { readJSON, uid, writeJSON } from '../util.ts';
 import { captureGatewayRoute, getGatewayInstance, withGatewayRoute } from './instances.ts';
@@ -50,6 +50,7 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
     dispatch: dispatchSchema.optional(),
     reply: z.strictObject({ createdAt: stamp, reason: z.string().optional(), parts: z.array(replyPart).min(1).max(1000) }).optional(),
     notices: z.strictObject({ working: replyPart.optional(), approval: replyPart.optional() }).optional(),
+    outgoing: z.array(z.strictObject({ path: z.string().min(1), name: z.string().min(1).max(180), size: stamp.positive(), sha256: z.string().regex(/^[a-f0-9]{64}$/), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed', 'skipped']), attempts: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), bytes: stamp })), remoteId: externalId.optional(), retryAt: stamp.optional(), reason: z.string().optional() })).max(10).optional(),
     files: z.array(z.strictObject({
       index: stamp, status: z.enum(['pending', 'transferring', 'saved', 'failed']),
       attempts: z.array(z.strictObject({ id: externalId, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), bytes: stamp })),
@@ -104,9 +105,13 @@ export class GatewayInbox {
           || (file.status === 'transferring' && !file.attempts.length)
           || (file.status === 'saved' && (!file.file || !file.sha256 || file.file.size !== file.attempts.at(-1)?.bytes)))))
         || (event.input.media.length > 0 && ['queued', 'running', 'done'].includes(event.status) && (!event.files || event.files.some((file) => file.status !== 'saved')));
+      const invalidOutgoing = event.outgoing && (!event.dispatch || new Set(event.outgoing.map((file) => file.path)).size !== event.outgoing.length || event.outgoing.some((file) => /[\\/\x00-\x1f\x7f]/.test(file.name)
+        || file.attempts.some((attempt) => attempt.bytes !== file.size)
+        || (['sending', 'sent', 'uncertain'].includes(file.status) && !file.attempts.length)
+        || (file.status === 'sent' && !file.remoteId)));
       return !binding || event.route.instanceId !== this.state.instanceId || JSON.stringify(binding.route) !== JSON.stringify(event.route)
         || (event.dispatch && (event.dispatch.conversation.projectId !== event.route.projectId || event.dispatch.conversation.conversationId !== event.bindingId || event.dispatch.conversation.kind !== event.route.target.kind))
-        || invalidFiles
+        || invalidFiles || invalidOutgoing
         || binding.accountId !== event.input.accountId || binding.conversationId !== event.input.conversationId || binding.threadId !== event.input.threadId
         || event.sequence >= journal.nextSequence || (index > 0 && event.sequence <= journal.events[index - 1].sequence);
     })) throw new Error('The gateway inbox has inconsistent receipts. Restore it before reconnecting.');
@@ -173,7 +178,7 @@ export class GatewayInbox {
     for (const event of journal.events) {
       if (blocked.has(event.bindingId)) continue;
       const index = event.reply?.parts.findIndex((part) => part.status !== 'sent') ?? -1;
-      if (event.status !== 'done' || index >= 0) blocked.add(event.bindingId);
+      if (event.status !== 'done' || index >= 0 || event.outgoing?.some((file) => !['sent', 'skipped'].includes(file.status))) blocked.add(event.bindingId);
       if (index < 0 || !event.reply) continue;
       const part = event.reply.parts[index];
       if (part.status !== 'pending' || (part.retryAt ?? 0) > Date.now()) continue;
@@ -187,6 +192,73 @@ export class GatewayInbox {
       return { event, index };
     }
     return null;
+  }
+
+  selectOutgoing(eventId: string, files: Pick<GatewayOutgoingFile, 'path' | 'name' | 'size' | 'sha256'>[]): void {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event?.dispatch || !['running', 'done'].includes(event.status) || journal.events.some((item) => item.bindingId === event.bindingId && item.sequence > event.sequence && item.dispatch)) throw new Error('Select files for the current gateway assignment.');
+    const instance = this.checkAccess(event);
+    if (!files.length || files.length > instance.fileLimits.filesPerMessage || files.some((file) => file.size > instance.fileLimits.perFileBytes) || files.reduce((sum, file) => sum + file.size, 0) > instance.fileLimits.perMessageBytes) throw new Error('These files exceed this gateway’s limits.');
+    if (event.outgoing) {
+      if (JSON.stringify(event.outgoing.map(({ path, name, size, sha256 }) => ({ path, name, size, sha256 }))) === JSON.stringify(files)) return;
+      throw new Error('Files were already selected for this assignment.');
+    }
+    event.outgoing = files.map((file) => ({ ...file, status: 'pending', attempts: [] }));
+    this.commit(journal);
+  }
+
+  claimOutgoing(): { event: GatewayInboxEvent; index: number } | null {
+    const journal = this.read();
+    const blocked = new Set<string>();
+    let changed = false;
+    for (const event of journal.events) {
+      if (blocked.has(event.bindingId)) continue;
+      const index = event.outgoing?.findIndex((file) => !['sent', 'skipped'].includes(file.status)) ?? -1;
+      if (event.status !== 'done' || event.reply?.parts.some((part) => part.status !== 'sent') || index >= 0) blocked.add(event.bindingId);
+      if (event.status !== 'done' || !event.reply?.parts.every((part) => part.status === 'sent') || index < 0) continue;
+      const file = event.outgoing![index];
+      if (file.status !== 'pending' || (file.retryAt ?? 0) > Date.now()) continue;
+      try {
+        const instance = this.checkAccess(event);
+        const day = new Date().toISOString().slice(0, 10);
+        const used = (events: GatewayInboxEvent[], today: boolean) => events.flatMap((item) => item.outgoing ?? []).flatMap((item) => item.attempts).reduce((sum, attempt) => sum + (!today || attempt.day === day ? attempt.bytes : 0), 0);
+        if (index >= instance.fileLimits.filesPerMessage || file.size > instance.fileLimits.perFileBytes || used([event], false) + file.size > instance.fileLimits.perMessageBytes || used(journal.events, true) + file.size > instance.fileLimits.dailyBytes) throw new Error('quota');
+        file.attempts.push({ day, bytes: file.size });
+        file.status = 'sending'; delete file.reason;
+        this.commit(journal);
+        return { event, index };
+      } catch {
+        file.status = 'failed'; file.reason = 'Check access, destination and file limits before retrying.'; changed = true;
+      }
+    }
+    if (changed) this.commit(journal);
+    return null;
+  }
+
+  settleOutgoing(eventId: string, index: number, outcome: { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number }): void {
+    const journal = this.read();
+    const file = journal.events.find((item) => item.id === eventId)?.outgoing?.[index];
+    if (!file || file.status !== 'sending') throw new Error('This file is no longer sending.');
+    if ('remoteId' in outcome) { file.status = 'sent'; file.remoteId = outcome.remoteId; delete file.retryAt; delete file.reason; }
+    else {
+      file.status = outcome.status; file.retryAt = outcome.retryAt;
+      file.reason = outcome.status === 'uncertain' ? 'Delivery uncertain. Check Telegram before explicitly retrying.' : outcome.status === 'failed' ? 'The file could not be sent. Check its location, contents and setup.' : 'The platform asked this file to wait before retrying.';
+    }
+    this.commit(journal);
+  }
+
+  changeOutgoing(eventId: string, index: number, action: 'retry' | 'skip'): void {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    const file = event?.outgoing?.[index];
+    if (!event || !file || !['pending', 'failed', 'uncertain'].includes(file.status)) throw new Error('This file cannot be changed.');
+    if (action === 'retry') {
+      this.checkAccess(event);
+      if (file.status === 'pending') throw new Error('This file is already waiting to send.');
+    }
+    file.status = action === 'skip' ? 'skipped' : 'pending'; delete file.retryAt; delete file.reason;
+    this.commit(journal);
   }
 
   queueNotice(eventId: string, kind: 'working' | 'approval'): void {
@@ -379,6 +451,10 @@ export class GatewayInbox {
         for (const part of original.reply.parts) if (part.status === 'pending') part.status = 'failed';
         original.reply.reason = 'The source message changed. Review this answer before explicitly retrying.';
       }
+      for (const file of original?.outgoing ?? []) {
+        if (file.status !== 'pending') continue;
+        file.status = 'failed'; file.reason = 'The source message changed. Review this file before explicitly retrying.';
+      }
     }
     journal.events.push(event);
     this.commit(journal);
@@ -392,7 +468,7 @@ export class GatewayInbox {
     const blocked = new Set<string>();
     for (const event of journal.events) {
       const prior = blocked.has(event.bindingId);
-      if (event.status !== 'done' || event.reply?.parts.some((part) => part.status !== 'sent')) blocked.add(event.bindingId);
+      if (event.status !== 'done' || event.reply?.parts.some((part) => part.status !== 'sent') || event.outgoing?.some((file) => !['sent', 'skipped'].includes(file.status))) blocked.add(event.bindingId);
       if (event.status !== 'queued') continue;
       if (prior) continue;
       try {
@@ -427,6 +503,10 @@ export class GatewayInbox {
     const journal = this.read();
     let changed = false;
     for (const event of journal.events) {
+      for (const file of event.outgoing ?? []) {
+        if (file.status !== 'sending') continue;
+        file.status = 'uncertain'; file.reason = 'Delivery was interrupted. Check Telegram before explicitly retrying.'; changed = true;
+      }
       for (const notice of Object.values(event.notices ?? {})) {
         if (notice.status !== 'sending') continue;
         notice.status = 'uncertain'; changed = true;

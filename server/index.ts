@@ -997,6 +997,18 @@ post('/api/gateways/:id/inbox/:eventId/retry-reply', async ({ id, eventId }) => 
   gatewaySupervisor.retryReply(id, eventId);
   return { ok: true };
 });
+post<unknown>('/api/gateways/:id/inbox/:eventId/files', async ({ id, eventId }, body) => {
+  await gatewaySupervisor.selectDocuments(id, eventId, body);
+  return { ok: true };
+});
+post('/api/gateways/:id/inbox/:eventId/files/:index/retry', async ({ id, eventId, index }) => {
+  gatewaySupervisor.changeDocument(id, eventId, /^\d+$/.test(index) ? Number(index) : -1, 'retry');
+  return { ok: true };
+});
+post('/api/gateways/:id/inbox/:eventId/files/:index/skip', async ({ id, eventId, index }) => {
+  gatewaySupervisor.changeDocument(id, eventId, /^\d+$/.test(index) ? Number(index) : -1, 'skip');
+  return { ok: true };
+});
 del('/api/gateways/:id', async ({ id }) => {
   gateways.removeGatewayInstance(id);
   await gatewaySupervisor.reconnect(id);

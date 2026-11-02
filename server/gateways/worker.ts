@@ -14,6 +14,8 @@ import { gatewayExecution } from './execution.ts';
 import type { GatewayExecutionServices } from './execution.ts';
 import { GatewayReplies } from './replies.ts';
 import type { GatewayReplySender } from './replies.ts';
+import { selectGatewayDocuments } from './outgoing.ts';
+import type { GatewayFileSender } from './outgoing.ts';
 
 interface Transport {
   start(): Promise<void>;
@@ -21,6 +23,7 @@ interface Transport {
   alive(): boolean;
   download?: GatewayDownloader;
   reply?: GatewayReplySender;
+  upload?: GatewayFileSender;
 }
 interface WorkerOptions {
   transport?(state: GatewayStateAdapter, inbox: GatewayInbox, activity: (connected: boolean) => void, signal: AbortSignal): Transport;
@@ -36,7 +39,7 @@ function telegramTransport(state: GatewayStateAdapter, inbox: GatewayInbox, acti
   if (!botToken) throw new GatewaySetupError('Add a Telegram bot token before connecting.');
   const telegram = new TelegramIntakeAdapter(state.instanceId, inbox, botToken, activity, { signal });
   const chat = new Chat({ userName: 'Athena', adapters: { telegram }, state, logger: quiet, concurrency: 'concurrent' });
-  return { start: () => chat.initialize(), stop: () => chat.shutdown(), alive: () => telegram.isPolling, download: (id, maxBytes, signal) => telegram.downloadFileSource(id, maxBytes, signal), reply: (event, text, signal) => telegram.replyText(event, text, signal) };
+  return { start: () => chat.initialize(), stop: () => chat.shutdown(), alive: () => telegram.isPolling, download: (id, maxBytes, signal) => telegram.downloadFileSource(id, maxBytes, signal), reply: (event, text, signal) => telegram.replyText(event, text, signal), upload: (event, file, signal) => telegram.replyDocument(event, file, signal) };
 }
 
 /** A supervised local intake worker. Agent execution and delivery consume the saved inbox separately. */
@@ -114,7 +117,7 @@ export class TelegramGatewayWorker {
       abort.signal.throwIfAborted();
       if (transport.reply) {
         const execution = this.options.execution ?? gatewayExecution;
-        this.replies = new GatewayReplies(inbox, transport.reply, abort.signal, (event, kind) => kind !== 'approval' || execution.approvalPending?.(event) === true); this.replies.start();
+        this.replies = new GatewayReplies(inbox, transport.reply, abort.signal, (event, kind) => kind !== 'approval' || execution.approvalPending?.(event) === true, transport.upload); this.replies.start();
         this.dispatcher = new GatewayDispatcher(inbox, abort.signal, execution);
         await this.dispatcher.start();
       }
@@ -190,6 +193,17 @@ export class TelegramGatewayWorker {
     if (this.closed || !this.inbox || !this.replies) throw Object.assign(new Error('Connect this gateway before retrying its reply.'), { status: 400 });
     try { this.inbox.retryReply(eventId); }
     catch { throw Object.assign(new Error('This reply cannot be retried. Check its status, access and destination.'), { status: 400 }); }
+  }
+
+  async selectDocuments(eventId: string, body: unknown): Promise<void> {
+    if (this.closed || !this.inbox || !this.transport?.upload || !this.replies || !this.abort) throw Object.assign(new Error('Connect this gateway before selecting files.'), { status: 400 });
+    await selectGatewayDocuments(this.inbox, eventId, body, this.abort.signal);
+  }
+
+  changeDocument(eventId: string, index: number, action: 'retry' | 'skip'): void {
+    if (this.closed || !this.inbox || !this.transport?.upload || !Number.isSafeInteger(index) || index < 0) throw Object.assign(new Error('Connect this gateway and choose a saved file.'), { status: 400 });
+    try { this.inbox.changeOutgoing(eventId, index, action); }
+    catch { throw Object.assign(new Error('This file cannot be changed. Check its status, access and destination.'), { status: 400 }); }
   }
 
   stop(): Promise<void> { return this.stopping ??= this.close(); }

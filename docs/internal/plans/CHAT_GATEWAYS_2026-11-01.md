@@ -1,6 +1,7 @@
 # Chat SDK Gateways with files
 
-*Plan, 1 November 2026. Experimental Telegram text conversations added 2 November; product setup and file replies are incomplete.
+*Plan, 1 November 2026. Experimental Telegram text conversations and locally selected document replies added 2 November;
+product setup and automatic deliverable selection are incomplete.
 New gateway data does not need a legacy compatibility layer.*
 
 ## Implementation status
@@ -87,7 +88,36 @@ New gateway data does not need a legacy compatibility layer.*
   revoked access and superseded working notices are dropped. Notices share the serialized sender,
   per-send timeout, rate-limit waits and uncertain-delivery recovery, but never block a final answer
   or a later assignment. No remote approval controls are added.
-- Next: add outgoing deliverable files, Settings UI, and the other
+- Added explicitly selected document replies through the guarded local API:
+  `POST /api/gateways/:id/inbox/:eventId/files` takes `{ paths: [...] }`. One immutable selection belongs
+  to the current assignment; identical requests preserve its receipts. Only the target's current
+  workspace folders and safe uploads are eligible. Private data/runtime stores, common credential
+  files, unrelated project folders, directories, hard links and oversized files are refused.
+  Bounded descriptor reads save a size and content hash; send-time checks re-resolve access and
+  paths and upload only the verified bytes. A changed file requires a new explicit selection in a
+  new assignment rather than silently changing the authorized attachment.
+- Each document gets its own receipt and reserved outgoing bytes before I/O. Incoming and outgoing
+  budgets are tracked separately against the configured limits; failed/interrupted outgoing attempts
+  retain their reservation. Text finishes first, then files send one at a time through the same sender.
+  Confirmed files survive retries, provider waits persist, and interrupted/ambiguous sends require
+  an explicit decision. Per-file `POST .../files/:index/retry` and `.../skip` control the remaining work;
+  skipping an uncertain file does not undo a possible remote delivery. Unresolved files hold later
+  work in the same binding. Source edits hold pending uploads. Worker shutdown saves upload outcomes
+  before releasing state ownership. Local multipart fixtures prove byte uploads and original-message
+  routing; live-account validation is still pending.
+- Current outgoing capabilities at SDK/adapters `4.43.0`:
+
+  | Platform | Files | Limit | Captions and grouping |
+  | --- | --- | --- | --- |
+  | Telegram | Nonempty regular files as documents, including images/audio/video | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | No file captions, native media or albums. One SDK transport request and remote receipt per file, with a 30-second send timeout |
+  | Slack, Discord, WhatsApp | Not enabled in application transport | Pending live verification | Pending |
+
+  The application uses the SDK's Telegram multipart transport primitive directly for documents,
+  avoiding formatter fallback, grouped sends and hidden retries that would obscure per-file outcomes.
+  There is no agent tool for selecting attachments yet; ordinary artifacts and tool images are never
+  attached automatically. File selection/review UI, explicit run deliverables and their disclosure
+  approval flow remain to implement.
+- Next: add explicit run deliverables, Settings/file review UI, and the other
   platforms. Albums still need grouping before dispatch, and inbox retention/review controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the final deletion/retention flow is pending. Real-account text/file checks on all four platforms
