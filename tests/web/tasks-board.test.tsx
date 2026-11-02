@@ -2,9 +2,9 @@
 // own project), Blocked asking why, Done showing the last 14 days, the New task window, and a task's own page.
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { state } from '../../web/core.ts';
+import { connectEvents, state } from '../../web/core.ts';
 import * as tasks from '../../web/views/tasks.tsx';
-import type { AppState, BoardTask } from '../../shared/types.ts';
+import type { AppState, BoardTask, ServerEvent } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const settle = (ms = 40) => act(() => new Promise((r) => setTimeout(r, ms)));
@@ -15,6 +15,18 @@ const card = (over: Partial<BoardTask>): BoardTask => ({
   id: 't', number: ++n, projectId: 'p1', projectName: 'Bakery', title: 'Task', description: '', status: 'todo', priority: 'normal', assignee: '', rank: 0,
   createdBy: 'you', createdAt: now, updatedAt: now, assigneeName: 'Unassigned', creatorName: 'You', commentCount: 0, ...over,
 });
+// live events from the server, through a stand-in for the event socket
+class FakeSocket {
+  static last: FakeSocket;
+  onopen: (() => void) | null = null;
+  onclose: (() => void) | null = null;
+  onmessage: ((m: MessageEvent<string>) => void) | null = null;
+  constructor() { FakeSocket.last = this; }
+}
+const serverEvent = async (ev: Omit<ServerEvent, 'ts'>) => {
+  await act(async () => FakeSocket.last.onmessage!({ data: JSON.stringify({ ts: Date.now(), ...ev }) } as MessageEvent<string>));
+  await settle(200);
+};
 let board: BoardTask[];
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
@@ -37,6 +49,8 @@ beforeEach(() => {
     card({ id: 'f', title: 'Plan the podcast', projectId: 'p2', projectName: 'Podcast', rank: 0.5 }),
   ];
   state.data = { project: { id: 'p1', name: 'Bakery' }, agents: [], runs: [], approvals: [] } as unknown as AppState;
+  vi.stubGlobal('WebSocket', FakeSocket);
+  connectEvents();
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method || 'GET';
     const body = init.body ? JSON.parse(String(init.body)) : undefined;
@@ -161,7 +175,30 @@ describe('a task\'s own page', () => {
     await act(async () => title.dispatchEvent(new FocusEvent('blur')));
     await act(async () => title.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
     await settle();
-    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/k', body: { title: 'Order the new oven' } });
+    // (with the version it was made on, so a change made meanwhile isn't overwritten)
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/k', body: { title: 'Order the new oven', expectedUpdatedAt: now } });
+  });
+
+  it('asks before a description edit replaces one made meanwhile, and saves it on the newest version', async () => {
+    await open(['p1', 'a']);
+    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Add a description…')!.click());
+    await type(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Description"]')!, 'Mine');
+    // the Brain writes one while the editor is open
+    board[0] = { ...board[0], description: 'Theirs', updatedAt: now + 5 };
+    await serverEvent({ type: 'board', projectId: 'p1', ids: ['a'] });
+    const saveButton = () => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Save')!;
+    await act(async () => saveButton().click());
+    await settle();
+    expect(document.querySelector('.modal')!.textContent).toContain('Someone changed this description while you were editing it.');
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal button')].find((b) => b.textContent === 'Cancel')!.click());
+    await settle();
+    expect(requests.some((r) => r.method === 'PUT')).toBe(false);
+    expect(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Description"]')!.value).toBe('Mine');
+    await act(async () => saveButton().click());
+    await settle();
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal button')].find((b) => b.textContent === 'Replace')!.click());
+    await settle();
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/a', body: { description: 'Mine', expectedUpdatedAt: now + 5 } });
   });
 
   it('shows the description as Markdown, and its comments, and adds one', async () => {

@@ -492,9 +492,11 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
   const people = usePeople(task.projectId);
   // what @ can mention here: this project's agents and teams, and the skills
   const mentions = useMentionables(task.projectId);
+  // Every save says which version of the task it was made on, so a change made meanwhile (the Brain, another
+  // tab) is refused rather than overwritten.
   const save = async (patch: Record<string, unknown>) => {
     try {
-      const r = await PUT<{ task: BoardTask }>(path(task), patch);
+      const r = await PUT<{ task: BoardTask }>(path(task), { ...patch, expectedUpdatedAt: task.updatedAt });
       onChange(r.task);
       return true;
     } catch (e) {
@@ -623,23 +625,32 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
   useMentionBox(box, mentions, editing);
   const [value, setValue] = useState(task.description);
   const [busy, setBusy] = useState(false);
+  // the description as it was when editing started (the page keeps loading changes made meanwhile)
+  const start = useRef(task.description);
   useEffect(() => { if (!editing) setValue(task.description); }, [task.description, editing]);
+  const edit = () => {
+    start.current = task.description;
+    setEditing(true);
+  };
   const save = async () => {
+    if (value === task.description) return setEditing(false);
+    // changed while you were writing: replace it only if you say so
+    if (task.description !== start.current && !(await confirmBox('Someone changed this description while you were editing it. Replace their version with yours?', { ok: 'Replace' }))) return;
     setBusy(true);
-    if (value === task.description || (await onSave(value))) setEditing(false);
+    if (await onSave(value)) setEditing(false);
     setBusy(false);
   };
   if (!editing)
     return task.description ? (
       <div className="group relative -mx-3 rounded-box px-3 py-2 [transition:background-color_0.15s] hover:bg-ink/3">
         <Markdown text={task.description} mentions={mentions} />
-        <Button variant="ghost" size="tiny" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100" onClick={() => setEditing(true)}>
+        <Button variant="ghost" size="tiny" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100" onClick={edit}>
           <Icon name="pencil" size={12} />
           Edit
         </Button>
       </div>
     ) : (
-      <button type="button" onClick={() => setEditing(true)} className="-mx-3 flex cursor-text items-center gap-2 rounded-box border-0 bg-transparent px-3 py-3 text-left text-[14px] text-faint [transition:background-color_0.15s] hover:bg-ink/3">
+      <button type="button" onClick={edit} className="-mx-3 flex cursor-text items-center gap-2 rounded-box border-0 bg-transparent px-3 py-3 text-left text-[14px] text-faint [transition:background-color_0.15s] hover:bg-ink/3">
         <Icon name="pen-line" size={14} />
         Add a description…
       </button>
