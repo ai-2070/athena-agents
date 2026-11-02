@@ -1,0 +1,63 @@
+tests/server/gateway-cleanup.test.ts
+  s_3f5afab86a1bb3::t_12c339828d8830 15,39,43-45,126-130,132-133,135-136
+  s_3f5afab86a1bb3::t_d7b1928ec0ed59 5,134
+  s_3f5afab86a1bb3::t_efb1c79d6adaa8 1-4,6-14,16-38,40-42,46-122,124-125,145
+  s_3f5afab86a1bb3::t_ac6e876ec06ec2 123,131,137-144
+server/index.ts
+  s_3f5afab86a1bb3::t_9babcb621d16ca 984
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_116faa640bb38b 158-159,189-208,210
+  s_3f5afab86a1bb3::t_ac6e876ec06ec2 163-164
+shared/types.ts
+  s_3f5afab86a1bb3::t_22ed5e3d09ea8c 156-157
+web/views/gateway-inbox.tsx
+  s_3f5afab86a1bb3::t_55687e6fa28191 9,30,52-59,66,68,73-78
+shared/gateways.ts
+  s_3f5afab86a1bb3::t_22ed5e3d09ea8c 9-25
+tests/server/api.test.ts
+  s_3f5afab86a1bb3::t_8f6b5fe8b41741 270-271
+tests/web/gateways.test.tsx
+  s_3f5afab86a1bb3::t_3d25fa121d5e29 137
+README.md
+  s_3f5afab86a1bb3::t_116faa640bb38b 232
+tests/web/gateway-inbox.test.tsx
+  s_3f5afab86a1bb3::t_8f6b5fe8b41741 36-39,149-178
+docs/guide.md
+  s_3f5afab86a1bb3::t_116faa640bb38b 402-410
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_d7b1928ec0ed59 85,87-90,98,125
+  s_3f5afab86a1bb3::t_22ed5e3d09ea8c 12,49,156,161,164-172,174-176,178-185,299-300,431-432,500
+  s_3f5afab86a1bb3::t_ac6e876ec06ec2 48,86
+  s_3f5afab86a1bb3::t_355b89b814d4e6 83,157-160,162-163,173,177
+  s_3f5afab86a1bb3::t_59992af384f6b2 84
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_9babcb621d16ca 4-5,75-86
+  s_8e3c27e6ce0122::t_02199eee46caae 87-88
+server/gateways/worker.ts
+  s_3f5afab86a1bb3::t_9babcb621d16ca 6,208-211
+  s_8e3c27e6ce0122::t_102e1d5bfa87d6 212-213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b1a901dfbc60c46ac91772cb63f00754f91f563d",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
