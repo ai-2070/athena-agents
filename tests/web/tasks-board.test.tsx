@@ -264,6 +264,17 @@ describe('the Tasks board', () => {
     expect(ids('In progress')).toEqual(['a', 'c']);
   });
 
+  it('loads again when an agent a card is assigned to changes, not for other agents', async () => {
+    await open();
+    const loads = () => requests.filter((r) => r.url.startsWith('/api/task-board?')).length;
+    const before = loads();
+    await serverEvent({ type: 'agents', id: 'someone-else' });
+    await serverEvent({ type: 'workflows', id: 'x' });
+    expect(loads()).toBe(before);
+    await serverEvent({ type: 'agents', id: 'x' });
+    expect(loads()).toBe(before + 1);
+  });
+
   it('works out a place between two cards', () => {
     expect(tasks.rankBetween(undefined, undefined)).toBe(0);
     expect(tasks.rankBetween(1, 2)).toBe(1.5);

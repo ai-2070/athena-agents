@@ -123,13 +123,18 @@ function TaskBoardPage() {
     document.addEventListener('pointerdown', end, true);
     return () => document.removeEventListener('pointerdown', end, true);
   }, [dragging, release]);
-  // kept current: a change to a board this shows, another project opened, a reconnect
+  // kept current: a change to a board this shows, another project opened, a reconnect, and an agent or team a card
+  // here is assigned to (its name; agents are saved after most runs, so not on every save)
+  const current = useRef(data);
+  current.current = data;
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const soon = () => (clearTimeout(timer), (timer = setTimeout(() => void load(), 150)));
+    const assigned = (ref: string) => !!current.current?.tasks.some((t) => t.assignee === ref);
     const off = onEvent((e) => {
       if (e.type === 'board' && (project === 'all' || !e.projectId || e.projectId === project)) soon();
-      if (e.type === 'project' || e.type === 'projects' || e.type === 'agents' || e.type === 'workflows') soon();
+      if (e.type === 'project' || e.type === 'projects') soon();
+      if ((e.type === 'agents' || e.type === 'workflows') && (typeof e.id !== 'string' || assigned(`${e.type === 'agents' ? 'agent' : 'team'}:${e.id}`))) soon();
     });
     const offReconnect = onReconnect(soon);
     return () => (clearTimeout(timer), off(), offReconnect());
