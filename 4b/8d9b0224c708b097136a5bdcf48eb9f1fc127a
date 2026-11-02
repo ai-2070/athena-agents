@@ -1,0 +1,19 @@
+web/views/outbox.tsx
+  s_8e3c27e6ce0122::t_c1c5eef5f12b66 57-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4b8d9b0224c708b097136a5bdcf48eb9f1fc127a",
+  "prompts": {},
+  "sessions": {
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
