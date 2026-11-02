@@ -1,0 +1,28 @@
+tests/web/tasks-board.test.tsx
+  s_8e3c27e6ce0122::t_877854d991292b 1-114
+web/phosphor.ts
+  s_8e3c27e6ce0122::t_ad0508a7a80a0d 12,212
+web/app.ts
+  s_8e3c27e6ce0122::t_ad0508a7a80a0d 10,67
+web/views/tasks.tsx
+  s_8e3c27e6ce0122::t_ee2edd7ab88a67 497
+  s_8e3c27e6ce0122::t_160aa3f4b08541 194,200-201
+  s_8e3c27e6ce0122::t_ad0508a7a80a0d 6,447-448,451-454,484
+  s_8e3c27e6ce0122::t_8aa2a1ec0c96ee 1-5,7-193,195-199,202-446,449-450,455-483,485-496,498-512
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d764851a9849ce9ff70ec4693a57827fe724633b",
+  "prompts": {},
+  "sessions": {
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
