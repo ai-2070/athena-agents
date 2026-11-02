@@ -167,7 +167,7 @@ function LimitsView({ redraw }: { redraw: () => void }) {
       <Windows p={cc} />
       <div className="h-2" />
       <div className="codex-limits flex flex-col" ref={codexRef}>
-        <ProviderHead name="Codex" brand="eve" color="currentColor" p={cx} href={S('tab=general&find=OpenAI Codex')} right={cx.ready ? (cx.blocked ? 'limit reached' : plan(cx.plan)) : cx.why || ''} />
+        <ProviderHead name="Codex" brand="openai" color="currentColor" p={cx} href={S('tab=general&find=OpenAI Codex')} right={cx.ready ? (cx.blocked ? 'limit reached' : plan(cx.plan)) : cx.why || ''} />
         <Windows p={cx} />
       </div>
     </>

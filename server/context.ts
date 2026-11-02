@@ -3,6 +3,7 @@ import { getSettings } from './store.ts';
 import { PROVIDERS } from './providers.ts';
 import type { ProviderId } from '../shared/types.ts';
 import { memoryStart } from '../shared/context.ts';
+import { defaultModelForEngine } from '../shared/modeldefaults.ts';
 import type { Agent, Chat, ChatItem } from '../shared/types.ts';
 
 const isWord = (c: number): boolean => (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || (c >= 0xc0 && c <= 0x24f) || (c >= 0x370 && c <= 0x52f) || (c >= 0x590 && c <= 0x6ff);
@@ -75,7 +76,7 @@ export async function contextWindow(agent: ModelOf, chat?: Chat | null): Promise
   if (agent.engine === 'hermes' || agent.engine === 'pi' || agent.engine === 'omp' || agent.engine === 'openclaw') return 128_000;
   const provider = String(agent.provider || 'openrouter');
   const local = provider === 'lmstudio' || provider === 'ollama';
-  const id = model || getSettings().defaults.openrouterModel;
+  const id = model || defaultModelForEngine('eve', getSettings().defaults, provider);
   const key = `${provider}|${PROVIDERS[provider as ProviderId]?.base() || ''}`;
   let w = windows.get(key);
   if (!w || Date.now() - w.at > 10 * 60_000) {

@@ -6,6 +6,7 @@ falls back to them after the Simple Icons logos and the Craft app icons.
 
 | File | Source |
 |---|---|
+| `irfanview.ico` | IrfanView’s own favicon, from https://www.irfanview.com/favicon.ico. |
 | `comfyui.png` | The ComfyUI Desktop app's icon (`assets/Comfy_Logo_x256.png` in its `resources/app.asar`): the yellow mark cut out of its dark square onto a clear background, 96 × 96. |
 | `lmstudio.png` | LM Studio's own one-colour tray mark (`resources/trayIconDarkTemplate@3x.png` in its install folder), filled with the light end of its app icon's purple (`#6a72ed`), 66 × 66. |
 

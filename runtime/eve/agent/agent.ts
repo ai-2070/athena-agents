@@ -17,11 +17,13 @@ export default defineAgent({
       const current = await configuration(ctx);
       if (current.runId !== config.runId) throw new Error('This model step no longer belongs to the active turn.');
       // A summary can finish before Eve refreshes this dynamic value's view.
-      const cost = Math.max(totalCost(), loadedCost + reportedCost);
+      const cost = Math.max(totalCost(), loadedCost + reportedCost, config.costBaseline + (current.spentUsd || 0));
       const limit = steps >= config.maxModelSteps ? 'steps' : reachedCostLimit(cost, config.costBaseline, config.costLimitUsd) ? 'cost' : null;
       if (!limit) return;
       const result = await bridgeCall(bindingOf(ctx), '/limit', { sessionId: ctx.session.id, runId: config.runId, limit });
       throw new Error(result && typeof result === 'object' && 'reason' in result ? String(result.reason) : 'This run reached its limit.');
+    }, async (charge) => {
+      await bridgeCall(bindingOf(ctx), '/billing', { sessionId: ctx.session.id, runId: config.runId, charge });
     }), modelContextWindowTokens: config.contextWindow };
   }),
 });

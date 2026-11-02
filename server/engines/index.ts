@@ -17,16 +17,17 @@ import * as codex from './codex.ts';
 import * as openclaw from './openclaw.ts';
 import { pi, omp } from './pi.ts';
 import * as contextInfo from '../context.ts';
+import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { engineCapabilities } from './capabilities.ts';
 import { activeEveRuns, invalidateConversation, readRun as readEveRun, sessionBindings, sessionContext as eveSessionContext, transcriptContext } from '../eve/state.ts';
-import { eveUsage } from '../eve/usage.ts';
+import { eveBillingItem, eveUsage } from '../eve/usage.ts';
 import { eveRuntime } from '../eve/runtime.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import { clearWork, stopChatWork } from '../briefs.ts';
 import { admitExecution, interruptExecutions, readExecution, saveExecutionQueue, updateExecution } from '../execution.ts';
-import type { ActiveRun, Agent, Chat, ChatItem, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunEvent, RunAccess, TeamContextMessage } from '../../shared/types.ts';
+import type { ActiveRun, Agent, Chat, ChatItem, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunBilling, RunEvent, RunAccess, TeamContextMessage } from '../../shared/types.ts';
 import type { LoopRequest } from '../../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../../shared/queue.ts';
 
@@ -51,11 +52,12 @@ export interface EngineRunArgs {
   attachments: string[];
 }
 
-/** What an engine's run() resolves to. cost is in USD. context: how full the model's memory was at the
+/** What an engine's run() resolves to. cost is in USD (or a labeled USD-equivalent estimate). context: how full the model's memory was at the
  *  end, and window its size, in tokens (when the engine says). */
 export interface EngineResult {
   text: string;
   cost?: number;
+  billing?: RunBilling;
   tokens?: number;
   /** of those, read from the provider's prompt cache */
   cached?: number;
@@ -240,6 +242,8 @@ export function finishNativeRun(runId: string): void {
         for (const item of chat.items) if (item.type === 'tool' && item.status === 'running') Object.assign(item, { status: 'error', isError: true, result: stopped ? '(stopped)' : '(did not finish)' });
       }
       finishMemoryReset(chat, runId);
+      const billing = eveBillingItem(runId);
+      if (billing && !chat.items.some((item) => item.sourceId === billing.sourceId)) chat.items.push(billing);
       chats.save(chat);
     }
     updateExecution(runId, { status: native.status as 'completed' | 'failed' | 'stopped' | 'interrupted', answer, ...(native.status === 'completed' ? {} : { error }), endedAt: native.endedAt || Date.now(), completionClaimed: true });
@@ -252,7 +256,7 @@ export function finishNativeRun(runId: string): void {
       if (queue) { queue.paused = true; emitQueue(entry.agentId, chat.id, entry.projectId); }
     }
     const usage = eveUsage(runId);
-    emit('run', { runId, agentId: entry.agentId, chatId: chat.id, event: native.status === 'completed' ? { kind: 'done', text: answer, ...(usage.cost === undefined ? {} : { cost: usage.cost }), seconds: Math.round((Date.now() - entry.startedAt) / 1000) } : { kind: 'error', text: error } });
+    emit('run', { runId, agentId: entry.agentId, chatId: chat.id, event: native.status === 'completed' ? { kind: 'done', text: answer, ...(usage.cost === undefined ? {} : { cost: usage.cost }), ...(usage.billing ? { billing: usage.billing } : {}), seconds: Math.round((Date.now() - entry.startedAt) / 1000) } : { kind: 'error', text: error } });
     emit('runs');
     try {
       if (!steered) runEndHook?.({ runId, agentId: entry.agentId, chatId: chat.id, parentRunId: entry.parentRunId, ownerChatId: entry.ownerChatId, ownerAgentId: entry.ownerAgentId, answer, stopped, failed });
@@ -539,9 +543,14 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       if (result?.text && !chat.items.some((i, idx) => idx > chat.items.findLastIndex((x) => x.type === 'user') && i.type === 'assistant')) {
         pushItem(chat, { type: 'assistant', text: result.text });
       }
-      if (!engineCapabilities(agent.engine).durableSession && result?.cost != null) pushItem(chat, { type: 'meta', text: `$${result.cost.toFixed(4)}${result.tokens ? ` · ${result.tokens} tokens` : ''}${result.cached ? ` · ${result.cached} from cache` : ''}` });
+      if (!engineCapabilities(agent.engine).durableSession && (result.cost != null || result.billing)) {
+        const billing = result.billing;
+        const amount = billing?.source === 'unavailable' ? 'Cost unavailable' : `${billing?.source === 'estimated' ? 'Estimated ' : ''}$${(result.cost || 0).toFixed(4)}${billing?.source === 'estimated' ? ' USD equivalent' : ''}`;
+        const charged = [billing?.chargedUsd != null ? `$${billing.chargedUsd.toFixed(4)} USD charged` : '', billing?.chargedDiem != null ? `${billing.chargedDiem.toFixed(4)} DIEM charged` : ''].filter(Boolean);
+        pushItem(chat, { type: 'meta', text: `${amount}${charged.length ? ` · ${charged.join(' · ')}` : ''}${result.tokens ? ` · ${result.tokens} tokens` : ''}${result.cached ? ` · ${result.cached} from cache` : ''}`, ...(billing ? { billing } : {}) });
+      }
       persist();
-      send({ kind: 'done', text: result?.text || '', ...(result.cost === undefined ? {} : { cost: result.cost }), seconds: Math.round((Date.now() - started) / 1000) });
+      send({ kind: 'done', text: result?.text || '', ...(result?.billing ? { billing: result.billing, ...(result.cost != null ? { cost: result.cost } : {}) } : result.cost === undefined ? {} : { cost: result.cost }), seconds: Math.round((Date.now() - started) / 1000) });
       log('run', `${agent.name} finished (${Math.round((Date.now() - started) / 1000)}s)`, { agentId: agent.id, chatId: chat.id });
       answer = result?.text || lastAssistantText(chat);
       updateExecution(runId, { status: 'completed', answer, endedAt: Date.now() });
@@ -572,6 +581,8 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       // you cleared its memory meanwhile: what this run added to it goes too
       if (!suspended) {
         finishMemoryReset(chat, runId);
+        const billing = eveBillingItem(runId);
+        if (billing && !chat.items.some((item) => item.sourceId === billing.sourceId)) chat.items.push(billing);
         persist();
       }
       void eveRuntime.retireBindings().catch(() => {});
@@ -1072,7 +1083,4 @@ export function engineStatus(): EngineStatus {
   };
 }
 
-export const defaultModel = (engine: string): string => {
-  const d = getSettings().defaults;
-  return engine === 'claude-code' ? d.claudeModel : engine === 'eve' ? d.openrouterModel : '';
-};
+export const defaultModel = (engine: string, provider?: string): string => defaultModelForEngine(engine, getSettings().defaults, provider);

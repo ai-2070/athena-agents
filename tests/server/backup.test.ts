@@ -26,6 +26,7 @@ function craft(payload: Record<string, unknown>): Buffer {
 describe('workspace backups', () => {
   it('writes one file in <home>/Blacksite Backups with the project, its chats and knowledge, every skill and preset, and no keys', async () => {
     setSecret('anthropicKey', 'sk-ant-sentinel-not-in-backups-777');
+    setSecret('veniceKey', 'venice-sentinel-not-in-backups-888');
     const p = await createProject({ name: 'Backed Up', mode: 'new', folder: folder('backed-up'), description: 'Launch work' });
     fs.writeFileSync(path.join(p.brainPath, 'PROJECT.md'), '# Backed Up\n\nThe plan.');
     fs.writeFileSync(path.join(p.brainPath, 'notes', 'idea.md'), 'An idea');
@@ -36,8 +37,8 @@ describe('workspace backups', () => {
     fs.writeFileSync(path.join(skillsLibrary(), skill.slug, 'examples.md'), 'Example one');
     const a = newAgent({ name: 'Writer', skills: [skill.slug], workspace: path.join(p.brainPath, 'drafts') });
     const b = newAgent({ name: 'Editor' });
-    workflows.save({ name: 'Crew', members: [a.id, b.id], lead: a.id, steps: [], skills: [skill.slug], schedule: { type: 'daily', time: '09:00' }, enabled: true } as Partial<Team>);
-    routines.save({ name: 'Daily', text: '@Writer writes. Use @Voice Guide', mentions: [{ kind: 'agent', id: a.id, name: 'Writer' }, { kind: 'skill', id: skill.slug, name: 'Voice Guide' }], schedule: { type: 'daily', time: '08:00' }, enabled: true });
+    workflows.save({ name: 'Crew', members: [a.id, b.id], lead: a.id, steps: [], skills: [skill.slug], schedule: { type: 'daily', times: ['09:00'] }, enabled: true } as Partial<Team>);
+    routines.save({ name: 'Daily', text: '@Writer writes. Use @Voice Guide', mentions: [{ kind: 'agent', id: a.id, name: 'Writer' }, { kind: 'skill', id: skill.slug, name: 'Voice Guide' }], schedule: { type: 'daily', times: ['08:00'] }, enabled: true });
     const c = chats.create(a.id, 'First draft');
     c.items.push({ type: 'user', text: 'Write the launch post' }, { type: 'assistant', text: 'Here it is' });
     chats.save(c);

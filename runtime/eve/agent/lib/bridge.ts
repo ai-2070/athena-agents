@@ -18,6 +18,9 @@ const configSchema = z.object({
   maxModelSteps: z.number().int().positive(),
   costLimitUsd: z.number().nonnegative(),
   costBaseline: z.number().nonnegative(),
+  spentUsd: z.number().nonnegative().optional(),
+  capabilities: z.object({ tools: z.boolean().optional(), vision: z.boolean().optional(), multipleImages: z.boolean().optional() }).optional(),
+  price: z.object({ in: z.number().nonnegative(), out: z.number().nonnegative(), cached: z.number().nonnegative().optional() }).nullable().optional(),
   tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: z.record(z.string(), z.json()) })),
 });
 

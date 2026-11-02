@@ -7,12 +7,15 @@ import { listServers, serversForPrompt } from './mcp.ts';
 import { run, which, tmpFile } from './util.ts';
 import { describeAttachments } from './uploads.ts';
 import { brainSession, systemMessage } from './promptcache.ts';
-import { effortFor } from '../shared/effort.ts';
+import { effortFor, isEffort } from '../shared/effort.ts';
+import { apiModelInfo, apiRequestOptions, resolveApiProvider } from './apiproviders.ts';
+import { apiErrorMessage } from './apiresponse.ts';
+import type { FetchError } from './util.ts';
 import type { Agent, BrainSetting, Effort, EngineId, Team, TeamAccess } from '../shared/types.ts';
 
 // ---------- what the models send back (JSON boundaries) ----------
-interface OpenRouterChat {
-  error?: { message?: string };
+interface ApiChat {
+  error?: string | { message?: string };
   choices?: { message?: { content?: string }; finish_reason?: string }[];
 }
 interface CodexLine {
@@ -90,12 +93,12 @@ const GROUP_IDS = TOOL_GROUPS.map((g) => g.id);
 export function brainModel(): BrainModel {
   const b: Partial<BrainSetting> = getSettings().brain || {};
   const key = !!getSecrets().openrouterKey;
-  const ok: Record<BrainSetting['provider'], boolean> = { claude: !!which('claude'), openrouter: key, hermes: !!which('hermes'), codex: !!which('codex') };
-  const p: BrainSetting['provider'] = ok[b.provider as BrainSetting['provider']] ? (b.provider as BrainSetting['provider']) : (['claude', 'openrouter', 'hermes', 'codex'] as const).find((x) => ok[x]) || b.provider || 'claude';
+  const ok: Record<BrainSetting['provider'], boolean> = { claude: !!which('claude'), openrouter: key, venice: !!getSecrets().veniceKey, hermes: !!which('hermes'), codex: !!which('codex') };
+  const p: BrainSetting['provider'] = ok[b.provider as BrainSetting['provider']] ? (b.provider as BrainSetting['provider']) : (['claude', 'openrouter', 'hermes', 'codex', 'venice'] as const).find((x) => ok[x]) || b.provider || 'claude';
   const model = p === b.provider ? b.model ?? '' : '';
-  const dflt = { claude: 'haiku', openrouter: 'anthropic/claude-haiku-5.5', hermes: '', codex: '' }[p];
-  const engine = ({ claude: 'claude-code', openrouter: 'eve', hermes: 'hermes', codex: 'codex' } as const satisfies Record<BrainSetting['provider'], EngineId>)[p];
-  const effort = p === b.provider ? effortFor(engine, b.effort) : '';
+  const dflt = { claude: 'haiku', openrouter: 'anthropic/claude-haiku-5.5', venice: getSettings().defaults.veniceModel, hermes: '', codex: '' }[p];
+  const engine = ({ claude: 'claude-code', openrouter: 'eve', venice: 'eve', hermes: 'hermes', codex: 'codex' } as const satisfies Record<BrainSetting['provider'], EngineId>)[p];
+  const effort = p === b.provider ? p === 'venice' && isEffort(b.effort) ? b.effort : effortFor(engine, b.effort, p) : '';
   return { provider: p, model: model || dflt, effort, fallback: p !== (b.provider || 'claude') };
 }
 
@@ -124,7 +127,6 @@ const asText = (v: unknown): string => (typeof v === 'string' ? v : Array.isArra
 // Codex reads the folder in a read-only sandbox instead.
 // onPart: the answer as it is written and the tools it uses, while it thinks (the Brain chat streams them).
 export async function think(system: string, user: string, { tools = '', cwd, timeout = 90000, maxTokens = 2500, onPart }: ThinkOptions = {}): Promise<string> {
-  const key = getSecrets().openrouterKey;
   const bm = brainModel();
   const part = (p: ThinkPart) => {
     try {
@@ -133,16 +135,25 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
       /* a listener's problem is not the answer's */
     }
   };
-  if (bm.provider === 'openrouter' && key) {
-    const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  if (bm.provider === 'openrouter' || bm.provider === 'venice') {
+    const provider = resolveApiProvider(bm.provider);
+    if (!bm.model) throw new Error(`Choose a ${provider.label} model for the Brain or set its default in Settings first.`);
+    const info = await apiModelInfo(provider.id, bm.model);
+    if (info?.offline) throw new Error(`${provider.label} model "${bm.model}" is temporarily unavailable.`);
+    const effort = effortFor('eve', bm.effort, provider.id, info?.reasoningEfforts);
+    const r = await fetch(`${provider.base}/chat/completions`, {
       method: 'POST',
-      headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json', 'X-Title': 'Athena Agents' },
-      body: JSON.stringify({ model: bm.model, messages: [systemMessage(bm.model, system), { role: 'user', content: user }], session_id: brainSession(system), max_tokens: maxTokens, ...(bm.effort ? { reasoning: { effort: bm.effort } } : {}), ...(onPart ? { stream: true } : {}) }),
+      headers: provider.headers,
+      body: JSON.stringify({ model: bm.model, messages: [provider.id === 'openrouter' ? systemMessage(bm.model, system) : { role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, ...apiRequestOptions(provider.id, bm.model, effort, brainSession(system), !!onPart) }),
       signal: AbortSignal.timeout(timeout),
     });
     if (!onPart || !r.ok || !r.body) {
-      const j = (await r.json()) as OpenRouterChat;
-      if (!r.ok) throw new Error(j.error?.message || `OpenRouter said ${r.status}`);
+      const j = (await r.json().catch(() => ({}))) as ApiChat;
+      if (!r.ok || j.error) {
+        const error: FetchError = new Error(apiErrorMessage(j, `${provider.label} said ${r.status}`));
+        error.status = r.status;
+        throw error;
+      }
       // stopped at max_tokens: half an answer (half a JSON object) is no answer
       if (j.choices?.[0]?.finish_reason === 'length') throw new Error('The answer was cut off: it ran past the length limit.');
       return j.choices?.[0]?.message?.content || '';
@@ -151,29 +162,33 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
     let text = '';
     let buf = '';
     const dec = new TextDecoder();
+    const consume = (line: string) => {
+      if (!line.startsWith('data:') || line.slice(5).trim() === '[DONE]') return;
+      try {
+        const j = JSON.parse(line.slice(5)) as { error?: unknown; choices?: { delta?: { content?: string }; finish_reason?: string | null }[] };
+        if (j.error) throw new Error(apiErrorMessage(j, `${provider.label} failed.`));
+        if (j.choices?.[0]?.finish_reason === 'length') throw new Error('The answer was cut off: it ran past the length limit.');
+        const d = j.choices?.[0]?.delta?.content;
+        if (d) {
+          text += d;
+          part({ kind: 'text', text: d });
+        }
+      } catch (e) {
+        if (e instanceof SyntaxError) return;
+        throw e;
+      }
+    };
     for await (const chunk of r.body as unknown as AsyncIterable<Uint8Array>) {
       buf += dec.decode(chunk, { stream: true });
       let nl;
       while ((nl = buf.indexOf('\n')) !== -1) {
         const line = buf.slice(0, nl).trim();
         buf = buf.slice(nl + 1);
-        if (!line.startsWith('data:') || line === 'data: [DONE]') continue;
-        try {
-          const j = JSON.parse(line.slice(5)) as { error?: { message?: string }; choices?: { delta?: { content?: string }; finish_reason?: string | null }[] };
-          if (j.error) throw new Error(j.error.message || 'OpenRouter failed.');
-          // (streamed too: stopped at max_tokens is no answer)
-          if (j.choices?.[0]?.finish_reason === 'length') throw new Error('The answer was cut off: it ran past the length limit.');
-          const d = j.choices?.[0]?.delta?.content;
-          if (d) {
-            text += d;
-            part({ kind: 'text', text: d });
-          }
-        } catch (e) {
-          if (e instanceof SyntaxError) continue;
-          throw e;
-        }
+        consume(line);
       }
     }
+    buf += dec.decode();
+    if (buf.trim()) consume(buf.trim());
     return text;
   }
   if (bm.provider === 'codex') {
@@ -250,7 +265,7 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
     if (!out) throw new Error(`Hermes didn't answer (${(r.stderr || '').trim().slice(-300)})`);
     return out;
   }
-  if (!which('claude')) throw new Error('The Brain needs Claude Code, an OpenRouter key, Hermes or Codex.');
+  if (!which('claude')) throw new Error('The Brain needs Claude Code, an OpenRouter or Venice key, Hermes or Codex.');
   const promptFile = tmpFile('brain-system.md');
   fs.writeFileSync(promptFile, system);
   // streamed (onPart): stream-json, with the text as it is written and the files it reads

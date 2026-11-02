@@ -3,6 +3,8 @@
 // Each icon is imported from its own file: the package's index pulls in all 1,500 of them, which slows every test.
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { ArrowBendUpLeftIcon } from '@phosphor-icons/react/dist/csr/ArrowBendUpLeft';
+import { FloppyDiskIcon } from '@phosphor-icons/react/dist/csr/FloppyDisk';
 import { ApertureIcon } from '@phosphor-icons/react/dist/csr/Aperture';
 import { ArchiveIcon } from '@phosphor-icons/react/dist/csr/Archive';
 import { ArrowClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowClockwise';
@@ -21,6 +23,7 @@ import { BooksIcon } from '@phosphor-icons/react/dist/csr/Books';
 import { BrainIcon } from '@phosphor-icons/react/dist/csr/Brain';
 import { BroadcastIcon } from '@phosphor-icons/react/dist/csr/Broadcast';
 import { BrowserIcon } from '@phosphor-icons/react/dist/csr/Browser';
+import { CalendarBlankIcon } from '@phosphor-icons/react/dist/csr/CalendarBlank';
 import { CameraIcon } from '@phosphor-icons/react/dist/csr/Camera';
 import { CameraRotateIcon } from '@phosphor-icons/react/dist/csr/CameraRotate';
 import { CaretDownIcon } from '@phosphor-icons/react/dist/csr/CaretDown';
@@ -184,6 +187,7 @@ export const PHOSPHOR: Record<string, PhosphorIcon> = {
   'circle-check': CheckCircleIcon,
   'circle-x': XCircleIcon,
   clock: ClockIcon,
+  calendar: CalendarBlankIcon,
   'shield-check': ShieldCheckIcon,
   'key-round': KeyIcon,
   server: HardDrivesIcon,
@@ -203,6 +207,8 @@ export const PHOSPHOR: Record<string, PhosphorIcon> = {
   rocket: RocketIcon,
   puzzle: PuzzlePieceIcon,
   copy: CopyIcon,
+  save: FloppyDiskIcon,
+  reply: ArrowBendUpLeftIcon,
   'bookmark-plus': BookmarkSimpleIcon,
   download: DownloadSimpleIcon,
   repeat: RepeatIcon,

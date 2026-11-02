@@ -35,6 +35,7 @@ import { BACKGROUND_OPACITY, mapDotsOpacity, toPercent } from '../shared/look.ts
 import { MODEL_PROVIDERS, PROVIDER_IDS, modelProvider, providerOfAgent, providerProblem, readyProviders, defaultModelFor, checkModel, checkModelNow, availableModels, findModels } from './models.ts';
 import type { Effort } from '../shared/effort.ts';
 import type { ModelProvider } from './models.ts';
+import { cachedApiModelInfo } from './apiproviders.ts';
 import { listBriefs } from './briefs.ts';
 import { createTask, getTask, listTasks, runTaskBatch, savedTasks, updateTask } from './tasks.ts';
 import type { TaskCreateInput, TaskQuery, TaskUpdateInput } from '../shared/types.ts';
@@ -309,10 +310,10 @@ function keyFiles(root: string, budget: number): string {
 // "provider: openrouter | model: anthropic/claude-opus-5.5 | effort: high"
 const runsOn = (a: Agent) => {
   const p = providerOfAgent(a);
-  const model = a.model || (p === 'codex' ? "Codex's default model" : p === 'hermes' ? `the model of Hermes profile "${a.hermesProfile || 'default'}"` : p === 'openclaw' ? `the model of OpenClaw agent "${a.openclawAgent || 'default'}"` : p === 'pi' || p === 'omp' ? `${p === 'pi' ? "pi's" : "oh-my-pi's"} default model` : defaultModel(a.engine) || 'its default model');
+  const model = a.model || (p === 'codex' ? "Codex's default model" : p === 'hermes' ? `the model of Hermes profile "${a.hermesProfile || 'default'}"` : p === 'openclaw' ? `the model of OpenClaw agent "${a.openclawAgent || 'default'}"` : p === 'pi' || p === 'omp' ? `${p === 'pi' ? "pi's" : "oh-my-pi's"} default model` : defaultModel(a.engine, a.provider) || 'its default model');
   // the full id the engine reported last time (a short name like "sonnet" points to the latest version)
   const last = a.lastModel && a.lastModel !== a.model ? ` (last ran as ${a.lastModel})` : '';
-  const e = effortFor(a.engine, a.effort, a.provider);
+  const e = effortFor(a.engine, a.effort, a.provider, cachedApiModelInfo(String(a.provider), a.model || defaultModel(a.engine, a.provider))?.reasoningEfforts);
   return `provider: ${p} | model: ${model}${last} | effort: ${e || "default (the model's own)"}`;
 };
 
@@ -345,7 +346,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
     const st = teamState(t.id);
     const thread = getThread(t.id, 4).messages;
     const name = (id: string) => (id === 'user' ? 'You' : id === 'brain' ? 'you (the Brain)' : byId.get(id)?.name || id);
-    const sched = t.schedule && t.schedule.type !== 'none' ? ` | schedule: ${t.schedule.type} ${t.schedule.time || ''}${t.enabled === false ? ' (off)' : ''}` : '';
+    const sched = t.schedule && t.schedule.type !== 'none' ? ` | schedule: ${t.schedule.type} ${t.schedule.times?.join(', ') || ''}${t.enabled === false ? ' (off)' : ''}` : '';
     return [
       `- id=${t.id} | ${t.name} | goal: ${t.description || '-'} | members: ${t.members.map((id) => `${name(id)}${t.lead === id ? ' (lead)' : ''}`).join(', ') || 'none'} | skills: ${(t.skills || []).join(',') || 'none'} | mcp: ${(t.access?.mcpServers || []).join(',') || 'none'}${sched}`,
       `  NOW: ${st.working.length ? `working: ${st.working.map(name).join(', ')}` : 'quiet'}${st.queued.length ? ` | queued: ${st.queued.map(name).join(', ')}` : ''}`,
@@ -355,7 +356,7 @@ export async function snapshot({ fileBudget = 9000 }: { fileBudget?: number } = 
 
   const routineLines = listRoutines().map((r) => {
     const names = (kind: string) => r.mentions.filter((m) => m.kind === kind).map((m) => `${m.name}${m.missing ? ' (deleted)' : ''}`).join(', ') || '-';
-    const sched = r.schedule && r.schedule.type !== 'none' ? `${scheduleText(r.schedule)}${r.enabled ? '' : ' (off)'}` : 'run by hand';
+    const sched = `${r.schedule && r.schedule.type !== 'none' ? scheduleText(r.schedule) : 'run by hand'}${r.enabled ? '' : ' (off)'}`;
     const last = r.lastRun ? `${r.lastRun.status} ${ago(r.lastRun.createdAt)}` : 'never run';
     return `- id=${r.id} | ${r.name} | ${sched} | agents: ${names('agent')} | teams: ${names('team')} | skills: ${names('skill')} | last run: ${last}\n  text: ${r.text.length > ROUTINE_TEXT_SHOWN ? `${r.text.slice(0, ROUTINE_TEXT_SHOWN)}… (${r.text.length - ROUTINE_TEXT_SHOWN} more characters not shown: too long to rewrite here, the user edits its text on the Routines page)` : r.text.trim() || '(empty)'}`;
   });
@@ -603,10 +604,10 @@ TaskCreate and TaskUpdate also accept {"do":"TaskCreate"|"TaskUpdate","tasks":[{
 {"do":"stop","to":"agent"|"team"|"all","id":"<agent or team id; not needed for all>"}   (stops the work going on now: an agent's jobs, a team's chat with its queue, or with "all" everything running in this project: every team, agent, routine and workflow; "targets":[{"to":…,"id":…},…] for several)
 {"do":"set_model","to":"agent"|"team","id":"<agent or team id, or 'new'>","model":"<model id>","provider":"PROVIDER","effort":"EFFORT"}   (or "targets":[{"to":…,"id":…},…] instead of "to"/"id", for several at once; a team means every agent on it; give the model, the effort or both; "provider" only to move them to another provider, else the model is for the provider each one runs on now)
 {"do":"find_models","provider":"PROVIDER","query":"words to match, e.g. gemini flash"}   (a look-up like read_skill: you get the matching model ids, then answer again; leave out "provider" to search every provider that is set up, leave out "query" to list them all)
-PROVIDER is one of: claude (Claude Code: opus, sonnet, haiku, fable, which always mean the latest version, or a full claude-… id), openrouter (any model on OpenRouter, ids like google/gemini-…), lmstudio, ollama, custom (model servers on this PC), codex (OpenAI Codex), hermes, pi and omp (the pi and oh-my-pi coding agents: provider/model ids like anthropic/claude-sonnet-5-5), openclaw (OpenClaw agents). Set up on this PC now: ${readyProviders().join(', ') || 'none'}.
-EFFORT is one of ${EFFORTS.join(', ')}, or "default" (the model's own). Claude Code takes low to max, Codex and OpenRouter minimal to xhigh, servers on this PC low to high, Hermes, pi, oh-my-pi and OpenClaw minimal to max; a level a provider doesn't have becomes its nearest one.
+PROVIDER is one of: claude (Claude Code: opus, sonnet, haiku, fable, which always mean the latest version, or a full claude-… id), openrouter (any model on OpenRouter, ids like google/gemini-…), venice (Venice API models; use find_models for ids and capabilities), lmstudio, ollama, custom (model servers on this PC), codex (OpenAI Codex), hermes, pi and omp (the pi and oh-my-pi coding agents: provider/model ids like anthropic/claude-sonnet-5-5), openclaw (OpenClaw agents). Set up on this PC now: ${readyProviders().join(', ') || 'none'}.
+EFFORT is one of ${EFFORTS.join(', ')}, or "default" (the model's own). Claude Code takes low to max, Codex and OpenRouter minimal to xhigh, Venice only the selected model's advertised levels, servers on this PC low to high, Hermes, pi, oh-my-pi and OpenClaw minimal to max; a level a provider doesn't have becomes its nearest one.
 STEP is a build step, run in order, from the cursor; positions and sizes are in map units with "units":"map" (a desk is 2.6 wide, a person 1.7 tall), else in voxels of the current size: {"use":"stone"}, {"material":"name","color":"#rrggbb","kind":"solid|emissive|water|glass|leaf"}, {"voxel_size":0.1}, {"at":[x,y,z]}, {"box":[w,h,d]}, {"sphere":r}, {"blob":[rx,ry,rz],"rough":0.3,"holes":0.2}, {"cylinder":r,"height":h}, {"revolve":[[radius,height],…]}, {"extrude":{"points":[[x,z],…]},"height":h}, {"path":[[x,z],…],"width":w}, {"heightmap":{"size":[w,d],"height":6},"top":"grass"}, {"layers":[["#.#"]],"key":{"#":"wood"}}, {"text":"HI"}; copies of prefabs: {"place":"Palm tree","at":[x,y,z],"turn":30}, {"place":["Person A","Person B"],"scatter":{"area":[w,d],"count":40},"turn":"random"}, {"place":"Lamp","along":[[x,z],…],"every":12,"sides":2,"offset":4}; any step can take "at":[x,y,z] and "use". Stock materials include grass, sand, stone, cobble, brick, wood, dark wood, leaves, blossom, water, glass, lantern (glows), red lacquer, roof tile, gold, snow, cloth white.
-SCHEDULE is {"type":"none"} (run by hand) or {"type":"daily","time":"HH:MM","days":[0-6, 0 = Sunday; leave out for every day]} or {"type":"interval","minutes":N}. Set "enabled":true when the user wants it to run on its own.
+SCHEDULE is {"type":"none"} (run by hand) or {"type":"daily","times":["09:00","15:00"],"days":[0-6, 0 = Sunday; leave out for every day]} or {"type":"interval","minutes":N}. A routine uses one "enabled" switch for manual and scheduled runs. Set it to false to switch the routine off.
 MEMBER is {"agent":"<existing agent id>"} or {"library":"<slug>"} or {"starter":"<name>"} or {"new":{"name":"…","emoji":"…","specialty":"one line","instructions":"5-10 sentences, second person","tools":["ids"],"skills":["skill ids"],"mcpServers":["names"]}}
 create_team and update_team also take "skills":["skill ids"] (update_team: the team's whole list).
 Tool group ids: ${GROUP_IDS.join(', ')}
@@ -947,6 +948,13 @@ export async function prepareModels(actions: BrainAction[]): Promise<void> {
     const prov = modelProvider(act.provider);
     if (act.model === undefined || act.model === null) {
       if (prov) movedTo.add(prov);
+      const providers = new Set<ModelProvider>(prov ? [prov] : []);
+      if (!prov) for (const target of targetList(act)) {
+        try {
+          for (const agent of modelTargets(target, { agent: null, team: null }).list) providers.add(providerOfAgent(agent));
+        } catch { /* reported when the action runs */ }
+      }
+      await Promise.all([...providers].filter((p) => p === 'venice').map((p) => availableModels(p)));
       continue;
     }
     const model = String(act.model).trim();
@@ -1047,7 +1055,7 @@ function stopWork(t: BrainAction, p: Project, last: { agent: string | null; team
 
 /** "Claude Code · opus, high effort" */
 function modelText(a: Agent): string {
-  const e = effortFor(a.engine, a.effort, a.provider);
+  const e = effortFor(a.engine, a.effort, a.provider, cachedApiModelInfo(String(a.provider), a.model || defaultModel(a.engine, a.provider))?.reasoningEfforts);
   return `${MODEL_PROVIDERS[providerOfAgent(a)].label} · ${a.model || 'its default model'}, ${e ? `${EFFORT_NAMES[e].toLowerCase()} effort` : "the model's default effort"}`;
 }
 
@@ -1135,7 +1143,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
     const t = routineTargets(r);
     const who = [...t.teams.map((x) => x.name), ...t.agents.map((a) => a.name)];
     const skills = r.mentions.filter((m) => m.kind === 'skill' && !m.missing).map((m) => m.name);
-    const when = r.schedule && r.schedule.type !== 'none' ? `${scheduleText(r.schedule)}${r.enabled ? '' : ', schedule off'}` : 'run by hand';
+    const when = `${r.schedule && r.schedule.type !== 'none' ? scheduleText(r.schedule) : 'run by hand'}${r.enabled ? '' : ', routine off'}`;
     return `${when}; ${who.length ? `for ${who.join(', ')}` : 'nobody mentioned yet'}${skills.length ? `; skills: ${skills.join(', ')}` : ''}`;
   };
   // a routine nobody can run: say so, so it can be fixed in the next message
@@ -1310,7 +1318,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         for (const result of results) {
           if (!result.success) { done.push({ kind: 'error', text: `${kind} item ${result.index + 1}: ${result.error}` }); continue; }
           const task = saved.get(result.taskId)!;
-          done.push({ kind: 'task', taskId: task.id, text: `${kind === 'TaskCreate' ? 'Created' : task.status === 'deleted' ? 'Removed' : 'Updated'} task: ${task.subject} [${task.id}]` });
+          done.push({ kind: 'task', taskId: task.id, text: `${kind === 'TaskCreate' ? 'Created' : task.status === 'deleted' ? 'Removed' : 'Updated'} task: ${task.subject}` });
         }
         continue;
       }
@@ -1353,16 +1361,16 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
                 if (MODEL_PROVIDERS[prov].provider) next.provider = MODEL_PROVIDERS[prov].provider!;
               }
               // (also catches agents made earlier in this answer, which prepareModels couldn't see)
-              const wrong = hasModel ? checkModelNow(providerOfAgent(next), model) : null;
+              const moved = providerOfAgent(next) !== providerOfAgent(a);
+              const nextModel = hasModel ? model : moved && prov ? defaultModelFor(prov) ?? '' : next.model;
+              const wrong = hasModel || (moved && providerOfAgent(next) === 'venice') ? checkModelNow(providerOfAgent(next), nextModel || '') : null;
               if (wrong) {
                 refused.push(`${a.name}: ${wrong}`);
                 continue;
               }
-              const moved = providerOfAgent(next) !== providerOfAgent(a);
-              if (hasModel) next.model = model;
-              else if (moved && prov) next.model = defaultModelFor(prov) ?? '';
+              next.model = nextModel;
               if (effort !== undefined) {
-                next.effort = effortFor(next.engine, effort, next.provider);
+                next.effort = effortFor(next.engine, effort, next.provider, cachedApiModelInfo(String(next.provider), next.model || defaultModel(next.engine, next.provider))?.reasoningEfforts);
                 if (effort && next.effort !== effort) nearest = true;
               }
               if (next.engine === a.engine && next.provider === a.provider && next.model === a.model && (next.effort || '') === (a.effort || '')) same.push(a);
@@ -1804,7 +1812,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
           description: String(act.description || ''),
           text,
           schedule: cleanSchedule(act.schedule),
-          enabled: act.enabled === true,
+          enabled: act.enabled !== false,
         }).id)!;
         lastRoutine = r.id;
         log('routine', `The Brain made the routine "${r.name}"`);
@@ -1824,7 +1832,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
           changed.push('what to do');
         }
         if (act.schedule !== undefined) (patch.schedule = cleanSchedule(act.schedule)), changed.push('schedule');
-        if (act.enabled !== undefined) (patch.enabled = act.enabled === true), changed.push(act.enabled === true ? 'schedule on' : 'schedule off');
+        if (act.enabled !== undefined) (patch.enabled = act.enabled === true), changed.push(act.enabled === true ? 'routine on' : 'routine off');
         const r = getRoutine(saveRoutine(patch, old.id).id)!;
         lastRoutine = r.id;
         log('routine', `The Brain updated the routine "${r.name}" (${changed.join(', ')})`);

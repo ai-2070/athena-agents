@@ -1,7 +1,7 @@
 // The Station's side panel: what you clicked on the map (the Brain, a team, an agent, the Bench or a
 // connection), with what you can do there. React; the map (station.ts) owns the panel's element, slides
 // it in and out, and tells it to draw again (update()) when what it shows may have changed.
-import { StrictMode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { StrictMode, Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GET, POST, PUT, DEL, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon } from '../core.ts';
@@ -14,7 +14,7 @@ import { openChat } from '../chatwin.tsx';
 import { skillPicker } from '../skillpick.ts';
 import { historyButton } from '../history.tsx';
 import { projectMark, pickLogo, removeLogo, pickModel, removeModel, pickBackground, removeBackground } from '../projectlogo.ts';
-import { pickTeamMark, EMOJI_CHOICES, DEFAULT_TEAM_MARK } from '../teammark.ts';
+import { pickTeamMark, DEFAULT_TEAM_MARK } from '../teammark.ts';
 import { icon, logo } from '../icons.ts';
 import { modelChip, modelInfo } from '../models.tsx';
 import { Avatar, DomNode, HoverScroll, Icon, IconWeightProvider, useAppState } from '../ui/react.tsx';
@@ -31,6 +31,8 @@ import { fileManager, previewFile, previewTitle } from '../filepreview.tsx';
 import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, connectorLook } from './stationdata.ts';
 import type { AvailableIntegration, Connector, MapPick, Program, TeamView } from './stationdata.ts';
 import type { Agent, AppState, Project, Team, TeamAccess, TeamState } from '../../shared/types.ts';
+
+const EmojiPicker = lazy(() => import('../ui/emojipicker.tsx').then((m) => ({ default: m.EmojiPicker })));
 
 /** What the panel needs from the map. */
 export interface StationPanelApi {
@@ -106,7 +108,7 @@ function Panel({ api, subscribe, version }: { api: StationPanelApi; subscribe: (
 }
 
 // (st-panel-title stays as a mark the tests look for)
-const TITLE = 'st-panel-title font-sans text-[16px] leading-[1.25] font-semibold tracking-[-0.015em]';
+const TITLE = 'st-panel-title font-sans text-[16px] leading-[1.25] font-semibold tracking-[-0.015em] mt-0.5';
 // (the soft fade at both ends lets what scrolls past the head and the foot melt into the glass instead of being cut off)
 const BODY = 'min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-18px),transparent_100%)]';
 // a row in the connection and team lists (st-conn stays as a mark the tests look for)
@@ -609,7 +611,7 @@ function ConnectionPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id
               Tools &amp; MCP
             </ButtonLink>
           ) : null}
-          {['openrouter', 'lmstudio', 'ollama'].includes(it.id) ? (
+          {['openrouter', 'venice', 'lmstudio', 'ollama'].includes(it.id) ? (
             <ButtonLink variant="ghost" size="small" href="#/settings">
               Settings
             </ButtonLink>
@@ -837,6 +839,7 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
   const sch = wf.schedule || { type: 'none' };
   const saveSchedule = (patch: Partial<NonNullable<TeamView['schedule']>>) => {
     const schedule = { ...sch, ...patch } as NonNullable<TeamView['schedule']>;
+    if (schedule.type === 'daily' && schedule.times?.length && !schedule.times.some((time) => time.trim())) schedule.type = 'none';
     void api.saveTeam({ ...wf, schedule, enabled: schedule.type !== 'none' });
   };
   const cloneTeam = async (withAgents: boolean) => {
@@ -908,7 +911,7 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
             value={sch.type === 'daily' ? 'daily' : 'none'}
             onChange={(t) => saveSchedule({ type: t })}
           />
-          {sch.type === 'daily' ? <input key={`t:${sch.time}`} type="time" aria-label="Time" defaultValue={sch.time || '09:00'} className="w-27.5" ref={committed<HTMLInputElement>((el) => saveSchedule({ time: el.value }))} /> : null}
+          {sch.type === 'daily' ? (sch.times?.length ? sch.times : ['09:00']).map((time, index, times) => <input key={`t:${index}:${time}`} type="time" aria-label={index ? `Time ${index + 1}` : 'Time'} defaultValue={time} className="w-27.5 font-mono" ref={committed<HTMLInputElement>((el) => saveSchedule({ times: times.map((value, i) => i === index ? el.value : value) }))} />) : null}
         </div>
         {sch.type === 'daily' ? (
           <div className="mt-2.5">
@@ -958,8 +961,8 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
           <DomNode as="span" className="dom-contents" make={() => historyButton('team', id, () => void api.reloadTeams())} deps={[id]} />
-          <Button variant="danger" size="tiny" className="ml-auto" onClick={() => void remove()}>
-            <Icon name="trash-2" size={12} />
+          <Button variant="danger" size="small" className="ml-auto" onClick={() => void remove()}>
+            <Icon name="trash-2" size={13} />
             Delete team
           </Button>
         </div>
@@ -994,25 +997,14 @@ function SymbolPicker({ api, wf }: { api: StationPanelApi; wf: TeamView }) {
   const current = wf.mark || DEFAULT_TEAM_MARK;
   return (
     <div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(44px,1fr))] gap-1.5">
-        {EMOJI_CHOICES.map((e) => {
-          const on = !own && current === e;
-          return (
-            <button
-              key={e}
-              className={`grid h-11 cursor-pointer place-items-center rounded-ctl border text-[21px] leading-none [transition:border-color_0.15s,background-color_0.15s,transform_0.15s] hover:-translate-y-px hover:border-accent-dim ${on ? 'border-accent bg-accent/10' : 'border-line-2 bg-panel'}`}
-              title={e}
-              aria-pressed={on}
-              onClick={() => void setEmoji(e)}
-            >
-              {e}
-            </button>
-          );
-        })}
-      </div>
+      <Suspense fallback={<span className="inline-grid size-15 place-items-center text-[28px]">{current}</span>}>
+        <EmojiPicker value={current} onChange={(emoji) => void setEmoji(emoji)}>
+          <span className="text-[28px] leading-none">{current}</span>
+        </EmojiPicker>
+      </Suspense>
       <div className="mt-3 flex items-center gap-2">
-        <input aria-label="Your own emoji" placeholder="Type or paste an emoji" maxLength={16} className="min-w-0 flex-1" ref={committed<HTMLInputElement>((el) => el.value.trim() && void setEmoji(el.value.trim()))} />
-        <Button variant="ghost" size="small" className="flex-none" onClick={() => void pickTeamMark({ id: wf.id, name: wf.name }).then((ok) => void (ok && api.reloadTeams()))}>
+        <input aria-label="Your own emoji" placeholder="Type or paste an emoji" maxLength={16} className="h-9 min-w-0 flex-1 py-0" ref={committed<HTMLInputElement>((el) => el.value.trim() && void setEmoji(el.value.trim()))} />
+        <Button variant="ghost" className="flex-none" onClick={() => void pickTeamMark({ id: wf.id, name: wf.name }).then((ok) => void (ok && api.reloadTeams()))}>
           <Icon name="image" size={14} />
           Picture or 3D model…
         </Button>

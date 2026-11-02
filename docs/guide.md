@@ -4,6 +4,7 @@ The [README](../README.md) says what the dashboard is, how to install it, which 
 
 - [Desktop app notes](#desktop-app-notes)
 - [Giving engine CLIs the dashboard tools](#giving-engine-clis-the-dashboard-tools)
+- [Venice models](#venice-models)
 - [Your first project](#your-first-project)
 - [Chats and files](#chats-and-files)
 - [Tasks](#tasks)
@@ -34,6 +35,24 @@ The [desktop app](../README.md#desktop-app) is the same dashboard in its own win
 Claude Code and Codex receive dashboard tools through an MCP bridge; API-model agents call them directly. For Hermes, open **Settings → MCP servers** and click **Give Hermes the dashboard tools**, then restart Hermes sessions. pi and oh-my-pi get them through their own `mcp.json` (pi needs version 0.99 or newer): the first run of an agent on either adds the dashboard there, and puts it right if the app was moved. **Give pi and oh-my-pi the dashboard tools** on the same page does it by hand. If that file isn't valid JSON it is left alone, and you get a message saying the agent can't use the dashboard tools until it is fixed.
 
 pi and oh-my-pi run their own tools (files, shell, edits) without asking, whatever the agent's autonomy says. OpenClaw follows its own approval settings. Each chat keeps its own pi, oh-my-pi or OpenClaw session. OpenClaw goes through its Gateway when it is running; otherwise it answers on this PC.
+
+## Venice models
+
+In **Settings → General & keys → API keys**, save a Venice inference key from [Venice API settings](https://venice.ai/settings/api). **Test** checks the saved key without generating an answer. It shows access, expiration and any available USD, DIEM and bundled-credit balances separately. A valid key can still have blocked access or no credits. Remove or replace the key in the same row. Keys stay in the server's secret store and are excluded from project folders and backups.
+
+The chat model picker and Station’s AI engines strip show only engines that are set up: saved API keys, installed local engines and, where checked, an active sign-in. Add or change setup in **Settings**.
+
+Pick **Venice** in the model picker for an agent or **The Brain's model**. In the agent editor, choose **API model**, then **Venice** as the provider. In the Agent library, choose **API model**, then **Choose API model** before hiring. Favorites keep their provider, so a Venice model stays on Venice when selected again. The Brain can also look up Venice models and move an agent or whole team onto one by name.
+
+Venice models have their own ids. Set **Defaults for new agents → Venice model**, then **Save settings**, to supply a model when a Venice agent or the Brain has none selected. Otherwise choose a model explicitly. OpenRouter's default does not apply to Venice. The existing default engine choice stays unchanged.
+
+The model list shows prices and context size, flags models without tool use and disables unavailable models, including in Favorites. Effort appears only when the selected model advertises supported levels. The Agent library keeps your chosen effort for new hires; **Default** uses the model's own setting. Image attachments follow its vision and image-count limits. If the catalog cannot load, the picker keeps the selected model and offers manual model entry; effort is omitted until its supported levels are known.
+
+Venice uses Athena's agent and Brain instructions with Venice's added system prompt disabled. Venice's built-in search, scraping and character features are not enabled. This integration covers chat, including supported image attachments; it does not add Venice image generation, video, audio, embeddings or wallet authentication.
+
+The Station's usage readout shows available Venice balances separately from Claude, Codex and OpenRouter. After a run, chat usage distinguishes reported USD and DIEM charges from an **estimated USD equivalent** based on token counts and catalog prices. An estimate is not a USD debit. If neither reported cost nor an estimate is available, the chat says **Cost unavailable**.
+
+**Cost limit per message** stops API runs between model steps after a known cost passes the limit. Venice uses a USD-equivalent estimate when needed, including for DIEM-funded runs. A single answer can exceed the limit. If cost information is missing, the monetary limit cannot be measured; the tool-step limit still applies. This is a local stop, not a hard spending cap at Venice.
 
 ## Your first project
 
@@ -103,6 +122,8 @@ Open **Tasks** in an agent, team or Brain chat to see the steps of a job. Agent 
 
 Use **Add task** to write a title and description of what must be done and how to check it. Choose an owner, or leave shared work unassigned. Click a task to edit its details, owner, status, working label or prerequisites. **Open** shows unfinished work; choose **All statuses** to include finished tasks. **Show more tasks** loads the next page. Prerequisite choices come from the loaded rows in the same list; clear a search or load more rows to include another task. **Remove** asks first and removes that task's dependency links too. If someone changed a task while you edited it, your draft stays open; **Reload saved task** loads their saved version.
 
+Use **Clear tasks** beside **Add task** to remove all open tasks in the selected list. Confirm the popup to clear them; completed tasks stay. The button is disabled when the list has no open tasks. Search and status filters do not limit which open tasks are cleared.
+
 Every engine receives the dashboard's `TaskCreate`, `TaskGet`, `TaskList` and `TaskUpdate` tools. The Brain uses the same saved records. Agents can read their own lists, their teams' lists and project tasks assigned to them or their team. The Brain and the user can manage the whole project. A task's list stays fixed; its owner can change within that list. Team tasks can belong to the team or a member, and project tasks can belong to the Brain, an agent or a team.
 
 `TaskCreate` and `TaskUpdate` also accept a `tasks` array, with no per-call task-count cap. Each item has the same fields as a single task or update. Items run in order, with a result or error for each; successful items stay saved if another item fails. Agents retry only the failed items. Put prerequisite completion before dependent completion in the array. A deletion anywhere in a tool batch asks for the normal approval before any item runs. Existing single-task calls keep their original responses.
@@ -168,7 +189,7 @@ Each project can have its own background picture behind the map: click the Brain
 
 ## Routines: work worth repeating
 
-Create a routine, write the instructions, and **@mention** the agents or teams that should do the work and the skills they should use. Use **Run now** to run its saved instructions, or set a schedule. A new routine is only saved once it has something to do. Every routine has a sliding switch, on its card in the list and on its page, to switch it on or off: a routine that is off doesn't run, by hand or on its schedule. A scheduled routine has a second switch in its Schedule box for the schedule itself. Each run records what its agents and teams did.
+Create a routine, write the instructions, and **@mention** the agents or teams that should do the work and the skills they should use. Use **Run now** to run its saved instructions, or set a schedule. A new routine is only saved once it has something to do. Every routine has a sliding switch, on its card in the list and on its page, to switch it on or off: a routine that is off doesn't run, by hand or on its schedule. The same switch controls manual and scheduled runs. A daily schedule can have several times; use **Add time** to add another. Pick the hour, minute and AM/PM, then press **OK**. The routine card shows every time and the selected days. Each run records what its agents and teams did.
 
 In **Runs**, expand a run to see each agent's or team's result. Markdown in a result is shown formatted, and **Chat** opens the conversation.
 
@@ -202,7 +223,7 @@ When several members are assigned the same message, each is told who else has it
 ## Models, effort and stopping work from Brain chat
 
 - **Switch models and effort.** "Put the video team on Opus at high effort" changes one agent, several agents or every agent on a team. The Brain checks model names against the provider's list before it changes anything.
-- **Look up models.** "Which Gemini models are on OpenRouter?" lists matching models with prices and context size. Ask "which model is each agent on?" to see every agent's model and effort.
+- **Look up models.** "Which Gemini models are on OpenRouter?" or "Which Venice models support tools?" lists matching models with prices and context size. Ask "which model is each agent on?" to see every agent's model and effort.
 - **Stop work.** "Stop the Writer", "stop the video team" or "stop everything" stops an agent, a team, or everything running in the open project: teams, agents, routines and workflows.
 
 The Brain changes models or stops work only when you ask.
@@ -267,7 +288,7 @@ Very long chats still scroll smoothly: from 50 messages on, the chat page and th
 ## Your Claude and Codex usage limits
 
 - **See them in the sidebar.** Click **Limits** above the list at the bottom of the menu (or pick **Usage limits** under **Settings → Appearance → Sidebar**). In place of what's set up, it shows how much of your Claude and Codex plans you have used in each window (5 hours, the week) and when each starts again. It reads them again every minute. **Status** brings the list back. Each project remembers which one you picked last.
-- **And at the top right of the Station.** The same numbers as **Session** and **Week** meters, taking turns every few seconds between Claude, Codex and OpenRouter (credits left) for each one you're signed in to.
+- **And at the top right of the Station.** The same numbers as **Session** and **Week** meters, taking turns every few seconds between Claude, Codex, OpenRouter (credits left) and Venice (separate balances) for each one you've set up.
 - **Free Codex resets.** When OpenAI has given your Codex account free limit resets, point at **Codex** in the sidebar: a card beside it says how many you have and when the next one runs out. **Reset now** asks first, then uses the one that runs out first and sets your Codex limits back to 0%. If you haven't used any of your limit yet, Codex keeps the reset.
 - **Where the numbers come from.** Claude's come from Anthropic with your Claude Code login; Codex's from the Codex program on this PC (`codex app-server`) with your Codex login. Nothing else is sent anywhere.
 
@@ -326,7 +347,7 @@ Choose **New project → From backup**, then drop in a `.dashbackup` file or cho
 
 - Restore creates a new project; it does not replace the original.
 - Missing skills and presets are added. If a skill has the same ID but different contents, your existing skill stays and the restored copy gets an `-restored` suffix. Matching skills receive the backup's earlier versions.
-- Scheduled teams and routines return **paused**, so the restored copy does not run the same work twice. Re-enable the schedules you want.
+- Scheduled teams and routines return **paused**, so the restored copy does not run the same work twice. Turn the routines and team schedules you want back on.
 - Agent chats come back with what was said, but a Claude Code, Codex, Hermes or OpenClaw chat starts a new session from that history: the copy never carries on in the original's conversation.
 - A `BRAIN.md` already in the folder you restore into stays as it is.
 

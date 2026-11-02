@@ -1,13 +1,14 @@
 // The same task list in agent, team and Brain chats. Editing stays inline with the work.
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { GET, POST, PUT, confirmBox, onEvent, onReconnect, state } from './core.ts';
+import { CollapseRoot, CollapsePanel } from './ui/collapse.tsx';
 import { Icon, useAppState } from './ui/react.tsx';
 import { Button, IconButton } from './ui/button.tsx';
 import { Pill } from './ui/marks.tsx';
 import { SelectControl } from './ui/select.tsx';
 import type { TaskCreateInput, TaskPage, TaskScope, TaskStatus, TaskSummary, Team, WorkTask } from '../shared/types.ts';
 
-const STATUS = [{ value: 'pending', label: 'Pending' }, { value: 'in_progress', label: 'In progress' }, { value: 'completed', label: 'Completed' }];
+const STATUS = [{ value: 'pending', label: 'Pending', icon: 'clock' }, { value: 'in_progress', label: 'In progress', icon: 'play' }, { value: 'completed', label: 'Completed', icon: 'circle-check' }];
 const sameScope = (a: TaskScope, b: TaskScope) => a.kind === b.kind && a.id === b.id;
 const scopeValue = (s: TaskScope) => s.kind === 'brain' ? 'brain' : `${s.kind}:${s.id}`;
 const scopeFrom = (value: string): TaskScope => value === 'brain' || value === 'all' ? { kind: 'brain' } : { kind: value.startsWith('team:') ? 'team' : 'agent', id: value.slice(value.indexOf(':') + 1) };
@@ -28,6 +29,8 @@ function TaskList({ view, scope, filters, chatId, projectId }: { view: string; s
   const [teams, setTeams] = useState<Team[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [openCount, setOpenCount] = useState(0);
   const [editing, setEditing] = useState<WorkTask | 'new' | null>(null);
   const serial = useRef(0);
   const editSerial = useRef(0);
@@ -39,8 +42,9 @@ function TaskList({ view, scope, filters, chatId, projectId }: { view: string; s
     setLoading(true); setError('');
     try {
       const q = new URLSearchParams({ view: target, status, search, limit: '100', offset: String(more ? page?.nextOffset || 0 : 0) });
-      const next = await GET<TaskPage>(`/tasks?${q}`);
+      const [next, unfinished] = await Promise.all([GET<TaskPage>(`/tasks?${q}`), GET<TaskPage>(`/tasks?${new URLSearchParams({ view: target, status: 'open', limit: '1' })}`)]);
       if (request !== serial.current || !here()) return;
+      setOpenCount(unfinished.total);
       setPage((old) => more && old ? { ...next, tasks: [...old.tasks, ...next.tasks] } : next);
     } catch (e) { if (request === serial.current && here()) setError(e instanceof Error ? e.message : String(e)); }
     finally { if (request === serial.current && here()) setLoading(false); }
@@ -59,7 +63,7 @@ function TaskList({ view, scope, filters, chatId, projectId }: { view: string; s
     return () => { update(); reconnect(); };
   }, [open, projectId]);
   const agents = app?.agents || [];
-  const lists = [{ value: 'brain', label: 'The Brain' }, ...teams.map((t) => ({ value: `team:${t.id}`, label: `Team · ${t.name}` })), ...agents.map((a) => ({ value: `agent:${a.id}`, label: a.name }))];
+  const lists = [{ value: 'brain', label: 'The Brain', icon: 'brain' }, ...teams.map((t) => ({ value: `team:${t.id}`, label: `Team · ${t.name}`, icon: 'users' })), ...agents.map((a) => ({ value: `agent:${a.id}`, label: a.name, icon: 'bot' }))];
   const nameOf = (value: string) => value === '' ? 'Unassigned' : lists.find((x) => x.value === value)?.label || 'Former owner';
   const edit = async (id: string) => {
     const request = ++editSerial.current;
@@ -67,18 +71,43 @@ function TaskList({ view, scope, filters, chatId, projectId }: { view: string; s
     try { const result = await GET<{ task: WorkTask }>(`/tasks/${encodeURIComponent(id)}`); if (here() && request === editSerial.current) setEditing(result.task); }
     catch (e) { if (here()) setError(e instanceof Error ? e.message : String(e)); }
   };
-  return <section className="task-panel shrink-0 min-w-0 px-1 text-[13px]" aria-label="Tasks">
-    <div className="flex items-center gap-2 py-1">
+  const clearTasks = async () => {
+    if (clearing || loading || !openCount) return;
+    const list = target === 'all' ? 'this project' : nameOf(target);
+    if (!(await confirmBox(`Clear all open tasks in ${list}? Completed tasks will stay. Dependency links to removed tasks will also be removed.`, { ok: 'Clear tasks', danger: true })) || !here()) return;
+    setClearing(true); setError('');
+    let failure = '';
+    try {
+      const tasks: TaskSummary[] = [];
+      let offset: number | null = 0;
+      while (offset != null) {
+        const result: TaskPage = await GET<TaskPage>(`/tasks?${new URLSearchParams({ view: target, status: 'open', limit: '100', offset: String(offset) })}`);
+        if (!here()) return;
+        tasks.push(...result.tasks); offset = result.nextOffset;
+      }
+      for (const task of tasks) {
+        const current = await GET<{ task: WorkTask }>(`/tasks/${encodeURIComponent(task.id)}`);
+        if (!here()) return;
+        if (current.task.status !== 'pending' && current.task.status !== 'in_progress') continue;
+        await PUT(`/tasks/${encodeURIComponent(task.id)}`, { status: 'deleted', expectedUpdatedAt: current.task.updatedAt });
+        if (!here()) return;
+      }
+      setEditing(null);
+    } catch (e) { failure = e instanceof Error ? e.message : String(e); }
+    finally { if (here()) { setClearing(false); await reload.current(); if (here() && failure) setError(failure); } }
+  };
+  return <CollapseRoot open={open} onOpenChange={setOpen} render={<section />} className="task-panel shrink-0 min-w-0 px-1 text-[13px]" aria-label="Tasks">
+    <div className="flex items-center gap-2 pt-1 pb-2">
       <Button variant="plain" size="tiny" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}>
-        <Icon name="list-checks" size={15} />Tasks<Icon name={open ? 'chevron-down' : 'chevron-right'} size={12} />
+        <Icon name="list-checks" size={15} />Tasks<Icon name="chevron-down" size={12} className={`transition-transform duration-200 ease-in-out ${open ? '' : '-rotate-90'}`} />
       </Button>
-      {open && <><span className="min-w-0 flex-1 text-dim" aria-live="polite">{page ? `${page.total} ${status === 'open' ? 'open' : 'tasks'}` : ''}</span><Button variant="ghost" size="tiny" onClick={() => setEditing('new')}>Add task</Button></>}
+      {open && <><span className="min-w-0 flex-1 text-dim" aria-live="polite">{page ? `${page.total} ${status === 'open' ? 'open' : 'tasks'}` : ''}</span><Button variant="ghost" size="tiny" disabled={clearing || loading || !page || !openCount} onClick={() => void clearTasks()}><Icon name="trash-2" size={14} />{clearing ? 'Clearing…' : 'Clear tasks'}</Button><Button variant="ghost" size="tiny" disabled={clearing} onClick={() => setEditing('new')}><Icon name="plus" size={14} />Add task</Button></>}
     </div>
-    {open && <div id={panelId} className="max-h-[min(55vh,420px)] overflow-y-auto border-y border-line py-2">
+    <CollapsePanel id={panelId}><div className="max-h-[min(55vh,420px)] overflow-y-auto border-y border-line pt-2 pb-1">
       <div className="flex flex-wrap items-center gap-2 pb-2">
-        {filters && <SelectControl aria-label="Task list" value={target} options={[{ value: 'all', label: 'All project tasks' }, ...lists]} onChange={(v) => { setTarget(v); setPage(null); setEditing(null); }} className="max-w-full flex-1" />}
-        <SelectControl aria-label="Filter task status" value={status} options={[{ value: 'open', label: 'Open' }, { value: 'all', label: 'All statuses' }, ...STATUS]} onChange={(v) => { setStatus(v); setPage(null); }} />
-        <input type="search" className="min-w-24 flex-1" aria-label="Search tasks" placeholder="Search tasks…" value={search} maxLength={240} onChange={(e) => { setSearch(e.target.value); setPage(null); }} />
+        {filters && <SelectControl aria-label="Task list" value={target} options={[{ value: 'all', label: 'All project tasks', icon: 'list-checks' }, ...lists]} onChange={(v) => { setTarget(v); setPage(null); setEditing(null); }} className="max-w-full flex-1" />}
+        <SelectControl aria-label="Filter task status" value={status} options={[{ value: 'open', label: 'Open', icon: 'folder-open' }, { value: 'all', label: 'All statuses', icon: 'list-checks' }, ...STATUS]} onChange={(v) => { setStatus(v); setPage(null); }} />
+        <div className="relative min-w-24 flex-1"><Icon name="search" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-dim" /><input type="search" className="w-full pl-9" aria-label="Search tasks" placeholder="Search tasks…" value={search} maxLength={240} onChange={(e) => { setSearch(e.target.value); setPage(null); }} /></div>
       </div>
       {error && <div role="alert" className="flex flex-wrap items-center gap-2 py-2 text-red"><span className="min-w-0 flex-1 wrap-anywhere">{error}</span><Button variant="plain" size="tiny" onClick={() => void load()}>Retry</Button></div>}
       {editing && <TaskEditor key={editing === 'new' ? 'new' : `${editing.id}/${editing.updatedAt}`} task={editing === 'new' ? null : editing} scope={filters ? scopeFrom(target) : scope} lists={lists} teams={teams} candidates={page?.tasks || []} chatId={chatId} projectId={projectId} allowScopeChange={filters} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void load(); }} onReload={() => editing !== 'new' && void edit(editing.id)} />}
@@ -90,10 +119,10 @@ function TaskList({ view, scope, filters, chatId, projectId }: { view: string; s
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 px-2 text-[12px] text-dim"><span>{nameOf(t.owner)}</span>{filters && t.owner !== scopeValue(t.scope) && <span>List: {nameOf(scopeValue(t.scope))}</span>}{t.blockedBy.length > 0 && <span>Waiting for {t.blockedBy.length} prerequisite{t.blockedBy.length === 1 ? '' : 's'}</span>}</div>
         </li>)}
-      </ul> : !loading && !error && <p className="m-0 py-4 text-dim">{search || status !== 'open' ? 'No tasks match these filters.' : 'No open tasks. Add one here, or ask for a plan in the chat.'}</p>}
+      </ul> : !loading && !error && <p className="m-0 py-1 text-dim">{search || status !== 'open' ? 'No tasks match these filters.' : 'No open tasks. Add one here, or ask for a plan in the chat.'}</p>}
       {page?.nextOffset != null && <Button variant="plain" size="small" disabled={loading} onClick={() => void load(true)}>{loading ? 'Loading…' : 'Show more tasks'}</Button>}
-    </div>}
-  </section>;
+    </div></CollapsePanel>
+  </CollapseRoot>;
 }
 
 function TaskEditor({ task, scope: initialScope, lists, teams, candidates, chatId, projectId, allowScopeChange, onClose, onSaved, onReload }: { task: WorkTask | null; scope: TaskScope; lists: { value: string; label: string }[]; teams: Team[]; candidates: TaskSummary[]; chatId?: string; projectId: string; allowScopeChange: boolean; onClose: () => void; onSaved: () => void; onReload: () => void }) {
@@ -119,7 +148,7 @@ function TaskEditor({ task, scope: initialScope, lists, teams, candidates, chatI
     } catch (e) { if (current()) setError(e instanceof Error ? e.message : String(e)); }
     finally { if (current()) setBusy(false); }
   };
-  return <form className="task-editor mb-2 space-y-3 border-y border-line py-3" aria-label={task ? 'Edit task' : 'New task'} onSubmit={(e) => { e.preventDefault(); void save(); }}>
+  return <form className="task-editor mb-2 space-y-3 border-y border-line pt-3 pb-5" aria-label={task ? 'Edit task' : 'New task'} onSubmit={(e) => { e.preventDefault(); void save(); }}>
     <fieldset disabled={busy} className="min-w-0 space-y-3 border-0 p-0">
     <div className="flex items-center gap-2"><b className="min-w-0 flex-1">{task ? 'Edit task' : 'New task'}</b><IconButton type="button" variant="plain" aria-label="Close task editor" onClick={onClose}><Icon name="x" size={14} /></IconButton></div>
     <label className="field">Title<input autoFocus required maxLength={240} value={subject} onChange={(e) => setSubject(e.target.value)} /></label>

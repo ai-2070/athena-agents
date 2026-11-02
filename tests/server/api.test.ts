@@ -2,6 +2,7 @@
 // the API works and the local-only security checks hold.
 import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
+import { once } from 'node:events';
 import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
@@ -13,7 +14,7 @@ const root = path.resolve(import.meta.dirname, '..', '..');
 // set in beforeAll: a port nothing else is using (see startServer)
 let port = 0;
 let base = '';
-let proc: ChildProcess;
+let proc: ChildProcess | undefined;
 let tmp: string;
 
 const req = (p: string, init: RequestInit & { headers?: Record<string, string> } = {}) => fetch(base + p, init);
@@ -30,6 +31,35 @@ const freePort = () =>
     });
   });
 
+// CLI probes can outlive the server, so stop its isolated process tree too.
+async function stopServer(child: ChildProcess): Promise<void> {
+  const pid = child.pid;
+  if (!pid) return;
+  const signalGroup = (signal: NodeJS.Signals) => {
+    try { process.kill(-pid, signal); }
+    catch (e) { if (!(e instanceof Error) || !('code' in e) || e.code !== 'ESRCH') throw e; }
+  };
+  if (child.exitCode !== null || child.signalCode !== null) {
+    if (process.platform !== 'win32') signalGroup('SIGKILL');
+    return;
+  }
+  const closed = once(child, 'close');
+  if (process.platform === 'win32') {
+    const killer = spawn('taskkill', ['/pid', String(pid), '/t', '/f'], { stdio: 'ignore' });
+    await once(killer, 'close');
+    await closed;
+    return;
+  }
+  const force = setTimeout(() => signalGroup('SIGKILL'), 3_000);
+  try {
+    signalGroup('SIGTERM');
+    await closed;
+    signalGroup('SIGKILL');
+  } finally {
+    clearTimeout(force);
+  }
+}
+
 // Start our own server and wait until it answers. Another dashboard (another test run, another checkout)
 // may grab the port first: then ours exits and the one answering isn't ours (other data folder), so try again.
 // (all attempts together stay within START_MS, well under beforeAll's timeout)
@@ -41,6 +71,7 @@ async function startServer(home: string): Promise<void> {
     base = `http://localhost:${port}`;
     const child = spawn('bun', ['server/index.ts', '--port', String(port), '--no-open'], {
       cwd: root,
+      detached: process.platform !== 'win32',
       env: { ...process.env, DASH_DATA: path.join(tmp, 'data'), HOME: home, USERPROFILE: home },
       stdio: 'ignore',
     });
@@ -56,7 +87,7 @@ async function startServer(home: string): Promise<void> {
       }
       await new Promise((r) => setTimeout(r, 150));
     }
-    child.kill();
+    await stopServer(child);
   }
   throw new Error('the server did not start');
 }
@@ -68,9 +99,9 @@ beforeAll(async () => {
   await startServer(home);
 }, 60_000);
 
-afterAll(() => {
-  proc?.kill();
-  fs.rmSync(tmp, { recursive: true, force: true });
+afterAll(async () => {
+  if (proc) await stopServer(proc);
+  if (tmp) fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
 describe('API', () => {
@@ -178,9 +209,18 @@ describe('API', () => {
     const text = await (await req('/api/state')).text();
     expect(text).not.toContain('supersecretvalue');
     expect(JSON.parse(text).secrets.openrouterKey).toEqual({ set: true, hint: '…9999' });
+    await req('/api/secrets', { method: 'POST', headers: json, body: JSON.stringify({ key: 'veniceKey', value: 'venice-supersecretvalue4321' }) });
+    const venice = await (await req('/api/state')).text();
+    expect(venice).not.toContain('supersecretvalue');
+    expect(JSON.parse(venice).secrets.veniceKey).toEqual({ set: true, hint: '…4321' });
+    await req('/api/secrets', { method: 'POST', headers: json, body: JSON.stringify({ key: 'veniceKey', value: '' }) });
+    expect((await (await req('/api/state')).json()).secrets.veniceKey).toEqual({ set: false });
   });
 
   it('answers 404 for unknown routes and 400 for bad bodies', async () => {
+    const venice = await req('/api/settings/test-venice', { method: 'POST', headers: json });
+    expect(venice.status).toBe(400);
+    expect(await venice.text()).toContain('No Venice key saved');
     expect((await req('/api/nope')).status).toBe(404);
     expect((await req('/api/agents', { method: 'POST', headers: json, body: '{oops' })).status).toBe(400);
     expect((await req('/api/agents', { method: 'POST', headers: json, body: 'null' })).status).toBe(400);

@@ -5,8 +5,29 @@ export type { Effort } from './effort.ts';
 
 export type EngineId = 'claude-code' | 'eve' | 'hermes' | 'codex' | 'pi' | 'omp' | 'openclaw';
 export type Autonomy = 'ask' | 'auto' | 'full';
-export type ProviderId = 'openrouter' | 'lmstudio' | 'ollama' | 'custom';
+export type ProviderId = 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'custom';
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
+
+/** An API model's advertised limits. Missing capabilities mean the provider did not say. */
+export interface ApiModelInfo {
+  id: string;
+  name: string;
+  context: number | null;
+  tools?: boolean;
+  vision?: boolean;
+  multipleImages?: boolean;
+  reasoningEfforts?: Effort[];
+  offline?: boolean;
+  /** USD per million tokens, already normalized across providers. */
+  price: { in: number; out: number; cached?: number } | null;
+}
+
+/** Reported debits stay separate from the USD-equivalent amount used for a run's budget. */
+export interface RunBilling {
+  source: 'reported' | 'estimated' | 'unavailable';
+  chargedUsd?: number;
+  chargedDiem?: number;
+}
 
 // ---------- agents ----------
 export interface AgentSource {
@@ -62,8 +83,8 @@ export interface TeamAccess {
 
 export interface Schedule {
   type: 'none' | 'daily' | 'interval' | string;
-  /** daily: 'HH:MM' */
-  time?: string;
+  /** daily: one or more 'HH:MM' times */
+  times?: string[];
   /** interval: every N minutes */
   minutes?: number;
   /** daily: which weekdays (0 = Sunday); empty = every day */
@@ -329,10 +350,8 @@ export interface Routine {
   text: string;
   mentions: RoutineMention[];
   schedule?: Schedule;
-  /** The schedule is on. */
-  enabled?: boolean;
-  /** Switched off: it doesn't run, by hand or on its schedule. */
-  paused?: boolean;
+  /** On: it can run by hand or on its schedule. */
+  enabled: boolean;
   lastScheduledAt?: number;
   createdAt?: number;
   updatedAt?: number;
@@ -401,7 +420,7 @@ export type ChatItem = (
   | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number; resultSourceId?: string }
   | { type: 'error'; text: string; ts?: number; runId?: string }
   /** reset: "Clear memory" (the agent starts fresh after it) */
-  | { type: 'meta'; text: string; ts?: number; reset?: boolean }
+  | { type: 'meta'; text: string; ts?: number; reset?: boolean; billing?: RunBilling }
   | CompactionItem) & { sourceId?: string };
 
 /** Full messages imported from the team's shared transcript before a member answers. */
@@ -534,7 +553,7 @@ export type RunEvent =
   | { kind: 'status'; text: string }
   | { kind: 'model'; model: string }
   | { kind: 'usage'; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; costUsd?: number; summary?: boolean }
-  | { kind: 'done'; text: string; cost?: number; seconds?: number }
+  | { kind: 'done'; text: string; cost?: number; seconds?: number; billing?: RunBilling }
   /** the engine compacted its own memory (Claude Code): marked in the chat, never sent on as a run event */
   | { kind: 'compacted'; trigger?: string; tokensBefore?: number }
   | { kind: 'error'; text: string };
@@ -687,7 +706,7 @@ export interface ActivityEntry {
 
 // ---------- settings ----------
 export interface BrainSetting {
-  provider: 'claude' | 'openrouter' | 'hermes' | 'codex';
+  provider: 'claude' | 'openrouter' | 'venice' | 'hermes' | 'codex';
   model: string;
   /** How hard it thinks. '' or missing = the model's default. */
   effort?: Effort | '';
@@ -726,7 +745,7 @@ export type StationQuality = 'smooth' | 'balanced' | 'saver';
 export type SidebarPanel = 'status' | 'limits';
 
 export interface Settings {
-  defaults: { engine: EngineId; claudeModel: string; openrouterModel: string; hermesProfile: string; autonomy: Autonomy };
+  defaults: { engine: EngineId; claudeModel: string; openrouterModel: string; veniceModel: string; hermesProfile: string; autonomy: Autonomy };
   providers: { lmstudio: { baseUrl: string }; ollama: { baseUrl: string }; custom: { baseUrl: string; label: string } };
   comfyui: { url: string; workflowDirs: string[] };
   paths: Record<string, string>;
@@ -754,8 +773,16 @@ export interface Settings {
   defaultWorld: string;
 }
 
-export type SecretKey = 'openrouterKey' | 'anthropicKey' | 'customKey' | 'xClientSecret' | 'telegramBotToken' | 'discordWebhook' | 'redditClientSecret';
+export type SecretKey = 'openrouterKey' | 'veniceKey' | 'anthropicKey' | 'customKey' | 'xClientSecret' | 'telegramBotToken' | 'discordWebhook' | 'redditClientSecret';
 export type SecretStatus = Record<SecretKey, { set: boolean; hint?: string }>;
+
+/** A saved Venice key can be valid while access is blocked or its credits have run out. */
+export interface VeniceAccountInfo {
+  accessPermitted: boolean;
+  expiresAt: string | null;
+  expired: boolean;
+  balances: { usd: number | null; diem: number | null; bundled: number | null };
+}
 
 // ---------- engines ----------
 export interface EngineCapabilities {
@@ -782,6 +809,9 @@ export interface EveRuntimeConfiguration {
   maxModelSteps: number;
   costLimitUsd: number;
   costBaseline: number;
+  spentUsd?: number;
+  capabilities?: Pick<ApiModelInfo, 'tools' | 'vision' | 'multipleImages'>;
+  price?: ApiModelInfo['price'];
   tools: { name: string; description: string; inputSchema: Record<string, JsonValue> }[];
 }
 
@@ -811,6 +841,8 @@ export interface EveModelSelection {
   contextWindow: number;
   maxModelSteps: number;
   costLimitUsd: number;
+  capabilities?: Pick<ApiModelInfo, 'tools' | 'vision' | 'multipleImages'>;
+  price?: ApiModelInfo['price'];
 }
 
 export type EveMessagePart = { type: 'text'; text: string } | { type: 'file'; data: string; mediaType: string; filename: string };
@@ -847,12 +879,20 @@ export interface EveRunRecord {
   projected?: number;
   limitReason?: string;
   costBaseline?: number;
+  charges?: EveModelCharge[];
   answer?: string;
   error?: string;
   endedAt?: number;
   pendingTerminal?: { line: number; status: 'completed' | 'failed' | 'stopped' | 'interrupted'; parts: string[]; error?: string };
   createdAt: number;
   updatedAt: number;
+}
+
+/** One acknowledged model response, including charges that preceded a lost native checkpoint. */
+export interface EveModelCharge {
+  id: string;
+  cost?: number;
+  billing: RunBilling;
 }
 
 export interface EveToolResult {
@@ -888,7 +928,7 @@ export interface EveToolOperation {
 
 export interface EngineStatus {
   'claude-code': { installed: boolean; path: string | null; loggedIn: boolean; version: string | null };
-  eve: { openrouter: boolean; custom: boolean };
+  eve: { openrouter: boolean; venice: boolean; custom: boolean };
   hermes: { installed: boolean; path: string | null };
   codex: { installed: boolean; loggedIn: boolean; version: string | null; path?: string | null; how?: string };
   pi: { installed: boolean; path: string | null; version: string | null };
@@ -1233,7 +1273,7 @@ export interface UsageMeter {
   text?: string | null;
 }
 export interface ProviderUsage {
-  id: 'claude' | 'openrouter' | 'codex';
+  id: 'claude' | 'openrouter' | 'venice' | 'codex';
   name: string;
   meters: UsageMeter[];
 }

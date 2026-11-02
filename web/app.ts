@@ -88,7 +88,7 @@ const VIEW_FLUSH = 'w-full min-w-0 *:animate-[fade_0.35s_ease-out]';
 // clipped to the icon strip and its text fades in when it opens (body.nav-wide); on a narrow one a hovered
 // icon shows its name beside it.
 const NAV_LINK =
-  'group flex items-center gap-3 rounded-ctl px-3 py-2 text-[14px] leading-[1.3] font-semibold [transition:background-color_0.15s,color_0.15s] in-[.station-mode]:relative max-md:in-[.station-mode]:justify-center max-md:in-[.station-mode]:px-0 max-md:in-[.station-mode.nav-wide]:justify-start max-md:in-[.station-mode.nav-wide]:px-3 md:in-[.station-mode]:w-8.5 md:in-[.station-mode]:justify-start md:in-[.station-mode]:px-[7px] md:in-[.station-mode.nav-wide]:w-auto md:in-[.station-mode.nav-wide]:px-3';
+  'group flex items-center gap-3 rounded-ctl px-3 py-2 text-[14px] leading-[1.3] font-medium [transition:background-color_0.15s,color_0.15s] in-[.station-mode]:relative max-md:in-[.station-mode]:justify-center max-md:in-[.station-mode]:px-0 max-md:in-[.station-mode.nav-wide]:justify-start max-md:in-[.station-mode.nav-wide]:px-3 md:in-[.station-mode]:w-8.5 md:in-[.station-mode]:justify-start md:in-[.station-mode]:px-[6px] md:in-[.station-mode.nav-wide]:w-auto md:in-[.station-mode.nav-wide]:px-[6px]';
 const NAV_LINK_OFF = 'text-dim hover:bg-ink/5 hover:text-ink';
 const NAV_LINK_ON = 'bg-ink/7 text-ink';
 const NAV_ICO = 'grid w-5 flex-none place-items-center text-center in-[.station-mode]:group-hover:text-accent';
@@ -96,7 +96,7 @@ const NAV_ICO_OFF = 'text-icon group-hover:text-ink';
 const NAV_ICO_ON = 'text-accent';
 // the menu's own labels read in capitals (the text stays as written, so lookups and screen readers are unmoved)
 const NAV_TXT =
-  'uppercase in-[.station-mode]:[display:none] in-[.station-mode]:group-hover:absolute in-[.station-mode]:group-hover:left-[58px] in-[.station-mode]:group-hover:z-90 in-[.station-mode]:group-hover:block in-[.station-mode]:group-hover:rounded-ctl in-[.station-mode]:group-hover:border in-[.station-mode]:group-hover:border-line in-[.station-mode]:group-hover:bg-raise in-[.station-mode]:group-hover:shadow-pop in-[.station-mode]:group-hover:px-3 in-[.station-mode]:group-hover:py-1.5 in-[.station-mode]:group-hover:whitespace-nowrap in-[.station-mode]:group-hover:text-ink in-[.station-mode.nav-wide]:inline in-[.station-mode.nav-wide]:group-hover:static in-[.station-mode.nav-wide]:group-hover:border-0 in-[.station-mode.nav-wide]:group-hover:bg-transparent in-[.station-mode.nav-wide]:group-hover:p-0 in-[.station-mode.nav-wide]:group-hover:shadow-none in-[.station-mode.nav-wide]:group-hover:text-inherit md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode]:group-hover:static md:in-[.station-mode]:group-hover:border-0 md:in-[.station-mode]:group-hover:bg-transparent md:in-[.station-mode]:group-hover:p-0 md:in-[.station-mode]:group-hover:text-inherit md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
+  'uppercase tracking-[0.025em] in-[.station-mode]:[display:none] in-[.station-mode]:group-hover:absolute in-[.station-mode]:group-hover:left-[58px] in-[.station-mode]:group-hover:z-90 in-[.station-mode]:group-hover:block in-[.station-mode]:group-hover:rounded-ctl in-[.station-mode]:group-hover:border in-[.station-mode]:group-hover:border-line in-[.station-mode]:group-hover:bg-raise in-[.station-mode]:group-hover:shadow-pop in-[.station-mode]:group-hover:px-3 in-[.station-mode]:group-hover:py-1.5 in-[.station-mode]:group-hover:whitespace-nowrap in-[.station-mode]:group-hover:text-ink in-[.station-mode.nav-wide]:inline in-[.station-mode.nav-wide]:group-hover:static in-[.station-mode.nav-wide]:group-hover:border-0 in-[.station-mode.nav-wide]:group-hover:bg-transparent in-[.station-mode.nav-wide]:group-hover:p-0 in-[.station-mode.nav-wide]:group-hover:shadow-none in-[.station-mode.nav-wide]:group-hover:text-inherit md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode]:group-hover:static md:in-[.station-mode]:group-hover:border-0 md:in-[.station-mode]:group-hover:bg-transparent md:in-[.station-mode]:group-hover:p-0 md:in-[.station-mode]:group-hover:text-inherit md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 const NAV_COUNT =
   'ml-auto in-[.station-mode]:[display:none] in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 // a line of the status list at the bottom left
@@ -149,7 +149,6 @@ function navStatus(d: AppState) {
     h('a', { class: NS_LINE, href, title: title || label, onclick: () => document.body.classList.remove('nav-open') }, domDot(dot, { class: 'size-1.5 [box-shadow:none]' }), h('span', { class: 'min-w-0 flex-1 truncate text-ink' }, label), value ? h('span', { class: 'max-w-[48%] min-w-0 truncate text-right text-[11.5px] text-faint tabular-nums', title: value }, value) : null);
   const cc: Partial<EngineStatus['claude-code']> = e['claude-code'] || {};
   const cx: Partial<EngineStatus['codex']> = e.codex || {};
-  const acc: Partial<AppState['accounts']> = d.accounts || {};
   const b = d.settings?.brain || { provider: 'claude', model: 'haiku' };
   const brainName = String(b.model || 'haiku').replace(/^anthropic\/claude-/, '').replace(/^./, (c) => c.toUpperCase());
   const heading = 'mt-3 px-2 pb-1 text-[11px] leading-4 font-medium text-faint';
@@ -165,10 +164,7 @@ function navStatus(d: AppState) {
     line(e.omp?.installed ? 'on' : '', 'oh-my-pi', e.omp?.installed ? ver(e.omp.version) || 'found' : 'not installed', S('tab=general&find=oh-my-pi')),
     line(e.openclaw?.installed ? 'on' : '', 'OpenClaw', e.openclaw?.installed ? ver(e.openclaw.version) || 'found' : 'not installed', S('tab=general&find=OpenClaw')),
     h('div', { class: heading }, 'Models and connections'),
-    line(e.eve?.openrouter ? 'on' : '', 'OpenRouter', e.eve?.openrouter ? 'key set' : 'no key', S('tab=general&find=OpenRouter key')),
-    line('on', 'Brain', `${brainName}${b.provider === 'openrouter' ? ' · OR' : ''}`, S("tab=general&find=The Brain's model"), "The Brain's model"),
-    line(acc.telegram?.configured ? 'on' : '', 'Telegram', acc.telegram?.configured ? 'ready' : 'off', S('tab=connections&sub=accounts&find=Telegram')),
-    line(acc.discord?.configured ? 'on' : '', 'Discord', acc.discord?.configured ? 'ready' : 'off', S('tab=connections&sub=accounts&find=Discord')),
+    line('on', 'Brain', `${brainName}${b.provider === 'openrouter' ? ' · OR' : b.provider === 'venice' ? ' · Venice' : ''}`, S("tab=general&find=The Brain's model"), "The Brain's model"),
     line((d.mcpServers || []).length ? 'on' : '', 'MCP servers', String((d.mcpServers || []).length), S('tab=mcp&find=Your MCP servers')),
     d.outboxPending || d.questions?.length ? line('busy', 'Outbox', `${d.outboxPending + (d.questions?.length || 0)} waiting`, '#/outbox') : null,
     h('div', { class: 'mt-2 border-t border-line pt-2' },

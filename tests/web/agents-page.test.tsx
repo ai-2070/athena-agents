@@ -132,6 +132,17 @@ describe('the overview: kinds of agents and their models', () => {
 });
 
 describe('the agent editor', () => {
+  it('shows engine, autonomy and MCP marks, and puts effort beside the model', async () => {
+    await open(['a1', 'edit']);
+    for (const label of ['Brain', 'Autonomy', 'MCP servers']) {
+      const group = el.querySelector(`[aria-label="${label}"]`)!;
+      for (const button of group.querySelectorAll('button')) expect(button.querySelector('svg, img')).not.toBeNull();
+    }
+    const effort = el.querySelector('[aria-label="Effort"]')!.closest('.field')!;
+    expect(effort.parentElement!.querySelector('[role="combobox"]')).not.toBeNull();
+    expect(effort.parentElement!.querySelector('input')).not.toBeNull();
+  });
+
   it('enables Save once something changes, and saves the agent', async () => {
     await open(['a1', 'edit']);
     const save = btn(el, 'Save');

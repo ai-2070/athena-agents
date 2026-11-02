@@ -41,7 +41,7 @@ export function projectTranscript(runId: string): void {
         if (event.kind === 'text') chat.items.push({ type: 'assistant', text: event.text, sourceId, ts });
         else if (event.kind === 'tool') chat.items.push({ type: 'tool', id: event.id, name: event.name, args: event.args, result: null, status: 'running', sourceId, ts });
         else if (event.kind === 'usage') {
-          const cost = event.costUsd === undefined ? 'Cost not reported' : `$${event.costUsd.toFixed(4)}`;
+          const cost = readAdmission(runId)?.selection.provider === 'venice' ? 'Usage' : event.costUsd === undefined ? 'Cost not reported' : `$${event.costUsd.toFixed(4)}`;
           const tokens = event.inputTokens + event.outputTokens;
           chat.items.push({ type: 'meta', text: `${event.summary ? 'Memory summary · ' : ''}${cost} · ${tokens} tokens${event.cacheReadTokens ? ` · ${event.cacheReadTokens} from cache` : ''}`, sourceId, ts });
           if (!event.summary) {

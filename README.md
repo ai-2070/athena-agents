@@ -133,7 +133,7 @@ Open **Settings → General & keys**. You only need to set up the engines you wa
 | Engine | What you need |
 |---|---|
 | **Claude Code** | The `claude` CLI. Use your Claude login, an Anthropic key or OpenRouter. |
-| **API model** | An OpenRouter key, a running LM Studio or Ollama server, or another OpenAI-compatible endpoint. Configure local endpoints under **Local and custom models**. |
+| **API model** | An OpenRouter or Venice key, a running LM Studio or Ollama server, or another OpenAI-compatible endpoint. Configure local endpoints under **Local and custom models**. |
 | **Hermes** | An installed Hermes setup with a profile to use. |
 | **OpenAI Codex** | The `codex` CLI and your ChatGPT login. Settings offers installation and sign-in; installation uses npm. |
 | **pi** | The `pi` coding agent (`npm install -g @earendil-works/pi-coding-agent`), signed in to a model provider (`/login` in pi, or a key such as `ANTHROPIC_API_KEY`). |
@@ -141,6 +141,10 @@ Open **Settings → General & keys**. You only need to set up the engines you wa
 | **OpenClaw** | The `openclaw` CLI, set up with `openclaw onboard`. Pick which of your OpenClaw agents answers in the agent's settings. |
 
 Choose **The Brain's model** in the same settings page. The Brain is the project-wide assistant: it answers questions, builds agents and teams, writes the project brief, manages skills, routines and MCP servers, switches agents' models, stops work, and hands work to the right people.
+
+The chat model picker and Station’s AI engines strip show only engines that are set up: saved API keys, installed local engines and, where checked, an active sign-in. Add or change setup in **Settings**.
+
+For **Venice**, save an inference key under **API keys** and press **Test** to check access and balances without generating an answer. Choose a model from the **Venice** tab in a chat's model picker, or select **API model → Venice** in an agent's editor. The Brain can use Venice too. **Defaults for new agents → Venice model** sets its own fallback model; save settings after choosing it. Tools, image attachments and effort depend on the selected model. See [Venice setup and costs](docs/guide.md#venice-models).
 
 Claude Code and Codex receive dashboard tools through an MCP bridge; API-model agents call them directly. pi and oh-my-pi get them on their first run; Hermes needs a one-time **Give Hermes the dashboard tools** click under **Settings → MCP servers**. See [Giving engine CLIs the dashboard tools](docs/guide.md#giving-engine-clis-the-dashboard-tools).
 
@@ -163,7 +167,7 @@ Projects keep separate agents, teams and chats. The project name at the top left
 | **Agents** | Instructions, knowledge, MEMORY.md, model and effort, autonomy, tools, MCP servers, skills and workspace. Above the list: how many agents the project has (also next to **Agents** in the sidebar), how many are working, and charts of their categories (Agent library division, or your own, made by the Brain…) and their models; click a category or model to show only those agents. On the Station, an AI engine at the top right that is set up and used by agents opens its agents here. |
 | **Agent library** | **Athena** agents (made for this dashboard and its tools: a Coordinator, X Writer, Image Maker, World Builder…), The Agency's 270+ specialists (they come with the dashboard), Hermes profiles, Claude Code subagents and your presets. |
 | **Skills** | Reusable instructions, their assignments, earlier versions and recently deleted ones. |
-| **Routines** | Repeatable jobs, their schedules and the results of each run. **Run now** uses the routine's saved instructions. |
+| **Routines** | Repeatable jobs, their schedules and the results of each run. **Run now** uses the routine's saved instructions. One switch controls manual and scheduled runs; daily schedules can have several times. |
 | **Outbox** | Questions from agents (click a choice or write an answer), and X and Reddit drafts waiting to be approved, edited or rejected. |
 | **Artifacts** | Written results, files and folders that agents have saved, each with a preview (images, video, audio, 3D models you can turn) and a search box. Chats show the same previews for files agents mention; in the desktop app any of them opens in its own program. |
 | **Settings** | Engines and keys, accounts and connections, MCP servers, programs, and the look: UI scale, colour scheme (System, Light or Dark), accent colour (each with a light and a dark tone), motion, the Station's look (the classic map, pale on a light system and dark on a dark one, or the voxel world's light: sky, sun and soft shadows, glow) and the open project's background picture, with sliders for how strongly the picture and the map's dots show, the font chats are written in (the page's own font by default, a serif, a terminal font like Claude Code, your system font like ChatGPT, Google Sans like Gemini, Roboto like Android, or San Francisco like iPhone), how hard the Station map works (**Smooth**, **Balanced** or **Battery saver**), and whether the bottom of the sidebar shows what's set up or your Claude and Codex usage limits (point at Codex to see its free limit resets and a **Reset now** button; the **Status / Limits** switch there does the same). **About** shows the version, the GitHub link with a star button, and this PC's address and data folder; the version and a Star link are also at the bottom of the sidebar. |
@@ -179,7 +183,7 @@ six hours, including across restarts.
 
 **Assigned work keeps going.** The Brain checks agent and team results after each turn and follows up on missing work automatically. No `/goal` command is needed. It keeps going while work advances, waits for delegated work, and stops when the result is delivered or your action is needed. Blockers and repeated lack of progress appear in **Needs you** with a question you can answer to continue. **Stop** cancels continuation; changing the project on screen leaves work in its own project. Completion checks use the Brain's configured model.
 
-**Tasks stay with the work.** Agents, teams and the Brain share `TaskCreate`, `TaskGet`, `TaskList` and `TaskUpdate`. They can create or update several tasks in one call, with a result for each item. Tasks hold the requirements, owner and prerequisites; another agent cannot take work already claimed by someone else. The chat's **Tasks** panel lets you add, edit, search and remove them. A task records a step; ask in the chat to start the work. Tasks are included in project saves and backups. See [Tasks](docs/guide.md#tasks).
+**Tasks stay with the work.** Agents, teams and the Brain share `TaskCreate`, `TaskGet`, `TaskList` and `TaskUpdate`. They can create or update several tasks in one call, with a result for each item. Tasks hold the requirements, owner and prerequisites; another agent cannot take work already claimed by someone else. The chat's **Tasks** panel lets you add, edit, search and remove them. **Clear tasks** removes all open tasks in the selected list after confirmation and keeps completed tasks. A task records a step; ask in the chat to start the work. Tasks are included in project saves and backups. See [Tasks](docs/guide.md#tasks).
 
 ## Approvals and safety
 

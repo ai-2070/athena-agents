@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS: Settings = {
     engine: 'claude-code',
     claudeModel: 'sonnet',
     openrouterModel: 'anthropic/claude-sonnet-5.5',
+    veniceModel: '',
     hermesProfile: '',
     autonomy: 'auto',
   },
@@ -95,7 +96,7 @@ export function setSecret(key: SecretKey, value: string | null | undefined) {
 export function secretStatus(): SecretStatus {
   const s = getSecrets();
   const out: Partial<SecretStatus> = {};
-  for (const k of ['openrouterKey', 'anthropicKey', 'customKey', 'xClientSecret', 'telegramBotToken', 'discordWebhook', 'redditClientSecret'] as const) {
+  for (const k of ['openrouterKey', 'veniceKey', 'anthropicKey', 'customKey', 'xClientSecret', 'telegramBotToken', 'discordWebhook', 'redditClientSecret'] as const) {
     const v = s[k];
     out[k] = v ? { set: true, hint: `…${String(v).slice(-4)}` } : { set: false };
   }

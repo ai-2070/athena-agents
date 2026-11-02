@@ -30,7 +30,7 @@ let holding = new Set<string>();
 // the Brain's answer being written (the server ends it on /stop)
 let answer: ReadableStreamDefaultController<Uint8Array> | null = null;
 beforeAll(() => {
-  document.body.append(Object.assign(document.createElement('div'), { id: 'toasts' }));
+  document.body.append(Object.assign(document.createElement('div'), { id: 'modal-root' }), Object.assign(document.createElement('div'), { id: 'toasts' }));
   Element.prototype.animate ??= function () {
     return { finished: Promise.resolve(), cancel() {}, onfinish: null, effect: null } as unknown as Animation;
   };
@@ -92,6 +92,9 @@ const pick = async (label: string) => {
 };
 const newConversation = async () => {
   await act(async () => document.querySelector<HTMLButtonElement>('.dock button[aria-label="New conversation"]')!.click());
+  await settle();
+  expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+  await act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((b) => b.textContent === 'Clear memory')!.click());
   await settle();
 };
 const asked = () => calls.filter((c) => c.url === '/api/brain/stream').map((c) => c.body.text);

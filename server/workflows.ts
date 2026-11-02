@@ -213,11 +213,13 @@ export function due(wf: { schedule?: WorkflowSchedule; enabled?: boolean; lastSc
   const last = wf.lastScheduledAt || 0;
   if (s.type === 'interval') return now - last >= Math.max(5, Number(s.minutes) || 60) * 60_000;
   if (s.type === 'daily') {
-    const [h, m] = String(s.time || '09:00').split(':').map(Number);
-    const target = new Date(now);
-    target.setHours(h, m || 0, 0, 0);
     const days = s.days?.length ? s.days : [0, 1, 2, 3, 4, 5, 6];
-    return days.includes(target.getDay()) && now >= target.getTime() && last < target.getTime() && now - target.getTime() < 60 * 60_000;
+    return (s.times?.length ? s.times : ['09:00']).some((time) => {
+      const [h, m] = time.split(':').map(Number);
+      const target = new Date(now);
+      target.setHours(h, m, 0, 0);
+      return days.includes(target.getDay()) && now >= target.getTime() && last < target.getTime() && now - target.getTime() < 60 * 60_000;
+    });
   }
   return false;
 }
@@ -251,7 +253,7 @@ export const TEMPLATES: WorkflowTemplate[] = [
       { type: 'approval', label: 'Approve the post', message: '{{prev}}' },
       { type: 'x_post', label: 'Send to Outbox', text: '{{prev}}' },
     ],
-    schedule: { type: 'daily', time: '09:00', input: 'AI agents' },
+    schedule: { type: 'daily', times: ['09:00'], input: 'AI agents' },
   },
   {
     name: 'Prompt to image',

@@ -14,6 +14,9 @@ describe('settings and secrets', () => {
     // the rest of the nested object is kept
     expect(after.look.accent).toBe('aegean');
     expect(after.defaults.engine).toBe('claude-code');
+    expect(after.defaults.veniceModel).toBe('');
+    saveSettings({ defaults: { veniceModel: 'venice-model' } });
+    expect(getSettings().defaults).toMatchObject({ veniceModel: 'venice-model', openrouterModel: s.defaults.openrouterModel });
   });
 
   it('an older "station" holding the voxel look moves to stationLook; the map quality starts at Balanced', () => {

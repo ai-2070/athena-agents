@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
 import * as general from '../../web/views/settings.tsx';
 import { setPath } from '../../web/views/settings.tsx';
-import type { AppState } from '../../shared/types.ts';
+import type { AppState, VeniceAccountInfo } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
@@ -23,7 +23,8 @@ const settings = {
   paths: {},
   allowedFolders: [],
 };
-const secrets = { openrouterKey: { set: false }, anthropicKey: { set: false }, customKey: { set: false } };
+const secrets = { openrouterKey: { set: false }, veniceKey: { set: false }, anthropicKey: { set: false }, customKey: { set: false } };
+let veniceAccount: VeniceAccountInfo;
 let requests: { method: string; url: string; body: unknown }[];
 let refuse: string | null;
 let el: HTMLElement;
@@ -33,6 +34,8 @@ beforeEach(() => {
   el = document.getElementById('view')!;
   requests = [];
   refuse = null;
+  secrets.veniceKey.set = false;
+  veniceAccount = { accessPermitted: true, expired: false, expiresAt: null, balances: { usd: 3, diem: 5, bundled: 0 } };
   state.data = {
     port: 4800,
     dataDir: 'C:\\data',
@@ -49,6 +52,7 @@ beforeEach(() => {
     if (refuse && url.endsWith(refuse) && method !== 'GET') return new Response(JSON.stringify({ error: 'nope' }), { status: 500 });
     if (url === '/api/settings') return new Response(JSON.stringify(method === 'GET' ? { settings, secrets } : { ok: true }));
     if (url === '/api/state') return new Response(JSON.stringify(state.data));
+    if (url === '/api/settings/test-venice') return Response.json(veniceAccount);
     return new Response('{}');
   });
 });
@@ -82,6 +86,47 @@ describe('setPath()', () => {
 });
 
 describe('General & keys', () => {
+  it('saves, tests and removes a Venice key without putting it into settings', async () => {
+    secrets.veniceKey.set = true;
+    await open();
+    const row = () => [...el.querySelectorAll('.ai-key')].find((r) => r.querySelector('label')?.textContent === 'Venice key')!;
+    const action = (name: string) => [...row().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === name)!;
+    expect(row().querySelector('input')?.type).toBe('password');
+    await type(row().querySelector('input')!, ' venice-secret ');
+    await act(async () => action('Save').click());
+    await settle();
+    expect(requests.find((r) => r.url === '/api/secrets')?.body).toEqual({ key: 'veniceKey', value: 'venice-secret' });
+    expect(row().querySelector('input')?.value).toBe('');
+    await act(async () => action('Test').click());
+    await settle();
+    expect(row().querySelector('[role="status"]')?.textContent).toContain('The key works');
+    expect(row().textContent).toContain('$3.00 USD · 5.00 DIEM · 0.00 bundled credits');
+    expect(requests.some((r) => r.url === '/api/settings/test-venice' && r.method === 'POST')).toBe(true);
+    await act(async () => action('Remove').click());
+    expect(requests.filter((r) => r.url === '/api/secrets').at(-1)?.body).toEqual({ key: 'veniceKey', value: '' });
+    expect(requests.filter((r) => r.url === '/api/settings' && r.method === 'PUT')).toHaveLength(0);
+  });
+
+  it('keeps expired and access-blocked keys distinct from a successful test', async () => {
+    secrets.veniceKey.set = true;
+    veniceAccount.expired = true;
+    await open();
+    const row = [...el.querySelectorAll('.ai-key')].find((r) => r.querySelector('label')?.textContent === 'Venice key')!;
+    const test = () => [...row.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Test')!;
+    await act(async () => test().click());
+    expect(row.textContent).toContain('key has expired');
+    veniceAccount = { ...veniceAccount, expired: false, accessPermitted: false };
+    await act(async () => test().click());
+    expect(row.textContent).toContain('blocked API access');
+  });
+
+  it('saves the Venice default independently of the OpenRouter default', async () => {
+    await open();
+    await type(fieldInput('Venice model'), 'my-venice-model');
+    await act(async () => button('Save settings').click());
+    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/settings')?.body).toEqual({ defaults: { veniceModel: 'my-venice-model' } });
+  });
+
   it('Save settings sends only what you changed', async () => {
     await open();
     await type(fieldInput('Max tool steps per message'), '7');
@@ -127,6 +172,24 @@ describe('General & keys', () => {
     expect(key().value).toBe('');
   });
 
+  it('adds decorative marks to model choices and program fields without changing their names', async () => {
+    await open();
+    const sections = [...el.querySelectorAll('.settings-section h2')];
+    const folderIndex = sections.findIndex((heading) => heading.textContent === 'Allowed folders');
+    expect(sections[folderIndex - 1].textContent).toBe("The Brain's model");
+    expect(sections[folderIndex].querySelector('svg')).not.toBeNull();
+    const labels = [...el.querySelectorAll('label.field')].map((field) => field.querySelector('span')?.textContent);
+    expect(labels.indexOf('ComfyUI path')).toBe(labels.indexOf('Extra ComfyUI workflow folders') + 1);
+    expect(labels.indexOf('Blender path')).toBe(labels.indexOf('ComfyUI path') + 1);
+    const brain = el.querySelector('[aria-label="Brain"].seg')!;
+    for (const button of brain.querySelectorAll('button')) expect(button.querySelector('svg, img')).not.toBeNull();
+    for (const label of ['LM Studio server', 'Ollama server', 'Blender path', 'Extra ComfyUI workflow folders', 'Venice model']) {
+      const field = [...el.querySelectorAll('label.field')].find((f) => f.querySelector('span')?.textContent === label)!;
+      expect(field.querySelector('svg, img')).not.toBeNull();
+      expect(field.querySelector('input, textarea')).not.toBeNull();
+    }
+  });
+
   it('shows each engine with its logo and status, and copies an install command', async () => {
     const copied: string[] = [];
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (t: string) => void copied.push(t) } });
@@ -135,6 +198,13 @@ describe('General & keys', () => {
     expect(names).toEqual(expect.arrayContaining(['Claude Code', 'OpenAI Codex', 'Hermes', 'pi coding agent', 'oh-my-pi', 'OpenClaw', 'OpenRouter key', 'Anthropic API key']));
     // every engine and key row has a mark (a logo or its glyph)
     for (const r of el.querySelectorAll('.ai-list .ai-row')) expect(r.querySelector('.ai-mark')!.childNodes.length).toBeGreaterThan(0);
+    for (const [name, engine] of [['Venice key', 'venice'], ['Hermes', 'hermes'], ['pi coding agent', 'pi'], ['oh-my-pi', 'omp'], ['OpenClaw', 'openclaw']]) {
+      const row = [...el.querySelectorAll('.ai-row')].find((r) => r.querySelector('.ai-name')?.textContent === name)!;
+      const image = row.querySelector<HTMLImageElement>('.ai-mark img')!;
+      expect(image.getAttribute('src')).toBe(`/brand/engines/${engine}.svg`);
+      expect(image.getAttribute('aria-hidden')).toBe('true');
+      expect(image.getAttribute('width')).toBe(engine === 'pi' ? '15' : '17');
+    }
     // pi isn't in this state, so it shows its install command
     const copy = el.querySelector<HTMLButtonElement>('.ai-cmd button')!;
     await act(async () => copy.click());

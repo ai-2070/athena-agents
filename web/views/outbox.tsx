@@ -8,7 +8,7 @@ import { GET, POST, PUT, DEL, attempt, toast, ago, refreshSoon } from '../core.t
 import { fetchFile } from '../client/http.ts';
 import { fileUrl } from '../client/connection.ts';
 import { openFile } from '../filepreview.tsx';
-import { reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
+import { Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { Section, Sections } from '../ui/controls.tsx';
 import { Pill } from '../ui/marks.tsx';
@@ -121,7 +121,7 @@ function Compose({ accounts, added }: { accounts: string[]; added: () => void })
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <SelectControl aria-label="Post as" value={account} onChange={setAccount} options={accounts.map((a) => ({ value: a, label: `@${a}` }))} />
           <span className="hint flex-1 min-w-0" />
-          <Button variant="ghost" size="small" onClick={() => void save()}>Save to Outbox</Button>
+          <Button variant="ghost" size="small" onClick={() => void save()}><Icon name="save" size={13} />Save to Outbox</Button>
         </div>
       </Plate>
     </Section>
@@ -129,12 +129,12 @@ function Compose({ accounts, added }: { accounts: string[]; added: () => void })
 }
 
 const STATUS: Record<string, [PillTone, string]> = {
-  pending: ['warn', 'waiting'],
-  failed: ['bad', 'failed'],
-  posting: ['info', 'posting…'],
-  posted: ['ok', 'posted'],
-  rejected: ['dim', 'rejected'],
-  returned: ['info', 'sent back'],
+  pending: ['warn', 'Waiting'],
+  failed: ['bad', 'Failed'],
+  posting: ['info', 'Posting…'],
+  posted: ['ok', 'Posted'],
+  rejected: ['dim', 'Rejected'],
+  returned: ['info', 'Sent back'],
 };
 
 function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
@@ -193,7 +193,7 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
         <b>{p.accountLabel}</b>
         <span className="hint">{`by ${p.agentName || 'you'}${p.teamName ? ` · team ${p.teamName}` : ''} · ${ago(p.createdAt)}`}</span>
         {p.parts.length > 1 ? <Pill tone="info">{`thread of ${p.parts.length}`}</Pill> : null}
-        {p.url ? <ButtonLink variant="ghost" size="tiny" className="ml-auto" href={p.url} target="_blank" rel="noopener">{link}</ButtonLink> : null}
+        {p.url ? <ButtonLink variant="ghost" size="tiny" className="ml-auto" href={p.url} target="_blank" rel="noopener"><Icon name="external-link" size={12} />{link}</ButtonLink> : null}
       </div>
       {p.platform === 'reddit' ? <div className="hint mt-4">{p.reddit?.kind === 'comment' ? `Comment replying to ${p.reddit.parent}` : `Post in r/${p.reddit?.subreddit}${p.reddit?.link ? ` · link: ${p.reddit.link}` : ''}`}</div> : null}
       {title !== null ? (
@@ -220,9 +220,9 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
                   ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <Button variant="ghost" size="tiny" title="Copy the image, to paste it into a post yourself" onClick={() => void copyImage(url)}>Copy</Button>
-                  <ButtonLink variant="ghost" size="tiny" href={url} download={name} title="Save the image file">Save</ButtonLink>
-                  {desktop ? <Button variant="ghost" size="tiny" title={`Open ${name}`} onClick={() => openFile(f)}>Open</Button> : null}
+                  <Button variant="ghost" size="tiny" title="Copy the image, to paste it into a post yourself" onClick={() => void copyImage(url)}><Icon name="copy" size={12} />Copy</Button>
+                  <ButtonLink variant="ghost" size="tiny" href={url} download={name} title="Save the image file"><Icon name="download" size={12} />Save</ButtonLink>
+                  {desktop ? <Button variant="ghost" size="tiny" title={`Open ${name}`} onClick={() => openFile(f)}><Icon name="external-link" size={12} />Open</Button> : null}
                 </div>
               </div>
             );
@@ -256,25 +256,25 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
       {editable ? (
         <>
           <div className="flex flex-wrap items-center gap-3 mt-4">
-            <Button size="small" disabled={busy} onClick={() => void approve()}>{p.platform === 'x' ? 'Approve & post' : 'Approve & send'}</Button>
-            <Button variant="ghost" size="small" onClick={() => void attempt(() => PUT(`/outbox/${p.id}`, edits()), 'Saved').then((r) => r && (edited.current = false))}>Save edits</Button>
-            <Button variant="ghost" size="small" aria-expanded={discussing} title="Talk it over with the team that wrote it: your note goes into their chat and the draft is sent back" onClick={() => setDiscussing(!discussing)}>Discuss with team</Button>
-            <Button variant="danger" size="small" onClick={() => void attempt(() => POST(`/outbox/${p.id}/reject`, {})).then(changed)}>Reject</Button>
+            <Button size="small" disabled={busy} onClick={() => void approve()}><Icon name="check" size={13} />{p.platform === 'x' ? 'Approve & post' : 'Approve & send'}</Button>
+            <Button variant="ghost" size="small" onClick={() => void attempt(() => PUT(`/outbox/${p.id}`, edits()), 'Saved').then((r) => r && (edited.current = false))}><Icon name="save" size={13} />Save edits</Button>
+            <Button variant="ghost" size="small" aria-expanded={discussing} title="Talk it over with the team that wrote it: your note goes into their chat and the draft is sent back" onClick={() => setDiscussing(!discussing)}><Icon name="message-circle" size={13} />Discuss with team</Button>
+            <Button variant="danger" size="small" onClick={() => void attempt(() => POST(`/outbox/${p.id}/reject`, {})).then(changed)}><Icon name="x" size={13} />Reject</Button>
           </div>
           {/* what should change: goes to the team's chat as a message to the agent who wrote it, and the draft leaves the Outbox */}
           {discussing ? (
             <div className="flex flex-col gap-3 mt-4">
               <textarea rows={3} aria-label="What should change" placeholder={`What should change? This goes to ${p.agentName || 'the team'}${p.teamName ? ` in the ${p.teamName} chat` : ''}.`} value={note} onChange={(e) => setNote(e.target.value)} />
               <div className="flex flex-wrap items-center gap-3">
-                <Button size="small" disabled={busy} onClick={() => void discuss()}>Send to team</Button>
-                <Button variant="ghost" size="small" onClick={() => setDiscussing(false)}>Cancel</Button>
+                <Button size="small" disabled={busy} onClick={() => void discuss()}><Icon name="send" size={13} />Send to team</Button>
+                <Button variant="ghost" size="small" onClick={() => setDiscussing(false)}><Icon name="x" size={13} />Cancel</Button>
               </div>
             </div>
           ) : null}
         </>
       ) : (
         <div className="flex flex-wrap items-center gap-3 mt-4">
-          <Button variant="ghost" size="tiny" onClick={() => void attempt(() => DEL(`/outbox/${p.id}`)).then(changed)}>Remove</Button>
+          <Button variant="ghost" size="tiny" onClick={() => void attempt(() => DEL(`/outbox/${p.id}`)).then(changed)}><Icon name="trash-2" size={12} />Remove</Button>
         </div>
       )}
     </Plate>

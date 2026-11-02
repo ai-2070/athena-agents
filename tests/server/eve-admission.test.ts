@@ -40,6 +40,16 @@ function transport(reply: (body: Record<string, unknown>) => Response | Promise<
 }
 
 describe('saved Eve input admission', () => {
+  it('saves unknown Venice capabilities without changing the input fingerprint on disk', async () => {
+    const own = fixture();
+    setSecret('veniceKey', 'venice-admission-fixture');
+    agents.save({ ...own.agent, provider: 'venice', model: 'bare-venice-model' });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ data: [{ id: 'bare-venice-model', type: 'text' }] }));
+    const input = await prepareAdmission(own.run.id, own.project);
+    expect(input.selection).toMatchObject({ provider: 'venice', capabilities: {}, price: null });
+    expect(readAdmission(input.id)).toEqual(input);
+  });
+
   it('budgets files and rejects a current message Eve would shorten later', async () => {
     expect(messageTokens([{ type: 'file', filename: 'image.png', mediaType: 'image/png', data: 'data:image/png;base64,YQ==' }])).toBeGreaterThan(4784);
     const own = fixture();

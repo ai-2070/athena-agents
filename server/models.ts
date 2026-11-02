@@ -10,7 +10,7 @@ import { listModels as openclawModels } from './engines/openclaw.ts';
 import { listModels as codexModels } from './engines/codex.ts';
 import type { Agent, EngineId, ProviderId } from '../shared/types.ts';
 
-export type ModelProvider = 'claude' | 'openrouter' | 'lmstudio' | 'ollama' | 'custom' | 'codex' | 'hermes' | 'pi' | 'omp' | 'openclaw';
+export type ModelProvider = 'claude' | 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'custom' | 'codex' | 'hermes' | 'pi' | 'omp' | 'openclaw';
 
 interface ProviderInfo {
   label: string;
@@ -22,6 +22,7 @@ interface ProviderInfo {
 export const MODEL_PROVIDERS: Record<ModelProvider, ProviderInfo> = {
   claude: { label: 'Claude Code', engine: 'claude-code' },
   openrouter: { label: 'OpenRouter', engine: 'eve', provider: 'openrouter' },
+  venice: { label: 'Venice', engine: 'eve', provider: 'venice' },
   lmstudio: { label: 'LM Studio', engine: 'eve', provider: 'lmstudio' },
   ollama: { label: 'Ollama', engine: 'eve', provider: 'ollama' },
   custom: { label: 'Custom server', engine: 'eve', provider: 'custom' },
@@ -75,6 +76,7 @@ export function providerProblem(p: ModelProvider): string | null {
   if (p === 'hermes') return which('hermes') ? null : 'Hermes is not installed on this PC';
   if (p === 'pi' || p === 'omp' || p === 'openclaw') return which(p) ? null : `${MODEL_PROVIDERS[p].label} is not installed on this PC`;
   if (p === 'openrouter') return getSecrets().openrouterKey ? null : 'there is no OpenRouter key (Settings)';
+  if (p === 'venice') return getSecrets().veniceKey ? null : 'there is no Venice key (Settings)';
   const base = getSettings().providers?.[p]?.baseUrl;
   return base ? null : `${MODEL_PROVIDERS[p].label} has no address (Settings)`;
 }
@@ -86,6 +88,7 @@ export function defaultModelFor(p: ModelProvider): string | null {
   const d = getSettings().defaults;
   if (p === 'claude') return d.claudeModel || 'sonnet';
   if (p === 'openrouter') return d.openrouterModel || null;
+  if (p === 'venice') return d.veniceModel || null;
   if (OWN_DEFAULT.has(p)) return '';
   // a server on this PC: there is no sensible default, a model has to be named
   return null;
@@ -96,6 +99,7 @@ export interface FoundModel {
   name: string;
   /** price, context, tool use… */
   note?: string;
+  offline?: boolean;
 }
 
 // The lists are fetched over the network for API providers: kept for a few minutes.
@@ -125,11 +129,12 @@ export async function availableModels(p: ModelProvider): Promise<FoundModel[]> {
     }
   } else if (p === 'pi' || p === 'omp') list = (await piModels(p).catch(() => [])).map((m) => ({ id: m.id, name: m.name, ...(m.context ? { note: `${Math.round(m.context / 1000)}k context` } : {}) }));
   else if (p === 'openclaw') list = (await openclawModels().catch(() => [])).map((m) => ({ id: m.id, name: m.name }));
-  else if (!providerProblem(p)) {
+  else if (p === 'venice' || !providerProblem(p)) {
     list = (await listModels(MODEL_PROVIDERS[p].provider!)).map((m) => ({
       id: m.id,
       name: m.name,
-      note: [m.price ? `$${m.price.in.toFixed(2)} in / $${m.price.out.toFixed(2)} out per M tokens` : '', m.context ? `${Math.round(m.context / 1000)}k context` : '', p === 'openrouter' && !m.tools ? 'no tool use' : ''].filter(Boolean).join(', ') || undefined,
+      note: [m.price ? `$${m.price.in.toFixed(2)} in / $${m.price.out.toFixed(2)} out per M tokens` : '', m.context ? `${Math.round(m.context / 1000)}k context` : '', m.tools === false ? 'no tool use' : '', m.offline ? 'temporarily unavailable' : ''].filter(Boolean).join(', ') || undefined,
+      ...(m.offline ? { offline: true } : {}),
     }));
   }
   // an empty list may be a server that isn't running yet: ask again next time
@@ -207,7 +212,9 @@ export function checkModelNow(p: ModelProvider, model: string): string | null {
   const hit = cache.get(cacheKey(p));
   const all = hit && Date.now() - hit.at < CACHE_MS ? hit.list : [];
   // can't list them (server not running): take the id as given
-  if (!all.length || all.some((m) => m.id === id)) return null;
+  const found = all.find((m) => m.id === id);
+  if (found?.offline) return `${MODEL_PROVIDERS[p].label} model "${id}" is temporarily unavailable`;
+  if (!all.length || found) return null;
   const like = closeModels(all, id);
   return `${MODEL_PROVIDERS[p].label} has no model "${id}"${like.length ? ` (close: ${like.map((m) => m.id).join(', ')})` : ''}`;
 }

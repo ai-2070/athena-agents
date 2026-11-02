@@ -63,6 +63,19 @@ describe('chars()', () => {
 });
 
 describe('the Outbox', () => {
+  it('capitalizes status labels and gives draft actions icons', async () => {
+    const statuses: OutboxPost['status'][] = ['pending', 'failed', 'posting', 'posted', 'rejected', 'returned'];
+    posts = statuses.map((status, i) => post({ id: `p${i}`, status }));
+    await openOutbox();
+    const labels = [...el.querySelectorAll('.pill')].map((pill) => pill.textContent);
+    expect(labels).toEqual(expect.arrayContaining(['Waiting', 'Failed', 'Posting…', 'Posted', 'Rejected', 'Sent back']));
+    for (const label of ['Approve & post', 'Save edits', 'Discuss with team', 'Reject', 'Copy', 'Save']) {
+      const action = [...el.querySelectorAll('button, a')].find((element) => element.textContent === label)!;
+      expect(action.querySelector('svg')).not.toBeNull();
+    }
+    expect(requests.some((request) => request.url.includes('/approve'))).toBe(false);
+  });
+
   it('lists what waits and the history, with a live character count', async () => {
     await openOutbox();
     expect([...el.querySelectorAll('h2.section')].map((h) => h.textContent)).toEqual(['Waiting for you (1)', 'History']);
@@ -172,6 +185,10 @@ describe('Connections', () => {
     const sections = [...el.querySelectorAll('.settings-section h2')].map((heading) => heading.textContent);
     expect(sections.slice(-2)).toEqual(['Reddit accounts', 'Your Reddit app (one-time setup)']);
     expect(sections.indexOf('Discord')).toBeLessThan(sections.indexOf('Reddit accounts'));
+    for (const name of ['X accounts', 'Telegram', 'Discord']) {
+      const heading = [...el.querySelectorAll('.settings-section h2')].find((h) => h.textContent === name)!;
+      expect(heading.querySelector('svg')?.getAttribute('width')).toBe('17');
+    }
   });
 
   it('turns auto-post on only after you confirm', async () => {

@@ -12,9 +12,11 @@ import { ChipSet, Field, SearchBox, Segmented, Switch } from '../ui/controls.tsx
 import { buttonClass, chipClass } from '../ui/classes.ts';
 import { Dot, Pill } from '../ui/marks.tsx';
 import { Avatar, DomNode, Icon, ProjectScoped, reactPage, useAppState } from '../ui/react.tsx';
+import { ProgramGlyph, PresetGlyph } from '../ui/programmark.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { themeColor } from '../theme.ts';
 import type { ModelListing } from '../models.tsx';
+import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { ENGINE_NAMES, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
@@ -364,9 +366,9 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
     }
   };
   // A new engine or provider may not have the effort level: keep the nearest one it has, the one the Effort field shows.
-  const fit = (x: Agent): Agent => (x.effort ? { ...x, effort: effortFor(x.engine, x.effort, x.provider) } : x);
+  const fit = (x: Agent): Agent => (x.effort && !(x.engine === 'eve' && x.provider === 'venice') ? { ...x, effort: effortFor(x.engine, x.effort, x.provider) } : x);
   const pickEngine = (engine: Agent['engine']) => {
-    setA((x) => fit({ ...x, engine, model: engine === 'claude-code' ? d.settings.defaults.claudeModel : engine === 'eve' ? d.settings.defaults.openrouterModel : '' }));
+    setA((x) => fit({ ...x, engine, model: defaultModelForEngine(engine, d.settings.defaults, x.provider) }));
     setDirty(true);
   };
   const del = async () => {
@@ -435,7 +437,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
             <div className="panel-head">
               <Heading icon="cpu">Brain</Heading>
             </div>
-            <Segmented label="Brain" options={d.engineList.map((e) => ({ value: e.id, label: e.label, title: e.description }))} value={a.engine} onChange={pickEngine} />
+            <Segmented label="Brain" options={d.engineList.map((e) => ({ value: e.id, label: <span className="inline-flex items-center gap-2"><ProgramGlyph id={e.id} size={14} />{e.label}</span>, title: e.description }))} value={a.engine} onChange={pickEngine} />
             <p className="hint mt-4">{d.engineList.find((e) => e.id === a.engine)?.description || ''}</p>
             <div className="mt-4">
               <EngineFields a={a} d={d} set={set} fit={(x) => (setA(fit(x)), setDirty(true))} />
@@ -464,7 +466,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
             <div className="panel-head">
               <Heading icon="shield-check">Autonomy</Heading>
             </div>
-            <Segmented label="Autonomy" options={AUTONOMY} value={a.autonomy || 'auto'} onChange={(v) => set('autonomy', v)} />
+            <Segmented label="Autonomy" options={AUTONOMY.map((option) => ({ ...option, label: <span className="inline-flex items-center gap-2"><Icon name={option.value === 'ask' ? 'hand' : option.value === 'auto' ? 'shield-check' : 'zap'} size={14} />{option.label}</span> }))} value={a.autonomy || 'auto'} onChange={(v) => set('autonomy', v)} />
             <p className="hint mt-4">Ask first: you approve anything that changes something. Auto: asks only for risky actions (running code or scripts in Blender, Photoshop, After Effects, ffmpeg, shell, sending messages); click Always allow to stop being asked for a tool. Full: never asks. X posts always wait in the Outbox unless you turn on auto-post for that account.</p>
             {a.alwaysAllow?.length ? (
               <div className="mt-4">
@@ -491,10 +493,10 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
             </div>
             <ChipSet label="Tools" options={d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description }))} value={a.toolGroups} onChange={(v) => set('toolGroups', v)} />
             <p className="hint mt-4">Hover a tool for what it does. Claude Code and Hermes agents also keep their own built-in tools.</p>
-            <div className="label mt-8">MCP servers</div>
+            <div className="mt-8"><Heading icon="plug">MCP servers</Heading></div>
             {servers.length ? (
               <div className="mt-4">
-                <ChipSet label="MCP servers" options={mcpOptions(servers, info)} value={a.mcpServers} onChange={(v) => set('mcpServers', v)} />
+                <ChipSet label="MCP servers" options={mcpOptions(servers, info).map((option) => ({ ...option, label: <span className="inline-flex items-center gap-2"><PresetGlyph id={info?.[option.value]?.kind || option.value} size={14} />{option.label}</span> }))} value={a.mcpServers} onChange={(v) => set('mcpServers', v)} />
                 {copiesWarning(a.mcpServers, info) ? <p className="hint mcp-copies-warning mt-2 text-amber">{copiesWarning(a.mcpServers, info)}</p> : null}
               </div>
             ) : (
@@ -595,10 +597,10 @@ function ModelInput({ label, hint, value, placeholder, models, onChange }: { lab
             <Autocomplete.Popup className="glass st-menu w-(--anchor-width) max-w-(--available-width) outline-none empty:hidden has-[>[role=listbox]:empty]:hidden">
               <Autocomplete.List className="max-h-72 overflow-y-auto">
                 {(item: ModelListing) => (
-                  <Autocomplete.Item key={item.id} value={item} className="st-menu-item">
+                  <Autocomplete.Item key={item.id} value={item} disabled={item.offline} className="st-menu-item">
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-mono text-[12px]">{item.id}</span>
-                      <span className="block truncate text-[11.5px] text-dim">{`${item.name}${item.price ? ` · $${item.price.in.toFixed(2)}/$${item.price.out.toFixed(2)} per M` : ''}${item.tools === false ? ' · no tools' : ''}`}</span>
+                      <span className="block truncate text-[11.5px] text-dim">{`${item.name || item.id}${item.price ? ` · $${item.price.in.toFixed(2)}/$${item.price.out.toFixed(2)} per M` : ''}${item.tools === false ? ' · no tools' : ''}${item.offline ? ' · temporarily unavailable' : ''}`}</span>
                     </span>
                   </Autocomplete.Item>
                 )}
@@ -631,20 +633,32 @@ function EngineFields({ a, d, set, fit }: {
   useEffect(() => {
     let live = true;
     const q = a.engine === 'eve' ? `engine=eve&provider=${a.provider}` : `engine=${a.engine}`;
+    setModels([]);
     void GET<ModelListing[]>(`/models?${q}`)
       .catch((): ModelListing[] => [])
       .then((m) => live && setModels(m.slice(0, 600)));
     return () => void (live = false);
   }, [a.engine, a.provider]);
   const placeholder =
-    a.engine === 'claude-code' ? 'sonnet' : a.engine === 'hermes' ? "profile's default" : a.engine === 'openclaw' ? "the OpenClaw agent's model" : a.engine === 'pi' || a.engine === 'omp' ? 'its default (e.g. anthropic/claude-sonnet-5-5)' : 'anthropic/claude-sonnet-5.5';
-  const model = (label: string, hint: string) => (
-    <ModelInput label={label} hint={hint} value={a.model || ''} placeholder={placeholder} models={models} onChange={(value) => set('model', value)} />
-  );
+    a.engine === 'claude-code' ? 'sonnet' : a.engine === 'hermes' ? "profile's default" : a.engine === 'openclaw' ? "the OpenClaw agent's model" : a.engine === 'pi' || a.engine === 'omp' ? 'its default (e.g. anthropic/claude-sonnet-5-5)' : a.provider === 'venice' ? 'Choose a Venice model' : 'anthropic/claude-sonnet-5.5';
   const pick = (label: string, value: string, options: { value: string; label: string }[], onChange: (v: string) => void, hint?: ReactNode) => (
     <Field label={label} hint={hint}>
       <SelectControl aria-label={label} value={value} options={options} onChange={onChange} />
     </Field>
+  );
+  const modelEfforts = models.find((m) => m.id === a.model)?.reasoningEfforts;
+  const showEffort = a.engine !== 'eve' || a.provider !== 'venice' || !!modelEfforts?.length;
+  const model = (label: string, hint: string) => (
+    <div className={showEffort ? 'col-span-full grid grid-cols-2 items-start gap-4 max-md:grid-cols-1' : 'col-span-full'}>
+      <ModelInput label={label} hint={hint} value={a.model || ''} placeholder={placeholder} models={models} onChange={(value) => set('model', value)} />
+      {showEffort ? pick(
+        'Effort',
+        effortFor(a.engine, a.effort, a.provider, modelEfforts),
+        [{ value: '', label: "Model's default" }, ...effortLevels(a.engine, a.provider, modelEfforts).map((e) => ({ value: e, label: EFFORT_NAMES[e] }))],
+        (v) => set('effort', v as Agent['effort']),
+        'How hard the model thinks before it answers. More effort: better on hard work, but slower and uses more of your plan.',
+      ) : null}
+    </div>
   );
   let parts: ReactNode = null;
   if (a.engine === 'claude-code')
@@ -673,12 +687,13 @@ function EngineFields({ a, d, set, fit }: {
             a.provider || 'openrouter',
             [
               { value: 'openrouter', label: `OpenRouter${d.secrets.openrouterKey.set ? '' : ' (add key in Settings)'}` },
+              { value: 'venice', label: `Venice${d.secrets.veniceKey?.set ? '' : ' (add key in Settings)'}` },
               { value: 'lmstudio', label: 'LM Studio (local)' },
               { value: 'ollama', label: 'Ollama (local)' },
               { value: 'custom', label: 'Custom OpenAI-compatible' },
             ],
             // a server on this PC takes fewer effort levels
-            (v) => fit({ ...a, provider: v as Agent['provider'] }),
+            (v) => fit({ ...a, provider: v, model: defaultModelForEngine('eve', d.settings.defaults, v) }),
           )}
           {model('Model', 'Start typing to search. Pick one that supports tools.')}
         </div>
@@ -739,13 +754,7 @@ function EngineFields({ a, d, set, fit }: {
   return (
     <div className="flex flex-col gap-4">
       {parts}
-      {pick(
-        'Effort',
-        effortFor(a.engine, a.effort, a.provider),
-        [{ value: '', label: "Model's default" }, ...effortLevels(a.engine, a.provider).map((e) => ({ value: e, label: EFFORT_NAMES[e] }))],
-        (v) => set('effort', v as Agent['effort']),
-        'How hard the model thinks before it answers. More effort: better on hard work, but slower and uses more of your plan.',
-      )}
+
     </div>
   );
 }

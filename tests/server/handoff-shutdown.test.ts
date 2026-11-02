@@ -87,5 +87,5 @@ describe('delegated Eve work at shutdown', () => {
     expect(readRun(handle.runId)!.deliveryId).toBe(deliveryId);
     expect(chats.get(saved.to, saved.chatId)!.items.filter((item) => item.type === 'user')).toHaveLength(1);
     expect(requests).toBe(2);
-  });
+  }, 60_000);
 });

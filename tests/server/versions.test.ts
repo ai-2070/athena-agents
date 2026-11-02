@@ -224,7 +224,7 @@ describe('skills', () => {
       description: 'g',
       members: [],
       lead: null,
-      schedule: { type: 'daily', time: '09:00', days: [1, 3], input: 'the news' },
+      schedule: { type: 'daily', times: ['09:00'], days: [1, 3], input: 'the news' },
       steps: [{ type: 'tool', tool: 'web_search', args: '{"q":"x"}', label: 'Search' }, { type: 'agent', agentId: 'a1', prompt: 'Sum it up' }],
     } as unknown as Team);
     expect(team).toContain('Schedule: daily at 09:00 on Mon, Wed');

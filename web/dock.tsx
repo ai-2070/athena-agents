@@ -5,7 +5,7 @@
 import { StrictMode, Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { h, state, GET, POST, attempt, md, onEvent, onState, navigate, refreshSoon, toast } from './core.ts';
+import { h, state, GET, POST, attempt, md, onEvent, onState, navigate, refreshSoon, toast, confirmBox } from './core.ts';
 import { openBranchBuilder } from './builder.tsx';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.tsx';
 import { brainQueue, chatLoop, holdQueue, latestLoad } from './brainqueue.ts';
@@ -262,6 +262,7 @@ export function savedAnswer(m: BrainHistoryEntry): { answer: string; done: Brain
 }
 
 async function newConversation() {
+  if (!(await confirmBox("Clear the Brain’s conversation and memory?", { ok: "Clear memory", danger: true }))) return;
   // keep the transcript if the Brain still remembers it
   if (!(await attempt(() => POST('/brain/clear')))) return;
   brainAsks.reset(); // answers still on their way belong to the old conversation
@@ -435,6 +436,8 @@ function StepCard({ st }: { st: BrainStep }) {
 const DONE_ICONS: Record<string, string> = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', model: 'cpu', mcp: 'plug', stop: 'square', memory: 'file-text', error: 'triangle-alert', note: 'check' };
 // What the Brain did, with where to see it.
 function DoneAction({ d }: { d: BrainDone }) {
+  const suffix = d.kind === 'task' && d.taskId ? ` [${d.taskId}]` : '';
+  const text = suffix && d.text.endsWith(suffix) ? d.text.slice(0, -suffix.length) : d.text;
   const open = d.teamId
     ? { label: 'Show', go: () => navigate(`#/station?team=${d.teamId}`) }
     : d.routineId
@@ -449,7 +452,7 @@ function DoneAction({ d }: { d: BrainDone }) {
   return (
     <div className={d.kind === 'error' ? ACT_ERR : ACT_OK}>
       <Icon name={DONE_ICONS[d.kind] || 'check'} size={13} />
-      <span className="flex-1">{d.text}</span>
+      <span className="flex-1">{text}</span>
       {open ? (
         <Button size="tiny" variant="ghost" onClick={open.go}>
           {open.label}

@@ -119,6 +119,7 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
     if (t && (await attempt(() => PUT(`/agents/${agent.id}/chats/${chat.id}`, { title: t })))) await api.current?.reload();
   };
   const resetMemory = async () => {
+    if (!(await confirmBox("Clear this chat’s memory? The messages will stay, but the agent will start fresh.", { ok: "Clear memory", danger: true }))) return;
     if (await attempt(() => PUT(`/agents/${agent.id}/chats/${chat.id}`, { reset: true }), 'The agent will start fresh from your next message')) await api.current?.reload();
   };
   const removeChat = async () => {

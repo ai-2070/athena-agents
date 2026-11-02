@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brainAsAgent, modelInfo } from '../../web/models.tsx';
+import { brainAsAgent, brainSettingFromChoice, modelInfo, tabOf } from '../../web/models.tsx';
 import { ACCENTS, applyLook } from '../../web/look.ts';
 
 describe('modelInfo()', () => {
@@ -29,6 +29,12 @@ describe('modelInfo()', () => {
     expect(brainAsAgent({ provider: 'claude', model: 'haiku' })).toMatchObject({ engine: 'claude-code', model: 'haiku' });
     expect(brainAsAgent({ provider: 'openrouter', model: 'x/y' })).toMatchObject({ engine: 'eve', model: 'x/y' });
     expect(brainAsAgent({ provider: 'codex', model: '' }).engine).toBe('codex');
+    const venice = brainAsAgent({ provider: 'venice', model: 'my-model', effort: 'high' });
+    expect(venice).toMatchObject({ engine: 'eve', provider: 'venice', model: 'my-model' });
+    expect(tabOf(venice)).toBe('venice');
+    expect(modelInfo(venice).where).toBe('Venice');
+    expect(brainSettingFromChoice({ ...venice, effort: 'low' })).toEqual({ provider: 'venice', model: 'my-model', effort: 'low' });
+    expect(brainSettingFromChoice({ engine: 'eve', provider: 'lmstudio', model: 'local', effort: '' })).toBeNull();
   });
 });
 

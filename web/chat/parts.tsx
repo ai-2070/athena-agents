@@ -234,7 +234,7 @@ export function MessageView({ m, variant, busy, streaming, dim, onSend, owner }:
           if (variant === 'mini') return <div key={key} className={ST_CMP} title="The engine shortened its active memory. Original messages remain saved and searchable.">Compacted</div>;
           return <Dom key={key} make={() => compactionMark(it, { compact: variant === 'compact' })} deps={[it.id, variant]} />;
         }
-        if (p.type === 'data-error') return <div key={key} className={variant === 'full' ? 'msg error' : variant === 'compact' ? AC_ERR : ST_ERR}>{(p.data as { text: string }).text}</div>;
+        if (p.type === 'data-error') return <div key={key} className={(p.data as { text: string }).text.trim() === 'Stopped.' ? 'self-stretch py-2 text-center text-[13px] text-dim' : variant === 'full' ? 'msg error' : variant === 'compact' ? AC_ERR : ST_ERR}>{(p.data as { text: string }).text}</div>;
         if (p.type === 'data-meta') return variant === 'full' ? <div key={key} className="msg meta">{(p.data as { text: string }).text}</div> : null;
         return null;
       })}

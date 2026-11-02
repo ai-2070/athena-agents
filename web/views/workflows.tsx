@@ -125,7 +125,7 @@ function WorkflowsList() {
               <div className="card-sub">{wf.description || `${wf.steps.length} steps`}</div>
               <div className="card-foot">
                 <Pill>{`${wf.steps.length} steps`}</Pill>
-                {wf.schedule?.type !== 'none' ? <Pill tone={wf.enabled ? 'ok' : 'dim'}>{wf.enabled ? scheduleText(wf.schedule) : 'schedule off'}</Pill> : null}
+                {wf.schedule && wf.schedule.type !== 'none' ? <Pill tone={wf.enabled ? 'ok' : 'dim'}>{wf.enabled ? scheduleText(wf.schedule) : 'schedule off'}</Pill> : null}
               </div>
             </PlateLink>
           ))}

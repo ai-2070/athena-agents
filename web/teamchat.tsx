@@ -4,6 +4,7 @@
 // React; renderTeamChat() puts it into a plain-DOM place (the chat window's tab) and hands back
 // focus, mention and destroy. The message box stays uncontrolled: the paste chips, the / menu and
 // mention() change its text directly, as typing does.
+import { attachMentionEditor } from './chat/mentioneditor.ts';
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, onReconnect, confirmBox, toast } from './core.ts';
@@ -12,7 +13,8 @@ import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { mentionPreviews } from './filepreview.tsx';
 import { modelChip } from './models.tsx';
-import { slideIn } from './motion.ts';
+import { CollapseRoot, CollapseTrigger, CollapsePanel } from './ui/collapse.tsx';
+import { slideIn, reducedMotion } from './motion.ts';
 import { useFind } from './ui/find.tsx';
 import { queuedText } from '../shared/queue.ts';
 import { TaskPanel } from './tasks.tsx';
@@ -97,8 +99,8 @@ const WHO = 'flex items-center gap-2.5 mb-2.5 text-[13px] [&_.avatar]:size-6 [&_
 const TEAM_AV = 'avatar tc-team-av bg-[color-mix(in_srgb,var(--team-color,var(--color-ice))_18%,transparent)] text-[color:var(--team-color,var(--color-ice))] text-[12px] leading-[normal] font-semibold';
 /** a message's text (Markdown) */
 const TEXT = 'font-chat text-[13.5px] leading-[1.6] wrap-anywhere [&_p]:mx-0 [&_p]:mt-0 [&_p]:mb-2.5 [&_p:last-child]:mb-0 [&_pre]:max-h-[200px]';
-const MENTION = 'tc-mention font-medium rounded-[5px] px-1 text-accent bg-accent/10';
-const MENTION_TEAM = 'tc-mention tc-team font-medium rounded-[5px] px-1 text-ice bg-ice/10';
+const MENTION = 'tc-mention cursor-pointer font-medium rounded-[5px] px-1 text-accent bg-accent/10';
+const MENTION_TEAM = 'tc-mention tc-team cursor-pointer font-medium rounded-[5px] px-1 text-ice bg-ice/10';
 const TYPING = 'flex items-center gap-2 text-[12.5px] leading-[normal] font-normal';
 /** the steps behind a reply, and a live turn */
 const TURN_BODY = 'mt-2 flex flex-col gap-2 min-w-0';
@@ -255,9 +257,11 @@ function textWithMentions(text: string, names: readonly string[], teams: readonl
         // (the match's offset is next to last: the pattern has one group without other teams, two with)
         child.textContent!.replace(re, (m: string, ...rest: unknown[]) => {
           const idx = rest[rest.length - 2] as number;
-          const tag = document.createElement('span');
+          const tag = document.createElement('button');
           tag.className = m.startsWith('#') ? MENTION_TEAM : MENTION;
           tag.textContent = m;
+          tag.type = 'button';
+          tag.addEventListener('click', () => tag.dispatchEvent(new CustomEvent('chat-mention', { bubbles: true, detail: m })));
           frag.append(child.textContent!.slice(last, idx), tag);
           last = idx + m.length;
           return m;
@@ -277,6 +281,9 @@ const FOLD_SLACK = 120;
 /** A long message shows its start and a Show more button, so one reply doesn't fill the whole window. */
 function Fold({ children }: { children: ReactNode }) {
   const inner = useRef<HTMLDivElement>(null);
+  const outer = useRef<HTMLDivElement>(null);
+  const fromHeight = useRef<number | null>(null);
+  const animation = useRef<Animation | null>(null);
   const [long, setLong] = useState(false);
   const [open, setOpen] = useState(false);
   useLayoutEffect(() => {
@@ -291,20 +298,31 @@ function Fold({ children }: { children: ReactNode }) {
     return () => ro.disconnect();
   }, []);
   const folded = long && !open;
+  useLayoutEffect(() => {
+    const el = outer.current;
+    const from = fromHeight.current;
+    fromHeight.current = null;
+    animation.current?.cancel();
+    if (!el || from === null || reducedMotion() || typeof el.animate !== 'function') return;
+    const to = folded ? FOLD_AT : inner.current?.scrollHeight || 0;
+    animation.current = el.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 240, easing: 'ease-in-out' });
+    void animation.current.finished.catch(() => {});
+  }, [folded]);
+  useEffect(() => () => animation.current?.cancel(), []);
   return (
     <>
-      <div className={folded ? 'tc-folded max-h-[360px] overflow-hidden [mask-image:linear-gradient(to_bottom,#000_70%,transparent)]' : undefined}>
+      <div ref={outer} style={folded ? { height: FOLD_AT } : undefined} className={folded ? 'tc-folded overflow-hidden [mask-image:linear-gradient(to_bottom,#000_70%,transparent)]' : 'overflow-hidden'}>
         <div ref={inner}>{children}</div>
       </div>
       {long ? (
         <div className="mt-2.5 flex w-full justify-center">
           <button
             type="button"
-            className="tc-more inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint hover:text-ink"
+            className="tc-more inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint transition-colors duration-200 ease-in-out hover:text-ink"
             aria-expanded={open}
-            onClick={() => setOpen(!open)}
+            onClick={() => { fromHeight.current = outer.current?.getBoundingClientRect().height ?? null; setOpen(!open); }}
           >
-            <Icon name="chevron-down" size={12} className={open ? 'rotate-180' : undefined} />
+            <Icon name="chevron-down" size={12} className={`transition-transform duration-200 ease-in-out ${open ? 'rotate-180' : ''}`} />
             {open ? 'Show less' : 'Show more'}
           </button>
         </div>
@@ -315,22 +333,21 @@ function Fold({ children }: { children: ReactNode }) {
 
 /** "Show the work": the steps and tool calls behind a reply, loaded when opened. */
 function Work({ m }: { m: TeamMessage }) {
+  const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(false);
   const turn = m.turn!;
   return (
-    <details className="tc-work mt-3" onToggle={(e) => (e.currentTarget as HTMLDetailsElement).open && setOpened(true)}>
-      <summary className="list-none cursor-pointer inline-flex items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint [&::-webkit-details-marker]:hidden hover:text-ink [[open]>&]:text-ink">
-        <Icon name="wrench" size={12} />
+    <CollapseRoot className="tc-work mt-2.5 text-left" open={open} onOpenChange={(value) => { setOpen(value); if (value) setOpened(true); }}>
+      <CollapseTrigger className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint transition-colors duration-200 ease-in-out hover:text-ink">
+        <Icon name="chevron-down" size={12} className={`transition-transform duration-200 ease-in-out ${open ? 'rotate-180' : ''}`} />
         Show the work
-      </summary>
-      <div className={TURN_BODY}>
-        {opened ? (
-          <Suspense fallback={null}>
-            <TurnView agentId={m.from} chatId={turn.chatId} from={turn.from} to={turn.to} empty="No steps were saved for this reply." />
-          </Suspense>
-        ) : null}
-      </div>
-    </details>
+      </CollapseTrigger>
+      <CollapsePanel keepMounted>
+        <div className={TURN_BODY}>
+          {opened ? <Suspense fallback={null}><TurnView agentId={m.from} chatId={turn.chatId} from={turn.from} to={turn.to} empty="No steps were saved for this reply." /></Suspense> : null}
+        </div>
+      </CollapsePanel>
+    </CollapseRoot>
   );
 }
 
@@ -359,7 +376,7 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
         <span className="flex-1 min-w-0" />
         {author ? (
           <button className="tc-act" title={`Reply to ${author.name}`} aria-label={`Reply to ${author.name}`} onClick={() => onReply(m)}>
-            <Icon name="message-circle" size={13} />
+            <Icon name="reply" size={13} />
           </button>
         ) : null}
       </div>
@@ -419,7 +436,8 @@ interface BoxRef {
 /** Start a message to someone: "@Name " at the front of the box, the caret at the end. */
 function mentionIn(input: HTMLTextAreaElement, name: string): void {
   const tag = `@${name} `;
-  if (!input.value.includes(tag)) input.value = `${tag}${input.value}`;
+  if (!input.value.includes(tag)) input.value = `${tag}${input.value.trimStart()}`;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
   input.focus();
   input.setSelectionRange(input.value.length, input.value.length);
 }
@@ -428,6 +446,8 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   useAppState(); // (names, avatars and who is lead follow the app state)
   const [C, bump, store] = useTeamData(teamId);
   const [replyTo, setReplyTo] = useState<TeamMessage | null>(null);
+  const lastReply = useRef(replyTo);
+  if (replyTo) lastReply.current = replyTo;
   const [suggest, setSuggest] = useState<{ start: number; opts: MentionOption[]; index: number } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [slash, setSlash] = useState<SlashMenu | null>(null);
@@ -622,7 +642,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       type Sent = { message?: TeamMessage; queued?: QueuedMessage };
       const r = await attempt((): Promise<Sent> => (queued != null ? POST<Sent>(`/teams/${teamId}/queue`, body) : POST<TeamMessage>(`/teams/${teamId}/${steer ? 'steer' : 'messages'}`, body).then((message) => ({ message }))));
       if (!r) {
-        restore(typed);
+        restore(text);
         tray.put(taken);
         return;
       }
@@ -649,8 +669,10 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     const m = /(^|\s)([@#])([\w .-]{0,30})$/.exec(ta.value.slice(0, pos));
     if (!m) return;
     const start = pos - m[3].length - 1;
-    ta.value = `${ta.value.slice(0, start)}${o.t ? '#' : '@'}${o.label} ${ta.value.slice(pos)}`;
-    const caret = start + o.label.length + 2;
+    const tag = `${o.t ? '#' : '@'}${o.label}`;
+    ta.value = `${ta.value.slice(0, start)}${tag} ${ta.value.slice(pos)}`;
+    const caret = start + tag.length + 1;
+    refill.current();
     ta.setSelectionRange(caret, caret);
     setSuggest(null);
     ta.focus();
@@ -661,7 +683,16 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   // ---- the box: @ suggestions, the / menu, Enter to send
   useEffect(() => {
     const ta = input.current!;
+    const offEditor = attachMentionEditor(ta, () => [...membersRef.current.map((a) => '@' + a.name), '@everyone', '@Brain', ...store.current.others.map((t) => '#' + t.name)]);
     box.input = ta;
+    const addMention = (event: Event) => {
+      const tag = (event as CustomEvent<string>).detail;
+      mentionIn(ta, tag.slice(1));
+      if (tag.startsWith('#')) ta.value = ta.value.replace('@' + tag.slice(1), tag);
+      refill.current();
+    };
+    const host = root.current!;
+    host.addEventListener('chat-mention', addMention);
     // what was asked before the box was here (opened from the Station with a member's @)
     const { focus, mentions } = box.pending;
     box.pending = { focus: false, mentions: [] };
@@ -714,11 +745,14 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       e.stopPropagation();
     };
     ta.addEventListener('input', onInput);
+    if (mentions.length) onInput();
     ta.addEventListener('keydown', onKey);
     return () => {
       ta.removeEventListener('input', onInput);
       ta.removeEventListener('keydown', onKey);
       offPastes();
+      offEditor();
+      host.removeEventListener('chat-mention', addMention);
       if (box.input === ta) box.input = null;
     };
   }, [pastes, box, store]);
@@ -737,12 +771,12 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   const lead = C.team?.lead;
   const leadAgent = lead ? agentOf(lead) : undefined;
   return (
-    <div className={fill ? 'flex flex-col gap-3 h-full' : 'flex flex-col gap-3'} ref={root}>
+    <div className={fill ? 'flex flex-col gap-2 h-full' : 'flex flex-col gap-2'} ref={root}>
       {find}
       <TaskPanel view={`team:${teamId}`} scope={{ kind: 'team', id: teamId }} />
       <div
         // (in a scrolling column, an item must keep its height: never squeezed by the list's)
-        className={fill ? 'tc-list overflow-y-auto flex flex-col gap-6 pt-4 pb-5 *:shrink-0 flex-1 min-h-0' : 'tc-list overflow-y-auto flex flex-col gap-6 pt-4 pb-5 px-1 *:shrink-0 min-h-[120px]'}
+        className={fill ? 'tc-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_8px,#000_calc(100%-10px),transparent_100%)] overflow-y-auto flex flex-col gap-6 pt-2 pb-2 *:shrink-0 flex-1 min-h-0' : 'tc-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_8px,#000_calc(100%-10px),transparent_100%)] overflow-y-auto flex flex-col gap-6 pt-2 pb-2 px-1 *:shrink-0 min-h-[120px]'}
         ref={list}
         style={fill ? undefined : { maxHeight: `${height}px` }}
         onScroll={(e) => {
@@ -789,7 +823,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
         onLost={(_q, text) => keepEdit(text)}
       />
       {/* who is working and who is next */}
-      <div className="tc-status flex flex-col gap-1.5 min-h-0" aria-live="polite">
+      <div className="tc-status flex flex-col gap-1.5 min-h-0 empty:hidden" aria-live="polite">
         {uploading ? (
           <span className={`${TYPING} text-dim`}>
             <Dot tone="busy" />
@@ -814,17 +848,17 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
           </>
         )}
       </div>
-      <div className={`flex items-center gap-2 text-[12.5px] text-ice ${replyTo ? '' : ' hidden'}`}>
-        {replyTo ? (
-          <>
-            <Icon name="message-circle" size={12} />
-            {`Replying to ${agentOf(replyTo.from)?.name}`}
+      <CollapseRoot open={!!replyTo} className="contents">
+        <CollapsePanel keepMounted className="shrink-0">
+          <div className="flex items-center gap-2 text-[12.5px] text-ice">
+            <Icon name="reply" size={12} />
+            {`Replying to ${lastReply.current ? agentOf(lastReply.current.from)?.name || senderName(lastReply.current, (id) => agentOf(id)?.name) : ''}`}
             <button className="tc-act" aria-label="Don't reply" onClick={() => reply(null)}>
               <Icon name="x" size={12} />
             </button>
-          </>
-        ) : null}
-      </div>
+          </div>
+        </CollapsePanel>
+      </CollapseRoot>
       <DomNode className="dom-contents" make={() => tray.el} deps={[tray]} />
       <DomNode className="dom-contents" make={() => pastes.el} deps={[pastes]} />
       <div className="dock-composer relative">
@@ -846,7 +880,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
                 ) : (
                   <Icon name={o.label === 'Brain' ? 'brain' : 'users'} size={14} />
                 )}
-                {`${o.t ? '#' : '@'}${o.label}`}
+                <span className="min-w-0 max-w-[45%] shrink-0 truncate font-medium">{`${o.t ? '#' : '@'}${o.label}`}</span>
                 {o.label === 'Brain' && !o.t ? <span className="hint">ask the Brain</span> : null}
                 {o.a?.specialty ? <span className="hint">{o.a.specialty}</span> : o.t ? <span className="hint">{o.t.description || 'ask this team'}</span> : null}
               </button>

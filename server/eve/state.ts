@@ -6,7 +6,7 @@ import { privateDataPath } from '../private.ts';
 import { readExecution } from '../execution.ts';
 import { activeTeamAssignment } from '../teamwork.ts';
 import { EVE_GENERATION } from './version.ts';
-import type { Agent, Chat, EveRunRecord, EveRunStatus, EveSessionBinding, Project, RunEvent } from '../../shared/types.ts';
+import type { Agent, Chat, EveModelCharge, EveRunRecord, EveRunStatus, EveSessionBinding, Project, RunEvent } from '../../shared/types.ts';
 
 const idOk = (id: string) => /^[a-zA-Z0-9_-]{1,120}$/.test(id);
 function privatePath(...parts: string[]): string {
@@ -148,6 +148,17 @@ export function recordCostBaseline(id: string, cost: number): number {
   if (run.costBaseline !== undefined) return run.costBaseline;
   writeJSON(runPath(id), { ...run, costBaseline: cost, updatedAt: Date.now() });
   return cost;
+}
+
+export function recordCharge(id: string, charge: EveModelCharge): void {
+  const run = readRun(id);
+  if (!run || terminal(run.status)) throw new Error('This Eve run is no longer active.');
+  const previous = run.charges?.find((item) => item.id === charge.id);
+  if (previous) {
+    if (JSON.stringify(previous) !== JSON.stringify(charge)) throw new Error('The saved model charge changed.');
+    return;
+  }
+  writeJSON(runPath(id), { ...run, charges: [...(run.charges || []), charge], updatedAt: Date.now() });
 }
 
 const terminal = (status: EveRunStatus) => ['completed', 'failed', 'stopped', 'interrupted'].includes(status);

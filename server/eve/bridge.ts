@@ -10,7 +10,7 @@ import { callTool, gate, needsApproval, toolApprovalPlan, toolApprovalRequest } 
 import { approvalFingerprint, cancelDurableApproval, durableApproval, ensureDurableApproval } from '../approvals.ts';
 import type { ApprovalRequest } from '../approvals.ts';
 import * as mcp from '../mcp.ts';
-import { activeEveRuns, attachSession, readRun, recordConfiguration, recordCostBaseline, recordLimit, sessionContext, setRunStatus } from './state.ts';
+import { activeEveRuns, attachSession, readRun, recordCharge, recordConfiguration, recordCostBaseline, recordLimit, sessionContext, setRunStatus } from './state.ts';
 import { executeOperation, operationId, prepareOperation, readOperation, saveOperation } from './operations.ts';
 import { canonical } from '../../shared/canonical.ts';
 import { admissionHistory, readAdmission } from './admission.ts';
@@ -46,9 +46,10 @@ export async function eveConfiguration(bindingId: string, sessionId: string, nat
       ...selection,
       cacheKey: binding.id,
       costBaseline,
+      ...(selection.provider === 'venice' ? { spentUsd: readRun(run.id)?.charges?.reduce((sum, charge) => sum + (charge.cost || 0), 0) || 0 } : {}),
       apiKey: provider.headers.authorization?.replace(/^Bearer /, '') || '', headers,
       instructions: buildSystemPrompt(agent) + await richSection(agent, chat, run.depth),
-      tools: defs.map((tool) => ({ name: tool.function.name, description: tool.function.description || '', inputSchema: schema.parse(tool.function.parameters) })),
+      tools: selection.capabilities?.tools === false ? [] : defs.map((tool) => ({ name: tool.function.name, description: tool.function.description || '', inputSchema: schema.parse(tool.function.parameters) })),
     };
     const { apiKey: _key, headers: _headers, ...definition } = configuration;
     recordConfiguration(run.id, definition);
@@ -152,7 +153,8 @@ export async function eveTool(bindingId: string, sessionId: string, runId: strin
   });
 }
 
-const requestSchema = z.object({ binding: z.string().min(1), input: z.object({ sessionId: z.string().min(1).optional(), runId: z.string().min(1).optional(), nativeCost: z.number().finite().nonnegative().optional(), messageHash: z.string().length(64).optional(), limit: z.enum(['steps', 'cost']).optional(), callId: z.string().optional(), name: z.string().optional(), args: z.record(z.string(), z.unknown()).optional() }) });
+const chargeSchema = z.object({ id: z.uuid(), cost: z.number().finite().nonnegative().optional(), billing: z.object({ source: z.enum(['reported', 'estimated', 'unavailable']), chargedUsd: z.number().finite().nonnegative().optional(), chargedDiem: z.number().finite().nonnegative().optional() }) });
+const requestSchema = z.object({ binding: z.string().min(1), input: z.object({ sessionId: z.string().min(1).optional(), runId: z.string().min(1).optional(), nativeCost: z.number().finite().nonnegative().optional(), charge: chargeSchema.optional(), messageHash: z.string().length(64).optional(), limit: z.enum(['steps', 'cost']).optional(), callId: z.string().optional(), name: z.string().optional(), args: z.record(z.string(), z.unknown()).optional() }) });
 
 /** A separate authenticated listener; dashboard request guards are never bypassed. */
 export async function openEveBridge() {
@@ -167,7 +169,7 @@ export async function openEveBridge() {
     }
     const controller = new AbortController();
     response.on('close', () => { if (!response.writableEnded) controller.abort(); });
-    if (request.method !== 'POST' || !['/admission', '/configuration', '/limit', '/policy', '/tool'].includes(request.url || '')) {
+    if (request.method !== 'POST' || !['/admission', '/configuration', '/limit', '/billing', '/policy', '/tool'].includes(request.url || '')) {
       response.writeHead(404).end();
       return;
     }
@@ -182,6 +184,14 @@ export async function openEveBridge() {
       }
       const body = requestSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')));
       if (request.url !== '/admission' && !body.input.sessionId) throw new Error('An Eve session ID is required.');
+      if (request.url === '/billing') {
+        if (!body.input.runId || !body.input.charge) throw new Error('A saved run and model charge are required.');
+        const { run } = invocationContext(body.binding, body.input.sessionId!, body.input.runId);
+        if (readAdmission(run.id)?.selection.provider !== 'venice') throw new Error('This run does not use Venice billing.');
+        recordCharge(run.id, body.input.charge);
+        response.writeHead(200, { 'content-type': 'application/json' }).end('{}');
+        return;
+      }
       if (request.url === '/limit') {
         if (!body.input.runId || !body.input.limit) throw new Error('A saved run and limit are required.');
         invocationContext(body.binding, body.input.sessionId!, body.input.runId);

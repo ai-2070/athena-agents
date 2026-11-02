@@ -5,6 +5,7 @@ import { state } from '../core.ts';
 import { logo, brandColor } from '../icons.ts';
 import { craftIcon, craftColor } from '../crafticons.ts';
 import { INK, brandTone } from './stationpalette.ts';
+import { brandImage } from '../brandimages.ts';
 import { appIcon } from '../appicons.ts';
 import type { Agent, AppState, ProviderUsage, Team, TeamListing, TeamStep } from '../../shared/types.ts';
 
@@ -76,6 +77,7 @@ export const INTEGRATIONS: Integration[] = [
   { id: 'codex', label: 'OpenAI Codex', glyph: '◎', color: INK },
   { id: 'reddit', label: 'Reddit', glyph: 'r/', color: '#ff4500' },
   { id: 'openrouter', label: 'OpenRouter', glyph: '⇄', color: '#94a3b8' },
+  { id: 'venice', label: 'Venice', glyph: 'V', color: INK },
   { id: 'lmstudio', label: 'LM Studio', glyph: 'LM', color: '#6a72ed' },
   { id: 'ollama', label: 'Ollama', glyph: 'OL', color: INK },
   { id: 'x', label: 'X', glyph: '𝕏', color: INK },
@@ -103,7 +105,7 @@ const logoFill = (name: string): string | null => {
   const c = brandColor(name);
   return c ? brandTone(c) : null;
 };
-export const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null => logo(name, size, logoFill(name)) || craftIcon(name, size) || appIcon(name, size);
+export const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null => brandImage(name, size) || logo(name, size, logoFill(name)) || craftIcon(name, size) || appIcon(name, size);
 // The brand logo for an integration (or connector name), falling back to its glyph.
 export function mark(id: string, size = 14): SVGSVGElement | HTMLImageElement | string {
   const key = id.startsWith('mcp:') ? id.slice(4) : id.startsWith('cc:') ? id.slice(3) : BRAND_OF[id] || id;
@@ -119,6 +121,7 @@ export function availableIntegrations(d: AppState, progs: Program[]): AvailableI
     codex: !!d.engines.codex?.installed,
     reddit: (d.accounts.reddit || []).length > 0,
     openrouter: d.secrets.openrouterKey.set,
+    venice: !!d.secrets.veniceKey?.set,
     lmstudio: !!P('lmstudio')?.installed,
     ollama: !!P('ollama')?.installed,
     x: d.accounts.x.length > 0,

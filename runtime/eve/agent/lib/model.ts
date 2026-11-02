@@ -1,7 +1,10 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { MetadataExtractor } from '@ai-sdk/openai-compatible';
-import { cacheFields } from '../../../../server/promptcache.ts';
-import type { EveRuntimeConfiguration } from '../../../../shared/types.ts';
+import { randomUUID } from 'node:crypto';
+import { apiRequestOptions } from '../../../../server/apioptions.ts';
+import { completionBilling } from '../../../../server/apibilling.ts';
+import { numberOf, objectOf } from '../../../../server/apiresponse.ts';
+import type { EveModelCharge, EveRuntimeConfiguration } from '../../../../shared/types.ts';
 
 function reportedCost(value: unknown): number | undefined {
   if (!value || typeof value !== 'object' || !('usage' in value)) return;
@@ -13,16 +16,26 @@ function reportedCost(value: unknown): number | undefined {
 
 // Eve reads the AI SDK's gateway cost field for direct providers as well.
 const costMetadata = (cost: number | undefined) => cost === undefined ? undefined : { gateway: { cost } };
-const metadataExtractor: MetadataExtractor = {
-  extractMetadata: async ({ parsedBody }) => costMetadata(reportedCost(parsedBody)),
-  createStreamExtractor: () => {
-    let cost: number | undefined;
-    return {
-      processChunk: (chunk) => { cost = reportedCost(chunk) ?? cost; },
-      buildMetadata: () => costMetadata(cost),
-    };
-  },
-};
+function metadataExtractorFor(config: EveRuntimeConfiguration): MetadataExtractor {
+  const metadata = (body: unknown) => {
+    if (config.provider !== 'venice') return costMetadata(reportedCost(body));
+    const result = completionBilling(objectOf(body).usage, objectOf(body).cost, config.price || null);
+    return { ...costMetadata(result.cost), athena: { billing: { ...result.billing } } };
+  };
+  return {
+    extractMetadata: async ({ parsedBody }) => metadata(parsedBody),
+    createStreamExtractor: () => {
+      let body: Record<string, unknown> = {};
+      return {
+        processChunk: (chunk) => {
+          const part = objectOf(chunk);
+          body = { ...body, ...part, usage: { ...objectOf(body.usage), ...objectOf(part.usage) }, cost: config.provider === 'venice' ? { ...objectOf(body.cost), ...objectOf(part.cost) } : part.cost ?? body.cost };
+        },
+        buildMetadata: () => metadata(body),
+      };
+    },
+  };
+}
 
 export function reachedCostLimit(total: number, baseline: number, limit: number): boolean {
   const spent = total - baseline;
@@ -31,26 +44,29 @@ export function reachedCostLimit(total: number, baseline: number, limit: number)
   return limit > 0 && spent > 0 && spent + rounding >= limit;
 }
 
-export function athenaModel(config: EveRuntimeConfiguration, beforeCall?: (reportedCost: number) => Promise<void>) {
+export function athenaModel(config: EveRuntimeConfiguration, beforeCall?: (reportedCost: number) => Promise<void>, onCharge?: (charge: EveModelCharge) => Promise<void>) {
   const provider = createOpenAICompatible({
-    name: 'athena', baseURL: config.baseUrl, apiKey: config.apiKey, headers: config.headers, includeUsage: true, metadataExtractor,
+    name: 'athena', baseURL: config.baseUrl, apiKey: config.apiKey, headers: config.headers, includeUsage: true, metadataExtractor: metadataExtractorFor(config),
     transformRequestBody: (body: Record<string, unknown>) => {
       const { reasoning_effort: _effort, ...rest } = body;
       return {
-        ...rest, ...cacheFields(config.provider, config.model, config.cacheKey),
+        ...rest, ...apiRequestOptions(config.provider, config.model, config.effort, config.cacheKey, body.stream === true),
         ...(config.temperature === undefined ? {} : { temperature: config.temperature }),
-        ...(config.effort ? config.provider === 'openrouter' ? { reasoning: { effort: config.effort } } : { reasoning_effort: config.effort } : {}),
       };
     },
   });
   const model = provider(config.model);
   let reportedCost = 0;
-  const charge = (metadata: unknown) => {
-    if (!metadata || typeof metadata !== 'object' || !('gateway' in metadata)) return;
-    const gateway = metadata.gateway;
-    if (!gateway || typeof gateway !== 'object' || !('cost' in gateway)) return;
-    const cost = Number(gateway.cost);
-    if (gateway.cost != null && Number.isFinite(cost) && cost >= 0) reportedCost += cost;
+  const charge = async (metadata: unknown) => {
+    const cost = numberOf(objectOf(objectOf(metadata).gateway).cost);
+    const billing = objectOf(objectOf(objectOf(metadata).athena).billing);
+    const source = billing.source;
+    if (config.provider === 'venice' && (source === 'reported' || source === 'estimated' || source === 'unavailable')) {
+      const usd = numberOf(billing.chargedUsd);
+      const diem = numberOf(billing.chargedDiem);
+      await onCharge?.({ id: randomUUID(), ...(cost === null ? {} : { cost }), billing: { source, ...(usd === null ? {} : { chargedUsd: usd }), ...(diem === null ? {} : { chargedDiem: diem }) } });
+    }
+    if (cost !== null) reportedCost += cost;
   };
   type Prompt = Parameters<typeof model.doGenerate>[0]['prompt'];
   type UserPart = Extract<Prompt[number], { role: 'user' }>['content'][number];
@@ -79,21 +95,25 @@ export function athenaModel(config: EveRuntimeConfiguration, beforeCall?: (repor
       prompt.push({ ...message, content });
     }
     flush();
-    return { ...options, prompt };
+    const userImages = prompt.flatMap((message) => message.role === 'user' ? message.content.filter((part) => part.type === 'file' && part.mediaType.startsWith('image/')) : []);
+    const keep = new Set(config.capabilities?.vision === false ? [] : config.capabilities?.multipleImages === false ? userImages.slice(-1) : userImages);
+    return { ...options, prompt: prompt.map((message) => message.role !== 'user' ? message : { ...message, content: message.content.map((part) => part.type === 'file' && part.mediaType.startsWith('image/') && !keep.has(part)
+      ? { type: 'text' as const, text: config.capabilities?.vision === false ? "(attached image: this model can't see images)" : '(earlier image omitted: this model accepts one image per request)' } : part) }) };
+
   };
   return {
     specificationVersion: model.specificationVersion, provider: model.provider, modelId: model.modelId, supportedUrls: model.supportedUrls,
     doGenerate: async (options: Parameters<typeof model.doGenerate>[0]) => {
       await beforeCall?.(reportedCost);
       const result = await model.doGenerate(withToolImages(options));
-      charge(result.providerMetadata);
+      await charge(result.providerMetadata);
       return result;
     },
     doStream: async (options: Parameters<typeof model.doStream>[0]) => {
       await beforeCall?.(reportedCost);
       const result = await model.doStream(withToolImages(options));
-      return { ...result, stream: result.stream.pipeThrough(new TransformStream({ transform(part, controller) {
-        if (part.type === 'finish') charge(part.providerMetadata);
+      return { ...result, stream: result.stream.pipeThrough(new TransformStream({ async transform(part, controller) {
+        if (part.type === 'finish') await charge(part.providerMetadata);
         controller.enqueue(part);
       } })) };
     },

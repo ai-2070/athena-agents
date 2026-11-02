@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { activeProject, agents, chats, setActiveProject, withProject } from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
 import { newAgent } from '../../server/library.ts';
-import { activeEveRuns, attachSession, beginRun, bindSession, readBinding, readRun, recordEvents, retireSession, sessionContext, setRunStatus } from '../../server/eve/state.ts';
+import { activeEveRuns, attachSession, beginRun, bindSession, readBinding, readRun, recordCharge, recordEvents, retireSession, sessionContext, setRunStatus } from '../../server/eve/state.ts';
+import { eveUsage } from '../../server/eve/usage.ts';
 import { projectEvent } from '../../server/eve/projection.ts';
 import { dataPath } from '../../server/util.ts';
 
@@ -37,6 +38,19 @@ describe('Eve session ownership', () => {
 });
 
 describe('Eve run ledger', () => {
+  it('saves model debits once and keeps native usage from counting their cost twice', () => {
+    const own = fixture();
+    beginRun('charge-run', own.binding.id);
+    setRunStatus('charge-run', 'running');
+    const charge = { id: '93a7ee0d-f227-4a5c-b01e-52188d88b8b1', cost: 0.02, billing: { source: 'estimated' as const, chargedUsd: 0, chargedDiem: 0.1 } };
+    recordCharge('charge-run', charge);
+    recordCharge('charge-run', charge);
+    expect(readRun('charge-run')?.charges).toEqual([charge]);
+    expect(() => recordCharge('charge-run', { ...charge, cost: 0.03 })).toThrow('changed');
+    recordEvents('charge-run', { line: 1, index: 0 }, [{ kind: 'usage', inputTokens: 10, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: 0.02 }]);
+    expect(eveUsage('charge-run')).toMatchObject({ cost: 0.02, tokens: 12, billing: charge.billing });
+  });
+
   it('persists ownership, rejects overlapping claims and never resumes a stopped run', () => {
     const own = fixture();
     beginRun('proof-run', own.binding.id);

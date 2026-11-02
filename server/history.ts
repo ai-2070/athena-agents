@@ -117,7 +117,7 @@ export function asText(kind: VersionKind, item: Item): string {
   const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const schedule = sc && sc.type !== 'none'
     ? [
-        `Schedule: ${text(sc.type)}${sc.time ? ` at ${text(sc.time)}` : ''}${sc.minutes ? ` every ${text(sc.minutes)} min` : ''}${arr(sc.days).length ? ` on ${arr(sc.days).map((d) => DAYS[d as number] ?? text(d)).join(', ')}` : ''}${t.enabled === false ? ' (off)' : ''}`,
+        `Schedule: ${text(sc.type)}${sc.times?.length ? ` at ${sc.times.join(', ')}` : ''}${sc.minutes ? ` every ${text(sc.minutes)} min` : ''}${arr(sc.days).length ? ` on ${arr(sc.days).map((d) => DAYS[d as number] ?? text(d)).join(', ')}` : ''}${t.enabled === false ? ' (off)' : ''}`,
         sc.input ? `  with: ${sc.input}` : '',
       ].filter(Boolean).join('\n')
     : t.enabled ? 'Schedule: none (on)' : '';

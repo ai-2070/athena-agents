@@ -2,6 +2,7 @@
 // The Brain sits in the middle. Every branch is a workflow: its steps stand along the branch in order,
 // agents at desks, tools and checkpoints on pedestals. Beams pulse when work moves; dashed lines show
 // which programs and services each step can reach. Agents not on any branch wait on the Bench.
+import { engineConfigured } from '../engineavailability.ts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, onEventConnection, ago, toast, promptBox, confirmBox, refreshSoon, modal } from '../core.ts';
@@ -2311,14 +2312,14 @@ function wfStats(wfId: string) {
 function scheduleText(s: (Schedule & { minutes?: number }) | undefined): string {
   if (!s || s.type === 'none') return 'manual';
   if (s.type === 'interval') return `every ${s.minutes || 60} min`;
-  return `daily ${s.time || '09:00'}`;
+  return `Daily ${(s.times?.length ? s.times : ['09:00']).join(', ')}`;
 }
 
 function drawBranchCard(wfId: string): void {
   assertMounted(S);
   const b = S.branches.get(wfId);
   if (!b) return;
-  const wf = b.wf;
+  const wf = S.workflows.find((team) => team.id === wfId) || b.wf;
   const ts = S.teamState?.[wfId] || { working: [], queued: [] };
   const last = S.teamLast?.[wfId];
   const nameOf = (id: string) => (id === 'user' ? 'You' : id === 'system' ? '' : id === 'brain' ? 'Brain' : state.data?.agents.find((a) => a.id === id)?.name || '');
@@ -2343,7 +2344,7 @@ function drawBranchCard(wfId: string): void {
       { class: 'mt-3 text-[12px] leading-[normal] font-medium text-faint' },
       ts.working.length
         ? h('span', { class: 'text-accent group-[.needs]/card:text-amber' }, `● ${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} next` : ''}`)
-        : h('span', wf.enabled && wf.schedule?.type !== 'none' ? `⏱ ${scheduleText(wf.schedule)}` : last ? 'Quiet' : 'Say hi to the team'),
+        : h('span', wf.enabled && wf.schedule && wf.schedule.type !== 'none' ? `⏱ ${scheduleText(wf.schedule)}` : last ? 'Quiet' : 'Say hi to the team'),
     ),
   );
 }
@@ -2391,7 +2392,7 @@ function hoverForLink(intId: string): Hover | null {
 }
 
 // An AI engine (top right): the agents that run on it, with their wires to its tile.
-const ENGINE_TILES = ['claude', 'codex', 'hermes', 'openrouter', 'lmstudio', 'ollama'];
+const ENGINE_TILES = ['claude', 'codex', 'hermes', 'openrouter', 'venice', 'lmstudio', 'ollama'];
 function hoverForEngine(uses: (a: Agent) => boolean, brain: boolean, color: string): Hover | null {
   if (!S) return null;
   const ids = new Set((state.data?.agents || []).filter(uses).map((a) => a.id));
@@ -3492,7 +3493,7 @@ function projectWrapParts(): HTMLElement[] {
   // the arrow keys, drawn as small keys: they show what the keyboard does, and can be clicked too
   const key = (dir: 1 | -1, enabled: boolean) => {
     const k = h(`button.st-floor-key.${dir < 0 ? 'up' : 'down'}`, {
-      class: 'flex-none grid place-items-center w-4.5 h-4 p-0 border border-line-2 border-b-2 rounded-[4px] bg-transparent text-dim cursor-pointer opacity-70 transition-[opacity,color,border-color] duration-150 ease-[ease] hover:not-disabled:opacity-100 hover:not-disabled:text-ink hover:not-disabled:border-faint disabled:opacity-25 disabled:cursor-default',
+      class: `${enabled ? 'glass ' : ''}flex-none grid place-items-center w-4.5 h-4 p-0 border border-line-2 border-b-2 rounded-[4px] text-dim cursor-pointer transition-[opacity,color,border-color] duration-150 ease-[ease] hover:not-disabled:text-ink hover:not-disabled:border-accent-dim disabled:bg-transparent disabled:opacity-25 disabled:cursor-default`,
       type: 'button',
       title: dir < 0 ? 'The project above (Up arrow)' : 'The project below (Down arrow)',
       'aria-label': dir < 0 ? 'Previous project' : 'Next project',
@@ -3579,8 +3580,14 @@ function paintFloorPick(dir: 1 | -1 | 0 = 0): void {
   if (belowEl) rollText(belowEl, shortName(below?.name || ''), dir);
   const upKey = wrap.querySelector<HTMLButtonElement>('.st-floor-key.up');
   const downKey = wrap.querySelector<HTMLButtonElement>('.st-floor-key.down');
-  if (upKey) upKey.disabled = !above;
-  if (downKey) downKey.disabled = !below;
+  if (upKey) {
+    upKey.disabled = !above;
+    upKey.classList.toggle('glass', !!above);
+  }
+  if (downKey) {
+    downKey.disabled = !below;
+    downKey.classList.toggle('glass', !!below);
+  }
   button.title = `${shown?.name || 'Project'} · Switch or create a project (the Up and Down keys move between them)`;
   // the logo changes with the project (no roll: it is small)
   const mark = button.querySelector('.st-mark');
@@ -3676,12 +3683,12 @@ function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
 const TRANSITION = '[transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s]';
 const CONN_LABEL = 'inline-flex items-center gap-2 mr-1.5 whitespace-nowrap text-[12px] leading-[normal] font-medium text-dim';
 // a header tile; off and missing are marked by class, hot and the row's focus / soft by the script. Every active
-// tile sits on the same plate (bg-ghost, the top bar's own controls) so the row reads as one; the brand colour
+// tile uses the project picker’s glass surface so the header reads as one; the brand colour
 // (--c) is kept for the glyph, mixed toward the text colour so a pale brand still reads on white, and comes back
 // on the tile a hovered wire points at (.hot)
-const INT_TILE = `grid place-items-center flex-none size-7 p-0 cursor-pointer rounded-ctl border border-line-2 bg-ghost text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[10px] leading-[normal] font-semibold shadow-card ${TRANSITION} [&_.logo-svg]:size-3.5 [&_.craft-icon]:size-5 active:[transform:scale(0.96)] hover:bg-ghost-hover [&.off]:bg-transparent [&.off]:text-faint [&.off]:border-line [&.off]:shadow-none [&.off_.logo-svg_path]:fill-faint [&.off_.craft-icon]:grayscale [&_.app-icon]:size-3.5 [&.off_.app-icon]:[filter:grayscale(1)_opacity(0.5)] [&.missing]:border-dashed group-[.focus]/conn:[&:not(.hot)]:opacity-25 group-[.focus]/conn:[&:not(.hot)]:grayscale group-[.focus.soft]/conn:[&:not(.hot)]:opacity-70 group-[.focus.soft]/conn:[&:not(.hot)]:[filter:none] group-[.focus]/conn:[&.hot]:border-(--c) group-[.focus]/conn:[&.hot]:bg-[color-mix(in_srgb,var(--c)_16%,var(--color-raise))]`;
+const INT_TILE = `grid place-items-center flex-none size-7 p-0 cursor-pointer rounded-ctl border border-line-2 text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[10px] leading-[normal] font-semibold shadow-card ${TRANSITION} [&_.logo-svg]:size-3.5 [&_.craft-icon]:size-5 active:[transform:scale(0.96)] hover:border-accent-dim [&.off]:bg-transparent [&.off]:text-faint [&.off]:border-line [&.off]:shadow-none [&.off_.logo-svg_path]:fill-faint [&.off_.craft-icon]:grayscale [&_.app-icon]:size-3.5 [&.off_.app-icon]:[filter:grayscale(1)_opacity(0.5)] [&.missing]:border-dashed group-[.focus]/conn:[&:not(.hot)]:opacity-25 group-[.focus]/conn:[&:not(.hot)]:grayscale group-[.focus.soft]/conn:[&:not(.hot)]:opacity-70 group-[.focus.soft]/conn:[&:not(.hot)]:[filter:none] group-[.focus]/conn:[&.hot]:border-(--c) group-[.focus]/conn:[&.hot]:bg-[color-mix(in_srgb,var(--c)_16%,var(--color-raise))]`;
 const ENGINE =
-  'group/eng relative grid place-items-center size-7 p-0 border-0 bg-transparent rounded-ctl cursor-pointer text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[14px] leading-[normal] font-semibold [transition:background-color_0.15s,opacity_0.2s,filter_0.2s] hover:bg-ink/5 [&.off]:text-faint [&.off]:grayscale [&.off]:opacity-60 [&.off]:hover:opacity-90 [&.busy]:animate-[pulse_1.4s_ease-in-out_infinite] [&_.app-icon]:size-4';
+  'group/eng relative grid place-items-center size-7 p-0 border-0 bg-transparent rounded-ctl cursor-pointer text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[14px] leading-[normal] font-semibold [transition:background-color_0.15s,opacity_0.2s,filter_0.2s] hover:bg-ink/5 [&.off]:text-faint [&.off]:grayscale [&.off]:opacity-60 [&.off]:hover:opacity-90 [&.busy]:animate-[pulse_1.4s_ease-in-out_infinite] [&_.app-icon]:size-4 [&_.logo-svg]:size-3.5';
 const STAT = 'glass flex items-baseline gap-2 px-3 py-2 rounded-ctl text-[12.5px] leading-[normal] font-medium text-dim';
 const STAT_N = 'font-sans text-[15px] leading-[normal] font-semibold tabular-nums tracking-normal';
 const ZOOM_BTN = `glass grid place-items-center size-9.5 rounded-full text-dim cursor-pointer ${TRANSITION} hover:text-ink`;
@@ -3748,7 +3755,7 @@ function drawHud(): void {
     tiles.push({ key: `cc:${c.name}`, int: `cc:${c.name}`, glyph: appLogo(c.name, 14) || look.glyph, color: look.color, on: ok, title: `${c.name} · Claude account connector · ${ok ? 'connected' : c.status === 'needs-auth' ? 'needs sign-in (run /mcp in Claude Code)' : c.detail}`, onclick: () => navigate('#/settings?tab=mcp') });
   }
   // Model engines (Claude, Hermes, OpenRouter, LM Studio) have their own tiles on the right.
-  const ENGINE_SIDE = new Set(['claude', 'hermes', 'openrouter', 'lmstudio']);
+  const ENGINE_SIDE = new Set(['claude', 'hermes', 'openrouter', 'venice', 'lmstudio']);
   for (const it of ints) if (!ENGINE_SIDE.has(it.id)) tiles.push({ key: it.id, int: it.id, glyph: mark(it.id), color: it.color, on: it.live, title: `${it.label} · ${it.live ? 'ready' : 'installed, not running'}`, onclick: () => choose({ type: 'int', id: it.id }) });
   const missing = [
     !d.accounts.x.length && { glyph: logo('x', 13) || '𝕏', title: 'X · not connected (Connections)', href: '#/settings?tab=connections' },
@@ -3758,7 +3765,7 @@ function drawHud(): void {
   ].filter(Boolean) as { glyph: SVGSVGElement | string; title: string; href: string }[];
   for (const m of missing) tiles.push({ key: m.title, glyph: m.glyph, color: 'var(--color-faint)', on: false, missing: true, title: m.title, onclick: () => navigate(m.href) });
   const seen = new Set<string>();
-  // Every engine an agent (or the Brain) can run on: lit when ready, grey with a setup link when not.
+  // Only engines that have been set up; local servers can still be stopped.
   const brainP = d.settings?.brain?.provider || 'claude';
   const busyIds = new Set((d.runs || []).map((r) => r.agentId));
   // LM Studio: a tile once it is installed or an agent uses it; lit while its local server is up
@@ -3767,19 +3774,21 @@ function drawHud(): void {
   const lmStudio = lm || d.agents.some(onLmStudio)
     ? [{ id: 'eve', uses: onLmStudio, brain: '', name: 'LM Studio', glyph: mark('lmstudio', 15), color: '#6a72ed', ready: !!lm?.live, why: lm ? 'its server is not running (LM Studio > Developer > Start server)' : 'not installed', find: 'LM Studio server' }]
     : [];
+  const installedPrograms = new Set(S.progs.filter((program) => program.installed).map((program) => program.id));
   const engines = [
     { id: 'claude-code', brain: 'claude', name: 'Claude Code', glyph: appLogo('claude code', 15) || '✳', color: '#d97757', ready: d.engines['claude-code'].installed, why: d.engines['claude-code'].installed ? '' : 'not installed', find: 'Claude Code' },
-    { id: 'eve', uses: (a: Agent) => a.engine === 'eve' && !onLmStudio(a), brain: 'openrouter', name: 'OpenRouter', glyph: appLogo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
+    { id: 'eve', uses: (a: Agent) => a.engine === 'eve' && !onLmStudio(a) && a.provider !== 'venice', brain: 'openrouter', name: 'OpenRouter', glyph: appLogo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
+    { id: 'eve', uses: (a: Agent) => a.engine === 'eve' && a.provider === 'venice', brain: 'venice', name: 'Venice', glyph: mark('venice', 15), color: INK, ready: !!d.secrets.veniceKey?.set, why: d.secrets.veniceKey?.set ? '' : 'no key yet', find: 'Venice key' },
     ...lmStudio,
-    { id: 'hermes', brain: 'hermes', name: 'Hermes', glyph: '☤', color: '#d8c25a', ready: d.engines.hermes.installed, why: d.engines.hermes.installed ? '' : 'not installed', find: 'Hermes' },
+    { id: 'hermes', brain: 'hermes', name: 'Hermes', glyph: mark('hermes', 15), color: '#d8c25a', ready: d.engines.hermes.installed, why: d.engines.hermes.installed ? '' : 'not installed', find: 'Hermes' },
     { id: 'codex', brain: 'codex', name: 'OpenAI Codex', glyph: appLogo('openai', 14) || '◎', color: INK, ready: !!(d.engines.codex?.installed && d.engines.codex.loggedIn), why: !d.engines.codex?.installed ? 'not installed' : d.engines.codex.loggedIn ? '' : 'not signed in', find: 'OpenAI Codex' },
-    // pi, oh-my-pi and OpenClaw: always shown, like the model picker's tabs (grey with a setup link until installed)
+    // CLI engines use their own provider logins.
     ...([
-      { id: 'pi', name: 'pi', glyph: 'π', color: '#9fd3a8', find: 'pi coding agent' },
-      { id: 'omp', name: 'oh-my-pi', glyph: 'Ω', color: '#c8a2f0', find: 'oh-my-pi' },
-      { id: 'openclaw', name: 'OpenClaw', glyph: '🦞', color: '#ff6f5e', find: 'OpenClaw' },
+      { id: 'pi', name: 'pi', glyph: mark('pi', 15), color: '#9fd3a8', find: 'pi coding agent' },
+      { id: 'omp', name: 'oh-my-pi', glyph: mark('omp', 15), color: '#c8a2f0', find: 'oh-my-pi' },
+      { id: 'openclaw', name: 'OpenClaw', glyph: mark('openclaw', 15), color: '#ff6f5e', find: 'OpenClaw' },
     ] as const).map((e) => ({ ...e, brain: '', ready: !!d.engines[e.id]?.installed, why: d.engines[e.id]?.installed ? '' : 'not installed' })),
-  ].map((e: { id: string; uses?: (a: Agent) => boolean; brain: string; name: string; glyph: SVGSVGElement | HTMLImageElement | string; color: string; ready: boolean; why: string; find: string }) => {
+  ].filter((engine) => engineConfigured(engine.name === 'LM Studio' ? 'lmstudio' : engine.brain || engine.id, d, installedPrograms)).map((e: { id: string; uses?: (a: Agent) => boolean; brain: string; name: string; glyph: SVGSVGElement | HTMLImageElement | string; color: string; ready: boolean; why: string; find: string }) => {
     const uses = e.uses || ((a: Agent) => a.engine === e.id);
     const users = d.agents.filter(uses);
     const busy = users.some((a) => busyIds.has(a.id));
@@ -3788,7 +3797,7 @@ function drawHud(): void {
     const toAgents = e.ready && users.length ? `#/agents?uses=${engineKey(users[0])}` : '';
     return { ...e, uses, n: users.length + (brainP === e.brain ? 1 : 0), busy, toAgents, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${toAgents ? ' (click to see its agents)' : e.ready ? '' : ' (click to set up)'}` };
   });
-  S.clockEl ||= h('span.st-clock', { class: 'min-w-36 flex-none text-right text-[20px] leading-[normal] font-medium tabular-nums text-dim max-md:hidden font-brand' });
+  S.clockEl ||= h('span.st-clock', { class: 'w-[5.5em] flex-none whitespace-nowrap text-right text-[26px] leading-[normal] font-medium tabular-nums text-[color:light-dark(var(--color-black),var(--color-white))] max-md:hidden font-brand' });
   S.tileEls = new Map();
   mount(
     S.hudTop,
@@ -3801,7 +3810,7 @@ function drawHud(): void {
         .filter((t) => !seen.has(t.title.split(' · ')[0].toLowerCase()) && seen.add(t.title.split(' · ')[0].toLowerCase()))
         .sort((a, b) => +b.on - +a.on || +!!a.missing - +!!b.missing)
         .map((t) => {
-          const el = h(`button${t.on ? '' : '.off'}${t.missing ? '.missing' : ''}`, { class: INT_TILE, style: { '--c': t.color }, title: t.title, onclick: t.onclick }, t.glyph);
+          const el = h(`button${t.on ? '' : '.off'}${t.missing ? '.missing' : ''}`, { class: `${INT_TILE}${t.on ? ' glass' : ''}`, style: { '--c': t.color }, title: t.title, onclick: t.onclick }, t.glyph);
           if (t.int) {
             S!.tileEls.set(t.int, el);
             const id = t.int;
@@ -3813,7 +3822,7 @@ function drawHud(): void {
     ),
     h(
       'div.st-engine-bar',
-      { class: 'flex items-center gap-5 flex-none px-3 py-1 max-md:min-w-0 max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden' },
+      { class: 'flex items-center gap-3 flex-none px-3 py-1 max-md:min-w-0 max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden' },
       h(
         'div',
         { class: 'flex items-center gap-1.5' },
@@ -3848,7 +3857,7 @@ function drawHud(): void {
       { class: 'ml-auto flex items-center gap-2' },
       // on small screens only the buttons stay
       d.runs.length || S.active.size ? h('div', { class: `${STAT} max-md:hidden` }, h('b', { class: `${STAT_N} text-accent` }, String(d.runs.length + S.active.size)), 'working') : null,
-      needs ? h('button', { class: `${STAT} border-amber cursor-pointer`, onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: `${STAT_N} text-amber` }, String(needs)), 'needs you') : null,
+      needs ? domButton({ variant: 'ghost', size: 'small', class: 'glass border-amber', onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: 'font-semibold tabular-nums text-amber' }, String(needs)), 'Needs you') : null,
       d.agents.length
         ? domButton({ size: 'small', onclick: newBranch }, icon('users', 14), 'New team')
         : null,
@@ -3955,7 +3964,7 @@ function tickClock(): void {
   if (!S?.clockEl) return;
   S.clockEl.replaceChildren(...clockFormat.formatToParts(new Date()).map((part) =>
     part.type === 'dayPeriod'
-      ? h('span', { class: 'text-[14px] font-medium' }, part.value)
+      ? h('span', { class: 'text-[16px] font-medium' }, part.value)
       : document.createTextNode(part.value),
   ));
 }

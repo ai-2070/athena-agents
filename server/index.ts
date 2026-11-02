@@ -54,6 +54,7 @@ import * as worldCharacters from './voxel/characters.ts';
 import { listVersions, getVersion, withActor } from './versions.ts';
 import * as terms from './terminals.ts';
 import * as status from './status.ts';
+import { readVeniceAccount } from './venice.ts';
 import * as codexLimits from './codexlimits.ts';
 import * as brain from './brain.ts';
 import * as irc from './irc.ts';
@@ -381,7 +382,7 @@ get('/api/headbar', async () => {
   const eng = engines.engineStatus();
   // Codex: asked live, like the sidebar (its session logs can be old or missing; they're only the fallback)
   const ox = await codexEngine.checkedStatus();
-  const [usage, connectors, or, cxLimits] = await Promise.all([status.claudeUsage(), status.claudeConnectors().catch(() => []), status.openrouterUsage(store.getSecrets().openrouterKey), ox?.installed && ox.loggedIn ? codexLimits.codexLimits() : null]);
+  const [usage, connectors, or, cxLimits, venice] = await Promise.all([status.claudeUsage(), status.claudeConnectors().catch(() => []), status.openrouterUsage(store.getSecrets().openrouterKey), ox?.installed && ox.loggedIn ? codexLimits.codexLimits() : null, status.veniceUsage()]);
 
   // One entry per connected provider that reports usage; the header cycles through them.
   const usages = ([
@@ -389,6 +390,11 @@ get('/api/headbar', async () => {
     eng['claude-code'].installed && (usage || eng['claude-code'].loggedIn) && { id: 'claude', name: 'Claude Code', meters: [{ label: 'SESSION', ...(usage?.session || {}) }, { label: 'WEEK', ...(usage?.week || {}) }] },
     or && { id: 'openrouter', name: 'OpenRouter', meters: [or.percent != null ? { label: 'CREDITS', percent: or.percent, text: or.left != null ? `$${or.left.toFixed(2)} left` : null } : null, or.today != null ? { label: 'TODAY', text: `$${or.today.toFixed(2)}` } : null].filter(Boolean) },
     cxLimits && { id: 'codex', name: 'OpenAI Codex', meters: codexLimits.headbarMeters(cxLimits) },
+    venice && !venice.expired && venice.accessPermitted && { id: 'venice', name: 'Venice', meters: [
+      venice.balances.usd != null ? { label: 'USD', text: `$${venice.balances.usd.toFixed(2)} left` } : null,
+      venice.balances.diem != null ? { label: 'DIEM', text: `${venice.balances.diem.toFixed(2)} left` } : null,
+      venice.balances.bundled != null ? { label: 'Bundled credits', text: `${venice.balances.bundled.toFixed(2)} left` } : null,
+    ].filter(Boolean) },
   ] as (ProviderUsage | false | null | undefined)[]).filter((x): x is ProviderUsage => Boolean(x && x.meters.length));
   return { usage, usages, connectors };
 });
@@ -966,7 +972,7 @@ post<{ flavor?: string }>('/api/pi/add-bridge', async (_p, body) => {
 get('/api/settings', async () => ({ settings: getSettings(), secrets: secretStatus() }));
 put<Parameters<typeof saveSettings>[0] | null>('/api/settings', async (_p, body) => saveSettings(body || {}));
 post<{ key: string; value?: unknown }>('/api/secrets', async (_p, body) => {
-  const okKeys: string[] = ['openrouterKey', 'anthropicKey', 'customKey', 'xClientSecret', 'telegramBotToken', 'discordWebhook', 'redditClientSecret'];
+  const okKeys: string[] = ['openrouterKey', 'veniceKey', 'anthropicKey', 'customKey', 'xClientSecret', 'telegramBotToken', 'discordWebhook', 'redditClientSecret'];
   if (!okKeys.includes(body.key)) throw new HttpError(400, 'Unknown key');
   setSecret(body.key as SecretKey, String(body.value || '').trim());
   return secretStatus();
@@ -978,6 +984,14 @@ post('/api/settings/test-openrouter', async () => {
   const j = (await r.json().catch(() => ({}))) as { error?: { message?: string }; data?: unknown };
   if (!r.ok) throw new HttpError(400, j.error?.message || `OpenRouter said ${r.status}`);
   return j.data || j;
+});
+post('/api/settings/test-venice', async () => {
+  if (!store.getSecrets().veniceKey) throw new HttpError(400, 'No Venice key saved.');
+  try {
+    return await readVeniceAccount(true);
+  } catch (error) {
+    throw new HttpError(400, error instanceof Error ? error.message : 'Could not test the Venice key.');
+  }
 });
 
 // ---------- social ----------
