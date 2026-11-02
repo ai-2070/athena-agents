@@ -1,0 +1,23 @@
+.github/workflows/desktop.yml
+  s_3f5afab86a1bb3::t_520a665c3d7b5c 76,95-110
+.github/workflows/ci.yml
+  s_3f5afab86a1bb3::t_05280a2b6471f8 26,35-43,75,93-101,105-113
+docs/desktop.md
+  s_3f5afab86a1bb3::t_b31f75d693697e 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "75c3cd91debf37334035fd075f5f3ea01e91509a",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
