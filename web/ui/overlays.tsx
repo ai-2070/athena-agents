@@ -147,7 +147,8 @@ function DialogView({ entry, container, children }: { entry: Entry; container: H
           <Dialog.Popup ref={popup} className={`modal${spec.narrow ? ' narrow' : ''}`} initialFocus={firstFocus}>
             <div className="modal-head">
               {spec.titleNode ? <Dialog.Title>{spec.titleNode}</Dialog.Title> : <Dialog.Title ref={title} />}
-              <Dialog.Close className={iconButtonClass()} aria-label="Close">
+              {/* (the same close button as the Station's side panel) */}
+              <Dialog.Close className={iconButtonClass('inset')} aria-label="Close">
                 <Icon name="x" size={15} />
               </Dialog.Close>
             </div>
