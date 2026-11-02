@@ -237,6 +237,8 @@ Slow requests show a short working notice; approvals stay in Athena. Uncertain s
 `bun run gateways:smoke` checks the SDK with
 a fake local Telegram service and throwaway data; it uses no accounts or keys. See the
 [gateway plan](docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md) for what is finished and what remains.
+`bun run gateways:slack-smoke` checks Slack Socket Mode intake against a local service. Slack setup,
+reply delivery and file transfer are still in development.
 
 The Eve runtime replacement is being developed separately from the current API engine. Building
 the runtime uses Bun 1.4 or newer. `bun run eve:build` builds it and `bun run eve:smoke` checks

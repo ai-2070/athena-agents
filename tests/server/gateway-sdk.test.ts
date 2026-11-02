@@ -8,6 +8,22 @@ import { dataPath } from '../../server/util.ts';
 const exec = promisify(execFile);
 
 describe('pinned Chat SDK transport proof', () => {
+  it.each(['bun', process.execPath])('receives Slack socket events after durable checks under %s', async (runtime) => {
+    const { stdout } = await exec(runtime, ['scripts/gateways-slack-smoke.ts'], { env: process.env, timeout: 20000, windowsHide: true });
+    expect(stdout).toContain('Slack Socket Mode, sender scope, commit-before-ack, replay and private file descriptors pass');
+  });
+
+  it('bundles the Slack intake proof without requiring a repo checkout at runtime', async () => {
+    const directory = dataPath('slack-sdk-bundle'); fs.mkdirSync(directory, { recursive: true });
+    const file = path.join(directory, 'proof.mjs');
+    await exec('bun', ['build', 'scripts/gateways-slack-smoke.ts', '--target=bun', '--outfile', file], { env: process.env, timeout: 20000, windowsHide: true });
+    fs.chmodSync(file, 0o444); fs.chmodSync(directory, 0o555);
+    try {
+      const { stdout } = await exec('bun', [file], { cwd: directory, env: process.env, timeout: 20000, windowsHide: true });
+      expect(stdout).toContain('Slack Socket Mode');
+    } finally { fs.chmodSync(directory, 0o755); fs.chmodSync(file, 0o644); }
+  });
+
   it.each(['bun', process.execPath])('receives and replies with a private file under %s', async (runtime) => {
     const { stdout } = await exec(runtime, ['scripts/gateways-smoke.ts'], { env: process.env, timeout: 20000, windowsHide: true });
     expect(stdout).toContain('Telegram polling, sender filter, private download, file reply and persistent subscription pass');

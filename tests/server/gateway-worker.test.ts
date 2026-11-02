@@ -257,7 +257,10 @@ describe('gateway intake lifecycle', () => {
       stop: async () => { stops.set(id, (stops.get(id) ?? 0) + 1); }, alive: () => true,
     }) })); supervisors.push(supervisor);
     await supervisor.start();
-    await expect.poll(() => supervisor.health().filter((value) => value.status === 'connected').length).toBe(2);
+    await expect.poll(() => supervisor.health()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ instanceId: one.id, status: 'connected' }),
+      expect.objectContaining({ instanceId: two.id, status: 'connected' }),
+    ]));
     saveGatewayInstance({ ...oneConfig, name: 'Renamed' }, one.id);
     await expect.poll(() => starts.get(one.id)).toBe(2);
     expect(starts.get(two.id)).toBe(1);

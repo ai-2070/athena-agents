@@ -428,6 +428,8 @@ review it in the dashboard. Telegram cannot approve requests.
 Existing Outbox connections work as before. The
 [gateway plan](internal/plans/CHAT_GATEWAYS_2026-11-01.md) tracks the remaining work;
 `bun run gateways:smoke` checks a fake local Telegram service without using accounts or keys.
+`bun run gateways:slack-smoke` checks Slack Socket Mode intake locally with throwaway data.
+Slack is not available in Settings yet; reply delivery and file transfer remain unfinished.
 
 ## License and credits
 

@@ -1,7 +1,7 @@
 # Chat SDK Gateways with files
 
-*Plan, 1 November 2026. Experimental Telegram text conversations and locally selected document replies added 2 November;
-product setup remains incomplete.
+*Plan, 1 November 2026. Experimental Telegram conversations added 2 November;
+Slack intake proof added 3 November. Product setup remains incomplete.
 New gateway data does not need a legacy compatibility layer.*
 
 ## Implementation status
@@ -223,7 +223,34 @@ New gateway data does not need a legacy compatibility layer.*
   one-operation dispatch, complete captions/attachments, source integrity, stale selections, actor/
   route/access changes, late parts, edits, restart/reconciliation, aggregate limits, cleanup and UI
   confirmation/paused controls. Real-account album checks remain outstanding.
-- Next: finish the other
+- Added the first Slack intake slice using the pinned Chat SDK adapter and an explicitly pinned
+  `@slack/socket-mode` 2.0.7 client. The SDK's default socket handler acknowledges before background
+  processing, so Athena owns the ordered receive/ack boundary. Accepted messages are normalized and
+  atomically committed before acknowledgement; failed local writes or identity API calls remain
+  unacknowledged for Slack redelivery. Source-message timestamps stay strings, deduplicating message/
+  mention deliveries across event IDs. The in-memory queue holds at most 32 unacknowledged events;
+  overflow is left for redelivery. Shutdown blocks admission/ack and waits for active checks before
+  state ownership can be released. API calls have bounded timeouts and no automatic retries; socket
+  reconnect belongs to the future supervisor integration. Raw SDK logs and provider details are muted.
+- Slack startup checks `auth.test` against the configured workspace and verifies bot/user/app identity
+  with `bots.info` before opening Socket Mode with the separate app token. Only one workspace
+  installation is supported; org-wide installs, foreign app/workspace envelopes, external/shared
+  channels, group DMs, bot/self actors and unsupported controls are refused. Every permitted input
+  also checks `users.info` for a live local human and `conversations.info` for the exact DM peer or
+  local channel membership. An empty user allowlist adds no person-specific restriction; configured
+  DM/channel/thread scope still applies. Exact user and scope rules are rechecked before journaling
+  and queued execution. Channel roots need an explicit bot mention; later replies stay in that
+  subscribed thread. Edits hold their original work; preview-only updates with unchanged text/files
+  do not create assignments or interrupt it. File receipts retain only bounded IDs/metadata, without
+  private URLs, SDK callbacks or downloads. See Slack's [Socket Mode acknowledgement contract](https://docs.slack.dev/apis/events-api/using-socket-mode/)
+  and [Slack Connect identity guidance](https://docs.slack.dev/apis/slack-connect/).
+- `bun run gateways:slack-smoke` exercises the real SDK against a local HTTP/WebSocket fixture with
+  throwaway data/home folders. Bun, Node and a read-only bundled proof outside the checkout pass.
+  Tests cover separate tokens, failed commits and replay, optional sender guards, exact scopes,
+  actor/channel verification, edits, stale access/routes, queue limits, arrival order and shutdown.
+  Production Slack setup stays unavailable until file transfer, reply delivery and supervised
+  lifecycle are complete; no dashboard callback routes or public endpoints were added.
+- Next: complete Slack file transfer, replies and worker/setup integration, then the remaining
   platforms. Native-work override controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the full deletion flow for retired instances is pending. Real-account text/file checks on all four platforms

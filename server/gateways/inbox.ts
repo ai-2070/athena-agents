@@ -10,6 +10,7 @@ import { privateDataPath } from '../private.ts';
 import type { GatewayCompletion } from './execution.ts';
 import type { GatewayReconciliation } from '../../shared/types.ts';
 import { gatewayAlbumCandidates, gatewayAlbumKey, gatewayCleanupCandidates } from '../../shared/gateways.ts';
+import { slackChannelId, slackTimestamp, slackUserId, slackWorkspaceId } from '../../shared/gateway-slack.ts';
 
 const externalId = z.string().min(1).max(500);
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -119,9 +120,18 @@ export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] {
   return parsed.data.events;
 }
 
-/** Only Telegram has a verified raw-event normalizer so far. Other transports fail closed. */
+/** Only inputs from verified transport normalizers may reach this journal. */
 export function gatewayInputAllowed(instance: GatewayInstance, input: GatewayInbound): boolean {
-  if (!instance.enabled || instance.platform !== 'telegram' || input.platform !== 'telegram' || input.accountId !== instance.accountId) return false;
+  if (!instance.enabled || instance.platform !== input.platform || input.accountId !== instance.accountId || input.actor.kind !== 'user') return false;
+  if (instance.platform === 'slack') {
+    if (instance.senderPolicy.platform !== 'slack' || !slackWorkspaceId.test(input.accountId) || !slackUserId.test(input.actor.id)
+      || !slackChannelId.test(input.conversationId) || !slackTimestamp.test(input.sourceMessageId) || (input.threadId && !slackTimestamp.test(input.threadId))
+      || (!input.directMessage && !input.threadId) || input.mediaGroupId) return false;
+    if (instance.senderPolicy.allowedUserIds.length && !instance.senderPolicy.allowedUserIds.includes(input.actor.id)) return false;
+    return input.directMessage ? instance.scope.directMessages : instance.scope.conversationIds.includes(input.conversationId)
+      || instance.scope.conversationIds.includes(`${input.conversationId}/${input.threadId}`);
+  }
+  if (instance.platform !== 'telegram') return false;
   if (instance.senderPolicy.platform !== 'telegram' || input.actor.kind !== 'user' || !/^[1-9]\d*$/.test(input.actor.id)) return false;
   if (!instance.senderPolicy.allowedUserIds.includes(input.actor.id)) return false;
   if (input.directMessage) return instance.scope.directMessages;
