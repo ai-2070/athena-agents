@@ -1,0 +1,129 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { GET, POST, PUT, DEL, confirmBox, toast } from '../core.ts';
+import { Button } from '../ui/button.tsx';
+import { Pill } from '../ui/marks.tsx';
+import { FieldRow, PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
+import { SelectControl } from '../ui/select.tsx';
+import { useServerEvents } from '../ui/react.tsx';
+import type { GatewayHealth, GatewayInstance, GatewayTarget, GatewayTargets } from '../../shared/types.ts';
+
+type Listed = GatewayInstance & { credentials: Record<string, boolean>; targetName?: string };
+type Config = Omit<GatewayInstance, 'id' | 'createdAt' | 'updatedAt' | 'routeGeneration'>;
+interface Listing { instances: Listed[]; health: GatewayHealth[] }
+interface ProjectChoice { id: string; name: string }
+const MiB = 1024 * 1024;
+const message = (error: unknown) => error instanceof Error ? error.message : 'Could not save this gateway. Try again.';
+const lines = (text: string) => [...new Set(text.split(/[\s,]+/).filter(Boolean))];
+export function gatewayConfig(instance: GatewayInstance): Config {
+  return { name: instance.name, platform: instance.platform, accountId: instance.accountId, projectId: instance.projectId, target: instance.target,
+    senderPolicy: instance.senderPolicy, scope: instance.scope, fileLimits: instance.fileLimits, enabled: instance.enabled };
+}
+
+export function GatewaysTab() {
+  const [listing, setListing] = useState<Listing | null>(null);
+  const [projects, setProjects] = useState<ProjectChoice[]>([]);
+  const [editor, setEditor] = useState<Listed | 'new' | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const mounted = useRef(false); const request = useRef(0); const linked = useRef(false);
+  const load = useCallback(async () => {
+    const version = ++request.current;
+    try {
+      const [gateways, all] = await Promise.all([GET<Listing>('/gateways'), GET<{ projects: ProjectChoice[] }>('/projects')]);
+      if (!mounted.current || version !== request.current) return;
+      setListing(gateways); setProjects(all.projects); setError('');
+      if (!linked.current) {
+        linked.current = true;
+        const id = new URLSearchParams(location.hash.split('?')[1] || '').get('instance');
+        if (id) { const found = gateways.instances.find((item) => item.id === id); if (found?.platform === 'telegram') setEditor(found); else setError('This gateway is unavailable. Choose an instance below.'); }
+      }
+    } catch (failure) { if (mounted.current && version === request.current) setError(message(failure)); }
+  }, []);
+  useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; request.current++; }; }, [load]);
+  useServerEvents((event) => { if (event.type === 'gateways' || event.type === 'gateway-health' || event.type === 'projects') void load(); });
+  const action = async (work: () => Promise<unknown>) => {
+    setBusy(true); setError('');
+    try { await work(); await load(); } catch (failure) { setError(message(failure)); } finally { setBusy(false); }
+  };
+  const edit = (instance: Listed) => {
+    setEditor(instance);
+    history.replaceState(null, '', `#/settings?tab=gateways&instance=${encodeURIComponent(instance.id)}`);
+  };
+  const close = () => { setEditor(null); history.replaceState(null, '', '#/settings?tab=gateways'); };
+  return <div className="flex flex-col gap-10">
+    <Section title="Chat gateways" description="Talk to the Brain, a team or an agent from a messaging app. Each instance has its own account, project and sender rules."
+      action={<Button size="small" disabled={busy || !listing || editor !== null || !projects.length} onClick={() => setEditor('new')}>Add Telegram instance</Button>}>
+      {error && <div role="alert" className="px-5 py-4 text-red">{error} <Button size="tiny" variant="ghost" onClick={() => void load()}>Reload</Button></div>}
+      {!listing ? <Row title={error ? 'Gateways could not load' : 'Loading gateways…'} /> : !listing.instances.length ? <Row title="No gateway instances yet" description="Add a Telegram bot, choose who answers, then allow the people who can message it." /> : listing.instances.map((instance) => {
+        const health = listing.health.find((item) => item.instanceId === instance.id);
+        const status = !instance.enabled ? 'Paused' : health?.status === 'connected' ? 'Connected' : health?.status === 'connecting' ? 'Connecting' : health?.status === 'retrying' ? 'Retrying' : 'Needs setup';
+        return <Row key={instance.id} title={<span className="flex flex-wrap items-center gap-2">{instance.name}<Pill tone={status === 'Connected' ? 'ok' : instance.enabled ? 'warn' : undefined}>{status}</Pill></span>}
+          description={<span className="break-words">{instance.platform === 'telegram' ? 'Telegram' : instance.platform} · {projects.find((item) => item.id === instance.projectId)?.name || 'Project unavailable'} · {instance.targetName || (instance.target.kind === 'brain' ? 'The Brain' : instance.target.kind === 'team' ? 'Team' : 'Agent')}{instance.platform === 'telegram' && !instance.credentials.botToken ? <span className="mt-1 block">Add a bot token before enabling.</span> : null}{health?.reason ? <span className="mt-1 block">{health.reason}</span> : null}</span>}>
+          {instance.platform === 'telegram' && <Button size="small" variant="ghost" disabled={busy || editor !== null} onClick={() => edit(instance)}>Edit</Button>}
+          <Button size="small" variant="ghost" disabled={busy || editor !== null || (!instance.enabled && (instance.platform !== 'telegram' || !instance.credentials.botToken))} onClick={() => void action(() => PUT(`/gateways/${instance.id}`, { ...gatewayConfig(instance), enabled: !instance.enabled }))}>{instance.enabled ? 'Pause' : 'Enable'}</Button>
+          {instance.enabled && <Button size="small" variant="ghost" disabled={busy || editor !== null} onClick={() => void action(() => POST(`/gateways/${instance.id}/reconnect`))}>Reconnect</Button>}
+          <Button size="small" variant="danger" disabled={busy || editor !== null} onClick={() => void (async () => {
+            if (await confirmBox(`Delete ${instance.name}? Its connection and token will be removed. Saved conversation receipts remain for recovery.`, { ok: 'Delete', danger: true })) await action(() => DEL(`/gateways/${instance.id}`));
+          })()}>Delete</Button>
+        </Row>;
+      })}
+      <PanelNote>Telegram is available for testing. Slack, Discord and WhatsApp are not ready. Existing one-way notifications stay under Connections. Approvals are reviewed in Athena.</PanelNote>
+    </Section>
+    {editor && <GatewayEditor key={editor === 'new' ? 'new' : editor.id} instance={editor === 'new' ? null : editor} projects={projects} close={close} saved={async () => { close(); await load(); }} />}
+  </div>;
+}
+
+function GatewayEditor({ instance, projects, close, saved }: { instance: Listed | null; projects: ProjectChoice[]; close: () => void; saved: () => Promise<void> }) {
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const [id, setId] = useState(instance?.id);
+  const [config, setConfig] = useState<Config>(() => instance ? gatewayConfig(instance) : {
+    name: '', platform: 'telegram', accountId: '', projectId: projects[0]?.id || '', target: { kind: 'brain' },
+    senderPolicy: { platform: 'telegram', allowedUserIds: [] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
+    fileLimits: { perFileBytes: 20 * MiB, perMessageBytes: 50 * MiB, filesPerMessage: 10, dailyBytes: 200 * MiB }, enabled: false,
+  });
+  const [senders, setSenders] = useState(instance?.senderPolicy.platform === 'telegram' ? instance.senderPolicy.allowedUserIds.join('\n') : '');
+  const [scope, setScope] = useState(instance?.scope.conversationIds.join('\n') || '');
+  const [token, setToken] = useState(''); const [removeToken, setRemoveToken] = useState(false);
+  const [targets, setTargets] = useState<GatewayTargets | null>(null);
+  const [targetError, setTargetError] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let active = true; setTargets(null); setTargetError('');
+    void GET<GatewayTargets>(`/gateways/targets/${encodeURIComponent(config.projectId)}`).then((value) => { if (active) setTargets(value); }).catch((failure: unknown) => { if (active) setTargetError(message(failure)); });
+    return () => { active = false; };
+  }, [config.projectId]);
+  const patch = (value: Partial<Config>) => setConfig((before) => ({ ...before, ...value }));
+  const targetValue = config.target.kind === 'brain' ? 'brain' : `${config.target.kind}:${config.target.id}`;
+  const options = [{ value: 'brain', label: 'The Brain' }, ...(targets?.teams || []).map((item) => ({ value: `team:${item.id}`, label: `Team · ${item.name}` })), ...(targets?.agents || []).map((item) => ({ value: `agent:${item.id}`, label: `Agent · ${item.name}` }))];
+  if (!options.some((item) => item.value === targetValue)) options.push({ value: targetValue, label: 'Destination unavailable — choose another' });
+  const submit = async () => {
+    setBusy(true); setError(''); let configured = false;
+    const body = { ...config, senderPolicy: { platform: 'telegram' as const, allowedUserIds: lines(senders) }, scope: { ...config.scope, conversationIds: lines(scope) }, enabled: false };
+    try {
+      const record = id ? await PUT<GatewayInstance>(`/gateways/${id}`, body) : await POST<GatewayInstance>('/gateways', body);
+      if (mounted.current) setId(record.id); configured = true;
+      if (removeToken || token.trim()) await PUT(`/gateways/${record.id}/credentials`, removeToken ? {} : { botToken: token.trim() });
+      if (mounted.current) { setToken(''); toast('Gateway saved'); await saved(); }
+    } catch (failure) { if (mounted.current) setError(`${configured ? 'The instance is saved paused. ' : ''}${message(failure)}`); }
+    finally { if (mounted.current) setBusy(false); }
+  };
+  return <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+    <fieldset disabled={busy} className="m-0 min-w-0 border-0 p-0">
+      <Section title={instance ? `Edit ${instance.name}` : 'New Telegram instance'} description="Saving leaves this instance paused. Enable it above once setup is ready. Changing its project or destination holds earlier queued work for review.">
+        <FieldRow label="Instance name"><input aria-label="Instance name" required maxLength={100} value={config.name} onChange={(event) => patch({ name: event.target.value })} /></FieldRow>
+        <FieldRow label="Bot account ID" hint="The numeric bot ID before the colon in its BotFather token. One bot account per instance."><input aria-label="Bot account ID" className="font-mono" required inputMode="numeric" pattern="[1-9][0-9]*" disabled={Boolean(id)} value={config.accountId} onChange={(event) => patch({ accountId: event.target.value })} /></FieldRow>
+        <FieldRow label="Bot token" hint={removeToken ? 'The saved token will be removed when you save.' : instance?.credentials.botToken ? 'A token is saved. Leave blank to keep it, or paste a replacement.' : 'Get a bot token from @BotFather. It stays on this PC and is never shown again.'}><input aria-label="Bot token" type="password" autoComplete="new-password" disabled={removeToken} value={token} onChange={(event) => setToken(event.target.value)} /></FieldRow>
+        {instance?.credentials.botToken && <Row title="Saved token" description="Remove it on save, or keep the existing token."><Button type="button" variant="ghost" aria-pressed={removeToken} onClick={() => setRemoveToken((before) => !before)}>{removeToken ? 'Keep saved token' : 'Remove saved token'}</Button></Row>}
+        <FieldRow label="Project" group="gateway-project"><SelectControl aria-label="Gateway project" value={config.projectId} options={projects.map((item) => ({ value: item.id, label: item.name }))} onChange={(projectId) => { patch({ projectId, target: { kind: 'brain' } }); }} /></FieldRow>
+        <FieldRow label="Who answers" group="gateway-target" hint={targetError || (!targets ? 'Loading destinations…' : 'Each conversation gets a separate private history in this project.')}><SelectControl aria-label="Gateway destination" value={targetValue} options={options} onChange={(value) => { const at = value.indexOf(':'); const target: GatewayTarget = at < 0 ? { kind: 'brain' } : value.startsWith('team:') ? { kind: 'team', id: value.slice(at + 1) } : { kind: 'agent', id: value.slice(at + 1) }; patch({ target }); }} /></FieldRow>
+        <FieldRow label="Allowed user IDs" hint="Numeric Telegram user IDs, one per line. An enabled instance requires at least one. Names and forwarded authors do not grant access." stack><textarea aria-label="Allowed user IDs" className="font-mono" rows={3} value={senders} onChange={(event) => setSenders(event.target.value)} /></FieldRow>
+        <Row title="Allow direct messages"><SelectControl aria-label="Allow direct messages" value={config.scope.directMessages ? 'yes' : 'no'} options={[{ value: 'yes', label: 'Allowed users only' }, { value: 'no', label: 'No direct messages' }]} onChange={(value) => patch({ scope: { ...config.scope, directMessages: value === 'yes' } })} /></Row>
+        <FieldRow label="Allowed groups and topics" hint="One chat ID or chat ID/topic ID per line, for example -100123/7. New shared conversations need a bot mention or reply." stack><textarea aria-label="Allowed groups and topics" className="font-mono" rows={3} value={scope} onChange={(event) => setScope(event.target.value)} /></FieldRow>
+        {([['perFileBytes', 'File limit (MiB)', 20], ['perMessageBytes', 'Message limit (MiB)', 50], ['dailyBytes', 'Daily limit (MiB)', Math.floor(Number.MAX_SAFE_INTEGER / MiB)], ['filesPerMessage', 'Files per message', 10]] as const).map(([key, label, max]) => <FieldRow key={key} label={label}><input aria-label={label} type="number" min={key === 'filesPerMessage' ? 1 : 1 / MiB} max={max} step={key === 'filesPerMessage' ? 1 : 'any'} required value={key === 'filesPerMessage' ? config.fileLimits[key] : config.fileLimits[key] / MiB} onChange={(event) => patch({ fileLimits: { ...config.fileLimits, [key]: Math.round(Number(event.target.value) * (key === 'filesPerMessage' ? 1 : MiB)) } })} /></FieldRow>)}
+        <PanelNote>Incoming and outgoing byte limits are tracked separately. The file limit must fit within the message limit, and the message limit within the daily limit. Telegram polling requires a bot without an existing webhook; Athena will not delete one.</PanelNote>
+        {error && <div role="alert" className="px-5 py-4 text-red">{error}</div>}
+        <RowActions><Button type="button" variant="ghost" onClick={close}>Cancel</Button><Button type="submit" disabled={!targets || Boolean(targetError)}>{busy ? 'Saving…' : 'Save instance'}</Button></RowActions>
+      </Section>
+    </fieldset>
+  </form>;
+}

@@ -241,6 +241,10 @@ describe('gateway configuration API', () => {
     expect(unguarded.status).toBe(403);
     const create = async (body: unknown) => req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(body) });
     const one = await (await create(config)).json() as GatewayInstance;
+    const targets = await req(`/api/gateways/targets/${state.project.id}`);
+    expect(targets.status).toBe(200);
+    expect(await targets.json()).toMatchObject({ agents: expect.any(Array), teams: expect.any(Array) });
+    expect((await req('/api/gateways/targets/missing')).status).toBe(400);
     const two = await (await create({ ...config, name: 'Second Telegram', accountId: '30001' })).json() as GatewayInstance;
     expect(one.id).not.toBe(two.id);
     expect((await create(config)).status).toBe(400);

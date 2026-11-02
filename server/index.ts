@@ -974,10 +974,11 @@ post<{ flavor?: string }>('/api/pi/add-bridge', async (_p, body) => {
 
 // ---------- settings ----------
 get('/api/gateways', async () => ({
-  instances: gateways.listGatewayInstances().map((instance) => ({ ...instance, credentials: gateways.gatewayCredentialStatus(instance.id) })),
+  instances: gateways.listGatewayInstances().map((instance) => ({ ...instance, targetName: gateways.gatewayTargetName(instance), credentials: gateways.gatewayCredentialStatus(instance.id) })),
   health: gatewaySupervisor.health(),
 }));
 post<unknown>('/api/gateways', async (_p, body) => gateways.saveGatewayInstance(body));
+get('/api/gateways/targets/:projectId', async ({ projectId }) => gateways.gatewayTargets(projectId));
 get('/api/gateways/:id/inbox', async ({ id }) => ({ events: gatewayInboxHistory(id) }));
 put<unknown>('/api/gateways/:id', async ({ id }, body) => gateways.saveGatewayInstance(body, id));
 put<unknown>('/api/gateways/:id/credentials', async ({ id }, body) => {

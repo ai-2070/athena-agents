@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Autocomplete } from '@base-ui/react/autocomplete';
 import { GeneralTab } from './settings.tsx';
 import { ConnectionsTab } from './connections.tsx';
+import { GatewaysTab } from './gateways.tsx';
 import { McpTab } from './mcp.tsx';
 import { ProgramsTab } from './programs.tsx';
 import { LookTab } from './look.tsx';
@@ -14,7 +15,7 @@ import { Tabs } from '../ui/controls.tsx';
 import { Icon, reactPage } from '../ui/react.tsx';
 import type { ComponentType } from 'react';
 
-type TabId = 'general' | 'connections' | 'mcp' | 'programs' | 'look' | 'about';
+type TabId = 'general' | 'connections' | 'gateways' | 'mcp' | 'programs' | 'look' | 'about';
 interface Tab {
   id: TabId;
   label: string;
@@ -32,6 +33,7 @@ interface IndexEntry {
 const TABS: Tab[] = [
   { id: 'general', label: 'General & keys', Page: GeneralTab },
   { id: 'connections', label: 'Connections', Page: ConnectionsTab },
+  { id: 'gateways', label: 'Gateways', Page: GatewaysTab },
   { id: 'mcp', label: 'MCP servers', Page: McpTab },
   { id: 'programs', label: 'Programs', Page: ProgramsTab },
   { id: 'look', label: 'Appearance', Page: LookTab },
@@ -40,6 +42,7 @@ const TABS: Tab[] = [
 
 // What can be found. find = text on the page to jump to; words = extra search words.
 const INDEX: IndexEntry[] = [
+  { tab: 'gateways', find: 'Chat gateways', label: 'Telegram chat gateways', words: 'telegram bot two way slack discord whatsapp instances sender guard brain agent team token' },
   { tab: 'general', find: 'API keys', label: 'AI keys', words: 'openrouter venice key api anthropic token' },
   { tab: 'general', find: 'Venice key', label: 'Venice key', words: 'venice api key balance diem models' },
   { tab: 'general', find: 'OpenRouter key', label: 'OpenRouter key', words: 'api key models gpt gemini llama deepseek' },
@@ -66,7 +69,7 @@ const INDEX: IndexEntry[] = [
   { tab: 'connections', sub: 'accounts', find: 'Your X app', label: 'X app setup', words: 'x twitter client id secret callback oauth developer' },
   { tab: 'connections', sub: 'accounts', find: 'Reddit accounts', label: 'Reddit accounts', words: 'reddit connect account auto-post subreddit' },
   { tab: 'connections', sub: 'accounts', find: 'Your Reddit app', label: 'Reddit app setup', words: 'reddit client id secret username redirect oauth' },
-  { tab: 'connections', sub: 'accounts', find: 'Telegram', label: 'Telegram', words: 'telegram bot token chat id notifications' },
+  { tab: 'connections', sub: 'accounts', find: 'Telegram', label: 'Telegram notifications', words: 'telegram bot token chat id notifications one way' },
   { tab: 'connections', sub: 'accounts', find: 'Discord', label: 'Discord', words: 'discord webhook channel' },
   { tab: 'connections', sub: 'accounts', find: 'Everything else', label: 'Other services', words: 'gmail calendar drive notion slack linkedin youtube connectors' },
   { tab: 'connections', sub: 'outbox', find: 'Waiting for you', label: 'Outbox (posts waiting for you)', words: 'outbox approve posts drafts tweets dm pending queue' },

@@ -40,7 +40,7 @@ New gateway data does not need a legacy compatibility layer.*
   not advance the polling offset. Exact topic scopes use `chatId/topicId`; new shared conversations
   require a bot mention or reply. No attachment is downloaded during intake.
 - Added guarded local APIs for instance configuration, credential replacement/presence, connection
-  health, reconnect, inbox receipts, explicit file/reply retry and deletion under `/api/gateways`. There is no Settings UI;
+  health, reconnect, inbox receipts, explicit file/reply retry and deletion under `/api/gateways`;
   the existing
   Outbox helpers remain unchanged. Other platforms fail closed at application intake and report
   unavailable when enabled. WhatsApp configuration currently accepts canonical E.164 only;
@@ -133,7 +133,19 @@ New gateway data does not need a legacy compatibility layer.*
   completion, custom Brain-delegate folders, cross-binding reuse, missing/failed run evidence and
   revoked workspace access. The result confirms selection only; the normal final-answer and per-file
   delivery ledger still control upload. Remote messages cannot approve these tool requests.
-- Next: add Settings/file review UI and finish the other
+- Added Settings > Gateways with multiple instance rows, connection health, pause/enable,
+  reconnect and confirmed deletion. Telegram forms cover account ID, token replacement/removal,
+  project, Brain/team/agent destination, required sender IDs, direct messages, exact group/topic
+  scopes and file limits. Saves leave instances paused; enabling is a separate explicit action.
+  Tokens use the separate credential endpoint and are never loaded into the form. Partial saves
+  retain the new instance ID so retrying credential storage cannot create a duplicate account.
+  Live health refreshes preserve form drafts. Destination lookup lists only names/IDs in the chosen
+  project without changing the open project. Settings search finds gateways, and
+  `#/settings?tab=gateways&instance=<id>` opens the named Telegram editor. Other platforms are marked
+  unavailable; old one-way forms remain under Connections until unified delivery is ready.
+  DOM tests cover creation, separate secrets, partial saves, project/team choice, deep links and
+  loading errors. Browser screenshot verification was unavailable in this development session.
+- Next: add inbox/file review UI and gateway status navigation, and finish the other
   platforms. Albums still need grouping before dispatch, and inbox retention/review controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the final deletion/retention flow is pending. Real-account text/file checks on all four platforms

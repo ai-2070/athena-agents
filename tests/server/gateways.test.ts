@@ -5,6 +5,7 @@ import { dataPath } from '../../server/util.ts';
 import {
   captureGatewayRoute, gatewayCredentialStatus, getGatewayInstance, listGatewayInstances,
   removeGatewayInstance, saveGatewayCredentials, saveGatewayInstance, withGatewayRoute,
+  gatewayTargets,
 } from '../../server/gateways/instances.ts';
 import type { GatewayPlatform, GatewayTarget } from '../../shared/types.ts';
 
@@ -30,6 +31,18 @@ beforeEach(() => {
 });
 
 describe('gateway instances', () => {
+  it('lists only target names and IDs in the chosen project without moving the open project', () => {
+    agents.save({ id: 'visible-first', name: 'First', workspace: 'private path' });
+    withProject(second, () => { agents.save({ id: 'visible-second', name: 'Second', workspace: 'other private path' }); workflows.save({ id: 'team-second', name: 'Other team' }); });
+    const targets = gatewayTargets(second.id);
+    expect(targets.agents).toContainEqual({ id: 'visible-second', name: 'Second' });
+    expect(targets.agents.some((item) => item.id === 'visible-first')).toBe(false);
+    expect(targets.teams).toContainEqual({ id: 'team-second', name: 'Other team' });
+    expect(JSON.stringify(targets)).not.toContain('private path');
+    expect(activeProject().id).toBe(first.id);
+    expect(() => gatewayTargets('missing')).toThrow('existing project');
+  });
+
   it.each<GatewayPlatform>(['telegram', 'slack', 'discord', 'whatsapp'])('keeps multiple %s instances and targets independent', (platform) => {
     const agent = agents.save({ id: 'gateway-agent', name: 'Gateway agent' });
     const team = workflows.save({ id: 'gateway-team', name: 'Gateway team' });

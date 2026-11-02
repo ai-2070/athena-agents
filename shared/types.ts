@@ -11,6 +11,10 @@ export type ProviderId = 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'cust
 // ---------- chat gateway instances ----------
 export type GatewayPlatform = 'telegram' | 'slack' | 'discord' | 'whatsapp';
 export type GatewayTarget = { kind: 'brain' } | { kind: 'team'; id: string } | { kind: 'agent'; id: string };
+export interface GatewayTargets {
+  agents: { id: string; name: string }[];
+  teams: { id: string; name: string }[];
+}
 
 export type GatewaySenderPolicy =
   | { platform: 'telegram'; allowedUserIds: string[] }

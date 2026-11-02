@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { GatewayInstance, GatewayRoute, GatewayTarget } from '../../shared/types.ts';
+import type { GatewayInstance, GatewayRoute, GatewayTarget, GatewayTargets } from '../../shared/types.ts';
 import { agents, collection, getGatewaySecrets, listProjects, setGatewaySecrets, withProject, workflows } from '../store.ts';
 import { uid } from '../util.ts';
 
@@ -56,6 +56,23 @@ function checkTarget(projectId: string, destination: GatewayTarget): void {
 
 export function listGatewayInstances(): GatewayInstance[] {
   return instances.list();
+}
+
+export function gatewayTargets(projectId: string): GatewayTargets {
+  const project = listProjects().find((item) => item.id === projectId);
+  if (!project) fail('Choose an existing project.');
+  return withProject(project, () => ({
+    agents: agents.list().map(({ id, name }) => ({ id, name })),
+    teams: workflows.list().map(({ id, name }) => ({ id, name })),
+  }));
+}
+
+export function gatewayTargetName(instance: GatewayInstance): string {
+  if (instance.target.kind === 'brain') return 'The Brain';
+  const project = listProjects().find((item) => item.id === instance.projectId);
+  if (!project) return 'Destination unavailable';
+  const target = instance.target;
+  return withProject(project, () => (target.kind === 'agent' ? agents.get(target.id)?.name : workflows.get(target.id)?.name) || 'Destination unavailable');
 }
 
 export function getGatewayInstance(instanceId: string): GatewayInstance {

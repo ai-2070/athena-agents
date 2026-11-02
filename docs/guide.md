@@ -377,7 +377,14 @@ Gateway agents can also inspect specific finished files and request their delive
 approval policy. Files changed after inspection are refused. Artifacts and tool images are not attached automatically.
 Delegated files can come from the agent's custom workspace. Their source run, private conversation and
 current folder access are checked again before delivery; missing records or revoked access hold the file for review.
-Settings setup and file selection UI are not ready.
+Set up Telegram under **Settings → Gateways**. Add an instance with its numeric bot account ID and
+BotFather token, choose a project and the Brain, a team or an agent, and enter the allowed Telegram
+user IDs. Choose whether direct messages are allowed and list exact group/topic IDs when needed.
+Save leaves the instance paused; click **Enable** to connect. Saving an edit pauses it again. Each bot
+account has its own instance and token. **Pause** stops receiving and delivering; native work already
+started keeps its normal stop behavior. **Reconnect** retries connection setup. **Delete** removes the
+connection and token but retains conversation receipts for recovery. File selection and delivery review
+UI are still being built; the local API remains available for those actions.
 Uncertain sends need review before retrying; automatic retries preserve confirmed reply parts.
 Slow requests can send one working notice. When a run needs approval, Telegram says **Needs approval in Athena**;
 review it in the dashboard. Telegram cannot approve requests.
