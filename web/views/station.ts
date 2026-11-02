@@ -24,6 +24,7 @@ import { reducedMotion, slideIn, slideOut } from '../motion.ts';
 import { icon, logo, brandPath } from '../icons.ts';
 import { brandMark } from '../brand.ts';
 import { pal, refreshPalette, watchPalette, brandTone, mutedTone, mix, alpha, INK } from './stationpalette.ts';
+import { everySecond } from './stationclock.ts';
 import { appIconImage } from '../appicons.ts';
 import { engineKey } from '../agentstats.ts';
 import { openProjectMenu } from '../projects.tsx';
@@ -365,7 +366,7 @@ interface StationState {
   offState?: () => void;
   offConnection?: () => void;
   headTimer?: ReturnType<typeof setInterval>;
-  clockTimer?: ReturnType<typeof setInterval>;
+  stopClock?: () => void;
   usageTimer?: ReturnType<typeof setInterval>;
   progTimer?: ReturnType<typeof setInterval>;
   usageIdx?: number;
@@ -895,7 +896,7 @@ export async function render(el: HTMLElement): Promise<void> {
   }
   loadHeadbar();
   S.headTimer = setInterval(loadHeadbar, 60_000);
-  S.clockTimer = setInterval(tickClock, 1000);
+  S.stopClock = everySecond(tickClock);
   // usage of each connected provider, one after another
   S.usageTimer = setInterval(() => {
     if ((S?.headbar?.usages?.length || 0) > 1) {
@@ -982,7 +983,7 @@ export function unmount(): void {
   S.ro?.disconnect();
   clearInterval(S.progTimer);
   clearInterval(S.headTimer);
-  clearInterval(S.clockTimer);
+  S.stopClock?.();
   clearInterval(S.usageTimer);
   window.removeEventListener('keydown', S.onKey);
   if (floorPick?.timer) clearTimeout(floorPick.timer);
