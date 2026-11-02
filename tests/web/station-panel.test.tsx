@@ -6,6 +6,7 @@ import { state } from '../../web/core.ts';
 import { mountStationPanel } from '../../web/views/stationpanel.tsx';
 import type { StationPanelApi } from '../../web/views/stationpanel.tsx';
 import type { MapPick, TeamView } from '../../web/views/stationdata.ts';
+import { routineCounts } from '../../web/views/stationdata.ts';
 import type { AppState, Team } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -179,6 +180,14 @@ describe('the Station panel', () => {
     expect(location.hash).toBe('#/routines/r1');
     await act(async () => button('New routine for this team').click());
     expect(location.hash).toBe('#/routines/new?team=t1');
+  });
+
+  it('counts the routines that mention each team, once per routine, leaving out deleted teams', () => {
+    expect(routineCounts([
+      { mentions: [{ kind: 'team', id: 't1', name: 'A' }, { kind: 'agent', id: 'a1', name: 'B' }] },
+      { mentions: [{ kind: 'team', id: 't1', name: 'A' }, { kind: 'team', id: 't1', name: 'A' }, { kind: 'team', id: 't2', name: 'C' }] },
+      { mentions: [{ kind: 'team', id: 't3', name: 'Gone', missing: true }] },
+    ])).toEqual({ t1: 2, t2: 1 });
   });
 
   it('a team with the daily message from before routines shows it, and Turn off stops it', async () => {

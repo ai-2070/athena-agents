@@ -28,7 +28,7 @@ import { appIconImage } from '../appicons.ts';
 import { engineKey } from '../agentstats.ts';
 import { openProjectMenu } from '../projects.tsx';
 import { teamSteps } from '../../shared/teams.ts';
-import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, toolIntegration, stepLinks, connectorLook, setClaudeConnectors } from './stationdata.ts';
+import { routineCounts, wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, toolIntegration, stepLinks, connectorLook, setClaudeConnectors } from './stationdata.ts';
 import type { AvailableIntegration, Headbar, MapPick, Program, TeamView } from './stationdata.ts';
 import { mountStationPanel } from './stationpanel.tsx';
 import type { StationPanelApi } from './stationpanel.tsx';
@@ -37,7 +37,7 @@ import type { MenuEntry, StationMenu } from './stationmenu.tsx';
 import type { WorldView } from '../voxel/view.ts';
 import type { WorldLayer } from '../voxel/worldlayer.ts';
 import type { AgentTarget, SkinHost } from '../voxel/skins.ts';
-import type { ActivityEntry, Agent, AppState, Chat, Project, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldAnchor, WorldQuality } from '../../shared/types.ts';
+import type { ActivityEntry, Agent, AppState, Chat, Project, Routine, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldAnchor, WorldQuality } from '../../shared/types.ts';
 
 // ---------- types ----------
 /** A workflow run (GET /api/workflow-runs, /api/workflow-active and the 'workflow-run' event). */
@@ -356,6 +356,8 @@ interface StationState {
   layout: StationLayout;
   teamState: Record<string, TeamState>;
   teamLast: Record<string, TeamMessage | null | undefined>;
+  /** How many routines mention each team (its card shows the number). */
+  teamRoutines?: Record<string, number>;
   onKey: (e: KeyboardEvent) => void;
   onDocDown: (e: PointerEvent) => void;
   onPaste: (e: ClipboardEvent) => void;
@@ -947,13 +949,14 @@ function teamView(w: TeamListing): TeamView {
 }
 
 async function loadData(): Promise<void> {
-  const [progs, wfs, runs, active, layout] = await Promise.all([GET<Program[]>('/programs').catch((): Program[] => []), GET<TeamListing[]>('/workflows').catch((): TeamListing[] => []), GET<WorkflowRun[]>('/workflow-runs').catch((): WorkflowRun[] => []), GET<WorkflowRun[]>('/workflow-active').catch((): WorkflowRun[] => []), GET<StationLayout>('/layout').catch((): StationLayout => ({}))]);
+  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([GET<Program[]>('/programs').catch((): Program[] => []), GET<TeamListing[]>('/workflows').catch((): TeamListing[] => []), GET<WorkflowRun[]>('/workflow-runs').catch((): WorkflowRun[] => []), GET<WorkflowRun[]>('/workflow-active').catch((): WorkflowRun[] => []), GET<StationLayout>('/layout').catch((): StationLayout => ({})), GET<Routine[]>('/routines').catch((): Routine[] => [])]);
   if (!S) return;
   S.layout = layout || {};
   S.progs = progs;
   S.workflows = wfs.map(teamView);
   S.teamState = Object.fromEntries(wfs.map((w) => [w.id, w.state || { working: [], queued: [] }]));
   S.teamLast = Object.fromEntries(wfs.filter((w) => w.last).map((w) => [w.id, w.last]));
+  S.teamRoutines = routineCounts(routineList);
   S.wfRuns = runs;
   S.active = new Map(active.map((r) => [r.workflowId, r]));
   shareTeams();
@@ -2324,6 +2327,7 @@ function drawBranchCard(wfId: string): void {
   const last = S.teamLast?.[wfId];
   const nameOf = (id: string) => (id === 'user' ? 'You' : id === 'system' ? '' : id === 'brain' ? 'Brain' : state.data?.agents.find((a) => a.id === id)?.name || '');
   const lead = wf.lead ? nameOf(wf.lead) : '';
+  const routines = S.teamRoutines?.[wfId] || 0;
   b.card.classList.toggle('live', ts.working.length > 0);
   b.card.classList.toggle('needs', false);
   mount(
@@ -2341,10 +2345,12 @@ function drawBranchCard(wfId: string): void {
     last ? h('div', { class: 'text-[12px] text-dim leading-[1.45] mt-1.5 mb-0.5 line-clamp-2' }, h('b', { class: 'text-ink font-semibold' }, nameOf(last.from) || 'Team'), ' ', String(last.text).replace(/\s+/g, ' ').slice(0, 90), h('span.hint', ` · ${ago(last.ts)}`)) : null,
     h(
       'div',
-      { class: 'mt-3 text-[12px] leading-[normal] font-medium text-faint' },
+      { class: 'mt-3 flex items-center gap-3 text-[12px] leading-[normal] font-medium text-faint' },
       ts.working.length
-        ? h('span', { class: 'text-accent group-[.needs]/card:text-amber' }, `● ${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} next` : ''}`)
-        : h('span', wf.enabled && wf.schedule && wf.schedule.type !== 'none' ? `⏱ ${scheduleText(wf.schedule)}` : last ? 'Quiet' : 'Say hi to the team'),
+        ? h('span', { class: 'min-w-0 truncate text-accent group-[.needs]/card:text-amber' }, `● ${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} next` : ''}`)
+        : h('span', { class: 'min-w-0 truncate' }, wf.enabled && wf.schedule && wf.schedule.type !== 'none' ? `⏱ ${scheduleText(wf.schedule)}` : last ? 'Quiet' : 'Say hi to the team'),
+      // the routines that mention the team (Setup lists them)
+      routines ? h('span', { class: 'st-routines ml-auto inline-flex flex-none items-center gap-1 text-dim', title: `${routines} routine${routines === 1 ? '' : 's'} mention this team` }, icon('repeat', 12), `${routines} routine${routines === 1 ? '' : 's'}`) : null,
     ),
   );
 }
@@ -3995,6 +4001,13 @@ function drawFeed(): void {
   );
 }
 
+async function reloadRoutineCounts(): Promise<void> {
+  const list = await GET<Routine[]>('/routines').catch(() => null);
+  if (!S || !list) return;
+  S.teamRoutines = routineCounts(list);
+  for (const id of S.branches.keys()) drawBranchCard(id);
+}
+
 async function reloadWorkflows(): Promise<void> {
   if (!S) return;
   const [wfs, runs] = await Promise.all([GET<TeamListing[]>('/workflows').catch(() => S!.workflows), GET<WorkflowRun[]>('/workflow-runs').catch(() => S!.wfRuns)]);
@@ -4150,6 +4163,7 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
   if (!S) return;
   const d = state.data;
   if (ev.type === 'workflows') return reloadWorkflows();
+  if (ev.type === 'routines') return reloadRoutineCounts();
   // the voxel world changed (a build, a move, WORLD.md, another project's world picked), or another project opened
   if (ev.type === 'world' || ev.type === 'project') S.worldLayer?.refresh(ev.type === 'world' ? ev : undefined);
   // a builder plays an animation on an agent's character

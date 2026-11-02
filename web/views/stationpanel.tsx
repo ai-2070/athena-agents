@@ -979,8 +979,8 @@ function TeamRoutines({ wf }: { wf: TeamView }) {
     let live = true;
     const load = () => void GET<RoutineListing[]>('/routines').then((l) => live && setList(l), () => live && setList([]));
     load();
-    // (a run changes the card's last run; a project switch, the whole list)
-    const off = onEvent((ev) => (ev.type === 'routine-run' || ev.type === 'project') && load());
+    // (a saved or deleted routine, a run (the card's last run), or a project switch)
+    const off = onEvent((ev) => (ev.type === 'routines' || ev.type === 'routine-run' || ev.type === 'project') && load());
     return () => ((live = false), off());
   }, []);
   if (!list) return null;
