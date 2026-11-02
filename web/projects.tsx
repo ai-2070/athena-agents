@@ -510,7 +510,7 @@ export async function openNewProject({ mode: startMode = 'new', onDone }: { mode
   const made: { current: CreatedProject | null } = { current: null };
   const tray = attachTray({ deferred: true, pickerButton: PICKER_LABELLED });
   const dlg = openModal('New project', (close) => <NewProjectWindow info={info} startMode={startMode} onDone={onDone} close={close} made={made} tray={tray} />, {
-    narrow: true,
+    medium: true,
     // closed after the project was made but before its files went: it is still open in the dashboard
     onClose: () => {
       if (made.current) refreshSoon(0);

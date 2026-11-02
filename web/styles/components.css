@@ -358,6 +358,7 @@ details.compaction .hint.warn { color: var(--color-amber); }
 .modal-back.exit[data-ending-style] { animation: var(--animate-fade-out); }
 .modal-back.exit[data-ending-style] .modal { animation: var(--animate-pop-out); }
 .modal.narrow { width: min(520px, 100%); }
+.modal.medium { width: min(680px, 100%); }
 .modal-back.wide .modal { width: min(1100px, 100%); }
 /* a document to read (a Markdown file): about 80 characters a line */
 .modal-back.doc .modal { width: min(800px, 100%); }
