@@ -1,0 +1,35 @@
+web/views/setup.tsx
+  s_8e3c27e6ce0122::t_d31dce5825e7b9 180
+web/ui/select.tsx
+  s_8e3c27e6ce0122::t_14f27890a95de9 28
+web/ui/emojipicker.tsx
+  s_8e3c27e6ce0122::t_14f27890a95de9 51
+web/ui/dropdown.tsx
+  s_8e3c27e6ce0122::t_14f27890a95de9 28
+web/ui/popover.tsx
+  s_8e3c27e6ce0122::t_14f27890a95de9 1-2,16
+web/ui/agentselect.tsx
+  s_8e3c27e6ce0122::t_14f27890a95de9 25
+web/views/agents.tsx
+  s_8e3c27e6ce0122::t_14f27890a95de9 596
+web/projectmenu.tsx
+  s_8e3c27e6ce0122::t_14f27890a95de9 85
+web/chatwin.tsx
+  s_8e3c27e6ce0122::t_14f27890a95de9 917
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fd1e054d062279c700c795325a873b831d3ddba8",
+  "prompts": {},
+  "sessions": {
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
