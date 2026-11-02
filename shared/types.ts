@@ -63,6 +63,7 @@ export interface GatewayInbound {
   actor: { id: string; label: string; kind: 'user' | 'bot' | 'anonymous' };
   directMessage: boolean;
   triggered: boolean;
+  mediaGroupId?: string;
   text: string;
   media: { kind: 'image' | 'file' | 'audio' | 'video'; fileId: string; name?: string; mimeType?: string; size?: number }[];
 }
@@ -85,6 +86,17 @@ export interface GatewayInboxEvent {
   receivedAt: number;
   status: 'queued' | 'waiting-files' | 'running' | 'done' | 'needs-review';
   operationId?: string;
+  reason?: string;
+  fileBatch?: string;
+  files?: GatewayIncomingFile[];
+}
+
+export interface GatewayIncomingFile {
+  index: number;
+  status: 'pending' | 'transferring' | 'saved' | 'failed';
+  attempts: { id: string; day: string; bytes: number }[];
+  file?: UploadedFile;
+  sha256?: string;
   reason?: string;
 }
 

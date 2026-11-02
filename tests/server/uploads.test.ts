@@ -5,7 +5,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import type http from 'node:http';
 import { describe, expect, it } from 'vitest';
-import { cleanAttachments, cleanName, describeAttachments, newBatch, receive, removeUpload, safeParts, safeUploadsRoot, uploadsRoot, withAttachments, attachmentNames } from '../../server/uploads.ts';
+import { cleanAttachments, cleanName, describeAttachments, newBatch, receive, receiveSource, cleanOwnedBatch, removeUpload, safeParts, safeUploadsRoot, uploadsRoot, withAttachments, attachmentNames } from '../../server/uploads.ts';
 import { activeProject, setActiveProject } from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
 import { callTool } from '../../server/tools.ts';
@@ -32,6 +32,29 @@ describe('safe names', () => {
 });
 
 describe('receiving files', () => {
+  it('shares streaming limits and removes temporary files after overflow or cancellation', async () => {
+    const { batch, dir } = newBatch();
+    await expect(receiveSource(Readable.from([Buffer.from('too long')]), batch, 'large.txt', { maxBytes: 4 })).rejects.toThrow('over');
+    expect(fs.readdirSync(dir)).toEqual([]);
+    const abort = new AbortController(); abort.abort();
+    await expect(receiveSource(Readable.from([Buffer.from('x')]), batch, 'aborted.txt', { signal: abort.signal })).rejects.toThrow();
+    expect(fs.readdirSync(dir)).toEqual([]);
+  });
+
+  it('cleans only unrecorded files of an owned batch and refuses a batch replaced by a link', async () => {
+    const owner = newBatch();
+    const retained = await receiveSource(Readable.from([Buffer.from('keep')]), owner.batch, 'keep.txt');
+    const orphan = await receiveSource(Readable.from([Buffer.from('orphan')]), owner.batch, 'orphan.txt');
+    cleanOwnedBatch(owner.batch, [retained.path]);
+    expect(fs.existsSync(retained.path)).toBe(true); expect(fs.existsSync(orphan.path)).toBe(false);
+    const other = newBatch();
+    const victim = await receiveSource(Readable.from([Buffer.from('safe')]), other.batch, 'victim.txt');
+    fs.rmSync(owner.dir, { recursive: true });
+    fs.symlinkSync(other.dir, owner.dir, process.platform === 'win32' ? 'junction' : 'dir');
+    expect(() => cleanOwnedBatch(owner.batch, [])).toThrow('Bad upload path');
+    await expect(receiveSource(Readable.from([Buffer.from('no')]), owner.batch, 'new.txt')).rejects.toThrow('batch is gone');
+    expect(fs.readFileSync(victim.path, 'utf8')).toBe('safe');
+  });
   it('saves a file into its batch, and a folder file under its folder', async () => {
     const { batch, dir } = newBatch();
     expect(dir.startsWith(uploadsRoot() + path.sep)).toBe(true);

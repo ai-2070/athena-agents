@@ -25,6 +25,12 @@ export class GatewaySupervisor {
 
   health(): GatewayHealth[] { return [...this.statuses.values()].map((value) => ({ ...value })); }
 
+  retryFiles(instanceId: string, eventId: string): void {
+    const worker = this.workers.get(instanceId);
+    if (!worker) throw Object.assign(new Error('Connect this gateway before retrying its files.'), { status: 400 });
+    worker.retryFiles(eventId);
+  }
+
   start(): Promise<void> {
     if (this.closed) return Promise.resolve();
     if (!this.listening) { bus.on('event', this.changed); this.listening = true; }

@@ -7,11 +7,14 @@ import { GatewayInbox } from './inbox.ts';
 import { GatewayStateAdapter } from './state.ts';
 import { GatewaySetupError, TelegramIntakeAdapter } from './telegram.ts';
 import { claimGatewayAccount } from './ownership.ts';
+import { GatewayFileProcessor } from './files.ts';
+import type { GatewayDownloader } from './files.ts';
 
 interface Transport {
   start(): Promise<void>;
   stop(): Promise<void>;
   alive(): boolean;
+  download?: GatewayDownloader;
 }
 interface WorkerOptions {
   transport?(state: GatewayStateAdapter, inbox: GatewayInbox, activity: (connected: boolean) => void, signal: AbortSignal): Transport;
@@ -26,7 +29,7 @@ function telegramTransport(state: GatewayStateAdapter, inbox: GatewayInbox, acti
   if (!botToken) throw new GatewaySetupError('Add a Telegram bot token before connecting.');
   const telegram = new TelegramIntakeAdapter(state.instanceId, inbox, botToken, activity, { signal });
   const chat = new Chat({ userName: 'Athena', adapters: { telegram }, state, logger: quiet, concurrency: 'concurrent' });
-  return { start: () => chat.initialize(), stop: () => chat.shutdown(), alive: () => telegram.isPolling };
+  return { start: () => chat.initialize(), stop: () => chat.shutdown(), alive: () => telegram.isPolling, download: (id, maxBytes, signal) => telegram.downloadFileSource(id, maxBytes, signal) };
 }
 
 /** A supervised local intake worker. Agent execution and delivery consume the saved inbox separately. */
@@ -35,6 +38,8 @@ export class TelegramGatewayWorker {
   private readonly options: WorkerOptions;
   private state: GatewayStateAdapter | undefined;
   private transport: Transport | undefined;
+  private files: GatewayFileProcessor | undefined;
+  private inbox: GatewayInbox | undefined;
   private abort: AbortController | undefined;
   private releaseAccount: (() => Promise<void>) | undefined;
   private starting: Promise<void> | undefined;
@@ -85,12 +90,18 @@ export class TelegramGatewayWorker {
       await state.connect();
       abort.signal.throwIfAborted();
       const inbox = new GatewayInbox(state);
+      this.inbox = inbox;
       inbox.recover();
       const transport = (this.options.transport ?? telegramTransport)(state, inbox, (connected) => {
         this.publish(connected ? 'connected' : 'retrying', connected ? '' : 'Telegram could not receive messages. It will retry.');
       }, abort.signal);
       this.transport = transport;
       await transport.start();
+      abort.signal.throwIfAborted();
+      if (transport.download) {
+        this.files = new GatewayFileProcessor(this.instanceId, inbox, transport.download, abort.signal);
+        await this.files.start();
+      }
       abort.signal.throwIfAborted();
       this.attempts = 0;
       this.publish('connected');
@@ -139,12 +150,21 @@ export class TelegramGatewayWorker {
     const state = this.state;
     const releaseAccount = this.releaseAccount;
     // Keep claims if transport shutdown fails; another worker must not take over a live consumer.
+    // Chat.shutdown disconnects SDK state, so finish file receipts while ownership is still held.
+    await this.files?.stop();
     await transport?.stop();
     await state?.disconnect();
     await releaseAccount?.();
     this.transport = undefined;
     this.state = undefined;
     this.releaseAccount = undefined;
+    this.files = undefined;
+    this.inbox = undefined;
+  }
+
+  retryFiles(eventId: string): void {
+    if (this.closed || !this.inbox || !this.files) throw Object.assign(new Error('Connect this gateway before retrying its files.'), { status: 400 });
+    this.inbox.retryFiles(eventId);
   }
 
   stop(): Promise<void> { return this.stopping ??= this.close(); }

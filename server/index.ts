@@ -987,6 +987,10 @@ post('/api/gateways/:id/reconnect', async ({ id }) => {
   await gatewaySupervisor.reconnect(id);
   return { ok: true };
 });
+post('/api/gateways/:id/inbox/:eventId/retry-files', async ({ id, eventId }) => {
+  gatewaySupervisor.retryFiles(id, eventId);
+  return { ok: true };
+});
 del('/api/gateways/:id', async ({ id }) => {
   gateways.removeGatewayInstance(id);
   await gatewaySupervisor.reconnect(id);

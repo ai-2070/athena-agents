@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance } from '../../shared/types.ts';
+import type { GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, UploadedFile } from '../../shared/types.ts';
 import { emit } from '../store.ts';
 import { readJSON, uid, writeJSON } from '../util.ts';
 import { captureGatewayRoute, getGatewayInstance, withGatewayRoute } from './instances.ts';
@@ -21,6 +21,7 @@ const inboundSchema: z.ZodType<GatewayInbound> = z.strictObject({
   kind: z.enum(['message', 'edit']),
   actor: z.strictObject({ id: externalId, label: z.string().max(200), kind: z.enum(['user', 'bot', 'anonymous']) }),
   directMessage: z.boolean(), triggered: z.boolean(), text: z.string().max(65536),
+  mediaGroupId: externalId.optional(),
   media: z.array(z.strictObject({
     kind: z.enum(['image', 'file', 'audio', 'video']), fileId: externalId,
     name: z.string().max(512).optional(), mimeType: z.string().max(200).optional(), size: stamp.optional(),
@@ -32,9 +33,17 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
   events: z.array(z.strictObject({
     id: externalId, bindingId: externalId, route, input: inboundSchema, sequence: stamp.positive(), receivedAt: stamp,
     status: z.enum(['queued', 'waiting-files', 'running', 'done', 'needs-review']), operationId: externalId.optional(), reason: z.string().optional(),
+    fileBatch: z.string().regex(/^[\w-]{1,64}$/).optional(),
+    files: z.array(z.strictObject({
+      index: stamp, status: z.enum(['pending', 'transferring', 'saved', 'failed']),
+      attempts: z.array(z.strictObject({ id: externalId, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), bytes: stamp })),
+      file: z.strictObject({ path: z.string(), top: z.string(), kind: z.enum(['file', 'folder']), name: z.string(), size: stamp }).optional(),
+      sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(), reason: z.string().optional(),
+    })).optional(),
   })),
 });
 const digest = (parts: (string | number)[]): string => crypto.createHash('sha256').update(JSON.stringify(parts)).digest('hex');
+export class GatewayFileLimitError extends Error {}
 
 /** Only Telegram has a verified raw-event normalizer so far. Other transports fail closed. */
 export function gatewayInputAllowed(instance: GatewayInstance, input: GatewayInbound): boolean {
@@ -61,9 +70,16 @@ export class GatewayInbox {
     const eventIds = new Set(journal.events.map((event) => event.id));
     const bindings = new Map(journal.bindings.map((binding) => [binding.id, binding]));
     const sequences = new Set(journal.events.map((event) => event.sequence));
-    if (eventIds.size !== journal.events.length || bindings.size !== journal.bindings.length || sequences.size !== journal.events.length || journal.events.some((event, index) => {
+    const batches = journal.events.filter((event) => event.fileBatch).map((event) => `${event.route.projectId}/${event.fileBatch}`);
+    if (new Set(batches).size !== batches.length || eventIds.size !== journal.events.length || bindings.size !== journal.bindings.length || sequences.size !== journal.events.length || journal.events.some((event, index) => {
       const binding = bindings.get(event.bindingId);
+      const invalidFiles = Boolean(event.fileBatch) !== Boolean(event.files)
+        || (event.files && (event.files.length !== event.input.media.length || event.files.some((file, i) => file.index !== i
+          || (file.status === 'transferring' && !file.attempts.length)
+          || (file.status === 'saved' && (!file.file || !file.sha256 || file.file.size !== file.attempts.at(-1)?.bytes)))))
+        || (event.input.media.length > 0 && ['queued', 'running', 'done'].includes(event.status) && (!event.files || event.files.some((file) => file.status !== 'saved')));
       return !binding || event.route.instanceId !== this.state.instanceId || JSON.stringify(binding.route) !== JSON.stringify(event.route)
+        || invalidFiles
         || binding.accountId !== event.input.accountId || binding.conversationId !== event.input.conversationId || binding.threadId !== event.input.threadId
         || event.sequence >= journal.nextSequence || (index > 0 && event.sequence <= journal.events[index - 1].sequence);
     })) throw new Error('The gateway inbox has inconsistent receipts. Restore it before reconnecting.');
@@ -76,6 +92,95 @@ export class GatewayInbox {
   }
 
   list(): GatewayInboxEvent[] { return this.read().events; }
+
+  checkAccess(event: GatewayInboxEvent): GatewayInstance {
+    const instance = getGatewayInstance(this.state.instanceId);
+    if (!gatewayInputAllowed(instance, event.input)) throw new Error('This sender or conversation is no longer allowed.');
+    withGatewayRoute(event.route, () => {});
+    return instance;
+  }
+
+  prepareFiles(eventId: string, createBatch: () => string): GatewayInboxEvent {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event || event.status !== 'waiting-files') throw new Error('This message is not waiting for files.');
+    this.checkAccess(event);
+    if (!event.fileBatch) {
+      event.fileBatch = withGatewayRoute(event.route, createBatch);
+      event.files = event.input.media.map((_media, index) => ({ index, status: 'pending', attempts: [] }));
+      this.commit(journal);
+    }
+    return event;
+  }
+
+  beginTransfer(eventId: string, index: number): { id: string; budget: number } {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event || event.status !== 'waiting-files') throw new Error('This message is not waiting for files.');
+    const instance = this.checkAccess(event);
+    const file = event.files?.find((item) => item.index === index);
+    if (!file || file.status !== 'pending') throw new Error('This file is not waiting to download.');
+    const day = new Date().toISOString().slice(0, 10);
+    const used = (events: GatewayInboxEvent[], today: boolean) => events.flatMap((item) => item.files ?? []).flatMap((item) => item.attempts).reduce((sum, attempt) => sum + (!today || attempt.day === day ? attempt.bytes : 0), 0);
+    const budget = Math.min(instance.fileLimits.perFileBytes, instance.fileLimits.perMessageBytes - used([event], false), instance.fileLimits.dailyBytes - used(journal.events, true));
+    if (index >= instance.fileLimits.filesPerMessage || budget <= 0) throw new GatewayFileLimitError('The gateway file quota is exhausted.');
+    const id = uid('gateway-file-');
+    // Reserve before network I/O; failed or interrupted attempts keep their reservation.
+    file.attempts.push({ id, day, bytes: budget });
+    file.status = 'transferring';
+    this.commit(journal);
+    return { id, budget };
+  }
+
+  finishTransfer(eventId: string, index: number, attemptId: string, saved: UploadedFile, sha256: string): void {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    const file = event?.files?.find((item) => item.index === index);
+    const attempt = file?.attempts.at(-1);
+    if (!file || file.status !== 'transferring' || !attempt || attempt.id !== attemptId || saved.size > attempt.bytes) throw new Error('This file transfer is no longer active.');
+    file.status = 'saved'; file.file = saved; file.sha256 = sha256; delete file.reason;
+    attempt.bytes = saved.size;
+    this.commit(journal);
+  }
+
+  failFile(eventId: string, index: number, reason: 'download' | 'limit' | 'changed' = 'download'): void {
+    const journal = this.read();
+    const file = journal.events.find((item) => item.id === eventId)?.files?.find((item) => item.index === index);
+    if (!file) throw new Error('No such gateway file.');
+    file.status = 'failed';
+    file.reason = reason === 'limit' ? 'This file exceeds the file, message or daily limit. Check the limits before retrying.'
+      : reason === 'changed' ? 'The saved file changed or is missing. Retry it or ask the sender to resend it.'
+      : 'This file could not be saved or verified. Retry it or ask the sender to resend it.';
+    this.commit(journal);
+  }
+
+  holdFiles(eventId: string): void {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event || event.status !== 'waiting-files') return;
+    event.status = 'needs-review';
+    event.reason = 'The destination or access changed while saving files. Review this message.';
+    this.commit(journal);
+  }
+
+  filesReady(eventId: string): void {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event || event.status !== 'waiting-files' || !event.files?.length || event.files.length !== event.input.media.length || event.files.some((file) => file.status !== 'saved')) throw new Error('This message still has missing files.');
+    this.checkAccess(event);
+    event.status = event.input.mediaGroupId ? 'needs-review' : 'queued';
+    if (event.input.mediaGroupId) event.reason = 'Album files are saved. Group its messages before starting work.';
+    this.commit(journal);
+  }
+
+  retryFiles(eventId: string): void {
+    const journal = this.read();
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event || event.status !== 'waiting-files') throw new Error('This message is not waiting for files.');
+    this.checkAccess(event);
+    for (const file of event.files ?? []) if (file.status === 'failed') { file.status = 'pending'; delete file.reason; }
+    this.commit(journal);
+  }
 
   /** Returns only after the binding and deduplicated input are durably stored. Never fetches media. */
   accept(value: unknown): GatewayInboxEvent | null {
@@ -155,6 +260,11 @@ export class GatewayInbox {
     const journal = this.read();
     let changed = false;
     for (const event of journal.events) {
+      for (const file of event.files ?? []) {
+        if (file.status !== 'transferring') continue;
+        file.status = 'failed'; file.reason = 'The download was interrupted. Retry it or ask the sender to resend it.';
+        changed = true;
+      }
       if (event.status !== 'running') continue;
       event.status = 'needs-review';
       event.reason = 'Work was interrupted. Check its saved operation before retrying.';

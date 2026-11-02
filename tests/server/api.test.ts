@@ -253,6 +253,7 @@ describe('gateway configuration API', () => {
     expect(listed.instances.find((instance) => instance.id === two.id)?.credentials).toEqual({});
     expect((await create({ ...config, accountId: '30002', botToken: 'do-not-echo-this' })).status).toBe(400);
     expect((await req(`/api/gateways/${one.id}/reconnect`, { method: 'POST', headers: json })).status).toBe(200);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/retry-files`, { method: 'POST', headers: json })).status).toBe(400);
     expect((await req(`/api/gateways/${one.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ ...config, name: 'Renamed Telegram' }) })).status).toBe(200);
     expect((await req(`/api/gateways/${one.id}`, { method: 'DELETE', headers: json })).status).toBe(200);
     const remaining = await (await req('/api/gateways')).json() as { instances: GatewayInstance[] };

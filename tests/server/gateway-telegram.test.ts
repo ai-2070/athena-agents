@@ -22,7 +22,7 @@ function update(id: number, actor = 123): TelegramUpdate {
   };
 }
 
-async function fixture(options: { webhook?: string; wrongBot?: boolean; failCommit?: boolean } = {}) {
+async function fixture(options: { webhook?: string; wrongBot?: boolean; failCommit?: boolean; filePath?: string; fileSize?: number; redirect?: boolean } = {}) {
   const config = gatewayConfig(String(account++));
   const instance = saveGatewayInstance(config);
   saveGatewayCredentials(instance.id, { botToken: 'private-token' });
@@ -41,6 +41,11 @@ async function fixture(options: { webhook?: string; wrongBot?: boolean; failComm
     let result: unknown;
     if (method === 'getMe') result = { id: options.wrongBot ? 888 : Number(instance.accountId), is_bot: true, first_name: 'Athena', username: 'actual_bot' };
     else if (method === 'getWebhookInfo') result = { url: options.webhook ?? '', pending_update_count: 0, has_custom_certificate: false };
+    else if (method === 'getFile') result = { file_path: options.filePath ?? 'documents/proof.txt', file_size: options.fileSize ?? 5 };
+    else if (method === 'proof.txt') {
+      if (options.redirect) response.writeHead(302, { location: '/forbidden-download' });
+      response.end('hello'); return;
+    }
     else if (method === 'getUpdates') {
       if (!batches.length) await new Promise((resolve) => setTimeout(resolve, 20));
       result = batches.shift() ?? [];
@@ -56,10 +61,26 @@ async function fixture(options: { webhook?: string; wrongBot?: boolean; failComm
     await chat.shutdown();
     server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve()));
   });
-  return { instance, state, inbox, batches, calls, chat, unblock: () => { if (commitBlocked) { fs.unlinkSync(state.inboxFile()); commitBlocked = false; } } };
+  return { instance, state, inbox, batches, calls, chat, adapter, unblock: () => { if (commitBlocked) { fs.unlinkSync(state.inboxFile()); commitBlocked = false; } } };
 }
 
 describe('Telegram durable intake', () => {
+  it('streams private files with metadata limits, safe provider paths and no redirects', async () => {
+    const valid = await fixture();
+    const result = await valid.adapter.downloadFileSource('private-file', 16, new AbortController().signal);
+    const chunks: Buffer[] = [];
+    for await (const chunk of result.source) chunks.push(Buffer.from(chunk));
+    expect(Buffer.concat(chunks).toString()).toBe('hello');
+    expect(result.declaredBytes).toBe(5);
+    const large = await fixture({ fileSize: 1000 });
+    await expect(large.adapter.downloadFileSource('private-file', 16, new AbortController().signal)).rejects.toThrow('limit');
+    expect(large.calls.some((call) => call.method === 'proof.txt')).toBe(false);
+    const escape = await fixture({ filePath: '../proof.txt' });
+    await expect(escape.adapter.downloadFileSource('private-file', 16, new AbortController().signal)).rejects.toThrow('unsafe');
+    const redirect = await fixture({ redirect: true });
+    await expect(redirect.adapter.downloadFileSource('private-file', 16, new AbortController().signal)).rejects.toThrow();
+    expect(redirect.calls.some((call) => call.method === 'forbidden-download')).toBe(false);
+  });
   it('checks the bot identity and refuses an existing webhook without deleting it or polling', async () => {
     const webhook = await fixture({ webhook: 'https://example.com/existing' });
     await expect(webhook.chat.initialize()).rejects.toThrow('has a webhook');

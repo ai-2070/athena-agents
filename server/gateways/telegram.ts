@@ -4,7 +4,7 @@ import type { ChatInstance, Logger } from 'chat';
 import { z } from 'zod';
 import type { GatewayInbound } from '../../shared/types.ts';
 import { getGatewayInstance } from './instances.ts';
-import { gatewayInputAllowed } from './inbox.ts';
+import { gatewayInputAllowed, GatewayFileLimitError } from './inbox.ts';
 import type { GatewayInbox } from './inbox.ts';
 
 export class GatewaySetupError extends Error {}
@@ -71,6 +71,7 @@ export class TelegramIntakeAdapter extends TelegramAdapter {
       kind: update.edited_message ? 'edit' : 'message',
       actor: { id: String(sender.id), label: [sender.first_name, sender.last_name].filter(Boolean).join(' ').slice(0, 200), kind: 'user' },
       directMessage: message.chat.type === 'private', triggered: false, text: '', media: [],
+      ...(message.media_group_id ? { mediaGroupId: message.media_group_id } : {}),
     };
     if (!gatewayInputAllowed(instance, input)) return;
     // Parsing supplies SDK media IDs and mention/reply detection without fetching any attachment.
@@ -89,6 +90,38 @@ export class TelegramIntakeAdapter extends TelegramAdapter {
     // Replay any pending SDK receipts through the same idempotent application inbox.
     this.receive(update);
     return [];
+  }
+
+  /** Unlike the SDK's buffered helper, this exposes a bounded stream and refuses redirects. */
+  async downloadFileSource(fileId: string, maxBytes: number, signal: AbortSignal): Promise<{ source: AsyncIterable<Uint8Array>; declaredBytes: number; cancel(): Promise<void> }> {
+    const combined = AbortSignal.any([signal, AbortSignal.timeout(45000), ...(this.signal ? [this.signal] : [])]);
+    const metadata = z.object({ file_path: z.string().min(1), file_size: z.number().int().nonnegative().optional() }).parse(await this.telegramFetch('getFile', { file_id: fileId }, { signal: combined }));
+    const parts = metadata.file_path.split('/');
+    if (parts.some((part) => !part || part === '.' || part === '..' || /[\\\u0000-\u001f?#:%]/.test(part))) throw new Error('Telegram returned an unsafe file path.');
+    if ((metadata.file_size ?? 0) > maxBytes) throw new GatewayFileLimitError('This Telegram file exceeds its download limit.');
+    const token = encodeURIComponent(await this.resolveBotToken()).replace(/%3A/gi, ':');
+    const response = await fetch(`${this.apiBaseUrl}/file/bot${token}/${parts.map(encodeURIComponent).join('/')}`, { signal: combined, redirect: 'error' });
+    const declaredBytes = Number(response.headers.get('content-length') || metadata.file_size || 0);
+    if (!response.ok || !response.body || !Number.isSafeInteger(declaredBytes) || declaredBytes < 0 || declaredBytes > maxBytes) {
+      await response.body?.cancel();
+      if (declaredBytes > maxBytes) throw new GatewayFileLimitError('This Telegram file exceeds its download limit.');
+      throw new Error('This Telegram file could not be downloaded within its limit.');
+    }
+    const body = response.body;
+    async function* source(): AsyncGenerator<Uint8Array> {
+      const reader = body.getReader();
+      let size = 0;
+      try {
+        for (;;) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          size += chunk.value.byteLength;
+          if (size > maxBytes) throw new GatewayFileLimitError('This Telegram file exceeds its download limit.');
+          yield chunk.value;
+        }
+      } finally { try { await reader.cancel(); } finally { reader.releaseLock(); } }
+    }
+    return { source: source(), declaredBytes, cancel: () => body.cancel() };
   }
 
   protected override async telegramFetch<TResult>(method: string, payload?: Record<string, unknown> | FormData, request?: { signal?: AbortSignal }): Promise<TResult> {

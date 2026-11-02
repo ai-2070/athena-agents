@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { Readable } from 'node:stream';
 import { agents, collection } from '../../server/store.ts';
 import { listGatewayInstances, saveGatewayInstance, removeGatewayInstance } from '../../server/gateways/instances.ts';
 import { GatewaySupervisor } from '../../server/gateways/supervisor.ts';
@@ -19,6 +20,49 @@ afterEach(async () => {
 });
 
 describe('gateway intake lifecycle', () => {
+  it('finishes interrupted file receipts before SDK shutdown releases state ownership', async () => {
+    const instance = saveGatewayInstance(gatewayConfig(String(account++)));
+    let saved: GatewayInbox | undefined;
+    let streaming = false;
+    const worker = new TelegramGatewayWorker(instance.id, { transport: (state, inbox) => {
+      saved = inbox;
+      return {
+        start: async () => {}, stop: () => state.disconnect(), alive: () => true,
+        download: async (_id, _limit, signal) => ({ source: (async function* () {
+          streaming = true; yield Buffer.from('first'); signal.throwIfAborted();
+          await new Promise<never>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+        })() }),
+      };
+    } }); workers.push(worker);
+    await worker.start();
+    saved!.accept({ ...gatewayInput(), accountId: instance.accountId, text: '', media: [{ kind: 'file', fileId: 'private-file' }] });
+    await expect.poll(() => streaming).toBe(true);
+    await worker.stop();
+    const state = new GatewayStateAdapter(instance.id); await state.connect();
+    expect(new GatewayInbox(state).list()[0].files![0].status).toBe('failed');
+    await state.disconnect();
+  });
+  it('runs the file stage with its transport and supports explicit file retry', async () => {
+    const instance = saveGatewayInstance(gatewayConfig(String(account++)));
+    let saved: GatewayInbox | undefined;
+    let fail = true;
+    const worker = new TelegramGatewayWorker(instance.id, { transport: (_state, inbox) => {
+      saved = inbox;
+      return {
+        start: async () => { inbox.accept({ ...gatewayInput(), accountId: instance.accountId, text: '', media: [{ kind: 'file', fileId: 'private-file', name: 'plan.txt' }] }); },
+        stop: async () => {}, alive: () => true,
+        download: async () => { if (fail) throw new Error('expired'); return { source: Readable.from([Buffer.from('hello')]) }; },
+      };
+    } }); workers.push(worker);
+    await worker.start();
+    expect(saved!.list()[0].files![0].status).toBe('failed');
+    fail = false; worker.retryFiles(saved!.list()[0].id);
+    await expect.poll(() => saved!.list()[0].status).toBe('queued');
+    await worker.stop();
+    const state = new GatewayStateAdapter(instance.id); await state.connect();
+    expect(new GatewayInbox(state).list()[0].files![0].file!.size).toBe(5);
+    await state.disconnect();
+  });
   it('retries transport startup with redacted health and stops future attempts when closed', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let starts = 0;

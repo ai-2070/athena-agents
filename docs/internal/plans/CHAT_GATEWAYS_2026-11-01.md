@@ -30,7 +30,7 @@ New gateway data does not need a legacy compatibility layer.*
   restarts and route changes. Each conversation waits for earlier unresolved input; unrelated
   conversations can progress. An operation ID is saved before work is claimed; interrupted claims
   require review instead of starting a second run. Edits are separate review items and hold any
-  unstarted original. File input stays in `waiting-files` until the download stage is implemented.
+  unstarted original. File input stays in `waiting-files` until every attachment is saved and checked.
 - Added supervised Telegram polling on server startup for enabled instances, account-level ownership
   claims, retry/backoff, redacted health events and pause/delete/reconnect lifecycle. Configuration
   changes restart the relevant instance. Startup checks the token's bot ID and refuses an existing
@@ -39,14 +39,27 @@ New gateway data does not need a legacy compatibility layer.*
   not advance the polling offset. Exact topic scopes use `chatId/topicId`; new shared conversations
   require a bot mention or reply. No attachment is downloaded during intake.
 - Added guarded local APIs for instance configuration, credential replacement/presence, connection
-  health, reconnect and deletion under `/api/gateways`. There is no Settings UI, model dispatch,
-  incoming file saving or outgoing delivery yet. Telegram intake queues messages only; the existing
+  health, reconnect, explicit file retry and deletion under `/api/gateways`. There is no Settings UI,
+  model dispatch or outgoing delivery yet. Telegram intake queues messages only; the existing
   Outbox helpers remain unchanged. Other platforms fail closed at application intake and report
   unavailable when enabled. WhatsApp configuration currently accepts canonical E.164 only;
   local-number parsing and verified business identity mapping remain to implement.
-- Next: save incoming files safely, connect the inbox to shared Brain/team/agent services, add the
-  delivery ledger and Settings UI, and finish transport/media proof for the other platforms. Albums
-  still need grouping before dispatch, and inbox retention/review controls and explicit webhook
+- Added a streamed incoming-file stage. Telegram metadata and response headers are checked before
+  consuming a bounded body; redirects and unsafe provider paths are refused. Browser uploads and
+  gateway streams share the same safe upload writer. Files go into a uniquely claimed batch in
+  the bound project, with per-file results and content hashes saved in the inbox. Successful files
+  survive partial failures; missing/changed files hold the whole message until explicit retry.
+  Owned-batch recovery removes unrecorded final files and partial downloads after a crash.
+- File/message/daily budgets are reserved durably before each transfer. Successful attempts release
+  unused allowance; failed or interrupted attempts conservatively keep their reservation, including
+  across retries and restarts. File counts and known total sizes are checked before any download.
+  File work stops and saves its receipt before SDK shutdown releases instance ownership. Albums
+  save their individual files but remain review items until grouping is implemented.
+- Next: isolate Brain/team histories per external binding before connecting the inbox to shared
+  Brain/team/agent services, add the delivery ledger and Settings UI, and finish the other platforms.
+  Existing Brain and team routes use shared histories and cannot be reused unchanged for private
+  gateway conversations. No gateway invokes a model yet. Albums
+  still need grouping before dispatch, and resend reconciliation, inbox retention/review controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the final deletion/retention flow is pending. Real-account text/file checks on all four platforms
   and platform verification on Windows/Linux remain outstanding. Offline checks run in CI.
