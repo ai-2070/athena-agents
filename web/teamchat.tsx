@@ -777,8 +777,9 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       {find}
       <TaskPanel view={`team:${teamId}`} scope={{ kind: 'team', id: teamId }} />
       <div
-        // (in a scrolling column, an item must keep its height: never squeezed by the list's)
-        className={fill ? 'tc-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_8px,#000_calc(100%-10px),transparent_100%)] overflow-y-auto flex flex-col gap-6 pt-2 pb-2 *:shrink-0 flex-1 min-h-0' : 'tc-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_8px,#000_calc(100%-10px),transparent_100%)] overflow-y-auto flex flex-col gap-6 pt-2 pb-2 px-1 *:shrink-0 min-h-[120px]'}
+        // (in a scrolling column, an item must keep its height: never squeezed by the list's;
+        // -mt-2 takes back the column's gap: the tasks bar has room under it already)
+        className={fill ? '-mt-2 tc-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_8px,#000_calc(100%-10px),transparent_100%)] overflow-y-auto flex flex-col gap-6 pt-2 pb-2 *:shrink-0 flex-1 min-h-0' : '-mt-2 tc-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_8px,#000_calc(100%-10px),transparent_100%)] overflow-y-auto flex flex-col gap-6 pt-2 pb-2 px-1 *:shrink-0 min-h-[120px]'}
         ref={list}
         style={fill ? undefined : { maxHeight: `${height}px` }}
         onScroll={(e) => {
