@@ -87,10 +87,12 @@ const order = (a: ProjectTask, b: ProjectTask) => a.rank - b.rank || b.createdAt
 /** The cards of one project, or of all of them ('all'), in board order; and every project with its open count. */
 export function taskBoard(project: string): TaskBoardData {
   const all = listProjects();
-  const chosen = project === 'all' ? all : [projectOf(project)];
-  const tasks = chosen.flatMap((p) => withProject(p, () => read().tasks.map((t) => card(p, t))));
+  const chosen = project === 'all' ? all : [all.find((p) => p.id === project) || fail('That project is unavailable.', 404)];
+  // each project's board is read once: for its open count, and for its cards when it is shown
+  const boards = new Map(all.map((p) => [p.id, withProject(p, () => read().tasks)]));
+  const tasks = chosen.flatMap((p) => withProject(p, () => boards.get(p.id)!.map((t) => card(p, t))));
   tasks.sort(order);
-  const projects = all.map((p) => ({ id: p.id, name: p.name, open: withProject(p, () => read().tasks.filter((t) => t.status !== 'done').length) }));
+  const projects = all.map((p) => ({ id: p.id, name: p.name, open: boards.get(p.id)!.filter((t) => t.status !== 'done').length }));
   return { projects, tasks };
 }
 
@@ -261,13 +263,16 @@ export function findBoardTask(projectId: string, ref: unknown): BoardTask {
 /** The board as the Brain sees it: open tasks, then the last few done, one line each. */
 export function boardLines(projectId: string, max = 60): string[] {
   const label: Record<BoardStatus, string> = { todo: 'To do', in_progress: 'In progress', in_review: 'In review', blocked: 'Blocked', done: 'Done' };
-  const tasks = taskBoard(projectId).tasks;
-  const open = tasks.filter((t) => t.status !== 'done');
-  const done = tasks.filter((t) => t.status === 'done').sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 5);
-  const last = (t: BoardTask) => withProject(projectOf(projectId), () => read().tasks.find((x) => x.id === t.id)?.comments?.at(-1));
-  return [...open.slice(0, max), ...done].map((t) => {
-    const c = t.commentCount ? last(t) : undefined;
-    return `#${t.number} [${label[t.status]}] ${t.priority === 'normal' ? '' : `(${t.priority}) `}${t.title} | ${t.assignee ? `${t.assigneeName} (${t.assignee})` : 'unassigned'}${t.blockedReason ? ` | blocked: ${t.blockedReason}` : ''}${t.description ? ` | ${t.description.replace(/\s+/g, ' ').slice(0, 140)}` : ''}${c ? ` | ${t.commentCount} comment${t.commentCount === 1 ? '' : 's'}, last from ${who(c.by, 'you').name}: "${c.text.replace(/\s+/g, ' ').slice(0, 120)}"` : ''}`;
+  // (one read of this project's board, comments and all)
+  return withProject(projectOf(projectId), () => {
+    const tasks = read().tasks.sort(order);
+    const open = tasks.filter((t) => t.status !== 'done');
+    const done = tasks.filter((t) => t.status === 'done').sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 5);
+    return [...open.slice(0, max), ...done].map((t) => {
+      const comments = t.comments || [];
+      const c = comments.at(-1);
+      return `#${t.number} [${label[t.status]}] ${t.priority === 'normal' ? '' : `(${t.priority}) `}${t.title} | ${t.assignee ? `${who(t.assignee, 'Unassigned').name} (${t.assignee})` : 'unassigned'}${t.blockedReason ? ` | blocked: ${t.blockedReason}` : ''}${t.description ? ` | ${t.description.replace(/\s+/g, ' ').slice(0, 140)}` : ''}${c ? ` | ${comments.length} comment${comments.length === 1 ? '' : 's'}, last from ${who(c.by, 'you').name}: "${c.text.replace(/\s+/g, ' ').slice(0, 120)}"` : ''}`;
+    });
   });
 }
 
