@@ -1,0 +1,29 @@
+web/builder.tsx
+  s_8e3c27e6ce0122::t_25488f371af1e3 18
+  s_8e3c27e6ce0122::t_aa1ce2a5f2e307 48-49,195-196,201,203-211,218-219,244,295-300,303-309,343
+web/ui/formsection.tsx
+  s_8e3c27e6ce0122::t_076a8b65e17329 1-9,11-13,15-36
+  s_8e3c27e6ce0122::t_0c9c612fca32cb 10,14
+web/projects.tsx
+  s_8e3c27e6ce0122::t_663fb419a598ba 484-485,489-490,493
+  s_8e3c27e6ce0122::t_f28ea27f458de9 523-528,531-533,536-542,557,573-580,582,601-621,632-645,647-654,656-673
+  s_8e3c27e6ce0122::t_b2642f826f8e73 7-8,145-150,152-154,347-388,460-461,464-465,467,470-483,486-488,491-492
+tests/web/builder-pick.test.ts
+  s_8e3c27e6ce0122::t_00ee1b61fcb7f3 46,49-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "114c1cda1e0eb109acbde92618026ca18b3b315e",
+  "prompts": {},
+  "sessions": {
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
