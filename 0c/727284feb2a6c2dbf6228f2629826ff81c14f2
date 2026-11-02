@@ -1,0 +1,19 @@
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_70a8d0c9cb7df5 8-10,26,76-91,102,176,179,192-197,200,210,267,272,281-283,287-289,292,294-295,299,306-307,318,322-323,325,344-347,349,360-361,368-369
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0c727284feb2a6c2dbf6228f2629826ff81c14f2",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
