@@ -1,0 +1,68 @@
+tests/server/gateway-execution.test.ts
+  s_3f5afab86a1bb3::t_ab0388ef079b02 15-16,45-60
+server/gateways/execution.ts
+  s_3f5afab86a1bb3::t_a321537d9445f2 9,16,92,95,98,102,107,110
+docs/guide.md
+  s_3f5afab86a1bb3::t_c0c10aa7661f39 397-405
+tests/server/gateway-albums.test.ts
+  s_3f5afab86a1bb3::t_96da21c608e6ea 4,8,168-174
+  s_3f5afab86a1bb3::t_bc65f71f89cf35 14,69
+  s_3f5afab86a1bb3::t_d4e180e15428ad 145,147
+  s_3f5afab86a1bb3::t_f13e2abf9f9e95 1-3,5-7,9-13,15-68,70-127,142-144,146,148-167,175-176
+  s_3f5afab86a1bb3::t_ab0388ef079b02 128-141
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_35ede98f232732 75-80
+shared/gateways.ts
+  s_3f5afab86a1bb3::t_de222d5fcce6c6 42
+  s_3f5afab86a1bb3::t_3b7ce5532476f4 1-13,16-17,40-41,43-44
+  s_3f5afab86a1bb3::t_bc65f71f89cf35 14-15
+tests/server/gateway-worker.test.ts
+  s_3f5afab86a1bb3::t_fe9624534cd3cf 26-49
+tests/web/gateway-inbox.test.tsx
+  s_3f5afab86a1bb3::t_d4e180e15428ad 179-212
+shared/types.ts
+  s_3f5afab86a1bb3::t_3b7ce5532476f4 101-107,165
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_e4e68d9292d30e 92-95,177-182,184-186,189-198,202-205,226-231,239-240,256-259,312-313,315,519-521
+  s_3f5afab86a1bb3::t_96da21c608e6ea 97-109,118,145
+  s_3f5afab86a1bb3::t_0252bb82cd54d8 12,49,59-60
+  s_3f5afab86a1bb3::t_4a11a4355e4960 199-201,206-217,272,302,567,608-613,616-617
+  s_3f5afab86a1bb3::t_bc65f71f89cf35 183,187-188
+  s_3f5afab86a1bb3::t_973b1881d10255 218-225,399-400,406,472
+  s_3f5afab86a1bb3::t_7c37dff6193e9d 96
+server/gateways/conversations.ts
+  s_3f5afab86a1bb3::t_a321537d9445f2 1-2,9,13,15-19,30-47
+  s_3f5afab86a1bb3::t_50e4979245f8cc 48
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_c0c10aa7661f39 174,207-225,227
+web/views/gateway-inbox.tsx
+  s_3f5afab86a1bb3::t_35ede98f232732 9,16,71-78,90,92,101-105,132-137,140
+server/gateways/dispatch.ts
+  s_3f5afab86a1bb3::t_a321537d9445f2 3,46-50,81-82,85-86
+tests/server/api.test.ts
+  s_3f5afab86a1bb3::t_c0c10aa7661f39 270-271
+server/gateways/worker.ts
+  s_3f5afab86a1bb3::t_35ede98f232732 208-213
+tests/server/gateway-files.test.ts
+  s_3f5afab86a1bb3::t_bc65f71f89cf35 144
+server/index.ts
+  s_3f5afab86a1bb3::t_35ede98f232732 1004
+README.md
+  s_3f5afab86a1bb3::t_c0c10aa7661f39 231-232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "19f0e09fb0d396bf2cab7ece3264cf011bef4f26",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
