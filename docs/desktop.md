@@ -22,7 +22,7 @@ The installed app carries three things:
 - **The page**: `public/` after `bun run build`, without source maps.
 - **`skills/` and `library/`**, which the server reads from its own folder.
 - **The terminal's native module** (`@lydell/node-pty` and its package for the target OS and CPU). It is
-  installed from `bun.lock` into `src-tauri/target/desktop-cache/`, so cross-builds get the right one.
+  installed from `bun.lock` into `src-tauri/.cache/`, so cross-builds get the right one.
 - **The Bun runtime** for the target, checked against Bun's `SHASUMS256.txt` and cached in the same folder.
   x64 uses Bun's *baseline* build, which runs on CPUs without AVX2. Offline, a build for this machine
   falls back to the Bun that is running.

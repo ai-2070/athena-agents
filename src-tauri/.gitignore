@@ -4,3 +4,5 @@
 /app/
 /binaries/
 /gen/
+# The downloads it keeps between builds (Bun for the target, node-pty)
+/.cache/
