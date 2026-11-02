@@ -1,0 +1,41 @@
+tests/web/gateway-inbox.test.tsx
+  s_3f5afab86a1bb3::t_74a8539d4ce9ba 88-97
+  s_3f5afab86a1bb3::t_068c6cf92fad13 1-74,76-87,98-112,122-127
+  s_3f5afab86a1bb3::t_350a163b3026c1 113-121
+  s_3f5afab86a1bb3::t_c80a477a91a92f 75
+web/views/gateways.tsx
+  s_3f5afab86a1bb3::t_c80a477a91a92f 42
+  s_3f5afab86a1bb3::t_dc5bb2cf3dec61 8,27,41,53,57-58,61,69,80-81
+tests/web/gateways.test.tsx
+  s_3f5afab86a1bb3::t_350a163b3026c1 29,133-141
+  s_3f5afab86a1bb3::t_cf097ad06c2b7d 142
+docs/guide.md
+  s_3f5afab86a1bb3::t_6cde1527982410 386-396
+web/views/gateway-inbox.tsx
+  s_3f5afab86a1bb3::t_177b234707510b 1-7,9-42,44-78,80-94,96-99,101,103-105,110-111,113-137
+  s_3f5afab86a1bb3::t_6cde1527982410 95
+  s_3f5afab86a1bb3::t_0389bf1445d8a0 100,102,106-109,112
+  s_3f5afab86a1bb3::t_dc5bb2cf3dec61 8,43,79
+README.md
+  s_3f5afab86a1bb3::t_6cde1527982410 228-229
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_6cde1527982410 148-163
+web/views/setup.tsx
+  s_3f5afab86a1bb3::t_c80a477a91a92f 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3ab7e2291e1597a8678345853eeca7fc2ea24701",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
