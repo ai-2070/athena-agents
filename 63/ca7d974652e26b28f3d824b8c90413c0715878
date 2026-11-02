@@ -1,0 +1,23 @@
+tests/server/shutdown.test.ts
+  s_aa3f7e974bdac5::t_09ffaecde48a74 43
+tests/server/handoffs.test.ts
+  s_aa3f7e974bdac5::t_09ffaecde48a74 12-13,22-26,62-78
+tests/server/logo.test.ts
+  s_aa3f7e974bdac5::t_09ffaecde48a74 119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "63ca7d974652e26b28f3d824b8c90413c0715878",
+  "prompts": {},
+  "sessions": {
+    "s_aa3f7e974bdac5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198f1-4ab0-7380-a79f-d744ec1af2c3",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
