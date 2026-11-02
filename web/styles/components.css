@@ -494,3 +494,5 @@ input[type='checkbox']:checked::after {
 .dock-suggest:hover { background: var(--color-panel-2); border-color: var(--color-line-2); color: var(--color-ink); }
 /* on a phone the panel is a sheet from the bottom: the Brain's button would sit on top of it */
 @media (max-width: 820px) { body:has(.st-panel:not(.hidden)) .dock-launcher { display: none !important; } }
+
+.dock-input[contenteditable]:empty::before { content: attr(data-placeholder); color: var(--color-faint); pointer-events: none; }

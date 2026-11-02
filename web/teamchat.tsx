@@ -4,7 +4,7 @@
 // React; renderTeamChat() puts it into a plain-DOM place (the chat window's tab) and hands back
 // focus, mention and destroy. The message box stays uncontrolled: the paste chips, the / menu and
 // mention() change its text directly, as typing does.
-import { Chip } from './ui/marks.tsx';
+import { attachMentionEditor } from './chat/mentioneditor.ts';
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, onReconnect, confirmBox, toast } from './core.ts';
@@ -99,8 +99,8 @@ const WHO = 'flex items-center gap-2.5 mb-2.5 text-[13px] [&_.avatar]:size-6 [&_
 const TEAM_AV = 'avatar tc-team-av bg-[color-mix(in_srgb,var(--team-color,var(--color-ice))_18%,transparent)] text-[color:var(--team-color,var(--color-ice))] text-[12px] leading-[normal] font-semibold';
 /** a message's text (Markdown) */
 const TEXT = 'font-chat text-[13.5px] leading-[1.6] wrap-anywhere [&_p]:mx-0 [&_p]:mt-0 [&_p]:mb-2.5 [&_p:last-child]:mb-0 [&_pre]:max-h-[200px]';
-const MENTION = 'tc-mention font-medium rounded-[5px] px-1 text-accent bg-accent/10';
-const MENTION_TEAM = 'tc-mention tc-team font-medium rounded-[5px] px-1 text-ice bg-ice/10';
+const MENTION = 'tc-mention cursor-pointer font-medium rounded-[5px] px-1 text-accent bg-accent/10';
+const MENTION_TEAM = 'tc-mention tc-team cursor-pointer font-medium rounded-[5px] px-1 text-ice bg-ice/10';
 const TYPING = 'flex items-center gap-2 text-[12.5px] leading-[normal] font-normal';
 /** the steps behind a reply, and a live turn */
 const TURN_BODY = 'mt-2 flex flex-col gap-2 min-w-0';
@@ -337,9 +337,9 @@ function Work({ m }: { m: TeamMessage }) {
   const [opened, setOpened] = useState(false);
   const turn = m.turn!;
   return (
-    <CollapseRoot className="tc-work mt-3" open={open} onOpenChange={(value) => { setOpen(value); if (value) setOpened(true); }}>
-      <CollapseTrigger className="inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-[12px] text-dim hover:text-ink hover:underline">
-        <Icon name="wrench" size={12} />
+    <CollapseRoot className="tc-work mt-2.5 text-left" open={open} onOpenChange={(value) => { setOpen(value); if (value) setOpened(true); }}>
+      <CollapseTrigger className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint transition-colors duration-200 ease-in-out hover:text-ink">
+        <Icon name="chevron-down" size={12} className={`transition-transform duration-200 ease-in-out ${open ? 'rotate-180' : ''}`} />
         Show the work
       </CollapseTrigger>
       <CollapsePanel keepMounted>
@@ -436,7 +436,7 @@ interface BoxRef {
 /** Start a message to someone: "@Name " at the front of the box, the caret at the end. */
 function mentionIn(input: HTMLTextAreaElement, name: string): void {
   const tag = `@${name} `;
-  if (!input.value.includes(tag)) input.value = `${tag}${input.value}`;
+  if (!input.value.includes(tag)) input.value = `${tag}${input.value.trimStart()}`;
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.focus();
   input.setSelectionRange(input.value.length, input.value.length);
@@ -446,10 +446,9 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   useAppState(); // (names, avatars and who is lead follow the app state)
   const [C, bump, store] = useTeamData(teamId);
   const [replyTo, setReplyTo] = useState<TeamMessage | null>(null);
+  const lastReply = useRef(replyTo);
+  if (replyTo) lastReply.current = replyTo;
   const [suggest, setSuggest] = useState<{ start: number; opts: MentionOption[]; index: number } | null>(null);
-  const [selectedMentions, setSelectedMentions] = useState<string[]>([]);
-  const selectedRef = useRef<string[]>([]);
-  const selectMentions = (tags: string[]) => { selectedRef.current = tags; setSelectedMentions(tags); };
   const [uploading, setUploading] = useState(false);
   const [slash, setSlash] = useState<SlashMenu | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -473,7 +472,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   const [filled, setFilled] = useState(false);
   const refill = useRef(() => {});
   const tray = useMemo(() => attachTray({ onChange: () => refill.current(), iconWeight: 'regular' }), []);
-  refill.current = () => setFilled(!!input.current?.value.trim() || selectedRef.current.length > 0 || tray.count() > 0);
+  refill.current = () => setFilled(!!input.current?.value.trim() || tray.count() > 0);
   // long pasted text, folded into a chip until it is sent
   const pastes = useMemo(() => pasteBox(), []);
   /** Put text back in the box (a failed send, what Stop brought back). */
@@ -569,7 +568,6 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     }
   };
   const emptyBox = () => {
-    selectMentions([]);
     input.current!.value = '';
     slashRef.current?.update();
     pastes.sync();
@@ -611,7 +609,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     if (now && ['stop', 'resume', 'resend', 'goal', 'clear'].includes(now.name)) return command(now.name, now.rest, pastes.text().trim());
     // /loop off ends the loop: the files staged for the next message stay (they would go nowhere)
     if (now?.name === 'loop' && LOOP_OFF.test(now.rest)) return loopOff(now.rest, pastes.text().trim());
-    if ((!box.value.trim() && !selectedRef.current.length && !tray.count()) || sending.current) return;
+    if ((!box.value.trim() && !tray.count()) || sending.current) return;
     sending.current = true;
     try {
       if (tray.busy()) setUploading(true);
@@ -620,14 +618,13 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       if (!attachments) return;
       // what is in the box now (more may have been typed while the files uploaded)
       const typed = pastes.text().trim();
-      const recipients = selectedRef.current.join(' ');
       // "/loop [15m] [5x] …": posted again and again (with the files), or /loop off
       const cmd = parseCommand(typed, 'team');
       if (cmd?.name === 'loop') {
         if (LOOP_OFF.test(cmd.rest)) return loopOff(cmd.rest, typed);
         emptyBox();
         const taken = tray.take();
-        const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`/teams/${teamId}/loop`, { text: [recipients, cmd.rest].filter(Boolean).join(' '), attachments }));
+        const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`/teams/${teamId}/loop`, { text: cmd.rest, attachments }));
         if (!r) return void (restore(typed), tray.put(taken));
         store.current.loop = r.loop;
         return bump();
@@ -637,7 +634,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       // changes its course: whoever is working stops and takes it up now.
       const queued = queuedText(typed);
       const steer = store.current.working.length > 0;
-      const text = [recipients, queued ?? typed].filter(Boolean).join(' ');
+      const text = queued ?? typed;
       if (!text && !attachments.length) return void (typed && toast('Write the message after /queue'));
       emptyBox();
       const taken = tray.take();
@@ -673,9 +670,8 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
     if (!m) return;
     const start = pos - m[3].length - 1;
     const tag = `${o.t ? '#' : '@'}${o.label}`;
-    selectMentions([...new Set([...selectedRef.current, tag])]);
-    ta.value = `${ta.value.slice(0, start)}${ta.value.slice(pos)}`;
-    const caret = start;
+    ta.value = `${ta.value.slice(0, start)}${tag} ${ta.value.slice(pos)}`;
+    const caret = start + tag.length + 1;
     refill.current();
     ta.setSelectionRange(caret, caret);
     setSuggest(null);
@@ -687,12 +683,13 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   // ---- the box: @ suggestions, the / menu, Enter to send
   useEffect(() => {
     const ta = input.current!;
+    const offEditor = attachMentionEditor(ta, () => [...membersRef.current.map((a) => '@' + a.name), '@everyone', '@Brain', ...store.current.others.map((t) => '#' + t.name)]);
     box.input = ta;
     const addMention = (event: Event) => {
       const tag = (event as CustomEvent<string>).detail;
-      selectMentions([...new Set([...selectedRef.current, tag])]);
+      mentionIn(ta, tag.slice(1));
+      if (tag.startsWith('#')) ta.value = ta.value.replace('@' + tag.slice(1), tag);
       refill.current();
-      ta.focus();
     };
     const host = root.current!;
     host.addEventListener('chat-mention', addMention);
@@ -716,14 +713,6 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       return opts.length ? { start: pos - m[3].length - 1, opts, index: Math.min(index, opts.length - 1) } : null;
     };
     const onInput = () => {
-      const tags = [...membersRef.current.map((a) => a.name), 'everyone', 'Brain'].sort((a, b) => b.length - a.length);
-      for (const name of tags) {
-        const tag = `@${name}`;
-        if (ta.value.startsWith(tag + ' ')) {
-          selectMentions([...new Set([...selectedRef.current, tag])]);
-          ta.value = ta.value.slice(tag.length + 1);
-        }
-      }
       setSuggest(find());
       menu.update();
       refill.current();
@@ -762,6 +751,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       ta.removeEventListener('input', onInput);
       ta.removeEventListener('keydown', onKey);
       offPastes();
+      offEditor();
       host.removeEventListener('chat-mention', addMention);
       if (box.input === ta) box.input = null;
     };
@@ -786,7 +776,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
       <TaskPanel view={`team:${teamId}`} scope={{ kind: 'team', id: teamId }} />
       <div
         // (in a scrolling column, an item must keep its height: never squeezed by the list's)
-        className={fill ? 'tc-list overflow-y-auto flex flex-col gap-6 pt-4 pb-5 *:shrink-0 flex-1 min-h-0' : 'tc-list overflow-y-auto flex flex-col gap-6 pt-4 pb-5 px-1 *:shrink-0 min-h-[120px]'}
+        className={fill ? 'tc-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-14px),transparent_100%)] overflow-y-auto flex flex-col gap-6 pt-4 pb-5 *:shrink-0 flex-1 min-h-0' : 'tc-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-14px),transparent_100%)] overflow-y-auto flex flex-col gap-6 pt-4 pb-5 px-1 *:shrink-0 min-h-[120px]'}
         ref={list}
         style={fill ? undefined : { maxHeight: `${height}px` }}
         onScroll={(e) => {
@@ -858,23 +848,20 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
           </>
         )}
       </div>
-      <div className={`flex items-center gap-2 text-[12.5px] text-ice ${replyTo ? '' : ' hidden'}`}>
-        {replyTo ? (
-          <>
+      <CollapseRoot open={!!replyTo} className="contents">
+        <CollapsePanel keepMounted className="shrink-0">
+          <div className="flex items-center gap-2 text-[12.5px] text-ice">
             <Icon name="reply" size={12} />
-            {`Replying to ${agentOf(replyTo.from)?.name}`}
+            {`Replying to ${lastReply.current ? agentOf(lastReply.current.from)?.name || senderName(lastReply.current, (id) => agentOf(id)?.name) : ''}`}
             <button className="tc-act" aria-label="Don't reply" onClick={() => reply(null)}>
               <Icon name="x" size={12} />
             </button>
-          </>
-        ) : null}
-      </div>
+          </div>
+        </CollapsePanel>
+      </CollapseRoot>
       <DomNode className="dom-contents" make={() => tray.el} deps={[tray]} />
       <DomNode className="dom-contents" make={() => pastes.el} deps={[pastes]} />
       <div className="dock-composer relative">
-        {selectedMentions.length ? <div className="flex flex-wrap gap-1.5 px-3 pt-3">
-          {selectedMentions.map((tag) => <Chip key={tag} on aria-label={`Remove ${tag}`} onClick={() => { selectMentions(selectedRef.current.filter((t) => t !== tag)); refill.current(); input.current?.focus(); }}>{tag}<Icon name="x" size={12} /></Chip>)}
-        </div> : null}
         <div className="flex-1 min-w-0 relative">
           <textarea className="dock-input block field-sizing-content min-h-[56px] max-h-[max(160px,20vh)] w-full resize-none text-[13.5px]" ref={input} rows={2} aria-label="Message the team" placeholder={busy.length ? 'The team is working… Write to change its course now, or /queue a message for when it is done' : PLACEHOLDER} />
           <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">

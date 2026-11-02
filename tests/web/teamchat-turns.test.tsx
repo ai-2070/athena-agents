@@ -105,7 +105,7 @@ describe('team chat box', () => {
     await settle();
     const box = el.querySelector('textarea')!;
     expect(box.value).toBe('@Maker ');
-    expect(document.activeElement).toBe(box);
+    expect(document.activeElement).toBe(el.querySelector('[contenteditable="true"]'));
   });
 
   it('changes the team lead model from the composer', async () => {
@@ -381,7 +381,7 @@ describe('team chat turns', () => {
     expect(bodies['/api/teams/t1/queue/q2']).toEqual({ text: 'second, in blue' });
     expect(el.querySelector('.queued-edit')).toBeNull();
     expect([...el.querySelectorAll('.queued-text')].map((n) => n.textContent)).toEqual(['first', 'second, in blue']);
-    expect(document.activeElement).toBe(box);
+    expect(document.activeElement).toBe(el.querySelector('[contenteditable="true"]'));
     // Up again, then Up at the start goes on to the one above; Esc keeps it as it was
     await key(box, 'ArrowUp');
     const again = el.querySelector<HTMLTextAreaElement>('.queued-edit')!;
