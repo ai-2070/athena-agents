@@ -13,7 +13,8 @@ import type { EveAdmissionRecord, EveMessagePart, ExecutionRun, Project } from '
 import type { Client } from 'eve/client';
 import { selectEveModel } from './model.ts';
 
-export const EVE_GENERATION = 'eve-1.0.0-rc.1-athena-1';
+import { EVE_GENERATION } from './version.ts';
+export { EVE_GENERATION } from './version.ts';
 const file = (id: string) => privateDataPath('runtime', 'eve', 'admissions', `${id}.json`);
 const hash = (value: unknown) => crypto.createHash('sha256').update(canonical(value)).digest('hex');
 const identity = (record: EveAdmissionRecord) => ({ id: record.id, bindingId: record.bindingId, mode: record.mode, sessionId: record.sessionId, message: record.message, history: record.history, historyKeys: record.historyKeys, selection: record.selection });

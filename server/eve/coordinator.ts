@@ -158,6 +158,7 @@ export class EveCoordinator {
         local.abort();
         clearInterval(timer);
         setWake(() => {});
+        void eveRuntime.retireBindings().catch(() => {});
       }
       if (this.abort.signal.aborted) return;
       if (signal.aborted) {

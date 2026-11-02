@@ -24,7 +24,7 @@ function fixture(items: ChatItem[] = [], attachments: string[] = []) {
   saveSettings({ contextWindowTokens: 64000 });
   setSecret('openrouterKey', 'unit-admission-key');
   const project = activeProject();
-  const agent = agents.save(newAgent({ name: 'Admission owner', toolGroups: [], mcpServers: [], richAnswers: false }));
+  const agent = agents.save(newAgent({ engine: 'eve', name: 'Admission owner', toolGroups: [], mcpServers: [], richAnswers: false }));
   const chat = chats.create(agent.id, 'Admission');
   const run: ExecutionRun = { id: `admit-${chat.id}`, projectId: project.id, agentId: agent.id, chatId: chat.id, engine: agent.engine, depth: 0, parentRunId: null, ownerAgentId: agent.id, ownerChatId: chat.id, text: 'Current input', from: null, attachments, status: 'running', startedAt: Date.now() };
   admitExecution(run);

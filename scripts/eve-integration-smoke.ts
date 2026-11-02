@@ -109,8 +109,8 @@ try {
   saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${address.port}/v1`, label: 'Integration fixture' } }, contextWindowTokens: 64000 });
   setSecret('customKey', 'integration-key');
   const project = activeProject();
-  const agent = agents.save(newAgent({ name: 'Integration owner', provider: 'custom', model: 'integration-proof', toolGroups: ['agents'], mcpServers: [], richAnswers: false }));
-  agents.save(newAgent({ name: 'Integration peer' }));
+  const agent = agents.save(newAgent({ engine: 'eve', name: 'Integration owner', provider: 'custom', model: 'integration-proof', toolGroups: ['agents'], mcpServers: [], richAnswers: false }));
+  agents.save(newAgent({ engine: 'eve', name: 'Integration peer' }));
   const chat = chats.create(agent.id, 'Integration proof');
   const binding = bindSession(agent, chat, project, 'proof');
   host = await startRuntime();
@@ -134,10 +134,10 @@ try {
     console.log(`eve integration: testing ${kind} recovery`);
     const workspace = path.join(temporary, kind);
     fs.mkdirSync(workspace);
-    const owner = agents.save(newAgent({ name: `Durable ${kind}`, provider: 'custom', model: 'integration-proof', toolGroups: kind === 'ownership' || kind === 'look' ? ['world'] : ['files'], autonomy: kind === 'access' || kind === 'look' ? 'full' : 'ask', workspace, mcpServers: [], richAnswers: false }));
+    const owner = agents.save(newAgent({ engine: 'eve', name: `Durable ${kind}`, provider: 'custom', model: 'integration-proof', toolGroups: kind === 'ownership' || kind === 'look' ? ['world'] : ['files'], autonomy: kind === 'access' || kind === 'look' ? 'full' : 'ask', workspace, mcpServers: [], richAnswers: false }));
     saveSettings({ brainApproves: false });
     if (kind === 'ownership') {
-      const builder = newAgent({ name: 'Original integration builder', toolGroups: ['world'], autonomy: 'full' });
+      const builder = newAgent({ engine: 'eve', name: 'Original integration builder', toolGroups: ['world'], autonomy: 'full' });
       assert.equal((await callTool(builder, 'world_build', { object: 'Shared integration bench', steps: [{ box: [1, 1, 1], use: 'wood' }] })).isError, false);
     }
     if (kind === 'look') saveSettings({ look: { stationLook: 'classic' } });
@@ -200,7 +200,7 @@ try {
   }
   assert.equal(requests, 13, 'Stopped work must not make another model call.');
   console.log('eve integration: tool, access, ownership, setting and Outbox waits survive immediate restart; stopped work stays stopped');
-  const owner = agents.save(newAgent({ name: 'Lifecycle owner', provider: 'custom', model: 'integration-proof', toolGroups: ['agents'], richAnswers: false }));
+  const owner = agents.save(newAgent({ engine: 'eve', name: 'Lifecycle owner', provider: 'custom', model: 'integration-proof', toolGroups: ['agents'], richAnswers: false }));
   const team = workflows.save({ name: 'Lifecycle team', members: [owner.id], lead: owner.id, steps: [] });
   const conversation = chats.create(owner.id, 'Native lifecycle', team.id);
   const saved = bindSession(owner, conversation, project, 'proof');
@@ -251,7 +251,7 @@ try {
   assert.equal(transcript.items.filter((item) => item.type === 'assistant').length, 1);
   assert.equal(requests, 16, 'Only the interrupted model request may repeat; the committed tool must not run again.');
   console.log('eve integration: native busy state, transcript, team result and read marks survive worker restart without another input');
-  const admissionOwner = agents.save(newAgent({ name: 'Admission owner', provider: 'custom', model: 'integration-proof', toolGroups: [], richAnswers: false, temperature: 0, effort: 'high' }));
+  const admissionOwner = agents.save(newAgent({ engine: 'eve', name: 'Admission owner', provider: 'custom', model: 'integration-proof', toolGroups: [], richAnswers: false, temperature: 0, effort: 'high' }));
   const admissionChat = chats.create(admissionOwner.id, 'Saved admission');
   admissionChat.items = [{ type: 'user', text: 'ORIGINAL_USER_ROLE' }, { type: 'assistant', text: 'ORIGINAL_ASSISTANT_ROLE' }];
   chats.save(admissionChat);
@@ -303,7 +303,7 @@ try {
     saveSettings({ maxToolSteps: limit === 'steps' ? 1 : 16, costLimitUsdPerRun: limit === 'cost' ? 0.005 : 2 });
     const workspace = path.join(temporary, `limit-${limit}`);
     fs.mkdirSync(workspace);
-    const limited = agents.save(newAgent({ name: `Limited ${limit}`, provider: 'custom', model: 'integration-proof', toolGroups: limit === 'cost' ? ['files'] : ['agents'], autonomy: 'ask', workspace, richAnswers: false }));
+    const limited = agents.save(newAgent({ engine: 'eve', name: `Limited ${limit}`, provider: 'custom', model: 'integration-proof', toolGroups: limit === 'cost' ? ['files'] : ['agents'], autonomy: 'ask', workspace, richAnswers: false }));
     const chat = chats.create(limited.id, 'Native limits');
     const id = `limit-${limit}`;
     const text = limit === 'cost' ? 'DURABLE_WRITE_PROOF' : 'LIMIT_PROOF';

@@ -9,7 +9,7 @@ import { dataPath } from '../../server/util.ts';
 
 function fixture() {
   const project = activeProject();
-  const agent = agents.save(newAgent({ name: 'Bound agent', toolGroups: [] }));
+  const agent = agents.save(newAgent({ engine: 'eve', name: 'Bound agent', toolGroups: [] }));
   const chat = chats.create(agent.id, 'Bound chat');
   return { project, agent, chat, binding: bindSession(agent, chat, project, 'proof') };
 }

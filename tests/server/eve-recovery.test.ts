@@ -11,7 +11,7 @@ import { runInfo } from '../../server/engines/index.ts';
 import type { SessionSnapshot, SessionStreamEvent } from 'eve/client';
 
 function fixture(id: string, parent: string | null = null) {
-  const agent = agents.save(newAgent({ name: id }));
+  const agent = agents.save(newAgent({ engine: 'eve', name: id }));
   const chat = chats.create(agent.id, id);
   const binding = bindSession(agent, chat, activeProject(), 'proof');
   beginRun(id, binding.id, parent ? 1 : 0, parent);

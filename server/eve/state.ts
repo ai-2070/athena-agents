@@ -5,6 +5,7 @@ import { listFiles, readPlain, writeJSON } from '../util.ts';
 import { privateDataPath } from '../private.ts';
 import { readExecution } from '../execution.ts';
 import { activeTeamAssignment } from '../teamwork.ts';
+import { EVE_GENERATION } from './version.ts';
 import type { Agent, Chat, EveRunRecord, EveRunStatus, EveSessionBinding, Project, RunEvent } from '../../shared/types.ts';
 
 const idOk = (id: string) => /^[a-zA-Z0-9_-]{1,120}$/.test(id);
@@ -16,6 +17,11 @@ const runPath = (id: string) => privatePath('runs', `${id}.json`);
 
 export function readBinding(id: string): EveSessionBinding | null {
   return idOk(id) ? readPlain<EveSessionBinding | null>(bindingPath(id), null) : null;
+}
+
+export function sessionBindings(): EveSessionBinding[] {
+  return listFiles(privatePath('bindings'), (name) => name.endsWith('.json'))
+    .map((name) => readBinding(name.slice(0, -5))).filter((item): item is EveSessionBinding => !!item);
 }
 
 export function conversationBinding(projectId: string, agentId: string, chatId: string, generation: string): EveSessionBinding | null {
@@ -48,13 +54,14 @@ export function recordAdmissionReceipt(id: string, sessionId: string, deliveryId
 export function bindSession(agent: Agent, chat: Chat, project: Project, generation: string): EveSessionBinding {
   if (chat.agentId !== agent.id) throw new Error('The chat does not belong to this agent.');
   if (!generation) throw new Error('An Eve generation is required.');
-  const binding: EveSessionBinding = { id: crypto.randomBytes(32).toString('hex'), agentId: agent.id, chatId: chat.id, projectId: project.id, teamId: chat.teamId || null, generation, sessionId: null, retired: false, createdAt: Date.now() };
+  const binding: EveSessionBinding = { id: crypto.randomBytes(32).toString('hex'), agentId: agent.id, chatId: chat.id, projectId: project.id, teamId: chat.teamId || null, generation, runtimeVersion: EVE_GENERATION, sessionId: null, retired: false, createdAt: Date.now() };
   return writeJSON(bindingPath(binding.id), binding);
 }
 
 export function sessionContext(id: string): { binding: EveSessionBinding; project: Project; agent: Agent; chat: Chat } {
   const context = transcriptContext(id);
   if (context.binding.retired) throw new Error('This Eve session binding is not active.');
+  if (context.binding.runtimeVersion !== EVE_GENERATION) throw new Error('Eve was updated. Check the saved results before starting a fresh session.');
   return withProject(context.project, () => {
     const { binding } = context;
     let agent: Agent = { ...context.agent, engine: 'eve' };

@@ -427,6 +427,7 @@ get('/api/agents/:id', async ({ id }) => {
 });
 put<Partial<Agent>>('/api/agents/:id', async ({ id }, body) => {
   const a = need(agents.get(id));
+  if (body.engine && body.engine !== a.engine) engines.retireAgentSessions(id);
   const allowed: (keyof Agent)[] = ['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'openclawAgent', 'autonomy', 'toolGroups', 'mcpServers', 'knowledge', 'workspace', 'temperature', 'effort', 'pinned', 'alwaysAllow', 'skills', 'richAnswers'];
   for (const k of allowed) if (k in body) (a as Record<keyof Agent, unknown>)[k] = body[k];
   if ('effort' in body) a.effort = isEffort(body.effort) ? body.effort : '';
@@ -434,6 +435,7 @@ put<Partial<Agent>>('/api/agents/:id', async ({ id }, body) => {
 });
 function deleteAgent(gone: Agent): void {
   const id = gone.id;
+  engines.retireAgentSessions(id);
   agents.remove(id);
   log('agent', `Deleted agent ${gone.name}`, { agentId: id });
   // and take it off every branch it was on

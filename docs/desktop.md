@@ -132,6 +132,12 @@ silicon Macs say a downloaded app is "damaged".
 
 ## Updates
 
+API-model agents use the bundled Eve worker. Ordinary app shutdown preserves native turns and saved
+waits. An incompatible Eve update retires old sessions and marks unfinished work interrupted before
+the worker can make another model or tool call. Starting again imports admitted original messages;
+pending actions are never reconstructed from summaries. Retired runtime records stay in private app
+data until that data is removed, and never enter portable project backups.
+
 The app updates itself with [Tauri's updater](https://tauri.app/plugin/updater/) (`src-tauri/src/updater.rs`).
 It reads `latest.json` from the newest **published** release
 (`https://github.com/ai-2070/athena-agents/releases/latest/download/latest.json`), so a draft release

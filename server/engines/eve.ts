@@ -3,8 +3,8 @@ import { isStopping } from './index.ts';
 import { eveRuntime } from '../eve/runtime.ts';
 import { eveCoordinator } from '../eve/coordinator.ts';
 import { prepareAdmission, submitAdmission, validAdmission } from '../eve/admission.ts';
-import { eveClient, stopEveRun } from '../eve/recovery.ts';
-import { readRun } from '../eve/state.ts';
+import { eveClient, stopEveRun, retireEveBindings } from '../eve/recovery.ts';
+import { readBinding, readRun } from '../eve/state.ts';
 import { status } from '../providers.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 import { eveUsage } from '../eve/usage.ts';
@@ -17,6 +17,8 @@ export async function run({ runId, signal }: EngineRunArgs): Promise<EngineResul
   let host = await eveRuntime.ready();
   signal.throwIfAborted();
   const input = await prepareAdmission(runId, project);
+  const binding = readBinding(input.bindingId)!;
+  await retireEveBindings(host, binding);
   const stopped = () => { if (!isStopping()) void stopEveRun(runId); };
   signal.addEventListener('abort', stopped, { once: true });
   try {

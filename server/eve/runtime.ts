@@ -4,8 +4,8 @@ import { log } from '../store.ts';
 import { privateDataPath } from '../private.ts';
 import { openEveBridge } from './bridge.ts';
 import { startEveHost } from './host.ts';
-import { activeEveRuns, eveRuns, readBinding } from './state.ts';
-import { prepareEveRecovery, recoverEveRuns } from './recovery.ts';
+import { activeEveRuns, eveRuns, readBinding, sessionBindings } from './state.ts';
+import { prepareEveRecovery, recoverEveRuns, retireEveBindings } from './recovery.ts';
 import { claimEveRuntime, EveOwnershipError } from './ownership.ts';
 import type { EveHost } from './host.ts';
 
@@ -30,7 +30,7 @@ export function eveRuntimeFiles(root = ROOT): { entry: string; templates: string
   return { entry, templates };
 }
 
-const hasSavedWork = () => activeEveRuns().length > 0 || eveRuns().some((run) => {
+const hasSavedWork = () => sessionBindings().some((binding) => binding.sessionId && !binding.runtimeEnded) || activeEveRuns().length > 0 || eveRuns().some((run) => {
   const binding = readBinding(run.bindingId);
   return run.status === 'stopped' && !!binding?.sessionId && !binding.runtimeEnded;
 });
@@ -113,6 +113,12 @@ export class EveRuntime {
 
   close(): Promise<void> {
     return this.stopping ??= this.stop();
+  }
+
+  async retireBindings(): Promise<void> {
+    if (this.abort.signal.aborted) return;
+    const host = this.host || await this.starting?.catch(() => undefined);
+    if (host) await retireEveBindings(host);
   }
 
   private async stop(): Promise<void> {

@@ -58,7 +58,7 @@ describe('Eve model controls', () => {
   it('validates temperature and selects supported effort before any dispatch', async () => {
     saveSettings({ contextWindowTokens: 64000, providers: { custom: { baseUrl: 'http://127.0.0.1:9000/v1', label: 'Unit model' } } });
     setSecret('customKey', 'fixture-key');
-    const agent = agents.save(newAgent({ name: 'Options', provider: 'custom', model: 'selected-model', effort: 'max', temperature: 0.5 }));
+    const agent = agents.save(newAgent({ engine: 'eve', name: 'Options', provider: 'custom', model: 'selected-model', effort: 'max', temperature: 0.5 }));
     const chat = chats.create(agent.id);
     expect(await selectEveModel(agent, chat)).toMatchObject({ provider: 'custom', model: 'selected-model', effort: 'high', temperature: 0.5, contextWindow: 64000 });
     await expect(selectEveModel({ ...agent, temperature: NaN }, chat)).rejects.toThrow('Temperature');
@@ -68,7 +68,7 @@ describe('Eve model controls', () => {
 
 describe('native Eve usage', () => {
   it('deduplicates all committed usage, including summaries, and preserves unknown cost', () => {
-    const agent = agents.save(newAgent({ name: 'Meter owner' }));
+    const agent = agents.save(newAgent({ engine: 'eve', name: 'Meter owner' }));
     const chat = chats.create(agent.id);
     const binding = bindSession(agent, chat, activeProject(), 'meter');
     attachSession(binding.id, 'meter-session');

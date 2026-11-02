@@ -14,7 +14,7 @@ afterEach(() => {
 
 function fixture(autonomy: 'auto' | 'ask' | 'full' = 'auto') {
   saveSettings({ brainApproves: false });
-  const agent = agents.save(newAgent({ name: 'Durable builder', toolGroups: ['world'], autonomy }));
+  const agent = agents.save(newAgent({ engine: 'eve', name: 'Durable builder', toolGroups: ['world'], autonomy }));
   const chat = chats.create(agent.id);
   const binding = bindSession(agent, chat, activeProject(), 'proof');
   const runId = `consent-${agent.id}`;
@@ -24,7 +24,7 @@ function fixture(autonomy: 'auto' | 'ask' | 'full' = 'auto') {
 }
 
 const createOtherObject = async (name: string) => {
-  const owner = newAgent({ name: 'Original builder', toolGroups: ['world'], autonomy: 'full' });
+  const owner = newAgent({ engine: 'eve', name: 'Original builder', toolGroups: ['world'], autonomy: 'full' });
   const built = await callTool(owner, 'world_build', { object: name, steps: [{ box: [2, 1, 2], use: 'stone' }] });
   expect(built.isError, built.text).toBe(false);
   return owner;

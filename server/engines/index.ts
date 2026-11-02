@@ -20,8 +20,9 @@ import * as contextInfo from '../context.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { engineCapabilities } from './capabilities.ts';
-import { activeEveRuns, invalidateConversation, readRun as readEveRun, sessionContext as eveSessionContext, transcriptContext } from '../eve/state.ts';
+import { activeEveRuns, invalidateConversation, readRun as readEveRun, sessionBindings, sessionContext as eveSessionContext, transcriptContext } from '../eve/state.ts';
 import { eveUsage } from '../eve/usage.ts';
+import { eveRuntime } from '../eve/runtime.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import { clearWork, stopChatWork } from '../briefs.ts';
 import { admitExecution, interruptExecutions, readExecution, saveExecutionQueue, updateExecution } from '../execution.ts';
@@ -238,7 +239,7 @@ export function finishNativeRun(runId: string): void {
         if (!chat.items.some((item) => item.sourceId === sourceId)) chat.items.push({ type: 'error', text: error, ts: Date.now(), runId, sourceId });
         for (const item of chat.items) if (item.type === 'tool' && item.status === 'running') Object.assign(item, { status: 'error', isError: true, result: stopped ? '(stopped)' : '(did not finish)' });
       }
-      if (resets.delete(chatKey(entry.projectId, chat.id))) clearMemory(chat);
+      finishMemoryReset(chat, runId);
       chats.save(chat);
     }
     updateExecution(runId, { status: native.status as 'completed' | 'failed' | 'stopped' | 'interrupted', answer, ...(native.status === 'completed' ? {} : { error }), endedAt: native.endedAt || Date.now(), completionClaimed: true });
@@ -276,9 +277,6 @@ const runsIn = (projectId: string, chatId: string): [string, RunEntry][] => [...
 
 // chats where a new message waits for the run it stopped to end: it goes next, so nothing else starts meanwhile
 const steering = new Set<string>();
-
-// chats whose memory you cleared while a run went: cleared again when it ends, so its answer doesn't refill it
-const resets = new Set<string>();
 
 export function activeRuns(): ActiveRun[] {
   return [...active.entries()].map(([id, r]) => ({ id, agentId: r.agentId, chatId: r.chatId, projectId: r.projectId, startedAt: r.startedAt, agentName: r.agentName, parentRunId: r.parentRunId || null, depth: r.depth }));
@@ -340,7 +338,15 @@ export function resetMemory(chat: Chat, projectId: string = here()): void {
   invalidateConversation(projectId, chat.id);
   if (projectId === here()) clearWork('agent', chat.agentId, chat.id);
   chat.items.push({ type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', reset: true, ts: Date.now() });
-  if (runsIn(projectId, chat.id).length) resets.add(chatKey(projectId, chat.id));
+  for (const [id] of runsIn(projectId, chat.id)) updateExecution(id, { clearMemoryOnEnd: true });
+  clearMemory(chat);
+  void eveRuntime.retireBindings().catch(() => {});
+}
+
+function finishMemoryReset(chat: Chat, runId: string): void {
+  if (!readExecution().runs.find((run) => run.id === runId)?.clearMemoryOnEnd) return;
+  const sourceId = `reset:${runId}`;
+  if (!chat.items.some((item) => item.sourceId === sourceId)) chat.items.push({ type: 'meta', text: 'Memory cleared after the previous turn finished.', reset: true, ts: Date.now(), sourceId });
   clearMemory(chat);
 }
 
@@ -525,7 +531,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
         result = await go();
       }
       if (controller.signal.aborted) throw new Error('Stopped.');
-      // the new session has the compacted history now
+      // the new CLI session has the saved original conversation now
       if (cli && chat.sessionId) delete chat.reseed;
       // (what it wrote to its own memory meanwhile, it knows)
       if (memoryAt) chat.memoryAt = memoryStamp(agent.id);
@@ -564,10 +570,11 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       return '';
     } finally {
       // you cleared its memory meanwhile: what this run added to it goes too
-      if (resets.delete(key)) {
-        clearMemory(chat);
+      if (!suspended) {
+        finishMemoryReset(chat, runId);
         persist();
       }
+      void eveRuntime.retireBindings().catch(() => {});
       active.delete(runId);
       if (!suspended) cancelForRun(runId);
       emit('runs');
@@ -1005,10 +1012,15 @@ export function forgetChat(chatId: string, projectId: string = here()) {
   const live = liveChat(chatId, projectId);
   if (live && projectId === here()) clearWork('agent', live.agentId, chatId);
   if (live) live._deleted = true;
-  resets.delete(chatKey(projectId, chatId));
   unqueue(chatId, undefined, projectId);
   stopLoop(chatId, null, projectId);
   stopChat(chatId, projectId);
+  void eveRuntime.retireBindings().catch(() => {});
+}
+
+export function retireAgentSessions(agentId: string, projectId: string = here()): void {
+  for (const binding of sessionBindings()) if (binding.projectId === projectId && binding.agentId === agentId) invalidateConversation(projectId, binding.chatId);
+  void eveRuntime.retireBindings().catch(() => {});
 }
 
 // Used by ask_agent and workflows: run to completion in a fresh chat, return the answer.

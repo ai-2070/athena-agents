@@ -174,6 +174,7 @@ export interface ExecutionRun {
   error?: string;
   settled?: boolean;
   completionClaimed?: boolean;
+  clearMemoryOnEnd?: boolean;
 }
 
 export interface ExecutionQueue {
@@ -792,6 +793,7 @@ export interface EveSessionBinding {
   chatId: string;
   teamId: string | null;
   generation: string;
+  runtimeVersion: string;
   sessionId: string | null;
   retired: boolean;
   retiring?: boolean;

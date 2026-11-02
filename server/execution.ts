@@ -21,7 +21,15 @@ function change<T>(fn: (state: ExecutionJournal) => T): T {
   const result = fn(state);
   const keep = (item: { endedAt?: number }) => !item.endedAt || Date.now() - item.endedAt < KEEP_MS;
   state.handoffs = state.handoffs.filter(keep);
-  state.runs = state.runs.filter((r) => !r.settled || keep(r) || state.handoffs.some((h) => h.runId === r.id) || teamOwnsRun(r));
+  const ancestors = new Set<string>();
+  for (const child of state.runs.filter((r) => !r.settled)) {
+    let parent = child.parentRunId;
+    while (parent && !ancestors.has(parent)) {
+      ancestors.add(parent);
+      parent = state.runs.find((r) => r.id === parent && r.projectId === child.projectId)?.parentRunId || null;
+    }
+  }
+  state.runs = state.runs.filter((r) => !r.settled || keep(r) || ancestors.has(r.id) || state.handoffs.some((h) => h.runId === r.id) || teamOwnsRun(r));
   writeJSON(file(), state);
   return result;
 }
@@ -50,7 +58,7 @@ export function admitExecution(run: ExecutionRun, queueId?: string): void {
   });
 }
 
-export function updateExecution(id: string, update: Partial<Pick<ExecutionRun, 'status' | 'stopRequested' | 'steered' | 'endedAt' | 'answer' | 'error' | 'settled' | 'completionClaimed'>>): ExecutionRun | null {
+export function updateExecution(id: string, update: Partial<Pick<ExecutionRun, 'status' | 'stopRequested' | 'steered' | 'endedAt' | 'answer' | 'error' | 'settled' | 'completionClaimed' | 'clearMemoryOnEnd'>>): ExecutionRun | null {
   return change((state) => {
     const run = state.runs.find((r) => r.id === id);
     if (!run) return null;

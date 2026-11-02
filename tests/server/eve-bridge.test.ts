@@ -14,8 +14,8 @@ describe('the private Eve tool bridge', () => {
     saveSettings({ providers: { custom: { baseUrl: 'http://127.0.0.1:9876/v1', label: 'Fixture' } }, contextWindowTokens: 64000 });
     setSecret('customKey', 'private-eve-fixture-key');
     const project = activeProject();
-    const agent = agents.save(newAgent({ name: 'Eve bridge owner', provider: 'custom', model: 'proof', toolGroups: ['files', 'agents'], richAnswers: false }));
-    agents.save(newAgent({ name: 'Visible bridge peer' }));
+    const agent = agents.save(newAgent({ engine: 'eve', name: 'Eve bridge owner', provider: 'custom', model: 'proof', toolGroups: ['files', 'agents'], richAnswers: false }));
+    agents.save(newAgent({ engine: 'eve', name: 'Visible bridge peer' }));
     const chat = chats.create(agent.id, 'Bridge');
     const binding = bindSession(agent, chat, project, 'proof');
     beginRun('bridge-run', binding.id);
@@ -30,7 +30,7 @@ describe('the private Eve tool bridge', () => {
     expect(readRun('bridge-run')?.configurationVersions).toHaveLength(1);
     const other = await createProject({ name: 'Different bridge project' });
     setActiveProject(other.id);
-    agents.save(newAgent({ name: 'Other private owner' }));
+    agents.save(newAgent({ engine: 'eve', name: 'Other private owner' }));
     const result = await eveTool(binding.id, 'session', 'bridge-run', 'list-call', 'list_agents', {});
     expect(result.text).toContain('Visible bridge peer');
     expect(result.text).not.toContain('Other private owner');
@@ -56,7 +56,7 @@ describe('the private Eve tool bridge', () => {
   it('keeps edited consent attached to the original arguments and rejects calls from an older run', async () => {
     saveSettings({ brainApproves: false });
     const workspace = ensureDir(dataPath('edited-eve-proof'));
-    const agent = agents.save(newAgent({ name: 'Edited consent', toolGroups: ['files'], autonomy: 'ask', workspace }));
+    const agent = agents.save(newAgent({ engine: 'eve', name: 'Edited consent', toolGroups: ['files'], autonomy: 'ask', workspace }));
     const chat = chats.create(agent.id, 'Edits');
     const binding = bindSession(agent, chat, activeProject(), 'proof');
     beginRun('edited-run', binding.id);

@@ -4,6 +4,7 @@ import { newAgent } from '../../server/library.ts';
 import { createProject } from '../../server/projects.ts';
 import { addBrief, listBriefs } from '../../server/briefs.ts';
 import { admitExecution, readExecution, saveHandoff, updateExecution } from '../../server/execution.ts';
+import { memoryStart } from '../../shared/context.ts';
 import { activeRuns, finishNativeRun, isChatBusy, nativeRunPromise, onRunEnd, recoverExecution, runInfo, stopRun } from '../../server/engines/index.ts';
 import { EveCoordinator } from '../../server/eve/coordinator.ts';
 import { attachSession, beginRun, bindSession, readRun, setRunStatus } from '../../server/eve/state.ts';
@@ -25,7 +26,7 @@ afterEach(async () => {
 
 function fixture() {
   const project = activeProject();
-  const agent = agents.save(newAgent({ name: 'Recovered native owner', toolGroups: [] }));
+  const agent = agents.save(newAgent({ engine: 'eve', name: 'Recovered native owner', toolGroups: [] }));
   const chat = chats.create(agent.id);
   const binding = bindSession(agent, chat, project, 'proof');
   attachSession(binding.id, 'session');
@@ -83,6 +84,20 @@ function fixture() {
 }
 
 describe('native run lifecycle', () => {
+  it('finishes a saved mid-turn memory reset after recovery, keeping the answer visible', async () => {
+    const f = fixture();
+    updateExecution(f.id, { clearMemoryOnEnd: true });
+    f.coordinator.restore();
+    const done = nativeRunPromise(f.id)!;
+    f.coordinator.start();
+    await expect.poll(f.connections).toBe(1);
+    f.finish('Visible but outside the new session');
+    await done;
+    const saved = chats.get(f.agent.id, f.chat.id)!;
+    expect(saved.items.some((item) => item.type === 'assistant')).toBe(true);
+    expect(memoryStart(saved.items)).toBe(saved.items.length);
+    expect(saved.sessionId).toBeNull();
+  });
   it('restores busy ownership, reconnects without another input, and settles the saved answer and handoff once', async () => {
     const f = fixture();
     const ends: string[] = [];

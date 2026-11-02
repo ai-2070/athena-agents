@@ -5,7 +5,7 @@ import { beginRun, bindSession, setRunStatus } from '../../server/eve/state.ts';
 import { executeOperation, prepareOperation, readOperation, reconcileOperations, saveOperation } from '../../server/eve/operations.ts';
 
 function fixture(id: string) {
-  const agent = agents.save(newAgent({ name: id }));
+  const agent = agents.save(newAgent({ engine: 'eve', name: id }));
   const chat = chats.create(agent.id, id);
   const binding = bindSession(agent, chat, activeProject(), 'proof');
   beginRun(id, binding.id);

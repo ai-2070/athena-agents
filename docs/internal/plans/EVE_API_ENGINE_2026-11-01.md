@@ -4,6 +4,18 @@
 
 ## Progress
 
+Lifecycle integration now retires native sessions on clear/delete, engine changes, model generations
+and incompatible runtime updates. Active Clear memory allows the current turn to finish, then saves
+another reset marker; the reset intent is part of the private execution receipt and survives restart.
+Retired handles are never reused. Their native payloads stay in private app data until that data is
+removed; originals and tool images are deleted from searchable project history when the chat goes.
+This retention policy is documented explicitly rather than claiming secure erasure of Workflow files.
+Before a resumed model call, the bridge checks the live owner and runtime version again. Native
+children can continue under a completed parent only with matching saved project, depth and root
+ownership. Ancestor receipts remain while descendants are unfinished. Windows `bun run check` passes:
+210 files, 1,702 tests, 20 intentional skips.
+
+
 The cutover registers `eve` throughout engine settings, Brain routing and model selection, removes
 `server/engines/openai.ts`, and routes normal turns through the private native worker. Shutdown
 leaves native work running in its saved ledger instead of recording Stop. Team shutdown preserves

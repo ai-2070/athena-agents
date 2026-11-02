@@ -2,7 +2,8 @@ import { Client } from 'eve/client';
 import { cancelForRun, durableApproval, ensureDurableApproval } from '../approvals.ts';
 import { listProjects, questions, withProject } from '../store.ts';
 import { closeQuestion, WAIT_MS } from '../questions.ts';
-import { eveRuns, markSessionEnded, readBinding, readRun, retireSession, sessionContext, setRunStatus, settleRun, stageTerminal } from './state.ts';
+import { eveRuns, markSessionEnded, readBinding, readRun, retireSession, sessionBindings, sessionContext, setRunStatus, settleRun, stageTerminal, transcriptContext } from './state.ts';
+import { EVE_GENERATION } from './version.ts';
 import { operationsForRun, readOperation, reconcileOperations, saveOperation } from './operations.ts';
 import { EveProjectionError, projectEvent } from './projection.ts';
 import { pendingAdmissions, submitAdmission, validAdmission } from './admission.ts';
@@ -59,6 +60,14 @@ async function endSession(bindingId: string, client: Client) {
     if (!error || typeof error !== 'object' || !('code' in error) || !['session_not_active', 'session_expired'].includes(String(error.code))) throw new Error('Eve could not retire this stopped session.');
   }
   markSessionEnded(bindingId);
+}
+
+/** Retired handles are tombstones: private records remain local and can never be reused. */
+export async function retireEveBindings(host: Pick<EveHost, 'url' | 'token'>, owner?: { projectId: string; chatId: string }): Promise<void> {
+  for (const binding of sessionBindings()) {
+    if (owner && (binding.projectId !== owner.projectId || binding.chatId !== owner.chatId)) continue;
+    if (binding.retired && binding.sessionId && !binding.runtimeEnded) await endSession(binding.id, eveClient(host, binding.id));
+  }
 }
 
 /** Save Stop before contacting the worker. A lost HTTP reply cannot undo the user's decision. */
@@ -145,6 +154,13 @@ export async function deliverApprovalDecisions(runId: string, client: Client): P
 
 /** Reconcile ownership and execution intents before a worker can automatically resume its queue. */
 export function prepareEveRecovery(): void {
+  for (const binding of sessionBindings()) {
+    if (binding.retired) continue;
+    try {
+      const owner = transcriptContext(binding.id);
+      if (binding.runtimeVersion !== EVE_GENERATION || owner.agent.engine !== 'eve' || owner.chat.sessionEngine && owner.chat.sessionEngine !== 'eve') retireSession(binding.id);
+    } catch { retireSession(binding.id); }
+  }
   for (const run of eveRuns()) {
     if (run.status === 'completed' || run.status === 'failed') continue;
     if (run.status === 'stopped') {
@@ -157,7 +173,7 @@ export function prepareEveRecovery(): void {
     let binding;
     try { binding = sessionContext(run.bindingId).binding; }
     catch {
-      if (run.status !== 'interrupted') setRunStatus(run.id, 'interrupted');
+      if (run.status !== 'interrupted') settleRun(run.id, 'interrupted', '', 'The saved Eve session changed or its owner was removed. Check its results before starting a fresh turn.');
       cancelForRun(run.id, { keepOutcomeChecks: true });
       cancelQuestions(run.id);
       reconcileOperations(run.id, true);
@@ -188,7 +204,14 @@ export function prepareEveRecovery(): void {
         return !!binding.teamId && !!receipt && receipt.projectId === projectId && receipt.agentId === binding.agentId && receipt.chatId === binding.chatId && !!activeTeamAssignment(receipt, binding.teamId);
       }
     } catch { return false; }
-    return !run.parentRunId || canResume(run.parentRunId, projectId, seen);
+    if (!run.parentRunId) return true;
+    const journal = readExecution();
+    const parent = journal.runs.find((item) => item.id === run.parentRunId && item.projectId === projectId);
+    if (parent?.status === 'completed' && !parent.stopRequested) {
+      const child = journal.runs.find((item) => item.id === id && item.projectId === projectId);
+      return !!child && !child.stopRequested && child.status === 'running' && child.parentRunId === parent.id && child.depth === parent.depth + 1 && child.ownerAgentId === parent.ownerAgentId && child.ownerChatId === parent.ownerChatId;
+    }
+    return canResume(run.parentRunId, projectId, seen);
   };
   for (const run of eveRuns().filter((item) => ['queued', 'running', 'waiting'].includes(item.status))) {
     const { project } = sessionContext(run.bindingId);
@@ -203,6 +226,7 @@ export function prepareEveRecovery(): void {
 /** Called with the new private worker before new Athena work is admitted. Transport failure is retried. */
 export async function recoverEveRuns(host: Pick<EveHost, 'url' | 'token'>): Promise<{ runId: string; status: string }[]> {
   prepareEveRecovery();
+  await retireEveBindings(host);
   for (const input of pendingAdmissions()) {
     if (!validAdmission(input.id)) continue;
     await submitAdmission(input, eveClient(host, input.bindingId));

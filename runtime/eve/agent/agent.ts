@@ -12,6 +12,9 @@ export default defineAgent({
     const totalCost = () => runs(ctx.view).reduce((sum, run) => sum + (run.usage?.costUsd || 0), 0);
     const steps = ctx.turn ? runs(ctx.view, { turnId: ctx.turn.id }).filter((run) => run.status === 'settled').length : 0;
     return { model: athenaModel(config, async () => {
+      // A replayed checkpoint cannot retain permission after Stop, deletion or an update.
+      const current = await configuration(ctx);
+      if (current.runId !== config.runId) throw new Error('This model step no longer belongs to the active turn.');
       const limit = steps >= config.maxModelSteps ? 'steps' : reachedCostLimit(totalCost(), config.costBaseline, config.costLimitUsd) ? 'cost' : null;
       if (!limit) return;
       const result = await bridgeCall(bindingOf(ctx), '/limit', { sessionId: ctx.session.id, runId: config.runId, limit });
