@@ -145,7 +145,22 @@ New gateway data does not need a legacy compatibility layer.*
   unavailable; old one-way forms remain under Connections until unified delivery is ready.
   DOM tests cover creation, separate secrets, partial saves, project/team choice, deep links and
   loading errors. Browser screenshot verification was unavailable in this development session.
-- Next: add inbox/file review UI and gateway status navigation, and finish the other
+- Added a per-instance inbox under Settings > Gateways, including
+  `#/settings?tab=gateways&inbox=<id>` links. The default filter shows messages needing review;
+  All messages shows queued, active and completed work, newest first in batches of 25. Expand a
+  message to inspect its actor/chat/topic, original input, saved project/target, incoming files,
+  chosen final reply, text-part outcomes and outgoing file outcomes. Untrusted message text is
+  rendered literally; internal reasoning/tool logs are not drawn. Long text scrolls with keyboard focus.
+- Inbox actions use the existing guarded APIs for failed-download retry, remaining-reply retry,
+  outgoing file retry/skip and explicit file selection by absolute paths. Confirmed parts and files
+  have no retry action. Uncertain retries require checking Telegram and confirming duplicate risk;
+  skipping a file also requires confirmation and never claims to undo remote delivery. Paused or
+  unavailable instances have read-only receipts. A closed inbox cannot apply a stale confirmation.
+  File selection preserves drafts on errors and is offered only for the current eligible assignment.
+  Live receipt updates preserve open rows and drafts. Tests cover actions, confirmation/cancellation,
+  disabled controls, rendering bounds, deep links and missing instances. Native `needs-review` work
+  remains held: there is no model replay/resume/override action or receipt deletion/retention UI yet.
+- Next: add native-work reconciliation, receipt retention and gateway status navigation, and finish the other
   platforms. Albums still need grouping before dispatch, and inbox retention/review controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the final deletion/retention flow is pending. Real-account text/file checks on all four platforms

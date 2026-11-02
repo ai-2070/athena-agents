@@ -1,0 +1,127 @@
+import { act } from 'react';
+import { beforeEach, afterEach, expect, it, vi } from 'vitest';
+import { mountReact } from '../../web/ui/react.tsx';
+import { GatewayInboxView, gatewayMessageStatus } from '../../web/views/gateway-inbox.tsx';
+import type { GatewayInboxEvent, GatewayInstance } from '../../shared/types.ts';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+const instance: GatewayInstance = {
+  id: 'g1', name: 'Work bot', platform: 'telegram', accountId: '999', projectId: 'p1', target: { kind: 'brain' },
+  senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
+  fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, dailyBytes: 4096, filesPerMessage: 2 }, enabled: true, routeGeneration: 1, createdAt: 1, updatedAt: 1,
+};
+function event(sequence = 1): GatewayInboxEvent {
+  return { id: `event-${sequence}`, bindingId: 'binding', sequence, route: { instanceId: 'g1', projectId: 'p1', target: { kind: 'brain' }, generation: 1 },
+    receivedAt: 1700000000000, status: 'done', operationId: `op-${sequence}`,
+    input: { platform: 'telegram', accountId: '999', actor: { id: '123', label: 'Alice', kind: 'user' }, conversationId: '456', threadId: '7', sourceMessageId: String(sequence), sourceEventId: String(sequence), kind: 'message', directMessage: true, triggered: false, text: `Request ${sequence}`, media: [] },
+    dispatch: { conversation: { kind: 'brain', conversationId: 'binding', projectId: 'p1', sender: 'Alice' }, state: 'completed', startedAt: 1, answer: 'Final answer' },
+    reply: { createdAt: 1, parts: [{ text: 'Confirmed prefix', status: 'sent', attempts: 1, remoteId: 'remote-1' }, { text: 'Remaining reply', status: 'uncertain', attempts: 1 }] },
+  };
+}
+let events: GatewayInboxEvent[]; let host: HTMLElement; let unmount: () => void;
+let writes: { url: string; body: Record<string, unknown> }[]; let refuse: boolean;
+const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 30)));
+const button = (name: string, root: ParentNode = host) => [...root.querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent === name)!;
+const click = (name: string, root: ParentNode = host) => act(async () => button(name, root).click());
+beforeEach(() => {
+  document.body.innerHTML = '<div id="view"></div><div id="modal-root"></div><div id="toasts"></div>';
+  host = document.getElementById('view')!; events = [event()]; writes = []; refuse = false;
+  vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+    if (!init.method || init.method === 'GET') return new Response(JSON.stringify({ events }));
+    writes.push({ url, body: JSON.parse(String(init.body || '{}')) as Record<string, unknown> });
+    if (refuse) return new Response(JSON.stringify({ error: 'File access changed.' }), { status: 400 });
+    if (url.endsWith('/retry-reply')) events[0].reply!.parts[1].status = 'pending';
+    if (url.endsWith('/files/1/skip')) events[0].outgoing![1].status = 'skipped';
+    return new Response(JSON.stringify({ ok: true }));
+  });
+});
+afterEach(() => { act(() => unmount?.()); vi.unstubAllGlobals(); });
+async function open(enabled = true) { await act(async () => { unmount = mountReact(host, <GatewayInboxView instance={{ ...instance, enabled }} close={() => {}} />).unmount; }); await settle(); }
+async function all() {
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Inbox filter"]')!.click()); await settle();
+  await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((item) => item.textContent?.includes('All messages'))!.click()); await settle();
+}
+
+it('shows saved context and selected final text as text, without automatically retrying anything', async () => {
+  events[0].input.text = '<script>untrusted()</script>'; await open();
+  expect(host.textContent).toContain('Delivery uncertain'); expect(host.textContent).toContain('Final answer');
+  expect(host.textContent).toContain('<script>untrusted()</script>'); expect(host.querySelector('script')).toBeNull();
+  expect(host.textContent).toContain('Saved project'); expect(host.textContent).toContain('456'); expect(writes).toHaveLength(0);
+});
+
+it('requires confirmation for uncertain reply retry and never requests a replay or resends the confirmed prefix', async () => {
+  await open(); await click('Retry remaining reply'); await settle();
+  expect(document.querySelector('.modal')?.textContent).toContain('chat 456'); expect(writes).toHaveLength(0);
+  await click('Cancel', document); await settle(); expect(writes).toHaveLength(0);
+  await click('Retry remaining reply'); await settle(); await click('Retry delivery', document); await settle();
+  expect(writes.map((item) => item.url)).toEqual(['/api/gateways/g1/inbox/event-1/retry-reply']);
+  expect(events[0].reply!.parts[0].remoteId).toBe('remote-1');
+});
+
+it('disables retry and selection while paused but keeps receipts visible', async () => {
+  await open(false); expect(button('Retry remaining reply').disabled).toBe(true);
+  expect(button('Send selected files').disabled).toBe(true); expect(host.textContent).toContain('paused or unavailable');
+  expect(writes).toHaveLength(0);
+});
+
+it('offers actions only for unconfirmed files and confirms skipping an uncertain file', async () => {
+  events[0].outgoing = [
+    { path: '/report-1', name: 'one.txt', size: 5, sha256: 'a'.repeat(64), status: 'sent', attempts: [], remoteId: 'file-1' },
+    { path: '/report-2', name: 'two.txt', size: 5, sha256: 'b'.repeat(64), status: 'uncertain', attempts: [] },
+  ];
+  await open(); expect([...host.querySelectorAll('button')].filter((item) => item.textContent === 'Retry file')).toHaveLength(1);
+  await click('Skip file'); await settle(); expect(writes).toHaveLength(0);
+  expect(document.querySelector('.modal')?.textContent).toContain('cannot undo');
+  await click('Skip file', document.querySelector('.modal-foot')!); await settle();
+  expect(writes.map((item) => item.url)).toEqual(['/api/gateways/g1/inbox/event-1/files/1/skip']);
+  expect(events[0].outgoing[0].remoteId).toBe('file-1');
+});
+
+it('retains selected paths on a failed request and submits only paths to the existing selection API', async () => {
+  await open(); const field = host.querySelector<HTMLTextAreaElement>('[aria-label="Files to send"]')!;
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(field, '/project/report.txt\n/project/image.png'); field.dispatchEvent(new Event('input', { bubbles: true })); });
+  refuse = true; await click('Send selected files'); await settle();
+  expect(field.value).toContain('/project/report.txt'); expect(host.textContent).toContain('File access changed.');
+  expect(writes[0]).toEqual({ url: '/api/gateways/g1/inbox/event-1/files', body: { paths: ['/project/report.txt', '/project/image.png'] } });
+});
+
+it('preserves an open message and its unsent file selection when receipts refresh', async () => {
+  await open(); const details = host.querySelector('details')!; details.open = true;
+  const field = host.querySelector<HTMLTextAreaElement>('[aria-label="Files to send"]')!;
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(field, '/project/draft.txt'); field.dispatchEvent(new Event('input', { bubbles: true })); });
+  await click('Reload inbox'); await settle();
+  expect(host.querySelector('details')!.open).toBe(true);
+  expect(host.querySelector<HTMLTextAreaElement>('[aria-label="Files to send"]')!.value).toBe('/project/draft.txt');
+  expect(writes).toHaveLength(0);
+});
+
+it('limits rendered history, lists newest first, and hides selection on superseded assignments', async () => {
+  events = Array.from({ length: 30 }, (_, index) => event(index + 1));
+  for (const item of events) item.reply!.parts[1].status = 'sent';
+  await open(); expect(host.textContent).toContain('No messages need review'); await all();
+  expect(host.querySelectorAll('details')).toHaveLength(25);
+  expect(host.querySelector('summary')?.textContent).toContain('Request 30');
+  expect(host.querySelectorAll('[aria-label="Files to send"]')).toHaveLength(1);
+  await click('Show 25 more'); expect(host.querySelectorAll('details')).toHaveLength(30);
+});
+
+it('does not apply a pending confirmation after the inbox has been closed', async () => {
+  await open(); await click('Retry remaining reply'); await settle();
+  act(() => unmount()); await click('Retry delivery', document); await settle(); expect(writes).toHaveLength(0);
+});
+
+it('retries failed incoming downloads without starting or replaying model work', async () => {
+  const item = event(); item.status = 'waiting-files'; item.reply = undefined;
+  item.input.media = [{ kind: 'file', fileId: 'provider-file', name: 'report.txt' }];
+  item.files = [{ index: 0, status: 'failed', attempts: [], reason: 'Download interrupted.' }]; events = [item];
+  await open(); expect(host.textContent).toContain('report.txt');
+  await click('Retry failed downloads'); await settle();
+  expect(writes.map((request) => request.url)).toEqual(['/api/gateways/g1/inbox/event-1/retry-files']);
+});
+
+it('distinguishes skipped files from fully confirmed delivery', () => {
+  const item = event(); item.reply!.parts[1].status = 'sent';
+  expect(gatewayMessageStatus(item)).toBe('Delivered');
+  item.outgoing = [{ path: '/report', name: 'report.txt', size: 5, sha256: 'a'.repeat(64), status: 'skipped', attempts: [] }];
+  expect(gatewayMessageStatus(item)).toContain('skipped');
+});

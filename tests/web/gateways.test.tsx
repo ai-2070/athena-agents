@@ -26,6 +26,7 @@ beforeEach(() => {
     if (url === '/api/projects') result = { projects: [{ id: 'p1', name: 'First project' }, { id: 'p2', name: 'Second project' }] };
     else if (url === '/api/gateways' && method === 'GET') result = { instances, health: [] };
     else if (url.startsWith('/api/gateways/targets/')) result = { agents: [{ id: 'a1', name: 'Writer' }], teams: [{ id: 't1', name: 'Editors' }] };
+    else if (url.endsWith('/inbox')) result = { events: [] };
     else if (url.endsWith('/credentials')) {
       if (failToken) return new Response(JSON.stringify({ error: 'Could not store token.' }), { status: 500 });
       const instance = instances.find((item) => url.includes(item.id))!; instance.credentials = { botToken: Boolean(body.botToken) };
@@ -128,4 +129,14 @@ it('finishes an authorized save after navigation without changing the new page U
   await act(async () => finish!()); await settle();
   expect(instances[0].credentials.botToken).toBe(true);
   expect(location.hash).toBe('#/station');
+});
+
+it('opens a per-instance inbox deep link and reports a deleted instance clearly', async () => {
+  await open(); await create(); await act(async () => button('Save instance').click()); await settle();
+  act(() => unmount()); location.hash = '#/settings?tab=gateways&inbox=g1'; await open();
+  expect(host.textContent).toContain('Inbox · Telegram work'); expect(host.textContent).toContain('No messages yet');
+  expect(host.querySelector('[aria-label="Instance name"]')).toBeNull();
+  act(() => unmount()); location.hash = '#/settings?tab=gateways&inbox=deleted'; await open();
+  expect(host.textContent).toContain('This gateway is no longer available');
+  expect(requests.some((item) => item.url === '/api/gateways/deleted/inbox')).toBe(false);
 });

@@ -5,6 +5,7 @@ import { Pill } from '../ui/marks.tsx';
 import { FieldRow, PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { useServerEvents } from '../ui/react.tsx';
+import { GatewayInboxView } from './gateway-inbox.tsx';
 import type { GatewayHealth, GatewayInstance, GatewayTarget, GatewayTargets } from '../../shared/types.ts';
 
 type Listed = GatewayInstance & { credentials: Record<string, boolean>; targetName?: string };
@@ -23,6 +24,7 @@ export function GatewaysTab() {
   const [listing, setListing] = useState<Listing | null>(null);
   const [projects, setProjects] = useState<ProjectChoice[]>([]);
   const [editor, setEditor] = useState<Listed | 'new' | null>(null);
+  const [inbox, setInbox] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const mounted = useRef(false); const request = useRef(0); const linked = useRef(false);
@@ -36,6 +38,8 @@ export function GatewaysTab() {
         linked.current = true;
         const id = new URLSearchParams(location.hash.split('?')[1] || '').get('instance');
         if (id) { const found = gateways.instances.find((item) => item.id === id); if (found?.platform === 'telegram') setEditor(found); else setError('This gateway is unavailable. Choose an instance below.'); }
+        const inboxId = new URLSearchParams(location.hash.split('?')[1] || '').get('inbox');
+        if (inboxId) { setEditor(null); setInbox(inboxId); }
       }
     } catch (failure) { if (mounted.current && version === request.current) setError(message(failure)); }
   }, []);
@@ -46,13 +50,15 @@ export function GatewaysTab() {
     try { await work(); await load(); } catch (failure) { setError(message(failure)); } finally { setBusy(false); }
   };
   const edit = (instance: Listed) => {
-    setEditor(instance);
+    setInbox(null); setEditor(instance);
     history.replaceState(null, '', `#/settings?tab=gateways&instance=${encodeURIComponent(instance.id)}`);
   };
   const close = () => { setEditor(null); history.replaceState(null, '', '#/settings?tab=gateways'); };
+  const closeInbox = () => { setInbox(null); history.replaceState(null, '', '#/settings?tab=gateways'); };
+  const inboxInstance = listing?.instances.find((instance) => instance.id === inbox);
   return <div className="flex flex-col gap-10">
     <Section title="Chat gateways" description="Talk to the Brain, a team or an agent from a messaging app. Each instance has its own account, project and sender rules."
-      action={<Button size="small" disabled={busy || !listing || editor !== null || !projects.length} onClick={() => setEditor('new')}>Add Telegram instance</Button>}>
+      action={<Button size="small" disabled={busy || !listing || editor !== null || !projects.length} onClick={() => { setInbox(null); setEditor('new'); }}>Add Telegram instance</Button>}>
       {error && <div role="alert" className="px-5 py-4 text-red">{error} <Button size="tiny" variant="ghost" onClick={() => void load()}>Reload</Button></div>}
       {!listing ? <Row title={error ? 'Gateways could not load' : 'Loading gateways…'} /> : !listing.instances.length ? <Row title="No gateway instances yet" description="Add a Telegram bot, choose who answers, then allow the people who can message it." /> : listing.instances.map((instance) => {
         const health = listing.health.find((item) => item.instanceId === instance.id);
@@ -60,6 +66,7 @@ export function GatewaysTab() {
         return <Row key={instance.id} title={<span className="flex flex-wrap items-center gap-2">{instance.name}<Pill tone={status === 'Connected' ? 'ok' : instance.enabled ? 'warn' : undefined}>{status}</Pill></span>}
           description={<span className="break-words">{instance.platform === 'telegram' ? 'Telegram' : instance.platform} · {projects.find((item) => item.id === instance.projectId)?.name || 'Project unavailable'} · {instance.targetName || (instance.target.kind === 'brain' ? 'The Brain' : instance.target.kind === 'team' ? 'Team' : 'Agent')}{instance.platform === 'telegram' && !instance.credentials.botToken ? <span className="mt-1 block">Add a bot token before enabling.</span> : null}{health?.reason ? <span className="mt-1 block">{health.reason}</span> : null}</span>}>
           {instance.platform === 'telegram' && <Button size="small" variant="ghost" disabled={busy || editor !== null} onClick={() => edit(instance)}>Edit</Button>}
+          <Button size="small" variant="ghost" disabled={busy || editor !== null} onClick={() => { setInbox(instance.id); history.replaceState(null, '', `#/settings?tab=gateways&inbox=${encodeURIComponent(instance.id)}`); }}>Inbox</Button>
           <Button size="small" variant="ghost" disabled={busy || editor !== null || (!instance.enabled && (instance.platform !== 'telegram' || !instance.credentials.botToken))} onClick={() => void action(() => PUT(`/gateways/${instance.id}`, { ...gatewayConfig(instance), enabled: !instance.enabled }))}>{instance.enabled ? 'Pause' : 'Enable'}</Button>
           {instance.enabled && <Button size="small" variant="ghost" disabled={busy || editor !== null} onClick={() => void action(() => POST(`/gateways/${instance.id}/reconnect`))}>Reconnect</Button>}
           <Button size="small" variant="danger" disabled={busy || editor !== null} onClick={() => void (async () => {
@@ -70,6 +77,8 @@ export function GatewaysTab() {
       <PanelNote>Telegram is available for testing. Slack, Discord and WhatsApp are not ready. Existing one-way notifications stay under Connections. Approvals are reviewed in Athena.</PanelNote>
     </Section>
     {editor && <GatewayEditor key={editor === 'new' ? 'new' : editor.id} instance={editor === 'new' ? null : editor} projects={projects} close={close} saved={async () => { close(); await load(); }} />}
+    {inboxInstance && <GatewayInboxView key={inboxInstance.id} instance={inboxInstance} close={closeInbox} />}
+    {inbox && listing && !inboxInstance && <Row title="This gateway is no longer available"><Button size="small" variant="ghost" onClick={closeInbox}>Close inbox</Button></Row>}
   </div>;
 }
 

@@ -383,8 +383,17 @@ user IDs. Choose whether direct messages are allowed and list exact group/topic 
 Save leaves the instance paused; click **Enable** to connect. Saving an edit pauses it again. Each bot
 account has its own instance and token. **Pause** stops receiving and delivering; native work already
 started keeps its normal stop behavior. **Reconnect** retries connection setup. **Delete** removes the
-connection and token but retains conversation receipts for recovery. File selection and delivery review
-UI are still being built; the local API remains available for those actions.
+connection and token but retains conversation receipts for recovery.
+
+Open an instance's **Inbox** to see messages needing review, or choose **All messages** for its saved
+history. Expand a message to see its original sender, saved destination, attachments, final reply and
+individual delivery results. **Retry remaining reply** preserves confirmed text parts. Outgoing files
+have separate **Retry file** and **Skip file** controls; uncertain deliveries ask you to check Telegram
+first because a retry might create a duplicate. Skipping cannot undo a delivery that already happened.
+Enable a paused instance before retrying. To send specific files for the current assignment, enter
+absolute paths under **Files to send**, one per line. The server checks their location, size and content
+hash before upload. These actions never replay model work. Messages held for native-work review stay
+paused; controls for reconciling that work and removing old receipts are still being built.
 Uncertain sends need review before retrying; automatic retries preserve confirmed reply parts.
 Slow requests can send one working notice. When a run needs approval, Telegram says **Needs approval in Athena**;
 review it in the dashboard. Telegram cannot approve requests.
