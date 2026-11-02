@@ -36,7 +36,10 @@ run because the browser host is unavailable. No real provider accounts or paid m
 
 CI proved both Linux and Windows desktop jobs. The Linux test job exposed four old cold-start
 waits that still assumed an in-process API loop; those waits now allow the native worker to start,
-with explicit completion assertions and bounded cleanup. A final workflow run validates the fixes.
+with explicit completion assertions and bounded cleanup. A cancelled Windows run also showed UI
+timeouts while native and browser tests competed for resources. CI now runs two Vitest workers,
+separates server and browser phases, and allows ten-second DOM polling within a fifteen-second
+test. All 61 affected tests pass with that configuration. A final workflow run validates the fixes.
 Native summary costs now use Eve's model-usage total plus reported SDK costs that have not yet
 reached a refreshed native view. A real compaction test proves a charged summary blocks the next
 model request when it reaches the turn budget. The model's already charged request cannot be undone.
