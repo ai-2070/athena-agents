@@ -13,7 +13,7 @@ const now = Date.now();
 let n = 0;
 const card = (over: Partial<BoardTask>): BoardTask => ({
   id: 't', number: ++n, projectId: 'p1', projectName: 'Bakery', title: 'Task', description: '', status: 'todo', priority: 'normal', assignee: '', rank: 0,
-  createdBy: 'you', createdAt: now, updatedAt: now, assigneeName: 'Unassigned', creatorName: 'You', ...over,
+  createdBy: 'you', createdAt: now, updatedAt: now, assigneeName: 'Unassigned', creatorName: 'You', commentCount: 0, ...over,
 });
 let board: BoardTask[];
 let requests: { method: string; url: string; body: unknown }[];
@@ -53,6 +53,9 @@ beforeEach(() => {
       return t ? json({ task: t }) : new Response(JSON.stringify({ error: 'That task is unavailable.' }), { status: 404 });
     }
     if (one && method === 'PUT') return json({ task: { ...board.find((t) => t.id === one[2]), ...body } });
+    if (url === '/api/task-board-draft') return json({ kind: 'comment', text: 'Is the oven here yet?' });
+    const comments = /^\/api\/task-board\/([^/]+)\/([^/]+)\/comments/.exec(url);
+    if (comments) return json({ task: { ...board.find((t) => t.id === comments[2]), comments: [{ id: 'c9', by: 'you', byName: 'You', text: body?.text, at: now }] } });
     if (method === 'POST') return json({ task: card({ id: 'new', ...body }) });
     return json({ ok: true });
   });
@@ -84,10 +87,10 @@ describe('the Tasks board', () => {
     expect(ids('In review')).toEqual(['r']);
     expect(column('Blocked').textContent).toContain('Waiting for the quote');
     expect(column('To do').textContent).toContain('#1');
-    expect(column('To do').textContent).toContain('Photographer');
+    expect(column('To do').querySelector('[title="Assigned to Photographer"]')).not.toBeNull();
     expect(ids('Done')).toEqual(['d']);
-    const older = [...column('Done').querySelectorAll('button')].find((b) => b.textContent?.startsWith('Show older'))!;
-    expect(older.textContent).toBe('Show older (1)');
+    const older = [...column('Done').querySelectorAll('button')].find((b) => b.textContent?.startsWith('Show'))!;
+    expect(older.textContent).toBe('Show 1 older');
     await act(async () => older.click());
     expect(ids('Done')).toEqual(['d', 'e']);
   });
@@ -150,7 +153,7 @@ describe('the Tasks board', () => {
 describe('a task\'s own page', () => {
   it('shows the task with its properties, and saves a new title when you leave it', async () => {
     await open(['p1', 'k']);
-    expect(el.querySelector('nav[aria-label="Breadcrumb"]')!.textContent).toBe('TasksBakery#5Order the oven');
+    expect(el.querySelector('nav[aria-label="Breadcrumb"]')!.textContent).toBe('TasksBakery#5');
     expect(el.textContent).toContain('Waiting for the quote');
     expect(el.querySelector('[aria-label="Status: Blocked"]')).not.toBeNull();
     const title = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Title"]')!;
@@ -159,6 +162,59 @@ describe('a task\'s own page', () => {
     await act(async () => title.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
     await settle();
     expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/k', body: { title: 'Order the new oven' } });
+  });
+
+  it('shows the description as Markdown, and its comments, and adds one', async () => {
+    board[0] = { ...board[0], description: 'Use **real** butter.', comments: [{ id: 'c1', by: 'brain', byName: 'The Brain', text: 'Checked the *price*.', at: now }] };
+    await open(['p1', 'a']);
+    expect(el.querySelector('strong')?.textContent).toBe('real');
+    expect(el.querySelector('section[aria-label="Activity"]')!.textContent).toContain('The Brain');
+    expect(el.querySelector('section[aria-label="Activity"] em')?.textContent).toBe('price');
+    await type(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Comment"]')!, 'Looks *good*');
+    await act(async () => el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Comment"]')!.form!.requestSubmit());
+    await settle();
+    expect(requests.find((r) => r.method === 'POST')).toMatchObject({ url: '/api/task-board/p1/a/comments', body: { text: 'Looks *good*' } });
+  });
+
+  it('drafts a comment with the Brain, and Undo takes it back', async () => {
+    await open(['p1', 'a']);
+    const box = () => el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Comment"]')!;
+    await type(box(), 'mine');
+    const draft = [...el.querySelectorAll<HTMLButtonElement>('section[aria-label="Activity"] button')].find((b) => b.textContent === 'Draft with the Brain')!;
+    await act(async () => draft.click());
+    await settle();
+    await type(document.querySelector<HTMLInputElement>('input[placeholder^="e.g. make it a checklist"]')!, 'ask about the oven');
+    await act(async () => document.querySelector<HTMLInputElement>('input[placeholder^="e.g. make it a checklist"]')!.form!.requestSubmit());
+    await settle();
+    expect(requests.find((r) => r.url === '/api/task-board-draft')).toMatchObject({ method: 'POST', body: { projectId: 'p1', kind: 'comment', taskId: 'a', text: 'mine', instruction: 'ask about the oven' } });
+    expect(box().value).toBe('Is the oven here yet?');
+    // (drafting never sends the comment)
+    expect(requests.some((r) => r.url.endsWith('/comments'))).toBe(false);
+    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Undo')!.click());
+    expect(box().value).toBe('mine');
+  });
+
+  it('shows @mentions of agents as pills, and @ in the comment box offers the project\'s agents', async () => {
+    board[0] = { ...board[0], comments: [{ id: 'c1', by: 'you', byName: 'You', text: 'Ask @Photographer for the shots.', at: now }] };
+    await open(['p1', 'a']);
+    await settle(60);
+    const pill = el.querySelector('section[aria-label="Activity"] .task-mention');
+    expect(pill?.textContent).toBe('@Photographer');
+    const box = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Comment"]')!;
+    // (the box is the pill editor now: the textarea stays the text behind it)
+    expect(box.hidden).toBe(true);
+    box.focus();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(box, 'Thanks @Pho');
+      box.setSelectionRange(11, 11);
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await settle();
+    const menu = document.querySelector('.rt-menu')!;
+    expect([...menu.querySelectorAll('.rt-menu-item')].map((b) => b.textContent)).toEqual(['📷Photographer']);
+    await act(async () => box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
+    expect(box.value).toBe('Thanks @Photographer ');
+    expect(el.querySelector('section[aria-label="Activity"] [data-mention="@Photographer"]')).not.toBeNull();
   });
 
   it('says so when the task is gone', async () => {

@@ -3,20 +3,21 @@
 // Blocked, Done) for this project or every project. Drag a card to move it (a copy follows the pointer, a gap
 // opens where it will land, and the card glides from where it is let go), or focus it and press [ / ] to change
 // column and Alt+↑ / Alt+↓ to move it within one; its "…" menu does the same. A change is saved in the task's own
-// project.
+// project. A task's page shows its description (Markdown) and its comments, with "Draft with the Brain" for both.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent } from 'react';
-import { DEL, GET, PUT, ago, confirmBox, navigate, onEvent, onReconnect, promptBox, toast } from '../core.ts';
+import { DEL, GET, POST, PUT, ago, confirmBox, navigate, onEvent, onReconnect, promptBox, toast } from '../core.ts';
 import { reducedMotion } from '../motion.ts';
 import { Button, ButtonLink, IconButton } from '../ui/button.tsx';
 import { iconButtonClass } from '../ui/classes.ts';
 import { Dropdown, DropdownContent, DropdownGroup, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger } from '../ui/dropdown.tsx';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
-import { SelectControl } from '../ui/select.tsx';
 import { Bone, Skeleton } from '../ui/skeleton.tsx';
 import { cardCopy, grab, useDragPreview } from '../taskmotion.ts';
-import { PRIORITIES, PriorityIcon, STATUSES, StatusIcon, Pick, assigneeChoices, openTaskComposer, priorityChoices, priorityOf, statusChoices, statusOf, taskHref, taskKey, usePeople } from '../taskboard.tsx';
-import type { BoardPriority, BoardStatus, BoardTask, TaskBoardData } from '../../shared/types.ts';
+import { DraftWithBrain, Markdown, useMentionBox, useMentionables, PRIORITIES, Pick, PriorityIcon, STATUSES, StatusIcon, WhoMark, askForDraft, assigneeChoices, openTaskComposer, priorityChoices, priorityOf, statusChoices, statusOf, taskHref, taskKey, usePeople } from '../taskboard.tsx';
+import type { Choice } from '../taskboard.tsx';
+import type { Candidate } from '../routinemention.ts';
+import type { BoardComment, BoardPriority, BoardStatus, BoardTask, TaskBoardData } from '../../shared/types.ts';
 
 // Done shows what was finished lately; "Show older" shows the rest
 const RECENT_MS = 14 * 86_400_000;
@@ -32,8 +33,9 @@ export function rankBetween(above: number | undefined, below: number | undefined
 }
 const byRank = (a: BoardTask, b: BoardTask) => a.rank - b.rank || b.createdAt - a.createdAt || a.id.localeCompare(b.id);
 const same = (a: BoardTask, b: BoardTask) => a.id === b.id && a.projectId === b.projectId;
-const path = (t: BoardTask) => `/task-board/${encodeURIComponent(t.projectId)}/${encodeURIComponent(t.id)}`;
+const path = (t: Pick<BoardTask, 'projectId' | 'id'>) => `/task-board/${encodeURIComponent(t.projectId)}/${encodeURIComponent(t.id)}`;
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const cardKey = (t: BoardTask) => `${t.projectId}/${t.id}`;
 
 /** Asks why a task is blocked (null: the move is called off). */
 const askWhyBlocked = (t: BoardTask) => promptBox(`Why is ${taskKey(t.number)} blocked?`, { placeholder: 'e.g. Waiting for the printer\'s quote', ok: 'Move to Blocked' });
@@ -130,6 +132,7 @@ function TaskBoardPage() {
   const people = [...new Set(tasks.map((t) => t.assigneeName))].sort((a, b) => (a === 'Unassigned' ? 1 : b === 'Unassigned' ? -1 : a.localeCompare(b)));
   const allProjects = project === 'all';
   const filtered = !!(q || assignee || priority);
+  const open = tasks.filter((t) => t.status !== 'done').length;
 
   /** Saves a move (and shows it at once); one the server refuses goes back. Moving to Blocked asks why first. */
   const move = async (task: BoardTask, status: BoardStatus, rank: number, at?: { x: number; y: number }) => {
@@ -140,7 +143,7 @@ function TaskBoardPage() {
       if (why === null) return;
       blockedReason = why;
     }
-    remember(`${task.projectId}/${task.id}`, at);
+    remember(cardKey(task), at);
     setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, status, rank, updatedAt: Date.now(), ...(blockedReason !== undefined ? { blockedReason } : {}) } : t)) } : d));
     try {
       await PUT(path(task), { status, rank, ...(blockedReason !== undefined ? { blockedReason } : {}) });
@@ -149,7 +152,7 @@ function TaskBoardPage() {
       remember();
       void load();
     }
-    requestAnimationFrame(() => board.current?.querySelector<HTMLElement>(`[data-task-id="${task.projectId}/${task.id}"]`)?.focus({ preventScroll: true }));
+    requestAnimationFrame(() => board.current?.querySelector<HTMLElement>(`[data-task-id="${cardKey(task)}"]`)?.focus({ preventScroll: true }));
   };
   // the rank for a place in a column, among its other cards
   const rankAt = (status: BoardStatus, index: number, task: BoardTask) => {
@@ -196,24 +199,32 @@ function TaskBoardPage() {
     localStorage.setItem(WHICH_KEY, v);
     setWhich(v);
   };
-  const projectOptions = [
-    { value: 'here', label: 'This project', icon: 'folder-open' },
-    { value: 'all', label: 'All projects', icon: 'layers' },
-    ...(data?.projects || []).filter((p) => p.id !== here).map((p) => ({ value: p.id, label: `${p.name}${p.open ? ` (${p.open})` : ''}`, icon: 'folder' })),
+  const projectChoices: Choice[] = [
+    { value: 'here', label: 'This project', mark: <Icon name="folder-open" size={14} className="text-faint" /> },
+    { value: 'all', label: 'All projects', mark: <Icon name="layers" size={14} className="text-faint" /> },
+    ...(data?.projects || []).filter((p) => p.id !== here).map((p) => ({ value: p.id, label: `${p.name}${p.open ? ` (${p.open})` : ''}`, mark: <Icon name="folder" size={14} className="text-faint" /> })),
   ];
 
   return (
-    <div className="flex flex-col gap-5 pb-10">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <label className="relative w-60 max-sm:w-full">
-          <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint"><Icon name="search" size={14} /></span>
-          <input className="pl-8.5!" aria-label="Search tasks" placeholder="Search tasks…" value={search} maxLength={240} onChange={(e) => setSearch(e.currentTarget.value)} />
+    <div className="flex flex-col gap-4">
+      {/* filters as one quiet row of pills; New task on the right */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative w-56 max-sm:w-full">
+          <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-faint"><Icon name="search" size={13} /></span>
+          <input className="h-8! rounded-full! py-0! pl-8! text-[12.5px]!" aria-label="Search tasks" placeholder="Search tasks" value={search} maxLength={240} onChange={(e) => setSearch(e.currentTarget.value)} />
         </label>
-        <SelectControl aria-label="Projects shown" value={which === 'here' || which === 'all' || data?.projects.some((p) => p.id === which) ? which : 'here'} options={projectOptions} onChange={pick} className="w-48! flex-none max-sm:w-full!" />
-        <SelectControl aria-label="Assigned to" value={assignee} options={[{ value: '', label: 'Anyone', icon: 'users' }, ...people.map((o) => ({ value: o, label: o }))]} onChange={setAssignee} className="w-44! flex-none max-sm:w-full!" />
-        <SelectControl aria-label="Priority" value={priority} options={[{ value: '', label: 'Any priority', icon: 'chevrons-up' }, ...PRIORITIES.map((p) => ({ value: p.value, label: p.label, icon: p.icon }))]} onChange={setPriority} className="w-40! flex-none max-sm:w-full!" />
-        <Button className="ml-auto" onClick={() => compose()}>
-          <Icon name="plus" size={15} />
+        <Pick label="Projects shown" value={which === 'here' || which === 'all' || data?.projects.some((p) => p.id === which) ? which : 'here'} choices={projectChoices} onChange={pick} />
+        <Pick label="Assigned to" value={assignee} choices={[{ value: '', label: 'Anyone', mark: <Icon name="users" size={14} className="text-faint" /> }, ...people.map((o) => ({ value: o, label: o }))]} onChange={setAssignee} />
+        <Pick label="Priority" value={priority} choices={[{ value: '', label: 'Any priority', mark: <Icon name="chevrons-up" size={14} className="text-faint" /> }, ...PRIORITIES.map((p) => ({ value: p.value, label: p.label, mark: <PriorityIcon priority={p.value} /> }))]} onChange={setPriority} />
+        {filtered ? (
+          <Button variant="plain" size="small" onClick={() => (setSearch(''), setAssignee(''), setPriority(''))}>
+            <Icon name="x" size={13} />
+            Clear
+          </Button>
+        ) : null}
+        <span className="ml-auto text-[12.5px] text-faint tabular-nums max-sm:hidden">{data ? `${open} open${allProjects ? ' in all projects' : ''}` : ''}</span>
+        <Button size="small" onClick={() => compose()}>
+          <Icon name="plus" size={14} />
           New task
         </Button>
       </div>
@@ -223,25 +234,26 @@ function TaskBoardPage() {
           <Button variant="ghost" size="small" onClick={() => void load()}>Try again</Button>
         </div>
       ) : null}
-      {/* (the board scrolls sideways when the window is narrower than its five columns) */}
-      <div ref={board} className="relative grid auto-cols-[minmax(14rem,1fr)] grid-flow-col items-start gap-3 overflow-x-auto pb-2" aria-label="Task board">
+      {/* the columns fill the window and each scrolls on its own; the board scrolls sideways when it is narrow */}
+      <div ref={board} className="relative grid h-[calc(100dvh-13.5rem)] min-h-96 auto-cols-[minmax(13.5rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-1" aria-label="Task board">
         {columns.map((c) => {
           const index = drop?.status === c.value ? drop.index : null;
           const others = c.list.filter((t) => !dragging || !same(t, dragging));
           const home = dragging && dragging.status === c.value ? c.list.findIndex((t) => same(t, dragging)) : -1;
           // dropping a card where it already is changes nothing: no gap there
           const gap = index !== null && index !== home ? index : null;
+          const canAdd = c.value === 'todo' || c.value === 'in_progress' || c.value === 'in_review';
           return (
             <section
               key={c.value}
               data-column={c.value}
               aria-label={c.label}
-              className={`flex min-h-[min(70vh,600px)] min-w-0 flex-col rounded-box border border-line bg-panel-2/45 p-2 [transition:background-color_0.15s,border-color_0.15s] ${index !== null ? 'border-accent/40 bg-accent/5' : ''}`}
+              className="group/col flex min-h-0 min-w-0 flex-col"
               onDragOver={(e: ReactDragEvent) => {
                 if (!dragging) return;
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
-                const cards = [...e.currentTarget.querySelectorAll<HTMLElement>('[data-task-id]')].filter((el) => el.dataset.taskId !== `${dragging.projectId}/${dragging.id}`);
+                const cards = [...e.currentTarget.querySelectorAll<HTMLElement>('[data-task-id]')].filter((el) => el.dataset.taskId !== cardKey(dragging));
                 const at = cards.findIndex((el) => { const r = el.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
                 const next = at === -1 ? cards.length : at;
                 setDrop((d) => (d?.status === c.value && d.index === next ? d : { status: c.value, index: next }));
@@ -254,67 +266,74 @@ function TaskBoardPage() {
                 onDrop(c.value, { x: e.clientX, y: e.clientY });
               }}
             >
-              <div className="flex h-9 items-center gap-2 px-2">
+              <div className="flex h-9 flex-none items-center gap-2 px-1.5">
                 <StatusIcon status={c.value} />
-                <h2 className="m-0 text-[13.5px] font-semibold text-ink">{c.label}</h2>
-                <span className="text-[12px] text-faint tabular-nums">{data ? c.list.length : '…'}</span>
+                <h2 className="m-0 text-[13px] font-semibold text-ink">{c.label}</h2>
+                <span className="rounded-full bg-ink/6 px-1.5 text-[11px] leading-[18px] text-dim tabular-nums">{data ? c.list.length : '…'}</span>
                 {/* a task starts in one of the first three; Blocked and Done are moved to */}
-                {c.value === 'todo' || c.value === 'in_progress' || c.value === 'in_review' ? (
-                  <IconButton variant="plain" className="ml-auto" aria-label={`Create a task in ${c.label}`} title={`Create a task in ${c.label}`} onClick={() => compose(c.value)}>
+                {canAdd ? (
+                  <IconButton variant="plain" className="ml-auto opacity-0 group-hover/col:opacity-100 focus-visible:opacity-100" aria-label={`Create a task in ${c.label}`} title={`Create a task in ${c.label}`} onClick={() => compose(c.value)}>
                     <Icon name="plus" size={15} />
                   </IconButton>
                 ) : null}
               </div>
-              {!data && !error ? (
-                <Skeleton label="Loading tasks…" className="flex flex-col gap-2 p-0.5">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="flex flex-col gap-3 rounded-[10px] border border-line bg-bg p-3">
-                      <Bone className="h-3 w-14" />
-                      <Bone className={`h-4 ${i % 2 ? 'w-1/2' : 'w-4/5'}`} />
-                      <Bone className="h-3 w-24" />
-                    </div>
-                  ))}
-                </Skeleton>
-              ) : (
-                <ul className="m-0 flex flex-1 list-none flex-col gap-2 p-0.5">
-                  {c.list.map((t) => {
-                    const place = others.indexOf(t);
-                    return [
-                      gap !== null && dragging && place === gap ? <DropGhost key={`slot-${t.projectId}/${t.id}`} task={dragging} height={slot} /> : null,
-                      <Card
-                        key={`${t.projectId}/${t.id}`}
-                        task={t}
-                        showProject={allProjects}
-                        first={c.list[0] === t}
-                        last={c.list[c.list.length - 1] === t}
-                        dragging={!!dragging && same(dragging, t)}
-                        onDragStart={(el) => (setSlot(el.getBoundingClientRect().height), setDragging(t))}
-                        onDragEnd={() => (setDragging(null), setDrop(null))}
-                        onColumn={(s) => toColumn(t, s)}
-                        onStep={(d) => step(t, d)}
-                        onRemove={() => void remove(t)}
-                      />,
-                    ];
-                  })}
-                  {gap !== null && dragging && gap >= others.length ? <DropGhost task={dragging} height={slot} /> : null}
-                  {data && !c.list.length && index === null ? (
-                    <li className="flex min-h-24 items-center justify-center rounded-[10px] border border-dashed border-line-2 px-4 text-center text-[12.5px] text-faint">
-                      {filtered ? 'Nothing here matches the filters.' : c.value === 'done' ? (older ? 'Nothing done yet.' : 'Nothing done in the last 14 days.') : 'Drop a card here.'}
-                    </li>
-                  ) : null}
-                </ul>
-              )}
-              {c.value === 'done' && (c.hidden || older) ? (
-                <Button variant="plain" size="small" className="mt-1 self-center" onClick={() => setOlder(!older)}>
-                  {older ? 'Only the last 14 days' : `Show older (${c.hidden})`}
-                </Button>
-              ) : null}
+              <div className={`flex min-h-0 flex-1 flex-col overflow-y-auto rounded-box p-1.5 [transition:background-color_0.15s,box-shadow_0.15s] ${index !== null ? 'bg-accent/6 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]' : 'bg-ink/[0.025]'}`}>
+                {!data && !error ? (
+                  <Skeleton label="Loading tasks…" className="flex flex-col gap-1.5">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="flex flex-col gap-3 rounded-[10px] border border-line bg-bg p-3">
+                        <Bone className={`h-4 ${i % 2 ? 'w-1/2' : 'w-4/5'}`} />
+                        <Bone className="h-3 w-20" />
+                      </div>
+                    ))}
+                  </Skeleton>
+                ) : (
+                  <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+                    {c.list.map((t) => {
+                      const place = others.indexOf(t);
+                      return [
+                        gap !== null && dragging && place === gap ? <DropGhost key={`slot-${cardKey(t)}`} task={dragging} height={slot} /> : null,
+                        <Card
+                          key={cardKey(t)}
+                          task={t}
+                          showProject={allProjects}
+                          first={c.list[0] === t}
+                          last={c.list[c.list.length - 1] === t}
+                          dragging={!!dragging && same(dragging, t)}
+                          onDragStart={(el) => (setSlot(el.getBoundingClientRect().height), setDragging(t))}
+                          onDragEnd={() => (setDragging(null), setDrop(null))}
+                          onColumn={(s) => toColumn(t, s)}
+                          onStep={(d) => step(t, d)}
+                          onRemove={() => void remove(t)}
+                        />,
+                      ];
+                    })}
+                    {gap !== null && dragging && gap >= others.length ? <DropGhost task={dragging} height={slot} /> : null}
+                    {data && !c.list.length && index === null ? (
+                      <li className="flex flex-col items-center gap-2 px-3 py-8 text-center text-[12.5px] text-faint">
+                        {filtered ? 'Nothing here matches.' : c.value === 'done' ? (older ? 'Nothing done yet.' : 'Nothing done in the last 14 days.') : 'No tasks'}
+                        {canAdd && !filtered ? (
+                          <Button variant="plain" size="tiny" onClick={() => compose(c.value)}>
+                            <Icon name="plus" size={12} />
+                            Add one
+                          </Button>
+                        ) : null}
+                      </li>
+                    ) : null}
+                  </ul>
+                )}
+                {c.value === 'done' && (c.hidden || older) ? (
+                  <Button variant="plain" size="tiny" className="mt-1 self-center" onClick={() => setOlder(!older)}>
+                    {older ? 'Only the last 14 days' : `Show ${c.hidden} older`}
+                  </Button>
+                ) : null}
+              </div>
             </section>
           );
         })}
       </div>
-      <p className="m-0 text-[12.5px] text-faint">
-        Drag a card, or focus it and press <kbd>[</kbd> / <kbd>]</kbd> to change column and <kbd>Alt</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd> to move it up or down. Enter opens it. {allProjects ? 'New tasks go to the project open now, unless you pick another.' : ''}
+      <p className="m-0 text-[12px] text-faint">
+        Drag a card, or focus it and press <kbd>[</kbd> / <kbd>]</kbd> to change column and <kbd>Alt</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd> to move it up or down. Enter opens it.
       </p>
     </div>
   );
@@ -329,7 +348,7 @@ function DropGhost({ task, height }: { task: BoardTask; height: number }) {
   const slot = useRef<HTMLLIElement>(null);
   useLayoutEffect(() => {
     const host = slot.current;
-    const card = document.querySelector<HTMLElement>(`[data-task-id="${task.projectId}/${task.id}"]`);
+    const card = document.querySelector<HTMLElement>(`[data-task-id="${cardKey(task)}"]`);
     if (!host || !card) return;
     host.replaceChildren(cardCopy(card));
     return () => host.replaceChildren();
@@ -351,13 +370,14 @@ function Card({ task: t, showProject, first, last, dragging, onDragStart, onDrag
 }) {
   const column = STATUSES.findIndex((s) => s.value === t.status);
   const open = () => navigate(taskHref(t));
+  const pr = priorityOf(t.priority);
   return (
     <li
-      data-task-id={`${t.projectId}/${t.id}`}
+      data-task-id={cardKey(t)}
       tabIndex={0}
       draggable
       aria-label={`${taskKey(t.number)} ${t.title}, ${statusOf(t.status).label}${showProject ? `, ${t.projectName}` : ''}`}
-      className={`group flex cursor-pointer flex-col gap-2 rounded-[10px] border border-line bg-bg p-3 text-[13px] shadow-card outline-none [transition:border-color_0.15s,box-shadow_0.15s,background-color_0.15s,opacity_0.15s] hover:border-line-2 hover:bg-panel hover:shadow-lift focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)] ${dragging ? 'opacity-40' : ''}`}
+      className={`group relative flex cursor-pointer flex-col gap-2 rounded-[10px] border border-line bg-bg px-3 py-2.5 text-[13px] shadow-card outline-none [transition:border-color_0.15s,box-shadow_0.15s,opacity_0.15s] hover:border-line-2 hover:shadow-lift focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)] ${dragging ? 'opacity-40' : ''}`}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', t.id);
@@ -379,45 +399,41 @@ function Card({ task: t, showProject, first, last, dragging, onDragStart, onDrag
         if (e.altKey && e.key === 'ArrowDown') return (e.preventDefault(), onStep(1));
       }}
     >
-      <div className="flex h-5 items-center gap-1.5 text-[11.5px] text-faint">
-        <span title={`${priorityOf(t.priority).label} priority`} className="inline-flex"><PriorityIcon priority={t.priority} size={13} /></span>
-        <span className="font-medium tabular-nums">{taskKey(t.number)}</span>
-        {showProject ? (
-          <span className="inline-flex min-w-0 items-center gap-1 truncate" title={`Project: ${t.projectName}`}>
-            <span aria-hidden="true">·</span>
-            <span className="truncate">{t.projectName}</span>
-          </span>
-        ) : null}
-        <span className="ml-auto flex-none">
+      <div className="flex items-start gap-2">
+        <a href={taskHref(t)} tabIndex={-1} draggable={false} className="line-clamp-3 min-w-0 flex-1 leading-snug font-medium break-words text-ink no-underline hover:text-ink">{t.title}</a>
+        {/* (shows when you point at the card) */}
+        <span className="-mt-0.5 -mr-1.5 flex-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 has-data-popup-open:opacity-100">
           <CardMenu task={t} first={first} last={last} onColumn={onColumn} onStep={onStep} onOpen={open} onRemove={onRemove} />
         </span>
       </div>
-      <a href={taskHref(t)} tabIndex={-1} draggable={false} className="line-clamp-3 leading-snug font-medium break-words text-ink no-underline hover:text-ink">{t.title}</a>
-      {t.status === 'blocked' && t.blockedReason ? <p className="m-0 line-clamp-2 text-[12px] text-red">{t.blockedReason}</p> : null}
-      <div className="flex items-center gap-2 pt-0.5 text-[12px] text-dim">
-        <span className="flex min-w-0 flex-1 items-center gap-1.5">
-          {t.assignee ? <Who task={t} /> : null}
-          <span className={`truncate ${t.assignee ? 'font-medium text-ink' : ''}`}>{t.assigneeName}</span>
+      {t.status === 'blocked' && t.blockedReason ? <p className="m-0 line-clamp-2 text-[12px] leading-snug text-red">{t.blockedReason}</p> : null}
+      <div className="flex min-w-0 items-center gap-2 text-[11.5px] text-faint">
+        <span className="font-medium tabular-nums">{taskKey(t.number)}</span>
+        {t.priority !== 'normal' ? (
+          <span className={`inline-flex items-center gap-1 ${pr.tone}`} title={`${pr.label} priority`}>
+            <PriorityIcon priority={t.priority} size={12} />
+            {t.priority === 'urgent' || t.priority === 'high' ? pr.label : null}
+          </span>
+        ) : null}
+        {t.commentCount ? (
+          <span className="inline-flex items-center gap-1 tabular-nums" title={`${t.commentCount} comment${t.commentCount === 1 ? '' : 's'}`}>
+            <Icon name="message-square" size={12} />
+            {t.commentCount}
+          </span>
+        ) : null}
+        {showProject ? <span className="min-w-0 truncate" title={`Project: ${t.projectName}`}>{t.projectName}</span> : null}
+        <span className="ml-auto flex flex-none items-center" title={t.assignee ? `Assigned to ${t.assigneeName}` : 'Unassigned'}>
+          {t.assignee ? <WhoMark who={t.assignee} emoji={t.assigneeEmoji} color={t.assigneeColor} size={20} /> : <span className="grid size-5 place-items-center rounded-[7px] border border-dashed border-line-2 text-faint"><Icon name="user" size={10} /></span>}
         </span>
-        <span className="flex-none text-[11.5px] text-faint tabular-nums" title={new Date(t.updatedAt).toLocaleString()}>{ago(t.updatedAt)}</span>
       </div>
     </li>
-  );
-}
-
-/** Who has a task: an agent's emoji on its colour, or the mark for you, the Brain or a team. */
-function Who({ task: t, size = 20 }: { task: BoardTask; size?: number }) {
-  return (
-    <span aria-hidden="true" className="grid flex-none place-items-center rounded-[6px] border border-line bg-panel-2 text-[11px] text-dim" style={{ width: size, height: size, ...(t.assigneeColor ? { boxShadow: `inset 0 -2px 0 ${t.assigneeColor}` } : {}) }}>
-      {t.assigneeEmoji || <Icon name={t.assignee === 'brain' ? 'brain' : t.assignee.startsWith('team:') ? 'users' : t.assignee.startsWith('agent:') ? 'bot' : 'user'} size={11} />}
-    </span>
   );
 }
 
 function CardMenu({ task, first, last, onColumn, onStep, onOpen, onRemove }: { task: BoardTask; first: boolean; last: boolean; onColumn: (s: BoardStatus) => void; onStep: (dir: -1 | 1) => void; onOpen: () => void; onRemove: () => void }) {
   return (
     <Dropdown>
-      <DropdownTrigger className={iconButtonClass('plain', '-mt-0.5 -mr-1 size-6! opacity-60 group-hover:opacity-100 focus-visible:opacity-100')} aria-label={`Actions for ${task.title}`}>
+      <DropdownTrigger className={iconButtonClass('plain', 'size-6!')} aria-label={`Actions for ${task.title}`}>
         <Icon name="ellipsis" size={14} />
       </DropdownTrigger>
       <DropdownContent align="end" className="min-w-48">
@@ -453,7 +469,7 @@ function TaskPage({ projectId, id }: { projectId: string; id: string }) {
     }
   }, [projectId, id]);
   useEffect(() => void load(), [load]);
-  // (changed somewhere else: on the board in another tab, say)
+  // (changed somewhere else: on the board, by the Brain, in another tab)
   useEffect(() => onEvent((e) => e.type === 'board' && e.projectId === projectId && Array.isArray(e.ids) && e.ids.includes(id) && void load()), [load, projectId, id]);
   if (error)
     return (
@@ -474,6 +490,8 @@ function TaskPage({ projectId, id }: { projectId: string; id: string }) {
 
 function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: BoardTask) => void }) {
   const people = usePeople(task.projectId);
+  // what @ can mention here: this project's agents and teams, and the skills
+  const mentions = useMentionables(task.projectId);
   const save = async (patch: Record<string, unknown>) => {
     try {
       const r = await PUT<{ task: BoardTask }>(path(task), patch);
@@ -502,35 +520,44 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
       toast(errorText(e), 'error');
     }
   };
+  const copyLink = () => void navigator.clipboard?.writeText(location.href).then(() => toast(`Link to ${taskKey(task.number)} copied`), () => toast('Could not copy the link', 'error'));
   const detail = (label: string, value: string, title?: string) => (
-    <div className="grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-2 px-2 py-1.5 text-[13px]">
+    <div className="flex items-center justify-between gap-3 py-1 text-[12.5px]">
       <dt className="text-dim">{label}</dt>
       <dd className="m-0 min-w-0 truncate text-ink" title={title}>{value}</dd>
     </div>
   );
   return (
     <div className="flex flex-col">
-      <div className="mb-6 flex items-center gap-2 border-b border-line pb-3">
+      <div className="mb-8 flex items-center gap-2">
         <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-[13px]">
-          <a href="#/tasks" className="text-dim no-underline hover:text-ink">Tasks</a>
+          <a href="#/tasks" className="inline-flex items-center gap-1.5 text-dim no-underline hover:text-ink">
+            <Icon name="kanban" size={14} />
+            Tasks
+          </a>
           <Icon name="chevron-right" size={13} className="text-faint" />
           <span className="flex-none text-dim">{task.projectName}</span>
           <Icon name="chevron-right" size={13} className="text-faint" />
-          <span className="flex-none text-dim tabular-nums">{taskKey(task.number)}</span>
-          <span aria-current="page" className="truncate font-medium text-ink">{task.title}</span>
+          <span aria-current="page" className="flex-none font-medium text-ink tabular-nums">{taskKey(task.number)}</span>
         </nav>
-        <IconButton
-          variant="plain"
-          className="ml-auto"
-          aria-label="Copy a link to this task"
-          title="Copy a link to this task"
-          onClick={() => void navigator.clipboard?.writeText(location.href).then(() => toast(`Link to ${taskKey(task.number)} copied`), () => toast('Could not copy the link', 'error'))}
-        >
-          <Icon name="link" size={15} />
-        </IconButton>
+        <div className="ml-auto flex items-center gap-1">
+          <IconButton variant="plain" aria-label="Copy a link to this task" title="Copy a link to this task" onClick={copyLink}>
+            <Icon name="link" size={15} />
+          </IconButton>
+          <Dropdown>
+            <DropdownTrigger className={iconButtonClass('plain')} aria-label="More for this task">
+              <Icon name="ellipsis" size={15} />
+            </DropdownTrigger>
+            <DropdownContent align="end" className="min-w-44">
+              <DropdownItem icon="link" onClick={copyLink}>Copy link</DropdownItem>
+              <DropdownSeparator />
+              <DropdownItem icon="trash-2" danger onClick={() => void remove()}>Remove task</DropdownItem>
+            </DropdownContent>
+          </Dropdown>
+        </div>
       </div>
-      <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <article className="flex min-w-0 flex-col gap-6 max-lg:order-2">
+      <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <article className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-6 max-lg:order-2">
           <TitleEditor task={task} onSave={(title) => save({ title })} />
           {task.status === 'blocked' ? (
             <div className="flex items-start gap-3 rounded-box border border-red/25 bg-red/6 px-4 py-3">
@@ -542,29 +569,22 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
               <Button variant="ghost" size="tiny" onClick={async () => { const why = await askWhyBlocked(task); if (why !== null) void save({ blockedReason: why }); }}>Change</Button>
             </div>
           ) : null}
-          <DescriptionEditor task={task} onSave={(description) => save({ description })} />
+          <DescriptionEditor task={task} mentions={mentions} onSave={(description) => save({ description })} />
+          <Activity task={task} mentions={mentions} onChange={onChange} />
         </article>
-        <aside aria-label="Properties" className="flex flex-col gap-6 lg:border-l lg:border-line lg:pl-6 max-lg:order-1">
-          <section className="flex flex-col gap-0.5">
-            <h2 className="m-0 px-2 pb-1 text-[12px] font-medium text-dim">Properties</h2>
+        <aside aria-label="Properties" className="flex flex-col gap-4 lg:sticky lg:top-20 max-lg:order-1">
+          <div className="flex flex-col gap-0.5 rounded-box border border-line bg-panel p-2 shadow-card">
             <Pick look="row" label="Status" value={task.status} choices={statusChoices()} onChange={(v) => void changeStatus(v as BoardStatus)} />
             <Pick look="row" label="Priority" value={task.priority} choices={priorityChoices()} onChange={(v) => void save({ priority: v as BoardPriority })} />
             <Pick look="row" label="Assigned to" value={task.assignee} choices={assigneeChoices(people)} onChange={(v) => void save({ assignee: v })} />
-          </section>
-          <section>
-            <h2 className="m-0 px-2 pb-1 text-[12px] font-medium text-dim">Details</h2>
-            <dl className="m-0">
-              {detail('Project', task.projectName)}
-              {detail('Created', ago(task.createdAt), new Date(task.createdAt).toLocaleString())}
-              {detail('By', task.creatorName)}
-              {detail('Updated', ago(task.updatedAt), new Date(task.updatedAt).toLocaleString())}
-              {task.doneAt ? detail('Done', ago(task.doneAt), new Date(task.doneAt).toLocaleString()) : null}
-            </dl>
-          </section>
-          <Button variant="danger" size="small" className="self-start" onClick={() => void remove()}>
-            <Icon name="trash-2" size={14} />
-            Remove task
-          </Button>
+          </div>
+          <dl className="m-0 flex flex-col px-2">
+            {detail('Project', task.projectName)}
+            {detail('Created', ago(task.createdAt), new Date(task.createdAt).toLocaleString())}
+            {detail('By', task.creatorName)}
+            {detail('Updated', ago(task.updatedAt), new Date(task.updatedAt).toLocaleString())}
+            {task.doneAt ? detail('Done', ago(task.doneAt), new Date(task.doneAt).toLocaleString()) : null}
+          </dl>
         </aside>
       </div>
     </div>
@@ -590,35 +610,198 @@ function TitleEditor({ task, onSave }: { task: BoardTask; onSave: (title: string
         onChange={(e) => setValue(e.currentTarget.value.replace(/\n/g, ' '))}
         onBlur={() => void commit()}
         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), e.currentTarget.blur())}
-        className="field-sizing-content -mx-2 min-h-0! w-[calc(100%+1rem)] resize-none border-transparent! bg-transparent! px-2! py-1! text-[24px]! leading-tight! font-semibold tracking-tight shadow-none! hover:bg-panel-2/60! focus:border-accent!"
+        className="field-sizing-content -mx-2 min-h-0! w-[calc(100%+1rem)] resize-none border-transparent! bg-transparent! px-2! py-1! text-[26px]! leading-tight! font-semibold tracking-tight shadow-none! hover:bg-ink/4! focus:border-accent!"
       />
     </h1>
   );
 }
 
-/** The description: edited in place, saved when you leave it. */
-function DescriptionEditor({ task, onSave }: { task: BoardTask; onSave: (description: string) => Promise<boolean> }) {
+/** The description: Markdown to read, and Edit to write it (with Draft with the Brain); Ctrl+Enter saves. */
+function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentions: Candidate[]; onSave: (description: string) => Promise<boolean> }) {
+  const [editing, setEditing] = useState(false);
+  const box = useRef<HTMLTextAreaElement>(null);
+  useMentionBox(box, mentions, editing);
   const [value, setValue] = useState(task.description);
-  const [saved, setSaved] = useState(false);
-  useEffect(() => setValue(task.description), [task.description]);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (!editing) setValue(task.description); }, [task.description, editing]);
+  const save = async () => {
+    setBusy(true);
+    if (value === task.description || (await onSave(value))) setEditing(false);
+    setBusy(false);
+  };
+  if (!editing)
+    return task.description ? (
+      <div className="group relative -mx-3 rounded-box px-3 py-2 [transition:background-color_0.15s] hover:bg-ink/3">
+        <Markdown text={task.description} mentions={mentions} />
+        <Button variant="ghost" size="tiny" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100" onClick={() => setEditing(true)}>
+          <Icon name="pencil" size={12} />
+          Edit
+        </Button>
+      </div>
+    ) : (
+      <button type="button" onClick={() => setEditing(true)} className="-mx-3 flex cursor-text items-center gap-2 rounded-box border-0 bg-transparent px-3 py-3 text-left text-[14px] text-faint [transition:background-color_0.15s] hover:bg-ink/3">
+        <Icon name="pen-line" size={14} />
+        Add a description…
+      </button>
+    );
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col overflow-hidden rounded-box border border-accent/50 bg-bg shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_12%,transparent)]">
       <textarea
+        ref={box}
         aria-label="Description"
-        rows={8}
+        autoFocus
+        rows={10}
         maxLength={8000}
-        placeholder="Add a description: what needs to happen, and how you'll know it's done."
+        placeholder="What needs to happen, and how you'll know it's done. Type @ to mention an agent, a team or a skill."
         value={value}
-        onChange={(e) => (setValue(e.currentTarget.value), setSaved(false))}
-        onBlur={async () => {
-          if (value === task.description) return;
-          if (await onSave(value)) setSaved(true);
-          else setValue(task.description);
+        disabled={busy}
+        onChange={(e) => setValue(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) return (e.preventDefault(), void save());
+          if (e.key === 'Escape') return (e.preventDefault(), e.stopPropagation(), setValue(task.description), setEditing(false));
         }}
-        className="min-h-48 -mx-2 w-[calc(100%+1rem)] resize-y border-transparent! bg-transparent! px-2! text-[14.5px]! leading-relaxed shadow-none! hover:bg-panel-2/60! focus:border-accent!"
+        className="min-h-48 resize-y overflow-y-auto rounded-none! border-0! bg-transparent! px-4! py-3! text-[14px]! leading-relaxed shadow-none! focus:shadow-none! whitespace-pre-wrap text-ink outline-none empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]"
       />
-      <span className="h-4 text-[12px] text-faint" aria-live="polite">{saved ? 'Saved' : ''}</span>
+      <div className="flex flex-wrap items-center gap-2 border-t border-line bg-panel-2/50 px-2 py-1.5">
+        <DraftWithBrain
+          disabled={busy}
+          draft={async (instruction) => {
+            const d = await askForDraft({ projectId: task.projectId, kind: 'task', taskId: task.id, title: task.title, description: value, instruction });
+            if (d.kind !== 'task') return null;
+            const was = value;
+            setValue(d.description);
+            return () => setValue(was);
+          }}
+        />
+        <span className="text-[11.5px] text-faint max-sm:hidden">Markdown works</span>
+        <span className="ml-auto flex items-center gap-1.5">
+          <Button variant="plain" size="small" onClick={() => (setValue(task.description), setEditing(false))} disabled={busy}>Cancel</Button>
+          <Button size="small" onClick={() => void save()} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
+        </span>
+      </div>
     </div>
+  );
+}
+
+/** What happened on the task: when it was made, and the comments, with a box to add one. */
+function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Candidate[]; onChange: (t: BoardTask) => void }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const box = useRef<HTMLTextAreaElement>(null);
+  useMentionBox(box, mentions);
+  const comments = task.comments || [];
+  const send = async () => {
+    if (busy || !text.trim()) return;
+    setBusy(true);
+    try {
+      onChange((await POST<{ task: BoardTask }>(`${path(task)}/comments`, { text })).task);
+      setText('');
+    } catch (e) {
+      toast(errorText(e), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section aria-label="Activity" className="mt-4 flex flex-col gap-5 border-t border-line pt-6">
+      <div className="flex items-baseline gap-2">
+        <h2 className="m-0 text-[14px] font-semibold text-ink">Activity</h2>
+        {comments.length ? <span className="text-[12px] text-faint">{`${comments.length} comment${comments.length === 1 ? '' : 's'}`}</span> : null}
+      </div>
+      <ol className="m-0 flex list-none flex-col gap-4 p-0">
+        <li className="flex items-center gap-2.5 text-[12.5px] text-dim">
+          <span className="grid size-6 flex-none place-items-center"><Icon name="plus" size={13} className="text-faint" /></span>
+          <span><b className="font-medium text-ink">{task.creatorName}</b> created the task</span>
+          <span className="text-faint" title={new Date(task.createdAt).toLocaleString()}>· {ago(task.createdAt)}</span>
+        </li>
+        {comments.map((c) => <Comment key={c.id} task={task} comment={c} mentions={mentions} onChange={onChange} />)}
+      </ol>
+      <form className="flex flex-col overflow-hidden rounded-box border border-line bg-bg shadow-card [transition:border-color_0.15s] focus-within:border-accent/60" onSubmit={(e) => (e.preventDefault(), void send())}>
+        <textarea
+          ref={box}
+          aria-label="Comment"
+          rows={3}
+          maxLength={8000}
+          placeholder="Leave a comment… Type @ to mention someone. Markdown works."
+          value={text}
+          disabled={busy}
+          onChange={(e) => setText(e.currentTarget.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.preventDefault(), void send())}
+          className="min-h-20 resize-y overflow-y-auto rounded-none! border-0! bg-transparent! px-4! py-3! text-[14px]! leading-relaxed shadow-none! focus:shadow-none! whitespace-pre-wrap text-ink outline-none empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]"
+        />
+        <div className="flex items-center gap-2 border-t border-line bg-panel-2/50 px-2 py-1.5">
+          <DraftWithBrain
+            disabled={busy}
+            draft={async (instruction) => {
+              const d = await askForDraft({ projectId: task.projectId, kind: 'comment', taskId: task.id, text, instruction });
+              if (d.kind !== 'comment') return null;
+              const was = text;
+              setText(d.text);
+              return () => setText(was);
+            }}
+          />
+          <Button type="submit" size="small" className="ml-auto" disabled={busy || !text.trim()}>
+            {busy ? 'Sending…' : 'Comment'}
+            <kbd className="ml-1 rounded border border-current/25 px-1 font-sans text-[10px] opacity-70">Ctrl ↵</kbd>
+          </Button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+/** One comment: who wrote it and when, in Markdown; yours can be changed or removed. */
+function Comment({ task, comment: c, mentions, onChange }: { task: BoardTask; comment: BoardComment; mentions: Candidate[]; onChange: (t: BoardTask) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(c.text);
+  const box = useRef<HTMLTextAreaElement>(null);
+  useMentionBox(box, mentions, editing);
+  const url = `${path(task)}/comments/${encodeURIComponent(c.id)}`;
+  const save = async () => {
+    try {
+      onChange((await PUT<{ task: BoardTask }>(url, { text: value })).task);
+      setEditing(false);
+    } catch (e) {
+      toast(errorText(e), 'error');
+    }
+  };
+  const remove = async () => {
+    if (!(await confirmBox('Remove this comment?', { ok: 'Remove', danger: true }))) return;
+    try {
+      onChange((await DEL<{ task: BoardTask }>(url)).task);
+    } catch (e) {
+      toast(errorText(e), 'error');
+    }
+  };
+  return (
+    <li className="group flex gap-2.5">
+      <WhoMark who={c.by} emoji={c.byEmoji} size={24} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 text-[12.5px]">
+          <b className="font-medium text-ink">{c.byName}</b>
+          <span className="text-faint" title={new Date(c.at).toLocaleString()}>{ago(c.at)}{c.editedAt ? ' · edited' : ''}</span>
+          {c.by === 'you' && !editing ? (
+            <span className="ml-auto flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+              <IconButton variant="plain" aria-label="Edit comment" title="Edit" onClick={() => (setValue(c.text), setEditing(true))}><Icon name="pencil" size={13} /></IconButton>
+              <IconButton variant="plain" aria-label="Remove comment" title="Remove" onClick={() => void remove()}><Icon name="trash-2" size={13} /></IconButton>
+            </span>
+          ) : null}
+        </div>
+        {editing ? (
+          <div className="mt-1.5 flex flex-col gap-2">
+            <textarea ref={box} aria-label="Edit comment" autoFocus rows={3} maxLength={8000} className="min-h-20 w-full rounded-ctl border border-line-2 bg-bg px-3 py-2 text-[14px] leading-relaxed whitespace-pre-wrap text-ink outline-none empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]" value={value} onChange={(e) => setValue(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.preventDefault(), void save())} />
+            <div className="flex justify-end gap-1.5">
+              <Button variant="plain" size="small" onClick={() => setEditing(false)}>Cancel</Button>
+              <Button size="small" onClick={() => void save()} disabled={!value.trim()}>Save</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-1 rounded-box border border-line bg-panel/60 px-3.5 py-2.5">
+            <Markdown text={c.text} mentions={mentions} />
+          </div>
+        )}
+      </div>
+    </li>
   );
 }
 
