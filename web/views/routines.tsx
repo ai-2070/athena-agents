@@ -1,6 +1,7 @@
 // Routines: instructions you run again and again. Type @ in the text to mention who does it (agents,
 // teams) and which skills they use. Run it by hand or on a schedule.
-import { Plate, PlateSection } from '../ui/surface.tsx';
+import { Plate } from '../ui/surface.tsx';
+import { FormSection } from '../ui/formsection.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
@@ -216,8 +217,11 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   const [running, setRunning] = useState(false);
   // a draft has no id yet: its first Save makes the routine
   const isNew = !id;
-  // The schedule editor tells us when its fields change.
+  // The schedule editor tells us when its fields change (the side card shows its summary).
   const [kind, setKind] = useState(first.schedule?.type || 'none');
+  const [, scheduleChanged] = useState(0);
+  // the newest run, from the runs list, for the side card
+  const [last, setLast] = useState<RoutineRun | null>(null);
   // One switch controls manual and scheduled runs.
   const [active, setActive] = useState(first.enabled);
   const canSave = dirty && !saving && !!name.trim() && !!text.trim();
@@ -283,12 +287,12 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   ];
   const skills = found.filter((m) => m.kind === 'skill').map((m) => <MentionChip key={`s:${m.id}`} m={m} teams={teams} />);
   const whoRow = (label: string, ico: string, items: ReactNode[], empty: string) => (
-    <div className="grid grid-cols-[120px_minmax(0,1fr)] items-start gap-3 max-sm:grid-cols-1 max-sm:gap-1.5">
-      <div className="inline-flex items-center gap-2 pt-0.5 text-[13px] leading-[normal] font-medium text-dim">
+    <div className="grid grid-cols-[112px_minmax(0,1fr)] items-start gap-3 max-sm:grid-cols-1 max-sm:gap-1.5">
+      <div className="inline-flex items-center gap-2 pt-1 text-[12.5px] leading-[normal] font-medium text-dim">
         <Icon name={ico} size={13} />
         {label}
       </div>
-      <div className={CHIPS}>{items.length ? items : <span className="hint">{empty}</span>}</div>
+      <div className={CHIPS}>{items.length ? items : <span className="pt-0.5 text-[12.5px] text-faint">{empty}</span>}</div>
     </div>
   );
   const insert = (kind: RoutineMentionKind, label: string, ico: string) => (
@@ -297,30 +301,31 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
       {label}
     </Button>
   );
+  const schedule = r.current.schedule;
+  const lastLook = last ? runLook(last.status) : null;
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <ButtonLink variant="ghost" size="small" href="#/routines">← Routines</ButtonLink>
-        <div className="flex flex-wrap items-center gap-4">
-          <Switch checked={active} onChange={switchActive}>
-            <span className="text-[13px] font-medium text-dim">{active ? 'Routine on' : 'Routine off'}</span>
-          </Switch>
-          <Button variant="ghost" disabled={running || isNew || !active} title={isNew || !active ? 'Save the routine first, and switch it on, to run it' : undefined} onClick={() => void run()}>
-            <Icon name="play" size={14} />
-            Run now
-          </Button>
-          <Button  disabled={!canSave} title={!text.trim() ? 'Write what the routine should do first' : undefined} onClick={() => void save()}>Save</Button>
+        <div className="flex items-center gap-3">
+          {dirty && !isNew ? <span className="text-[12.5px] text-faint">Unsaved changes</span> : null}
+          <Button disabled={!canSave} title={!text.trim() ? 'Write what the routine should do first' : undefined} onClick={() => void save()}>Save</Button>
         </div>
       </div>
-      <div className="mb-7">
-        <h1 className="m-0 text-[22px] leading-[1.2] font-semibold text-ink">{isNew ? 'New routine' : name || 'Routine'}</h1>
-        <p className="hint mt-2 mb-0">Set the work, who does it and when it runs.</p>
+      <div className="mb-7 flex items-start gap-4">
+        <span aria-hidden="true" className="grid size-11 flex-none place-items-center rounded-[12px] border border-accent/25 bg-accent/10 text-accent">
+          <Icon name="repeat" size={20} />
+        </span>
+        <div className="min-w-0">
+          <h1 className="m-0 truncate text-[22px] leading-[1.2] font-semibold text-ink">{isNew ? 'New routine' : name || 'Routine'}</h1>
+          <p className="hint mt-1.5 mb-0">{description || 'Set the work, who does it and when it runs.'}</p>
+        </div>
       </div>
-      <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(300px,1fr)] items-start gap-5 max-lg:grid-cols-1">
-        <Plate className="min-w-0 rounded-box p-5 sm:p-6">
-          <div>
-            <div className="panel-head !mb-4"><h2>Details</h2></div>
+      <div className="grid grid-cols-[minmax(0,1fr)_340px] items-start gap-6 max-lg:grid-cols-1">
+        {/* the work: what it is called, what it asks, who it goes to */}
+        <Plate className="flex min-w-0 flex-col gap-6 rounded-box p-5 sm:p-6">
+          <FormSection icon="pen-line" title="Details">
             <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
               <Field label="Name">
                 <input value={name} onChange={(e) => (setName(e.target.value), setDirty(true))} />
@@ -329,16 +334,13 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
                 <input value={description} placeholder="Optional, shown on the card" onChange={(e) => (setDescription(e.target.value), setDirty(true))} />
               </Field>
             </div>
-          </div>
-          <div className="mt-6 border-t border-line pt-6">
-            <div className="panel-head !mb-3 flex-wrap gap-3">
-              <h2>What to do</h2>
-              <div className="actions">
-                {insert('agent', 'Agent', 'bot')}
-                {insert('team', 'Team', 'users')}
-                {insert('skill', 'Skill', 'puzzle')}
-              </div>
-            </div>
+          </FormSection>
+          <FormSection
+            icon="list-checks"
+            title="What to do"
+            hint={<>Type <b className="font-semibold text-ink">@</b> to mention an agent, a team or a skill. Agents and teams each get the routine (an agent in a mentioned team gets it in that team chat); skills are given to all of them.</>}
+            end={<>{insert('agent', 'Agent', 'bot')}{insert('team', 'Team', 'users')}{insert('skill', 'Skill', 'puzzle')}</>}
+          >
             <textarea
               ref={ta}
               // the text box look as utilities: the pill editor shown in its place copies these classes
@@ -349,36 +351,66 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
               placeholder={'What should be done? Type @ to mention who does it and the skills to use.\n\ne.g. @Researcher find the 3 most interesting AI stories from the last day, with links. Then @Content Team writes one X post about the best one using @Brand voice.'}
               onChange={(e) => (setText(e.target.value), setDirty(true))}
             />
-            <p className="hint mt-3 max-w-[68ch] leading-[1.5]">
-              Type <b>@</b> to mention an agent, a team or a skill. Mentioned agents and teams each get the routine (an agent in a mentioned team gets it in that team chat); mentioned skills are given to all of them for it.
-            </p>
-            <div className="rt-who mt-5 flex flex-col gap-4 border-t border-line pt-5">
+            {/* who the text mentions, read back as chips */}
+            <div className="rt-who flex flex-col gap-3 rounded-box border border-line bg-panel-2/40 px-4 py-3.5">
               {whoRow('Who does it', 'users', doers, 'Mention at least one agent or team.')}
               {whoRow('Skills', 'puzzle', skills, 'None. Mention a skill to have them follow it.')}
               {gone.length ? (
-                <p className="hint">
+                <p className="hint m-0 inline-flex items-center gap-1.5 text-amber!">
                   <Icon name="triangle-alert" size={12} />
-                  {` ${gone.map((m) => `@${m.name}`).join(', ')} ${gone.length === 1 ? 'was' : 'were'} deleted, so ${gone.length === 1 ? 'it is' : 'they are'} left out.`}
+                  {`${gone.map((m) => `@${m.name}`).join(', ')} ${gone.length === 1 ? 'was' : 'were'} deleted, so ${gone.length === 1 ? 'it is' : 'they are'} left out.`}
                 </p>
               ) : null}
             </div>
-          </div>
+          </FormSection>
         </Plate>
-        <aside className="flex min-w-0 flex-col gap-5">
-          <PlateSection className="panel !m-0 !p-5 sm:!p-6">
-            <div className="panel-head !mb-3">
-              <h2>Schedule</h2>
+        {/* the routine's state: on or off, run it, when it runs on its own */}
+        <aside className="flex min-w-0 flex-col lg:sticky lg:top-20">
+          <Plate className="flex flex-col gap-5 rounded-box p-5">
+            <div className="flex flex-col gap-3">
+              <Switch checked={active} onChange={switchActive} className="flex-nowrap!">
+                <span className="text-[13.5px] font-semibold text-ink">{active ? 'Routine on' : 'Routine off'}</span>
+              </Switch>
+              <p className="m-0 text-[12.5px] leading-normal text-dim">
+                {!active ? "It doesn't run, by hand or on its schedule." : kind === 'none' ? 'It runs when you press Run now.' : `Runs by hand, and ${scheduleSummary(schedule).replace(/^./, (c) => c.toLowerCase())}.`}
+              </p>
+              <Button variant="ghost" className="w-full justify-center" disabled={running || isNew || !active} title={isNew || !active ? 'Save the routine first, and switch it on, to run it' : undefined} onClick={() => void run()}>
+                <Icon name="play" size={14} />
+                Run now
+              </Button>
+              <div className="flex items-center gap-2 text-[12.5px] text-dim">
+                <Icon name="history" size={13} className="text-faint" />
+                {last && lastLook ? (
+                  <>
+                    <span>Last run</span>
+                    <Pill tone={lastLook.tone}>{lastLook.label}</Pill>
+                    <span className="ml-auto text-faint">{ago(last.createdAt)}</span>
+                  </>
+                ) : (
+                  <span>{isNew ? 'Not saved yet' : 'Not run yet'}</span>
+                )}
+              </div>
             </div>
-            <DomNode make={() => scheduleEditor(r.current, () => (setDirty(true), setKind(r.current.schedule?.type || 'none')), { inputLabel: 'Additional instructions for scheduled runs (optional)', inputHint: 'Added to the main instructions when this routine runs automatically. Not used by Run now.', showToggle: false })} deps={[id]} />
-            {kind !== 'none' ? <p className="hint">Runs while the dashboard is open.</p> : null}
-          </PlateSection>
+            <div className="flex flex-col gap-4 border-t border-line pt-5">
+              <div className="flex items-center gap-3">
+                <span aria-hidden="true" className="grid size-8 flex-none place-items-center rounded-[9px] border border-line bg-panel-2 text-dim">
+                  <Icon name="calendar" size={15} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="m-0 text-[14px] leading-snug font-semibold text-ink">Schedule</h3>
+                  <p className="m-0 text-[12.5px] text-dim">{scheduleSummary(schedule)}</p>
+                </div>
+              </div>
+              <DomNode make={() => scheduleEditor(r.current, () => (setDirty(true), setKind(r.current.schedule?.type || 'none'), scheduleChanged((n) => n + 1)), { inputLabel: 'Additional instructions for scheduled runs (optional)', inputHint: 'Added to the main instructions when this routine runs automatically. Not used by Run now.', showToggle: false })} deps={[id]} />
+              {kind !== 'none' ? <p className="hint m-0">Runs while the dashboard is open.</p> : null}
+            </div>
+          </Plate>
         </aside>
-        <PlateSection className="col-span-2 rounded-box p-5 sm:p-6 max-lg:col-span-1">
-          <div className="panel-head !mb-3">
-            <h2>Runs</h2>
-          </div>
-          <Runs id={id} />
-        </PlateSection>
+        <Plate className="col-span-2 rounded-box p-5 sm:p-6 max-lg:col-span-1">
+          <FormSection icon="history" title="Runs" hint="What each agent and team did, newest first.">
+            <Runs id={id} onLatest={setLast} />
+          </FormSection>
+        </Plate>
         {!isNew && <div className="col-span-2 flex justify-end max-lg:col-span-1">
           <Button variant="danger" onClick={() => void del()}><Icon name="trash-2" size={14} />Delete routine</Button>
         </div>}
@@ -420,17 +452,20 @@ function TargetMark({ t, agent, small = false }: { t: RoutineRunTarget; agent: W
 }
 
 /** The routine's last runs, kept current; the newest is open, and whichever you opened stays open. */
-function Runs({ id }: { id: string }) {
+function Runs({ id, onLatest }: { id: string; onLatest?: (run: RoutineRun | null) => void }) {
   const d = useAppState();
   const [runs, setRuns] = useState<RoutineRun[] | null>(null);
   const [open, setOpen] = useState<Set<string> | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const load = useCallback(() => {
     clearTimeout(timer.current);
+    // a draft has no runs (an empty id would ask for every routine's)
+    if (!id) return setRuns([]);
     // (a burst of events loads once)
     timer.current = setTimeout(() => void GET<RoutineRun[]>(`/routine-runs?routineId=${encodeURIComponent(id)}`).then(setRuns).catch(() => setRuns([])), 150);
   }, [id]);
   useEffect(() => (load(), () => clearTimeout(timer.current)), [load]);
+  useEffect(() => onLatest?.(runs?.[0] ?? null), [runs, onLatest]);
   useServerEvents((ev) => ev.type === 'routine-run' && (ev as { routineId?: string }).routineId === id && load());
   if (!runs) return null;
   if (!runs.length)

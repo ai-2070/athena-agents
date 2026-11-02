@@ -90,6 +90,9 @@ describe('the routine editor', () => {
     expect(btn('Save').disabled).toBe(true);
     expect(btn('Run now').disabled).toBe(true);
     expect(el.textContent).not.toContain('Delete routine');
+    // a draft has no runs of its own: it never asks for every routine's
+    expect(requests.some((r) => r.url.startsWith('/api/routine-runs'))).toBe(false);
+    expect(el.querySelector('aside')!.textContent).toContain('Not saved yet');
     const ta = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="What to do"]')!;
     await typeInto(ta, '   ');
     expect(btn('Save').disabled).toBe(true);
@@ -109,6 +112,16 @@ describe('the routine editor', () => {
     expect(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="What to do"]')!.value).toBe('@Content Team ');
     expect(el.querySelector('[data-mention="@Content Team"]')).not.toBeNull();
     location.hash = '';
+  });
+
+  it('shows its state at the side: on, how it runs, and the last run', async () => {
+    await open();
+    const side = el.querySelector('aside')!;
+    expect(side.textContent).toContain('Routine on');
+    expect(side.textContent).toContain('It runs when you press Run now.');
+    expect(side.textContent).toContain('Last run');
+    expect(side.textContent).toContain('Done');
+    expect([...side.querySelectorAll('button')].some((b) => b.textContent === 'Run now')).toBe(true);
   });
 
   it('has one routine switch and saves daily times without a separate schedule switch', async () => {
