@@ -6,7 +6,7 @@ import { getThread, postUserMessage } from '../../server/teams.ts';
 import { servicesOf, soleHolder } from '../../server/services.ts';
 import type { Agent, ServerEvent, Team } from '../../shared/types.ts';
 
-const a = (name: string, toolGroups: string[] = [], mcpServers: string[] = []) => ({ ...newAgent({ name, engine: 'openai', toolGroups }), mcpServers }) as Agent;
+const a = (name: string, toolGroups: string[] = [], mcpServers: string[] = []) => ({ ...newAgent({ name, engine: 'eve', toolGroups }), mcpServers }) as Agent;
 
 describe('soleHolder', () => {
   const lead = a('Lead', ['files']);

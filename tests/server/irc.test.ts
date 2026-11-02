@@ -77,7 +77,7 @@ const until = async (ok: () => boolean, ms = 8000) => {
   }
   throw new Error('timed out');
 };
-const agent = (name: string) => newAgent({ name, engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+const agent = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
 const team = (name: string, lead: string) => workflows.save({ name, description: 'Make things', members: [lead], lead, steps: [{ type: 'agent', agentId: lead }] } as Partial<Team>);
 const delegate = (to: 'team' | 'agent', id: string, message: string) => `On it.\n\`\`\`actions\n[{"do":"delegate","to":"${to}","id":"${id}","message":"${message}"}]\n\`\`\``;
 const briefFor = (targetId: string) => listBriefs().findLast((b) => b.targetId === targetId);

@@ -4,11 +4,11 @@ import path from 'node:path';
 import { agents, chats, withProject } from '../store.ts';
 import { readExecution } from '../execution.ts';
 import { cleanAttachments, safeUploadsRoot, withAttachments } from '../uploads.ts';
-import { estimateTokens } from '../compaction.ts';
+import { estimateTokens } from '../context.ts';
 import { listFiles, readPlain, realTarget, isInside, writeJSON } from '../util.ts';
 import { privateDataPath } from '../private.ts';
 import { canonical } from '../../shared/canonical.ts';
-import { beginRun, bindSession, conversationBinding, readRun, recordAdmissionReceipt, sessionContext, setRunStatus, settleRun } from './state.ts';
+import { beginRun, bindSession, conversationBinding, invalidateConversation, readRun, recordAdmissionReceipt, sessionContext, setRunStatus, settleRun } from './state.ts';
 import type { EveAdmissionRecord, EveMessagePart, ExecutionRun, Project } from '../../shared/types.ts';
 import type { Client } from 'eve/client';
 import { selectEveModel } from './model.ts';
@@ -83,7 +83,11 @@ export async function prepareAdmission(runId: string, project: Project): Promise
     if (!agent || !chat) throw new Error('This conversation no longer exists.');
     const selection = await selectEveModel(agent, chat);
     const generation = hash({ runtime: EVE_GENERATION, engine: agent.engine, model: selection, reset: chat.items.findLastIndex((item) => item.type === 'meta' && item.reset) });
-    const binding = conversationBinding(project.id, agent.id, chat.id, generation) || bindSession(agent, chat, project, generation);
+    let binding = conversationBinding(project.id, agent.id, chat.id, generation);
+    if (!binding) {
+      invalidateConversation(project.id, chat.id);
+      binding = bindSession(agent, chat, project, generation);
+    }
     sessionContext(binding.id);
     const imported = new Set(binding.imported || []);
     const history: EveAdmissionRecord['history'] = [];

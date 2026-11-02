@@ -65,7 +65,7 @@ const branchParam = () => params().get('branch');
 
 function overrides(engine: EngineId, data: AppState): Overrides {
   const d = data.settings.defaults;
-  return { engine, model: engine === 'claude-code' ? d.claudeModel : engine === 'openai' ? d.openrouterModel : '' };
+  return { engine, model: engine === 'claude-code' ? d.claudeModel : engine === 'eve' ? d.openrouterModel : '' };
 }
 
 async function hire(payload: HirePayload, name: string): Promise<Agent | undefined> {

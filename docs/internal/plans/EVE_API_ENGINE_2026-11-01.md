@@ -1,8 +1,23 @@
 # Replace the built-in API agent with Eve
 
-*Plan, 1 November 2026; progress updated 2 November. Phases 1 and 2 implemented; phase 3 has durable waits, checkpoint recovery and saved agent/team coordination. Phase 4 has worker supervision, native event following, restored run ownership/completion, saved new-turn admission, native team joining, model controls and usage/limit reporting. API-engine cutover is not implemented. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
+*Plan, 1 November 2026; progress updated 2 November. Eve is now the default API engine. The old API loop and custom compaction pipeline are deleted. Remaining work is session retirement and update recovery, attachment/tool-image admission, final integration and platform validation. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
 
 ## Progress
+
+The cutover registers `eve` throughout engine settings, Brain routing and model selection, removes
+`server/engines/openai.ts`, and routes normal turns through the private native worker. Shutdown
+leaves native work running in its saved ledger instead of recording Stop. Team shutdown preserves
+an admitted current assignment. Temporary routine access is saved with the execution receipt and
+applied when native tools and instructions are rebuilt; team access is checked live.
+
+Custom instant/summary compaction, overflow retries, `Chat.llm`, `recall_history`, compact/edit API
+routes, slash commands and editable checkpoints are gone. Engines own active memory; native markers
+are read-only. Context estimates and complete CLI reseeds live in `server/context.ts`. Oversized
+original seeds fail explicitly. The settings retain a context-window override only. Source start/dev
+commands build the private worker. Typecheck and frontend build pass; the full Windows suite passed
+1,696 tests with one effort-test assertion failure, corrected and followed by all 34 API tests passing
+(20 intentional skips). The UI detector reports no findings. Final full-suite and desktop checks follow.
+
 
 Engine lifecycle integration now saves input receipts, agent-chat queues and delegation handles in
 private metadata outside project copies. Queue removal and run admission share one atomic write.

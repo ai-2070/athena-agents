@@ -56,7 +56,7 @@ describe('Eve model controls', () => {
   });
 
   it('validates temperature and selects supported effort before any dispatch', async () => {
-    saveSettings({ compaction: { windowTokens: 64000 }, providers: { custom: { baseUrl: 'http://127.0.0.1:9000/v1', label: 'Unit model' } } });
+    saveSettings({ contextWindowTokens: 64000, providers: { custom: { baseUrl: 'http://127.0.0.1:9000/v1', label: 'Unit model' } } });
     setSecret('customKey', 'fixture-key');
     const agent = agents.save(newAgent({ name: 'Options', provider: 'custom', model: 'selected-model', effort: 'max', temperature: 0.5 }));
     const chat = chats.create(agent.id);

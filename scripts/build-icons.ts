@@ -14,7 +14,7 @@ const BRANDS: Record<string, string> = {
   x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', claude: 'claude', anthropic: 'anthropic', premiere: 'adobepremierepro',
   photoshop: 'adobephotoshop', aftereffects: 'adobeaftereffects', ffmpeg: 'ffmpeg', chrome: 'googlechrome', github: 'github', figma: 'figma',
   slack: 'slack', linear: 'linear', atlassian: 'atlassian', intercom: 'intercom', ollama: 'ollama', 'claude docs': 'googledocs', docs: 'googledocs',
-  openai: 'openai', codex: 'openai', codecov: 'codecov', openrouter: 'openrouter',
+  eve: 'eve', codex: 'openai', codecov: 'codecov', openrouter: 'openrouter',
   canva: 'canva', stripe: 'stripe', youtube: 'youtube', reddit: 'reddit', instagram: 'instagram', tiktok: 'tiktok', spotify: 'spotify', obsidian: 'obsidian',
   maya: 'autodeskmaya', houdini: 'houdini', nvidia: 'nvidia', 'davinci resolve': 'davinciresolve', resolve: 'davinciresolve', freecad: 'freecad',
   openscad: 'openscad', kicad: 'kicad', obs: 'obsstudio', sketchup: 'sketchup', autocad: 'autocad', autodesk: 'autodesk', rhino: 'rhinoceros',

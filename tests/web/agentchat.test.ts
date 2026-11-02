@@ -15,7 +15,7 @@ afterEach(() => {
 
 describe('renderAgentChat()', () => {
   it('focus asked for right away lands in the message box once the chat is there', async () => {
-    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'openai', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
+    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
     vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(url === '/api/agents/a1/chats' ? [] : {}), { headers: { 'content-type': 'application/json' } }));
     const el = document.createElement('div');
     document.body.append(el);
@@ -30,7 +30,7 @@ describe('renderAgentChat()', () => {
 
 describe('the agent tab', () => {
   it('New chat clicked before the latest chat was found stays on the new chat', async () => {
-    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'openai', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
+    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
     let found!: () => void;
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
@@ -56,7 +56,7 @@ describe('the agent tab', () => {
 
 
   it('opens its latest own chat (not a team session), and New chat starts a fresh one', async () => {
-    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'openai', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
+    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
     const posts: string[] = [];
     vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
       if (init.method === 'POST') posts.push(url);

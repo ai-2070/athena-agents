@@ -5,6 +5,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    globalSetup: ['tests/eve-build.ts'],
     projects: [
       {
         test: {
@@ -14,12 +15,16 @@ export default defineConfig({
           setupFiles: ['tests/server/setup.ts'],
           // every file gets its own data folder and module state
           isolate: true,
+          // API tests also own a Bun sidecar.
+          maxWorkers: 4,
           testTimeout: 30_000,
+          expect: { poll: { timeout: 10_000 } },
         },
       },
       {
         test: {
           name: 'web',
+          maxWorkers: 4,
           include: ['tests/web/**/*.test.{ts,tsx}'],
           environment: 'happy-dom',
         },

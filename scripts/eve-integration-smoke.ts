@@ -106,7 +106,7 @@ async function startRuntime() {
   return runtime.ready();
 }
 try {
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${address.port}/v1`, label: 'Integration fixture' } }, compaction: { windowTokens: 64000 } });
+  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${address.port}/v1`, label: 'Integration fixture' } }, contextWindowTokens: 64000 });
   setSecret('customKey', 'integration-key');
   const project = activeProject();
   const agent = agents.save(newAgent({ name: 'Integration owner', provider: 'custom', model: 'integration-proof', toolGroups: ['agents'], mcpServers: [], richAnswers: false }));

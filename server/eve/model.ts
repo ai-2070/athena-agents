@@ -1,5 +1,5 @@
 import { getSettings } from '../store.ts';
-import { contextWindow } from '../compaction.ts';
+import { contextWindow } from '../context.ts';
 import { providerOf } from '../providers.ts';
 import { effortFor } from '../../shared/effort.ts';
 import type { Agent, Chat, EveModelSelection } from '../../shared/types.ts';
@@ -16,7 +16,7 @@ export async function selectEveModel(agent: Agent, chat: Chat): Promise<EveModel
   if (!Number.isFinite(costLimitUsd) || costLimitUsd < 0) throw new Error('The run cost limit must be zero or a positive number.');
   return {
     provider: provider.id, baseUrl: provider.base, model: agent.model || settings.defaults.openrouterModel,
-    effort: effortFor('openai', agent.effort, provider.id), ...(temperature === undefined ? {} : { temperature }),
+    effort: effortFor('eve', agent.effort, provider.id), ...(temperature === undefined ? {} : { temperature }),
     contextWindow: await contextWindow(agent, chat), maxModelSteps, costLimitUsd,
   };
 }

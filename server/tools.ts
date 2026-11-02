@@ -209,21 +209,6 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
-    name: 'recall_history',
-    group: 'core',
-    risk: 'none',
-    description: 'Read earlier parts of this chat word for word. After a chat is compacted you see its older history as "[seq N]" entries with long messages cut and tool results left out: pass seq=N for one entry in full (a message, or a tool call with its whole result), from/to for a range (up to 40), or query to search the whole chat.',
-    parameters: obj({ seq: { type: 'number', description: 'One entry, by its seq' }, from: { type: 'number', description: 'First seq of a range' }, to: { type: 'number', description: 'Last seq of a range' }, query: str('Words to search for') }),
-    run: async (args, ctx) => {
-      const { runInfo, liveChat } = await import('./engines/index.ts');
-      const { recall } = await import('./compaction.ts');
-      const run = runInfo(ctx.runId);
-      const chat = run ? liveChat(run.chatId, run.projectId) || chats.get(run.agentId, run.chatId) : null;
-      if (!chat) return { text: 'recall_history only works inside a dashboard chat.', isError: true };
-      return recall(chat.items, args);
-    },
-  },
-  {
     name: 'save_artifact',
     group: 'core',
     risk: 'none',

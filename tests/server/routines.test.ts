@@ -92,7 +92,7 @@ beforeAll(async () => {
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
-const agent = (name: string) => newAgent({ name, engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+const agent = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
 const waitFor = async (fn: () => boolean) => {
   for (let i = 0; i < 80 && !fn(); i++) await new Promise((r) => setTimeout(r, 100));
 };

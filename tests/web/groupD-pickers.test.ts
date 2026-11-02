@@ -41,11 +41,11 @@ afterEach(() => {
 describe('model picker: models on this PC', () => {
   it("lists each local server's own models, so picking one never sends an empty model", async () => {
     serve((_m, path) => {
-      if (path === '/models?engine=openai&provider=ollama') return { body: [{ id: 'llama3.2' }, { id: 'qwen3' }] };
-      if (path.startsWith('/models?engine=openai&provider=')) return { body: [] };
+      if (path === '/models?engine=eve&provider=ollama') return { body: [{ id: 'llama3.2' }, { id: 'qwen3' }] };
+      if (path.startsWith('/models?engine=eve&provider=')) return { body: [] };
     });
     const picked: ModelPatch[] = [];
-    openModelPicker(document.body, { engine: 'openai', provider: 'ollama', model: 'llama3.2' }, (p) => picked.push(p));
+    openModelPicker(document.body, { engine: 'eve', provider: 'ollama', model: 'llama3.2' }, (p) => picked.push(p));
     await settle();
     const menu = document.querySelector('.model-menu')!;
     // LM Studio has its own tab, so it isn't listed here
@@ -53,20 +53,20 @@ describe('model picker: models on this PC', () => {
     expect(menu.textContent).toContain('No models found. Is Custom server running?');
     expect(menu.querySelector('.st-menu-item.on')?.textContent).toContain('llama3.2');
     buttons(menu, 'qwen3')[0].click();
-    expect(picked).toEqual([{ engine: 'openai', provider: 'ollama', model: 'qwen3', effort: '' }]);
+    expect(picked).toEqual([{ engine: 'eve', provider: 'ollama', model: 'qwen3', effort: '' }]);
   });
 
   it('can type a model id for a local server', async () => {
     serve(() => ({ body: [] }));
     const picked: ModelPatch[] = [];
-    openModelPicker(document.body, { engine: 'openai', provider: 'openrouter', model: 'x/y' }, (p) => picked.push(p));
+    openModelPicker(document.body, { engine: 'eve', provider: 'openrouter', model: 'x/y' }, (p) => picked.push(p));
     await settle();
     [...document.querySelectorAll<HTMLButtonElement>('.model-tab')].find((b) => b.textContent === 'LM Studio')!.click();
     await settle();
     const input = [...document.querySelectorAll<HTMLInputElement>('.model-search')].find((i) => i.placeholder.includes('LM Studio'))!;
     input.value = 'my-model';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    expect(picked).toEqual([{ engine: 'openai', provider: 'lmstudio', model: 'my-model', effort: '' }]);
+    expect(picked).toEqual([{ engine: 'eve', provider: 'lmstudio', model: 'my-model', effort: '' }]);
   });
 });
 
@@ -74,7 +74,7 @@ describe('model picker: LM Studio tab', () => {
   const tabs = () => [...document.querySelectorAll<HTMLButtonElement>('.model-tab')];
 
   it('sits next to OpenRouter and lists LM Studio models', async () => {
-    serve((_m, path) => (path === '/models?engine=openai&provider=lmstudio' ? { body: [{ id: 'qwen3-coder-30b' }] } : { body: [] }));
+    serve((_m, path) => (path === '/models?engine=eve&provider=lmstudio' ? { body: [{ id: 'qwen3-coder-30b' }] } : { body: [] }));
     const picked: ModelPatch[] = [];
     openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, (p) => picked.push(p));
     expect(tabs().map((t) => t.textContent).slice(0, 3)).toEqual(['Claude', 'OpenRouter', 'LM Studio']);
@@ -84,12 +84,12 @@ describe('model picker: LM Studio tab', () => {
     expect(menu.textContent).toContain('On this PC · LM Studio');
     expect(menu.textContent).not.toContain('OpenRouter key');
     buttons(menu, 'qwen3-coder-30b')[0].click();
-    expect(picked).toEqual([{ engine: 'openai', provider: 'lmstudio', model: 'qwen3-coder-30b', effort: '' }]);
+    expect(picked).toEqual([{ engine: 'eve', provider: 'lmstudio', model: 'qwen3-coder-30b', effort: '' }]);
   });
 
   it('opens on the LM Studio tab, marked in use, for an agent on LM Studio', async () => {
     serve(() => ({ body: [] }));
-    openModelPicker(document.body, { engine: 'openai', provider: 'lmstudio', model: 'qwen3' }, () => {});
+    openModelPicker(document.body, { engine: 'eve', provider: 'lmstudio', model: 'qwen3' }, () => {});
     await settle();
     expect(document.querySelector('.model-tab.on')?.textContent).toBe('LM Studio');
     expect(document.querySelector('.model-tab.cur')?.textContent).toBe('LM Studio');
@@ -234,7 +234,7 @@ describe('model picker: favorites', () => {
   });
 
   it('unstarring the last favorite goes back to the engine in use', async () => {
-    settings().favoriteModels = [{ engine: 'openai', provider: 'ollama', model: 'llama3.2' }];
+    settings().favoriteModels = [{ engine: 'eve', provider: 'ollama', model: 'llama3.2' }];
     serve((method, path, body) => (method === 'PUT' && path === '/settings' ? { body: { ...settings(), ...(body as object) } } : { body: [] }));
     openModelPicker(document.body, { engine: 'codex', model: '' }, () => {});
     expect(document.querySelector('.model-body')?.textContent).toContain('llama3.2');
@@ -248,15 +248,15 @@ describe('model picker: favorites', () => {
 
   it("leaves out favorites on this PC's servers where they can't be used (the Brain)", () => {
     settings().favoriteModels = [
-      { engine: 'openai', provider: 'ollama', model: 'llama3.2' },
-      { engine: 'openai', provider: 'openrouter', model: 'x/y' },
+      { engine: 'eve', provider: 'ollama', model: 'llama3.2' },
+      { engine: 'eve', provider: 'openrouter', model: 'x/y' },
     ];
     serve(() => ({ body: [] }));
     openModelPicker(document.body, { engine: 'claude-code', model: 'haiku' }, () => {}, { local: false });
     const rows = [...document.querySelectorAll('.model-body .model-row')].map((r) => r.textContent);
     expect(rows).toEqual([expect.stringContaining('OpenRouter')]);
     // with only a local favorite there is no Favorites tab at all
-    settings().favoriteModels = [{ engine: 'openai', provider: 'ollama', model: 'llama3.2' }];
+    settings().favoriteModels = [{ engine: 'eve', provider: 'ollama', model: 'llama3.2' }];
     openModelPicker(document.body, { engine: 'claude-code', model: 'haiku' }, () => {}, { local: false });
     expect([...document.querySelectorAll('.model-tab')].map((t) => t.textContent)).not.toContain('Favorites');
     // an agent's picker does show it

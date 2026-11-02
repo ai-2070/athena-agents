@@ -3269,7 +3269,7 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
     head(`${a.emoji || ''} ${a.name}`);
     item('Chat', () => openChat('agent', a.id), '', 'message-square');
     item('Edit agent', () => navigate(`#/agents/${a.id}/edit`), '', 'pencil');
-    if (a.engine !== 'openai') item('Open in terminal', () => openTerminal(a), '', 'terminal');
+    if (a.engine !== 'eve') item('Open in terminal', () => openTerminal(a), '', 'terminal');
     item('Clone', () => cloneAgent(a), '', 'copy');
     item('Save as preset', () => presetAgent(a), '', 'bookmark-plus');
     const others = S.workflows.filter((w) => !w.steps.some((s) => s.type === 'agent' && s.agentId === a.id));
@@ -3763,13 +3763,13 @@ function drawHud(): void {
   const busyIds = new Set((d.runs || []).map((r) => r.agentId));
   // LM Studio: a tile once it is installed or an agent uses it; lit while its local server is up
   const lm = ints.find((i) => i.id === 'lmstudio');
-  const onLmStudio = (a: Agent): boolean => a.engine === 'openai' && a.provider === 'lmstudio';
+  const onLmStudio = (a: Agent): boolean => a.engine === 'eve' && a.provider === 'lmstudio';
   const lmStudio = lm || d.agents.some(onLmStudio)
-    ? [{ id: 'openai', uses: onLmStudio, brain: '', name: 'LM Studio', glyph: mark('lmstudio', 15), color: '#6a72ed', ready: !!lm?.live, why: lm ? 'its server is not running (LM Studio > Developer > Start server)' : 'not installed', find: 'LM Studio server' }]
+    ? [{ id: 'eve', uses: onLmStudio, brain: '', name: 'LM Studio', glyph: mark('lmstudio', 15), color: '#6a72ed', ready: !!lm?.live, why: lm ? 'its server is not running (LM Studio > Developer > Start server)' : 'not installed', find: 'LM Studio server' }]
     : [];
   const engines = [
     { id: 'claude-code', brain: 'claude', name: 'Claude Code', glyph: appLogo('claude code', 15) || '✳', color: '#d97757', ready: d.engines['claude-code'].installed, why: d.engines['claude-code'].installed ? '' : 'not installed', find: 'Claude Code' },
-    { id: 'openai', uses: (a: Agent) => a.engine === 'openai' && !onLmStudio(a), brain: 'openrouter', name: 'OpenRouter', glyph: appLogo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
+    { id: 'eve', uses: (a: Agent) => a.engine === 'eve' && !onLmStudio(a), brain: 'openrouter', name: 'OpenRouter', glyph: appLogo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
     ...lmStudio,
     { id: 'hermes', brain: 'hermes', name: 'Hermes', glyph: '☤', color: '#d8c25a', ready: d.engines.hermes.installed, why: d.engines.hermes.installed ? '' : 'not installed', find: 'Hermes' },
     { id: 'codex', brain: 'codex', name: 'OpenAI Codex', glyph: appLogo('openai', 14) || '◎', color: INK, ready: !!(d.engines.codex?.installed && d.engines.codex.loggedIn), why: !d.engines.codex?.installed ? 'not installed' : d.engines.codex.loggedIn ? '' : 'not signed in', find: 'OpenAI Codex' },

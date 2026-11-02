@@ -21,7 +21,7 @@ import type { ChatItem, ExecutionRun } from '../../shared/types.ts';
 afterEach(() => vi.restoreAllMocks());
 
 function fixture(items: ChatItem[] = [], attachments: string[] = []) {
-  saveSettings({ compaction: { windowTokens: 64000 } });
+  saveSettings({ contextWindowTokens: 64000 });
   setSecret('openrouterKey', 'unit-admission-key');
   const project = activeProject();
   const agent = agents.save(newAgent({ name: 'Admission owner', toolGroups: [], mcpServers: [], richAnswers: false }));
@@ -271,7 +271,7 @@ describe('saved Eve input admission', () => {
 
   it('fails oversized history and files without clipping or dropping them', async () => {
     const own = fixture([{ type: 'user', text: 'Original '.repeat(30000) }]);
-    saveSettings({ compaction: { windowTokens: 1000 } });
+    saveSettings({ contextWindowTokens: 1000 });
     await expect(prepareAdmission(own.run.id, own.project)).rejects.toThrow('No original messages were discarded');
     expect(readAdmission(own.run.id)).toBeNull();
     expect(chats.get(own.agent.id, own.chat.id)?.items[0]).toEqual(own.chat.items[0]);

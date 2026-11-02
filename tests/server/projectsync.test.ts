@@ -112,7 +112,6 @@ describe('auto-save into the project folder', () => {
     const c = chats.create(a.id, 'Planning');
     c.items.push({ type: 'user', text: 'distinctive-user-message', ts: Date.now() });
     c.sessionId = 'session-123';
-    c.llm = [{ role: 'user', content: 'distinctive-user-message' }];
     chats.save(c);
     sync.saveProject(p.id);
     expect(fs.existsSync(path.join(dir, '.dashboard', 'chats', a.id, `${c.id}.json`))).toBe(true);
@@ -125,7 +124,7 @@ describe('auto-save into the project folder', () => {
     expect(chats.list(a.id).map((x) => x.title)).toEqual(['Planning']);
     const back = chats.get(a.id, c.id)!;
     expect(back.items.map((i) => (i.type === 'user' ? i.text : i.type))).toEqual(['distinctive-user-message']);
-    expect(back).toMatchObject({ id: c.id, agentId: a.id, sessionId: 'session-123', llm: [{ role: 'user', content: 'distinctive-user-message' }] });
+    expect(back).toMatchObject({ id: c.id, agentId: a.id, sessionId: 'session-123' });
   });
 
   it('drops agent chats that were deleted in the dashboard', async () => {

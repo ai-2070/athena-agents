@@ -7,6 +7,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { chats, saveSettings, workflows } from '../../server/store.ts';
+import { newBatch } from '../../server/uploads.ts';
 import { HOME } from '../../server/util.ts';
 import { workspaceOf } from '../../server/tools.ts';
 import { activeRuns, loopOf, queueMessage, stopChat, stopLoop } from '../../server/engines/index.ts';
@@ -49,7 +50,7 @@ const release = async () => {
   await until(() => waiting.length > 0);
   waiting.shift()!.release();
 };
-const agent = (name: string, engine: EngineId = 'openai') => newAgent({ name, engine, provider: 'custom', model: 'mock', toolGroups: [] });
+const agent = (name: string, engine: EngineId = 'eve') => newAgent({ name, engine, provider: 'custom', model: 'mock', toolGroups: [] });
 const items = (agentId: string, chatId: string): ChatItem[] => chats.get(agentId, chatId)?.items || [];
 const users = (agentId: string, chatId: string) => items(agentId, chatId).flatMap((i) => (i.type === 'user' ? [`${i.from || 'you'}: ${i.text}`] : []));
 const running = (chatId: string) => activeRuns().some((r) => r.chatId === chatId);
@@ -66,7 +67,7 @@ describe('reading commands', () => {
   it('suggests commands while you type "/", ours first, then the harness ones', () => {
     expect(slashSuggestions('/', 'team').map((c) => c.name)).toEqual(['queue', 'stop', 'resume', 'resend', 'loop', 'goal', 'clear']);
     expect(slashSuggestions('/re', 'agent').map((c) => c.name)).toEqual(['resume', 'resend']);
-    expect(slashSuggestions('/c', 'agent', [{ name: 'commit', about: 'Make a commit' }]).map((c) => [c.name, !!c.harness])).toEqual([['compact', false], ['commit', true]]);
+    expect(slashSuggestions('/c', 'agent', [{ name: 'commit', about: 'Make a commit' }]).map((c) => [c.name, !!c.harness])).toEqual([['commit', true]]);
     expect(slashSuggestions('/stop', 'agent')).toEqual([]);
     expect(slashSuggestions('/loop 5m', 'agent')).toEqual([]);
     expect(slashSuggestions('hi', 'agent')).toEqual([]);
@@ -158,7 +159,9 @@ describe('/resume and /resend in an agent chat', () => {
     const a = agent('Resender');
     const c = chats.create(a.id);
     expect(() => resendInChat(a.id, c.id)).toThrow('Nothing to send again yet.');
-    queueMessage(a, c, 'make the chart', ['C:/data/sales.csv']);
+    const sales = path.join(newBatch().dir, 'sales.csv');
+    fs.writeFileSync(sales, 'month,sales\nJanuary,42');
+    queueMessage(a, c, 'make the chart', [sales]);
     await release();
     await until(() => !running(c.id));
     queueMessage(a, c, 'from the Brain', [], { from: 'the Brain' });
@@ -166,7 +169,7 @@ describe('/resume and /resend in an agent chat', () => {
     await until(() => !running(c.id));
     resendInChat(a.id, c.id);
     const last = items(a.id, c.id).findLast((i) => i.type === 'user');
-    expect(last).toMatchObject({ type: 'user', text: 'make the chart', attachments: ['C:/data/sales.csv'] });
+    expect(last).toMatchObject({ type: 'user', text: 'make the chart', attachments: [sales] });
     expect(last?.type === 'user' && last.from).toBeFalsy();
     await release();
     await until(() => !running(c.id));

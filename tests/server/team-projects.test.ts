@@ -44,7 +44,7 @@ afterEach(() => {
   setActiveProject(home().id);
 });
 
-const agent = (name: string) => newAgent({ name, engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+const agent = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
 const wait = async (ok: () => boolean, ms = 6000) => {
   for (let t = 0; t < ms && !ok(); t += 25) await new Promise((r) => setTimeout(r, 25));
 };

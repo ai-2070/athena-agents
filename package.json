@@ -34,7 +34,7 @@
   "type": "module",
   "main": "server/index.ts",
   "scripts": {
-    "start": "bun run build && bun server/index.ts",
+    "start": "bun run eve:build && bun run build && bun server/index.ts",
     "dev": "bun scripts/dev.ts",
     "build": "bun scripts/build-web.ts",
     "icons": "bun scripts/build-icons.ts",

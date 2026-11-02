@@ -14,7 +14,7 @@ import { COMPOSER_BTNS, COMPOSER_TEXT } from '../attach.tsx';
 import { pasteBox } from '../pastes.ts';
 import { icon } from '../icons.ts';
 import { Dot } from '../ui/marks.tsx';
-import { latestCompaction, memoryStart } from '../../shared/compaction.ts';
+
 import { TaskPanel } from '../tasks.tsx';
 import { Dom, MessageView, isRichCode } from './parts.tsx';
 import type { Variant } from './parts.tsx';
@@ -48,8 +48,6 @@ export interface ChatAgent {
 export interface ChatViewApi {
   /** Load the saved chat again (after a rename, Clear memory, a compaction…). */
   reload: (after?: boolean) => Promise<void>;
-  /** Compact the chat now (the Compact button; /compact). */
-  compact: (mode?: 'instant' | 'summary') => Promise<void>;
   focus: () => void;
   setDraft: (text: string) => void;
 }
@@ -111,7 +109,6 @@ export function ChatView(p: ChatViewProps) {
   const near = useRef(true);
   // why the last send failed; refused: the server never took it (so the text goes back in the box)
   const failed = useRef<{ message: string; refused: boolean } | null>(null);
-  const [compacting, setCompacting] = useState(false);
   // your /queue messages, waiting for the agent to be done here (the server keeps them)
   const [queued, setQueued] = useState<QueuedMessage[]>([]);
   const queuedRef = useRef(queued);
@@ -147,7 +144,7 @@ export function ChatView(p: ChatViewProps) {
   streamingRef.current = streaming;
 
   const serverRunning = !!chatId && !!app?.runs.some((r) => r.chatId === chatId);
-  const busy = streaming || serverRunning || compacting;
+  const busy = streaming || serverRunning;
   // it works for a team or another agent here: they wait on its answer, so a message can't change its course
   const helping = !!chatId && !!app?.runs.some((r) => r.chatId === chatId && (r.depth ?? 0) > 0);
   const approvals = (app?.approvals || []).filter((a) => a.agentId === agent.id);
@@ -234,30 +231,12 @@ export function ChatView(p: ChatViewProps) {
     [reload, follow],
   );
 
-  const compactNow = useCallback(
-    async (mode?: 'instant' | 'summary') => {
-      const id = chatIdRef.current;
-      if (!id) return void toast('Nothing to compact yet');
-      setStatusText(mode === 'summary' ? 'Compacting: the Brain’s model is writing a summary…' : 'Compacting…');
-      // (nothing can be sent meanwhile: the server would refuse it)
-      setCompacting(true);
-      const r = await attempt(
-        () => POST<{ compacted: boolean; message?: string }>(`/agents/${agent.id}/chats/${id}/compact`, mode ? { mode } : {}),
-        (x) => (x.compacted ? 'Compacted: the agent now remembers the older messages as a short history' : x.message || 'Nothing to compact yet'),
-      ).finally(() => setCompacting(false));
-      setStatusText('');
-      if (r?.compacted) await reload();
-    },
-    [agent.id, reload],
-  );
-
   const sending = useRef(false);
   const steering = useRef(false);
   const send = useCallback(
     async (typed?: string) => {
       const box = input.current;
       if (steering.current) return;
-      if (compacting) return void toast('Wait for the compaction to finish.');
       // (a button in an earlier answer: not while it works)
       if (busy && typed != null) return void toast(`${agent.name} is working. Wait for it, or write a message to change its course.`);
       if (busy && helping) return void toast(`${agent.name} is working for a team or another agent here. /queue your message for when it is done.`);
@@ -297,9 +276,6 @@ export function ChatView(p: ChatViewProps) {
           pastes.sync();
           refill();
         }
-        // /compact, /compact instant, /compact summary (with no files attached)
-        const cmd = attachments.length ? null : /^\/compact(?:\s+(instant|summary))?\s*$/i.exec(text);
-        if (cmd) return void (await compactNow(cmd[1]?.toLowerCase() as 'instant' | 'summary' | undefined));
         // a new conversation: make the chat first
         if (!chatIdRef.current) {
           const made = await attempt(() => POST<Chat>(`/agents/${agent.id}/chats`));
@@ -335,7 +311,7 @@ export function ChatView(p: ChatViewProps) {
         finished();
       }
     },
-    [busy, helping, compacting, tray, pastes, sendMessage, stopStream, compactNow, reload, refill, restore, agent.id, agent.name],
+    [busy, helping, tray, pastes, sendMessage, stopStream, reload, refill, restore, agent.id, agent.name],
   );
 
   // "/queue …" while the agent works: the server holds it and sends it when this turn is done
@@ -447,8 +423,7 @@ export function ChatView(p: ChatViewProps) {
   const submit = () => {
     const box = input.current;
     const cmd = box ? parseCommand(pastes.text(), 'agent') : null;
-    if (cmd && cmd.name !== 'queue' && cmd.name !== 'compact') return void command(cmd.name, cmd.rest);
-    if (cmd?.name === 'compact' && busy) return void toast('Compact it when it is done (or /stop it first).');
+    if (cmd && cmd.name !== 'queue') return void command(cmd.name, cmd.rest);
     // (from the text with pastes put back: a long paste shows as a chip in the box)
     if (box && queuedText(pastes.text()) != null && (busy || sending.current)) return void queueNext();
     void send();
@@ -468,7 +443,6 @@ export function ChatView(p: ChatViewProps) {
   if (p.apiRef)
     p.apiRef.current = {
       reload,
-      compact: compactNow,
       focus: () => input.current?.focus(),
       setDraft: (t) => {
         if (!input.current) return;
@@ -580,8 +554,7 @@ export function ChatView(p: ChatViewProps) {
     return true;
   };
 
-  const latest = latestCompaction(items);
-  const dimBefore = latest ? memoryStart(items) : -1;
+  const dimBefore = -1;
   // (a long chat draws only the messages near the screen, so the whole of it can be shown)
   const shown = variant === 'mini' ? messages.slice(-14) : messages;
   const windowed = variant !== 'mini' && shown.length >= WINDOW_FROM;
@@ -601,7 +574,7 @@ export function ChatView(p: ChatViewProps) {
         onSend={(t) => void send(t)}
         chatPath={chatPath}
         owner={owner}
-        latestCompaction={latest?.item.id ?? null}
+
         onCompactionSaved={() => void reload()}
       />
     );
@@ -712,7 +685,7 @@ export function ChatView(p: ChatViewProps) {
         <Dom make={() => icon('square', variant === 'mini' ? 13 : 14)} deps={[]} />
       </Button>
     ) : (
-      <Button key="send" size={variant === 'mini' ? 'small' : 'default'} className={variant === 'mini' ? undefined : compact ? 'rounded-full' : 'size-8! px-0'} onClick={submit} disabled={compacting} title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
+      <Button key="send" size={variant === 'mini' ? 'small' : 'default'} className={variant === 'mini' ? undefined : compact ? 'rounded-full' : 'size-8! px-0'} onClick={submit}  title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
         <Dom make={() => icon(variant === 'mini' ? 'send' : 'arrow-up', variant === 'mini' ? 14 : 16)} deps={[]} />
       </Button>
     );

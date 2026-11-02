@@ -3,7 +3,7 @@
 import type { Effort } from './effort.ts';
 export type { Effort } from './effort.ts';
 
-export type EngineId = 'claude-code' | 'openai' | 'hermes' | 'codex' | 'pi' | 'omp' | 'openclaw';
+export type EngineId = 'claude-code' | 'eve' | 'hermes' | 'codex' | 'pi' | 'omp' | 'openclaw';
 export type Autonomy = 'ask' | 'auto' | 'full';
 export type ProviderId = 'openrouter' | 'lmstudio' | 'ollama' | 'custom';
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
@@ -144,6 +144,12 @@ export interface QueuedMessage {
 }
 
 /** Private run ownership and input receipts; never copied with a project. */
+export interface RunAccess {
+  toolGroups?: string[];
+  mcpServers?: string[];
+  skills?: string[];
+}
+
 export interface ExecutionRun {
   id: string;
   projectId: string;
@@ -158,6 +164,7 @@ export interface ExecutionRun {
   from: string | null;
   attachments: string[];
   context?: TeamContextMessage[];
+  workAccess?: RunAccess;
   startedAt: number;
   status: 'running' | 'completed' | 'failed' | 'stopped' | 'interrupted';
   stopRequested?: boolean;
@@ -447,18 +454,14 @@ export interface ConversationReadResult {
   nextOffset: number | null;
 }
 
-/** How a compaction was made. instant: the original words, cut to fit (no model call). summary: a model
- *  wrote a summary. engine: the engine compacted its own memory (Claude Code), so there is no text here. */
-export type CompactionMode = 'instant' | 'summary' | 'engine';
-/** auto: the chat got full. manual: you asked (button or /compact). overflow: the model said it was too long. */
+/** A read-only marker reported by the engine that owns the session. */
+export type CompactionMode = 'engine';
 export type CompactionTrigger = 'auto' | 'manual' | 'overflow';
 
-/** The "--- COMPACTED ---" marker in a chat. From here on the agent remembers the items before it as text
- *  (the checkpoint), plus the items from upto on word for word. */
 export interface CompactionItem {
   type: 'compaction';
   id: string;
-  /** The compacted history the agent sees (you can edit it). Empty for mode "engine". */
+  /** Empty: the engine keeps its own active memory. */
   text: string;
   mode: CompactionMode;
   trigger: CompactionTrigger;
@@ -467,10 +470,6 @@ export interface CompactionItem {
   /** Rough size of the agent's memory before and after, in tokens. */
   tokensBefore?: number;
   tokensAfter?: number;
-  /** Set when you changed text by hand. */
-  editedAt?: number;
-  /** Why it is not what you asked for (e.g. the summary failed, so it is instant). */
-  note?: string;
   ts?: number;
 }
 
@@ -491,16 +490,15 @@ export interface Chat {
   agentId: string;
   title: string;
   items: ChatItem[];
-  llm: unknown[];
   sessionId: string | null;
   /** The engine that answered here last (and made sessionId): another engine can't resume it, so it
-   *  starts from the chat so far (a new session, or for the API model a new chat.llm). */
+   *  starts a new session from the saved originals. */
   sessionEngine?: EngineId;
   /** Set when this is the agent's session for a team chat. */
   teamId?: string | null;
-  /** Set after a compaction: the next run starts a new engine session that gets the compacted history first. */
+  /** The next CLI session receives the saved original conversation. */
   reseed?: boolean;
-  /** How full the agent's memory is (see ChatContext). Cleared by a compaction or Clear memory. */
+  /** How full the agent's memory is (see ChatContext). Cleared when the session is replaced or you clear memory. */
   context?: ChatContext;
   /** Its last run had Rich answers' instructions (a chat of your own, not a handoff or a team's). */
   rich?: boolean;
@@ -701,24 +699,6 @@ export interface FavoriteModel {
   provider?: string;
 }
 
-/** Settings > Chat memory: compacting long chats so the agent never runs out of room. */
-export interface CompactionSetting {
-  /** Compact a chat by itself when the agent's memory of it gets full. */
-  auto: boolean;
-  /** Claude Code, Codex, Hermes, pi, oh-my-pi and OpenClaw compact their own sessions: automatic compaction
-   *  then only covers API-model agents (and a CLI run that fails because the chat is too long). */
-  engineOwn: boolean;
-  /** Instant compaction: keeps the original words (cut to fit) and needs no model call. Off: the Brain's model writes a summary. */
-  instant: boolean;
-  /** Compact when the memory reaches this share of the model's context window (10-95). */
-  thresholdPercent: number;
-  /** How many of the latest messages (yours and the agent's) stay in full, with their tool calls.
-   *  The message being answered always does. The rest is compacted. */
-  keepMessages: number;
-  /** The context window in tokens, for every agent. 0: as the engine or model list says (else a safe default). */
-  windowTokens: number;
-}
-
 export interface LookSetting {
   /** Light, dark, or whatever the computer is set to (see ThemeChoice). */
   theme: ThemeChoice;
@@ -765,7 +745,7 @@ export interface Settings {
   telegram: { chatId: string };
   maxToolSteps: number;
   costLimitUsdPerRun: number;
-  compaction: CompactionSetting;
+  contextWindowTokens: number;
   /** Models starred in the model picker: they get their own tab at the front. */
   favoriteModels: FavoriteModel[];
   activeProject?: string;
@@ -814,6 +794,7 @@ export interface EveSessionBinding {
   generation: string;
   sessionId: string | null;
   retired: boolean;
+  retiring?: boolean;
   runtimeEnded?: boolean;
   createdAt: number;
   imported?: string[];
@@ -897,7 +878,7 @@ export interface EveToolOperation {
 
 export interface EngineStatus {
   'claude-code': { installed: boolean; path: string | null; loggedIn: boolean; version: string | null };
-  openai: { openrouter: boolean; custom: boolean };
+  eve: { openrouter: boolean; custom: boolean };
   hermes: { installed: boolean; path: string | null };
   codex: { installed: boolean; loggedIn: boolean; version: string | null; path?: string | null; how?: string };
   pi: { installed: boolean; path: string | null; version: string | null };

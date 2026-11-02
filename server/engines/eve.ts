@@ -33,7 +33,14 @@ export async function run({ runId, signal }: EngineRunArgs): Promise<EngineResul
         catch { signal.throwIfAborted(); }
       }
     }
-    await eveCoordinator.follow(runId);
+    let aborted = () => {};
+    try {
+      await Promise.race([eveCoordinator.follow(runId), new Promise<never>((_, reject) => {
+        aborted = () => reject(new Error('Stopped.'));
+        if (signal.aborted) aborted();
+        else signal.addEventListener('abort', aborted, { once: true });
+      })]);
+    } finally { signal.removeEventListener('abort', aborted); }
     const result = readRun(runId);
     if (signal.aborted || result?.status !== 'completed') throw new Error(result?.limitReason || 'Eve could not finish this work. Check its saved results before continuing.');
     return { text: result.answer || '', ...eveUsage(runId), window: input.selection.contextWindow };

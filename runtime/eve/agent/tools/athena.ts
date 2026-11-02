@@ -1,4 +1,4 @@
-import { defineDynamic, defineTool } from 'eve/tools';
+import { defineDynamic, defineTool, toolOutput } from 'eve/tools';
 import { z } from 'zod';
 import { bindingOf, bridgeCall, configuration } from '../lib/bridge.ts';
 
@@ -14,6 +14,7 @@ export default defineDynamic(async (ctx) => {
       const result = policyResult.parse(await bridgeCall(binding, '/policy', { sessionId: call.session.id, runId: config.runId, callId: call.callId, name: tool.name, args: call.toolInput }, call.abortSignal));
       return result.status === 'denied' ? { type: 'denied', reason: result.reason || 'The call is not allowed.' } : result.status;
     },
+    toModelOutput: (output: unknown) => toolOutput.text(z.object({ text: z.string() }).parse(output).text),
     execute: async (input, call) => bridgeCall(binding, '/tool', { sessionId: call.session.id, runId: config.runId, callId: call.callId, name: tool.name, args: input }, call.abortSignal),
   })]));
 });

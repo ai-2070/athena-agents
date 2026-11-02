@@ -95,7 +95,7 @@ const until = async (ok: () => boolean, ms = 8000) => {
   }
   throw new Error('timed out');
 };
-const agent = (name: string) => newAgent({ name, engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+const agent = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
 const items = (agentId: string, chatId: string): ChatItem[] => chats.get(agentId, chatId)?.items || [];
 const users = (agentId: string, chatId: string) => items(agentId, chatId).filter((i) => i.type === 'user').map((i) => (i.type === 'user' ? `${i.from || 'you'}: ${i.text.split('\n')[0]}` : ''));
 const notes = (agentId: string, chatId: string) => items(agentId, chatId).filter((i) => i.type === 'meta').map((i) => i.text);
@@ -284,7 +284,7 @@ describe('ordinary assignments keep going automatically', () => {
     const c = chats.create(a.id);
     startRun(a, c, 'Finish the assignment.');
     await until(() => briefIn(c.id)?.status === 'blocked', 11000);
-    expect(calls.get('Offline')).toBe(4);
+    expect(calls.get('Offline')).toBe(3);
     expect(questions.list().some((q) => q.briefId === briefIn(c.id).id && q.status === 'waiting')).toBe(true);
   }, 12000);
 

@@ -21,10 +21,10 @@ interface ProviderInfo {
 
 export const MODEL_PROVIDERS: Record<ModelProvider, ProviderInfo> = {
   claude: { label: 'Claude Code', engine: 'claude-code' },
-  openrouter: { label: 'OpenRouter', engine: 'openai', provider: 'openrouter' },
-  lmstudio: { label: 'LM Studio', engine: 'openai', provider: 'lmstudio' },
-  ollama: { label: 'Ollama', engine: 'openai', provider: 'ollama' },
-  custom: { label: 'Custom server', engine: 'openai', provider: 'custom' },
+  openrouter: { label: 'OpenRouter', engine: 'eve', provider: 'openrouter' },
+  lmstudio: { label: 'LM Studio', engine: 'eve', provider: 'lmstudio' },
+  ollama: { label: 'Ollama', engine: 'eve', provider: 'ollama' },
+  custom: { label: 'Custom server', engine: 'eve', provider: 'custom' },
   codex: { label: 'OpenAI Codex', engine: 'codex' },
   hermes: { label: 'Hermes', engine: 'hermes' },
   pi: { label: 'pi', engine: 'pi' },

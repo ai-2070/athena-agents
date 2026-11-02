@@ -44,7 +44,7 @@ beforeEach(() => {
   requests = [];
   state.data = {
     terminals: [],
-    agents: [{ id: 'a1', name: 'Coder', emoji: '🧑‍💻', engine: 'claude-code' }, { id: 'a2', name: 'Api', engine: 'openai' }],
+    agents: [{ id: 'a1', name: 'Coder', emoji: '🧑‍💻', engine: 'claude-code' }, { id: 'a2', name: 'Api', engine: 'eve' }],
     engines: { 'claude-code': { installed: true }, hermes: { installed: false } },
   } as unknown as AppState;
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {

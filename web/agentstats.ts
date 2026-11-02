@@ -47,7 +47,7 @@ export function agentModel(a: Pick<Agent, 'engine' | 'model'>, defaults?: Partia
   const sub = ENGINE_LABEL[a.engine] || a.engine;
   let model = (a.model || '').trim();
   if (!model && a.engine === 'claude-code') model = defaults?.claudeModel || 'sonnet';
-  if (!model && a.engine === 'openai') model = defaults?.openrouterModel || '';
+  if (!model && a.engine === 'eve') model = defaults?.openrouterModel || '';
   const label = !model ? (a.engine === 'hermes' ? "its profile's model" : `${sub}'s default`) : ALIAS.has(model.toLowerCase()) ? model[0].toUpperCase() + model.slice(1).toLowerCase() : model.split('/').pop() || model;
   return { id: `${a.engine}|${label.toLowerCase()}`, label, sub };
 }
@@ -76,7 +76,7 @@ export const modelSlices = (agents: Pick<Agent, 'engine' | 'model'>[], defaults?
 
 /** The engine tiles at the Station's top right, by key: an API-model agent is on LM Studio or OpenRouter. */
 export const ENGINE_NAMES: Record<string, string> = { 'claude-code': 'Claude Code', openrouter: 'OpenRouter', lmstudio: 'LM Studio', hermes: 'Hermes', codex: 'OpenAI Codex', pi: 'pi', omp: 'oh-my-pi', openclaw: 'OpenClaw' };
-export const engineKey = (a: Pick<Agent, 'engine' | 'provider'>): string => (a.engine === 'openai' ? (a.provider === 'lmstudio' ? 'lmstudio' : 'openrouter') : a.engine);
+export const engineKey = (a: Pick<Agent, 'engine' | 'provider'>): string => (a.engine === 'eve' ? (a.provider === 'lmstudio' ? 'lmstudio' : 'openrouter') : a.engine);
 
 /** Does an agent belong to a slice (an Other slice: to any it stands for)? */
 export const inSlice = (s: Slice, id: string): boolean => s.id === id || !!s.rest?.some((r) => r.id === id);

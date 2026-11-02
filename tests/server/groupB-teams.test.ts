@@ -35,7 +35,7 @@ afterAll(() => {
   return new Promise<void>((r) => server.close(() => r()));
 });
 
-const agent = (name: string) => newAgent({ name, engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+const agent = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
 const wait = async (ok: () => boolean, ms = 6000) => {
   for (let t = 0; t < ms && !ok(); t += 50) await new Promise((r) => setTimeout(r, 50));
 };

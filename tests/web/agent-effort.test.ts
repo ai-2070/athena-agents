@@ -18,10 +18,10 @@ beforeEach(() => {
     runs: [],
     approvals: [],
     terminals: [],
-    engines: { 'claude-code': { installed: true }, codex: { installed: true, loggedIn: true }, hermes: { installed: true }, openai: {} },
+    engines: { 'claude-code': { installed: true }, codex: { installed: true, loggedIn: true }, hermes: { installed: true }, eve: {} },
     engineList: [
       { id: 'claude-code', label: 'Claude Code' },
-      { id: 'openai', label: 'API model' },
+      { id: 'eve', label: 'API model' },
       { id: 'hermes', label: 'Hermes' },
       { id: 'codex', label: 'Codex' },
     ],

@@ -11,7 +11,7 @@ import { stopEveRun } from '../../server/eve/recovery.ts';
 
 describe('the private Eve tool bridge', () => {
   it('resolves current project permissions and keeps credentials out of the persisted run', async () => {
-    saveSettings({ providers: { custom: { baseUrl: 'http://127.0.0.1:9876/v1', label: 'Fixture' } }, compaction: { windowTokens: 64000 } });
+    saveSettings({ providers: { custom: { baseUrl: 'http://127.0.0.1:9876/v1', label: 'Fixture' } }, contextWindowTokens: 64000 });
     setSecret('customKey', 'private-eve-fixture-key');
     const project = activeProject();
     const agent = agents.save(newAgent({ name: 'Eve bridge owner', provider: 'custom', model: 'proof', toolGroups: ['files', 'agents'], richAnswers: false }));

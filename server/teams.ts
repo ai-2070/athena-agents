@@ -11,6 +11,7 @@ import { BUILD_ORDER, DIORAMA } from './voxel/diorama.ts';
 import { workflows as teamStore, agents, chats, emit, log, activeProject, openProject, getSettings, withProject, listProjects } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath, settledWithin } from './util.ts';
 import { askAgent, hasBackgroundWork, nativeRunPromise, runInfo, stopChat, stopChildren, forgetChat, isStopping, RunStopped } from './engines/index.ts';
+import { readRun as readEveRun } from './eve/state.ts';
 import { readExecution } from './execution.ts';
 import { activeTeamAssignment, readRelayWork, readTeamWork, saveRelayWork, saveTeamWork } from './teamwork.ts';
 import { isStepList, teamSteps, parseTeamRefs, teamFrom, fromTeam } from '../shared/teams.ts';
@@ -742,9 +743,11 @@ function followTurn(team: Team, item: QueueItem, native?: Promise<string>) {
   // The turn and what follows it stay in this project, even if you open another meanwhile.
   const end: Promise<void> = withProject(activeProject(), () =>
     runTurn(team, item, native).finally(() => {
-      if (isStopping() && r.current?.get(item.agentId) === item) (r.interrupted ||= []).push(item);
+      const saved = item.delivery && readEveRun(item.delivery.runId);
+      const durable = isStopping() && saved && ['queued', 'running', 'waiting'].includes(saved.status);
+      if (isStopping() && !durable && r.current?.get(item.agentId) === item) (r.interrupted ||= []).push(item);
       r.running.delete(item.agentId);
-      if (r.current?.get(item.agentId) === item) r.current.delete(item.agentId);
+      if (!durable && r.current?.get(item.agentId) === item) r.current.delete(item.agentId);
       if (r.ends?.get(item.agentId) === end) r.ends.delete(item.agentId);
       state(team);
       if (isStopping()) return;

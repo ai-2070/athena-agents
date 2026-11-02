@@ -10,9 +10,7 @@ import { newAgent } from '../../server/library.ts';
 import { saveSettings, workflows } from '../../server/store.ts';
 import { getThread, postUserMessage } from '../../server/teams.ts';
 import { newBatch, receive, uploadsRoot } from '../../server/uploads.ts';
-import { expandImages } from '../../server/engines/openai.ts';
 import { uploadsDirArgs } from '../../server/engines/claude.ts';
-import type { LlmMessage } from '../../server/engines/openai.ts';
 import type { Agent, Team } from '../../shared/types.ts';
 
 // every user message the fake model was sent (the newest one of each request)
@@ -45,7 +43,7 @@ const waitFor = async (n: number, teamId: string) => {
 
 describe('a team with files', () => {
   it('gives each member the team files once (new ones when added), and routes a files-only message on their names', async () => {
-    const a = newAgent({ name: 'Analyst', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+    const a = newAgent({ name: 'Analyst', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
     const guide = await upload('guide.md', 'GUIDE-TEXT: be brief.');
     const team = workflows.save({ name: 'Numbers', members: [a.id], lead: null, steps: [], files: [guide] } as Partial<Team>);
     const sheet = await upload('sales.csv', 'SALES-ROWS');
@@ -77,7 +75,7 @@ describe('a team with files', () => {
   });
 
   it("never sends a file outside this project's uploads, as a restored team or thread could name one", async () => {
-    const a = newAgent({ name: 'Reader', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+    const a = newAgent({ name: 'Reader', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
     const outside = path.join(os.homedir(), 'private-team-file.md');
     fs.writeFileSync(outside, 'OUTSIDE-PRIVATE-TEXT');
     // saved straight to the store, as a restore from a folder or backup does (not through the routes)
@@ -88,23 +86,6 @@ describe('a team with files', () => {
     expect(seen[0]).toBeTruthy();
     expect(seen[0]).not.toContain('OUTSIDE-PRIVATE-TEXT');
     expect(seen[0]).not.toContain(outside);
-  });
-});
-
-describe('images for API models', () => {
-  it('sends only the newest few images across the history', () => {
-    const img = (n: number) => ({ type: 'image_url' as const, image_url: { url: `dash-file:${path.join(uploadsRoot(), `i${n}.png`)}` } });
-    for (let n = 1; n <= 8; n++) fs.writeFileSync(path.join(uploadsRoot(), `i${n}.png`), 'P');
-    const msgs: LlmMessage[] = [
-      { role: 'user', content: [{ type: 'text', text: 'old' }, img(1), img(2), img(3), img(4)] },
-      { role: 'assistant', content: 'ok' },
-      { role: 'user', content: [{ type: 'text', text: 'new' }, img(5), img(6), img(7), img(8)] },
-    ];
-    const out = JSON.stringify(expandImages(msgs, true));
-    expect(out.match(/data:image\/png;base64/g)).toHaveLength(6);
-    expect(out).toContain('earlier image i1.png, not sent again');
-    expect(out).toContain('earlier image i2.png, not sent again');
-    expect(out).not.toContain('earlier image i3.png');
   });
 });
 

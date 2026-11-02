@@ -148,7 +148,7 @@ export function agentLinks(a: LinkSource | null | undefined): Set<string> {
   if (a.engine === 'claude-code') s.add(a.claudeAuth === 'openrouter' ? 'openrouter' : 'claude');
   if (a.engine === 'hermes') s.add('hermes');
   if (a.engine === 'codex') s.add('codex');
-  if (a.engine === 'openai') s.add(a.provider === 'custom' ? 'openrouter' : a.provider!);
+  if (a.engine === 'eve') s.add(a.provider === 'custom' ? 'openrouter' : a.provider!);
   const g = new Set(a.toolGroups || []);
   if (g.has('social')) ['x', 'reddit', 'telegram', 'discord'].forEach((x) => s.add(x));
   if (g.has('comfyui')) s.add('comfyui');

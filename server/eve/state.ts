@@ -21,8 +21,17 @@ export function readBinding(id: string): EveSessionBinding | null {
 export function conversationBinding(projectId: string, agentId: string, chatId: string, generation: string): EveSessionBinding | null {
   const interrupted = new Set(eveRuns().filter((run) => ['failed', 'stopped', 'interrupted'].includes(run.status)).map((run) => run.bindingId));
   return listFiles(privatePath('bindings'), (name) => name.endsWith('.json')).map((name) => readBinding(name.slice(0, -5)))
-    .filter((item): item is EveSessionBinding => !!item && !item.retired && !item.runtimeEnded && !interrupted.has(item.id) && item.projectId === projectId && item.agentId === agentId && item.chatId === chatId && item.generation === generation)
+    .filter((item): item is EveSessionBinding => !!item && !item.retiring && !item.retired && !item.runtimeEnded && !interrupted.has(item.id) && item.projectId === projectId && item.agentId === agentId && item.chatId === chatId && item.generation === generation)
     .sort((a, b) => b.createdAt - a.createdAt)[0] || null;
+}
+
+export function invalidateConversation(projectId: string, chatId: string): void {
+  for (const name of listFiles(privatePath('bindings'), (file) => file.endsWith('.json'))) {
+    const binding = readBinding(name.slice(0, -5));
+    if (!binding || binding.projectId !== projectId || binding.chatId !== chatId || binding.retired) continue;
+    const working = activeEveRuns().some((run) => run.bindingId === binding.id);
+    writeJSON(bindingPath(binding.id), { ...binding, retiring: true, retired: !working });
+  }
 }
 
 /** Accepting a receipt records identities even if Stop arrived while the request was in flight. */
@@ -48,13 +57,17 @@ export function sessionContext(id: string): { binding: EveSessionBinding; projec
   if (context.binding.retired) throw new Error('This Eve session binding is not active.');
   return withProject(context.project, () => {
     const { binding } = context;
-    let { agent } = context;
+    let agent: Agent = { ...context.agent, engine: 'eve' };
+    const receipt = readExecution().runs.find((run) => run.projectId === binding.projectId && run.agentId === agent.id && run.chatId === binding.chatId && run.status === 'running');
     if (binding.teamId) {
       const team = workflows.get(binding.teamId);
       if (!team || !team.members.includes(agent.id)) throw new Error('The agent no longer belongs to this team.');
-      const receipt = readExecution().runs.find((run) => run.projectId === binding.projectId && run.agentId === agent.id && run.chatId === binding.chatId && run.status === 'running');
       const assignment = receipt && activeTeamAssignment(receipt, team.id);
       agent = { ...agent, toolGroups: [...new Set([...agent.toolGroups, ...(team.access?.toolGroups || [])])], mcpServers: teamWorkServers(agent.mcpServers, team.access?.mcpServers || []), _teamSkills: [...new Set([...(team.skills || []), ...(assignment?.skills || [])])] };
+    }
+    if (!binding.teamId && receipt?.workAccess) {
+      const extra = receipt.workAccess;
+      agent = { ...agent, toolGroups: [...new Set([...agent.toolGroups, ...(extra.toolGroups || [])])], mcpServers: teamWorkServers(agent.mcpServers, extra.mcpServers || []), _teamSkills: extra.skills || [] };
     }
     return { ...context, agent };
   });
@@ -180,6 +193,7 @@ export function settleRun(id: string, status: 'completed' | 'failed' | 'stopped'
   if (!run) throw new Error('No such Eve run.');
   if (terminal(run.status)) return;
   writeJSON(runPath(id), { ...run, status, answer, pendingTerminal: undefined, ...(error ? { error } : {}), endedAt: Date.now(), updatedAt: Date.now() });
+  if (readBinding(run.bindingId)?.retiring) retireSession(run.bindingId);
 }
 
 export function stageTerminal(id: string, pendingTerminal: NonNullable<EveRunRecord['pendingTerminal']>): void {

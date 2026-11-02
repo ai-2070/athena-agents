@@ -6,7 +6,7 @@ import { newAgent } from '../../server/library.ts';
 import { activeProject, chats, saveSettings, workflows } from '../../server/store.ts';
 import { dataPath, readJSON, writeJSON } from '../../server/util.ts';
 import { getThread, postUserMessage, teamMessages, teamState } from '../../server/teams.ts';
-import { estimateTokens } from '../../server/compaction.ts';
+import { estimateTokens } from '../../server/context.ts';
 import type { Team, TeamMessage } from '../../shared/types.ts';
 
 let server: http.Server;
@@ -28,12 +28,12 @@ beforeAll(async () => {
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake' } } });
 });
-beforeEach(() => { fail = false; requests.length = 0; calls.length = 0; saveSettings({ compaction: { windowTokens: 128000, auto: true } }); });
+beforeEach(() => { fail = false; requests.length = 0; calls.length = 0; saveSettings({ contextWindowTokens: 128000 }); });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
 const message = (i: number, text = `Message ${i}: ${'x'.repeat(2600)} REQUIREMENT_AT_END_${i}`): TeamMessage => ({ id: `source-${i}`, ts: i + 1, from: i % 2 ? 'brain' : 'user', text, mentions: [] });
 const setup = (messages: TeamMessage[]) => {
-  const reader = newAgent({ name: 'Reader', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+  const reader = newAgent({ name: 'Reader', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
   const team = workflows.save({ name: 'Full context', members: [reader.id], lead: reader.id, steps: [] } as Partial<Team>);
   const file = dataPath('projects', activeProject().id, 'teamchats', `${team.id}.json`);
   writeJSON(file, { messages, sessions: {}, seen: {} });
@@ -78,7 +78,7 @@ describe('full team context', () => {
   it('rebuilds a missing API memory from the saved full conversation', async () => {
     const { turn } = setup([message(0)]);
     const saved = await turn();
-    saved.llm = [];
+    saved.items.push({ type: 'meta', text: 'Memory cleared', reset: true });
     chats.save(saved);
     await turn('Continue after restoring the session');
     expect(requests[1].messages.some((m) => m.content.includes('REQUIREMENT_AT_END_0'))).toBe(true);
@@ -96,7 +96,7 @@ describe('full team context', () => {
     const { team, turn } = setup(Array.from({ length: 510 }, (_,i) => message(i, `Original ${i}`)));
     await turn();
     expect(teamMessages(team.id).length).toBeGreaterThan(510);
-    const late = newAgent({ name: 'Late', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+    const late = newAgent({ name: 'Late', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
     workflows.save({ ...team, members: [...team.members, late.id] });
     await postUserMessage(team.id, '@Late take over');
     await expect.poll(() => teamState(team.id).working.length).toBe(0);
@@ -105,18 +105,18 @@ describe('full team context', () => {
     expect(input).toContain('Original 509');
   });
 
-  it('uses the model window for compaction and preserves all originals for retrieval', async () => {
-    saveSettings({ compaction: { windowTokens: 32000, auto: true, instant: true } });
+  it('refuses oversized history and preserves all originals for retrieval', async () => {
+    saveSettings({ contextWindowTokens: 32000 });
     const { turn } = setup(Array.from({ length: 100 }, (_,i) => message(i)));
     const chat = await turn();
-    expect(chat.items.some((i) => i.type === 'compaction')).toBe(true);
+    expect(requests).toHaveLength(0);
     expect(chat.items.filter((i) => i.type === 'user' && i.teamMessageId?.startsWith('source-'))).toHaveLength(100);
     expect(chat.items.some((i) => i.type === 'user' && i.text.includes('REQUIREMENT_AT_END_0'))).toBe(true);
-    expect(estimateTokens(JSON.stringify(requests[0].messages))).toBeLessThan(32000);
+
   });
 
-  it('lets the model search and read an original team message after compaction, without Files tools', async () => {
-    saveSettings({ compaction: { windowTokens: 32000, auto: true, instant: true } });
+  it('lets the model search and read an original team message without Files tools', async () => {
+    saveSettings({ contextWindowTokens: 128000 });
     const { turn, team } = setup(Array.from({ length: 100 }, (_,i) => message(i)));
     calls.push(
       { name: 'search_conversations', args: { query: 'REQUIREMENT_AT_END_0', scope: 'team', teamId: team.id } },
@@ -126,7 +126,7 @@ describe('full team context', () => {
     expect(requests).toHaveLength(3);
     expect(requests[1].messages.at(-1)?.content).toContain('source-0');
     expect(requests[2].messages.at(-1)?.content).toContain('REQUIREMENT_AT_END_0');
-    expect(chat.items.at(-1)).toMatchObject({ type: 'assistant', text: 'Done.' });
+    expect(chat.items.findLast((item) => item.type === 'assistant')).toMatchObject({ type: 'assistant', text: 'Done.' });
   });
 
   it('does not advance the read mark on a failed model request, and can retry without losing context', async () => {
@@ -141,12 +141,12 @@ describe('full team context', () => {
   });
 
   it('refuses an oversized addressed task explicitly rather than clipping it or marking it read', async () => {
-    saveSettings({ compaction: { windowTokens: 8000 } });
+    saveSettings({ contextWindowTokens: 8000 });
     const { turn, file, team } = setup([]);
     const text = 'Unabridged instruction. '.repeat(10000) + 'TAIL';
     const chat = await turn(text);
     expect(requests).toHaveLength(0);
-    expect(getThread(team.id).messages.at(-1)?.text).toContain('exceed this model');
+    expect(getThread(team.id).messages.at(-1)?.text).toContain('does not fit this model');
     expect(Object.values(readJSON<{ seen: Record<string, number> }>(file, { seen: {} }).seen)).toEqual([]);
     expect(chat.items.some((i) => i.type === 'user' && i.teamMessageId && i.text.endsWith('TAIL'))).toBe(true);
   });

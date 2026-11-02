@@ -17,7 +17,7 @@ const settings = {
   defaults: { engine: 'claude-code', claudeModel: 'sonnet', openrouterModel: 'x/y', autonomy: 'ask' },
   maxToolSteps: 20,
   costLimitUsdPerRun: 1,
-  compaction: { auto: true, engineOwn: true, instant: true, keepMessages: 20, thresholdPercent: 80, windowTokens: 0 },
+  contextWindowTokens: 0,
   providers: { lmstudio: { baseUrl: 'http://127.0.0.1:1234/v1' }, ollama: { baseUrl: 'http://127.0.0.1:11434/v1' }, custom: { baseUrl: '' } },
   comfyui: { url: '', workflowDirs: [] },
   paths: {},

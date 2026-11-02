@@ -1131,7 +1131,7 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
           <Button variant="ghost" size="small" onClick={() => navigate(`#/agents/${id}`)}>
             Full page
           </Button>
-          {a.engine !== 'openai' ? (
+          {a.engine !== 'eve' ? (
             <Button variant="ghost" size="small" onClick={() => openTerminal(a)}>
               Terminal
             </Button>

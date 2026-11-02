@@ -382,22 +382,13 @@ describe('attached files', () => {
     expect(m).toMatchObject({ from: 'user', text: 'Sum it', attachments: [f.path] });
   });
 
-  it('/compact compacts instead of sending, unless files come with it', async () => {
-    // an API-model agent with no server address: a run fails at once, nothing real is asked
-    const a = await (await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Compactor', engine: 'openai', provider: 'custom' }) })).json();
+  it('keeps memory information without the old compaction controls', async () => {
+    const a = await (await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Memory', engine: 'eve', provider: 'custom' }) })).json();
     const c = await (await req(`/api/agents/${a.id}/chats`, { method: 'POST', headers: json })).json();
     const path_ = `/api/agents/${a.id}/chats/${c.id}`;
-    const r = await (await req(`${path_}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: '/compact' }) })).json();
-    expect(r).toMatchObject({ compacted: false, message: expect.stringContaining('Nothing to compact') });
-    expect((await (await req(path_)).json()).items).toEqual([]);
-    const mem = await (await req(`${path_}/memory`)).json();
-    expect(mem).toMatchObject({ tokens: expect.any(Number), window: expect.any(Number), auto: true });
-    // with a file it is an ordinary message
-    const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
-    const f = await (await upload(batch, 'notes.txt', 'hello')).json();
-    const sent = await (await req(`${path_}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: '/compact', attachments: [f.path] }) })).json();
-    expect(sent.runId).toEqual(expect.any(String));
-    expect((await (await req(path_)).json()).items[0]).toMatchObject({ type: 'user', text: '/compact', attachments: [f.path] });
+    expect((await (await req(`${path_}/memory`)).json())).toMatchObject({ tokens: expect.any(Number), window: expect.any(Number), estimated: true });
+    expect((await req(`${path_}/compact`, { method: 'POST', headers: json })).status).toBe(404);
+    expect((await req(`${path_}/compactions/0`, { method: 'PUT', headers: json, body: '{}' })).status).toBe(404);
   });
 });
 
@@ -418,7 +409,7 @@ describe('agent runs and projects', () => {
       await send('/api/settings', { providers: { custom: { baseUrl: `http://127.0.0.1:${(model.address() as { port: number }).port}/v1` } } }, 'PUT');
       const home = path.join(tmp, 'home');
       const a = await send('/api/projects', { name: 'Bridge A', mode: 'new', folder: path.join(home, 'bridge-a') });
-      const agent = await send('/api/agents', { name: 'Bridged', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: ['files'], autonomy: 'auto' });
+      const agent = await send('/api/agents', { name: 'Bridged', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: ['files'], autonomy: 'auto' });
       const chat = await send(`/api/agents/${agent.id}/chats`, {});
       const { runId } = await send(`/api/agents/${agent.id}/chats/${chat.id}/messages`, { text: 'hello' });
       const b = await send('/api/projects', { name: 'Bridge B', mode: 'new', folder: path.join(home, 'bridge-b') });
@@ -453,7 +444,7 @@ describe('agent runs and projects', () => {
       const send = async (p: string, body: unknown, method = 'POST') => (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
       await send('/api/settings', { providers: { custom: { baseUrl: `http://127.0.0.1:${(model.address() as { port: number }).port}/v1` } } }, 'PUT');
       // the agent has no Files tools of its own; its team gives them
-      const agent = await send('/api/agents', { name: 'Team helper', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [], autonomy: 'auto' });
+      const agent = await send('/api/agents', { name: 'Team helper', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [], autonomy: 'auto' });
       const team = await send('/api/workflows', { name: 'File team', members: [agent.id], lead: agent.id, access: { toolGroups: ['files'] } });
       await send(`/api/teams/${team.id}/messages`, { text: `@${agent.name} write it down` });
       let run: { id: string; agentId: string } | undefined;
@@ -526,13 +517,13 @@ describe('effort and favorite models', () => {
   });
 
   it('keeps favorite models in the settings', async () => {
-    const favoriteModels = [{ engine: 'claude-code', model: 'opus' }, { engine: 'openai', provider: 'openrouter', model: 'x/y' }];
+    const favoriteModels = [{ engine: 'claude-code', model: 'opus' }, { engine: 'eve', provider: 'openrouter', model: 'x/y' }];
     expect((await send('/api/settings', { favoriteModels }, 'PUT')).favoriteModels).toEqual(favoriteModels);
     expect((await (await req('/api/state')).json()).settings.favoriteModels).toEqual(favoriteModels);
     expect((await send('/api/settings', { favoriteModels: [] }, 'PUT')).favoriteModels).toEqual([]);
   });
 
-  it('sends a server on this PC its nearest effort level, and asks again without one if it says no', async () => {
+  it('keeps the requested effort level and reports unsupported options', async () => {
     const bodies: Record<string, unknown>[] = [];
     let refuse: false | 'http' | 'stream' | 'late' = false;
     const model = http.createServer((rq, rs) => {
@@ -541,7 +532,7 @@ describe('effort and favorite models', () => {
       rq.on('data', (d) => (raw += d));
       rq.on('end', () => {
         const body = JSON.parse(raw) as Record<string, unknown>;
-        bodies.push(body);
+        if (JSON.stringify(body.messages).includes('You are Thinker')) bodies.push(body);
         if (refuse === 'http' && 'reasoning_effort' in body) {
           rs.writeHead(400, { 'content-type': 'application/json' });
           return rs.end(JSON.stringify({ error: { message: 'Unrecognized request argument supplied: reasoning_effort' } }));
@@ -563,7 +554,7 @@ describe('effort and favorite models', () => {
     await new Promise<void>((r) => model.listen(0, '127.0.0.1', () => r()));
     try {
       await send('/api/settings', { providers: { custom: { baseUrl: `http://127.0.0.1:${(model.address() as { port: number }).port}/v1` } } }, 'PUT');
-      const agent = await send('/api/agents', { name: 'Thinker', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [], effort: 'max' });
+      const agent = await send('/api/agents', { name: 'Thinker', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [], effort: 'max' });
       const ask = async (text: string) => {
         const chat = await send(`/api/agents/${agent.id}/chats`, {});
         await send(`/api/agents/${agent.id}/chats/${chat.id}/messages`, { text });
@@ -583,16 +574,18 @@ describe('effort and favorite models', () => {
         refuse = how;
         bodies.length = 0;
         const items = await ask(`again (${how})`);
-        expect(items.some((x) => x.type === 'assistant')).toBe(true);
-        expect(bodies).toHaveLength(2);
-        expect(bodies[1]).not.toHaveProperty('reasoning_effort');
+        expect(items.some((x) => x.type === 'error')).toBe(true);
+        expect(bodies.length).toBeGreaterThan(0);
+        expect(bodies.length).toBeLessThanOrEqual(3);
+        expect(bodies.every((body) => body.reasoning_effort === 'high')).toBe(true);
       }
 
       refuse = 'late';
       bodies.length = 0;
       const items = await ask('late error');
       expect(items.some((x) => x.type === 'error')).toBe(true);
-      expect(bodies).toHaveLength(1);
+      expect(bodies.length).toBeLessThanOrEqual(3);
+      expect(bodies.every((body) => body.reasoning_effort === 'high')).toBe(true);
     } finally {
       await new Promise<void>((r) => model.close(() => r()));
     }

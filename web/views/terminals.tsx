@@ -105,7 +105,7 @@ function TerminalsPage({ asked }: { asked?: string }) {
 
 function Launcher() {
   const data = useAppState();
-  const agents = (data?.agents || []).filter((a) => a.engine !== 'openai');
+  const agents = (data?.agents || []).filter((a) => a.engine !== 'eve');
   const [agentId, setAgentId] = useState(agents[0]?.id || '');
   if (!data) return null;
   const e = data.engines;

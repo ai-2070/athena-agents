@@ -21,7 +21,7 @@ beforeEach(() => {
 
 function fixture() {
   const project = activeProject();
-  const agent = newAgent({ name: 'Saved work', engine: 'openai', toolGroups: [] });
+  const agent = newAgent({ name: 'Saved work', engine: 'eve', toolGroups: [] });
   const chat = chats.create(agent.id);
   const run: ExecutionRun = { id: `run-${agent.id}`, projectId: project.id, agentId: agent.id, chatId: chat.id, engine: agent.engine, parentRunId: null, ownerChatId: chat.id, ownerAgentId: agent.id, depth: 0, text: 'Do the first job', from: null, attachments: [], startedAt: Date.now(), status: 'running' };
   const queue: ExecutionQueue = { projectId: project.id, agentId: agent.id, chatId: chat.id, items: [{ id: 'next', text: 'Do the next job', from: 'The Brain', attachments: ['notes.txt'], ts: Date.now() }], priority: [], paused: false };
@@ -76,7 +76,7 @@ describe('saved input admission', () => {
       import { newAgent } from './server/library.ts';
       import { chats, activeProject } from './server/store.ts';
       import { startRun, queueMessage, editQueued, steerChat, queuedMessages } from './server/engines/index.ts';
-      const agent = newAgent({name:'Crash boundary',engine:'openai',provider:'custom',model:'mock',toolGroups:[]});
+      const agent = newAgent({name:'Crash boundary',engine:'eve',provider:'custom',model:'mock',toolGroups:[]});
       const chat = chats.create(agent.id);
       startRun(agent, chat, 'first job');
       const next = queueMessage(agent, chat, 'second job');

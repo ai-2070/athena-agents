@@ -36,7 +36,7 @@ const until = async (ok: () => boolean, ms = 5000) => {
   }
   throw new Error('timed out');
 };
-const slow = (name: string) => newAgent({ name, engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+const slow = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
 const running = (agentId: string) => activeRuns().some((r) => r.agentId === agentId);
 const team = (name: string, members: string[]) => workflows.save({ name, members, lead: members[0], steps: members.map((agentId) => ({ type: 'agent' as const, agentId })), schedule: { type: 'none' }, enabled: false } as Partial<Team>);
 

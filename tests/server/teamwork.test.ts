@@ -17,7 +17,7 @@ import type { ExecutionRun, SavedTeamWork, Team, TeamMessage } from '../../share
 
 function fixture() {
   const project = activeProject();
-  const agent = newAgent({ name: 'Team reader', engine: 'openai', toolGroups: [] });
+  const agent = newAgent({ name: 'Team reader', engine: 'eve', toolGroups: [] });
   const team = workflows.save({ name: 'Saved team', members: [agent.id], lead: agent.id, steps: [] } as Partial<Team>);
   const chat = chats.create(agent.id, 'Member memory', team.id);
   const message: TeamMessage = { id: 'original-message', ts: Date.now(), from: 'user', text: 'Original assignment', mentions: [agent.id] };
@@ -285,7 +285,7 @@ describe('saved team assignments', () => {
       import { newAgent } from './server/library.ts';
       import { workflows, activeProject } from './server/store.ts';
       import { postUserMessage } from './server/teams.ts';
-      const agent = newAgent({name:'Routing member',engine:'openai',toolGroups:[]});
+      const agent = newAgent({name:'Routing member',engine:'eve',toolGroups:[]});
       const team = workflows.save({name:'Routing crash',members:[agent.id],lead:null,steps:[]});
       void postUserMessage(team.id, 'Pending routing', {route:()=>new Promise(()=>{})});
       console.log(JSON.stringify({projectId:activeProject().id,teamId:team.id}));

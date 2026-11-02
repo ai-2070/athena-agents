@@ -28,7 +28,7 @@ beforeAll(async () => {
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
-const agent = (name: string, toolGroups: string[] = []) => newAgent({ name, engine: 'openai', provider: 'custom', model: 'mock', toolGroups });
+const agent = (name: string, toolGroups: string[] = []) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups });
 const handleOf = (text: string) => /handle (h\w+)/.exec(text)![1];
 
 describe('ask_agent and await_agent', () => {

@@ -9,6 +9,8 @@ if (!fs.existsSync(path.join(root, 'public', 'dist', 'app.js'))) {
   const first = Bun.spawn(['bun', 'scripts/build-web.ts'], { cwd: root, stdout: 'inherit', stderr: 'inherit' });
   if (await first.exited) process.exit(1);
 }
+const eve = Bun.spawn(['bun', 'scripts/build-eve.ts'], { cwd: root, stdout: 'inherit', stderr: 'inherit' });
+if (await eve.exited) process.exit(1);
 const web = Bun.spawn(['bun', 'scripts/build-web.ts', '--watch'], { cwd: root, stdout: 'inherit', stderr: 'inherit' });
 const server = Bun.spawn(['bun', '--watch', 'server/index.ts', '--no-open', ...process.argv.slice(2)], { cwd: root, stdout: 'inherit', stderr: 'inherit' });
 

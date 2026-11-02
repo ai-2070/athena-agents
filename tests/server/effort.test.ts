@@ -18,14 +18,14 @@ describe('effort levels', () => {
     expect(effortLevels('codex')).toEqual(['minimal', 'low', 'medium', 'high', 'xhigh']);
     expect(effortLevels('hermes')).toEqual([...EFFORTS]);
     for (const e of ['pi', 'omp', 'openclaw'] as const) expect(effortLevels(e)).toEqual([...EFFORTS]);
-    expect(effortLevels('openai', 'openrouter')).toEqual(['minimal', 'low', 'medium', 'high', 'xhigh']);
-    expect(effortLevels('openai', 'ollama')).toEqual(['low', 'medium', 'high']);
+    expect(effortLevels('eve', 'openrouter')).toEqual(['minimal', 'low', 'medium', 'high', 'xhigh']);
+    expect(effortLevels('eve', 'ollama')).toEqual(['low', 'medium', 'high']);
   });
 
   it('sends the nearest level an engine has, and nothing for the default or junk', () => {
     expect(effortFor('codex', 'max')).toBe('xhigh');
     expect(effortFor('claude-code', 'minimal')).toBe('low');
-    expect(effortFor('openai', 'xhigh', 'lmstudio')).toBe('high');
+    expect(effortFor('eve', 'xhigh', 'lmstudio')).toBe('high');
     expect(effortFor('claude-code', 'high')).toBe('high');
     expect(effortFor('claude-code', '')).toBe('');
     expect(effortFor('claude-code', 'ultra')).toBe('');

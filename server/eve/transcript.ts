@@ -5,7 +5,7 @@ import { keepToolImages } from '../toolimages.ts';
 import { markProjected, readRun, transcriptContext } from './state.ts';
 import { EveProjectionError } from './projection.ts';
 import { readAdmission } from './admission.ts';
-import { measuredBy } from '../compaction.ts';
+import { measuredBy } from '../context.ts';
 import { readExecution } from '../execution.ts';
 import type { RunEvent } from '../../shared/types.ts';
 

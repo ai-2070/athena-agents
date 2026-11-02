@@ -8,7 +8,6 @@ const capabilities: Record<EngineId | 'eve', EngineCapabilities> = {
   pi: native,
   omp: native,
   openclaw: native,
-  openai: { nativeSession: false, directTools: true, inlineAttachmentText: true, durableSession: false },
   eve: { nativeSession: true, directTools: true, inlineAttachmentText: true, durableSession: true },
 };
 

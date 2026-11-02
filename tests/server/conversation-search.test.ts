@@ -9,7 +9,6 @@ import { clearThread, teamMessages } from '../../server/teams.ts';
 import { dataPath, writeJSON } from '../../server/util.ts';
 import { callTool, toolsForAgent } from '../../server/tools.ts';
 import { readConversation, searchConversations } from '../../server/conversations.ts';
-import { compactChat } from '../../server/compaction.ts';
 import type { ConversationReadResult, ConversationSearchResult, Team } from '../../shared/types.ts';
 
 const setup = () => {
@@ -102,7 +101,7 @@ describe('conversation search tools', () => {
     const { me, own } = setup();
     own.items[0] = { type: 'user', text: 'x'.repeat(20000) + ' UNIQUE_COMPACTED_TAIL', ts: 1 };
     own.items.push({ type: 'tool', id: 'search', name: 'search_conversations', args: { query: 'UNIQUE_COMPACTED_TAIL' }, result: 'UNIQUE_COMPACTED_TAIL', status: 'done' });
-    await compactChat(own, { trigger: 'manual', mode: 'instant', current: false, window: 8000, keepMessages: 0 });
+    own.items.push({ type: 'compaction', id: 'native-mark', mode: 'engine', trigger: 'auto', upto: own.items.length, text: '' });
     chats.save(own);
     const result = searchConversations(me.id, { query: 'UNIQUE_COMPACTED_TAIL', scope: 'own' });
     expect(result.total).toBe(1);

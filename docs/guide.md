@@ -244,16 +244,13 @@ Some sites and programs can't be connected because they have no API or MCP serve
 
 ## Long chats
 
-The dashboard compacts older messages so long conversations fit the model's context window. The original messages stay visible to you.
+API-model agents run through Eve. Eve keeps each session and handles its own context compaction, as the CLI engines do for their sessions. A **Compacted** mark records that the engine shortened its active memory; saved original messages and tool results stay visible and searchable.
 
-By default, compaction starts at **50%** of the context window and keeps up to the **latest 10 messages** in full, within the size budget. Change these settings under **Settings → General & keys → Chat memory**.
+The dashboard no longer shortens conversations, writes summaries or lets you edit checkpoints. Use **Clear memory** to start a new session. When changing engines or models, it supplies the saved originals after the last clear. If they do not fit, choose a larger-context model or clear memory; originals are never silently trimmed.
 
-- **Instant compaction** is on by default. It shortens the original text, reduces tool calls to one line and omits tool results without making a model call. Agents can use `recall_history` to retrieve the full entries.
-- Turn instant compaction off to have the Brain's model write a summary instead.
-- Open a **Compacted** mark to see what the agent remembers; you can edit the latest one. Use **Compact** or `/compact` to compact by hand, or `/compact summary` to request a summary.
-- Claude Code, Codex, Hermes, pi, oh-my-pi and OpenClaw compact their own sessions when nearly full, so by default the dashboard compacts their chats only when you ask, or when one says the chat is too long. Turn off **Let Claude Code, Codex… compact on their own** to have the dashboard compact them at the threshold too. API-model agents are always compacted by the dashboard.
+The context meter uses the engine's last measurement when available, otherwise an estimate. Under **Settings → General & keys → Context**, set **Context window** if a model's reported size is wrong.
 
-The amount retained scales with the context window. Set **Context window** if a model's reported size is wrong.
+Eve turns survive an app restart, including saved approvals and questions. Stop ends the native session. Queued messages remain saved. Private runtime files stay on this computer and are excluded from project copies, backups and exports.
 
 Very long chats still scroll smoothly: from 50 messages on, the chat page and the floating window only draw the messages near what you see, so the floating window can show the whole chat too. Because of this, your browser's Find (Ctrl+F) only finds text in the messages near where you have scrolled.
 

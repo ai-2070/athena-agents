@@ -42,7 +42,7 @@ export const PROVIDERS: Record<ProviderId, ProviderDef> = {
   custom: { label: 'Custom', base: () => getSettings().providers.custom.baseUrl, key: () => getSecrets().customKey || 'none' },
 };
 
-export function status(): EngineStatus['openai'] {
+export function status(): EngineStatus['eve'] {
   return { openrouter: !!getSecrets().openrouterKey, custom: !!getSettings().providers.custom.baseUrl };
 }
 

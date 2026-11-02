@@ -6,7 +6,7 @@ import { openTerminal } from './agents.tsx';
 import { memoryButton } from '../memory.tsx';
 import { buttonClass } from '../ui/classes.ts';
 import { modelChip, modelInfo } from '../models.tsx';
-import { kTokens } from '../../shared/compaction.ts';
+import { kTokens } from '../../shared/context.ts';
 import { attachTray } from '../attach.tsx';
 import { Avatar, DomNode, Icon, reactPage } from '../ui/react.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
@@ -23,11 +23,9 @@ const ChatView = lazy(() => import('../chat/ChatView.tsx').then((m) => ({ defaul
 interface MemoryInfo {
   tokens: number;
   window: number;
-  compactAt: number;
   percent: number;
-  auto: boolean;
   /** the engine compacts this chat by itself (compactAt is then the whole window) */
-  own?: boolean;
+  estimated: boolean;
 }
 
 type Loaded = { kind: 'gone' } | { kind: 'ready'; agent: AgentDetail; chat: Chat; chats: ChatSummary[] };
@@ -131,7 +129,7 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
 
   const tools = agent.tools || [];
   const info = modelInfo(agent);
-  const how = memory ? (memory.own ? `${ENGINE_LABEL[agent.engine] || 'Its engine'} compacts it by itself when it is nearly full` : memory.auto ? `Compacts by itself at ${kTokens(memory.compactAt)}` : 'Automatic compaction is off') : '';
+  const how = memory ? `${memory.estimated ? 'Estimated context use. ' : ''}${ENGINE_LABEL[agent.engine] || 'The engine'} manages its own memory.` : '';
   return (
     <div className="grid h-[calc(100vh-56px)] grid-rows-[minmax(0,1fr)] grid-cols-[260px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1" ref={page}>
       <aside className="flex min-h-0 flex-col border-r border-line bg-bg max-md:border-r-0 max-md:border-b">
@@ -148,8 +146,8 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
           <div className="mt-5 flex flex-col gap-2">
             <Button size="small" className="w-full justify-center" onClick={() => void newChat()}>+ New chat</Button>
             <div className="grid grid-cols-2 gap-2">
-              <ButtonLink variant="ghost" size="tiny" className={`justify-center ${agent.engine === 'openai' ? 'col-span-2' : ''}`} href={`#/agents/${agent.id}/edit`}>Edit</ButtonLink>
-              {agent.engine !== 'openai' ? (
+              <ButtonLink variant="ghost" size="tiny" className={`justify-center ${agent.engine === 'eve' ? 'col-span-2' : ''}`} href={`#/agents/${agent.id}/edit`}>Edit</ButtonLink>
+              {agent.engine !== 'eve' ? (
                 <Button variant="ghost" size="tiny" className="justify-center" title="Open this agent in a live terminal" onClick={() => void openTerminal(agent)}><Icon name="terminal" size={13} />Terminal</Button>
               ) : null}
               <DomNode as="span" className="col-span-2" make={() => memoryButton(agent.id, agent.name, { size: 'tiny', class: 'w-full justify-center' })} deps={[agent.id]} />
@@ -178,15 +176,14 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
           <div className="flex flex-wrap items-center gap-2">
             {memory ? (
               <Pill
-                tone={memory.tokens >= memory.compactAt * 0.8 ? 'warn' : 'dim'}
+                tone={memory.tokens >= memory.window * 0.85 ? 'warn' : 'dim'}
                 className="mem relative cursor-default overflow-hidden tabular-nums"
-                title={`About ${kTokens(memory.tokens)} of ${kTokens(memory.window)} tokens. ${how} (Settings > Chat memory).`}
+                title={`About ${kTokens(memory.tokens)} of ${kTokens(memory.window)} tokens. ${how} (Settings > Context).`}
               >
                 <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--color-accent)_26%,transparent),color-mix(in_srgb,var(--color-accent)_9%,transparent))]" style={{ width: `${Math.max(0, Math.min(100, memory.percent))}%` }} />
                 <span className="relative">{`Memory ${memory.percent}%`}</span>
               </Pill>
             ) : null}
-            <Button size="tiny" variant="ghost" title="Compact the agent’s memory of this chat now: older messages become a short history, the latest stay in full (or type /compact)" onClick={() => void api.current?.compact()}>Compact</Button>
             <Button size="tiny" variant="ghost" onClick={() => void rename()}>Rename</Button>
             <Button size="tiny" variant="ghost" title="Keep the messages here but start the agent fresh" onClick={() => void resetMemory()}>Clear memory</Button>
             <Button size="tiny" variant="danger" onClick={() => void removeChat()}>Delete</Button>

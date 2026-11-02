@@ -56,7 +56,7 @@ export async function openTerminal(agent: Pick<Agent, 'id'>): Promise<void> {
 /** "Claude Code", "API model · openrouter", "Hermes · writer"… */
 export function engineLabel(a: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'provider' | 'hermesProfile' | 'openclawAgent'>>): string {
   const label = ENGINE_LABEL[a.engine] || a.engine;
-  const extra = a.engine === 'openai' ? ` · ${a.provider}` : a.engine === 'hermes' && a.hermesProfile ? ` · ${a.hermesProfile}` : a.engine === 'openclaw' && a.openclawAgent ? ` · ${a.openclawAgent}` : '';
+  const extra = a.engine === 'eve' ? ` · ${a.provider}` : a.engine === 'hermes' && a.hermesProfile ? ` · ${a.hermesProfile}` : a.engine === 'openclaw' && a.openclawAgent ? ` · ${a.openclawAgent}` : '';
   return `${label}${extra}`;
 }
 
@@ -273,7 +273,7 @@ function AgentsList() {
                   <Icon name="pencil" size={13} />
                   Edit
                 </ButtonLink>
-                {a.engine !== 'openai' ? (
+                {a.engine !== 'eve' ? (
                   <Button variant="ghost" size="small" className="ml-auto" title="Open a terminal for this agent" aria-label={`Terminal for ${a.name}`} onClick={() => void openTerminal(a)}>
                     <Icon name="terminal" size={13} />
                     Terminal
@@ -366,7 +366,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
   // A new engine or provider may not have the effort level: keep the nearest one it has, the one the Effort field shows.
   const fit = (x: Agent): Agent => (x.effort ? { ...x, effort: effortFor(x.engine, x.effort, x.provider) } : x);
   const pickEngine = (engine: Agent['engine']) => {
-    setA((x) => fit({ ...x, engine, model: engine === 'claude-code' ? d.settings.defaults.claudeModel : engine === 'openai' ? d.settings.defaults.openrouterModel : '' }));
+    setA((x) => fit({ ...x, engine, model: engine === 'claude-code' ? d.settings.defaults.claudeModel : engine === 'eve' ? d.settings.defaults.openrouterModel : '' }));
     setDirty(true);
   };
   const del = async () => {
@@ -630,7 +630,7 @@ function EngineFields({ a, d, set, fit }: {
   }, [needs]);
   useEffect(() => {
     let live = true;
-    const q = a.engine === 'openai' ? `engine=openai&provider=${a.provider}` : `engine=${a.engine}`;
+    const q = a.engine === 'eve' ? `engine=eve&provider=${a.provider}` : `engine=${a.engine}`;
     void GET<ModelListing[]>(`/models?${q}`)
       .catch((): ModelListing[] => [])
       .then((m) => live && setModels(m.slice(0, 600)));
@@ -664,7 +664,7 @@ function EngineFields({ a, d, set, fit }: {
         )}
       </div>
     );
-  else if (a.engine === 'openai')
+  else if (a.engine === 'eve')
     parts = (
       <>
         <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">

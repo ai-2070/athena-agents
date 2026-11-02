@@ -115,7 +115,7 @@ export function newAgent(fields: Partial<Agent> = {}): Agent {
     description: fields.description || '',
     systemPrompt: fields.systemPrompt || '',
     engine,
-    model: fields.model ?? (engine === 'claude-code' ? d.claudeModel : engine === 'openai' ? d.openrouterModel : ''),
+    model: fields.model ?? (engine === 'claude-code' ? d.claudeModel : engine === 'eve' ? d.openrouterModel : ''),
     provider: fields.provider || 'openrouter',
     claudeAuth: fields.claudeAuth || 'login',
     hermesProfile: fields.hermesProfile ?? d.hermesProfile ?? '',

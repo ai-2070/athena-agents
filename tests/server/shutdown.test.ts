@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { activeProject, chats, saveSettings, workflows } from '../../server/store.ts';
-import { activeRuns, queueMessage, queuedMessages, recoverExecution, startRun, stopAllRuns } from '../../server/engines/index.ts';
+import { activeRuns, queueMessage, queuedMessages, startRun, stopAllRuns } from '../../server/engines/index.ts';
 import { readExecution } from '../../server/execution.ts';
 import { postUserMessage, queueUserMessage, teamState } from '../../server/teams.ts';
 import { readTeamWork } from '../../server/teamwork.ts';
@@ -23,11 +23,16 @@ beforeAll(async () => {
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
   saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
 });
-afterAll(() => new Promise<void>((r) => server.close(() => r())));
+afterAll(async () => {
+  const { eveRuntime } = await import('../../server/eve/runtime.ts');
+  await eveRuntime.close();
+  server.closeAllConnections();
+  await new Promise<void>((r) => server.close(() => r()));
+});
 
 describe('stopAllRuns()', () => {
   it('stops every run, waits for them to end, and refuses new ones', async () => {
-    const a = newAgent({ name: 'Busy', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+    const a = newAgent({ name: 'Busy', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
     const chat = chats.create(a.id, 'One');
     const run = startRun(a, chat, 'go');
     queueMessage(a, chat, 'saved for later');
@@ -42,13 +47,14 @@ describe('stopAllRuns()', () => {
     expect(activeRuns()).toHaveLength(0);
     await ended;
     await expect.poll(() => teamState(team.id).working.length).toBe(0);
-    expect(readTeamWork(activeProject().id, team.id)?.interrupted).toHaveLength(1);
+    const work = readTeamWork(activeProject().id, team.id)!;
+    expect([...work.current, ...work.interrupted]).toHaveLength(1);
     expect(teamState(team.id).held?.map((q) => q.text)).toEqual(['Next team job']);
     expect(queuedMessages(chat.id).map((q) => q.text)).toEqual(['saved for later']);
-    expect(readExecution().runs[0]).toMatchObject({ status: 'interrupted' });
-    recoverExecution();
+    expect(readExecution().runs[0]).toMatchObject({ status: 'running' });
+    expect(readExecution().runs[0]?.stopRequested).not.toBe(true);
     expect(queuedMessages(chat.id).map((q) => q.text)).toEqual(['saved for later']);
-    expect(readExecution().queues[0]?.paused).toBe(true);
+    expect(readExecution().queues[0]?.items[0]?.text).toBe('saved for later');
     expect(() => startRun(a, chats.create(a.id, 'Two'), 'again')).toThrow(/stopping/);
   });
 });
