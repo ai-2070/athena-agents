@@ -1,0 +1,23 @@
+web/views/tasks.tsx
+  s_d3db9ebe8d99bd::t_4fa08fe77e7251 84-87,90,95,112-125,203,219-223
+tests/web/tasks-board.test.tsx
+  s_d3db9ebe8d99bd::t_4fa08fe77e7251 251-266
+web/taskmotion.ts
+  s_d3db9ebe8d99bd::t_4fa08fe77e7251 63-64,71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "052076874f9a059756635878f5541ff1aebf125b",
+  "prompts": {},
+  "sessions": {
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
