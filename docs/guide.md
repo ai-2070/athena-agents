@@ -132,6 +132,8 @@ Tasks start **Pending**. A worker claims ready work as **In progress**, checks t
 
 Creating or assigning a task records the plan. Ask the agent, team or Brain in the chat to do the work. During supervised work, unfinished tasks linked to the assignment prevent a premature completion report. Completing every task still requires the Brain's usual check of the requested result. A blocker continues to go to **Needs you**.
 
+**The Tasks board.** **Tasks** in the sidebar shows the same tasks as cards in three columns: **To do**, **In progress** and **Done**. Choose **This project**, **All projects** or one project above the board; each card in **All projects** says which project it is in, and the choice is remembered on this PC. Drag a card to another column or up and down its own; or focus it and press **[** / **]** to change column and **Alt+↑** / **Alt+↓** to move it within one; the card's **…** menu does the same and has **Remove**. A move is saved in the task's own project, whichever project is open. A task that still waits for another says so on its card and can't move to In progress or Done until that one is finished. **+** at the top of To do or In progress adds a card with just a title (in **All projects**, to the project open now). Click a card to change its title, description or column. Done shows the last 14 days; **Show older** shows the rest. Search and **Assigned to** narrow the cards.
+
 Tasks survive restarts and are included in folder saves, backups and clones. Opening a saved copy keeps task IDs and dependency links, resets In progress tasks to Pending and drops old completion-check links. Each project's tasks remain separate when you switch projects.
 
 ## Skills: instructions worth keeping
