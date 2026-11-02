@@ -6,7 +6,7 @@ import { PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { useServerEvents } from '../ui/react.tsx';
 import type { GatewayInboxEvent, GatewayInstance, GatewayOutgoingFile } from '../../shared/types.ts';
-import { gatewayNeedsReview } from '../../shared/gateways.ts';
+import { gatewayCleanupCandidates, gatewayNeedsReview } from '../../shared/gateways.ts';
 export { gatewayNeedsReview } from '../../shared/gateways.ts';
 
 const message = (error: unknown) => error instanceof Error ? error.message : 'Could not update this inbox. Try again.';
@@ -27,6 +27,7 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
   const [events, setEvents] = useState<GatewayInboxEvent[] | null>(null);
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState('review'); const [limit, setLimit] = useState(25);
+  const [age, setAge] = useState('30'); const [notice, setNotice] = useState('');
   const mounted = useRef(false); const request = useRef(0);
   const root = `/gateways/${encodeURIComponent(instance.id)}/inbox`;
   const load = useCallback(async () => {
@@ -48,18 +49,33 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
   const ordered = [...(events || [])].sort((a, b) => b.sequence - a.sequence);
   const shown = filter === 'review' ? ordered.filter(gatewayNeedsReview) : ordered;
   const connected = instance.enabled && instance.platform === 'telegram';
+  const cutoff = () => age === 'all' ? Date.now() : Date.now() - Number(age) * 86400000;
+  const eligible = gatewayCleanupCandidates(events || [], cutoff());
+  const cleanup = async () => {
+    const before = cutoff(); const selected = gatewayCleanupCandidates(events || [], before).map((event) => event.id);
+    if (!selected.length || busy) return;
+    if (!await confirmBox(`Remove ${selected.length} completed inbox receipt${selected.length === 1 ? '' : 's'}? Their message text, replies and file receipts will be removed from this inbox and cannot be restored here. Native chats and project files stay. Compact replay markers and byte reservations stay; active or unresolved conversations are kept.`, { ok: 'Remove receipts', danger: true })) return;
+    if (await act('cleanup', { before, eventIds: selected }) && mounted.current) setNotice(`Removed ${selected.length} completed receipt${selected.length === 1 ? '' : 's'}. Native chats and project files were kept.`);
+  };
   return <Section title={`Inbox · ${instance.name}`} description="Review accepted messages and individual delivery results. Earlier unresolved work holds later messages in the same conversation."
     action={<><Button size="small" variant="ghost" disabled={busy} onClick={() => void load()}>Reload inbox</Button><Button size="small" variant="ghost" disabled={busy} onClick={close}>Close inbox</Button></>}>
     <Row title="Messages" description={events ? `${events.length} saved · ${events.filter(gatewayNeedsReview).length} need review` : 'Loading inbox…'}>
       <SelectControl aria-label="Inbox filter" value={filter} options={[{ value: 'review', label: 'Needs review' }, { value: 'all', label: 'All messages' }]} onChange={(value) => { setFilter(value); setLimit(25); }} />
     </Row>
     {error && <div role="alert" className="px-5 py-4 text-red">{error}</div>}
+    {notice && <div role="status" className="px-5 py-4 text-dim">{notice}</div>}
     {!events && !error && <Row title="Loading messages…" />}
-    {events && !shown.length && <Row title={!events.length ? 'No messages yet' : 'No messages need review'} description={!events.length ? 'Messages from allowed senders appear here after they are saved.' : 'Choose All messages to see queued work, completed replies and confirmed files.'} />}
+    {events && !shown.length && <Row title={!events.length ? 'No saved messages' : 'No messages need review'} description={!events.length ? 'Messages from allowed senders appear here after they are saved.' : 'Choose All messages to see queued work, completed replies and confirmed files.'} />}
     {!connected && <PanelNote>This instance is paused or unavailable. Enable its Telegram connection before retrying deliveries or selecting files.</PanelNote>}
     {shown.slice(0, limit).map((event) => <InboxMessage key={event.id} event={event} busy={busy} connected={connected} act={act}
       canSelect={!event.outgoing && Boolean(event.dispatch) && ['running', 'done'].includes(event.status) && !events?.some((later) => later.bindingId === event.bindingId && later.sequence > event.sequence && later.dispatch)} />)}
     {shown.length > limit && <RowActions><Button size="small" variant="ghost" onClick={() => setLimit((before) => before + 25)}>Show 25 more</Button></RowActions>}
+    {events && <Row title="Clean completed receipts" description={`${eligible.length} eligible. Unresolved conversations stay. This only removes inbox receipts, not native chats or project files.`} stack>
+      <div className="flex flex-wrap items-center gap-2">
+        <SelectControl aria-label="Receipt cleanup age" value={age} options={[{ value: '7', label: 'Received over 7 days ago' }, { value: '30', label: 'Received over 30 days ago' }, { value: '90', label: 'Received over 90 days ago' }, { value: 'all', label: 'All completed receipts' }]} onChange={setAge} />
+        <Button size="small" variant="danger" disabled={busy || !eligible.length} onClick={() => void cleanup()}>Remove completed receipts</Button>
+      </div>
+    </Row>}
     <PanelNote>Confirmed deliveries are kept. Check Telegram before retrying an uncertain send; it may already have arrived. These controls never replay model work. Approvals stay in Athena.</PanelNote>
   </Section>;
 }

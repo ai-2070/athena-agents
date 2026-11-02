@@ -155,12 +155,13 @@ New gateway data does not need a legacy compatibility layer.*
   outgoing file retry/skip and explicit file selection by absolute paths. Confirmed parts and files
   have no retry action. Uncertain retries require checking Telegram and confirming duplicate risk;
   skipping a file also requires confirmation and never claims to undo remote delivery. Paused or
-  unavailable instances have read-only receipts. A closed inbox cannot apply a stale confirmation.
+  unavailable instances cannot retry deliveries. Paused instances can still inspect and clean eligible
+  receipts. A closed inbox cannot apply a stale confirmation.
   File selection preserves drafts on errors and is offered only for the current eligible assignment.
   Live receipt updates preserve open rows and drafts. Tests cover actions, confirmation/cancellation,
   disabled controls, rendering bounds, deep links and missing instances. Native `needs-review` work
-  remains held unless its original saved operation can be verified; no model replay/override or receipt
-  deletion/retention UI is provided.
+  remains held unless its original saved operation can be verified; no model replay or override of
+  unproven work is provided.
 - Added **Check saved work** for held messages with a dispatch receipt. The guarded
   `POST /api/gateways/:id/inbox/:eventId/reconcile` checks the original operation only: it never calls
   admission, Brain ask, agent start or team post. Verified pending work resumes completion tracking
@@ -185,10 +186,28 @@ New gateway data does not need a legacy compatibility layer.*
   refresh. Unreadable journals report an unknown count without being reset; missing projects report
   setup needed. Gateway events refresh sidebar state. Tests cover summary privacy, dirty-count refresh,
   corrupt journals, deleted projects, link destinations, ordering and the sidebar row limit.
-- Next: add receipt retention and finish the other
-  platforms. Albums still need grouping before dispatch, and inbox retention/review controls and explicit webhook
+- Added manual completed-receipt cleanup to the inbox, with received-before choices of 7, 30 or
+  90 days and All completed receipts. The UI previews an exact selection and requires confirmation;
+  `POST /api/gateways/:id/inbox/cleanup` revalidates its IDs and cutoff under the exclusive instance
+  claim. Active/unresolved conversations and edited sources keep their completed context. Pending,
+  sending, failed or uncertain final deliveries are never removed. In-flight advisory notices also
+  protect their conversation; finished advisory failures do not block cleanup after final delivery.
+- One atomic journal write removes eligible receipt bodies and saves compact message-ID hashes plus
+  per-day incoming/outgoing byte totals, including failed attempts and skipped uploads. Replayed
+  messages and edits of removed originals cannot start work, even after restart or rebinding. Neither
+  sequence numbers nor private conversation bindings are reset. Native chats and project files stay;
+  this is inbox cleanup, not whole-conversation erasure. Paused instances acquire storage ownership
+  without starting a transport. Stale selections fail as a whole, and corrupt replay/quota records fail
+  closed in both processing and diagnostics. Replay markers are retained without expiry, capped at
+  100,000 per instance; reaching that cap refuses further cleanup instead of forgetting protection.
+  Compact quota-day records also remain (at most 100,000); cleanup cannot refund a daily budget or
+  exploit a clock rollback. There is no automatic purge or reset of these safety records. Tests cover
+  full-inbox capacity, replay/restart/retargeting, shared-thread bindings, quota preservation, uploaded
+  file preservation, unresolved context, corruption, ownership, selection age and confirmation.
+- Next: finish the other
+  platforms. Albums still need grouping before dispatch, and native-work override controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
-  the final deletion/retention flow is pending. Real-account text/file checks on all four platforms
+  the full deletion flow for retired instances is pending. Real-account text/file checks on all four platforms
   and platform verification on Windows/Linux remain outstanding. Offline checks run in CI.
 
 ## Goal

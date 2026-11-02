@@ -229,6 +229,7 @@ then enable them. Open an instance's **Inbox** to review delivery, retry unconfi
 specific files to send. Uncertain retries ask you to check Telegram first. Artifacts and tool images are not attached automatically.
 **Check saved work** can recover a verified completed reply or resume tracking its original operation without starting another run.
 The sidebar's **Status** panel links gateway warnings to the relevant inbox or instance setup.
+Completed inbox receipts can be removed after confirmation. Native chats, files, replay protection and byte accounting stay intact.
 Delegated files stay tied to their source run and workspace; revoked access holds delivery for review.
 Slow requests show a short working notice; approvals stay in Athena. Uncertain sends need review before retrying.
 `bun run gateways:smoke` checks the SDK with

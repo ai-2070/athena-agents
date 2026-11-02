@@ -33,6 +33,10 @@ beforeEach(() => {
     if (url.endsWith('/retry-reply')) events[0].reply!.parts[1].status = 'pending';
     if (url.endsWith('/reconcile')) events[0].reconciliation = { at: 1700000000000, state: 'needs-review' };
     if (url.endsWith('/files/1/skip')) events[0].outgoing![1].status = 'skipped';
+    if (url.endsWith('/cleanup')) {
+      const ids = writes.at(-1)!.body.eventIds as string[];
+      events = events.filter((item) => !ids.includes(item.id));
+    }
     return new Response(JSON.stringify({ ok: true }));
   });
 });
@@ -141,4 +145,34 @@ it('does not offer recovery for input without a dispatch receipt and disables it
   await open(false); expect(button('Check saved work').disabled).toBe(true);
   act(() => unmount()); events[0].dispatch = undefined; await open();
   expect(button('Check saved work')).toBeUndefined(); expect(writes).toHaveLength(0);
+});
+
+it('cleans completed receipts while paused only after confirming the exact selection', async () => {
+  events[0].reply!.parts[1].status = 'sent'; await open(false);
+  expect(button('Remove completed receipts').disabled).toBe(false);
+  await click('Remove completed receipts'); await settle(); expect(writes).toHaveLength(0);
+  expect(document.querySelector('.modal')?.textContent).toContain('Native chats and project files stay');
+  await click('Cancel', document); await settle(); expect(writes).toHaveLength(0);
+  await click('Remove completed receipts'); await settle(); await click('Remove receipts', document); await settle();
+  expect(writes).toHaveLength(1); expect(writes[0].url).toBe('/api/gateways/g1/inbox/cleanup');
+  expect(writes[0].body).toEqual({ before: expect.any(Number), eventIds: ['event-1'] });
+  expect(host.textContent).toContain('Removed 1 completed receipt.'); expect(host.textContent).toContain('No saved messages');
+});
+
+it('keeps completed context when another message in its conversation is unresolved', async () => {
+  events[0].reply!.parts[1].status = 'sent'; const queued = event(2); queued.status = 'queued'; queued.reply = undefined; queued.dispatch = undefined; events.push(queued);
+  await open(); expect(button('Remove completed receipts').disabled).toBe(true); expect(writes).toHaveLength(0);
+});
+
+it('applies the chosen receipt age without sending a cleanup request automatically', async () => {
+  events[0].reply!.parts[1].status = 'sent'; events[0].receivedAt = Date.now() - 10 * 86400000;
+  await open(); expect(button('Remove completed receipts').disabled).toBe(true);
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Receipt cleanup age"]')!.click()); await settle();
+  await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((item) => item.textContent?.includes('over 7 days'))!.click()); await settle();
+  expect(button('Remove completed receipts').disabled).toBe(false); expect(writes).toHaveLength(0);
+});
+
+it('does not apply cleanup confirmation after the inbox has closed', async () => {
+  events[0].reply!.parts[1].status = 'sent'; await open(); await click('Remove completed receipts'); await settle();
+  act(() => unmount()); await click('Remove receipts', document); await settle(); expect(writes).toHaveLength(0);
 });

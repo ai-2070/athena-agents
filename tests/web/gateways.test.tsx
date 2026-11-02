@@ -134,7 +134,7 @@ it('finishes an authorized save after navigation without changing the new page U
 it('opens a per-instance inbox deep link and reports a deleted instance clearly', async () => {
   await open(); await create(); await act(async () => button('Save instance').click()); await settle();
   act(() => unmount()); location.hash = '#/settings?tab=gateways&inbox=g1'; await open();
-  expect(host.textContent).toContain('Inbox · Telegram work'); expect(host.textContent).toContain('No messages yet');
+  expect(host.textContent).toContain('Inbox · Telegram work'); expect(host.textContent).toContain('No saved messages');
   expect(host.querySelector('[aria-label="Instance name"]')).toBeNull();
   act(() => unmount()); location.hash = '#/settings?tab=gateways&inbox=deleted'; await open();
   expect(host.textContent).toContain('This gateway is no longer available');

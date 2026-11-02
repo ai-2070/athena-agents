@@ -1,7 +1,8 @@
 import type { GatewayHealth, GatewayReconciliation, GatewayStatus, ServerEvent } from '../../shared/types.ts';
 import { gatewayNeedsReview } from '../../shared/gateways.ts';
 import { bus, emit, listProjects } from '../store.ts';
-import { gatewayInboxHistory } from './inbox.ts';
+import { GatewayCleanupError, GatewayInbox, gatewayInboxHistory } from './inbox.ts';
+import { GatewayStateAdapter } from './state.ts';
 import { getGatewayInstance, listGatewayInstances } from './instances.ts';
 import { TelegramGatewayWorker } from './worker.ts';
 
@@ -69,6 +70,20 @@ export class GatewaySupervisor {
     const worker = this.workers.get(instanceId);
     if (!worker) throw Object.assign(new Error('Connect this gateway before checking its saved work.'), { status: 400 });
     return worker.reconcile(eventId);
+  }
+
+  async cleanup(instanceId: string, body: unknown): Promise<{ removed: number }> {
+    const worker = this.workers.get(instanceId);
+    if (worker) return worker.cleanup(body);
+    const instance = getGatewayInstance(instanceId);
+    if (instance.enabled) throw Object.assign(new Error('Pause this gateway or let it finish connecting before cleaning receipts.'), { status: 400 });
+    const state = new GatewayStateAdapter(instanceId);
+    try {
+      await state.connect();
+      return new GatewayInbox(state).cleanup(body);
+    } catch (error) {
+      throw Object.assign(new Error(error instanceof GatewayCleanupError ? error.message : 'This inbox could not be cleaned safely. Check storage and ownership before retrying.'), { status: 400 });
+    } finally { await state.disconnect(); }
   }
 
   async selectDocuments(instanceId: string, eventId: string, body: unknown): Promise<void> {

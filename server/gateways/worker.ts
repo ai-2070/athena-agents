@@ -3,7 +3,7 @@ import type { Logger } from 'chat';
 import type { GatewayHealth, GatewayReconciliation } from '../../shared/types.ts';
 import { getGatewaySecrets } from '../store.ts';
 import { captureGatewayRoute, getGatewayInstance } from './instances.ts';
-import { GatewayInbox } from './inbox.ts';
+import { GatewayCleanupError, GatewayInbox } from './inbox.ts';
 import { GatewayStateAdapter } from './state.ts';
 import { GatewaySetupError, TelegramIntakeAdapter } from './telegram.ts';
 import { claimGatewayAccount } from './ownership.ts';
@@ -203,6 +203,12 @@ export class TelegramGatewayWorker {
     if (this.closed || !this.dispatcher) throw Object.assign(new Error('Connect this gateway before checking its saved work.'), { status: 400 });
     try { return this.dispatcher.reconcile(eventId); }
     catch { throw Object.assign(new Error('This work cannot be reconciled. Check the saved destination, sender access and source edits. Nothing was restarted or sent.'), { status: 400 }); }
+  }
+
+  cleanup(body: unknown): { removed: number } {
+    if (this.closed || !this.inbox) throw Object.assign(new Error('This gateway is changing connection state. Retry cleanup once it has settled.'), { status: 400 });
+    try { return this.inbox.cleanup(body); }
+    catch (error) { throw Object.assign(new Error(error instanceof GatewayCleanupError ? error.message : 'This inbox could not be cleaned safely. Check its saved receipts before retrying.'), { status: 400 }); }
   }
 
   async selectDocuments(eventId: string, body: unknown): Promise<void> {

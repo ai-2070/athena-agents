@@ -981,6 +981,7 @@ get('/api/gateways', async () => ({
 post<unknown>('/api/gateways', async (_p, body) => gateways.saveGatewayInstance(body));
 get('/api/gateways/targets/:projectId', async ({ projectId }) => gateways.gatewayTargets(projectId));
 get('/api/gateways/:id/inbox', async ({ id }) => ({ events: gatewayInboxHistory(id) }));
+post<unknown>('/api/gateways/:id/inbox/cleanup', async ({ id }, body) => gatewaySupervisor.cleanup(id, body));
 put<unknown>('/api/gateways/:id', async ({ id }, body) => gateways.saveGatewayInstance(body, id));
 put<unknown>('/api/gateways/:id/credentials', async ({ id }, body) => {
   gateways.saveGatewayCredentials(id, body);

@@ -153,6 +153,8 @@ export interface GatewayInboxJournal {
   nextSequence: number;
   bindings: GatewayConversationBinding[];
   events: GatewayInboxEvent[];
+  retired?: string[];
+  retiredQuota?: { day: string; incomingBytes: number; outgoingBytes: number }[];
 }
 
 export interface GatewayHealth {

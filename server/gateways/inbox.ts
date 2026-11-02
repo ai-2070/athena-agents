@@ -9,6 +9,7 @@ import type { GatewayStateAdapter } from './state.ts';
 import { privateDataPath } from '../private.ts';
 import type { GatewayCompletion } from './execution.ts';
 import type { GatewayReconciliation } from '../../shared/types.ts';
+import { gatewayCleanupCandidates } from '../../shared/gateways.ts';
 
 const externalId = z.string().min(1).max(500);
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -44,6 +45,8 @@ const inboundSchema: z.ZodType<GatewayInbound> = z.strictObject({
 const replyPart = z.strictObject({ text: z.string().min(1).max(3000), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed']), attempts: stamp, remoteId: externalId.optional(), retryAt: stamp.optional() });
 const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
   version: z.literal(1), nextSequence: stamp.positive(),
+  retired: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(100000).optional(),
+  retiredQuota: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), incomingBytes: stamp, outgoingBytes: stamp })).max(100000).optional(),
   bindings: z.array(z.strictObject({ id: externalId, accountId: externalId, conversationId: externalId, threadId: z.string().max(500), route, createdAt: stamp })),
   events: z.array(z.strictObject({
     id: externalId, bindingId: externalId, route, input: inboundSchema, sequence: stamp.positive(), receivedAt: stamp,
@@ -77,6 +80,14 @@ function saveAnswer(event: GatewayInboxEvent, answer: string): void {
   event.reply = { createdAt: Date.now(), parts: parts.map((text) => ({ text, status: 'pending', attempts: 0 })) };
 }
 export class GatewayFileLimitError extends Error {}
+export class GatewayCleanupError extends Error {}
+
+function replayReceiptsValid(journal: GatewayInboxJournal): boolean {
+  if ((journal.retired === undefined) !== (journal.retiredQuota === undefined)) return false;
+  const retired = new Set(journal.retired ?? []);
+  return retired.size === (journal.retired?.length ?? 0) && !journal.events.some((event) => retired.has(event.id))
+    && new Set(journal.retiredQuota?.map((quota) => quota.day)).size === (journal.retiredQuota?.length ?? 0);
+}
 
 /** Atomic writers permit read-only diagnostics without taking the live worker's claim. */
 export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] {
@@ -84,7 +95,7 @@ export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] {
   const file = privateDataPath('gateways-runtime', instanceId, 'inbox.json');
   if (!fs.existsSync(file)) return [];
   const parsed = journalSchema.safeParse(readJSON(file));
-  if (!parsed.success) throw Object.assign(new Error('This gateway inbox is unreadable.'), { status: 503 });
+  if (!parsed.success || !replayReceiptsValid(parsed.data)) throw Object.assign(new Error('This gateway inbox is unreadable.'), { status: 503 });
   return parsed.data.events;
 }
 
@@ -111,6 +122,7 @@ export class GatewayInbox {
     if (!parsed.success) throw new Error('The gateway inbox is unreadable. Restore it before reconnecting.');
     const journal = parsed.data;
     const eventIds = new Set(journal.events.map((event) => event.id));
+    if (!replayReceiptsValid(journal)) throw new Error('The gateway replay or quota receipts are inconsistent. Restore them before reconnecting.');
     const bindings = new Map(journal.bindings.map((binding) => [binding.id, binding]));
     const sequences = new Set(journal.events.map((event) => event.sequence));
     const batches = journal.events.filter((event) => event.fileBatch).map((event) => `${event.route.projectId}/${event.fileBatch}`);
@@ -140,6 +152,36 @@ export class GatewayInbox {
   }
 
   list(): GatewayInboxEvent[] { return this.read().events; }
+
+  cleanup(body: unknown): { removed: number } {
+    const parsed = z.strictObject({ before: stamp, eventIds: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(10000) }).safeParse(body);
+    if (!parsed.success) throw new GatewayCleanupError('Choose a valid cleanup selection and date.');
+    const { before, eventIds } = parsed.data;
+    if (before > Date.now() || new Set(eventIds).size !== eventIds.length) throw new GatewayCleanupError('Choose a valid cleanup selection and date.');
+    const journal = this.read(); const eligible = new Map(gatewayCleanupCandidates(journal.events, before).map((event) => [event.id, event]));
+    if (eventIds.some((id) => !eligible.has(id))) throw new GatewayCleanupError('Some receipts are no longer eligible. Reload the inbox before cleaning up.');
+    if ((journal.retired?.length ?? 0) + eventIds.length > 100000) throw new GatewayCleanupError('The replay-protection store is full. Cleanup cannot remove its protection.');
+    const quotas = new Map((journal.retiredQuota ?? []).map((quota) => [quota.day, { ...quota }]));
+    for (const id of eventIds) {
+      const event = eligible.get(id)!;
+      for (const [direction, attempts] of [
+        ['incomingBytes', (event.files ?? []).flatMap((file) => file.attempts)],
+        ['outgoingBytes', (event.outgoing ?? []).flatMap((file) => file.attempts)],
+      ] as const) for (const attempt of attempts) {
+        const quota = quotas.get(attempt.day) ?? { day: attempt.day, incomingBytes: 0, outgoingBytes: 0 };
+        quota[direction] += attempt.bytes;
+        if (!Number.isSafeInteger(quota[direction])) throw new GatewayCleanupError('The saved byte accounting cannot be compacted safely.');
+        quotas.set(attempt.day, quota);
+      }
+    }
+    if (quotas.size > 100000) throw new GatewayCleanupError('The byte accounting store is full. No receipts were removed.');
+    const selected = new Set(eventIds);
+    journal.retired = [...(journal.retired ?? []), ...eventIds];
+    journal.retiredQuota = [...quotas.values()];
+    journal.events = journal.events.filter((event) => !selected.has(event.id));
+    this.commit(journal);
+    return { removed: eventIds.length };
+  }
 
   beginDispatch(eventId: string, operationId: string, local: GatewayLocalConversation): GatewayInboxEvent {
     const journal = this.read();
@@ -254,7 +296,8 @@ export class GatewayInbox {
         const instance = this.checkAccess(event);
         const day = new Date().toISOString().slice(0, 10);
         const used = (events: GatewayInboxEvent[], today: boolean) => events.flatMap((item) => item.outgoing ?? []).flatMap((item) => item.attempts).reduce((sum, attempt) => sum + (!today || attempt.day === day ? attempt.bytes : 0), 0);
-        if (index >= instance.fileLimits.filesPerMessage || file.size > instance.fileLimits.perFileBytes || used([event], false) + file.size > instance.fileLimits.perMessageBytes || used(journal.events, true) + file.size > instance.fileLimits.dailyBytes) throw new Error('quota');
+        const retired = journal.retiredQuota?.find((quota) => quota.day === day)?.outgoingBytes ?? 0;
+        if (index >= instance.fileLimits.filesPerMessage || file.size > instance.fileLimits.perFileBytes || used([event], false) + file.size > instance.fileLimits.perMessageBytes || used(journal.events, true) + retired + file.size > instance.fileLimits.dailyBytes) throw new Error('quota');
         file.attempts.push({ day, bytes: file.size });
         file.status = 'sending'; delete file.reason;
         this.commit(journal);
@@ -385,7 +428,8 @@ export class GatewayInbox {
     if (!file || file.status !== 'pending') throw new Error('This file is not waiting to download.');
     const day = new Date().toISOString().slice(0, 10);
     const used = (events: GatewayInboxEvent[], today: boolean) => events.flatMap((item) => item.files ?? []).flatMap((item) => item.attempts).reduce((sum, attempt) => sum + (!today || attempt.day === day ? attempt.bytes : 0), 0);
-    const budget = Math.min(instance.fileLimits.perFileBytes, instance.fileLimits.perMessageBytes - used([event], false), instance.fileLimits.dailyBytes - used(journal.events, true));
+    const retired = journal.retiredQuota?.find((quota) => quota.day === day)?.incomingBytes ?? 0;
+    const budget = Math.min(instance.fileLimits.perFileBytes, instance.fileLimits.perMessageBytes - used([event], false), instance.fileLimits.dailyBytes - used(journal.events, true) - retired);
     if (index >= instance.fileLimits.filesPerMessage || budget <= 0) throw new GatewayFileLimitError('The gateway file quota is exhausted.');
     const id = uid('gateway-file-');
     // Reserve before network I/O; failed or interrupted attempts keep their reservation.
@@ -453,6 +497,7 @@ export class GatewayInbox {
     const journal = this.read();
     const source = [instance.id, input.accountId, input.conversationId, input.threadId, input.sourceMessageId];
     const eventId = digest([...source, input.kind, ...(input.kind === 'edit' ? [input.sourceEventId] : [])]);
+    if (journal.retired?.includes(eventId)) return null;
     const duplicate = journal.events.find((event) => event.id === eventId);
     if (duplicate) return duplicate;
     const boundRoute = captureGatewayRoute(instance.id);

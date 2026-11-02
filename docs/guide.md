@@ -399,7 +399,15 @@ starting another run. If its completion is verified and the original sender and 
 allowed, its saved reply is queued for delivery. Work still in progress resumes completion tracking.
 Missing records, edited input, changed destinations and unproven completion remain held; this action
 does not override them. Team recovery needs a completed review of the original message, rather than
-the latest team reply. Controls for removing old receipts are still being built.
+the latest team reply.
+
+Under **Clean completed receipts**, choose a received-before age or **All completed receipts**, then
+confirm **Remove completed receipts**. Only the displayed eligible selection is removed; unresolved
+conversations keep their earlier context. Paused instances can be cleaned without reconnecting.
+This removes inbox message text and delivery receipts, while native chats, project files and conversation
+links stay. Compact replay markers and daily byte totals stay too, so cleanup cannot resend an old
+request or refill a file budget. These records do not expire; if their storage limit is reached, cleanup
+refuses to remove further receipts. There is no automatic purge of unresolved work.
 
 The sidebar's **Status** panel shows gateway connection state and messages needing review. Click an
 instance needing review to open its inbox, or a connection warning to open its setup. Its tooltip names
