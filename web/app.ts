@@ -7,6 +7,7 @@ import type { DotTone } from './ui/classes.ts';
 import * as home from './views/home.tsx';
 import * as station from './views/station.ts';
 import * as artifactsView from './views/artifacts.tsx';
+import * as tasksView from './views/tasks.tsx';
 import * as agents from './views/agents.tsx';
 import * as chat from './views/chat.tsx';
 import * as library from './views/library.tsx';
@@ -63,6 +64,7 @@ const NAV: NavLink[] = [
   { path: 'station', label: 'Station', ico: 'orbit', view: station },
   { path: 'outbox', label: 'Outbox', ico: 'send', view: outboxView, count: () => (state.data?.outboxPending || 0) + (state.data?.questions?.length || 0) },
   { path: 'artifacts', label: 'Artifacts', ico: 'archive', view: artifactsView },
+  { path: 'tasks', label: 'Tasks', ico: 'kanban', view: tasksView },
   // how many agents this project has
   { path: 'agents', label: 'Agents', ico: 'bot', view: agents, count: () => state.data?.agents?.length || 0 },
   { path: 'library', label: 'Agent Library', ico: 'library-big', view: library },

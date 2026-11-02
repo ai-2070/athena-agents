@@ -1127,7 +1127,7 @@ export interface MemoryInfo {
 }
 
 // ---------- the Brain ----------
-export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'world' | 'task' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; taskId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
+export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'world' | 'task' | 'board' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; taskId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string; /** a task on the Tasks board it added or changed */ boardTask?: { projectId: string; id: string } };
 /** A tool the Brain used while it answered (it reads the project's files). */
 export interface BrainStep {
   id: string;
@@ -1213,6 +1213,89 @@ export interface TaskQuery {
   search?: string;
   offset?: number;
   limit?: number;
+}
+
+// ---------- the Tasks board ----------
+/** The board's columns, in order (any can move to any other). */
+export type BoardStatus = 'todo' | 'in_progress' | 'in_review' | 'blocked' | 'done';
+export type BoardPriority = 'urgent' | 'high' | 'normal' | 'low';
+/**
+ * A task on the Tasks board (data/projects/<id>/board.json): work you track for the project, with a
+ * description, a status, a priority and someone who has it. Not the step lists agents keep in their chats.
+ */
+export interface ProjectTask {
+  id: string;
+  /** #12: counts up in each project */
+  number: number;
+  title: string;
+  description: string;
+  status: BoardStatus;
+  priority: BoardPriority;
+  /** '' (no one), 'you', 'brain', 'agent:<id>' or 'team:<id>' */
+  assignee: string;
+  /** its place in its column (smaller is higher) */
+  rank: number;
+  /** why it is Blocked (only while it is) */
+  blockedReason?: string;
+  /** 'you', 'brain' or 'agent:<id>' */
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+  /** when it went to Done */
+  doneAt?: number;
+  /** what people said about it, oldest first (Markdown) */
+  comments?: TaskComment[];
+}
+/** A comment on a board task: from you, the Brain or an agent. */
+export interface TaskComment {
+  id: string;
+  /** 'you', 'brain' or 'agent:<id>' */
+  by: string;
+  /** Markdown */
+  text: string;
+  at: number;
+  editedAt?: number;
+}
+/** A comment as the task page shows it: with its writer's name. */
+export interface BoardComment extends TaskComment {
+  byName: string;
+  byEmoji?: string;
+}
+/** A board task as the board shows it: with its project and the names of who has it and who made it. The
+ *  board's list carries only how many comments it has; the task's own page gets them. */
+export interface BoardTask extends Omit<ProjectTask, 'comments'> {
+  commentCount: number;
+  comments?: BoardComment[];
+  projectId: string;
+  projectName: string;
+  assigneeName: string;
+  assigneeEmoji?: string;
+  assigneeColor?: string;
+  creatorName: string;
+}
+/** GET /api/task-board: the cards, and every project with how many open tasks it has. */
+export interface TaskBoardData {
+  projects: { id: string; name: string; open: number }[];
+  tasks: BoardTask[];
+}
+/** POST /api/task-board-draft: the Brain drafts a task's title and description, or a comment. */
+export interface BoardDraftInput {
+  projectId: string;
+  kind: 'task' | 'comment';
+  /** the task a comment (or a task's new description) is for */
+  taskId?: string;
+  title?: string;
+  description?: string;
+  /** the comment written so far */
+  text?: string;
+  /** what the user wants it to say */
+  instruction?: string;
+}
+export type BoardDraft = { kind: 'task'; title: string; description: string } | { kind: 'comment'; text: string };
+/** Who a project's tasks can go to (the new task window and the task page). */
+export interface BoardPeople {
+  agents: { id: string; name: string; emoji?: string; color?: string }[];
+  teams: { id: string; name: string }[];
 }
 
 /** Work the Brain handed to a team or an agent, and how its follow-up went (data/projects/<id>/brain-briefs.json). */

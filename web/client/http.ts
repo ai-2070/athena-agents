@@ -1,5 +1,5 @@
 // Requests to the dashboard's server. A refused request throws an Error with the server's own message
-// ("Unknown agent"), or the status when there is none.
+// ("Unknown agent"), or the status when there is none; its `status` is the HTTP status.
 import { apiUrl, requestHeaders } from './connection.ts';
 import type { Query } from './connection.ts';
 
@@ -21,9 +21,9 @@ function parse(text: string): unknown {
   }
 }
 
-const errorOf = (data: unknown, fallback: string): Error => {
+const errorOf = (data: unknown, fallback: string, status: number): Error & { status: number } => {
   const message = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' && data.error ? data.error : fallback;
-  return new Error(message);
+  return Object.assign(new Error(message), { status });
 };
 
 // The JSON the server sent back. T is what the caller expects: GET<Agent[]>('/agents').
@@ -35,7 +35,7 @@ export async function api<T = unknown>(path: string, { method = 'GET', body, raw
     body: raw ?? (body !== undefined ? JSON.stringify(body) : undefined),
   });
   const data = parse(await res.text());
-  if (!res.ok) throw errorOf(data, `${res.status} ${res.statusText}`);
+  if (!res.ok) throw errorOf(data, `${res.status} ${res.statusText}`, res.status);
   return data as T;
 }
 export const GET = <T = unknown>(p: string): Promise<T> => api<T>(p);
@@ -79,7 +79,7 @@ export function upload<T = unknown>(path: string, file: Blob, { query, onProgres
       end();
       const data = parse(xhr.responseText);
       if (xhr.status >= 200 && xhr.status < 300 && data && typeof data === 'object') resolve(data as T);
-      else reject(errorOf(data, `Upload failed (${xhr.status})`));
+      else reject(errorOf(data, `Upload failed (${xhr.status})`, xhr.status));
     };
     xhr.onerror = () => (end(), reject(new Error('Upload failed: the dashboard could not be reached.')));
     xhr.onabort = () => (end(), reject(new Error('Cancelled')));
