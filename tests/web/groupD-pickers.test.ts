@@ -145,7 +145,7 @@ describe('model picker: effort', () => {
     serve(() => ({ body: [] }));
     const picked: ModelPatch[] = [];
     openModelPicker(document.body, { engine: 'claude-code', model: 'opus', effort: 'high' }, (p) => picked.push(p));
-    expect(levels().map((b) => b.textContent)).toEqual(['Default', 'Low', 'Med', 'High', 'X-High', 'Max']);
+    expect(levels().map((b) => b.textContent)).toEqual(['Auto', 'Low', 'Med', 'High', 'X-High', 'Max']);
     expect(document.querySelector('.model-effort-level.on')?.textContent).toBe('High');
     levels().find((b) => b.textContent === 'Max')!.click();
     expect(picked).toEqual([{ engine: 'claude-code', model: 'opus', effort: 'max' }]);
@@ -159,7 +159,7 @@ describe('model picker: effort', () => {
     openModelPicker(document.body, { engine: 'claude-code', model: 'opus', effort: 'max' }, (p) => picked.push(p));
     tab('Codex').click();
     // Codex has no "max": its highest level shows, and nothing is applied yet
-    expect(levels().map((b) => b.textContent)).toEqual(['Default', 'Min', 'Low', 'Med', 'High', 'X-High']);
+    expect(levels().map((b) => b.textContent)).toEqual(['Auto', 'Min', 'Low', 'Med', 'High', 'X-High']);
     expect(document.querySelector('.model-effort-level.on')?.textContent).toBe('X-High');
     expect(picked).toEqual([]);
     // (no list from the server: the built-in one shows)
@@ -225,7 +225,7 @@ describe('model picker: Venice', () => {
     expect(tab().classList.contains('on')).toBe(true);
     expect(document.querySelector('.model-body')?.textContent).toContain('$0.15 / $0.60');
     const levels = [...document.querySelectorAll<HTMLButtonElement>('.model-effort-level')];
-    expect(levels.map((b) => b.textContent)).toEqual(['Default', 'Low', 'High']);
+    expect(levels.map((b) => b.textContent)).toEqual(['Auto', 'Low', 'High']);
     levels.find((b) => b.textContent === 'Low')!.click();
     expect(picked).toEqual([{ engine: 'eve', provider: 'venice', model: 'venice-chat', effort: 'low' }]);
     const offline = [...document.querySelectorAll<HTMLButtonElement>('.model-list .st-menu-item')].find((b) => b.textContent?.includes('Offline model'))!;

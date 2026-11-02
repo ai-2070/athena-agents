@@ -263,17 +263,19 @@ export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: 
 
 // ---------- the picker's rows, tabs and boxes ----------
 const STAR_CLASS = 'flex-none grid place-items-center size-7 mr-0.5 rounded-[6px] text-faint cursor-pointer opacity-0 [transition:opacity_.15s,color_.15s,background_.15s] group-hover:opacity-100 focus-visible:opacity-100 hover:text-accent hover:bg-panel-2 [&.on]:opacity-100 [&.on]:text-accent [&.on_.ico-svg]:fill-current [@media(hover:none)]:opacity-100';
-const EFFORT_LEVEL_CLASS = 'flex-1 min-w-0 py-1.5 px-0.5 border border-line rounded-ctl text-dim font-sans text-[12px] font-medium leading-[normal] cursor-pointer whitespace-nowrap [transition:border-color_.15s,color_.15s,background_.15s] hover:text-ink hover:bg-panel-2 [&.on]:border-accent [&.on]:text-accent [&.on]:bg-accent/10';
-const TAB_CLASS = "flex flex-col items-center gap-1 py-2 px-0.5 border border-line rounded-[8px] text-dim font-sans text-[11.5px] font-medium leading-[normal] cursor-pointer [transition:border-color_.15s,color_.15s,background_.15s] hover:text-ink hover:bg-panel-2 [&.on]:border-accent [&.on]:text-accent [&.on]:bg-accent/10 [&.cur]:after:content-[''] [&.cur]:after:size-1.25 [&.cur]:after:rounded-full [&.cur]:after:bg-accent";
+const EFFORT_LEVEL_CLASS = 'flex-1 min-w-0 py-1.5 px-1 rounded-[7px] text-dim font-sans text-[12px] font-medium leading-[normal] cursor-pointer whitespace-nowrap [transition:color_.15s,background_.15s,box-shadow_.15s] hover:text-ink [&.on]:bg-panel [&.on]:text-ink [&.on]:shadow-raised';
+const TAB_CLASS = "relative flex h-15 min-w-0 flex-col items-center justify-center gap-1.5 px-1 border border-line rounded-[10px] text-dim font-sans text-[11.5px] font-medium leading-[normal] cursor-pointer [transition:border-color_.15s,color_.15s,background_.15s,box-shadow_.15s] hover:text-ink hover:bg-panel-2 hover:border-line-2 [&>span:last-child]:max-w-full [&>span:last-child]:truncate [&.on]:border-accent [&.on]:text-ink [&.on]:bg-accent/10 [&.on]:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)] [&.cur]:after:content-[''] [&.cur]:after:absolute [&.cur]:after:top-1.5 [&.cur]:after:right-1.5 [&.cur]:after:size-1.5 [&.cur]:after:rounded-full [&.cur]:after:bg-ok";
 const MISSING_CLASS = 'flex items-center gap-2 mx-1.5 mb-1.5 px-2.25 py-1.75 rounded-[8px] text-[12px] text-amber bg-amber/10';
 const SHORT: Record<Effort, string> = { minimal: 'Min', low: 'Low', medium: 'Med', high: 'High', xhigh: 'X-High', max: 'Max' };
+/** A model row: its mark in a small tile, its name over where it runs, a check when it is the one in use. */
+const ROW_CLASS = 'flex-1 min-w-0 gap-3! py-2! px-2! rounded-[9px]! disabled:opacity-50 disabled:cursor-not-allowed [&.on]:bg-accent/8 [&.on]:text-ink';
+const ROW_TILE = 'grid size-8 flex-none place-items-center rounded-[8px] border border-line bg-panel-2 text-icon';
 /** How the class of a row is spelled: the markers a test or the app looks up, then the look. */
 const classes = (...parts: (string | false)[]) => parts.filter(Boolean).join(' ');
 
-/** The mark on a row: a check when it is the model in use, else its brand logo or a cpu icon. */
-function RowMark({ active, brand }: { active: boolean; brand: string | null }) {
-  if (active) return <Icon name="check" size={15} />;
-  return <BrandMark brand={brand} size={14} fallback={<Icon name="cpu" size={15} />} />;
+/** The mark on a row: its brand logo or a cpu icon, in a small tile. */
+function RowMark({ brand }: { brand: string | null }) {
+  return <span className={ROW_TILE}><BrandMark brand={brand} size={15} fallback={<Icon name="cpu" size={15} />} /></span>;
 }
 
 /** The star that saves a model as a favorite (saved in Settings, so every picker shows it). */
@@ -303,12 +305,13 @@ function FavStar({ choice, onChanged }: { choice: ModelChoice; onChanged: () => 
 function Row({ label, sub, active, choice, brand = null, disabled = false, onPick, onChanged }: { label: string; sub: string | null; active: boolean; choice: ModelChoice; brand?: string | null; disabled?: boolean; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
   return (
     <div className="model-row group flex items-center gap-0.5">
-      <button type="button" disabled={disabled} className={classes('st-menu-item', active && 'on', 'flex-1 min-w-0 disabled:opacity-50 disabled:cursor-not-allowed')} onClick={() => onPick(choice)}>
-        <RowMark active={active} brand={brand} />
-        <span className="flex-1 min-w-0">
+      <button type="button" disabled={disabled} aria-current={active || undefined} className={classes('st-menu-item', active && 'on', ROW_CLASS)} onClick={() => onPick(choice)}>
+        <RowMark brand={brand} />
+        <span className="flex-1 min-w-0 truncate font-medium">
           {label}
-          {sub ? <span className="model-sub">{sub}</span> : null}
+          {sub ? <span className="model-sub font-normal">{sub}</span> : null}
         </span>
+        {active ? <Icon name="check" size={15} className="text-accent!" /> : null}
       </button>
       <FavStar choice={choice} onChanged={onChanged} />
     </div>
@@ -329,7 +332,12 @@ function FreeInput({ placeholder, onSubmit }: { placeholder: string; onSubmit: (
     el.addEventListener('keydown', key);
     return () => el.removeEventListener('keydown', key);
   }, [onSubmit]);
-  return <input ref={box} className={SEARCH} placeholder={placeholder} />;
+  return (
+    <label className="relative mt-2 block border-t border-line pt-2">
+      <span className="pointer-events-none absolute top-1/2 left-3 mt-1 -translate-y-1/2 text-faint"><Icon name="keyboard" size={14} /></span>
+      <input ref={box} className={`${SEARCH} my-0! pl-8.5!`} placeholder={placeholder} />
+    </label>
+  );
 }
 
 /** A line saying something isn't set up on this PC yet, and the way to Settings. */
@@ -368,7 +376,7 @@ function LevelButton({ value, shown, onPick }: { value: Effort | ''; shown: Effo
         onPick(value);
       }}
     >
-      {value ? SHORT[value] : 'Default'}
+      {value ? SHORT[value] : 'Auto'}
     </button>
   );
 }
@@ -749,8 +757,11 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
         finalFocus={false}
         className="model-menu data-[ending-style]:pointer-events-none"
       >
-        <div className="st-menu-head">{title}</div>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(66px,1fr))] gap-1.5 pt-1 px-2 pb-3">
+        <div className="flex-none px-3 pt-3 pb-2.5">
+          <div className="st-menu-head truncate p-0! text-[13.5px]! font-semibold! text-ink!">{title}</div>
+          <div className="mt-0.5 text-[12px] text-faint">Where it runs, how hard it thinks, and which model</div>
+        </div>
+        <div className="grid flex-none grid-cols-4 gap-1.5 px-3 pb-3">
           {shownTabs.map((t) => (
             <button
               key={t.engine}
@@ -768,18 +779,18 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
             </button>
           ))}
         </div>
-        {shownTabs.length && (provider !== 'venice' || levels.length) ? <div className="px-2 pb-3 border-b border-line mb-1.5">
-          <div className="flex items-center gap-1.5 px-1 pb-2 font-sans text-[12px] font-medium leading-[normal] text-dim">
+        {shownTabs.length && (provider !== 'venice' || levels.length) ? <div className="flex-none border-b border-line px-3 pb-3">
+          <div className="flex items-center gap-1.5 pb-2 font-sans text-[12px] font-medium leading-[normal] text-dim">
             <Icon name="gauge" size={13} />
             <span>Effort</span>
             <span className="ml-auto font-normal text-faint">{live ? 'how hard it thinks' : 'for the model you pick here'}</span>
           </div>
-          <div className="flex gap-1" role="group" aria-label="Effort">
+          <div className="flex gap-0.5 rounded-[9px] border border-line bg-ink/[0.03] p-0.5" role="group" aria-label="Effort">
             <LevelButton value="" shown={shown} onPick={(v) => void changeEffort(v)} />
             {levels.map((level) => <LevelButton key={level} value={level} shown={shown} onPick={(v) => void changeEffort(v)} />)}
           </div>
         </div> : null}
-        <div className="model-body max-h-95 overflow-y-auto">{body}</div>
+        <div className="model-body min-h-0 flex-1 overflow-y-auto px-1.5 py-1.5">{body}</div>
       </PopoverContent>
     </PopoverRoot>
   );
