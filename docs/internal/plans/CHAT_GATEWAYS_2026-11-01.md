@@ -1,7 +1,7 @@
 # Chat SDK Gateways with files
 
 *Plan, 1 November 2026. Experimental Telegram text conversations and locally selected document replies added 2 November;
-product setup and automatic deliverable selection are incomplete.
+product setup remains incomplete.
 New gateway data does not need a legacy compatibility layer.*
 
 ## Implementation status
@@ -114,10 +114,20 @@ New gateway data does not need a legacy compatibility layer.*
 
   The application uses the SDK's Telegram multipart transport primitive directly for documents,
   avoiding formatter fallback, grouped sends and hidden retries that would obscure per-file outcomes.
-  There is no agent tool for selecting attachments yet; ordinary artifacts and tool images are never
-  attached automatically. File selection/review UI, explicit run deliverables and their disclosure
-  approval flow remain to implement.
-- Next: add explicit run deliverables, Settings/file review UI, and the other
+  Ordinary artifacts and tool images are never attached automatically.
+- Added `prepare_gateway_files` and high-risk `send_gateway_files` tools for explicit run deliverables.
+  Inspection returns eligible paths, sizes and SHA-256 hashes without selecting or sending files.
+  The send request carries those hashes through the existing autonomy/approval policy, rechecks
+  the bytes after approval and saves one immutable selection. Changed files require fresh inspection
+  and approval. The destination comes only from the live run's private conversation and project;
+  callers cannot supply an instance, event or recipient. A matching running execution receipt and
+  live worker ownership are required, and reconnect/shutdown revokes the old handoff.
+  Both the caller's workspace/safe uploads and the gateway target's folders must allow each file.
+  Brain-delegated agents with custom workspaces outside the Brain folder therefore cannot hand
+  those files in yet. The result confirms selection only; the normal final-answer and per-file
+  delivery ledger still control upload. Remote messages cannot approve these tool requests.
+- Next: add Settings/file review UI, broaden proven deliverable routing for custom delegated
+  workspaces, and finish the other
   platforms. Albums still need grouping before dispatch, and inbox retention/review controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the final deletion/retention flow is pending. Real-account text/file checks on all four platforms

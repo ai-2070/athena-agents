@@ -220,6 +220,29 @@ const TOOLS: ToolDef[] = [
       return { text: `Saved to Artifacts${a.teamName ? ` (team ${a.teamName})` : ''}: ${a.title}.` };
     },
   },
+  {
+    name: 'prepare_gateway_files',
+    group: 'core',
+    risk: 'none',
+    description: 'Inspect specific finished files for this active gateway assignment. Returns paths, names, sizes and SHA-256 hashes without sending them. Only your own workspace and safe project uploads are eligible. Use send_gateway_files with the returned paths and hashes to request delivery; ordinary artifacts and tool images are not sent automatically.',
+    parameters: obj({ paths: { type: 'array', items: str('Absolute path of a finished file'), minItems: 1, maxItems: 10 } }, ['paths']),
+    run: async (args, ctx) => {
+      const { prepareGatewayFiles } = await import('./gateways/deliverables.ts');
+      return { text: JSON.stringify(await prepareGatewayFiles(ctx.runId, ctx.agent.id, args)) };
+    },
+  },
+  {
+    name: 'send_gateway_files',
+    group: 'core',
+    risk: 'high',
+    description: 'Request delivery of explicitly chosen finished files to the sender of this active gateway assignment. Pass the paths and SHA-256 hashes returned by prepare_gateway_files. Uses the normal approval policy, refuses changed bytes, and queues files after the final answer. The destination cannot be changed. One immutable selection per assignment; the result confirms selection, not remote delivery. Never retry an uncertain delivery with another tool call; review it in Athena.',
+    parameters: obj({ files: { type: 'array', minItems: 1, maxItems: 10, items: obj({ path: str('Absolute path returned by prepare_gateway_files'), sha256: str('SHA-256 returned by prepare_gateway_files') }, ['path', 'sha256']) } }, ['files']),
+    run: async (args, ctx) => {
+      const { sendGatewayFiles } = await import('./gateways/deliverables.ts');
+      const count = await sendGatewayFiles(ctx.runId, ctx.agent.id, args);
+      return { text: `Selected ${count} file${count === 1 ? '' : 's'} for this gateway assignment. Delivery waits for the final answer; check its receipts in Athena.` };
+    },
+  },
   // ---------- asking the user (every agent) ----------
   {
     name: 'ask_user',

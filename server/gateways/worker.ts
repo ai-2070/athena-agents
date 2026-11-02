@@ -16,6 +16,7 @@ import { GatewayReplies } from './replies.ts';
 import type { GatewayReplySender } from './replies.ts';
 import { selectGatewayDocuments } from './outgoing.ts';
 import type { GatewayFileSender } from './outgoing.ts';
+import { registerGatewayDeliverables } from './deliverables.ts';
 
 interface Transport {
   start(): Promise<void>;
@@ -54,6 +55,7 @@ export class TelegramGatewayWorker {
   private inbox: GatewayInbox | undefined;
   private abort: AbortController | undefined;
   private releaseAccount: (() => Promise<void>) | undefined;
+  private releaseDeliverables: (() => void) | undefined;
   private starting: Promise<void> | undefined;
   private stopping: Promise<void> | undefined;
   private disposing: Promise<void> | undefined;
@@ -117,6 +119,7 @@ export class TelegramGatewayWorker {
       abort.signal.throwIfAborted();
       if (transport.reply) {
         const execution = this.options.execution ?? gatewayExecution;
+        if (transport.upload) this.releaseDeliverables = registerGatewayDeliverables(instance.id, inbox, abort.signal);
         this.replies = new GatewayReplies(inbox, transport.reply, abort.signal, (event, kind) => kind !== 'approval' || execution.approvalPending?.(event) === true, transport.upload); this.replies.start();
         this.dispatcher = new GatewayDispatcher(inbox, abort.signal, execution);
         await this.dispatcher.start();
@@ -165,6 +168,7 @@ export class TelegramGatewayWorker {
 
   private async disposeOwned(): Promise<void> {
     this.abort?.abort();
+    this.releaseDeliverables?.(); this.releaseDeliverables = undefined;
     const transport = this.transport;
     const state = this.state;
     const releaseAccount = this.releaseAccount;
