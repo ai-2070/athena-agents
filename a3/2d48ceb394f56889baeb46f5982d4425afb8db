@@ -1,0 +1,33 @@
+web/views/routines.tsx
+  s_8e3c27e6ce0122::t_4eb49f54438e75 4,220,222-224,290-291,295,304-305,309,311-313,316-323,325-328,337-343,354-355,359,361,365,367-405,407,409-413,455,468
+  s_8e3c27e6ce0122::t_12af333c04f769 462-463
+  s_3f5afab86a1bb3::t_79af8ba32e9f1a 3
+tests/web/routines-page.test.tsx
+  s_8e3c27e6ce0122::t_ced1a969cd6491 117-124
+  s_8e3c27e6ce0122::t_fba7c17c72ee7d 93-95
+  s_8e3c27e6ce0122::t_ab84ee0fbdb240 125-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a32d48ceb394f56889baeb46f5982d4425afb8db",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
