@@ -1,0 +1,25 @@
+web/dock.tsx
+  s_8e3c27e6ce0122::t_bc153041cefd0d 441-443
+server/overseer.ts
+  s_8e3c27e6ce0122::t_bc153041cefd0d 439,582-584,1342-1360,1362-1363
+  s_8e3c27e6ce0122::t_e3e1d4ac5c242b 42,585,1338-1341
+  s_8e3c27e6ce0122::t_bc69bae1e29c75 92-97
+  s_8e3c27e6ce0122::t_8a3c16b4ac2847 554
+  s_8e3c27e6ce0122::t_d8df3d304b61fd 1361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "316b59c00de6b5023a4b2e9b8e1d10cf02feafdf",
+  "prompts": {},
+  "sessions": {
+    "s_8e3c27e6ce0122": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d30fdbe-7138-483d-80d7-816769ded7e9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
