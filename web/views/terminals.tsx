@@ -9,8 +9,9 @@ import type { ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { GET, POST, DEL, attempt, navigate } from '../core.ts';
 import { openSocket } from '../client/connection.ts';
-import { reactPage, useAppState } from '../ui/react.tsx';
+import { Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
+import { ProgramGlyph } from '../ui/programmark.tsx';
 import { isDark, onThemeChange, themeColor } from '../theme.ts';
 import type { Terminal as TerminalInfo } from '../../shared/types.ts';
 
@@ -109,10 +110,16 @@ function Launcher() {
   const [agentId, setAgentId] = useState(agents[0]?.id || '');
   if (!data) return null;
   const e = data.engines;
-  const card = (title: string, about: string, body: OpenTerminal) => (
-    <button key={title} type="button" className="glass-plate term-card flex w-full cursor-pointer flex-col gap-2.5 rounded-box p-5 text-left [font:inherit] text-inherit transition-colors hover:bg-panel-2" onClick={() => void open(body)}>
-      <div className="card-title">{title}</div>
-      <div className="card-sub">{about}</div>
+  // mark: the program whose logo it shows (as in Settings › Programs); none is a plain shell
+  const card = (title: string, about: string, body: OpenTerminal, mark?: string) => (
+    <button key={title} type="button" className="glass-plate term-card flex w-full cursor-pointer items-start gap-4 rounded-box p-5 text-left [font:inherit] text-inherit transition-colors hover:bg-panel-2" onClick={() => void open(body)}>
+      <span aria-hidden="true" className="grid size-10 flex-none place-items-center rounded-ctl border border-line bg-panel-2 text-ink">
+        {mark ? <ProgramGlyph id={mark} size={20} /> : <Icon name="terminal" size={20} />}
+      </span>
+      <span className="flex min-w-0 flex-col gap-1.5">
+        <span className="card-title">{title}</span>
+        <span className="card-sub">{about}</span>
+      </span>
     </button>
   );
   return (
@@ -121,12 +128,12 @@ function Launcher() {
         <p className="lede">Open a real terminal right here. Everything keeps running when you switch pages; come back any time.</p>
         <div className="cards">
           {card('PowerShell', 'A normal shell in your user folder.', { kind: 'shell' })}
-          {e['claude-code'].installed ? card('Claude Code', 'Plain interactive Claude Code session.', { kind: 'command', command: 'claude', title: 'Claude Code' }) : null}
-          {e.hermes.installed ? card('Hermes', 'Interactive Hermes (default profile).', { kind: 'command', command: 'hermes', title: 'Hermes' }) : null}
-          {e.pi?.installed ? card('pi', 'Interactive pi coding agent.', { kind: 'command', command: 'pi', title: 'pi' }) : null}
-          {e.omp?.installed ? card('oh-my-pi', 'Interactive oh-my-pi (omp).', { kind: 'command', command: 'omp', title: 'oh-my-pi' }) : null}
-          {e.openclaw?.installed ? card('OpenClaw', "OpenClaw's chat screen (through its Gateway).", { kind: 'command', command: 'openclaw', args: ['tui'], title: 'OpenClaw' }) : null}
-          {card('Orca', 'Orca CLI: status, worktrees, agent sessions.', { kind: 'command', command: 'orca', args: ['status'], title: 'Orca' })}
+          {e['claude-code'].installed ? card('Claude Code', 'Plain interactive Claude Code session.', { kind: 'command', command: 'claude', title: 'Claude Code' }, 'claude-code') : null}
+          {e.hermes.installed ? card('Hermes', 'Interactive Hermes (default profile).', { kind: 'command', command: 'hermes', title: 'Hermes' }, 'hermes') : null}
+          {e.pi?.installed ? card('pi', 'Interactive pi coding agent.', { kind: 'command', command: 'pi', title: 'pi' }, 'pi') : null}
+          {e.omp?.installed ? card('oh-my-pi', 'Interactive oh-my-pi (omp).', { kind: 'command', command: 'omp', title: 'oh-my-pi' }, 'omp') : null}
+          {e.openclaw?.installed ? card('OpenClaw', "OpenClaw's chat screen (through its Gateway).", { kind: 'command', command: 'openclaw', args: ['tui'], title: 'OpenClaw' }, 'openclaw') : null}
+          {card('Orca', 'Orca CLI: status, worktrees, agent sessions.', { kind: 'command', command: 'orca', args: ['status'], title: 'Orca' }, 'orca')}
         </div>
         {agents.length ? (
           <Plate className="mt-8 rounded-box p-6">
