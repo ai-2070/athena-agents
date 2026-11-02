@@ -15,7 +15,8 @@ import type { Candidate } from '../routinemention.ts';
 import { findMentions, scheduleSummary } from '../../shared/routines.ts';
 import { Field, Switch } from '../ui/controls.tsx';
 import { DomNode, Icon, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
-import { Dot } from '../ui/marks.tsx';
+import { Dot, Pill } from '../ui/marks.tsx';
+import type { PillTone } from '../ui/classes.ts';
 import type { AppState, Routine, RoutineListing, RoutineMention, RoutineMentionKind, RoutineRun, RoutineRunTarget, TeamListing } from '../../shared/types.ts';
 
 /** Agents, teams and skills a routine can mention. Agents first: on a name clash they win (the server does the same). */
@@ -376,8 +377,8 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
           </div>
           <Runs id={id} />
         </PlateSection>
-        {!isNew && <div className="col-span-2 max-lg:col-span-1">
-          <Button variant="danger" size="small" onClick={() => void del()}><Icon name="trash-2" size={14} />Delete routine</Button>
+        {!isNew && <div className="col-span-2 flex justify-end max-lg:col-span-1">
+          <Button variant="danger" onClick={() => void del()}><Icon name="trash-2" size={14} />Delete routine</Button>
         </div>}
       </div>
     </div>
@@ -385,8 +386,40 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
 }
 
 
+/** How a run (or one of its agents) ended, as a pill's tone and words. */
+const RUN_LOOK: Record<string, { tone: PillTone; label: string }> = {
+  running: { tone: 'info', label: 'Running' },
+  done: { tone: 'ok', label: 'Done' },
+  sent: { tone: 'ok', label: 'Sent to the team' },
+  failed: { tone: 'bad', label: 'Failed' },
+  stopped: { tone: 'warn', label: 'Stopped' },
+};
+const runLook = (status: string) => RUN_LOOK[status] || { tone: 'dim' as const, label: status };
+
+/** How long a run took: "12s", "3m 5s", "1h 4m". */
+export function runTook(ms: number): string {
+  const sec = Math.max(1, Math.round(ms / 1000));
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m${sec % 60 ? ` ${sec % 60}s` : ''}`;
+  return `${Math.floor(min / 60)}h${min % 60 ? ` ${min % 60}m` : ''}`;
+}
+
+type Who = { emoji?: string; color?: string } | undefined;
+
+/** An agent's emoji on its colour, or a team's icon: small, for a run's summary and its rows. */
+function TargetMark({ t, agent, small = false }: { t: RoutineRunTarget; agent: Who; small?: boolean }) {
+  const size = small ? 'size-6 rounded-[7px] text-[12px] ring-2 ring-panel' : 'size-8 rounded-[9px] text-[15px]';
+  return t.kind === 'team' ? (
+    <span className={`grid flex-none place-items-center border border-line bg-panel-2 text-dim ${size}`} title={t.name}><Icon name="users" size={small ? 12 : 15} /></span>
+  ) : (
+    <span className={`avatar ${size}`} style={{ '--agent-color': agent?.color || 'var(--color-accent)' } as CSSProperties} title={t.name}>{agent?.emoji || '🤖'}</span>
+  );
+}
+
 /** The routine's last runs, kept current; the newest is open, and whichever you opened stays open. */
 function Runs({ id }: { id: string }) {
+  const d = useAppState();
   const [runs, setRuns] = useState<RoutineRun[] | null>(null);
   const [open, setOpen] = useState<Set<string> | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -398,72 +431,107 @@ function Runs({ id }: { id: string }) {
   useEffect(() => (load(), () => clearTimeout(timer.current)), [load]);
   useServerEvents((ev) => ev.type === 'routine-run' && (ev as { routineId?: string }).routineId === id && load());
   if (!runs) return null;
-  if (!runs.length) return <p className="empty !py-4">No runs yet.</p>;
+  if (!runs.length)
+    return (
+      <div className="flex flex-col items-center gap-2 rounded-box border border-dashed border-line-2 px-6 py-10 text-center">
+        <Icon name="history" size={20} className="text-faint" />
+        <p className="m-0 text-[13.5px] text-dim">No runs yet. Use Run now, or set a schedule.</p>
+      </div>
+    );
+  const agentOf = (t: RoutineRunTarget): Who => (t.kind === 'agent' ? d?.agents.find((a) => a.id === t.id) : undefined);
   const isOpen = (run: RoutineRun, i: number) => (open ? open.has(run.id) : i === 0);
   return (
-    <div className="flex flex-col gap-2">
-      {runs.slice(0, 15).map((run, i) => (
-        <div key={run.id} className="relative rounded-ctl border border-line px-3">
-        <details
-          className="group/run"
-          open={isOpen(run, i)}
-          onToggle={(e) => {
-            const now = (e.currentTarget as HTMLDetailsElement).open;
-            if (now === isOpen(run, i)) return;
-            const next = new Set(open ?? (runs[0] ? [runs[0].id] : []));
-            if (now) next.add(run.id);
-            else next.delete(run.id);
-            setOpen(next);
-          }}
-        >
-          <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 py-3 text-[13px] [&::-webkit-details-marker]:hidden">
-            <span className="grid size-5 flex-none place-items-center"><StatusIcon status={run.status} /></span>
-            <span className="font-semibold capitalize text-ink">{run.status}</span>
-            <span className="inline-flex min-w-0 items-center gap-1.5 text-[12px] text-dim"><Icon name={run.trigger === 'manual' ? 'hand' : 'calendar'} size={13} /><span className="truncate capitalize">{run.trigger === 'schedule' ? 'Scheduled' : run.trigger}</span></span>
-            <span className="ml-auto shrink-0 text-[12px] text-faint">{ago(run.createdAt)}</span>
-            {run.status === 'running' ? <span className="w-14 flex-none" aria-hidden="true" /> : null}
-            <Icon name="chevron-down" size={14} className="flex-none text-dim transition-transform duration-200 ease-in-out group-open/run:rotate-180" />
-          </summary>
-          <div className="border-t border-line py-2">
-            {run.targets.map((t) => (
-              <TargetRow key={`${t.kind}:${t.id}`} t={t} />
-            ))}
-            {run.skills.length ? <div className="hint mt-2">{`Skills: ${run.skills.map((slug) => skillsCache().find((s) => s.slug === slug)?.name || slug).join(', ')}`}</div> : null}
+    <div className="flex flex-col gap-3">
+      {runs.slice(0, 15).map((run, i) => {
+        const look = runLook(run.status);
+        const took = run.finishedAt && run.createdAt ? runTook(run.finishedAt - run.createdAt) : '';
+        return (
+          <div key={run.id} className="relative overflow-hidden rounded-box border border-line bg-bg shadow-card">
+            <details
+              className="group/run"
+              open={isOpen(run, i)}
+              onToggle={(e) => {
+                const now = (e.currentTarget as HTMLDetailsElement).open;
+                if (now === isOpen(run, i)) return;
+                const next = new Set(open ?? (runs[0] ? [runs[0].id] : []));
+                if (now) next.add(run.id);
+                else next.delete(run.id);
+                setOpen(next);
+              }}
+            >
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 transition-colors hover:bg-panel-2/60 [&::-webkit-details-marker]:hidden">
+                <Pill tone={look.tone} className="gap-1.5">
+                  {run.status === 'running' ? <Dot tone="busy" /> : null}
+                  {look.label}
+                </Pill>
+                <span className="inline-flex items-center gap-1.5 text-[12.5px] text-dim">
+                  <Icon name={run.trigger === 'manual' ? 'hand' : 'calendar'} size={13} />
+                  {run.trigger === 'manual' ? 'Run by hand' : run.trigger === 'schedule' ? 'Scheduled' : run.trigger}
+                </span>
+                <span className="flex items-center -space-x-1.5" aria-label={run.targets.map((t) => t.name).join(', ')}>
+                  {run.targets.slice(0, 5).map((t) => <TargetMark key={`${t.kind}:${t.id}`} t={t} agent={agentOf(t)} small />)}
+                </span>
+                <span className="ml-auto shrink-0 text-[12px] text-faint tabular-nums" title={run.createdAt ? new Date(run.createdAt).toLocaleString() : undefined}>
+                  {ago(run.createdAt)}{took ? ` · took ${took}` : ''}
+                </span>
+                {run.status === 'running' ? <span className="w-14 flex-none" aria-hidden="true" /> : null}
+                <Icon name="chevron-down" size={14} className="flex-none text-dim transition-transform duration-200 ease-in-out group-open/run:rotate-180" />
+              </summary>
+              <div className="flex flex-col gap-1 border-t border-line px-4 py-3">
+                {run.error ? <p className="m-0 rounded-ctl bg-red/8 px-3 py-2 text-[13px] text-red">{run.error}</p> : null}
+                {run.targets.map((t) => (
+                  <TargetRow key={`${t.kind}:${t.id}`} t={t} agent={agentOf(t)} />
+                ))}
+                {run.skills.length ? (
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12.5px] text-dim">
+                    <Icon name="puzzle" size={13} />
+                    {run.skills.map((slug) => skillsCache().find((sk) => sk.slug === slug)?.name || slug).join(', ')}
+                  </div>
+                ) : null}
+              </div>
+            </details>
+            {run.status === 'running' ? (
+              <Button variant="danger" size="tiny" className="absolute top-3 right-10" onClick={() => void attempt(() => POST(`/routine-runs/${run.id}/stop`))}>Stop</Button>
+            ) : null}
           </div>
-        </details>
-        {run.status === 'running' ? (
-          <Button variant="danger" size="tiny" className="absolute top-3 right-8" onClick={() => void attempt(() => POST(`/routine-runs/${run.id}/stop`))}>Stop</Button>
-        ) : null}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-function TargetRow({ t }: { t: RoutineRunTarget }) {
+function TargetRow({ t, agent }: { t: RoutineRunTarget; agent: Who }) {
+  const look = runLook(t.status);
   return (
-    <div className="py-2 [&_pre]:max-h-50">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="grid size-5 flex-none place-items-center"><StatusIcon status={t.status} /></span>
-        <b className="min-w-0 break-words">{t.name}</b>
-        <span className="hint capitalize">{t.kind === 'team' ? `team · ${t.status}` : t.status}</span>
-        {t.kind === 'team' ? (
-          <Button variant="ghost" size="tiny" onClick={() => openChat('team', t.id)}>
-            <Icon name="message-square" size={12} />
-            Team chat
-          </Button>
-        ) : t.chatId ? (
-          <ButtonLink variant="ghost" size="tiny" href={`#/agents/${t.id}/${t.chatId}`}>
-            <Icon name="message-square" size={12} />
-            Chat
-          </ButtonLink>
+    <div className="flex gap-3 py-2 [&_pre]:max-h-50">
+      <TargetMark t={t} agent={agent} />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1">
+          <b className="min-w-0 break-words text-[14px]">{t.name}</b>
+          <span className="inline-flex items-center gap-1 text-[12.5px] text-dim">
+            <StatusIcon status={t.status} />
+            {t.kind === 'team' ? `Team · ${look.label.toLowerCase()}` : look.label}
+          </span>
+          <span className="ml-auto">
+            {t.kind === 'team' ? (
+              <Button variant="ghost" size="tiny" onClick={() => openChat('team', t.id)}>
+                <Icon name="message-square" size={12} />
+                Team chat
+              </Button>
+            ) : t.chatId ? (
+              <ButtonLink variant="ghost" size="tiny" href={`#/agents/${t.id}/${t.chatId}`}>
+                <Icon name="message-square" size={12} />
+                Chat
+              </ButtonLink>
+            ) : null}
+          </span>
+        </div>
+        {t.output ? (
+          <div className="mt-2 max-h-72 max-w-[80ch] overflow-y-auto rounded-ctl border border-line bg-panel-2/50 px-4 py-3 text-[13px] leading-[1.65] text-ink [&_.md>:first-child]:mt-0 [&_.md>:last-child]:mb-0">
+            <DomNode make={() => md(t.output)} deps={[t.output]} />
+          </div>
         ) : null}
       </div>
-      {t.output ? (
-        <div className="mt-2 pl-7 max-h-72 max-w-[80ch] overflow-y-auto text-[13px] leading-[1.65] text-ink [&_.md>:first-child]:mt-0 [&_.md>:last-child]:mb-0">
-          <DomNode make={() => md(t.output)} deps={[t.output]} />
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -165,6 +165,17 @@ describe('the routine editor', () => {
     expect(details.querySelector('a[href="#/agents/a1/c1"]')).not.toBeNull();
   });
 
+  it('says how long a run took, and who did it', async () => {
+    runsData = [{ ...run, createdAt: Date.now() - 65_000, finishedAt: Date.now() }];
+    await open();
+    const summary = el.querySelector('details summary')!;
+    expect(summary.textContent).toContain('Done');
+    expect(summary.textContent).toContain('Run by hand');
+    expect(summary.textContent).toContain('took 1m 5s');
+    expect(summary.querySelector('[aria-label="Writer"]')).not.toBeNull();
+    expect([routines.runTook(800), routines.runTook(42_000), routines.runTook(3_725_000)]).toEqual(['1s', '42s', '1h 2m']);
+  });
+
   it('keeps run details usable while stopping a running entry', async () => {
     runsData = [
       { ...run, id: 'running1', status: 'running', targets: [{ ...run.targets[0], status: 'running' }] },
