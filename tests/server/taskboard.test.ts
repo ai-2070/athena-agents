@@ -108,8 +108,10 @@ describe('the Tasks board', () => {
       expect.stringMatching(/^#1 \[To do\] \(high\) Bake the test cake \| Board baker \(agent:.+\) \| Chocolate, for Friday\.$/),
     ]);
 
-    // blocked needs a reason; a title finds the task too
+    // blocked needs a reason, for a new task too; a title finds the task too
     expect(applyActions([{ do: 'board_update', task: '#2', status: 'blocked' }], p).done[0]).toMatchObject({ kind: 'error', text: 'board_update: say why it is blocked (blockedReason)' });
+    expect(applyActions([{ do: 'board_add', title: 'Fix the van', status: 'blocked', blockedReason: '  ' }], p).done[0]).toMatchObject({ kind: 'error', text: 'board_add: say why it is blocked (blockedReason)' });
+    expect(taskBoard(p.id).tasks.map((t) => t.title)).not.toContain('Fix the van');
     const moved = applyActions([{ do: 'board_update', task: 'order flour', status: 'blocked', blockedReason: 'The mill is closed' }, { do: 'board_update', task: 1, status: 'in_review' }], p);
     expect(moved.done.map((d) => d.text)).toEqual(['Updated #2 on the board: Order flour (now blocked)', 'Updated #1 on the board: Bake the test cake (now in review)']);
     expect(boardLines(p.id)[0]).toBe('#2 [Blocked] Order flour | unassigned | blocked: The mill is closed');

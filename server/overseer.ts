@@ -1345,12 +1345,14 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         // the Tasks board: the user's own tracked work, in this project
         const who = (v: unknown) => (v === 'agent:new' ? `agent:${lastAgent}` : v === 'team:new' ? `team:${lastTeam}` : v);
         const fields = { title: act.title, description: act.description, status: act.status, priority: act.priority, assignee: act.assignee === undefined ? undefined : who(act.assignee), blockedReason: act.blockedReason };
+        const reasoned = typeof fields.blockedReason === 'string' && !!fields.blockedReason.trim();
         if (kind === 'board_add') {
+          if (fields.status === 'blocked' && !reasoned) throw new Error('say why it is blocked (blockedReason)');
           const t = addBoardTask(p.id, fields, 'brain');
           done.push({ kind: 'board', text: `Added #${t.number} to the board: ${t.title}`, boardTask: { projectId: p.id, id: t.id } });
         } else if (kind === 'board_update') {
           const was = findBoardTask(p.id, act.task ?? act.id);
-          if (fields.status === 'blocked' && was.status !== 'blocked' && !(typeof fields.blockedReason === 'string' && fields.blockedReason.trim())) throw new Error('say why it is blocked (blockedReason)');
+          if (fields.status === 'blocked' && was.status !== 'blocked' && !reasoned) throw new Error('say why it is blocked (blockedReason)');
           const t = changeBoardTask(p.id, was.id, fields);
           const moved = t.status !== was.status ? ` (now ${t.status.replace('_', ' ')})` : '';
           done.push({ kind: 'board', text: `Updated #${t.number} on the board: ${t.title}${moved}`, boardTask: { projectId: p.id, id: t.id } });
