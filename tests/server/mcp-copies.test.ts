@@ -3,7 +3,7 @@
 // agent and the approvals say which account is which.
 import { describe, expect, it } from 'vitest';
 import * as mcp from '../../server/mcp.ts';
-import { mcpToolName } from '../../server/engines/openai.ts';
+import { mcpToolName } from '../../server/apitools.ts';
 import type { McpServerConfig, McpServers } from '../../server/mcp.ts';
 
 const http = (url: string, extra: Partial<McpServerConfig> = {}): McpServerConfig => ({ type: 'http', command: '', args: [], env: {}, url, headers: {}, description: '', enabled: true, ...extra });

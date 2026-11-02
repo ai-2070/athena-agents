@@ -38,8 +38,8 @@ describe('addArtifact', () => {
   });
 
   it('works next to an old step-list team, and finds the team an agent is on through its steps', () => {
-    const solo = agents.save({ name: 'Solo writer', engine: 'openai', toolGroups: [] } as Partial<Agent> as Agent);
-    const stepper = agents.save({ name: 'Stepper', engine: 'openai', toolGroups: [] } as Partial<Agent> as Agent);
+    const solo = agents.save({ name: 'Solo writer', engine: 'eve', toolGroups: [] } as Partial<Agent> as Agent);
+    const stepper = agents.save({ name: 'Stepper', engine: 'eve', toolGroups: [] } as Partial<Agent> as Agent);
     // (no members field: its agents are in its steps)
     const steps = workflows.save({ name: 'Step team', steps: [{ type: 'agent', agentId: stepper.id }] } as Partial<Team>);
     expect(addArtifact({ title: 'Notes', text: 'done', agentId: solo.id })).toMatchObject({ teamId: null });

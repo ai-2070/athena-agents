@@ -4,60 +4,52 @@
 // agent can hand out several tasks at once. Stopping the asker's run stops what it handed out (stopRun).
 import { uid } from './util.ts';
 import { activeProject, chats } from './store.ts';
-import type { Agent, Chat } from '../shared/types.ts';
+import { readExecution, saveHandoff } from './execution.ts';
+import type { Agent, Chat, SavedHandoff } from '../shared/types.ts';
 
-export interface Handoff {
-  id: string;
-  /** the agent that asked, and its project (a cloned project's agents have the same ids) */
-  from: string;
-  projectId: string;
-  to: string;
-  toName: string;
-  /** the chat the work happens in (the agent's "Asked by …" chat) */
-  chatId: string;
-  task: string;
-  startedAt: number;
-  endedAt?: number;
-  answer?: string;
-  error?: string;
+export interface Handoff extends SavedHandoff {
   /** settles when the work ends, either way */
   done: Promise<void>;
 }
 
-const handoffs = new Map<string, Handoff>();
+const jobs = new Map<string, Promise<void>>();
 /** Finished ones are kept this long for await_agent (a later turn of the asker can still collect them). */
 const KEEP_MS = 6 * 60 * 60 * 1000;
 export const DEFAULT_WAIT_S = 600;
 export const MAX_WAIT_S = 1800;
 
-function prune() {
-  for (const [id, h] of handoffs) if (h.endedAt && Date.now() - h.endedAt > KEEP_MS) handoffs.delete(id);
-}
+const handoffs = () => readExecution().handoffs.filter((h) => !h.endedAt || Date.now() - h.endedAt < KEEP_MS);
 
 /** Starts the task in a new chat with the target and returns at once. */
 export async function startHandoff(from: Pick<Agent, 'id' | 'name'>, target: Agent, task: string, { depth, parentRunId, signal }: { depth: number; parentRunId?: string | null; signal?: AbortSignal }): Promise<Handoff> {
-  prune();
-  const { askAgent, RunStopped } = await import('./engines/index.ts');
+  const { askAgent, isStopping, RunStopped } = await import('./engines/index.ts');
   const chat = chats.create(target.id, `Asked by ${from.name}`);
-  const h = { id: uid('h'), from: from.id, projectId: activeProject().id, to: target.id, toName: target.name, chatId: chat.id, task, startedAt: Date.now() } as Handoff;
-  h.done = askAgent(target, task, { depth, from: from.name, chatId: chat.id, parentRunId, signal }).then(
+  const saved: SavedHandoff = { id: uid('h'), from: from.id, projectId: activeProject().id, to: target.id, toName: target.name, chatId: chat.id, runId: uid('r'), task, startedAt: Date.now() };
+  saveHandoff(saved);
+  const h: Handoff = { ...saved, done: Promise.resolve() };
+  h.done = askAgent(target, task, { depth, from: from.name, chatId: chat.id, parentRunId, signal, reservedRunId: h.runId }).then(
     (answer) => {
       h.answer = answer;
       h.endedAt = Date.now();
+      saveHandoff({ ...saved, answer, endedAt: h.endedAt });
     },
     (e: unknown) => {
+      // Shutdown aborts the local waiter while a saved native run can still resume.
+      if (isStopping() && readExecution().runs.some((run) => run.id === h.runId && run.status === 'running' && !run.stopRequested)) return;
       h.error = e instanceof RunStopped ? 'it was stopped' : (e as Error).message || String(e);
       h.endedAt = Date.now();
+      saveHandoff({ ...saved, error: h.error, endedAt: h.endedAt });
     },
   );
-  handoffs.set(h.id, h);
+  jobs.set(h.id, h.done);
+  void h.done.finally(() => jobs.delete(h.id));
   return h;
 }
 
 const minutes = (ms: number) => (ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} s` : `${Math.round(ms / 60_000)} min`);
 
 /** Its latest words while it works (its live chat), for "still working" answers. */
-function soFar(h: Handoff, live: Chat | null): string {
+function soFar(h: SavedHandoff, live: Chat | null): string {
   const items = (live || chats.get(h.to, h.chatId))?.items || [];
   const last = items.findLast((i) => i.type === 'assistant' && i.text.trim());
   const tools = items.filter((i) => i.type === 'tool').length;
@@ -67,17 +59,23 @@ function soFar(h: Handoff, live: Chat | null): string {
 
 /** Waits up to waitS seconds for a handoff's answer: the answer, its error, or that it is still going. */
 export async function awaitHandoff(id: string, askerId: string, waitS = DEFAULT_WAIT_S, signal?: AbortSignal): Promise<{ text: string; isError?: boolean }> {
-  const found = handoffs.get(String(id || '').trim());
+  const found = handoffs().find((h) => h.id === String(id || '').trim());
   // (another project's handoff isn't there for this one)
-  const h = found && found.projectId === activeProject().id ? found : undefined;
+  let h = found && found.projectId === activeProject().id ? found : undefined;
   if (!h) return { text: `No handoff with handle ${id}. (Finished ones are kept for 6 hours; call await_agent without a handle to list yours.)`, isError: true };
   if (h.from !== askerId) return { text: 'That handle belongs to another agent.', isError: true };
   if (!h.endedAt && !signal?.aborted) {
     const wait = Math.min(MAX_WAIT_S, Math.max(1, Number(waitS) || DEFAULT_WAIT_S)) * 1000;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let poll: ReturnType<typeof setInterval> | undefined;
     let onAbort = () => {};
     await Promise.race([
-      h.done,
+      jobs.get(h.id) || new Promise<void>((resolve) => {
+        const handle = h!.id;
+        poll = setInterval(() => {
+          if (handoffs().find((item) => item.id === handle)?.endedAt) resolve();
+        }, 100);
+      }),
       new Promise<void>((r) => (timer = setTimeout(r, wait))),
       new Promise<void>((r) => {
         onAbort = () => r();
@@ -85,7 +83,9 @@ export async function awaitHandoff(id: string, askerId: string, waitS = DEFAULT_
       }),
     ]);
     clearTimeout(timer);
+    clearInterval(poll);
     signal?.removeEventListener('abort', onAbort);
+    h = handoffs().find((item) => item.id === h!.id) || h;
   }
   if (signal?.aborted && !h.endedAt) return { text: 'Stopped.', isError: true };
   if (h.error) return { text: `${h.toName} couldn't finish: ${h.error}`, isError: true };
@@ -96,9 +96,8 @@ export async function awaitHandoff(id: string, askerId: string, waitS = DEFAULT_
 
 /** The asker's handoffs, newest first (await_agent without a handle). */
 export function listHandoffs(askerId: string): string {
-  prune();
   const projectId = activeProject().id;
-  const mine = [...handoffs.values()].filter((h) => h.from === askerId && h.projectId === projectId).sort((a, b) => b.startedAt - a.startedAt);
+  const mine = handoffs().filter((h) => h.from === askerId && h.projectId === projectId).sort((a, b) => b.startedAt - a.startedAt);
   if (!mine.length) return 'You have no handoffs. Give a task to a teammate with ask_agent.';
   return mine
     .map((h) => `- ${h.id} → ${h.toName}: "${h.task.replace(/\s+/g, ' ').slice(0, 80)}" — ${h.error ? `failed (${h.error.slice(0, 80)})` : h.endedAt ? 'done, answer ready' : `working, ${minutes(Date.now() - h.startedAt)}`}`)

@@ -43,11 +43,11 @@ afterEach(() => {
 describe('model picker: models on this PC', () => {
   it("lists each local server's own models, so picking one never sends an empty model", async () => {
     serve((_m, path) => {
-      if (path === '/models?engine=openai&provider=ollama') return { body: [{ id: 'llama3.2' }, { id: 'qwen3' }] };
-      if (path.startsWith('/models?engine=openai&provider=')) return { body: [] };
+      if (path === '/models?engine=eve&provider=ollama') return { body: [{ id: 'llama3.2' }, { id: 'qwen3' }] };
+      if (path.startsWith('/models?engine=eve&provider=')) return { body: [] };
     });
     const picked: ModelPatch[] = [];
-    openModelPicker(document.body, { engine: 'openai', provider: 'ollama', model: 'llama3.2' }, (p) => picked.push(p));
+    openModelPicker(document.body, { engine: 'eve', provider: 'ollama', model: 'llama3.2' }, (p) => picked.push(p));
     await settle();
     const menu = document.querySelector('.model-menu')!;
     // LM Studio has its own tab, so it isn't listed here
@@ -55,20 +55,20 @@ describe('model picker: models on this PC', () => {
     expect(menu.textContent).toContain('No models found. Is Custom server running?');
     expect(menu.querySelector('.st-menu-item.on')?.textContent).toContain('llama3.2');
     buttons(menu, 'qwen3')[0].click();
-    expect(picked).toEqual([{ engine: 'openai', provider: 'ollama', model: 'qwen3', effort: '' }]);
+    expect(picked).toEqual([{ engine: 'eve', provider: 'ollama', model: 'qwen3', effort: '' }]);
   });
 
   it('can type a model id for a local server', async () => {
     serve(() => ({ body: [] }));
     const picked: ModelPatch[] = [];
-    openModelPicker(document.body, { engine: 'openai', provider: 'openrouter', model: 'x/y' }, (p) => picked.push(p));
+    openModelPicker(document.body, { engine: 'eve', provider: 'openrouter', model: 'x/y' }, (p) => picked.push(p));
     await settle();
     [...document.querySelectorAll<HTMLButtonElement>('.model-tab')].find((b) => b.textContent === 'LM Studio')!.click();
     await settle();
     const input = [...document.querySelectorAll<HTMLInputElement>('.model-search')].find((i) => i.placeholder.includes('LM Studio'))!;
     input.value = 'my-model';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    expect(picked).toEqual([{ engine: 'openai', provider: 'lmstudio', model: 'my-model', effort: '' }]);
+    expect(picked).toEqual([{ engine: 'eve', provider: 'lmstudio', model: 'my-model', effort: '' }]);
   });
 });
 
@@ -76,7 +76,7 @@ describe('model picker: LM Studio tab', () => {
   const tabs = () => [...document.querySelectorAll<HTMLButtonElement>('.model-tab')];
 
   it('sits next to OpenRouter and lists LM Studio models', async () => {
-    serve((_m, path) => (path === '/models?engine=openai&provider=lmstudio' ? { body: [{ id: 'qwen3-coder-30b' }] } : { body: [] }));
+    serve((_m, path) => (path === '/models?engine=eve&provider=lmstudio' ? { body: [{ id: 'qwen3-coder-30b' }] } : { body: [] }));
     const picked: ModelPatch[] = [];
     openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, (p) => picked.push(p));
     await settle();
@@ -92,12 +92,12 @@ describe('model picker: LM Studio tab', () => {
     expect(menu.textContent).toContain('On this PC · LM Studio');
     expect(menu.textContent).not.toContain('OpenRouter key');
     buttons(menu, 'qwen3-coder-30b')[0].click();
-    expect(picked).toEqual([{ engine: 'openai', provider: 'lmstudio', model: 'qwen3-coder-30b', effort: '' }]);
+    expect(picked).toEqual([{ engine: 'eve', provider: 'lmstudio', model: 'qwen3-coder-30b', effort: '' }]);
   });
 
   it('opens on the LM Studio tab, marked in use, for an agent on LM Studio', async () => {
     serve(() => ({ body: [] }));
-    openModelPicker(document.body, { engine: 'openai', provider: 'lmstudio', model: 'qwen3' }, () => {});
+    openModelPicker(document.body, { engine: 'eve', provider: 'lmstudio', model: 'qwen3' }, () => {});
     await settle();
     expect(document.querySelector('.model-tab.on')?.textContent).toBe('LM Studio');
     expect(document.querySelector('.model-tab.cur')?.textContent).toBe('LM Studio');
@@ -220,24 +220,24 @@ describe('model picker: Venice', () => {
   it('opens on Venice and keeps its provider for effort-only edits and model choices', async () => {
     serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
     const picked: ModelPatch[] = [];
-    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'venice-chat', effort: 'high' }, (p) => picked.push(p));
+    openModelPicker(document.body, { engine: 'eve', provider: 'venice', model: 'venice-chat', effort: 'high' }, (p) => picked.push(p));
     await settle();
     expect(tab().classList.contains('on')).toBe(true);
     expect(document.querySelector('.model-body')?.textContent).toContain('$0.15 / $0.60');
     const levels = [...document.querySelectorAll<HTMLButtonElement>('.model-effort-level')];
     expect(levels.map((b) => b.textContent)).toEqual(['Default', 'Low', 'High']);
     levels.find((b) => b.textContent === 'Low')!.click();
-    expect(picked).toEqual([{ engine: 'openai', provider: 'venice', model: 'venice-chat', effort: 'low' }]);
+    expect(picked).toEqual([{ engine: 'eve', provider: 'venice', model: 'venice-chat', effort: 'low' }]);
     const offline = [...document.querySelectorAll<HTMLButtonElement>('.model-list .st-menu-item')].find((b) => b.textContent?.includes('Offline model'))!;
     expect(offline.disabled).toBe(true);
     buttons(document.querySelector('.model-body')!, 'Venice Chat')[0].click();
-    expect(picked.at(-1)).toEqual({ engine: 'openai', provider: 'venice', model: 'venice-chat', effort: 'low' });
+    expect(picked.at(-1)).toEqual({ engine: 'eve', provider: 'venice', model: 'venice-chat', effort: 'low' });
   });
 
   it('uses the configured Venice default when an agent has no explicit model', async () => {
     state.data!.settings = { ...state.data!.settings, defaults: { ...state.data!.settings?.defaults, veniceModel: 'venice-chat' } };
     serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
-    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: '', effort: 'high' }, () => {});
+    openModelPicker(document.body, { engine: 'eve', provider: 'venice', model: '', effort: 'high' }, () => {});
     await settle();
     expect(document.querySelector('.model-list .st-menu-item.on')?.textContent).toContain('Venice Chat');
     expect(document.querySelector('.model-effort-level.on')?.textContent).toBe('High');
@@ -262,7 +262,7 @@ describe('model picker: Venice', () => {
   it('keeps a selected model usable when discovery fails and offers manual entry', async () => {
     serve((_method, path) => path.includes('provider=venice') ? { status: 503, body: { error: 'offline' } } : { body: [] });
     const picked: ModelPatch[] = [];
-    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'saved-model' }, (p) => picked.push(p), { local: false });
+    openModelPicker(document.body, { engine: 'eve', provider: 'venice', model: 'saved-model' }, (p) => picked.push(p), { local: false });
     await settle();
     const body = document.querySelector('.model-body')!;
     expect(body.textContent).toContain('Could not load Venice models');
@@ -272,14 +272,14 @@ describe('model picker: Venice', () => {
     const input = [...body.querySelectorAll<HTMLInputElement>('input')].find((el) => el.placeholder.startsWith('or enter'))!;
     input.value = 'manual-model';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    expect(picked).toEqual([{ engine: 'openai', provider: 'venice', model: 'manual-model', effort: '' }]);
+    expect(picked).toEqual([{ engine: 'eve', provider: 'venice', model: 'manual-model', effort: '' }]);
   });
 
   it('keeps Venice favorites available to the Brain and isolates a Venice-only default picker', async () => {
-    state.data!.settings = { ...state.data!.settings, favoriteModels: [{ engine: 'openai', provider: 'venice', model: 'venice-chat' }] };
+    state.data!.settings = { ...state.data!.settings, favoriteModels: [{ engine: 'eve', provider: 'venice', model: 'venice-chat' }] };
     serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
     const picked: ModelPatch[] = [];
-    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'venice-chat' }, (p) => picked.push(p), { local: false, engines: ['openai'], providers: ['venice'] });
+    openModelPicker(document.body, { engine: 'eve', provider: 'venice', model: 'venice-chat' }, (p) => picked.push(p), { local: false, engines: ['eve'], providers: ['venice'] });
     await settle();
     expect([...document.querySelectorAll('.model-tab')].map((b) => b.textContent)).toEqual(['Favorites', 'Venice']);
     buttons(document.querySelector('.model-body')!, 'venice-chat')[0].click();
@@ -288,12 +288,12 @@ describe('model picker: Venice', () => {
 
   it.each([true, false])('disables unavailable favorites while keeping available models selectable (local=%s)', async (local) => {
     state.data!.settings = { ...state.data!.settings, favoriteModels: [
-      { engine: 'openai', provider: 'venice', model: 'offline-model' },
-      { engine: 'openai', provider: 'venice', model: 'venice-chat' },
+      { engine: 'eve', provider: 'venice', model: 'offline-model' },
+      { engine: 'eve', provider: 'venice', model: 'venice-chat' },
     ] };
     serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
     const picked: ModelPatch[] = [];
-    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'venice-chat' }, (p) => picked.push(p), { local, engines: ['openai'], ...(local ? {} : { providers: ['venice'] }) });
+    openModelPicker(document.body, { engine: 'eve', provider: 'venice', model: 'venice-chat' }, (p) => picked.push(p), { local, engines: ['eve'], ...(local ? {} : { providers: ['venice'] }) });
     await settle();
     const body = document.querySelector('.model-body')!;
     const offline = buttons(body, 'offline-model')[0];
@@ -305,13 +305,13 @@ describe('model picker: Venice', () => {
     const star = offline.closest('.model-row')!.querySelector<HTMLButtonElement>('.model-fav')!;
     expect(star.disabled).toBe(false);
     buttons(body, 'venice-chat')[0].click();
-    expect(picked).toEqual([{ engine: 'openai', provider: 'venice', model: 'venice-chat', effort: '' }]);
+    expect(picked).toEqual([{ engine: 'eve', provider: 'venice', model: 'venice-chat', effort: '' }]);
   });
 
   it('refuses a known unavailable model entered by hand without closing the picker', async () => {
     serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
     const picked: ModelPatch[] = [];
-    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'venice-chat' }, (p) => picked.push(p));
+    openModelPicker(document.body, { engine: 'eve', provider: 'venice', model: 'venice-chat' }, (p) => picked.push(p));
     await settle();
     const input = [...document.querySelectorAll<HTMLInputElement>('input')].find((el) => el.placeholder.startsWith('or enter'))!;
     input.value = 'offline-model';
@@ -322,19 +322,19 @@ describe('model picker: Venice', () => {
     expect(document.querySelector('.model-menu')?.hasAttribute('data-ending-style')).toBe(false);
     input.value = 'venice-chat';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    expect(picked).toEqual([{ engine: 'openai', provider: 'venice', model: 'venice-chat', effort: '' }]);
+    expect(picked).toEqual([{ engine: 'eve', provider: 'venice', model: 'venice-chat', effort: '' }]);
   });
 
   it('keeps favorites selectable when the catalog cannot establish availability', async () => {
-    state.data!.settings = { ...state.data!.settings, favoriteModels: [{ engine: 'openai', provider: 'venice', model: 'saved-model' }] };
+    state.data!.settings = { ...state.data!.settings, favoriteModels: [{ engine: 'eve', provider: 'venice', model: 'saved-model' }] };
     serve(() => ({ status: 503, body: { error: 'offline' } }));
     const picked: ModelPatch[] = [];
-    openModelPicker(document.body, { engine: 'openai', provider: 'venice', model: 'saved-model' }, (p) => picked.push(p));
+    openModelPicker(document.body, { engine: 'eve', provider: 'venice', model: 'saved-model' }, (p) => picked.push(p));
     await settle();
     const favorite = buttons(document.querySelector('.model-body')!, 'saved-model')[0];
     expect(favorite.disabled).toBe(false);
     favorite.click();
-    expect(picked).toEqual([{ engine: 'openai', provider: 'venice', model: 'saved-model', effort: '' }]);
+    expect(picked).toEqual([{ engine: 'eve', provider: 'venice', model: 'saved-model', effort: '' }]);
   });
 });
 
@@ -368,7 +368,7 @@ describe('model picker: favorites', () => {
   });
 
   it('unstarring the last favorite goes back to the engine in use', async () => {
-    settings().favoriteModels = [{ engine: 'openai', provider: 'ollama', model: 'llama3.2' }];
+    settings().favoriteModels = [{ engine: 'eve', provider: 'ollama', model: 'llama3.2' }];
     serve((method, path, body) => (method === 'PUT' && path === '/settings' ? { body: { ...settings(), ...(body as object) } } : { body: [] }));
     openModelPicker(document.body, { engine: 'codex', model: '' }, () => {});
     await settle();
@@ -383,15 +383,15 @@ describe('model picker: favorites', () => {
 
   it("leaves out favorites on this PC's servers where they can't be used (the Brain)", async () => {
     settings().favoriteModels = [
-      { engine: 'openai', provider: 'ollama', model: 'llama3.2' },
-      { engine: 'openai', provider: 'openrouter', model: 'x/y' },
+      { engine: 'eve', provider: 'ollama', model: 'llama3.2' },
+      { engine: 'eve', provider: 'openrouter', model: 'x/y' },
     ];
     serve(() => ({ body: [] }));
     openModelPicker(document.body, { engine: 'claude-code', model: 'haiku' }, () => {}, { local: false });
     const rows = [...document.querySelectorAll('.model-body .model-row')].map((r) => r.textContent);
     expect(rows).toEqual([expect.stringContaining('OpenRouter')]);
     // with only a local favorite there is no Favorites tab at all
-    settings().favoriteModels = [{ engine: 'openai', provider: 'ollama', model: 'llama3.2' }];
+    settings().favoriteModels = [{ engine: 'eve', provider: 'ollama', model: 'llama3.2' }];
     openModelPicker(document.body, { engine: 'claude-code', model: 'haiku' }, () => {}, { local: false });
     expect([...document.querySelectorAll('.model-tab')].map((t) => t.textContent)).not.toContain('Favorites');
     // an agent's picker does show it
@@ -504,7 +504,7 @@ describe('team builder: saving', () => {
  describe('configured engines', () => {
   it('hides engines without setup and favorites that use them', async () => {
     programs = [];
-    state.data = { agents: [], engines: { hermes: { installed: true } }, secrets: {}, settings: { favoriteModels: [{ engine: 'openai', provider: 'venice', model: 'saved' }] } } as unknown as AppState;
+    state.data = { agents: [], engines: { hermes: { installed: true } }, secrets: {}, settings: { favoriteModels: [{ engine: 'eve', provider: 'venice', model: 'saved' }] } } as unknown as AppState;
     serve(() => ({ body: [] }));
     openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {});
     await settle();

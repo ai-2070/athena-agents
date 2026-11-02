@@ -46,7 +46,7 @@ export interface ModelInfo {
   brand: string | null;
   where: string;
 }
-/** One entry of GET /api/models (engine=openai, codex, pi…). */
+/** One entry of GET /api/models (engine=eve, codex, pi…). */
 export interface ModelListing extends Partial<Omit<ApiModelInfo, 'id'>> {
   id: string;
   /** Codex: what the model is for */
@@ -61,7 +61,7 @@ interface ModelTab {
   glyph?: string;
 }
 /** The tab a model belongs on: LM Studio models run on the API-model engine but get their own tab. */
-export const tabOf = (t: { engine: EngineId; provider?: string }): PickerTab => (t.engine === 'openai' && (t.provider === 'lmstudio' || t.provider === 'venice') ? t.provider : t.engine);
+export const tabOf = (t: { engine: EngineId; provider?: string }): PickerTab => (t.engine === 'eve' && (t.provider === 'lmstudio' || t.provider === 'venice') ? t.provider : t.engine);
 
 // What Claude Code's short names point to today.
 const CLAUDE = [
@@ -76,7 +76,7 @@ const CODEX_PICKS: ModelListing[] = [{ id: 'gpt-6-astra', name: 'GPT-6-Astra', d
 
 const TABS: ModelTab[] = [
   { engine: 'claude-code', label: 'Claude', brand: 'claude' },
-  { engine: 'openai', label: 'OpenRouter', brand: 'openrouter', glyph: '◇' },
+  { engine: 'eve', label: 'OpenRouter', brand: 'openrouter', glyph: '◇' },
   { engine: 'lmstudio', label: 'LM Studio', brand: null, glyph: 'LM' },
   { engine: 'venice', label: 'Venice', brand: null },
   { engine: 'hermes', label: 'Hermes', brand: null },
@@ -120,16 +120,16 @@ const CHIP = 'inline-flex items-center gap-2 whitespace-nowrap py-1.5 px-3 borde
 export const SEARCH = 'model-search mt-1 mb-2 px-3 py-2 text-[13.5px]';
 
 /** The effort a target runs at, as its engine takes it ('' = the model's default). */
-export const effortOf = (a: ModelTarget): Effort | '' => a.engine === 'openai' && a.provider === 'venice' ? isEffort(a.effort) ? a.effort : '' : effortFor(a.engine, a.effort, a.provider);
+export const effortOf = (a: ModelTarget): Effort | '' => a.engine === 'eve' && a.provider === 'venice' ? isEffort(a.effort) ? a.effort : '' : effortFor(a.engine, a.effort, a.provider);
 /** "Claude Opus 5.5" or "Claude Opus 5.5 (high effort)" */
 const withEffort = (a: ModelTarget) => {
   const e = effortOf(a);
   return `${modelInfo(a).name}${e ? ` (${EFFORT_NAMES[e].toLowerCase()} effort)` : ''}`;
 };
-const sameModel = (a: ModelChoice, b: ModelChoice) => a.engine === b.engine && String(a.model || '') === String(b.model || '') && (a.engine !== 'openai' || (a.provider || 'openrouter') === (b.provider || 'openrouter'));
+const sameModel = (a: ModelChoice, b: ModelChoice) => a.engine === b.engine && String(a.model || '') === String(b.model || '') && (a.engine !== 'eve' || (a.provider || 'openrouter') === (b.provider || 'openrouter'));
 
 // ---------- favorites (Settings: favoriteModels) ----------
-const ENGINES: EngineId[] = ['claude-code', 'openai', 'hermes', 'codex', 'pi', 'omp', 'openclaw'];
+const ENGINES: EngineId[] = ['claude-code', 'eve', 'hermes', 'codex', 'pi', 'omp', 'openclaw'];
 export function favoriteModels(): FavoriteModel[] {
   const list = state.data?.settings?.favoriteModels;
   return Array.isArray(list) ? list.filter((f) => f && ENGINES.includes(f.engine) && typeof f.model === 'string') : [];
@@ -139,7 +139,7 @@ export const isFavorite = (m: ModelChoice) => favoriteModels().some((f) => sameM
 export async function toggleFavorite(m: ModelChoice): Promise<boolean> {
   const before = favoriteModels();
   const on = !before.some((f) => sameModel(f, m));
-  const fav: FavoriteModel = { engine: m.engine, model: m.model || '', ...(m.engine === 'openai' ? { provider: m.provider || 'openrouter' } : {}) };
+  const fav: FavoriteModel = { engine: m.engine, model: m.model || '', ...(m.engine === 'eve' ? { provider: m.provider || 'openrouter' } : {}) };
   const list = on ? [...before, fav] : before.filter((f) => !sameModel(f, m));
   if (state.data?.settings) state.data.settings.favoriteModels = list;
   const r = await attempt(() => PUT('/settings', { favoriteModels: list }));
@@ -218,17 +218,17 @@ export function modelChip(agent: Agent, { onChange, compact = false }: { onChang
 
 // ---------- the Brain's own model ----------
 // settings.brain = { provider: 'claude' | 'openrouter' | 'hermes' | 'codex', model }
-const BRAIN_ENGINE: Record<string, EngineId | undefined> = { claude: 'claude-code', openrouter: 'openai', venice: 'openai', hermes: 'hermes', codex: 'codex' };
-const BRAIN_PROVIDER: Record<string, BrainSetting['provider'] | undefined> = { 'claude-code': 'claude', openai: 'openrouter', hermes: 'hermes', codex: 'codex' };
+const BRAIN_ENGINE: Record<string, EngineId | undefined> = { claude: 'claude-code', openrouter: 'eve', venice: 'eve', hermes: 'hermes', codex: 'codex' };
+const BRAIN_PROVIDER: Record<string, BrainSetting['provider'] | undefined> = { 'claude-code': 'claude', eve: 'openrouter', hermes: 'hermes', codex: 'codex' };
 /** The engines the Brain can think with (its picker offers only these). */
-const BRAIN_ENGINES: readonly EngineId[] = ['claude-code', 'openai', 'hermes', 'codex'];
+const BRAIN_ENGINES: readonly EngineId[] = ['claude-code', 'eve', 'hermes', 'codex'];
 export function brainAsAgent(b: { provider?: string; model?: string; effort?: Effort | '' } | null | undefined = state.data?.settings?.brain): ModelTarget & { model: string; provider: string } {
   const p = b?.provider || 'claude';
   const model = p === 'venice' ? b?.model || state.data?.settings?.defaults?.veniceModel || '' : b?.model ?? (p === 'claude' ? 'haiku' : '');
   return { engine: BRAIN_ENGINE[p] || 'claude-code', model, provider: p === 'venice' ? 'venice' : 'openrouter', effort: b?.effort || '' };
 }
 export function brainSettingFromChoice(choice: ModelPatch): BrainSetting | null {
-  const provider = choice.engine === 'openai' ? choice.provider === 'venice' ? 'venice' : !choice.provider || choice.provider === 'openrouter' ? 'openrouter' : undefined : BRAIN_PROVIDER[choice.engine];
+  const provider = choice.engine === 'eve' ? choice.provider === 'venice' ? 'venice' : !choice.provider || choice.provider === 'openrouter' ? 'openrouter' : undefined : BRAIN_PROVIDER[choice.engine];
   return provider ? { provider, model: choice.model || '', effort: choice.effort } : null;
 }
 export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: (brain: BrainSetting) => void; prefix?: string } = {}): HTMLButtonElement {
@@ -378,16 +378,16 @@ function LocalSection({ provider, label, howToStart = '', cur, onPick, onChanged
   const [ids, setIds] = useState<string[] | null>(null);
   useEffect(() => {
     let live = true;
-    GET<ModelListing[]>(`/models?engine=openai&provider=${provider}`).then(
+    GET<ModelListing[]>(`/models?engine=eve&provider=${provider}`).then(
       (ms) => { if (live) setIds(ms.map((m) => m.id)); },
       () => { if (live) setIds([]); },
     );
     return () => { live = false; };
   }, [provider]);
   // the model in use needs an id of its own: an empty one would fall back to the OpenRouter default
-  const mine = cur.engine === 'openai' && cur.provider === provider && cur.model ? cur.model : null;
+  const mine = cur.engine === 'eve' && cur.provider === provider && cur.model ? cur.model : null;
   const list = ids === null ? null : mine && !ids.includes(mine) ? [mine, ...ids] : ids;
-  const on = (id: string) => cur.engine === 'openai' && cur.provider === provider && cur.model === id;
+  const on = (id: string) => cur.engine === 'eve' && cur.provider === provider && cur.model === id;
   return (
     <>
       <div className="st-menu-head">{`On this PC · ${label}`}</div>
@@ -395,12 +395,12 @@ function LocalSection({ provider, label, howToStart = '', cur, onPick, onChanged
         {list === null ? (
           <div className="model-sub px-2.5 py-1">Looking for models…</div>
         ) : list.length ? (
-          list.map((id) => <Row key={id} label={id} sub={null} active={on(id)} choice={{ engine: 'openai', provider, model: id }} brand={provider === 'ollama' ? 'ollama' : null} onPick={onPick} onChanged={onChanged} />)
+          list.map((id) => <Row key={id} label={id} sub={null} active={on(id)} choice={{ engine: 'eve', provider, model: id }} brand={provider === 'ollama' ? 'ollama' : null} onPick={onPick} onChanged={onChanged} />)
         ) : (
           <div className="model-sub px-2.5 py-1">{`No models found. Is ${label} running?${howToStart ? ` (${howToStart})` : ''}`}</div>
         )}
       </div>
-      <FreeInput placeholder={`or type a ${label} model id and press Enter`} onSubmit={(m) => onPick({ engine: 'openai', provider, model: m })} />
+      <FreeInput placeholder={`or type a ${label} model id and press Enter`} onSubmit={(m) => onPick({ engine: 'eve', provider, model: m })} />
     </>
   );
 }
@@ -436,7 +436,7 @@ function ClaudeBody({ cur, close, onPick, onChanged }: { cur: ModelTarget; close
 
 function VeniceBody({ cur, models, error, close, onPick, onChanged }: { cur: ModelTarget; models: ModelListing[] | null; error: string | null; close: () => void; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
   const [query, setQuery] = useState('');
-  const current = cur.engine === 'openai' && cur.provider === 'venice' ? cur.model : '';
+  const current = cur.engine === 'eve' && cur.provider === 'venice' ? cur.model : '';
   const list = models || [];
   const pool: ModelListing[] = current && !list.some((m) => m.id === current) ? [{ id: current, name: current }, ...list] : list;
   const shown = pool.filter((m) => `${m.id} ${m.name || ''}`.toLowerCase().includes(query.toLowerCase())).slice(0, 80);
@@ -450,8 +450,8 @@ function VeniceBody({ cur, models, error, close, onPick, onChanged }: { cur: Mod
     {models?.length && !shown.length ? <p className="model-sub px-2.5 py-1">No models match this search.</p> : null}
     <div className="model-list">{shown.map((m) => <Row key={m.id} label={m.name || m.id}
       sub={[m.id, m.price ? `$${m.price.in.toFixed(2)} / $${m.price.out.toFixed(2)} per M tokens` : '', m.context ? `${Math.round(m.context / 1000)}k context` : '', m.tools === false ? 'No tool use' : '', m.offline ? 'Temporarily unavailable' : ''].filter(Boolean).join(' · ')}
-      active={m.id === current} disabled={m.offline} choice={{ engine: 'openai', provider: 'venice', model: m.id }} onPick={onPick} onChanged={onChanged} />)}</div>
-    <FreeInput placeholder="or enter a Venice model id and press Enter" onSubmit={(model) => onPick({ engine: 'openai', provider: 'venice', model })} />
+      active={m.id === current} disabled={m.offline} choice={{ engine: 'eve', provider: 'venice', model: m.id }} onPick={onPick} onChanged={onChanged} />)}</div>
+    <FreeInput placeholder="or enter a Venice model id and press Enter" onSubmit={(model) => onPick({ engine: 'eve', provider: 'venice', model })} />
   </>;
 }
 
@@ -463,7 +463,7 @@ function OpenRouterBody({ cur, local, close, onPick, onChanged }: { cur: ModelTa
   const search = useRef<HTMLInputElement>(null);
   useEffect(() => {
     let live = true;
-    GET<ModelListing[]>('/models?engine=openai&provider=openrouter')
+    GET<ModelListing[]>('/models?engine=eve&provider=openrouter')
       .then((ms) => { if (live) setAll(ms); })
       .catch(() => {});
     const focus = setTimeout(() => search.current?.focus(), 30);
@@ -478,7 +478,7 @@ function OpenRouterBody({ cur, local, close, onPick, onChanged }: { cur: ModelTa
     if (!el) return;
     const key = (e: KeyboardEvent) => {
       const v = el.value.trim();
-      if (e.key === 'Enter' && v) onPick({ engine: 'openai', provider: 'openrouter', model: v });
+      if (e.key === 'Enter' && v) onPick({ engine: 'eve', provider: 'openrouter', model: v });
     };
     el.addEventListener('keydown', key);
     return () => el.removeEventListener('keydown', key);
@@ -499,8 +499,8 @@ function OpenRouterBody({ cur, local, close, onPick, onChanged }: { cur: ModelTa
             key={m.id}
             label={m.name || m.id}
             sub={m.price ? `$${m.price.in.toFixed(2)} / $${m.price.out.toFixed(2)} per M tokens` : m.id}
-            active={cur.engine === 'openai' && (cur.provider || 'openrouter') === 'openrouter' && m.id === cur.model}
-            choice={{ engine: 'openai', provider: 'openrouter', model: m.id }}
+            active={cur.engine === 'eve' && (cur.provider || 'openrouter') === 'openrouter' && m.id === cur.model}
+            choice={{ engine: 'eve', provider: 'openrouter', model: m.id }}
             brand={/claude|anthropic/.test(m.id) ? 'claude' : null}
             onPick={onPick}
             onChanged={onChanged}
@@ -640,9 +640,9 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
   const configured = (id: string) => engineConfigured(id, data, installedPrograms);
   const usable = (e: EngineId) => !engines || engines.includes(e);
   // favorites this picker can use (without local servers, only OpenRouter's API models)
-  const favs = () => favoriteModels().filter((f) => configured(f.engine === 'openai' ? f.provider || 'openrouter' : f.engine) && usable(f.engine) && (!providers || f.engine !== 'openai' || providers.includes(f.provider || 'openrouter')) && (local || f.engine !== 'openai' || ['openrouter', 'venice'].includes(f.provider || 'openrouter')));
+  const favs = () => favoriteModels().filter((f) => configured(f.engine === 'eve' ? f.provider || 'openrouter' : f.engine) && usable(f.engine) && (!providers || f.engine !== 'eve' || providers.includes(f.provider || 'openrouter')) && (local || f.engine !== 'eve' || ['openrouter', 'venice'].includes(f.provider || 'openrouter')));
   // LM Studio's tab only where models on this PC can be used (not for the Brain)
-  const myTabs = TABS.filter((t) => configured(t.engine) && (local || t.engine !== 'lmstudio') && (!providers || providers.includes(t.engine === 'openai' ? 'openrouter' : t.engine)) && (t.engine === 'fav' || usable(t.engine === 'lmstudio' || t.engine === 'venice' ? 'openai' : t.engine)));
+  const myTabs = TABS.filter((t) => configured(t.engine) && (local || t.engine !== 'lmstudio') && (!providers || providers.includes(t.engine === 'eve' ? 'openrouter' : t.engine)) && (t.engine === 'fav' || usable(t.engine === 'lmstudio' || t.engine === 'venice' ? 'eve' : t.engine)));
   const curTab = tabOf(cur);
   const homeTab = (): PickerTab => (myTabs.some((t) => t.engine === curTab) ? curTab : myTabs[0]?.engine || 'claude-code');
   const [, refresh] = useReducer((n: number) => n + 1, 0);
@@ -653,12 +653,12 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
   const asked = useRef<Effort | ''>(effort);
   const [veniceModels, setVeniceModels] = useState<ModelListing[] | null>(null);
   const [veniceError, setVeniceError] = useState<string | null>(null);
-  const needsVenice = configured('venice') && (tab === 'venice' || (cur.engine === 'openai' && cur.provider === 'venice') || (tab === 'fav' && favs().some((f) => f.provider === 'venice')));
+  const needsVenice = configured('venice') && (tab === 'venice' || (cur.engine === 'eve' && cur.provider === 'venice') || (tab === 'fav' && favs().some((f) => f.provider === 'venice')));
   useEffect(() => {
     if (!needsVenice) return;
     let live = true;
     setVeniceError(null);
-    void GET<ModelListing[]>('/models?engine=openai&provider=venice').then(
+    void GET<ModelListing[]>('/models?engine=eve&provider=venice').then(
       (models) => { if (live) setVeniceModels(models); },
       () => { if (live) setVeniceError('Could not load Venice models.'); },
     );
@@ -670,16 +670,16 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
     asked.current = value;
     setEffort(value);
   };
-  const tabEngine = (): EngineId => (tab === 'fav' ? cur.engine : tab === 'lmstudio' || tab === 'venice' ? 'openai' : tab);
+  const tabEngine = (): EngineId => (tab === 'fav' ? cur.engine : tab === 'lmstudio' || tab === 'venice' ? 'eve' : tab);
   // the effort row is for the model in use, on Favorites and its own tab; on the others it is for what you pick here
   const live = tab === 'fav' || tab === curTab;
   const engine = tabEngine();
-  const provider = engine !== 'openai' ? undefined : live ? cur.provider : tab === 'lmstudio' ? 'lmstudio' : tab === 'venice' ? 'venice' : 'openrouter';
+  const provider = engine !== 'eve' ? undefined : live ? cur.provider : tab === 'lmstudio' ? 'lmstudio' : tab === 'venice' ? 'venice' : 'openrouter';
   const levelsFor = (choice: ModelChoice) => choice.provider === 'venice' ? veniceModels?.find((m) => m.id === choice.model)?.reasoningEfforts : undefined;
   const modelLevels = provider === 'venice' ? live ? levelsFor(cur) : veniceModels?.flatMap((m) => m.reasoningEfforts || []) : undefined;
   const levels = effortLevels(engine, provider, modelLevels);
   const shown = effortFor(engine, effort, provider, modelLevels);
-  const isUnavailable = (choice: ModelChoice): boolean => choice.engine === 'openai' && choice.provider === 'venice' && veniceModels?.find((m) => m.id === choice.model)?.offline === true;
+  const isUnavailable = (choice: ModelChoice): boolean => choice.engine === 'eve' && choice.provider === 'venice' && veniceModels?.find((m) => m.id === choice.model)?.offline === true;
 
   // Picking a model closes the picker; changing the effort of the model in use applies it at once and keeps it open.
   const pick = (choice: ModelChoice) => {
@@ -692,7 +692,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
     // synchronously, like typing: the row shows the level the moment it is clicked
     flushSync(() => setLevel(value));
     if (!live) return;
-    const ok = await apply({ engine: cur.engine, model: cur.model ?? '', ...(cur.engine === 'openai' ? { provider: cur.provider } : {}), effort: effortFor(cur.engine, value, cur.provider, levelsFor(cur)) });
+    const ok = await apply({ engine: cur.engine, model: cur.model ?? '', ...(cur.engine === 'eve' ? { provider: cur.provider } : {}), effort: effortFor(cur.engine, value, cur.provider, levelsFor(cur)) });
     // (it failed: the row goes back to what it was)
     if (ok === false && asked.current === value) setLevel(before);
   };
@@ -724,7 +724,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
   if (!myTabs.length && !favList.length) body = <Missing text="No engines are set up yet." find="Engines on this PC" close={close} />;
   else if (tab === 'fav') body = <FavoritesBody favs={favList} cur={cur} isUnavailable={isUnavailable} onPick={pick} onChanged={refresh} />;
   else if (tab === 'claude-code') body = <ClaudeBody cur={cur} close={close} onPick={pick} onChanged={refresh} />;
-  else if (tab === 'openai') body = <OpenRouterBody cur={cur} local={local} close={close} onPick={pick} onChanged={refresh} />;
+  else if (tab === 'eve') body = <OpenRouterBody cur={cur} local={local} close={close} onPick={pick} onChanged={refresh} />;
   else if (tab === 'venice') body = <VeniceBody cur={cur} models={veniceModels} error={veniceError} close={close} onPick={pick} onChanged={refresh} />;
   else if (tab === 'lmstudio') body = <LocalSection provider="lmstudio" label="LM Studio" howToStart="LM Studio > Developer > Start server" cur={cur} onPick={pick} onChanged={refresh} />;
   else if (tab === 'hermes') body = <HermesBody cur={cur} close={close} onPick={pick} onChanged={refresh} />;
@@ -794,7 +794,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
 let closeModelMenu: (() => void) | null = null;
 
 export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch: ModelPatch) => unknown, { title = 'Model', local = true, engines, providers }: { title?: string; local?: boolean; engines?: readonly EngineId[]; providers?: readonly string[] } = {}): void {
-  if (cur.engine === 'openai' && !cur.model) cur = { ...cur, model: defaultModelForEngine('openai', state.data?.settings?.defaults || {}, cur.provider) };
+  if (cur.engine === 'eve' && !cur.model) cur = { ...cur, model: defaultModelForEngine('eve', state.data?.settings?.defaults || {}, cur.provider) };
   // one picker at a time: whatever is up goes first, at once, so two are never in the way
   closeModelMenu?.();
   const host = document.createElement('div');

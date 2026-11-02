@@ -70,8 +70,8 @@ function overrides(engine: EngineId, data: AppState, choice: ModelPatch | null):
   const d = data.settings.defaults;
   return {
     engine,
-    model: engine === 'openai' ? choice?.model || defaultModelForEngine(engine, d, choice?.provider) : defaultModelForEngine(engine, d),
-    ...(engine === 'openai' && choice ? { provider: choice.provider, effort: choice.effort } : {}),
+    model: engine === 'eve' ? choice?.model || defaultModelForEngine(engine, d, choice?.provider) : defaultModelForEngine(engine, d),
+    ...(engine === 'eve' && choice ? { provider: choice.provider, effort: choice.effort } : {}),
   };
 }
 
@@ -150,7 +150,7 @@ function LibraryPage() {
       <div className="ml-auto flex flex-wrap items-center gap-3">
         <span className="label">Runs on</span>
         <Segmented label="Runs on" options={data.engineList.map((e) => ({ value: e.id, label: e.label }))} value={engine} onChange={setEngine} />
-        {engine === 'openai' ? <Button variant="ghost" size="small" onClick={(event) => openModelPicker(event.currentTarget, apiChoice || { engine: 'openai', provider: 'openrouter', model: data.settings.defaults.openrouterModel }, setApiChoice, { title: 'Model for new hires', engines: ['openai'] })}>
+        {engine === 'eve' ? <Button variant="ghost" size="small" onClick={(event) => openModelPicker(event.currentTarget, apiChoice || { engine: 'eve', provider: 'openrouter', model: data.settings.defaults.openrouterModel }, setApiChoice, { title: 'Model for new hires', engines: ['eve'] })}>
           {apiChoice ? `${modelInfo(apiChoice).where} · ${modelInfo(apiChoice).short}` : 'Choose API model'}
         </Button> : null}
       </div>

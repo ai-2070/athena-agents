@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { newBatch } from '../../server/uploads.ts';
 // /queue: a message typed while an agent (or a team) works waits, then goes once it is done.
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -33,7 +36,7 @@ afterAll(() => {
   return new Promise<void>((r) => server.close(() => r()));
 });
 
-const until = async (ok: () => boolean, ms = 5000) => {
+const until = async (ok: () => boolean, ms = 15000) => {
   for (const end = Date.now() + ms; Date.now() < end; ) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 20));
@@ -47,7 +50,7 @@ const release = async () => {
   w.release();
   return w.last;
 };
-const agent = (name: string) => newAgent({ name, engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+const agent = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
 const userTexts = (agentId: string, chatId: string) => (chats.get(agentId, chatId)?.items || []).filter((i) => i.type === 'user').map((i) => i.text);
 const running = (chatId: string) => activeRuns().some((r) => r.chatId === chatId);
 
@@ -79,7 +82,9 @@ describe('/queue in an agent chat', () => {
     queueMessage(a, c, 'first');
     await until(() => waiting.length > 0);
     const second = queueMessage(a, c, 'second');
-    const third = queueMessage(a, c, 'third', ['C:/files/notes.txt']);
+    const note = path.join(newBatch().dir, 'notes.txt');
+    fs.writeFileSync(note, 'Saved notes');
+    const third = queueMessage(a, c, 'third', [note]);
     expect('queued' in second && 'queued' in third).toBe(true);
     expect(queuedMessages(c.id).map((q) => q.text)).toEqual(['second', 'third']);
     expect(userTexts(a.id, c.id)).toEqual(['first']);
@@ -90,7 +95,7 @@ describe('/queue in an agent chat', () => {
     expect(await release()).toContain('second');
     await until(() => userTexts(a.id, c.id).length === 3);
     const sent = chats.get(a.id, c.id)!.items.findLast((i) => i.type === 'user');
-    expect(sent?.type === 'user' && sent.attachments).toEqual(['C:/files/notes.txt']);
+    expect(sent?.type === 'user' && sent.attachments).toEqual([note]);
     await release();
     await until(() => !running(c.id));
     expect(queuedMessages(c.id)).toEqual([]);

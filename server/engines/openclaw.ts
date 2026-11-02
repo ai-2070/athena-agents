@@ -147,7 +147,7 @@ const gatewayDown = (r: OpenClawReply | null) => !!r && r.ok === false && !r.run
 
 export async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: EngineRunArgs): Promise<EngineResult> {
   if (!which('openclaw')) throw new Error('OpenClaw is not installed (the `openclaw` command was not found). Install it with: npm install -g openclaw');
-  // A chat's session: its own key under the OpenClaw agent. A compaction starts a new one (sessionId is cleared).
+  // A chat's session: its own key under the OpenClaw agent. Clear memory starts a new one.
   const sessionKey = chat.sessionId && safeId(chat.sessionId) ? chat.sessionId : `dashboard-${chat.id}-${Date.now().toString(36)}`.replace(/[^\w.:-]/g, '');
   const fresh = sessionKey !== chat.sessionId;
   // OpenClaw keeps its own system prompt; our agent brief goes with a session's first message.

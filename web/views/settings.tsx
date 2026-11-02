@@ -79,8 +79,6 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
   // the few choices drawn from state rather than left to the input
   const [engine, setEngine] = useState(s.defaults.engine);
   const [autonomy, setAutonomy] = useState(s.defaults.autonomy);
-  const [compaction, setCompaction] = useState(s.compaction);
-  const setC = (k: 'auto' | 'engineOwn' | 'instant', on: boolean) => (setCompaction({ ...compaction, [k]: on }), setP(`compaction.${k}`, on));
 
   return (
     <div className="flex flex-col gap-12 max-lg:gap-10">
@@ -172,30 +170,9 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
         </FieldRow>
       </Section>
 
-      {/* Chat memory: compacting long chats (server/compaction.ts) */}
-      <Section id="chat-memory" title="Chat memory" description="Long chats fill up the model’s memory. Compacting turns the older messages into a short history the agent keeps reading, and keeps the latest ones in full.">
-        <Row title="Where you see it" description="Every message stays in the chat for you, marked “Compacted” where it happened; open the mark to read or edit what the agent remembers. You can also press Compact in a chat, or type /compact." />
-        <SwitchRow checked={compaction.auto} onChange={(on) => setC('auto', on)} title="Compact long chats automatically" />
-        <SwitchRow
-          checked={compaction.engineOwn !== false}
-          onChange={(on) => setC('engineOwn', on)}
-          title="Let Claude Code, Codex, Hermes, pi, oh-my-pi and OpenClaw compact on their own"
-          description="They compact their own sessions when nearly full, keeping their prompt cache and what they know about their tools. The dashboard then compacts their chats only when you ask (Compact, /compact), or when one says the chat is too long. Off: the dashboard compacts them too, at the share below, and starts a new session from its compacted history. API-model agents are always compacted here."
-        />
-        <SwitchRow
-          checked={compaction.instant}
-          onChange={(on) => setC('instant', on)}
-          title="Instant compaction"
-          description="Instant keeps the original words, cut to fit: long messages are shortened, tool calls become one line and their results are left out (the agent can read any of them back). No model call, so it takes no time and costs nothing. Off: the Brain’s model writes a summary instead (slower, smaller)."
-        />
-        <FieldRow label="Messages kept in full" hint="Up to this many of the latest messages (yours and the agent’s, with their tool calls) stay word for word, as far as the size budget allows. The rest is compacted." size="sm">
-          <input className="font-mono" type="number" min={0} max={1000} defaultValue={s.compaction.keepMessages} onChange={(e) => setP('compaction.keepMessages', Number(e.target.value))} />
-        </FieldRow>
-        <FieldRow label="Compact at (% of the context window)" hint="Compacts when the agent’s memory of a chat reaches this share of the model’s context window." size="sm">
-          <input className="font-mono" type="number" min={10} max={95} defaultValue={s.compaction.thresholdPercent} onChange={(e) => setP('compaction.thresholdPercent', Number(e.target.value))} />
-        </FieldRow>
-        <FieldRow label="Context window (tokens)" hint="Leave empty to use what each engine or model says (Claude Code 200k, or 1M for a “[1m]” model). Set 1000000 if your models have a 1M-token window: everything the compaction keeps grows with the window." size="sm">
-          <input className="font-mono" type="number" min={0} step={1000} defaultValue={s.compaction.windowTokens || ''} placeholder="auto" onChange={(e) => setP('compaction.windowTokens', Number(e.target.value) || 0)} />
+      <Section id="chat-memory" title="Context" description="Each engine manages its own memory. Original messages stay saved and searchable.">
+        <FieldRow label="Context window (tokens)" hint="Leave empty to use the model or engine's reported window. A request that does not fit is rejected without dropping its original text." size="sm">
+          <input className="font-mono" type="number" min={0} step={1000} defaultValue={s.contextWindowTokens || ''} placeholder="auto" onChange={(e) => setP('contextWindowTokens', Number(e.target.value) || 0)} />
         </FieldRow>
       </Section>
 
@@ -380,7 +357,7 @@ function VeniceDefault({ initial, onChange }: { initial: string; onChange: (valu
   return <FieldRow label={<ProgramLabel id="venice">Venice model</ProgramLabel>} hint="Used when a Venice agent or the Brain has no model selected. Choose one, then Save settings.">
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 max-[400px]:grid-cols-1">
       <input className="code w-full min-w-0" value={model} placeholder="Choose a Venice model" onChange={(e) => choose(e.target.value)} />
-      <Button variant="ghost" className="shrink-0" onClick={(event) => openModelPicker(event.currentTarget, { engine: 'openai', provider: 'venice', model }, (choice) => choose(choice.model || ''), { title: 'Default Venice model', local: false, engines: ['openai'], providers: ['venice'] })}>Choose model<Icon name="chevron-down" size={14} /></Button>
+      <Button variant="ghost" className="shrink-0" onClick={(event) => openModelPicker(event.currentTarget, { engine: 'eve', provider: 'venice', model }, (choice) => choose(choice.model || ''), { title: 'Default Venice model', local: false, engines: ['eve'], providers: ['venice'] })}>Choose model<Icon name="chevron-down" size={14} /></Button>
     </div>
   </FieldRow>;
 }

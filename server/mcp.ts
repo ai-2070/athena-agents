@@ -893,7 +893,7 @@ export function describeCopy(name: string, { label, useFor }: { label?: string; 
 // names a server's tools mcp__<server>__<tool>; API-model agents name them <server>__<tool>.
 export function renamedGrant(grant: string, from: string, to: string | null, engine: string): string {
   const forms: [string, string][] = [[`mcp__${from}__`, `mcp__${to}__`]];
-  if (engine === 'openai') forms.push([`${from}__`, `${to}__`]);
+  if (engine === 'eve') forms.push([`${from}__`, `${to}__`]);
   if (grant === `mcp__${from}`) return to ? `mcp__${to}` : '';
   for (const [was, now] of forms) if (grant.startsWith(was)) return to ? now + grant.slice(was.length) : '';
   return grant;

@@ -215,7 +215,7 @@ describe('skills', () => {
   });
 
   it('shows every versioned field, so a listed change is never invisible', () => {
-    const agent = asText('agent', { name: 'A', engine: 'openai', provider: 'openrouter', temperature: 0.3, color: '#123456', systemPrompt: 'x' } as Agent);
+    const agent = asText('agent', { name: 'A', engine: 'eve', provider: 'openrouter', temperature: 0.3, color: '#123456', systemPrompt: 'x' } as Agent);
     expect(agent).toContain('Provider: openrouter');
     expect(agent).toContain('Temperature: 0.3');
     expect(agent).toContain('color: "#123456"');

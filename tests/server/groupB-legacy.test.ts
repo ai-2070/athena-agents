@@ -86,7 +86,7 @@ describe('the scheduler', () => {
 
   it('runs a scheduled step list through its steps, and messages a scheduled team', async () => {
     const notify = workflows.save({ name: 'Ping', steps: [{ id: 'n', type: 'notify', text: 'Hello {{input}}' }], schedule: { type: 'interval', input: 'there' }, enabled: true } as Partial<Team>);
-    const a = newAgent({ name: 'Scout', engine: 'openai', provider: 'nowhere', model: 'x', toolGroups: [] });
+    const a = newAgent({ name: 'Scout', engine: 'eve', provider: 'nowhere', model: 'x', toolGroups: [] });
     const team = workflows.save({ name: 'Scouts', members: [a.id], lead: a.id, steps: [], schedule: { type: 'interval', input: 'Morning check' }, enabled: true } as Partial<Team>);
     vi.useFakeTimers({ toFake: ['setInterval'] });
     startScheduler();

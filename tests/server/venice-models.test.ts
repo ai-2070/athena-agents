@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { normalizeApiModels } from '../../server/apimodels.ts';
-import { listModels } from '../../server/engines/openai.ts';
+import { listModels } from '../../server/providers.ts';
 import { availableModels, checkModel, clearModelCache, findModels, providerProblem } from '../../server/models.ts';
 import { setSecret } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
-import { contextWindow } from '../../server/compaction.ts';
+import { contextWindow } from '../../server/context.ts';
 
 const model = {
   id: 'venice-chat', type: 'text', model_spec: {
@@ -51,7 +51,7 @@ describe('Venice model discovery', () => {
     expect(found).toContain('$0.15 in / $0.60 out');
     expect(found).toContain('131k context');
     expect(found).toContain('not usable right now');
-    expect(await contextWindow(newAgent({ engine: 'openai', provider: 'venice', model: 'venice-chat' }))).toBe(131072);
+    expect(await contextWindow(newAgent({ engine: 'eve', provider: 'venice', model: 'venice-chat' }))).toBe(131072);
   });
 
   it('reports offline models and rejects them for new selections', async () => {

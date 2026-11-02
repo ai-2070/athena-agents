@@ -8,6 +8,7 @@ import { setEffect, setEnvironment, setLight, EFFECT_KINDS } from './scene.ts';
 import { playAnimation, setAnimation, setSkin, skinTarget } from './characters.ts';
 import { activeProject, getSettings, saveSettings, workflows } from '../store.ts';
 import { requestApproval } from '../approvals.ts';
+import type { ApprovalRequest } from '../approvals.ts';
 import { loadSandbox, runScript, SCRIPT_LIMITS } from './script.ts';
 import { BUILD_ORDER, DIORAMA, DIORAMA_SHORT } from './diorama.ts';
 import { requestLook } from './look.ts';
@@ -57,24 +58,30 @@ More steps (pyramid, torus, line, stairs, arch, set, layers, text, heightmap, re
 
 // The Station in the classic look can't draw the world. A builder that wants to see it asks you to turn the
 // voxel look on: always you (it changes how the Station looks in every project), once for builders asking together.
-let askingForLook: Promise<boolean> | null = null;
-function askForVoxelLook(agent: ToolAgent): Promise<boolean> {
-  askingForLook ??= requestApproval({
+export function voxelLookRequest(ctx: ToolContext): ApprovalRequest {
+  const agent = ctx.agent;
+  return {
     kind: 'setting',
     title: `${agent.name} wants to see the voxel world`,
     detail: 'The Station is in the classic look, which doesn\'t draw the world your agents build. Turn on the voxel look (Settings › Appearance › Station look) so they can look at their work? It shows the world on the Station in every project and uses more graphics power; Settings › Appearance switches it back.',
     agentId: agent.id,
     agentName: agent.name,
-    data: { setting: 'stationLook', value: 'world', allow: 'Turn on the voxel look' },
-  })
+    data: { setting: 'stationLook', value: 'world', allow: 'Turn on the voxel look', runId: ctx.runId },
+  };
+}
+
+let askingForLook: Promise<boolean> | null = null;
+function askForVoxelLook(ctx: ToolContext): Promise<boolean> {
+  const ask = () => (ctx.approvalDecision || requestApproval)(voxelLookRequest(ctx))
     .then((d) => {
       if (d.approved) {
         saveSettings({ look: { stationLook: 'world' } });
-        log('settings', `Turned on the voxel look for ${agent.name}`, { agentId: agent.id });
+        log('settings', `Turned on the voxel look for ${ctx.agent.name}`, { agentId: ctx.agent.id });
       }
       return d.approved;
-    })
-    .finally(() => (askingForLook = null));
+    });
+  if (ctx.approvalDecision) return ask();
+  askingForLook ??= ask().finally(() => (askingForLook = null));
   return askingForLook;
 }
 
@@ -87,14 +94,70 @@ interface FileAccess {
   writableDir: (ctx: ToolContext, p: string | undefined) => string;
 }
 
+interface WorldApprovalCheck {
+  risk: Risk;
+  name?: string;
+  detail?: string;
+  scope?: Record<string, unknown>;
+  request?: ApprovalRequest;
+}
+
+function othersCheck(ctx: ToolContext, ref: unknown, doing: string, kind: 'object' | 'prefab' = 'object'): WorldApprovalCheck | null {
+  const shown = shownWorld();
+  if (!shown.world || shown.how === 'carried') return null;
+  const target = kind === 'prefab' ? findPrefab(shown.world, ref) : findObject(shown.world, ref);
+  if (!target || ownsObject(builderOf(ctx), target)) return null;
+  return { name: 'world_change_others', risk: 'high', detail: `${ctx.agent.name} wants to ${doing} "${target.name}", which ${target.by.name} built.`, scope: { worldId: shown.world.id, kind, id: target.id, by: target.by } };
+}
+
+function skinCheck(ctx: ToolContext, args: ToolArgs): WorldApprovalCheck | null {
+  const { to, id, hidden } = args;
+  if (to !== 'agent' && to !== 'team' && to !== 'brain') return null;
+  const target = skinTarget(to, to === 'agent' ? String(id || ctx.agent.id) : typeof id === 'string' ? id : undefined);
+  const mine = to === 'agent' ? target.id === ctx.agent.id : to === 'team' ? (workflows.get(target.id)?.members || []).includes(ctx.agent.id) : false;
+  return mine ? null : { name: 'world_skin_others', risk: 'high', detail: `${ctx.agent.name} wants to change how ${target.name} looks in the voxel world${hidden === true ? ' (take it off the map)' : ''}.`, scope: { worldId: shownWorld().world?.id || null, kind: to, id: target.id } };
+}
+
+/** The same ownership checks are used before the native wait and immediately before a change. */
+export function worldApprovalChecks(name: string, args: ToolArgs, ctx: ToolContext): WorldApprovalCheck[] {
+  let check: WorldApprovalCheck | null = null;
+  switch (name) {
+    case 'world_build': case 'world_script':
+      check = args.prefab ? othersCheck(ctx, args.prefab, 'change the prefab', 'prefab') : othersCheck(ctx, args.object, 'change');
+      break;
+    case 'world_object':
+      if (args.duplicate !== true && args.delete !== true) check = othersCheck(ctx, args.object, 'change');
+      break;
+    case 'world_prefab':
+      if (args.action === 'save' && args.replace) check = othersCheck(ctx, args.from, 'change');
+      if (args.action === 'change') check = othersCheck(ctx, args.prefab, 'change the prefab', 'prefab');
+      break;
+    case 'world_animate':
+      if (args.action === 'set' || args.action === 'remove') check = othersCheck(ctx, args.prefab, 'change the animations of', 'prefab');
+      break;
+    case 'world_skin':
+      try { check = skinCheck(ctx, args); } catch { /* invalid targets fail in the tool */ }
+      break;
+    case 'world_look': {
+      const world = shownWorld().world;
+      const target = args.target || 'overview';
+      if (!world || getSettings().look.stationLook === 'world' || !['overview', 'brain', 'team', 'agent', 'object', 'prefab'].includes(String(target))) break;
+      try {
+        if (target === 'team' || target === 'agent') skinTarget(target, String(args.name || (target === 'agent' ? ctx.agent.id : '')));
+        if (target === 'object' && !findObject(world, args.name) || target === 'prefab' && !findPrefab(world, args.name)) break;
+        check = { risk: 'high', request: voxelLookRequest(ctx) };
+      } catch { /* invalid targets fail in the tool */ }
+      break;
+    }
+  }
+  return check ? [check] : [];
+}
+
 export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
   // asks first when an agent changes what someone else built (the Brain and you never need to)
   const othersFirst = async (ctx: ToolContext, args: ToolArgs, ref: unknown, doing: string, kind: 'object' | 'prefab' = 'object'): Promise<ToolResult | null> => {
-    const shown = shownWorld();
-    if (!shown.world || shown.how === 'carried') return null;
-    const o = kind === 'prefab' ? findPrefab(shown.world, ref) : findObject(shown.world, ref);
-    if (!o || ownsObject(builderOf(ctx), o)) return null;
-    return gate(ctx.agent, 'world_change_others', 'high', args, ctx, `${ctx.agent.name} wants to ${doing} "${o.name}", which ${o.by.name} built.`);
+    const check = othersCheck(ctx, ref, doing, kind);
+    return check ? gate(ctx.agent, check.name!, check.risk, args, { ...ctx, approvalScope: check.scope }, check.detail) : null;
   };
 
   return [
@@ -430,7 +493,7 @@ Example: use("dark wood"); for (let i = 0; i < 6; i++) { const h = 2 + random() 
         let turnedOn = false;
         if (getSettings().look.stationLook !== 'world') {
           ctx.progress?.('Asking you to turn on the voxel look…');
-          turnedOn = await askForVoxelLook(ctx.agent);
+          turnedOn = await askForVoxelLook(ctx);
           if (!turnedOn) return { text: `No picture: the user kept the Station in the classic look, which doesn't draw the voxel world. Don't ask again in this task.${target === 'object' || target === 'prefab' ? `\nHere is a map from above instead.\n${objectMap(w, id!)}` : '\nworld_info has where everything stands.'}` };
         }
         ctx.progress?.(`Looking at ${label}…`);
@@ -547,9 +610,9 @@ Example: use("dark wood"); for (let i = 0; i < 6; i++) { const h = 2 + random() 
         try {
           if (to !== 'agent' && to !== 'team' && to !== 'brain') return { text: 'to is "agent", "team" or "brain".', isError: true };
           const target = skinTarget(to, to === 'agent' ? id || ctx.agent.id : id);
-          const mine = to === 'agent' ? target.id === ctx.agent.id : to === 'team' ? (workflows.get(target.id)?.members || []).includes(ctx.agent.id) : false;
-          if (!mine) {
-            const refused = await gate(ctx.agent, 'world_skin_others', 'high', args, ctx, `${ctx.agent.name} wants to change how ${target.name} looks in the voxel world${fields.hidden === true ? ' (take it off the map)' : ''}.`);
+          const check = skinCheck(ctx, args);
+          if (check) {
+            const refused = await gate(ctx.agent, check.name!, check.risk, args, { ...ctx, approvalScope: check.scope }, check.detail);
             if (refused) return refused;
           }
           return { text: setSkin({ by: builderOf(ctx), to, id: target.id, fields }).text };

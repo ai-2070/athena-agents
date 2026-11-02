@@ -36,18 +36,18 @@ describe('agent models', () => {
   it('names the model as you would: aliases capitalised, no provider part, the default when none is set', () => {
     expect(agentModel({ engine: 'claude-code', model: '' }, { claudeModel: 'opus' })).toEqual({ id: 'claude-code|opus', label: 'Opus', sub: 'Claude Code' });
     expect(agentModel({ engine: 'claude-code', model: 'sonnet' }).label).toBe('Sonnet');
-    expect(agentModel({ engine: 'openai', model: 'google/gemini-3-pro' }).label).toBe('gemini-3-pro');
+    expect(agentModel({ engine: 'eve', model: 'google/gemini-3-pro' }).label).toBe('gemini-3-pro');
     expect(agentModel({ engine: 'codex', model: '' }).label).toBe("Codex's default");
     expect(agentModel({ engine: 'hermes', model: '' }).label).toBe("its profile's model");
   });
 
   it('knows which engine tile an agent is under (an API model: LM Studio or OpenRouter)', () => {
-    expect(engineKey({ engine: 'openai', provider: 'lmstudio' })).toBe('lmstudio');
-    expect(engineKey({ engine: 'openai', provider: 'openrouter' })).toBe('openrouter');
+    expect(engineKey({ engine: 'eve', provider: 'lmstudio' })).toBe('lmstudio');
+    expect(engineKey({ engine: 'eve', provider: 'openrouter' })).toBe('openrouter');
     expect(engineKey({ engine: 'codex', provider: '' })).toBe('codex');
-    expect(engineKey({ engine: 'openai', provider: 'venice' })).toBe('venice');
-    const venice = agentModel({ engine: 'openai', provider: 'venice', model: '' }, { veniceModel: 'shared-model', openrouterModel: 'other-model' });
+    expect(engineKey({ engine: 'eve', provider: 'venice' })).toBe('venice');
+    const venice = agentModel({ engine: 'eve', provider: 'venice', model: '' }, { veniceModel: 'shared-model', openrouterModel: 'other-model' });
     expect(venice).toMatchObject({ label: 'shared-model', sub: 'Venice' });
-    expect(venice.id).not.toBe(agentModel({ engine: 'openai', provider: 'openrouter', model: 'shared-model' }).id);
+    expect(venice.id).not.toBe(agentModel({ engine: 'eve', provider: 'openrouter', model: 'shared-model' }).id);
   });
 });

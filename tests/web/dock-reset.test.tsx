@@ -38,7 +38,7 @@ beforeAll(() => {
   state.data = {
     runs: [],
     approvals: [],
-    agents: [{ id: 'a1', name: 'Scout', emoji: '🔭', engine: 'openai', model: 'm', provider: 'custom' }],
+    agents: [{ id: 'a1', name: 'Scout', emoji: '🔭', engine: 'eve', model: 'm', provider: 'custom' }],
     project: { id: 'p1', name: 'P' },
     settings: { brain: { provider: 'claude', model: 'haiku' } },
   } as unknown as AppState;

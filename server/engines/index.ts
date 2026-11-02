@@ -1,6 +1,6 @@
 // Runs agents. One run = one user message answered by an agent (with any tool calls in between).
 // Engines stream events; this file turns them into chat history and live updates for the browser.
-import { agents as agentStore, chats, emit, log, getSettings, activeProject, withProject } from '../store.ts';
+import { agents as agentStore, chats, emit, log, getSettings, activeProject, withProject, listProjects } from '../store.ts';
 import { uid, HOME, settledWithin } from '../util.ts';
 import { cancelForRun } from '../approvals.ts';
 import { knowledgeContext } from '../knowledge.ts';
@@ -10,19 +10,24 @@ import { worldPrompt } from '../voxel/tools.ts';
 import { skillsPrompt } from '../skills.ts';
 import { accountsPrompt, teamWorkServers } from '../mcp.ts';
 import { withAttachments, attachmentNames } from '../uploads.ts';
-import * as openai from './openai.ts';
+import * as eve from './eve.ts';
 import * as claude from './claude.ts';
 import * as hermes from './hermes.ts';
 import * as codex from './codex.ts';
 import * as openclaw from './openclaw.ts';
 import { pi, omp } from './pi.ts';
+import * as contextInfo from '../context.ts';
 import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
-import * as compaction from '../compaction.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
+import { engineCapabilities } from './capabilities.ts';
+import { activeEveRuns, invalidateConversation, readRun as readEveRun, sessionBindings, sessionContext as eveSessionContext, transcriptContext } from '../eve/state.ts';
+import { eveBillingItem, eveUsage } from '../eve/usage.ts';
+import { eveRuntime } from '../eve/runtime.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import { clearWork, stopChatWork } from '../briefs.ts';
-import type { ActiveRun, Agent, Chat, ChatItem, CompactionItem, CompactionTrigger, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunBilling, RunEvent, TeamContextMessage } from '../../shared/types.ts';
+import { admitExecution, interruptExecutions, readExecution, saveExecutionQueue, updateExecution } from '../execution.ts';
+import type { ActiveRun, Agent, Chat, ChatItem, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunBilling, RunEvent, RunAccess, TeamContextMessage } from '../../shared/types.ts';
 import type { LoopRequest } from '../../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../../shared/queue.ts';
 
@@ -45,8 +50,6 @@ export interface EngineRunArgs {
   runId: string;
   systemPrompt: string;
   attachments: string[];
-  /** Compacts the chat now (the API-model engine calls it between steps, and when the model says it's too long). */
-  compact?: (o: { trigger: CompactionTrigger }) => Promise<CompactionItem | null>;
 }
 
 /** What an engine's run() resolves to. cost is in USD (or a labeled USD-equivalent estimate). context: how full the model's memory was at the
@@ -93,6 +96,7 @@ export interface RunEntry {
   agent: Agent;
   /** stopped for a new message from you: its /queue messages and loop stay */
   steered?: boolean;
+  stopRequested?: boolean;
 }
 
 /** What a running agent is doing right now (liveActivity()). */
@@ -126,14 +130,14 @@ export interface StartRunOptions {
   attachments?: string[];
   parentRunId?: string | null;
   context?: TeamContextMessage[];
+  /** Reserved by a saved handoff or queue admission. */
+  reservedRunId?: string;
+  queueId?: string;
+  workAccess?: RunAccess;
 }
 
 /** What a team adds while an agent works for it (tools, MCP servers, skills). */
-export interface AskAgentExtra {
-  toolGroups?: string[];
-  mcpServers?: string[];
-  skills?: string[];
-}
+export type AskAgentExtra = RunAccess;
 
 export interface AskAgentOptions {
   depth?: number;
@@ -145,12 +149,13 @@ export interface AskAgentOptions {
   extra?: AskAgentExtra | null;
   attachments?: string[];
   context?: TeamContextMessage[];
+  reservedRunId?: string;
 }
 
-const ENGINES = { 'claude-code': claude, openai, hermes, codex, pi, omp, openclaw } satisfies { [K in EngineId]: Engine<EngineStatus[K]> };
+const ENGINES = { 'claude-code': claude, eve, hermes, codex, pi, omp, openclaw } satisfies { [K in EngineId]: Engine<EngineStatus[K]> };
 export const ENGINE_LIST: EngineInfo[] = [
   { id: 'claude-code', label: 'Claude Code', description: 'The Claude Code CLI on this PC: its own coding, files, web search and your claude.ai connectors, plus the dashboard tools. Signs in with your Claude login, an Anthropic key, or OpenRouter.' },
-  { id: 'openai', label: 'API model', description: 'Any OpenRouter model, or a local model in LM Studio / Ollama. Uses the dashboard tools and MCP servers directly.' },
+  { id: 'eve', label: 'API model', description: 'Any OpenRouter model, or a local model in LM Studio / Ollama. Uses the dashboard tools and MCP servers directly.' },
   { id: 'hermes', label: 'Hermes', description: 'One of your Hermes Agent profiles, with its own memory, skills and tools.' },
   { id: 'codex', label: 'Codex', description: 'OpenAI Codex CLI on this PC: coding, shell and files with your ChatGPT login (codex login), plus the dashboard tools.' },
   { id: 'pi', label: 'pi', description: 'The pi coding agent on this PC: coding, shell and files on any model pi is signed in to. Runs its tools without asking.' },
@@ -161,6 +166,112 @@ export const ENGINE_LIST: EngineInfo[] = [
 const active = new Map<string, RunEntry>(); // runId -> { abort, agentId, chatId, chat, depth, parentRunId }
 // each run, done once it has ended (its last steps included): a steer waits for the run it stopped
 const ends = new Map<string, Promise<void>>();
+const restored = new Map<string, { promise: Promise<string>; resolve: (answer: string) => void; reject: (error: Error) => void }>();
+
+/** Recreate ownership only; the coordinator follows the existing native turn without submitting input. */
+export function restoreNativeRun(runId: string, stop: () => Promise<void>): boolean {
+  if (active.has(runId)) return false;
+  const saved = readExecution().runs.find((run) => run.id === runId);
+  const native = readEveRun(runId);
+  if (!saved || saved.settled || saved.completionClaimed || !native) return false;
+  const { binding, project, agent, chat } = transcriptContext(native.bindingId);
+  if (saved.projectId !== project.id || saved.agentId !== agent.id || saved.chatId !== binding.chatId || saved.parentRunId !== native.parentRunId || saved.depth !== native.depth) throw new Error('The saved native run changed ownership.');
+  if (runsIn(project.id, chat.id).length) throw new Error('This chat already has an active run.');
+  const controller = new AbortController();
+  const ancestors: string[] = [];
+  const journal = readExecution();
+  let parent = saved.parentRunId;
+  while (parent && !ancestors.includes(parent)) {
+    ancestors.push(parent);
+    parent = journal.runs.find((run) => run.id === parent && run.projectId === project.id)?.parentRunId || null;
+  }
+  let resolve!: (answer: string) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<string>((yes, no) => { resolve = yes; reject = no; });
+  const entry: RunEntry = {
+    signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth: saved.depth, parentRunId: saved.parentRunId,
+    ownerChatId: saved.ownerChatId, ownerAgentId: saved.ownerAgentId, ancestors, startedAt: saved.startedAt,
+    agentName: agent.name, project, projectId: project.id, agent, steered: saved.steered,
+    abort: () => {
+      controller.abort();
+      if (closing) {
+        active.delete(runId);
+        restored.delete(runId);
+        reject(new RunStopped());
+        emit('runs');
+      } else void stop().catch(() => log('error', 'Eve could not acknowledge Stop yet. The saved Stop remains in effect.', { agentId: agent.id, chatId: chat.id }));
+    },
+  };
+  withProject(project, () => {
+    if (!chat.items.some((item) => item.type === 'user' && item.runId === runId)) {
+      const imported = new Set(chat.items.flatMap((item) => item.type === 'user' && item.teamMessageId ? [item.teamMessageId] : []));
+      for (const item of saved.context || []) if (!imported.has(item.id)) {
+        chat.items.push({ type: 'user', text: item.text, from: item.from, teamMessageId: item.id, ts: item.ts });
+        imported.add(item.id);
+      }
+      chat.items.push({ type: 'user', text: saved.text, from: saved.from, attachments: saved.attachments, ts: saved.startedAt, runId });
+      chats.save(chat);
+    }
+  });
+  restored.set(runId, { promise, resolve, reject });
+  ends.set(runId, promise.then(() => {}, () => {}).finally(() => ends.delete(runId)));
+  active.set(runId, entry);
+  emit('runs');
+  return true;
+}
+
+export const nativeRunPromise = (runId: string): Promise<string> | undefined => restored.get(runId)?.promise;
+
+/** Terminal facts, transcript and outcome are durable before completion is claimed. */
+export function finishNativeRun(runId: string): void {
+  const job = restored.get(runId);
+  const entry = active.get(runId);
+  const native = readEveRun(runId);
+  const saved = readExecution().runs.find((run) => run.id === runId);
+  if (!job || !entry || !native || !saved || ['queued', 'running', 'waiting'].includes(native.status)) return;
+  withProject(entry.project, () => {
+    const stopped = native.status === 'stopped';
+    const failed = native.status === 'failed' || native.status === 'interrupted';
+    const answer = native.answer || '';
+    const error = stopped ? 'Stopped.' : native.limitReason || (native.status === 'failed' ? 'Eve could not finish this work. Check the model connection and the saved results before continuing.' : native.error || 'Eve could not finish this work. Check what was done before continuing.');
+    const chat = entry.chat;
+    if (!chat._deleted && agentStore.get(entry.agentId) && chats.get(entry.agentId, chat.id)) {
+      if (native.status !== 'completed') {
+        const sourceId = `eve:${runId}:terminal`;
+        if (!chat.items.some((item) => item.sourceId === sourceId)) chat.items.push({ type: 'error', text: error, ts: Date.now(), runId, sourceId });
+        for (const item of chat.items) if (item.type === 'tool' && item.status === 'running') Object.assign(item, { status: 'error', isError: true, result: stopped ? '(stopped)' : '(did not finish)' });
+      }
+      finishMemoryReset(chat, runId);
+      const billing = eveBillingItem(runId);
+      if (billing && !chat.items.some((item) => item.sourceId === billing.sourceId)) chat.items.push(billing);
+      chats.save(chat);
+    }
+    updateExecution(runId, { status: native.status as 'completed' | 'failed' | 'stopped' | 'interrupted', answer, ...(native.status === 'completed' ? {} : { error }), endedAt: native.endedAt || Date.now(), completionClaimed: true });
+    active.delete(runId);
+    restored.delete(runId);
+    const steered = stopped && !!(entry.steered || saved.steered);
+    if (native.status === 'interrupted') {
+      stopChatWork(entry.ownerChatId, entry.projectId);
+      const queue = waiting.get(chatKey(entry.projectId, chat.id));
+      if (queue) { queue.paused = true; emitQueue(entry.agentId, chat.id, entry.projectId); }
+    }
+    const usage = eveUsage(runId);
+    emit('run', { runId, agentId: entry.agentId, chatId: chat.id, event: native.status === 'completed' ? { kind: 'done', text: answer, ...(usage.cost === undefined ? {} : { cost: usage.cost }), ...(usage.billing ? { billing: usage.billing } : {}), seconds: Math.round((Date.now() - entry.startedAt) / 1000) } : { kind: 'error', text: error } });
+    emit('runs');
+    try {
+      if (!steered) runEndHook?.({ runId, agentId: entry.agentId, chatId: chat.id, parentRunId: entry.parentRunId, ownerChatId: entry.ownerChatId, ownerAgentId: entry.ownerAgentId, answer, stopped, failed });
+    } catch {
+      /* a listener's problem is not the run's */
+    } finally {
+      updateExecution(runId, { settled: true });
+      if (stopped) job.reject(new RunStopped());
+      else if (failed) job.reject(new Error(error));
+      else job.resolve(answer);
+      if (stopped && !steered) unqueue(chat.id, undefined, entry.projectId);
+      else if (native.status !== 'interrupted' && !steering.has(chatKey(entry.projectId, chat.id))) carryOn(entry.projectId, chat.id);
+    }
+  });
+}
 
 // What is kept in memory for a chat (below) is by project and chat: a cloned project keeps its chats' ids,
 // so a chat id alone could mean the original's chat. Without a project: the one the work belongs to.
@@ -170,11 +281,6 @@ const runsIn = (projectId: string, chatId: string): [string, RunEntry][] => [...
 
 // chats where a new message waits for the run it stopped to end: it goes next, so nothing else starts meanwhile
 const steering = new Set<string>();
-// chats being compacted outside a run (Compact button, /compact): no run may start meanwhile,
-// and edits or a delete meanwhile go to this copy (see liveChat)
-const compacting = new Map<string, Chat>();
-// chats whose memory you cleared while a run went: cleared again when it ends, so its answer doesn't refill it
-const resets = new Set<string>();
 
 export function activeRuns(): ActiveRun[] {
   return [...active.entries()].map(([id, r]) => ({ id, agentId: r.agentId, chatId: r.chatId, projectId: r.projectId, startedAt: r.startedAt, agentName: r.agentName, parentRunId: r.parentRunId || null, depth: r.depth }));
@@ -210,13 +316,19 @@ export function liveActivity(): LiveActivity[] {
 
 export function runInfo(runId: string | null | undefined): RunInfo | null {
   const r = runId && active.get(runId);
-  return r ? { id: runId, agentId: r.agentId, projectId: r.projectId, chatId: r.chatId, depth: r.depth, signal: r.signal, project: r.project, agent: r.agent } : null;
+  if (r) return { id: runId, agentId: r.agentId, projectId: r.projectId, chatId: r.chatId, depth: r.depth, signal: r.signal, project: r.project, agent: r.agent };
+  const saved = runId ? readEveRun(runId) : null;
+  if (!saved || !['running', 'waiting'].includes(saved.status)) return null;
+  try {
+    const { binding, project, agent } = eveSessionContext(saved.bindingId);
+    return { id: saved.id, agentId: agent.id, projectId: project.id, chatId: binding.chatId, depth: saved.depth, signal: new AbortController().signal, project, agent };
+  } catch { return null; }
 }
 
 // The chat object a running agent is writing to, so edits made meanwhile aren't overwritten.
 export function liveChat(chatId: string, projectId: string = here()): Chat | null {
   for (const r of active.values()) if (r.projectId === projectId && r.chatId === chatId) return r.chat;
-  return compacting.get(chatKey(projectId, chatId)) || null;
+  return null;
 }
 
 /** The run going in an agent's chat (in this project), if any. */
@@ -227,15 +339,23 @@ export function chatRunId(agentId: string, chatId: string, projectId: string = h
 /** Clear memory: the agent starts fresh after this. While a run goes, its memory is cleared again when it
  *  ends (what it answers now came from the memory you cleared). */
 export function resetMemory(chat: Chat, projectId: string = here()): void {
+  invalidateConversation(projectId, chat.id);
   if (projectId === here()) clearWork('agent', chat.agentId, chat.id);
   chat.items.push({ type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', reset: true, ts: Date.now() });
-  if (runsIn(projectId, chat.id).length) resets.add(chatKey(projectId, chat.id));
+  for (const [id] of runsIn(projectId, chat.id)) updateExecution(id, { clearMemoryOnEnd: true });
+  clearMemory(chat);
+  void eveRuntime.retireBindings().catch(() => {});
+}
+
+function finishMemoryReset(chat: Chat, runId: string): void {
+  if (!readExecution().runs.find((run) => run.id === runId)?.clearMemoryOnEnd) return;
+  const sourceId = `reset:${runId}`;
+  if (!chat.items.some((item) => item.sourceId === sourceId)) chat.items.push({ type: 'meta', text: 'Memory cleared after the previous turn finished.', reset: true, ts: Date.now(), sourceId });
   clearMemory(chat);
 }
 
 function clearMemory(chat: Chat): void {
   chat.sessionId = null;
-  chat.llm = [];
   delete chat.reseed;
   delete chat.context;
 }
@@ -275,23 +395,32 @@ function pushItem<T extends ChatItem>(chat: Chat, item: T): T {
 // Start answering a message in a chat. Returns immediately with the run id.
 // The run belongs to the project it starts in (see withProject): opening another project meanwhile
 // doesn't move its chat, tool calls or files there.
-export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null, context }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
+export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null, context, reservedRunId, queueId, workAccess }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
   if (closing) throw new Error('The dashboard is stopping.');
   const project = activeProject();
   const key = chatKey(project.id, chat.id);
   if (runsIn(project.id, chat.id).length) throw new Error('This chat is already working on something. Stop it or wait.');
-  if (compacting.has(key)) throw new Error('This chat is being compacted. Send it again in a moment.');
   // agent.engine comes from a JSON file, so it may be something unknown.
   const engine: Engine | undefined = (ENGINES as Partial<Record<string, Engine>>)[agent.engine];
   if (!engine) throw new Error(`Unknown engine "${agent.engine}".`);
-  if (!from && depth === 0 && !parentRunId) userWorkHook?.(agent, chat, text || `Work on the attached files: ${attachmentNames(attachments)}`);
-  const runId = uid('r');
+  const runId = reservedRunId || uid('r');
   const controller = new AbortController();
   const started = Date.now();
   const inProject = <T>(fn: () => T): T => withProject(project, fn);
   const parent = parentRunId ? active.get(parentRunId) : null;
   const entry: RunEntry = { abort: () => controller.abort(), signal: controller.signal, agentId: agent.id, chatId: chat.id, chat, depth, parentRunId, ownerChatId: parent?.ownerChatId || chat.id, ownerAgentId: parent?.ownerAgentId || agent.id, ancestors: [...(parent?.ancestors || []), ...(parentRunId ? [parentRunId] : [])], startedAt: started, agentName: agent.name, project, projectId: project.id, agent };
+  admitExecution({ id: runId, projectId: project.id, agentId: agent.id, chatId: chat.id, engine: agent.engine, parentRunId, ownerChatId: entry.ownerChatId, ownerAgentId: entry.ownerAgentId, depth, text, from, attachments, context, workAccess, startedAt: started, status: 'running' }, queueId);
+  const queued = waiting.get(key);
+  if (queued) {
+    queued.paused = false;
+    if (queueId) {
+      queued.items = queued.items.filter((q) => q.id !== queueId);
+      queued.priority = queued.priority.filter((id) => id !== queueId);
+      if (!queued.items.length) waiting.delete(key);
+    }
+  }
   active.set(runId, entry);
+  if (!from && depth === 0 && !parentRunId) userWorkHook?.(agent, chat, text || `Work on the attached files: ${attachmentNames(attachments)}`);
   // Saving skips chats deleted while the run was going.
   const persist = () =>
     inProject(() => {
@@ -301,8 +430,6 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   const reset = chat.items.findLastIndex((i) => i.type === 'meta' && i.reset);
   const imported = new Set(chat.items.slice(reset + 1).flatMap((i) => i.type === 'user' && i.teamMessageId ? [i.teamMessageId] : []));
   const added: TeamContextMessage[] = [];
-  const restoreApi = !!context && agent.engine === 'openai' && !chat.llm?.length;
-  chat.llm ||= [];
   for (const m of context || []) {
     if (imported.has(m.id)) continue;
     imported.add(m.id);
@@ -310,19 +437,16 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   }
   for (const m of added) {
     pushItem(chat, { type: 'user', text: m.text, from: m.from, ts: m.ts, teamMessageId: m.id });
-    // Preserve the API engine's tool history; only the new transcript entries are appended.
-    if (agent.engine === 'openai') chat.llm.push({ role: 'user', content: m.text });
   }
   // the chat shows what was written (with the files as chips); the agent also gets where the files are
-  pushItem(chat, { type: 'user', text, from, ...(attachments.length ? { attachments } : {}) });
-  if (restoreApi) chat.llm = compaction.llmFromItems(chat.items);
+  pushItem(chat, { type: 'user', text, from, runId, ...(attachments.length ? { attachments } : {}) });
   if (chat.title === 'New chat') chat.title = (text || attachmentNames(attachments)).replace(/\s+/g, ' ').slice(0, 60) || 'New chat';
   persist();
   const send = (event: RunEvent) => emit('run', { runId, agentId: agent.id, chatId: chat.id, event });
   send({ kind: 'start', text, from, ...(attachments.length ? { attachments } : {}) });
   log('run', `${agent.name} started: ${(text || attachmentNames(attachments)).slice(0, 120)}`, { agentId: agent.id, chatId: chat.id });
   // API models can't open files without the Files tools: small text files go along in full
-  const prompt = withAttachments(text, attachments, { inline: agent.engine === 'openai' ? 24000 : 0 });
+  const prompt = withAttachments(text, attachments, { inline: engineCapabilities(agent.engine).inlineAttachmentText ? 24000 : 0 });
 
   let current: ChatItemOf<'assistant'> | null = null; // assistant item being streamed
   let lastSave = 0;
@@ -371,58 +495,23 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     send(ev);
   };
 
-  // Compacts this chat (see compaction.ts) and tells the open chat views.
-  const compact = (o: { trigger: CompactionTrigger }): Promise<CompactionItem | null> =>
-    inProject(async () => {
-      send({ kind: 'status', text: 'Compacting the chat…' });
-      current = null;
-      const item = await compaction.compactChat(chat, { trigger: o.trigger, window: await compaction.contextWindow(agent, chat), current: true });
-      if (!item) return null;
-      persist();
-      emit('compacted', { agentId: agent.id, chatId: chat.id, itemId: item.id });
-      log('run', `${agent.name}: compacted "${chat.title}" (about ${item.tokensBefore} → ${item.tokensAfter} tokens, ${item.mode})`, { agentId: agent.id, chatId: chat.id });
-      return item;
-    });
-
   // (for whoever looks at the run once it ended: see onRunEnd)
   let answer = '';
   let failed = false;
+  let suspended = false;
   const promise = inProject(async () => {
     try {
       const systemPrompt = buildSystemPrompt(agent) + (await richSection(agent, chat, depth));
       // (the memory meter counts its instructions the same way: see memoryOf)
       chat.rich = richFor(agent, chat, depth);
-      // The API-model engine compacts by itself (before each step). The CLI engines compact their own
-      // sessions too; with that switched off (Settings > Chat memory) they compact here, before the run,
-      // and start a new session from the compacted history.
-      const cli = agent.engine !== 'openai';
-      if (cli && context && !chat.sessionId) chat.reseed = true;
-      const settings = compaction.compactionSettings();
-      if (context) {
-        const window = await compaction.contextWindow(agent, chat);
-        if (compaction.estimateTokens(systemPrompt + prompt) > window * 0.85) {
-          throw new Error('The addressed team messages exceed this model\'s context window. Use a larger-context model or split the request. The full messages remain saved and searchable.');
-        }
-      }
-      if (cli && settings.auto && (context || !compaction.engineCompacts(agent, settings))) {
-        const window = await compaction.contextWindow(agent, chat);
-        if (compaction.memoryTokens(chat, agent, systemPrompt) >= compaction.compactAt(window, settings)) await compact({ trigger: 'auto' }).catch(() => null);
-      }
-      if (controller.signal.aborted) throw new Error('Stopped.');
-      // A session belongs to the engine that made it: after the agent changed engines, a new one starts
-      // with the chat so far. (Older chats don't say whose it is: if it's gone, the engine says so; see below.)
-      // The API model keeps its own memory (chat.llm): after another engine answered here it is made again
-      // from the chat so far, and after the API model answered, a CLI engine starts from the chat so far too.
-      const before = chat.sessionEngine;
-      if (cli) {
-        if (before && before !== agent.engine) {
-          chat.sessionId = null;
-          chat.reseed = true;
-        }
-      } else if (before ? before !== 'openai' : !!chat.sessionId) {
-        chat.llm = compaction.llmFromItems(chat.items);
+      const cli = !engineCapabilities(agent.engine).directTools;
+      if (chat.sessionEngine && chat.sessionEngine !== agent.engine) invalidateConversation(project.id, chat.id);
+      if (cli && (!chat.sessionId || chat.sessionEngine !== agent.engine)) {
+        chat.sessionId = null;
+        chat.reseed = true;
       }
       chat.sessionEngine = agent.engine;
+      controller.signal.throwIfAborted();
       // Codex, Hermes and OpenClaw get the instructions only when their session starts: a session that is
       // already going is told when MEMORY.md changed since its last run (by you, or in another chat)
       const memoryAt = hasMemory(agent) ? memoryStamp(agent.id) : 0;
@@ -431,65 +520,58 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       // (prompt: the message with its attachments, as the engine gets it)
       const seeded = async () => {
         if (!cli) return prompt;
-        const window = await compaction.contextWindow(agent, chat);
-        let input = chat.reseed
-          ? compaction.seedPrompt(chat.items, prompt, window, !!context)
+        const window = await contextInfo.contextWindow(agent, chat);
+        const input = chat.reseed ? contextInfo.seedPrompt(chat.items, prompt, window, systemPrompt)
           : memoryNote + (added.length ? `${added.map((m) => m.text).join('\n\n')}\n\n` : '') + prompt;
-        // A native session can disappear after reporting small compacted memory. Its full saved seed
-        // may be much larger, so measure that seed too before restoring it.
-        if (context && chat.reseed && settings.auto && compaction.estimateTokens(systemPrompt + input) > window * 0.85) {
-          await compact({ trigger: 'auto' });
-          input = compaction.seedPrompt(chat.items, prompt, window, true);
-        }
-        if (context && compaction.estimateTokens(systemPrompt + input) > window * 0.85) {
-          throw new Error('The full team context does not fit this model. Enable chat compaction or use a larger-context model. No team messages were discarded.');
-        }
+        if (contextInfo.estimateTokens(systemPrompt + input) > window * 0.85) throw new Error('The full request does not fit this model. Choose a larger-context model or clear memory. No original messages were discarded.');
         return input;
       };
-      const go = async () => engine.run({ agent, chat, text: await seeded(), signal: controller.signal, onEvent, depth, runId, systemPrompt, attachments, compact });
+      const go = async () => engine.run({ agent, chat, text: await seeded(), signal: controller.signal, onEvent, depth, runId, systemPrompt, attachments });
       let result: EngineResult;
-      try {
+      try { result = await go(); }
+      catch (error) {
+        if (controller.signal.aborted || !(error instanceof SessionGone)) throw error;
+        chat.reseed = true;
         result = await go();
-      } catch (e) {
-        if (controller.signal.aborted) throw e;
-        // its session is gone (the engine cleared it): once more, in a new session with the chat so far
-        if (e instanceof SessionGone) result = await go();
-        // too long for the model (even one that compacts by itself): compact once and try again
-        // (the API-model engine does this itself)
-        else if (!cli || !settings.auto || !compaction.isOverflowError(e) || !(await compact({ trigger: 'overflow' }).catch(() => null))) throw e;
-        else result = await go();
       }
       if (controller.signal.aborted) throw new Error('Stopped.');
-      // the new session has the compacted history now
+      // the new CLI session has the saved original conversation now
       if (cli && chat.sessionId) delete chat.reseed;
       // (what it wrote to its own memory meanwhile, it knows)
       if (memoryAt) chat.memoryAt = memoryStamp(agent.id);
-      if (result?.context) chat.context = { tokens: result.context, ...(result.window ? { window: result.window } : {}), items: chat.items.length, at: Date.now(), by: compaction.measuredBy(agent) };
+      if (result?.context) chat.context = { tokens: result.context, ...(result.window ? { window: result.window } : {}), items: chat.items.length, at: Date.now(), by: contextInfo.measuredBy(agent) };
       if (result?.text && !chat.items.some((i, idx) => idx > chat.items.findLastIndex((x) => x.type === 'user') && i.type === 'assistant')) {
         pushItem(chat, { type: 'assistant', text: result.text });
       }
-      if (result?.cost || result?.billing) {
+      if (!engineCapabilities(agent.engine).durableSession && (result.cost != null || result.billing)) {
         const billing = result.billing;
         const amount = billing?.source === 'unavailable' ? 'Cost unavailable' : `${billing?.source === 'estimated' ? 'Estimated ' : ''}$${(result.cost || 0).toFixed(4)}${billing?.source === 'estimated' ? ' USD equivalent' : ''}`;
         const charged = [billing?.chargedUsd != null ? `$${billing.chargedUsd.toFixed(4)} USD charged` : '', billing?.chargedDiem != null ? `${billing.chargedDiem.toFixed(4)} DIEM charged` : ''].filter(Boolean);
         pushItem(chat, { type: 'meta', text: `${amount}${charged.length ? ` · ${charged.join(' · ')}` : ''}${result.tokens ? ` · ${result.tokens} tokens` : ''}${result.cached ? ` · ${result.cached} from cache` : ''}`, ...(billing ? { billing } : {}) });
       }
       persist();
-      send({ kind: 'done', text: result?.text || '', ...(result?.billing ? { billing: result.billing, ...(result.cost != null ? { cost: result.cost } : {}) } : { cost: result?.cost || 0 }), seconds: Math.round((Date.now() - started) / 1000) });
+      send({ kind: 'done', text: result?.text || '', ...(result?.billing ? { billing: result.billing, ...(result.cost != null ? { cost: result.cost } : {}) } : result.cost === undefined ? {} : { cost: result.cost }), seconds: Math.round((Date.now() - started) / 1000) });
       log('run', `${agent.name} finished (${Math.round((Date.now() - started) / 1000)}s)`, { agentId: agent.id, chatId: chat.id });
       answer = result?.text || lastAssistantText(chat);
+      updateExecution(runId, { status: 'completed', answer, endedAt: Date.now() });
       return answer;
     } catch (e) {
+      if (closing && !entry.stopRequested && readEveRun(runId) && engineCapabilities(agent.engine).durableSession) {
+        suspended = true;
+        return '';
+      }
       const stopped = controller.signal.aborted;
       failed = !stopped;
       // A failed CLI turn may never have received its imported messages. Replay saved memory on retry.
-      if (context && agent.engine !== 'openai') {
+      if (context && !engineCapabilities(agent.engine).directTools) {
         chat.sessionId = null;
         chat.reseed = true;
       }
-      const msg = stopped ? (entry.steered ? 'Stopped to take your new message.' : 'Stopped.') : (e as Error).message || String(e);
+      const interrupted = closing && !entry.stopRequested;
+      const msg = interrupted ? 'The dashboard closed before this work finished. Check what was done before continuing.' : stopped ? (entry.steered ? 'Stopped to take your new message.' : 'Stopped.') : (e as Error).message || String(e);
+      updateExecution(runId, { status: interrupted ? 'interrupted' : stopped ? 'stopped' : 'failed', error: msg, endedAt: Date.now() });
       for (const it of chat.items) if (it.type === 'tool' && it.status === 'running') Object.assign(it, { status: 'error', isError: true, result: stopped ? '(stopped)' : '(did not finish)' });
-      pushItem(chat, { type: 'error', text: msg });
+      pushItem(chat, { type: 'error', text: msg, runId });
       persist();
       send({ kind: 'error', text: msg });
       if (!stopped) log('error', `${agent.name}: ${msg}`, { agentId: agent.id, chatId: chat.id });
@@ -497,23 +579,32 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       return '';
     } finally {
       // you cleared its memory meanwhile: what this run added to it goes too
-      if (resets.delete(key)) {
-        clearMemory(chat);
+      if (!suspended) {
+        finishMemoryReset(chat, runId);
+        const billing = eveBillingItem(runId);
+        if (billing && !chat.items.some((item) => item.sourceId === billing.sourceId)) chat.items.push(billing);
         persist();
       }
+      void eveRuntime.retireBindings().catch(() => {});
       active.delete(runId);
-      cancelForRun(runId);
+      if (!suspended) cancelForRun(runId, { keepOutcomeChecks: true });
       emit('runs');
       const stopped = controller.signal.aborted;
       // stopped for a new message from you: that message is next, and a /goal is checked after it instead
       const steered = stopped && !!entry.steered;
       try {
-        if (!steered) runEndHook?.({ agentId: agent.id, chatId: chat.id, runId, parentRunId, ownerChatId: entry.ownerChatId, ownerAgentId: entry.ownerAgentId, answer, stopped, failed });
+        if (!steered && !suspended) {
+          updateExecution(runId, { completionClaimed: true });
+          runEndHook?.({ agentId: agent.id, chatId: chat.id, runId, parentRunId, ownerChatId: entry.ownerChatId, ownerAgentId: entry.ownerAgentId, answer, stopped, failed });
+        }
       } catch {
         /* a listener's problem is not the run's */
       }
+      if (!closing) updateExecution(runId, { settled: true });
       // done: your next /queue message goes now, then the loop's next one (a stopped run takes them with it: you said stop)
-      if (steered) {
+      if (closing) {
+        stopLoop(chat.id, null, project.id);
+      } else if (steered) {
         // the queue and the loop carry on after your new message (a loop turn it cut counts as done)
         loopRunEnded(project.id, chat.id, runId, false);
         // (it waits for this run to end and goes now; one that gave up waiting is first in the queue)
@@ -573,10 +664,13 @@ async function steerNow(agent: Agent, chat: Chat, text: string, attachments: str
   if (runs.some(([, r]) => r.depth > 0)) throw httpError(409, `${agent.name} is working for a team or another agent in this chat. Stop it there, or /queue your message for when it is done.`);
   if (!runs.length) return { runId: startRun(agent, chat, text, { attachments }).runId };
   steering.add(key);
+  // Save the new input before stopping its predecessor, including a crash during the wait.
+  const started = queueFirst(agent, chat, text, attachments);
   let ended: boolean;
   try {
     for (const [id, r] of runs) {
       r.steered = true;
+      updateExecution(id, { steered: true });
       stopRun(id);
     }
     ended = await settledWithin(
@@ -590,42 +684,80 @@ async function steerNow(agent: Agent, chat: Chat, text: string, attachments: str
   const now = liveChat(chat.id, projectId) || chats.get(agent.id, chat.id);
   if (!now || now._deleted || chat._deleted) throw httpError(404, 'This chat was deleted.');
   // still ending: this message goes first, the moment it has
-  if (!ended) return { runId: queueFirst(agent, chat, text, attachments) };
-  try {
-    // (the stopped run saved its part: start from the chat as it is now)
-    return { runId: startRun(agent, now, text, { attachments }).runId };
-  } catch (e) {
-    // (refused after all: what waited behind it goes on)
-    carryOn(projectId, chat.id);
-    throw e;
-  }
+  carryOn(projectId, chat.id);
+  return { runId: ended ? (await started) ?? Promise.resolve(null) : started };
 }
 
 // ---------- /queue: messages that wait for the chat to be free ----------
-// Kept in memory by project and chat (chatKey). Each goes as its own message, in order, when the run before it ends.
-const waiting = new Map<string, { agentId: string; project: Project; items: QueuedMessage[] }>();
+// Saved by project and chat. A restarted queue waits for a new message before carrying on.
+const waiting = new Map<string, { agentId: string; project: Project; items: QueuedMessage[]; priority: string[]; paused: boolean }>();
 // queued messages someone waits on: told the run each one started, or null if it never will
 const starts = new Map<string, (runId: string | null) => void>();
 const told = (id: string, runId: string | null) => {
   starts.get(id)?.(runId);
   starts.delete(id);
 };
-const chatBusy = (projectId: string, chatId: string) => runsIn(projectId, chatId).length > 0 || compacting.has(chatKey(projectId, chatId)) || steering.has(chatKey(projectId, chatId));
-/** Something is going in this chat: a run, or a compaction. */
+const chatBusy = (projectId: string, chatId: string) => runsIn(projectId, chatId).length > 0 || steering.has(chatKey(projectId, chatId));
+/** Something is going in this chat: a turn or pending work. */
 export const isChatBusy = (chatId: string, projectId: string = here()): boolean => chatBusy(projectId, chatId);
 export const hasBackgroundWork = (chatId: string, projectId: string = here()): boolean => [...active.values()].some((r) => r.projectId === projectId && r.ownerChatId === chatId && r.chatId !== chatId);
-const emitQueue = (agentId: string, chatId: string, projectId: string) => emit('queue', { agentId, chatId, queued: queuedMessages(chatId, projectId) });
+const emitQueue = (agentId: string, chatId: string, projectId: string) => {
+  const w = waiting.get(chatKey(projectId, chatId));
+  saveExecutionQueue({ agentId, chatId, projectId, items: w?.items || [], priority: w?.priority || [], paused: w?.paused || false });
+  emit('queue', { agentId, chatId, queued: queuedMessages(chatId, projectId) });
+};
+
+/** Restore ownership before the Brain, schedules or incoming requests can start work. */
+export function recoverExecution(): void {
+  const projects = listProjects();
+  const resumable = new Set([...activeEveRuns().map((r) => r.id), ...restored.keys()]);
+  for (const run of interruptExecutions(resumable)) {
+    const project = projects.find((p) => p.id === run.projectId);
+    if (project) withProject(project, () => {
+      stopChatWork(run.ownerChatId, run.projectId);
+      const chat = chats.get(run.agentId, run.chatId);
+      if (!chat) return;
+      if (!chat.items.some((item) => item.type === 'user' && item.runId === run.id)) {
+        const imported = new Set(chat.items.flatMap((item) => item.type === 'user' && item.teamMessageId ? [item.teamMessageId] : []));
+        for (const m of run.context || []) if (!imported.has(m.id)) {
+          chat.items.push({ type: 'user', text: m.text, from: m.from, ts: m.ts, teamMessageId: m.id });
+          imported.add(m.id);
+        }
+        chat.items.push({ type: 'user', text: run.text, from: run.from, attachments: run.attachments, ts: run.startedAt, runId: run.id });
+      }
+      if (!chat.items.some((item) => item.type === 'error' && item.runId === run.id)) chat.items.push({ type: 'error', runId: run.id, text: run.error || 'This work finished before the dashboard restarted. Follow-up work is paused. Send a message to continue.', ts: run.endedAt || Date.now() });
+      if (run.status !== 'completed') {
+        for (const item of chat.items) if (item.type === 'tool' && item.status === 'running') Object.assign(item, { status: 'error', isError: true, result: '(interrupted)' });
+        chat.sessionId = null;
+              chat.reseed = true;
+      }
+      chats.save(chat);
+    });
+    updateExecution(run.id, { settled: true });
+  }
+  waiting.clear();
+  for (const queue of readExecution().queues) {
+    const project = projects.find((p) => p.id === queue.projectId);
+    const valid = project && withProject(project, () => !!agentStore.get(queue.agentId) && !!chats.get(queue.agentId, queue.chatId));
+    if (!project || !valid) {
+      saveExecutionQueue({ ...queue, items: [], paused: false });
+      continue;
+    }
+    if (queue.paused) stopChatWork(queue.chatId, project.id);
+    if (queue.items.length) waiting.set(chatKey(project.id, queue.chatId), { agentId: queue.agentId, project, items: queue.items, priority: queue.priority, paused: queue.paused });
+  }
+}
 
 export function queuedMessages(chatId: string, projectId: string = here()): QueuedMessage[] {
   return [...(waiting.get(chatKey(projectId, chatId))?.items || [])];
 }
 
 /** Send now if the chat is free, else once it is done with what it is doing. from: who it is from, when not you. */
-export function queueMessage(agent: Agent, chat: Chat, text: string, attachments: string[] = [], { from }: { from?: string } = {}): { runId: string } | { queued: QueuedMessage } {
+export function queueMessage(agent: Agent, chat: Chat, text: string, attachments: string[] = [], { from, resume = false }: { from?: string; resume?: boolean } = {}): { runId: string } | { queued: QueuedMessage } {
   const project = activeProject();
   const key = chatKey(project.id, chat.id);
-  if (!chatBusy(project.id, chat.id) && !waiting.has(key)) return { runId: startRun(agent, chat, text, { attachments, from: from || null }).runId };
-  const w = waiting.get(key) || { agentId: agent.id, project, items: [] };
+  if (!chatBusy(project.id, chat.id) && (!waiting.has(key) || resume)) return { runId: startRun(agent, chat, text, { attachments, from: from || null }).runId };
+  const w = waiting.get(key) || { agentId: agent.id, project, items: [], priority: [], paused: false };
   const queued: QueuedMessage = { id: uid('q'), text, ...(attachments.length ? { attachments } : {}), ...(from ? { from } : {}), ts: Date.now() };
   w.items.push(queued);
   waiting.set(key, w);
@@ -640,10 +772,11 @@ export function queueMessage(agent: Agent, chat: Chat, text: string, attachments
 function queueFirst(agent: Agent, chat: Chat, text: string, attachments: string[]): Promise<string | null> {
   const project = activeProject();
   const key = chatKey(project.id, chat.id);
-  const w = waiting.get(key) || { agentId: agent.id, project, items: [] };
+  const w = waiting.get(key) || { agentId: agent.id, project, items: [], priority: [], paused: false };
   const q: QueuedMessage = { id: uid('q'), text, ...(attachments.length ? { attachments } : {}), ts: Date.now() };
-  const at = w.items.findIndex((x) => !starts.has(x.id));
+  const at = w.items.findIndex((x) => !w.priority.includes(x.id));
   w.items.splice(at === -1 ? w.items.length : at, 0, q);
+  w.priority.push(q.id);
   waiting.set(key, w);
   const started = new Promise<string | null>((resolve) => starts.set(q.id, resolve));
   emitQueue(agent.id, chat.id, project.id);
@@ -678,6 +811,7 @@ export function unqueue(chatId: string, id?: string, projectId: string = here())
   if (!w) return [];
   const taken = id ? w.items.filter((q) => q.id === id) : w.items;
   w.items = id ? w.items.filter((q) => q.id !== id) : [];
+  w.priority = w.priority.filter((id) => w.items.some((q) => q.id === id));
   if (!w.items.length) waiting.delete(key);
   for (const q of taken) told(q.id, null);
   if (taken.length) emitQueue(w.agentId, chatId, projectId);
@@ -693,21 +827,22 @@ function carryOn(projectId: string, chatId: string) {
 function sendQueued(projectId: string, chatId: string) {
   const key = chatKey(projectId, chatId);
   const w = waiting.get(key);
-  if (!w || chatBusy(projectId, chatId)) return;
-  const next = w.items.shift()!;
-  if (!w.items.length) waiting.delete(key);
+  if (!w || w.paused || !w.items.length || chatBusy(projectId, chatId)) return;
+  const next = w.items[0]!;
   // in the project it was typed in, like the run before it
   withProject(w.project, () => {
     const agent = agentStore.get(w.agentId);
     const chat = chats.get(w.agentId, chatId);
     if (!agent || !chat) {
       for (const q of [next, ...w.items]) told(q.id, null);
-      return void waiting.delete(key);
+      waiting.delete(key);
+      return;
     }
     try {
-      told(next.id, startRun(agent, chat, next.text, { attachments: next.attachments || [], from: next.from || null }).runId);
+      told(next.id, startRun(agent, chat, next.text, { attachments: next.attachments || [], from: next.from || null, queueId: next.id }).runId);
     } catch (e) {
       told(next.id, null);
+      w.paused = true;
       log('error', `${agent.name}: a queued message couldn't be sent: ${(e as Error).message}`, { agentId: agent.id, chatId });
     }
   });
@@ -848,8 +983,15 @@ function lastAssistantText(chat: Chat): string {
 // Stopping a run also stops the runs it started (ask_agent, even while nobody awaits them) and anything a workflow started.
 export function stopRun(runId: string): boolean {
   const r = active.get(runId);
-  if (r) r.abort();
-  cancelForRun(runId);
+  if (r) {
+    if (!closing) {
+      r.stopRequested = true;
+      updateExecution(runId, { stopRequested: true });
+      if (!r.steered) unqueue(r.chatId, undefined, r.projectId);
+    }
+    r.abort();
+  }
+  if (!closing) cancelForRun(runId);
   stopChildren(runId);
   return !!r;
 }
@@ -870,31 +1012,38 @@ export function stopChildren(parentRunId: string) {
 }
 
 export function stopChat(chatId: string, projectId: string = here()) {
+  unqueue(chatId, undefined, projectId);
   stopChatWork(chatId, projectId);
   for (const [id, run] of active) if (run.projectId === projectId && (run.chatId === chatId || run.ownerChatId === chatId)) stopRun(id);
 }
 
 // A chat deleted while running: stop it and make sure nothing writes it back.
 export function forgetChat(chatId: string, projectId: string = here()) {
+  invalidateConversation(projectId, chatId);
   const live = liveChat(chatId, projectId);
   if (live && projectId === here()) clearWork('agent', live.agentId, chatId);
   if (live) live._deleted = true;
-  resets.delete(chatKey(projectId, chatId));
   unqueue(chatId, undefined, projectId);
   stopLoop(chatId, null, projectId);
   stopChat(chatId, projectId);
+  void eveRuntime.retireBindings().catch(() => {});
+}
+
+export function retireAgentSessions(agentId: string, projectId: string = here()): void {
+  for (const binding of sessionBindings()) if (binding.projectId === projectId && binding.agentId === agentId) invalidateConversation(projectId, binding.chatId);
+  void eveRuntime.retireBindings().catch(() => {});
 }
 
 // Used by ask_agent and workflows: run to completion in a fresh chat, return the answer.
 // extra: tool groups / MCP servers added for this run only (a branch's access).
-export async function askAgent(agent: Agent, message: string, { depth = 1, from = null, title = null, chatId = null, parentRunId = null, signal = null, extra = null, attachments = [], context }: AskAgentOptions = {}): Promise<string> {
+export async function askAgent(agent: Agent, message: string, { depth = 1, from = null, title = null, chatId = null, parentRunId = null, signal = null, extra = null, attachments = [], context, reservedRunId }: AskAgentOptions = {}): Promise<string> {
   if (signal?.aborted) throw new RunStopped();
   let fresh = agentStore.get(agent.id) || agent;
   // extra: what a team adds while the agent works for it (tools, MCP servers, skills)
   // (the team's copy of a service, its account, replaces the agent's own copies of it)
   if (extra) fresh = { ...fresh, toolGroups: [...new Set([...(fresh.toolGroups || []), ...(extra.toolGroups || [])])], mcpServers: teamWorkServers(fresh.mcpServers || [], extra.mcpServers || []), _teamSkills: extra.skills || [] };
   const chat = (chatId && chats.get(fresh.id, chatId)) || chats.create(fresh.id, title || (from ? `Asked by ${from}` : 'Task'));
-  const { runId, promise, signal: runSignal } = startRun(fresh, chat, message, { depth, from, parentRunId, attachments, context });
+  const { runId, promise, signal: runSignal } = startRun(fresh, chat, message, { depth, from, parentRunId, attachments, context, reservedRunId, workAccess: extra || undefined });
   const onAbort = () => stopRun(runId);
   signal?.addEventListener('abort', onAbort);
   try {
@@ -908,79 +1057,24 @@ export async function askAgent(agent: Agent, message: string, { depth = 1, from 
   }
 }
 
-// ---------- compaction you ask for, and editing what it kept ----------
 const httpError = (status: number, msg: string) => Object.assign(new Error(msg), { status });
 
-/** Compacts a chat now (the Compact button, or /compact). Not while it is answering. */
-export function compactNow(agent: Agent, chatId: string, mode?: 'instant' | 'summary'): Promise<{ item: CompactionItem | null; chat: Chat }> {
-  // (a summary takes a while: the chat is saved in its own project, whichever is open by then)
-  const project = activeProject();
-  return withProject(project, () => compactIn(project.id, agent, chatId, mode));
-}
-
-async function compactIn(projectId: string, agent: Agent, chatId: string, mode?: 'instant' | 'summary'): Promise<{ item: CompactionItem | null; chat: Chat }> {
-  const key = chatKey(projectId, chatId);
-  if (compacting.has(key)) throw httpError(409, 'This chat is being compacted already.');
-  if (liveChat(chatId, projectId)) throw httpError(409, 'The agent is answering in this chat. Compact it when it is done (or stop it).');
-  const chat = chats.get(agent.id, chatId);
-  if (!chat) throw httpError(404, 'Not found');
-  compacting.set(key, chat);
-  try {
-    const item = await compaction.compactChat(chat, { trigger: 'manual', mode, window: await compaction.contextWindow(agent, chat), current: false });
-    // deleted while the summary was being written: don't write it back
-    if (chat._deleted) return { item: null, chat };
-    if (item) {
-      chats.save(chat);
-      emit('compacted', { agentId: agent.id, chatId, itemId: item.id });
-      log('run', `Compacted ${agent.name}'s chat "${chat.title}" (about ${item.tokensBefore} → ${item.tokensAfter} tokens, ${item.mode})`, { agentId: agent.id, chatId });
-    }
-    return { item, chat };
-  } finally {
-    compacting.delete(key);
-    carryOn(projectId, chatId);
-  }
-}
-
-/** Changes the text of a chat's latest compaction: the agent's next message works from your version. */
-export function editCompaction(agentId: string, chatId: string, itemId: string, text: string): Chat {
-  if (liveChat(chatId)) throw httpError(409, 'The agent is answering in this chat (or it is being compacted). Edit it when it is done.');
-  const chat = chats.get(agentId, chatId);
-  if (!chat) throw httpError(404, 'Not found');
-  const latest = compaction.latestCompaction(chat.items);
-  const item = chat.items.find((i): i is CompactionItem => i.type === 'compaction' && i.id === itemId);
-  if (!item) throw httpError(404, 'No such compaction in this chat.');
-  if (latest?.item.id !== itemId) throw httpError(409, 'Only the latest compaction can be edited: the agent no longer reads this one (a later one includes it).');
-  if (!text.trim()) throw httpError(400, 'The compacted history cannot be empty. Use Clear memory to start fresh instead.');
-  item.text = text;
-  item.editedAt = Date.now();
-  item.tokensAfter = compaction.estimateTokens(text) + compaction.itemsTokens(chat.items, item.upto);
-  // CLI engines: a new session starts from the edited text. (API models read it on every request.)
-  chat.sessionId = null;
-  chat.reseed = true;
-  delete chat.context;
-  chats.save(chat);
-  emit('compacted', { agentId, chatId, itemId });
-  return chat;
-}
-
 /** How full the agent's memory of a chat is (the meter in the chat). */
-export async function memoryOf(agent: Agent, chatId: string): Promise<{ tokens: number; window: number; compactAt: number; percent: number; auto: boolean; own: boolean }> {
+export async function memoryOf(agent: Agent, chatId: string): Promise<{ tokens: number; window: number; percent: number; estimated: boolean }> {
   const chat = liveChat(chatId) || chats.get(agent.id, chatId);
   if (!chat) throw httpError(404, 'Not found');
-  const window = await compaction.contextWindow(agent, chat);
-  const s = compaction.compactionSettings();
+  const window = await contextInfo.contextWindow(agent, chat);
   // as its runs go: a chat that is handed work (or a team's) never has Rich answers' instructions
   const rich = chat.rich ?? richFor(agent, chat, 0);
-  const tokens = compaction.memoryTokens(chat, agent, buildSystemPrompt(agent) + (rich ? await richSection(agent, {}, 0) : ''));
+  const tokens = contextInfo.memoryTokens(chat, agent, buildSystemPrompt(agent) + (rich ? await richSection(agent, {}, 0) : ''));
   // (an engine that compacts by itself does it when the window is nearly full, not at the threshold here)
-  const own = compaction.engineCompacts(agent, s);
-  return { tokens, window, compactAt: own ? window : compaction.compactAt(window, s), percent: Math.round((tokens / window) * 100), auto: s.auto, own };
+  return { tokens, window, percent: Math.round((tokens / window) * 100), estimated: !chat.context || chat.context.by !== contextInfo.measuredBy(agent) };
 }
 
 export function engineStatus(): EngineStatus {
   return {
     'claude-code': claude.status(),
-    openai: openai.status(),
+    eve: eve.status(),
     hermes: hermes.status(),
     codex: codex.status(),
     pi: pi.status(),

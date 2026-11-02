@@ -36,7 +36,8 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 |---|---|
 | `server/index.ts` | HTTP router (`get`/`post`/`put`/`del` helpers), WebSocket, static files, security checks |
 | `server/store.ts` | JSON storage: settings, secrets, projects, `collection<T>()`, chats, the event `bus` / `emit()` |
-| `server/engines/` | Engines that run agents: `claude.ts` (Claude Code CLI), `codex.ts`, `hermes.ts`, `openai.ts` (any OpenAI-compatible API); `index.ts` starts and stops runs |
+| `server/engines/` | Engines that run agents: `claude.ts` (Claude Code CLI), `codex.ts`, `hermes.ts`, `eve.ts` (Eve with any OpenAI-compatible API); `index.ts` starts and stops runs |
+| `server/eve/`, `runtime/eve/`, `runtime/eve-world/` | Eve bindings, input receipts, tool consent and event projection; the private Bun worker and its pinned local Workflow store. Eve owns the API loop and active compaction. `server/context.ts` estimates and admits full inputs; saved chat originals remain separate |
 | `server/tools.ts` | Built-in agent tools, each with a `Risk` (`none` / `low` / `high`) that decides when approval is asked |
 | `server/mcp-bridge.ts` | Gives the dashboard tools to Claude Code and Codex over MCP |
 | `server/brain.ts`, `overseer.ts`, `teams.ts`, `learning.ts` | The Brain, approvals review, team chats, self-improvement |

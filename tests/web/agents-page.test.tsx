@@ -11,7 +11,7 @@ const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
 
 const base = { emoji: '🤖', color: '#fff', description: '', systemPrompt: 'Be brief.', model: 'sonnet', provider: 'openrouter', claudeAuth: 'login', hermesProfile: '', toolGroups: [], mcpServers: [], workspace: '', temperature: '', alwaysAllow: [], skills: [], source: { type: 'custom' }, pinned: false };
 const writer = { ...base, id: 'a1', name: 'Writer', specialty: 'Posts', engine: 'claude-code', autonomy: 'auto' } as unknown as Agent;
-const coder = { ...base, id: 'a2', name: 'Coder', specialty: 'Code', engine: 'openai', autonomy: 'full', pinned: true } as unknown as Agent;
+const coder = { ...base, id: 'a2', name: 'Coder', specialty: 'Code', engine: 'eve', autonomy: 'full', pinned: true } as unknown as Agent;
 let folders: string[];
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
@@ -26,7 +26,7 @@ beforeEach(() => {
     runs: [],
     toolGroups: [{ id: 'files', label: 'Files', description: 'Read and write' }],
     engines: { 'claude-code': { installed: true } },
-    engineList: [{ id: 'claude-code', label: 'Claude Code' }, { id: 'openai', label: 'API model' }],
+    engineList: [{ id: 'claude-code', label: 'Claude Code' }, { id: 'eve', label: 'API model' }],
     secrets: { anthropicKey: { set: false }, openrouterKey: { set: true } },
     settings: { defaults: { claudeModel: 'sonnet', openrouterModel: 'x/y' } },
     project: { id: 'p1', skills: [] },
@@ -68,7 +68,7 @@ const field = (label: string) => [...el.querySelectorAll('label.field')].find((f
 describe('engineLabel()', () => {
   it('names the engine and, for some, which provider or profile', () => {
     expect(engineLabel({ engine: 'claude-code' })).toBe('Claude Code');
-    expect(engineLabel({ engine: 'openai', provider: 'ollama' })).toContain('ollama');
+    expect(engineLabel({ engine: 'eve', provider: 'ollama' })).toContain('ollama');
   });
 });
 

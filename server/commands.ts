@@ -53,7 +53,7 @@ export function resumeInChat(agentId: string, chatId: string): { resumed: true }
     return { resumed: true };
   }
   if (!cutOff(chat)) throw fail(400, 'Nothing to resume: the last turn finished.');
-  engines.queueMessage(agent, chat, RESUME_TEXT, [], { from: '/resume' });
+  engines.queueMessage(agent, chat, RESUME_TEXT, [], { from: '/resume', resume: true });
   return { resumed: true };
 }
 
@@ -100,7 +100,7 @@ export function resumeInTeam(teamId: string): { resumed: true } {
   const t = team(teamId);
   const brief = stoppedBrief('team', t.id);
   const picked = brief ? resumeBrief(brief, RESUME_TEXT) : teams.resumeTeam(t.id) > 0;
-  // (a stopped goal whose cut-off turns are gone, e.g. after a restart, stays stopped)
+  // A stopped goal with no saved work stays stopped.
   if (!picked && brief) throw fail(409, 'Nothing was left to pick up again. Write in the chat to start the work again.');
   if (!picked) throw fail(400, "Nothing to resume: the team wasn't stopped or paused.");
   return { resumed: true };
@@ -143,7 +143,7 @@ const cleanWork = (w: BrainWork) => ({
 
 const teamBusy = (id: string) => {
   const s = teams.teamState(id);
-  return teams.isTeamBusy(id) || !!s.loop;
+  return teams.isTeamBusy(id) || !!s.loop || !!s.resumable;
 };
 function stopAgentChat(chatId: string) {
   engines.unqueue(chatId);
@@ -164,7 +164,7 @@ export function stopBrain(work: BrainWork): { stopped: string[] } {
     if (b.kind === 'agent' && b.chatId) stopAgentChat(b.chatId), names.add(b.name);
   }
   for (const c of list)
-    if (engines.isChatBusy(c.chatId) || listBriefs(pid).some((b) => b.chatId === c.chatId && ['open', 'blocked', 'stuck'].includes(b.status))) {
+    if (engines.isChatBusy(c.chatId) || engines.queuedMessages(c.chatId).length || listBriefs(pid).some((b) => b.chatId === c.chatId && ['open', 'blocked', 'stuck'].includes(b.status))) {
       stopAgentChat(c.chatId);
       names.add(agents.get(c.agentId)?.name || 'an agent');
     }

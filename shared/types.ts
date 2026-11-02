@@ -3,7 +3,7 @@
 import type { Effort } from './effort.ts';
 export type { Effort } from './effort.ts';
 
-export type EngineId = 'claude-code' | 'openai' | 'hermes' | 'codex' | 'pi' | 'omp' | 'openclaw';
+export type EngineId = 'claude-code' | 'eve' | 'hermes' | 'codex' | 'pi' | 'omp' | 'openclaw';
 export type Autonomy = 'ask' | 'auto' | 'full';
 export type ProviderId = 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'custom';
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
@@ -164,6 +164,127 @@ export interface QueuedMessage {
   ts: number;
 }
 
+/** Private run ownership and input receipts; never copied with a project. */
+export interface RunAccess {
+  toolGroups?: string[];
+  mcpServers?: string[];
+  skills?: string[];
+}
+
+export interface ExecutionRun {
+  id: string;
+  projectId: string;
+  agentId: string;
+  chatId: string;
+  engine: EngineId;
+  parentRunId: string | null;
+  ownerChatId: string;
+  ownerAgentId: string;
+  depth: number;
+  text: string;
+  from: string | null;
+  attachments: string[];
+  context?: TeamContextMessage[];
+  workAccess?: RunAccess;
+  startedAt: number;
+  status: 'running' | 'completed' | 'failed' | 'stopped' | 'interrupted';
+  stopRequested?: boolean;
+  steered?: boolean;
+  endedAt?: number;
+  answer?: string;
+  error?: string;
+  settled?: boolean;
+  completionClaimed?: boolean;
+  clearMemoryOnEnd?: boolean;
+}
+
+export interface ExecutionQueue {
+  projectId: string;
+  agentId: string;
+  chatId: string;
+  items: QueuedMessage[];
+  priority: string[];
+  paused: boolean;
+}
+
+export interface SavedHandoff {
+  id: string;
+  from: string;
+  projectId: string;
+  to: string;
+  toName: string;
+  chatId: string;
+  runId: string;
+  task: string;
+  startedAt: number;
+  endedAt?: number;
+  answer?: string;
+  error?: string;
+}
+
+export interface ExecutionJournal {
+  runs: ExecutionRun[];
+  queues: ExecutionQueue[];
+  handoffs: SavedHandoff[];
+}
+
+export interface SavedTeamAssignment {
+  agentId: string;
+  msgIds: string[];
+  returning: boolean;
+  skills: string[];
+  steered?: boolean;
+  delivery?: { runId: string; chatId: string; from: number; readUpto: number; files: string[] };
+}
+
+/** An input saved before posting or waiting for a routing decision. */
+export interface SavedTeamInput {
+  id: string;
+  from: string;
+  text: string;
+  replyTo: string | null;
+  attachments: string[];
+  skills: string[];
+  to: string[];
+  track: boolean;
+  relay?: TeamRelay;
+}
+
+/** Private team coordination; project copies get the transcript without live work ownership. */
+export interface SavedTeamWork {
+  projectId: string;
+  teamId: string;
+  queue: SavedTeamAssignment[];
+  current: SavedTeamAssignment[];
+  interrupted: SavedTeamAssignment[];
+  held: QueuedMessage[];
+  pending: SavedTeamInput[];
+  assigned: string[];
+  brain: TeamMessage[];
+  episode: { turns: number; chatter?: number; brain?: number; relays?: number };
+  stopped: boolean;
+  epoch: number;
+}
+
+export interface SavedTeamRelay {
+  id: string;
+  from: string;
+  to: string;
+  by: string;
+  askId: string;
+  postedId: string;
+  pid: string;
+  depth: number;
+  returning: boolean;
+  skills: string[];
+  deliveries: { id: string; messageId: string }[];
+}
+
+export interface TeamRelayJournal {
+  active: SavedTeamRelay[];
+  closed: string[];
+}
+
 /** A team as GET /api/workflows returns it: with who is working and its latest message. */
 export interface TeamListing extends Team {
   state?: TeamState;
@@ -293,14 +414,14 @@ export interface Project {
 }
 
 // ---------- chats ----------
-export type ChatItem =
-  | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number; teamMessageId?: string }
+export type ChatItem = (
+  | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number; teamMessageId?: string; runId?: string }
   | { type: 'assistant'; text: string; ts?: number }
-  | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number }
-  | { type: 'error'; text: string; ts?: number }
+  | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number; resultSourceId?: string }
+  | { type: 'error'; text: string; ts?: number; runId?: string }
   /** reset: "Clear memory" (the agent starts fresh after it) */
   | { type: 'meta'; text: string; ts?: number; reset?: boolean; billing?: RunBilling }
-  | CompactionItem;
+  | CompactionItem) & { sourceId?: string };
 
 /** Full messages imported from the team's shared transcript before a member answers. */
 export interface TeamContextMessage {
@@ -353,18 +474,14 @@ export interface ConversationReadResult {
   nextOffset: number | null;
 }
 
-/** How a compaction was made. instant: the original words, cut to fit (no model call). summary: a model
- *  wrote a summary. engine: the engine compacted its own memory (Claude Code), so there is no text here. */
-export type CompactionMode = 'instant' | 'summary' | 'engine';
-/** auto: the chat got full. manual: you asked (button or /compact). overflow: the model said it was too long. */
+/** A read-only marker reported by the engine that owns the session. */
+export type CompactionMode = 'engine';
 export type CompactionTrigger = 'auto' | 'manual' | 'overflow';
 
-/** The "--- COMPACTED ---" marker in a chat. From here on the agent remembers the items before it as text
- *  (the checkpoint), plus the items from upto on word for word. */
 export interface CompactionItem {
   type: 'compaction';
   id: string;
-  /** The compacted history the agent sees (you can edit it). Empty for mode "engine". */
+  /** Empty: the engine keeps its own active memory. */
   text: string;
   mode: CompactionMode;
   trigger: CompactionTrigger;
@@ -373,10 +490,6 @@ export interface CompactionItem {
   /** Rough size of the agent's memory before and after, in tokens. */
   tokensBefore?: number;
   tokensAfter?: number;
-  /** Set when you changed text by hand. */
-  editedAt?: number;
-  /** Why it is not what you asked for (e.g. the summary failed, so it is instant). */
-  note?: string;
   ts?: number;
 }
 
@@ -397,16 +510,15 @@ export interface Chat {
   agentId: string;
   title: string;
   items: ChatItem[];
-  llm: unknown[];
   sessionId: string | null;
   /** The engine that answered here last (and made sessionId): another engine can't resume it, so it
-   *  starts from the chat so far (a new session, or for the API model a new chat.llm). */
+   *  starts a new session from the saved originals. */
   sessionEngine?: EngineId;
   /** Set when this is the agent's session for a team chat. */
   teamId?: string | null;
-  /** Set after a compaction: the next run starts a new engine session that gets the compacted history first. */
+  /** The next CLI session receives the saved original conversation. */
   reseed?: boolean;
-  /** How full the agent's memory is (see ChatContext). Cleared by a compaction or Clear memory. */
+  /** How full the agent's memory is (see ChatContext). Cleared when the session is replaced or you clear memory. */
   context?: ChatContext;
   /** Its last run had Rich answers' instructions (a chat of your own, not a handoff or a team's). */
   rich?: boolean;
@@ -415,7 +527,7 @@ export interface Chat {
   createdAt: number;
   updatedAt: number;
   _deleted?: boolean;
-  /** Your /queue messages for when the current run is done (kept in memory; GET adds them, never saved). */
+  /** GET adds the private saved queue; it is not part of the chat file or project copies. */
   queued?: QueuedMessage[];
   /** Your /loop here, while it goes (GET adds it). */
   loop?: LoopInfo | null;
@@ -440,6 +552,7 @@ export type RunEvent =
   | { kind: 'tool_result'; id: string; text?: string; isError?: boolean; images?: string[] }
   | { kind: 'status'; text: string }
   | { kind: 'model'; model: string }
+  | { kind: 'usage'; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; costUsd?: number; summary?: boolean }
   | { kind: 'done'; text: string; cost?: number; seconds?: number; billing?: RunBilling }
   /** the engine compacted its own memory (Claude Code): marked in the chat, never sent on as a run event */
   | { kind: 'compacted'; trigger?: string; tokensBefore?: number }
@@ -480,9 +593,29 @@ export interface Approval {
   brainNote?: string;
 }
 
+export interface ApprovalDecision {
+  approved: boolean;
+  message: string;
+  edited?: unknown;
+  always?: boolean;
+}
+
+export interface DurableApprovalRecord {
+  id: string;
+  operationId: string;
+  projectId: string;
+  fingerprint: string;
+  item: Approval;
+  expiresAt: number;
+  reviewing: boolean;
+  decision?: ApprovalDecision;
+}
+
 /** A question an agent asked you with ask_user: a choice to make, something only you know, a place it is stuck.
  *  It waits in the Outbox with its choices as buttons and a box for an answer in your own words. */
 export interface AgentQuestion {
+  /** Eve's saved call owns this wait instead of an in-memory Promise. */
+  operationId?: string;
   /** A completion check that stopped for user action. */
   briefId?: string;
   id: string;
@@ -586,24 +719,6 @@ export interface FavoriteModel {
   provider?: string;
 }
 
-/** Settings > Chat memory: compacting long chats so the agent never runs out of room. */
-export interface CompactionSetting {
-  /** Compact a chat by itself when the agent's memory of it gets full. */
-  auto: boolean;
-  /** Claude Code, Codex, Hermes, pi, oh-my-pi and OpenClaw compact their own sessions: automatic compaction
-   *  then only covers API-model agents (and a CLI run that fails because the chat is too long). */
-  engineOwn: boolean;
-  /** Instant compaction: keeps the original words (cut to fit) and needs no model call. Off: the Brain's model writes a summary. */
-  instant: boolean;
-  /** Compact when the memory reaches this share of the model's context window (10-95). */
-  thresholdPercent: number;
-  /** How many of the latest messages (yours and the agent's) stay in full, with their tool calls.
-   *  The message being answered always does. The rest is compacted. */
-  keepMessages: number;
-  /** The context window in tokens, for every agent. 0: as the engine or model list says (else a safe default). */
-  windowTokens: number;
-}
-
 export interface LookSetting {
   /** Light, dark, or whatever the computer is set to (see ThemeChoice). */
   theme: ThemeChoice;
@@ -650,7 +765,7 @@ export interface Settings {
   telegram: { chatId: string };
   maxToolSteps: number;
   costLimitUsdPerRun: number;
-  compaction: CompactionSetting;
+  contextWindowTokens: number;
   /** Models starred in the model picker: they get their own tab at the front. */
   favoriteModels: FavoriteModel[];
   activeProject?: string;
@@ -670,9 +785,150 @@ export interface VeniceAccountInfo {
 }
 
 // ---------- engines ----------
+export interface EngineCapabilities {
+  nativeSession: boolean;
+  directTools: boolean;
+  inlineAttachmentText: boolean;
+  durableSession: boolean;
+}
+
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export interface EveRuntimeConfiguration {
+  runId: string;
+  model: string;
+  baseUrl: string;
+  apiKey: string;
+  headers: Record<string, string>;
+  instructions: string;
+  contextWindow: number;
+  provider: string;
+  effort: Effort | '';
+  temperature?: number;
+  cacheKey: string;
+  maxModelSteps: number;
+  costLimitUsd: number;
+  costBaseline: number;
+  spentUsd?: number;
+  capabilities?: Pick<ApiModelInfo, 'tools' | 'vision' | 'multipleImages'>;
+  price?: ApiModelInfo['price'];
+  tools: { name: string; description: string; inputSchema: Record<string, JsonValue> }[];
+}
+
+/** Private runtime records are not part of browser state or project exports. */
+export interface EveSessionBinding {
+  id: string;
+  projectId: string;
+  agentId: string;
+  chatId: string;
+  teamId: string | null;
+  generation: string;
+  runtimeVersion: string;
+  sessionId: string | null;
+  retired: boolean;
+  retiring?: boolean;
+  runtimeEnded?: boolean;
+  createdAt: number;
+  imported?: string[];
+}
+
+export interface EveModelSelection {
+  provider: string;
+  baseUrl: string;
+  model: string;
+  effort: Effort | '';
+  temperature?: number;
+  contextWindow: number;
+  maxModelSteps: number;
+  costLimitUsd: number;
+  capabilities?: Pick<ApiModelInfo, 'tools' | 'vision' | 'multipleImages'>;
+  price?: ApiModelInfo['price'];
+}
+
+export type EveMessagePart = { type: 'text'; text: string } | { type: 'file'; data: string; mediaType: string; filename: string };
+export interface EveAdmissionRecord {
+  id: string;
+  bindingId: string;
+  mode: 'create' | 'send';
+  sessionId: string | null;
+  message: EveMessagePart[];
+  history: { id: string; role: 'user' | 'assistant'; text: string }[];
+  historyKeys: string[];
+  messageHash: string;
+  fingerprint: string;
+  status: 'prepared' | 'accepted' | 'cancelled';
+  createdAt: number;
+  selection: EveModelSelection;
+}
+
+export type EveRunStatus = 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'stopped' | 'interrupted';
+
+export interface EveRunRecord {
+  id: string;
+  bindingId: string;
+  depth: number;
+  parentRunId: string | null;
+  deliveryId: string | null;
+  turnId: string | null;
+  status: EveRunStatus;
+  configurationVersions: string[];
+  cursor: { line: number; index: number } | null;
+  /** Event identities and normalized outputs are saved together before publication. */
+  events: { id: string; event: RunEvent }[];
+  textParts?: Record<string, string>;
+  projected?: number;
+  limitReason?: string;
+  costBaseline?: number;
+  charges?: EveModelCharge[];
+  answer?: string;
+  error?: string;
+  endedAt?: number;
+  pendingTerminal?: { line: number; status: 'completed' | 'failed' | 'stopped' | 'interrupted'; parts: string[]; error?: string };
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** One acknowledged model response, including charges that preceded a lost native checkpoint. */
+export interface EveModelCharge {
+  id: string;
+  cost?: number;
+  billing: RunBilling;
+}
+
+export interface EveToolResult {
+  text: string;
+  isError?: boolean;
+  images?: string[];
+  denied?: boolean;
+  modelImages?: string[];
+}
+
+export interface EveToolOperation {
+  id: string;
+  runId: string;
+  bindingId: string;
+  sessionId: string;
+  callId: string;
+  name: string;
+  args: Record<string, unknown>;
+  origin: string;
+  risk: 'none' | 'low' | 'high';
+  fingerprint: string;
+  status: 'prepared' | 'waiting' | 'running' | 'completed' | 'uncertain' | 'cancelled';
+  result?: EveToolResult;
+  approvalId?: string;
+  approvalChecks?: string[];
+  questionId?: string;
+  interactionId?: string;
+  interactionSettled?: boolean;
+  responseDeliveryId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface EngineStatus {
   'claude-code': { installed: boolean; path: string | null; loggedIn: boolean; version: string | null };
-  openai: { openrouter: boolean; venice: boolean; custom: boolean };
+  eve: { openrouter: boolean; venice: boolean; custom: boolean };
   hermes: { installed: boolean; path: string | null };
   codex: { installed: boolean; loggedIn: boolean; version: string | null; path?: string | null; how?: string };
   pi: { installed: boolean; path: string | null; version: string | null };

@@ -9,12 +9,12 @@ describe('modelInfo()', () => {
   });
 
   it('handles OpenRouter, local servers, Codex and Hermes', () => {
-    expect(modelInfo({ engine: 'openai', provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' })).toMatchObject({ short: 'Haiku 5.5', where: 'OpenRouter' });
-    expect(modelInfo({ engine: 'openai', provider: 'ollama', model: 'llama3.2' }).where).toBe('Ollama');
+    expect(modelInfo({ engine: 'eve', provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' })).toMatchObject({ short: 'Haiku 5.5', where: 'OpenRouter' });
+    expect(modelInfo({ engine: 'eve', provider: 'ollama', model: 'llama3.2' }).where).toBe('Ollama');
     // the OpenRouter logo only for models that come from OpenRouter
-    expect(modelInfo({ engine: 'openai', provider: 'openrouter', model: 'openai/gpt-6' }).brand).toBe('openrouter');
-    expect(modelInfo({ engine: 'openai', provider: 'lmstudio', model: 'qwen3-coder' }).brand).toBeNull();
-    expect(modelInfo({ engine: 'openai', provider: 'custom', model: 'mistral-large' }).brand).toBeNull();
+    expect(modelInfo({ engine: 'eve', provider: 'openrouter', model: 'openai/gpt-6' }).brand).toBe('openrouter');
+    expect(modelInfo({ engine: 'eve', provider: 'lmstudio', model: 'qwen3-coder' }).brand).toBeNull();
+    expect(modelInfo({ engine: 'eve', provider: 'custom', model: 'mistral-large' }).brand).toBeNull();
     expect(modelInfo({ engine: 'codex', model: '' })).toMatchObject({ short: 'Codex', latest: true, brand: 'openai' });
     expect(modelInfo({ engine: 'hermes', model: '' }).short).toBe('Hermes');
   });
@@ -27,14 +27,14 @@ describe('modelInfo()', () => {
 
   it("maps the Brain's setting onto the same picker", () => {
     expect(brainAsAgent({ provider: 'claude', model: 'haiku' })).toMatchObject({ engine: 'claude-code', model: 'haiku' });
-    expect(brainAsAgent({ provider: 'openrouter', model: 'x/y' })).toMatchObject({ engine: 'openai', model: 'x/y' });
+    expect(brainAsAgent({ provider: 'openrouter', model: 'x/y' })).toMatchObject({ engine: 'eve', model: 'x/y' });
     expect(brainAsAgent({ provider: 'codex', model: '' }).engine).toBe('codex');
     const venice = brainAsAgent({ provider: 'venice', model: 'my-model', effort: 'high' });
-    expect(venice).toMatchObject({ engine: 'openai', provider: 'venice', model: 'my-model' });
+    expect(venice).toMatchObject({ engine: 'eve', provider: 'venice', model: 'my-model' });
     expect(tabOf(venice)).toBe('venice');
     expect(modelInfo(venice).where).toBe('Venice');
     expect(brainSettingFromChoice({ ...venice, effort: 'low' })).toEqual({ provider: 'venice', model: 'my-model', effort: 'low' });
-    expect(brainSettingFromChoice({ engine: 'openai', provider: 'lmstudio', model: 'local', effort: '' })).toBeNull();
+    expect(brainSettingFromChoice({ engine: 'eve', provider: 'lmstudio', model: 'local', effort: '' })).toBeNull();
   });
 });
 

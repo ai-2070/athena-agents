@@ -56,8 +56,8 @@ beforeEach(() => {
     approvals: [],
     agents: [
       { id: 'a1', name: 'Scout', emoji: '🔭', engine: 'claude-code', model: 'sonnet', specialty: 'Finds ideas' },
-      { id: 'a2', name: 'Maker', emoji: '🎨', engine: 'openai', model: 'm', provider: 'custom', toolGroups: ['social'] },
-      { id: 'a3', name: 'Writer', emoji: '✍️', engine: 'openai', model: 'm', provider: 'custom' },
+      { id: 'a2', name: 'Maker', emoji: '🎨', engine: 'eve', model: 'm', provider: 'custom', toolGroups: ['social'] },
+      { id: 'a3', name: 'Writer', emoji: '✍️', engine: 'eve', model: 'm', provider: 'custom' },
     ],
     project: { id: 'p1', name: 'Launch', brainPath: 'C:/Brain', skills: [] },
     toolGroups: [{ id: 'social', label: 'Social', description: '' }],

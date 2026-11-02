@@ -6,7 +6,7 @@ import type { ChatItem, ConversationHit, ConversationRead, ConversationReadResul
 const pageNumber = (value: unknown, fallback: number, max: number) => typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(0, Math.floor(value))) : fallback;
 
 function ownText(item: ChatItem): string {
-  if (item.type === 'tool') return ['search_conversations', 'read_conversation', 'recall_history'].includes(item.name) ? '' : `${item.name}\n${JSON.stringify(item.args ?? {})}\n${item.result || ''}`;
+  if (item.type === 'tool') return ['search_conversations', 'read_conversation'].includes(item.name) ? '' : `${item.name}\n${JSON.stringify(item.args ?? {})}\n${item.result || ''}`;
   if (item.type === 'compaction') return ''; // Search the originals rather than copies in checkpoints.
   return item.text + (item.type === 'user' && item.attachments?.length ? `\nAttached: ${item.attachments.join(', ')}` : '');
 }

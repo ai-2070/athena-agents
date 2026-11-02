@@ -57,6 +57,21 @@ A second launch shows and focuses the open window. Size and position are remembe
 
 ### Keep in mind when changing the server
 
+The staged app includes the default API engine's Eve runtime in `app/runtime/eve/`, its attachment
+filesystem templates in `app/runtime/eve-sandbox-cache/`. Both use the existing bundled Bun 1.4+.
+API-model agents use these files for the native model/tool loop and active context.
+The server's Eve supervisor finds these relocated files, uses the bundled Bun, and keeps worker
+state under `DATA/runtime/eve`. Saved native work is reconciled before the worker starts its queue.
+The supervisor claims a private loopback ownership port derived from the resolved runtime path;
+another process or a port collision blocks startup rather than sharing the Workflow files.
+The claim is released when its process exits. Recovered native runs regain busy state and follow
+their saved event stream without submitting another user message.
+Server shutdown cancels an unfinished launch and closes the worker before the private tool bridge.
+`desktop:smoke` exercises the staged Eve server with the bundled Bun, a fake model and throwaway
+state before checking the dashboard. It also kills and restarts Eve at three checkpoint write
+boundaries and during an unfinished model call. The pinned local store and its patch ship with the runtime; see
+[`runtime/eve-world`](../runtime/eve-world/README.md). Eve adds no second runtime installation or download.
+
 - Everything the server imports must bundle with `Bun.build` (`target: 'bun'`). Native modules can't be
   bundled: add them to `external` in `build-desktop.ts` and copy them like node-pty.
 - Files the server reads relative to `ROOT` must be copied into the app by `copyStatic()`. `VENDOR` paths in
@@ -116,6 +131,12 @@ silicon Macs say a downloaded app is "damaged".
   through `bundle.windows.signCommand`).
 
 ## Updates
+
+API-model agents use the bundled Eve worker. Ordinary app shutdown preserves native turns and saved
+waits. An incompatible Eve update retires old sessions and marks unfinished work interrupted before
+the worker can make another model or tool call. Starting again imports admitted original messages;
+pending actions are never reconstructed from summaries. Retired runtime records stay in private app
+data until that data is removed, and never enter portable project backups.
 
 The app updates itself with [Tauri's updater](https://tauri.app/plugin/updater/) (`src-tauri/src/updater.rs`).
 It reads `latest.json` from the newest **published** release

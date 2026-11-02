@@ -4,8 +4,6 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { asksForCache, brainSession, cacheFields, systemMessage } from '../../server/promptcache.ts';
 import { buildSystemPrompt, startRun } from '../../server/engines/index.ts';
-import { trimHistory } from '../../server/engines/openai.ts';
-import type { LlmMessage } from '../../server/engines/openai.ts';
 import { think } from '../../server/brain.ts';
 import { newAgent } from '../../server/library.ts';
 import { chats, saveSettings, setSecret } from '../../server/store.ts';
@@ -57,41 +55,11 @@ describe('the Brain keeps to one provider', () => {
   });
 });
 
-describe('trimHistory (automatic compaction off)', () => {
-  const turn = (i: number): LlmMessage[] => [
-    { role: 'user', content: `question ${i} `.padEnd(100, '.') },
-    { role: 'assistant', content: `answer ${i} `.padEnd(100, '.') },
-  ];
-  const chat = (n: number) => Array.from({ length: n }, (_, i) => turn(i)).flat();
-
-  it('keeps everything that fits', () => {
-    expect(trimHistory(chat(5), 100_000)).toEqual(chat(5));
-  });
-
-  it('stays under the budget and starts at a question', () => {
-    for (let n = 10; n < 60; n++) {
-      const kept = trimHistory(chat(n), 2000);
-      expect(JSON.stringify(kept).length).toBeLessThanOrEqual(2000);
-      expect(kept[0].role).toBe('user');
-      expect(kept.at(-1)).toEqual(chat(n).at(-1));
-    }
-  });
-
-  it('cuts in steps, so the history starts the same way for a while (and the cache can be read)', () => {
-    const firsts = Array.from({ length: 40 }, (_, i) => JSON.stringify(trimHistory(chat(i + 20), 2000)[0]));
-    const changes = firsts.filter((f, i) => i > 0 && f !== firsts[i - 1]).length;
-    // a cut that moved with every message would change the start 39 times; in steps of half the
-    // budget (about four turns here) it changes about ten times
-    expect(changes).toBeGreaterThan(0);
-    expect(changes).toBeLessThanOrEqual(12);
-  });
-});
-
 describe('buildSystemPrompt', () => {
   afterEach(() => vi.useRealTimers());
 
   it('is the same all day, so the cache isn’t thrown away every minute', () => {
-    const agent = { ...newAgent({ name: 'Cachey', engine: 'openai' }), id: 'a_cache' };
+    const agent = { ...newAgent({ name: 'Cachey', engine: 'eve' }), id: 'a_cache' };
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 9, 26, 9, 5));
     const morning = buildSystemPrompt(agent);
@@ -122,7 +90,7 @@ describe('a run that read from the cache', () => {
   afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
   it('says so next to the cost', async () => {
-    const a = newAgent({ name: 'Cached run', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+    const a = newAgent({ name: 'Cached run', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
     const chat = chats.create(a.id);
     await startRun(a, chat, 'hello').promise;
     const meta = chats.get(a.id, chat.id)!.items.find((i) => i.type === 'meta');

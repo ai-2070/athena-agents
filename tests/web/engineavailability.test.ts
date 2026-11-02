@@ -6,7 +6,7 @@ const data = (value: unknown) => value as AppState;
 describe('engine setup visibility', () => {
   it('requires a saved key for API services', () => {
     const configured = data({ secrets: { openrouterKey: { set: true }, veniceKey: { set: false } } });
-    expect(engineConfigured('openai', configured)).toBe(true);
+    expect(engineConfigured('eve', configured)).toBe(true);
     expect(engineConfigured('openrouter', configured)).toBe(true);
     expect(engineConfigured('venice', configured)).toBe(false);
     expect(engineConfigured('venice', data({ secrets: { veniceKey: { set: true } } }))).toBe(true);
@@ -20,7 +20,7 @@ describe('engine setup visibility', () => {
     expect(engineConfigured('claude', data({ ...configured, secrets: { anthropicKey: { set: true } } }))).toBe(true);
   });
   it('requires local installation rather than a saved agent choice', () => {
-    const configured = data({ agents: [{ engine: 'openai', provider: 'lmstudio' }] });
+    const configured = data({ agents: [{ engine: 'eve', provider: 'lmstudio' }] });
     expect(engineConfigured('lmstudio', configured)).toBe(false);
     expect(engineConfigured('lmstudio', configured, new Set(['lmstudio']))).toBe(true);
     expect(engineConfigured('codex', null)).toBe(false);

@@ -12,6 +12,7 @@ import { startHandoff, awaitHandoff, listHandoffs, DEFAULT_WAIT_S, MAX_WAIT_S } 
 /** Hermes' own MCP tool timeout is 300 s: await_agent answers it well within that. */
 const HERMES_WAIT_S = 240;
 import { requestApproval } from './approvals.ts';
+import type { ApprovalDecision, ApprovalRequest } from './approvals.ts';
 import { agentFetch } from './agentfetch.ts';
 import { accountOf } from './mcp.ts';
 import { knownPrograms, launchProgram, launchTarget, programExe, startMenuApps } from './programs.ts';
@@ -65,6 +66,13 @@ export interface ToolRunInfo {
   progress?: (text: string) => void;
   /** The MCP server an API-model agent's tool call goes to: its approval names the account. */
   mcpServer?: string;
+  /** Stable, server-issued identity for one durable tool operation. */
+  operationId?: string;
+  /** The input originally shown for an operation whose approval edited the arguments. */
+  approvalArgs?: Record<string, unknown>;
+  /** A durable executor only reads saved consent here; it never waits for a new decision. */
+  approvalDecision?: (request: ApprovalRequest) => Promise<ApprovalDecision>;
+  approvalScope?: Record<string, unknown>;
 }
 
 export interface ToolContext extends ToolRunInfo {
@@ -198,21 +206,6 @@ const TOOLS: ToolDef[] = [
       const run = runInfo(ctx.runId);
       if (ctx.runId && (!run || run.agentId !== ctx.agent.id)) return { text: 'That run is not available to you.', isError: true };
       return withProject(run?.project || activeProject(), () => ({ text: JSON.stringify(readConversation(ctx.agent.id, args as unknown as import('../shared/types.ts').ConversationRead)) }));
-    },
-  },
-  {
-    name: 'recall_history',
-    group: 'core',
-    risk: 'none',
-    description: 'Read earlier parts of this chat word for word. After a chat is compacted you see its older history as "[seq N]" entries with long messages cut and tool results left out: pass seq=N for one entry in full (a message, or a tool call with its whole result), from/to for a range (up to 40), or query to search the whole chat.',
-    parameters: obj({ seq: { type: 'number', description: 'One entry, by its seq' }, from: { type: 'number', description: 'First seq of a range' }, to: { type: 'number', description: 'Last seq of a range' }, query: str('Words to search for') }),
-    run: async (args, ctx) => {
-      const { runInfo, liveChat } = await import('./engines/index.ts');
-      const { recall } = await import('./compaction.ts');
-      const run = runInfo(ctx.runId);
-      const chat = run ? liveChat(run.chatId, run.projectId) || chats.get(run.agentId, run.chatId) : null;
-      if (!chat) return { text: 'recall_history only works inside a dashboard chat.', isError: true };
-      return recall(chat.items, args);
     },
   },
   {
@@ -1077,24 +1070,31 @@ const addGroup = (a: { toolGroups?: string[] }, id: string) => {
 
 // request_tool: the Brain looks first (see reviewApproval), and the user decides what it passes on.
 // Given tools are kept on the agent and added to the run going now, so it can use them at once.
-async function requestTools(ctx: ToolContext, id: string, why: string): Promise<ToolResult> {
-  const group = TOOL_GROUPS.find((g) => g.id === id.trim());
-  if (!group) return { text: `There is no "${id}" set of tools. The sets: ${TOOL_GROUPS.map((g) => g.id).join(', ')}.`, isError: true };
-  const reason = why.trim().slice(0, 1000);
-  if (!reason) return { text: 'Say what you need these tools for (why).', isError: true };
+async function toolAccessRequest(ctx: ToolContext, id: string, why: string): Promise<{ result: ToolResult } | { group: ToolGroup; request: ApprovalRequest }> {
+  const group = TOOL_GROUPS.find((g) => g.id === String(id || '').trim());
+  if (!group) return { result: { text: `There is no "${id}" set of tools. The sets: ${TOOL_GROUPS.map((g) => g.id).join(', ')}.`, isError: true } };
+  const reason = String(why || '').trim().slice(0, 1000);
+  if (!reason) return { result: { text: 'Say what you need these tools for (why).', isError: true } };
   // only the dashboard's own agents have tools to change (not workflows or outside MCP clients)
-  if (!agentStore.get(ctx.agent.id)) return { text: "Only the dashboard's agents can ask for tools. Ask the user with ask_user instead.", isError: true };
+  if (!agentStore.get(ctx.agent.id)) return { result: { text: "Only the dashboard's agents can ask for tools. Ask the user with ask_user instead.", isError: true } };
   const { runInfo } = await import('./engines/index.ts');
   const run = ctx.runId ? runInfo(ctx.runId) : null;
-  if ([...(ctx.agent.toolGroups || []), ...(run?.agent.toolGroups || [])].includes(group.id)) return { text: `You already have the ${group.label} tools.` };
-  const d = await requestApproval({
+  if ([...(ctx.agent.toolGroups || []), ...(run?.agent.toolGroups || [])].includes(group.id)) return { result: { text: `You already have the ${group.label} tools.` } };
+  return { group, request: {
     kind: 'tools',
     title: `${ctx.agent.name} asks for the ${group.label} tools`,
     detail: `${reason}\n\n${group.label}: ${group.description}`,
     agentId: ctx.agent.id,
     agentName: ctx.agent.name,
     data: { group: group.id, args: { tools: group.id, why: reason }, runId: ctx.runId || null },
-  });
+  } };
+}
+
+async function requestTools(ctx: ToolContext, id: string, why: string): Promise<ToolResult> {
+  const check = await toolAccessRequest(ctx, id, why);
+  if ('result' in check) return check.result;
+  const { group, request } = check;
+  const d = await (ctx.approvalDecision || requestApproval)(request);
   if (!d.approved) return { text: `Not given${d.message ? `: ${d.message}` : ''}. Don't ask for it again: do what you can without it, or ask the user with ask_user what to do instead.`, isError: true, denied: true };
   const saved = agentStore.get(ctx.agent.id);
   if (saved) {
@@ -1102,6 +1102,8 @@ async function requestTools(ctx: ToolContext, id: string, why: string): Promise<
     agentStore.save(saved);
   }
   addGroup(ctx.agent, group.id);
+  const { runInfo } = await import('./engines/index.ts');
+  const run = ctx.runId ? runInfo(ctx.runId) : null;
   if (run) addGroup(run.agent, group.id);
   const names = TOOLS.filter((t) => t.group === group.id).map((t) => t.name);
   return { text: `Given: you now have the ${group.label} tools (${names.join(', ')}). Use them now. If you don't see them yet, they come with your next message.` };
@@ -1136,19 +1138,25 @@ export function needsApproval(agent: ToolAgent, risk: Risk, toolName: string): b
   return risk === 'low' || risk === 'high';
 }
 
-// Ask the user when the agent's autonomy says so. Returns null when it may go ahead, else a refusal result.
-export async function gate(agent: ToolAgent, name: string, risk: Risk, args: ToolArgs, ctx: ToolRunInfo = {}, detail: string | null | undefined = null): Promise<ToolResult | null> {
-  if (!needsApproval(agent, risk, name)) return null;
+// Eve's policy and executor use the same request and original arguments.
+export function toolApprovalRequest(agent: ToolAgent, name: string, args: ToolArgs, ctx: ToolRunInfo = {}, detail?: string | null): ApprovalRequest {
   // an MCP tool of one account of several says which account: "… wants to use oomol-work__send on OOMOL: Work"
   const account = ctx.mcpServer ? accountOf(ctx.mcpServer) : '';
-  const d = await requestApproval({
+  return {
     kind: 'tool',
     title: `${agent.name} wants to use ${name}${account ? ` on ${account}` : ''}`,
     detail: detail ?? describeCall(name, args),
     agentId: agent.id,
     agentName: agent.name,
-    data: { tool: name, args, runId: ctx.runId },
-  });
+    data: { tool: name, args: ctx.approvalArgs || args, runId: ctx.runId, ...(ctx.approvalScope ? { scope: ctx.approvalScope } : {}) },
+    operationId: ctx.operationId,
+  };
+}
+
+// Ask when the agent's autonomy says so; null lets the tool go ahead.
+export async function gate(agent: ToolAgent, name: string, risk: Risk, args: ToolArgs, ctx: ToolRunInfo = {}, detail: string | null | undefined = null): Promise<ToolResult | null> {
+  if (!needsApproval(agent, risk, name)) return null;
+  const d = await (ctx.approvalDecision || requestApproval)(toolApprovalRequest(agent, name, args, ctx, detail));
   if (!d.approved) return { text: `The user said no${d.message ? `: ${d.message}` : ''}. Don't retry the same thing; ask what they want instead.`, isError: true, denied: true };
   if (d.always && agent.id && !agent.id.startsWith('_')) {
     // the run asking keeps going with this same agent: the yes counts for the rest of it too
@@ -1173,6 +1181,32 @@ export function riskOf(tool: ToolDef | string, args: ToolArgs = {}): Risk {
   }
 }
 
+export function toolApprovalName(name: string, args: ToolArgs): string {
+  const tool = BY_NAME.get(name);
+  return tool && typeof tool.risk === 'function' && riskOf(tool, args) === 'high' ? `${name}:high` : name;
+}
+
+/** Read every consent boundary before Eve opens its native approval checkpoint. */
+export async function toolApprovalPlan(agent: ToolAgent, name: string, args: ToolArgs, ctx: ToolRunInfo): Promise<{ requests: ApprovalRequest[]; risk: Risk }> {
+  let risk = riskOf(name, args);
+  const requests: ApprovalRequest[] = [];
+  const allowName = toolApprovalName(name, args);
+  if (needsApproval(agent, risk, allowName)) requests.push(toolApprovalRequest(agent, allowName, args, ctx));
+  if (name === 'request_tool') {
+    const check = await toolAccessRequest({ ...ctx, agent }, String(args.tools || ''), String(args.why || ''));
+    if ('request' in check) {
+      requests.push(check.request);
+      risk = 'high';
+    }
+  }
+  for (const check of voxel.worldApprovalChecks(name, args, { ...ctx, agent })) {
+    if (check.request) requests.push(check.request);
+    if (check.risk === 'high') risk = 'high';
+    if (check.name && needsApproval(agent, check.risk, check.name)) requests.push(toolApprovalRequest(agent, check.name, args, { ...ctx, approvalScope: check.scope }, check.detail));
+  }
+  return { requests, risk };
+}
+
 // Run a tool for an agent, asking the user first when its settings say so.
 export async function callTool(agent: ToolAgent, name: string, args: ToolArgs = {}, ctx: ToolRunInfo = {}): Promise<ToolResult> {
   const tool = BY_NAME.get(name);
@@ -1181,13 +1215,13 @@ export async function callTool(agent: ToolAgent, name: string, args: ToolArgs = 
   args = args && typeof args === 'object' ? args : {};
   const risk = riskOf(tool, args);
   // For tools whose risk depends on arguments, "Always allow" only skips the low-risk form.
-  const allowName = typeof tool.risk === 'function' && risk === 'high' ? `${name}:high` : name;
+  const allowName = toolApprovalName(name, args);
   const refused = await gate(agent, allowName, risk, args, ctx, describeCall(name, args));
   if (refused) return refused;
   if (ctx.signal?.aborted) return { text: 'Stopped.', isError: true };
   try {
     const r = await tool.run(args, { ...ctx, agent });
-    return { text: String(r?.text ?? ''), images: r?.images || [], isError: !!r?.isError };
+    return { text: String(r?.text ?? ''), images: r?.images || [], isError: !!r?.isError, ...(r?.denied ? { denied: true } : {}) };
   } catch (e) {
     return { text: `Error: ${(e as Error).message}`, isError: true };
   }

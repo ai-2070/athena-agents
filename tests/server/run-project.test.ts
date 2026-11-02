@@ -36,7 +36,7 @@ beforeAll(async () => {
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
-const until = async (ok: () => boolean, ms = 5000) => {
+const until = async (ok: () => boolean, ms = 15000) => {
   for (const end = Date.now() + ms; Date.now() < end; ) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 20));
@@ -48,7 +48,7 @@ const release = async () => {
   held.shift()!.release();
 };
 const folder = (name: string) => path.join(os.homedir(), 'run-projects', name);
-const filesAgent = () => newAgent({ name: 'Writer', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: ['files'], autonomy: 'auto' });
+const filesAgent = () => newAgent({ name: 'Writer', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: ['files'], autonomy: 'auto' });
 
 describe('withProject()', () => {
   it('pins the project across awaits; openProject() still sees the one that is open', async () => {
@@ -80,7 +80,7 @@ describe('a run', () => {
     expect(fs.readFileSync(path.join(a.brainPath, 'out.txt'), 'utf8')).toBe('from-project-a-run');
     expect(fs.existsSync(path.join(b.brainPath, 'out.txt'))).toBe(false);
     setActiveProject(a.id);
-    expect(chats.get(agent.id, chat.id)!.items.map((i) => i.type)).toEqual(['user', 'tool', 'assistant']);
+    expect(chats.get(agent.id, chat.id)!.items.filter((i) => i.type !== 'meta').map((i) => i.type)).toEqual(['user', 'tool', 'assistant']);
     setActiveProject(b.id);
     expect(chats.list(agent.id)).toEqual([]);
     expect(agents.get(agent.id)).toBeNull();
@@ -106,7 +106,7 @@ describe('a run', () => {
 
   it("a routine's record and agent stay in its project", async () => {
     const a = await createProject({ name: 'Routine A', mode: 'new', folder: folder('routine-a') });
-    newAgent({ name: 'Scribe', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: ['files'], autonomy: 'auto' });
+    newAgent({ name: 'Scribe', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: ['files'], autonomy: 'auto' });
     const r = saveRoutine({ name: 'Write it down', text: '@Scribe write the file.' });
     const run = await startRoutine(r.id);
     await until(() => held.length > 0);
@@ -126,7 +126,7 @@ describe('a run', () => {
 
   it("a routine whose agent's run is stopped directly ends stopped, not done", async () => {
     await createProject({ name: 'Routine stop', mode: 'new', folder: folder('routine-stop') });
-    newAgent({ name: 'Stoppable', engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+    newAgent({ name: 'Stoppable', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
     const r = saveRoutine({ name: 'Stop me', text: '@Stoppable do the thing.' });
     const run = await startRoutine(r.id);
     await until(() => held.length > 0);

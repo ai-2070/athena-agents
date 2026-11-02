@@ -10,5 +10,10 @@ public/dist/
 coverage/
 public/.dist-tmp/
 
+# Eve compiler output and private local workflow state
+runtime/eve/.eve/
+runtime/eve/.output/
+runtime/eve/.vercel/
+
 # Desktop release files gathered by scripts/desktop-release.ts
 release/

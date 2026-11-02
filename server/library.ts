@@ -128,6 +128,7 @@ export function newAgent(fields: Partial<Agent> = {}): Agent {
     workspace: fields.workspace || '',
     temperature: fields.temperature ?? '',
     effort: isEffort(fields.effort) ? fields.effort : '',
+    richAnswers: !!fields.richAnswers,
     alwaysAllow: [], // grants stay with the agent they were given to, never copies
     skills: Array.isArray(fields.skills) ? fields.skills : [],
     source: fields.source || { type: 'custom' },

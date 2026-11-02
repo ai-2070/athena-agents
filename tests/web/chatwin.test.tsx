@@ -18,8 +18,8 @@ beforeEach(() => {
     approvals: [],
     settings: {},
     agents: [
-      { id: 'a1', name: 'Scout', emoji: '🔭', engine: 'openai', model: 'm', provider: 'custom' },
-      { id: 'a2', name: 'Writer', emoji: '✍️', engine: 'openai', model: 'm', provider: 'custom' },
+      { id: 'a1', name: 'Scout', emoji: '🔭', engine: 'eve', model: 'm', provider: 'custom' },
+      { id: 'a2', name: 'Writer', emoji: '✍️', engine: 'eve', model: 'm', provider: 'custom' },
     ],
   } as unknown as AppState;
   window.__teams = [];

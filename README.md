@@ -32,7 +32,7 @@ The dashboard runs at **http://localhost:4800**, with no dashboard account or lo
 - **Mix models.** Use Claude Code, Codex, Hermes, pi, oh-my-pi, OpenClaw or OpenAI-compatible APIs, including local model servers. Team members do not need to use the same engine.
 - **Work with your files and programs.** Give agents a project folder, attach reference files, and connect tools for programs such as Blender, Maya, Houdini, Substance 3D, ComfyUI, ffmpeg, HandBrake, ImageMagick, OpenSCAD, PrusaSlicer and NVIDIA's texture tools, and let them pull free textures, HDRIs and models from Poly Haven and ambientCG. The Programs page also finds Adobe apps, free creative programs (GIMP, Krita, Inkscape, Audacity and more), video editors (DaVinci Resolve, CapCut, Kdenlive and more), CAD programs and slicers. Add more tools through MCP servers.
 - **Keep useful instructions.** Write skills in plain words, share them across agents and teams, and turn repeated work into routines you can run by hand or on a schedule.
-- **Review work before it goes out.** Handle permission requests in **Needs you**, answer agents' questions and review X and Reddit drafts in the **Outbox**, and find saved results in **Artifacts**.
+- **Review work before it goes out.** Handle permission requests in **Needs you**, answer agents' questions and review X and Reddit drafts in the **Outbox**, and find saved results in **Artifacts**. If an API-model tool may have made changes before failing, its outcome check stays in **Needs you** after the run ends.
 - **Agents ask you when they need you.** When an agent has to choose, needs something only you can give, or is stuck, its question goes to the **Outbox** and the **Needs you** drawer, with the choices as buttons and a box to answer in your own words. You can also answer right in its chat while it waits.
 
 ## Screenshots
@@ -55,7 +55,9 @@ Turn on **Settings › Appearance › Station look › Voxel world** (or ask the
 
 Everyone sees the whole conversation. Agents hand work to each other with @mentions, and the files they make show up in the chat: images, video, audio and 3D models you can turn with the mouse. Teams talk to each other too: write **#Team Name** and the message goes to that team's chat, and its answer comes back once that team is done.
 
-When nobody is named, the team uses the reply, needed tools, lead or best fit to choose who answers. If none matches, it asks the first free member, or queues the message when everyone is busy, and says who it chose in the chat. Members assigned the same message are told about each other. Shared messages enter each member's conversation in full. When memory fills, the model's context limits decide when to compact; the saved originals remain available. Agents can search their own past chats and their teams' conversations, then read the original messages, including text left out by compaction.
+When nobody is named, the team uses the reply, needed tools, lead or best fit to choose who answers. If none matches, it asks the first free member, or queues the message when everyone is busy, and says who it chose in the chat. Members assigned the same message are told about each other. Shared messages enter each member's conversation in full. API-model agents use Eve for their tool loop, saved sessions and native compaction. When memory fills, each engine manages its own active context; the saved originals remain available. Agents can search their own past chats and their teams' conversations, then read the original messages, including text left out by compaction.
+
+Delegated API-model tasks that resume after an app restart keep the same handle, so the calling agent can collect their final answer.
 
 Chats open as tabs in floating windows. Drag a tab out onto the map to give it a window of its own, drag it onto another window's tabs to move it there, or drag a window by its title bar onto another's tabs to join the two. **Ctrl+↓** (**⌘↓** on macOS) minimizes the window on top, and **Ctrl+↑** (**⌘↑**) brings back the one you minimized last. The **Arrange** button in a window's title bar snaps it to the left or right half, puts the windows side by side, gives every tab a window of its own, or combines them all into one; **Ctrl+Alt** (**Ctrl+⌥**) with **←** / **→** / **↑** / **↓** does the same from the keyboard. **Ctrl+F** (**⌘F**) searches the chat you are in (the Brain's, an agent's or a team's) or a Markdown file you are reading: it lights up every match, shows how many there are, and **Enter** / **Shift+Enter** go to the next or previous one. It reads the whole chat, even the old messages that are not drawn on screen. Very large Markdown files (up to 200 MB) open quickly too, because only the part you are reading is drawn.
 
@@ -108,7 +110,7 @@ The installers are not signed yet: on Windows choose **More info → Run anyway*
 
 ### From the source code
 
-You need [Bun](https://bun.sh) **1.2 or newer**, and a model to run your agents (see [Connect a model](#connect-a-model)). In this repository's folder:
+You need [Bun](https://bun.sh) **1.4 or newer**, and a model to run your agents (see [Connect a model](#connect-a-model)). In this repository's folder:
 
 ```sh
 bun install
@@ -174,6 +176,11 @@ Projects keep separate agents, teams and chats. The project name at the top left
 
 In any agent, team or Brain chat, **/** lists the commands (`/queue`, `/stop`, `/resume`, `/resend`, `/loop`, `/goal`, `/compact`, `/clear`), **@** picks another agent, and **#** in a team chat picks another team. What each one does, and how files and long chats are handled: [Chats and files](docs/guide.md#chats-and-files).
 
+Agent and team queues survive a restart. Unfinished work pauses for you to check; use `/resume`
+or send a message to continue. Teams keep their assignments and read marks, and reuse saved results
+when a run finished before the restart. Delegated tasks keep their handles and saved answers for
+six hours, including across restarts.
+
 **Assigned work keeps going.** The Brain checks agent and team results after each turn and follows up on missing work automatically. No `/goal` command is needed. It keeps going while work advances, waits for delegated work, and stops when the result is delivered or your action is needed. Blockers and repeated lack of progress appear in **Needs you** with a question you can answer to continue. **Stop** cancels continuation; changing the project on screen leaves work in its own project. Completion checks use the Brain's configured model.
 
 **Tasks stay with the work.** Agents, teams and the Brain share `TaskCreate`, `TaskGet`, `TaskList` and `TaskUpdate`. They can create or update several tasks in one call, with a result for each item. Tasks hold the requirements, owner and prerequisites; another agent cannot take work already claimed by someone else. The chat's **Tasks** panel lets you add, edit, search and remove them. **Clear tasks** removes all open tasks in the selected list after confirmation and keeps completed tasks. A task records a step; ask in the chat to start the work. Tasks are included in project saves and backups. See [Tasks](docs/guide.md#tasks).
@@ -213,6 +220,15 @@ More: [Save and restore](docs/guide.md#save-and-restore).
 More: [Troubleshooting](docs/guide.md#troubleshooting).
 
 ## Development
+
+The Eve runtime replacement is being developed separately from the current API engine. Building
+the runtime uses Bun 1.4 or newer. `bun run eve:build` builds it and `bun run eve:smoke` checks
+its private HTTP API, tool bridge, idle restart and file inputs with a fake model and throwaway data.
+`bun run eve:integration` also checks Athena's real tool bridge, saved session ownership, events,
+and restart during file, tool-access, voxel-ownership, appearance and Outbox approvals.
+It also checks that a native run stays busy through worker restart and records its answer and
+completion once, without another user input.
+These checks do not use your accounts or API keys. Desktop builds use the existing bundled Bun runtime.
 
 Bun runs the TypeScript server and bundles the browser app. The code is strict TypeScript; server and shared modules must also work under Node, because Vitest imports them there. CI uses **Bun 1.4.4** and **Node 24**, and checks Windows and Linux.
 
@@ -263,4 +279,4 @@ Some bundled pieces keep their own licenses: the skills in `skills/` and The Age
 
 ## Credits
 
-Inspired by [agent-office](https://github.com/AgentSystemLabs/agent-office). The Agent library includes specialists from [agency-agents](https://github.com/msitarzewski/agency-agents). Instant chat compaction draws on [dsh-compaction-instant](https://github.com/TsFreddie/dsh-compaction-instant). The Crafting App icons come from each app's repository (MIT OR Apache-2.0), see `public/craft-icons/README.md`.
+Inspired by [agent-office](https://github.com/AgentSystemLabs/agent-office). The Agent library includes specialists from [agency-agents](https://github.com/msitarzewski/agency-agents). The Crafting App icons come from each app's repository (MIT OR Apache-2.0), see `public/craft-icons/README.md`.

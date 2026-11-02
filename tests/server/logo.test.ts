@@ -116,7 +116,7 @@ describe('links in the project folder', () => {
   it('opens only real folders inside the Brain in Finder / Explorer', async () => {
     const p = await createProject({ name: 'Open folder', mode: 'new', folder: folder('open-folder') });
     fs.mkdirSync(path.join(p.brainPath, 'notes'), { recursive: true });
-    const real = (x: string) => fs.realpathSync(x);
+    const real = (x: string) => fs.realpathSync.native(x);
     expect(brainFolder(undefined, p)).toBe(p.brainPath);
     expect(real(brainFolder(path.join(p.brainPath, 'notes'), p))).toBe(real(path.join(p.brainPath, 'notes')));
     expect(real(brainFolder('notes', p))).toBe(real(path.join(p.brainPath, 'notes')));

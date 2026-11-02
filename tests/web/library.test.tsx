@@ -57,7 +57,7 @@ beforeEach(() => {
     }
     if (url === '/api/presets') return json(presets);
     if (url === '/api/state') return json(state.data);
-    if (url === '/api/models?engine=openai&provider=venice') return json([{ id: 'venice-chat', name: 'Venice Chat', reasoningEfforts: ['low', 'high'] }]);
+    if (url === '/api/models?engine=eve&provider=venice') return json([{ id: 'venice-chat', name: 'Venice Chat', reasoningEfforts: ['low', 'high'] }]);
     if (url.startsWith('/api/models?')) return json([]);
     if (url === '/api/library/hire') return json({ id: 'new-1', name: 'Hired' });
     if (url.startsWith('/api/presets/') && method === 'DELETE') return json({ ok: true });
@@ -143,7 +143,7 @@ describe('Library page', () => {
     { source: 'starter', effort: 'high' },
     { source: 'agency', effort: '' },
   ])('keeps effort "$effort" when hiring a $source agent with Venice', async ({ source, effort }) => {
-    state.data!.engineList.push({ id: 'openai', label: 'API model' } as AppState['engineList'][number]);
+    state.data!.engineList.push({ id: 'eve', label: 'API model' } as AppState['engineList'][number]);
     await open();
     if (source === 'starter') await click(el.querySelector<HTMLElement>('[role="tab"]')!);
     await click(buttons('API model')[0]);
@@ -162,7 +162,7 @@ describe('Library page', () => {
     expect(document.querySelector('.model-effort-level.on')?.textContent).toBe(effort ? 'High' : 'Default');
     await click([...document.querySelectorAll<HTMLButtonElement>('.model-list .st-menu-item')].find((b) => b.textContent?.includes('Venice Chat'))!);
     await click(el.querySelector<HTMLButtonElement>('.card .btn.small')!);
-    expect(requests.find((r) => r.url === '/api/library/hire')?.body).toMatchObject({ source, overrides: { engine: 'openai', provider: 'venice', model: 'venice-chat', effort } });
+    expect(requests.find((r) => r.url === '/api/library/hire')?.body).toMatchObject({ source, overrides: { engine: 'eve', provider: 'venice', model: 'venice-chat', effort } });
   });
 
   it('deletes a preset only after you confirm', async () => {

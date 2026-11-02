@@ -43,6 +43,13 @@ jobs:
       - name: Build web bundle
         run: bun run build
 
+      - name: Build and exercise the Eve runtime
+        run: |
+          bun run eve:build
+          bun run eve:smoke
+          bun run eve:recovery
+          bun run eve:integration
+
   desktop:
     name: Desktop app (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

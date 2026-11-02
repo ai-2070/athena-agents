@@ -38,7 +38,7 @@ beforeAll(async () => {
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
-const agent = (name: string) => newAgent({ name, engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+const agent = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
 const team = (name: string, lead: string, ...others: string[]) =>
   workflows.save({ name, description: `${name} work`, members: [lead, ...others], lead, steps: [] } as Partial<Team>);
 

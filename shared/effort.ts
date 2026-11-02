@@ -14,7 +14,7 @@ export const isEffort = (x: unknown): x is Effort => typeof x === 'string' && (E
 /** The levels an engine takes (always a run of EFFORTS, in order).
  *  provider: for API models, OpenRouter or a server on this PC. */
 export function effortLevels(engine: EngineId, provider?: string, modelLevels?: readonly Effort[]): Effort[] {
-  if (engine === 'openai' && provider === 'venice') return EFFORTS.filter((e) => modelLevels?.includes(e));
+  if (engine === 'eve' && provider === 'venice') return EFFORTS.filter((e) => modelLevels?.includes(e));
   const from = (a: Effort, b: Effort) => EFFORTS.slice(EFFORTS.indexOf(a), EFFORTS.indexOf(b) + 1);
   if (engine === 'claude-code') return from('low', 'max'); // claude --effort
   if (engine === 'codex') return from('minimal', 'xhigh'); // model_reasoning_effort

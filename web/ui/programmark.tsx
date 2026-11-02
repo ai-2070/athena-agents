@@ -9,7 +9,7 @@ import { DomNode, Icon } from './react.tsx';
 export function ProgramGlyph({ id, size = 17 }: { id: string; size?: number }) {
   const [theme, setTheme] = useState(0);
   useEffect(() => onThemeChange(() => setTheme((n) => n + 1)), []);
-  if (id === 'custom' || id === 'openai') return <Icon name="plug" size={size} />;
+  if (id === 'custom' || id === 'eve') return <Icon name="plug" size={size} />;
   return <span aria-hidden="true"><DomNode as="span" className="flex shrink-0" make={() => programIcon(id, id, size)} deps={[id, size, theme]} /></span>;
 }
 

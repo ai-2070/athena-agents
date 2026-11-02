@@ -21,7 +21,7 @@ const { agents, chats, workflows, questions } = await import('../../server/store
 const q = await import('../../server/questions.ts');
 const { callTool, toolsForAgent } = await import('../../server/tools.ts');
 
-const agent = (name = 'Designer'): Agent => agents.save({ name, engine: 'openai', toolGroups: [] } as Partial<Agent> as Agent);
+const agent = (name = 'Designer'): Agent => agents.save({ name, engine: 'eve', toolGroups: [] } as Partial<Agent> as Agent);
 /** The question ask() just put in the Outbox (once it is there). */
 async function newest() {
   for (let i = 0; i < 200 && !q.waitingQuestions().length; i++) await new Promise((r) => setTimeout(r, 5));

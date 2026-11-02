@@ -2,8 +2,7 @@ import { getSecrets, getSettings } from './store.ts';
 import { PORT } from './util.ts';
 import { VENICE_BASE } from './venice.ts';
 import { normalizeApiModels } from './apimodels.ts';
-import { cacheFields } from './promptcache.ts';
-import type { ApiModelInfo, Effort, ProviderId } from '../shared/types.ts';
+import type { ApiModelInfo, ProviderId } from '../shared/types.ts';
 
 export interface ProviderDef {
   label: string;
@@ -77,14 +76,4 @@ export async function apiModelInfo(id: string, model: string): Promise<ApiModelI
   return models.find((m) => m.id === model);
 }
 
-export function apiRequestOptions(provider: string, model: string, effort: Effort | '', session?: string, stream = true): Record<string, unknown> {
-  return {
-    ...(stream ? { stream: true, ...(provider === 'openrouter' ? { usage: { include: true } } : { stream_options: { include_usage: true } }) } : {}),
-    ...(effort ? provider === 'openrouter' ? { reasoning: { effort } } : { reasoning_effort: effort } : {}),
-    ...(provider === 'venice' ? { venice_parameters: {
-      include_venice_system_prompt: false, strip_thinking_response: true,
-      enable_web_search: 'off', enable_web_scraping: false, enable_x_search: false,
-    } } : {}),
-    ...cacheFields(provider, model, session),
-  };
-}
+export { apiRequestOptions } from './apioptions.ts';

@@ -51,7 +51,7 @@ function uiStream() {
 const SAVED: ChatItem[] = [
   { type: 'user', text: 'old question' },
   { type: 'assistant', text: 'old answer' },
-  { type: 'compaction', id: 'k1', text: 'COMPACTED HISTORY TEXT', mode: 'instant', trigger: 'auto', upto: 2 },
+  { type: 'compaction', id: 'k1', text: 'COMPACTED HISTORY TEXT', mode: 'engine', trigger: 'auto', upto: 2 },
   { type: 'user', text: 'make a render' },
   { type: 'tool', id: 't1', name: 'blender_run_python', args: { code: 'bpy.ops.render()' }, result: 'rendered', status: 'done' },
   { type: 'assistant', text: 'Saved it to **/w/render.png**' },
@@ -70,7 +70,7 @@ beforeAll(() => {
   connectEvents();
 });
 beforeEach(() => {
-  chat = { id: 'c1', agentId: 'a1', title: 'Renders', items: structuredClone(SAVED), llm: [], sessionId: null, createdAt: 0, updatedAt: 0 };
+  chat = { id: 'c1', agentId: 'a1', title: 'Renders', items: structuredClone(SAVED), sessionId: null, createdAt: 0, updatedAt: 0 };
   requests = [];
   sendStream = null;
   resumeStream = null;
@@ -132,9 +132,10 @@ describe('the agent chat (AI SDK)', () => {
     const el = await open();
     expect(el.textContent).toContain('make a render');
     expect(el.querySelector('details.tool .tname')!.textContent).toBe('blender_run_python');
-    expect(el.querySelector('details.compaction .cmp-text')!.textContent).toBe('COMPACTED HISTORY TEXT');
+    expect(el.querySelector('details.compaction')!.textContent).toContain('Original messages remain saved');
+    expect(el.querySelector('details.compaction textarea')).toBeNull();
     const old = [...el.querySelectorAll('.msg.user')].find((n) => n.textContent === 'old question')!;
-    expect(old.classList.contains('compacted')).toBe(true);
+    expect(old.classList.contains('compacted')).toBe(false);
     const recent = [...el.querySelectorAll('.msg.user')].find((n) => n.textContent === 'make a render')!;
     expect(recent.classList.contains('compacted')).toBe(false);
     expect(el.querySelector('.fp-card img')!.getAttribute('src')).toBe('/api/file?path=%2Fw%2Frender.png');
@@ -251,38 +252,6 @@ describe('the agent chat (AI SDK)', () => {
     expect(document.getElementById('toasts')!.textContent).toBe('Claude Code exited (1) without an answer.');
     expect(el.querySelector('textarea')!.value).toBe('');
     expect(el.querySelector('.msg.error')!.textContent).toBe('Claude Code exited (1) without an answer.');
-  });
-
-  it('nothing can be sent while it compacts', async () => {
-    const el = await open();
-    let finish = () => {};
-    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
-      requests.push({ method: init.method || 'GET', url, body: {} });
-      if (url.endsWith('/compact')) {
-        await new Promise<void>((r) => (finish = r));
-        return new Response(JSON.stringify({ compacted: false, message: 'Nothing to compact yet' }), { headers: { 'content-type': 'application/json' } });
-      }
-      return new Response(JSON.stringify(url === '/api/agents/a1/chats/c1' ? chat : []), { headers: { 'content-type': 'application/json' } });
-    });
-    await type(el, '/compact');
-    await settle();
-    const sendBtn = el.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!;
-    expect(sendBtn.disabled).toBe(true);
-    await type(el, 'are you there?');
-    await settle();
-    expect(requests.some((r) => r.url.endsWith('/stream') && r.method === 'POST')).toBe(false);
-    await act(async () => finish());
-    await settle();
-    expect(el.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.disabled).toBe(false);
-  });
-
-  it('/compact compacts instead of sending', async () => {
-    const el = await open();
-    await type(el, '/compact');
-    await settle();
-    expect(requests.some((r) => r.url === '/api/agents/a1/chats/c1/compact')).toBe(true);
-    expect(requests.some((r) => r.url.endsWith('/stream') && r.method === 'POST')).toBe(false);
-    expect(document.getElementById('toasts')!.textContent).toContain('Compacted');
   });
 
   it('a run started elsewhere (a team turn, another tab) is picked up and streams in', async () => {
@@ -470,7 +439,7 @@ describe('the agent chat (AI SDK)', () => {
     box.value = '/';
     await act(async () => box.dispatchEvent(new Event('input', { bubbles: true })));
     const names = [...el.querySelectorAll('.slash-menu .slash-name')].map((n) => n.textContent);
-    expect(names).toEqual(['/queue', '/stop', '/resume', '/resend', '/loop', '/goal', '/compact', '/review']);
+    expect(names).toEqual(['/queue', '/stop', '/resume', '/resend', '/loop', '/goal', '/review']);
     expect(el.querySelector('.slash-menu')!.textContent).toContain('Review the changes · Claude Code');
     // a harness command goes in with a space, for what comes after it
     box.value = '/rev';

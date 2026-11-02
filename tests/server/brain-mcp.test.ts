@@ -173,7 +173,7 @@ describe('the Brain changes and removes MCP servers', () => {
   it('always-allowed tools follow a rename and go with a removal', () => {
     mcp.saveServer('granted', { command: 'npx', args: ['g'] });
     const claude = agents.save({ ...newAgent({ name: 'Claude granted', mcpServers: ['granted'] }), alwaysAllow: ['mcp__granted__read', 'mcp__granted', 'mcp__grantedx__read', 'Bash'] });
-    const api = agents.save({ ...newAgent({ name: 'API granted', engine: 'openai' }), alwaysAllow: ['granted__read', 'granted_more__read', 'web_search'] });
+    const api = agents.save({ ...newAgent({ name: 'API granted', engine: 'eve' }), alwaysAllow: ['granted__read', 'granted_more__read', 'web_search'] });
     applyActions([{ do: 'update_mcp', server: 'granted', rename: 'allowed' }]);
     expect(agents.get(claude.id)?.alwaysAllow).toEqual(['mcp__allowed__read', 'mcp__allowed', 'mcp__grantedx__read', 'Bash']);
     // (the API agent never had the server on its list, but its grants still follow)

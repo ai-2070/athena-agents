@@ -11,7 +11,10 @@ import * as store from './store.ts';
 import { agents, chats, outbox, artifacts as artifactStore, workflows, runs, bus, getSettings, saveSettings, setSecret, secretStatus, internalToken, activity, log } from './store.ts';
 import { listApprovals, decide, requestApproval, setReviewer } from './approvals.ts';
 import * as engines from './engines/index.ts';
-import { PROVIDERS, listModels } from './engines/openai.ts';
+import { eveRuntime } from './eve/runtime.ts';
+import { EveOwnershipError } from './eve/ownership.ts';
+import { eveCoordinator } from './eve/coordinator.ts';
+import { PROVIDERS, listModels } from './providers.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { codexModelList } from './models.ts';
 import { listProfiles } from './engines/hermes.ts';
@@ -430,6 +433,7 @@ get('/api/agents/:id', async ({ id }) => {
 });
 put<Partial<Agent>>('/api/agents/:id', async ({ id }, body) => {
   const a = need(agents.get(id));
+  if (body.engine && body.engine !== a.engine) engines.retireAgentSessions(id);
   const allowed: (keyof Agent)[] = ['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'openclawAgent', 'autonomy', 'toolGroups', 'mcpServers', 'knowledge', 'workspace', 'temperature', 'effort', 'pinned', 'alwaysAllow', 'skills', 'richAnswers'];
   for (const k of allowed) if (k in body) (a as Record<keyof Agent, unknown>)[k] = body[k];
   if ('effort' in body) a.effort = isEffort(body.effort) ? body.effort : '';
@@ -437,6 +441,7 @@ put<Partial<Agent>>('/api/agents/:id', async ({ id }, body) => {
 });
 function deleteAgent(gone: Agent): void {
   const id = gone.id;
+  engines.retireAgentSessions(id);
   agents.remove(id);
   log('agent', `Deleted agent ${gone.name}`, { agentId: id });
   // and take it off every branch it was on
@@ -526,9 +531,6 @@ post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/mess
   const text = String(body.text || '').trim();
   const attachments = uploads.cleanAttachments(body.attachments);
   if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
-  // "/compact" (or "/compact summary", "/compact instant") compacts the chat instead of sending a message
-  const cmd = attachments.length ? null : /^\/compact(?:\s+(instant|summary))?\s*$/i.exec(text);
-  if (cmd) return compactResult(await engines.compactNow(a, c.id, cmd[1]?.toLowerCase() as 'instant' | 'summary' | undefined));
   // "/queue …" waits until the agent is done here (or goes now)
   const queued = queuedText(text);
   if (queued != null) return queueIn(a, c, queued, attachments);
@@ -580,13 +582,7 @@ get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {
   await uistream.streamRun(res, { chatId: cid, runId, items: engines.liveChat(cid)?.items || [] });
   return undefined;
 });
-// Compaction: the Compact button, the memory meter, and editing the compacted history
-const compactResult = ({ item }: Awaited<ReturnType<typeof engines.compactNow>>) => ({ compacted: !!item, item, ...(item ? {} : { message: 'Nothing to compact yet: the chat is short enough to keep in full.' }) });
-post<{ mode?: unknown }>('/api/agents/:id/chats/:cid/compact', async ({ id, cid }, body) =>
-  compactResult(await engines.compactNow(need(agents.get(id)), cid, body.mode === 'summary' || body.mode === 'instant' ? body.mode : undefined)),
-);
 get('/api/agents/:id/chats/:cid/memory', async ({ id, cid }) => engines.memoryOf(need(agents.get(id)), cid));
-put<{ text?: unknown }>('/api/agents/:id/chats/:cid/compactions/:kid', async ({ id, cid, kid }, body) => engines.editCompaction(id, cid, kid, String(body.text ?? '')));
 post('/api/agents/:id/chats/:cid/stop', async ({ cid }) => {
   // the /queue messages come back to you (they'd otherwise start as soon as it stopped); a loop ends
   const unqueued = engines.unqueue(cid);
@@ -1478,11 +1474,20 @@ ensureDir(dataPath('outputs'));
 fs.rmSync(dataPath('tmp', 'received'), { recursive: true, force: true }); // uploads cut off by a crash
 internalToken();
 store.migrateLayout();
+try { await eveRuntime.recover(); }
+catch (error) {
+  if (error instanceof EveOwnershipError) throw error;
+  log('error', 'Eve could not restore saved work. It will try again before accepting new Eve work.');
+}
+eveCoordinator.restore();
+engines.recoverExecution();
+teams.recoverTeamWork();
 wfs.markInterruptedRuns();
 wfs.startScheduler();
 skills.ensureBuiltinSkills();
 learning.startLearning();
 irc.startIrc();
+eveCoordinator.start();
 void irc.recoverWork().catch((e: unknown) => store.log('error', `Couldn't resume saved work: ${e instanceof Error ? e.message : String(e)}`));
 routinesMod.markInterruptedRoutines();
 routinesMod.startRoutineScheduler();
@@ -1513,7 +1518,7 @@ const shutdown = () => {
   stopping = true;
   terms.closeAll();
   // agents' CLIs are stopped too: they would go on writing into the project with no dashboard to see it
-  void engines.stopAllRuns().finally(() => process.exit(0));
+  void engines.stopAllRuns().finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()])).finally(() => process.exit(0));
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

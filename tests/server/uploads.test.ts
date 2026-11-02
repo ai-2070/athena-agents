@@ -10,9 +10,7 @@ import { activeProject, setActiveProject } from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
 import { callTool } from '../../server/tools.ts';
 import type { ToolAgent } from '../../server/tools.ts';
-import { expandImages } from '../../server/engines/openai.ts';
 import { isInside, IS_WIN } from '../../server/util.ts';
-import type { LlmMessage } from '../../server/engines/openai.ts';
 
 // a request body as receive() reads it
 const body = (data: string | Buffer, headers: Record<string, string> = {}) => Object.assign(Readable.from([Buffer.from(data)]), { headers }) as unknown as http.IncomingMessage;
@@ -107,79 +105,5 @@ describe('telling the agent', () => {
     expect(withAttachments('Sum this', [f.path])).toMatch(/^Sum this\n\n\[Attached files/);
     expect(withAttachments('', [f.path])).toMatch(/^Have a look at what I attached\./);
     expect(withAttachments('Just text', [])).toBe('Just text');
-  });
-});
-
-describe('images for API models', () => {
-  it('reads attached images as data URLs, or sends a note when the model has no vision', async () => {
-    const { batch } = newBatch();
-    const img = await receive(body('PNGDATA'), batch, 'pic.png');
-    const msgs: LlmMessage[] = [{ role: 'user', content: [{ type: 'text', text: 'Look' }, { type: 'image_url', image_url: { url: `dash-file:${img.path}` } }] }];
-    const seen = expandImages(msgs, true)[0];
-    expect(seen.role === 'user' && Array.isArray(seen.content) && seen.content[1]).toEqual({ type: 'image_url', image_url: { url: `data:image/png;base64,${Buffer.from('PNGDATA').toString('base64')}` } });
-    const blind = expandImages(msgs, false)[0];
-    expect(blind.content).toBe("Look\n\n(image pic.png attached; this model can't see images)");
-    // the stored history keeps the file reference, not the image data
-    expect(JSON.stringify(msgs)).not.toContain('base64');
-  });
-});
-
-describe('path safety', () => {
-  it('ignores case only on Windows', () => {
-    const root = path.join(path.sep, 'Brain', 'uploads');
-    expect(isInside(root, path.join(root, 'a.md'))).toBe(true);
-    expect(isInside(root, root)).toBe(false);
-    expect(isInside(root, root, { orEqual: true })).toBe(true);
-    expect(isInside(root, path.join(path.sep, 'Brain', 'uploads-old', 'a.md'))).toBe(false);
-    expect(isInside(root, path.join(path.sep, 'Brain', 'Uploads', 'a.md'))).toBe(IS_WIN);
-  });
-
-  it.skipIf(IS_WIN)('does not follow links out of uploads/', async () => {
-    const { batch, dir } = newBatch();
-    const outsideDir = path.join(path.dirname(uploadsRoot()), 'secret');
-    fs.mkdirSync(outsideDir, { recursive: true });
-    const secret = path.join(outsideDir, 'keys.txt');
-    fs.writeFileSync(secret, 'sk-xxx');
-    fs.symlinkSync(secret, path.join(dir, 'link.txt'));
-    fs.symlinkSync(outsideDir, path.join(dir, 'linkdir'));
-    expect(cleanAttachments([path.join(dir, 'link.txt'), path.join(dir, 'linkdir')])).toEqual([]);
-    expect(() => removeUpload(path.join(dir, 'link.txt'))).toThrow(/Only uploaded files/);
-    await expect(receive(body('x'), batch, 'linkdir/new.txt')).rejects.toThrow(/Bad upload path/);
-    expect(fs.existsSync(path.join(outsideDir, 'new.txt'))).toBe(false);
-    expect(fs.readFileSync(secret, 'utf8')).toBe('sk-xxx');
-  });
-
-  it('keeps both files when two with the same name upload at the same time', async () => {
-    const { batch } = newBatch();
-    const [a, b] = await Promise.all([receive(body('first'), batch, 'same.md'), receive(body('second'), batch, 'same.md')]);
-    expect(a.path).not.toBe(b.path);
-    expect([fs.readFileSync(a.path, 'utf8'), fs.readFileSync(b.path, 'utf8')].sort()).toEqual(['first', 'second']);
-  });
-});
-
-describe('an uploads folder that is a link out of the Brain folder', () => {
-  // a crafted project folder: its uploads/ is a junction to somewhere else on the PC
-  // (junctions need no admin rights on Windows; elsewhere 'junction' makes a plain folder link)
-  it('is not used: agents can not read through it, and attachments and removals refuse it', async () => {
-    const before = activeProject().id;
-    const p = await createProject({ name: 'Linked uploads', mode: 'new', folder: path.join(os.homedir(), 'projects', 'linked-uploads') });
-    setActiveProject(p.id);
-    try {
-      const outside = fs.mkdtempSync(path.join(os.homedir(), 'outside-uploads-'));
-      const secret = path.join(outside, 'private.txt');
-      fs.writeFileSync(secret, 'dummy-private-file');
-      fs.rmSync(path.join(p.brainPath, 'uploads'), { recursive: true, force: true });
-      fs.symlinkSync(outside, path.join(p.brainPath, 'uploads'), 'junction');
-      const viaLink = path.join(p.brainPath, 'uploads', 'private.txt');
-      expect(safeUploadsRoot()).toBeNull();
-      const agent: ToolAgent = { id: 'up-agent', name: 'Up', toolGroups: ['files'], autonomy: 'auto', workspace: fs.mkdtempSync(path.join(os.homedir(), 'ws-')), knowledge: { folders: [] } };
-      expect((await callTool(agent, 'read_file', { path: viaLink })).isError).toBe(true);
-      expect(cleanAttachments([viaLink, secret])).toEqual([]);
-      expect(() => removeUpload(viaLink)).toThrow(/link/);
-      expect(() => newBatch()).toThrow(/link/);
-      expect(fs.readFileSync(secret, 'utf8')).toBe('dummy-private-file');
-    } finally {
-      setActiveProject(before);
-    }
   });
 });

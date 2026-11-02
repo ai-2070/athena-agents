@@ -47,7 +47,7 @@ const DEFAULT_SETTINGS: Settings = {
   telegram: { chatId: '' },
   maxToolSteps: 16,
   costLimitUsdPerRun: 2,
-  compaction: { auto: true, engineOwn: true, instant: true, thresholdPercent: 50, keepMessages: 10, windowTokens: 0 },
+  contextWindowTokens: 0,
   favoriteModels: [],
   defaultWorld: '',
 };
@@ -378,7 +378,7 @@ export const chats = {
     return readJSON<Chat>(path.join(this.dir(agentId), `${chatId}.json`));
   },
   create(agentId: string, title = 'New chat', teamId: string | null = null): Chat {
-    const chat: Chat = { id: uid('c'), agentId, title, items: [], llm: [], sessionId: null, ...(teamId ? { teamId } : {}), createdAt: Date.now(), updatedAt: Date.now() };
+    const chat: Chat = { id: uid('c'), agentId, title, items: [], sessionId: null, ...(teamId ? { teamId } : {}), createdAt: Date.now(), updatedAt: Date.now() };
     return this.save(chat);
   },
   save(chat: Chat): Chat {

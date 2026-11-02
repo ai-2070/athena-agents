@@ -34,11 +34,15 @@
   "type": "module",
   "main": "server/index.ts",
   "scripts": {
-    "start": "bun run build && bun server/index.ts",
+    "start": "bun run eve:build && bun run build && bun server/index.ts",
     "dev": "bun scripts/dev.ts",
     "build": "bun scripts/build-web.ts",
     "icons": "bun scripts/build-icons.ts",
-    "typecheck": "tsc -p tsconfig.server.json && tsc -p tsconfig.web.json",
+    "typecheck": "tsc -p tsconfig.server.json && tsc -p tsconfig.web.json && tsc -p runtime/eve/tsconfig.json",
+    "eve:build": "bun scripts/build-eve.ts",
+    "eve:smoke": "bun scripts/eve-smoke.ts",
+    "eve:recovery": "bun scripts/eve-recovery-smoke.ts",
+    "eve:integration": "bun scripts/eve-integration-smoke.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "bun run typecheck && bun run test",
@@ -47,10 +51,12 @@
     "desktop:smoke": "bun scripts/desktop-smoke.ts"
   },
   "engines": {
-    "bun": ">=1.2"
+    "bun": ">=1.4"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "3.0.82",
     "@ai-sdk/react": "4.0.163",
+    "@athena/eve-world": "file:./runtime/eve-world",
     "@base-ui/react": "1.9.0",
     "@emoji-mart/data": "1.2.1",
     "@fontsource-variable/archivo": "5.3.0",
@@ -69,10 +75,13 @@
     "@openuidev/react-ui": "0.18.1",
     "@phosphor-icons/react": "2.1.10",
     "@tanstack/react-virtual": "3.14.25",
+    "@workflow/world-local": "5.1.2",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/xterm": "6.0.0",
     "ai": "7.0.159",
     "dompurify": "3.4.17",
+    "eve": "1.0.0-rc.1",
+    "just-bash": "3.6.0",
     "marked": "18.1.2",
     "quickjs-emscripten-core": "0.32.0",
     "react": "19.3.1",
@@ -99,5 +108,8 @@
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
     "vitest": "5.0.5"
+  },
+  "patchedDependencies": {
+    "@workflow/world-local@5.1.2": "patches/@workflow%2Fworld-local@5.1.2.patch"
   }
 }

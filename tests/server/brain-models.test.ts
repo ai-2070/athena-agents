@@ -58,7 +58,7 @@ describe('providers and model lists', () => {
     expect(modelProvider('nope')).toBeNull();
     // (built-in object keys aren't providers)
     expect(['constructor', 'toString', '__proto__', 'hasOwnProperty'].map(modelProvider)).toEqual([null, null, null, null]);
-    expect(providerOfAgent({ engine: 'openai', provider: 'ollama' })).toBe('ollama');
+    expect(providerOfAgent({ engine: 'eve', provider: 'ollama' })).toBe('ollama');
     expect(providerOfAgent({ engine: 'claude-code', provider: 'openrouter' })).toBe('claude');
     expect(modelProvider('oh-my-pi')).toBe('omp');
     for (const e of ['pi', 'omp', 'openclaw'] as const) expect(providerOfAgent({ engine: e, provider: 'openrouter' })).toBe(e);
@@ -132,12 +132,12 @@ describe('set_model', () => {
     setSecret('veniceKey', 'venice-test');
     vi.stubGlobal('fetch', async () => Response.json({ data: [{ id: 'venice-chat', model_spec: { capabilities: { supportsFunctionCalling: true, supportsReasoningEffort: true, reasoningEffortOptions: ['low', 'high'] } } }] }));
     const a = newAgent({ name: 'Venice writer', engine: 'claude-code', model: 'sonnet' });
-    const b = newAgent({ name: 'Venice editor', engine: 'openai', provider: 'openrouter', model: 'google/gemini-3-pro' });
+    const b = newAgent({ name: 'Venice editor', engine: 'eve', provider: 'openrouter', model: 'google/gemini-3-pro' });
     const crew = team('Venice crew', [a.id, b.id]);
     const actions = [{ do: 'set_model', to: 'team', id: crew.id, provider: 'venice', model: 'venice-chat', effort: 'max' }];
     await prepareModels(actions);
     expect(applyActions(actions).done[0]?.kind).toBe('model');
-    for (const agent of [a, b]) expect(agents.get(agent.id)).toMatchObject({ engine: 'openai', provider: 'venice', model: 'venice-chat', effort: 'high' });
+    for (const agent of [a, b]) expect(agents.get(agent.id)).toMatchObject({ engine: 'eve', provider: 'venice', model: 'venice-chat', effort: 'high' });
     const effort = [{ do: 'set_model', to: 'agent', id: a.id, effort: 'medium' }];
     await prepareModels(effort);
     applyActions(effort);
@@ -155,7 +155,7 @@ describe('set_model', () => {
   });
 
   it('changes only the effort, and the nearest level a provider has', () => {
-    const a = newAgent({ name: 'Analyst', engine: 'openai', provider: 'openrouter', model: 'google/gemini-3-pro' });
+    const a = newAgent({ name: 'Analyst', engine: 'eve', provider: 'openrouter', model: 'google/gemini-3-pro' });
     const r = applyActions([{ do: 'set_model', to: 'agent', id: 'Analyst', effort: 'max' }]);
     // OpenRouter goes up to extra high
     expect(agents.get(a.id)).toMatchObject({ model: 'google/gemini-3-pro', effort: 'xhigh' });
@@ -182,7 +182,7 @@ describe('set_model', () => {
   it('moves agents to another provider, with its default model when none is named', () => {
     const a = newAgent({ name: 'Scout', engine: 'claude-code', model: 'sonnet' });
     applyActions([{ do: 'set_model', to: 'agent', id: a.id, provider: 'openrouter' }]);
-    expect(agents.get(a.id)).toMatchObject({ engine: 'openai', provider: 'openrouter', model: 'anthropic/claude-sonnet-5.5' });
+    expect(agents.get(a.id)).toMatchObject({ engine: 'eve', provider: 'openrouter', model: 'anthropic/claude-sonnet-5.5' });
     applyActions([{ do: 'set_model', to: 'agent', id: a.id, provider: 'openrouter', model: 'google/gemini-3-flash' }]);
     expect(agents.get(a.id)?.model).toBe('google/gemini-3-flash');
   });
@@ -217,7 +217,7 @@ describe('set_model', () => {
   });
 
   it('checks the model for a team made earlier in the same answer, against the fetched list', async () => {
-    const a = newAgent({ name: 'Router', engine: 'openai', provider: 'openrouter', model: 'google/gemini-3-pro' });
+    const a = newAgent({ name: 'Router', engine: 'eve', provider: 'openrouter', model: 'google/gemini-3-pro' });
     const acts: BrainAction[] = [
       { do: 'create_team', name: 'Fresh team', members: [{ agent: a.id }] },
       { do: 'set_model', to: 'team', id: 'new', model: 'google/gemini-3-flsh' },
@@ -241,11 +241,11 @@ describe('set_model', () => {
     const r = applyActions(acts);
     expect(r.done.map((d) => d.kind)).toEqual(['model', 'error', 'model']);
     expect(r.done[1].text).toMatch(/Mover: OpenRouter has no model "google\/gemini-3-flsh"/);
-    expect(agents.get(a.id)).toMatchObject({ engine: 'openai', provider: 'openrouter', model: 'google/gemini-3-flash' });
+    expect(agents.get(a.id)).toMatchObject({ engine: 'eve', provider: 'openrouter', model: 'google/gemini-3-flash' });
   });
 
   it('a model the provider does not have is refused before anything changes', async () => {
-    const a = newAgent({ name: 'Researcher', engine: 'openai', provider: 'openrouter', model: 'google/gemini-3-pro' });
+    const a = newAgent({ name: 'Researcher', engine: 'eve', provider: 'openrouter', model: 'google/gemini-3-pro' });
     const acts: BrainAction[] = [{ do: 'set_model', to: 'agent', id: a.id, model: 'opus' }];
     await prepareModels(acts);
     const r = applyActions(acts);
@@ -267,7 +267,7 @@ describe('what the Brain sees', () => {
 
 describe('in the Brain chat', () => {
   it('looks up models, answers again with the list, then sets one', async () => {
-    const a = newAgent({ name: 'Summarizer', engine: 'openai', provider: 'openrouter', model: 'anthropic/claude-opus-5.5' });
+    const a = newAgent({ name: 'Summarizer', engine: 'eve', provider: 'openrouter', model: 'anthropic/claude-opus-5.5' });
     clearHistory();
     asked.length = 0;
     answers.push('Let me check.\n```actions\n[{"do":"find_models","provider":"openrouter","query":"gemini flash"}]\n```');
@@ -285,7 +285,7 @@ describe('in the Brain chat', () => {
   });
 
   it('a new conversation started while model lists are fetched changes nothing and keeps nothing', async () => {
-    const a = newAgent({ name: 'Cleared one', engine: 'openai', provider: 'openrouter', model: 'google/gemini-3-pro' });
+    const a = newAgent({ name: 'Cleared one', engine: 'eve', provider: 'openrouter', model: 'google/gemini-3-pro' });
     clearHistory();
     let fetched!: () => void;
     const gate = new Promise<void>((r) => (fetched = r));
@@ -313,7 +313,7 @@ describe('in the Brain chat', () => {
   });
 
   it('refuses a misspelled model id', async () => {
-    const a = newAgent({ name: 'Typist', engine: 'openai', provider: 'openrouter', model: 'google/gemini-3-pro' });
+    const a = newAgent({ name: 'Typist', engine: 'eve', provider: 'openrouter', model: 'google/gemini-3-pro' });
     clearHistory();
     answers.push(`On it.\n\`\`\`actions\n[{"do":"set_model","to":"agent","id":"${a.id}","model":"google/gemini-3-flsh"}]\n\`\`\``);
     const r = await ask('use gemini flash for the typist');

@@ -97,7 +97,7 @@ export function brainModel(): BrainModel {
   const p: BrainSetting['provider'] = ok[b.provider as BrainSetting['provider']] ? (b.provider as BrainSetting['provider']) : (['claude', 'openrouter', 'hermes', 'codex', 'venice'] as const).find((x) => ok[x]) || b.provider || 'claude';
   const model = p === b.provider ? b.model ?? '' : '';
   const dflt = { claude: 'haiku', openrouter: 'anthropic/claude-haiku-5.5', venice: getSettings().defaults.veniceModel, hermes: '', codex: '' }[p];
-  const engine = ({ claude: 'claude-code', openrouter: 'openai', venice: 'openai', hermes: 'hermes', codex: 'codex' } as const satisfies Record<BrainSetting['provider'], EngineId>)[p];
+  const engine = ({ claude: 'claude-code', openrouter: 'eve', venice: 'eve', hermes: 'hermes', codex: 'codex' } as const satisfies Record<BrainSetting['provider'], EngineId>)[p];
   const effort = p === b.provider ? p === 'venice' && isEffort(b.effort) ? b.effort : effortFor(engine, b.effort, p) : '';
   return { provider: p, model: model || dflt, effort, fallback: p !== (b.provider || 'claude') };
 }
@@ -140,7 +140,7 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
     if (!bm.model) throw new Error(`Choose a ${provider.label} model for the Brain or set its default in Settings first.`);
     const info = await apiModelInfo(provider.id, bm.model);
     if (info?.offline) throw new Error(`${provider.label} model "${bm.model}" is temporarily unavailable.`);
-    const effort = effortFor('openai', bm.effort, provider.id, info?.reasoningEfforts);
+    const effort = effortFor('eve', bm.effort, provider.id, info?.reasoningEfforts);
     const r = await fetch(`${provider.base}/chat/completions`, {
       method: 'POST',
       headers: provider.headers,

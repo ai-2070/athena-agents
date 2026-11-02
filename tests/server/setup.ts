@@ -20,6 +20,11 @@ if (os.homedir() !== home) throw new Error(`Tests could not use a throwaway home
 const { dataPath } = await import('../../server/util.ts');
 if (!path.resolve(dataPath()).startsWith(path.resolve(dir))) throw new Error(`The data folder is ${dataPath()}, not the throwaway one; stopping so your real data stays untouched.`);
 
-afterAll(() => {
+afterAll(async () => {
+  const { stopAllRuns } = await import('../../server/engines/index.ts');
+  const { eveCoordinator } = await import('../../server/eve/coordinator.ts');
+  const { eveRuntime } = await import('../../server/eve/runtime.ts');
+  await stopAllRuns(1000);
+  await Promise.allSettled([eveCoordinator.close(), eveRuntime.close()]);
   fs.rmSync(dir, { recursive: true, force: true });
 });

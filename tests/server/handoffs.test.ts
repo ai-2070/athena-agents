@@ -9,6 +9,8 @@ import { callTool } from '../../server/tools.ts';
 
 // a fake model: answers "Done: <task>" after `delay` ms
 let delay = 0;
+let held: Promise<void> | undefined;
+let waiting = 0;
 let server: http.Server;
 beforeAll(async () => {
   server = http.createServer(async (req, res) => {
@@ -17,6 +19,11 @@ beforeAll(async () => {
     for await (const c of req) body += c;
     const j = JSON.parse(body) as { messages: { content: string }[] };
     const task = String(j.messages.at(-1)!.content).split('\n').at(-1);
+    if (held) {
+      waiting++;
+      await held;
+      waiting--;
+    }
     await new Promise((r) => setTimeout(r, delay));
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: `Done: ${task}` } }] })}\n\n`);
@@ -28,7 +35,7 @@ beforeAll(async () => {
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
-const agent = (name: string, toolGroups: string[] = []) => newAgent({ name, engine: 'openai', provider: 'custom', model: 'mock', toolGroups });
+const agent = (name: string, toolGroups: string[] = []) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups });
 const handleOf = (text: string) => /handle (h\w+)/.exec(text)![1];
 
 describe('ask_agent and await_agent', () => {
@@ -52,16 +59,23 @@ describe('ask_agent and await_agent', () => {
     const boss = agent('Boss 2', ['agents']);
     const a = agent('Helper A');
     const b = agent('Helper B');
-    const t0 = Date.now();
-    const ha = handleOf((await callTool(boss, 'ask_agent', { agent: a.name, message: 'part one' }, { depth: 0 })).text);
-    const hb = handleOf((await callTool(boss, 'ask_agent', { agent: b.name, message: 'part two' }, { depth: 0 })).text);
-    const early = await callTool(boss, 'await_agent', { handle: ha, wait_seconds: 1 }, { depth: 0 });
-    expect(early.isError).toBe(false);
-    expect(early.text).toMatch(/^Helper A is still working on it \(.+ so far\)\.[\s\S]*Call await_agent again with handle h/);
-    expect((await callTool(boss, 'await_agent', { handle: ha }, { depth: 0 })).text).toBe('Helper A says:\nDone: part one');
-    expect((await callTool(boss, 'await_agent', { handle: hb }, { depth: 0 })).text).toBe('Helper B says:\nDone: part two');
-    // both took ~1.5 s side by side, not one after the other
-    expect(Date.now() - t0).toBeLessThan(2800);
+    let release = () => {};
+    held = new Promise<void>((resolve) => { release = resolve; });
+    try {
+      const ha = handleOf((await callTool(boss, 'ask_agent', { agent: a.name, message: 'part one' }, { depth: 0 })).text);
+      const hb = handleOf((await callTool(boss, 'ask_agent', { agent: b.name, message: 'part two' }, { depth: 0 })).text);
+      const early = await callTool(boss, 'await_agent', { handle: ha, wait_seconds: 1 }, { depth: 0 });
+      expect(early.isError).toBe(false);
+      expect(early.text).toMatch(/^Helper A is still working on it \(.+ so far\)\.[\s\S]*Call await_agent again with handle h/);
+      // Both requests must arrive before either can finish, regardless of worker startup time.
+      await expect.poll(() => waiting, { timeout: 20000 }).toBe(2);
+      release();
+      expect((await callTool(boss, 'await_agent', { handle: ha }, { depth: 0 })).text).toBe('Helper A says:\nDone: part one');
+      expect((await callTool(boss, 'await_agent', { handle: hb }, { depth: 0 })).text).toBe('Helper B says:\nDone: part two');
+    } finally {
+      release();
+      held = undefined;
+    }
   });
 
   it("only the asker collects it; a wrong handle says so; too deep is refused", async () => {

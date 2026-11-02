@@ -18,10 +18,10 @@ beforeEach(() => {
     runs: [],
     approvals: [],
     terminals: [],
-    engines: { 'claude-code': { installed: true }, codex: { installed: true, loggedIn: true }, hermes: { installed: true }, openai: {} },
+    engines: { 'claude-code': { installed: true }, codex: { installed: true, loggedIn: true }, hermes: { installed: true }, eve: {} },
     engineList: [
       { id: 'claude-code', label: 'Claude Code' },
-      { id: 'openai', label: 'API model' },
+      { id: 'eve', label: 'API model' },
       { id: 'hermes', label: 'Hermes' },
       { id: 'codex', label: 'Codex' },
     ],
@@ -32,7 +32,7 @@ beforeEach(() => {
     'fetch',
     vi.fn(async (url: string, init: RequestInit = {}) => {
       const path = String(url).replace(/^\/api/, '');
-      if (path === '/models?engine=openai&provider=venice') return Response.json([{ id: 'venice-chat', reasoningEfforts: ['low', 'high'] }]);
+      if (path === '/models?engine=eve&provider=venice') return Response.json([{ id: 'venice-chat', reasoningEfforts: ['low', 'high'] }]);
       if (init.method === 'PUT' && path === '/agents/a1') saved = JSON.parse(String(init.body));
       const body = path === '/agents/a1' ? { ...agent, knowledgeFiles: [], workspacePath: '/tmp', tools: [] } : path === '/mcp' ? { servers: {} } : [];
       return new Response(JSON.stringify(saved && init.method === 'PUT' ? saved : body), { status: 200 });
@@ -68,7 +68,7 @@ describe('agent editor: effort', () => {
     expect([...popup.querySelectorAll('[role="option"]')].map((o) => o.textContent?.trim())).toEqual(["Model's default", 'Low', 'High']);
     await act(async () => effortSelect().click());
     await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'Save')!.click());
-    expect(saved).toMatchObject({ engine: 'openai', provider: 'venice', model: 'venice-chat' });
+    expect(saved).toMatchObject({ engine: 'eve', provider: 'venice', model: 'venice-chat' });
   });
 
   it("shows the engine's levels and saves the nearest one after switching engines", async () => {

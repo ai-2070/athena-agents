@@ -10,7 +10,7 @@ import { activeProject, agents, chats, outbox, routineRuns, runs, saveSettings, 
 import { createProject } from '../../server/projects.ts';
 import { newAgent } from '../../server/library.ts';
 import { cloneProject } from '../../server/backup.ts';
-import { activeRuns, compactNow, forgetChat, isChatBusy, liveChat, queueMessage, resetMemory, runInfo, startRun, steerChat, stopChat } from '../../server/engines/index.ts';
+import { activeRuns, forgetChat, isChatBusy, liveChat, queueMessage, resetMemory, runInfo, startRun, steerChat, stopChat } from '../../server/engines/index.ts';
 import { awaitHandoff, listHandoffs, startHandoff } from '../../server/handoffs.ts';
 import { approvePost } from '../../server/social.ts';
 import { markInterruptedRuns } from '../../server/workflows.ts';
@@ -76,30 +76,8 @@ const releaseUntil = (ok: () => boolean) =>
   });
 const settled = (chatId: string) => releaseUntil(() => !activeRuns().some((r) => r.chatId === chatId));
 const folder = (name: string) => path.join(os.homedir(), 'isolation', name);
-const apiAgent = (name: string) => newAgent({ name, engine: 'openai', provider: 'custom', model: 'mock', toolGroups: [] });
+const apiAgent = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
 const said = (role: string, text: string): ChatItem => (role === 'user' ? { type: 'user', text, ts: 1 } : { type: 'assistant', text, ts: 1 });
-
-describe('manual compaction', () => {
-  // (first in this file: the model list isn't cached yet, so the compaction waits for it)
-  it('saves the chat in its own project when another is opened meanwhile', async () => {
-    const a = await createProject({ name: 'Compact A', mode: 'new', folder: folder('compact-a') });
-    const agent = apiAgent('Compacter');
-    const chat = chats.create(agent.id);
-    for (let i = 0; i < 30; i++) chat.items.push(said(i % 2 ? 'assistant' : 'user', `message ${i} ${'words '.repeat(200)}`));
-    chats.save(chat);
-    holdModels = true;
-    const going = compactNow(agent, chat.id, 'instant');
-    const b = await createProject({ name: 'Compact B', mode: 'new', folder: folder('compact-b') });
-    expect(activeProject().id).toBe(b.id);
-    await until(() => modelWaits.length > 0);
-    holdModels = false;
-    modelWaits.shift()!();
-    const { item } = await going;
-    expect(item).not.toBeNull();
-    withProject(a, () => expect(chats.get(agent.id, chat.id)?.items.some((i) => i.type === 'compaction')).toBe(true));
-    expect(chats.get(agent.id, chat.id)).toBeNull();
-  });
-});
 
 describe('a cloned chat', () => {
   it("has its own run, live copy, queue and stop: the original's work isn't the clone's", async () => {
@@ -143,7 +121,7 @@ describe('Clear memory while the agent answers', () => {
     await settled(chat.id);
     await promise;
     const saved = chats.get(agent.id, chat.id)!;
-    expect(saved.llm).toEqual([]);
+    expect(saved.items.some((item) => item.type === 'meta' && item.reset)).toBe(true);
     // the answer still shows
     expect(saved.items.some((i) => i.type === 'assistant')).toBe(true);
   });
@@ -174,7 +152,7 @@ describe('switching between a CLI engine and the API model', () => {
     const two = JSON.stringify(sent.at(-1));
     expect(two).toContain('The code is CEDAR now');
     expect(two).toContain('Remember the code ORCHID');
-    expect(chats.get(agent.id, chat.id)!.sessionEngine).toBe('openai');
+    expect(chats.get(agent.id, chat.id)!.sessionEngine).toBe('eve');
   });
 });
 
