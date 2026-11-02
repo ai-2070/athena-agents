@@ -21,6 +21,37 @@ describe('inline mention editor', () => {
     expect(editor.querySelector('[data-mention="#Design"]')).not.toBeNull();
   });
 
+  it('takes a whole pill away with Backspace after it or Delete before it, also at the end', () => {
+    const key = (editor: HTMLElement, k: string) => editor.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+    const { input, editor } = open('Ask @Ana to help #Design');
+    input.focus();
+    // right after "@Ana"
+    input.setSelectionRange(8, 8);
+    key(editor, 'Backspace');
+    expect(input.value).toBe('Ask  to help #Design');
+    expect(input.selectionStart).toBe(4);
+    // a pill that ends the text
+    input.setSelectionRange(input.value.length, input.value.length);
+    key(editor, 'Backspace');
+    expect(input.value).toBe('Ask  to help ');
+    expect(editor.querySelector('[data-mention]')).toBeNull();
+
+    // (one box at a time)
+    dispose?.();
+    document.body.replaceChildren();
+    const other = open('Hi @Ana there');
+    other.input.focus();
+    other.input.setSelectionRange(3, 3);
+    key(other.editor, 'Delete');
+    expect(other.input.value).toBe('Hi  there');
+    // in the middle of text, Backspace is the browser's own
+    other.input.setSelectionRange(2, 2);
+    const plain = new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true });
+    other.editor.dispatchEvent(plain);
+    expect(plain.defaultPrevented).toBe(false);
+    expect(other.input.value).toBe('Hi  there');
+  });
+
   it('tracks the caret and replaces a suggestion in the middle of a message', () => {
     const { input, editor } = open('Ask @An tomorrow');
     input.focus();
