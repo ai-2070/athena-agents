@@ -484,7 +484,7 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
           {/* (hidden, not taken away, for a backup: the tray keeps its picker and what was added) */}
           <FormSection icon="paperclip" title="Files" hint="Optional. They go into the project folder and the Brain reads them." className={restoreMode ? 'hidden' : ''}>
               <FileDrop picker={<DomNode as="span" make={() => tray.picker} deps={[]} />} hint="Briefs, docs, assets. Or drop or paste them anywhere in this window.">
-                <DomNode make={() => tray.el} deps={[]} />
+                <DomNode className="dom-contents" make={() => tray.el} deps={[]} />
               </FileDrop>
           </FormSection>
           <Switch checked={kickoff} onChange={setKickoff} className={`flex-nowrap! items-start! gap-3.5! rounded-box border border-line bg-panel-2/40 px-4 py-3.5 [&_.switch]:mt-0.5 [&_.switch]:flex-none ${restoreMode ? 'hidden!' : ''}`}>
