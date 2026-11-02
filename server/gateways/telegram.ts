@@ -1,0 +1,115 @@
+import { TelegramAdapter } from '@chat-adapter/telegram';
+import type { TelegramUpdate } from '@chat-adapter/telegram';
+import type { ChatInstance, Logger } from 'chat';
+import { z } from 'zod';
+import type { GatewayInbound } from '../../shared/types.ts';
+import { getGatewayInstance } from './instances.ts';
+import { gatewayInputAllowed } from './inbox.ts';
+import type { GatewayInbox } from './inbox.ts';
+
+export class GatewaySetupError extends Error {}
+
+const updateEnvelope = z.object({ update_id: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER) });
+const webhookInfo = z.object({ url: z.string() });
+// SDK logs may contain credential-bearing URLs or denied message text. Publish our own health only.
+const quiet: Logger = { child: () => quiet, debug() {}, info() {}, warn() {}, error() {} };
+
+/** The pinned SDK owns polling/backoff. Athena commits receipts before returning each fetched batch. */
+export class TelegramIntakeAdapter extends TelegramAdapter {
+  private readonly instanceId: string;
+  private readonly inbox: GatewayInbox;
+  private readonly activity: (connected: boolean) => void;
+  private readonly signal: AbortSignal | undefined;
+  private identityUserName: string | undefined;
+
+  constructor(instanceId: string, inbox: GatewayInbox, botToken: string, activity: (connected: boolean) => void, options: { apiUrl?: string; signal?: AbortSignal } = {}) {
+    super({
+      botToken, apiUrl: options.apiUrl ?? 'https://api.telegram.org', logger: quiet, mode: 'polling', mentionOnReply: true,
+      // Polling must never silently take over a bot's existing webhook.
+      longPolling: { deleteWebhook: false, allowedUpdates: ['message', 'edited_message'] },
+      allowedUserIds: [], secretToken: '', allowUnverifiedWebhooks: false, businessMode: false,
+    });
+    this.instanceId = instanceId;
+    this.inbox = inbox;
+    this.activity = activity;
+    this.signal = options.signal;
+  }
+
+  protected override async ensureBotIdentity(): Promise<void> {
+    await super.ensureBotIdentity();
+    // Chat's display name must not replace the bot username used for group mentions.
+    this.identityUserName ??= this.userName;
+    this._userName = this.identityUserName;
+  }
+
+  override async initialize(chat: ChatInstance): Promise<void> {
+    const instance = getGatewayInstance(this.instanceId);
+    if (!instance.enabled || instance.platform !== 'telegram') throw new GatewaySetupError('This Telegram instance is paused.');
+    // SDK initialize catches identity failures; resolve explicitly so a wrong bot cannot start polling.
+    await this.ensureBotIdentity();
+    if (this.botUserId !== instance.accountId) throw new GatewaySetupError('The Telegram token belongs to a different bot. Check the account ID.');
+    const info = webhookInfo.safeParse(await this.telegramFetch('getWebhookInfo'));
+    if (!info.success) throw new GatewaySetupError('Telegram webhook setup could not be checked. Try reconnecting.');
+    if (info.data.url) throw new GatewaySetupError('This bot has a webhook. Switch it to polling explicitly before connecting.');
+    await super.initialize(chat);
+  }
+
+  private receive(update: TelegramUpdate): void {
+    const instance = getGatewayInstance(this.instanceId);
+    if (!instance.enabled) throw new GatewaySetupError('This Telegram instance is paused.');
+    const message = update.message ?? update.edited_message;
+    if (!message || !message.from || message.sender_chat || message.sender_business_bot || message.business_connection_id) return;
+    const sender = message.from;
+    if (!Number.isSafeInteger(sender.id) || sender.id <= 0 || sender.is_bot || String(sender.id) === this.botUserId) return;
+    if (!Number.isSafeInteger(message.message_id) || !Number.isSafeInteger(message.chat.id)) return;
+    if (message.message_thread_id !== undefined && (!Number.isSafeInteger(message.message_thread_id) || message.message_thread_id < 1)) return;
+    if (!['private', 'group', 'supergroup'].includes(message.chat.type)) return;
+    const input: GatewayInbound = {
+      platform: 'telegram', accountId: instance.accountId,
+      conversationId: String(message.chat.id), threadId: message.message_thread_id === undefined ? '' : String(message.message_thread_id),
+      sourceEventId: String(update.update_id), sourceMessageId: String(message.message_id),
+      kind: update.edited_message ? 'edit' : 'message',
+      actor: { id: String(sender.id), label: [sender.first_name, sender.last_name].filter(Boolean).join(' ').slice(0, 200), kind: 'user' },
+      directMessage: message.chat.type === 'private', triggered: false, text: '', media: [],
+    };
+    if (!gatewayInputAllowed(instance, input)) return;
+    // Parsing supplies SDK media IDs and mention/reply detection without fetching any attachment.
+    const parsed = this.parseMessage(message);
+    input.text = parsed.text;
+    input.triggered = parsed.isMention === true;
+    input.media = parsed.attachments.map((attachment) => {
+      const fileId = attachment.fetchMetadata?.fileId;
+      if (!fileId) throw new Error('Telegram did not supply a durable attachment ID.');
+      return { kind: attachment.type, fileId, name: attachment.name, mimeType: attachment.mimeType, size: attachment.size };
+    });
+    this.inbox.accept(input);
+  }
+
+  protected override processUpdate(update: TelegramUpdate): Promise<void>[] {
+    // Replay any pending SDK receipts through the same idempotent application inbox.
+    this.receive(update);
+    return [];
+  }
+
+  protected override async telegramFetch<TResult>(method: string, payload?: Record<string, unknown> | FormData, request?: { signal?: AbortSignal }): Promise<TResult> {
+    try {
+      const signals = [AbortSignal.timeout(method === 'getUpdates' ? 45000 : 15000)];
+      if (request?.signal) signals.push(request.signal);
+      if (this.signal) signals.push(this.signal);
+      const result = await super.telegramFetch<TResult>(method, payload, { signal: AbortSignal.any(signals) });
+      if (method !== 'getUpdates') return result;
+      if (!Array.isArray(result)) throw new Error('Telegram returned an invalid update batch.');
+      const acknowledged = result.map((value: unknown) => {
+        const envelope = updateEnvelope.parse(value);
+        this.receive(value as TelegramUpdate);
+        // The SDK can advance its cursor without retaining raw denied or duplicate message bodies.
+        return { update_id: envelope.update_id };
+      });
+      this.activity(true);
+      return acknowledged as TResult;
+    } catch (error) {
+      if (!request?.signal?.aborted && !this.signal?.aborted) this.activity(false);
+      throw error;
+    }
+  }
+}

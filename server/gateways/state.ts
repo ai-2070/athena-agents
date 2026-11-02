@@ -63,7 +63,7 @@ function prune(state: GatewaySdkState): void {
 
 /** One claimed writer per instance. Each mutation commits atomically before returning to the SDK. */
 export class GatewayStateAdapter implements StateAdapter {
-  private readonly instanceId: string;
+  readonly instanceId: string;
   private data: GatewaySdkState | undefined;
   private release: (() => Promise<void>) | undefined;
   private opening: Promise<void> | undefined;
@@ -77,6 +77,12 @@ export class GatewayStateAdapter implements StateAdapter {
   private file(): string {
     gatewayStateDirectory(this.instanceId);
     return privateDataPath('gateways-runtime', this.instanceId, 'sdk-state.json');
+  }
+
+  /** Journal operations are synchronous while this adapter holds the instance claim. */
+  inboxFile(): string {
+    if (!this.data || this.closing) throw new Error('Gateway state is not connected.');
+    return privateDataPath('gateways-runtime', this.instanceId, 'inbox.json');
   }
 
   connect(): Promise<void> {

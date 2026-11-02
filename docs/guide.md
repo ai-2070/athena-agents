@@ -370,6 +370,11 @@ The dashboard keeps the last **50 versions** per item and groups nearby edits. *
 
 Building, testing and packaging the dashboard is in the [README](../README.md#development).
 
+Chat gateways are still being built. The server can save allowed Telegram messages for later work,
+but replies and Settings setup are not ready. Existing Outbox connections work as before. The
+[gateway plan](internal/plans/CHAT_GATEWAYS_2026-11-01.md) tracks the remaining work;
+`bun run gateways:smoke` checks a fake local Telegram service without using accounts or keys.
+
 ## License and credits
 
 Both are in the [README](../README.md#license).

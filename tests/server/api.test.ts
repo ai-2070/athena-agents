@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
+import type { GatewayHealth, GatewayInstance } from '../../shared/types.ts';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 // set in beforeAll: a port nothing else is using (see startServer)
@@ -224,6 +225,42 @@ describe('API', () => {
     expect((await req('/api/nope')).status).toBe(404);
     expect((await req('/api/agents', { method: 'POST', headers: json, body: '{oops' })).status).toBe(400);
     expect((await req('/api/agents', { method: 'POST', headers: json, body: 'null' })).status).toBe(400);
+  });
+});
+
+describe('gateway configuration API', () => {
+  it('keeps multiple instances and credentials separate behind the existing request guards', async () => {
+    const state = await (await req('/api/state')).json() as { project: { id: string } };
+    const config = {
+      name: 'First Telegram', platform: 'telegram', accountId: '30000', projectId: state.project.id,
+      target: { kind: 'brain' }, senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] },
+      scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false,
+    };
+    const unguarded = await req('/api/gateways', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) });
+    expect(unguarded.status).toBe(403);
+    const create = async (body: unknown) => req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(body) });
+    const one = await (await create(config)).json() as GatewayInstance;
+    const two = await (await create({ ...config, name: 'Second Telegram', accountId: '30001' })).json() as GatewayInstance;
+    expect(one.id).not.toBe(two.id);
+    expect((await create(config)).status).toBe(400);
+    const credentials = await req(`/api/gateways/${one.id}/credentials`, { method: 'PUT', headers: json, body: JSON.stringify({ botToken: 'private-gateway-token' }) });
+    expect(await credentials.json()).toEqual({ botToken: true });
+    const listing = await req('/api/gateways');
+    const listed = await listing.json() as { instances: (GatewayInstance & { credentials: Record<string, boolean> })[]; health: GatewayHealth[] };
+    expect(JSON.stringify(listed)).not.toContain('private-gateway-token');
+    expect(listed.instances.find((instance) => instance.id === one.id)?.credentials).toEqual({ botToken: true });
+    expect(listed.instances.find((instance) => instance.id === two.id)?.credentials).toEqual({});
+    expect((await create({ ...config, accountId: '30002', botToken: 'do-not-echo-this' })).status).toBe(400);
+    expect((await req(`/api/gateways/${one.id}/reconnect`, { method: 'POST', headers: json })).status).toBe(200);
+    expect((await req(`/api/gateways/${one.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ ...config, name: 'Renamed Telegram' }) })).status).toBe(200);
+    expect((await req(`/api/gateways/${one.id}`, { method: 'DELETE', headers: json })).status).toBe(200);
+    const remaining = await (await req('/api/gateways')).json() as { instances: GatewayInstance[] };
+    expect(remaining.instances.some((instance) => instance.id === one.id)).toBe(false);
+    expect(remaining.instances.some((instance) => instance.id === two.id)).toBe(true);
+    const secrets = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'gateway-secrets.json'), 'utf8')) as Record<string, unknown>;
+    expect(Object.hasOwn(secrets, one.id)).toBe(false);
+    await req(`/api/gateways/${two.id}`, { method: 'DELETE', headers: json });
   });
 });
 

@@ -1,6 +1,6 @@
 # Chat SDK Gateways with files
 
-*Plan, 1 November 2026. Foundation started 2 November; transports and product setup are not implemented.
+*Plan, 1 November 2026. Foundation and Telegram intake started 2 November; two-way chats and product setup are incomplete.
 New gateway data does not need a legacy compatibility layer.*
 
 ## Implementation status
@@ -25,14 +25,31 @@ New gateway data does not need a legacy compatibility layer.*
   and recovery after killing a writer. A bundled proof also runs from read-only files outside the
   repository. All four adapters import and construct in the fixture;
   live Slack/Discord connections and WhatsApp signatures/media remain unproven.
-- These are internal foundation services only. No worker, transport, API routes or Settings UI is
-  enabled yet. Sender validation here checks configuration, not inbound platform identities.
-  WhatsApp configuration currently accepts canonical E.164 only; local-number parsing and verified
-  business identity mapping remain to implement.
-- Next: finish transport/media proof, add durable inbox/delivery state and wire worker supervision.
-  Prove existing-webhook detection before enabling Telegram polling; disabling automatic deletion
-  alone is not the setup flow. Real-account text/file checks on all four platforms and platform
-  verification on Windows/Linux remain outstanding. The offline checks run in the CI test matrix.
+- Added a separate durable application inbox. A single atomic write saves each accepted message,
+  its sender, conversation binding, explicit route and ordered receipt. Replays deduplicate across
+  restarts and route changes. Each conversation waits for earlier unresolved input; unrelated
+  conversations can progress. An operation ID is saved before work is claimed; interrupted claims
+  require review instead of starting a second run. Edits are separate review items and hold any
+  unstarted original. File input stays in `waiting-files` until the download stage is implemented.
+- Added supervised Telegram polling on server startup for enabled instances, account-level ownership
+  claims, retry/backoff, redacted health events and pause/delete/reconnect lifecycle. Configuration
+  changes restart the relevant instance. Startup checks the token's bot ID and refuses an existing
+  webhook without deleting it. Sender/scope checks and durable inbox writes happen before returning
+  a fetched batch to the SDK; denied bodies never enter SDK pending state, and storage failure does
+  not advance the polling offset. Exact topic scopes use `chatId/topicId`; new shared conversations
+  require a bot mention or reply. No attachment is downloaded during intake.
+- Added guarded local APIs for instance configuration, credential replacement/presence, connection
+  health, reconnect and deletion under `/api/gateways`. There is no Settings UI, model dispatch,
+  incoming file saving or outgoing delivery yet. Telegram intake queues messages only; the existing
+  Outbox helpers remain unchanged. Other platforms fail closed at application intake and report
+  unavailable when enabled. WhatsApp configuration currently accepts canonical E.164 only;
+  local-number parsing and verified business identity mapping remain to implement.
+- Next: save incoming files safely, connect the inbox to shared Brain/team/agent services, add the
+  delivery ledger and Settings UI, and finish transport/media proof for the other platforms. Albums
+  still need grouping before dispatch, and inbox retention/review controls and explicit webhook
+  switching still need product setup. Deleted instances retain private inbox receipts for recovery;
+  the final deletion/retention flow is pending. Real-account text/file checks on all four platforms
+  and platform verification on Windows/Linux remain outstanding. Offline checks run in CI.
 
 ## Goal
 

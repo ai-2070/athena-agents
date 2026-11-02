@@ -51,6 +51,58 @@ export interface GatewaySdkState {
   subscriptions: string[];
   queues: Record<string, { enqueuedAt: number; expiresAt: number; message: SerializedMessage }[]>;
 }
+
+export interface GatewayInbound {
+  platform: GatewayPlatform;
+  accountId: string;
+  conversationId: string;
+  threadId: string;
+  sourceEventId: string;
+  sourceMessageId: string;
+  kind: 'message' | 'edit';
+  actor: { id: string; label: string; kind: 'user' | 'bot' | 'anonymous' };
+  directMessage: boolean;
+  triggered: boolean;
+  text: string;
+  media: { kind: 'image' | 'file' | 'audio' | 'video'; fileId: string; name?: string; mimeType?: string; size?: number }[];
+}
+
+export interface GatewayConversationBinding {
+  id: string;
+  accountId: string;
+  conversationId: string;
+  threadId: string;
+  route: GatewayRoute;
+  createdAt: number;
+}
+
+export interface GatewayInboxEvent {
+  id: string;
+  bindingId: string;
+  route: GatewayRoute;
+  input: GatewayInbound;
+  sequence: number;
+  receivedAt: number;
+  status: 'queued' | 'waiting-files' | 'running' | 'done' | 'needs-review';
+  operationId?: string;
+  reason?: string;
+}
+
+/** One atomic receipt includes its binding and route; transport acknowledgement follows this write. */
+export interface GatewayInboxJournal {
+  version: 1;
+  nextSequence: number;
+  bindings: GatewayConversationBinding[];
+  events: GatewayInboxEvent[];
+}
+
+export interface GatewayHealth {
+  instanceId: string;
+  status: 'paused' | 'connecting' | 'connected' | 'needs-setup' | 'retrying';
+  reason: string;
+  attempts: number;
+  updatedAt: number;
+}
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
 
 /** An API model's advertised limits. Missing capabilities mean the provider did not say. */

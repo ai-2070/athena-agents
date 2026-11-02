@@ -14,6 +14,8 @@ import * as engines from './engines/index.ts';
 import { eveRuntime } from './eve/runtime.ts';
 import { EveOwnershipError } from './eve/ownership.ts';
 import { eveCoordinator } from './eve/coordinator.ts';
+import * as gateways from './gateways/instances.ts';
+import { GatewaySupervisor } from './gateways/supervisor.ts';
 import { PROVIDERS, listModels } from './providers.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { codexModelList } from './models.ts';
@@ -123,6 +125,7 @@ const post = <B = Body>(p: string, h: Handler<B>) => route('POST', p, h);
 const postFile = (p: string, h: Handler<string>) => route('POST', p, h, true);
 const put = <B = Body>(p: string, h: Handler<B>) => route('PUT', p, h);
 const del = <B = Body>(p: string, h: Handler<B>) => route('DELETE', p, h);
+const gatewaySupervisor = new GatewaySupervisor();
 
 class HttpError extends Error {
   status: number;
@@ -969,6 +972,26 @@ post<{ flavor?: string }>('/api/pi/add-bridge', async (_p, body) => {
 });
 
 // ---------- settings ----------
+get('/api/gateways', async () => ({
+  instances: gateways.listGatewayInstances().map((instance) => ({ ...instance, credentials: gateways.gatewayCredentialStatus(instance.id) })),
+  health: gatewaySupervisor.health(),
+}));
+post<unknown>('/api/gateways', async (_p, body) => gateways.saveGatewayInstance(body));
+put<unknown>('/api/gateways/:id', async ({ id }, body) => gateways.saveGatewayInstance(body, id));
+put<unknown>('/api/gateways/:id/credentials', async ({ id }, body) => {
+  gateways.saveGatewayCredentials(id, body);
+  return gateways.gatewayCredentialStatus(id);
+});
+post('/api/gateways/:id/reconnect', async ({ id }) => {
+  gateways.getGatewayInstance(id);
+  await gatewaySupervisor.reconnect(id);
+  return { ok: true };
+});
+del('/api/gateways/:id', async ({ id }) => {
+  gateways.removeGatewayInstance(id);
+  await gatewaySupervisor.reconnect(id);
+  return { ok: true };
+});
 get('/api/settings', async () => ({ settings: getSettings(), secrets: secretStatus() }));
 put<Parameters<typeof saveSettings>[0] | null>('/api/settings', async (_p, body) => saveSettings(body || {}));
 post<{ key: string; value?: unknown }>('/api/secrets', async (_p, body) => {
@@ -1488,6 +1511,7 @@ skills.ensureBuiltinSkills();
 learning.startLearning();
 irc.startIrc();
 eveCoordinator.start();
+await gatewaySupervisor.start();
 void irc.recoverWork().catch((e: unknown) => store.log('error', `Couldn't resume saved work: ${e instanceof Error ? e.message : String(e)}`));
 routinesMod.markInterruptedRoutines();
 routinesMod.startRoutineScheduler();
@@ -1518,7 +1542,7 @@ const shutdown = () => {
   stopping = true;
   terms.closeAll();
   // agents' CLIs are stopped too: they would go on writing into the project with no dashboard to see it
-  void engines.stopAllRuns().finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()])).finally(() => process.exit(0));
+  void Promise.allSettled([gatewaySupervisor.stop(), engines.stopAllRuns()]).finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()])).finally(() => process.exit(0));
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
