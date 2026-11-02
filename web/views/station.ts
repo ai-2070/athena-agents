@@ -2332,7 +2332,7 @@ function drawBranchCard(wfId: string): void {
   b.card.classList.toggle('needs', false);
   mount(
     b.card,
-    h('div', { class: BRANCH_NAME }, h('span.st-dot'), wf.name),
+    h('div', { class: BRANCH_NAME }, wf.name),
     h(
       'div',
       { class: 'flex items-baseline gap-1.5 mt-3 mb-0.5' },
