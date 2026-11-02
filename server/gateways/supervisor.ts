@@ -72,6 +72,12 @@ export class GatewaySupervisor {
     return worker.reconcile(eventId);
   }
 
+  groupAlbum(instanceId: string, eventId: string, body: unknown): { leaderId: string } {
+    const worker = this.workers.get(instanceId);
+    if (!worker) throw Object.assign(new Error('Connect this gateway before grouping its album.'), { status: 400 });
+    return worker.groupAlbum(eventId, body);
+  }
+
   async cleanup(instanceId: string, body: unknown): Promise<{ removed: number }> {
     const worker = this.workers.get(instanceId);
     if (worker) return worker.cleanup(body);

@@ -98,6 +98,13 @@ export interface GatewayInboxEvent {
   notices?: Partial<Record<'working' | 'approval', GatewayReplyPart>>;
   outgoing?: GatewayOutgoingFile[];
   reconciliation?: GatewayReconciliation;
+  album?: { leaderId: string; memberIds?: string[] };
+  albumBlocked?: true;
+}
+
+export interface GatewayRunInput {
+  text: string;
+  attachments: string[];
 }
 
 export interface GatewayReconciliation {
@@ -155,6 +162,7 @@ export interface GatewayInboxJournal {
   events: GatewayInboxEvent[];
   retired?: string[];
   retiredQuota?: { day: string; incomingBytes: number; outgoingBytes: number }[];
+  retiredAlbums?: string[];
 }
 
 export interface GatewayHealth {

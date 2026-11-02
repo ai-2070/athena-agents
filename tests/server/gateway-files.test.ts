@@ -141,7 +141,7 @@ describe('saving gateway files', () => {
     expect(calls).toBe(1); expect(f.inbox.list()[0].status).toBe('queued');
   });
 
-  it('detects changed saved bytes and keeps albums out of dispatch until grouping is implemented', async () => {
+  it('detects changed saved bytes and keeps albums out of dispatch until explicitly grouped', async () => {
     const f = await fixture(async () => source('hello'));
     f.accept('1', undefined, true); await f.processor.start();
     const album = f.inbox.list()[0]; expect(album.status).toBe('needs-review');

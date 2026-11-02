@@ -228,6 +228,8 @@ Set up Telegram instances under **Settings → Gateways**, choose their project 
 then enable them. Open an instance's **Inbox** to review delivery, retry unconfirmed parts, skip files or select
 specific files to send. Uncertain retries ask you to check Telegram first. Artifacts and tool images are not attached automatically.
 **Check saved work** can recover a verified completed reply or resume tracking its original operation without starting another run.
+Telegram albums wait in the inbox for **Group album and start**. Check Telegram for all parts first;
+one assignment includes every saved file and caption. Later parts or edits hold the work for review.
 The sidebar's **Status** panel links gateway warnings to the relevant inbox or instance setup.
 Completed inbox receipts can be removed after confirmation. Native chats, files, replay protection and byte accounting stay intact.
 Delegated files stay tied to their source run and workspace; revoked access holds delivery for review.

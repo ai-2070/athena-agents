@@ -176,3 +176,37 @@ it('does not apply cleanup confirmation after the inbox has closed', async () =>
   events[0].reply!.parts[1].status = 'sent'; await open(); await click('Remove completed receipts'); await settle();
   act(() => unmount()); await click('Remove receipts', document); await settle(); expect(writes).toHaveLength(0);
 });
+
+function albumEvents() {
+  return [1, 2].map((index) => {
+    const item = event(index); item.status = 'needs-review'; delete item.dispatch; delete item.operationId; delete item.reply;
+    item.input.mediaGroupId = 'album'; item.input.media = [{ kind: 'file', fileId: `file-${index}` }];
+    item.files = [{ index: 0, status: 'saved', attempts: [], file: { path: `/project/${index}.txt`, name: `${index}.txt`, top: 'batch', kind: 'file', size: 5 } }];
+    return item;
+  });
+}
+
+it('confirms the complete visible album selection once before starting an assignment', async () => {
+  events = albumEvents(); await open();
+  expect([...host.querySelectorAll('button')].filter((item) => item.textContent === 'Group album and start')).toHaveLength(1);
+  await click('Group album and start'); await settle();
+  expect(document.querySelector('.modal')?.textContent).toContain('no album completion marker');
+  expect(document.querySelector('.modal')?.textContent).toContain('messages: 1, 2'); expect(writes).toHaveLength(0);
+  await click('Cancel', document); await settle(); expect(writes).toHaveLength(0);
+  await click('Group album and start'); await settle(); await click('Group album and start', document.querySelector('.modal')!); await settle();
+  expect(writes).toEqual([{ url: '/api/gateways/g1/inbox/event-1/group-album', body: { eventIds: ['event-1', 'event-2'] } }]);
+});
+
+it('disables grouping while paused and does not apply a stale confirmation after closing', async () => {
+  events = albumEvents(); await open(false); expect(button('Group album and start').disabled).toBe(true); act(() => unmount());
+  await open(); await click('Group album and start'); await settle(); act(() => unmount());
+  await click('Group album and start', document.querySelector('.modal')!); await settle(); expect(writes).toHaveLength(0);
+});
+
+it('shows grouped source IDs and directs followers to the single assignment', async () => {
+  events = albumEvents(); events[0].album = { leaderId: 'event-1', memberIds: ['event-1', 'event-2'] }; events[0].status = 'running';
+  events[1].album = { leaderId: 'event-1' }; events[1].status = 'done';
+  await open(); await all(); expect(host.textContent).toContain('Album source messages: 1, 2');
+  expect(host.textContent).toContain('Grouped with message 1'); expect(gatewayMessageStatus(events[1])).toBe('Grouped in album');
+  expect(button('Group album and start')).toBeUndefined(); expect(button('Send selected files')).toBeUndefined();
+});

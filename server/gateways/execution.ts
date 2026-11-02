@@ -6,14 +6,14 @@ import { ask, history } from '../overseer.ts';
 import { getTeam, getThread, isTeamBusy, postUserMessage, teamState } from '../teams.ts';
 import { pickMember } from '../brain.ts';
 import { listBriefs } from '../briefs.ts';
-import type { BrainBrief, GatewayDispatch, GatewayInboxEvent } from '../../shared/types.ts';
+import type { BrainBrief, GatewayDispatch, GatewayInboxEvent, GatewayRunInput } from '../../shared/types.ts';
 import { privateTeamRecord } from '../private-conversations.ts';
 import { withGatewayRoute } from './instances.ts';
 
 export type GatewaySubmitted = Pick<GatewayDispatch, 'runId' | 'messageId' | 'briefId' | 'briefRevision' | 'brain'>;
 export type GatewayCompletion = { state: 'pending' } | { state: 'needs-review' } | { state: 'completed'; answer: string };
 export interface GatewayExecutionServices {
-  submit(event: GatewayInboxEvent, signal: AbortSignal, proceed: () => boolean): Promise<GatewaySubmitted>;
+  submit(event: GatewayInboxEvent, signal: AbortSignal, proceed: () => boolean, input?: GatewayRunInput): Promise<GatewaySubmitted>;
   poll(event: GatewayInboxEvent): GatewayCompletion;
   reconcile?(event: GatewayInboxEvent): GatewayCompletion;
   approvalPending?(event: GatewayInboxEvent): boolean;
@@ -89,24 +89,25 @@ export const gatewayExecution: GatewayExecutionServices = {
       return run?.projectId === event.route.projectId && run.conversationId === event.bindingId;
     }));
   },
-  async submit(event, signal, proceed) {
+  async submit(event, signal, proceed, input) {
     signal.throwIfAborted();
     if (!proceed() || !event.dispatch || !event.operationId) throw new Error('This gateway operation is no longer authorized.');
+    if (event.input.mediaGroupId && !input) throw new Error('The complete album input is required.');
     return withGatewayRoute(event.route, async () => {
       const local = event.dispatch!.conversation;
-      const attachments = (event.files ?? []).map((file) => file.file!.path);
+      const { text, attachments } = input ?? { text: event.input.text, attachments: (event.files ?? []).map((file) => file.file!.path) };
       if (local.kind === 'agent') {
         const agent = agents.get(local.agentId); const chat = chats.get(local.agentId, local.chatId);
         if (!agent || !chat || chat.conversationId !== event.bindingId) throw new Error('The gateway conversation is unavailable.');
-        const run = startRun(agent, chat, event.input.text, { attachments, from: local.sender, reservedRunId: event.operationId, userInitiated: true });
+        const run = startRun(agent, chat, text, { attachments, from: local.sender, reservedRunId: event.operationId, userInitiated: true });
         void run.promise.catch(() => {});
         return { runId: run.runId, ...briefReference(briefFor(run.runId, local.agentId, local.chatId)) };
       }
       if (local.kind === 'team') {
-        const message = await postUserMessage(local.teamId, event.input.text, { attachments, sender: local.sender, messageId: event.operationId, route: pickMember, signal });
+        const message = await postUserMessage(local.teamId, text, { attachments, sender: local.sender, messageId: event.operationId, route: pickMember, signal });
         return { messageId: message.id, ...briefReference(briefFor(message.id, local.teamId)) };
       }
-      const answer = await ask(event.input.text, { project: event.route.projectId, attachments, conversationId: event.bindingId, from: local.sender, operationId: event.operationId, proceed });
+      const answer = await ask(text, { project: event.route.projectId, attachments, conversationId: event.bindingId, from: local.sender, operationId: event.operationId, proceed });
       if (answer.done.some((item) => item.kind === 'error')) throw new Error('The Brain operation needs review.');
       const delegate = answer.delegate;
       const brief = delegate?.sent?.runId && delegate.sent.chatId ? briefFor(delegate.sent.runId, delegate.id, delegate.sent.chatId)

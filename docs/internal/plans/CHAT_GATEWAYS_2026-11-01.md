@@ -171,7 +171,7 @@ New gateway data does not need a legacy compatibility layer.*
   check requires exact run/message/Brain operation identities and unchanged completion revisions;
   team recovery additionally requires a nonempty completion summary tied to that original message.
   This stricter check remains in use after tracking resumes, so a later unrelated team reply cannot
-  become the recovered outward answer. Source edits/albums, revoked sender access and changed routes
+  become the recovered outward answer. Source edits, ungrouped albums, revoked sender access and changed routes
   are rejected again before committing. The UI explains that a completed reply may be delivered,
   disables the check while paused, and shows the saved outcome. Tests cover restart, no resubmission,
   native Brain/team evidence, stale edits/access/routes, duplicate checks, error redaction and request guards.
@@ -204,8 +204,27 @@ New gateway data does not need a legacy compatibility layer.*
   exploit a clock rollback. There is no automatic purge or reset of these safety records. Tests cover
   full-inbox capacity, replay/restart/retargeting, shared-thread bindings, quota preservation, uploaded
   file preservation, unresolved context, corruption, ownership, selection age and confirmation.
+- Added explicit Telegram album grouping in the inbox. Files remain held until all currently saved
+  parts are reviewed and **Group album and start** is confirmed. Telegram provides no reliable end
+  marker, so there is no quiet-period auto-dispatch. The guarded grouping request names the exact
+  source receipts; a changed selection, missing file, edited source, mixed actor/route or revoked
+  access refuses the whole action. File counts and byte reservations apply across all parts,
+  including failed downloads. Each source retains its original ID, caption, file batch and hash.
+- One durable leader starts one native operation with all verified attachments and source captions;
+  followers point to its work and delivery receipts and cannot start their own operation. Every
+  member's file is verified in its own original batch before admission. Current journal state is
+  checked again after asynchronous file verification and by the Brain's admission callback. Late
+  parts and edits of any member hold unfinished work and pending deliveries, preserving confirmed
+  sends. A rate-limited in-flight delivery cannot silently return to automatic retry after a source
+  change. Grouped work can reconcile only its original operation with unchanged source receipts.
+- Cleanup removes a delivered album only as a whole. In addition to message replay hashes and byte
+  totals, it retains an opaque album-family hash (up to 100,000) so late parts after cleanup or restart
+  stay held instead of forming a second assignment. Reaching this cap refuses cleanup. Tests cover
+  one-operation dispatch, complete captions/attachments, source integrity, stale selections, actor/
+  route/access changes, late parts, edits, restart/reconciliation, aggregate limits, cleanup and UI
+  confirmation/paused controls. Real-account album checks remain outstanding.
 - Next: finish the other
-  platforms. Albums still need grouping before dispatch, and native-work override controls and explicit webhook
+  platforms. Native-work override controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the full deletion flow for retired instances is pending. Real-account text/file checks on all four platforms
   and platform verification on Windows/Linux remain outstanding. Offline checks run in CI.

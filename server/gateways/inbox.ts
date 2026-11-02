@@ -9,7 +9,7 @@ import type { GatewayStateAdapter } from './state.ts';
 import { privateDataPath } from '../private.ts';
 import type { GatewayCompletion } from './execution.ts';
 import type { GatewayReconciliation } from '../../shared/types.ts';
-import { gatewayCleanupCandidates } from '../../shared/gateways.ts';
+import { gatewayAlbumCandidates, gatewayAlbumKey, gatewayCleanupCandidates } from '../../shared/gateways.ts';
 
 const externalId = z.string().min(1).max(500);
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -46,6 +46,7 @@ const replyPart = z.strictObject({ text: z.string().min(1).max(3000), status: z.
 const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
   version: z.literal(1), nextSequence: stamp.positive(),
   retired: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(100000).optional(),
+  retiredAlbums: z.array(z.string().regex(/^[a-f0-9]{64}$/)).max(100000).optional(),
   retiredQuota: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), incomingBytes: stamp, outgoingBytes: stamp })).max(100000).optional(),
   bindings: z.array(z.strictObject({ id: externalId, accountId: externalId, conversationId: externalId, threadId: z.string().max(500), route, createdAt: stamp })),
   events: z.array(z.strictObject({
@@ -55,6 +56,8 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
     dispatch: dispatchSchema.optional(),
     reply: z.strictObject({ createdAt: stamp, reason: z.string().optional(), parts: z.array(replyPart).min(1).max(1000) }).optional(),
     notices: z.strictObject({ working: replyPart.optional(), approval: replyPart.optional() }).optional(),
+    album: z.strictObject({ leaderId: externalId, memberIds: z.array(externalId).min(2).max(10).optional() }).optional(),
+    albumBlocked: z.literal(true).optional(),
     reconciliation: z.strictObject({ at: stamp, state: z.enum(['tracking', 'completed', 'needs-review']) }).optional(),
     outgoing: z.array(z.strictObject({ path: z.string().min(1), name: z.string().min(1).max(180), size: stamp.positive(), sha256: z.string().regex(/^[a-f0-9]{64}$/), source: z.strictObject({ runId: externalId, agentId: externalId, chatId: externalId, workspace: z.string().min(1) }).optional(), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed', 'skipped']), attempts: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), bytes: stamp })), remoteId: externalId.optional(), retryAt: stamp.optional(), reason: z.string().optional() })).max(10).optional(),
     files: z.array(z.strictObject({
@@ -86,7 +89,24 @@ function replayReceiptsValid(journal: GatewayInboxJournal): boolean {
   if ((journal.retired === undefined) !== (journal.retiredQuota === undefined)) return false;
   const retired = new Set(journal.retired ?? []);
   return retired.size === (journal.retired?.length ?? 0) && !journal.events.some((event) => retired.has(event.id))
-    && new Set(journal.retiredQuota?.map((quota) => quota.day)).size === (journal.retiredQuota?.length ?? 0);
+    && new Set(journal.retiredQuota?.map((quota) => quota.day)).size === (journal.retiredQuota?.length ?? 0)
+    && new Set(journal.retiredAlbums ?? []).size === (journal.retiredAlbums?.length ?? 0);
+}
+const albumDigest = (input: GatewayInbound) => digest([gatewayAlbumKey(input)!]);
+
+function albumReceiptsValid(journal: GatewayInboxJournal): boolean {
+  const byId = new Map(journal.events.map((event) => [event.id, event]));
+  return journal.events.every((event) => {
+    if (!event.album) return true;
+    const leader = byId.get(event.album.leaderId); const ids = leader?.album?.memberIds;
+    return Boolean(leader && leader.album?.leaderId === leader.id && ids?.includes(event.id) && new Set(ids).size === ids.length
+      && ids.includes(leader.id) && !journal.retiredAlbums?.includes(albumDigest(leader.input))
+      && ids.every((id) => {
+        const item = byId.get(id);
+        return item && item.album?.leaderId === leader.id && item.input.kind === 'message' && item.input.media.length && !item.albumBlocked
+          && item.bindingId === leader.bindingId && gatewayAlbumKey(item.input) && gatewayAlbumKey(item.input) === gatewayAlbumKey(leader.input) && item.input.actor.id === leader.input.actor.id;
+      }) && (event.id === leader.id || (event.status === 'done' && !event.operationId && !event.dispatch && !event.reply && !event.outgoing && !event.album.memberIds)));
+  });
 }
 
 /** Atomic writers permit read-only diagnostics without taking the live worker's claim. */
@@ -95,7 +115,7 @@ export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] {
   const file = privateDataPath('gateways-runtime', instanceId, 'inbox.json');
   if (!fs.existsSync(file)) return [];
   const parsed = journalSchema.safeParse(readJSON(file));
-  if (!parsed.success || !replayReceiptsValid(parsed.data)) throw Object.assign(new Error('This gateway inbox is unreadable.'), { status: 503 });
+  if (!parsed.success || !replayReceiptsValid(parsed.data) || !albumReceiptsValid(parsed.data)) throw Object.assign(new Error('This gateway inbox is unreadable.'), { status: 503 });
   return parsed.data.events;
 }
 
@@ -122,6 +142,7 @@ export class GatewayInbox {
     if (!parsed.success) throw new Error('The gateway inbox is unreadable. Restore it before reconnecting.');
     const journal = parsed.data;
     const eventIds = new Set(journal.events.map((event) => event.id));
+    if (!albumReceiptsValid(journal)) throw new Error('The gateway album receipts are inconsistent. Restore them before reconnecting.');
     if (!replayReceiptsValid(journal)) throw new Error('The gateway replay or quota receipts are inconsistent. Restore them before reconnecting.');
     const bindings = new Map(journal.bindings.map((binding) => [binding.id, binding]));
     const sequences = new Set(journal.events.map((event) => event.sequence));
@@ -153,6 +174,61 @@ export class GatewayInbox {
 
   list(): GatewayInboxEvent[] { return this.read().events; }
 
+  groupAlbum(eventId: string, body: unknown): { leaderId: string } {
+    const parsed = z.strictObject({ eventIds: z.array(externalId).min(2).max(10) }).safeParse(body);
+    if (!parsed.success) throw new Error('Choose the complete saved album.');
+    const journal = this.read(); const event = journal.events.find((item) => item.id === eventId);
+    const members = event ? gatewayAlbumCandidates(journal.events, event) : [];
+    const chosen = new Set(parsed.data.eventIds);
+    if (!event || !members.length || chosen.size !== parsed.data.eventIds.length || chosen.size !== members.length || members.some((item) => !chosen.has(item.id))
+      || journal.retiredAlbums?.includes(albumDigest(event.input))) throw new Error('The album changed or is already grouped. Reload and review its source messages.');
+    const limits = this.checkAccess(event).fileLimits;
+    for (const item of members) this.checkAccess(item);
+    if (members.some((item) => item.files?.some((file) => file.file!.size > limits.perFileBytes))
+      || members.reduce((sum, item) => sum + item.input.media.length, 0) > limits.filesPerMessage
+      || members.flatMap((item) => item.files ?? []).flatMap((file) => file.attempts).reduce((sum, attempt) => sum + attempt.bytes, 0) > limits.perMessageBytes) throw new Error('The complete album exceeds this instance’s file limits.');
+    const leader = members[0]; const ids = members.map((item) => item.id);
+    for (const item of members) { item.album = item === leader ? { leaderId: leader.id, memberIds: ids } : { leaderId: leader.id }; item.status = item === leader ? 'queued' : 'done'; delete item.reason; }
+    this.commit(journal); return { leaderId: leader.id };
+  }
+
+  private sources(journal: GatewayInboxJournal, event: GatewayInboxEvent): GatewayInboxEvent[] {
+    if (!event.input.mediaGroupId) return [event];
+    if (event.album?.leaderId !== event.id || !event.album.memberIds) throw new Error('Group the complete album before starting work.');
+    const members = event.album.memberIds.map((id) => journal.events.find((item) => item.id === id)!);
+    if (journal.events.some((item) => (gatewayAlbumKey(item.input) === gatewayAlbumKey(event.input) && (item.albumBlocked || !event.album!.memberIds!.includes(item.id)))
+      || (item.input.kind === 'edit' && item.input.accountId === event.input.accountId && item.input.conversationId === event.input.conversationId
+        && item.input.threadId === event.input.threadId && members.some((source) => source.input.sourceMessageId === item.input.sourceMessageId)))) throw new Error('The album changed after grouping. Review it before continuing.');
+    for (const item of members) this.checkAccess(item);
+    return members;
+  }
+
+  private holdSource(event: GatewayInboxEvent, reason: string): void {
+    if (['queued', 'waiting-files', 'running'].includes(event.status)) {
+      event.status = 'needs-review'; event.reason = reason;
+      if (event.dispatch) event.dispatch.state = 'needs-review';
+    }
+    if (event.reply?.parts.some((part) => part.status !== 'sent')) {
+      for (const part of event.reply.parts) if (part.status === 'pending') part.status = 'failed';
+      event.reply.reason = reason;
+    }
+    for (const file of event.outgoing ?? []) if (file.status === 'pending') { file.status = 'failed'; file.reason = reason; }
+  }
+
+  private sourceChanged(journal: GatewayInboxJournal, event: GatewayInboxEvent): boolean {
+    try {
+      const sources = this.sources(journal, event);
+      return journal.events.some((item) => item.input.kind === 'edit' && sources.some((source) => source.input.accountId === item.input.accountId
+        && source.input.conversationId === item.input.conversationId && source.input.threadId === item.input.threadId && source.input.sourceMessageId === item.input.sourceMessageId));
+    } catch { return true; }
+  }
+
+  dispatchSources(eventId: string): GatewayInboxEvent[] {
+    const journal = this.read(); const event = journal.events.find((item) => item.id === eventId);
+    if (!event) throw new Error('No such gateway message.');
+    return this.sources(journal, event);
+  }
+
   cleanup(body: unknown): { removed: number } {
     const parsed = z.strictObject({ before: stamp, eventIds: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(10000) }).safeParse(body);
     if (!parsed.success) throw new GatewayCleanupError('Choose a valid cleanup selection and date.');
@@ -160,6 +236,8 @@ export class GatewayInbox {
     if (before > Date.now() || new Set(eventIds).size !== eventIds.length) throw new GatewayCleanupError('Choose a valid cleanup selection and date.');
     const journal = this.read(); const eligible = new Map(gatewayCleanupCandidates(journal.events, before).map((event) => [event.id, event]));
     if (eventIds.some((id) => !eligible.has(id))) throw new GatewayCleanupError('Some receipts are no longer eligible. Reload the inbox before cleaning up.');
+    const selected = new Set(eventIds);
+    if (eventIds.some((id) => { const item = eligible.get(id)!; const leader = item.album && eligible.get(item.album.leaderId); return item.album && (!leader?.album?.memberIds || leader.album.memberIds.some((member) => !selected.has(member))); })) throw new GatewayCleanupError('Remove a completed album’s receipts together.');
     if ((journal.retired?.length ?? 0) + eventIds.length > 100000) throw new GatewayCleanupError('The replay-protection store is full. Cleanup cannot remove its protection.');
     const quotas = new Map((journal.retiredQuota ?? []).map((quota) => [quota.day, { ...quota }]));
     for (const id of eventIds) {
@@ -175,7 +253,10 @@ export class GatewayInbox {
       }
     }
     if (quotas.size > 100000) throw new GatewayCleanupError('The byte accounting store is full. No receipts were removed.');
-    const selected = new Set(eventIds);
+    const albums = new Set(journal.retiredAlbums ?? []);
+    for (const id of eventIds) { const item = eligible.get(id)!; if (item.album?.leaderId === item.id) albums.add(albumDigest(item.input)); }
+    if (albums.size > 100000) throw new GatewayCleanupError('The album replay-protection store is full. No receipts were removed.');
+    journal.retiredAlbums = [...albums];
     journal.retired = [...(journal.retired ?? []), ...eventIds];
     journal.retiredQuota = [...quotas.values()];
     journal.events = journal.events.filter((event) => !selected.has(event.id));
@@ -188,6 +269,7 @@ export class GatewayInbox {
     const event = journal.events.find((item) => item.id === eventId);
     if (!event || event.status !== 'running' || event.operationId !== operationId || event.dispatch) throw new Error('This gateway input already has an operation.');
     this.checkAccess(event);
+    this.sources(journal, event);
     if (local.conversationId !== event.bindingId || local.projectId !== event.route.projectId || local.kind !== event.route.target.kind) throw new Error('The gateway conversation changed.');
     event.dispatch = { conversation: local, state: 'starting', startedAt: Date.now(), ...(local.kind === 'agent' ? { runId: operationId } : local.kind === 'team' ? { messageId: operationId } : {}) };
     this.commit(journal);
@@ -217,6 +299,7 @@ export class GatewayInbox {
     const event = journal.events.find((item) => item.id === eventId);
     if (!event?.dispatch || event.status !== 'running' || event.operationId !== operationId) throw new Error('This gateway operation is no longer active.');
     this.checkAccess(event);
+    this.sources(journal, event);
     saveAnswer(event, answer);
     if (event.reconciliation?.state === 'tracking') event.reconciliation = { at: Date.now(), state: 'completed' };
     this.commit(journal);
@@ -226,9 +309,10 @@ export class GatewayInbox {
     const event = journal.events.find((item) => item.id === eventId);
     if (!event || event.status !== 'needs-review' || !event.dispatch || !event.operationId || event.reply) throw new Error('This message has no held operation to check.');
     this.checkAccess(event);
-    if (event.input.kind !== 'message' || event.input.mediaGroupId || journal.events.some((item) => item.input.kind === 'edit'
+    const sources = this.sources(journal, event);
+    if (event.input.kind !== 'message' || journal.events.some((item) => item.input.kind === 'edit'
       && item.input.accountId === event.input.accountId && item.input.conversationId === event.input.conversationId
-      && item.input.threadId === event.input.threadId && item.input.sourceMessageId === event.input.sourceMessageId)) throw new Error('This source message changed or needs grouping. It cannot be reconciled automatically.');
+      && item.input.threadId === event.input.threadId && sources.some((source) => source.input.sourceMessageId === item.input.sourceMessageId))) throw new Error('This source message changed or needs grouping. It cannot be reconciled automatically.');
     return event;
   }
 
@@ -312,12 +396,14 @@ export class GatewayInbox {
 
   settleOutgoing(eventId: string, index: number, outcome: { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number }): void {
     const journal = this.read();
-    const file = journal.events.find((item) => item.id === eventId)?.outgoing?.[index];
+    const event = journal.events.find((item) => item.id === eventId);
+    const file = event?.outgoing?.[index];
     if (!file || file.status !== 'sending') throw new Error('This file is no longer sending.');
     if ('remoteId' in outcome) { file.status = 'sent'; file.remoteId = outcome.remoteId; delete file.retryAt; delete file.reason; }
     else {
       file.status = outcome.status; file.retryAt = outcome.retryAt;
       file.reason = outcome.status === 'uncertain' ? 'Delivery uncertain. Check Telegram before explicitly retrying.' : outcome.status === 'failed' ? 'The file could not be sent. Check its location, contents and setup.' : 'The platform asked this file to wait before retrying.';
+      if (file.status === 'pending' && this.sourceChanged(journal, event!)) { file.status = 'failed'; file.reason = 'The source changed during delivery. Review it before explicitly retrying.'; }
     }
     this.commit(journal);
   }
@@ -383,6 +469,7 @@ export class GatewayInbox {
     else {
       part.status = outcome.status; part.retryAt = outcome.retryAt;
       event!.reply!.reason = outcome.status === 'uncertain' ? 'Delivery uncertain. Check the messaging app before explicitly retrying.' : outcome.status === 'failed' ? 'The reply could not be sent. Check setup before retrying.' : 'The platform asked this reply to wait before retrying.';
+      if (part.status === 'pending' && this.sourceChanged(journal, event!)) { part.status = 'failed'; event!.reply!.reason = 'The source changed during delivery. Review it before explicitly retrying.'; }
     }
     if (event!.reply!.parts.every((item) => item.status === 'sent')) delete event!.reply!.reason;
     this.commit(journal);
@@ -429,8 +516,9 @@ export class GatewayInbox {
     const day = new Date().toISOString().slice(0, 10);
     const used = (events: GatewayInboxEvent[], today: boolean) => events.flatMap((item) => item.files ?? []).flatMap((item) => item.attempts).reduce((sum, attempt) => sum + (!today || attempt.day === day ? attempt.bytes : 0), 0);
     const retired = journal.retiredQuota?.find((quota) => quota.day === day)?.incomingBytes ?? 0;
-    const budget = Math.min(instance.fileLimits.perFileBytes, instance.fileLimits.perMessageBytes - used([event], false), instance.fileLimits.dailyBytes - used(journal.events, true) - retired);
-    if (index >= instance.fileLimits.filesPerMessage || budget <= 0) throw new GatewayFileLimitError('The gateway file quota is exhausted.');
+    const group = event.input.mediaGroupId ? journal.events.filter((item) => item.input.kind === 'message' && gatewayAlbumKey(item.input) === gatewayAlbumKey(event.input)) : [event];
+    const budget = Math.min(instance.fileLimits.perFileBytes, instance.fileLimits.perMessageBytes - used(group, false), instance.fileLimits.dailyBytes - used(journal.events, true) - retired);
+    if (index >= instance.fileLimits.filesPerMessage || group.reduce((sum, item) => sum + item.input.media.length, 0) > instance.fileLimits.filesPerMessage || budget <= 0) throw new GatewayFileLimitError('The gateway file quota is exhausted.');
     const id = uid('gateway-file-');
     // Reserve before network I/O; failed or interrupted attempts keep their reservation.
     file.attempts.push({ id, day, bytes: budget });
@@ -476,7 +564,7 @@ export class GatewayInbox {
     if (!event || event.status !== 'waiting-files' || !event.files?.length || event.files.length !== event.input.media.length || event.files.some((file) => file.status !== 'saved')) throw new Error('This message still has missing files.');
     this.checkAccess(event);
     event.status = event.input.mediaGroupId ? 'needs-review' : 'queued';
-    if (event.input.mediaGroupId) event.reason = 'Album files are saved. Group its messages before starting work.';
+    if (event.input.mediaGroupId) event.reason = 'Album files are saved. Review all parts and group them in this inbox.';
     this.commit(journal);
   }
 
@@ -517,20 +605,16 @@ export class GatewayInbox {
       id: eventId, bindingId: binding.id, route: binding.route, input, sequence: journal.nextSequence++,
       receivedAt: Date.now(), status: input.kind === 'edit' ? 'needs-review' : input.media.length ? 'waiting-files' : 'queued',
     };
+    const leader = input.mediaGroupId ? journal.events.find((item) => item.album?.leaderId === item.id && gatewayAlbumKey(item.input) === gatewayAlbumKey(input)) : undefined;
+    if (input.kind === 'message' && input.mediaGroupId && (leader || journal.retiredAlbums?.includes(albumDigest(input)))) {
+      event.status = 'needs-review'; event.albumBlocked = true;
+      event.reason = 'Another album part arrived after grouping. Review it and the original assignment in Athena. No second assignment was started.';
+      if (leader) this.holdSource(leader, event.reason);
+    }
     if (input.kind === 'edit') {
       event.reason = 'Message edited. Review it before starting more work.';
-      if (original && ['queued', 'waiting-files', 'running'].includes(original.status)) {
-        original.status = 'needs-review'; original.reason = event.reason;
-        if (original.dispatch) original.dispatch.state = 'needs-review';
-      }
-      if (original?.reply?.parts.some((part) => part.status !== 'sent')) {
-        for (const part of original.reply.parts) if (part.status === 'pending') part.status = 'failed';
-        original.reply.reason = 'The source message changed. Review this answer before explicitly retrying.';
-      }
-      for (const file of original?.outgoing ?? []) {
-        if (file.status !== 'pending') continue;
-        file.status = 'failed'; file.reason = 'The source message changed. Review this file before explicitly retrying.';
-      }
+      const assignment = original?.album ? journal.events.find((item) => item.id === original.album!.leaderId) : original;
+      if (assignment) this.holdSource(assignment, 'The source message changed. Review this work before explicitly retrying delivery.');
     }
     journal.events.push(event);
     this.commit(journal);

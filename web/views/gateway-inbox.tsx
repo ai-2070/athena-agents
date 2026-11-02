@@ -6,13 +6,14 @@ import { PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { useServerEvents } from '../ui/react.tsx';
 import type { GatewayInboxEvent, GatewayInstance, GatewayOutgoingFile } from '../../shared/types.ts';
-import { gatewayCleanupCandidates, gatewayNeedsReview } from '../../shared/gateways.ts';
+import { gatewayAlbumCandidates, gatewayCleanupCandidates, gatewayNeedsReview } from '../../shared/gateways.ts';
 export { gatewayNeedsReview } from '../../shared/gateways.ts';
 
 const message = (error: unknown) => error instanceof Error ? error.message : 'Could not update this inbox. Try again.';
 const unresolved = (status: string) => status === 'failed' || status === 'uncertain';
 const deliveryLabel = (status: GatewayOutgoingFile['status'] | 'saved' | 'transferring') => ({ pending: 'Waiting', sending: 'Sending', sent: 'Sent', uncertain: 'Delivery uncertain', failed: 'Needs review', skipped: 'Skipped', saved: 'Saved', transferring: 'Downloading' })[status];
 export function gatewayMessageStatus(event: GatewayInboxEvent): string {
+  if (event.album && event.album.leaderId !== event.id) return 'Grouped in album';
   if (event.reply?.parts.some((part) => part.status === 'uncertain') || event.outgoing?.some((file) => file.status === 'uncertain')) return 'Delivery uncertain';
   if (gatewayNeedsReview(event)) return 'Needs review';
   if (event.status === 'queued') return 'Queued';
@@ -67,8 +68,14 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
     {!events && !error && <Row title="Loading messages…" />}
     {events && !shown.length && <Row title={!events.length ? 'No saved messages' : 'No messages need review'} description={!events.length ? 'Messages from allowed senders appear here after they are saved.' : 'Choose All messages to see queued work, completed replies and confirmed files.'} />}
     {!connected && <PanelNote>This instance is paused or unavailable. Enable its Telegram connection before retrying deliveries or selecting files.</PanelNote>}
-    {shown.slice(0, limit).map((event) => <InboxMessage key={event.id} event={event} busy={busy} connected={connected} act={act}
-      canSelect={!event.outgoing && Boolean(event.dispatch) && ['running', 'done'].includes(event.status) && !events?.some((later) => later.bindingId === event.bindingId && later.sequence > event.sequence && later.dispatch)} />)}
+    {shown.slice(0, limit).map((event) => {
+      const candidates = gatewayAlbumCandidates(events || [], event);
+      const album = event.album?.memberIds?.map((id) => events?.find((item) => item.id === id)).filter((item) => item !== undefined) ?? [];
+      const leader = events?.find((item) => item.id === event.album?.leaderId);
+      return <InboxMessage key={event.id} event={event} busy={busy} connected={connected} act={act}
+        candidates={candidates[0]?.id === event.id ? candidates : []} album={album} leader={leader}
+        canSelect={!event.outgoing && Boolean(event.dispatch) && ['running', 'done'].includes(event.status) && !events?.some((later) => later.bindingId === event.bindingId && later.sequence > event.sequence && later.dispatch)} />;
+    })}
     {shown.length > limit && <RowActions><Button size="small" variant="ghost" onClick={() => setLimit((before) => before + 25)}>Show 25 more</Button></RowActions>}
     {events && <Row title="Clean completed receipts" description={`${eligible.length} eligible. Unresolved conversations stay. This only removes inbox receipts, not native chats or project files.`} stack>
       <div className="flex flex-wrap items-center gap-2">
@@ -80,8 +87,9 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
   </Section>;
 }
 
-function InboxMessage({ event, busy, connected, canSelect, act }: {
+function InboxMessage({ event, busy, connected, canSelect, act, candidates, album, leader }: {
   event: GatewayInboxEvent; busy: boolean; connected: boolean; canSelect: boolean;
+  candidates: GatewayInboxEvent[]; album: GatewayInboxEvent[]; leader?: GatewayInboxEvent;
   act: (suffix: string, body?: unknown) => Promise<boolean>;
 }) {
   const [paths, setPaths] = useState(''); const [selecting, setSelecting] = useState(false);
@@ -90,6 +98,11 @@ function InboxMessage({ event, busy, connected, canSelect, act }: {
   const base = encodeURIComponent(event.id);
   const status = gatewayMessageStatus(event);
   const firstReply = event.reply?.parts.find((part) => part.status !== 'sent');
+  const group = async () => {
+    const ids = candidates.map((item) => item.id);
+    if (!await confirmBox(`Start one assignment with these ${ids.length} album messages: ${candidates.map((item) => item.input.sourceMessageId).join(', ')}? Telegram has no album completion marker. Check Telegram for all parts before continuing. All saved files and captions will be included. Later parts will be held for review.`, { ok: 'Group album and start' })) return;
+    await act(`${base}/group-album`, { eventIds: ids });
+  };
   const retry = async (suffix: string, uncertain: boolean) => {
     if (uncertain && !await confirmBox(`Check Telegram chat ${event.input.conversationId} for message ${event.input.sourceMessageId} first. This delivery may already have arrived. Retrying can send a duplicate; confirmed parts will be kept.`, { ok: 'Retry delivery' })) return;
     await act(`${base}/${suffix}`);
@@ -116,9 +129,15 @@ function InboxMessage({ event, busy, connected, canSelect, act }: {
       <div className="break-all text-dim">Saved project <code>{event.route.projectId}</code> · {event.route.target.kind === 'brain' ? 'The Brain' : <>{event.route.target.kind === 'agent' ? 'Agent' : 'Team'} <code>{event.route.target.id}</code></>}. Destination changes do not redirect saved work.</div>
       {event.input.text && <p tabIndex={0} aria-label="Original message" className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words focus-visible:outline-2 focus-visible:outline-accent">{event.input.text}</p>}
       {event.reason && <p className="m-0 whitespace-pre-wrap break-words text-dim">{event.reason}</p>}
+      {album.length > 0 && <p className="m-0 break-words text-dim">Album source messages: {album.map((item) => item.input.sourceMessageId).join(', ')}. One assignment uses all saved files and captions.</p>}
+      {event.album && event.album.leaderId !== event.id && <p className="m-0 break-all text-dim">Grouped with message {leader?.input.sourceMessageId || event.album.leaderId}. Work and delivery receipts are on that message.</p>}
+      {candidates.length > 0 && <div>
+        <p className="my-2 text-dim">{candidates.length} saved album messages are ready. Check Telegram for all parts before starting one assignment.</p>
+        <Button size="small" disabled={busy || !connected} onClick={() => void group()}>Group album and start</Button>
+      </div>}
       {event.status === 'needs-review' && <div>
         <p className="m-0 text-dim">This message is held for review. Automatic model replay is disabled. Review the native work and saved destination before starting another assignment.</p>
-        {event.dispatch && event.operationId && !event.reply && event.input.kind === 'message' && !event.input.mediaGroupId && <div className="mt-2">
+        {event.dispatch && event.operationId && !event.reply && event.input.kind === 'message' && (!event.input.mediaGroupId || event.album?.leaderId === event.id) && <div className="mt-2">
           <p className="my-2 text-dim">Check only the original saved operation. If it is complete and still allowed, its saved reply will be delivered. This does not start another run or override edited input.</p>
           <Button size="small" variant="ghost" disabled={busy || !connected} onClick={() => void act(`${base}/reconcile`)}>Check saved work</Button>
         </div>}

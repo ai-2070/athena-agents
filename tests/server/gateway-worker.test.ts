@@ -23,6 +23,30 @@ afterEach(async () => {
 });
 
 describe('gateway intake lifecycle', () => {
+  it('groups a saved album through its worker once and wakes the normal dispatcher', async () => {
+    const instance = saveGatewayInstance(gatewayConfig(String(account++)));
+    let saved: GatewayInbox | undefined; let submissions = 0; let attachments = 0;
+    const worker = new TelegramGatewayWorker(instance.id, {
+      execution: {
+        async submit(_event, _signal, proceed, input) { expect(proceed()).toBe(true); submissions++; attachments = input?.attachments.length ?? 0; return {}; },
+        poll() { return { state: 'pending' }; },
+      },
+      transport: (state, inbox) => {
+        saved = inbox;
+        return {
+          start: async () => { for (const id of ['1', '2']) inbox.accept({ ...gatewayInput(id), accountId: instance.accountId, mediaGroupId: 'album', media: [{ kind: 'file', fileId: id }] }); },
+          stop: () => state.disconnect(), alive: () => true, reply: async () => 'confirmed',
+          download: async () => ({ source: Readable.from([Buffer.from('hello')]), declaredBytes: 5 }),
+        };
+      },
+    }); workers.push(worker); await worker.start();
+    const ids = saved!.list().map((event) => event.id); expect(submissions).toBe(0);
+    expect(worker.groupAlbum(ids[0], { eventIds: ids })).toEqual({ leaderId: ids[0] });
+    await expect.poll(() => submissions).toBe(1); expect(attachments).toBe(2);
+    expect(() => worker.groupAlbum(ids[0], { eventIds: ids })).toThrow('Reload and check');
+    await worker.stop(); expect(() => worker.groupAlbum(ids[0], { eventIds: ids })).toThrow('Connect this gateway');
+  });
+
   it('reconciles held work through its worker without resubmission or exposing provider errors', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let saved: GatewayInbox | undefined; let recover = false; let submissions = 0; let sends = 0;

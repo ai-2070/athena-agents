@@ -1,6 +1,6 @@
 import type { GatewayInboxEvent, GatewayReconciliation, ServerEvent } from '../../shared/types.ts';
 import { bus } from '../store.ts';
-import { gatewayConversation } from './conversations.ts';
+import { gatewayConversation, gatewayRunInput } from './conversations.ts';
 import { gatewayExecution } from './execution.ts';
 import type { GatewayCompletion, GatewayExecutionServices } from './execution.ts';
 import type { GatewayInbox } from './inbox.ts';
@@ -43,7 +43,11 @@ export class GatewayDispatcher {
 
   private allowed(event: GatewayInboxEvent): boolean {
     if (this.stopped || this.signal.aborted) return false;
-    try { this.inbox.checkAccess(event); return true; } catch { return false; }
+    try {
+      const current = this.inbox.list().find((item) => item.id === event.id);
+      if (!current || current.status !== 'running' || current.operationId !== event.operationId) return false;
+      this.inbox.checkAccess(current); this.inbox.dispatchSources(current.id); return true;
+    } catch { return false; }
   }
 
   reconcile(eventId: string): GatewayReconciliation {
@@ -74,10 +78,12 @@ export class GatewayDispatcher {
       const claimed = this.inbox.claimNext();
       if (!claimed) return;
       try {
-        const local = await gatewayConversation(claimed, this.signal);
+        const sources = this.inbox.dispatchSources(claimed.id);
+        const local = await gatewayConversation(claimed, this.signal, sources);
         if (!this.allowed(claimed)) { this.inbox.review(claimed.id); continue; }
         const event = this.inbox.beginDispatch(claimed.id, claimed.operationId!, local);
-        const task = Promise.resolve().then(() => this.services.submit(event, this.signal, () => this.allowed(event))).then((result) => {
+        const input = gatewayRunInput(event, sources);
+        const task = Promise.resolve().then(() => this.services.submit(event, this.signal, () => this.allowed(event), input)).then((result) => {
           if (!this.stopped && !this.signal.aborted) this.inbox.recordDispatch(event.id, event.operationId!, result);
         }).catch(() => {
           if (!this.stopped && !this.signal.aborted) this.inbox.review(event.id);

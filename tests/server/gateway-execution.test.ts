@@ -12,6 +12,8 @@ import { gatewayExecution } from '../../server/gateways/execution.ts';
 import { GatewayDispatcher } from '../../server/gateways/dispatch.ts';
 import { gatewayConfig, gatewayInput } from './gateway-fixtures.ts';
 import type { Agent, Approval, Chat, GatewayTarget } from '../../shared/types.ts';
+import { history } from '../../server/overseer.ts';
+import { getThread } from '../../server/teams.ts';
 
 const calls = vi.hoisted(() => ({ runs: [] as { text: string; options: { reservedRunId?: string; from?: string | null; attachments?: string[]; userInitiated?: boolean } }[], answer: 'Brain answer.', approvals: [] as Approval[], scopes: new Map<string, { projectId: string; conversationId?: string }>() }));
 vi.mock('../../server/brain.ts', async (original) => ({ ...await original<typeof import('../../server/brain.ts')>(), brainModel: () => ({ provider: 'openrouter', model: 'mock' }), think: async () => calls.answer }));
@@ -40,6 +42,22 @@ async function fixture(target: GatewayTarget) {
 }
 
 describe('gateway conversation execution services', () => {
+  it.each(['brain', 'agent', 'team'] as const)('passes combined album text and files to the %s entry point', async (kind) => {
+    const agent = newAgent({ name: `Album ${kind} target` });
+    const team = workflows.save({ name: `Album ${kind} team`, members: [agent.id], lead: agent.id, steps: [] });
+    const f = await fixture(kind === 'brain' ? { kind } : { kind, id: kind === 'agent' ? agent.id : team.id });
+    const event = { ...f.event, input: { ...f.event.input, mediaGroupId: 'album' } };
+    await expect(gatewayExecution.submit(event, new AbortController().signal, () => true)).rejects.toThrow('complete album');
+    const input = { text: 'Message 1\nFirst caption\n\nMessage 2\nSecond caption', attachments: ['/saved/first.txt', '/saved/second.txt'] };
+    await gatewayExecution.submit(event, new AbortController().signal, () => true, input);
+    const local = event.dispatch!.conversation;
+    if (local.kind === 'agent') expect(calls.runs.at(-1)).toMatchObject({ text: input.text, options: { attachments: input.attachments } });
+    else if (local.kind === 'team') {
+      await expect.poll(() => isTeamBusy(local.teamId)).toBe(false);
+      expect(getThread(local.teamId).messages.find((item) => item.id === event.operationId)).toMatchObject({ text: input.text, attachments: input.attachments });
+    } else expect(history(event.route.projectId, event.bindingId).find((item) => item.role === 'user')).toMatchObject({ text: input.text, attachments: input.attachments });
+  });
+
   it('matches approvals to a live run in this binding and project without exposing their contents', async () => {
     const f = await fixture({ kind: 'brain' }); const event = f.event;
     const approval: Approval = { id: 'approval-test', title: 'Private title', detail: 'Private detail', kind: 'tool', agentId: 'member', agentName: 'Member', data: { runId: 'delegate-run', args: { token: 'private-token' } }, editable: null, createdAt: event.dispatch!.startedAt };

@@ -267,6 +267,8 @@ describe('gateway configuration API', () => {
     expect((await req(`/api/gateways/${one.id}/inbox/missing/retry-reply`, { method: 'POST' })).status).toBe(403);
     expect((await req(`/api/gateways/${one.id}/inbox/missing/reconcile`, { method: 'POST' })).status).toBe(403);
     expect((await req(`/api/gateways/${one.id}/inbox/missing/reconcile`, { method: 'POST', headers: json })).status).toBe(400);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/group-album`, { method: 'POST' })).status).toBe(403);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/group-album`, { method: 'POST', headers: json, body: JSON.stringify({ eventIds: ['missing', 'other'] }) })).status).toBe(400);
     expect((await req(`/api/gateways/${one.id}/inbox/cleanup`, { method: 'POST' })).status).toBe(403);
     expect((await req(`/api/gateways/${one.id}/inbox/cleanup`, { method: 'POST', headers: json, body: JSON.stringify({ before: Date.now(), eventIds: [] }) })).status).toBe(400);
     expect((await req(`/api/gateways/${one.id}/inbox/missing/files`, { method: 'POST', headers: json, body: JSON.stringify({ paths: ['file.txt'] }) })).status).toBe(400);

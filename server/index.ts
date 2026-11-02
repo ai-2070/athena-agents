@@ -1001,6 +1001,7 @@ post('/api/gateways/:id/inbox/:eventId/retry-reply', async ({ id, eventId }) => 
   return { ok: true };
 });
 post('/api/gateways/:id/inbox/:eventId/reconcile', async ({ id, eventId }) => gatewaySupervisor.reconcile(id, eventId));
+post<unknown>('/api/gateways/:id/inbox/:eventId/group-album', async ({ id, eventId }, body) => gatewaySupervisor.groupAlbum(id, eventId, body));
 post<unknown>('/api/gateways/:id/inbox/:eventId/files', async ({ id, eventId }, body) => {
   await gatewaySupervisor.selectDocuments(id, eventId, body);
   return { ok: true };

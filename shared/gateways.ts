@@ -1,4 +1,20 @@
-import type { GatewayInboxEvent } from './types.ts';
+import type { GatewayInbound, GatewayInboxEvent } from './types.ts';
+
+export const gatewayAlbumKey = (input: GatewayInbound): string | null => input.mediaGroupId
+  ? JSON.stringify([input.accountId, input.conversationId, input.threadId, input.mediaGroupId]) : null;
+
+/** Explicit grouping only: a quiet interval is not proof that an album is complete. */
+export function gatewayAlbumCandidates(events: GatewayInboxEvent[], event: GatewayInboxEvent): GatewayInboxEvent[] {
+  const key = gatewayAlbumKey(event.input);
+  if (!key) return [];
+  const members = events.filter((item) => item.input.kind === 'message' && gatewayAlbumKey(item.input) === key);
+  if (members.length < 2 || members.length > 10 || members.some((item) => item.album || item.albumBlocked || item.status !== 'needs-review'
+    || item.operationId || item.reply || item.input.actor.id !== event.input.actor.id || item.bindingId !== event.bindingId
+    || !item.input.media.length || item.files?.length !== item.input.media.length || item.files.some((file) => file.status !== 'saved'))
+    || events.some((item) => item.input.kind === 'edit' && (gatewayAlbumKey(item.input) === key || members.some((source) => source.input.accountId === item.input.accountId
+      && source.input.conversationId === item.input.conversationId && source.input.threadId === item.input.threadId && source.input.sourceMessageId === item.input.sourceMessageId)))) return [];
+  return members.sort((a, b) => a.sequence - b.sequence);
+}
 
 /** Advisory notices do not hold work; model holds and unresolved deliveries need review. */
 export function gatewayNeedsReview(event: GatewayInboxEvent): boolean {
@@ -21,5 +37,9 @@ export function gatewayCleanupCandidates(events: GatewayInboxEvent[], before: nu
   const unresolved = events.filter((event) => !settled(event));
   const bindings = new Set(unresolved.map((event) => event.bindingId));
   const sources = new Set(unresolved.map(source));
-  return events.filter((event) => event.receivedAt < before && settled(event) && !bindings.has(event.bindingId) && !sources.has(source(event)));
+  const albums = new Set(unresolved.map((event) => gatewayAlbumKey(event.input)).filter((key) => key !== null));
+  const eligible = events.filter((event) => event.receivedAt < before && settled(event) && !bindings.has(event.bindingId) && !sources.has(source(event))
+    && !albums.has(gatewayAlbumKey(event.input) ?? ''));
+  const ids = new Set(eligible.map((event) => event.id));
+  return eligible.filter((event) => !event.album || events.find((item) => item.id === event.album!.leaderId)?.album?.memberIds?.every((id) => ids.has(id)));
 }

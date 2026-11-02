@@ -205,6 +205,12 @@ export class TelegramGatewayWorker {
     catch { throw Object.assign(new Error('This work cannot be reconciled. Check the saved destination, sender access and source edits. Nothing was restarted or sent.'), { status: 400 }); }
   }
 
+  groupAlbum(eventId: string, body: unknown): { leaderId: string } {
+    if (this.closed || !this.inbox || !this.dispatcher) throw Object.assign(new Error('Connect this gateway before grouping its album.'), { status: 400 });
+    try { return this.inbox.groupAlbum(eventId, body); }
+    catch { throw Object.assign(new Error('This album cannot be grouped. Reload and check all source messages, saved files, limits and destination.'), { status: 400 }); }
+  }
+
   cleanup(body: unknown): { removed: number } {
     if (this.closed || !this.inbox) throw Object.assign(new Error('This gateway is changing connection state. Retry cleanup once it has settled.'), { status: 400 });
     try { return this.inbox.cleanup(body); }

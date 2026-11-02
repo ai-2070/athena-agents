@@ -394,6 +394,15 @@ Enable a paused instance before retrying. To send specific files for the current
 absolute paths under **Files to send**, one per line. The server checks their location, size and content
 hash before upload. These actions never replay model work.
 
+Telegram albums wait for you to confirm their parts in the inbox. Once all files are saved, choose
+**Group album and start** on the first received part. Check Telegram for the complete album before
+confirming the listed message IDs: Telegram does not provide an album completion marker. One
+assignment receives all saved files, captions and source IDs. Limits apply to the whole album.
+The other parts point to that assignment's work and delivery receipts. A late part or an edit holds
+unfinished work and unsent deliveries for review; it never starts a second assignment automatically.
+Confirmed sends stay confirmed. Album receipts can only be cleaned together, and replay protection
+continues to hold late parts after cleanup.
+
 For a held message with a saved operation, **Check saved work** checks that original operation without
 starting another run. If its completion is verified and the original sender and destination are still
 allowed, its saved reply is queued for delivery. Work still in progress resumes completion tracking.
