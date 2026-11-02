@@ -438,7 +438,9 @@ const DONE_ICONS: Record<string, string> = { team: 'users', hired: 'user-plus', 
 function DoneAction({ d }: { d: BrainDone }) {
   const suffix = d.kind === 'task' && d.taskId ? ` [${d.taskId}]` : '';
   const text = suffix && d.text.endsWith(suffix) ? d.text.slice(0, -suffix.length) : d.text;
-  const open = d.teamId
+  const open = d.boardTask
+    ? { label: 'Open', go: () => navigate(`#/tasks/${encodeURIComponent(d.boardTask!.projectId)}/${encodeURIComponent(d.boardTask!.id)}`) }
+    : d.teamId
     ? { label: 'Show', go: () => navigate(`#/station?team=${d.teamId}`) }
     : d.routineId
       ? { label: 'Open', go: () => navigate(`#/routines/${d.routineId}`) }
