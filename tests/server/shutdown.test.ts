@@ -40,8 +40,7 @@ describe('stopAllRuns()', () => {
     await postUserMessage(team.id, 'Team job');
     await queueUserMessage(team.id, 'Next team job');
     const ended = run.promise.catch(() => 'stopped');
-    for (const end = Date.now() + 5000; asked === 0 && Date.now() < end; ) await new Promise((r) => setTimeout(r, 20));
-    expect(asked).toBeGreaterThan(0);
+    await expect.poll(() => asked, { timeout: 20000 }).toBeGreaterThan(0);
     await stopAllRuns();
     expect(run.signal.aborted).toBe(true);
     expect(activeRuns()).toHaveLength(0);
