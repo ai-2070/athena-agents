@@ -1,0 +1,24 @@
+tests/web/station-clock.test.ts
+  s_283ab3c3ff30bd::t_fb96eb47067898 1-33
+web/views/station.ts
+  s_283ab3c3ff30bd::t_051af01c013213 369,899,986
+  s_283ab3c3ff30bd::t_fb96eb47067898 27
+web/views/stationclock.ts
+  s_283ab3c3ff30bd::t_2a542e412abd89 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "afc29f165ac04f8b0c90fbb43126beefd683fa03",
+  "prompts": {},
+  "sessions": {
+    "s_283ab3c3ff30bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e20293b-45cb-453b-b4b9-96fa8d6c9d46",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
