@@ -1,0 +1,46 @@
+scripts/gateways-discord-smoke.ts
+  s_3f5afab86a1bb3::t_4244e285703750 1-81
+shared/types.ts
+  s_3f5afab86a1bb3::t_90ffc637b9954d 63,81
+  s_3f5afab86a1bb3::t_89d157cd9dfe5b 64,82
+package.json
+  s_3f5afab86a1bb3::t_c410c30b65677e 50
+shared/gateway-discord.ts
+  s_3f5afab86a1bb3::t_90ffc637b9954d 1-4
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_89d157cd9dfe5b 37,53,136,139,141,143,193,643
+  s_3f5afab86a1bb3::t_90ffc637b9954d 14,137-138,140,142,144,628,634
+server/gateways/discord.ts
+  s_3f5afab86a1bb3::t_d409226ada0313 1,3-44,46-51,54,59-64,68-161,164-194
+  s_3f5afab86a1bb3::t_0d88a35f854baf 65-67
+  s_3f5afab86a1bb3::t_2b59ed7fd5e2f7 2,53,55-58,162-163
+  s_3f5afab86a1bb3::t_7fcade27831075 45,52
+tests/server/gateway-discord.test.ts
+  s_3f5afab86a1bb3::t_2b59ed7fd5e2f7 79-80
+  s_3f5afab86a1bb3::t_f85f3fdbf6dd24 1-27,29-46,48-78,81-84,89-224
+  s_3f5afab86a1bb3::t_0d88a35f854baf 28,47,85-88
+docs/guide.md
+  s_3f5afab86a1bb3::t_b09e2af2267ee0 453-456
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_b09e2af2267ee0 286-318
+README.md
+  s_3f5afab86a1bb3::t_b09e2af2267ee0 243-244
+tests/server/gateway-sdk.test.ts
+  s_3f5afab86a1bb3::t_c410c30b65677e 11-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "25db6b776b3a6701c68d18e10ee0b4a6ff483971",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
