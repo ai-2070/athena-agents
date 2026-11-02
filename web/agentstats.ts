@@ -1,6 +1,7 @@
 // The Agents page's overview: what kinds of agents the project has and which models they run on.
 import { defaultModelForEngine } from '../shared/modeldefaults.ts';
 import { ENGINE_LABEL } from './core.ts';
+import { ACCENTS } from './look.ts';
 import type { Agent, Settings } from '../shared/types.ts';
 
 /** One slice of a chart: a category or a model, how many agents, and its colour (categories only). */
@@ -15,12 +16,10 @@ export interface Slice {
   rest?: Slice[];
 }
 
-// One hue, the accent picked in Settings > Appearance: the biggest category is the strongest and each next one steps
-// lighter (the slices come biggest first), so the chart is quiet on white and on near-black and follows the
-// accent. They are CSS colours, so the page's theme swaps them. A seventh category and beyond fold into Other,
-// in a neutral grey.
-const tint = (pct: number): string => `color-mix(in srgb, var(--color-accent) ${pct}%, var(--color-panel))`;
-export const CATEGORY_COLORS = [100, 74, 56, 42, 32, 24].map(tint);
+// The six accent colours of Settings > Appearance (Aegean, Olive, Gold, Terracotta, Amethyst, Slate), each in its
+// light and its dark tone, so they read on white and on near-black. A seventh category and beyond fold into
+// Other, in a neutral grey.
+export const CATEGORY_COLORS = ACCENTS.map((a) => `light-dark(${a.light.c}, ${a.dark.c})`);
 export const OTHER_COLOR = 'color-mix(in srgb, var(--color-ink) 30%, var(--color-panel))';
 
 const UPPER = new Set(['gis', 'ai', 'ui', 'ux', 'qa', 'seo', 'xr', 'vr', 'ar']);

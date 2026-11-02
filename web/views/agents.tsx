@@ -20,7 +20,7 @@ import type { ModelListing } from '../models.tsx';
 import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
-import { ENGINE_NAMES, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
+import { CATEGORY_COLORS, ENGINE_NAMES, OTHER_COLOR, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
 import type { Slice } from '../agentstats.ts';
 import type { Agent, AppState, Autonomy, EngineStatus, McpServerInfo, Team, Terminal } from '../../shared/types.ts';
 
@@ -160,7 +160,7 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
         <div className="min-w-0">
           <div className={`${CAPTION} mb-3`}>By model</div>
           <ul className="agents-models -mx-2 flex flex-col">
-            {models.map((m) => (
+            {models.map((m, i) => (
               <li key={m.id}>
                 <button
                   type="button"
@@ -175,7 +175,8 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
                     <span className="ml-2 text-[12px] text-faint">{m.rest ? `${m.rest.length} more` : m.sub}</span>
                   </span>
                   <span className="h-1.5 overflow-hidden rounded-full bg-panel-2" aria-hidden="true">
-                    <span className="block h-full rounded-full bg-accent/80 transition-colors duration-150 group-hover:bg-accent" style={{ width: `${(m.count / topModel) * 100}%` }} />
+                    {/* (each model in its own colour from the same six as the categories) */}
+                    <span className="block h-full rounded-full opacity-85 transition-opacity duration-150 group-hover:opacity-100" style={{ width: `${(m.count / topModel) * 100}%`, background: m.id === 'other' ? OTHER_COLOR : CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
                   </span>
                   <span className="text-right text-[12.5px] text-dim tabular-nums">{m.count}</span>
                 </button>
