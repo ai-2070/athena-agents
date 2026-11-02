@@ -576,7 +576,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       }
       void eveRuntime.retireBindings().catch(() => {});
       active.delete(runId);
-      if (!suspended) cancelForRun(runId);
+      if (!suspended) cancelForRun(runId, { keepOutcomeChecks: true });
       emit('runs');
       const stopped = controller.signal.aborted;
       // stopped for a new message from you: that message is next, and a /goal is checked after it instead

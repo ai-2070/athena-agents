@@ -254,6 +254,8 @@ The context meter uses the engine's last measurement when available, otherwise a
 
 Eve turns survive an app restart, including saved approvals and questions. Stop ends the native session. Queued messages remain saved. Private runtime files stay on this computer and are excluded from project copies, backups and exports.
 
+If a tool may have made changes before failing, the run pauses and a **Check the outcome** request stays in **Needs you**, including after a restart. Check what happened, then allow the request to mark the check done. This does not repeat the tool or resume the interrupted run.
+
 Clear memory retires the old session; if a turn is still answering, the reset takes effect again when it finishes. Deleting a chat removes its searchable originals and tool images. Retired native records remain in private app data on this computer, including prior inputs and tool outcomes, until that app data is removed. They cannot run again and are never copied into a project or backup. Changing engines or installing an incompatible Eve update also retires old sessions. An update interrupts unfinished work for you to review before starting a fresh turn.
 
 Very long chats still scroll smoothly: from 50 messages on, the chat page and the floating window only draw the messages near what you see, so the floating window can show the whole chat too. Because of this, your browser's Find (Ctrl+F) only finds text in the messages near where you have scrolled.
