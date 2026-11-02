@@ -1,0 +1,25 @@
+README.md
+  s_aa3f7e974bdac5::t_0464f343d566d1 35
+tests/server/eve-outcomes-flow.test.ts
+  s_aa3f7e974bdac5::t_0290549c2dc23a 1-62
+docs/guide.md
+  s_aa3f7e974bdac5::t_0464f343d566d1 257-258
+server/engines/index.ts
+  s_aa3f7e974bdac5::t_0464f343d566d1 579
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6c03820fdc449fce021a8dcea07ae9ad93e617b6",
+  "prompts": {},
+  "sessions": {
+    "s_aa3f7e974bdac5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198f1-4ab0-7380-a79f-d744ec1af2c3",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
