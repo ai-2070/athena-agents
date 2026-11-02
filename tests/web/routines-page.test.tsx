@@ -62,6 +62,9 @@ describe('the routine editor', () => {
     expect([...menu.querySelectorAll('.rt-menu-item')].map((b) => b.textContent)).toEqual(['✍️WriterPosts']);
     await act(async () => ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
     expect(ta.value).toBe('Ask @Writer ');
+    // shown as a pill, like in a team chat's message box
+    expect(ta.hidden).toBe(true);
+    expect(el.querySelector('[contenteditable="true"][aria-label="What to do"] [data-mention="@Writer"]')).not.toBeNull();
     expect(el.querySelector('.rt-who')!.textContent).toContain('Writer');
     expect(btn('Save').disabled).toBe(false);
   });

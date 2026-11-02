@@ -5,6 +5,7 @@
 // focus, mention and destroy. The message box stays uncontrolled: the paste chips, the / menu and
 // mention() change its text directly, as typing does.
 import { attachMentionEditor } from './chat/mentioneditor.ts';
+import { icon } from './icons.ts';
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, onReconnect, confirmBox, toast } from './core.ts';
@@ -260,6 +261,7 @@ function textWithMentions(text: string, names: readonly string[], teams: readonl
           const tag = document.createElement('button');
           tag.className = m.startsWith('#') ? MENTION_TEAM : MENTION;
           tag.textContent = m;
+          if (m.startsWith('#')) tag.prepend(icon('users', 11, 'mr-0.5 align-[-1px]'));
           tag.type = 'button';
           tag.addEventListener('click', () => tag.dispatchEvent(new CustomEvent('chat-mention', { bubbles: true, detail: m })));
           frag.append(child.textContent!.slice(last, idx), tag);
@@ -683,7 +685,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   // ---- the box: @ suggestions, the / menu, Enter to send
   useEffect(() => {
     const ta = input.current!;
-    const offEditor = attachMentionEditor(ta, () => [...membersRef.current.map((a) => '@' + a.name), '@everyone', '@Brain', ...store.current.others.map((t) => '#' + t.name)]);
+    const offEditor = attachMentionEditor(ta, () => [...membersRef.current.map((a) => '@' + a.name), '@everyone', '@Brain', ...store.current.others.map((t) => ({ tag: '#' + t.name, icon: 'users' }))]);
     box.input = ta;
     const addMention = (event: Event) => {
       const tag = (event as CustomEvent<string>).detail;

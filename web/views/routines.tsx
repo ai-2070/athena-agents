@@ -10,6 +10,7 @@ import { loadSkills, skillsCache } from '../skillpick.ts';
 import { scheduleEditor } from '../schedule.tsx';
 import { openChat } from '../chatwin.tsx';
 import { attachMentions, startMention, KIND_LABEL } from '../routinemention.ts';
+import { attachMentionEditor } from '../chat/mentioneditor.ts';
 import type { Candidate } from '../routinemention.ts';
 import { findMentions, scheduleSummary } from '../../shared/routines.ts';
 import { Field, Switch } from '../ui/controls.tsx';
@@ -222,7 +223,12 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   const cands = () => (d ? candidates(d, teams) : []);
   const candsRef = useRef(cands);
   candsRef.current = cands;
-  useEffect(() => attachMentions(ta.current!, () => candsRef.current(), () => {}), []);
+  useEffect(() => {
+    // mentions show as pills, like in a team chat's message box
+    const offEditor = attachMentionEditor(ta.current!, () => candsRef.current().map((c) => ({ tag: `@${c.name}`, icon: c.kind === 'team' ? 'users' : c.kind === 'skill' ? 'puzzle' : undefined })));
+    const offMenu = attachMentions(ta.current!, () => candsRef.current(), () => {});
+    return () => (offMenu(), offEditor());
+  }, []);
 
   const save = async (): Promise<boolean> => {
     // never an empty routine
@@ -332,7 +338,8 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             </div>
             <textarea
               ref={ta}
-              className="code min-h-45 leading-[1.55]"
+              // the text box look as utilities: the pill editor shown in its place copies these classes
+              className="code min-h-45 w-full resize-y rounded-ctl border border-line-2 bg-bg px-3 py-[9px] font-mono text-[12.5px] leading-[1.55] text-ink shadow-card outline-none [transition:border-color_0.15s,box-shadow_0.15s] hover:border-[color-mix(in_srgb,var(--color-ink)_22%,var(--color-line-2))] focus:border-accent focus:[box-shadow:0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)] empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]"
               rows={9}
               aria-label="What to do"
               value={text}
