@@ -1,0 +1,46 @@
+server/gateways/dispatch.ts
+  s_3f5afab86a1bb3::t_e298e031aa111a 19,52,55,58-59
+server/gateways/telegram.ts
+  s_3f5afab86a1bb3::t_defb7d077d502c 109
+tests/server/gateway-worker.test.ts
+  s_3f5afab86a1bb3::t_f819120df27cc5 23-48
+tests/server/gateway-processing.test.ts
+  s_3f5afab86a1bb3::t_defb7d077d502c 109-126
+  s_3f5afab86a1bb3::t_0ed938a8ba3289 44-108
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_0ed938a8ba3289 195
+  s_3f5afab86a1bb3::t_55b626d93ca324 42,51-52,192-194,196-201,203-209,211-230,430-433
+  s_3f5afab86a1bb3::t_e298e031aa111a 202,210
+server/gateways/worker.ts
+  s_3f5afab86a1bb3::t_e298e031aa111a 13,116-118
+shared/types.ts
+  s_3f5afab86a1bb3::t_55b626d93ca324 94
+server/gateways/execution.ts
+  s_3f5afab86a1bb3::t_e298e031aa111a 2-3,18,66-72
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_defb7d077d502c 83-90
+tests/server/gateway-execution.test.ts
+  s_3f5afab86a1bb3::t_df4643620ef16e 13,15,17,20,31,42-58
+README.md
+  s_3f5afab86a1bb3::t_defb7d077d502c 226-227
+docs/guide.md
+  s_3f5afab86a1bb3::t_defb7d077d502c 376-377
+server/gateways/replies.ts
+  s_3f5afab86a1bb3::t_e298e031aa111a 21,27,29,49-56,58-60,64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6eaa96399871e847ec5622caa4e63e9e9e8e1bee",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
