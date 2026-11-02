@@ -10,7 +10,7 @@ import { DEL, GET, POST, PUT, ago, confirmBox, navigate, onEvent, onReconnect, p
 import { reducedMotion } from '../motion.ts';
 import { Button, ButtonLink, IconButton } from '../ui/button.tsx';
 import { iconButtonClass } from '../ui/classes.ts';
-import { Dropdown, DropdownContent, DropdownGroup, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger } from '../ui/dropdown.tsx';
+import { Dropdown, DropdownContent, DropdownGroup, DropdownItem, DropdownLabel, DropdownRadioGroup, DropdownRadioItem, DropdownSeparator, DropdownTrigger } from '../ui/dropdown.tsx';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { Bone, Skeleton } from '../ui/skeleton.tsx';
 import { cardCopy, grab, useDragPreview } from '../taskmotion.ts';
@@ -208,20 +208,8 @@ function TaskBoardPage() {
   // A card's moves are saved one after another, each on the version of the task the last one left (null: that one
   // failed, and the moves after it are dropped), so a quick second move isn't taken for someone else's change.
   const saving = useRef(new Map<string, Promise<number | null>>());
-  /** Saves a move (and shows it at once); one the server refuses goes back. Moving to Blocked asks why first. */
-  const move = async (task: BoardTask, status: BoardStatus, { rank, respaced }: Placement, at?: { x: number; y: number }) => {
-    if (status === task.status && rank === task.rank && !respaced.length) return;
-    let blockedReason: string | undefined;
-    if (status === 'blocked' && task.status !== 'blocked') {
-      const why = await askWhyBlocked(task);
-      if (why === null) return;
-      blockedReason = why;
-    }
-    remember(cardKey(task), at);
-    const patch = { status, rank, ...(blockedReason !== undefined ? { blockedReason } : {}) };
-    // (the version stays the server's; a card moved to Done counts as done now)
-    const room = new Map(respaced.map((r) => [cardKey(r.task), r.rank]));
-    setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, ...patch, ...(status === 'done' && t.status !== 'done' ? { doneAt: Date.now() } : {}) } : room.has(cardKey(t)) ? { ...t, rank: room.get(cardKey(t))! } : t)) } : d));
+  /** Saves a change to a card already shown (first the column's new ranks, when it was spaced out again). */
+  const saveCard = (task: BoardTask, patch: Record<string, unknown>, respaced: Placement['respaced'] = []) => {
     const key = cardKey(task);
     held.current.moves++;
     const saved = (saving.current.get(key) ?? Promise.resolve<number | null>(task.updatedAt)).then(async (version) => {
@@ -229,7 +217,9 @@ function TaskBoardPage() {
       try {
         if (respaced.length) await PUT('/task-board-ranks', { ranks: respaced.map((r) => ({ projectId: r.task.projectId, id: r.task.id, status: r.task.status, rank: r.rank })) });
         const r = await PUT<{ task: BoardTask }>(path(task), { ...patch, expectedUpdatedAt: version });
-        setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, updatedAt: r.task.updatedAt } : t)) } : d));
+        // the server's version (and the names of who has it), leaving the rest as shown
+        const named = 'assignee' in patch ? { assigneeName: r.task.assigneeName, assigneeEmoji: r.task.assigneeEmoji, assigneeColor: r.task.assigneeColor } : {};
+        setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, ...named, updatedAt: r.task.updatedAt } : t)) } : d));
         return r.task.updatedAt;
       } catch (e) {
         toast(errorText(e), 'error');
@@ -244,8 +234,31 @@ function TaskBoardPage() {
       held.current.moves--;
       release();
     });
-    requestAnimationFrame(() => board.current?.querySelector<HTMLElement>(`[data-task-id="${key}"]`)?.focus({ preventScroll: true }));
+    return saved;
+  };
+  /** Saves a move (and shows it at once); one the server refuses goes back. Moving to Blocked asks why first. */
+  const move = async (task: BoardTask, status: BoardStatus, { rank, respaced }: Placement, at?: { x: number; y: number }) => {
+    if (status === task.status && rank === task.rank && !respaced.length) return;
+    let blockedReason: string | undefined;
+    if (status === 'blocked' && task.status !== 'blocked') {
+      const why = await askWhyBlocked(task);
+      if (why === null) return;
+      blockedReason = why;
+    }
+    remember(cardKey(task), at);
+    const patch = { status, rank, ...(blockedReason !== undefined ? { blockedReason } : {}) };
+    // (the version stays the server's; a card moved to Done counts as done now)
+    const room = new Map(respaced.map((r) => [cardKey(r.task), r.rank]));
+    setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, ...patch, ...(status === 'done' && t.status !== 'done' ? { doneAt: Date.now() } : {}) } : room.has(cardKey(t)) ? { ...t, rank: room.get(cardKey(t))! } : t)) } : d));
+    const saved = saveCard(task, patch, respaced);
+    requestAnimationFrame(() => board.current?.querySelector<HTMLElement>(`[data-task-id="${cardKey(task)}"]`)?.focus({ preventScroll: true }));
     await saved;
+  };
+  /** Gives a card to someone (shown at once, with their name and mark). */
+  const assign = (task: BoardTask, who: Assignee) => {
+    if (who.assignee === task.assignee) return;
+    setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, ...who } : t)) } : d));
+    void saveCard(task, { assignee: who.assignee });
   };
   // where a place in a column as it is shown puts a card: between the shown cards either side of it, among all of
   // the column's cards (the ones filtered out or older keep their order too)
@@ -401,6 +414,7 @@ function TaskBoardPage() {
                           onColumn={(s) => toColumn(t, s)}
                           onStep={(d) => step(t, d)}
                           onRemove={() => void remove(t)}
+                          onAssign={(who) => assign(t, who)}
                         />,
                       ];
                     })}
@@ -452,7 +466,7 @@ function DropGhost({ task, height }: { task: BoardTask; height: number }) {
   return <li ref={slot} aria-hidden="true" inert style={{ '--slot': `${height}px` } as CSSProperties} className="pointer-events-none h-(--slot) flex-none overflow-hidden rounded-[10px] opacity-35 animate-[open-slot_0.16s_var(--ease-soft)_both]" />;
 }
 
-function Card({ task: t, showProject, first, last, dragging, onDragStart, onDragEnd, onColumn, onStep, onRemove }: {
+function Card({ task: t, showProject, first, last, dragging, onDragStart, onDragEnd, onColumn, onStep, onRemove, onAssign }: {
   task: BoardTask;
   showProject: boolean;
   first: boolean;
@@ -463,6 +477,7 @@ function Card({ task: t, showProject, first, last, dragging, onDragStart, onDrag
   onColumn: (s: BoardStatus) => void;
   onStep: (dir: -1 | 1) => void;
   onRemove: () => void;
+  onAssign: (who: Assignee) => void;
 }) {
   const column = STATUSES.findIndex((s) => s.value === t.status);
   const open = () => navigate(taskHref(t));
@@ -518,11 +533,40 @@ function Card({ task: t, showProject, first, last, dragging, onDragStart, onDrag
           </span>
         ) : null}
         {showProject ? <span className="min-w-0 truncate" title={`Project: ${t.projectName}`}>{t.projectName}</span> : null}
-        <span className="ml-auto flex flex-none items-center" title={t.assignee ? `Assigned to ${t.assigneeName}` : 'Unassigned'}>
-          {t.assignee ? <WhoMark who={t.assignee} emoji={t.assigneeEmoji} color={t.assigneeColor} size={20} /> : <span className="grid size-5 place-items-center rounded-[7px] border border-dashed border-line-2 text-faint"><Icon name="user" size={10} /></span>}
-        </span>
+        <AssignMenu task={t} onAssign={onAssign} />
       </div>
     </li>
+  );
+}
+
+type Assignee = Pick<BoardTask, 'assignee' | 'assigneeName' | 'assigneeEmoji' | 'assigneeColor'>;
+
+/** Who has the card, as a button: it opens the people of the card's project (loaded when it opens) to give it to. */
+function AssignMenu({ task: t, onAssign }: { task: BoardTask; onAssign: (who: Assignee) => void }) {
+  const [open, setOpen] = useState(false);
+  const people = usePeople(open ? t.projectId : '');
+  const pick = (v: string) => {
+    const agent = people?.agents.find((a) => `agent:${a.id}` === v);
+    const team = people?.teams.find((x) => `team:${x.id}` === v);
+    const name = v === '' ? 'Unassigned' : v === 'you' ? 'You' : v === 'brain' ? 'The Brain' : agent?.name || team?.name || v;
+    onAssign({ assignee: v, assigneeName: name, assigneeEmoji: agent?.emoji, assigneeColor: agent?.color });
+  };
+  const label = t.assignee ? `Assigned to ${t.assigneeName}` : 'Unassigned';
+  return (
+    <Dropdown open={open} onOpenChange={setOpen}>
+      <DropdownTrigger className="ml-auto flex flex-none cursor-pointer items-center rounded-[8px] border-0 bg-transparent p-0 outline-offset-2 [transition:opacity_0.15s] hover:opacity-80" aria-label={`${label}. Assign to…`} title={label}>
+        {t.assignee ? <WhoMark who={t.assignee} emoji={t.assigneeEmoji} color={t.assigneeColor} size={20} /> : <span className="grid size-5 place-items-center rounded-[7px] border border-dashed border-line-2 text-faint"><Icon name="user" size={10} /></span>}
+      </DropdownTrigger>
+      <DropdownContent align="end" className="min-w-48">
+        <DropdownRadioGroup value={t.assignee} onValueChange={(v) => pick(String(v))}>
+          <DropdownLabel>Assign to</DropdownLabel>
+          {assigneeChoices(people).map((c) => (
+            <DropdownRadioItem key={c.value} value={c.value} icon={c.mark}>{c.label}</DropdownRadioItem>
+          ))}
+        </DropdownRadioGroup>
+        {!people ? <div className="px-2.5 py-1.5 text-[12px] text-faint">Loading agents and teams…</div> : null}
+      </DropdownContent>
+    </Dropdown>
   );
 }
 

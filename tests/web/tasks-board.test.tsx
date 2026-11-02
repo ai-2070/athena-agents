@@ -73,7 +73,9 @@ beforeEach(() => {
       const i = board.findIndex((t) => t.projectId === one[1] && t.id === one[2]);
       const { expectedUpdatedAt, ...change } = body as Partial<BoardTask> & { expectedUpdatedAt?: number };
       if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== board[i].updatedAt) return new Response(JSON.stringify({ error: 'This task changed meanwhile. Reload it before saving.' }), { status: 409 });
-      board[i] = { ...board[i], ...change, updatedAt: board[i].updatedAt + 1 };
+      // (and names who has it, as the server does)
+      const named = change.assignee === undefined ? {} : { assigneeName: ({ '': 'Unassigned', you: 'You', brain: 'The Brain', 'agent:x': 'Photographer' } as Record<string, string>)[change.assignee] };
+      board[i] = { ...board[i], ...change, ...named, updatedAt: board[i].updatedAt + 1 };
       return json({ task: board[i] });
     }
     if (url === '/api/task-board-draft') return json({ kind: 'comment', text: 'Is the oven here yet?' });
@@ -274,6 +276,23 @@ describe('the Tasks board', () => {
     expect(loads()).toBe(before);
     await serverEvent({ type: 'agents', id: 'x' });
     expect(loads()).toBe(before + 1);
+  });
+
+  it('gives a card to an agent from its mark, loading the project\'s agents and teams when it opens', async () => {
+    await open();
+    expect(requests.some((r) => r.url.startsWith('/api/task-board-people/'))).toBe(false);
+    const a = () => el.querySelector<HTMLElement>('[data-task-id="p1/a"]')!;
+    await act(async () => a().querySelector<HTMLButtonElement>('[aria-label="Unassigned. Assign to…"]')!.click());
+    await settle();
+    expect(requests.some((r) => r.url === '/api/task-board-people/p1')).toBe(true);
+    const items = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')];
+    expect(items.map((i) => i.textContent)).toEqual(['Unassigned', 'You', 'The Brain', '📷Photographer']);
+    await act(async () => items.at(-1)!.click());
+    await settle();
+    expect(requests.filter((r) => r.method === 'PUT').at(-1)).toMatchObject({ url: '/api/task-board/p1/a', body: { assignee: 'agent:x', expectedUpdatedAt: now } });
+    expect(a().querySelector('[title="Assigned to Photographer"]')).not.toBeNull();
+    // (opening it didn't open the task)
+    expect(location.hash).toBe('');
   });
 
   it('works out a place between two cards', () => {
