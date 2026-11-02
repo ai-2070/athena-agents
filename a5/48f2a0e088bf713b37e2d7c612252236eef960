@@ -1,0 +1,53 @@
+package.json
+  s_3f5afab86a1bb3::t_205af753a71b84 49
+  s_3f5afab86a1bb3::t_373b089b9ade13 83
+docs/guide.md
+  s_3f5afab86a1bb3::t_8e1711beb8098a 431-432
+tests/server/gateway-worker.test.ts
+  s_3f5afab86a1bb3::t_c32d367c7fb162 260-263
+shared/gateway-slack.ts
+  s_3f5afab86a1bb3::t_a6f66b10e05d80 1-5
+tests/server/gateway-slack.test.ts
+  s_3f5afab86a1bb3::t_8e1711beb8098a 96-115
+  s_3f5afab86a1bb3::t_49410d405eaff1 180-185,202-207
+  s_3f5afab86a1bb3::t_648d3e4961b7dd 186-187,189-196,198-201
+  s_3f5afab86a1bb3::t_c44ee1a1f6c924 188,197
+  s_3f5afab86a1bb3::t_70bad022272e07 1-95,116-179,208-243
+README.md
+  s_3f5afab86a1bb3::t_8e1711beb8098a 240-241
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_a6f66b10e05d80 13,123,125-134
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_8e1711beb8098a 226-253
+  s_3f5afab86a1bb3::t_c32d367c7fb162 3-4
+scripts/gateways-slack-smoke.ts
+  s_3f5afab86a1bb3::t_4be4539589ebe8 1-7,10-14,21,52,68,87,110
+  s_3f5afab86a1bb3::t_a7f8e708c31456 8-9,15-20,22-51,53-67,69-86,88-109
+tests/server/gateway-sdk.test.ts
+  s_3f5afab86a1bb3::t_205af753a71b84 11-26
+server/gateways/slack.ts
+  s_3f5afab86a1bb3::t_c44ee1a1f6c924 150-155
+  s_3f5afab86a1bb3::t_648d3e4961b7dd 163-164
+  s_3f5afab86a1bb3::t_8981d86bf28fe8 85,87
+  s_3f5afab86a1bb3::t_3141f225951b46 2-3,41,51-53,57,84,86,88-117,186-187
+  s_3f5afab86a1bb3::t_a6f66b10e05d80 1,4-40,42-50,54-56,58-83,118-149,156-162,165-175,180-185,188-190
+  s_3f5afab86a1bb3::t_49410d405eaff1 176-179
+bun.lock
+  s_3f5afab86a1bb3::t_a9c233ee32b545 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a548f2a0e088bf713b37e2d7c612252236eef960",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
