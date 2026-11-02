@@ -188,7 +188,9 @@ describe('Library page', () => {
     let finish!: () => void;
     slowLibrary = new Promise((r) => (finish = r));
     await open();
-    expect(el.textContent).toBe('Loading library…');
+    // the page's shape while it loads, with what is loading for screen readers
+    expect(el.querySelector('[role="status"]')!.textContent).toContain('Loading library…');
+    expect(el.querySelectorAll('.cards .card').length).toBeGreaterThan(0);
     act(() => library.unmount());
     finish();
     await settle();
