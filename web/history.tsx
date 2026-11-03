@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, attempt, ago, confirmBox } from './core.ts';
+import { projectAt } from './client/connection.ts';
 import { domButton } from './ui/dom.ts';
 import { icon } from './icons.ts';
 import { Button } from './ui/button.tsx';
@@ -88,14 +89,16 @@ interface HistoryProps {
   hist: VersionHistory;
   onRestored?: () => void;
   close: () => void;
+  /** '/p/<project>' for a project that isn't open (projectAt) */
+  at: string;
 }
 
-function HistoryDialog({ kind, id, hist, onRestored, close }: HistoryProps) {
+function HistoryDialog({ kind, id, hist, onRestored, close, at }: HistoryProps) {
   const [picked, setPicked] = useState<VersionDetail | null>(null);
   const [compare, setCompare] = useState(true);
 
   const pick = async (vid: string) => {
-    const d = await attempt(() => GET<VersionDetail>(`/versions/${kind}/${encodeURIComponent(id)}/${vid}`));
+    const d = await attempt(() => GET<VersionDetail>(`${at}/versions/${kind}/${encodeURIComponent(id)}/${vid}`));
     if (!d) return;
     setPicked(d);
   };
@@ -103,7 +106,7 @@ function HistoryDialog({ kind, id, hist, onRestored, close }: HistoryProps) {
     if (!picked) return;
     const what = hist.current === null ? `Bring back the ${KIND_NAME[kind]} "${picked.name}" as it was on ${when(picked.at)}?` : `Put back the version from ${when(picked.at)}? The current one is kept in the history, so you can switch back.`;
     if (!(await confirmBox(what, { ok: hist.current === null ? 'Bring it back' : 'Restore' }))) return;
-    if (!(await attempt(() => POST(`/versions/${kind}/${encodeURIComponent(id)}/${picked.id}/restore`), 'Restored'))) return;
+    if (!(await attempt(() => POST(`${at}/versions/${kind}/${encodeURIComponent(id)}/${picked.id}/restore`), 'Restored'))) return;
     close();
     onRestored?.();
   };
@@ -175,17 +178,19 @@ function HistoryDialog({ kind, id, hist, onRestored, close }: HistoryProps) {
   );
 }
 
-/** The History window of one skill, agent or team. onRestored runs after a version is put back. */
-export async function openHistory(kind: VersionKind, id: string, { onRestored }: { onRestored?: () => void } = {}): Promise<void> {
-  const hist = await attempt(() => GET<VersionHistory>(`/versions/${kind}/${encodeURIComponent(id)}`));
+/** The History window of one skill, agent or team. onRestored runs after a version is put back. projectId: a
+ *  MEMORY.md of a project that isn't open (an Overview pane). */
+export async function openHistory(kind: VersionKind, id: string, { onRestored, projectId }: { onRestored?: () => void; projectId?: string } = {}): Promise<void> {
+  const at = projectAt(projectId);
+  const hist = await attempt(() => GET<VersionHistory>(`${at}/versions/${kind}/${encodeURIComponent(id)}`));
   if (!hist) return;
-  const dlg = openModal(`History · ${hist.name}`, (close) => <HistoryDialog kind={kind} id={id} hist={hist} onRestored={onRestored} close={close} />);
+  const dlg = openModal(`History · ${hist.name}`, (close) => <HistoryDialog kind={kind} id={id} hist={hist} onRestored={onRestored} close={close} at={at} />);
   dlg.el.classList.add('wide');
 }
 
 /** A History button for a skill, agent, team or MEMORY.md. */
-export function historyButton(kind: VersionKind, id: string, onRestored?: () => void, label = 'History'): HTMLButtonElement {
-  return domButton({ variant: 'ghost', size: 'small', type: 'button', title: 'Earlier versions: compare and restore', onclick: () => openHistory(kind, id, { onRestored }) }, icon('history', 13), label);
+export function historyButton(kind: VersionKind, id: string, onRestored?: () => void, label = 'History', projectId?: string): HTMLButtonElement {
+  return domButton({ variant: 'ghost', size: 'small', type: 'button', title: 'Earlier versions: compare and restore', onclick: () => openHistory(kind, id, { onRestored, projectId }) }, icon('history', 13), label);
 }
 
 // ---------- Recently deleted ----------

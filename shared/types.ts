@@ -938,6 +938,8 @@ export interface Approval {
   createdAt: number;
   /** Why the Brain passed this on to you instead of allowing it (Settings > The Brain approves). */
   brainNote?: string;
+  /** the project the request came from (older ones: missing) */
+  projectId?: string;
 }
 
 export interface ApprovalDecision {
@@ -1331,6 +1333,8 @@ export interface Terminal {
   exited: boolean;
   exitCode: number | null;
   command: string;
+  /** the project open when it was made (the Overview lists it there) */
+  projectId?: string;
 }
 
 /** GET /api/state: everything the browser needs to draw. */
@@ -1669,6 +1673,64 @@ export interface BoardTask extends Omit<ProjectTask, 'comments'> {
 export interface TaskBoardData {
   projects: { id: string; name: string; open: number }[];
   tasks: BoardTask[];
+}
+/** One thing on the Overview page's sidebar: an agent, a team, the Brain, or a board task being worked on. */
+export interface OverviewSession {
+  kind: 'agent' | 'team' | 'brain' | 'task' | 'terminal';
+  /** the agent's, team's or task's id ('brain' for the Brain) */
+  id: string;
+  name: string;
+  emoji?: string;
+  color?: string;
+  /** an agent's engine (its mark) */
+  engine?: EngineId;
+  /** working: running now. needs-you: an approval, a question or a stopped check waits for you. */
+  status: 'working' | 'needs-you' | 'idle';
+  /** what needs you, in a few words */
+  why?: string;
+  /** when it last changed (0: never) */
+  updatedAt: number;
+  /** an agent's newest chat */
+  chatId?: string;
+  /** a task's #number */
+  number?: number;
+  /** a terminal whose program has ended */
+  ended?: boolean;
+}
+/** A project on the Overview page, with its sessions and how many work or need you. */
+export interface OverviewProject {
+  id: string;
+  name: string;
+  sessions: OverviewSession[];
+  working: number;
+  needsYou: number;
+  /** open tasks on its board */
+  boardOpen: number;
+}
+/** GET /api/overview: every project at a glance (names and times only, no chat contents). */
+export interface OverviewData {
+  /** the project open now */
+  active: string;
+  projects: OverviewProject[];
+}
+/** One entry of a project folder, as the Overview's Files panel lists it. */
+export interface FolderEntry {
+  name: string;
+  dir: boolean;
+  /** bytes (files only) */
+  size?: number;
+  /** the full path */
+  path: string;
+  /** the path from the project folder ('/'-separated) */
+  rel: string;
+}
+/** GET /api/projects/:id/folder: one folder of a project, its folders first. */
+export interface FolderListing {
+  /** the folder's path from the project folder ('' for the project folder itself) */
+  rel: string;
+  entries: FolderEntry[];
+  /** entries left out past the limit */
+  more: number;
 }
 /** POST /api/task-board-draft: the Brain drafts a task's title and description, or a comment. */
 export interface BoardDraftInput {

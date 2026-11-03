@@ -9,7 +9,7 @@ import type { Root } from 'react-dom/client';
 import type { CSSProperties } from 'react';
 import { POST, DEL, toast, lightbox } from './core.ts';
 import { upload } from './client/http.ts';
-import { fileUrl } from './client/connection.ts';
+import { fileUrl, projectAt } from './client/connection.ts';
 import { mountAttachMenu } from './attachmenu.tsx';
 import { markdownTooBig, onDesktop, openFile, openPdf, previewKind, showMarkdown } from './filepreview.tsx';
 import { Icon } from './ui/react.tsx';
@@ -150,9 +150,9 @@ export function filesFromInput(list: FileList | null): PickedFile[] {
   return [...(list || [])].filter((f) => !SKIP_FILES.test(f.name)).map((file) => ({ file, rel: file.webkitRelativePath || file.name }));
 }
 
-// One file to POST /api/uploads/<batch>, raw, with progress.
-const sendFile = (batch: string, p: PickedFile, onProgress: (sent: number) => void, signal: AbortSignal): Promise<UploadedFile> =>
-  upload<UploadedFile>(`/uploads/${encodeURIComponent(batch)}`, p.file, { query: { path: p.rel }, onProgress, signal });
+// One file to POST /api/uploads/<batch>, raw, with progress. at: '/p/<projectId>' for a project that isn't open.
+const sendFile = (batch: string, p: PickedFile, onProgress: (sent: number) => void, signal: AbortSignal, at = ''): Promise<UploadedFile> =>
+  upload<UploadedFile>(`${at}/uploads/${encodeURIComponent(batch)}`, p.file, { query: { path: p.rel }, onProgress, signal });
 
 // At most a few uploads at once, across every chip and tray on the page.
 const MAX_PARALLEL = 4;
@@ -205,7 +205,7 @@ function withDone<T extends Omit<Item, 'done' | 'settle'>>(it: T): Item {
 
 // One chip's files into the batch. The first failure stops the rest, and nothing is reported
 // until every request already going has finished.
-async function uploadItem(it: Item, batch: string, redraw: () => void): Promise<void> {
+async function uploadItem(it: Item, batch: string, redraw: () => void, at = ''): Promise<void> {
   const sentBy = new Map<PickedFile, number>();
   let failure: Error | null = null;
   await Promise.all(
@@ -217,7 +217,7 @@ async function uploadItem(it: Item, batch: string, redraw: () => void): Promise<
             sentBy.set(p, n);
             it.sent = [...sentBy.values()].reduce((a, b) => a + b, 0);
             redraw();
-          }, it.cancel.signal);
+          }, it.cancel.signal, at);
           sentBy.set(p, p.file.size);
           it.path ||= saved.top;
         } catch (e) {
@@ -231,13 +231,13 @@ async function uploadItem(it: Item, batch: string, redraw: () => void): Promise<
 
 // Upload items into one new batch folder; each item ends 'done' (with its path) or 'error'.
 // They are marked 'uploading' straight away, so a second call never picks them up again.
-async function uploadItems(items: Item[], redraw: () => void): Promise<void> {
+async function uploadItems(items: Item[], redraw: () => void, at = ''): Promise<void> {
   if (!items.length) return;
   for (const it of items) it.state = 'uploading';
   redraw();
   let batch: string;
   try {
-    batch = (await POST<{ batch: string }>('/uploads')).batch;
+    batch = (await POST<{ batch: string }>(`${at}/uploads`)).batch;
   } catch (e) {
     for (const it of items) Object.assign(it, { state: 'error', error: (e as Error).message });
     items.forEach((it) => it.settle());
@@ -246,13 +246,13 @@ async function uploadItems(items: Item[], redraw: () => void): Promise<void> {
   await Promise.all(
     items.map(async (it) => {
       try {
-        await uploadItem(it, batch, redraw);
+        await uploadItem(it, batch, redraw, at);
         if (!it.removed) it.state = 'done';
       } catch (e) {
         if (!it.removed) Object.assign(it, { state: 'error', error: (e as Error).message });
       }
       // taken back while it was uploading: remove what did arrive
-      if (it.removed && it.path) DEL(`/uploads?path=${encodeURIComponent(it.path)}`).catch(() => {});
+      if (it.removed && it.path) DEL(`${at}/uploads?path=${encodeURIComponent(it.path)}`).catch(() => {});
       it.settle();
       redraw();
     }),
@@ -344,7 +344,9 @@ const OVERLAY_CLASS = 'pointer-events-none absolute inset-0.75 z-50 flex animate
 
 // deferred: hold the files and upload only when ready() is called (a new project: its folder doesn't exist yet).
 // iconWeight: the weight the chat around it draws its icons in (the paperclip is drawn apart from it).
-export function attachTray({ deferred = false, onChange, iconWeight, pickerButton = PICKER_BUTTON }: { deferred?: boolean; onChange?: () => void; iconWeight?: IconWeight; pickerButton?: { variant?: ButtonVariant; size?: ButtonSize; class?: string; label?: string } } = {}): AttachTray {
+// project: files go to that project's uploads (an Overview pane of a project that isn't open).
+export function attachTray({ deferred = false, onChange, iconWeight, pickerButton = PICKER_BUTTON, project }: { deferred?: boolean; onChange?: () => void; iconWeight?: IconWeight; pickerButton?: { variant?: ButtonVariant; size?: ButtonSize; class?: string; label?: string }; project?: string } = {}): AttachTray {
+  const at = projectAt(project);
   let items: Item[] = [];
   const el = document.createElement('div');
   el.className = 'att-tray hidden';
@@ -387,7 +389,7 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
     for (const fn of listeners) fn();
   };
 
-  const forget = (p: string) => DEL(`/uploads?path=${encodeURIComponent(p)}`).catch(() => {});
+  const forget = (p: string) => DEL(`${at}/uploads?path=${encodeURIComponent(p)}`).catch(() => {});
   const remove = (it: Item) => {
     it.removed = true;
     it.cancel.abort();
@@ -409,7 +411,7 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
     }
     items = [...items, ...fresh];
     redraw();
-    if (!deferred) void uploadItems(fresh, redraw);
+    if (!deferred) void uploadItems(fresh, redraw, at);
   };
   // a failed chip gets another go: its partial upload goes, it starts over in a new batch
   const retry = (it: Item) => {
@@ -420,7 +422,7 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
     items.filter((it) => it.state === 'error').forEach(retry);
     // until nothing is left to upload: files added while waiting are included too
     for (;;) {
-      void uploadItems(items.filter((it) => it.state === 'waiting'), redraw);
+      void uploadItems(items.filter((it) => it.state === 'waiting'), redraw, at);
       const pending = items.filter((it) => it.state === 'uploading');
       if (!pending.length) break;
       await Promise.all(pending.map((it) => it.done));

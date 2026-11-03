@@ -608,6 +608,76 @@ describe('attached files', () => {
 });
 
 describe('agent runs and projects', () => {
+  it('works with a project that isn\'t open through /api/p/<id>/…, only for the routes an Overview pane uses', async () => {
+    const send = (p: string, body: unknown, headers: Record<string, string> = json) => req(p, { method: 'POST', headers, body: JSON.stringify(body) });
+    const home = path.join(tmp, 'home');
+    const other = await (await send('/api/projects', { name: 'Scoped other', mode: 'new', folder: path.join(home, 'scoped-other') })).json();
+    const writer = await (await send('/api/agents', { name: 'Scoped writer', engine: 'eve', provider: 'custom', model: 'mock' })).json();
+    const open = await (await send('/api/projects', { name: 'Scoped open', mode: 'new', folder: path.join(home, 'scoped-open') })).json();
+    // (the page shows the open project and says so with its changes)
+    const page = { ...json, 'x-dash-project': open.id };
+    expect((await (await req('/api/agents')).json()).some((a: { id: string }) => a.id === writer.id)).toBe(false);
+    expect((await (await req(`/api/p/${other.id}/agents`)).json()).map((a: { id: string }) => a.id)).toContain(writer.id);
+    const chat = await (await send(`/api/p/${other.id}/agents/${writer.id}/chats`, {}, page)).json();
+    expect(chat.agentId).toBe(writer.id);
+    expect((await (await req(`/api/p/${other.id}/agents/${writer.id}/chats`)).json()).map((c: { id: string }) => c.id)).toContain(chat.id);
+    expect((await req(`/api/agents/${writer.id}/chats/${chat.id}`)).status).toBe(404);
+    // attached files land in that project's folder
+    const { batch } = await (await send(`/api/p/${other.id}/uploads`, {}, page)).json();
+    const f = await (await req(`/api/p/${other.id}/uploads/${batch}?path=note.txt`, { method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-dash': '1' }, body: 'hi' })).json();
+    expect(fs.realpathSync(f.path).startsWith(fs.realpathSync(path.join(other.brainPath, 'uploads')))).toBe(true);
+    // its files show through its own address, not the open project's
+    const shown = await req(`/api/p/${other.id}/file?path=${encodeURIComponent(f.path)}`);
+    expect(shown.status).toBe(200);
+    expect(await shown.text()).toBe('hi');
+    expect((await req(`/api/file?path=${encodeURIComponent(f.path)}`)).status).not.toBe(200);
+    const info = async (at: string) => (await (await send(`/api${at}/files/info`, { paths: [f.path] }, page)).json())[0];
+    expect(await info(`/p/${other.id}`)).toMatchObject({ ok: true, name: 'note.txt', size: 2 });
+    expect(await info('')).toMatchObject({ ok: false });
+    // the Files panel lists its folders, never outside the project folder
+    const top = await (await req(`/api/projects/${other.id}/folder`)).json();
+    expect(top.rel).toBe('');
+    expect(top.entries).toContainEqual(expect.objectContaining({ name: 'uploads', dir: true, rel: 'uploads' }));
+    const inside = await (await req(`/api/projects/${other.id}/folder?path=${encodeURIComponent(`uploads/${batch}`)}`)).json();
+    expect(inside.entries).toEqual([expect.objectContaining({ name: 'note.txt', dir: false, size: 2, rel: `uploads/${batch}/note.txt` })]);
+    expect((await req(`/api/projects/${other.id}/folder?path=${encodeURIComponent('../..')}`)).status).toBe(403);
+    // a chat's tasks, the teams, and the Brain's chat are that project's
+    const task = await (await send(`/api/p/${other.id}/tasks`, { subject: 'Scoped task', description: 'Made from a pane' }, page)).json();
+    const listed = async (at: string) => (await (await req(`/api${at}/tasks?view=all&status=all`)).json()).tasks.map((t: { subject: string }) => t.subject);
+    expect(task).toMatchObject({ task: { subject: 'Scoped task' } });
+    expect(await listed(`/p/${other.id}`)).toContain('Scoped task');
+    expect(await listed('')).not.toContain('Scoped task');
+    expect((await req(`/api/p/${other.id}/workflows`)).status).toBe(200);
+    expect(Array.isArray(await (await req(`/api/p/${other.id}/brain/history`)).json())).toBe(true);
+    expect((await send(`/api/p/${other.id}/brain/steer`, {}, page)).status).toBe(200);
+    expect((await send(`/api/p/${other.id}/brain/clear`, {}, page)).status).toBe(404);
+    // the questions its agents ask are listed and answered there, even when the open project has one with the same id
+    const ask = (projectId: string) => {
+      const dir = path.join(tmp, 'data', 'projects', projectId, 'questions');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'twin-q.json'), JSON.stringify({ id: 'twin-q', question: 'Which style?', choices: ['Flat'], status: 'waiting', agentId: writer.id, agentName: 'Scoped writer', createdAt: Date.now() }));
+    };
+    ask(other.id);
+    ask(open.id);
+    expect((await (await req(`/api/p/${other.id}/questions`)).json()).map((q: { id: string }) => q.id)).toContain('twin-q');
+    expect((await send(`/api/p/${other.id}/questions/twin-q/dismiss`, {}, page)).status).toBe(200);
+    const statusIn = async (at: string) => (await (await req(`/api${at}/questions`)).json()).find((q: { id: string }) => q.id === 'twin-q')?.status;
+    expect(await statusIn(`/p/${other.id}`)).toBe('dismissed');
+    expect(await statusIn('')).toBe('waiting');
+    // its agents' MEMORY.md (and its versions) are read and saved there
+    const put = (at: string, text: string) => req(`/api${at}/memory/${writer.id}`, { method: 'PUT', headers: page, body: JSON.stringify({ text }) });
+    expect((await put(`/p/${other.id}`, 'Use British spelling.')).status).toBe(200);
+    expect((await (await req(`/api/p/${other.id}/memory/${writer.id}`)).json()).text).toContain('British spelling');
+    expect((await req(`/api/memory/${writer.id}`)).status).toBe(404);
+    expect((await req(`/api/p/${other.id}/versions/memory/${writer.id}`)).status).toBe(200);
+    // the rest stays global, and an unknown project is refused
+    expect((await req(`/api/p/${other.id}/settings`)).status).toBe(404);
+    expect((await req(`/api/p/${other.id}/projects`)).status).toBe(404);
+    expect((await req('/api/p/no-such-project/agents')).status).toBe(404);
+    // an ordinary change still has to be for the open project
+    expect((await send(`/api/agents/${writer.id}/chats`, {}, { ...json, 'x-dash-project': other.id })).status).toBe(409);
+  });
+
   it("tool calls through the MCP bridge stay in the run's project after you open another", async () => {
     // a fake model that holds its answer until the test lets it go
     let release = () => {};

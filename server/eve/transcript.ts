@@ -64,8 +64,8 @@ export function projectTranscript(runId: string): void {
       if (!publish) continue;
       if (event.kind === 'compacted') {
         const item = chat.items.find((item) => item.sourceId === sourceId);
-        if (item?.type === 'compaction') emit('compacted', { agentId: agent.id, chatId: chat.id, itemId: item.id });
-      } else emit('run', { runId, agentId: agent.id, chatId: chat.id, event, eventId: sourceId });
+        if (item?.type === 'compaction') emit('compacted', { agentId: agent.id, chatId: chat.id, projectId: project.id, itemId: item.id });
+      } else emit('run', { runId, agentId: agent.id, chatId: chat.id, projectId: project.id, event, eventId: sourceId });
     }
   });
 }

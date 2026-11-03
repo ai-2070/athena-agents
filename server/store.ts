@@ -13,7 +13,10 @@ ensureDir(DATA);
 // Everything that happens is broadcast to open browser tabs through this bus.
 export const bus = new EventEmitter<{ event: [ServerEvent] }>();
 bus.setMaxListeners(100);
-export const emit = (type: string, payload: Record<string, unknown> = {}) => bus.emit('event', { type, ...payload, ts: Date.now() });
+// (a chat's events say which project they are from: a copied project has the same agent, team and chat ids)
+const PROJECT_EVENTS = new Set(['run', 'queue', 'loop', 'compacted', 'chat-note', 'brief', 'team']);
+export const emit = (type: string, payload: Record<string, unknown> = {}) =>
+  bus.emit('event', { type, ...(PROJECT_EVENTS.has(type) && !('projectId' in payload) ? { projectId: activeProject().id } : {}), ...payload, ts: Date.now() });
 
 // ---------- settings (safe to show) and secrets (never sent to the browser) ----------
 const SETTINGS_FILE = dataPath('settings.json');

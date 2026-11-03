@@ -1,7 +1,7 @@
 // The Brain chat: clearing it while an answer is on its way, and messages meant for another project.
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { activeProject, bus, listProjects, saveProjects, setActiveProject, workflows } from '../../server/store.ts';
+import { activeProject, bus, listProjects, saveProjects, setActiveProject, withProject, workflows } from '../../server/store.ts';
 import { ask, brainChatLine, clearHistory, history, steerAsks } from '../../server/overseer.ts';
 import type { ServerEvent } from '../../shared/types.ts';
 
@@ -198,5 +198,19 @@ describe('the Brain chat', () => {
     setActiveProject(home.id);
     await answerNext('Done.\n```actions\n[{"do":"create_team","name":"Stayed team","members":[{"new":{"name":"Stayer"}}]}]\n```');
     expect((await again).done.map((d) => d.kind)).toEqual(['hired', 'team']);
+  });
+  it('does what another project\'s Brain says, asked in its pane (that project named, another one open)', async () => {
+    const home = activeProject();
+    if (!listProjects().some((x) => x.id === 'pane')) saveProjects([...listProjects(), { ...home, id: 'pane', name: 'Pane', brainPath: path.join(path.dirname(home.brainPath), 'pane') }]);
+    const pane = listProjects().find((x) => x.id === 'pane')!;
+    // (as the route /api/p/pane/brain/stream runs it)
+    const r = withProject(pane, () => ask('build a team there', { project: 'pane' }));
+    await until(() => pending.length > 0);
+    // opening another project meanwhile doesn't matter: the request named its own
+    setActiveProject(home.id);
+    await answerNext('On it.\n```actions\n[{"do":"create_team","name":"Pane team","members":[{"new":{"name":"Paner"}}]}]\n```');
+    expect((await r).done.map((d) => d.kind)).toEqual(['hired', 'team']);
+    expect(withProject(pane, () => workflows.list().some((w) => w.name === 'Pane team'))).toBe(true);
+    expect(workflows.list().some((w) => w.name === 'Pane team')).toBe(false);
   });
 });

@@ -4,7 +4,7 @@ import type { IPty } from '@lydell/node-pty';
 import type { WebSocket } from 'ws';
 import type { Agent, Terminal } from '../shared/types.ts';
 import { which, uid, IS_WIN, HOME } from './util.ts';
-import { emit, log } from './store.ts';
+import { activeProject, emit, log } from './store.ts';
 import { prepareFiles, claudeArgs, claudeEnv } from './engines/claude.ts';
 import { hermesArgs } from './engines/hermes.ts';
 import { codexArgs, terminalPromptFile } from './engines/codex.ts';
@@ -35,7 +35,7 @@ const sessions = new Map<string, TerminalSession>();
 const MAX_BUFFER = 400_000;
 
 export function listTerminals(): Terminal[] {
-  return [...sessions.values()].map(({ id, title, agentId, createdAt, exited, exitCode, command }) => ({ id, title, agentId, createdAt, exited, exitCode, command }));
+  return [...sessions.values()].map(({ id, title, agentId, createdAt, exited, exitCode, command, projectId }) => ({ id, title, agentId, createdAt, exited, exitCode, command, ...(projectId ? { projectId } : {}) }));
 }
 
 function spawnPty(command: string, args: string[], { cwd, env, cols = 120, rows = 32 }: { cwd?: string | null; env?: NodeJS.ProcessEnv | null; cols?: number; rows?: number }): IPty {
@@ -88,7 +88,7 @@ export function createTerminal({ kind = 'shell', agent = null, command = null, a
   if (!which(cmd) && !IS_WIN) throw new Error(`${cmd} was not found.`);
   const p = spawnPty(cmd, argv, { cwd: dir, env, cols, rows });
   const id = uid('t');
-  const s: TerminalSession = { id, title: name, agentId: agent?.id || null, command: [cmd, ...argv].join(' ').slice(0, 300), pty: p, buffer: '', clients: new Set(), createdAt: Date.now(), exited: false, exitCode: null };
+  const s: TerminalSession = { id, title: name, agentId: agent?.id || null, command: [cmd, ...argv].join(' ').slice(0, 300), pty: p, buffer: '', clients: new Set(), createdAt: Date.now(), exited: false, exitCode: null, projectId: activeProject().id };
   p.onData((d) => {
     s.buffer += d;
     if (s.buffer.length > MAX_BUFFER) s.buffer = s.buffer.slice(-MAX_BUFFER);

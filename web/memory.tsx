@@ -5,6 +5,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { GET, PUT, attempt, ago, onEvent, onState, state, confirmBox } from './core.ts';
+import { projectAt } from './client/connection.ts';
 import { domButton } from './ui/dom.ts';
 import type { ButtonSize, ButtonVariant } from './ui/classes.ts';
 import { Button } from './ui/button.tsx';
@@ -46,11 +47,15 @@ interface ViewProps {
   rows: number;
   brain: boolean;
   project: string | null;
+  /** the project, when it isn't the open one (an Overview pane): read and saved there, and opening another
+   *  project doesn't make it someone else's */
+  foreign?: string;
   host: HTMLElement;
   store: MemoryState;
 }
 
-function MemoryEditorView({ owner, rows, brain, project, host, store }: ViewProps): ReactNode {
+function MemoryEditorView({ owner, rows, brain, project, foreign, host, store }: ViewProps): ReactNode {
+  const at = projectAt(foreign);
   const [, force] = useReducer((n: number) => n + 1, 0);
   const area = useRef<HTMLTextAreaElement | null>(null);
   const dirty = () => !!store.loaded && store.text !== store.base;
@@ -60,7 +65,7 @@ function MemoryEditorView({ owner, rows, brain, project, host, store }: ViewProp
       store.changedElsewhere = true;
       return force();
     }
-    const m = await GET<MemoryInfo>(`/memory/${encodeURIComponent(owner)}`).catch(() => null);
+    const m = await GET<MemoryInfo>(`${at}/memory/${encodeURIComponent(owner)}`).catch(() => null);
     if (!m || typeof m.text !== 'string') {
       store.error = true;
       return force();
@@ -83,7 +88,7 @@ function MemoryEditorView({ owner, rows, brain, project, host, store }: ViewProp
   const save = async (): Promise<void> => {
     if (!dirty() || store.gone) return;
     const text = store.text;
-    const m = await attempt(() => PUT<MemoryInfo>(`/memory/${encodeURIComponent(owner)}`, { text }), 'Saved MEMORY.md');
+    const m = await attempt(() => PUT<MemoryInfo>(`${at}/memory/${encodeURIComponent(owner)}`, { text }), 'Saved MEMORY.md');
     if (!m) return;
     store.loaded = m;
     store.base = m.text;
@@ -98,7 +103,7 @@ function MemoryEditorView({ owner, rows, brain, project, host, store }: ViewProp
 
   // the History button is plain DOM (history.ts), so it goes into a contents span of its own
   const history = useRef<HTMLButtonElement | null>(null);
-  if (!history.current) history.current = historyButton('memory', owner, () => void load(true));
+  if (!history.current) history.current = historyButton('memory', owner, () => void load(true), 'History', foreign);
   const mountHistory = useCallback((node: HTMLSpanElement | null) => { if (node && history.current) node.replaceChildren(history.current); }, []);
 
   // typing keeps the store in step; the box is uncontrolled, and input arrives on the element itself
@@ -122,7 +127,7 @@ function MemoryEditorView({ owner, rows, brain, project, host, store }: ViewProp
     });
     const offState = onState((d) => {
       if (!host.isConnected && store.loaded) return stop();
-      if (!store.gone && project && d.project?.id && d.project.id !== project) {
+      if (!foreign && !store.gone && project && d.project?.id && d.project.id !== project) {
         store.gone = true;
         force();
       }
@@ -210,20 +215,21 @@ function MemoryEditorView({ owner, rows, brain, project, host, store }: ViewProp
   );
 }
 
-/** The editor for one MEMORY.md. rows: the height of the text box. */
-export function memoryEditor(owner: string, { rows = 12 }: { rows?: number } = {}): MemoryEditor {
+/** The editor for one MEMORY.md. rows: the height of the text box. projectId: its project, when it isn't the open
+ *  one (an Overview pane). */
+export function memoryEditor(owner: string, { rows = 12, projectId }: { rows?: number; projectId?: string } = {}): MemoryEditor {
   const brain = owner === BRAIN;
-  const project = state.data?.project?.id ?? null;
+  const project = projectId || state.data?.project?.id || null;
   const store: MemoryState = { loaded: null, base: '', text: '', changedElsewhere: false, gone: false, error: false };
   const el = document.createElement('div');
   // (synchronously, so the box is there the moment this returns, as the plain-DOM editor's was)
-  flushSync(() => createRoot(el).render(<MemoryEditorView owner={owner} rows={rows} brain={brain} project={project} host={el} store={store} />));
+  flushSync(() => createRoot(el).render(<MemoryEditorView owner={owner} rows={rows} brain={brain} project={project} foreign={projectId} host={el} store={store} />));
   return { el, dirty: () => !!store.loaded && store.text !== store.base };
 }
 
-/** A window with the MEMORY.md of an agent (its id) or the Brain (BRAIN). */
-export function openMemory(owner: string, name = owner === BRAIN ? 'The Brain' : 'Agent'): void {
-  const ed = memoryEditor(owner, { rows: 18 });
+/** A window with the MEMORY.md of an agent (its id) or the Brain (BRAIN). projectId: of a project that isn't open. */
+export function openMemory(owner: string, name = owner === BRAIN ? 'The Brain' : 'Agent', { projectId }: { projectId?: string } = {}): void {
+  const ed = memoryEditor(owner, { rows: 18, projectId });
   const close = async (shut: () => void) => {
     if (ed.dirty() && !(await confirmBox('Close without saving your changes to MEMORY.md?', { ok: 'Close', danger: true }))) return;
     shut();
@@ -249,6 +255,6 @@ export function openMemory(owner: string, name = owner === BRAIN ? 'The Brain' :
 }
 
 /** A button that opens it. */
-export function memoryButton(owner: string, name?: string, { variant = 'ghost', size = 'small', class: cls = '' }: { variant?: ButtonVariant; size?: ButtonSize; class?: string } = {}): HTMLButtonElement {
-  return domButton({ variant, size, class: cls, type: 'button', title: 'What it remembers across chats: read and edit', onclick: () => openMemory(owner, name) }, icon('file-text', 13), 'MEMORY.md');
+export function memoryButton(owner: string, name?: string, { variant = 'ghost', size = 'small', class: cls = '', projectId }: { variant?: ButtonVariant; size?: ButtonSize; class?: string; projectId?: string } = {}): HTMLButtonElement {
+  return domButton({ variant, size, class: cls, type: 'button', title: 'What it remembers across chats: read and edit', onclick: () => openMemory(owner, name, { projectId }) }, icon('file-text', 13), 'MEMORY.md');
 }

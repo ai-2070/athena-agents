@@ -11,7 +11,7 @@ import { icon } from './icons.ts';
 import { isMac } from './shortcuts.ts';
 import { findFileMentions } from './mentions.ts';
 import { modelViewer } from './modelviewer.ts';
-import { fileUrl, pdfViewUrl } from './client/connection.ts';
+import { fileUrl, pdfViewUrl, filesAt } from './client/connection.ts';
 import { fetchFile } from './client/http.ts';
 import { showMarkdownDialog } from './ui/bigmarkdown.tsx';
 import { Plate } from './ui/surface.tsx';
@@ -30,12 +30,13 @@ export const fileManager = (): string => (isWindows() ? 'Explorer' : isMac() ? '
 /** The desktop app: files open with their own programs instead of downloading or opening a browser tab. */
 export const onDesktop = (): boolean => !!state.data?.desktop;
 
-/** Opens the file with its default program (desktop app). Programs and scripts are refused by the server. */
-export const openFile = (path: string): void => void attempt(() => POST('/files/open', { path }));
+/** Opens the file with its default program (desktop app). Programs and scripts are refused by the server.
+ *  project: whose chat shows it, when that project may not be open (see filesAt). */
+export const openFile = (path: string, project?: string): void => void attempt(() => POST(`${filesAt(path, project)}/files/open`, { path }));
 
 // ---------- looking files up: one request for everything asked for in the same moment ----------
 const known = new Map<string, { at: number; info: Promise<FileInfo> }>();
-let queue: { path: string; resolve: (i: FileInfo) => void }[] = [];
+let queue: { path: string; at: string; resolve: (i: FileInfo) => void }[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 // a file that isn't there may be written in a moment: ask again after a while
 const MISSING_FOR = 15_000;
@@ -44,21 +45,28 @@ function flush(): void {
   timer = null;
   const batch = queue.splice(0, 50);
   if (queue.length) timer = setTimeout(flush, 0);
-  POST<FileInfo[]>('/files/info', { paths: batch.map((q) => q.path) })
-    .then((list) => batch.forEach((q, i) => q.resolve(list[i] ?? { path: q.path, ok: false })))
-    .catch(() => batch.forEach((q) => q.resolve({ path: q.path, ok: false })));
+  // (each project's files are looked up in that project)
+  const byProject = new Map<string, typeof batch>();
+  for (const q of batch) byProject.set(q.at, [...(byProject.get(q.at) || []), q]);
+  for (const [at, part] of byProject)
+    POST<FileInfo[]>(`${at}/files/info`, { paths: part.map((q) => q.path) })
+      .then((list) => part.forEach((q, i) => q.resolve(list[i] ?? { path: q.path, ok: false })))
+      .catch(() => part.forEach((q) => q.resolve({ path: q.path, ok: false })));
 }
 
-export function lookupFiles(paths: readonly string[]): Promise<FileInfo[]> {
+/** project: whose chat mentions them, when that project may not be open (see filesAt). */
+export function lookupFiles(paths: readonly string[], project?: string): Promise<FileInfo[]> {
   return Promise.all(
     paths.map((path) => {
-      const hit = known.get(path);
-      if (hit) return hit.info.then((info) => (info.ok || Date.now() - hit.at < MISSING_FOR ? info : (known.delete(path), lookupFiles([path]).then((l) => l[0]))));
+      const at = filesAt(path, project);
+      const id = `${at}\n${path}`;
+      const hit = known.get(id);
+      if (hit) return hit.info.then((info) => (info.ok || Date.now() - hit.at < MISSING_FOR ? info : (known.delete(id), lookupFiles([path], project).then((l) => l[0]))));
       const info = new Promise<FileInfo>((resolve) => {
-        queue.push({ path, resolve });
+        queue.push({ path, at, resolve });
         timer ??= setTimeout(flush, 20);
       });
-      known.set(path, { at: Date.now(), info });
+      known.set(id, { at: Date.now(), info });
       return info;
     }),
   );
@@ -107,9 +115,9 @@ export function markdownTooBig(name: string, bytes: number): boolean {
 }
 
 /** A Markdown file the server has, read in a dialog. */
-export async function previewMarkdown(path: string, name: string): Promise<void> {
+export async function previewMarkdown(path: string, name: string, project?: string): Promise<void> {
   try {
-    const res = await fetchFile(fileUrl(path));
+    const res = await fetchFile(fileUrl(path, project));
     if (markdownTooBig(name, Number(res.headers.get('content-length') || 0))) return void res.body?.cancel();
     showMarkdown(name, await res.text());
   } catch {
@@ -118,16 +126,16 @@ export async function previewMarkdown(path: string, name: string): Promise<void>
 }
 
 /** A PDF opened in a new browser tab (in the desktop app, the default browser). */
-export const openPdf = (path: string): void => void window.open(pdfViewUrl(path), '_blank', 'noopener');
+export const openPdf = (path: string, project?: string): void => void window.open(pdfViewUrl(path, project), '_blank', 'noopener');
 
 /** Show a file the server has the way previewKind says. In the desktop app a PDF, or a file the page
  *  can't show, opens in its own program. */
-export function previewFile(path: string, name: string): void {
+export function previewFile(path: string, name: string, project?: string): void {
   const kind = previewKind(name);
-  if (kind === 'image') lightbox(fileUrl(path), name);
-  else if (kind === 'markdown') void previewMarkdown(path, name);
-  else if (onDesktop()) openFile(path);
-  else if (kind === 'pdf') openPdf(path);
+  if (kind === 'image') lightbox(fileUrl(path, project), name);
+  else if (kind === 'markdown') void previewMarkdown(path, name, project);
+  else if (onDesktop()) openFile(path, project);
+  else if (kind === 'pdf') openPdf(path, project);
 }
 
 /** What a click on this file does, for its title. null: nothing (a file the browser can only download). */
@@ -137,12 +145,12 @@ export function previewTitle(name: string): string | null {
 }
 
 /** Open, in the desktop app: the file in its own program. */
-export function openButton(path: string, name: string): HTMLButtonElement {
-  return domButton({ variant: 'ghost', size: 'tiny', class: 'fp-open flex-none gap-1.25', type: 'button', title: `Open ${name}`, onclick: () => openFile(path) }, icon('external-link', 13), 'Open');
+export function openButton(path: string, name: string, project?: string): HTMLButtonElement {
+  return domButton({ variant: 'ghost', size: 'tiny', class: 'fp-open flex-none gap-1.25', type: 'button', title: `Open ${name}`, onclick: () => openFile(path, project) }, icon('external-link', 13), 'Open');
 }
 
-export function revealButton(path: string): HTMLButtonElement {
-  return domButton({ variant: 'ghost', size: 'tiny', class: 'fp-reveal flex-none gap-1.25', type: 'button', title: path, onclick: () => attempt(() => POST('/files/reveal', { path })) }, icon('folder-open', 13), revealLabel());
+export function revealButton(path: string, project?: string): HTMLButtonElement {
+  return domButton({ variant: 'ghost', size: 'tiny', class: 'fp-reveal flex-none gap-1.25', type: 'button', title: path, onclick: () => attempt(() => POST(`${filesAt(path, project)}/files/reveal`, { path })) }, icon('folder-open', 13), revealLabel());
 }
 
 /** An image the box owns that opens big (zoomable adds the button role, focus and keys to it). */
@@ -155,8 +163,8 @@ function ZoomImage({ src, name, className }: { src: string; name: string; classN
 }
 
 // compact: the floating window, the Station panel, team turns (full width, shorter)
-function Card({ f, compact }: { f: OkFile; compact: boolean }) {
-  const url = fileUrl(f.path);
+function Card({ f, compact, project }: { f: OkFile; compact: boolean; project?: string }) {
+  const url = fileUrl(f.path, project);
   const media = `block w-full bg-panel-2 object-contain ${compact ? 'max-h-50' : 'max-h-80'}`;
   const fileBox = `flex items-center gap-2.5 text-ink ${compact ? 'px-3 py-2.5' : 'px-3.5 py-4'}`;
   const preview =
@@ -169,7 +177,7 @@ function Card({ f, compact }: { f: OkFile; compact: boolean }) {
     ) : f.kind === 'model' ? (
       <DomNode make={() => modelViewer(url, f.name, f.size)} deps={[url]} />
     ) : (
-      <FileCard f={f} fileBox={fileBox} />
+      <FileCard f={f} fileBox={fileBox} project={project} />
     );
   // a card that opens bigger when clicked says so when the mouse is over it
   const opens = f.kind === 'image' || (f.kind === 'file' && (onDesktop() || previewKind(f.name) !== null));
@@ -183,8 +191,8 @@ function Card({ f, compact }: { f: OkFile; compact: boolean }) {
         <span className="fp-name min-w-0 truncate">{f.name}</span>
         {f.kind !== 'folder' && f.size ? <span className="fp-size whitespace-nowrap text-faint">{size(f.size)}</span> : null}
         <span className="min-w-0 flex-1" />
-        {onDesktop() && f.kind !== 'folder' ? <DomNode as="span" className="contents" make={() => openButton(f.path, f.name)} deps={[f.path]} /> : null}
-        <DomNode as="span" className="contents" make={() => revealButton(f.path)} deps={[f.path]} />
+        {onDesktop() && f.kind !== 'folder' ? <DomNode as="span" className="contents" make={() => openButton(f.path, f.name, project)} deps={[f.path, project]} /> : null}
+        <DomNode as="span" className="contents" make={() => revealButton(f.path, project)} deps={[f.path, project]} />
       </div>
     </Plate>
   );
@@ -192,7 +200,7 @@ function Card({ f, compact }: { f: OkFile; compact: boolean }) {
 
 // A file without a picture of its own: Markdown opens to read, a PDF in a new tab, the rest download.
 // In the desktop app a PDF and the rest open in their own programs.
-function FileCard({ f, fileBox }: { f: OkFile; fileBox: string }) {
+function FileCard({ f, fileBox, project }: { f: OkFile; fileBox: string; project?: string }) {
   const label = <span className="min-w-0 truncate text-[13.5px]">{f.kind === 'folder' ? `${f.name}/` : f.name}</span>;
   if (f.kind === 'folder')
     return (
@@ -204,14 +212,14 @@ function FileCard({ f, fileBox }: { f: OkFile; fileBox: string }) {
   const kind = previewKind(f.name);
   if (kind === 'markdown')
     return (
-      <button type="button" className={`fp-file ${fileBox} w-full cursor-pointer border-0 bg-transparent text-left hover:bg-panel hover:text-accent`} title={`Read ${f.name}`} onClick={() => void previewMarkdown(f.path, f.name)}>
+      <button type="button" className={`fp-file ${fileBox} w-full cursor-pointer border-0 bg-transparent text-left hover:bg-panel hover:text-accent`} title={`Read ${f.name}`} onClick={() => void previewMarkdown(f.path, f.name, project)}>
         <Icon name="file-text" size={22} />
         {label}
       </button>
     );
   if (onDesktop())
     return (
-      <button type="button" className={`fp-file ${fileBox} w-full cursor-pointer border-0 bg-transparent text-left hover:bg-panel hover:text-accent`} title={`Open ${f.name}`} onClick={() => openFile(f.path)}>
+      <button type="button" className={`fp-file ${fileBox} w-full cursor-pointer border-0 bg-transparent text-left hover:bg-panel hover:text-accent`} title={`Open ${f.name}`} onClick={() => openFile(f.path, project)}>
         <Icon name="file-text" size={22} />
         {label}
         <span className="ml-auto flex-none text-faint">
@@ -221,7 +229,7 @@ function FileCard({ f, fileBox }: { f: OkFile; fileBox: string }) {
     );
   if (kind === 'pdf')
     return (
-      <a className={`fp-file ${fileBox} hover:bg-panel hover:text-accent`} href={pdfViewUrl(f.path)} target="_blank" rel="noopener" title={`Open ${f.name} in a new tab`}>
+      <a className={`fp-file ${fileBox} hover:bg-panel hover:text-accent`} href={pdfViewUrl(f.path, project)} target="_blank" rel="noopener" title={`Open ${f.name} in a new tab`}>
         <Icon name="file-text" size={22} />
         {label}
         <span className="ml-auto flex-none text-faint">
@@ -230,7 +238,7 @@ function FileCard({ f, fileBox }: { f: OkFile; fileBox: string }) {
       </a>
     );
   return (
-    <a className={`fp-file ${fileBox} hover:text-accent`} href={fileUrl(f.path)} target="_blank" rel="noopener" title={`Download ${f.name}`}>
+    <a className={`fp-file ${fileBox} hover:text-accent`} href={fileUrl(f.path, project)} target="_blank" rel="noopener" title={`Download ${f.name}`}>
       <Icon name="file-text" size={22} />
       {label}
     </a>
@@ -238,11 +246,11 @@ function FileCard({ f, fileBox }: { f: OkFile; fileBox: string }) {
 }
 
 // Looks the files up and draws a card for each one the dashboard may show (nothing until then).
-function Previews({ paths, compact, onReady }: { paths: readonly string[]; compact: boolean; onReady: () => void }) {
+function Previews({ paths, compact, project, onReady }: { paths: readonly string[]; compact: boolean; project?: string; onReady: () => void }) {
   const [files, setFiles] = useState<OkFile[]>([]);
   useEffect(() => {
     let live = true;
-    lookupFiles(paths).then((infos) => {
+    lookupFiles(paths, project).then((infos) => {
       if (!live) return;
       const ok = infos.filter((i): i is OkFile => i.ok);
       if (!ok.length) return;
@@ -253,24 +261,24 @@ function Previews({ paths, compact, onReady }: { paths: readonly string[]; compa
       live = false;
     };
     // paths is fixed for this box and onReady only shows it, so neither needs a dependency
-  }, [paths, compact]);
+  }, [paths, compact, project]);
   return (
     <>
       {files.map((f) => (
-        <Card key={f.path} f={f} compact={compact} />
+        <Card key={f.path} f={f} compact={compact} project={project} />
       ))}
     </>
   );
 }
 
 /** Previews for these paths. Returns its box right away (empty and hidden until the files are looked
- *  up; it stays hidden when none of them may be shown). */
-export function filePreviews(paths: readonly string[], { compact = false }: { compact?: boolean } = {}): HTMLDivElement {
+ *  up; it stays hidden when none of them may be shown). project: whose chat mentions them (see filesAt). */
+export function filePreviews(paths: readonly string[], { compact = false, project }: { compact?: boolean; project?: string } = {}): HTMLDivElement {
   const box = document.createElement('div');
   box.className = `hidden ${compact ? 'flex w-full max-w-[860px] flex-wrap gap-1.5' : 'flex w-full max-w-[860px] flex-wrap gap-2.5'}`;
   const list = [...new Set(paths)].filter(Boolean);
   if (!list.length) return box;
-  createRoot(box).render(<Previews paths={list} compact={compact} onReady={() => box.classList.remove('hidden')} />);
+  createRoot(box).render(<Previews paths={list} compact={compact} project={project} onReady={() => box.classList.remove('hidden')} />);
   return box;
 }
 
@@ -282,14 +290,14 @@ const boxes = new Map<string, { box: HTMLDivElement; at: number }>();
 /** Previews for the files a message's text mentions (and the files sent with it). key: the message,
  *  scoped to its view ("team:<id>", "dock:<id>": a box can only be in one place), so a redraw gets the
  *  same box back. null when it mentions none. */
-export function mentionPreviews(text: string | null | undefined, attachments: readonly string[] = [], { compact = false, key }: { compact?: boolean; key?: string } = {}): HTMLDivElement | null {
+export function mentionPreviews(text: string | null | undefined, attachments: readonly string[] = [], { compact = false, key, project }: { compact?: boolean; key?: string; project?: string } = {}): HTMLDivElement | null {
   const paths = [...new Set([...attachments, ...findFileMentions(text)])];
   if (!paths.length) return null;
-  if (!key) return filePreviews(paths, { compact });
-  const id = `${key}\n${compact}\n${paths.join('\n')}`;
+  if (!key) return filePreviews(paths, { compact, project });
+  const id = `${key}\n${compact}\n${project || ''}\n${paths.join('\n')}`;
   const hit = boxes.get(id);
   if (hit && !(hit.box.classList.contains('hidden') && Date.now() - hit.at > MISSING_FOR)) return hit.box;
-  const box = filePreviews(paths, { compact });
+  const box = filePreviews(paths, { compact, project });
   boxes.set(id, { box, at: Date.now() });
   // (the oldest go once there are many)
   if (boxes.size > 300) boxes.delete(boxes.keys().next().value!);

@@ -5,11 +5,13 @@
 import { StrictMode, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GET, POST, attempt } from './core.ts';
+import { projectAt } from './client/connection.ts';
 import { modelChip } from './models.tsx';
 import { attachTray } from './attach.tsx';
 import { memoryButton } from './memory.tsx';
 import { buttonClass } from './ui/classes.ts';
 import { DomNode, Icon, useAppState } from './ui/react.tsx';
+import { useProjectAgents } from './projectagents.ts';
 import { Button, ButtonLink } from './ui/button.tsx';
 import type { ChatViewApi } from './chat/ChatView.tsx';
 import type { Chat, ChatSummary } from '../shared/types.ts';
@@ -32,23 +34,26 @@ interface FocusAsk {
   api: { current: ChatViewApi | null };
 }
 
-function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
+function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: FocusAsk; projectId?: string }) {
   const d = useAppState();
-  const agent = d?.agents.find((a) => a.id === agentId);
+  // (a chat of a project that isn't open: its agents are fetched from that project)
+  const theirs = useProjectAgents(projectId);
+  const at = projectAt(projectId);
+  const agent = projectId ? theirs.find((a) => a.id === agentId) : d?.agents.find((a) => a.id === agentId);
   // the chat picked (when the tab opens, or New chat): undefined while looking for its latest one,
   // null for a new one, made by the first message. n tells picks apart, so New chat starts afresh.
   const [pick, setPick] = useState<{ id: string | null; n: number } | undefined>(undefined);
   // the chat shown, for the Full page link (a first message makes one without starting the view again)
   const [chatId, setChatId] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  const tray = useMemo(() => attachTray(), []);
+  const tray = useMemo(() => attachTray({ project: projectId }), [projectId]);
   // New chat was clicked: a slow first look for the latest chat must not take the tab back to it
   const chosen = useRef(false);
   useEffect(() => {
     let live = true;
     chosen.current = false;
     // its own conversations, not the sessions it keeps for each team chat
-    void GET<ChatSummary[]>(`/agents/${agentId}/chats`)
+    void GET<ChatSummary[]>(`${at}/agents/${agentId}/chats`)
       .catch((): ChatSummary[] => [])
       .then((chats) => {
         if (!live || chosen.current) return;
@@ -57,7 +62,7 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
         setChatId(id);
       });
     return () => void (live = false);
-  }, [agentId]);
+  }, [agentId, at]);
   useEffect(() => {
     const off = tray.dropZone(root.current!, `Drop files or folders for ${agent?.name || 'the agent'}`);
     return () => {
@@ -83,14 +88,14 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
   }, [pick, ask]);
 
   const fresh = async () => {
-    const c = await attempt(() => POST<Chat>(`/agents/${agentId}/chats`));
+    const c = await attempt(() => POST<Chat>(`${at}/agents/${agentId}/chats`));
     if (c) {
       chosen.current = true;
       setPick((p) => ({ id: c.id, n: (p?.n || 0) + 1 }));
       setChatId(c.id);
     }
   };
-  const chip = useMemo(() => agent ? modelChip(agent, { compact: true }) : null, [agent?.id, agent?.model, agent?.engine, agent?.provider]);
+  const chip = useMemo(() => agent ? modelChip(agent, { compact: true, at }) : null, [agent?.id, agent?.model, agent?.engine, agent?.provider, at]);
   return (
     <div className="flex flex-col gap-3 h-full" ref={root}>
       <div className="flex items-center gap-2 pt-1">
@@ -99,11 +104,13 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
           <Icon name="plus" size={13} />
           New chat
         </Button>
-        <DomNode as="span" make={() => memoryButton(agentId, agent?.name, { size: 'tiny' })} deps={[agentId]} />
-        <ButtonLink size="tiny" variant="ghost" title="Open the full chat page" href={chatId ? `#/agents/${agentId}/${chatId}` : `#/agents/${agentId}`}>
-          <Icon name="maximize-2" size={13} />
-          Full page
-        </ButtonLink>
+        <DomNode as="span" make={() => memoryButton(agentId, agent?.name, { size: 'tiny', projectId })} deps={[agentId, agent?.name, projectId]} />
+        {projectId ? null : (
+          <ButtonLink size="tiny" variant="ghost" title="Open the full chat page" href={chatId ? `#/agents/${agentId}/${chatId}` : `#/agents/${agentId}`}>
+            <Icon name="maximize-2" size={13} />
+            Full page
+          </ButtonLink>
+        )}
       </div>
       <div className="contents">
         {agent && pick ? (
@@ -117,6 +124,7 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
               footer={chip}
               onChat={(c: Chat) => setChatId(c.id)}
               apiRef={ask.api}
+              {...(projectId ? { agents: theirs, projectId } : {})}
             />
           </Suspense>
         ) : null}
@@ -126,12 +134,13 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
 }
 
 /** Draws the agent's chat into a tab of the floating window. */
-export function renderAgentChat(container: HTMLElement, agentId: string): AgentChatApi {
+/** projectId: the agent's project, when it isn't the open one (an Overview pane): its requests go there (projectAt). */
+export function renderAgentChat(container: HTMLElement, agentId: string, { projectId }: { projectId?: string } = {}): AgentChatApi {
   const ask: FocusAsk = { wanted: false, api: { current: null } };
   const root = createRoot(container);
   root.render(
     <StrictMode>
-      <AgentChatPane agentId={agentId} ask={ask} />
+      <AgentChatPane agentId={agentId} ask={ask} projectId={projectId} />
     </StrictMode>,
   );
   return {

@@ -177,3 +177,42 @@ describe('upload()', () => {
     await expect(upload('/uploads/b1', new Blob(['x']), { signal: stop.signal })).rejects.toThrow('Cancelled');
   });
 });
+
+describe('files of a project that isn\'t open', () => {
+  it('are shown and looked up through that project, picked by the folder that holds them', async () => {
+    const { setProjectFolders, filesAt, fileUrl, pdfViewUrl } = await import('../../web/client/connection.ts');
+    setProjectFolders([{ id: 'p1', brainPath: '/work/bakery' }, { id: 'p2', brainPath: '/work/bakery-2/' }, { id: 'p3', brainPath: 'C:\\Projects\\Pod' }, { id: 'p4' }], 'p1');
+    try {
+      expect(filesAt('/work/bakery/notes/a.md')).toBe('');
+      expect(filesAt('/work/bakery-2/notes/a.md')).toBe('/p/p2');
+      expect(filesAt('c:\\projects\\pod\\uploads\\b.png')).toBe('/p/p3');
+      expect(filesAt('/elsewhere/c.txt')).toBe('');
+      expect(fileUrl('/work/bakery-2/x.png')).toBe('/api/p/p2/file?path=%2Fwork%2Fbakery-2%2Fx.png');
+      expect(fileUrl('/work/bakery/x.png')).toBe('/api/file?path=%2Fwork%2Fbakery%2Fx.png');
+      expect(pdfViewUrl('/work/bakery-2/a.pdf')).toBe('/api/p/p2/file?path=%2Fwork%2Fbakery-2%2Fa.pdf&view=1');
+    } finally {
+      setProjectFolders([], null);
+    }
+  });
+
+  it('outside every project folder, are looked up in the project whose chat shows them', async () => {
+    const { setProjectFolders, filesAt, fileUrl, fileSrc } = await import('../../web/client/connection.ts');
+    setProjectFolders([{ id: 'p1', brainPath: '/work/bakery' }, { id: 'p2', brainPath: '/work/pod' }], 'p1');
+    try {
+      // an agent's own workspace, in a pane of p2
+      expect(filesAt('/ws/painter/out.png', 'p2')).toBe('/p/p2');
+      expect(fileUrl('/ws/painter/out.png', 'p2')).toBe('/api/p/p2/file?path=%2Fws%2Fpainter%2Fout.png');
+      // the folder that holds it still decides, and the open project's chat stays as it was
+      expect(filesAt('/work/bakery/a.md', 'p2')).toBe('');
+      expect(filesAt('/ws/painter/out.png', 'p1')).toBe('');
+      expect(filesAt('/ws/painter/out.png')).toBe('');
+      // a tool's image, saved by the server in p2's data folder and linked as /api/file
+      const src = `/api/file?path=${encodeURIComponent('/data/projects/p2/tool-images/a/c/x.png')}`;
+      expect(fileSrc(src, 'p2')).toBe(`/api/p/p2/file?path=${encodeURIComponent('/data/projects/p2/tool-images/a/c/x.png')}`);
+      expect(fileSrc(src)).toBe(src);
+      expect(fileSrc('data:image/png;base64,AAAA', 'p2')).toBe('data:image/png;base64,AAAA');
+    } finally {
+      setProjectFolders([], null);
+    }
+  });
+});

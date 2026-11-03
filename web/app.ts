@@ -8,6 +8,7 @@ import * as home from './views/home.tsx';
 import * as station from './views/station.ts';
 import * as artifactsView from './views/artifacts.tsx';
 import * as tasksView from './views/tasks.tsx';
+import * as overviewView from './views/overview.tsx';
 import * as agents from './views/agents.tsx';
 import * as chat from './views/chat.tsx';
 import * as library from './views/library.tsx';
@@ -62,7 +63,7 @@ interface NavLink extends Route {
   count?: () => number | undefined;
 }
 
-// The menu stays short. Other pages still open from links (branch editor, terminals, overview).
+// The menu stays short. Other pages still open from links (branch editor, terminals, home).
 const NAV: NavLink[] = [
   { path: 'station', label: 'Station', ico: 'orbit', view: station },
   { path: 'outbox', label: 'Outbox', ico: 'send', view: outboxView, count: () => (state.data?.outboxPending || 0) + (state.data?.questions?.length || 0) },
@@ -76,7 +77,9 @@ const NAV: NavLink[] = [
   { path: 'settings', label: 'Settings', ico: 'settings', view: setup },
 ];
 const HIDDEN: Route[] = [
-  { path: 'home', label: 'Overview', view: home },
+  { path: 'home', label: 'Home', view: home },
+  // (out of the menu for now; #/overview still opens it)
+  { path: 'overview', label: 'Overview', view: overviewView },
   { path: 'workflows', label: 'Team editor', view: workflows },
   { path: 'programs', label: 'Programs', view: programs },
   { path: 'mcp', label: 'MCP servers', view: mcp },

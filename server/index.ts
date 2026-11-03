@@ -44,6 +44,7 @@ import * as commands from './commands.ts';
 import { openGoal, clearWork, listBriefs } from './briefs.ts';
 import * as tasksMod from './tasks.ts';
 import * as taskBoard from './taskboard.ts';
+import { overview } from './overview.ts';
 import * as boardWork from './boardwork.ts';
 import { filesFromRequest, taskFilePath } from './boardfiles.ts';
 import { draftBoardText } from './taskdraft.ts';
@@ -133,6 +134,20 @@ const postFile = (p: string, h: Handler<string>) => route('POST', p, h, true);
 const put = <B = Body>(p: string, h: Handler<B>) => route('PUT', p, h);
 const del = <B = Body>(p: string, h: Handler<B>) => route('DELETE', p, h);
 const gatewaySupervisor = new GatewaySupervisor();
+
+// The routes an Overview pane uses for a project that isn't open (/api/p/<projectId>/…): an agent's chats and its
+// details, a team's thread, a chat's tasks, the questions its agents ask, the Brain's chat, MEMORY.md and its
+// versions, attached files, and showing that project's files.
+// Everything else (projects, settings, keys, backups) stays global.
+const SCOPED = /^\/(agents(\/[\w-]+(\/.*)?)?|teams\/[\w-]+\/.+|workflows|tasks(\/[\w-]+)?|questions(\/[\w-]+\/(answer|dismiss))?|brain\/(history|stream|steer)|memory\/[\w-]+|versions\/memory\/[^/]+(\/[^/]+(\/restore)?)?|uploads(\/[\w-]+)?|file|files\/(info|open|reveal))$/;
+function scopedRoute(pathname: string): { project: Project; path: string } | null {
+  const m = /^\/api\/p\/([^/]+)(\/.*)$/.exec(pathname);
+  if (!m) return null;
+  const project = store.listProjects().find((p) => p.id === decodeURIComponent(m[1]));
+  if (!project) throw new HttpError(404, 'That project is unavailable.');
+  if (!SCOPED.test(m[2])) throw new HttpError(404, `${m[2]} isn't available for another project.`);
+  return { project, path: `/api${m[2]}` };
+}
 
 class HttpError extends Error {
   status: number;
@@ -259,6 +274,15 @@ post<Parameters<typeof projects.createProject>[0] | null>('/api/projects', async
 });
 // The start screen: shown once each time the dashboard starts, until you pick or create a project.
 let launcherPending = true;
+// The Overview's Files panel: one folder of any project (?path= from the project folder), and opening a folder of it
+// in VS Code or the file manager. (They name their project, as project routes do.)
+get('/api/projects/:id/folder', async ({ id }, _b, q) => projects.folderListing(q.path || '', need(store.listProjects().find((p) => p.id === id))));
+post<{ app?: string; path?: unknown }>('/api/projects/:id/open', async ({ id }, body) => {
+  const dir = projects.brainFolder(body.path, need(store.listProjects().find((p) => p.id === id)));
+  if (body.app === 'vscode') return { message: await programs.launchProgram('vscode', { file: dir }) };
+  openWithShell(dir);
+  return { ok: true };
+});
 get('/api/projects/overview', async () => ({ ...projects.overview(projectSync.peek), showLauncher: launcherPending }));
 post('/api/projects/save', async () => projectSync.saveProject(store.activeProject().id));
 // The start screen closed; picking the project that is open already lands here too.
@@ -472,8 +496,11 @@ post('/api/agents/:id/duplicate', async ({ id }) => {
   return library.newAgent({ ...rest, name: `${a.name} (copy)` });
 });
 post('/api/agents/:id/export-claude', async ({ id }) => ({ file: library.exportToClaude(need(agents.get(id))) }));
-post('/api/agents/:id/open-workspace', async ({ id }) => {
-  openWithShell(tools.workspaceOf(need(agents.get(id))));
+// app 'vscode': in VS Code (an Overview pane's Open folder in VS Code), else in the file manager
+post<{ app?: string }>('/api/agents/:id/open-workspace', async ({ id }, body) => {
+  const dir = tools.workspaceOf(need(agents.get(id)));
+  if (body?.app === 'vscode') return { message: await programs.launchProgram('vscode', { file: dir }) };
+  openWithShell(dir);
   return { ok: true };
 });
 
@@ -526,6 +553,8 @@ put<TaskUpdateInput>('/api/tasks/:id', async ({ id }, body) => ({ task: tasksMod
 // the Tasks board (the project's own tasks, not the agents' step lists): one project's or every project's
 // (?project=all), each changed in the project it belongs to
 get('/api/task-board', async (_p, _b, q) => taskBoard.taskBoard(q.project || 'all'));
+// the Overview page: every project's agents, teams, the Brain and tasks being worked on, at a glance
+get('/api/overview', async () => overview());
 get('/api/task-board-people/:projectId', async ({ projectId }) => taskBoard.boardPeople(projectId));
 // A task you make In progress for an agent or team, or move there, starts its work (boardwork.ts); moving it away
 // or giving it to someone else stops it. Files are uploads of the open project, copied into the task's own.
@@ -1493,42 +1522,47 @@ const server = http.createServer(async (req, res) => {
         // Other websites can't add this header without a CORS preflight, which we never allow.
         throw new HttpError(403, 'Missing x-dash header');
       }
+      // /api/p/<projectId>/…: a route run inside that project (an Overview pane of a project that isn't open).
+      // It names its project, so the open-project guard below doesn't apply; only the routes a pane uses take it.
+      const scope = scopedRoute(url.pathname);
+      const pathname = scope ? scope.path : url.pathname;
+      const inScope = <T>(fn: () => T): T => (scope ? store.withProject(scope.project, fn) : fn());
       // A change made for the project the page shows, after another one was opened (in this tab or another):
       // refused, so it can't land in the wrong project. Project routes name their project themselves.
       const pageProject = req.headers['x-dash-project'];
-      if (!internal && req.method !== 'GET' && typeof pageProject === 'string' && pageProject && !url.pathname.startsWith('/api/projects') && pageProject !== store.activeProject().id) {
+      if (!scope && !internal && req.method !== 'GET' && typeof pageProject === 'string' && pageProject && !url.pathname.startsWith('/api/projects') && pageProject !== store.activeProject().id) {
         throw new HttpError(409, 'Another project was opened meanwhile. Nothing was changed; try again.');
       }
-      if (url.pathname === '/api/comfyui/view') return await comfy.proxyView(Object.fromEntries(url.searchParams), res);
+      if (pathname === '/api/comfyui/view') return await comfy.proxyView(Object.fromEntries(url.searchParams), res);
       // an attached file: the raw bytes, streamed to disk (the router only reads JSON bodies)
-      const upload = req.method === 'POST' && /^\/api\/uploads\/([\w-]+)$/.exec(url.pathname);
+      const upload = req.method === 'POST' && /^\/api\/uploads\/([\w-]+)$/.exec(pathname);
       if (upload) {
-        const saved = await uploads.receive(req, upload[1], url.searchParams.get('path') || '');
+        const saved = await inScope(() => uploads.receive(req, upload[1], url.searchParams.get('path') || ''));
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
         return res.end(JSON.stringify(saved));
       }
       for (const r of routes) {
         if (r.method !== req.method) continue;
-        const m = r.re.exec(url.pathname);
+        const m = r.re.exec(pathname);
         if (!m) continue;
         const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
         let out: unknown;
         if (r.raw) {
           const file = await receiveFile(req, FILE_LIMIT);
           try {
-            out = await r.handler(params, file, Object.fromEntries(url.searchParams), res);
+            out = await inScope(() => r.handler(params, file, Object.fromEntries(url.searchParams), res));
           } finally {
             fs.rmSync(file, { force: true });
           }
         } else {
           const body = req.method === 'GET' || req.method === 'DELETE' ? {} : await readBody(req);
-          out = await r.handler(params, body, Object.fromEntries(url.searchParams), res);
+          out = await inScope(() => r.handler(params, body, Object.fromEntries(url.searchParams), res));
         }
         if (out === undefined && res.headersSent) return;
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
         return res.end(JSON.stringify(out ?? null));
       }
-      throw new HttpError(404, `No API route ${req.method} ${url.pathname}`);
+      throw new HttpError(404, `No API route ${req.method} ${pathname}`);
     }
     if (req.method === 'GET' && serveStatic(url, res)) return;
     res.writeHead(404);

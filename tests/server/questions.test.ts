@@ -169,4 +169,21 @@ describe('ask_user', () => {
     expect(q.cleanChoices('Yes | No')).toEqual(['Yes', 'No']);
     expect(q.cleanChoices(undefined)).toEqual([]);
   });
+
+  it('is answered or dismissed from another project too (an Overview pane of a project that isn\'t open)', async () => {
+    const { createProject } = await import('../../server/projects.ts');
+    const { setActiveProject, withProject } = await import('../../server/store.ts');
+    const away = await createProject({ name: 'Questions elsewhere' });
+    const asker = withProject(away, () => agent('Away designer'));
+    const chat = withProject(away, () => chats.create(asker.id));
+    const first = withProject(away, () => q.addQuestion({ question: 'Red or blue?', choices: ['Red', 'Blue'], agentId: asker.id, chatId: chat.id }));
+    const second = withProject(away, () => q.addQuestion({ question: 'Ship it?', agentId: asker.id, chatId: chat.id }));
+    const home = await createProject({ name: 'Questions home' });
+    setActiveProject(home.id);
+    await q.answerQuestion(first.id, { choice: 'Blue' });
+    expect(withProject(away, () => questions.get(first.id))).toMatchObject({ status: 'answered', choice: 'Blue' });
+    expect(queued.at(-1)).toMatchObject({ agentId: asker.id, chatId: chat.id });
+    expect(q.dismissQuestion(second.id).status).toBe('dismissed');
+    expect(questions.get(first.id)).toBeNull();
+  });
 });

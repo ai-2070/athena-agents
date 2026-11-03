@@ -95,6 +95,12 @@ export function taskBoard(project: string): TaskBoardData {
   return { projects, tasks };
 }
 
+/** One project's cards (not the others': the Overview page asks project by project). */
+export function projectCards(projectId: string): BoardTask[] {
+  const p = projectOf(projectId);
+  return withProject(p, () => read().tasks.map((t) => card(p, t)));
+}
+
 /** One task as its page shows it. */
 export function boardTask(projectId: string, id: string): BoardTask {
   const p = projectOf(projectId);

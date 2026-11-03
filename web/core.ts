@@ -3,7 +3,7 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { Agent, AppState, Approval, ServerEvent } from '../shared/types.ts';
 import { GET, POST } from './client/http.ts';
-import { openSocket, setPageProject } from './client/connection.ts';
+import { openSocket, setPageProject, setProjectFolders } from './client/connection.ts';
 import { openDialog, showToast } from './ui/overlays.tsx';
 import type { ToastKind } from './ui/overlays.tsx';
 // (the class functions, not web/ui/dom.ts: that module builds on h() from here)
@@ -72,6 +72,7 @@ export async function refreshState(): Promise<void> {
   try {
     state.data = await GET<AppState>('/state');
     setPageProject(state.data?.project?.id);
+    setProjectFolders(state.data?.projects || [], state.data?.project?.id);
     for (const fn of state.listeners) fn(state.data);
   } catch (e) {
     console.warn('state refresh failed', e);

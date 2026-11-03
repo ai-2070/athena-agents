@@ -73,6 +73,7 @@ function restoreDurable(record: DurableApprovalRecord) {
   }
   const timer = setTimeout(() => finish(record.id, { approved: false, message: 'The approval expired.' }), Math.max(1, record.expiresAt - Date.now()));
   timer.unref();
+  record.item.projectId ??= record.projectId;
   pending.set(record.id, { item: record.item, resolve: () => {}, timer, reviewing: false, durable: record });
   if (record.expiresAt <= Date.now()) finish(record.id, { approved: false, message: 'The approval expired.' });
 }
@@ -94,7 +95,7 @@ export function ensureDurableApproval(operationId: string, request: ApprovalRequ
     restoreDurable(existing);
     return durableById(id) || existing;
   }
-  const item: Approval = { id, kind: request.kind || 'tool', title: request.title, detail: request.detail || '', agentId: request.agentId || null, agentName: request.agentName || '', data: request.data || {}, editable: request.editable ?? null, createdAt: Date.now() };
+  const item: Approval = { id, kind: request.kind || 'tool', title: request.title, detail: request.detail || '', agentId: request.agentId || null, agentName: request.agentName || '', data: request.data || {}, editable: request.editable ?? null, createdAt: Date.now(), projectId: activeProject().id };
   const reviewing = brainChecks(item);
   const record: DurableApprovalRecord = { id, operationId, fingerprint, item, projectId: activeProject().id, expiresAt: Date.now() + (request.timeoutMs ?? 30 * 60_000), reviewing };
   writeJSON(durableFile(id), record);
@@ -131,7 +132,7 @@ export function requestApproval(request: ApprovalRequest): Promise<ApprovalDecis
   const { kind = 'tool', title, detail = '', agentId = null, agentName = '', data = {}, editable = null, timeoutMs = 30 * 60_000 } = request;
   const id = uid('ap');
   return new Promise((resolve) => {
-    const item: Approval = { id, kind, title, detail, agentId, agentName, data, editable, createdAt: Date.now() };
+    const item: Approval = { id, kind, title, detail, agentId, agentName, data, editable, createdAt: Date.now(), projectId: activeProject().id };
     const timer = setTimeout(() => finish(id, { approved: false, message: 'No answer within 30 minutes, so it was skipped.' }), timeoutMs);
     const review = brainChecks(item);
     pending.set(id, { item, resolve, timer, reviewing: review });

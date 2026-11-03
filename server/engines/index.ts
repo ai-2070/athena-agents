@@ -259,7 +259,7 @@ export function finishNativeRun(runId: string): void {
       if (queue) { queue.paused = true; emitQueue(entry.agentId, chat.id, entry.projectId); }
     }
     const usage = eveUsage(runId);
-    emit('run', { runId, agentId: entry.agentId, chatId: chat.id, event: native.status === 'completed' ? { kind: 'done', text: answer, ...(usage.cost === undefined ? {} : { cost: usage.cost }), ...(usage.billing ? { billing: usage.billing } : {}), seconds: Math.round((Date.now() - entry.startedAt) / 1000) } : { kind: 'error', text: error } });
+    emit('run', { runId, agentId: entry.agentId, chatId: chat.id, projectId: entry.projectId, event: native.status === 'completed' ? { kind: 'done', text: answer, ...(usage.cost === undefined ? {} : { cost: usage.cost }), ...(usage.billing ? { billing: usage.billing } : {}), seconds: Math.round((Date.now() - entry.startedAt) / 1000) } : { kind: 'error', text: error } });
     emit('runs');
     try {
       if (!steered) runEndHook?.({ runId, agentId: entry.agentId, chatId: chat.id, parentRunId: entry.parentRunId, ownerChatId: entry.ownerChatId, ownerAgentId: entry.ownerAgentId, answer, stopped, failed });
@@ -445,7 +445,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   pushItem(chat, { type: 'user', text, from, runId, ...(attachments.length ? { attachments } : {}) });
   if (chat.title === 'New chat') chat.title = (text || attachmentNames(attachments)).replace(/\s+/g, ' ').slice(0, 60) || 'New chat';
   persist();
-  const send = (event: RunEvent) => emit('run', { runId, agentId: agent.id, chatId: chat.id, event });
+  const send = (event: RunEvent) => emit('run', { runId, agentId: agent.id, chatId: chat.id, projectId: entry.projectId, event });
   send({ kind: 'start', text, from, ...(attachments.length ? { attachments } : {}) });
   log('run', `${agent.name} started: ${(text || attachmentNames(attachments)).slice(0, 120)}`, { agentId: agent.id, chatId: chat.id });
   // API models can't open files without the Files tools: small text files go along in full
@@ -707,7 +707,7 @@ export const hasBackgroundWork = (chatId: string, projectId: string = here()): b
 const emitQueue = (agentId: string, chatId: string, projectId: string) => {
   const w = waiting.get(chatKey(projectId, chatId));
   saveExecutionQueue({ agentId, chatId, projectId, items: w?.items || [], priority: w?.priority || [], paused: w?.paused || false });
-  emit('queue', { agentId, chatId, queued: queuedMessages(chatId, projectId) });
+  emit('queue', { agentId, chatId, projectId, queued: queuedMessages(chatId, projectId) });
 };
 
 /** Restore ownership before the Brain, schedules or incoming requests can start work. */
@@ -908,7 +908,7 @@ export function loopOf(chatId: string, projectId: string = here()): LoopInfo | n
   const l = loops.get(chatKey(projectId, chatId));
   return l ? { text: l.text, every: l.every, times: l.times, done: l.done, next: l.next } : null;
 }
-const emitLoop = (agentId: string, chatId: string, projectId: string) => emit('loop', { agentId, chatId, loop: loopOf(chatId, projectId) });
+const emitLoop = (agentId: string, chatId: string, projectId: string) => emit('loop', { agentId, chatId, projectId, loop: loopOf(chatId, projectId) });
 
 /** Start a loop in this chat (instead of one going there): the first one goes now, or when the chat is free. */
 export function startLoop(agent: Agent, chat: Chat, req: LoopRequest, attachments: string[] = []): LoopInfo {
