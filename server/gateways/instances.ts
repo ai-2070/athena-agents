@@ -4,6 +4,7 @@ import { agents, collection, getGatewaySecrets, listProjects, setGatewaySecrets,
 import { uid } from '../util.ts';
 import { discordId } from '../../shared/gateway-discord.ts';
 import { slackChannelId, slackTimestamp, slackUserId, slackWorkspaceId } from '../../shared/gateway-slack.ts';
+import { canonicalWhatsAppPhone } from '../../shared/gateway-whatsapp.ts';
 
 const instances = collection<GatewayInstance>('gateways', { global: true });
 const id = z.string().regex(/^[a-zA-Z0-9_-]+$/).max(200);
@@ -22,7 +23,7 @@ const config = z.strictObject({
   target,
   senderPolicy: z.discriminatedUnion('platform', [
     z.strictObject({ platform: z.literal('telegram'), allowedUserIds: z.array(z.string().regex(/^[1-9]\d*$/)).max(1000) }),
-    z.strictObject({ platform: z.literal('whatsapp'), allowedPhones: z.array(z.string().regex(/^\+[1-9]\d{1,14}$/)).max(1000) }),
+    z.strictObject({ platform: z.literal('whatsapp'), allowedPhones: z.array(z.string().refine(canonicalWhatsAppPhone)).max(1000) }),
     z.strictObject({ platform: z.literal('slack'), allowedUserIds: userIds }),
     z.strictObject({ platform: z.literal('discord'), allowedUserIds: z.array(z.string().regex(/^[1-9]\d*$/)).max(1000) }),
   ]),

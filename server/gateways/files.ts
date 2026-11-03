@@ -81,7 +81,7 @@ export class GatewayFileProcessor {
 
   private async drain(): Promise<void> {
     while (!this.stopped && !this.signal.aborted) {
-      const event = this.inbox.list().find((item) => item.status === 'waiting-files' && (!item.files || item.files.some((file) => file.status === 'pending') || item.files.every((file) => file.status === 'saved')));
+      const event = this.inbox.list().find((item) => item.status === 'waiting-files' && (item.input.platform !== 'whatsapp' || item.relay?.confirmed) && (!item.files || item.files.some((file) => file.status === 'pending') || item.files.every((file) => file.status === 'saved')));
       if (!event) return;
       try { await this.save(event); }
       catch {

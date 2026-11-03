@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, UploadedFile } from '../../shared/types.ts';
+import type { GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, UploadedFile } from '../../shared/types.ts';
 import { emit } from '../store.ts';
 import { readJSON, uid, writeJSON } from '../util.ts';
 import { captureGatewayRoute, getGatewayInstance, withGatewayRoute } from './instances.ts';
@@ -12,9 +12,13 @@ import type { GatewayReconciliation } from '../../shared/types.ts';
 import { gatewayAlbumCandidates, gatewayAlbumKey, gatewayCleanupCandidates } from '../../shared/gateways.ts';
 import { slackChannelId, slackTimestamp, slackUserId, slackWorkspaceId } from '../../shared/gateway-slack.ts';
 import { discordId } from '../../shared/gateway-discord.ts';
+import { canonicalWhatsAppPhone } from '../../shared/gateway-whatsapp.ts';
 
 const externalId = z.string().min(1).max(500);
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const relayReceipt = z.strictObject({ epoch: z.uuid(), sequence: stamp.positive(), id: z.string().regex(/^[a-f0-9]{64}$/) });
+const intakeReceipt = relayReceipt.extend({ confirmed: z.boolean(), accepted: stamp.max(1000), ignored: stamp.max(1000), unmatchedSenders: stamp.max(1000) })
+  .refine((value) => value.accepted + value.ignored <= 1000 && value.unmatchedSenders <= value.ignored);
 const target = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('brain') }),
   z.strictObject({ kind: z.literal('agent'), id: externalId }),
@@ -35,6 +39,7 @@ const dispatchSchema: z.ZodType<GatewayDispatch> = z.strictObject({
 const inboundSchema: z.ZodType<GatewayInbound> = z.strictObject({
   platform: z.enum(['telegram', 'slack', 'discord', 'whatsapp']), accountId: externalId,
   conversationId: externalId, guildId: externalId.optional(), parentConversationId: externalId.optional(), threadId: z.string().max(500), sourceEventId: externalId, sourceMessageId: externalId,
+  sentAt: stamp.optional(),
   kind: z.enum(['message', 'edit']),
   actor: z.strictObject({ id: externalId, label: z.string().max(200), kind: z.enum(['user', 'bot', 'anonymous']) }),
   directMessage: z.boolean(), triggered: z.boolean(), text: z.string().max(65536),
@@ -47,12 +52,14 @@ const inboundSchema: z.ZodType<GatewayInbound> = z.strictObject({
 const replyPart = z.strictObject({ text: z.string().min(1).max(3000), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed']), attempts: stamp, remoteId: externalId.optional(), retryAt: stamp.optional() });
 const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
   version: z.literal(1), nextSequence: stamp.positive(),
+  whatsappRelay: z.strictObject({ epoch: z.uuid(), cursor: stamp, receipt: intakeReceipt.optional() }).optional(),
   retired: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(100000).optional(),
   retiredAlbums: z.array(z.string().regex(/^[a-f0-9]{64}$/)).max(100000).optional(),
   retiredQuota: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), incomingBytes: stamp, outgoingBytes: stamp })).max(100000).optional(),
   bindings: z.array(z.strictObject({ id: externalId, accountId: externalId, conversationId: externalId, guildId: externalId.optional(), parentConversationId: externalId.optional(), threadId: z.string().max(500), route, createdAt: stamp })),
   events: z.array(z.strictObject({
     id: externalId, bindingId: externalId, route, input: inboundSchema, sequence: stamp.positive(), receivedAt: stamp,
+    relay: relayReceipt.extend({ confirmed: z.boolean() }).optional(),
     status: z.enum(['queued', 'waiting-files', 'running', 'done', 'needs-review']), operationId: externalId.optional(), reason: z.string().optional(),
     fileBatch: z.string().regex(/^[\w-]{1,64}$/).optional(),
     dispatch: dispatchSchema.optional(),
@@ -103,6 +110,19 @@ function replayReceiptsValid(journal: GatewayInboxJournal): boolean {
     && new Set(journal.retiredQuota?.map((quota) => quota.day)).size === (journal.retiredQuota?.length ?? 0)
     && new Set(journal.retiredAlbums ?? []).size === (journal.retiredAlbums?.length ?? 0);
 }
+
+function relayReceiptsValid(journal: GatewayInboxJournal): boolean {
+  const state = journal.whatsappRelay; const receipt = state?.receipt;
+  if (receipt && (receipt.epoch !== state?.epoch || receipt.sequence !== state.cursor + (receipt.confirmed ? 0 : 1))) return false;
+  return journal.events.every((event) => {
+    if (event.input.platform !== 'whatsapp') return !event.relay;
+    const relay = event.relay;
+    if (!relay || !state || !receipt || relay.epoch !== state.epoch) return false;
+    if (relay.confirmed) return relay.sequence <= state.cursor && (relay.sequence !== receipt.sequence || relay.id === receipt.id);
+    return receipt && !receipt.confirmed && relay.sequence === receipt.sequence && relay.id === receipt.id
+      && ['queued', 'waiting-files', 'needs-review'].includes(event.status) && !event.operationId && !event.dispatch && !event.fileBatch && !event.reply && !event.outgoing;
+  });
+}
 const albumDigest = (input: GatewayInbound) => digest([gatewayAlbumKey(input)!]);
 
 function albumReceiptsValid(journal: GatewayInboxJournal): boolean {
@@ -126,7 +146,7 @@ export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] {
   const file = privateDataPath('gateways-runtime', instanceId, 'inbox.json');
   if (!fs.existsSync(file)) return [];
   const parsed = journalSchema.safeParse(readJSON(file));
-  if (!parsed.success || !replayReceiptsValid(parsed.data) || !albumReceiptsValid(parsed.data)) throw Object.assign(new Error('This gateway inbox is unreadable.'), { status: 503 });
+  if (!parsed.success || !replayReceiptsValid(parsed.data) || !albumReceiptsValid(parsed.data) || !relayReceiptsValid(parsed.data)) throw Object.assign(new Error('This gateway inbox is unreadable.'), { status: 503 });
   return parsed.data.events;
 }
 
@@ -149,6 +169,11 @@ export function gatewayInputAllowed(instance: GatewayInstance, input: GatewayInb
     if (instance.senderPolicy.allowedUserIds.length && !instance.senderPolicy.allowedUserIds.includes(input.actor.id)) return false;
     return input.directMessage ? instance.scope.directMessages : instance.scope.conversationIds.includes(input.conversationId)
       || instance.scope.conversationIds.includes(`${input.conversationId}/${input.threadId}`);
+  }
+  if (instance.platform === 'whatsapp') {
+    return instance.senderPolicy.platform === 'whatsapp' && canonicalWhatsAppPhone(input.actor.id)
+      && instance.senderPolicy.allowedPhones.includes(input.actor.id) && input.conversationId === input.actor.id
+      && input.directMessage && instance.scope.directMessages && !input.threadId && !input.mediaGroupId && input.kind === 'message';
   }
   if (instance.platform !== 'telegram') return false;
   if (instance.senderPolicy.platform !== 'telegram' || input.actor.kind !== 'user' || !/^[1-9]\d*$/.test(input.actor.id)) return false;
@@ -173,6 +198,7 @@ export class GatewayInbox {
     const eventIds = new Set(journal.events.map((event) => event.id));
     if (!albumReceiptsValid(journal)) throw new Error('The gateway album receipts are inconsistent. Restore them before reconnecting.');
     if (!replayReceiptsValid(journal)) throw new Error('The gateway replay or quota receipts are inconsistent. Restore them before reconnecting.');
+    if (!relayReceiptsValid(journal)) throw new Error('The gateway relay receipts are inconsistent. Restore them before reconnecting.');
     const bindings = new Map(journal.bindings.map((binding) => [binding.id, binding]));
     const sequences = new Set(journal.events.map((event) => event.sequence));
     const batches = journal.events.filter((event) => event.fileBatch).map((event) => `${event.route.projectId}/${event.fileBatch}`);
@@ -534,6 +560,7 @@ export class GatewayInbox {
   }
 
   checkAccess(event: GatewayInboxEvent): GatewayInstance {
+    if (event.input.platform === 'whatsapp' && !event.relay?.confirmed) throw new Error('Wait for the relay acknowledgement before starting work.');
     const instance = getGatewayInstance(this.state.instanceId);
     if (!gatewayInputAllowed(instance, event.input)) throw new Error('This sender or conversation is no longer allowed.');
     withGatewayRoute(event.route, () => {});
@@ -627,9 +654,59 @@ export class GatewayInbox {
   /** Returns only after the binding and deduplicated input are durably stored. Never fetches media. */
   accept(value: unknown): GatewayInboxEvent | null {
     const input = inboundSchema.parse(value);
+    if (input.platform === 'whatsapp') throw new Error('WhatsApp messages need a verified relay receipt.');
+    const journal = this.read(); const before = journal.nextSequence;
+    const event = this.record(journal, input);
+    if (journal.nextSequence !== before) this.commit(journal);
+    return event;
+  }
+
+  /** Bind once to the paired relay's epoch and existing acknowledgement cursor. */
+  bindWhatsAppRelay(epoch: string, cursor: number): void {
+    const value = z.strictObject({ epoch: z.uuid(), cursor: stamp }).parse({ epoch, cursor });
+    if (getGatewayInstance(this.state.instanceId).platform !== 'whatsapp') throw new Error('Choose a WhatsApp instance.');
+    const journal = this.read();
+    if (journal.whatsappRelay) {
+      if (journal.whatsappRelay.epoch !== epoch || journal.whatsappRelay.cursor !== cursor) throw new Error('The relay cursor changed. Review recovery before reconnecting.');
+      return;
+    }
+    journal.whatsappRelay = value; this.commit(journal);
+  }
+
+  whatsAppRelayState(): GatewayWhatsAppIntakeState | undefined { return this.read().whatsappRelay; }
+
+  /** All normalized messages, pinned routes and the batch outcome commit before remote ACK. */
+  acceptWhatsAppRelay(value: GatewayWhatsAppReceipt, inputs: unknown[], ignored = 0, unmatchedSenders = 0): NonNullable<GatewayWhatsAppIntakeState['receipt']> {
+    const receipt = relayReceipt.parse(value);
+    const parsed = z.array(inboundSchema).max(1000).parse(inputs);
+    const counts = z.strictObject({ ignored: stamp.max(1000), unmatchedSenders: stamp.max(1000) }).parse({ ignored, unmatchedSenders });
+    const journal = this.read(); const state = journal.whatsappRelay;
+    if (!state || state.epoch !== receipt.epoch || getGatewayInstance(this.state.instanceId).platform !== 'whatsapp'
+      || parsed.some((input) => input.platform !== 'whatsapp')) throw new Error('This message belongs to another relay.');
+    if (state.receipt?.sequence === receipt.sequence && state.receipt.id === receipt.id) return state.receipt;
+    if (state.receipt?.confirmed === false || receipt.sequence !== state.cursor + 1) throw new Error('Confirm the saved relay receipt before accepting another batch.');
+    let accepted = 0;
+    for (const input of parsed) {
+      const event = this.record(journal, input, { ...receipt, confirmed: false });
+      if (event) accepted++; else counts.ignored++;
+    }
+    state.receipt = intakeReceipt.parse({ ...receipt, confirmed: false, accepted, ...counts });
+    this.commit(journal); return state.receipt;
+  }
+
+  /** Call only after an authenticated relay response confirms this exact prefix. */
+  confirmWhatsAppRelay(value: GatewayWhatsAppReceipt): void {
+    const proof = relayReceipt.parse(value); const journal = this.read();
+    const state = journal.whatsappRelay; const receipt = state?.receipt;
+    if (!state || !receipt || receipt.epoch !== proof.epoch || receipt.sequence !== proof.sequence || receipt.id !== proof.id) throw new Error('The relay acknowledgement does not match the saved receipt.');
+    if (receipt.confirmed) return;
+    for (const event of journal.events) if (event.relay && event.relay.epoch === proof.epoch && event.relay.sequence === proof.sequence && event.relay.id === proof.id) event.relay.confirmed = true;
+    state.cursor = proof.sequence; receipt.confirmed = true; this.commit(journal);
+  }
+
+  private record(journal: GatewayInboxJournal, input: GatewayInbound, relay?: GatewayInboxEvent['relay']): GatewayInboxEvent | null {
     const instance = getGatewayInstance(this.state.instanceId);
     if (!gatewayInputAllowed(instance, input)) return null;
-    const journal = this.read();
     const source = [instance.id, input.accountId, input.conversationId, input.threadId, input.sourceMessageId];
     if (input.platform === 'discord') source.push(input.guildId ?? '');
     const eventId = digest([...source, input.kind, ...(input.kind === 'edit' ? [input.sourceEventId] : [])]);
@@ -652,6 +729,7 @@ export class GatewayInbox {
     const event: GatewayInboxEvent = {
       id: eventId, bindingId: binding.id, route: binding.route, input, sequence: journal.nextSequence++,
       receivedAt: Date.now(), status: input.kind === 'edit' ? 'needs-review' : input.media.length ? 'waiting-files' : 'queued',
+      ...(relay ? { relay } : {}),
     };
     const leader = input.mediaGroupId ? journal.events.find((item) => item.album?.leaderId === item.id && gatewayAlbumKey(item.input) === gatewayAlbumKey(input)) : undefined;
     if (input.kind === 'message' && input.mediaGroupId && (leader || journal.retiredAlbums?.includes(albumDigest(input)))) {
@@ -665,7 +743,6 @@ export class GatewayInbox {
       if (assignment) this.holdSource(assignment, 'The source message changed. Review this work before explicitly retrying delivery.');
     }
     journal.events.push(event);
-    this.commit(journal);
     return event;
   }
 
@@ -679,6 +756,7 @@ export class GatewayInbox {
       if (event.status !== 'done' || event.reply?.parts.some((part) => part.status !== 'sent') || event.outgoing?.some((file) => !['sent', 'skipped'].includes(file.status))) blocked.add(event.bindingId);
       if (event.status !== 'queued') continue;
       if (prior) continue;
+      if (event.input.platform === 'whatsapp' && !event.relay?.confirmed) continue;
       try {
         const instance = getGatewayInstance(this.state.instanceId);
         if (!gatewayInputAllowed(instance, event.input)) throw new Error('The sender or conversation is no longer allowed.');

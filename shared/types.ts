@@ -138,6 +138,7 @@ export interface GatewayInbound {
   threadId: string;
   sourceEventId: string;
   sourceMessageId: string;
+  sentAt?: number;
   kind: 'message' | 'edit';
   actor: { id: string; label: string; kind: 'user' | 'bot' | 'anonymous' };
   directMessage: boolean;
@@ -165,6 +166,7 @@ export interface GatewayInboxEvent {
   input: GatewayInbound;
   sequence: number;
   receivedAt: number;
+  relay?: GatewayWhatsAppReceipt & { confirmed: boolean };
   status: 'queued' | 'waiting-files' | 'running' | 'done' | 'needs-review';
   operationId?: string;
   reason?: string;
@@ -177,6 +179,19 @@ export interface GatewayInboxEvent {
   reconciliation?: GatewayReconciliation;
   album?: { leaderId: string; memberIds?: string[] };
   albumBlocked?: true;
+}
+
+/** Local receipt only; raw webhook bodies and relay keys never enter the application inbox. */
+export interface GatewayWhatsAppReceipt {
+  epoch: string;
+  sequence: number;
+  id: string;
+}
+
+export interface GatewayWhatsAppIntakeState {
+  epoch: string;
+  cursor: number;
+  receipt?: GatewayWhatsAppReceipt & { confirmed: boolean; accepted: number; ignored: number; unmatchedSenders: number };
 }
 
 export interface GatewayRunInput {
@@ -240,6 +255,7 @@ export interface GatewayInboxJournal {
   retired?: string[];
   retiredQuota?: { day: string; incomingBytes: number; outgoingBytes: number }[];
   retiredAlbums?: string[];
+  whatsappRelay?: GatewayWhatsAppIntakeState;
 }
 
 export interface GatewayHealth {

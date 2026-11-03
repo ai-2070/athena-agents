@@ -25,7 +25,7 @@ New gateway data does not need a legacy compatibility layer.*
   passes under Bun and Node; tests exercise both runtimes, state isolation, expiry, competing claims
   and recovery after killing a writer. A bundled proof also runs from read-only files outside the
   repository. All four adapters import and construct in the fixture;
-  live Slack/Discord connections and WhatsApp signatures/media remain unproven.
+  real-account Slack/Discord connections and WhatsApp signatures/media remain unproven.
 - Added a separate durable application inbox. A single atomic write saves each accepted message,
   its sender, conversation binding, explicit route and ordered receipt. Replays deduplicate across
   restarts and route changes. Each conversation waits for earlier unresolved input; unrelated
@@ -42,9 +42,10 @@ New gateway data does not need a legacy compatibility layer.*
 - Added guarded local APIs for instance configuration, credential replacement/presence, connection
   health, reconnect, inbox receipts, explicit file/reply retry and deletion under `/api/gateways`;
   the existing
-  Outbox helpers remain unchanged. WhatsApp fails closed at application intake and reports
-  unavailable when enabled. WhatsApp configuration currently accepts canonical E.164 only;
-  local-number parsing and verified business identity mapping remain to implement.
+  Outbox helpers remain unchanged. WhatsApp reports unavailable in the application worker.
+  Configuration requires parser-validated canonical E.164 numbers; the normalization helper accepts
+  local notation only with an explicit country. Setup controls and verified business identity mapping
+  remain to implement.
 - Added a streamed incoming-file stage. Telegram metadata and response headers are checked before
   consuming a bounded body; redirects and unsafe provider paths are refused. Browser uploads and
   gateway streams share the same safe upload writer. Files go into a uniquely claimed batch in
@@ -401,7 +402,8 @@ New gateway data does not need a legacy compatibility layer.*
   explicit current-epoch administrative review. Revocation invalidates the pull key/lease, changes
   epoch and removes queued raw bodies only after explicit acknowledgement. Provider backup/PITR
   retention is documented separately from live deletion. Local intake must commit before ACK and
-  must not dispatch native work from an unconfirmed relay acknowledgement; integration remains next.
+  must not dispatch native work from an unconfirmed relay acknowledgement. The local receipt and
+  verification boundary below now enforces that rule; supervised polling remains next.
 - Pinned Miniflare `4.20260730.0` and Worker types `5.20261103.1` for isolated runtime/type checks.
   The deployment guide includes the SQLite migration, secrets, provider scope, pairing, protocol,
   quotas and recovery boundaries. Wrangler `4.156.2` deployment dry-run passed with a throwaway home
@@ -409,8 +411,29 @@ New gateway data does not need a legacy compatibility layer.*
   and account refusal, pairing/lease isolation, capacity, retention gaps, revocation and runtime
   restart. Separate Node/workerd processes also use a fully bundled read-only Worker outside the
   checkout, preserving receipts across process boundaries without any provider account.
-- Next: implement the local WhatsApp Chat SDK adapter, required phone parsing/guards and verified
-  identity mappings, local media downloads, service-window replies/files and pairing/setup UI. Then
+- Added the local WhatsApp relay intake boundary. It independently verifies the original HMAC bytes,
+  body digest, canonical base64/UTF-8, supported envelope and every business account/phone before
+  normalizing anything. Only signed current-sender phone digits can authorize a message; names,
+  forwarded metadata, typed numbers and contact-card claims cannot. Pinned `libphonenumber-js`
+  `1.13.15` with full validation metadata handles normalization and exact canonical allowlists.
+  Missing phones and business-scoped IDs without a verified mapping are denied; bounded local
+  receipt counters record unmatched senders without retaining denied bodies. Status, system and
+  action messages never become assignments. Identity mapping/rotation remains pending.
+- A whole local webhook batch commits accepted messages, pinned routes, message timestamps, media
+  descriptors and its receipt/cursor metadata in one atomic inbox write before remote ACK. Text,
+  manual file preparation and background downloads remain blocked until the exact saved epoch,
+  sequence and envelope ID are confirmed. An ACK timeout or failed local confirmation leaves the
+  batch gated. A restart can retry only that saved acknowledgement without accepting the body again;
+  replayed platform message IDs preserve their original route and create no second assignment.
+  Skipped cursors, changed epochs and inconsistent saved flags fail closed, awaiting recovery work.
+- Focused tests cover invalid signatures/encodings/accounts, phone spoofing and revocation, private
+  descriptors, failed atomic writes, concurrent intake and lost ACK replies. The hosted relay proof
+  now uses the actual bundled local inbox/intake from read-only application files: three separate
+  Node processes retain Worker SQLite and local receipts, lose an ACK reply after its remote commit,
+  then confirm that receipt after restart before releasing work. Both Bun and Node launch this proof.
+  No Meta account, public dashboard webhook, deployment or native model call is involved.
+- Next: implement the WhatsApp Chat SDK transport, verified identity mappings/rotation, authenticated
+  relay polling and recovery, local media downloads, service-window replies/files and pairing/setup UI. Then
   finish unified delivery and product controls. Read-only setup checks, native-work override controls
   and explicit webhook switching still need product setup. Deleted instances retain private inbox
   receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks

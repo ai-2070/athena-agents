@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { GatewayWhatsAppRelayEnvelope, GatewayWhatsAppRelayStatus } from '../shared/types.ts';
 
 const suppliedRoot = process.env.ATHENA_WHATSAPP_RELAY_PROOF_ROOT;
@@ -14,19 +14,29 @@ if (!suppliedRoot) {
   const home = path.join(root, 'home'); const data = path.join(root, 'data'); const application = path.join(root, 'app');
   for (const directory of [home, data, application]) fs.mkdirSync(directory);
   const bundle = path.join(application, 'worker.mjs');
+  const clientBundle = path.join(application, 'client.mjs');
   const env = { ...process.env, ATHENA_WHATSAPP_RELAY_PROOF_ROOT: root, HOME: home, USERPROFILE: home, DASH_DATA: data };
   try {
     const build = spawnSync('bun', [path.resolve(import.meta.dirname, 'build-whatsapp-relay.ts'), '--outfile', bundle], { env, stdio: 'pipe', timeout: 20000 });
-    assert.equal(build.status, 0, 'WhatsApp relay build failed'); fs.chmodSync(bundle, 0o444); fs.chmodSync(application, 0o555);
+    assert.equal(build.status, 0, 'WhatsApp relay build failed');
+    const entry = path.join(root, 'client-entry.ts');
+    fs.writeFileSync(entry, ['server/gateways/whatsapp-intake.ts', 'server/gateways/inbox.ts', 'server/gateways/state.ts', 'server/gateways/instances.ts', 'server/store.ts']
+      .map((module) => `export * from ${JSON.stringify(path.resolve(import.meta.dirname, '..', module))};`).join('\n'));
+    const clientBuild = spawnSync('bun', ['build', entry, '--target=node', '--outfile', clientBundle], { env, stdio: 'pipe', timeout: 20000 });
+    assert.equal(clientBuild.status, 0, 'WhatsApp local intake build failed');
+    fs.chmodSync(bundle, 0o444); fs.chmodSync(clientBundle, 0o444); fs.chmodSync(application, 0o555);
     // Miniflare's host uses Node; the Worker itself is runtime-independent and fully bundled.
     const runtime = process.versions.bun ? 'node' : process.execPath;
-    for (const mode of ['write', 'read']) {
+    for (const mode of ['write', 'intake', 'read']) {
       const child = spawnSync(runtime, [fileURLToPath(import.meta.url), mode], { cwd: application, env, stdio: 'inherit', timeout: 20000 });
       assert.equal(child.status, 0, `WhatsApp relay ${mode} process failed`);
     }
     console.log('gateways: WhatsApp relay signed intake, process restart, commit-before-ack, replay, lease and revocation pass');
+    console.log('gateways: WhatsApp bundled local intake holds work across a lost ACK reply and process restart');
   } finally {
-    fs.chmodSync(application, 0o755); if (fs.existsSync(bundle)) fs.chmodSync(bundle, 0o644); fs.rmSync(root, { recursive: true, force: true });
+    fs.chmodSync(application, 0o755);
+    for (const file of [bundle, clientBundle]) if (fs.existsSync(file)) fs.chmodSync(file, 0o644);
+    fs.rmSync(root, { recursive: true, force: true });
   }
 } else {
   assert.match(path.basename(suppliedRoot), /^athena-whatsapp-relay-[a-zA-Z0-9]+$/);
@@ -36,11 +46,11 @@ if (!suppliedRoot) {
 }
 
 async function proof(root: string, mode: string | undefined): Promise<void> {
-  assert.ok(mode === 'write' || mode === 'read');
+  assert.ok(mode === 'write' || mode === 'intake' || mode === 'read');
   const { Miniflare, Log, LogLevel } = await import('miniflare');
   const business = '100000000000001'; const phone = '200000000000001'; const appSecret = 'FAKE_META_APPLICATION_SECRET'; const admin = 'a'.repeat(64);
   const raw = JSON.stringify({ object: 'whatsapp_business_account', entry: [{ id: business, changes: [{ field: 'messages', value: {
-    messaging_product: 'whatsapp', metadata: { phone_number_id: phone }, messages: [{ id: 'wamid.proof', from: '436641234567', type: 'text', text: { body: 'Relay proof' } }],
+    messaging_product: 'whatsapp', metadata: { phone_number_id: phone }, messages: [{ id: 'wamid.proof', from: '436641234567', timestamp: '1700000000', type: 'text', text: { body: 'Relay proof' } }],
   } }] }] });
   const signature = 'sha256=' + crypto.createHmac('sha256', appSecret).update(raw).digest('hex');
   const mf = new Miniflare({ modules: true, modulesRoot: path.join(root, 'app'), rootPath: root, scriptPath: path.join(root, 'app', 'worker.mjs'),
@@ -58,16 +68,43 @@ async function proof(root: string, mode: string | undefined): Promise<void> {
       assert.equal((await webhook()).status, 200); fs.writeFileSync(clientFile, JSON.stringify({ ...paired, lease }), { mode: 0o600 });
     } else {
       const client = JSON.parse(fs.readFileSync(clientFile, 'utf8')) as GatewayWhatsAppRelayStatus & { token: string; lease: string };
-      const response = await call(`/v1/pull?epoch=${client.epoch}&after=0`, undefined, client.token, client.lease); assert.equal(response.status, 200);
-      const { envelopes } = await response.json() as { envelopes: GatewayWhatsAppRelayEnvelope[] }; assert.equal(envelopes.length, 1); const event = envelopes[0];
-      assert.equal(event.sequence, 1); assert.equal(Buffer.from(event.bodyBase64, 'base64').toString(), raw); assert.equal(event.signature, signature);
-      // A local adapter must commit its receipt before this processing acknowledgement.
-      fs.writeFileSync(path.join(root, 'data', 'receipt.json'), JSON.stringify({ id: event.id, sequence: event.sequence }));
-      const ack = { epoch: client.epoch, through: event.sequence, eventId: event.id };
-      assert.equal((await call('/v1/ack', ack, client.token, client.lease)).status, 200); assert.equal((await call('/v1/ack', ack, client.token, client.lease)).status, 200);
-      assert.equal((await webhook()).status, 200);
-      const empty = await call(`/v1/pull?epoch=${client.epoch}&after=1`, undefined, client.token, client.lease); assert.equal((await empty.json() as { envelopes: unknown[] }).envelopes.length, 0);
-      assert.equal((await call('/admin/revoke', { acknowledgeDrop: true }, admin)).status, 200); assert.equal((await call('/v1/status', undefined, client.token)).status, 401);
+      type Application = typeof import('../server/gateways/whatsapp-intake.ts') & typeof import('../server/gateways/inbox.ts')
+        & typeof import('../server/gateways/state.ts') & typeof import('../server/gateways/instances.ts') & typeof import('../server/store.ts');
+      const app = await import(pathToFileURL(path.join(root, 'app', 'client.mjs')).href) as Application;
+      const instanceFile = path.join(root, 'data', 'instance.json');
+      const instance = mode === 'intake' ? app.saveGatewayInstance({
+        name: 'WhatsApp local proof', platform: 'whatsapp', accountId: phone, projectId: app.listProjects()[0].id, target: { kind: 'brain' },
+        senderPolicy: { platform: 'whatsapp', allowedPhones: ['+436641234567'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
+        fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: true,
+      }) : app.getGatewayInstance(JSON.parse(fs.readFileSync(instanceFile, 'utf8')) as string);
+      const state = new app.GatewayStateAdapter(instance.id); await state.connect();
+      try {
+        const inbox = new app.GatewayInbox(state); const intake = new app.WhatsAppRelayIntake(instance.id, inbox, business, appSecret);
+        const acknowledge = async (proof: import('../shared/types.ts').GatewayWhatsAppReceipt) => {
+          assert.equal(inbox.claimNext(), null, 'Native work must wait for a confirmed ACK');
+          const response = await call('/v1/ack', { epoch: proof.epoch, through: proof.sequence, eventId: proof.id }, client.token, client.lease);
+          assert.equal(response.status, 200); const { cursor } = await response.json() as { cursor: number };
+          return { epoch: proof.epoch, cursor };
+        };
+        if (mode === 'intake') {
+          fs.writeFileSync(instanceFile, JSON.stringify(instance.id)); inbox.bindWhatsAppRelay(client.epoch, client.cursor);
+          const response = await call(`/v1/pull?epoch=${client.epoch}&after=0`, undefined, client.token, client.lease); assert.equal(response.status, 200);
+          const { envelopes } = await response.json() as { envelopes: GatewayWhatsAppRelayEnvelope[] }; assert.equal(envelopes.length, 1); const event = envelopes[0];
+          assert.equal(event.sequence, 1); assert.equal(Buffer.from(event.bodyBase64, 'base64').toString(), raw); assert.equal(event.signature, signature);
+          await assert.rejects(intake.receive(client.epoch, event, async (proof) => {
+            assert.equal(inbox.list().length, 1); assert.equal(inbox.whatsAppRelayState()!.receipt!.confirmed, false);
+            await acknowledge(proof); throw new Error('Lost ACK response');
+          }), /Lost ACK response/);
+          assert.equal(inbox.claimNext(), null);
+        } else {
+          assert.equal(inbox.whatsAppRelayState()!.receipt!.confirmed, false);
+          await intake.confirmPending(acknowledge); assert.equal(inbox.whatsAppRelayState()!.cursor, 1);
+          assert.equal(inbox.claimNext()!.input.text, 'Relay proof'); assert.equal(inbox.claimNext(), null);
+          assert.equal((await webhook()).status, 200);
+          const empty = await call(`/v1/pull?epoch=${client.epoch}&after=1`, undefined, client.token, client.lease); assert.equal((await empty.json() as { envelopes: unknown[] }).envelopes.length, 0);
+          assert.equal((await call('/admin/revoke', { acknowledgeDrop: true }, admin)).status, 200); assert.equal((await call('/v1/status', undefined, client.token)).status, 401);
+        }
+      } finally { await state.disconnect(); }
     }
   } finally { await mf.dispose(); }
 }

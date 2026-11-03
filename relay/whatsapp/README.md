@@ -4,9 +4,10 @@ A separate Cloudflare Worker receives Meta webhooks and keeps a durable queue fo
 installation. Athena's dashboard stays on `127.0.0.1`; no tunnel, public dashboard route or model
 runtime runs here. SQLite-backed Durable Objects serialize queue changes across Worker replicas.
 
-This is the relay foundation. Athena cannot pair or enable WhatsApp yet. The local Chat SDK
-adapter, phone guards and verified business identity mappings, private media, replies, service-window
-checks and Settings controls are the next pieces. Deploying this Worker does not enable a gateway.
+This is the relay foundation. Athena cannot pair or enable WhatsApp yet. Local signature verification,
+exact phone guards and durable acknowledgement gates have offline integration proof. The Chat SDK
+transport, relay polling/recovery, verified business identity mappings, private media, replies,
+service-window checks and Settings controls are the next pieces. Deploying this Worker does not enable a gateway.
 
 Each deployment serves **one Meta Business app and one business phone**. Use a separate deployment
 for each WhatsApp instance. An original webhook body may contain several entries; forwarding such a
@@ -124,7 +125,11 @@ The local adapter must independently verify those signed bytes, authorize the co
 sender, and durably save its normalized receipt **before** acknowledging the relay. It must not
 start native work from an unconfirmed relay acknowledgement. No model run belongs in a webhook
 request. The relay cannot itself prove the computer committed a receipt; that is the local adapter's
-contract and still needs integration proof.
+contract. `server/gateways/whatsapp-intake.ts` and the application inbox implement this boundary.
+The smoke proof bundles these local modules into read-only files and runs them across separate
+processes against the real local Worker/SQLite runtime. It deliberately loses an ACK reply after
+remote commit, verifies local work is still blocked, then retries the saved ACK after process restart.
+No real provider account is used. Production polling and recovery controls remain pending.
 
 A consumer must claim a lease before pulling. A second claim, even with the same consumer UUID,
 is refused while the lease is active; pull/ack renew it. A lost claim response waits for lease expiry.

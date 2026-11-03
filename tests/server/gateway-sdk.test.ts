@@ -11,6 +11,7 @@ describe('pinned Chat SDK transport proof', () => {
   it.each(['bun', process.execPath])('proves the hosted WhatsApp relay across Node processes and read-only Worker files under %s', async (runtime) => {
     const { stdout } = await exec(runtime, ['scripts/gateways-whatsapp-relay-smoke.ts'], { env: process.env, timeout: 30000, windowsHide: true });
     expect(stdout).toContain('WhatsApp relay signed intake, process restart, commit-before-ack, replay, lease and revocation pass');
+    expect(stdout).toContain('WhatsApp bundled local intake holds work across a lost ACK reply and process restart');
   });
 
   it.each(['bun', process.execPath])('verifies Discord Gateway recovery and durable receipts under %s', async (runtime) => {
