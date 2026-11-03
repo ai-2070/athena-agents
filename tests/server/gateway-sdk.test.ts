@@ -13,6 +13,7 @@ describe('pinned Chat SDK transport proof', () => {
     expect(stdout).toContain('WhatsApp relay signed intake, process restart, commit-before-ack, replay, lease and revocation pass');
     expect(stdout).toContain('WhatsApp bundled local intake holds work across a lost ACK reply and process restart');
     expect(stdout).toContain('WhatsApp verified identity mappings survive restart and signed rotations hold old work');
+    expect(stdout).toContain('WhatsApp authenticated consumer restores its pinned relay and exact ACK across processes');
   });
 
   it.each(['bun', process.execPath])('verifies Discord Gateway recovery and durable receipts under %s', async (runtime) => {

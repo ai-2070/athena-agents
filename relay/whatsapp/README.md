@@ -5,9 +5,9 @@ installation. Athena's dashboard stays on `127.0.0.1`; no tunnel, public dashboa
 runtime runs here. SQLite-backed Durable Objects serialize queue changes across Worker replicas.
 
 This is the relay foundation. Athena cannot pair or enable WhatsApp yet. Local signature verification,
-exact phone guards, verified identity mappings and durable acknowledgement gates have offline integration proof. The Chat SDK
-transport, relay polling/recovery, private media, replies,
-service-window checks and Settings controls are the next pieces. Deploying this Worker does not enable a gateway.
+exact phone guards, verified identity mappings and durable acknowledgement gates have offline
+integration proof. The Chat SDK transport, private media, replies, service-window checks and Settings
+controls are the next pieces. Deploying this Worker does not enable a gateway.
 
 Each deployment serves **one Meta Business app and one business phone**. Use a separate deployment
 for each WhatsApp instance. An original webhook body may contain several entries; forwarding such a
@@ -129,7 +129,23 @@ contract. `server/gateways/whatsapp-intake.ts` and the application inbox impleme
 The smoke proof bundles these local modules into read-only files and runs them across separate
 processes against the real local Worker/SQLite runtime. It deliberately loses an ACK reply after
 remote commit, verifies local work is still blocked, then retries the saved ACK after process restart.
-No real provider account is used. Production polling and recovery controls remain pending.
+No real provider account is used. `server/gateways/whatsapp-relay.ts` now implements authenticated
+polling for explicitly paired instances. It pins the HTTPS origin, installation, business account,
+phone and epoch in the private inbox and never follows redirects. Pull and lease keys stay out of
+that journal. Status/claim/pull/ACK responses have bounded bodies, deadlines and versioned schemas.
+The consumer processes ordered batches of at most 20, commits each receipt before ACK and confirms
+lost ACK replies by matching the saved envelope ID at the relay, including after process restart.
+A pending body not yet acknowledged remotely must be pulled again under the new lease before ACK.
+Competing or expired leases wait for safe retry; a lost claim cannot silently take over its lease.
+
+The consumer polls every five seconds after startup and stops on an error for its owner to handle;
+retry errors carry a safe retry time where known. Shutdown aborts and drains the current request,
+then attempts a bounded lease release before giving up local ownership. A retention gap, changed
+epoch/account, unexpected cursor or invalid envelope saves a local review marker and holds queued
+work and pending delivery. Polling, ACK confirmation and manual message retries cannot clear it.
+Pairing/setup UI, explicit recovery controls and application worker integration remain pending;
+WhatsApp is still unavailable in Athena. No consumer operation calls the relay's administrative
+loss/revocation endpoints or advances a cursor just because status reported it.
 
 Local identity checks accept a business-scoped user ID only after a signed message or its unique,
 exactly matched provider contact ties that ID to an allowed phone. Contact cards, names, forwarded

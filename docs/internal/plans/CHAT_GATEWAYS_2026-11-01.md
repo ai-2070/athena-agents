@@ -454,8 +454,34 @@ New gateway data does not need a legacy compatibility layer.*
 - Validation: type checks and all 2,263 tests passed (one skipped) with CI's two-worker limit;
   desktop staging and smoke passed. The initial four-worker run had one gateway lifecycle startup
   status mismatch; it passed in the focused and complete reruns. No startup/ownership code was changed.
-- Next: implement the WhatsApp Chat SDK transport, authenticated
-  relay polling and recovery, local media downloads, service-window replies/files and pairing/setup UI. Then
+- Added the authenticated local WhatsApp relay consumer. Explicit pairing pins the HTTPS origin,
+  installation, business account, phone and epoch in the claimed private inbox; status responses
+  cannot replace them or reset its cursor. Bearer/lease keys stay out of that journal. Requests use
+  fixed protocol paths, reject redirects, omit browser credentials and enforce ten-second deadlines
+  and bounded response bytes (64 KiB for controls, 2 MiB for pulls). Shared version-one schemas bound
+  metadata, limits and batches of at most 20 original signed envelopes.
+- Polling commits each normalized receipt before its remote ACK. On restart, a still-pending body
+  is pulled under the new lease before acknowledgement; when the remote ACK already committed, an
+  idempotent ACK must confirm that exact saved envelope ID before local work is released. A status
+  cursor alone never releases work. Competing/expired leases and temporary outages return redacted
+  retry errors with safe wait times; there are no hidden request retries. The consumer polls every
+  five seconds after start and stops on failure for its owner to handle. Stop aborts/drains in-flight
+  work, then makes a bounded release attempt before freeing its in-process ownership claim.
+- Retention gaps, changed paired identities/epochs, unexpected cursors and malformed envelopes save
+  a durable local review marker and hold existing work and pending delivery. Ordinary polling,
+  message retry and ACK confirmation cannot clear this marker or accept loss. No consumer request
+  uses administrative recovery/revocation credentials or drops queued bodies. Product review and
+  re-pairing controls remain pending, so WhatsApp stays unavailable in the application worker.
+- Consumer tests cover ordered bounded batches, exact ACK recovery on both sides of remote commit,
+  changed accounts/cursors, missing/invalid bodies, local write failure, competing/expired leases,
+  secret-safe HTTP errors, stalled bodies, shutdown during ACK and timer cleanup. The read-only
+  bundled, separate-process Worker/SQLite proof now uses the actual consumer for authenticated
+  status, claim, pull and ACK operations, preserving the lost-reply and identity-rotation checks.
+- Validation: full checks passed with CI's two-worker limit (2,297 tests, one skipped), followed by
+  56 passing consumer/inbox/bundled-proof tests after requiring the protocol's exact HTTP 200 ACK.
+  Type checks, desktop staging and desktop smoke passed. No service was deployed or account used.
+- Next: implement the WhatsApp Chat SDK transport, local media downloads, service-window
+  replies/files, pairing/setup UI and explicit recovery controls. Then
   finish unified delivery and product controls. Read-only setup checks, native-work override controls
   and explicit webhook switching still need product setup. Deleted instances retain private inbox
   receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks

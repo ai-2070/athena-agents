@@ -194,6 +194,17 @@ export interface GatewayWhatsAppIntakeState {
   cursor: number;
   receipt?: GatewayWhatsAppReceipt & { confirmed: boolean; accepted: number; ignored: number; unmatchedSenders: number };
   identities?: GatewayWhatsAppIdentities;
+  connection?: GatewayWhatsAppRelayConnection;
+  recovery?: { at: number; reason: 'gap' | 'cursor' | 'epoch' | 'installation' | 'envelope' };
+}
+
+/** Private paired identity. Pull/lease tokens are stored separately or kept in memory. */
+export interface GatewayWhatsAppRelayConnection {
+  origin: string;
+  installationId: string;
+  businessAccountId: string;
+  phoneNumberId: string;
+  epoch: string;
 }
 
 /** Scoped to one instance, business account and relay epoch; retired IDs are never reused. */

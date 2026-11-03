@@ -5,15 +5,10 @@ import { whatsAppSenderPhone } from '../../shared/gateway-whatsapp.ts';
 import { getGatewayInstance } from './instances.ts';
 import type { GatewayInbox } from './inbox.ts';
 import { WhatsAppIdentities } from './whatsapp-identities.ts';
+import { whatsAppRelayEnvelopeSchema } from '../../shared/gateway-whatsapp-relay.ts';
 
 const id = z.string().min(1).max(500);
 const accountId = z.string().regex(/^[1-9]\d{0,29}$/);
-const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
-const envelopeSchema = z.strictObject({
-  sequence: stamp.positive(), id: z.string().regex(/^[a-f0-9]{64}$/), receivedAt: stamp, expiresAt: stamp,
-  bodyBase64: z.string().min(4).max(1398104), signature: z.string().regex(/^sha256=[a-f0-9]{64}$/),
-  contentType: z.string().max(200).regex(/^application\/json(?:\s*;\s*charset=utf-8)?$/i),
-});
 const media = z.object({ id, mime_type: z.string().max(200), caption: z.string().max(65536).optional(), filename: z.string().max(512).optional() });
 const optionalIdentity = z.string().max(500).optional();
 const timestamp = z.string().regex(/^[1-9]\d{0,12}$/);
@@ -96,7 +91,7 @@ export class WhatsAppRelayIntake {
 
   private verify(value: unknown): { sequence: number; id: string; inputs: GatewayInbound[]; ignored: number; unmatchedSenders: number; identities: GatewayWhatsAppIdentities } {
     try {
-      const envelope = envelopeSchema.parse(value); const body = Buffer.from(envelope.bodyBase64, 'base64');
+      const envelope = whatsAppRelayEnvelopeSchema.parse(value); const body = Buffer.from(envelope.bodyBase64, 'base64');
       if (body.length > 1024 * 1024 || body.toString('base64') !== envelope.bodyBase64 || envelope.expiresAt <= envelope.receivedAt
         || crypto.createHash('sha256').update(envelope.bodyBase64).digest('hex') !== envelope.id) throw new WhatsAppIntakeError();
       const signature = Buffer.from(envelope.signature.slice(7), 'hex');
