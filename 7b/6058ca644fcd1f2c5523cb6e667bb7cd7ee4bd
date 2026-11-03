@@ -1,0 +1,49 @@
+web/app.ts
+  s_d3db9ebe8d99bd::t_9e236ce6237ce3 11,66,81
+  s_d3db9ebe8d99bd::t_126a567bbcea0c 69
+web/views/overview.tsx
+  s_d3db9ebe8d99bd::t_9ed35e10afd486 1-244,246-282
+  s_d3db9ebe8d99bd::t_40d60ce6a824c6 245
+web/views/home.tsx
+  s_d3db9ebe8d99bd::t_9e236ce6237ce3 1
+shared/types.ts
+  s_d3db9ebe8d99bd::t_5b4582f6cd9879 941-942
+  s_d3db9ebe8d99bd::t_5bb52715984f4f 1675-1711
+tests/web/overview.test.tsx
+  s_d3db9ebe8d99bd::t_34b2f3cb197c9a 1-24,26-34,36-57,61-74,77-118,121-127,129-135
+  s_d3db9ebe8d99bd::t_40d60ce6a824c6 25,35,58-60,75-76,119-120,128
+server/overview.ts
+  s_d3db9ebe8d99bd::t_664c5be0506d38 12,90
+  s_d3db9ebe8d99bd::t_e1b75d96545e0f 1-11,13-89,91-115
+tests/server/overview.test.ts
+  s_d3db9ebe8d99bd::t_68ee083aa2536a 1-2,5-39,41,45-65
+  s_d3db9ebe8d99bd::t_97818927a7fe7d 3-4,40,42-44
+docs/guide.md
+  s_d3db9ebe8d99bd::t_90fe16b0585344 119-130
+README.md
+  s_d3db9ebe8d99bd::t_90fe16b0585344 173
+docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md
+  s_d3db9ebe8d99bd::t_267949617c6700 1-270
+server/taskboard.ts
+  s_d3db9ebe8d99bd::t_664c5be0506d38 98-103
+server/approvals.ts
+  s_d3db9ebe8d99bd::t_5b4582f6cd9879 76,98,135
+server/index.ts
+  s_d3db9ebe8d99bd::t_664c5be0506d38 47,530-531
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7b6058ca644fcd1f2c5523cb6e667bb7cd7ee4bd",
+  "prompts": {},
+  "sessions": {
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
