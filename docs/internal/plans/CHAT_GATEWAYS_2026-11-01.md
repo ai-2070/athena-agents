@@ -480,8 +480,32 @@ New gateway data does not need a legacy compatibility layer.*
 - Validation: full checks passed with CI's two-worker limit (2,297 tests, one skipped), followed by
   56 passing consumer/inbox/bundled-proof tests after requiring the protocol's exact HTTP 200 ACK.
   Type checks, desktop staging and desktop smoke passed. No service was deployed or account used.
-- Next: implement the WhatsApp Chat SDK transport, local media downloads, service-window
-  replies/files, pairing/setup UI and explicit recovery controls. Then
+- Added the pinned WhatsApp Chat SDK adapter and read-only Graph `v25.0` phone/account checks. The
+  token must resolve the configured phone ID and list it under the paired business account before
+  media access is available. Account paging follows only bounded encoded cursors on fixed paths
+  (ten pages of 100), never provider next URLs; JSON responses are capped at 64 KiB. SDK logs are
+  muted. The public SDK webhook, default sends/uploads and buffered media helper are blocked so
+  they cannot bypass the relay receipt, phone guards or the future service-window delivery ledger.
+- Signed media SHA-256 values now normalize from hex/base64 into canonical hex descriptors. Local
+  downloads require an acknowledged saved event, its exact original descriptor/route, verified Meta
+  account and current sender/identity access before metadata and binary I/O and while streaming.
+  Metadata ID, MIME and size are checked; both metadata and final byte hashes must match the signed
+  source. Older media without a signed hash requires a resend. Only fixed Graph and trusted Meta
+  CDN host families may receive the Meta bearer token; URLs stay ephemeral, HTTPS/redirect checks
+  are strict, and a transfer has a 45-second deadline. Per-file, message and daily reservations use
+  the existing bound-project upload stage; current limits can further lower the 5 MiB image,
+  16 MiB audio/video and 20 MiB local document caps. No partial or unverified file is published.
+- Tests use local HTTP fixtures for wrong phone/business/permissions, bounded paging, signed hashes,
+  mismatched metadata, redirects, length/MIME/encoding faults, short/long/corrupt streams, missing
+  signed proof, sender revocation, reduced limits and shutdown. A separate proof runs the actual SDK
+  and hash-checked file stage under Bun and Node and from a bundled read-only app outside the repo,
+  with temporary home/data, no live account, no sends and no model invocation. It proves no metadata
+  download before ACK, safe file names, original-project storage and default SDK bypass refusal.
+- Validation: type checks and all 2,331 tests passed (one skipped) using CI's two-worker limit;
+  desktop staging and smoke passed. The relay and dashboard were not deployed or connected to a
+  real WhatsApp account. Application transport remains unavailable pending replies and setup.
+- Next: implement WhatsApp service-window replies/files, application transport wiring, pairing/setup
+  UI and explicit recovery controls. Then
   finish unified delivery and product controls. Read-only setup checks, native-work override controls
   and explicit webhook switching still need product setup. Deleted instances retain private inbox
   receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks

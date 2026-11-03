@@ -53,7 +53,8 @@
     "desktop:build": "tauri build",
     "desktop:smoke": "bun scripts/desktop-smoke.ts",
     "relay:build": "bun scripts/build-whatsapp-relay.ts",
-    "gateways:whatsapp-relay-smoke": "bun scripts/gateways-whatsapp-relay-smoke.ts"
+    "gateways:whatsapp-relay-smoke": "bun scripts/gateways-whatsapp-relay-smoke.ts",
+    "gateways:whatsapp-media-smoke": "bun scripts/gateways-whatsapp-media-smoke.ts"
   },
   "engines": {
     "bun": ">=1.4"

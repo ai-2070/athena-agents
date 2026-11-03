@@ -8,6 +8,21 @@ import { dataPath } from '../../server/util.ts';
 const exec = promisify(execFile);
 
 describe('pinned Chat SDK transport proof', () => {
+  it.each(['bun', process.execPath])('verifies WhatsApp account and private media under %s', async (runtime) => {
+    const { stdout } = await exec(runtime, ['scripts/gateways-whatsapp-media-smoke.ts'], { env: process.env, timeout: 20000, windowsHide: true });
+    expect(stdout).toContain('WhatsApp SDK account checks, ACK-gated private media, signed hash and bound project pass');
+  });
+
+  it('runs the bundled WhatsApp media adapter from read-only files outside the checkout', async () => {
+    const directory = dataPath('whatsapp-media-bundle'); fs.mkdirSync(directory, { recursive: true }); const file = path.join(directory, 'proof.mjs');
+    await exec('bun', ['build', 'scripts/gateways-whatsapp-media-smoke.ts', '--target=node', '--outfile', file], { env: process.env, timeout: 20000, windowsHide: true });
+    fs.chmodSync(file, 0o444); fs.chmodSync(directory, 0o555);
+    try {
+      const { stdout } = await exec(process.execPath, [file], { cwd: directory, env: process.env, timeout: 20000, windowsHide: true });
+      expect(stdout).toContain('WhatsApp SDK account checks, ACK-gated private media, signed hash and bound project pass');
+    } finally { fs.chmodSync(directory, 0o755); fs.chmodSync(file, 0o644); }
+  });
+
   it.each(['bun', process.execPath])('proves the hosted WhatsApp relay across Node processes and read-only Worker files under %s', async (runtime) => {
     const { stdout } = await exec(runtime, ['scripts/gateways-whatsapp-relay-smoke.ts'], { env: process.env, timeout: 30000, windowsHide: true });
     expect(stdout).toContain('WhatsApp relay signed intake, process restart, commit-before-ack, replay, lease and revocation pass');

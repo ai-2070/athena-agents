@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import type { GatewayInbound, GatewayWhatsAppIdentities, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt } from '../../shared/types.ts';
-import { whatsAppSenderPhone } from '../../shared/gateway-whatsapp.ts';
+import { whatsAppMediaHash, whatsAppSenderPhone } from '../../shared/gateway-whatsapp.ts';
 import { getGatewayInstance } from './instances.ts';
 import type { GatewayInbox } from './inbox.ts';
 import { WhatsAppIdentities } from './whatsapp-identities.ts';
@@ -9,7 +9,7 @@ import { whatsAppRelayEnvelopeSchema } from '../../shared/gateway-whatsapp-relay
 
 const id = z.string().min(1).max(500);
 const accountId = z.string().regex(/^[1-9]\d{0,29}$/);
-const media = z.object({ id, mime_type: z.string().max(200), caption: z.string().max(65536).optional(), filename: z.string().max(512).optional() });
+const media = z.object({ id, mime_type: z.string().max(200), caption: z.string().max(65536).optional(), filename: z.string().max(512).optional(), sha256: z.string().max(100).optional() });
 const optionalIdentity = z.string().max(500).optional();
 const timestamp = z.string().regex(/^[1-9]\d{0,12}$/);
 const message = z.object({
@@ -151,9 +151,11 @@ export class WhatsAppRelayIntake {
           else {
             const attachment = raw.type === 'image' ? raw.image : raw.type === 'document' ? raw.document : raw.type === 'audio' ? raw.audio : raw.type === 'voice' ? raw.voice : raw.type === 'video' ? raw.video : undefined;
             if (!attachment) { ignored++; continue; }
+            const sha256 = attachment.sha256 === undefined ? undefined : whatsAppMediaHash(attachment.sha256);
+            if (sha256 === null) throw new WhatsAppIntakeError();
             input.text = attachment.caption ?? '';
             input.media = [{ kind: raw.type === 'document' ? 'file' : raw.type === 'voice' ? 'audio' : raw.type as 'image' | 'audio' | 'video',
-              fileId: attachment.id, mimeType: attachment.mime_type, ...(attachment.filename ? { name: attachment.filename } : {}) }];
+              fileId: attachment.id, mimeType: attachment.mime_type, ...(attachment.filename ? { name: attachment.filename } : {}), ...(sha256 ? { sha256 } : {}) }];
           }
           inputs.push(input);
         }

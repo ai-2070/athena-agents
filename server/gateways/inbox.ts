@@ -50,7 +50,7 @@ const inboundSchema: z.ZodType<GatewayInbound> = z.strictObject({
   mediaGroupId: externalId.optional(),
   media: z.array(z.strictObject({
     kind: z.enum(['image', 'file', 'audio', 'video']), fileId: externalId,
-    name: z.string().max(512).optional(), mimeType: z.string().max(200).optional(), size: stamp.optional(),
+    name: z.string().max(512).optional(), mimeType: z.string().max(200).optional(), size: stamp.optional(), sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   })).max(10),
 });
 const replyPart = z.strictObject({ text: z.string().min(1).max(3000), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed']), attempts: stamp, remoteId: externalId.optional(), retryAt: stamp.optional() });

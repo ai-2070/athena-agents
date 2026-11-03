@@ -6,8 +6,9 @@ runtime runs here. SQLite-backed Durable Objects serialize queue changes across 
 
 This is the relay foundation. Athena cannot pair or enable WhatsApp yet. Local signature verification,
 exact phone guards, verified identity mappings and durable acknowledgement gates have offline
-integration proof. The Chat SDK transport, private media, replies, service-window checks and Settings
-controls are the next pieces. Deploying this Worker does not enable a gateway.
+integration proof. The local Chat SDK adapter also checks the configured Meta phone/business account
+and saves hash-verified private media. Replies, service-window checks, application transport wiring
+and Settings controls are the next pieces. Deploying this Worker does not enable a gateway.
 
 Each deployment serves **one Meta Business app and one business phone**. Use a separate deployment
 for each WhatsApp instance. An original webhook body may contain several entries; forwarding such a
@@ -157,6 +158,23 @@ aliases stay blocked and bounded retired-ID records prevent delayed messages fro
 An update without a usable signed timestamp, or an incomplete/ambiguous rotation, stops local intake
 without ACK for later review. Recovery controls for these cases remain pending; WhatsApp stays
 unavailable in the application worker. Subscribe the Meta app to both supported webhook fields.
+
+The local `WhatsAppGatewayAdapter` pins the SDK/Graph API to `v25.0`, verifies the token's phone ID
+and membership in the paired business account with read-only requests, and never follows paging
+URLs. Its public webhook and default SDK sends/downloads are blocked; verified relay intake remains
+the only inbound route. Account paging is bounded to ten pages of 100 and JSON responses to 64 KiB.
+
+Incoming media keeps only the provider ID, name, MIME type and canonical signed hash in the inbox.
+The local adapter checks that receipt and current sender/route before obtaining fresh metadata and
+again while streaming. Metadata ID, MIME type, size and SHA-256 must agree with the saved descriptor;
+HTTP headers, byte count and the completed binary digest are checked before the upload writer can
+publish a file. Hex and canonical base64 provider hashes normalize to the same hex receipt. Older
+media without a signed hash fails closed and needs a resend. Download URLs never enter the journal
+or relay; the outbound Meta token only goes to the fixed Graph host and trusted Meta CDN families,
+with HTTPS, no credentials in URLs, no redirects and a 45-second transfer deadline. Local fixture
+origins are test-only constructor options. Current app limits can be lower than the provider limits:
+images cap at 5 MiB, audio/video at 16 MiB, documents at the app's 20 MiB. Failed/incomplete bytes
+stay unpublished and hold the assignment; retries keep the inbox's normal quota accounting.
 
 A consumer must claim a lease before pulling. A second claim, even with the same consumer UUID,
 is refused while the lease is active; pull/ack renew it. A lost claim response waits for lease expiry.

@@ -146,7 +146,7 @@ export interface GatewayInbound {
   triggered: boolean;
   mediaGroupId?: string;
   text: string;
-  media: { kind: 'image' | 'file' | 'audio' | 'video'; fileId: string; name?: string; mimeType?: string; size?: number }[];
+  media: { kind: 'image' | 'file' | 'audio' | 'video'; fileId: string; name?: string; mimeType?: string; size?: number; sha256?: string }[];
 }
 
 export interface GatewayConversationBinding {
