@@ -107,7 +107,7 @@
     "simple-icons": "16.36.0",
     "tailwindcss": "4.3.4",
     "typescript": "7.0.2",
-    "vitest": "5.0.5"
+    "vitest": "5.1.0"
   },
   "patchedDependencies": {
     "@workflow/world-local@5.1.2": "patches/@workflow%2Fworld-local@5.1.2.patch"
