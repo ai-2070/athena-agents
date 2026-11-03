@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Athena Agents",
   "version": "../package.json",
-  "identifier": "com.ai2070.blacksite",
+  "identifier": "com.ai2070.athena-agents",
   "build": {
     "beforeDevCommand": { "script": "bun scripts/build-desktop.ts", "wait": true },
     "beforeBuildCommand": "bun scripts/build-desktop.ts",
@@ -33,12 +33,8 @@
     "copyright": "ai-2070",
     "homepage": "https://github.com/ai-2070/athena-agents",
     "windows": {
-      "nsis": { "installMode": "currentUser", "installerHooks": "windows/hooks.nsh" },
-      "wix": { "upgradeCode": "c7b8d63b-6fdf-5531-b218-e4a635e08312" }
-    },
-    "linux": {
-      "deb": { "conflicts": ["blacksite"], "replaces": ["blacksite"] },
-      "rpm": { "conflicts": ["blacksite"], "obsoletes": ["blacksite"] }
+      "nsis": { "installMode": "currentUser" },
+      "wix": { "upgradeCode": "1a9f261c-cc98-5ec6-a29f-1325623fd415" }
     },
     "macOS": {
       "minimumSystemVersion": "11.0",

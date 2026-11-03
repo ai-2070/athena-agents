@@ -5,7 +5,7 @@ view, read `README.md`; `docs/guide.md` is the long version of it.
 
 ## What this is
 
-**Athena Agents** (called Blacksite until the redesign; the desktop app's bundle identifier, and so its data folder, still use that name, and the server still finds project and backup folders made under it): a local, login-free command center for AI agents. A Bun + TypeScript server
+**Athena Agents** (called Blacksite until the redesign; the server still finds project and backup folders made under that name): a local, login-free command center for AI agents. A Bun + TypeScript server
 (`server/`) on `127.0.0.1:4800` and a browser app (`web/`) bundled into `public/dist`. All user
 state is plain JSON under `data/` (git-ignored). Mainly used on Windows; CI also runs on Linux.
 

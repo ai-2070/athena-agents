@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { brainAsAgent, brainSettingFromChoice, modelInfo, tabOf } from '../../web/models.tsx';
-import { ACCENTS, applyLook } from '../../web/look.ts';
+import { ACCENTS, applyLook, uiZoom } from '../../web/look.ts';
 
 describe('modelInfo()', () => {
   it('names Claude models with family and version, and marks "always latest"', () => {
@@ -50,6 +50,21 @@ describe('applyLook()', () => {
     expect(document.documentElement.style.zoom).toBe('1.6');
     applyLook({ scale: 100 });
     expect(document.documentElement.style.zoom).toBe('');
+  });
+
+  it('leaves the scale to the window in the desktop app on WebKit', () => {
+    const w = window as { __athenaPageZoom?: boolean };
+    w.__athenaPageZoom = true;
+    try {
+      applyLook({ scale: 125 });
+      expect(document.documentElement.style.zoom).toBe('');
+      expect(uiZoom()).toBe(1);
+    } finally {
+      delete w.__athenaPageZoom;
+    }
+    applyLook({ scale: 125 });
+    expect(document.documentElement.style.zoom).toBe('1.25');
+    applyLook({ scale: 100 });
   });
 
   it('turns reduced motion on and off', () => {
