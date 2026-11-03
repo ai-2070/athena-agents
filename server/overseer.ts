@@ -2033,6 +2033,9 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false,
   const gen = generation(key);
   const stopsAtStart = stopCount(key);
   const switchesAtStart = projectSwitches();
+  // asked in a project that isn't open (another project's Brain in an Overview pane, /api/p/<project>/brain/stream):
+  // the request names its project, so opening another one meanwhile doesn't make its answer stale
+  const elsewhere = openProject().id !== p.id;
   const bm = brainModel();
   const canRead = bm.provider === 'claude' || bm.provider === 'codex';
   const snap = await snapshot({ fileBudget: canRead ? 6000 : 12000, conversationId });
@@ -2103,7 +2106,7 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false,
   const skipped: BrainDone = { kind: 'error', text: `You switched projects while the Brain was thinking, so nothing was changed. Open "${p.name}" and ask again.` };
   // (a new conversation started while installs or model lists were fetched: the same, and nothing is kept)
   const cleared = () => generation(key) !== gen;
-  const stale = () => (conversationId ? proceed?.() === false : projectSwitches() !== switchesAtStart || openProject().id !== p.id) || cleared();
+  const stale = () => (conversationId ? proceed?.() === false : !elsewhere && (projectSwitches() !== switchesAtStart || openProject().id !== p.id)) || cleared();
   // the user's own words in this chat: GitHub links and MCP server settings are checked against them
   const userWords = [text, ...past.filter((m) => m.role === 'user').map((m) => m.text)].join('\n');
   // GitHub installs first (they download), with the user's own words to check the links against; a
