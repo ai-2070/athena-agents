@@ -1,12 +1,16 @@
 # Tasks board: assigned agents and teams pick up their tasks
 
-3 November 2026. Plan for `LZL0/task-board` (PR #115). Not built yet.
+3 November 2026. Plan for the Tasks board, which is on `main` since PR #121. Not built yet.
 
 **Rewritten the same day to build on [Gateways](CHAT_GATEWAYS_2026-11-01.md) (`LZL0/gateways`, PR #112).** Gateways
 already hands a piece of outside work (a Telegram, Slack or Discord message) to the Brain, an agent or a team, gives it a
 conversation of its own, follows it until it is finished, and takes files in and out with strict checks. A board task
 handed to its assignee is the same job with a different source, so this plan reuses those parts instead of building a
-second copy. **Build it after PR #112 lands, with `LZL0/task-board` rebased onto it.**
+second copy. **Build it on a new branch from `main` after PR #112 lands.**
+
+Last checked against `LZL0/gateways` at `c24e0f3` (3 November, 09:05). The newer commits add WhatsApp, turn Discord
+on and add review screens for lost Discord and WhatsApp messages. None of the parts in the table below changed. What
+changed around them is in [Since the last check](#since-the-last-check).
 
 ## What we want
 
@@ -43,6 +47,28 @@ comment.
   dashboard; sending a file out of a gateway is `high`.
 - **Restarts and crashes:** the operation id is saved before work starts, and a run or message that can't be
   confirmed puts the task in **Needs review** instead of starting it again (the gateway inbox's rule).
+
+## Since the last check
+
+- **The board is on `main`, Gateways isn't.** PR #121 merged the board (up to `b7af798`). This plan's rewrite is only on
+  `LZL0/task-board`; it ships with the build branch.
+- **PR #112 now conflicts with `main`** in four files. `README.md`, `package.json` and `bun.lock` keep both sides: new
+  sections and dependency updates. `server/overseer.ts` needs a decision, in `snapshot()`:
+  - Gateways hides **SAVED TASKS** in a private conversation (`(not included in private conversation snapshots)`), like
+    approvals, questions, activity and memory. `main` added a **TASK BOARD** line next to it.
+  - Resolve it the same way: hide the board in private conversations. A Brain answering a Telegram, Slack or Discord
+    message then doesn't see the user's whole board.
+  - The board build later adds one exception: a `board-<taskId>` conversation sees that one task (see [The Brain](#the-brain)).
+- **The Brain's actions aren't scoped by conversation.** `applyActions(actions, p, { seenSkills, userWords })` isn't told
+  the conversation, so a Brain in a gateway chat can still use `board_add`, `board_update`, `board_comment` and
+  `board_remove` if it knows a task's number. The board build passes `conversationId` into `applyActions`:
+  - in a `board-<taskId>` conversation, the board actions only touch that task;
+  - in any other private conversation, they're refused with "The Tasks board isn't available in this conversation."
+  - (Open question 6.)
+- **Discord is on**, next to Telegram and Slack. WhatsApp is built but stays off. The board needs nothing from either.
+- **The review pattern to copy.** Discord's and WhatsApp's recovery screens send back the revision the user saw and
+  refuse it if anything changed since. **Check saved work** does the same: the request carries the work's
+  `operationId` and `briefRevision`, and the server refuses it if either changed ("This work changed meanwhile").
 
 ## Decisions
 
@@ -146,7 +172,8 @@ and every second. For each task whose work is `working` or `waiting`, it calls `
     on the task, reopens the same brief (`resumeBrief`), and the card goes back to In progress.
 - **needs-review** (a changed brief, missing evidence, an engine error): `state: 'needs-review'`, a comment saying
   what to check, and a **Check saved work** action that calls `assignments.reconcile()`. As in the gateway inbox, it
-  never starts the work again; you choose Start again.
+  never starts the work again; you choose Start again. The request carries the `operationId` and `briefRevision` the
+  page showed, and is refused if either changed, as the gateway recovery screens do.
 - **Unfinished after the worker said In review:** the brief stays open and the Brain follows up. The loop puts the card
   back to In progress with a comment.
 - **On startup:** after `recoverWork()`, the loop goes through every project's board and reconciles `starting` and
@@ -218,6 +245,12 @@ Gateways has no screen that opens a private chat or thread yet. Agent private ch
 hands work out with `delegate`. The Brain also doesn't see private task conversations in its main snapshot (Gateways'
 scoping), which is right: the task's comments are where it reads them.
 
+In private conversations:
+- **Snapshot:** the board is hidden, as SAVED TASKS is. In a `board-<taskId>` conversation, the TASK BOARD line holds
+  only that task.
+- **Actions:** `applyActions` gets `conversationId`. Board actions in a `board-<taskId>` conversation act only on that
+  task. In any other private conversation they're refused.
+
 ### Backups and project copies
 
 Uploads are in neither `.dashbackup` nor `<project>/.dashboard` today.
@@ -237,6 +270,8 @@ Uploads are in neither `.dashbackup` nor `<project>/.dashboard` today.
   They are copied, never moved.
 - Tools act only on the task their own run's conversation names, and are refused for stopped or missing runs or another
   agent's. A private conversation can't read or relay into another.
+- The Brain in a gateway chat (Telegram, Slack, Discord) neither sees nor changes the board. In a task's own
+  conversation it sees and changes only that task.
 - Work happens in the task's own project (`withProject`), whichever is open. A deleted project, agent or team puts the
   work in needs-review, as Gateways does with a changed route.
 
@@ -244,9 +279,11 @@ Uploads are in neither `.dashbackup` nor `<project>/.dashboard` today.
 
 Everything ships together. This is the order to build and review it in:
 
-1. **Rebase** `LZL0/task-board` onto `main` once PR #112 has landed.
+1. **Branch from `main`** once PR #112 has landed. The board is already there. When #112 is merged with `main`, its
+   `snapshot()` conflict is resolved by hiding the board in private conversations.
 2. **Take out the shared code:** `assignments.ts` and `deliverables.ts` from the gateway modules, and
-   `LocalConversation`. Gateway tests must pass unchanged.
+   `LocalConversation`. Gateway tests must pass unchanged. Pass `conversationId` into `applyActions` and scope the board
+   actions and the TASK BOARD line by it.
 3. **Files in:** the data shape, copies into the task's project, the file route, the tray, chips and previews, and backups.
 4. **Agents:** `boardwork.ts` (save first, start, the loop, settle, restart, reconcile), Stop, comments while working,
    the Work box, the card marks, and Open chat.
@@ -269,6 +306,8 @@ Everything ships together. This is the order to build and review it in:
     links and hard links are refused, and accepted files are copied with their hash. The answer fallback attaches only
     files that pass the checks.
   - Scoping: two tasks on one team keep separate threads, and neither's worker can search the other.
+  - Brain scoping: a gateway conversation's snapshot has no board and its board actions are refused; a
+    `board-<taskId>` conversation sees and changes only that task. Check saved work with an old revision is refused.
   - Steering: your comment while working reaches the agent's chat or the team's private thread. Stop ends the work and
     marks it stopped.
   - Files in: a task in another project gets copies; the file route refuses paths not on the task; backups include
@@ -287,3 +326,6 @@ Everything ships together. This is the order to build and review it in:
    could pick up its own tasks the same way. Include it?
 4. **Backups:** include task files up to 500 MB (the plan), always, or never?
 5. **Cost:** each finished turn adds one Brain model call for the completion check, the same as other supervised work.
+6. **The board from a gateway chat:** the plan hides the board from a Brain answering Telegram, Slack or Discord, and
+   refuses its board actions there, as Gateways does with saved tasks. Should someone you allow on Telegram be able to
+   add a task ("add a task to fix the login page")? If so, allow `board_add` only, into the conversation's project.
